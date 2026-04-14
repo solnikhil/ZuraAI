@@ -16,7 +16,7 @@ import {
 import type { AppRuntimeInfo } from '../electron'
 import { useChatHistory } from '../contexts/ChatHistoryContext'
 import { useSettings } from '../contexts/SettingsContext'
-import { Info } from './icons'
+import { List } from './icons'
 import { computeUsageStats, type UsageProvider } from './Settings/sections/usageMetrics'
 import { useToast } from './shared/Toast'
 
@@ -42,7 +42,17 @@ function extractUpdateVersion(result: unknown): string | null {
     : null
 }
 
-export default function TitleBarInfoMenu() {
+interface TitleBarInfoMenuProps {
+  hasUnsavedSettings: boolean
+  isSettingsView: boolean
+  setDashboardView: (view: 'chat' | 'settings') => void
+}
+
+export default function TitleBarInfoMenu({
+  hasUnsavedSettings,
+  isSettingsView,
+  setDashboardView,
+}: TitleBarInfoMenuProps) {
   const { showToast } = useToast()
   const { sessions } = useChatHistory()
   const { settings } = useSettings()
@@ -126,6 +136,7 @@ export default function TitleBarInfoMenu() {
   }, [showToast])
 
   const isPackaged = appInfo?.isPackaged ?? false
+  const settingsButtonDisabled = isSettingsView && hasUnsavedSettings
 
   const handleCheckForUpdates = useCallback(async () => {
     if (!window.updater) {
@@ -175,6 +186,17 @@ export default function TitleBarInfoMenu() {
     })
   }, [showToast])
 
+  const handleSettingsToggle = useCallback(() => {
+    if (isSettingsView) {
+      if (!hasUnsavedSettings) {
+        setDashboardView('chat')
+      }
+      return
+    }
+
+    setDashboardView('settings')
+  }, [hasUnsavedSettings, isSettingsView, setDashboardView])
+
 const handleToggleOverlay = useCallback(() => {
     if (!window.overlay?.toggle) {
       showToast('Overlay is not available in this environment.', 'error')
@@ -199,9 +221,7 @@ const handleToggleOverlay = useCallback(() => {
           aria-label="Open app info menu"
           title="App info"
         >
-          <span className="app-titlebar__info-trigger-core">
-            <Info size={14} />
-          </span>
+          <List size={16} />
         </button>
       </DropdownMenuTrigger>
 
@@ -211,6 +231,22 @@ const handleToggleOverlay = useCallback(() => {
         className="w-52 rounded-lg border border-border/80 bg-popover p-1"
       >
         <DropdownMenuGroup>
+          <DropdownMenuItem
+            className="flex cursor-pointer items-center rounded-md px-2 py-1.5 text-xs"
+            disabled={settingsButtonDisabled}
+            onSelect={() => {
+              handleSettingsToggle()
+            }}
+          >
+            <span className="truncate">
+              {settingsButtonDisabled
+                ? 'Save or discard changes first'
+                : isSettingsView
+                  ? 'Back to chat'
+                  : 'Open settings'}
+            </span>
+          </DropdownMenuItem>
+
           <DropdownMenuSub>
             <DropdownMenuSubTrigger className="flex items-center rounded-md px-2 py-1.5 text-xs">
               <span className="truncate">Provider API Calls</span>

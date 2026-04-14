@@ -30,6 +30,7 @@ export {
   Settings as SettingsIcon,
   PanelLeft,
   LayoutDashboard,
+  List,
   ChartNoAxesCombined,
   FileEdit,
   Edit2,
@@ -48,6 +49,7 @@ export {
   Paintbrush,
   Bell,
   Play,
+  Square,
   ShieldCheck,
 } from 'lucide-react'
 

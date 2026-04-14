@@ -453,16 +453,28 @@
     animation: infoPopoverIn var(--motion-duration-normal) var(--motion-ease-emphasized) both;
 }
 
-.info-trigger-btn {
+.assistant-message-icon-button {
     position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 26px;
-    height: 26px;
+    width: 28px;
+    height: 28px;
+    padding: 6px;
+    border-radius: 8px;
+    flex-shrink: 0;
+    line-height: 1;
+    appearance: none;
+    -webkit-appearance: none;
+    outline: none;
+    box-sizing: border-box;
+    font: inherit;
+    text-decoration: none;
+}
+
+.info-trigger-btn {
     border-radius: 8px;
     cursor: pointer;
-    flex-shrink: 0;
     overflow: visible;
     background: transparent;
     border: 1px solid transparent;
@@ -471,23 +483,19 @@
         border-color var(--motion-duration-fast) var(--motion-ease-standard),
         box-shadow var(--motion-duration-fast) var(--motion-ease-standard),
         transform var(--motion-duration-fast) var(--motion-ease-standard),
-        color var(--motion-duration-fast) var(--motion-ease-standard);
+    color var(--motion-duration-fast) var(--motion-ease-standard);
     color: var(--theme-text-muted);
 }
 
-.info-trigger-btn:hover {
-    background: var(--theme-accent-muted);
-    border-color: color-mix(in srgb, var(--theme-accent) 20%, transparent);
-    color: var(--theme-accent);
-    transform: scale(1.08);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--theme-accent) 8%, transparent);
+.info-trigger-btn:focus,
+.info-trigger-btn:focus-visible,
+.assistant-message-icon-button:focus,
+.assistant-message-icon-button:focus-visible {
+    outline: none;
 }
 
 .info-trigger-btn[data-active='true'] {
-    background: var(--theme-accent-muted);
-    border-color: color-mix(in srgb, var(--theme-accent) 25%, transparent);
-    color: var(--theme-accent);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--theme-accent) 10%, transparent);
+    color: var(--theme-text-primary);
 }
 
 @keyframes viewEnter {
@@ -498,6 +506,19 @@
     to {
         opacity: 1;
         transform: translateY(0);
+    }
+}
+
+@keyframes assistantMessageActionsReveal {
+    from {
+        opacity: 0;
+        filter: blur(10px);
+        transform: translateY(8px) scale(0.98);
+    }
+    to {
+        opacity: 1;
+        filter: blur(0);
+        transform: translateY(0) scale(1);
     }
 }
 
@@ -552,6 +573,36 @@
     transform: scale(1);
 }
 
+.assistant-message-actions {
+    will-change: opacity, transform, filter;
+    transition:
+        opacity var(--motion-duration-fast) var(--motion-ease-standard),
+        transform var(--motion-duration-normal) var(--motion-ease-emphasized),
+        filter var(--motion-duration-normal) var(--motion-ease-emphasized);
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .assistant-message-shell .assistant-message-actions {
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(6px) scale(0.985);
+        filter: blur(8px);
+        transition-delay: 0ms;
+        animation: none;
+    }
+
+    .assistant-message-shell:hover .assistant-message-actions,
+    .assistant-message-shell:focus-within .assistant-message-actions,
+    .assistant-message-actions[data-active='true'] {
+        opacity: 1;
+        pointer-events: auto;
+        transform: translateY(0);
+        filter: blur(0);
+        transition-delay: 0ms;
+        animation: assistantMessageActionsReveal 320ms var(--motion-ease-emphasized) 120ms both;
+    }
+}
+
 .theme-hover-surface {
     position: relative;
     isolation: isolate;
@@ -601,7 +652,8 @@
 @media (prefers-reduced-motion: reduce) {
     .action-btn-animate,
     .info-popover-enter,
-    .theme-section-enter {
+    .theme-section-enter,
+    .assistant-message-actions {
         animation: none;
     }
 

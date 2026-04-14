@@ -255,7 +255,13 @@ function MessageRendererComponent({
       shouldShowInfoTooltip)
 
   return (
-    <div style={{ marginBottom: '24px' }} tabIndex={0} onKeyDown={handleKeyDown} ref={messageRef}>
+    <div
+      className="assistant-message-shell"
+      style={{ marginBottom: '24px' }}
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
+      ref={messageRef}
+    >
       {message.files && message.files.length > 0 && <RenderImageFiles files={message.files} />}
 
       {showUpperThinkingBlock && (

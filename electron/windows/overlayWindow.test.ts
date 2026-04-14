@@ -50,6 +50,7 @@ import {
   applyOverlaySettings,
   cleanupOverlay,
   getOverlayState,
+  showOverlayAtPosition,
   showOverlay,
 } from './overlayWindow'
 
@@ -78,6 +79,29 @@ describe('overlayWindow', () => {
     })
   })
 
+  it('opens overlay directly when the global shortcut fires', async () => {
+    applyOverlaySettings({ enabled: true, compactWidth: 380, expandedWidth: 480 })
+
+    const shortcutHandler = (globalShortcut.register as any).mock.calls[0]?.[1]
+    expect(typeof shortcutHandler).toBe('function')
+
+    await shortcutHandler()
+
+    expect(browserWindowInstances).toHaveLength(1)
+    expect(browserWindowInstances[0].setBounds).toHaveBeenCalledWith(
+      {
+        x: 0,
+        y: 0,
+        width: 480,
+        height: 500,
+      },
+      false
+    )
+    expect(browserWindowInstances[0].show).toHaveBeenCalled()
+    expect(browserWindowInstances[0].focus).toHaveBeenCalled()
+    expect(getOverlayState().mode).toBe('expanded')
+  })
+
   it('does not show the overlay when the feature is disabled', async () => {
     applyOverlaySettings({ enabled: false })
 
@@ -97,8 +121,48 @@ describe('overlayWindow', () => {
     expect(browserWindowInstances[0].show).toHaveBeenCalled()
     expect(browserWindowInstances[0].focus).toHaveBeenCalled()
     expect(state.visible).toBe(true)
-    expect(state.mode).toBe('compact')
+    expect(state.mode).toBe('expanded')
     expect(state.compactWidth).toBe(380)
     expect(state.expandedWidth).toBe(480)
+  })
+
+  it('opens anchored overlay at the prompt popup origin', async () => {
+    applyOverlaySettings({ enabled: true, compactWidth: 380, expandedWidth: 480 })
+
+    await showOverlayAtPosition(500, 500, {
+      x: 420,
+      y: 210,
+      width: 500,
+      height: 236,
+    })
+
+    expect(browserWindowInstances).toHaveLength(1)
+    expect(browserWindowInstances[0].setBounds).toHaveBeenCalledWith(
+      {
+        x: 420,
+        y: 210,
+        width: 500,
+        height: 500,
+      },
+      false
+    )
+    expect(browserWindowInstances[0].show).toHaveBeenCalled()
+    expect(browserWindowInstances[0].focus).toHaveBeenCalled()
+  })
+
+  it('does not recenter a visible overlay during settings sync', async () => {
+    applyOverlaySettings({ enabled: true, compactWidth: 380, expandedWidth: 480 })
+
+    await showOverlayAtPosition(500, 500, {
+      x: 420,
+      y: 210,
+      width: 500,
+      height: 236,
+    })
+
+    browserWindowInstances[0].setBounds.mockClear()
+    applyOverlaySettings({ enabled: true, compactWidth: 360, expandedWidth: 460 })
+
+    expect(browserWindowInstances[0].setBounds).not.toHaveBeenCalled()
   })
 })

@@ -10,7 +10,8 @@ import {
 import ResponseInfo from '@/components/ResponseInfo'
 import { useResponseInfoPopover } from './useResponseInfoPopover'
 
-const MESSAGE_ACTION_ICON_SIZE = 14
+const MESSAGE_ACTION_ICON_SIZE = 15
+const VERSION_NAV_ICON_SIZE = 16
 
 interface ResponseInfoData {
   model?: string
@@ -51,6 +52,8 @@ export function AssistantMessageActions({
   const {
     infoTriggerRef,
     infoPopoverRef,
+    isPopoverOpen,
+    isPopoverPositioned,
     popoverPosition,
     handleTriggerMouseEnter,
     handleTriggerMouseLeave,
@@ -60,6 +63,8 @@ export function AssistantMessageActions({
 
   return (
     <div
+      className="assistant-message-actions"
+      data-active={isPopoverOpen ? 'true' : undefined}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -73,17 +78,17 @@ export function AssistantMessageActions({
           <button
             onClick={() => onNavigateVersion('prev')}
             disabled={displayVersionIndex === 0}
+            className="assistant-message-icon-button"
             style={{
               background: 'transparent',
               border: 'none',
               color: displayVersionIndex > 0 ? 'var(--theme-text-muted)' : 'var(--theme-border)',
               cursor: displayVersionIndex > 0 ? 'pointer' : 'not-allowed',
-              padding: '2px',
               display: 'flex',
               alignItems: 'center',
             }}
           >
-            <ChevronLeft size={16} />
+            <ChevronLeft size={VERSION_NAV_ICON_SIZE} />
           </button>
 
           <span
@@ -99,6 +104,7 @@ export function AssistantMessageActions({
           <button
             onClick={() => onNavigateVersion('next')}
             disabled={displayVersionIndex >= totalVersions - 1}
+            className="assistant-message-icon-button"
             style={{
               background: 'transparent',
               border: 'none',
@@ -107,12 +113,11 @@ export function AssistantMessageActions({
                   ? 'var(--theme-text-muted)'
                   : 'var(--theme-border)',
               cursor: displayVersionIndex < totalVersions - 1 ? 'pointer' : 'not-allowed',
-              padding: '2px',
               display: 'flex',
               alignItems: 'center',
             }}
           >
-            <ChevronRight size={16} />
+            <ChevronRight size={VERSION_NAV_ICON_SIZE} />
           </button>
         </>
       )}
@@ -128,8 +133,11 @@ export function AssistantMessageActions({
             display: 'flex',
             alignItems: 'center',
             gap: '6px',
+            minWidth: '28px',
+            minHeight: '28px',
             padding: '6px',
             fontSize: '0.85rem',
+            lineHeight: 1,
             fontFamily: 'inherit',
             animationDelay: '0ms',
           }}
@@ -153,7 +161,10 @@ export function AssistantMessageActions({
             display: 'flex',
             alignItems: 'center',
             gap: '6px',
+            minWidth: '28px',
+            minHeight: '28px',
             padding: '6px',
+            lineHeight: 1,
             animationDelay: '60ms',
           }}
           title="Regenerate with custom instructions"
@@ -164,32 +175,37 @@ export function AssistantMessageActions({
 
       {/* Info Trigger */}
       {shouldShowInfoTooltip && (
-        <div
+        <button
+          type="button"
           ref={infoTriggerRef}
-          className={`info-trigger-btn ${messageActionButtonClassName}`}
-          data-active={popoverPosition !== null ? 'true' : undefined}
+          className={`assistant-message-icon-button info-trigger-btn ${messageActionButtonClassName}`}
+          data-active={isPopoverOpen ? 'true' : undefined}
           style={{ animationDelay: '120ms' }}
           onMouseEnter={handleTriggerMouseEnter}
           onMouseLeave={handleTriggerMouseLeave}
+          aria-label="Response details"
+          title="Response details"
         >
-          <Info size={13} />
-        </div>
+          <Info size={MESSAGE_ACTION_ICON_SIZE} />
+        </button>
       )}
 
       {/* Info Popover Portal */}
-      {popoverPosition &&
+      {isPopoverOpen &&
         typeof document !== 'undefined' &&
         createPortal(
           <div
             ref={infoPopoverRef}
-            className="info-popover-enter"
+            className={isPopoverPositioned ? 'info-popover-enter' : undefined}
             onMouseEnter={handlePopoverMouseEnter}
             onMouseLeave={handlePopoverMouseLeave}
             style={{
               position: 'fixed',
-              top: popoverPosition.top,
-              left: popoverPosition.left,
+              top: popoverPosition?.top ?? -9999,
+              left: popoverPosition?.left ?? -9999,
               zIndex: 1000,
+              opacity: isPopoverPositioned ? 1 : 0,
+              pointerEvents: isPopoverPositioned ? 'auto' : 'none',
             }}
           >
             <ResponseInfo

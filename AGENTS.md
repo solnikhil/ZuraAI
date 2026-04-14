@@ -50,7 +50,7 @@ Core capabilities:
 - `electron/startup/` — deferred startup orchestration and startup metrics
 - `electron/windows/` — main window, tray
 - `electron/windows/overlayWindow.ts` — Overlay window creation/reuse, compact/expanded state, display-aware positioning, and shortcut-backed lifecycle
-- `electron/windows/promptPopup.ts` — lightweight cursor-position prompt popup that appears on hotkey, submits to the overlay, and dismisses on blur/Escape
+- `electron/windows/promptPopup.ts` — optional lightweight cursor-position prompt popup route/bridge that can submit to the overlay and dismisses on blur/Escape
 - `electron/chatStore.ts` — chat history persistence (JSON under `app.getPath('userData')`)
 - `electron/mcp/mcpConnection.ts` — MCP initialize/tool-discovery connection orchestration
 - `electron/mcp/mcpManager.ts` — MCP server registry, runtime state aggregation, connection lifecycle coordination, and cache/persistence orchestration across the extracted MCP manager helper modules
@@ -145,16 +145,15 @@ Core capabilities:
   - Windows-first overlay surface: frameless, `alwaysOnTop`, `skipTaskbar`, non-click-through, and positioned against the active display `workArea`
   - Reuses the shared preload bundle plus a dedicated `window.overlay` bridge for lifecycle actions
   - Supports compact and expanded bounds, hide/show/toggle behavior, and display-metrics repositioning
-  - Opens from explicit UI entry points plus the global Overlay shortcut; close/hide behavior is controlled in main rather than the untrusted renderer
+  - Opens from explicit UI entry points plus the global Overlay shortcut; the shortcut now opens the Overlay directly at the cursor position in expanded mode (single-step flow)
+  - Close/hide behavior is controlled in main rather than the untrusted renderer
 
 - **Prompt Popup** (`electron/windows/promptPopup.ts`)
   - Loads `#/prompt-popup` in its own dedicated frameless `BrowserWindow`
-  - Lightweight cursor-position prompt input that appears at the cursor on the global Overlay hotkey
+  - Lightweight cursor-position prompt input surface for optional prompt-only entry flows
   - Appears at cursor position, auto-focuses the text input, and submits the prompt to the overlay via main-process relay
-  - Runtime sequence is two-step: the global Overlay hotkey opens the Prompt Popup first, and the larger Overlay window only opens after the user submits from the Prompt Popup
   - On submit, hides the popup, opens/creates the overlay window at the cursor position, and sends the prompt text to the overlay renderer via `overlay:pending-prompt`
   - Dismisses on Escape key or window blur (click outside); the popup is never truly closed by the user — only hidden or destroyed on app quit
-  - The global Overlay hotkey now shows the prompt popup instead of toggling the overlay directly
   - Reuses the shared preload bundle plus a dedicated `window.promptPopup` bridge
 
 - **Dev vs prod loading**
@@ -238,7 +237,8 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - MCP startup integration now registers `electron/mcp/index.ts` handlers during `app.whenReady()`, initializes the singleton MCP manager with renderer-facing client info, and auto-connects only servers where both `enabled` and `autoConnect` are true.
 - App shutdown now performs an MCP disconnect pass before quit completes so managed transports can exit cleanly.
 - Overlay startup now initializes the dedicated overlay runtime in main, keeps shortcut registration and display listeners on the trusted side, and relies on renderer-synced `settings.overlay` values instead of a new storage file.
-- The global Overlay hotkey shows the prompt popup at the cursor position instead of toggling the overlay directly. This is a two-step flow: Prompt Popup first, then the larger Overlay window after submit. Submitting the prompt from the popup opens the overlay window at the cursor position and sends the prompt text via `overlay:pending-prompt`.
+- The global Overlay hotkey opens the Overlay window directly at the cursor position in expanded mode (single-step flow).
+- Prompt Popup remains available as an optional path; submitting from it opens the Overlay at the cursor position and sends the prompt text via `overlay:pending-prompt`.
 - `OverlaySync` runs inside the shared provider tree and mirrors persisted `settings.overlay` values into the trusted overlay runtime through the dedicated preload bridge. If startup auto-open is enabled, the main window renderer triggers the initial overlay show after settings hydrate.
 - Overlay preferences are persisted in the existing sanitized renderer settings blob under `settings.overlay` with `enabled`, `launchOnStartup`, `hotkey`, `anchor`, `compactWidth`, and `expandedWidth`. No new secure-storage or Overlay-only settings file is introduced for Phase 1.
 

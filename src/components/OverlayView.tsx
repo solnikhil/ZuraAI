@@ -1,24 +1,25 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { SkillLogo } from '@/components/shared'
 import { ToolCallIndicator, ToolResultDisplay } from '@/tools/ui'
 
 import { useChatHistory } from '../contexts/ChatHistoryContext'
+import { useSettings } from '../contexts/SettingsContext'
 import { useStreamingState } from '../contexts/StreamingContext'
 import { useToast } from './shared/Toast'
 import { MessageRenderer } from './Dashboard/ChatArea/MessageRenderer'
 import { StreamingMessage } from './Dashboard/ChatArea/StreamingMessage'
 import { useStreamingChat } from './Dashboard/ChatArea/hooks'
 import { shouldHideGenericToolResultCard } from './Dashboard/ChatArea/toolResultVisibility'
-import { ChevronDown, MessageCircle, PanelLeft, Send, Wrench, X } from './icons'
+import { PanelLeft, Send, Square, X } from './icons'
 
 export default function OverlayView() {
-  const { sessions, currentSessionId, createSession } = useChatHistory()
+  const { sessions, currentSessionId } = useChatHistory()
+  const { settings } = useSettings()
   const { showToast } = useToast()
   const streamingState = useStreamingState()
   const [input, setInput] = useState('')
-  const [overlayMode, setOverlayMode] = useState<'compact' | 'expanded'>('compact')
+  const [overlayMode, setOverlayMode] = useState<'compact' | 'expanded'>('expanded')
 
   const currentSession = sessions.find((session) => session.id === currentSessionId) || null
   const messages = currentSession?.messages || []
@@ -39,7 +40,7 @@ export default function OverlayView() {
   const syncOverlayMode = useCallback(async () => {
     try {
       const state = await window.overlay.getState()
-      if (state.mode === 'compact' || state.mode === 'expanded') {
+      if (state.mode === 'expanded') {
         setOverlayMode(state.mode)
       }
     } catch {
@@ -50,6 +51,7 @@ export default function OverlayView() {
   const handleSend = useCallback(async () => {
     const content = input.trim()
     if (!content || isLoading) return
+    setInput('')
     await sendMessage(content, [])
   }, [input, isLoading, sendMessage])
 
@@ -62,21 +64,6 @@ export default function OverlayView() {
     }
   }, [showToast])
 
-  const handleToggleMode = useCallback(async () => {
-    try {
-      const state = await window.overlay.getState()
-      if (state.mode === 'expanded') {
-        await window.overlay.collapse()
-        setOverlayMode('compact')
-      } else {
-        await window.overlay.expand()
-        setOverlayMode('expanded')
-      }
-    } catch {
-      showToast('Unable to resize the Overlay right now.', 'error')
-    }
-  }, [showToast])
-
   const handleHide = useCallback(async () => {
     try {
       await window.overlay.hide()
@@ -85,22 +72,33 @@ export default function OverlayView() {
     }
   }, [showToast])
 
-  const handleCreateChat = useCallback(() => {
-    createSession()
-  }, [createSession])
-
   const handleCopy = useCallback((content: string) => {
     void navigator.clipboard.writeText(content)
   }, [])
 
-  const handleNavigateSettings = useCallback((section: string) => {
-    try {
-      window.overlay.navigateSettings(section)
-      void window.overlay.hide()
-    } catch {
-      showToast('Unable to open settings right now.', 'error')
-    }
-  }, [showToast])
+  const modelBadge = useMemo(() => {
+    const allModels: Array<{ code: string; displayName: string }> = [
+      ...(settings.ollamaModels || []),
+      ...(settings.perplexityModels || []),
+      ...(settings.configuredModels || []),
+      ...(settings.groqModels || []),
+      ...(settings.alibabaModels || []),
+      ...(settings.fireworksModels || []),
+    ]
+    const match = allModels.find((model) => model.code === settings.aiModel)
+    const fallback = settings.aiModel?.split('/').pop() || 'Model'
+    const raw = (match?.displayName || fallback).replace(/[^\x00-\x7F]/g, '').trim()
+    const shortName = raw.length > 12 ? `${raw.slice(0, 11)}…` : raw
+    return shortName || 'Model'
+  }, [
+    settings.aiModel,
+    settings.alibabaModels,
+    settings.configuredModels,
+    settings.fireworksModels,
+    settings.groqModels,
+    settings.ollamaModels,
+    settings.perplexityModels,
+  ])
 
   useEffect(() => {
     const previousBodyBackground = document.body.style.background
@@ -150,23 +148,8 @@ export default function OverlayView() {
 
   if (isCompact) {
     return (
-      <div
-        style={{
-          height: '100vh',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'flex-end',
-          background: 'transparent',
-          color: 'var(--theme-text-primary)',
-          outline: 'none',
-        }}
-      >
-        <div
-          className="prompt-popup-composer"
-          style={{
-            borderRadius: 18,
-          }}
-        >
+      <div className="prompt-popup-root" style={{ color: 'var(--theme-text-primary)', outline: 'none' }}>
+        <div className="prompt-popup-composer">
           {hasConversation ? (
             <div
               style={{
@@ -255,84 +238,71 @@ export default function OverlayView() {
             </div>
           ) : null}
 
-          <textarea
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault()
-                void handleSend()
-              }
-
-              if (event.key === 'Escape') {
-                void handleHide()
-              }
-            }}
-            placeholder="Ask anything..."
-            rows={2}
-            className="prompt-popup-textarea"
+          <div
             style={{
-              minHeight: 52,
+              borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+              background: 'rgba(14, 14, 16, 0.88)',
             }}
-          />
-
-          <div className="prompt-popup-footer" style={{ justifyContent: 'space-between' }}>
-            <div style={{ fontSize: '0.75rem', color: 'var(--theme-text-muted)', paddingLeft: 6 }}>
-              {isLoading ? 'Working...' : hasConversation ? 'Continue here' : 'Enter to send'}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <button
-                type="button"
-                onClick={handleHide}
-                className="overlay__compact-dismiss"
-                aria-label="Hide overlay"
-                title="Hide overlay"
-              >
-                <X size={13} />
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (isLoading) {
-                    stopStreaming()
-                    return
-                  }
+          >
+            <textarea
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && !event.shiftKey) {
+                  event.preventDefault()
                   void handleSend()
-                }}
-                className="prompt-popup-send"
-              >
-                {isLoading ? 'Stop' : <Send size={15} strokeWidth={2.2} />}
-              </button>
+                }
+
+                if (event.key === 'Escape') {
+                  void handleHide()
+                }
+              }}
+              placeholder="Ask anything..."
+              rows={2}
+              className="prompt-popup-textarea"
+              style={{
+                minHeight: 52,
+              }}
+            />
+
+            <div className="prompt-popup-footer" style={{ justifyContent: 'space-between' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--theme-text-muted)', paddingLeft: 6 }}>
+                {isLoading ? 'Working...' : hasConversation ? 'Continue here' : 'Enter to send'}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={handleHide}
+                  className="prompt-popup-send"
+                  aria-label="Hide overlay"
+                  title="Hide overlay"
+                >
+                  <X size={13} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isLoading) {
+                      stopStreaming()
+                      return
+                    }
+                    void handleSend()
+                  }}
+                  className="prompt-popup-send"
+                >
+                  {isLoading ? 'Stop' : <Send size={15} strokeWidth={2.2} />}
+                </button>
+              </div>
             </div>
           </div>
         </div>
-
-        <style>{`
-          .overlay__compact-dismiss {
-            width: 28px;
-            height: 28px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 999px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            background: rgba(18, 18, 20, 0.9);
-            color: rgba(235, 235, 240, 0.8);
-            cursor: pointer;
-            transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
-          }
-          .overlay__compact-dismiss:hover {
-            background: rgba(28, 28, 32, 0.96);
-            color: rgba(255, 255, 255, 0.96);
-            border-color: rgba(255, 255, 255, 0.16);
-          }
-        `}</style>
       </div>
     )
   }
 
   return (
     <div
+      className={!isCompact ? 'overlay__glass-shell' : undefined}
       style={{
         height: '100vh',
         display: 'flex',
@@ -340,7 +310,13 @@ export default function OverlayView() {
         position: 'relative',
         overflow: 'hidden',
         padding: isCompact ? '10px' : undefined,
-        background: isCompact ? 'transparent' : 'rgba(20, 18, 11, 0.85)',
+        background: isCompact
+          ? 'transparent'
+          : 'linear-gradient(180deg, rgba(10, 12, 16, 0.22) 0%, rgba(8, 10, 14, 0.32) 100%)',
+        backdropFilter: isCompact ? undefined : 'blur(18px) saturate(140%)',
+        WebkitBackdropFilter: isCompact ? undefined : 'blur(18px) saturate(140%)',
+        border: isCompact ? undefined : '1px solid rgba(255, 255, 255, 0.14)',
+        borderRadius: isCompact ? undefined : 16,
         color: 'var(--theme-text-primary)',
         outline: 'none',
       }}
@@ -348,45 +324,18 @@ export default function OverlayView() {
       <div
         style={{
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 12,
-          padding: isCompact ? '8px 8px 4px 12px' : '12px 14px',
-          borderBottom: isCompact ? 'none' : '1px solid color-mix(in srgb, var(--theme-border) 88%, transparent)',
+          justifyContent: 'flex-end',
+          padding: isCompact ? '8px 8px 4px 12px' : '10px 12px 8px',
           WebkitAppRegion: 'drag',
-          minHeight: isCompact ? 36 : undefined,
+          minHeight: isCompact ? 38 : 44,
           borderRadius: isCompact ? '16px 16px 0 0' : undefined,
-          background: isCompact ? 'rgba(18, 18, 20, 0.96)' : undefined,
-          border: isCompact ? '1px solid rgba(255, 255, 255, 0.1)' : undefined,
+          background: isCompact ? 'rgba(18, 18, 20, 0.96)' : 'rgba(255, 255, 255, 0.03)',
+          border: isCompact ? '1px solid rgba(255, 255, 255, 0.1)' : 'none',
+          borderBottom: isCompact ? undefined : '1px solid rgba(255, 255, 255, 0.08)',
           borderBottomColor: isCompact ? 'transparent' : undefined,
         } as React.CSSProperties}
       >
-        {isCompact ? <div style={{ minWidth: 0, flex: 1 }} /> : (
-          <div style={{ minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600, fontSize: '0.92rem' }}>
-              <MessageCircle size={15} />
-              <span>Overlay</span>
-            </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--theme-text-muted)' }}>
-              Compact desktop access to the current Zura session
-            </div>
-          </div>
-        )}
-
-        <div
-          style={{ display: 'flex', alignItems: 'center', gap: 8, WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-        >
-          {!isCompact ? (
-            <button
-              type="button"
-              onClick={handleCreateChat}
-              className="overlay__icon-button"
-              aria-label="Start a new chat"
-              title="New chat"
-            >
-              <MessageCircle size={14} />
-            </button>
-          ) : null}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
           <button
             type="button"
             onClick={handleOpenMainApp}
@@ -394,16 +343,7 @@ export default function OverlayView() {
             aria-label="Open in main app"
             title="Open in main app"
           >
-            <PanelLeft size={14} />
-          </button>
-          <button
-            type="button"
-            onClick={handleToggleMode}
-            className="overlay__icon-button"
-            aria-label="Toggle compact size"
-            title="Expand or collapse"
-          >
-            <ChevronDown size={14} />
+            <PanelLeft size={16} />
           </button>
           <button
             type="button"
@@ -412,7 +352,7 @@ export default function OverlayView() {
             aria-label="Hide overlay"
             title="Hide overlay"
           >
-            <X size={14} />
+            <X size={16} />
           </button>
         </div>
       </div>
@@ -425,7 +365,7 @@ export default function OverlayView() {
         }}
         style={{
           minHeight: 0,
-          background: isCompact ? 'rgba(18, 18, 20, 0.96)' : undefined,
+          background: isCompact ? 'rgba(18, 18, 20, 0.96)' : 'rgba(8, 10, 14, 0.08)',
           borderLeft: isCompact ? '1px solid rgba(255, 255, 255, 0.1)' : undefined,
           borderRight: isCompact ? '1px solid rgba(255, 255, 255, 0.1)' : undefined,
         }}
@@ -524,11 +464,11 @@ export default function OverlayView() {
 
       <div
         style={{
-          padding: isCompact ? '0 10px 10px' : '12px 14px 14px',
-          borderTop: isCompact ? 'none' : '1px solid color-mix(in srgb, var(--theme-border) 72%, transparent)',
+          padding: isCompact ? '0 10px 10px' : '6px 10px 10px',
+          borderTop: isCompact ? 'none' : '1px solid color-mix(in srgb, var(--theme-border) 60%, transparent)',
           background: isCompact
             ? 'transparent'
-            : 'linear-gradient(180deg, rgba(20, 18, 11, 0.78) 0%, rgba(20, 18, 11, 0.94) 100%)',
+            : 'linear-gradient(180deg, rgba(14, 16, 22, 0.2) 0%, rgba(10, 12, 18, 0.28) 100%)',
         }}
       >
         <div
@@ -536,11 +476,13 @@ export default function OverlayView() {
           style={{
             display: 'flex',
             flexDirection: 'column',
-            gap: 8,
-            padding: isCompact ? 10 : 12,
-            borderRadius: isCompact ? 18 : 16,
-            border: isCompact ? undefined : '1px solid color-mix(in srgb, var(--theme-border) 88%, transparent)',
-            background: isCompact ? undefined : 'color-mix(in srgb, var(--theme-surface) 92%, transparent)',
+            gap: 6,
+            padding: isCompact ? 10 : '8px 10px 8px',
+            borderRadius: isCompact ? 18 : 20,
+            border: isCompact ? undefined : '1px solid color-mix(in srgb, var(--theme-border) 78%, transparent)',
+            background: isCompact
+              ? undefined
+              : 'linear-gradient(180deg, rgba(16, 18, 24, 0.46) 0%, rgba(12, 14, 20, 0.52) 100%)',
           }}
         >
           <textarea
@@ -552,70 +494,33 @@ export default function OverlayView() {
                 void handleSend()
               }
             }}
-            placeholder="Message ZuraAI..."
-            rows={isCompact ? 2 : 3}
+            placeholder={isCompact ? 'Message ZuraAI...' : 'Ask anything...'}
+            rows={isCompact ? 2 : 1}
             className={isCompact ? 'prompt-popup-textarea' : undefined}
             style={{
               width: '100%',
-              minHeight: isCompact ? 52 : 72,
+              minHeight: isCompact ? 52 : 40,
+              maxHeight: isCompact ? undefined : 110,
               resize: 'none',
               background: 'transparent',
               border: 'none',
               outline: 'none',
               color: 'var(--theme-text-primary)',
-              fontSize: isCompact ? undefined : '0.9rem',
+              fontSize: isCompact ? undefined : '0.98rem',
+              fontWeight: isCompact ? undefined : 500,
               fontFamily: 'inherit',
-              lineHeight: 1.45,
-              padding: isCompact ? '0 2px' : undefined,
+              lineHeight: isCompact ? 1.45 : 1.4,
+              letterSpacing: isCompact ? undefined : '-0.005em',
+              padding: isCompact ? '0 2px' : '0 2px',
             }}
           />
 
-          {!isCompact && (
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 4,
-                paddingLeft: 4,
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => handleNavigateSettings('mcp')}
-                className="overlay__quick-action"
-                title="MCP Servers settings"
-              >
-                <Wrench size={12} />
-                <span>MCP Servers</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleNavigateSettings('skills')}
-                className="overlay__quick-action"
-                title="Skills & Capabilities settings"
-              >
-                <SkillLogo skill="tavily" size={12} />
-                <span>Skills</span>
-              </button>
-            </div>
-          )}
-
           <div
             className={isCompact ? 'prompt-popup-footer' : undefined}
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 }}
           >
-            <div
-              style={{
-                fontSize: '0.75rem',
-                color: 'var(--theme-text-muted)',
-                paddingLeft: isCompact ? 6 : undefined,
-              }}
-            >
-              {isLoading
-                ? 'Working through the current chat pipeline'
-                : isCompact
-                  ? 'Mini overlay'
-                  : 'Enter to send, Shift+Enter for newline'}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div className="overlay__composer-model">{modelBadge}</div>
             </div>
 
             <button
@@ -628,13 +533,13 @@ export default function OverlayView() {
                 void handleSend()
               }}
               className={isCompact ? 'prompt-popup-send' : 'overlay__send-button'}
+              aria-label={isLoading ? 'Stop generation' : 'Send message'}
             >
               {isLoading ? (
-                'Stop'
+                <Square size={12} className="overlay__stop-icon" />
               ) : (
                 <>
-                  <Send size={14} />
-                  <span>Send</span>
+                  <Send size={16} />
                 </>
               )}
             </button>
@@ -643,15 +548,20 @@ export default function OverlayView() {
       </div>
 
       <style>{`
+        @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+          .overlay__glass-shell {
+            background: rgba(12, 14, 20, 0.9) !important;
+          }
+        }
         .overlay__icon-button {
-          width: 30px;
-          height: 30px;
+          width: 34px;
+          height: 34px;
           display: inline-flex;
           align-items: center;
           justify-content: center;
           border-radius: 999px;
-          border: 1px solid color-mix(in srgb, var(--theme-border) 85%, transparent);
-          background: color-mix(in srgb, var(--theme-surface) 86%, transparent);
+          border: 1px solid color-mix(in srgb, var(--theme-border) 78%, transparent);
+          background: rgba(24, 28, 36, 0.42);
           color: var(--theme-text-secondary);
           cursor: pointer;
           transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
@@ -662,39 +572,53 @@ export default function OverlayView() {
           border-color: color-mix(in srgb, var(--theme-border-hover) 85%, transparent);
         }
         .overlay__send-button {
+          width: 40px;
+          height: 40px;
           display: inline-flex;
           align-items: center;
-          gap: 8px;
-          border: 1px solid color-mix(in srgb, var(--theme-accent) 42%, transparent);
-          background: linear-gradient(135deg, color-mix(in srgb, var(--theme-accent) 72%, black 28%) 0%, color-mix(in srgb, var(--theme-accent-secondary) 70%, black 30%) 100%);
-          color: var(--theme-text-inverse);
+          justify-content: center;
+          border: 1px solid color-mix(in srgb, var(--theme-border) 68%, transparent);
+          background: rgba(58, 64, 76, 0.62);
+          color: rgba(236, 240, 245, 0.94);
           border-radius: 999px;
-          padding: 8px 14px;
-          font-size: 0.82rem;
-          font-weight: 600;
-          cursor: pointer;
-        }
-        .overlay__quick-action {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          padding: 4px 10px;
-          border-radius: 8px;
-          border: 1px solid color-mix(in srgb, var(--theme-border) 60%, transparent);
-          background: color-mix(in srgb, var(--theme-surface) 45%, transparent);
-          color: var(--theme-text-secondary);
-          font-size: 0.72rem;
-          font-weight: 500;
-          font-family: inherit;
           cursor: pointer;
           transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
-          white-space: nowrap;
-          line-height: 1.4;
         }
-        .overlay__quick-action:hover {
-          color: var(--theme-text-primary);
-          background: color-mix(in srgb, var(--theme-surface-hover) 70%, transparent);
-          border-color: color-mix(in srgb, var(--theme-border-hover) 60%, transparent);
+        .overlay__send-button:hover {
+          background: rgba(76, 80, 88, 0.9);
+          color: rgba(255, 255, 255, 0.98);
+          border-color: color-mix(in srgb, var(--theme-border-hover) 80%, transparent);
+        }
+        .overlay__send-button:has(.overlay__stop-icon) {
+          background: rgba(92, 56, 62, 0.58);
+          border-color: rgba(218, 112, 124, 0.42);
+          color: rgba(255, 224, 228, 0.96);
+        }
+        .overlay__send-button:has(.overlay__stop-icon):hover {
+          background: rgba(120, 66, 76, 0.72);
+          border-color: rgba(236, 134, 146, 0.56);
+          color: rgba(255, 236, 239, 0.98);
+        }
+        .overlay__stop-icon {
+          fill: currentColor;
+          strokeWidth: 2.8;
+        }
+        .overlay__composer-model {
+          display: inline-flex;
+          align-items: center;
+          height: 30px;
+          border-radius: 999px;
+          border: 1px solid color-mix(in srgb, var(--theme-border) 54%, transparent);
+          background: rgba(24, 28, 36, 0.46);
+          color: rgba(210, 215, 224, 0.88);
+          font-size: 0.74rem;
+          font-weight: 500;
+          letter-spacing: 0.01em;
+          padding: 0 10px;
+          max-width: 140px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
       `}</style>
     </div>

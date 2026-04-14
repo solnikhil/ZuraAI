@@ -2,7 +2,6 @@ import { app, BrowserWindow, globalShortcut, screen } from 'electron'
 import path from 'path'
 
 import { getMainWindow, resolveDistPath, showMainWindow } from './mainWindow'
-import { showPromptPopup } from './promptPopup'
 
 export type OverlayMode = 'hidden' | 'compact' | 'expanded'
 
@@ -37,8 +36,8 @@ const DEFAULT_SETTINGS: OverlaySettings = {
 }
 
 const WINDOW_HEIGHTS = {
-  compact: 320,
-  expanded: 560,
+  compact: 380,
+  expanded: 500,
 } as const
 
 const MIN_WIDTH = 320
@@ -47,7 +46,7 @@ const WINDOW_MARGIN = 20
 
 let overlayWindow: BrowserWindow | null = null
 let overlaySettings: OverlaySettings = { ...DEFAULT_SETTINGS }
-let overlayMode: Exclude<OverlayMode, 'hidden'> = 'compact'
+let overlayMode: Exclude<OverlayMode, 'hidden'> = 'expanded'
 let registeredShortcut: string | null = null
 let shortcutRegistered = false
 let initialized = false
@@ -151,7 +150,7 @@ function createOverlayWindow(): BrowserWindow {
     backgroundColor: '#00000000',
     hasShadow: false,
     autoHideMenuBar: true,
-    backgroundMaterial: 'none',
+    backgroundMaterial: 'acrylic',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -206,7 +205,8 @@ function registerShortcut() {
   }
 
   const success = globalShortcut.register(overlaySettings.hotkey, () => {
-    showPromptPopup()
+    const { x, y } = screen.getCursorScreenPoint()
+    void showOverlayAtPosition(x, y, undefined, 'expanded')
   })
 
   if (!success) {
@@ -269,7 +269,7 @@ export function applyOverlaySettings(input: Partial<OverlaySettings>): OverlaySt
 
   if (!overlaySettings.enabled) {
     hideOverlay()
-  } else if (overlayWindow && !overlayWindow.isDestroyed()) {
+  } else if (overlayWindow && !overlayWindow.isDestroyed() && !overlayWindow.isVisible()) {
     applyWindowBounds(overlayMode)
   }
 
@@ -281,7 +281,7 @@ export async function showOverlay(): Promise<OverlayState> {
     return getOverlayState()
   }
 
-  overlayMode = 'compact'
+  overlayMode = 'expanded'
   const win = createOverlayWindow()
   applyWindowBounds(overlayMode)
   win.show()
@@ -317,13 +317,7 @@ export async function collapseOverlay(): Promise<OverlayState> {
     return getOverlayState()
   }
 
-  overlayMode = 'compact'
-  const win = createOverlayWindow()
-  applyWindowBounds(overlayMode)
-  win.show()
-  win.focus()
-
-  return getOverlayState()
+  return expandOverlay()
 }
 
 export async function toggleOverlay(): Promise<OverlayState> {
@@ -372,13 +366,14 @@ export function endOverlayDrag(): void {
 export async function showOverlayAtPosition(
   cursorX: number,
   cursorY: number,
-  anchorBounds?: OverlayAnchorBounds
+  anchorBounds?: OverlayAnchorBounds,
+  mode: Exclude<OverlayMode, 'hidden'> = 'expanded'
 ): Promise<BrowserWindow | null> {
   if (!overlaySettings.enabled) {
     return null
   }
 
-  overlayMode = 'compact'
+  overlayMode = mode
 
   const win = createOverlayWindow()
   const display = screen.getDisplayNearestPoint({ x: cursorX, y: cursorY })
@@ -390,8 +385,8 @@ export async function showOverlayAtPosition(
     ? Math.max(workArea.x, Math.min(anchorBounds.x, workArea.x + workArea.width - width))
     : Math.max(workArea.x, Math.min(cursorX - width / 2, workArea.x + workArea.width - width - WINDOW_MARGIN))
   const y = anchorBounds
-    ? Math.max(workArea.y, Math.min(anchorBounds.y + anchorBounds.height - height, workArea.y + workArea.height - height))
-    : Math.max(workArea.y, Math.min(cursorY - height - WINDOW_MARGIN, workArea.y + workArea.height - height - WINDOW_MARGIN))
+    ? Math.max(workArea.y, Math.min(anchorBounds.y, workArea.y + workArea.height - height))
+    : Math.max(workArea.y, Math.min(cursorY - height / 2, workArea.y + workArea.height - height - WINDOW_MARGIN))
 
   win.setBounds({ x, y, width, height }, false)
   win.show()

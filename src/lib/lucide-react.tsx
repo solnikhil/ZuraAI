@@ -63,6 +63,7 @@ import { InfoIcon as InfoBase } from '@phosphor-icons/react/dist/csr/Info'
 import { KeyIcon as KeyBase } from '@phosphor-icons/react/dist/csr/Key'
 import { LightningIcon as LightningBase } from '@phosphor-icons/react/dist/csr/Lightning'
 import { LinkIcon as LinkBase } from '@phosphor-icons/react/dist/csr/Link'
+import { ListIcon as ListBase } from '@phosphor-icons/react/dist/csr/List'
 import { LockIcon as LockBase } from '@phosphor-icons/react/dist/csr/Lock'
 import { SpinnerGapIcon as SpinnerGapBase } from '@phosphor-icons/react/dist/csr/SpinnerGap'
 import { CircleNotchIcon as CircleNotchBase } from '@phosphor-icons/react/dist/csr/CircleNotch'
@@ -177,6 +178,7 @@ export const Info = withDefaultWeight(InfoBase, 'duotone', 'Info')
 export const InfoIcon = Info
 export const KeyRound = withDefaultWeight(KeyBase, 'duotone', 'KeyRound')
 export const LayoutDashboard = withDefaultWeight(LayoutBase, 'duotone', 'LayoutDashboard')
+export const List = withDefaultWeight(ListBase, 'duotone', 'List')
 export const Link2 = withDefaultWeight(LinkBase, 'duotone', 'Link2')
 export const Loader2 = withDefaultWeight(SpinnerGapBase, 'duotone', 'Loader2')
 export const Loader2Icon = Loader2

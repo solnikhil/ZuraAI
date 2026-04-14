@@ -75,7 +75,6 @@ export default function TitleBar() {
 
     const density = settings.titleBarDensity || 'comfortable'
     const isSettingsView = dashboardView === 'settings'
-    const settingsButtonDisabled = isSettingsView && hasUnsavedSettings
     const sidebarWidthPx = sidebarHidden
         ? 0
         : (sidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH_PX : sidebarWidth)
@@ -132,10 +131,8 @@ export default function TitleBar() {
                     hasSidebar={hasSidebar}
                     hasUnsavedSettings={hasUnsavedSettings}
                     isSettingsView={isSettingsView}
-                    settingsButtonDisabled={settingsButtonDisabled}
                     sidebarHidden={sidebarHidden}
                     toggleSidebarHidden={toggleSidebarHidden}
-                    setDashboardView={setDashboardView}
                 />
             </div>
 
@@ -151,6 +148,9 @@ export default function TitleBar() {
                     isMacOS={isMacOS}
                     isMaximized={isMaximized}
                     setIsMaximized={setIsMaximized}
+                    hasUnsavedSettings={hasUnsavedSettings}
+                    isSettingsView={isSettingsView}
+                    setDashboardView={setDashboardView}
                 />
             </div>
         </div>
