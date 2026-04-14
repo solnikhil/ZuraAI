@@ -67,6 +67,8 @@ export interface OverlaySettings {
   anchor: 'right'
   compactWidth: number
   expandedWidth: number
+  promptAutoHideEnabled: boolean
+  promptAutoHideTimeout: number
 }
 
 /**
@@ -413,6 +415,8 @@ export const defaultSettingsConfig: SettingsConfig = {
     anchor: 'right',
     compactWidth: 360,
     expandedWidth: 460,
+    promptAutoHideEnabled: false,
+    promptAutoHideTimeout: 120,
   },
 }
 

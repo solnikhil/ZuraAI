@@ -12,6 +12,8 @@ export interface OverlaySettings {
   anchor: 'right'
   compactWidth: number
   expandedWidth: number
+  promptAutoHideEnabled: boolean
+  promptAutoHideTimeout: number
 }
 
 export interface OverlayState {
@@ -33,6 +35,8 @@ const DEFAULT_SETTINGS: OverlaySettings = {
   anchor: 'right',
   compactWidth: 360,
   expandedWidth: 460,
+  promptAutoHideEnabled: false,
+  promptAutoHideTimeout: 120,
 }
 
 const WINDOW_HEIGHTS = {
@@ -86,6 +90,14 @@ function sanitizeSettings(input: Partial<OverlaySettings>): OverlaySettings {
     anchor: 'right',
     compactWidth,
     expandedWidth,
+    promptAutoHideEnabled:
+      typeof input.promptAutoHideEnabled === 'boolean'
+        ? input.promptAutoHideEnabled
+        : overlaySettings.promptAutoHideEnabled,
+    promptAutoHideTimeout:
+      typeof input.promptAutoHideTimeout === 'number' && Number.isFinite(input.promptAutoHideTimeout)
+        ? Math.min(600, Math.max(30, Math.round(input.promptAutoHideTimeout)))
+        : overlaySettings.promptAutoHideTimeout,
   }
 }
 
@@ -150,7 +162,7 @@ function createOverlayWindow(): BrowserWindow {
     backgroundColor: '#00000000',
     hasShadow: false,
     autoHideMenuBar: true,
-    backgroundMaterial: 'acrylic',
+    backgroundMaterial: 'none',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -260,6 +272,8 @@ export function getOverlayState(): OverlayState {
     anchor: overlaySettings.anchor,
     compactWidth: overlaySettings.compactWidth,
     expandedWidth: overlaySettings.expandedWidth,
+    promptAutoHideEnabled: overlaySettings.promptAutoHideEnabled,
+    promptAutoHideTimeout: overlaySettings.promptAutoHideTimeout,
   }
 }
 

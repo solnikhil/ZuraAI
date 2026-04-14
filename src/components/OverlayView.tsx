@@ -12,6 +12,7 @@ import { StreamingMessage } from './Dashboard/ChatArea/StreamingMessage'
 import { useStreamingChat } from './Dashboard/ChatArea/hooks'
 import { shouldHideGenericToolResultCard } from './Dashboard/ChatArea/toolResultVisibility'
 import { PanelLeft, Send, Square, X } from './icons'
+import { usePromptAutoHide } from './Dashboard/ChatArea/hooks/usePromptAutoHide'
 
 export default function OverlayView() {
   const { sessions, currentSessionId } = useChatHistory()
@@ -20,6 +21,8 @@ export default function OverlayView() {
   const streamingState = useStreamingState()
   const [input, setInput] = useState('')
   const [overlayMode, setOverlayMode] = useState<'compact' | 'expanded'>('expanded')
+  const [promptFocused, setPromptFocused] = useState(false)
+  const [composerHovered, setComposerHovered] = useState(false)
 
   const currentSession = sessions.find((session) => session.id === currentSessionId) || null
   const messages = currentSession?.messages || []
@@ -37,6 +40,17 @@ export default function OverlayView() {
   const isCompact = overlayMode === 'compact'
   const hasConversation = messages.length > 0 || isLoading || visibleLiveToolResults.length > 0
 
+  const overlayPromptAutoHideEnabled = settings.overlay.promptAutoHideEnabled ?? false
+  const overlayPromptAutoHideTimeout = settings.overlay.promptAutoHideTimeout ?? 120
+  const { isPromptHidden, resetTimer, triggerZoneProps } = usePromptAutoHide({
+    enabled: !isCompact && overlayPromptAutoHideEnabled,
+    isLoading,
+    isFocused: promptFocused,
+    hasInput: input.trim().length > 0,
+    hasFiles: false,
+    timeoutSeconds: overlayPromptAutoHideTimeout,
+  })
+
   const syncOverlayMode = useCallback(async () => {
     try {
       const state = await window.overlay.getState()
@@ -52,8 +66,9 @@ export default function OverlayView() {
     const content = input.trim()
     if (!content || isLoading) return
     setInput('')
+    resetTimer()
     await sendMessage(content, [])
-  }, [input, isLoading, sendMessage])
+  }, [input, isLoading, resetTimer, sendMessage])
 
   const handleOpenMainApp = useCallback(async () => {
     try {
@@ -312,60 +327,27 @@ export default function OverlayView() {
         padding: isCompact ? '10px' : undefined,
         background: isCompact
           ? 'transparent'
-          : 'linear-gradient(180deg, rgba(10, 12, 16, 0.22) 0%, rgba(8, 10, 14, 0.32) 100%)',
-        backdropFilter: isCompact ? undefined : 'blur(18px) saturate(140%)',
-        WebkitBackdropFilter: isCompact ? undefined : 'blur(18px) saturate(140%)',
-        border: isCompact ? undefined : '1px solid rgba(255, 255, 255, 0.14)',
+          : 'linear-gradient(180deg, rgba(16, 20, 28, 0.16) 0%, rgba(12, 16, 24, 0.24) 100%)',
+        backdropFilter: isCompact ? undefined : 'blur(22px) saturate(135%)',
+        WebkitBackdropFilter: isCompact ? undefined : 'blur(22px) saturate(135%)',
+        border: isCompact ? undefined : '1px solid rgba(255, 255, 255, 0.18)',
         borderRadius: isCompact ? undefined : 16,
+        boxShadow: isCompact
+          ? undefined
+          : 'inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 16px 36px rgba(0, 0, 0, 0.24)',
         color: 'var(--theme-text-primary)',
         outline: 'none',
       }}
     >
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'flex-end',
-          padding: isCompact ? '8px 8px 4px 12px' : '10px 12px 8px',
-          WebkitAppRegion: 'drag',
-          minHeight: isCompact ? 38 : 44,
-          borderRadius: isCompact ? '16px 16px 0 0' : undefined,
-          background: isCompact ? 'rgba(18, 18, 20, 0.96)' : 'rgba(255, 255, 255, 0.03)',
-          border: isCompact ? '1px solid rgba(255, 255, 255, 0.1)' : 'none',
-          borderBottom: isCompact ? undefined : '1px solid rgba(255, 255, 255, 0.08)',
-          borderBottomColor: isCompact ? 'transparent' : undefined,
-        } as React.CSSProperties}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
-          <button
-            type="button"
-            onClick={handleOpenMainApp}
-            className="overlay__icon-button"
-            aria-label="Open in main app"
-            title="Open in main app"
-          >
-            <PanelLeft size={16} />
-          </button>
-          <button
-            type="button"
-            onClick={handleHide}
-            className="overlay__icon-button"
-            aria-label="Hide overlay"
-            title="Hide overlay"
-          >
-            <X size={16} />
-          </button>
-        </div>
-      </div>
-
       <ScrollArea
         className="flex-1"
         viewportStyle={{
-          padding: isCompact ? '0 12px 10px' : '14px 14px 18px',
+          padding: isCompact ? '0 12px 10px' : '14px 10px 16px',
           minHeight: 0,
         }}
         style={{
           minHeight: 0,
-          background: isCompact ? 'rgba(18, 18, 20, 0.96)' : 'rgba(8, 10, 14, 0.08)',
+          background: isCompact ? 'rgba(18, 18, 20, 0.96)' : 'transparent',
           borderLeft: isCompact ? '1px solid rgba(255, 255, 255, 0.1)' : undefined,
           borderRight: isCompact ? '1px solid rgba(255, 255, 255, 0.1)' : undefined,
         }}
@@ -462,14 +444,47 @@ export default function OverlayView() {
         </div>
       </ScrollArea>
 
+      {!isCompact && isPromptHidden ? (
+        <div
+          {...triggerZoneProps}
+          style={{
+            position: 'absolute',
+            bottom: 0,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            width: '100%',
+            maxWidth: '100%',
+            height: '48px',
+            cursor: 'pointer',
+            zIndex: 10,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <div
+            style={{
+              width: '40px',
+              height: '4px',
+              borderRadius: '2px',
+              background: 'var(--theme-text-muted)',
+              opacity: 0.36,
+            }}
+          />
+        </div>
+      ) : null}
+
       <div
         style={{
-          padding: isCompact ? '0 10px 10px' : '6px 10px 10px',
-          borderTop: isCompact ? 'none' : '1px solid color-mix(in srgb, var(--theme-border) 60%, transparent)',
-          background: isCompact
-            ? 'transparent'
-            : 'linear-gradient(180deg, rgba(14, 16, 22, 0.2) 0%, rgba(10, 12, 18, 0.28) 100%)',
+          padding: isCompact ? '0 10px 10px' : '4px 10px 10px',
+          borderTop: 'none',
+          background: 'transparent',
+          transform: !isCompact && isPromptHidden ? 'translateY(118%)' : undefined,
+          opacity: !isCompact && isPromptHidden ? 0 : 1,
+          pointerEvents: !isCompact && isPromptHidden ? 'none' : undefined,
+          transition: !isCompact ? 'transform 220ms ease, opacity 200ms ease' : undefined,
         }}
+        onMouseMove={!isCompact ? resetTimer : undefined}
       >
         <div
           className={isCompact ? 'prompt-popup-composer' : undefined}
@@ -479,15 +494,37 @@ export default function OverlayView() {
             gap: 6,
             padding: isCompact ? 10 : '8px 10px 8px',
             borderRadius: isCompact ? 18 : 20,
-            border: isCompact ? undefined : '1px solid color-mix(in srgb, var(--theme-border) 78%, transparent)',
+            border: isCompact ? undefined : '1px solid rgba(255, 255, 255, 0.16)',
             background: isCompact
               ? undefined
-              : 'linear-gradient(180deg, rgba(16, 18, 24, 0.46) 0%, rgba(12, 14, 20, 0.52) 100%)',
+              : 'linear-gradient(180deg, rgba(12, 16, 24, 0.34) 0%, rgba(10, 14, 22, 0.42) 100%)',
+            backdropFilter: isCompact ? undefined : 'blur(12px) saturate(125%)',
+            WebkitBackdropFilter: isCompact ? undefined : 'blur(12px) saturate(125%)',
+            position: 'relative',
+            overflow: 'visible',
+          }}
+          onMouseEnter={() => {
+            if (!isCompact) {
+              setComposerHovered(true)
+              resetTimer()
+            }
+          }}
+          onMouseLeave={() => {
+            if (!isCompact) {
+              setComposerHovered(false)
+            }
           }}
         >
           <textarea
             value={input}
-            onChange={(event) => setInput(event.target.value)}
+            onChange={(event) => {
+              setInput(event.target.value)
+              if (!isCompact) {
+                resetTimer()
+              }
+            }}
+            onFocus={() => setPromptFocused(true)}
+            onBlur={() => setPromptFocused(false)}
             onKeyDown={(event) => {
               if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault()
@@ -532,7 +569,13 @@ export default function OverlayView() {
                 }
                 void handleSend()
               }}
-              className={isCompact ? 'prompt-popup-send' : 'overlay__send-button'}
+              className={
+                isCompact
+                  ? 'prompt-popup-send'
+                  : isLoading
+                    ? 'overlay__send-button overlay__send-button--stop'
+                    : 'overlay__send-button'
+              }
               aria-label={isLoading ? 'Stop generation' : 'Send message'}
             >
               {isLoading ? (
@@ -543,6 +586,42 @@ export default function OverlayView() {
                 </>
               )}
             </button>
+
+            {!isCompact ? (
+              <div
+                style={{
+                  position: 'absolute',
+                  right: -48,
+                  bottom: 0,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 8,
+                  opacity: composerHovered ? 1 : 0,
+                  transform: composerHovered ? 'translateX(0)' : 'translateX(8px)',
+                  pointerEvents: composerHovered ? 'auto' : 'none',
+                  transition: 'opacity 160ms ease, transform 180ms ease',
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={handleOpenMainApp}
+                  className="overlay__icon-button"
+                  aria-label="Open in main app"
+                  title="Open in main app"
+                >
+                  <PanelLeft size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleHide}
+                  className="overlay__icon-button"
+                  aria-label="Hide overlay"
+                  title="Hide overlay"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            ) : null}
           </div>
         </div>
       </div>
@@ -553,6 +632,22 @@ export default function OverlayView() {
             background: rgba(12, 14, 20, 0.9) !important;
           }
         }
+        .overlay__glass-shell::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          border-radius: inherit;
+          pointer-events: none;
+          background:
+            radial-gradient(120% 52% at 50% -14%, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0) 68%),
+            radial-gradient(100% 70% at 50% 118%, rgba(10, 12, 18, 0.38) 0%, rgba(10, 12, 18, 0) 70%),
+            radial-gradient(64% 108% at -8% 50%, rgba(12, 16, 24, 0.24) 0%, rgba(12, 16, 24, 0) 72%),
+            radial-gradient(64% 108% at 108% 50%, rgba(12, 16, 24, 0.24) 0%, rgba(12, 16, 24, 0) 72%);
+        }
+        .overlay__glass-shell > * {
+          position: relative;
+          z-index: 1;
+        }
         .overlay__icon-button {
           width: 34px;
           height: 34px;
@@ -560,16 +655,16 @@ export default function OverlayView() {
           align-items: center;
           justify-content: center;
           border-radius: 999px;
-          border: 1px solid color-mix(in srgb, var(--theme-border) 78%, transparent);
-          background: rgba(24, 28, 36, 0.42);
+          border: 1px solid rgba(255, 255, 255, 0.18);
+          background: rgba(24, 28, 36, 0.34);
           color: var(--theme-text-secondary);
           cursor: pointer;
           transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
         }
         .overlay__icon-button:hover {
           color: var(--theme-text-primary);
-          background: color-mix(in srgb, var(--theme-surface-hover) 92%, transparent);
-          border-color: color-mix(in srgb, var(--theme-border-hover) 85%, transparent);
+          background: rgba(36, 40, 50, 0.48);
+          border-color: rgba(255, 255, 255, 0.28);
         }
         .overlay__send-button {
           width: 40px;
@@ -577,24 +672,24 @@ export default function OverlayView() {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          border: 1px solid color-mix(in srgb, var(--theme-border) 68%, transparent);
-          background: rgba(58, 64, 76, 0.62);
+          border: 1px solid rgba(255, 255, 255, 0.18);
+          background: rgba(60, 68, 84, 0.52);
           color: rgba(236, 240, 245, 0.94);
           border-radius: 999px;
           cursor: pointer;
           transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
         }
         .overlay__send-button:hover {
-          background: rgba(76, 80, 88, 0.9);
+          background: rgba(76, 86, 104, 0.66);
           color: rgba(255, 255, 255, 0.98);
-          border-color: color-mix(in srgb, var(--theme-border-hover) 80%, transparent);
+          border-color: rgba(255, 255, 255, 0.28);
         }
-        .overlay__send-button:has(.overlay__stop-icon) {
-          background: rgba(92, 56, 62, 0.58);
-          border-color: rgba(218, 112, 124, 0.42);
+        .overlay__send-button--stop {
+          background: rgba(94, 58, 66, 0.58);
+          border-color: rgba(226, 120, 132, 0.45);
           color: rgba(255, 224, 228, 0.96);
         }
-        .overlay__send-button:has(.overlay__stop-icon):hover {
+        .overlay__send-button--stop:hover {
           background: rgba(120, 66, 76, 0.72);
           border-color: rgba(236, 134, 146, 0.56);
           color: rgba(255, 236, 239, 0.98);

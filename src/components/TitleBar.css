@@ -162,6 +162,11 @@
     -webkit-app-region: no-drag;
 }
 
+.app-titlebar__nav-cluster {
+    gap: 2px;
+    margin-right: 2px;
+}
+
 .app-titlebar__tab-group {
     display: inline-flex;
     align-items: center;
@@ -250,6 +255,10 @@
 }
 
 .app-titlebar__icon-btn--settings {
+    color: var(--titlebar-nav-icon-color);
+}
+
+.app-titlebar__icon-btn--nav {
     color: var(--titlebar-nav-icon-color);
 }
 

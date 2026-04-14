@@ -38,6 +38,10 @@ export default function TitleBar() {
         sidebarHidden,
         toggleSidebarHidden,
         isResizingSidebar,
+        canGoBack,
+        canGoForward,
+        goBack,
+        goForward,
     } = useAppShell()
     const { isDashboardRoute, isSettingsRoute, isLegacyChatRoute, hasSidebar } = useShellRouteState(location.pathname)
 
@@ -128,6 +132,10 @@ export default function TitleBar() {
 
             <div className="app-titlebar__left">
                 <TitleBarSidebarControls
+                    canGoBack={canGoBack}
+                    canGoForward={canGoForward}
+                    onBack={goBack}
+                    onForward={goForward}
                     hasSidebar={hasSidebar}
                     hasUnsavedSettings={hasUnsavedSettings}
                     isSettingsView={isSettingsView}

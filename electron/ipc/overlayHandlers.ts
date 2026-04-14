@@ -32,6 +32,12 @@ function sanitizeOverlaySettings(input: unknown): Partial<OverlaySettings> {
 
   if (typeof input.compactWidth === 'number') settings.compactWidth = input.compactWidth
   if (typeof input.expandedWidth === 'number') settings.expandedWidth = input.expandedWidth
+  if (typeof input.promptAutoHideEnabled === 'boolean') {
+    settings.promptAutoHideEnabled = input.promptAutoHideEnabled
+  }
+  if (typeof input.promptAutoHideTimeout === 'number') {
+    settings.promptAutoHideTimeout = input.promptAutoHideTimeout
+  }
 
   return settings
 }

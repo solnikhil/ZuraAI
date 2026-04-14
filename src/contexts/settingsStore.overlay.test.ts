@@ -13,6 +13,8 @@ describe('normalizeStoredSettings overlay', () => {
       anchor: 'right',
       compactWidth: 360,
       expandedWidth: 460,
+      promptAutoHideEnabled: false,
+      promptAutoHideTimeout: 120,
     })
   })
 
@@ -36,6 +38,8 @@ describe('normalizeStoredSettings overlay', () => {
       anchor: 'right',
       compactWidth: 420,
       expandedWidth: 460,
+      promptAutoHideEnabled: false,
+      promptAutoHideTimeout: 120,
     })
   })
 })

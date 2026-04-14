@@ -1,9 +1,20 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { useSettings } from './SettingsContext'
 import { SIDEBAR_DEFAULT_WIDTH_PX, clampSidebarWidth } from '../constants/sidebar'
 import { normalizeSettingsSection } from '../constants/settingsSections'
 import type { ProviderId } from '../providers/providerTypes'
 import { warnOnceDuringHmr } from './hmrWarnings'
+import {
+  canGoBackInShellHistory,
+  canGoForwardInShellHistory,
+  createShellNavigationHistory,
+  getNextShellSnapshot,
+  getPreviousShellSnapshot,
+  moveBackInShellHistory,
+  moveForwardInShellHistory,
+  pushShellNavigationSnapshot,
+  type AppShellNavigationSnapshot,
+} from './appShellNavigation'
 
 export type DashboardView = 'chat' | 'settings'
 
@@ -34,6 +45,10 @@ interface AppShellContextType {
   /** True while the user is actively dragging the sidebar resize handle */
   isResizingSidebar: boolean
   setIsResizingSidebar: (resizing: boolean) => void
+  canGoBack: boolean
+  canGoForward: boolean
+  goBack: () => void
+  goForward: () => void
 }
 
 const AppShellContext = createContext<AppShellContextType | undefined>(undefined)
@@ -73,7 +88,17 @@ function readStoredSidebarWidth(): number | null {
   return clampSidebarWidth(parsed)
 }
 
-export function AppShellProvider({ children }: { children: React.ReactNode }) {
+export interface AppShellProviderProps {
+  children: React.ReactNode
+  pathname?: string
+  navigateToPath?: (pathname: string) => void
+}
+
+export function AppShellProvider({
+  children,
+  pathname = '/dashboard',
+  navigateToPath,
+}: AppShellProviderProps) {
   const { settings } = useSettings()
 
   const [dashboardView, setDashboardViewState] = useState<DashboardView>(() => {
@@ -117,6 +142,15 @@ export function AppShellProvider({ children }: { children: React.ReactNode }) {
     useState<SettingsSectionParams | null>(null)
 
   const [isResizingSidebar, setIsResizingSidebarState] = useState(false)
+  const [navigationHistory, setNavigationHistory] = useState(() =>
+    createShellNavigationHistory({
+      pathname,
+      dashboardView,
+      activeSettingsSection,
+    })
+  )
+  const pendingAppliedSnapshotRef = useRef<AppShellNavigationSnapshot | null>(null)
+
   const setIsResizingSidebar = useCallback((resizing: boolean) => {
     setIsResizingSidebarState(resizing)
   }, [])
@@ -149,6 +183,65 @@ export function AppShellProvider({ children }: { children: React.ReactNode }) {
   const setSettingsSectionParamsCallback = useCallback((params: SettingsSectionParams | null) => {
     setSettingsSectionParamsState(params)
   }, [])
+
+  useEffect(() => {
+    const currentSnapshot: AppShellNavigationSnapshot = {
+      pathname,
+      dashboardView,
+      activeSettingsSection,
+    }
+
+    const pendingAppliedSnapshot = pendingAppliedSnapshotRef.current
+    if (pendingAppliedSnapshot) {
+      if (
+        pendingAppliedSnapshot.pathname === currentSnapshot.pathname &&
+        pendingAppliedSnapshot.dashboardView === currentSnapshot.dashboardView &&
+        pendingAppliedSnapshot.activeSettingsSection === currentSnapshot.activeSettingsSection
+      ) {
+        pendingAppliedSnapshotRef.current = null
+      }
+      return
+    }
+
+    setNavigationHistory((prev) => pushShellNavigationSnapshot(prev, currentSnapshot))
+  }, [activeSettingsSection, dashboardView, pathname])
+
+  const applyHistorySnapshot = useCallback(
+    (snapshot: AppShellNavigationSnapshot) => {
+      pendingAppliedSnapshotRef.current = snapshot
+
+      if (snapshot.pathname !== pathname) {
+        navigateToPath?.(snapshot.pathname)
+      }
+
+      setDashboardViewState(snapshot.dashboardView)
+      setActiveSettingsSectionState(snapshot.activeSettingsSection)
+    },
+    [navigateToPath, pathname]
+  )
+
+  const goBack = useCallback(() => {
+    const targetSnapshot = getPreviousShellSnapshot(navigationHistory)
+    if (!targetSnapshot) {
+      return
+    }
+
+    setNavigationHistory((prev) => moveBackInShellHistory(prev))
+    applyHistorySnapshot(targetSnapshot)
+  }, [applyHistorySnapshot, navigationHistory])
+
+  const goForward = useCallback(() => {
+    const targetSnapshot = getNextShellSnapshot(navigationHistory)
+    if (!targetSnapshot) {
+      return
+    }
+
+    setNavigationHistory((prev) => moveForwardInShellHistory(prev))
+    applyHistorySnapshot(targetSnapshot)
+  }, [applyHistorySnapshot, navigationHistory])
+
+  const canGoBack = canGoBackInShellHistory(navigationHistory)
+  const canGoForward = canGoForwardInShellHistory(navigationHistory)
 
   useEffect(() => {
     if (!settings.rememberLastDashboardView) {
@@ -209,10 +302,18 @@ export function AppShellProvider({ children }: { children: React.ReactNode }) {
       setSidebarHidden,
       isResizingSidebar,
       setIsResizingSidebar,
+      canGoBack,
+      canGoForward,
+      goBack,
+      goForward,
     }),
     [
       activeSettingsSection,
+      canGoBack,
+      canGoForward,
       dashboardView,
+      goBack,
+      goForward,
       hasUnsavedSettings,
       isResizingSidebar,
       setActiveSettingsSection,
@@ -258,6 +359,10 @@ export function useAppShell() {
         setSidebarHidden: () => {},
         isResizingSidebar: false,
         setIsResizingSidebar: () => {},
+        canGoBack: false,
+        canGoForward: false,
+        goBack: () => {},
+        goForward: () => {},
       }
     }
     throw new Error('useAppShell must be used within a AppShellProvider')

@@ -61,6 +61,8 @@ export interface OverlaySettings {
     anchor: 'right'
     compactWidth: number
     expandedWidth: number
+    promptAutoHideEnabled: boolean
+    promptAutoHideTimeout: number
 }
 
 export interface OverlayState extends OverlaySettings {
