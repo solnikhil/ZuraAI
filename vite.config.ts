@@ -30,7 +30,7 @@ export default defineConfig({
                 vite: {
                     build: {
                         rollupOptions: {
-                            external: ['playwright', 'playwright-core', 'bufferutil', 'utf-8-validate'],
+                            external: ['bufferutil', 'utf-8-validate'],
                         },
                     },
                     define: {
