@@ -20,7 +20,9 @@ export default function AboutWindow() {
         if (!cancelled) {
           setAppInfo(info)
         }
-      } catch {}
+      } catch (error) {
+        console.warn('[AboutWindow] Failed to load app runtime info', error)
+      }
     }
 
     void loadAppInfo()
@@ -32,18 +34,16 @@ export default function AboutWindow() {
 
   const getRelativeTime = (dateStr: string) => {
     if (dateStr === 'unknown') return ''
-    try {
-      const date = new Date(dateStr)
-      if (Number.isNaN(date.getTime())) return ''
-      const now = new Date()
-      const diffMs = now.getTime() - date.getTime()
-      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
-      if (diffDays === 0) return '(today)'
-      if (diffDays === 1) return '(1 day ago)'
-      return `(${diffDays} days ago)`
-    } catch {
-      return ''
-    }
+
+    const date = new Date(dateStr)
+    if (Number.isNaN(date.getTime())) return ''
+
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+    if (diffDays === 0) return '(today)'
+    if (diffDays === 1) return '(1 day ago)'
+    return `(${diffDays} days ago)`
   }
 
   const InfoRow = ({ 

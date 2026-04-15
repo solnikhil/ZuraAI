@@ -71,6 +71,14 @@ interface ProviderDefinition {
   >
 }
 
+type ProviderModelListField =
+  | 'configuredModels'
+  | 'perplexityModels'
+  | 'groqModels'
+  | 'alibabaModels'
+  | 'fireworksModels'
+  | 'ollamaModels'
+
 const PROVIDERS: ProviderDefinition[] = getActiveProviderDefinitions().map((provider) => ({
   key: provider.id as ProviderKey,
   name: provider.label,
@@ -115,6 +123,15 @@ const DEFAULT_PROVIDER_ENABLED: Record<ProviderKey, boolean> = {
   ollama: true,
   openrouter: true,
   perplexity: true,
+}
+
+const PROVIDER_MODEL_LIST_FIELD: Record<ProviderKey, ProviderModelListField> = {
+  openrouter: 'configuredModels',
+  perplexity: 'perplexityModels',
+  groq: 'groqModels',
+  alibaba: 'alibabaModels',
+  fireworks: 'fireworksModels',
+  ollama: 'ollamaModels',
 }
 
 type SearchApiKey = 'tavily'
@@ -199,6 +216,19 @@ export interface ProviderHubSectionProps {
     }>
   ) => void
 }
+
+type ProviderSettingsUpdate = Partial<Pick<
+  ProviderHubSectionProps,
+  | 'configuredModels'
+  | 'perplexityModels'
+  | 'groqModels'
+  | 'alibabaModels'
+  | 'fireworksModels'
+  | 'ollamaModels'
+  | 'aiModel'
+  | 'modelProvider'
+  | 'providerEnabled'
+>>
 
 export function ProviderHubSection({
   openRouterApiKey,
@@ -302,6 +332,13 @@ export function ProviderHubSection({
     ollama: ollamaModels,
   }
 
+  const buildModelUpdateForProvider = (
+    provider: ProviderKey,
+    models: ConfiguredModel[]
+  ): ProviderSettingsUpdate => ({
+    [PROVIDER_MODEL_LIST_FIELD[provider]]: models,
+  })
+
   const selectedProviderDef =
     PROVIDERS.find((provider) => provider.key === selectedProvider) ?? PROVIDERS[0]
   const providerModels = providerModelMap[selectedProviderDef.key] || []
@@ -396,7 +433,7 @@ export function ProviderHubSection({
       [providerKey]: enabled,
     }
 
-    const updates: Partial<ProviderHubSectionProps> & { [key: string]: unknown } = {
+    const updates: ProviderSettingsUpdate = {
       providerEnabled: nextProviderEnabled,
     }
 
@@ -425,14 +462,7 @@ export function ProviderHubSection({
   }
 
   const setModelsForProvider = (provider: ProviderKey, models: ConfiguredModel[]) => {
-    const updates: Partial<ProviderHubSectionProps> & { [key: string]: unknown } = {}
-    if (provider === 'openrouter') updates.configuredModels = models
-    if (provider === 'perplexity') updates.perplexityModels = models
-    if (provider === 'groq') updates.groqModels = models
-    if (provider === 'alibaba') updates.alibabaModels = models
-    if (provider === 'fireworks') updates.fireworksModels = models
-    if (provider === 'ollama') updates.ollamaModels = models
-    onChange(updates)
+    onChange(buildModelUpdateForProvider(provider, models))
   }
 
   const addCustomModel = (
@@ -458,13 +488,7 @@ export function ProviderHubSection({
       return { ...model, enabled: checked }
     })
 
-    const updates: Partial<ProviderHubSectionProps> & { [key: string]: unknown } = {}
-    if (provider === 'openrouter') updates.configuredModels = updatedModels
-    if (provider === 'perplexity') updates.perplexityModels = updatedModels
-    if (provider === 'groq') updates.groqModels = updatedModels
-    if (provider === 'alibaba') updates.alibabaModels = updatedModels
-    if (provider === 'fireworks') updates.fireworksModels = updatedModels
-    if (provider === 'ollama') updates.ollamaModels = updatedModels
+    const updates: ProviderSettingsUpdate = buildModelUpdateForProvider(provider, updatedModels)
 
     if (!checked && modelProvider === provider && aiModel === modelCode) {
       const fallback = updatedModels.find((model) => model.enabled !== false)
@@ -484,28 +508,14 @@ export function ProviderHubSection({
       return { ...model, ...updatedModel, code: modelCode }
     })
 
-    const updates: Partial<ProviderHubSectionProps> & { [key: string]: unknown } = {}
-    if (provider === 'openrouter') updates.configuredModels = updatedModels
-    if (provider === 'perplexity') updates.perplexityModels = updatedModels
-    if (provider === 'groq') updates.groqModels = updatedModels
-    if (provider === 'alibaba') updates.alibabaModels = updatedModels
-    if (provider === 'fireworks') updates.fireworksModels = updatedModels
-    if (provider === 'ollama') updates.ollamaModels = updatedModels
-
-    onChange(updates)
+    onChange(buildModelUpdateForProvider(provider, updatedModels))
   }
 
   const removeModel = (provider: ProviderKey, modelCode: string) => {
     const currentModels = providerModelMap[provider] as ConfiguredModel[]
     const updatedModels = currentModels.filter((model) => model.code !== modelCode)
 
-    const updates: Partial<ProviderHubSectionProps> & { [key: string]: unknown } = {}
-    if (provider === 'openrouter') updates.configuredModels = updatedModels
-    if (provider === 'perplexity') updates.perplexityModels = updatedModels
-    if (provider === 'groq') updates.groqModels = updatedModels
-    if (provider === 'alibaba') updates.alibabaModels = updatedModels
-    if (provider === 'fireworks') updates.fireworksModels = updatedModels
-    if (provider === 'ollama') updates.ollamaModels = updatedModels
+    const updates: ProviderSettingsUpdate = buildModelUpdateForProvider(provider, updatedModels)
 
     if (modelProvider === provider && aiModel === modelCode) {
       const fallback = updatedModels.find((model) => model.enabled !== false)
@@ -541,14 +551,25 @@ export function ProviderHubSection({
   }
 
   const clearModelsForProvider = (provider: ProviderKey) => {
-    const updates: Partial<ProviderHubSectionProps> & { [key: string]: unknown } = {}
-    if (provider === 'openrouter') updates.configuredModels = []
-    if (provider === 'perplexity') updates.perplexityModels = []
-    if (provider === 'groq') updates.groqModels = []
-    if (provider === 'alibaba') updates.alibabaModels = []
-    if (provider === 'fireworks') updates.fireworksModels = []
-    if (provider === 'ollama') updates.ollamaModels = []
-    onChange(updates)
+    onChange(buildModelUpdateForProvider(provider, []))
+  }
+
+  const openCatalogDialogForProvider = (provider: ProviderKey) => {
+    if (provider === 'openrouter') {
+      setOpenRouterSearchDialogOpen(true)
+      return
+    }
+    if (provider === 'fireworks') {
+      setFireworksSearchDialogOpen(true)
+      return
+    }
+    if (provider === 'perplexity') {
+      setPerplexitySearchDialogOpen(true)
+      return
+    }
+    if (provider === 'alibaba') {
+      setAlibabaSearchDialogOpen(true)
+    }
   }
 
   const handleClearModelsConfirm = () => {
@@ -1082,21 +1103,7 @@ export function ProviderHubSection({
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => {
-                      if (selectedProviderDef.key === 'openrouter') {
-                        setOpenRouterSearchDialogOpen(true)
-                        return
-                      }
-                      if (selectedProviderDef.key === 'fireworks') {
-                        setFireworksSearchDialogOpen(true)
-                        return
-                      }
-                      if (selectedProviderDef.key === 'perplexity') {
-                        setPerplexitySearchDialogOpen(true)
-                        return
-                      }
-                      setAlibabaSearchDialogOpen(true)
-                    }}
+                    onClick={() => openCatalogDialogForProvider(selectedProviderDef.key)}
                     className="gap-2"
                   >
                     <Search size={14} />

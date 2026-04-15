@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSettings } from '../contexts/SettingsContext'
+import { getModelDisplayName } from '../providers'
 import { Plus, FlaskConical, Globe } from './icons'
 import { Send } from 'lucide-react'
 
@@ -14,18 +15,9 @@ export default function PromptPopupView() {
   const { settings } = useSettings()
 
   const modelName = useMemo(() => {
-    const allModels: Array<{ code: string; displayName: string }> = [
-      ...(settings.ollamaModels || []),
-      ...(settings.perplexityModels || []),
-      ...(settings.configuredModels || []),
-      ...(settings.groqModels || []),
-      ...(settings.alibabaModels || []),
-      ...(settings.fireworksModels || []),
-    ]
-    const match = allModels.find((m) => m.code === settings.aiModel)
-    const raw = match?.displayName || settings.aiModel?.split('/').pop() || 'Auto'
+    const raw = getModelDisplayName(settings)
     return truncateModelName(raw.replace(/[\u{1F300}-\u{1F9FF}]/gu, '').trim(), 12)
-  }, [settings.aiModel, settings.ollamaModels, settings.perplexityModels, settings.configuredModels, settings.groqModels, settings.alibabaModels, settings.fireworksModels])
+  }, [settings])
 
   useEffect(() => {
     const previousBodyBackground = document.body.style.background

@@ -306,7 +306,6 @@ export function useProviderStreaming({
         }
       ) => {
         const roundStartContent = accumulatedContent
-        const roundStartTime = performance.now()
         let roundContent = ''
         let roundToolCalls: DeltaToolCall[] = []
         let roundReasoningDetails: ReasoningDetail[] = []
@@ -946,24 +945,24 @@ export function useProviderStreaming({
         }
       }
 
+      const visibleAnswerRound: VisibleAnswerRound = finalVisibleAnswerRound ?? {
+        content: '',
+        usage: emptyUsage(),
+        firstTokenTime: null,
+      }
+      const visibleAnswerUsage = visibleAnswerRound.usage
       const basicUsage = fillMissingUsage(
-        finalVisibleAnswerRound
-          ? {
-              inputTokens: finalVisibleAnswerRound.usage.inputTokens || 0,
-              outputTokens: finalVisibleAnswerRound.usage.outputTokens || 0,
-              totalTokens: finalVisibleAnswerRound.usage.totalTokens || 0,
-            }
-          : {
-              inputTokens: 0,
-              outputTokens: 0,
-              totalTokens: 0,
-            },
-        finalVisibleAnswerRound?.content || '',
+        {
+          inputTokens: visibleAnswerUsage?.inputTokens ?? 0,
+          outputTokens: visibleAnswerUsage?.outputTokens ?? 0,
+          totalTokens: visibleAnswerUsage?.totalTokens ?? 0,
+        },
+        visibleAnswerRound.content,
         { deriveInputFromTotal: provider === 'alibaba' }
       )
       const metrics = computeStreamMetrics(
-        finalVisibleAnswerRound ? options.startTime : options.startTime,
-        finalVisibleAnswerRound?.firstTokenTime ?? null,
+        options.startTime,
+        visibleAnswerRound.firstTokenTime,
         basicUsage.outputTokens
       )
       const finalContent = hasSearchResults(savedToolResults)
@@ -972,9 +971,9 @@ export function useProviderStreaming({
       const finalFinishReason = finalAnswerForcedFailure ? undefined : finishReason || undefined
       const finalUsage = {
         ...basicUsage,
-        thinkingTokens: finalVisibleAnswerRound?.usage.thinkingTokens,
-        cachedInputTokens: finalVisibleAnswerRound?.usage.cachedInputTokens,
-        cachedOutputTokens: finalVisibleAnswerRound?.usage.cachedOutputTokens,
+        thinkingTokens: visibleAnswerUsage?.thinkingTokens,
+        cachedInputTokens: visibleAnswerUsage?.cachedInputTokens,
+        cachedOutputTokens: visibleAnswerUsage?.cachedOutputTokens,
         tps:
           basicUsage.outputTokens > 0 && metrics.latency > 0
             ? basicUsage.outputTokens / (metrics.latency / 1000)

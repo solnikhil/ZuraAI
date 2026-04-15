@@ -23,17 +23,28 @@ export default function TitleBarWindowActions({
     window.windowControls
       ?.toggleMaximize()
       .then(() => {
-        window.windowControls?.isMaximized().then(setIsMaximized).catch(() => {})
+        window.windowControls
+          ?.isMaximized()
+          .then(setIsMaximized)
+          .catch((error) => {
+            console.warn('[TitleBarWindowActions] Failed to read maximize state after toggle', error)
+          })
       })
-      .catch(() => {})
+      .catch((error) => {
+        console.warn('[TitleBarWindowActions] Failed to toggle maximize', error)
+      })
   }, [setIsMaximized])
 
   const handleMinimize = useCallback(() => {
-    window.windowControls?.minimize().catch(() => {})
+    window.windowControls?.minimize().catch((error) => {
+      console.warn('[TitleBarWindowActions] Failed to minimize window', error)
+    })
   }, [])
 
   const handleClose = useCallback(() => {
-    window.windowControls?.close().catch(() => {})
+    window.windowControls?.close().catch((error) => {
+      console.warn('[TitleBarWindowActions] Failed to close window', error)
+    })
   }, [])
 
   return (

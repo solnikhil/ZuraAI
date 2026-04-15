@@ -52,8 +52,12 @@ export interface UseStreamingChatReturn {
   isLoading: boolean
   toolState: ToolCallState
   sendMessage: (content: string, files: AttachedFile[]) => Promise<void>
-  regenerateMessage: (message: any, instruction: string) => Promise<void>
+  regenerateMessage: (message: RegenerateMessage, instruction: string) => Promise<void>
   stopStreaming: () => void
+}
+
+type RegenerateMessage = Message & {
+  instruction?: string
 }
 
 export function buildCommittedStreamingUpdates(
@@ -593,12 +597,9 @@ enableTools: true,
     ]
   )
 
-  /**
-   * Regenerate a message with different instructions
-   * Note: This uses direct streaming for simplicity, not the composed hooks
-   */
+  /** Regenerate a message with different instructions. */
   const regenerateMessage = useCallback(
-    async (message: any, instruction: string) => {
+    async (message: RegenerateMessage, instruction: string) => {
       if (!currentSessionId || isLoading) return
 
       let effectiveSettings = settings

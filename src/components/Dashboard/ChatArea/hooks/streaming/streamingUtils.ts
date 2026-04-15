@@ -537,10 +537,6 @@ export function stripStandaloneHorizontalRule(content: string): string {
     .trimEnd()
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 export function buildSearchSynthesisFailureMessage(
   toolResults: ToolCallResult[] | undefined
 ): string | null {

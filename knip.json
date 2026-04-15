@@ -3,6 +3,6 @@
   "entry": ["electron/main.ts", "electron/preload.ts"],
   "project": ["src/**/*.ts", "src/**/*.tsx", "electron/**/*.ts"],
   "exclude": ["exports", "types", "duplicates", "files"],
-  "ignoreDependencies": ["next-themes", "tailwindcss", "@radix-ui/react-context-menu"],
+  "ignoreDependencies": ["tailwindcss", "@radix-ui/react-context-menu"],
   "treatConfigHintsAsErrors": false
 }

@@ -11,131 +11,31 @@ import React, {
   useMemo,
   useRef,
 } from 'react'
-import type { ToolExecutionMetadata } from '../tools/types'
 import { useSettings } from './SettingsContext'
 import { ChatSessionManager, type SessionMetadata } from './ChatSessionManager'
 import { createSelectableContext } from './createSelectableContext'
 import { warnOnceDuringHmr } from './hmrWarnings'
+import type {
+  ChatSession,
+  FileAttachment,
+  Folder,
+  Message,
+  ResponseVersion,
+  ThinkingBlock,
+  ToolCallResult,
+} from '../chat/types'
 
 // Re-export SessionMetadata for consumers
 export type { SessionMetadata } from './ChatSessionManager'
 
-export interface ToolCallResult {
-  toolCall: {
-    id: string
-    name: string
-    arguments: Record<string, unknown>
-  }
-  result: {
-    success: boolean
-    data?: unknown
-    error?: string
-    executionTime?: number
-    metadata?: ToolExecutionMetadata
-  }
-}
-
-export interface FileAttachment {
-  id: string
-  name: string
-  type: string
-  size: number
-  data: string // base64 encoded data
-  mimeType: string
-}
-
-export interface ThinkingBlock {
-  type: 'thinking' | 'searching' | 'tool'
-  content?: string // For thinking blocks
-  query?: string // For searching blocks
-  duration?: number // Duration in milliseconds (for thinking)
-  timestamp: number // When this block was created
-  /** Tool name for completed tool blocks */
-  toolName?: string
-  /** Tool call arguments (for searching blocks - JSON input) */
-  toolInput?: Record<string, unknown>
-  /** Tool call result (for searching blocks - JSON output) */
-  toolOutput?: {
-    success: boolean
-    data?: unknown
-    error?: string
-    executionTime?: number
-    metadata?: ToolExecutionMetadata
-  }
-}
-
-export interface ResponseVersion {
-  id: string
-  content: string
-  timestamp: number
-  instruction?: string // e.g., "more concise", "add details"
-  model?: string
-}
-
-export interface Message {
-  id: string
-  role: 'user' | 'assistant' | 'system'
-  content: string
-  image?: string // Legacy field for backward compatibility
-  files?: FileAttachment[] // New field for multiple file attachments
-  timestamp: number
-  tokenCount?: number
-  model?: string
-  latency?: number
-  thinking?: string
-  thinkingDuration?: number
-  thinkingBlocks?: ThinkingBlock[] // Array of completed thinking/search blocks
-  toolResults?: ToolCallResult[]
-  researchStatus?: {
-    currentRound: number
-    maxRounds: number
-    currentSearch?: string // The search query being executed
-    currentSearches?: string[] // Active search queries when a batch is executing
-    isSearching: boolean
-  }
-  /** Structured research plan (step-by-step mode) */
-  researchPlan?: {
-    topic: string
-    steps: Array<{ stepNumber: number; query: string; rationale?: string }>
-  }
-  /** Progress during structured research execution */
-  researchProgress?: { currentStep: number; totalSteps: number; currentQuery?: string }
-  usage?: {
-    inputTokens: number
-    outputTokens: number
-    totalTokens: number
-    thinkingTokens?: number // Reasoning/thinking tokens used
-    tps?: number // Tokens per second
-    ttft?: number // Time to first token (ms)
-    cachedInputTokens?: number
-    cachedOutputTokens?: number
-  }
-  finishReason?: string
-  requestedMaxTokens?: number
-  responseVersions?: ResponseVersion[] // Previous response versions
-  currentVersionIndex?: number // Which version is currently displayed
-}
-
-export interface ChatSession {
-  id: string
-  title: string
-  messages: Message[]
-  createdAt: number
-  updatedAt: number
-  totalTokens?: number
-  pinned?: boolean // default: false
-  folderId?: string | null // default: null
-  tags?: string[] // default: []
-}
-
-/**
- * Folder definition for organizing chat sessions.
- */
-export interface Folder {
-  id: string
-  name: string
-  order: number // for display ordering
-  createdAt: number
+export type {
+  ChatSession,
+  FileAttachment,
+  Folder,
+  Message,
+  ResponseVersion,
+  ThinkingBlock,
+  ToolCallResult,
 }
 
 interface ChatHistoryContextType {
@@ -262,21 +162,13 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     return sessionManagerRef.current
   }, [])
 
-  // Load sessions - now loads metadata only initially
   const loadSessions = useCallback(async () => {
     try {
       const manager = getSessionManager()
 
-      // Initialize the manager (loads metadata for all sessions)
       await manager.initialize()
-
-      // Get metadata and create lightweight session objects for backward compatibility
-      // Sessions without full messages loaded will have empty messages array
       manager.getSessionMetadata()
 
-      // For backward compatibility, we need to provide sessions with messages
-      // Load full data for all sessions initially (will be optimized in future)
-      // This maintains backward compatibility while setting up the infrastructure
       let fullSessions: ChatSession[] = []
 
       if (isElectron) {
