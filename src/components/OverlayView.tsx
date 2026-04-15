@@ -494,7 +494,7 @@ export default function OverlayView() {
 
       <div
         style={{
-          padding: isCompact ? '0 10px 10px' : '4px 10px 10px',
+          padding: isCompact ? '0 10px 10px' : '4px 0 10px',
           borderTop: 'none',
           background: 'transparent',
           transform: !isCompact && isPromptHidden ? 'translateY(118%)' : undefined,
@@ -512,14 +512,14 @@ export default function OverlayView() {
             display: 'flex',
             flexDirection: 'column',
             gap: 6,
-            padding: isCompact ? 10 : '8px 10px 8px',
-            borderRadius: isCompact ? 18 : 20,
-            border: isCompact ? undefined : '1px solid rgba(255, 255, 255, 0.14)',
+            padding: isCompact ? 10 : '9px 12px 9px',
+            borderRadius: isCompact ? 18 : 12,
+            border: isCompact ? undefined : '1px solid rgba(245, 248, 255, 0.3)',
             background: isCompact
               ? undefined
-              : 'linear-gradient(180deg, rgba(10, 14, 22, 0.72) 0%, rgba(8, 12, 20, 0.8) 100%)',
-            backdropFilter: isCompact ? undefined : 'blur(10px) saturate(120%)',
-            WebkitBackdropFilter: isCompact ? undefined : 'blur(10px) saturate(120%)',
+              : 'linear-gradient(180deg, rgba(24, 26, 32, 0.94) 0%, rgba(16, 18, 24, 0.96) 100%)',
+            backdropFilter: isCompact ? undefined : 'blur(12px) saturate(108%)',
+            WebkitBackdropFilter: isCompact ? undefined : 'blur(12px) saturate(108%)',
             position: 'relative',
             overflow: 'visible',
           }}
@@ -646,7 +646,7 @@ export default function OverlayView() {
       <style>{`
         @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
           .overlay__glass-shell {
-            background: rgba(12, 14, 20, 0.9) !important;
+            background: rgba(16, 18, 24, 0.94) !important;
           }
         }
         .overlay__glass-shell::before {
@@ -656,15 +656,27 @@ export default function OverlayView() {
           border-radius: inherit;
           pointer-events: none;
           background:
-            linear-gradient(180deg, rgba(10, 12, 18, 0.16) 0%, rgba(10, 12, 18, 0.2) 100%),
-            radial-gradient(120% 52% at 50% -14%, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0) 70%),
-            radial-gradient(100% 70% at 50% 118%, rgba(8, 10, 16, 0.44) 0%, rgba(8, 10, 16, 0) 72%),
-            radial-gradient(64% 108% at -8% 50%, rgba(10, 14, 22, 0.28) 0%, rgba(10, 14, 22, 0) 74%),
-            radial-gradient(64% 108% at 108% 50%, rgba(10, 14, 22, 0.28) 0%, rgba(10, 14, 22, 0) 74%);
+            linear-gradient(180deg, rgba(12, 14, 20, 0.2) 0%, rgba(12, 14, 20, 0.3) 100%),
+            radial-gradient(120% 52% at 50% -14%, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0) 70%),
+            radial-gradient(100% 70% at 50% 118%, rgba(8, 10, 14, 0.5) 0%, rgba(8, 10, 14, 0) 72%);
         }
         .overlay__glass-shell > * {
           position: relative;
           z-index: 1;
+        }
+        .overlay__glass-shell *::selection {
+          background: rgba(190, 198, 214, 0.26);
+          color: rgba(248, 251, 255, 0.98);
+        }
+        .overlay__glass-shell .thinking-tool-status-warning,
+        .overlay__glass-shell .tool-result-status-badge-warning,
+        .overlay__glass-shell .tool-result-mcp-status-warning {
+          color: rgba(224, 231, 245, 0.94);
+          background: rgba(170, 182, 204, 0.2);
+          border-color: rgba(210, 220, 238, 0.28);
+        }
+        .overlay__glass-shell .tool-result-status-warning {
+          border-color: rgba(210, 220, 238, 0.28);
         }
         .overlay__send-button {
           width: 42px;

@@ -137,6 +137,14 @@ export function normalizeStoredSettings(raw: string | null): Settings {
     parsed.systemPrompt = defaultSettings.systemPrompt
   }
 
+  if (
+    typeof parsed.systemPrompt === 'string' &&
+    parsed.systemPrompt.includes("Today's year is 2026.") &&
+    parsed.systemPrompt.includes('research-oriented AI assistant with a friendly, slightly nerdy persona')
+  ) {
+    parsed.systemPrompt = defaultSettings.systemPrompt
+  }
+
   const defaultLen = defaultSettings.systemPrompt.length
   if (
     typeof parsed.systemPrompt === 'string' &&

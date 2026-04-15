@@ -2,6 +2,7 @@
 node_modules/
 .pnpm-store
 .yarn/
+bun.lockb
 
 # Build output
 dist/

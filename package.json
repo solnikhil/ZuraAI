@@ -14,16 +14,17 @@
   },
   "homepage": "https://github.com/solnikhil/ZuraAI#readme",
   "engines": {
-    "node": ">=18"
+    "node": ">=18",
+    "bun": ">=1.1"
   },
   "scripts": {
     "dev": "vite",
     "typecheck": "tsc --noEmit",
     "build:renderer": "tsc && vite build",
-    "generate-icons": "node scripts/generate-icons.mjs",
-    "build": "node scripts/generate-icons.mjs && tsc && vite build && electron-builder",
-    "build:dir": "node scripts/generate-icons.mjs && tsc && vite build && electron-builder --dir",
-    "verify:mcp-release": "node scripts/verify-mcp-release.mjs",
+    "generate-icons": "bun scripts/generate-icons.mjs",
+    "build": "bun scripts/generate-icons.mjs && tsc && vite build && electron-builder",
+    "build:dir": "bun scripts/generate-icons.mjs && tsc && vite build && electron-builder --dir",
+    "verify:mcp-release": "bun scripts/verify-mcp-release.mjs",
     "preview": "vite preview",
     "test": "vitest --run",
     "test:watch": "vitest",

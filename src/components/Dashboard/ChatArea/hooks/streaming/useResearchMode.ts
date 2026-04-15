@@ -7,32 +7,8 @@
 import { useState, useCallback } from 'react'
 import { isWebResearchEnabled, type SkillsSettings } from '../../../../../skills'
 import { providerSupportsTools } from '../../../../../providers'
+import { defaultWebSearchPrompt } from '../../../../../prompts/defaultWebSearchPrompt'
 import { buildResearchProgressPrompt } from './researchLoopPolicy'
-
-const WEB_SEARCH_BASE_PROMPT = `You have access to the web_search tool for real-time information. Use it when the user needs:
-- Current events, news, or recent data
-- Facts, figures, or statistics you cannot verify from context
-- Verification of uncertain information
-
-URL-FIRST ROUTING:
-- If the user provides a specific URL, call web_search with that URL in the query. The system will route it to focused URL extraction.
-- URL only (e.g. "https://foo.com/article") -> direct extraction.
-- Query + URL (e.g. "summarize pricing https://foo.com/pricing") -> extraction reranked to the query.
-- If there is no URL, use normal web search behavior.
-
-Use concise, keyword-focused queries (e.g. "OpenAI GPT-5 release ${new Date().getFullYear()}" not "Can you find when OpenAI will release GPT-5?"). If you need a year and the user did not specify one, use only ${new Date().getFullYear()}. Do not add older years or multi-year ranges unless the user explicitly asked for them. Each search should target a distinct angle: overview, recent news, specifics, or verification.
-
-For broad discovery questions (e.g. "list all AI providers with free API", "what X offer Y"), keep each call focused and lightweight. The tool returns at most 4 sources per call, so if the first search seems incomplete (e.g. missing major providers like Groq, Cerebras, OpenRouter, Together), do a follow-up search from a new angle before synthesizing. Do not answer with an incomplete list.
-
-EXPLORE-FIRST: For research questions where you need to discover information, start with one broad exploratory search unless the missing facets are clearly independent. After the first search returns results, use those results to decide what follow-up searches are still needed.
-
-MULTI-TURN SEARCHES: You can call web_search multiple times. You may issue multiple web_search calls in the same turn when they cover distinct missing facets, and you can continue in later turns until the remaining search budget is used. If the first search is insufficient or the topic is ambiguous, call web_search again with a different query or a small parallel batch of clearly different queries.
-
-GAP ANALYSIS: After each search batch, decide what the results already answered, what important gap or conflict remains, and whether another search is necessary. If you continue, issue one or more distinct targeted queries only for the missing independent facets.
-
-QUERY DIVERSIFICATION: Change the angle when continuing. Useful follow-up facets include overview, recent updates, source verification, official docs/specs, pricing, comparisons, examples, implementation details, and edge cases. Do not repeat the same facet with minor rewording, and do not emit large speculative batches.
-
-Decide how many searches you need based on the user's question. Simple questions may need one search; complex or ambiguous research may need several searches from different angles. Search only while you can name the missing evidence you are trying to gather, keep batches small, and then provide your answer. If you already know the answer confidently, respond directly without searching.`
 
 export interface ResearchModeState {
   isActive: boolean
@@ -188,7 +164,7 @@ export function useResearchMode({
         searchCount: actualSearchCount ?? researchState.searchCount,
         maxRounds,
         forceWebSearch: researchState.forceWebSearch,
-        basePrompt: webSearchPrompt ?? WEB_SEARCH_BASE_PROMPT,
+        basePrompt: webSearchPrompt ?? defaultWebSearchPrompt,
       })
     },
     [researchState, webSearchPrompt]

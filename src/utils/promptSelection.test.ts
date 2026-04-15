@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import * as fc from 'fast-check'
-import { getEffectiveSystemPrompt, shouldEnableTools } from './promptSelection'
+import { getEffectiveSystemPrompt, resolveSystemPromptTemplate, shouldEnableTools } from './promptSelection'
 import { defaultSkillsSettings } from '../skills'
+import { CURRENT_YEAR_PLACEHOLDER } from '../prompts/defaultSystemPrompt'
 
 // Arbitrary for generating random system prompts
 const systemPromptArb = fc.string({ minLength: 1, maxLength: 500 })
@@ -21,6 +22,14 @@ describe('System Prompt Selection', () => {
                 }
             ),
             { numRuns: 100 }
+        )
+    })
+
+    it('resolves the current year placeholder dynamically', () => {
+        const prompt = `Context\nToday's year is ${CURRENT_YEAR_PLACEHOLDER}.`
+
+        expect(resolveSystemPromptTemplate(prompt)).toBe(
+            `Context\nToday's year is ${new Date().getFullYear()}.`
         )
     })
 })

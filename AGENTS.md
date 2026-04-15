@@ -18,15 +18,15 @@ Core capabilities:
 ---
 
 ## Quick Start (Agent Commands)
-- Install: `npm install`
-- Dev: `npm run dev`
-- Tests: `npm test`
-- Tests (watch): `npm run test:watch`
-- Build (typecheck + Vite build + electron-builder): `npm run build`
-- Build portable dir: `npm run build:dir`
-- Preview renderer bundle: `npm run preview`
+- Install: `bun install`
+- Dev: `bun run dev`
+- Tests: `bun test`
+- Tests (watch): `bun run test:watch`
+- Build (typecheck + Vite build + electron-builder): `bun run build`
+- Build portable dir: `bun run build:dir`
+- Preview renderer bundle: `bun run preview`
 
-**Prereqs:** Node.js `>= 18`.
+**Prereqs:** Bun `>= 1.1`, Node.js `>= 18` (required by Electron at runtime).
 
 ---
 

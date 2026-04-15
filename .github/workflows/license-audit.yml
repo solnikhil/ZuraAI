@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - "package.json"
-      - "package-lock.json"
+      - "bun.lockb"
 
 permissions:
   contents: read
@@ -16,10 +16,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Setup Node.js and install dependencies
-        uses: ./.github/actions/setup-node-npm
-        with:
-          node-version: 20
+      - name: Setup Bun and install dependencies
+        uses: ./.github/actions/setup-bun
 
       - name: Run license audit
-        run: npx tsx scripts/license-audit.ts
+        run: bunx tsx scripts/license-audit.ts
