@@ -1,5 +1,14 @@
-import { ipcMain } from 'electron'
+import { BrowserWindow, ipcMain } from 'electron'
 import * as chatStore from '../chatStore'
+
+const CHAT_STORE_CHANGED_CHANNEL = 'chat-store:changed'
+
+function broadcastChatStoreChanged(): void {
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (window.isDestroyed()) continue
+    window.webContents.send(CHAT_STORE_CHANGED_CHANNEL)
+  }
+}
 
 /**
  * Registers the IPC handlers responsible for chat history and folder persistence.
@@ -32,6 +41,7 @@ export function registerChatStoreHandlers(): void {
    */
   ipcMain.handle('chat-store:save-all', async (_event, sessions) => {
     await chatStore.saveAllSessionsAsync(sessions)
+    broadcastChatStoreChanged()
     return true
   })
 
@@ -64,6 +74,7 @@ export function registerChatStoreHandlers(): void {
    */
   ipcMain.handle('chat-store:save-folders', async (_event, folders) => {
     await chatStore.saveFoldersAsync(folders)
+    broadcastChatStoreChanged()
     return true
   })
 }

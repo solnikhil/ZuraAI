@@ -14,6 +14,23 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 
+const OPEN_BLOCKING_SURFACE_SELECTOR = [
+  '[data-slot="popover-content"][data-state="open"]',
+  '[data-slot="dropdown-menu-content"][data-state="open"]',
+  '[data-slot="dropdown-menu-sub-content"][data-state="open"]',
+  '[data-slot="select-content"][data-state="open"]',
+  '[data-slot="context-menu-content"][data-state="open"]',
+  '[data-slot="context-menu-sub-content"][data-state="open"]',
+  '[data-slot="dialog-content"][data-state="open"]',
+  '[data-slot="alert-dialog-content"][data-state="open"]',
+  '[data-slot="sheet-content"][data-state="open"]',
+].join(', ')
+
+function getOpenBlockingSurface(): HTMLElement | null {
+  if (typeof document === 'undefined') return null
+  return document.querySelector<HTMLElement>(OPEN_BLOCKING_SURFACE_SELECTOR)
+}
+
 export interface UsePromptAutoHideOptions {
   /** Whether the feature is enabled (from settings) */
   enabled: boolean
@@ -95,6 +112,7 @@ export function usePromptAutoHide({
 }: UsePromptAutoHideOptions): UsePromptAutoHideReturn {
   const [isPromptHidden, setIsPromptHidden] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingFocusRestoreRef = useRef(false)
 
   // Track suppress conditions in refs so the timer callback always sees current values
   const suppressRef = useRef(false)
@@ -113,15 +131,45 @@ export function usePromptAutoHide({
 
   const startHideTimer = useCallback(() => {
     clearHideTimer()
-    timerRef.current = setTimeout(() => {
-      if (!suppressRef.current) {
+
+    const scheduleHideCheck = () => {
+      timerRef.current = setTimeout(() => {
+        const openSurface = getOpenBlockingSurface()
+        if (openSurface) {
+          const activeElement = document.activeElement
+          if (
+            activeElement instanceof HTMLElement &&
+            openSurface.contains(activeElement) &&
+            Boolean(textareaRef?.current)
+          ) {
+            pendingFocusRestoreRef.current = true
+          }
+
+          scheduleHideCheck()
+          return
+        }
+
+        if (pendingFocusRestoreRef.current) {
+          pendingFocusRestoreRef.current = false
+          requestAnimationFrame(() => {
+            textareaRef?.current?.focus()
+          })
+          scheduleHideCheck()
+          return
+        }
+
+        if (suppressRef.current) {
+          scheduleHideCheck()
+          return
+        }
+
         setIsPromptHidden(true)
-      }
-      // If suppressed, the timer simply expires without hiding.
-      // A new timer will be started when suppress conditions clear (via the effect below).
-      timerRef.current = null
-    }, timeoutMs)
-  }, [clearHideTimer, timeoutMs])
+        timerRef.current = null
+      }, timeoutMs)
+    }
+
+    scheduleHideCheck()
+  }, [clearHideTimer, timeoutMs, textareaRef])
 
   // -- Public API --
 

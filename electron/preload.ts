@@ -72,7 +72,7 @@ const INVOKE_CHANNELS = new Set<string>([
   'updater:get-version',
 ])
 
-const ON_CHANNELS = new Set<string>(['update-available', 'update-downloaded', 'prompt-popup:focus', 'overlay:pending-prompt', 'model-selector:open', 'settings:navigate'])
+const ON_CHANNELS = new Set<string>(['update-available', 'update-downloaded', 'prompt-popup:focus', 'overlay:pending-prompt', 'model-selector:open', 'settings:navigate', 'chat-store:changed'])
 
 const MCP_INVOKE_CHANNELS = new Set<string>([
   'mcp:list-servers',

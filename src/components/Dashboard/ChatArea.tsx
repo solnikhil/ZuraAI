@@ -435,7 +435,7 @@ export default function ChatArea() {
         className="chat-input-overlay"
         animate={isPromptHidden ? { y: '100%', opacity: 0 } : { y: 0, opacity: 1 }}
         initial={false}
-        transition={{ type: 'tween', duration: 0.28, ease: [0.25, 0.1, 0.25, 1] }}
+        transition={{ type: 'tween', duration: 0.38, ease: [0.22, 1, 0.36, 1] }}
         style={{ willChange: 'transform, opacity' }}
         aria-hidden={isPromptHidden}
       >
@@ -465,7 +465,7 @@ export default function ChatArea() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.18 }}
+            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
             {...triggerZoneProps}
             style={{
               position: 'absolute',

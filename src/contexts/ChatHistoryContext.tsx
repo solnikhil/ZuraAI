@@ -208,6 +208,9 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isInitialized, setIsInitialized] = useState(false)
+  const [hasExternalStoreChanges, setHasExternalStoreChanges] = useState(false)
+  const skipNextSessionPersistRef = useRef(false)
+  const skipNextFolderPersistRef = useRef(false)
 
   // Lazily load full sessions while keeping sidebar metadata lightweight.
   const sessionManagerRef = useRef<ChatSessionManager | null>(null)
@@ -316,6 +319,52 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     }
   }, [getSessionManager])
 
+  const reloadFromExternalStore = useCallback(async () => {
+    try {
+      const manager = getSessionManager()
+
+      let fullSessions: ChatSession[] = []
+      if (isElectron) {
+        const storedSessions = (await window.ipcRenderer.invoke('chat-store:get-all')) as
+          | ChatSession[]
+          | undefined
+        fullSessions = storedSessions || []
+      } else {
+        const saved = localStorage.getItem('zura-chat-history')
+        fullSessions = saved ? JSON.parse(saved) : []
+      }
+
+      manager.clear()
+      for (const session of fullSessions) {
+        manager.addSession(session)
+      }
+
+      let nextFolders: Folder[] = []
+      if (isElectron) {
+        try {
+          const storedFolders = (await window.ipcRenderer.invoke('chat-store:get-all-folders')) as
+            | Folder[]
+            | undefined
+          nextFolders = storedFolders || []
+        } catch (folderError) {
+          console.error('Failed to reload folders:', folderError)
+        }
+      }
+
+      skipNextSessionPersistRef.current = true
+      skipNextFolderPersistRef.current = true
+      setSessions(fullSessions)
+      setFolders(nextFolders)
+      setCurrentSessionId((prev) => {
+        if (!prev) return null
+        return fullSessions.some((session) => session.id === prev) ? prev : null
+      })
+      setHasExternalStoreChanges(false)
+    } catch (error) {
+      console.error('Failed to reload chat history from external store:', error)
+    }
+  }, [getSessionManager])
+
   // Initialize and migrate from localStorage if needed
   useEffect(() => {
     const initializeStore = async () => {
@@ -366,6 +415,11 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     if (!isInitialized) return
 
     const timeoutId = setTimeout(() => {
+      if (skipNextSessionPersistRef.current) {
+        skipNextSessionPersistRef.current = false
+        return
+      }
+
       const saveSessions = async () => {
         try {
           if (isElectron) {
@@ -392,6 +446,11 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     if (!isInitialized) return
 
     const timeoutId = setTimeout(() => {
+      if (skipNextFolderPersistRef.current) {
+        skipNextFolderPersistRef.current = false
+        return
+      }
+
       const saveFolders = async () => {
         try {
           if (isElectron) {
@@ -421,6 +480,42 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     }
   }, [currentSessionId, isInitialized, sessions, settings.rememberLastChatSession])
 
+  useEffect(() => {
+    if (!isElectron || !window.ipcRenderer?.on) return
+
+    const handleChatStoreChanged = () => {
+      setHasExternalStoreChanges(true)
+    }
+
+    window.ipcRenderer.on('chat-store:changed', handleChatStoreChanged)
+    return () => {
+      window.ipcRenderer.off('chat-store:changed', handleChatStoreChanged)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!isElectron || !isInitialized) return
+
+    const refreshIfNeeded = () => {
+      if (!hasExternalStoreChanges) return
+      void reloadFromExternalStore()
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refreshIfNeeded()
+      }
+    }
+
+    window.addEventListener('focus', refreshIfNeeded)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      window.removeEventListener('focus', refreshIfNeeded)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [hasExternalStoreChanges, isInitialized, reloadFromExternalStore])
+
   // Persist last active chat session (optional)
   useEffect(() => {
     if (!isInitialized) return
@@ -436,8 +531,8 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
   }, [currentSessionId, isInitialized, settings.rememberLastChatSession])
 
   const refreshSessions = useCallback(async () => {
-    await loadSessions()
-  }, [loadSessions])
+    await reloadFromExternalStore()
+  }, [reloadFromExternalStore])
 
   const createSession = useCallback(
     (firstMessage?: string) => {

@@ -1,7 +1,13 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { ToolCallIndicator, ToolResultDisplay } from '@/tools/ui'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 import { useChatHistory } from '../contexts/ChatHistoryContext'
 import { useSettings } from '../contexts/SettingsContext'
@@ -11,17 +17,19 @@ import { MessageRenderer } from './Dashboard/ChatArea/MessageRenderer'
 import { StreamingMessage } from './Dashboard/ChatArea/StreamingMessage'
 import { useStreamingChat } from './Dashboard/ChatArea/hooks'
 import { shouldHideGenericToolResultCard } from './Dashboard/ChatArea/toolResultVisibility'
-import { Send, Square, X } from './icons'
+import { Plus, Send, Square, X } from './icons'
 import { usePromptAutoHide } from './Dashboard/ChatArea/hooks/usePromptAutoHide'
 
 export default function OverlayView() {
-  const { sessions, currentSessionId } = useChatHistory()
+  const { sessions, currentSessionId, createSession } = useChatHistory()
   const { settings } = useSettings()
   const { showToast } = useToast()
   const streamingState = useStreamingState()
   const [input, setInput] = useState('')
   const [overlayMode, setOverlayMode] = useState<'compact' | 'expanded'>('expanded')
   const [promptFocused, setPromptFocused] = useState(false)
+  const inputTextareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const hasInput = input.trim().length > 0
 
   const currentSession = sessions.find((session) => session.id === currentSessionId) || null
   const messages = currentSession?.messages || []
@@ -45,9 +53,10 @@ export default function OverlayView() {
     enabled: !isCompact && overlayPromptAutoHideEnabled,
     isLoading,
     isFocused: promptFocused,
-    hasInput: input.trim().length > 0,
+    hasInput,
     hasFiles: false,
     timeoutSeconds: overlayPromptAutoHideTimeout,
+    textareaRef: inputTextareaRef as React.RefObject<HTMLTextAreaElement | null>,
   })
 
   const syncOverlayMode = useCallback(async () => {
@@ -77,33 +86,15 @@ export default function OverlayView() {
     }
   }, [showToast])
 
+  const handleCreateChat = useCallback(() => {
+    createSession()
+    setInput('')
+    resetTimer()
+  }, [createSession, resetTimer])
+
   const handleCopy = useCallback((content: string) => {
     void navigator.clipboard.writeText(content)
   }, [])
-
-  const modelBadge = useMemo(() => {
-    const allModels: Array<{ code: string; displayName: string }> = [
-      ...(settings.ollamaModels || []),
-      ...(settings.perplexityModels || []),
-      ...(settings.configuredModels || []),
-      ...(settings.groqModels || []),
-      ...(settings.alibabaModels || []),
-      ...(settings.fireworksModels || []),
-    ]
-    const match = allModels.find((model) => model.code === settings.aiModel)
-    const fallback = settings.aiModel?.split('/').pop() || 'Model'
-    const raw = (match?.displayName || fallback).replace(/[^\x00-\x7F]/g, '').trim()
-    const shortName = raw.length > 12 ? `${raw.slice(0, 11)}…` : raw
-    return shortName || 'Model'
-  }, [
-    settings.aiModel,
-    settings.alibabaModels,
-    settings.configuredModels,
-    settings.fireworksModels,
-    settings.groqModels,
-    settings.ollamaModels,
-    settings.perplexityModels,
-  ])
 
   useEffect(() => {
     const previousBodyBackground = document.body.style.background
@@ -509,7 +500,9 @@ export default function OverlayView() {
           transform: !isCompact && isPromptHidden ? 'translateY(118%)' : undefined,
           opacity: !isCompact && isPromptHidden ? 0 : 1,
           pointerEvents: !isCompact && isPromptHidden ? 'none' : undefined,
-          transition: !isCompact ? 'transform 220ms ease, opacity 200ms ease' : undefined,
+          transition: !isCompact
+            ? 'transform 360ms cubic-bezier(0.22, 1, 0.36, 1), opacity 280ms cubic-bezier(0.22, 1, 0.36, 1)'
+            : undefined,
         }}
         onMouseMove={!isCompact ? resetTimer : undefined}
       >
@@ -537,6 +530,7 @@ export default function OverlayView() {
           }}
         >
           <textarea
+            ref={inputTextareaRef}
             value={input}
             onChange={(event) => {
               setInput(event.target.value)
@@ -584,7 +578,37 @@ export default function OverlayView() {
             style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div className="overlay__composer-model">{modelBadge}</div>
+              {!isCompact ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      className="overlay__plus-button"
+                      onClick={() => resetTimer()}
+                      aria-label="More actions"
+                      title="More actions"
+                    >
+                      <Plus size={16} />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" side="top" sideOffset={8} className="min-w-[140px]">
+                    <DropdownMenuItem
+                      onClick={() => {
+                        handleCreateChat()
+                      }}
+                    >
+                      New chat
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        void handleHide()
+                      }}
+                    >
+                      Close overlay
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : null}
             </div>
 
             <button
@@ -603,13 +627,14 @@ export default function OverlayView() {
                     ? 'overlay__send-button overlay__send-button--stop'
                     : 'overlay__send-button'
               }
+              data-ready={!isLoading && hasInput ? 'true' : undefined}
               aria-label={isLoading ? 'Stop generation' : 'Send message'}
             >
               {isLoading ? (
                 <Square size={12} className="overlay__stop-icon" />
               ) : (
                 <>
-                  <Send size={16} />
+                  <Send size={17} strokeWidth={2.4} />
                 </>
               )}
             </button>
@@ -619,18 +644,6 @@ export default function OverlayView() {
       </div>
 
       <style>{`
-        @keyframes overlayAssistantActionsReveal {
-          from {
-            opacity: 0;
-            filter: blur(8px);
-            transform: translate(-8px, -8px) scale(0.98);
-          }
-          to {
-            opacity: 1;
-            filter: blur(0);
-            transform: translate(0, 0) scale(1);
-          }
-        }
         @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
           .overlay__glass-shell {
             background: rgba(12, 14, 20, 0.9) !important;
@@ -653,65 +666,48 @@ export default function OverlayView() {
           position: relative;
           z-index: 1;
         }
-        @media (hover: hover) and (pointer: fine) {
-          .overlay__glass-shell .assistant-message-shell .assistant-message-actions {
-            transform: translate(-8px, -8px) scale(0.985);
-          }
-
-          .overlay__glass-shell .assistant-message-shell:hover .assistant-message-actions,
-          .overlay__glass-shell .assistant-message-shell:focus-within .assistant-message-actions,
-          .overlay__glass-shell .assistant-message-actions[data-active='true'] {
-            animation: overlayAssistantActionsReveal 260ms var(--motion-ease-emphasized) 80ms both;
-          }
-        }
         .overlay__send-button {
-          width: 40px;
-          height: 40px;
+          width: 42px;
+          height: 42px;
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          border: 1px solid rgba(255, 255, 255, 0.18);
-          background: rgba(60, 68, 84, 0.52);
-          color: rgba(236, 240, 245, 0.94);
+          border: 1px solid rgba(255, 255, 255, 0.14);
+          background: rgba(36, 42, 56, 0.74);
+          color: rgba(175, 184, 203, 0.78);
           border-radius: 999px;
           cursor: pointer;
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
           transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
         }
-        .overlay__send-button:hover {
-          background: rgba(76, 86, 104, 0.66);
-          color: rgba(255, 255, 255, 0.98);
-          border-color: rgba(255, 255, 255, 0.28);
+        .overlay__send-button[data-ready='true'] {
+          background: linear-gradient(145deg, rgba(94, 160, 255, 0.96) 0%, rgba(90, 112, 255, 0.98) 100%);
+          border-color: rgba(156, 198, 255, 0.62);
+          color: rgba(246, 250, 255, 0.98);
+          box-shadow: 0 8px 18px rgba(60, 108, 255, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.3);
         }
         .overlay__send-button--stop {
           background: rgba(94, 58, 66, 0.58);
           border-color: rgba(226, 120, 132, 0.45);
           color: rgba(255, 224, 228, 0.96);
-        }
-        .overlay__send-button--stop:hover {
-          background: rgba(120, 66, 76, 0.72);
-          border-color: rgba(236, 134, 146, 0.56);
-          color: rgba(255, 236, 239, 0.98);
+          box-shadow: 0 8px 20px rgba(124, 62, 74, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.2);
         }
         .overlay__stop-icon {
           fill: currentColor;
           strokeWidth: 2.8;
         }
-        .overlay__composer-model {
+        .overlay__plus-button {
           display: inline-flex;
           align-items: center;
-          height: 30px;
+          justify-content: center;
+          width: 32px;
+          height: 32px;
           border-radius: 999px;
-          border: 1px solid color-mix(in srgb, var(--theme-border) 54%, transparent);
-          background: rgba(24, 28, 36, 0.46);
-          color: rgba(210, 215, 224, 0.88);
-          font-size: 0.74rem;
-          font-weight: 500;
-          letter-spacing: 0.01em;
-          padding: 0 10px;
-          max-width: 140px;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
+          border: none;
+          background: transparent;
+          color: rgba(222, 229, 240, 0.9);
+          cursor: pointer;
+          transition: color 140ms ease;
         }
       `}</style>
     </div>
