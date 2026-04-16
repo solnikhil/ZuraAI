@@ -1,17 +1,42 @@
 import { registerChatStoreHandlers, unregisterChatStoreHandlers } from './chatStoreHandlers'
-import {
-  registerSecureStorageHandlers,
-  unregisterSecureStorageHandlers,
-} from './secureStorageHandlers'
-import {
-  registerOverlayHandlers,
-  unregisterOverlayHandlers,
-} from './overlayHandlers'
-import { registerSystemHandlers, unregisterSystemHandlers } from './systemHandlers'
+import { registerOverlayHandlers, unregisterOverlayHandlers } from './overlayHandlers'
 import {
   registerPromptPopupHandlers,
   unregisterPromptPopupHandlers,
 } from './promptPopupHandlers'
+import {
+  registerSecureStorageHandlers,
+  unregisterSecureStorageHandlers,
+} from './secureStorageHandlers'
+import { registerSystemHandlers, unregisterSystemHandlers } from './systemHandlers'
+
+interface IpcDomainHandlers {
+  register: () => void
+  unregister: () => void
+}
+
+const IPC_DOMAIN_HANDLERS: readonly IpcDomainHandlers[] = [
+  {
+    register: registerChatStoreHandlers,
+    unregister: unregisterChatStoreHandlers,
+  },
+  {
+    register: registerSecureStorageHandlers,
+    unregister: unregisterSecureStorageHandlers,
+  },
+  {
+    register: registerOverlayHandlers,
+    unregister: unregisterOverlayHandlers,
+  },
+  {
+    register: registerPromptPopupHandlers,
+    unregister: unregisterPromptPopupHandlers,
+  },
+  {
+    register: registerSystemHandlers,
+    unregister: unregisterSystemHandlers,
+  },
+] as const
 
 /**
  * Registers every main-process IPC handler exposed by the app.
@@ -27,12 +52,9 @@ import {
  * requests are actually handled by the main process.
  */
 export function registerAllHandlers(): void {
-  // Register each IPC domain in one place so startup order stays explicit.
-  registerChatStoreHandlers()
-  registerSecureStorageHandlers()
-registerOverlayHandlers()
-  registerPromptPopupHandlers()
-  registerSystemHandlers()
+  for (const domain of IPC_DOMAIN_HANDLERS) {
+    domain.register()
+  }
 }
 
 /**
@@ -45,11 +67,9 @@ registerOverlayHandlers()
  * behavior.
  */
 export function unregisterAllHandlers(): void {
-  unregisterChatStoreHandlers()
-  unregisterSecureStorageHandlers()
-unregisterOverlayHandlers()
-  unregisterPromptPopupHandlers()
-  unregisterSystemHandlers()
+  for (const domain of IPC_DOMAIN_HANDLERS) {
+    domain.unregister()
+  }
 }
 
 /**

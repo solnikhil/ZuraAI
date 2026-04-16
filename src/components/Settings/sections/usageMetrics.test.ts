@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import type { ChatSession } from '@/contexts/ChatHistoryContext'
+import type { ChatSession } from '../../../chat/types'
 import { computeUsageStats } from './usageMetrics'
 
 function createBaseSession(messages: ChatSession['messages']): ChatSession {

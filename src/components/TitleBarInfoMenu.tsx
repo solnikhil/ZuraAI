@@ -8,7 +8,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 
-import type { AppRuntimeInfo } from '../electron'
+import type { AppRuntimeInfo } from '../electron/types'
 import { List } from './icons'
 import { useToast } from './shared/Toast'
 

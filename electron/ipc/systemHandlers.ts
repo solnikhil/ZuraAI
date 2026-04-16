@@ -130,7 +130,7 @@ export function registerSystemHandlers(): void {
    * Channel: `app-info:open-about-window`
    * Type: request/response
    */
-ipcMain.handle('app-info:open-about-window', () => {
+  ipcMain.handle('app-info:open-about-window', () => {
     showAboutWindow()
   })
 
@@ -151,8 +151,8 @@ ipcMain.handle('app-info:open-about-window', () => {
         return
       }
       await shell.openExternal(url)
-    } catch {
-      // Invalid URL, ignore
+    } catch (error) {
+      console.warn('[system-handlers] Invalid URL passed to shell:open-external', error)
     }
   })
 

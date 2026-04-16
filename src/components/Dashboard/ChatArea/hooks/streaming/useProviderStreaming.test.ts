@@ -18,6 +18,7 @@ vi.mock('./providerStreamClient', () => ({
 
 import { useProviderStreaming } from './useProviderStreaming'
 import { SEARCH_SYNTHESIS_FAILURE_MESSAGE } from './streamingUtils'
+import type { ToolCallingResponse } from '../../../../../tools/types'
 
 function streamFrom(events: Array<Record<string, unknown>>) {
   return async function* () {
@@ -293,7 +294,7 @@ describe('useProviderStreaming', () => {
   })
 
   it('preserves OpenRouter reasoning_details on tool-call follow-up messages', async () => {
-    let capturedResponse: any
+    let capturedResponse: ToolCallingResponse | undefined
 
     mocks.createProviderStreamClient.mockReturnValue({
       stream: streamFrom([
@@ -377,7 +378,7 @@ describe('useProviderStreaming', () => {
     })
 
     expect(handleToolCalls).toHaveBeenCalledTimes(1)
-    expect(capturedResponse.choices[0].message).toEqual(
+    expect(capturedResponse?.choices[0].message).toEqual(
       expect.objectContaining({
         tool_calls: [
           expect.objectContaining({
@@ -771,7 +772,7 @@ describe('useProviderStreaming', () => {
       },
     })
     expect(streamCalls).toHaveLength(3)
-    expect(streamCalls.at(-1)?.toolChoice).toBe('none')
+    expect(streamCalls[streamCalls.length - 1]?.toolChoice).toBe('none')
     expect(updateStreamingMessage).toHaveBeenCalledWith(
       'session-1',
       'message-1',
@@ -921,7 +922,7 @@ describe('useProviderStreaming', () => {
 
     expect(handleToolCalls).toHaveBeenCalledTimes(8)
     expect(streamCalls).toHaveLength(9)
-    expect(streamCalls.at(-1)?.toolChoice).toBe('none')
+    expect(streamCalls[streamCalls.length - 1]?.toolChoice).toBe('none')
     expect(streamResult.content).toBe('Final synthesized answer.')
   })
 
@@ -1019,7 +1020,7 @@ describe('useProviderStreaming', () => {
 
     expect(handleToolCalls).toHaveBeenCalledTimes(2)
     expect(streamCalls).toHaveLength(3)
-    expect(streamCalls.at(-1)?.toolChoice).toBe('none')
+    expect(streamCalls[streamCalls.length - 1]?.toolChoice).toBe('none')
     expect(streamResult.content).toBe('Answer after deduped search loop.')
   })
 
@@ -1194,7 +1195,7 @@ describe('useProviderStreaming', () => {
     })
 
     expect(streamCalls).toHaveLength(3)
-    expect(streamCalls.at(-1)?.toolChoice).toBe('none')
+    expect(streamCalls[streamCalls.length - 1]?.toolChoice).toBe('none')
     expect(streamResult.content).toBe('RR beat CSK in the latest completed IPL result.')
   })
 

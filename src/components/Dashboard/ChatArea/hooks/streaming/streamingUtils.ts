@@ -10,8 +10,11 @@ import type {
   ThinkingBlock,
   ToolCallResult,
   Message,
-} from '../../../../../contexts/ChatHistoryContext'
-import type { MessageContent, ReasoningDetail } from '../../../../../services/types'
+} from '../../../../../chat/types'
+import type {
+  ReasoningDetail,
+  ServiceAssistantMessage,
+} from '../../../../../services/types'
 import type { ToolCallingResponse } from '../../../../../tools/types'
 import { isSkippedBuiltinToolResult } from '../../../../../tools/types'
 import type { UpdateStreamingCallback } from './types'
@@ -146,8 +149,8 @@ export function reconstructToolCallMessage(
 
 /** Build a response object with fallback context for tool call handling */
 export function buildResponseWithFallback(
-  reconstructedMessage: { role: string; content: string; tool_calls?: unknown[] },
-  messages: Array<{ role: string; content?: string | unknown; [key: string]: unknown }>,
+  reconstructedMessage: ServiceAssistantMessage,
+  messages: Array<ServiceAssistantMessage>,
   reasoning?: string
 ): ToolCallingResponse & { _fallbackContext?: { lastUserMessage?: string; reasoning?: string } } {
   const lastUserMsg = [...messages].reverse().find((m) => m?.role === 'user')
@@ -374,35 +377,11 @@ export function buildFollowUpMessages(
   researchContextMsg: string,
   _researchRound: number,
   _totalSearchCount: number,
-  optimizedHistory: Array<{
-    role: string
-    content: string | MessageContent[]
-    tool_calls?: unknown[]
-    reasoning?: string
-    reasoning_details?: ReasoningDetail[]
-  }>,
-  lastAssistantMessage: {
-    role: string
-    content: string
-    tool_calls?: unknown[]
-    reasoning?: string
-    reasoning_details?: ReasoningDetail[]
-  },
+  optimizedHistory: Array<ServiceAssistantMessage>,
+  lastAssistantMessage: ServiceAssistantMessage,
   formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>
-): Array<{
-  role: string
-  content: string | MessageContent[]
-  tool_calls?: unknown[]
-  reasoning?: string
-  reasoning_details?: ReasoningDetail[]
-}> {
-  const messages: Array<{
-    role: string
-    content: string | MessageContent[]
-    tool_calls?: unknown[]
-    reasoning?: string
-    reasoning_details?: ReasoningDetail[]
-  }> = []
+): Array<ServiceAssistantMessage> {
+  const messages: Array<ServiceAssistantMessage> = []
   if (researchContextMsg) messages.push({ role: 'system', content: researchContextMsg })
   messages.push(...optimizedHistory, lastAssistantMessage, ...formattedResults)
   return messages
@@ -413,28 +392,10 @@ export function buildFinalSynthesisMessages(
   researchContextMsg: string,
   researchRound: number,
   totalSearchCount: number,
-  optimizedHistory: Array<{
-    role: string
-    content: string | MessageContent[]
-    tool_calls?: unknown[]
-    reasoning?: string
-    reasoning_details?: ReasoningDetail[]
-  }>,
-  lastAssistantMessage: {
-    role: string
-    content: string
-    tool_calls?: unknown[]
-    reasoning?: string
-    reasoning_details?: ReasoningDetail[]
-  },
+  optimizedHistory: Array<ServiceAssistantMessage>,
+  lastAssistantMessage: ServiceAssistantMessage,
   formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>
-): Array<{
-  role: string
-  content: string | MessageContent[]
-  tool_calls?: unknown[]
-  reasoning?: string
-  reasoning_details?: ReasoningDetail[]
-}> {
+): Array<ServiceAssistantMessage> {
   return [
     { role: 'system', content: FINAL_SYNTHESIS_PROMPT },
     ...buildFollowUpMessages(
@@ -452,28 +413,10 @@ export function buildRecoverySynthesisMessages(
   researchContextMsg: string,
   researchRound: number,
   totalSearchCount: number,
-  optimizedHistory: Array<{
-    role: string
-    content: string | MessageContent[]
-    tool_calls?: unknown[]
-    reasoning?: string
-    reasoning_details?: ReasoningDetail[]
-  }>,
-  lastAssistantMessage: {
-    role: 'assistant'
-    content: string
-    tool_calls?: unknown[]
-    reasoning?: string
-    reasoning_details?: ReasoningDetail[]
-  },
+  optimizedHistory: Array<ServiceAssistantMessage>,
+  lastAssistantMessage: ServiceAssistantMessage,
   formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>
-): Array<{
-  role: string
-  content: string | MessageContent[]
-  tool_calls?: unknown[]
-  reasoning?: string
-  reasoning_details?: ReasoningDetail[]
-}> {
+): Array<ServiceAssistantMessage> {
   return [
     { role: 'system', content: FINAL_SYNTHESIS_RECOVERY_PROMPT },
     ...buildFollowUpMessages(
@@ -491,28 +434,10 @@ export function buildPlainTextOnlySynthesisMessages(
   researchContextMsg: string,
   researchRound: number,
   totalSearchCount: number,
-  optimizedHistory: Array<{
-    role: string
-    content: string | MessageContent[]
-    tool_calls?: unknown[]
-    reasoning?: string
-    reasoning_details?: ReasoningDetail[]
-  }>,
-  lastAssistantMessage: {
-    role: 'assistant'
-    content: string
-    tool_calls?: unknown[]
-    reasoning?: string
-    reasoning_details?: ReasoningDetail[]
-  },
+  optimizedHistory: Array<ServiceAssistantMessage>,
+  lastAssistantMessage: ServiceAssistantMessage,
   formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>
-): Array<{
-  role: string
-  content: string | MessageContent[]
-  tool_calls?: unknown[]
-  reasoning?: string
-  reasoning_details?: ReasoningDetail[]
-}> {
+): Array<ServiceAssistantMessage> {
   return [
     { role: 'system', content: FINAL_SYNTHESIS_PLAIN_TEXT_ONLY_PROMPT },
     ...buildFollowUpMessages(

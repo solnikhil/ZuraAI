@@ -13,7 +13,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { filterByTag } from '../utils/filterByTag'
-import type { ChatSession } from '../../../../contexts/ChatHistoryContext'
+import type { ChatSession } from '../../../../chat/types'
 
 // Test Helpers
 

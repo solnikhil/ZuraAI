@@ -12,7 +12,7 @@
 import { describe, it, expect } from 'vitest'
 import * as fc from 'fast-check'
 import { groupSessions, type GroupedSessions } from '../utils/groupSessions'
-import type { ChatSession, Folder } from '../../../../contexts/ChatHistoryContext'
+import type { ChatSession, Folder } from '../../../../chat/types'
 
 // fast-check Arbitraries
 

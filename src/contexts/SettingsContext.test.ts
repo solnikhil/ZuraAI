@@ -51,7 +51,7 @@ describe('SettingsContext Provider Integration', () => {
 
   describe('Provider Migration Logic', () => {
     it('migration maps modelProvider gemini to openrouter', () => {
-      const parsed = { modelProvider: 'gemini' as const }
+      const parsed: { modelProvider: string } = { modelProvider: 'gemini' }
       if (parsed.modelProvider === 'gemini' || parsed.modelProvider === 'minimax') {
         parsed.modelProvider = 'openrouter'
       }
@@ -59,7 +59,7 @@ describe('SettingsContext Provider Integration', () => {
     })
 
     it('migration maps modelProvider minimax to openrouter', () => {
-      const parsed = { modelProvider: 'minimax' as const }
+      const parsed: { modelProvider: string } = { modelProvider: 'minimax' }
       if (parsed.modelProvider === 'gemini' || parsed.modelProvider === 'minimax') {
         parsed.modelProvider = 'openrouter'
       }
@@ -117,28 +117,19 @@ describe('SettingsContext Provider Integration', () => {
       expect(defaultSettingsConfig.openRouterDebug).toBe(false)
     })
 
-    it('includes Kimi K2.5 in default Fireworks models', async () => {
+    it('defaults Fireworks models to an empty list', async () => {
       const { defaultSettingsConfig } = await import('./SettingsConfigContext')
-      expect(defaultSettingsConfig.fireworksModels).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            code: 'accounts/fireworks/models/kimi-k2p5',
-            displayName: 'Kimi K2.5',
-          }),
-        ])
-      )
+      expect(defaultSettingsConfig.fireworksModels).toEqual([])
     })
 
-    it('includes Kimi K2.5 Turbo in default Fireworks models', async () => {
+    it('defaults OpenRouter configured models to an empty list', async () => {
       const { defaultSettingsConfig } = await import('./SettingsConfigContext')
-      expect(defaultSettingsConfig.fireworksModels).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            code: 'accounts/fireworks/routers/kimi-k2p5-turbo',
-            displayName: 'Kimi K2.5 Turbo',
-          }),
-        ])
-      )
+      expect(defaultSettingsConfig.configuredModels).toEqual([])
+    })
+
+    it('defaults Alibaba models to an empty list', async () => {
+      const { defaultSettingsConfig } = await import('./SettingsConfigContext')
+      expect(defaultSettingsConfig.alibabaModels).toEqual([])
     })
 
     it('migrates legacy Fireworks turbo model ids to the supported router id', () => {
@@ -168,6 +159,7 @@ describe('SettingsContext Provider Integration', () => {
     it('preserves an explicitly emptied provider model list', () => {
       const normalized = normalizeStoredSettings(
         JSON.stringify({
+          configuredModels: [],
           groqModels: [],
           alibabaModels: [],
           fireworksModels: [],
@@ -175,6 +167,7 @@ describe('SettingsContext Provider Integration', () => {
         })
       )
 
+      expect(normalized.configuredModels).toEqual([])
       expect(normalized.groqModels).toEqual([])
       expect(normalized.alibabaModels).toEqual([])
       expect(normalized.fireworksModels).toEqual([])

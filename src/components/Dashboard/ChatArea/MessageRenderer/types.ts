@@ -2,7 +2,7 @@ import type {
   Message,
   ThinkingBlock,
   ToolCallResult,
-} from '@/contexts/ChatHistoryContext'
+} from '@/chat/types'
 import type { StreamingPhase } from '@/contexts/StreamingContext'
 
 export interface MessageRendererProps {

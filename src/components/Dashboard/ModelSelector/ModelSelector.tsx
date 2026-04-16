@@ -22,10 +22,7 @@ export interface ModelSelectorProps {
   minimal?: boolean
   popoverAlign?: 'start' | 'center' | 'end'
 }
-export default function ModelSelector({
-  minimal,
-  popoverAlign = 'start',
-}: ModelSelectorProps) {
+export default function ModelSelector({ minimal, popoverAlign = 'start' }: ModelSelectorProps) {
   const { consumeRequest } = useModelSelectorContext()
   const { settings } = useSettings()
   const {
@@ -43,8 +40,7 @@ export default function ModelSelector({
     toggleFavorite,
     handleSelect,
   } = useModelSelector()
-  const { compactMode, effectiveDropdownWidth, effectiveDropdownHeight, triggerLabelMaxWidth } =
-    useResponsiveModelSelector(settings.modelSelector?.dropdownWidth || 'default', minimal)
+  const { compactMode, effectiveDropdownWidth, effectiveDropdownHeight, triggerLabelMaxWidth } = useResponsiveModelSelector(settings.modelSelector?.dropdownWidth || 'default', minimal)
   const { animationsEnabled } = useMotionPreferences()
   const triggerTitle = `${currentName} - ${settings.modelProvider || 'auto'}`
 
@@ -78,12 +74,7 @@ export default function ModelSelector({
         >
           {!minimal &&
             (currentModel ? (
-              <ModelIcon
-                model={currentModel}
-                icon={getModelAttributes(currentModel).icon}
-                color={getModelAttributes(currentModel).color}
-                size={16}
-              />
+              <ModelIcon model={currentModel} icon={getModelAttributes(currentModel).icon} color={getModelAttributes(currentModel).color} size={16} />
             ) : (
               <Cpu size={14} />
             ))}

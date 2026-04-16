@@ -1,4 +1,4 @@
-import type { ChatSession } from '../../../../contexts/ChatHistoryContext'
+import type { ChatSession } from '../../../../chat/types'
 
 /**
  * Filters chat sessions by a specific tag.

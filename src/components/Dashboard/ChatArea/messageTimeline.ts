@@ -1,4 +1,4 @@
-import type { ThinkingBlock } from '../../../contexts/ChatHistoryContext'
+import type { ThinkingBlock } from '../../../chat/types'
 import type { StreamingPhase } from '../../../contexts/StreamingContext'
 
 export const TOOL_FOLLOW_UP_SPLIT_MARKER = '\n\n[[ZURA_TOOL_FOLLOW_UP_SPLIT]]\n\n'

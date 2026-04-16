@@ -3,7 +3,7 @@
  */
 
 import React, { createContext, useContext, useState, useCallback, useRef, useMemo } from 'react'
-import type { FileAttachment, ThinkingBlock, ToolCallResult } from './ChatHistoryContext'
+import type { FileAttachment, ThinkingBlock, ToolCallResult } from '../chat/types'
 
 export type StreamingPhase = 'reasoning' | 'searching' | 'tool' | 'answering'
 

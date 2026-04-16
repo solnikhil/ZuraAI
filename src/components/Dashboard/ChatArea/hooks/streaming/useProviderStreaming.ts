@@ -4,8 +4,8 @@ import type {
   FileAttachment,
   ThinkingBlock,
   ToolCallResult,
-} from '../../../../../contexts/ChatHistoryContext'
-import type { ReasoningDetail } from '../../../../../services/types'
+} from '../../../../../chat/types'
+import type { ReasoningDetail, ServiceAssistantMessage } from '../../../../../services/types'
 import { cleanSonarResponse } from '../../../../../services/perplexity'
 import {
   providerSupportsTools,
@@ -57,15 +57,7 @@ export interface ProviderStreamingRunOptions {
   model: string
   sessionId: string
   messageId: string
-  messages: Array<{
-    role: string
-    content: string | { type: 'text' | 'image_url'; text?: string; image_url?: { url: string } }[]
-    images?: string[]
-    tool_calls?: unknown[]
-    thinking?: string
-    reasoning?: string
-    reasoning_details?: ReasoningDetail[]
-  }>
+  messages: Array<ServiceAssistantMessage & { images?: string[]; thinking?: string }>
   startTime: number
   researchMaxRounds: number
   forceWebSearch?: boolean
@@ -183,13 +175,7 @@ interface VisibleAnswerRound {
 }
 
 interface SynthesisContext {
-  lastAssistantMessage: {
-    role: 'assistant'
-    content: string
-    tool_calls?: unknown[]
-    reasoning?: string
-    reasoning_details?: ReasoningDetail[]
-  }
+  lastAssistantMessage: ServiceAssistantMessage
   formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>
   totalSearchCount: number
   researchRound: number

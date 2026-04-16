@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-import type { AppRuntimeInfo } from '../electron'
+import type { AppRuntimeInfo } from '../electron/types'
 import './TitleBar.css'
 
 export default function AboutWindow() {

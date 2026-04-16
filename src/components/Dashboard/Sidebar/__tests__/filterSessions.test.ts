@@ -12,7 +12,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { filterSessions, getMatchSnippet } from '../utils/filterSessions'
-import type { ChatSession } from '../../../../contexts/ChatHistoryContext'
+import type { ChatSession } from '../../../../chat/types'
 
 // Test Helpers
 

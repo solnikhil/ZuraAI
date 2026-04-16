@@ -1,5 +1,5 @@
 import { useMemo, useCallback } from 'react'
-import type { ToolCallResult } from '@/contexts/ChatHistoryContext'
+import type { ToolCallResult } from '@/chat/types'
 import type { WebSource } from '../WebSourceCitation'
 import { inferWebToolModeFromResultData } from '@/tools/ui/webToolDisplay'
 import {

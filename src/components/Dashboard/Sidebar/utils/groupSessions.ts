@@ -1,4 +1,4 @@
-import type { ChatSession, Folder } from '../../../../contexts/ChatHistoryContext'
+import type { ChatSession, Folder } from '../../../../chat/types'
 
 /**
  * Grouped sessions structure for sidebar rendering.

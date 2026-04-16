@@ -1,7 +1,8 @@
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { ChatSession, Folder } from './ChatHistoryContext'
+import type { ChatSession, Folder } from '../chat/types'
+import type { IElectronAPI } from '../electron/types'
 
 const mockSettings = {
   settings: {
@@ -32,7 +33,7 @@ describe('ChatHistoryContext external sync', () => {
     persistedFolders = []
     ipcListeners.clear()
 
-    ;(window as typeof window & { ipcRenderer: unknown }).ipcRenderer = {
+    ;(window as typeof window & { ipcRenderer: IElectronAPI }).ipcRenderer = {
       invoke: vi.fn(async (channel: string) => {
         if (channel === 'chat-store:get-all') return persistedSessions
         if (channel === 'chat-store:get-all-folders') return persistedFolders
@@ -48,7 +49,7 @@ describe('ChatHistoryContext external sync', () => {
         ipcListeners.delete(channel)
       }),
       send: vi.fn(),
-    } as unknown as Window['ipcRenderer']
+    } as unknown as IElectronAPI
   })
 
   it('refreshes persisted sessions on focus after an external chat-store change without auto-switching chats', async () => {

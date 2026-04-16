@@ -28,7 +28,8 @@ const CACHE_TTL = 30000
 function isEncryptionAvailable(): boolean {
   try {
     return safeStorage.isEncryptionAvailable()
-  } catch {
+  } catch (error) {
+    console.warn('Unable to determine safeStorage encryption availability.', error)
     return false
   }
 }
@@ -69,10 +70,12 @@ async function readSecureDataAsync(): Promise<SecureData> {
       if (typeof value === 'string' && value) {
         try {
           decrypted[key as keyof SecureData] = safeStorage.decryptString(Buffer.from(value, 'base64'))
-        } catch {
+        } catch (error) {
           if (isLikelyLegacyPlaintextSecret(value)) {
             decrypted[key as keyof SecureData] = value
             migratedLegacyPlaintext = true
+          } else {
+            console.warn(`Failed to decrypt secure storage entry for key "${key}".`, error)
           }
         }
       }
@@ -88,7 +91,8 @@ async function readSecureDataAsync(): Promise<SecureData> {
     cachedData = decrypted
     cacheTimestamp = Date.now()
     return decrypted
-  } catch {
+  } catch (error) {
+    console.error('Failed to read secure storage data.', error)
     return {}
   }
 }
@@ -112,7 +116,8 @@ async function writeSecureDataAsync(data: SecureData): Promise<boolean> {
     cachedData = data
     cacheTimestamp = Date.now()
     return true
-  } catch {
+  } catch (error) {
+    console.error('Failed to write secure storage data.', error)
     return false
   }
 }

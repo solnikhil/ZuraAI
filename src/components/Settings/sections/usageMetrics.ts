@@ -1,4 +1,4 @@
-import type { ChatSession, ToolCallResult } from '@/contexts/ChatHistoryContext'
+import type { ChatSession, ToolCallResult } from '@/chat/types'
 import type { ActivityData } from '../ActivityGraph'
 
 const DAY_MS = 24 * 60 * 60 * 1000

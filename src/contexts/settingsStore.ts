@@ -77,6 +77,13 @@ function mergeProviderModelsWithDefaults<T extends { code: string; enabled?: boo
   return [...mergedDefaults, ...customModels]
 }
 
+function normalizeProviderModels<T extends { code: string; enabled?: boolean }>(
+  storedModels: unknown,
+  defaultModels: T[]
+): T[] {
+  return mergeProviderModelsWithDefaults(storedModels, defaultModels)
+}
+
 export function stripSecretSettings<T extends Record<string, unknown>>(raw: T): T {
   const sanitized = { ...raw }
   for (const key of SECRET_SETTING_KEYS) {
@@ -197,7 +204,7 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   }
 
   if (!parsed.alibabaApiKey) parsed.alibabaApiKey = defaultSettings.alibabaApiKey
-  parsed.alibabaModels = mergeProviderModelsWithDefaults(
+  parsed.alibabaModels = normalizeProviderModels(
     parsed.alibabaModels,
     defaultSettings.alibabaModels
   )
@@ -209,7 +216,7 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   const userFireworks = Array.isArray(parsed.fireworksModels)
     ? parsed.fireworksModels.map((model) => migrateConfiguredModelCode(model))
     : parsed.fireworksModels
-  parsed.fireworksModels = mergeProviderModelsWithDefaults(
+  parsed.fireworksModels = normalizeProviderModels(
     userFireworks,
     defaultSettings.fireworksModels
   )
@@ -360,9 +367,10 @@ export function normalizeStoredSettings(raw: string | null): Settings {
     parsed.commandBar = { ...defaultSettings.commandBar, ...parsed.commandBar }
   }
 
-  if (!parsed.configuredModels || parsed.configuredModels.length === 0) {
-    parsed.configuredModels = defaultSettings.configuredModels
-  }
+  parsed.configuredModels = normalizeProviderModels(
+    parsed.configuredModels,
+    defaultSettings.configuredModels
+  )
   if (!parsed.activeTheme) parsed.activeTheme = defaultSettings.activeTheme
   delete (parsed as Record<string, unknown>).frostedSidebar
   if (parsed.frostedPrompt === undefined) parsed.frostedPrompt = defaultSettings.frostedPrompt

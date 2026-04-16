@@ -1,4 +1,4 @@
-import type { ChatSession, Message } from '../../../../contexts/ChatHistoryContext'
+import type { ChatSession, Message } from '../../../../chat/types'
 
 /**
  * Creates a duplicate of a ChatSession with a new unique ID, a title

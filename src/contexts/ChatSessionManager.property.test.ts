@@ -19,7 +19,7 @@ import {
   type LoadedSession,
   type SessionManagerConfig,
 } from './ChatSessionManager'
-import type { ChatSession, Message } from './ChatHistoryContext'
+import type { ChatSession, Message } from '../chat/types'
 
 // Helper to generate a valid Message
 const messageArbitrary = fc.record({

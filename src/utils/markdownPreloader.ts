@@ -12,13 +12,17 @@
 
 import type React from 'react'
 
+export type SyntaxHighlighterComponent = React.ComponentType<{
+    children?: React.ReactNode
+    [key: string]: unknown
+}>
+
 // ── Cached resolved modules ────────────────────────────────────────────────
 
 let cachedRemarkGfm: (() => void) | null = null
 let cachedRemarkMath: (() => void) | null = null
 let cachedRehypeKatex: (() => void) | null = null
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let cachedSyntaxHighlighter: React.ComponentType<any> | null = null
+let cachedSyntaxHighlighter: SyntaxHighlighterComponent | null = null
 let cachedPrismStyle: Record<string, React.CSSProperties> | null = null
 let preloadDone = false
 let preloadPromise: Promise<void> | null = null
@@ -74,7 +78,9 @@ export function preloadMarkdown(): Promise<void> {
         if (gfm.status === 'fulfilled') cachedRemarkGfm = gfm.value
         if (math.status === 'fulfilled') cachedRemarkMath = math.value
         if (katex.status === 'fulfilled') cachedRehypeKatex = katex.value
-        if (highlighter.status === 'fulfilled') cachedSyntaxHighlighter = highlighter.value
+        if (highlighter.status === 'fulfilled') {
+            cachedSyntaxHighlighter = highlighter.value as unknown as SyntaxHighlighterComponent
+        }
         if (style.status === 'fulfilled') cachedPrismStyle = style.value
 
         preloadDone = true

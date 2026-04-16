@@ -20,6 +20,23 @@ export interface MessageContent {
     }
 }
 
+export interface ServiceToolCall {
+    id: string
+    type: 'function'
+    function: {
+        name: string
+        arguments: string
+    }
+}
+
+export interface ServiceAssistantMessage {
+    role: string
+    content: string | MessageContent[]
+    tool_calls?: ServiceToolCall[]
+    reasoning?: string
+    reasoning_details?: ReasoningDetail[]
+}
+
 export interface ReasoningDetail {
     id: string | null
     format: string

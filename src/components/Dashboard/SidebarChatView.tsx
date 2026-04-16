@@ -2,7 +2,7 @@ import SidebarHeader from './Sidebar/SidebarHeader'
 import SidebarChatList from './Sidebar/SidebarChatList'
 import type { ChatRowAction } from './Sidebar/ChatRow'
 import type { GroupedSessions } from './Sidebar/utils/groupSessions'
-import type { ChatSession, Folder } from '../../contexts/ChatHistoryContext'
+import type { ChatSession, Folder } from '../../chat/types'
 import type { ChatSelectedOverlayStyle } from '../../contexts/SettingsUIContext'
 
 interface SidebarChatViewProps {

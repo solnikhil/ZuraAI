@@ -13,7 +13,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { groupSessions } from '../utils/groupSessions'
-import type { ChatSession, Folder } from '../../../../contexts/ChatHistoryContext'
+import type { ChatSession, Folder } from '../../../../chat/types'
 
 // Test Helpers
 

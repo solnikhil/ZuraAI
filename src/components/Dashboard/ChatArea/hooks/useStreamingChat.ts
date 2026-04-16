@@ -541,9 +541,9 @@ enableTools: true,
               .catch(console.error)
           }, 1500)
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         // Silently handle abort (user clicked stop)
-        if (error.name === 'AbortError' || abortControllerRef.current === null) {
+        if (error instanceof Error && (error.name === 'AbortError' || abortControllerRef.current === null)) {
           // Stream was aborted by user - loading state already cleared by stopStreaming
           return
         }
@@ -776,9 +776,12 @@ enableTools: false,
             model: regenerationResult.model,
           })
           setIsLoading(false)
-        } catch (streamError: any) {
+        } catch (streamError: unknown) {
           // Silently handle abort (user clicked stop)
-          if (streamError.name === 'AbortError' || abortControllerRef.current === null) {
+          if (
+            streamError instanceof Error &&
+            (streamError.name === 'AbortError' || abortControllerRef.current === null)
+          ) {
             return
           }
           deleteMessageFromSession(currentSessionId, streamingMessageId)
@@ -798,11 +801,11 @@ enableTools: false,
           showToast(formattedError.message, formattedError.tone)
           setIsLoading(false)
         }
-      } catch (error: any) {
-        // Silently handle abort (user clicked stop)
-        if (error.name === 'AbortError' || abortControllerRef.current === null) {
-          return
-        }
+        } catch (error: unknown) {
+          // Silently handle abort (user clicked stop)
+          if (error instanceof Error && (error.name === 'AbortError' || abortControllerRef.current === null)) {
+            return
+          }
         const effectiveProvider = normalizeActiveProviderId(settings.modelProvider)
         const formattedError = formatProviderStreamError(error, effectiveProvider, settings)
         showToast(formattedError.message, formattedError.tone)

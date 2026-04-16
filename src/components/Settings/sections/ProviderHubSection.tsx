@@ -339,6 +339,65 @@ export function ProviderHubSection({
     [PROVIDER_MODEL_LIST_FIELD[provider]]: models,
   })
 
+  const resetConnectivityState = (message: string) => {
+    setConnectivityStatus('idle')
+    setConnectivityMeta(null)
+    setConnectivityDetails('')
+    setShowConnectivityDetails(false)
+    setConnectivityMessage(message)
+  }
+
+  const setConnectivityErrorState = (message: string, details: string) => {
+    setConnectivityStatus('error')
+    setConnectivityMeta(null)
+    setConnectivityDetails(details)
+    setShowConnectivityDetails(false)
+    setConnectivityMessage(message)
+  }
+
+  const runBearerGetConnectivityCheck = async (
+    endpointUrl: string,
+    apiKey: string,
+    failurePrefix: string,
+    signal: AbortSignal
+  ) => {
+    const response = await fetch(endpointUrl, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal,
+    })
+
+    if (!response.ok) {
+      throw new Error(`${failurePrefix} (${response.status}).`)
+    }
+  }
+
+  const runChatCompletionsConnectivityCheck = async (
+    endpoint: string,
+    apiKey: string,
+    modelCode: string,
+    failurePrefix: string,
+    signal: AbortSignal
+  ) => {
+    const response = await fetch(`${endpoint}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: modelCode,
+        messages: [{ role: 'user', content: 'ping' }],
+        max_tokens: 1,
+      }),
+      signal,
+    })
+
+    if (!response.ok && response.status !== 400) {
+      throw new Error(`${failurePrefix} (${response.status}).`)
+    }
+  }
+
   const selectedProviderDef =
     PROVIDERS.find((provider) => provider.key === selectedProvider) ?? PROVIDERS[0]
   const providerModels = providerModelMap[selectedProviderDef.key] || []
@@ -356,11 +415,7 @@ export function ProviderHubSection({
 
   useEffect(() => {
     setModelListFilter('all')
-    setConnectivityStatus('idle')
-    setConnectivityMeta(null)
-    setConnectivityMessage('Select a model, then test your connection.')
-    setConnectivityDetails('')
-    setShowConnectivityDetails(false)
+    resetConnectivityState('Select a model, then test your connection.')
   }, [selectedProviderDef.key])
 
   const visibleProviderModels = useMemo(() => {
@@ -583,24 +638,18 @@ export function ProviderHubSection({
       providerProxyUrls[selectedProviderDef.key] || PROVIDER_ENDPOINTS[selectedProviderDef.key]
 
     if (selectedProviderDef.key !== 'ollama' && !selectedKey) {
-      setConnectivityStatus('error')
-      setConnectivityMeta(null)
-      setConnectivityDetails(
+      setConnectivityErrorState(
+        `${selectedProviderDef.name} API key is incorrect or empty. Add a valid key and try again.`,
         `Provider: ${selectedProviderDef.name}\nModel: ${connectivityModel || 'none'}\nEndpoint: ${endpoint}`
-      )
-      setShowConnectivityDetails(false)
-      setConnectivityMessage(
-        `${selectedProviderDef.name} API key is incorrect or empty. Add a valid key and try again.`
       )
       return
     }
 
     if (!connectivityModel) {
-      setConnectivityStatus('error')
-      setConnectivityMeta(null)
-      setConnectivityDetails(`Provider: ${selectedProviderDef.name}\nEndpoint: ${endpoint}`)
-      setShowConnectivityDetails(false)
-      setConnectivityMessage('Select a model for this provider before checking.')
+      setConnectivityErrorState(
+        'Select a model for this provider before checking.',
+        `Provider: ${selectedProviderDef.name}\nEndpoint: ${endpoint}`
+      )
       return
     }
 
@@ -616,74 +665,43 @@ export function ProviderHubSection({
 
     try {
       if (selectedProviderDef.key === 'openrouter') {
-        const response = await fetch(`${endpoint}/auth/key`, {
-          method: 'GET',
-          headers: { Authorization: `Bearer ${selectedKey}` },
-          signal: controller.signal,
-        })
-        if (!response.ok) {
-          throw new Error(`OpenRouter auth failed (${response.status}).`)
-        }
+        await runBearerGetConnectivityCheck(
+          `${endpoint}/auth/key`,
+          selectedKey,
+          'OpenRouter auth failed',
+          controller.signal
+        )
       } else if (selectedProviderDef.key === 'groq') {
-        const response = await fetch(`${endpoint}/models`, {
-          method: 'GET',
-          headers: { Authorization: `Bearer ${selectedKey}` },
-          signal: controller.signal,
-        })
-        if (!response.ok) {
-          throw new Error(`Groq check failed (${response.status}).`)
-        }
+        await runBearerGetConnectivityCheck(
+          `${endpoint}/models`,
+          selectedKey,
+          'Groq check failed',
+          controller.signal
+        )
       } else if (selectedProviderDef.key === 'perplexity') {
-        const response = await fetch(`${endpoint}/chat/completions`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${selectedKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: connectivityModel,
-            messages: [{ role: 'user', content: 'ping' }],
-            max_tokens: 1,
-          }),
-          signal: controller.signal,
-        })
-        if (!response.ok && response.status !== 400) {
-          throw new Error(`Perplexity check failed (${response.status}).`)
-        }
+        await runChatCompletionsConnectivityCheck(
+          endpoint,
+          selectedKey,
+          connectivityModel,
+          'Perplexity check failed',
+          controller.signal
+        )
       } else if (selectedProviderDef.key === 'alibaba') {
-        const response = await fetch(`${endpoint}/chat/completions`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${selectedKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: connectivityModel,
-            messages: [{ role: 'user', content: 'ping' }],
-            max_tokens: 1,
-          }),
-          signal: controller.signal,
-        })
-        if (!response.ok && response.status !== 400) {
-          throw new Error(`Alibaba Cloud check failed (${response.status}).`)
-        }
+        await runChatCompletionsConnectivityCheck(
+          endpoint,
+          selectedKey,
+          connectivityModel,
+          'Alibaba Cloud check failed',
+          controller.signal
+        )
       } else if (selectedProviderDef.key === 'fireworks') {
-        const response = await fetch(`${endpoint}/chat/completions`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${selectedKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: connectivityModel,
-            messages: [{ role: 'user', content: 'ping' }],
-            max_tokens: 1,
-          }),
-          signal: controller.signal,
-        })
-        if (!response.ok && response.status !== 400) {
-          throw new Error(`Fireworks check failed (${response.status}).`)
-        }
+        await runChatCompletionsConnectivityCheck(
+          endpoint,
+          selectedKey,
+          connectivityModel,
+          'Fireworks check failed',
+          controller.signal
+        )
       } else {
         throw new Error(
           `Connectivity check is not supported for provider: ${selectedProviderDef.key}`
@@ -837,13 +855,7 @@ export function ProviderHubSection({
                           value={getProviderApiKey(selectedProviderDef)}
                           onChange={(e) => {
                             setProviderApiKey(selectedProviderDef, e.target.value)
-                            setConnectivityStatus('idle')
-                            setConnectivityMeta(null)
-                            setConnectivityMessage(
-                              'API key changed. Run connectivity check to verify.'
-                            )
-                            setConnectivityDetails('')
-                            setShowConnectivityDetails(false)
+                            resetConnectivityState('API key changed. Run connectivity check to verify.')
                           }}
                           className="border-border bg-secondary pr-10"
                           placeholder={`${selectedProviderDef.name} API Key`}
@@ -887,11 +899,7 @@ export function ProviderHubSection({
                             ...previous,
                             [selectedProviderDef.key]: e.target.value,
                           }))
-                          setConnectivityStatus('idle')
-                          setConnectivityMeta(null)
-                          setConnectivityMessage('Proxy URL changed. Run connectivity check again.')
-                          setConnectivityDetails('')
-                          setShowConnectivityDetails(false)
+                          resetConnectivityState('Proxy URL changed. Run connectivity check again.')
                         }}
                         className="border-border bg-secondary"
                         placeholder="https://api.example.com/v1"
@@ -909,13 +917,9 @@ export function ProviderHubSection({
                             value={connectivityModel}
                             onValueChange={(value) => {
                               setConnectivityModel(value)
-                              setConnectivityStatus('idle')
-                              setConnectivityMeta(null)
-                              setConnectivityMessage(
+                              resetConnectivityState(
                                 'Model changed. Run check again to verify this model.'
                               )
-                              setConnectivityDetails('')
-                              setShowConnectivityDetails(false)
                             }}
                           >
                             <SelectTrigger
