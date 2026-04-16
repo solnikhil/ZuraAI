@@ -322,16 +322,12 @@ export default function OverlayView() {
         position: 'relative',
         overflow: 'hidden',
         padding: isCompact ? '10px' : undefined,
-        background: isCompact
-          ? 'transparent'
-          : 'linear-gradient(180deg, rgba(14, 18, 26, 0.56) 0%, rgba(12, 16, 24, 0.66) 100%)',
-        backdropFilter: isCompact ? undefined : 'blur(18px) saturate(128%)',
-        WebkitBackdropFilter: isCompact ? undefined : 'blur(18px) saturate(128%)',
+        background: isCompact ? '#070707' : '#050505',
+        backdropFilter: undefined,
+        WebkitBackdropFilter: undefined,
         border: 'none',
         borderRadius: isCompact ? undefined : 16,
-        boxShadow: isCompact
-          ? undefined
-          : 'inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 18px 42px rgba(0, 0, 0, 0.34)',
+        boxShadow: 'none',
         color: 'var(--theme-text-primary)',
         outline: 'none',
       }}
@@ -362,11 +358,9 @@ export default function OverlayView() {
         }}
         style={{
           minHeight: 0,
-          background: isCompact
-            ? 'rgba(18, 18, 20, 0.96)'
-            : 'linear-gradient(180deg, rgba(8, 10, 14, 0.18) 0%, rgba(8, 10, 14, 0.3) 100%)',
-          borderLeft: isCompact ? '1px solid rgba(255, 255, 255, 0.1)' : undefined,
-          borderRight: isCompact ? '1px solid rgba(255, 255, 255, 0.1)' : undefined,
+          background: '#050505',
+          borderLeft: isCompact ? '1px solid rgba(255, 255, 255, 0.08)' : undefined,
+          borderRight: isCompact ? '1px solid rgba(255, 255, 255, 0.08)' : undefined,
         }}
       >
         <div
@@ -520,12 +514,10 @@ export default function OverlayView() {
             gap: 6,
             padding: isCompact ? 10 : '9px 12px 9px',
             borderRadius: isCompact ? 18 : 12,
-            border: isCompact ? undefined : '1px solid rgba(245, 248, 255, 0.3)',
-            background: isCompact
-              ? undefined
-              : 'linear-gradient(180deg, rgba(24, 26, 32, 0.94) 0%, rgba(16, 18, 24, 0.96) 100%)',
-            backdropFilter: isCompact ? undefined : 'blur(12px) saturate(108%)',
-            WebkitBackdropFilter: isCompact ? undefined : 'blur(12px) saturate(108%)',
+            border: isCompact ? undefined : '1px solid rgba(255, 255, 255, 0.12)',
+            background: isCompact ? undefined : '#0a0a0a',
+            backdropFilter: undefined,
+            WebkitBackdropFilter: undefined,
             position: 'relative',
             overflow: 'visible',
           }}
@@ -650,21 +642,13 @@ export default function OverlayView() {
       </div>
 
       <style>{`
-        @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-          .overlay__glass-shell {
-            background: rgba(16, 18, 24, 0.94) !important;
-          }
-        }
         .overlay__glass-shell::before {
           content: '';
           position: absolute;
           inset: 0;
           border-radius: inherit;
           pointer-events: none;
-          background:
-            linear-gradient(180deg, rgba(12, 14, 20, 0.2) 0%, rgba(12, 14, 20, 0.3) 100%),
-            radial-gradient(120% 52% at 50% -14%, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0) 70%),
-            radial-gradient(100% 70% at 50% 118%, rgba(8, 10, 14, 0.5) 0%, rgba(8, 10, 14, 0) 72%);
+          background: linear-gradient(180deg, rgba(0, 0, 0, 0.06) 0%, rgba(0, 0, 0, 0) 100%);
         }
         .overlay__glass-shell > * {
           position: relative;
