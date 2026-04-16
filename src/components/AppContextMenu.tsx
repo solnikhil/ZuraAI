@@ -111,6 +111,26 @@ async function copyTextToClipboard(text: string): Promise<boolean> {
   }
 }
 
+async function readTextFromClipboard(): Promise<string> {
+  try {
+    if (navigator.clipboard?.readText) {
+      return await navigator.clipboard.readText()
+    }
+  } catch {
+    // Fall through to the main-process clipboard bridge.
+  }
+
+  try {
+    if (window.shell?.readClipboardText) {
+      return await window.shell.readClipboardText()
+    }
+  } catch {
+    // Return empty string when all clipboard paths fail.
+  }
+
+  return ''
+}
+
 async function openExternal(url: string): Promise<void> {
   if (window.shell?.openExternal) {
     await window.shell.openExternal(url)
@@ -165,26 +185,43 @@ export default function AppContextMenu({ children }: { children: React.ReactNode
 
   const handlePaste = useCallback(async () => {
     const target = targetElementRef.current
-    if (!isInputOrTextarea(target)) return
-    
-    target.focus()
-    
+
+    const contentEditableTarget =
+      target?.isContentEditable === true
+        ? target
+        : ((target?.closest('[contenteditable="true"]') as HTMLElement | null) ?? null)
+
+    if (!isInputOrTextarea(target) && !contentEditableTarget) return
+
     try {
-      const text = await navigator.clipboard.readText()
-      const start = target.selectionStart || 0
-      const end = target.selectionEnd || 0
-      const currentValue = target.value
-      const newValue = currentValue.slice(0, start) + text + currentValue.slice(end)
-      
-      const nativeValueSetter = getNativeValueSetter(target)
-      if (nativeValueSetter) {
-        nativeValueSetter.call(target, newValue)
+      const text = await readTextFromClipboard()
+      if (!text) return
+
+      if (isInputOrTextarea(target)) {
+        target.focus()
+
+        const start = target.selectionStart || 0
+        const end = target.selectionEnd || 0
+        const currentValue = target.value
+        const newValue = currentValue.slice(0, start) + text + currentValue.slice(end)
+
+        const nativeValueSetter = getNativeValueSetter(target)
+        if (nativeValueSetter) {
+          nativeValueSetter.call(target, newValue)
+        } else {
+          target.value = newValue
+        }
+
+        target.dispatchEvent(new Event('input', { bubbles: true }))
+        target.selectionStart = target.selectionEnd = start + text.length
       } else {
-        target.value = newValue
+        contentEditableTarget?.focus()
+        const inserted = document.execCommand('insertText', false, text)
+        if (!inserted && contentEditableTarget) {
+          contentEditableTarget.textContent = `${contentEditableTarget.textContent || ''}${text}`
+          contentEditableTarget.dispatchEvent(new Event('input', { bubbles: true }))
+        }
       }
-      
-      target.dispatchEvent(new Event('input', { bubbles: true }))
-      target.selectionStart = target.selectionEnd = start + text.length
     } catch (error) {
       if (import.meta.env.DEV) {
         console.warn('[AppContextMenu] Clipboard paste failed:', error)

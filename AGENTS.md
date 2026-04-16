@@ -215,7 +215,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - invokes: `prompt-popup:show`, `prompt-popup:hide`, `prompt-popup:submit`
   - listens for: `prompt-popup:focus`
 - `window.shell`
-  - invokes: `shell:open-external` (opens URLs in default browser; only http/https allowed)
+  - invokes: `shell:open-external` (opens URLs in default browser; only http/https allowed), `clipboard:read-text` (reads plain text clipboard content from trusted main process)
 - `window.devTools`
   - invokes: `devtools:inspect-element` (development only; opens DevTools element inspector)
 - `window.mcp`
@@ -236,6 +236,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Main-process startup uses `electron/startup/deferredInit.ts` to defer non-critical work until the main window is visible.
 - Current deferred tasks include delayed React DevTools install in development and deferred auto-updater initialization after first paint.
 - Main-process startup also denies Chromium permission requests/checks on the default session and relies on explicit IPC bridges plus `shell.openExternal` for outbound navigation instead of granting renderer permissions.
+- Renderer context-menu paste now uses a clipboard read fallback via `window.shell.readClipboardText()` → `clipboard:read-text` when direct `navigator.clipboard.readText()` is unavailable/blocked.
 - MCP startup integration now registers `electron/mcp/index.ts` handlers during `app.whenReady()`, initializes the singleton MCP manager with renderer-facing client info, and auto-connects only servers where both `enabled` and `autoConnect` are true.
 - App shutdown now performs an MCP disconnect pass before quit completes so managed transports can exit cleanly.
 - Overlay startup now initializes the dedicated overlay runtime in main, keeps shortcut registration and display listeners on the trusted side, and relies on renderer-synced `settings.overlay` values instead of a new storage file.

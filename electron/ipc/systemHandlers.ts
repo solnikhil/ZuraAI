@@ -1,4 +1,4 @@
-import { app, ipcMain, BrowserWindow, shell } from 'electron'
+import { app, ipcMain, BrowserWindow, clipboard, shell } from 'electron'
 import { getAppRuntimeInfo } from '../runtimeInfo'
 import { showAboutWindow } from '../windows'
 
@@ -177,6 +177,20 @@ export function registerSystemHandlers(): void {
   })
 
   /**
+   * Reads plain text from the OS clipboard through the trusted main process.
+   *
+   * Channel: `clipboard:read-text`
+   * Type: request/response
+   */
+  ipcMain.handle('clipboard:read-text', () => {
+    try {
+      return clipboard.readText()
+    } catch {
+      return ''
+    }
+  })
+
+  /**
    * Applies explicit bounds to the sender's window.
    *
    * Channel: `window-resize`
@@ -255,4 +269,5 @@ export function unregisterSystemHandlers(): void {
   ipcMain.removeHandler('app-info:open-about-window')
   ipcMain.removeHandler('shell:open-external')
   ipcMain.removeHandler('devtools:inspect-element')
+  ipcMain.removeHandler('clipboard:read-text')
 }

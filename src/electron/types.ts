@@ -221,6 +221,7 @@ export interface WindowControlsAPI {
 
 export interface ShellAPI {
   openExternal: (url: string) => Promise<void>
+  readClipboardText: () => Promise<string>
 }
 
 export interface DevToolsAPI {

@@ -254,6 +254,7 @@ contextBridge.exposeInMainWorld(
   'shell',
   Object.freeze({
     openExternal: (url: string) => ipcRenderer.invoke('shell:open-external', url),
+    readClipboardText: () => ipcRenderer.invoke('clipboard:read-text') as Promise<string>,
   })
 )
 
