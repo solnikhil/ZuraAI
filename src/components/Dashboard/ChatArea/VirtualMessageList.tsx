@@ -184,6 +184,7 @@ export function VirtualMessageList({
 
   return (
     <div
+      data-select-all-scope="chat"
       style={{
         position: 'relative',
         height: '100%',

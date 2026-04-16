@@ -57,6 +57,11 @@ function isInputOrTextarea(el: HTMLElement | null): el is HTMLInputElement | HTM
   return el !== null && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')
 }
 
+function getSelectAllScope(element: HTMLElement | null): HTMLElement | null {
+  if (!element) return null
+  return element.closest('[data-select-all-scope="chat"]') as HTMLElement | null
+}
+
 function getNativeValueSetter(element: HTMLInputElement | HTMLTextAreaElement) {
   const proto = element.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype
   return Object.getOwnPropertyDescriptor(proto, 'value')?.set
@@ -234,7 +239,25 @@ export default function AppContextMenu({ children }: { children: React.ReactNode
     if (isInputOrTextarea(target)) {
       target.focus()
       target.select()
+    } else if (target?.isContentEditable || target?.closest('[contenteditable="true"]')) {
+      const editableTarget =
+        target?.isContentEditable === true
+          ? target
+          : ((target?.closest('[contenteditable="true"]') as HTMLElement | null) ?? null)
+      editableTarget?.focus()
+      document.execCommand('selectAll')
     } else {
+      const selectionScope = getSelectAllScope(target)
+      if (selectionScope) {
+        const selection = window.getSelection()
+        if (!selection) return
+        const range = document.createRange()
+        range.selectNodeContents(selectionScope)
+        selection.removeAllRanges()
+        selection.addRange(range)
+        return
+      }
+
       document.execCommand('selectAll')
     }
   }, [])

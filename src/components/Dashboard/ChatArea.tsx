@@ -363,6 +363,7 @@ export default function ChatArea() {
           viewportStyle={{ padding: '16px 20px 180px 20px', minHeight: 0 }}
         >
           <div
+            data-select-all-scope="chat"
             style={{
               width: '100%',
               maxWidth: 'min(860px, 100%)',

@@ -355,6 +355,7 @@ export default function OverlayView() {
 
       <ScrollArea
         className="flex-1"
+        data-select-all-scope="chat"
         viewportStyle={{
           padding: isCompact ? '0 12px 10px' : '18px 10px 16px',
           minHeight: 0,
