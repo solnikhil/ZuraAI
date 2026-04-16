@@ -173,5 +173,82 @@ describe('SettingsContext Provider Integration', () => {
       expect(normalized.fireworksModels).toEqual([])
       expect(normalized.perplexityModels).toEqual([])
     })
+
+    it('clears legacy pre-seeded Fireworks model defaults from persisted settings', () => {
+      const legacyFireworksSeededModels = [
+        { code: 'accounts/fireworks/models/deepseek-v3p2', displayName: 'DeepSeek V3.2', enabled: true },
+        { code: 'accounts/fireworks/models/kimi-k2p5', displayName: 'Kimi K2.5', enabled: true },
+        {
+          code: 'accounts/fireworks/routers/kimi-k2p5-turbo',
+          displayName: 'Kimi K2.5 Turbo',
+          enabled: true,
+        },
+        { code: 'accounts/fireworks/models/deepseek-r1', displayName: 'DeepSeek R1', enabled: true },
+        {
+          code: 'accounts/fireworks/models/llama-v3p1-405b-instruct',
+          displayName: 'Llama 3.1 405B',
+          enabled: true,
+        },
+        {
+          code: 'accounts/fireworks/models/llama-v3p1-8b-instruct',
+          displayName: 'Llama 3.1 8B',
+          enabled: true,
+        },
+        {
+          code: 'accounts/fireworks/models/llama-v3p1-70b-instruct',
+          displayName: 'Llama 3.1 70B',
+          enabled: true,
+        },
+        { code: 'accounts/fireworks/models/glm-5', displayName: 'GLM-5', enabled: true },
+        {
+          code: 'accounts/fireworks/models/qwen3-235b-a22b',
+          displayName: 'Qwen3 235B',
+          enabled: true,
+        },
+        { code: 'accounts/fireworks/models/glm-4p7', displayName: 'GLM-4.7', enabled: true },
+        {
+          code: 'accounts/fireworks/models/nvidia-nemotron-3-super-120b-a12b-fp8',
+          displayName: 'NVIDIA Nemotron 3',
+          enabled: true,
+        },
+      ]
+
+      const normalized = normalizeStoredSettings(
+        JSON.stringify({
+          fireworksModels: legacyFireworksSeededModels,
+        })
+      )
+
+      expect(normalized.fireworksModels).toEqual([])
+    })
+
+    it('preserves custom Fireworks models instead of clearing non-legacy lists', () => {
+      const normalized = normalizeStoredSettings(
+        JSON.stringify({
+          fireworksModels: [
+            {
+              code: 'accounts/fireworks/models/kimi-k2p5',
+              displayName: 'Kimi K2.5',
+              enabled: true,
+            },
+            {
+              code: 'accounts/fireworks/models/custom-model-123',
+              displayName: 'Custom Fireworks Model',
+              enabled: true,
+            },
+          ],
+        })
+      )
+
+      expect(normalized.fireworksModels).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            code: 'accounts/fireworks/models/custom-model-123',
+            displayName: 'Custom Fireworks Model',
+            enabled: true,
+          }),
+        ])
+      )
+    })
   })
 })

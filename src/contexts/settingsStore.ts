@@ -50,6 +50,45 @@ const LEGACY_FIREWORKS_MODEL_ID_MAP: Record<string, string> = {
   'accounts/fireworks/models/kimi-k2p5-turbo': 'accounts/fireworks/routers/kimi-k2p5-turbo',
   'accounts/fireworks/models/kimi-k2p5-turbo-instruct': 'accounts/fireworks/routers/kimi-k2p5-turbo',
 }
+const LEGACY_FIREWORKS_SEEDED_MODEL_CODES = new Set([
+  'accounts/fireworks/models/deepseek-v3p2',
+  'accounts/fireworks/models/kimi-k2p5',
+  'accounts/fireworks/routers/kimi-k2p5-turbo',
+  'accounts/fireworks/models/deepseek-r1',
+  'accounts/fireworks/models/llama-v3p1-405b-instruct',
+  'accounts/fireworks/models/llama-v3p1-8b-instruct',
+  'accounts/fireworks/models/llama-v3p1-70b-instruct',
+  'accounts/fireworks/models/glm-5',
+  'accounts/fireworks/models/qwen3-235b-a22b',
+  'accounts/fireworks/models/glm-4p7',
+  'accounts/fireworks/models/nvidia-nemotron-3-super-120b-a12b-fp8',
+])
+
+function shouldClearLegacyFireworksSeededModels(models: unknown): boolean {
+  if (!Array.isArray(models) || models.length !== LEGACY_FIREWORKS_SEEDED_MODEL_CODES.size) {
+    return false
+  }
+
+  const seenCodes = new Set<string>()
+  for (const model of models) {
+    if (typeof model !== 'object' || model === null) {
+      return false
+    }
+
+    const { code } = model as { code?: unknown }
+    if (
+      typeof code !== 'string' ||
+      !LEGACY_FIREWORKS_SEEDED_MODEL_CODES.has(code) ||
+      seenCodes.has(code)
+    ) {
+      return false
+    }
+
+    seenCodes.add(code)
+  }
+
+  return seenCodes.size === LEGACY_FIREWORKS_SEEDED_MODEL_CODES.size
+}
 
 function mergeProviderModelsWithDefaults<T extends { code: string; enabled?: boolean }>(
   storedModels: unknown,
@@ -216,10 +255,13 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   const userFireworks = Array.isArray(parsed.fireworksModels)
     ? parsed.fireworksModels.map((model) => migrateConfiguredModelCode(model))
     : parsed.fireworksModels
-  parsed.fireworksModels = normalizeProviderModels(
+  const normalizedFireworksModels = normalizeProviderModels(
     userFireworks,
     defaultSettings.fireworksModels
   )
+  parsed.fireworksModels = shouldClearLegacyFireworksSeededModels(normalizedFireworksModels)
+    ? []
+    : normalizedFireworksModels
 
   const deprecatedGroqModelMap: Record<string, string> = {
     'llama-4-scout': 'meta-llama/llama-4-scout-17b-16e-instruct',
