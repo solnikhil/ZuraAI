@@ -44,6 +44,9 @@ const UNGROUNDED_SEARCH_SYNTHESIS_PATTERNS = [
   /\bi (?:can't|cannot|do not|don't) (?:browse|access|verify) (?:the )?(?:web|internet|current|real-time|up-to-date)/i,
   /\bconsult official documentation\b/i,
   /\bconsult (?:official documentation|recent peer-reviewed literature)\b/i,
+  /\bsearch results (?:returned|yielded|provided) no (?:information|results|evidence)\b/i,
+  /\bskipped (?:the )?query as (?:a )?duplicate\b/i,
+  /\bwithout successful retrieval\b/i,
 ]
 
 /** Compute per-chunk UI update cadence. */

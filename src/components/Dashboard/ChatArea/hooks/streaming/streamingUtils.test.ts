@@ -241,6 +241,14 @@ describe('streamingUtils final synthesis helpers', () => {
     ).toBe(true)
   })
 
+  it('flags duplicate-skip fallback text as a failed post-search synthesis', () => {
+    expect(
+      shouldRetryUngroundedSearchSynthesis(
+        "The search results returned no information about Justin Bieber's latest Coachella news, and the system skipped the query as a duplicate."
+      )
+    ).toBe(true)
+  })
+
   it('does not flag grounded synthesized answers as failed post-search synthesis', () => {
     expect(
       shouldRetryUngroundedSearchSynthesis(

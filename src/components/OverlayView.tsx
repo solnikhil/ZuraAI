@@ -19,6 +19,7 @@ import { useStreamingChat } from './Dashboard/ChatArea/hooks'
 import { shouldHideGenericToolResultCard } from './Dashboard/ChatArea/toolResultVisibility'
 import { Plus, Send, Square, X } from './icons'
 import { usePromptAutoHide } from './Dashboard/ChatArea/hooks/usePromptAutoHide'
+import { writeTextToClipboard } from '@/utils/clipboard'
 
 export default function OverlayView() {
   const { sessions, currentSessionId, createSession } = useChatHistory()
@@ -92,9 +93,13 @@ export default function OverlayView() {
     resetTimer()
   }, [createSession, resetTimer])
 
-  const handleCopy = useCallback((content: string) => {
-    void navigator.clipboard.writeText(content)
-  }, [])
+  const handleCopy = useCallback(async (content: string) => {
+    const copiedSuccessfully = await writeTextToClipboard(content)
+    if (!copiedSuccessfully) {
+      showToast('Unable to copy message right now.', 'error')
+    }
+    return copiedSuccessfully
+  }, [showToast])
 
   useEffect(() => {
     const previousBodyBackground = document.body.style.background
