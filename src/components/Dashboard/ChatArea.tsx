@@ -358,6 +358,7 @@ export default function ChatArea() {
       ) : (
         <ScrollArea
           className="flex-1"
+          data-select-all-scope="chat"
           style={{ minHeight: 0 }}
           viewportRef={messagesContainerRef}
           viewportStyle={{ padding: '16px 20px 180px 20px', minHeight: 0 }}
