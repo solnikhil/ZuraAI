@@ -20,6 +20,9 @@ const getGitInfo = () => {
 const gitInfo = getGitInfo()
 
 export default defineConfig({
+    esbuild: {
+        drop: ['console', 'debugger'],
+    },
     plugins: [
         tailwindcss(),
         react(),
@@ -30,7 +33,7 @@ export default defineConfig({
                 vite: {
                     build: {
                         rollupOptions: {
-                            external: ['bufferutil', 'utf-8-validate'],
+                            external: ['bufferutil', 'utf-8-validate', 'duck-duck-scrape'],
                         },
                     },
                     define: {
