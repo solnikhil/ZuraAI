@@ -93,7 +93,7 @@ describe('overlayWindow', () => {
         x: 0,
         y: 0,
         width: 480,
-        height: 560,
+        height: 680,
       },
       false
     )
@@ -142,7 +142,7 @@ describe('overlayWindow', () => {
         x: 420,
         y: 210,
         width: 500,
-        height: 560,
+        height: 680,
       },
       false
     )

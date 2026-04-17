@@ -316,7 +316,8 @@ export default function OverlayView() {
     <div
       className={!isCompact ? 'overlay__glass-shell' : undefined}
       style={{
-        height: '100vh',
+        height: '100%',
+        minHeight: '100%',
         display: 'flex',
         flexDirection: 'column',
         position: 'relative',
@@ -324,14 +325,14 @@ export default function OverlayView() {
         padding: isCompact ? '10px' : undefined,
         background: isCompact
           ? 'transparent'
-          : 'linear-gradient(180deg, rgba(14, 18, 26, 0.56) 0%, rgba(12, 16, 24, 0.66) 100%)',
-        backdropFilter: isCompact ? undefined : 'blur(18px) saturate(128%)',
-        WebkitBackdropFilter: isCompact ? undefined : 'blur(18px) saturate(128%)',
+          : 'linear-gradient(180deg, rgba(14, 18, 26, 0.46) 0%, rgba(12, 16, 24, 0.58) 100%)',
+        backdropFilter: undefined,
+        WebkitBackdropFilter: undefined,
         border: 'none',
         borderRadius: isCompact ? undefined : 16,
         boxShadow: isCompact
           ? undefined
-          : 'inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 18px 42px rgba(0, 0, 0, 0.34)',
+          : 'inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 14px 34px rgba(0, 0, 0, 0.3)',
         color: 'var(--theme-text-primary)',
         outline: 'none',
       }}
@@ -364,7 +365,7 @@ export default function OverlayView() {
           minHeight: 0,
           background: isCompact
             ? 'rgba(18, 18, 20, 0.96)'
-            : 'linear-gradient(180deg, rgba(8, 10, 14, 0.18) 0%, rgba(8, 10, 14, 0.3) 100%)',
+            : 'linear-gradient(180deg, rgba(8, 10, 14, 0.3) 0%, rgba(8, 10, 14, 0.44) 100%)',
           borderLeft: isCompact ? '1px solid rgba(255, 255, 255, 0.1)' : undefined,
           borderRight: isCompact ? '1px solid rgba(255, 255, 255, 0.1)' : undefined,
         }}
@@ -500,7 +501,7 @@ export default function OverlayView() {
 
       <div
         style={{
-          padding: isCompact ? '0 10px 10px' : '4px 0 10px',
+          padding: isCompact ? '0 10px 10px' : '4px 10px 10px',
           borderTop: 'none',
           background: 'transparent',
           transform: !isCompact && isPromptHidden ? 'translateY(118%)' : undefined,
@@ -520,12 +521,12 @@ export default function OverlayView() {
             gap: 6,
             padding: isCompact ? 10 : '9px 12px 9px',
             borderRadius: isCompact ? 18 : 12,
-            border: isCompact ? undefined : '1px solid rgba(245, 248, 255, 0.3)',
+            border: isCompact ? undefined : '1px solid rgba(245, 248, 255, 0.2)',
             background: isCompact
               ? undefined
-              : 'linear-gradient(180deg, rgba(24, 26, 32, 0.94) 0%, rgba(16, 18, 24, 0.96) 100%)',
-            backdropFilter: isCompact ? undefined : 'blur(12px) saturate(108%)',
-            WebkitBackdropFilter: isCompact ? undefined : 'blur(12px) saturate(108%)',
+              : 'linear-gradient(180deg, rgba(24, 26, 32, 0.74) 0%, rgba(16, 18, 24, 0.82) 100%)',
+            backdropFilter: undefined,
+            WebkitBackdropFilter: undefined,
             position: 'relative',
             overflow: 'visible',
           }}
@@ -662,9 +663,9 @@ export default function OverlayView() {
           border-radius: inherit;
           pointer-events: none;
           background:
-            linear-gradient(180deg, rgba(12, 14, 20, 0.2) 0%, rgba(12, 14, 20, 0.3) 100%),
-            radial-gradient(120% 52% at 50% -14%, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0) 70%),
-            radial-gradient(100% 70% at 50% 118%, rgba(8, 10, 14, 0.5) 0%, rgba(8, 10, 14, 0) 72%);
+            linear-gradient(180deg, rgba(12, 14, 20, 0.12) 0%, rgba(12, 14, 20, 0.2) 100%),
+            radial-gradient(120% 52% at 50% -14%, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0) 70%),
+            radial-gradient(100% 70% at 50% 118%, rgba(8, 10, 14, 0.28) 0%, rgba(8, 10, 14, 0) 72%);
         }
         .overlay__glass-shell > * {
           position: relative;
