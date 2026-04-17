@@ -1,4 +1,4 @@
-import { app, ipcMain, BrowserWindow, shell } from 'electron'
+import { app, ipcMain, BrowserWindow, clipboard, shell } from 'electron'
 import { getAppRuntimeInfo } from '../runtimeInfo'
 import { showAboutWindow } from '../windows'
 
@@ -130,7 +130,7 @@ export function registerSystemHandlers(): void {
    * Channel: `app-info:open-about-window`
    * Type: request/response
    */
-ipcMain.handle('app-info:open-about-window', () => {
+  ipcMain.handle('app-info:open-about-window', () => {
     showAboutWindow()
   })
 
@@ -151,8 +151,8 @@ ipcMain.handle('app-info:open-about-window', () => {
         return
       }
       await shell.openExternal(url)
-    } catch {
-      // Invalid URL, ignore
+    } catch (error) {
+      console.warn('[system-handlers] Invalid URL passed to shell:open-external', error)
     }
   })
 
@@ -173,6 +173,20 @@ ipcMain.handle('app-info:open-about-window', () => {
         const coordY = typeof y === 'number' ? Math.round(y) : 0
         win.webContents.inspectElement(coordX, coordY)
       }
+    }
+  })
+
+  /**
+   * Reads plain text from the OS clipboard through the trusted main process.
+   *
+   * Channel: `clipboard:read-text`
+   * Type: request/response
+   */
+  ipcMain.handle('clipboard:read-text', () => {
+    try {
+      return clipboard.readText()
+    } catch {
+      return ''
     }
   })
 
@@ -255,4 +269,5 @@ export function unregisterSystemHandlers(): void {
   ipcMain.removeHandler('app-info:open-about-window')
   ipcMain.removeHandler('shell:open-external')
   ipcMain.removeHandler('devtools:inspect-element')
+  ipcMain.removeHandler('clipboard:read-text')
 }

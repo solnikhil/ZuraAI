@@ -11,7 +11,7 @@
 import { describe, it, expect } from 'vitest'
 import * as fc from 'fast-check'
 import { filterSessions } from '../utils/filterSessions'
-import type { ChatSession, Message } from '../../../../contexts/ChatHistoryContext'
+import type { ChatSession, Message } from '../../../../chat/types'
 
 // fast-check Arbitraries
 

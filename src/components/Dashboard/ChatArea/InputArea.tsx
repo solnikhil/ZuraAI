@@ -41,7 +41,6 @@ import {
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuShortcut,
   DropdownMenuSub,
@@ -380,16 +379,11 @@ const webResearchEnabled = settings.skills?.web_research?.enabled !== false
                     sideOffset={2}
                     className="w-[248px] rounded-xl p-1.5"
                   >
-                    <DropdownMenuLabel className="px-2.5 pb-1 pt-1 text-xs uppercase tracking-[0.12em] text-[var(--theme-text-muted)]">
-                      Quick Actions
-                    </DropdownMenuLabel>
-
                     <DropdownMenuGroup>
                     <DropdownMenuItem
                       onSelect={(event) => {
                         event.preventDefault()
                         fileInputRef.current?.click()
-                        setQuickActionsOpen(false)
                       }}
                       className="group/menu-item h-9 px-2.5 text-[13px]"
                     >
@@ -401,7 +395,7 @@ const webResearchEnabled = settings.skills?.web_research?.enabled !== false
                     </DropdownMenuItem>
                     </DropdownMenuGroup>
 
-                    <DropdownMenuSeparator className="mx-3 my-1 h-px" />
+                    <DropdownMenuSeparator className="mx-0 my-1 h-px" />
 
                     <DropdownMenuSub>
                       <DropdownMenuSubTrigger className="h-9 px-2.5 text-[13px]">
@@ -417,7 +411,6 @@ const webResearchEnabled = settings.skills?.web_research?.enabled !== false
                           onSelect={(event) => {
                             event.preventDefault()
                             setMcpDialogMode('resources')
-                            setQuickActionsOpen(false)
                           }}
                           className="group/menu-item h-9 px-2.5 text-[13px]"
                         >
@@ -428,7 +421,6 @@ const webResearchEnabled = settings.skills?.web_research?.enabled !== false
                           onSelect={(event) => {
                             event.preventDefault()
                             setMcpDialogMode('prompts')
-                            setQuickActionsOpen(false)
                           }}
                           className="group/menu-item h-9 px-2.5 text-[13px]"
                         >
@@ -437,8 +429,6 @@ const webResearchEnabled = settings.skills?.web_research?.enabled !== false
                         </DropdownMenuItem>
                       </DropdownMenuSubContent>
                     </DropdownMenuSub>
-
-                    <DropdownMenuSeparator className="mx-3 my-1 h-px" />
 
                     <DropdownMenuSub>
                       <DropdownMenuSubTrigger className="h-9 px-2.5 text-[13px]">
@@ -454,7 +444,6 @@ const webResearchEnabled = settings.skills?.web_research?.enabled !== false
                           onSelect={(event) => {
                             event.preventDefault()
                             toggleWebResearchSkill()
-                            setQuickActionsOpen(false)
                           }}
                           className="group/menu-item h-9 px-2.5 text-[13px]"
                         >

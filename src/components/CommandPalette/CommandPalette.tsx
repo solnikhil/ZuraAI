@@ -303,6 +303,19 @@ export default function CommandPalette() {
           ensureDashboardRoute()
           ensureDashboardView(action.view)
           return true
+        case 'toggle_overlay': {
+          if (!window.overlay?.toggle) {
+            showToast('Overlay is not available in this environment.', 'error')
+            return false
+          }
+
+          void window.overlay.toggle().then((state) => {
+            if (!state.enabled) {
+              showToast('Enable Overlay in Extension settings first.', 'warning')
+            }
+          })
+          return true
+        }
         case 'open_settings_section': {
           ensureDashboardRoute()
           ensureDashboardView('settings')

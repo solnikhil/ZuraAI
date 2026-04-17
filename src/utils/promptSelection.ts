@@ -1,5 +1,11 @@
 import { Settings } from '../contexts/SettingsContext'
 import { buildEnabledSkillsPrompt } from '../skills'
+import { CURRENT_YEAR_PLACEHOLDER } from '../prompts/defaultSystemPrompt'
+
+export function resolveSystemPromptTemplate(systemPrompt: string): string {
+    const currentYear = String(new Date().getFullYear())
+    return systemPrompt.replaceAll(CURRENT_YEAR_PLACEHOLDER, currentYear)
+}
 
 /**
  * Determines the effective system prompt based on current settings.
@@ -8,12 +14,13 @@ import { buildEnabledSkillsPrompt } from '../skills'
  * @returns The effective system prompt to use for AI calls
  */
 export function getEffectiveSystemPrompt(settings: Pick<Settings, 'systemPrompt'> & Partial<Pick<Settings, 'skills'>>): string {
+    const resolvedSystemPrompt = resolveSystemPromptTemplate(settings.systemPrompt)
     const enabledSkillsSection = buildEnabledSkillsPrompt(settings.skills)
     if (!enabledSkillsSection) {
-        return settings.systemPrompt
+        return resolvedSystemPrompt
     }
 
-    return `${settings.systemPrompt}\n\n${enabledSkillsSection}`
+    return `${resolvedSystemPrompt}\n\n${enabledSkillsSection}`
 }
 
 /**

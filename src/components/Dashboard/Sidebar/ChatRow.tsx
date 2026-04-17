@@ -1,4 +1,4 @@
-import type { ChatSession } from '../../../contexts/ChatHistoryContext'
+import type { ChatSession } from '../../../chat/types'
 import type { ChatSelectedOverlayStyle } from '../../../contexts/SettingsUIContext'
 
 export type ChatRowAction = 'rename' | 'pin' | 'unpin' | 'delete' | 'duplicate'

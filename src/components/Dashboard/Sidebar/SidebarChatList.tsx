@@ -7,7 +7,7 @@ import DeleteChatAlertDialog from './DeleteChatAlertDialog'
 import RenameChatDialog from './RenameChatDialog'
 import { ChevronDown, FolderOpen, Pin } from '../../icons'
 import type { GroupedSessions } from './utils/groupSessions'
-import type { ChatSession, Folder } from '../../../contexts/ChatHistoryContext'
+import type { ChatSession, Folder } from '../../../chat/types'
 import type { ChatSelectedOverlayStyle } from '../../../contexts/SettingsUIContext'
 
 const CHAT_LIST_BASE_HORIZONTAL_PADDING = 8

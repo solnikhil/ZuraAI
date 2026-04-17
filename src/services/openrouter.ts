@@ -145,6 +145,21 @@ interface OpenRouterRequestBody {
     }
 }
 
+type OpenRouterDeltaToolCall = NonNullable<
+    NonNullable<OpenRouterStreamChunk['choices'][number]['delta']>['tool_calls']
+>[number]
+
+function summarizeChunkToolCalls(
+    toolCalls: OpenRouterDeltaToolCall[] | undefined
+): Array<{ index?: number; id?: string; name?: string; argumentsPreview: string }> {
+  return (toolCalls || []).map((toolCall) => ({
+    index: toolCall?.index,
+    id: toolCall?.id,
+    name: toolCall?.function?.name,
+    argumentsPreview: (toolCall?.function?.arguments || '').slice(0, 120),
+  }))
+}
+
 function logOpenRouterDebug(enabled: boolean | undefined, event: string, details?: Record<string, unknown>): void {
     if (!enabled) return
     console.debug('[openrouter-debug]', event, details || {})
@@ -302,7 +317,16 @@ export async function* streamOpenRouterCompletion(
         onChunk: options?.onChunk,
         providerName: 'OpenRouter',
         onParsed(parsed: unknown) {
-            const chunk = parsed as any
+            const chunk = parsed as OpenRouterStreamChunk & {
+                error?: {
+                    message?: string
+                    code?: string
+                    metadata?: {
+                        provider_name?: string
+                        raw?: string
+                    }
+                }
+            }
             logOpenRouterDebug(options?.debug, 'stream.chunk', {
                 id: chunk?.id,
                 model: chunk?.model,
@@ -313,13 +337,7 @@ export async function* streamOpenRouterCompletion(
                     chunk?.choices?.[0]?.delta?.reasoning?.length ||
                     chunk?.choices?.[0]?.delta?.reasoning_details?.length ||
                     0,
-                toolCalls:
-                    chunk?.choices?.[0]?.delta?.tool_calls?.map((toolCall: any) => ({
-                        index: toolCall?.index,
-                        id: toolCall?.id,
-                        name: toolCall?.function?.name,
-                        argumentsPreview: (toolCall?.function?.arguments || '').slice(0, 120),
-                    })) || [],
+                toolCalls: summarizeChunkToolCalls(chunk?.choices?.[0]?.delta?.tool_calls),
                 usage: chunk?.usage,
             })
             // OpenRouter can send error objects inside the SSE stream

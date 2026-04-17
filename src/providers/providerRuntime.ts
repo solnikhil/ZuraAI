@@ -221,7 +221,7 @@ function splitForProgressiveStreaming(delta: string): string[] {
 
 async function* emitOpenAiCompatibleResponse(
   response: OpenAiCompatibleResponse,
-  options?: { responsePrefix?: string; includeReasoning?: boolean }
+  options?: { responsePrefix?: string; includeReasoning?: boolean; reasoningContentField?: string }
 ): AsyncGenerator<NormalizedStreamEvent, void, unknown> {
   const choice = response.choices?.[0]
   const message = choice?.message
@@ -231,11 +231,17 @@ async function* emitOpenAiCompatibleResponse(
   }
 
   if (options?.includeReasoning) {
-    const reasoning = (
-      message as OpenRouterResponse['choices'][0]['message'] & { reasoning?: string }
-    )?.reasoning
-    if (reasoning) {
-      yield { type: 'reasoning-delta', delta: reasoning }
+    const reasoningField = options?.reasoningContentField || 'reasoning'
+    const reasoningContent = (message as Record<string, unknown>)?.[reasoningField]
+    if (typeof reasoningContent === 'string' && reasoningContent) {
+      yield { type: 'reasoning-delta', delta: reasoningContent }
+    } else {
+      const reasoning = (
+        message as OpenRouterResponse['choices'][0]['message'] & { reasoning?: string }
+      )?.reasoning
+      if (reasoning) {
+        yield { type: 'reasoning-delta', delta: reasoning }
+      }
     }
   }
 
@@ -529,8 +535,9 @@ export async function* streamProviderEvents(
           tools: request.tools || undefined,
           toolChoice: request.toolChoice,
           signal: request.signal,
+          enableThinking: request.enableThinking,
         })
-        yield* emitOpenAiCompatibleResponse(response)
+        yield* emitOpenAiCompatibleResponse(response, { includeReasoning: true, reasoningContentField: 'reasoning_content' })
         return
       }
 
@@ -540,7 +547,13 @@ export async function* streamProviderEvents(
         tools: request.tools || undefined,
         toolChoice: request.toolChoice,
         signal: request.signal,
+        enableThinking: request.enableThinking,
       })) {
+        const reasoningDelta = chunk.choices?.[0]?.delta?.reasoning_content
+        if (reasoningDelta) {
+          yield { type: 'reasoning-delta', delta: reasoningDelta }
+        }
+
         const delta = chunk.choices?.[0]?.delta?.content || ''
         if (delta) yield { type: 'text-delta', delta }
         if (chunk.choices?.[0]?.delta?.tool_calls?.length) {

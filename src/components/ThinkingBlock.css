@@ -139,30 +139,10 @@
     line-height: 1.5;
     color: rgba(255, 255, 255, 0.75);
     overflow-x: auto;
-    overflow-y: auto;
-    max-height: 400px;
+    overflow-y: visible;
+    max-height: none;
     white-space: pre-wrap;
     word-break: break-word;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
-}
-
-.thinking-tool-json pre::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-}
-
-.thinking-tool-json pre::-webkit-scrollbar-track {
-    background: transparent;
-}
-
-.thinking-tool-json pre::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 3px;
-}
-
-.thinking-tool-json pre::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.35);
 }
 
 .thinking-tool-audit-line {
@@ -356,8 +336,9 @@
 }
 
 .thinking-block.expanded .thinking-content {
-    max-height: 2000px;
+    max-height: none;
     opacity: 1;
+    overflow: visible;
 }
 
 @keyframes thinkingFadeIn {

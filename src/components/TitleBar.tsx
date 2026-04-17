@@ -1,28 +1,16 @@
 import React, { useCallback, useEffect, useMemo } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useChatHistory } from '../contexts/ChatHistoryContext'
-import { Settings, useSettings } from '../contexts/SettingsContext'
+import { useSettings } from '../contexts/SettingsContext'
 import { useAppShell } from '../contexts/AppShellContext'
 import { SETTINGS_SECTION_MAP, type SettingsSectionId } from '../constants/settingsSections'
 import { SIDEBAR_COLLAPSED_WIDTH_PX } from '../constants/sidebar'
+import { getModelDisplayName } from '../providers'
 import TitleBarSidebarControls from './TitleBarSidebarControls'
 import TitleBarWindowActions from './TitleBarWindowActions'
 import './TitleBar.css'
 import { useShellRouteState } from './shell/useShellRouteState'
 import { useWindowMaximizeState } from './shell/useWindowMaximizeState'
-
-function getModelDisplayName(settings: Settings): string {
-    const allModels: Array<{ code: string; displayName: string }> = [
-        ...(settings.ollamaModels || []),
-        ...(settings.perplexityModels || []),
-        ...(settings.configuredModels || []),
-        ...(settings.groqModels || []),
-        ...(settings.alibabaModels || []),
-    ]
-
-    const currentModel = allModels.find(m => m.code === settings.aiModel)
-    return currentModel?.displayName || settings.aiModel?.split('/').pop() || 'Auto'
-}
 
 export default function TitleBar() {
     const location = useLocation()
@@ -38,6 +26,10 @@ export default function TitleBar() {
         sidebarHidden,
         toggleSidebarHidden,
         isResizingSidebar,
+        canGoBack,
+        canGoForward,
+        goBack,
+        goForward,
     } = useAppShell()
     const { isDashboardRoute, isSettingsRoute, isLegacyChatRoute, hasSidebar } = useShellRouteState(location.pathname)
 
@@ -75,7 +67,6 @@ export default function TitleBar() {
 
     const density = settings.titleBarDensity || 'comfortable'
     const isSettingsView = dashboardView === 'settings'
-    const settingsButtonDisabled = isSettingsView && hasUnsavedSettings
     const sidebarWidthPx = sidebarHidden
         ? 0
         : (sidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH_PX : sidebarWidth)
@@ -89,7 +80,9 @@ export default function TitleBar() {
     const handleTitleBarDoubleClick = useCallback((e: React.MouseEvent) => {
         // Only trigger on the titlebar itself, not on buttons/controls
         if ((e.target as HTMLElement).closest('.no-drag')) return
-        window.windowControls?.toggleMaximize().catch(() => {})
+        window.windowControls?.toggleMaximize().catch((error) => {
+            console.warn('[TitleBar] Failed to toggle maximize on titlebar double-click', error)
+        })
     }, [])
 
     return (
@@ -129,13 +122,15 @@ export default function TitleBar() {
 
             <div className="app-titlebar__left">
                 <TitleBarSidebarControls
+                    canGoBack={canGoBack}
+                    canGoForward={canGoForward}
+                    onBack={goBack}
+                    onForward={goForward}
                     hasSidebar={hasSidebar}
                     hasUnsavedSettings={hasUnsavedSettings}
                     isSettingsView={isSettingsView}
-                    settingsButtonDisabled={settingsButtonDisabled}
                     sidebarHidden={sidebarHidden}
                     toggleSidebarHidden={toggleSidebarHidden}
-                    setDashboardView={setDashboardView}
                 />
             </div>
 
@@ -151,6 +146,9 @@ export default function TitleBar() {
                     isMacOS={isMacOS}
                     isMaximized={isMaximized}
                     setIsMaximized={setIsMaximized}
+                    hasUnsavedSettings={hasUnsavedSettings}
+                    isSettingsView={isSettingsView}
+                    setDashboardView={setDashboardView}
                 />
             </div>
         </div>

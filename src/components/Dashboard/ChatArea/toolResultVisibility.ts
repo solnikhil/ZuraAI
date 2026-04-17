@@ -1,4 +1,4 @@
-import type { ToolCallResult } from '../../../contexts/ChatHistoryContext'
+import type { ToolCallResult } from '../../../chat/types'
 
 function hasMcpMetadataShape(metadata: unknown): boolean {
   if (!metadata || typeof metadata !== 'object') {

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { MessageCircle, Search, X } from '../../icons'
-import type { ChatSession } from '../../../contexts/ChatHistoryContext'
+import type { ChatSession } from '../../../chat/types'
 import { filterSessions, getMatchSnippet } from './utils/filterSessions'
 
 interface SidebarSearchOverlayProps {

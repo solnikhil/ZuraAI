@@ -12,6 +12,7 @@ import LazyMarkdown from '@/components/LazyMarkdown'
 import ThinkingBlockComponent from '@/components/ThinkingBlock'
 import { useSettings } from '@/contexts/SettingsContext'
 import ToolResultDisplay from '@/tools/ui/ToolResultDisplay'
+import { writeTextToClipboard } from '@/utils/clipboard'
 import {
   removeToolFollowUpSplitMarker,
   shouldCaptureFollowUpSnapshot,
@@ -195,12 +196,16 @@ function MessageRendererComponent({
     (activeTimelineOwner === 'lower' && hasActiveThinkingState)
 
   // Handle copy
-  const handleCopy = () => {
-    if (onCopy) {
-      onCopy(removeToolFollowUpSplitMarker(message.content))
-    } else {
-      navigator.clipboard.writeText(removeToolFollowUpSplitMarker(message.content))
+  const handleCopy = async () => {
+    const contentToCopy = removeToolFollowUpSplitMarker(message.content)
+    const copiedSuccessfully = onCopy
+      ? await Promise.resolve(onCopy(contentToCopy))
+      : await writeTextToClipboard(contentToCopy)
+
+    if (copiedSuccessfully === false) {
+      return
     }
+
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
@@ -255,7 +260,13 @@ function MessageRendererComponent({
       shouldShowInfoTooltip)
 
   return (
-    <div style={{ marginBottom: '24px' }} tabIndex={0} onKeyDown={handleKeyDown} ref={messageRef}>
+    <div
+      className="assistant-message-shell"
+      style={{ marginBottom: '24px' }}
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
+      ref={messageRef}
+    >
       {message.files && message.files.length > 0 && <RenderImageFiles files={message.files} />}
 
       {showUpperThinkingBlock && (

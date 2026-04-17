@@ -13,7 +13,7 @@
  * - 4.5: Maximum 3 fully-loaded sessions in memory
  */
 
-import type { Message, ChatSession } from './ChatHistoryContext'
+import type { Message, ChatSession } from '../chat/types'
 
 /**
  * Lightweight metadata for a chat session (without full message content)

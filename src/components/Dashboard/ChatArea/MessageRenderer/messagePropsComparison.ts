@@ -5,7 +5,7 @@
  */
 
 import type { MessageRendererProps } from './types'
-import type { ThinkingBlock } from '@/contexts/ChatHistoryContext'
+import type { ThinkingBlock } from '@/chat/types'
 
 function areOptionalRecordsEqual(
   a?: Record<string, unknown>,

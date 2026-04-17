@@ -1,9 +1,42 @@
 import { registerChatStoreHandlers, unregisterChatStoreHandlers } from './chatStoreHandlers'
+import { registerOverlayHandlers, unregisterOverlayHandlers } from './overlayHandlers'
+import {
+  registerPromptPopupHandlers,
+  unregisterPromptPopupHandlers,
+} from './promptPopupHandlers'
 import {
   registerSecureStorageHandlers,
   unregisterSecureStorageHandlers,
 } from './secureStorageHandlers'
 import { registerSystemHandlers, unregisterSystemHandlers } from './systemHandlers'
+
+interface IpcDomainHandlers {
+  register: () => void
+  unregister: () => void
+}
+
+const IPC_DOMAIN_HANDLERS: readonly IpcDomainHandlers[] = [
+  {
+    register: registerChatStoreHandlers,
+    unregister: unregisterChatStoreHandlers,
+  },
+  {
+    register: registerSecureStorageHandlers,
+    unregister: unregisterSecureStorageHandlers,
+  },
+  {
+    register: registerOverlayHandlers,
+    unregister: unregisterOverlayHandlers,
+  },
+  {
+    register: registerPromptPopupHandlers,
+    unregister: unregisterPromptPopupHandlers,
+  },
+  {
+    register: registerSystemHandlers,
+    unregister: unregisterSystemHandlers,
+  },
+] as const
 
 /**
  * Registers every main-process IPC handler exposed by the app.
@@ -19,10 +52,9 @@ import { registerSystemHandlers, unregisterSystemHandlers } from './systemHandle
  * requests are actually handled by the main process.
  */
 export function registerAllHandlers(): void {
-  // Register each IPC domain in one place so startup order stays explicit.
-  registerChatStoreHandlers()
-  registerSecureStorageHandlers()
-  registerSystemHandlers()
+  for (const domain of IPC_DOMAIN_HANDLERS) {
+    domain.register()
+  }
 }
 
 /**
@@ -35,9 +67,9 @@ export function registerAllHandlers(): void {
  * behavior.
  */
 export function unregisterAllHandlers(): void {
-  unregisterChatStoreHandlers()
-  unregisterSecureStorageHandlers()
-  unregisterSystemHandlers()
+  for (const domain of IPC_DOMAIN_HANDLERS) {
+    domain.unregister()
+  }
 }
 
 /**
@@ -49,4 +81,12 @@ export {
   registerSecureStorageHandlers,
   unregisterSecureStorageHandlers,
 } from './secureStorageHandlers'
+export {
+  registerOverlayHandlers,
+  unregisterOverlayHandlers,
+} from './overlayHandlers'
 export { registerSystemHandlers, unregisterSystemHandlers } from './systemHandlers'
+export {
+  registerPromptPopupHandlers,
+  unregisterPromptPopupHandlers,
+} from './promptPopupHandlers'

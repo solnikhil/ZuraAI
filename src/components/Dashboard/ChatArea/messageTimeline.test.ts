@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { ThinkingBlock } from '../../../contexts/ChatHistoryContext'
+import type { ThinkingBlock } from '../../../chat/types'
 import {
   TOOL_FOLLOW_UP_SPLIT_MARKER,
   shouldCaptureFollowUpSnapshot,

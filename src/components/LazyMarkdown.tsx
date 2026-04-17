@@ -8,7 +8,11 @@ import WebSourceCitation from './Dashboard/ChatArea/WebSourceCitation'
 import type { WebSource } from './Dashboard/ChatArea/WebSourceCitation'
 import MarkdownFileTree from './MarkdownFileTree'
 import type { ExtraProps } from 'react-markdown'
-import { getPreloadedMarkdown, waitForMarkdownPreload } from '../utils/markdownPreloader'
+import {
+    getPreloadedMarkdown,
+    waitForMarkdownPreload,
+    type SyntaxHighlighterComponent,
+} from '../utils/markdownPreloader'
 import { normalizeSafeHttpUrl } from '../utils/urlSafety'
 const MermaidDiagram = lazy(() => import('./MermaidDiagram'))
 
@@ -246,8 +250,7 @@ const MarkdownContent = React.memo(function MarkdownContent({ content, webSource
     const [remarkPlugin, setRemarkPlugin] = useState<(() => void) | null>(() => preloaded.remarkGfm)
     const [remarkMath, setRemarkMath] = useState<(() => void) | null>(() => preloaded.remarkMath)
     const [rehypeKatex, setRehypeKatex] = useState<(() => void) | null>(() => preloaded.rehypeKatex)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const [syntaxHighlighter, setSyntaxHighlighter] = useState<React.ComponentType<any> | null>(() => preloaded.syntaxHighlighter)
+    const [syntaxHighlighter, setSyntaxHighlighter] = useState<SyntaxHighlighterComponent | null>(() => preloaded.syntaxHighlighter)
     const [prismStyle, setPrismStyle] = useState<Record<string, React.CSSProperties> | null>(preloaded.prismStyle)
     const [copiedCode, setCopiedCode] = useState<string | null>(null)
     const [loadAttempted, setLoadAttempted] = useState(preloaded.ready)

@@ -2,7 +2,7 @@ import type {
   Message,
   ThinkingBlock,
   ToolCallResult,
-} from '@/contexts/ChatHistoryContext'
+} from '@/chat/types'
 import type { StreamingPhase } from '@/contexts/StreamingContext'
 
 export interface MessageRendererProps {
@@ -37,6 +37,6 @@ export interface MessageRendererProps {
   sessionId?: string
   /** Active tool calls during streaming (for in-message tool calling animation) */
   activeToolCalls?: Array<{ name: string; arguments?: Record<string, unknown> }>
-  onCopy?: (content: string) => void
+  onCopy?: (content: string) => void | Promise<boolean>
   onRegenerate?: (instruction: string) => void
 }

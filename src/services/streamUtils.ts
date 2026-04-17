@@ -219,7 +219,14 @@ export async function* parseNDJSONStream<T>(
 ): AsyncGenerator<T, void, unknown> {
     const decoder = new TextDecoder()
     let buffer = ''
-    const isDone = options?.isDone ?? ((chunk: any) => chunk.done)
+    const defaultIsDone = (chunk: T) =>
+        Boolean(
+            chunk &&
+            typeof chunk === 'object' &&
+            'done' in (chunk as Record<string, unknown>) &&
+            (chunk as Record<string, unknown>).done
+        )
+    const isDone = options?.isDone ?? defaultIsDone
 
     const parseLine = (line: string): T | null => {
         if (line.trim() === '') return null

@@ -10,7 +10,7 @@
 import { describe, it, expect } from 'vitest'
 import * as fc from 'fast-check'
 import { filterByTag } from '../utils/filterByTag'
-import type { ChatSession } from '../../../../contexts/ChatHistoryContext'
+import type { ChatSession } from '../../../../chat/types'
 
 // fast-check Arbitraries
 

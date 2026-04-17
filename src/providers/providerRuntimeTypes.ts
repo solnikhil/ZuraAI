@@ -1,4 +1,8 @@
-import type { MessageContent, ReasoningDetail, ToolDefinition } from '../services/types'
+import type {
+  ReasoningDetail,
+  ServiceAssistantMessage,
+  ToolDefinition,
+} from '../services/types'
 import type { ActiveProviderId } from './providerTypes'
 
 export interface ProviderRuntimeFileAttachment {
@@ -43,15 +47,12 @@ export type NormalizedStreamEvent =
 export interface ProviderRuntimeStreamRequest {
   provider: ActiveProviderId
   model: string
-  messages: Array<{
-    role: string
-    content: string | MessageContent[]
-    images?: string[]
-    tool_calls?: unknown[]
-    thinking?: string
-    reasoning?: string
-    reasoning_details?: ReasoningDetail[]
-  }>
+  messages: Array<
+    ServiceAssistantMessage & {
+      images?: string[]
+      thinking?: string
+    }
+  >
   temperature?: number
   maxTokens?: number
   streamResponses?: boolean
@@ -68,6 +69,7 @@ export interface ProviderRuntimeStreamRequest {
     aspect_ratio?: string
     image_size?: string
   }
+  enableThinking?: boolean
   signal?: AbortSignal
 }
 

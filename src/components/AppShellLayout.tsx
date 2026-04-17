@@ -13,7 +13,6 @@ import { useSidebarAutoHide } from './shell/useSidebarAutoHide'
 import { useWindowMaximizeState } from './shell/useWindowMaximizeState'
 
 function AppShellContent() {
-    const navigate = useNavigate()
     const location = useLocation()
     const { settingsUI } = useSettingsUI()
     const { sidebarAutoHideOnResize } = settingsUI
@@ -33,7 +32,7 @@ function AppShellContent() {
 
     const { isMaximized } = useWindowMaximizeState()
     const resizeIndicator = useResizeIndicator(isDev)
-    useMouseNavigation(navigate)
+    useMouseNavigation()
 
     return (
         <AppContextMenu>
@@ -75,8 +74,14 @@ function AppShellContent() {
 }
 
 export default function AppShellLayout() {
+    const navigate = useNavigate()
+    const location = useLocation()
+
     return (
-        <AppShellProvider>
+        <AppShellProvider
+            pathname={location.pathname}
+            navigateToPath={(pathname) => navigate(pathname)}
+        >
             <AppShellContent />
         </AppShellProvider>
     )

@@ -42,14 +42,12 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { ProviderLogo, SkillLogo } from '@/components/shared'
-import type {
-  ConfiguredModel,
-  TavilySearchDepthPreference,
-} from '@/contexts/SettingsConfigContext'
+import type { ConfiguredModel, TavilySearchDepthPreference } from '@/contexts/SettingsConfigContext'
 import { CreateCustomModelDialog } from './CreateCustomModelDialog'
 import { AlibabaModelSearchDialog } from './AlibabaModelSearchDialog'
 import { FireworksModelSearchDialog } from './FireworksModelSearchDialog'
 import { OpenRouterModelSearchDialog } from './OpenRouterModelSearchDialog'
+import { PerplexityModelSearchDialog } from './PerplexityModelSearchDialog'
 import {
   DEFAULT_OLLAMA_URL,
   getActiveProviderDefinitions,
@@ -73,6 +71,14 @@ interface ProviderDefinition {
   >
 }
 
+type ProviderModelListField =
+  | 'configuredModels'
+  | 'perplexityModels'
+  | 'groqModels'
+  | 'alibabaModels'
+  | 'fireworksModels'
+  | 'ollamaModels'
+
 const PROVIDERS: ProviderDefinition[] = getActiveProviderDefinitions().map((provider) => ({
   key: provider.id as ProviderKey,
   name: provider.label,
@@ -86,9 +92,9 @@ const PROVIDERS: ProviderDefinition[] = getActiveProviderDefinitions().map((prov
           ? 'alibabaApiKey'
           : provider.id === 'fireworks'
             ? 'fireworksApiKey'
-          : provider.id === 'perplexity'
-            ? 'perplexityApiKey'
-            : undefined,
+            : provider.id === 'perplexity'
+              ? 'perplexityApiKey'
+              : undefined,
 }))
 
 const PROVIDER_ENDPOINTS: Record<ProviderKey, string> = {
@@ -117,6 +123,15 @@ const DEFAULT_PROVIDER_ENABLED: Record<ProviderKey, boolean> = {
   ollama: true,
   openrouter: true,
   perplexity: true,
+}
+
+const PROVIDER_MODEL_LIST_FIELD: Record<ProviderKey, ProviderModelListField> = {
+  openrouter: 'configuredModels',
+  perplexity: 'perplexityModels',
+  groq: 'groqModels',
+  alibaba: 'alibabaModels',
+  fireworks: 'fireworksModels',
+  ollama: 'ollamaModels',
 }
 
 type SearchApiKey = 'tavily'
@@ -202,6 +217,19 @@ export interface ProviderHubSectionProps {
   ) => void
 }
 
+type ProviderSettingsUpdate = Partial<Pick<
+  ProviderHubSectionProps,
+  | 'configuredModels'
+  | 'perplexityModels'
+  | 'groqModels'
+  | 'alibabaModels'
+  | 'fireworksModels'
+  | 'ollamaModels'
+  | 'aiModel'
+  | 'modelProvider'
+  | 'providerEnabled'
+>>
+
 export function ProviderHubSection({
   openRouterApiKey,
   openRouterDebug,
@@ -227,8 +255,7 @@ export function ProviderHubSection({
   onParamsConsumed,
   onChange,
 }: ProviderHubSectionProps): React.ReactElement {
-  const normalizeVisibleProvider = (provider?: ProviderKey): ProviderKey =>
-    provider || 'openrouter'
+  const normalizeVisibleProvider = (provider?: ProviderKey): ProviderKey => provider || 'openrouter'
 
   const [manageMode, setManageMode] = useState<ManageMode>(initialManageMode ?? 'providers')
   const [providerView, setProviderView] = useState<ProviderView>(
@@ -245,6 +272,7 @@ export function ProviderHubSection({
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [alibabaSearchDialogOpen, setAlibabaSearchDialogOpen] = useState(false)
   const [fireworksSearchDialogOpen, setFireworksSearchDialogOpen] = useState(false)
+  const [perplexitySearchDialogOpen, setPerplexitySearchDialogOpen] = useState(false)
   const [modelToEdit, setModelToEdit] = useState<{
     provider: ProviderKey
     model: ConfiguredModel
@@ -304,6 +332,72 @@ export function ProviderHubSection({
     ollama: ollamaModels,
   }
 
+  const buildModelUpdateForProvider = (
+    provider: ProviderKey,
+    models: ConfiguredModel[]
+  ): ProviderSettingsUpdate => ({
+    [PROVIDER_MODEL_LIST_FIELD[provider]]: models,
+  })
+
+  const resetConnectivityState = (message: string) => {
+    setConnectivityStatus('idle')
+    setConnectivityMeta(null)
+    setConnectivityDetails('')
+    setShowConnectivityDetails(false)
+    setConnectivityMessage(message)
+  }
+
+  const setConnectivityErrorState = (message: string, details: string) => {
+    setConnectivityStatus('error')
+    setConnectivityMeta(null)
+    setConnectivityDetails(details)
+    setShowConnectivityDetails(false)
+    setConnectivityMessage(message)
+  }
+
+  const runBearerGetConnectivityCheck = async (
+    endpointUrl: string,
+    apiKey: string,
+    failurePrefix: string,
+    signal: AbortSignal
+  ) => {
+    const response = await fetch(endpointUrl, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal,
+    })
+
+    if (!response.ok) {
+      throw new Error(`${failurePrefix} (${response.status}).`)
+    }
+  }
+
+  const runChatCompletionsConnectivityCheck = async (
+    endpoint: string,
+    apiKey: string,
+    modelCode: string,
+    failurePrefix: string,
+    signal: AbortSignal
+  ) => {
+    const response = await fetch(`${endpoint}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: modelCode,
+        messages: [{ role: 'user', content: 'ping' }],
+        max_tokens: 1,
+      }),
+      signal,
+    })
+
+    if (!response.ok && response.status !== 400) {
+      throw new Error(`${failurePrefix} (${response.status}).`)
+    }
+  }
+
   const selectedProviderDef =
     PROVIDERS.find((provider) => provider.key === selectedProvider) ?? PROVIDERS[0]
   const providerModels = providerModelMap[selectedProviderDef.key] || []
@@ -321,11 +415,7 @@ export function ProviderHubSection({
 
   useEffect(() => {
     setModelListFilter('all')
-    setConnectivityStatus('idle')
-    setConnectivityMeta(null)
-    setConnectivityMessage('Select a model, then test your connection.')
-    setConnectivityDetails('')
-    setShowConnectivityDetails(false)
+    resetConnectivityState('Select a model, then test your connection.')
   }, [selectedProviderDef.key])
 
   const visibleProviderModels = useMemo(() => {
@@ -398,7 +488,7 @@ export function ProviderHubSection({
       [providerKey]: enabled,
     }
 
-    const updates: Partial<ProviderHubSectionProps> & { [key: string]: unknown } = {
+    const updates: ProviderSettingsUpdate = {
       providerEnabled: nextProviderEnabled,
     }
 
@@ -427,17 +517,13 @@ export function ProviderHubSection({
   }
 
   const setModelsForProvider = (provider: ProviderKey, models: ConfiguredModel[]) => {
-    const updates: Partial<ProviderHubSectionProps> & { [key: string]: unknown } = {}
-    if (provider === 'openrouter') updates.configuredModels = models
-    if (provider === 'perplexity') updates.perplexityModels = models
-    if (provider === 'groq') updates.groqModels = models
-    if (provider === 'alibaba') updates.alibabaModels = models
-    if (provider === 'fireworks') updates.fireworksModels = models
-    if (provider === 'ollama') updates.ollamaModels = models
-    onChange(updates)
+    onChange(buildModelUpdateForProvider(provider, models))
   }
 
-  const addCustomModel = (model: ConfiguredModel, provider: ProviderKey = selectedProviderDef.key) => {
+  const addCustomModel = (
+    model: ConfiguredModel,
+    provider: ProviderKey = selectedProviderDef.key
+  ) => {
     const currentModels = getModelsForProvider(provider)
     const exists = currentModels.some((item) => item.code === model.code)
     if (exists) {
@@ -457,13 +543,7 @@ export function ProviderHubSection({
       return { ...model, enabled: checked }
     })
 
-    const updates: Partial<ProviderHubSectionProps> & { [key: string]: unknown } = {}
-    if (provider === 'openrouter') updates.configuredModels = updatedModels
-    if (provider === 'perplexity') updates.perplexityModels = updatedModels
-    if (provider === 'groq') updates.groqModels = updatedModels
-    if (provider === 'alibaba') updates.alibabaModels = updatedModels
-    if (provider === 'fireworks') updates.fireworksModels = updatedModels
-    if (provider === 'ollama') updates.ollamaModels = updatedModels
+    const updates: ProviderSettingsUpdate = buildModelUpdateForProvider(provider, updatedModels)
 
     if (!checked && modelProvider === provider && aiModel === modelCode) {
       const fallback = updatedModels.find((model) => model.enabled !== false)
@@ -483,28 +563,14 @@ export function ProviderHubSection({
       return { ...model, ...updatedModel, code: modelCode }
     })
 
-    const updates: Partial<ProviderHubSectionProps> & { [key: string]: unknown } = {}
-    if (provider === 'openrouter') updates.configuredModels = updatedModels
-    if (provider === 'perplexity') updates.perplexityModels = updatedModels
-    if (provider === 'groq') updates.groqModels = updatedModels
-    if (provider === 'alibaba') updates.alibabaModels = updatedModels
-    if (provider === 'fireworks') updates.fireworksModels = updatedModels
-    if (provider === 'ollama') updates.ollamaModels = updatedModels
-
-    onChange(updates)
+    onChange(buildModelUpdateForProvider(provider, updatedModels))
   }
 
   const removeModel = (provider: ProviderKey, modelCode: string) => {
     const currentModels = providerModelMap[provider] as ConfiguredModel[]
     const updatedModels = currentModels.filter((model) => model.code !== modelCode)
 
-    const updates: Partial<ProviderHubSectionProps> & { [key: string]: unknown } = {}
-    if (provider === 'openrouter') updates.configuredModels = updatedModels
-    if (provider === 'perplexity') updates.perplexityModels = updatedModels
-    if (provider === 'groq') updates.groqModels = updatedModels
-    if (provider === 'alibaba') updates.alibabaModels = updatedModels
-    if (provider === 'fireworks') updates.fireworksModels = updatedModels
-    if (provider === 'ollama') updates.ollamaModels = updatedModels
+    const updates: ProviderSettingsUpdate = buildModelUpdateForProvider(provider, updatedModels)
 
     if (modelProvider === provider && aiModel === modelCode) {
       const fallback = updatedModels.find((model) => model.enabled !== false)
@@ -540,14 +606,25 @@ export function ProviderHubSection({
   }
 
   const clearModelsForProvider = (provider: ProviderKey) => {
-    const updates: Partial<ProviderHubSectionProps> & { [key: string]: unknown } = {}
-    if (provider === 'openrouter') updates.configuredModels = []
-    if (provider === 'perplexity') updates.perplexityModels = []
-    if (provider === 'groq') updates.groqModels = []
-    if (provider === 'alibaba') updates.alibabaModels = []
-    if (provider === 'fireworks') updates.fireworksModels = []
-    if (provider === 'ollama') updates.ollamaModels = []
-    onChange(updates)
+    onChange(buildModelUpdateForProvider(provider, []))
+  }
+
+  const openCatalogDialogForProvider = (provider: ProviderKey) => {
+    if (provider === 'openrouter') {
+      setOpenRouterSearchDialogOpen(true)
+      return
+    }
+    if (provider === 'fireworks') {
+      setFireworksSearchDialogOpen(true)
+      return
+    }
+    if (provider === 'perplexity') {
+      setPerplexitySearchDialogOpen(true)
+      return
+    }
+    if (provider === 'alibaba') {
+      setAlibabaSearchDialogOpen(true)
+    }
   }
 
   const handleClearModelsConfirm = () => {
@@ -561,24 +638,18 @@ export function ProviderHubSection({
       providerProxyUrls[selectedProviderDef.key] || PROVIDER_ENDPOINTS[selectedProviderDef.key]
 
     if (selectedProviderDef.key !== 'ollama' && !selectedKey) {
-      setConnectivityStatus('error')
-      setConnectivityMeta(null)
-      setConnectivityDetails(
+      setConnectivityErrorState(
+        `${selectedProviderDef.name} API key is incorrect or empty. Add a valid key and try again.`,
         `Provider: ${selectedProviderDef.name}\nModel: ${connectivityModel || 'none'}\nEndpoint: ${endpoint}`
-      )
-      setShowConnectivityDetails(false)
-      setConnectivityMessage(
-        `${selectedProviderDef.name} API key is incorrect or empty. Add a valid key and try again.`
       )
       return
     }
 
     if (!connectivityModel) {
-      setConnectivityStatus('error')
-      setConnectivityMeta(null)
-      setConnectivityDetails(`Provider: ${selectedProviderDef.name}\nEndpoint: ${endpoint}`)
-      setShowConnectivityDetails(false)
-      setConnectivityMessage('Select a model for this provider before checking.')
+      setConnectivityErrorState(
+        'Select a model for this provider before checking.',
+        `Provider: ${selectedProviderDef.name}\nEndpoint: ${endpoint}`
+      )
       return
     }
 
@@ -594,74 +665,43 @@ export function ProviderHubSection({
 
     try {
       if (selectedProviderDef.key === 'openrouter') {
-        const response = await fetch(`${endpoint}/auth/key`, {
-          method: 'GET',
-          headers: { Authorization: `Bearer ${selectedKey}` },
-          signal: controller.signal,
-        })
-        if (!response.ok) {
-          throw new Error(`OpenRouter auth failed (${response.status}).`)
-        }
+        await runBearerGetConnectivityCheck(
+          `${endpoint}/auth/key`,
+          selectedKey,
+          'OpenRouter auth failed',
+          controller.signal
+        )
       } else if (selectedProviderDef.key === 'groq') {
-        const response = await fetch(`${endpoint}/models`, {
-          method: 'GET',
-          headers: { Authorization: `Bearer ${selectedKey}` },
-          signal: controller.signal,
-        })
-        if (!response.ok) {
-          throw new Error(`Groq check failed (${response.status}).`)
-        }
+        await runBearerGetConnectivityCheck(
+          `${endpoint}/models`,
+          selectedKey,
+          'Groq check failed',
+          controller.signal
+        )
       } else if (selectedProviderDef.key === 'perplexity') {
-        const response = await fetch(`${endpoint}/chat/completions`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${selectedKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: connectivityModel,
-            messages: [{ role: 'user', content: 'ping' }],
-            max_tokens: 1,
-          }),
-          signal: controller.signal,
-        })
-        if (!response.ok && response.status !== 400) {
-          throw new Error(`Perplexity check failed (${response.status}).`)
-        }
+        await runChatCompletionsConnectivityCheck(
+          endpoint,
+          selectedKey,
+          connectivityModel,
+          'Perplexity check failed',
+          controller.signal
+        )
       } else if (selectedProviderDef.key === 'alibaba') {
-        const response = await fetch(`${endpoint}/chat/completions`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${selectedKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: connectivityModel,
-            messages: [{ role: 'user', content: 'ping' }],
-            max_tokens: 1,
-          }),
-          signal: controller.signal,
-        })
-        if (!response.ok && response.status !== 400) {
-          throw new Error(`Alibaba Cloud check failed (${response.status}).`)
-        }
+        await runChatCompletionsConnectivityCheck(
+          endpoint,
+          selectedKey,
+          connectivityModel,
+          'Alibaba Cloud check failed',
+          controller.signal
+        )
       } else if (selectedProviderDef.key === 'fireworks') {
-        const response = await fetch(`${endpoint}/chat/completions`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${selectedKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: connectivityModel,
-            messages: [{ role: 'user', content: 'ping' }],
-            max_tokens: 1,
-          }),
-          signal: controller.signal,
-        })
-        if (!response.ok && response.status !== 400) {
-          throw new Error(`Fireworks check failed (${response.status}).`)
-        }
+        await runChatCompletionsConnectivityCheck(
+          endpoint,
+          selectedKey,
+          connectivityModel,
+          'Fireworks check failed',
+          controller.signal
+        )
       } else {
         throw new Error(
           `Connectivity check is not supported for provider: ${selectedProviderDef.key}`
@@ -815,13 +855,7 @@ export function ProviderHubSection({
                           value={getProviderApiKey(selectedProviderDef)}
                           onChange={(e) => {
                             setProviderApiKey(selectedProviderDef, e.target.value)
-                            setConnectivityStatus('idle')
-                            setConnectivityMeta(null)
-                            setConnectivityMessage(
-                              'API key changed. Run connectivity check to verify.'
-                            )
-                            setConnectivityDetails('')
-                            setShowConnectivityDetails(false)
+                            resetConnectivityState('API key changed. Run connectivity check to verify.')
                           }}
                           className="border-border bg-secondary pr-10"
                           placeholder={`${selectedProviderDef.name} API Key`}
@@ -865,11 +899,7 @@ export function ProviderHubSection({
                             ...previous,
                             [selectedProviderDef.key]: e.target.value,
                           }))
-                          setConnectivityStatus('idle')
-                          setConnectivityMeta(null)
-                          setConnectivityMessage('Proxy URL changed. Run connectivity check again.')
-                          setConnectivityDetails('')
-                          setShowConnectivityDetails(false)
+                          resetConnectivityState('Proxy URL changed. Run connectivity check again.')
                         }}
                         className="border-border bg-secondary"
                         placeholder="https://api.example.com/v1"
@@ -882,18 +912,14 @@ export function ProviderHubSection({
                     description="Test if API key and proxy URL are correctly configured"
                     control={
                       <div className="space-y-2">
-                       <div className="flex gap-2">
+                        <div className="flex gap-2">
                           <Select
                             value={connectivityModel}
                             onValueChange={(value) => {
                               setConnectivityModel(value)
-                              setConnectivityStatus('idle')
-                              setConnectivityMeta(null)
-                              setConnectivityMessage(
+                              resetConnectivityState(
                                 'Model changed. Run check again to verify this model.'
                               )
-                              setConnectivityDetails('')
-                              setShowConnectivityDetails(false)
                             }}
                           >
                             <SelectTrigger
@@ -1012,7 +1038,9 @@ export function ProviderHubSection({
                     href="https://www.electronjs.org/docs/latest/api/safe-storage"
                     onClick={(e) => {
                       e.preventDefault()
-                      window.shell?.openExternal('https://www.electronjs.org/docs/latest/api/safe-storage')
+                      window.shell?.openExternal(
+                        'https://www.electronjs.org/docs/latest/api/safe-storage'
+                      )
                     }}
                     className="text-cyan-300 underline decoration-cyan-300/40 underline-offset-2 transition hover:decoration-cyan-300"
                   >
@@ -1074,21 +1102,12 @@ export function ProviderHubSection({
                 </div>
                 {(selectedProviderDef.key === 'openrouter' ||
                   selectedProviderDef.key === 'fireworks' ||
-                  selectedProviderDef.key === 'alibaba') && (
+                  selectedProviderDef.key === 'alibaba' ||
+                  selectedProviderDef.key === 'perplexity') && (
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => {
-                      if (selectedProviderDef.key === 'openrouter') {
-                        setOpenRouterSearchDialogOpen(true)
-                        return
-                      }
-                      if (selectedProviderDef.key === 'fireworks') {
-                        setFireworksSearchDialogOpen(true)
-                        return
-                      }
-                      setAlibabaSearchDialogOpen(true)
-                    }}
+                    onClick={() => openCatalogDialogForProvider(selectedProviderDef.key)}
                     className="gap-2"
                   >
                     <Search size={14} />
@@ -1178,7 +1197,14 @@ export function ProviderHubSection({
           if (!open) setModelToEdit(null)
         }}
         provider={modelToEdit?.provider}
-        providerApiKey={modelToEdit ? getProviderApiKey(PROVIDERS.find((provider) => provider.key === modelToEdit.provider) ?? selectedProviderDef) : ''}
+        providerApiKey={
+          modelToEdit
+            ? getProviderApiKey(
+                PROVIDERS.find((provider) => provider.key === modelToEdit.provider) ??
+                  selectedProviderDef
+              )
+            : ''
+        }
         onCreate={addCustomModel}
         initialModel={modelToEdit?.model}
         onUpdate={(updated) => {
@@ -1191,10 +1217,7 @@ export function ProviderHubSection({
       />
 
       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-        <DialogContent
-          className="border-border bg-card sm:max-w-[420px]"
-          showCloseButton={false}
-        >
+        <DialogContent className="border-border bg-card sm:max-w-[420px]" showCloseButton={false}>
           <DialogHeader>
             <DialogTitle>Delete Model</DialogTitle>
             <DialogDescription>
@@ -1226,10 +1249,7 @@ export function ProviderHubSection({
       </Dialog>
 
       <Dialog open={clearModelsConfirmOpen} onOpenChange={setClearModelsConfirmOpen}>
-        <DialogContent
-          className="border-border bg-card sm:max-w-[440px]"
-          showCloseButton={false}
-        >
+        <DialogContent className="border-border bg-card sm:max-w-[440px]" showCloseButton={false}>
           <DialogHeader>
             <DialogTitle>Remove All Models</DialogTitle>
             <DialogDescription>
@@ -1283,6 +1303,16 @@ export function ProviderHubSection({
           onAddModel={(model) => addCustomModel(model, 'fireworks')}
           apiKey={fireworksApiKey}
           existingModelCodes={fireworksModels.map((m) => m.code)}
+        />
+      )}
+
+      {selectedProviderDef.key === 'perplexity' && (
+        <PerplexityModelSearchDialog
+          open={perplexitySearchDialogOpen}
+          onOpenChange={setPerplexitySearchDialogOpen}
+          onAddModel={(model) => addCustomModel(model, 'perplexity')}
+          apiKey={perplexityApiKey}
+          existingModelCodes={perplexityModels.map((m) => m.code)}
         />
       )}
     </div>

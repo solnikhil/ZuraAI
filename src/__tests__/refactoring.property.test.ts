@@ -66,7 +66,6 @@ describe('Codebase Reorganization Properties', () => {
 
     it('Settings folder should contain extracted components', () => {
       const expectedFiles = [
-        'src/components/Settings/index.ts',
         'src/components/Settings/Settings.tsx',
         'src/components/Settings/ActivityGraph.tsx',
         'src/components/Settings/sections/UsageSection.tsx',
@@ -362,8 +361,6 @@ describe('Codebase Reorganization Properties', () => {
     it('should have all barrel exports (index.ts) in component folders', () => {
       const foldersWithBarrelExports = [
         'src/components/Dashboard/ModelSelector/index.ts',
-        'src/components/Settings/index.ts',
-        'src/components/Settings/sections/index.ts',
         'src/components/shared/index.ts',
         'electron/ipc/index.ts',
         'electron/windows/index.ts',

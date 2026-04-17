@@ -1,7 +1,7 @@
 import React from 'react'
 import { File } from '@/components/icons'
 import type { MessageRendererProps } from './types'
-import type { FileAttachment } from '@/contexts/ChatHistoryContext'
+import type { FileAttachment } from '@/chat/types'
 import { formatFileSize } from '../attachmentUtils'
 
 const bubbleStyleByPreset: Record<

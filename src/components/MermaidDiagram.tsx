@@ -6,12 +6,30 @@ interface MermaidDiagramProps {
   code: string
 }
 
+interface MermaidRenderResult {
+  svg: string
+}
+
+interface MermaidRuntime {
+  initialize: (config: Record<string, unknown>) => void
+  render: (id: string, code: string) => Promise<MermaidRenderResult>
+}
+
+function isMermaidRuntime(value: unknown): value is MermaidRuntime {
+  if (typeof value !== 'object' || value === null) {
+    return false
+  }
+
+  const candidate = value as Record<string, unknown>
+  return typeof candidate.initialize === 'function' && typeof candidate.render === 'function'
+}
+
 // Lazy load mermaid
 const mermaidPromise = import('mermaid')
 
 // Track if mermaid has been initialized
 let mermaidInitialized = false
-let mermaidInstance: any = null
+let mermaidInstance: MermaidRuntime | null = null
 
 export default function MermaidDiagram({ code }: MermaidDiagramProps) {
   const isValidCode = typeof code === 'string' && code.trim().length > 0
@@ -82,31 +100,25 @@ export default function MermaidDiagram({ code }: MermaidDiagramProps) {
 
         // Handle different export formats and cache instance
         if (!mermaidInstance) {
-          mermaidInstance =
+          const mermaidCandidate =
             mermaidModule.default ||
             (mermaidModule as Record<string, unknown>).mermaid ||
             mermaidModule
 
-          if (!mermaidInstance) {
-            console.error('[MermaidDiagram] Mermaid instance is null/undefined')
-            throw new Error('Failed to load mermaid library: instance is null')
-          }
-
-          if (typeof mermaidInstance.initialize !== 'function') {
-            console.error('[MermaidDiagram] initialize method missing')
+          if (!isMermaidRuntime(mermaidCandidate)) {
+            const availableKeys =
+              typeof mermaidCandidate === 'object' && mermaidCandidate !== null
+                ? Object.keys(mermaidCandidate as Record<string, unknown>).join(', ')
+                : 'none'
+            console.error('[MermaidDiagram] Mermaid runtime shape is invalid', {
+              availableKeys,
+            })
             throw new Error(
-              'Mermaid instance does not have initialize method. Available methods: ' +
-                Object.keys(mermaidInstance).join(', ')
+              `Mermaid instance is missing required methods. Available keys: ${availableKeys}`
             )
           }
 
-          if (typeof mermaidInstance.render !== 'function') {
-            console.error('[MermaidDiagram] render method missing')
-            throw new Error(
-              'Mermaid instance does not have render method. Available methods: ' +
-                Object.keys(mermaidInstance).join(', ')
-            )
-          }
+          mermaidInstance = mermaidCandidate
         }
 
         // Bail out early if unmounted during async init
@@ -217,14 +229,20 @@ export default function MermaidDiagram({ code }: MermaidDiagramProps) {
           setSvg(result.svg)
           setIsLoading(false)
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('[MermaidDiagram] Rendering error:', err)
         if (timeoutId) {
           clearTimeout(timeoutId)
           timeoutId = null
         }
         if (mounted) {
-          setError(err.message || err.toString() || 'Failed to render mermaid diagram')
+          const errorMessage =
+            err instanceof Error && err.message
+              ? err.message
+              : typeof err === 'string'
+                ? err
+                : 'Failed to render mermaid diagram'
+          setError(errorMessage)
           setIsLoading(false)
         }
       }

@@ -11,131 +11,31 @@ import React, {
   useMemo,
   useRef,
 } from 'react'
-import type { ToolExecutionMetadata } from '../tools/types'
 import { useSettings } from './SettingsContext'
 import { ChatSessionManager, type SessionMetadata } from './ChatSessionManager'
 import { createSelectableContext } from './createSelectableContext'
 import { warnOnceDuringHmr } from './hmrWarnings'
+import type {
+  ChatSession,
+  FileAttachment,
+  Folder,
+  Message,
+  ResponseVersion,
+  ThinkingBlock,
+  ToolCallResult,
+} from '../chat/types'
 
 // Re-export SessionMetadata for consumers
 export type { SessionMetadata } from './ChatSessionManager'
 
-export interface ToolCallResult {
-  toolCall: {
-    id: string
-    name: string
-    arguments: Record<string, unknown>
-  }
-  result: {
-    success: boolean
-    data?: unknown
-    error?: string
-    executionTime?: number
-    metadata?: ToolExecutionMetadata
-  }
-}
-
-export interface FileAttachment {
-  id: string
-  name: string
-  type: string
-  size: number
-  data: string // base64 encoded data
-  mimeType: string
-}
-
-export interface ThinkingBlock {
-  type: 'thinking' | 'searching' | 'tool'
-  content?: string // For thinking blocks
-  query?: string // For searching blocks
-  duration?: number // Duration in milliseconds (for thinking)
-  timestamp: number // When this block was created
-  /** Tool name for completed tool blocks */
-  toolName?: string
-  /** Tool call arguments (for searching blocks - JSON input) */
-  toolInput?: Record<string, unknown>
-  /** Tool call result (for searching blocks - JSON output) */
-  toolOutput?: {
-    success: boolean
-    data?: unknown
-    error?: string
-    executionTime?: number
-    metadata?: ToolExecutionMetadata
-  }
-}
-
-export interface ResponseVersion {
-  id: string
-  content: string
-  timestamp: number
-  instruction?: string // e.g., "more concise", "add details"
-  model?: string
-}
-
-export interface Message {
-  id: string
-  role: 'user' | 'assistant' | 'system'
-  content: string
-  image?: string // Legacy field for backward compatibility
-  files?: FileAttachment[] // New field for multiple file attachments
-  timestamp: number
-  tokenCount?: number
-  model?: string
-  latency?: number
-  thinking?: string
-  thinkingDuration?: number
-  thinkingBlocks?: ThinkingBlock[] // Array of completed thinking/search blocks
-  toolResults?: ToolCallResult[]
-  researchStatus?: {
-    currentRound: number
-    maxRounds: number
-    currentSearch?: string // The search query being executed
-    currentSearches?: string[] // Active search queries when a batch is executing
-    isSearching: boolean
-  }
-  /** Structured research plan (step-by-step mode) */
-  researchPlan?: {
-    topic: string
-    steps: Array<{ stepNumber: number; query: string; rationale?: string }>
-  }
-  /** Progress during structured research execution */
-  researchProgress?: { currentStep: number; totalSteps: number; currentQuery?: string }
-  usage?: {
-    inputTokens: number
-    outputTokens: number
-    totalTokens: number
-    thinkingTokens?: number // Reasoning/thinking tokens used
-    tps?: number // Tokens per second
-    ttft?: number // Time to first token (ms)
-    cachedInputTokens?: number
-    cachedOutputTokens?: number
-  }
-  finishReason?: string
-  requestedMaxTokens?: number
-  responseVersions?: ResponseVersion[] // Previous response versions
-  currentVersionIndex?: number // Which version is currently displayed
-}
-
-export interface ChatSession {
-  id: string
-  title: string
-  messages: Message[]
-  createdAt: number
-  updatedAt: number
-  totalTokens?: number
-  pinned?: boolean // default: false
-  folderId?: string | null // default: null
-  tags?: string[] // default: []
-}
-
-/**
- * Folder definition for organizing chat sessions.
- */
-export interface Folder {
-  id: string
-  name: string
-  order: number // for display ordering
-  createdAt: number
+export type {
+  ChatSession,
+  FileAttachment,
+  Folder,
+  Message,
+  ResponseVersion,
+  ThinkingBlock,
+  ToolCallResult,
 }
 
 interface ChatHistoryContextType {
@@ -208,6 +108,9 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isInitialized, setIsInitialized] = useState(false)
+  const [hasExternalStoreChanges, setHasExternalStoreChanges] = useState(false)
+  const skipNextSessionPersistRef = useRef(false)
+  const skipNextFolderPersistRef = useRef(false)
 
   // Lazily load full sessions while keeping sidebar metadata lightweight.
   const sessionManagerRef = useRef<ChatSessionManager | null>(null)
@@ -217,10 +120,8 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
       const sessionLoader = async (id: string): Promise<ChatSession | null> => {
         try {
           if (isElectron) {
-            const allSessions = (await window.ipcRenderer.invoke('chat-store:get-all')) as
-              | ChatSession[]
-              | undefined
-            return allSessions?.find((s: ChatSession) => s.id === id) ?? null
+            const allSessions = await window.ipcRenderer.invoke('chat-store:get-all')
+            return allSessions.find((s) => s.id === id) ?? null
           } else {
             const saved = localStorage.getItem('zura-chat-history')
             const parsed = saved ? JSON.parse(saved) : []
@@ -235,10 +136,7 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
       const allSessionsLoader = async (): Promise<ChatSession[]> => {
         try {
           if (isElectron) {
-            const storedSessions = (await window.ipcRenderer.invoke('chat-store:get-all')) as
-              | ChatSession[]
-              | undefined
-            return storedSessions || []
+            return await window.ipcRenderer.invoke('chat-store:get-all')
           } else {
             const saved = localStorage.getItem('zura-chat-history')
             return saved ? JSON.parse(saved) : []
@@ -259,28 +157,17 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     return sessionManagerRef.current
   }, [])
 
-  // Load sessions - now loads metadata only initially
   const loadSessions = useCallback(async () => {
     try {
       const manager = getSessionManager()
 
-      // Initialize the manager (loads metadata for all sessions)
       await manager.initialize()
-
-      // Get metadata and create lightweight session objects for backward compatibility
-      // Sessions without full messages loaded will have empty messages array
       manager.getSessionMetadata()
 
-      // For backward compatibility, we need to provide sessions with messages
-      // Load full data for all sessions initially (will be optimized in future)
-      // This maintains backward compatibility while setting up the infrastructure
       let fullSessions: ChatSession[] = []
 
       if (isElectron) {
-        const storedSessions = (await window.ipcRenderer.invoke('chat-store:get-all')) as
-          | ChatSession[]
-          | undefined
-        fullSessions = storedSessions || []
+        fullSessions = await window.ipcRenderer.invoke('chat-store:get-all')
       } else {
         const saved = localStorage.getItem('zura-chat-history')
         fullSessions = saved ? JSON.parse(saved) : []
@@ -296,10 +183,8 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
       // Load folders from IPC (sidebar redesign)
       if (isElectron) {
         try {
-          const storedFolders = (await window.ipcRenderer.invoke('chat-store:get-all-folders')) as
-            | Folder[]
-            | undefined
-          setFolders(storedFolders || [])
+          const storedFolders = await window.ipcRenderer.invoke('chat-store:get-all-folders')
+          setFolders(storedFolders)
         } catch (folderError) {
           console.error('Failed to load folders:', folderError)
           setFolders([])
@@ -316,18 +201,56 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     }
   }, [getSessionManager])
 
+  const reloadFromExternalStore = useCallback(async () => {
+    try {
+      const manager = getSessionManager()
+
+      let fullSessions: ChatSession[] = []
+      if (isElectron) {
+        fullSessions = await window.ipcRenderer.invoke('chat-store:get-all')
+      } else {
+        const saved = localStorage.getItem('zura-chat-history')
+        fullSessions = saved ? JSON.parse(saved) : []
+      }
+
+      manager.clear()
+      for (const session of fullSessions) {
+        manager.addSession(session)
+      }
+
+      let nextFolders: Folder[] = []
+      if (isElectron) {
+        try {
+          nextFolders = await window.ipcRenderer.invoke('chat-store:get-all-folders')
+        } catch (folderError) {
+          console.error('Failed to reload folders:', folderError)
+        }
+      }
+
+      skipNextSessionPersistRef.current = true
+      skipNextFolderPersistRef.current = true
+      setSessions(fullSessions)
+      setFolders(nextFolders)
+      setCurrentSessionId((prev) => {
+        if (!prev) return null
+        return fullSessions.some((session) => session.id === prev) ? prev : null
+      })
+      setHasExternalStoreChanges(false)
+    } catch (error) {
+      console.error('Failed to reload chat history from external store:', error)
+    }
+  }, [getSessionManager])
+
   // Initialize and migrate from localStorage if needed
   useEffect(() => {
     const initializeStore = async () => {
       if (isElectron) {
         try {
           // Check if electron-store has data
-          const storedSessions = (await window.ipcRenderer.invoke('chat-store:get-all')) as
-            | ChatSession[]
-            | undefined
+          const storedSessions = await window.ipcRenderer.invoke('chat-store:get-all')
 
           // If empty, try to migrate from localStorage
-          if (!storedSessions || (storedSessions as ChatSession[]).length === 0) {
+          if (storedSessions.length === 0) {
             const localData = localStorage.getItem('zura-chat-history')
             if (localData) {
               const parsed = JSON.parse(localData)
@@ -366,6 +289,11 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     if (!isInitialized) return
 
     const timeoutId = setTimeout(() => {
+      if (skipNextSessionPersistRef.current) {
+        skipNextSessionPersistRef.current = false
+        return
+      }
+
       const saveSessions = async () => {
         try {
           if (isElectron) {
@@ -392,6 +320,11 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     if (!isInitialized) return
 
     const timeoutId = setTimeout(() => {
+      if (skipNextFolderPersistRef.current) {
+        skipNextFolderPersistRef.current = false
+        return
+      }
+
       const saveFolders = async () => {
         try {
           if (isElectron) {
@@ -421,6 +354,42 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     }
   }, [currentSessionId, isInitialized, sessions, settings.rememberLastChatSession])
 
+  useEffect(() => {
+    if (!isElectron || !window.ipcRenderer?.on) return
+
+    const handleChatStoreChanged = () => {
+      setHasExternalStoreChanges(true)
+    }
+
+    window.ipcRenderer.on('chat-store:changed', handleChatStoreChanged)
+    return () => {
+      window.ipcRenderer.off('chat-store:changed', handleChatStoreChanged)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!isElectron || !isInitialized) return
+
+    const refreshIfNeeded = () => {
+      if (!hasExternalStoreChanges) return
+      void reloadFromExternalStore()
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refreshIfNeeded()
+      }
+    }
+
+    window.addEventListener('focus', refreshIfNeeded)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      window.removeEventListener('focus', refreshIfNeeded)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [hasExternalStoreChanges, isInitialized, reloadFromExternalStore])
+
   // Persist last active chat session (optional)
   useEffect(() => {
     if (!isInitialized) return
@@ -436,8 +405,8 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
   }, [currentSessionId, isInitialized, settings.rememberLastChatSession])
 
   const refreshSessions = useCallback(async () => {
-    await loadSessions()
-  }, [loadSessions])
+    await reloadFromExternalStore()
+  }, [reloadFromExternalStore])
 
   const createSession = useCallback(
     (firstMessage?: string) => {

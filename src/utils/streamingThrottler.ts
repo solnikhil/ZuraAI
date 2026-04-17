@@ -6,7 +6,7 @@
  * re-renders while still ensuring the final update is always applied.
  */
 
-import type { Message } from '../contexts/ChatHistoryContext'
+import type { Message } from '../chat/types'
 
 interface ThrottlerConfig {
   /** Maximum updates per second (default: 8) */

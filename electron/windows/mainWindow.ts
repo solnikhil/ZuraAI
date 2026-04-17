@@ -49,7 +49,9 @@ function showFallbackError(win: BrowserWindow, message: string): void {
 <div style="font-size:14px;">${safe}</div>
 <div style="font-size:12px;color:#57534e;margin-top:16px;">Try restarting the app.</div>
 </body></html>`)}`
-      win.loadURL(html).catch(() => {})
+      win.loadURL(html).catch((error) => {
+        console.warn('[MAIN] Failed to load fallback inline error page:', error)
+      })
     })
 
   if (!win.isVisible()) win.show()

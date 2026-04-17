@@ -6,7 +6,9 @@ export function useWindowMaximizeState() {
   useEffect(() => {
     if (!window.windowControls) return
 
-    window.windowControls.isMaximized().then(setIsMaximized).catch(() => {})
+    window.windowControls.isMaximized().then(setIsMaximized).catch((error) => {
+      console.warn('[useWindowMaximizeState] Failed to read window maximize state', error)
+    })
 
     const cleanup = window.windowControls.onWindowState((state) => {
       setIsMaximized(state.isMaximized)

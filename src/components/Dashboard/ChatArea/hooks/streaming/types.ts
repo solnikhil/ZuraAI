@@ -8,7 +8,7 @@ import type {
   Message,
   ThinkingBlock,
   ToolCallResult,
-} from '../../../../../contexts/ChatHistoryContext'
+} from '../../../../../chat/types'
 import type {
   NormalizedStreamEvent,
   NormalizedToolCallDelta,
@@ -18,7 +18,10 @@ import type {
 } from '../../../../../providers/providerRuntimeTypes'
 import type { ToolCallingResponse } from '../../../../../tools/types'
 import type { ToolExecutionPolicy, ToolExecutionSummary } from '../../../../../tools/types'
-import type { MessageContent, ReasoningDetail, ToolDefinition } from '../../../../../services/types'
+import type {
+  ServiceAssistantMessage,
+  ToolDefinition,
+} from '../../../../../services/types'
 import type { ActiveProviderId } from '../../../../../providers'
 
 /**
@@ -75,15 +78,7 @@ export interface ProviderStreamingOptions {
   /** Streaming message ID */
   messageId: string
   /** Optimized conversation history */
-  messages: Array<{
-    role: string
-    content: string | MessageContent[]
-    images?: string[]
-    tool_calls?: unknown[]
-    thinking?: string
-    reasoning?: string
-    reasoning_details?: ReasoningDetail[]
-  }>
+  messages: Array<ServiceAssistantMessage & { images?: string[]; thinking?: string }>
   /** Start time for latency calculation */
   startTime: number
   /** Abort signal for cancellation */
@@ -154,4 +149,5 @@ export interface StreamingSettings extends ProviderRuntimeSettings {
   /** Web search prompt appended when Web Search is enabled */
   webSearchPrompt?: string
   configuredModels?: import('../../../../../contexts/SettingsConfigContext').ConfiguredModel[]
+  alibabaModels?: import('../../../../../contexts/SettingsConfigContext').ConfiguredModel[]
 }

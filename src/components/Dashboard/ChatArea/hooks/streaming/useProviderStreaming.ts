@@ -4,8 +4,8 @@ import type {
   FileAttachment,
   ThinkingBlock,
   ToolCallResult,
-} from '../../../../../contexts/ChatHistoryContext'
-import type { ReasoningDetail } from '../../../../../services/types'
+} from '../../../../../chat/types'
+import type { ReasoningDetail, ServiceAssistantMessage } from '../../../../../services/types'
 import { cleanSonarResponse } from '../../../../../services/perplexity'
 import {
   providerSupportsTools,
@@ -18,11 +18,11 @@ import {
   MAX_RESEARCH_ROUNDS,
   accumulateDeltaToolCalls,
   appendCompletedThinkingBlock,
-  buildFallbackAnswerFromToolResults,
   buildFinalSynthesisMessages,
   buildFollowUpMessages,
   buildPlainTextOnlySynthesisMessages,
   buildRecoverySynthesisMessages,
+  buildSearchSynthesisFailureMessage,
   buildResponseWithFallback,
   buildThinkingBlocksFromResults,
   shouldRetryUngroundedSearchSynthesis,
@@ -57,15 +57,7 @@ export interface ProviderStreamingRunOptions {
   model: string
   sessionId: string
   messageId: string
-  messages: Array<{
-    role: string
-    content: string | { type: 'text' | 'image_url'; text?: string; image_url?: { url: string } }[]
-    images?: string[]
-    tool_calls?: unknown[]
-    thinking?: string
-    reasoning?: string
-    reasoning_details?: ReasoningDetail[]
-  }>
+  messages: Array<ServiceAssistantMessage & { images?: string[]; thinking?: string }>
   startTime: number
   researchMaxRounds: number
   forceWebSearch?: boolean
@@ -79,6 +71,7 @@ export interface ProviderStreamingRunOptions {
     exclude?: boolean
     enabled?: boolean
   }
+  enableThinking?: boolean
   imageConfig?: {
     aspect_ratio?: string
     image_size?: string
@@ -175,14 +168,14 @@ function buildResearchStatus(
   }
 }
 
+interface VisibleAnswerRound {
+  content: string
+  usage: NormalizedUsage
+  firstTokenTime: number | null
+}
+
 interface SynthesisContext {
-  lastAssistantMessage: {
-    role: 'assistant'
-    content: string
-    tool_calls?: unknown[]
-    reasoning?: string
-    reasoning_details?: ReasoningDetail[]
-  }
+  lastAssistantMessage: ServiceAssistantMessage
   formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>
   totalSearchCount: number
   researchRound: number
@@ -229,12 +222,11 @@ export function useProviderStreaming({
       let accumulatedContent = ''
       let generatedFiles: FileAttachment[] = []
       let lastUpdateTime = Date.now()
-      let usage = emptyUsage()
+      let finalVisibleAnswerRound: VisibleAnswerRound | null = null
       let savedToolResults: ToolCallResult[] | undefined
       let localThinkingBlocks: ThinkingBlock[] = []
-      let firstTokenTime: number | null = null
       let finishReason: string | null = null
-      let finalAnswerUsedFallback = false
+      let finalAnswerForcedFailure = false
       let activeThinking = ''
       let activeThinkingStartTime: number | null = null
       let citations: string[] = []
@@ -282,6 +274,7 @@ export function useProviderStreaming({
 
       const resetAccumulatedAnswerForRetry = () => {
         accumulatedContent = ''
+        finalVisibleAnswerRound = null
         updateStreamingState({
           content: '',
           phase: 'reasoning',
@@ -304,6 +297,7 @@ export function useProviderStreaming({
         let roundReasoningDetails: ReasoningDetail[] = []
         let roundFinishReason: string | null = null
         let roundUsage = emptyUsage()
+        let roundFirstTokenTime: number | null = null
         let strippedToolPrelude = false
 
         const persistToolPreludeAsThinkingBlock = () => {
@@ -326,13 +320,14 @@ export function useProviderStreaming({
           toolChoice: roundOptions?.toolChoice,
           modalities: options.modalities,
           reasoning: options.reasoning,
+          enableThinking: options.enableThinking,
           imageConfig: options.imageConfig,
           signal: options.signal,
         })) {
           switch (event.type) {
             case 'text-delta':
-              if (!firstTokenTime && event.delta) {
-                firstTokenTime = performance.now()
+              if (!roundFirstTokenTime && event.delta) {
+                roundFirstTokenTime = performance.now()
               }
 
               if (event.delta && activeThinking) {
@@ -359,8 +354,8 @@ export function useProviderStreaming({
               persistProgress()
               break
             case 'reasoning-delta':
-              if (!firstTokenTime && event.delta) {
-                firstTokenTime = performance.now()
+              if (!roundFirstTokenTime && event.delta) {
+                roundFirstTokenTime = performance.now()
               }
               if (!activeThinkingStartTime) {
                 activeThinkingStartTime = performance.now()
@@ -479,10 +474,16 @@ export function useProviderStreaming({
         })
 
         accumulatedContent = finalRoundContent
-        usage = mergeUsage(usage, roundUsage)
-
         if (roundFinishReason) {
           finishReason = roundFinishReason
+        }
+
+        if (roundFinishReason !== 'tool_calls' && finalRoundContent.trim()) {
+          finalVisibleAnswerRound = {
+            content: finalRoundContent,
+            usage: roundUsage,
+            firstTokenTime: roundFirstTokenTime,
+          }
         }
 
         return { roundContent, roundToolCalls, roundReasoningDetails, roundFinishReason }
@@ -897,10 +898,10 @@ export function useProviderStreaming({
             }
 
             if (shouldRecoverSearchSynthesis(accumulatedContent)) {
-              const fallbackContent = buildFallbackAnswerFromToolResults(savedToolResults)
-              if (fallbackContent) {
-                accumulatedContent = fallbackContent
-                finalAnswerUsedFallback = true
+              const failureContent = buildSearchSynthesisFailureMessage(savedToolResults)
+              if (failureContent) {
+                accumulatedContent = failureContent
+                finalAnswerForcedFailure = true
                 updateStreamingState({
                   content: accumulatedContent,
                   phase: 'answering',
@@ -930,32 +931,35 @@ export function useProviderStreaming({
         }
       }
 
+      const visibleAnswerRound: VisibleAnswerRound = finalVisibleAnswerRound ?? {
+        content: '',
+        usage: emptyUsage(),
+        firstTokenTime: null,
+      }
+      const visibleAnswerUsage = visibleAnswerRound.usage
       const basicUsage = fillMissingUsage(
         {
-          inputTokens: usage.inputTokens || 0,
-          outputTokens: usage.outputTokens || 0,
-          totalTokens: usage.totalTokens || 0,
+          inputTokens: visibleAnswerUsage?.inputTokens ?? 0,
+          outputTokens: visibleAnswerUsage?.outputTokens ?? 0,
+          totalTokens: visibleAnswerUsage?.totalTokens ?? 0,
         },
-        accumulatedContent,
+        visibleAnswerRound.content,
         { deriveInputFromTotal: provider === 'alibaba' }
       )
       const metrics = computeStreamMetrics(
         options.startTime,
-        firstTokenTime,
+        visibleAnswerRound.firstTokenTime,
         basicUsage.outputTokens
       )
       const finalContent = hasSearchResults(savedToolResults)
         ? stripStandaloneHorizontalRule(accumulatedContent)
         : accumulatedContent
-      const finalFinishReason =
-        finalAnswerUsedFallback && finishReason === 'tool_calls'
-          ? undefined
-          : finishReason || undefined
+      const finalFinishReason = finalAnswerForcedFailure ? undefined : finishReason || undefined
       const finalUsage = {
         ...basicUsage,
-        thinkingTokens: usage.thinkingTokens,
-        cachedInputTokens: usage.cachedInputTokens,
-        cachedOutputTokens: usage.cachedOutputTokens,
+        thinkingTokens: visibleAnswerUsage?.thinkingTokens,
+        cachedInputTokens: visibleAnswerUsage?.cachedInputTokens,
+        cachedOutputTokens: visibleAnswerUsage?.cachedOutputTokens,
         tps:
           basicUsage.outputTokens > 0 && metrics.latency > 0
             ? basicUsage.outputTokens / (metrics.latency / 1000)

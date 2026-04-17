@@ -50,6 +50,78 @@ const LEGACY_FIREWORKS_MODEL_ID_MAP: Record<string, string> = {
   'accounts/fireworks/models/kimi-k2p5-turbo': 'accounts/fireworks/routers/kimi-k2p5-turbo',
   'accounts/fireworks/models/kimi-k2p5-turbo-instruct': 'accounts/fireworks/routers/kimi-k2p5-turbo',
 }
+const LEGACY_FIREWORKS_SEEDED_MODEL_CODES = new Set([
+  'accounts/fireworks/models/deepseek-v3p2',
+  'accounts/fireworks/models/kimi-k2p5',
+  'accounts/fireworks/routers/kimi-k2p5-turbo',
+  'accounts/fireworks/models/deepseek-r1',
+  'accounts/fireworks/models/llama-v3p1-405b-instruct',
+  'accounts/fireworks/models/llama-v3p1-8b-instruct',
+  'accounts/fireworks/models/llama-v3p1-70b-instruct',
+  'accounts/fireworks/models/glm-5',
+  'accounts/fireworks/models/qwen3-235b-a22b',
+  'accounts/fireworks/models/glm-4p7',
+  'accounts/fireworks/models/nvidia-nemotron-3-super-120b-a12b-fp8',
+])
+
+function shouldClearLegacyFireworksSeededModels(models: unknown): boolean {
+  if (!Array.isArray(models) || models.length !== LEGACY_FIREWORKS_SEEDED_MODEL_CODES.size) {
+    return false
+  }
+
+  const seenCodes = new Set<string>()
+  for (const model of models) {
+    if (typeof model !== 'object' || model === null) {
+      return false
+    }
+
+    const { code } = model as { code?: unknown }
+    if (
+      typeof code !== 'string' ||
+      !LEGACY_FIREWORKS_SEEDED_MODEL_CODES.has(code) ||
+      seenCodes.has(code)
+    ) {
+      return false
+    }
+
+    seenCodes.add(code)
+  }
+
+  return seenCodes.size === LEGACY_FIREWORKS_SEEDED_MODEL_CODES.size
+}
+
+function mergeProviderModelsWithDefaults<T extends { code: string; enabled?: boolean }>(
+  storedModels: unknown,
+  defaultModels: T[]
+): T[] {
+  if (storedModels === undefined || storedModels === null) {
+    return defaultModels
+  }
+
+  if (!Array.isArray(storedModels)) {
+    return defaultModels
+  }
+
+  if (storedModels.length === 0) {
+    return []
+  }
+
+  const mergedDefaults = defaultModels.map((defaultModel) => {
+    const existing = storedModels.find((model: { code: string }) => model.code === defaultModel.code)
+    return existing ? { ...defaultModel, enabled: existing.enabled ?? defaultModel.enabled } : defaultModel
+  })
+  const defaultCodes = new Set(defaultModels.map((model) => model.code))
+  const customModels = storedModels.filter((model: { code: string }) => !defaultCodes.has(model.code))
+
+  return [...mergedDefaults, ...customModels]
+}
+
+function normalizeProviderModels<T extends { code: string; enabled?: boolean }>(
+  storedModels: unknown,
+  defaultModels: T[]
+): T[] {
+  return mergeProviderModelsWithDefaults(storedModels, defaultModels)
+}
 
 export function stripSecretSettings<T extends Record<string, unknown>>(raw: T): T {
   const sanitized = { ...raw }
@@ -111,6 +183,14 @@ export function normalizeStoredSettings(raw: string | null): Settings {
     parsed.systemPrompt = defaultSettings.systemPrompt
   }
 
+  if (
+    typeof parsed.systemPrompt === 'string' &&
+    parsed.systemPrompt.includes("Today's year is 2026.") &&
+    parsed.systemPrompt.includes('research-oriented AI assistant with a friendly, slightly nerdy persona')
+  ) {
+    parsed.systemPrompt = defaultSettings.systemPrompt
+  }
+
   const defaultLen = defaultSettings.systemPrompt.length
   if (
     typeof parsed.systemPrompt === 'string' &&
@@ -146,35 +226,27 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   if (!parsed.perplexityModels) {
     parsed.perplexityModels = defaultSettings.perplexityModels
   } else {
-    parsed.perplexityModels = defaultSettings.perplexityModels.map((d) => {
-      const existing = parsed.perplexityModels.find((m: { code: string }) => m.code === d.code)
-      return existing ? { ...d, enabled: existing.enabled ?? d.enabled } : d
-    })
+    parsed.perplexityModels = mergeProviderModelsWithDefaults(
+      parsed.perplexityModels,
+      defaultSettings.perplexityModels
+    )
   }
 
   if (!parsed.groqApiKey) parsed.groqApiKey = defaultSettings.groqApiKey
   if (!parsed.groqModels) {
     parsed.groqModels = defaultSettings.groqModels
   } else {
-    parsed.groqModels = defaultSettings.groqModels.map((d) => {
-      const existing = parsed.groqModels.find((m: { code: string }) => m.code === d.code)
-      return existing ? { ...d, enabled: existing.enabled ?? d.enabled } : d
-    })
+    parsed.groqModels = mergeProviderModelsWithDefaults(
+      parsed.groqModels,
+      defaultSettings.groqModels
+    )
   }
 
   if (!parsed.alibabaApiKey) parsed.alibabaApiKey = defaultSettings.alibabaApiKey
-  const userAlibaba = parsed.alibabaModels
-  const mergedAlibaba = defaultSettings.alibabaModels.map((d) => {
-    const existing = Array.isArray(userAlibaba)
-      ? userAlibaba.find((m: { code: string }) => m.code === d.code)
-      : undefined
-    return existing ? { ...d, enabled: existing.enabled ?? d.enabled } : d
-  })
-  const defaultCodes = new Set(defaultSettings.alibabaModels.map((d) => d.code))
-  const customModels = Array.isArray(userAlibaba)
-    ? userAlibaba.filter((m: { code: string }) => !defaultCodes.has(m.code))
-    : []
-  parsed.alibabaModels = [...mergedAlibaba, ...customModels]
+  parsed.alibabaModels = normalizeProviderModels(
+    parsed.alibabaModels,
+    defaultSettings.alibabaModels
+  )
 
   if (!parsed.fireworksApiKey) parsed.fireworksApiKey = defaultSettings.fireworksApiKey
   if (parsed.aiModel && LEGACY_FIREWORKS_MODEL_ID_MAP[parsed.aiModel]) {
@@ -183,17 +255,13 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   const userFireworks = Array.isArray(parsed.fireworksModels)
     ? parsed.fireworksModels.map((model) => migrateConfiguredModelCode(model))
     : parsed.fireworksModels
-  const mergedFireworks = defaultSettings.fireworksModels.map((d) => {
-    const existing = Array.isArray(userFireworks)
-      ? userFireworks.find((m: { code: string }) => m.code === d.code)
-      : undefined
-    return existing ? { ...d, enabled: existing.enabled ?? d.enabled } : d
-  })
-  const defaultFireworksCodes = new Set(defaultSettings.fireworksModels.map((d) => d.code))
-  const customFireworksModels = Array.isArray(userFireworks)
-    ? userFireworks.filter((m: { code: string }) => !defaultFireworksCodes.has(m.code))
-    : []
-  parsed.fireworksModels = [...mergedFireworks, ...customFireworksModels]
+  const normalizedFireworksModels = normalizeProviderModels(
+    userFireworks,
+    defaultSettings.fireworksModels
+  )
+  parsed.fireworksModels = shouldClearLegacyFireworksSeededModels(normalizedFireworksModels)
+    ? []
+    : normalizedFireworksModels
 
   const deprecatedGroqModelMap: Record<string, string> = {
     'llama-4-scout': 'meta-llama/llama-4-scout-17b-16e-instruct',
@@ -314,6 +382,26 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   if (parsed.rememberLastDashboardView === undefined) {
     parsed.rememberLastDashboardView = defaultSettings.rememberLastDashboardView
   }
+// Migrate legacy buddyOverlay key to overlay
+  const legacyRecord = parsed as Record<string, unknown>
+  if (legacyRecord.buddyOverlay && typeof legacyRecord.buddyOverlay === 'object' && !parsed.overlay) {
+    parsed.overlay = {
+      ...defaultSettings.overlay,
+      ...(legacyRecord.buddyOverlay as Partial<typeof defaultSettings.overlay>),
+      anchor: 'right',
+    }
+  }
+  delete legacyRecord.buddyOverlay
+
+  if (!parsed.overlay || typeof parsed.overlay !== 'object') {
+    parsed.overlay = defaultSettings.overlay
+  } else {
+    parsed.overlay = {
+      ...defaultSettings.overlay,
+      ...parsed.overlay,
+      anchor: 'right',
+    }
+  }
 
   if (!parsed.commandBar) {
     parsed.commandBar = defaultSettings.commandBar
@@ -321,9 +409,10 @@ export function normalizeStoredSettings(raw: string | null): Settings {
     parsed.commandBar = { ...defaultSettings.commandBar, ...parsed.commandBar }
   }
 
-  if (!parsed.configuredModels || parsed.configuredModels.length === 0) {
-    parsed.configuredModels = defaultSettings.configuredModels
-  }
+  parsed.configuredModels = normalizeProviderModels(
+    parsed.configuredModels,
+    defaultSettings.configuredModels
+  )
   if (!parsed.activeTheme) parsed.activeTheme = defaultSettings.activeTheme
   delete (parsed as Record<string, unknown>).frostedSidebar
   if (parsed.frostedPrompt === undefined) parsed.frostedPrompt = defaultSettings.frostedPrompt
@@ -434,5 +523,6 @@ export function getInitialConfigSettings(settings: Settings): Partial<SettingsCo
     rememberLastChatSession: settings.rememberLastChatSession,
     rememberLastSettingsSection: settings.rememberLastSettingsSection,
     rememberLastDashboardView: settings.rememberLastDashboardView,
+    overlay: settings.overlay,
   }
 }

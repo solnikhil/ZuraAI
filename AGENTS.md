@@ -18,21 +18,22 @@ Core capabilities:
 ---
 
 ## Quick Start (Agent Commands)
-- Install: `npm install`
-- Dev: `npm run dev`
-- Tests: `npm test`
-- Tests (watch): `npm run test:watch`
-- Build (typecheck + Vite build + electron-builder): `npm run build`
-- Build portable dir: `npm run build:dir`
-- Preview renderer bundle: `npm run preview`
+- Install: `bun install`
+- Dev: `bun run dev`
+- Tests: `bun test`
+- Tests (watch): `bun run test:watch`
+- Build (typecheck + Vite build + electron-builder): `bun run build`
+- Build portable dir: `bun run build:dir`
+- Preview renderer bundle: `bun run preview`
 
-**Prereqs:** Node.js `>= 18`.
+**Prereqs:** Bun `>= 1.1`, Node.js `>= 18` (required by Electron at runtime).
 
 ---
 
 ## Key Concepts (Read First)
 - The **renderer is untrusted**. Anything privileged must be implemented in the **main process** and exposed via a **narrow, allowlisted** IPC surface.
 - The app uses a **primary BrowserWindow** for the main app plus a dedicated **About window**. Main-app renderer routes live inside the primary window (`#/dashboard`, `#/settings`, `#/chat`) under a shared shell layout, while `#/about` is rendered in the separate utility window.
+- The app now also supports an optional **Overlay window**. `#/overlay` renders in its own always-on-top frameless `BrowserWindow` and reuses the standard chat/runtime stack rather than introducing a second assistant runtime.
 - Persistence is split:
   - **Sanitized non-secret settings + UI state** live in renderer `localStorage`.
   - **API keys and MCP secrets** live in main-process secure storage and are hydrated/resolved at runtime.
@@ -48,6 +49,8 @@ Core capabilities:
   - `electron/ipc/` — `ipcMain` handlers (chat store, secure storage, system actions)
 - `electron/startup/` — deferred startup orchestration and startup metrics
 - `electron/windows/` — main window, tray
+- `electron/windows/overlayWindow.ts` — Overlay window creation/reuse, compact/expanded state, display-aware positioning, and shortcut-backed lifecycle
+- `electron/windows/promptPopup.ts` — optional lightweight cursor-position prompt popup route/bridge that can submit to the overlay and dismisses on blur/Escape
 - `electron/chatStore.ts` — chat history persistence (JSON under `app.getPath('userData')`)
 - `electron/mcp/mcpConnection.ts` — MCP initialize/tool-discovery connection orchestration
 - `electron/mcp/mcpManager.ts` — MCP server registry, runtime state aggregation, connection lifecycle coordination, and cache/persistence orchestration across the extracted MCP manager helper modules
@@ -65,8 +68,12 @@ Core capabilities:
 - `src/` — React/Vite **renderer**
   - `src/main.tsx` — renderer entrypoint; initializes performance tracking, lazy-image styles, applies saved theme, mounts `App`, and schedules non-critical preloads after first paint
 - `src/App.tsx` — routes (`#/dashboard`, `#/settings`, `#/chat`) under `AppShellLayout`, plus wildcard `*` fallback to a dedicated 404 renderer view
+- `src/components/OverlayView.tsx` — compact overlay chat surface for the dedicated `#/overlay` route
+- `src/components/OverlaySync.tsx` — renderer-side bridge that syncs persisted overlay settings into the trusted main-process Overlay runtime
+- `src/components/PromptPopupView.tsx` — lightweight prompt input surface for the dedicated `#/prompt-popup` route; auto-focuses, submits via prompt-popup IPC, dismisses on Escape
 - `src/contexts/` — app state (split settings contexts, chat history, app shell, quick-send)
 - `src/components/AppShellLayout.tsx` — shared renderer shell (title bar, command palette, resize handles, solid shell surfaces, global context menu via AppContextMenu)
+- `src/contexts/appShellNavigation.ts` — pure renderer-side app-shell history model for titlebar back/forward navigation, mouse-button navigation, and shell-state snapshot deduping
 - `src/components/AppContextMenu.tsx` — global right-click context menu (copy/paste/cut, undo/redo, select all, open link, inspect element)
 - `src/components/Dashboard/ChatArea/hooks/useStreamingChat.ts` — primary dashboard chat pipeline (streaming + tools)
 - `src/components/Dashboard/ChatArea/hooks/chatProviderRuntime.ts` — thin compatibility wrapper over the shared provider registry for dashboard chat provider normalization/tests
@@ -80,6 +87,7 @@ Core capabilities:
 - `src/skills/` — built-in skill catalog + settings normalization/migration + skill/tool gating helpers
 - `src/mcp/` — shared MCP contracts, draft helpers, and renderer MCP runtime/settings context
 - `src/components/Settings/sections/McpSection.tsx` — MCP Settings UI for server CRUD, secret-masked forms, and connect/disconnect controls
+- `src/components/Settings/sections/OverlaySection.tsx` — Overlay settings UI for enablement, startup behavior, sizing, and global shortcut configuration
 - `src/tools/` — shared built-in tool manifest (`builtinTools.ts`), tool schema + adapters + runtime tool registry/execution coordinator
   - `src/tools/adapters/openrouterToolCalls.ts` — provider-agnostic OpenRouter tool-call parsing, JSON repair, and fallback query inference shared by OpenRouter-compatible adapters
 
@@ -133,17 +141,34 @@ Core capabilities:
   - Opens from the titlebar info menu via `window.appInfo.openAboutWindow()` → `app-info:open-about-window`
   - Uses the shared preload bridge, native OS window chrome, fixed utility-window sizing, `skipTaskbar: true`, and `sandbox: true`
 
+- **Overlay Window** (`electron/windows/overlayWindow.ts`)
+  - Loads `#/overlay` in its own dedicated `BrowserWindow`
+  - Windows-first overlay surface: frameless, `alwaysOnTop`, `skipTaskbar`, non-click-through, and positioned against the active display `workArea`
+  - Reuses the shared preload bundle plus a dedicated `window.overlay` bridge for lifecycle actions
+  - Supports compact and expanded bounds, hide/show/toggle behavior, and display-metrics repositioning
+  - Opens from explicit UI entry points plus the global Overlay shortcut; the shortcut now opens the Overlay directly at the cursor position in expanded mode (single-step flow)
+  - Close/hide behavior is controlled in main rather than the untrusted renderer
+
+- **Prompt Popup** (`electron/windows/promptPopup.ts`)
+  - Loads `#/prompt-popup` in its own dedicated frameless `BrowserWindow`
+  - Lightweight cursor-position prompt input surface for optional prompt-only entry flows
+  - Appears at cursor position, auto-focuses the text input, and submits the prompt to the overlay via main-process relay
+  - On submit, hides the popup, opens/creates the overlay window at the cursor position, and sends the prompt text to the overlay renderer via `overlay:pending-prompt`
+  - Dismisses on Escape key or window blur (click outside); the popup is never truly closed by the user — only hidden or destroyed on app quit
+  - Reuses the shared preload bundle plus a dedicated `window.promptPopup` bridge
+
 - **Dev vs prod loading**
 - In dev, windows load `${process.env.VITE_DEV_SERVER_URL}#/...`
-- In prod, windows load `dist/index.html` with the target route hash (`dashboard`, `about`, etc.)
+- In prod, windows load `dist/index.html` with the target route hash (`dashboard`, `about`, `overlay`, etc.)
 
 - **Renderer route fallback**
 - `src/App.tsx` defines `Route path="*"` to render the `NotFound404` component (`src/components/ui/demo.tsx`) for unknown hash routes.
- - Standalone utility routes outside `AppShellLayout` currently include `#/about`.
+ - Standalone utility routes outside `AppShellLayout` currently include `#/about`, `#/overlay`, and `#/prompt-popup`.
 
 - **Shared shell layout**
   - `src/App.tsx` wraps `/`, `/dashboard`, `/settings`, and `/chat` in `AppShellLayout`
   - `src/components/AppShellLayout.tsx` owns the title bar, command palette, Windows resize handles, and route-level shell behavior
+  - `AppShellLayout` now passes the active router pathname into `AppShellProvider`, which maintains a renderer-local shell history across pathname changes plus in-shell `dashboardView` / settings-section transitions for the titlebar back/forward controls
   - `/` is a dashboard alias
   - `/about` is intentionally outside `AppShellLayout` and renders a standalone About window surface (`src/components/AboutWindow.tsx`)
 
@@ -183,8 +208,14 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - listens for: `window-controls:state`
 - `window.appInfo`
   - invokes: `app-info:get`, `app-info:open-about-window`
+- `window.overlay`
+  - invokes: `overlay:show`, `overlay:hide`, `overlay:toggle`, `overlay:expand`, `overlay:collapse`, `overlay:get-state`, `overlay:focus-main-window`, `overlay:apply-settings`
+  - listens for: `overlay:pending-prompt`
+- `window.promptPopup`
+  - invokes: `prompt-popup:show`, `prompt-popup:hide`, `prompt-popup:submit`
+  - listens for: `prompt-popup:focus`
 - `window.shell`
-  - invokes: `shell:open-external` (opens URLs in default browser; only http/https allowed)
+  - invokes: `shell:open-external` (opens URLs in default browser; only http/https allowed), `clipboard:read-text` (reads plain text clipboard content from trusted main process)
 - `window.devTools`
   - invokes: `devtools:inspect-element` (development only; opens DevTools element inspector)
 - `window.mcp`
@@ -205,15 +236,15 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Main-process startup uses `electron/startup/deferredInit.ts` to defer non-critical work until the main window is visible.
 - Current deferred tasks include delayed React DevTools install in development and deferred auto-updater initialization after first paint.
 - Main-process startup also denies Chromium permission requests/checks on the default session and relies on explicit IPC bridges plus `shell.openExternal` for outbound navigation instead of granting renderer permissions.
+- Renderer context-menu paste now uses a clipboard read fallback via `window.shell.readClipboardText()` → `clipboard:read-text` when direct `navigator.clipboard.readText()` is unavailable/blocked.
 - MCP startup integration now registers `electron/mcp/index.ts` handlers during `app.whenReady()`, initializes the singleton MCP manager with renderer-facing client info, and auto-connects only servers where both `enabled` and `autoConnect` are true.
 - App shutdown now performs an MCP disconnect pass before quit completes so managed transports can exit cleanly.
-- Renderer startup in `src/main.tsx` initializes compatibility polyfills, renderer performance tracking, injects lazy-image styles, applies saved theme settings, mounts `App`, and then hands non-critical preloads to `src/utils/startupPreloads.ts`.
-- `src/utils/startupPreloads.ts` keeps startup focused on first paint by deferring settings-chunk warming to idle time and delaying markdown preloading until the renderer is TTI/idle.
-- Shared shell behavior lives in `src/components/AppShellLayout.tsx`, which wraps dashboard/settings/chat routes and coordinates title bar state, command palette, and Windows resize handles.
-- Renderer settings are split between `SettingsUIContext` and `SettingsConfigContext`, with the combined `SettingsContext` retained as a compatibility layer.
-- Legacy persisted `frostedSidebar` values are ignored during settings hydration; the app no longer exposes or applies a frosted sidebar mode.
-- Search API preferences are persisted in renderer settings; Tavily search speed now uses `settings.tavilySearchDepthPreference` (`auto`, `ultra-fast`, `fast`, `basic`, `advanced`) and omitted `web_search.search_depth` values are resolved in the renderer tool executor before the request crosses into the main process.
-- Search API preferences are persisted in renderer settings; Tavily search speed uses `settings.tavilySearchDepthPreference` (`auto`, `ultra-fast`, `fast`, `basic`, `advanced`) and omitted `web_search.search_depth` values are resolved in the renderer tool executor before the request crosses into the main process. The same pre-IPC resolver also applies `settings.webSearchIncludeImages`, so Tavily image fetching and the chat image carousel can be disabled per user without changing the model-facing tool schema.
+- Overlay startup now initializes the dedicated overlay runtime in main, keeps shortcut registration and display listeners on the trusted side, and relies on renderer-synced `settings.overlay` values instead of a new storage file.
+- The global Overlay hotkey opens the Overlay window directly at the cursor position in expanded mode (single-step flow).
+- Prompt Popup remains available as an optional path; submitting from it opens the Overlay at the cursor position and sends the prompt text via `overlay:pending-prompt`.
+- `OverlaySync` runs inside the shared provider tree and mirrors persisted `settings.overlay` values into the trusted overlay runtime through the dedicated preload bridge. If startup auto-open is enabled, the main window renderer triggers the initial overlay show after settings hydrate.
+- Overlay preferences are persisted in the existing sanitized renderer settings blob under `settings.overlay` with `enabled`, `launchOnStartup`, `hotkey`, `anchor`, `compactWidth`, `expandedWidth`, `promptAutoHideEnabled`, and `promptAutoHideTimeout`. No new secure-storage or Overlay-only settings file is introduced for Phase 1.
+- Main-shell navigation history is now tracked entirely in the renderer through `AppShellProvider` + `src/contexts/appShellNavigation.ts`; both the titlebar arrows and side-mouse buttons call the same history controller instead of using raw `react-router` delta navigation.
 
 #### MCP Runtime Foundation
 - Shared MCP contracts and naming helpers live in `src/mcp/types.ts`.
@@ -268,15 +299,18 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - `src/hooks/useToolCalling.ts` → `src/tools/toolManager.ts` → `src/tools/executor.ts`
   - Built-in main-process tools still execute through `window.ipcRenderer.invoke('execute-tool', toolName, args)`.
   - Namespaced MCP tools now execute through `window.mcp.executeTool(toolName, args)` so built-ins and MCP stay on separate IPC paths.
-  - Main tool registry: `electron/tools/index.ts` (restricted)
+- Main tool registry: `electron/tools/index.ts` (restricted)
   - OpenRouter-compatible tool-call parsing/recovery now lives in `src/tools/adapters/openrouterToolCalls.ts`, keeping `src/tools/adapters/openrouter.ts` focused on request/response formatting.
+- The Overlay reuses this same renderer chat pipeline through `useStreamingChat`; it does not create a parallel provider/tool execution path or a separate conversation store.
+- The Overlay also listens for `overlay:pending-prompt` events from the main process (triggered when a prompt popup submission opens the overlay) and auto-sends the received prompt text.
 - Active-response renderer state is split between persisted chat history and ephemeral `StreamingContext` data in `src/contexts/StreamingContext.tsx`.
   - `StreamingContext` now tracks an explicit per-response `phase` (`reasoning`, `searching`, `tool`, `answering`) so the thinking/search UI stays stable across multi-search loops without persisting transient renderer-only state.
   - Reasoning is now segmented per round: in-flight `streamingState.thinking` represents only the current active thought, while completed reasoning rounds are appended to `thinkingBlocks` alongside search blocks so resumed research continues in a new block instead of extending the previous one.
   - Completed MCP tool executions are now appended into persisted `thinkingBlocks` as inline tool-history entries (alongside web search/search blocks) so the renderer can replay MCP activity inside the same thought timeline instead of only in the generic post-message tool card area.
-  - Completed MCP and built-in tool results are pushed into the active streaming state as soon as they finish, so generic tool runs remain visible in-chat before the assistant emits its follow-up answer.
-  - Final streaming commits now persist tool-only responses too; an assistant turn no longer needs non-empty text content for tool results, reasoning blocks, or approval outcomes to survive the handoff from `StreamingContext` into chat history.
-  - Research-mode finalization now runs bounded no-tools synthesis retries inside `src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.ts`: after tool rounds finish, the orchestrator first requests a normal final synthesis, then escalates to stricter recovery prompts including a plain-text-only pass if the provider still returns blank output or `tool_calls` despite tools being disabled. If every no-tools pass still returns no answer, the renderer falls back to a neutral summary built from preserved `web_search` results so the turn does not end as an empty `tool_calls` response.
+- Completed MCP and built-in tool results are pushed into the active streaming state as soon as they finish, so generic tool runs remain visible in-chat before the assistant emits its follow-up answer.
+- Final streaming commits now persist tool-only responses too; an assistant turn no longer needs non-empty text content for tool results, reasoning blocks, or approval outcomes to survive the handoff from `StreamingContext` into chat history.
+- Persisted assistant-message response stats (`usage`) now reflect only the final visible answer round for that assistant turn. Pre-search planning/tool-call rounds and no-tools recovery rounds remain part of orchestration latency/tool history, but they are no longer merged into the final answer's token stats.
+- Research-mode finalization now runs bounded no-tools synthesis retries inside `src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.ts`: after tool rounds finish, the orchestrator first requests a normal final synthesis, then escalates to stricter recovery prompts including a plain-text-only pass if the provider still returns blank output or `tool_calls` despite tools being disabled. If every no-tools pass still fails, the renderer commits a concise failure message while preserving the gathered `web_search` results in the timeline/tool UI.
   - OpenRouter image-generation models now flow through the same chat pipeline: renderer model metadata persists `inputModalities` / `outputModalities`, `src/services/openrouter.ts` sends `modalities` to `/api/v1/chat/completions` for image-capable models, the streaming hook captures `delta.images` payloads, and generated images are persisted back into chat history `files` so assistant image outputs render inline in the dashboard.
 
 #### Skills-Based Research (`settings.skills`)
@@ -425,7 +459,7 @@ There is currently no built-in trusted browser-testing workflow; any replacement
 ### Providers
 - OpenRouter: `src/services/openrouter.ts` (OpenAI-compatible tool calling)
 - Groq: `src/services/groq.ts` (OpenAI-compatible)
-- Alibaba Cloud: `src/services/alibaba.ts` (DashScope/Tongyi Qwen; OpenAI-compatible at dashscope-intl.aliyuncs.com/compatible-mode/v1)
+- Alibaba Cloud: `src/services/alibaba.ts` (DashScope/Tongyi Qwen; OpenAI-compatible at dashscope-intl.aliyuncs.com/compatible-mode/v1; thinking models stream `reasoning_content` deltas with `enable_thinking: true` request param)
 - Fireworks: `src/services/fireworks.ts` (OpenAI-compatible inference) plus `src/services/fireworksModels.ts` for the serverless model catalog used by Provider Hub
 - Ollama: `src/services/ollama.ts` (local server; tools supported for compatible models)
 - Perplexity: `src/services/perplexity.ts` (native web/research; excluded from external tools)

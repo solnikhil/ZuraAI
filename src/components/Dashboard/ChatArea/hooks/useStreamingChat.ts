@@ -13,6 +13,7 @@ import { useToast } from '../../../shared/Toast'
 import type { ToolCallState } from '../../../../hooks/useToolCalling'
 import { generateChatTitle } from '../../../../services/titleGenerator'
 import { inferOpenRouterSupportsDeepThinking } from '../../../../services/openrouterModels'
+import { inferAlibabaSupportsDeepThinking } from '../../../../services/alibabaModels'
 import { buildOptimizedContext } from '../../../../utils/tokenUtils'
 import { getEffectiveSystemPrompt } from '../../../../utils/promptSelection'
 import { StreamingThrottler } from '../../../../utils/streamingThrottler'
@@ -51,8 +52,12 @@ export interface UseStreamingChatReturn {
   isLoading: boolean
   toolState: ToolCallState
   sendMessage: (content: string, files: AttachedFile[]) => Promise<void>
-  regenerateMessage: (message: any, instruction: string) => Promise<void>
+  regenerateMessage: (message: RegenerateMessage, instruction: string) => Promise<void>
   stopStreaming: () => void
+}
+
+type RegenerateMessage = Message & {
+  instruction?: string
 }
 
 export function buildCommittedStreamingUpdates(
@@ -259,7 +264,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
   }, [updateStreamingMessage, updateStreaming])
 
   // Convert settings to StreamingSettings type for hooks
-  const streamingSettings: StreamingSettings = useMemo(
+const streamingSettings: StreamingSettings = useMemo(
     () => ({
       aiModel: settings.aiModel,
       modelProvider: settings.modelProvider,
@@ -271,6 +276,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       openRouterDebug: settings.openRouterDebug,
       openRouterApiKey: settings.openRouterApiKey,
       configuredModels: settings.configuredModels,
+      alibabaModels: settings.alibabaModels,
       perplexityApiKey: settings.perplexityApiKey,
       groqApiKey: settings.groqApiKey,
       alibabaApiKey: settings.alibabaApiKey,
@@ -287,6 +293,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       settings.openRouterDebug,
       settings.openRouterApiKey,
       settings.configuredModels,
+      settings.alibabaModels,
       settings.perplexityApiKey,
       settings.groqApiKey,
       settings.alibabaApiKey,
@@ -467,7 +474,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         streamingMessageRef.current = { sessionId: targetSessionId!, messageId: streamingMessageId }
         startStreaming(targetSessionId!, streamingMessageId)
 
-        // Use composed provider-specific streaming hooks
+// Use composed provider-specific streaming hooks
         const currentModel =
           provider === 'openrouter'
             ? settings.configuredModels?.find((m) => m.code === settings.aiModel)
@@ -480,6 +487,16 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
             ? { enabled: true }
             : undefined
 
+        const alibabaModel = provider === 'alibaba'
+          ? (settings.alibabaModels || []).find((m) => m.code === settings.aiModel)
+          : undefined
+        const alibabaEnableThinking =
+          provider === 'alibaba' && inferAlibabaSupportsDeepThinking(
+            alibabaModel || { code: settings.aiModel, displayName: settings.aiModel }
+          )
+            ? true
+            : undefined
+
         const streamResult = await runProviderStream({
           provider,
           model: settings.aiModel,
@@ -490,9 +507,10 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           researchMaxRounds,
           forceWebSearch,
           signal: abortControllerRef.current?.signal,
-          enableTools: true,
+enableTools: true,
           syncToStreamingContext: true,
           reasoning: openRouterReasoning,
+          enableThinking: alibabaEnableThinking,
         })
 
         // Commit streaming content to the session
@@ -523,9 +541,9 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
               .catch(console.error)
           }, 1500)
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         // Silently handle abort (user clicked stop)
-        if (error.name === 'AbortError' || abortControllerRef.current === null) {
+        if (error instanceof Error && (error.name === 'AbortError' || abortControllerRef.current === null)) {
           // Stream was aborted by user - loading state already cleared by stopStreaming
           return
         }
@@ -579,12 +597,9 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     ]
   )
 
-  /**
-   * Regenerate a message with different instructions
-   * Note: This uses direct streaming for simplicity, not the composed hooks
-   */
+  /** Regenerate a message with different instructions. */
   const regenerateMessage = useCallback(
-    async (message: any, instruction: string) => {
+    async (message: RegenerateMessage, instruction: string) => {
       if (!currentSessionId || isLoading) return
 
       let effectiveSettings = settings
@@ -707,11 +722,21 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
                   modality === 'text' || modality === 'image'
               ) || ['image', 'text']
             : undefined
-        const openRouterReasoning =
+const openRouterReasoning =
           inferOpenRouterSupportsDeepThinking(
             openRouterModel || { code: effectiveSettings.aiModel, displayName: effectiveSettings.aiModel }
           )
             ? { enabled: true }
+            : undefined
+
+        const alibabaModelForRegen = effectiveSettings.modelProvider === 'alibaba'
+          ? (effectiveSettings.alibabaModels || []).find((m) => m.code === effectiveSettings.aiModel)
+          : undefined
+        const alibabaEnableThinkingForRegen =
+          effectiveSettings.modelProvider === 'alibaba' && inferAlibabaSupportsDeepThinking(
+            alibabaModelForRegen || { code: effectiveSettings.aiModel, displayName: effectiveSettings.aiModel }
+          )
+            ? true
             : undefined
 
         const apiMessages = buildProviderMessages(
@@ -735,10 +760,11 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
             researchMaxRounds: 0,
             forceWebSearch: false,
             signal: abortControllerRef.current?.signal,
-            enableTools: false,
+enableTools: false,
             syncToStreamingContext: false,
             modalities: openRouterModalities,
             reasoning: openRouterReasoning,
+            enableThinking: alibabaEnableThinkingForRegen,
           })
 
           updateStreamingMessage(currentSessionId, streamingMessageId, {
@@ -750,9 +776,12 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
             model: regenerationResult.model,
           })
           setIsLoading(false)
-        } catch (streamError: any) {
+        } catch (streamError: unknown) {
           // Silently handle abort (user clicked stop)
-          if (streamError.name === 'AbortError' || abortControllerRef.current === null) {
+          if (
+            streamError instanceof Error &&
+            (streamError.name === 'AbortError' || abortControllerRef.current === null)
+          ) {
             return
           }
           deleteMessageFromSession(currentSessionId, streamingMessageId)
@@ -772,11 +801,11 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           showToast(formattedError.message, formattedError.tone)
           setIsLoading(false)
         }
-      } catch (error: any) {
-        // Silently handle abort (user clicked stop)
-        if (error.name === 'AbortError' || abortControllerRef.current === null) {
-          return
-        }
+        } catch (error: unknown) {
+          // Silently handle abort (user clicked stop)
+          if (error instanceof Error && (error.name === 'AbortError' || abortControllerRef.current === null)) {
+            return
+          }
         const effectiveProvider = normalizeActiveProviderId(settings.modelProvider)
         const formattedError = formatProviderStreamError(error, effectiveProvider, settings)
         showToast(formattedError.message, formattedError.tone)

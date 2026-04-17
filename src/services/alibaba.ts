@@ -22,6 +22,7 @@ export interface AlibabaResponse {
         message: {
             role: string
             content: string
+            reasoning_content?: string
             tool_calls?: Array<{
                 id: string
                 type: 'function'
@@ -49,6 +50,7 @@ export interface AlibabaStreamChunk {
         index: number
         delta?: {
             content?: string
+            reasoning_content?: string
             role?: string
             tool_calls?: Array<{
                 index?: number
@@ -78,6 +80,7 @@ interface AlibabaRequestBody {
     max_tokens?: number
     tools?: ToolDefinition[]
     tool_choice?: 'auto' | 'none' | { type: 'function'; function: { name: string } }
+    enable_thinking?: boolean
 }
 
 export async function* streamAlibabaCompletion(
@@ -91,6 +94,7 @@ export async function* streamAlibabaCompletion(
         toolChoice?: 'auto' | 'none' | { type: 'function'; function: { name: string } }
         onChunk?: (chunk: AlibabaStreamChunk) => void
         signal?: AbortSignal
+        enableThinking?: boolean
     }
 ): AsyncGenerator<AlibabaStreamChunk, void, unknown> {
     if (!apiKey) {
@@ -110,9 +114,12 @@ export async function* streamAlibabaCompletion(
     if (options?.max_tokens !== undefined) {
         requestBody.max_tokens = options.max_tokens
     }
-    if (options?.tools && options.tools.length > 0) {
+if (options?.tools && options.tools.length > 0) {
         requestBody.tools = options.tools
         requestBody.tool_choice = options.toolChoice || 'auto'
+    }
+    if (options?.enableThinking) {
+        requestBody.enable_thinking = true
     }
 
     const response = await fetch(`${ALIBABA_BASE_URL}/chat/completions`, {
@@ -153,6 +160,7 @@ export const generateAlibabaCompletion = async (
         tools?: ToolDefinition[]
         toolChoice?: 'auto' | 'none' | { type: 'function'; function: { name: string } }
         signal?: AbortSignal
+        enableThinking?: boolean
     }
 ): Promise<AlibabaResponse> => {
     if (!apiKey) {
@@ -170,9 +178,12 @@ export const generateAlibabaCompletion = async (
     if (options?.max_tokens !== undefined) {
         requestBody.max_tokens = options.max_tokens
     }
-    if (options?.tools && options.tools.length > 0) {
+if (options?.tools && options.tools.length > 0) {
         requestBody.tools = options.tools
         requestBody.tool_choice = options.toolChoice || 'auto'
+    }
+    if (options?.enableThinking) {
+        requestBody.enable_thinking = true
     }
 
     const response = await fetch(`${ALIBABA_BASE_URL}/chat/completions`, {

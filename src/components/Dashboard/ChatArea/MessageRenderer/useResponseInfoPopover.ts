@@ -11,9 +11,11 @@ const RESPONSE_INFO_ESTIMATED_HEIGHT = 400
  * positioning, show/hide delays, and scroll/resize tracking.
  */
 export function useResponseInfoPopover() {
+  const [isPopoverOpen, setIsPopoverOpen] = useState(false)
+  const [isPopoverPositioned, setIsPopoverPositioned] = useState(false)
   const [popoverPosition, setPopoverPosition] = useState<{ top: number; left: number } | null>(null)
   const [isHoveringInfo, setIsHoveringInfo] = useState(false)
-  const infoTriggerRef = useRef<HTMLDivElement>(null)
+  const infoTriggerRef = useRef<HTMLButtonElement>(null)
   const infoPopoverRef = useRef<HTMLDivElement>(null)
   const hidePopoverTimeoutRef = useRef<number | null>(null)
 
@@ -51,6 +53,7 @@ export function useResponseInfoPopover() {
     top = Math.min(Math.max(top, padding), Math.max(padding, maxTop))
 
     setPopoverPosition({ top, left })
+    setIsPopoverPositioned(true)
   }
 
   const clearHidePopoverTimeout = () => {
@@ -64,6 +67,8 @@ export function useResponseInfoPopover() {
     clearHidePopoverTimeout()
     hidePopoverTimeoutRef.current = window.setTimeout(() => {
       setIsHoveringInfo(false)
+      setIsPopoverOpen(false)
+      setIsPopoverPositioned(false)
       setPopoverPosition(null)
       hidePopoverTimeoutRef.current = null
     }, RESPONSE_INFO_HIDE_DELAY_MS)
@@ -72,7 +77,8 @@ export function useResponseInfoPopover() {
   const handleTriggerMouseEnter = () => {
     clearHidePopoverTimeout()
     setIsHoveringInfo(true)
-    updatePopoverPosition()
+    setIsPopoverOpen(true)
+    setIsPopoverPositioned(false)
   }
 
   const handleTriggerMouseLeave = () => {
@@ -82,6 +88,7 @@ export function useResponseInfoPopover() {
   const handlePopoverMouseEnter = () => {
     clearHidePopoverTimeout()
     setIsHoveringInfo(true)
+    setIsPopoverOpen(true)
     updatePopoverPosition()
   }
 
@@ -104,7 +111,7 @@ export function useResponseInfoPopover() {
         window.removeEventListener('resize', handleUpdate)
       }
     }
-  }, [isHoveringInfo])
+  }, [isHoveringInfo, isPopoverOpen])
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -116,6 +123,8 @@ export function useResponseInfoPopover() {
   return {
     infoTriggerRef,
     infoPopoverRef,
+    isPopoverOpen,
+    isPopoverPositioned,
     popoverPosition,
     handleTriggerMouseEnter,
     handleTriggerMouseLeave,

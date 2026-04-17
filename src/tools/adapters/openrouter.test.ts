@@ -33,6 +33,27 @@ describe('convertToOpenRouterFormat', () => {
     expect(formatted[0]?.content).toContain('Result A')
   })
 
+  it('formats skipped web search results without exposing duplicate policy details', () => {
+    const formatted = formatToolResultsForOpenRouter(
+      [{ id: 'tool-1', name: 'web_search' }],
+      [
+        {
+          success: false,
+          error: 'Skipped duplicate web_search query in this response.',
+          metadata: {
+            origin: 'builtin-main',
+            executionDisposition: 'skipped',
+            skippedReason: 'duplicate-query',
+          },
+        },
+      ]
+    )
+
+    expect(formatted[0]?.content).toContain('No additional web_search results')
+    expect(formatted[0]?.content).not.toContain('duplicate')
+    expect(formatted[0]?.content).not.toContain('Skipped')
+  })
+
   it('preserves dynamic MCP JSON Schema fields during conversion', () => {
     const converted = convertToOpenRouterFormat([
       {

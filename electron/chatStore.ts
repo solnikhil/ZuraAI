@@ -46,6 +46,10 @@ export interface ChatHistoryData {
   version: number
 }
 
+type LegacyChatHistoryData = Omit<ChatHistoryData, 'folders'> & {
+  folders?: Folder[]
+}
+
 // In-memory cache to reduce disk reads
 let cachedData: ChatHistoryData | null = null
 let cacheTimestamp = 0
@@ -83,9 +87,10 @@ export function migrateSession(session: ChatSession): ChatSession {
  */
 export function migrateData(data: ChatHistoryData): ChatHistoryData {
   if (data.version < 2) {
+    const legacyData = data as LegacyChatHistoryData
     return {
       sessions: data.sessions.map(migrateSession),
-      folders: (data as any).folders ?? [],
+      folders: legacyData.folders ?? [],
       version: 2,
     }
   }

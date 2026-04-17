@@ -60,6 +60,17 @@ type ProviderEnabledMap = Partial<Record<ProviderKey, boolean>>
 export type TavilySearchDepth = 'ultra-fast' | 'fast' | 'basic' | 'advanced'
 export type TavilySearchDepthPreference = 'auto' | TavilySearchDepth
 
+export interface OverlaySettings {
+  enabled: boolean
+  launchOnStartup: boolean
+  hotkey: string
+  anchor: 'right'
+  compactWidth: number
+  expandedWidth: number
+  promptAutoHideEnabled: boolean
+  promptAutoHideTimeout: number
+}
+
 /**
  * Configuration-related settings that change infrequently
  */
@@ -123,6 +134,7 @@ export interface SettingsConfig {
   rememberLastChatSession: boolean
   rememberLastSettingsSection: boolean
   rememberLastDashboardView: boolean
+  overlay: OverlaySettings
 }
 
 /**
@@ -155,32 +167,28 @@ export const defaultSettingsConfig: SettingsConfig = {
   ollamaUrl: 'http://localhost:11434',
   ollamaModels: [],
   perplexityModels: [
-    // Sonar Models (2025)
-    { code: 'sonar', displayName: 'Sonar', maxContext: 200000 },
-    { code: 'sonar-pro', displayName: 'Sonar Pro', maxContext: 200000 },
-    { code: 'sonar-reasoning', displayName: 'Sonar Reasoning', maxContext: 200000 },
-    { code: 'sonar-reasoning-pro', displayName: 'Sonar Reasoning Pro', maxContext: 200000 },
-    { code: 'sonar-deep-research', displayName: 'Sonar Deep Research', maxContext: 200000 },
-    // Llama 3.1 Sonar Variants (128k Context)
+    { code: 'sonar', displayName: 'Sonar', maxContext: 128000, supportsWebSearch: true },
     {
-      code: 'llama-3.1-sonar-small-128k-online',
-      displayName: 'Llama 3.1 Sonar Small 128k Online',
-      maxContext: 131072,
+      code: 'sonar-pro',
+      displayName: 'Sonar Pro',
+      maxContext: 128000,
+      supportsWebSearch: true,
     },
     {
-      code: 'llama-3.1-sonar-medium-128k-online',
-      displayName: 'Llama 3.1 Sonar Medium 128k Online',
-      maxContext: 131072,
+      code: 'sonar-reasoning-pro',
+      displayName: 'Sonar Reasoning Pro',
+      maxContext: 128000,
+      modelType: 'reasoning',
+      supportsDeepThinking: true,
+      supportsWebSearch: true,
     },
     {
-      code: 'llama-3.1-sonar-large-128k-online',
-      displayName: 'Llama 3.1 Sonar Large 128k Online',
-      maxContext: 131072,
-    },
-    {
-      code: 'llama-3.1-sonar-huge-128k-online',
-      displayName: 'Llama 3.1 Sonar Huge 128k Online',
-      maxContext: 131072,
+      code: 'sonar-deep-research',
+      displayName: 'Sonar Deep Research',
+      maxContext: 128000,
+      modelType: 'reasoning',
+      supportsDeepThinking: true,
+      supportsWebSearch: true,
     },
   ],
   groqModels: [
@@ -235,329 +243,8 @@ export const defaultSettingsConfig: SettingsConfig = {
       maxContext: 131072,
     },
   ],
-  alibabaModels: [
-    // === Commercial (enabled) ===
-    { code: 'qwen3-max', displayName: 'Qwen3 Max', enabled: true, maxContext: 262144 },
-    {
-      code: 'qwen3-max-2026-01-23',
-      displayName: 'Qwen3 Max (2026-01-23)',
-      enabled: true,
-      maxContext: 262144,
-    },
-    {
-      code: 'qwen3-max-preview',
-      displayName: 'Qwen3 Max Preview',
-      enabled: false,
-      maxContext: 128000,
-    },
-    { code: 'qwen-max', displayName: 'Qwen Max', enabled: true, maxContext: 128000 },
-    { code: 'qwen3.5-plus', displayName: 'Qwen3.5 Plus', enabled: true, maxContext: 1000000 },
-    {
-      code: 'qwen3.5-flash',
-      displayName: 'Qwen3.5 Flash',
-      enabled: true,
-      maxContext: 1000000,
-    },
-    { code: 'qwen-plus', displayName: 'Qwen Plus', enabled: true, maxContext: 1000000 },
-    { code: 'qwen-flash', displayName: 'Qwen Flash', enabled: true, maxContext: 1000000 },
-    { code: 'qwen-turbo', displayName: 'Qwen Turbo', enabled: false, maxContext: 1000000 },
-    { code: 'qwq-plus', displayName: 'QwQ Plus', enabled: true, maxContext: 128000 },
-    // Qwen-Coder (specialized)
-    {
-      code: 'qwen3-coder-plus',
-      displayName: 'Qwen3 Coder Plus',
-      enabled: true,
-      maxContext: 1000000,
-    },
-    {
-      code: 'qwen3-coder-flash',
-      displayName: 'Qwen3 Coder Flash',
-      enabled: true,
-      maxContext: 1000000,
-    },
-    // === Thinking models (enabled) ===
-    {
-      code: 'qwen3-next-80b-a3b-thinking',
-      displayName: 'Qwen3-Next 80B Thinking',
-      enabled: true,
-      maxContext: 262000,
-    },
-    {
-      code: 'qwen3-next-80b-a3b-instruct',
-      displayName: 'Qwen3-Next 80B Instruct',
-      enabled: true,
-      maxContext: 262000,
-    },
-    {
-      code: 'qwen3-235b-a22b-thinking-2507',
-      displayName: 'Qwen3 235B Thinking',
-      enabled: true,
-      maxContext: 131072,
-    },
-    {
-      code: 'qwen3-235b-a22b-instruct-2507',
-      displayName: 'Qwen3 235B Instruct',
-      enabled: true,
-      maxContext: 131072,
-    },
-    {
-      code: 'qwen3-30b-a3b-thinking-2507',
-      displayName: 'Qwen3 30B Thinking',
-      enabled: true,
-      maxContext: 131072,
-    },
-    {
-      code: 'qwen3-30b-a3b-instruct-2507',
-      displayName: 'Qwen3 30B Instruct',
-      enabled: true,
-      maxContext: 131072,
-    },
-    { code: 'qwen3.5-397b-a17b', displayName: 'Qwen3.5 397B', enabled: true, maxContext: 131072 },
-    { code: 'qwen3.5-122b-a10b', displayName: 'Qwen3.5 122B', enabled: true, maxContext: 262144 },
-    { code: 'qwen3.5-27b', displayName: 'Qwen3.5 27B', enabled: true, maxContext: 262144 },
-    { code: 'qwen3.5-35b-a3b', displayName: 'Qwen3.5 35B A3B', enabled: true, maxContext: 262144 },
-    // === Open source (enabled) ===
-    { code: 'qwen3-235b-a22b', displayName: 'Qwen3 235B', enabled: true, maxContext: 131072 },
-    { code: 'qwen3-32b', displayName: 'Qwen3 32B', enabled: true, maxContext: 32768 },
-    { code: 'qwen3-30b-a3b', displayName: 'Qwen3 30B', enabled: true, maxContext: 32768 },
-    { code: 'qwen3-14b', displayName: 'Qwen3 14B', enabled: true, maxContext: 32768 },
-    { code: 'qwen3-8b', displayName: 'Qwen3 8B', enabled: true, maxContext: 32768 },
-    { code: 'qwen2.5-72b-instruct', displayName: 'Qwen2.5 72B', enabled: true, maxContext: 131072 },
-    { code: 'qwen2.5-32b-instruct', displayName: 'Qwen2.5 32B', enabled: true, maxContext: 32768 },
-    { code: 'qwen2.5-14b-instruct', displayName: 'Qwen2.5 14B', enabled: true, maxContext: 32768 },
-    {
-      code: 'qwen2.5-14b-instruct-1m',
-      displayName: 'Qwen2.5 14B 1M',
-      enabled: true,
-      maxContext: 1000000,
-    },
-    { code: 'qwen2.5-7b-instruct', displayName: 'Qwen2.5 7B', enabled: true, maxContext: 32768 },
-    {
-      code: 'qwen2.5-7b-instruct-1m',
-      displayName: 'Qwen2.5 7B 1M',
-      enabled: true,
-      maxContext: 1000000,
-    },
-    // === Least popular (disabled) ===
-    { code: 'qwen3-4b', displayName: 'Qwen3 4B', enabled: false, maxContext: 8192 },
-    { code: 'qwen3-1.7b', displayName: 'Qwen3 1.7B', enabled: false, maxContext: 4096 },
-    { code: 'qwen3-0.6b', displayName: 'Qwen3 0.6B', enabled: false, maxContext: 4096 },
-    { code: 'qwen2.5-3b-instruct', displayName: 'Qwen2.5 3B', enabled: false, maxContext: 32768 },
-    {
-      code: 'qwen2.5-1.5b-instruct',
-      displayName: 'Qwen2.5 1.5B',
-      enabled: false,
-      maxContext: 4096,
-    },
-    {
-      code: 'qwen2.5-0.5b-instruct',
-      displayName: 'Qwen2.5 0.5B',
-      enabled: false,
-      maxContext: 4096,
-    },
-    // Snapshot / regional variants (disabled)
-    {
-      code: 'qwen3-max-2025-09-23',
-      displayName: 'Qwen3 Max (2025-09-23)',
-      enabled: false,
-      maxContext: 128000,
-    },
-    {
-      code: 'qwen-plus-latest',
-      displayName: 'Qwen Plus Latest',
-      enabled: false,
-      maxContext: 128000,
-    },
-    {
-      code: 'qwen-plus-2025-01-25',
-      displayName: 'Qwen Plus (2025-01-25)',
-      enabled: false,
-      maxContext: 128000,
-    },
-    {
-      code: 'qwen-plus-2025-12-01',
-      displayName: 'Qwen Plus (2025-12-01)',
-      enabled: false,
-      maxContext: 1000000,
-    },
-    { code: 'qwen-max-latest', displayName: 'Qwen Max Latest', enabled: false, maxContext: 128000 },
-    {
-      code: 'qwen-max-2025-01-25',
-      displayName: 'Qwen Max (2025-01-25)',
-      enabled: false,
-      maxContext: 128000,
-    },
-    {
-      code: 'qwen-flash-2025-07-28',
-      displayName: 'Qwen Flash (2025-07-28)',
-      enabled: false,
-      maxContext: 1000000,
-    },
-    {
-      code: 'qwen-turbo-latest',
-      displayName: 'Qwen Turbo Latest',
-      enabled: false,
-      maxContext: 128000,
-    },
-    {
-      code: 'qwen-turbo-2024-11-01',
-      displayName: 'Qwen Turbo (2024-11-01)',
-      enabled: false,
-      maxContext: 128000,
-    },
-    {
-      code: 'qwen3.5-plus-2026-02-15',
-      displayName: 'Qwen3.5 Plus (2026-02-15)',
-      enabled: false,
-      maxContext: 1000000,
-    },
-    {
-      code: 'qwen3.5-flash-2026-02-23',
-      displayName: 'Qwen3.5 Flash (2026-02-23)',
-      enabled: false,
-      maxContext: 1000000,
-    },
-    {
-      code: 'qwen3-coder-plus-2025-09-23',
-      displayName: 'Qwen3 Coder Plus (2025-09-23)',
-      enabled: false,
-      maxContext: 1000000,
-    },
-    {
-      code: 'qwen3-coder-flash-2025-07-28',
-      displayName: 'Qwen3 Coder Flash (2025-07-28)',
-      enabled: false,
-      maxContext: 1000000,
-    },
-    { code: 'qwen-plus-us', displayName: 'Qwen Plus US', enabled: false, maxContext: 128000 },
-    { code: 'qwen-flash-us', displayName: 'Qwen Flash US', enabled: false, maxContext: 128000 },
-  ],
-  fireworksModels: [
-    // Tier 1: Essential Flagship Models
-    {
-      code: 'accounts/fireworks/models/deepseek-v3p2',
-      displayName: 'DeepSeek V3.2',
-      enabled: true,
-      maxContext: 163840,
-      supportsToolCall: true,
-      supportsVision: false,
-      supportsDeepThinking: false,
-      modelType: 'chat',
-      description: 'Best price-to-performance, MoE architecture, efficient reasoning',
-    },
-    {
-      code: 'accounts/fireworks/models/kimi-k2p5',
-      displayName: 'Kimi K2.5',
-      enabled: true,
-      maxContext: 262144,
-      supportsToolCall: true,
-      supportsVision: true,
-      supportsDeepThinking: true,
-      modelType: 'chat',
-      description: '1T params, unified vision+text, thinking/non-thinking modes, agentic SOTA',
-    },
-    {
-      code: 'accounts/fireworks/routers/kimi-k2p5-turbo',
-      displayName: 'Kimi K2.5 Turbo',
-      enabled: true,
-      maxContext: 262144,
-      supportsToolCall: true,
-      supportsVision: true,
-      supportsDeepThinking: true,
-      modelType: 'chat',
-      description: 'Full-access Fireworks router for Kimi K2.5 Turbo via the OpenAI-compatible inference API',
-    },
-    {
-      code: 'accounts/fireworks/models/deepseek-r1',
-      displayName: 'DeepSeek R1',
-      enabled: true,
-      maxContext: 163840,
-      supportsToolCall: false,
-      supportsVision: false,
-      supportsDeepThinking: true,
-      modelType: 'reasoning',
-      description: '671B MoE, 97.3% MATH-500, advanced reasoning & chain-of-thought',
-    },
-    {
-      code: 'accounts/fireworks/models/llama-v3p1-405b-instruct',
-      displayName: 'Llama 3.1 405B',
-      enabled: true,
-      maxContext: 131072,
-      supportsToolCall: true,
-      supportsVision: false,
-      supportsDeepThinking: false,
-      modelType: 'chat',
-      description: 'Meta flagship, 410B params, multilingual, strong generalist',
-    },
-    // Tier 2: Efficient & Balanced
-    {
-      code: 'accounts/fireworks/models/llama-v3p1-8b-instruct',
-      displayName: 'Llama 3.1 8B',
-      enabled: true,
-      maxContext: 131072,
-      supportsToolCall: true,
-      supportsVision: false,
-      supportsDeepThinking: false,
-      modelType: 'chat',
-      description: 'Fast inference, low cost, great for quick tasks & RAG',
-    },
-    {
-      code: 'accounts/fireworks/models/llama-v3p1-70b-instruct',
-      displayName: 'Llama 3.1 70B',
-      enabled: true,
-      maxContext: 131072,
-      supportsToolCall: true,
-      supportsVision: false,
-      supportsDeepThinking: false,
-      modelType: 'chat',
-      description: 'Balanced performance/cost for production workloads',
-    },
-    // Tier 3: Specialized & Advanced
-    {
-      code: 'accounts/fireworks/models/glm-5',
-      displayName: 'GLM-5',
-      enabled: true,
-      maxContext: 202752,
-      supportsToolCall: true,
-      supportsVision: false,
-      supportsDeepThinking: true,
-      modelType: 'chat',
-      description: '744B MoE (40B active), Z.ai flagship, advanced coding, long-horizon agents',
-    },
-    {
-      code: 'accounts/fireworks/models/qwen3-235b-a22b',
-      displayName: 'Qwen3 235B',
-      enabled: true,
-      maxContext: 131072,
-      supportsToolCall: true,
-      supportsVision: false,
-      supportsDeepThinking: true,
-      modelType: 'chat',
-      description: '235B MoE (22B active), multilingual, coding, dual-mode reasoning',
-    },
-    {
-      code: 'accounts/fireworks/models/glm-4p7',
-      displayName: 'GLM-4.7',
-      enabled: true,
-      maxContext: 202752,
-      supportsToolCall: true,
-      supportsVision: false,
-      supportsDeepThinking: true,
-      modelType: 'chat',
-      description: 'Cost-effective alternative to GLM-5, strong coding & reasoning',
-    },
-    {
-      code: 'accounts/fireworks/models/nvidia-nemotron-3-super-120b-a12b-fp8',
-      displayName: 'NVIDIA Nemotron 3',
-      enabled: true,
-      maxContext: 262144,
-      supportsToolCall: false,
-      supportsVision: false,
-      supportsDeepThinking: false,
-      modelType: 'chat',
-      description: '120B hybrid MoE, 7 languages, fast generation with MTP',
-    },
-  ],
+  alibabaModels: [],
+  fireworksModels: [],
 
   // AI parameters
   temperature: 0.7,
@@ -595,6 +282,16 @@ export const defaultSettingsConfig: SettingsConfig = {
   rememberLastChatSession: true,
   rememberLastSettingsSection: true,
   rememberLastDashboardView: true,
+  overlay: {
+    enabled: false,
+    launchOnStartup: false,
+    hotkey: 'CommandOrControl+Shift+/',
+    anchor: 'right',
+    compactWidth: 360,
+    expandedWidth: 460,
+    promptAutoHideEnabled: false,
+    promptAutoHideTimeout: 120,
+  },
 }
 
 interface SettingsConfigContextType {
@@ -634,23 +331,6 @@ export function SettingsConfigProvider({
       setSettingsConfig((prev) => ({ ...prev, ...initialSettings }))
     }
   }, [initialSettings])
-
-  // Migration: expand Alibaba models if user has cached old list (missing new models)
-  useEffect(() => {
-    const current = settingsConfig.alibabaModels ?? []
-    const defaultList = defaultSettingsConfig.alibabaModels
-    const needsExpansion = current.length < defaultList.length
-    if (needsExpansion && defaultList.length > 0) {
-      const merged = defaultList.map((d) => {
-        const existing = current.find((m) => m.code === d.code)
-        return existing ? { ...d, enabled: existing.enabled ?? d.enabled } : d
-      })
-      const defaultCodes = new Set(defaultList.map((d) => d.code))
-      const custom = current.filter((m) => !defaultCodes.has(m.code))
-      const expanded = [...merged, ...custom]
-      setSettingsConfig((prev) => ({ ...prev, alibabaModels: expanded }))
-    }
-  }, []) // Run once on mount
 
   // Load API keys from secure storage on startup
   useEffect(() => {

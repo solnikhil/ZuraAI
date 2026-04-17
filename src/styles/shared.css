@@ -428,13 +428,15 @@
 /* Action button staggered fade-in from bottom */
 
 @keyframes actionBtnFadeUp {
-    from {
+    0% {
         opacity: 0;
-        transform: translateY(6px);
+        filter: blur(6px);
+        transform: translate3d(0, 5px, 0) scale(0.96);
     }
-    to {
+    100% {
         opacity: 1;
-        transform: translateY(0);
+        filter: blur(0);
+        transform: translate3d(0, 0, 0) scale(1);
     }
 }
 
@@ -453,16 +455,28 @@
     animation: infoPopoverIn var(--motion-duration-normal) var(--motion-ease-emphasized) both;
 }
 
-.info-trigger-btn {
+.assistant-message-icon-button {
     position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 26px;
-    height: 26px;
+    width: 28px;
+    height: 28px;
+    padding: 6px;
+    border-radius: 8px;
+    flex-shrink: 0;
+    line-height: 1;
+    appearance: none;
+    -webkit-appearance: none;
+    outline: none;
+    box-sizing: border-box;
+    font: inherit;
+    text-decoration: none;
+}
+
+.info-trigger-btn {
     border-radius: 8px;
     cursor: pointer;
-    flex-shrink: 0;
     overflow: visible;
     background: transparent;
     border: 1px solid transparent;
@@ -471,23 +485,19 @@
         border-color var(--motion-duration-fast) var(--motion-ease-standard),
         box-shadow var(--motion-duration-fast) var(--motion-ease-standard),
         transform var(--motion-duration-fast) var(--motion-ease-standard),
-        color var(--motion-duration-fast) var(--motion-ease-standard);
+    color var(--motion-duration-fast) var(--motion-ease-standard);
     color: var(--theme-text-muted);
 }
 
-.info-trigger-btn:hover {
-    background: var(--theme-accent-muted);
-    border-color: color-mix(in srgb, var(--theme-accent) 20%, transparent);
-    color: var(--theme-accent);
-    transform: scale(1.08);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--theme-accent) 8%, transparent);
+.info-trigger-btn:focus,
+.info-trigger-btn:focus-visible,
+.assistant-message-icon-button:focus,
+.assistant-message-icon-button:focus-visible {
+    outline: none;
 }
 
 .info-trigger-btn[data-active='true'] {
-    background: var(--theme-accent-muted);
-    border-color: color-mix(in srgb, var(--theme-accent) 25%, transparent);
-    color: var(--theme-accent);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--theme-accent) 10%, transparent);
+    color: var(--theme-text-primary);
 }
 
 @keyframes viewEnter {
@@ -501,8 +511,22 @@
     }
 }
 
+@keyframes assistantMessageActionsReveal {
+    0% {
+        opacity: 0;
+        filter: blur(6px);
+        transform: translate3d(0, 6px, 0) scale(0.985);
+    }
+    100% {
+        opacity: 1;
+        filter: blur(0);
+        transform: translate3d(0, 0, 0) scale(1);
+    }
+}
+
 .action-btn-animate {
-    animation: actionBtnFadeUp var(--motion-duration-normal) var(--motion-ease-emphasized) both;
+    animation: actionBtnFadeUp 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    will-change: opacity, transform, filter;
 }
 
 .theme-section-enter {
@@ -550,6 +574,36 @@
 .message-action-surface:focus-visible::before {
     opacity: 1;
     transform: scale(1);
+}
+
+.assistant-message-actions {
+    will-change: opacity, transform, filter;
+    transition:
+        opacity 420ms cubic-bezier(0.16, 1, 0.3, 1),
+        transform 420ms cubic-bezier(0.16, 1, 0.3, 1),
+        filter 420ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .assistant-message-shell .assistant-message-actions {
+        opacity: 0;
+        pointer-events: none;
+        transform: translate3d(0, 5px, 0) scale(0.99);
+        filter: blur(5px);
+        transition-delay: 1000ms;
+        animation: none;
+    }
+
+    .assistant-message-shell:hover .assistant-message-actions,
+    .assistant-message-shell:focus-within .assistant-message-actions,
+    .assistant-message-actions[data-active='true'] {
+        opacity: 1;
+        pointer-events: auto;
+        transform: translate3d(0, 0, 0) scale(1);
+        filter: blur(0);
+        transition-delay: 0ms;
+        animation: none;
+    }
 }
 
 .theme-hover-surface {
@@ -601,7 +655,8 @@
 @media (prefers-reduced-motion: reduce) {
     .action-btn-animate,
     .info-popover-enter,
-    .theme-section-enter {
+    .theme-section-enter,
+    .assistant-message-actions {
         animation: none;
     }
 

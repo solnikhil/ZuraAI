@@ -1,8 +1,9 @@
-import { useState, useCallback, lazy, Suspense } from 'react'
+import { useState, useCallback, useEffect, lazy, Suspense } from 'react'
 import Sidebar from './Sidebar'
 import ChatArea from './ChatArea'
 import { useAppShell } from '../../contexts/AppShellContext'
 import { loadSettingsModule } from '../Settings/settingsLoader'
+import { normalizeSettingsSection } from '../../constants/settingsSections'
 
 // Lazy load Settings component for memory optimization
 // Only loads when user actually opens Settings
@@ -27,12 +28,29 @@ function SettingsLoadingFallback() {
 export default function DashboardLayout() {
   const {
     dashboardView: view,
+    setDashboardView,
     activeSettingsSection,
     setActiveSettingsSection,
     hasUnsavedSettings,
     setHasUnsavedSettings,
   } = useAppShell()
   const [showUnsavedWarning, setShowUnsavedWarning] = useState(false)
+
+  useEffect(() => {
+    if (!window.ipcRenderer?.on) return
+    const listener = (_event: unknown, section: unknown) => {
+      if (typeof section !== 'string') return
+      const normalized = normalizeSettingsSection(section)
+      if (normalized) {
+        setActiveSettingsSection(normalized)
+        setDashboardView('settings')
+      }
+    }
+    window.ipcRenderer.on('settings:navigate', listener)
+    return () => {
+      window.ipcRenderer.off('settings:navigate', listener)
+    }
+  }, [setActiveSettingsSection, setDashboardView])
 
   // This callback is passed to Settings to track unsaved changes
   const handleUnsavedChange = useCallback((hasChanges: boolean) => {

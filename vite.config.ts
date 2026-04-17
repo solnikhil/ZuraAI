@@ -30,7 +30,7 @@ export default defineConfig({
                 vite: {
                     build: {
                         rollupOptions: {
-                            external: ['playwright', 'playwright-core', 'bufferutil', 'utf-8-validate'],
+                            external: ['bufferutil', 'utf-8-validate'],
                         },
                     },
                     define: {
@@ -77,12 +77,10 @@ export default defineConfig({
                         return 'markdown'
                     }
                     if (
-                        id.includes('node_modules/@radix-ui/react-checkbox') ||
                         id.includes('node_modules/@radix-ui/react-collapsible') ||
                         id.includes('node_modules/@radix-ui/react-dialog') ||
                         id.includes('node_modules/@radix-ui/react-label') ||
                         id.includes('node_modules/@radix-ui/react-popover') ||
-                        id.includes('node_modules/@radix-ui/react-progress') ||
                         id.includes('node_modules/@radix-ui/react-scroll-area') ||
                         id.includes('node_modules/@radix-ui/react-separator') ||
                         id.includes('node_modules/@radix-ui/react-slot') ||

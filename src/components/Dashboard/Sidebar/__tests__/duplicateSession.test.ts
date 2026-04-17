@@ -16,7 +16,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { duplicateSession } from '../utils/duplicateSession'
-import type { ChatSession } from '../../../../contexts/ChatHistoryContext'
+import type { ChatSession } from '../../../../chat/types'
 
 // Test Helpers
 

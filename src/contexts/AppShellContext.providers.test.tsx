@@ -16,17 +16,48 @@ vi.mock('./SettingsContext', () => ({
 }))
 
 function Probe(): React.ReactElement {
-  const { activeSettingsSection, setActiveSettingsSection, sidebarWidth, setSidebarWidth } = useAppShell()
+  const {
+    activeSettingsSection,
+    setActiveSettingsSection,
+    sidebarWidth,
+    setSidebarWidth,
+    dashboardView,
+    setDashboardView,
+    canGoBack,
+    canGoForward,
+    goBack,
+    goForward,
+  } = useAppShell()
   return (
     <div>
       <div data-testid="section">{activeSettingsSection}</div>
       <div data-testid="sidebar-width">{sidebarWidth}</div>
+      <div data-testid="dashboard-view">{dashboardView}</div>
+      <div data-testid="can-go-back">{String(canGoBack)}</div>
+      <div data-testid="can-go-forward">{String(canGoForward)}</div>
       <button onClick={() => setActiveSettingsSection('models')}>set-models</button>
       <button onClick={() => setActiveSettingsSection('preferences')}>set-preferences</button>
       <button onClick={() => setActiveSettingsSection('servers')}>set-servers</button>
       <button onClick={() => setActiveSettingsSection('providers')}>set-providers</button>
       <button onClick={() => setSidebarWidth(999)}>set-sidebar-width</button>
+      <button onClick={() => setDashboardView('settings')}>set-settings-view</button>
+      <button onClick={() => setDashboardView('chat')}>set-chat-view</button>
+      <button onClick={goBack}>go-back</button>
+      <button onClick={goForward}>go-forward</button>
     </div>
+  )
+}
+
+function NavigationHarness(): React.ReactElement {
+  const [pathname, setPathname] = React.useState('/dashboard')
+
+  return (
+    <AppShellProvider pathname={pathname} navigateToPath={setPathname}>
+      <div data-testid="pathname">{pathname}</div>
+      <button onClick={() => setPathname('/settings')}>path-settings</button>
+      <button onClick={() => setPathname('/dashboard')}>path-dashboard</button>
+      <Probe />
+    </AppShellProvider>
   )
 }
 
@@ -111,6 +142,55 @@ describe('AppShellContext providers section normalization', () => {
 
     await waitFor(() => {
       expect(localStorage.getItem('zura-ui:sidebarWidth')).toBe(String(SIDEBAR_MAX_WIDTH_PX))
+    })
+  })
+
+  it('records shell history for dashboard view changes and navigates backward/forward', async () => {
+    render(<NavigationHarness />)
+
+    fireEvent.click(screen.getByText('set-settings-view'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('dashboard-view').textContent).toBe('settings')
+      expect(screen.getByTestId('can-go-back').textContent).toBe('true')
+    })
+
+    fireEvent.click(screen.getByText('go-back'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('dashboard-view').textContent).toBe('chat')
+      expect(screen.getByTestId('can-go-forward').textContent).toBe('true')
+    })
+
+    fireEvent.click(screen.getByText('go-forward'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('dashboard-view').textContent).toBe('settings')
+    })
+  })
+
+  it('records shell history for path changes and clears forward history after a new branch', async () => {
+    render(<NavigationHarness />)
+
+    fireEvent.click(screen.getByText('path-settings'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('pathname').textContent).toBe('/settings')
+      expect(screen.getByTestId('can-go-back').textContent).toBe('true')
+    })
+
+    fireEvent.click(screen.getByText('go-back'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('pathname').textContent).toBe('/dashboard')
+      expect(screen.getByTestId('can-go-forward').textContent).toBe('true')
+    })
+
+    fireEvent.click(screen.getByText('set-settings-view'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('dashboard-view').textContent).toBe('settings')
+      expect(screen.getByTestId('can-go-forward').textContent).toBe('false')
     })
   })
 })

@@ -1,7 +1,7 @@
 import { app } from 'electron'
 import os from 'os'
 
-import type { AppRuntimeInfo } from '../src/electron'
+import type { AppRuntimeInfo } from '../src/electron/types'
 
 function getPlatformLabel(platform: NodeJS.Platform, version?: string): string {
   if (platform === 'win32') {

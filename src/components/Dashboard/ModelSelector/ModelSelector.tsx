@@ -1,6 +1,8 @@
 import { motion } from 'framer-motion'
 import { ChevronDown, Cpu } from 'lucide-react'
+import { useEffect } from 'react'
 import { useSettings } from '../../../contexts/SettingsContext'
+import { useModelSelectorContext } from '../../../contexts/ModelSelectorContext'
 import { useModelSelector } from './useModelSelector'
 import { useResponsiveModelSelector } from './useResponsiveModelSelector'
 import { ModelSelectorDropdown } from './ModelSelectorDropdown'
@@ -20,10 +22,8 @@ export interface ModelSelectorProps {
   minimal?: boolean
   popoverAlign?: 'start' | 'center' | 'end'
 }
-export default function ModelSelector({
-  minimal,
-  popoverAlign = 'start',
-}: ModelSelectorProps) {
+export default function ModelSelector({ minimal, popoverAlign = 'start' }: ModelSelectorProps) {
+  const { consumeRequest } = useModelSelectorContext()
   const { settings } = useSettings()
   const {
     state,
@@ -40,10 +40,16 @@ export default function ModelSelector({
     toggleFavorite,
     handleSelect,
   } = useModelSelector()
-  const { compactMode, effectiveDropdownWidth, effectiveDropdownHeight, triggerLabelMaxWidth } =
-    useResponsiveModelSelector(settings.modelSelector?.dropdownWidth || 'default', minimal)
+  const { compactMode, effectiveDropdownWidth, effectiveDropdownHeight, triggerLabelMaxWidth } = useResponsiveModelSelector(settings.modelSelector?.dropdownWidth || 'default', minimal)
   const { animationsEnabled } = useMotionPreferences()
   const triggerTitle = `${currentName} - ${settings.modelProvider || 'auto'}`
+
+  useEffect(() => {
+    const requested = consumeRequest()
+    if (requested && !state.isOpen) {
+      setIsOpen(true)
+    }
+  })
   return (
     <Popover open={state.isOpen} onOpenChange={setIsOpen} modal={false}>
       <PopoverTrigger asChild>
@@ -68,12 +74,7 @@ export default function ModelSelector({
         >
           {!minimal &&
             (currentModel ? (
-              <ModelIcon
-                model={currentModel}
-                icon={getModelAttributes(currentModel).icon}
-                color={getModelAttributes(currentModel).color}
-                size={16}
-              />
+              <ModelIcon model={currentModel} icon={getModelAttributes(currentModel).icon} color={getModelAttributes(currentModel).color} size={16} />
             ) : (
               <Cpu size={14} />
             ))}

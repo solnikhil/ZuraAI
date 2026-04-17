@@ -14,7 +14,7 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react'
 import { Virtuoso, VirtuosoHandle } from 'react-virtuoso'
 import { ChevronDown } from 'lucide-react'
-import type { ToolCallResult } from '../../../contexts/ChatHistoryContext'
+import type { ToolCallResult } from '../../../chat/types'
 
 interface Message {
   id: string
@@ -184,6 +184,7 @@ export function VirtualMessageList({
 
   return (
     <div
+      data-select-all-scope="chat"
       style={{
         position: 'relative',
         height: '100%',

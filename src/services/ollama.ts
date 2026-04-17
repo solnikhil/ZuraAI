@@ -1,4 +1,5 @@
-import { parseNDJSONStream } from './streamUtils'
+import { parseNDJSONStream } from './streamUtils'
+import type { ChatMessage, ToolDefinition } from './types'
 
 export interface OllamaModel {
     name: string
@@ -131,12 +132,12 @@ export interface OllamaStreamChunk {
 export async function* streamOllamaCompletion(
     baseUrl: string,
     model: string,
-    messages: any[],
+    messages: ChatMessage[],
     options?: {
         temperature?: number
         num_ctx?: number
         think?: boolean | string
-        tools?: any[]
+        tools?: ToolDefinition[]
         onChunk?: (chunk: OllamaStreamChunk) => void
         signal?: AbortSignal
     }
@@ -179,12 +180,12 @@ export async function* streamOllamaCompletion(
 export const generateOllamaCompletion = async (
     baseUrl: string,
     model: string,
-    messages: any[],
+    messages: ChatMessage[],
     options?: {
         temperature?: number
         num_ctx?: number // Context window size
         think?: boolean | string
-        tools?: any[]
+        tools?: ToolDefinition[]
         signal?: AbortSignal
     }
 ): Promise<OllamaResponse> => {

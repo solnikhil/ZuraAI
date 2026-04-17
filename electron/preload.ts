@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron'
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 
 import type {
   McpApprovalDecision,
@@ -12,6 +12,16 @@ import type {
   McpServerRuntimeState,
   McpToolExecutionResult,
 } from '../src/mcp/types'
+import type {
+  IpcInvokeArgsMap,
+  IpcInvokeChannel,
+  IpcOnArgsMap,
+  IpcOnChannel,
+  IpcSendArgsMap,
+  IpcSendChannel,
+  OverlaySettings,
+  OverlayState,
+} from '../src/electron/types'
 
 const preloadLog = (message: string) => {
   console.log(`[PRELOAD] ${message}`)
@@ -38,9 +48,15 @@ contextBridge.exposeInMainWorld('windowControls', {
 // Only allow a small set of channels to be used by the renderer.
 // This prevents arbitrary IPC access if the renderer is compromised.
 
-const SEND_CHANNELS = new Set<string>()
+const SEND_CHANNELS = new Set<IpcSendChannel>([
+  'overlay:drag-start',
+  'overlay:drag-move',
+  'overlay:drag-end',
+  'open-model-selector',
+  'overlay:navigate-settings',
+])
 
-const INVOKE_CHANNELS = new Set<string>([
+const INVOKE_CHANNELS = new Set<IpcInvokeChannel>([
   // Chat store
   'chat-store:get-all',
   'chat-store:save-all',
@@ -65,7 +81,15 @@ const INVOKE_CHANNELS = new Set<string>([
   'updater:get-version',
 ])
 
-const ON_CHANNELS = new Set<string>(['update-available', 'update-downloaded'])
+const ON_CHANNELS = new Set<IpcOnChannel>([
+  'update-available',
+  'update-downloaded',
+  'prompt-popup:focus',
+  'overlay:pending-prompt',
+  'model-selector:open',
+  'settings:navigate',
+  'chat-store:changed',
+])
 
 const MCP_INVOKE_CHANNELS = new Set<string>([
   'mcp:list-servers',
@@ -86,10 +110,10 @@ const MCP_INVOKE_CHANNELS = new Set<string>([
 
 const MCP_ON_CHANNELS = new Set<string>(['mcp:state-changed'])
 
-function assertAllowed(
+function assertAllowed<TChannel extends string>(
   kind: 'send' | 'invoke' | 'on' | 'off',
-  channel: string,
-  allowed: Set<string>
+  channel: TChannel,
+  allowed: Set<TChannel>
 ) {
   if (!allowed.has(channel)) {
     throw new Error(`Blocked IPC ${kind} channel: ${channel}`)
@@ -99,19 +123,28 @@ function assertAllowed(
 contextBridge.exposeInMainWorld(
   'ipcRenderer',
   Object.freeze({
-    on: (channel: string, listener: (event: IpcRendererEvent, ...args: any[]) => void) => {
+    on: <TChannel extends IpcOnChannel>(
+      channel: TChannel,
+      listener: (event: IpcRendererEvent, ...args: IpcOnArgsMap[TChannel]) => void
+    ) => {
       assertAllowed('on', channel, ON_CHANNELS)
       ipcRenderer.on(channel, listener)
     },
-    off: (channel: string, listener: (event: IpcRendererEvent, ...args: any[]) => void) => {
+    off: <TChannel extends IpcOnChannel>(
+      channel: TChannel,
+      listener: (event: IpcRendererEvent, ...args: IpcOnArgsMap[TChannel]) => void
+    ) => {
       assertAllowed('off', channel, ON_CHANNELS)
       ipcRenderer.off(channel, listener)
     },
-    send: (channel: string, ...args: any[]) => {
+    send: <TChannel extends IpcSendChannel>(channel: TChannel, ...args: IpcSendArgsMap[TChannel]) => {
       assertAllowed('send', channel, SEND_CHANNELS)
       ipcRenderer.send(channel, ...args)
     },
-    invoke: (channel: string, ...args: any[]) => {
+    invoke: <TChannel extends IpcInvokeChannel>(
+      channel: TChannel,
+      ...args: IpcInvokeArgsMap[TChannel]
+    ) => {
       assertAllowed('invoke', channel, INVOKE_CHANNELS)
 
       // Extra validation for tool execution
@@ -161,6 +194,38 @@ contextBridge.exposeInMainWorld(
 )
 
 contextBridge.exposeInMainWorld(
+  'overlay',
+  Object.freeze({
+    show: () => ipcRenderer.invoke('overlay:show') as Promise<OverlayState>,
+    hide: () => ipcRenderer.invoke('overlay:hide') as Promise<OverlayState>,
+    toggle: () => ipcRenderer.invoke('overlay:toggle') as Promise<OverlayState>,
+    expand: () => ipcRenderer.invoke('overlay:expand') as Promise<OverlayState>,
+    collapse: () => ipcRenderer.invoke('overlay:collapse') as Promise<OverlayState>,
+    getState: () => ipcRenderer.invoke('overlay:get-state') as Promise<OverlayState>,
+    focusMainWindow: () => ipcRenderer.invoke('overlay:focus-main-window') as Promise<void>,
+    applySettings: (settings: Partial<OverlaySettings>) =>
+      ipcRenderer.invoke('overlay:apply-settings', settings) as Promise<OverlayState>,
+    onPendingPrompt: (callback: (prompt: string) => void) => {
+      const listener = (_event: IpcRendererEvent, prompt: string) => callback(prompt)
+      ipcRenderer.on('overlay:pending-prompt', listener)
+      return () => ipcRenderer.removeListener('overlay:pending-prompt', listener)
+    },
+    dragStart: (cursorX: number, cursorY: number) => {
+      ipcRenderer.send('overlay:drag-start', cursorX, cursorY)
+    },
+    dragMove: (cursorX: number, cursorY: number) => {
+      ipcRenderer.send('overlay:drag-move', cursorX, cursorY)
+    },
+    dragEnd: () => {
+      ipcRenderer.send('overlay:drag-end')
+    },
+    navigateSettings: (section: string) => {
+      ipcRenderer.send('overlay:navigate-settings', section)
+    },
+  })
+)
+
+contextBridge.exposeInMainWorld(
   'appInfo',
   Object.freeze({
     get: () => ipcRenderer.invoke('app-info:get'),
@@ -169,9 +234,27 @@ contextBridge.exposeInMainWorld(
 )
 
 contextBridge.exposeInMainWorld(
+  'promptPopup',
+  Object.freeze({
+    show: () => ipcRenderer.invoke('prompt-popup:show') as Promise<void>,
+    hide: () => ipcRenderer.invoke('prompt-popup:hide') as Promise<void>,
+    submit: (prompt: string) => ipcRenderer.invoke('prompt-popup:submit', prompt) as Promise<void>,
+    openModelSelector: () => {
+      ipcRenderer.send('open-model-selector')
+    },
+    onFocus: (callback: () => void) => {
+      const listener = () => callback()
+      ipcRenderer.on('prompt-popup:focus', listener)
+      return () => ipcRenderer.removeListener('prompt-popup:focus', listener)
+    },
+  })
+)
+
+contextBridge.exposeInMainWorld(
   'shell',
   Object.freeze({
     openExternal: (url: string) => ipcRenderer.invoke('shell:open-external', url),
+    readClipboardText: () => ipcRenderer.invoke('clipboard:read-text') as Promise<string>,
   })
 )
 

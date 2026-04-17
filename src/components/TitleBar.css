@@ -162,6 +162,11 @@
     -webkit-app-region: no-drag;
 }
 
+.app-titlebar__nav-cluster {
+    gap: 2px;
+    margin-right: 2px;
+}
+
 .app-titlebar__tab-group {
     display: inline-flex;
     align-items: center;
@@ -225,6 +230,11 @@
     justify-content: center;
     -webkit-app-region: no-drag;
     transition: background var(--motion-duration-fast) var(--motion-ease-standard), border-color var(--motion-duration-fast) var(--motion-ease-standard), transform var(--motion-duration-micro) var(--motion-ease-standard);
+    appearance: none;
+    -webkit-appearance: none;
+    box-shadow: none;
+    outline: none;
+    font: inherit;
 }
 
 .app-titlebar__controls .app-titlebar__icon-btn {
@@ -237,15 +247,18 @@
 }
 
 .app-titlebar__icon-btn:active {
-    transform: translateY(0.5px);
 }
 
 .app-titlebar__icon-btn:focus-visible {
-    outline: 2px solid var(--theme-accent);
-    outline-offset: 2px;
+    outline: none;
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--theme-border) 92%, transparent);
 }
 
 .app-titlebar__icon-btn--settings {
+    color: var(--titlebar-nav-icon-color);
+}
+
+.app-titlebar__icon-btn--nav {
     color: var(--titlebar-nav-icon-color);
 }
 
@@ -345,15 +358,18 @@
     color: var(--theme-text-primary);
 }
 
-.app-titlebar__info-trigger-core {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 16px;
-    height: 16px;
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--theme-text-secondary) 18%, transparent);
+.app-titlebar__info-trigger:focus,
+.app-titlebar__info-trigger:focus-visible,
+.app-titlebar__info-trigger[data-state='open'] {
+    background: var(--theme-surface-hover);
+    border-color: var(--theme-border);
     color: var(--theme-text-primary);
+    outline: none;
+    box-shadow: none;
+}
+
+.app-titlebar__info-trigger-core {
+    display: none;
 }
 
 .app-titlebar__spin {

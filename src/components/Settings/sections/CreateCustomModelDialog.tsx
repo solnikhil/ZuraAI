@@ -247,7 +247,7 @@ export function CreateCustomModelDialog({
             </div>
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
-            <MetaPill label="Type" value={modelType} />
+            <MetaPill label="Type" value={modelType ?? 'chat'} />
             <MetaPill label="Context" value={formatContextValue(maxContext)} />
             <MetaPill label="Capabilities" value={`${enabledCapabilitiesCount} enabled`} />
           </div>

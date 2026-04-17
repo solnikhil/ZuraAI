@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import type { ChatSession, Folder } from './ChatHistoryContext'
+import type { ChatSession, Folder } from '../chat/types'
 
 /**
  * Since the ChatHistoryContext provider has complex async initialization that
@@ -299,7 +299,7 @@ describe('ChatHistoryContext Sidebar Redesign Actions', () => {
 
     it('addTag should handle sessions without tags field', () => {
       const session = createMockSession({ id: 's1' })
-      delete (session as any).tags // Simulate legacy session without tags
+      delete (session as { tags?: string[] }).tags // Simulate legacy session without tags
       const result = addTagAction([session], 's1', 'important')
 
       expect(result[0].tags).toContain('important')

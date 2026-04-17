@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { shouldHideGenericToolResultCard } from './toolResultVisibility'
-import type { ToolCallResult } from '../../../contexts/ChatHistoryContext'
+import type { ToolCallResult } from '../../../chat/types'
 import type { ToolCall, ToolResult } from '../../../tools/types'
 
 function buildToolResult(overrides: {
@@ -51,8 +51,15 @@ describe('shouldHideGenericToolResultCard', () => {
           toolCall: { name: 'sequentialthinking' },
           result: {
             metadata: {
+              origin: 'mcp',
+              serverId: 'server-1',
+              namespacedToolName: 'mcp__seqthnk__sequentialthinking',
               serverName: 'seqthnk',
               originalToolName: 'sequentialthinking',
+              trusted: true,
+              approvalState: 'not-required',
+              durationMs: 12,
+              outcome: 'success',
             },
           },
         })

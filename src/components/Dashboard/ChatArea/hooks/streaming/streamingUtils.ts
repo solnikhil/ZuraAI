@@ -10,8 +10,11 @@ import type {
   ThinkingBlock,
   ToolCallResult,
   Message,
-} from '../../../../../contexts/ChatHistoryContext'
-import type { MessageContent, ReasoningDetail } from '../../../../../services/types'
+} from '../../../../../chat/types'
+import type {
+  ReasoningDetail,
+  ServiceAssistantMessage,
+} from '../../../../../services/types'
 import type { ToolCallingResponse } from '../../../../../tools/types'
 import { isSkippedBuiltinToolResult } from '../../../../../tools/types'
 import type { UpdateStreamingCallback } from './types'
@@ -32,6 +35,8 @@ export const FINAL_SYNTHESIS_RECOVERY_PROMPT =
   '\n\n*** FINAL ANSWER REQUIRED *** Your previous synthesis attempt returned no answer. Do not call any tools or web_search. Respond with at least one concise paragraph using only the results already returned. If the evidence is inconclusive, say so directly and summarize what was checked.\n\n'
 export const FINAL_SYNTHESIS_PLAIN_TEXT_ONLY_PROMPT =
   '\n\n*** PLAIN TEXT ONLY FINAL ANSWER REQUIRED *** You must respond with plain assistant text only. Do not emit tool_calls, function calls, JSON, XML, markdown code fences, or any request for more searching. Do not call any tools or web_search. Write at least one concise paragraph using only the returned search results. If the evidence is inconclusive, say so directly and summarize the strongest relevant findings.\n\n'
+export const SEARCH_SYNTHESIS_FAILURE_MESSAGE =
+  'I gathered web search results, but the provider failed to produce a final written answer. The search results are still available above.'
 
 const UNGROUNDED_SEARCH_SYNTHESIS_PATTERNS = [
   /\bknowledge cutoff\b/i,
@@ -39,6 +44,9 @@ const UNGROUNDED_SEARCH_SYNTHESIS_PATTERNS = [
   /\bi (?:can't|cannot|do not|don't) (?:browse|access|verify) (?:the )?(?:web|internet|current|real-time|up-to-date)/i,
   /\bconsult official documentation\b/i,
   /\bconsult (?:official documentation|recent peer-reviewed literature)\b/i,
+  /\bsearch results (?:returned|yielded|provided) no (?:information|results|evidence)\b/i,
+  /\bskipped (?:the )?query as (?:a )?duplicate\b/i,
+  /\bwithout successful retrieval\b/i,
 ]
 
 /** Compute per-chunk UI update cadence. */
@@ -144,8 +152,8 @@ export function reconstructToolCallMessage(
 
 /** Build a response object with fallback context for tool call handling */
 export function buildResponseWithFallback(
-  reconstructedMessage: { role: string; content: string; tool_calls?: unknown[] },
-  messages: Array<{ role: string; content?: string | unknown; [key: string]: unknown }>,
+  reconstructedMessage: ServiceAssistantMessage,
+  messages: Array<ServiceAssistantMessage>,
   reasoning?: string
 ): ToolCallingResponse & { _fallbackContext?: { lastUserMessage?: string; reasoning?: string } } {
   const lastUserMsg = [...messages].reverse().find((m) => m?.role === 'user')
@@ -372,35 +380,11 @@ export function buildFollowUpMessages(
   researchContextMsg: string,
   _researchRound: number,
   _totalSearchCount: number,
-  optimizedHistory: Array<{
-    role: string
-    content: string | MessageContent[]
-    tool_calls?: unknown[]
-    reasoning?: string
-    reasoning_details?: ReasoningDetail[]
-  }>,
-  lastAssistantMessage: {
-    role: string
-    content: string
-    tool_calls?: unknown[]
-    reasoning?: string
-    reasoning_details?: ReasoningDetail[]
-  },
+  optimizedHistory: Array<ServiceAssistantMessage>,
+  lastAssistantMessage: ServiceAssistantMessage,
   formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>
-): Array<{
-  role: string
-  content: string | MessageContent[]
-  tool_calls?: unknown[]
-  reasoning?: string
-  reasoning_details?: ReasoningDetail[]
-}> {
-  const messages: Array<{
-    role: string
-    content: string | MessageContent[]
-    tool_calls?: unknown[]
-    reasoning?: string
-    reasoning_details?: ReasoningDetail[]
-  }> = []
+): Array<ServiceAssistantMessage> {
+  const messages: Array<ServiceAssistantMessage> = []
   if (researchContextMsg) messages.push({ role: 'system', content: researchContextMsg })
   messages.push(...optimizedHistory, lastAssistantMessage, ...formattedResults)
   return messages
@@ -411,28 +395,10 @@ export function buildFinalSynthesisMessages(
   researchContextMsg: string,
   researchRound: number,
   totalSearchCount: number,
-  optimizedHistory: Array<{
-    role: string
-    content: string | MessageContent[]
-    tool_calls?: unknown[]
-    reasoning?: string
-    reasoning_details?: ReasoningDetail[]
-  }>,
-  lastAssistantMessage: {
-    role: string
-    content: string
-    tool_calls?: unknown[]
-    reasoning?: string
-    reasoning_details?: ReasoningDetail[]
-  },
+  optimizedHistory: Array<ServiceAssistantMessage>,
+  lastAssistantMessage: ServiceAssistantMessage,
   formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>
-): Array<{
-  role: string
-  content: string | MessageContent[]
-  tool_calls?: unknown[]
-  reasoning?: string
-  reasoning_details?: ReasoningDetail[]
-}> {
+): Array<ServiceAssistantMessage> {
   return [
     { role: 'system', content: FINAL_SYNTHESIS_PROMPT },
     ...buildFollowUpMessages(
@@ -450,28 +416,10 @@ export function buildRecoverySynthesisMessages(
   researchContextMsg: string,
   researchRound: number,
   totalSearchCount: number,
-  optimizedHistory: Array<{
-    role: string
-    content: string | MessageContent[]
-    tool_calls?: unknown[]
-    reasoning?: string
-    reasoning_details?: ReasoningDetail[]
-  }>,
-  lastAssistantMessage: {
-    role: 'assistant'
-    content: string
-    tool_calls?: unknown[]
-    reasoning?: string
-    reasoning_details?: ReasoningDetail[]
-  },
+  optimizedHistory: Array<ServiceAssistantMessage>,
+  lastAssistantMessage: ServiceAssistantMessage,
   formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>
-): Array<{
-  role: string
-  content: string | MessageContent[]
-  tool_calls?: unknown[]
-  reasoning?: string
-  reasoning_details?: ReasoningDetail[]
-}> {
+): Array<ServiceAssistantMessage> {
   return [
     { role: 'system', content: FINAL_SYNTHESIS_RECOVERY_PROMPT },
     ...buildFollowUpMessages(
@@ -489,28 +437,10 @@ export function buildPlainTextOnlySynthesisMessages(
   researchContextMsg: string,
   researchRound: number,
   totalSearchCount: number,
-  optimizedHistory: Array<{
-    role: string
-    content: string | MessageContent[]
-    tool_calls?: unknown[]
-    reasoning?: string
-    reasoning_details?: ReasoningDetail[]
-  }>,
-  lastAssistantMessage: {
-    role: 'assistant'
-    content: string
-    tool_calls?: unknown[]
-    reasoning?: string
-    reasoning_details?: ReasoningDetail[]
-  },
+  optimizedHistory: Array<ServiceAssistantMessage>,
+  lastAssistantMessage: ServiceAssistantMessage,
   formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>
-): Array<{
-  role: string
-  content: string | MessageContent[]
-  tool_calls?: unknown[]
-  reasoning?: string
-  reasoning_details?: ReasoningDetail[]
-}> {
+): Array<ServiceAssistantMessage> {
   return [
     { role: 'system', content: FINAL_SYNTHESIS_PLAIN_TEXT_ONLY_PROMPT },
     ...buildFollowUpMessages(
@@ -535,73 +465,14 @@ export function stripStandaloneHorizontalRule(content: string): string {
     .trimEnd()
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function normalizeSummaryText(value: unknown, maxLength: number): string {
-  const normalized = String(value || '')
-    .replace(/\s+/g, ' ')
-    .trim()
-
-  if (!normalized) return ''
-  if (normalized.length <= maxLength) return normalized
-  return `${normalized.slice(0, maxLength - 3).trimEnd()}...`
-}
-
-export function buildFallbackAnswerFromToolResults(
+export function buildSearchSynthesisFailureMessage(
   toolResults: ToolCallResult[] | undefined
 ): string | null {
-  const webSearchCalls = (toolResults || []).filter(
+  const hasSuccessfulWebSearch = (toolResults || []).some(
     (result) => result.toolCall.name === 'web_search' && result.result?.success
   )
-  if (webSearchCalls.length === 0) return null
 
-  const querySummaries = [...new Set(
-    webSearchCalls
-      .map((result) => normalizeSummaryText(result.toolCall.arguments?.query, 80))
-      .filter(Boolean)
-  )]
-
-  const evidenceLines: string[] = []
-  for (const result of webSearchCalls) {
-    const data = result.result?.data
-    if (!isRecord(data) || !Array.isArray(data.results)) continue
-
-    for (const entry of data.results) {
-      if (!isRecord(entry)) continue
-
-      const title = normalizeSummaryText(entry.title, 100)
-      const snippet = normalizeSummaryText(entry.snippet, 180)
-      if (!title && !snippet) continue
-
-      evidenceLines.push(
-        title && snippet ? `- ${title}: ${snippet}` : `- ${title || snippet}`
-      )
-
-      if (evidenceLines.length >= 3) {
-        break
-      }
-    }
-
-    if (evidenceLines.length >= 3) {
-      break
-    }
-  }
-
-  const queryLead =
-    querySummaries.length > 0
-      ? ` for ${querySummaries.map((query) => `"${query}"`).join(', ')}`
-      : ''
-
-  if (evidenceLines.length === 0) {
-    return `The provider returned web search results${queryLead}, but no final written synthesis. The gathered search results are preserved above.`
-  }
-
-  return [
-    `The provider returned web search results${queryLead}, but no final written synthesis. Strongest visible findings from the gathered results:`,
-    ...evidenceLines,
-  ].join('\n')
+  return hasSuccessfulWebSearch ? SEARCH_SYNTHESIS_FAILURE_MESSAGE : null
 }
 
 export function shouldRetryUngroundedSearchSynthesis(content: string): boolean {
