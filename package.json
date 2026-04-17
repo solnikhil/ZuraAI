@@ -1,6 +1,6 @@
 {
   "name": "zura",
-  "version": "0.0.26",
+  "version": "0.0.5",
   "description": "ZuraAI",
   "author": "Nikhil",
   "license": "MIT",
@@ -120,7 +120,6 @@
       ],
       "icon": "build/icon.ico",
       "executableName": "ZuraAI",
-      "publisherName": "Nikhil",
       "verifyUpdateCodeSignature": false
     },
     "nsis": {
