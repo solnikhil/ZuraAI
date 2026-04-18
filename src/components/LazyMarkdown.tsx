@@ -390,7 +390,7 @@ function RunnableCodeBlock({ code, execLanguage, codeView, headerStyle, headerLe
                 {copyButton}
             </div>
             {showOutput ? (
-                <pre style={{ margin: 0, padding: '14px 16px 18px', background: 'transparent', overflowX: 'auto' }}>
+                <pre style={{ margin: 0, padding: '14px 16px 18px', background: 'transparent', overflowX: 'auto', maxHeight: '400px', overflowY: 'auto' }}>
                     <code style={{
                         whiteSpace: 'pre-wrap',
                         fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
