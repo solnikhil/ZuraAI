@@ -33,3 +33,9 @@ export {
     createTray,
     destroyTray
 } from './tray'
+
+export {
+    showSpotlight,
+    hideSpotlight,
+    destroySpotlight,
+} from './spotlightOverlay'

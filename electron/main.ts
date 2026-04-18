@@ -27,6 +27,11 @@ import {
   unregisterCodeExecutionHandlers,
   disposeCodeExecutionApprovalManager,
 } from './tools/code-execution'
+import {
+  registerComputerUseHandlers,
+  unregisterComputerUseHandlers,
+  disposeComputerUseApprovalManager,
+} from './tools/computer-use'
 
 
 // Resolve packaged asset paths consistently in both development and production.
@@ -80,6 +85,8 @@ app.on('will-quit', () => {
   unregisterMcpHandlers()
   disposeCodeExecutionApprovalManager()
   unregisterCodeExecutionHandlers()
+  disposeComputerUseApprovalManager()
+  unregisterComputerUseHandlers()
 
   cleanupAutoUpdater()
   destroyTray()
@@ -135,6 +142,7 @@ app.whenReady().then(async () => {
   registerToolHandlers()
   registerUpdaterHandlers()
   registerCodeExecutionHandlers()
+  registerComputerUseHandlers()
 
   registerSessionSecurityHandlers()
   await initializeMcpManager({

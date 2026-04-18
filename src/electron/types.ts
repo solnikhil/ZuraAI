@@ -233,6 +233,12 @@ export interface CodeExecutionAPI {
   onPendingApproval: (callback: (pending: unknown[]) => void) => () => void
 }
 
+export interface ComputerUseAPI {
+  resolveApproval: (requestId: string, approved: boolean) => Promise<unknown>
+  onPendingApproval: (callback: (pending: unknown[]) => void) => () => void
+  onKilled: (callback: () => void) => () => void
+}
+
 
 export interface McpAPI {
   listServers: () => Promise<McpServerConfig[]>

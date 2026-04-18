@@ -114,10 +114,31 @@ function CodeExecutionLogo({ size, className, style }: CustomSkillLogoProps): Re
   )
 }
 
+function ComputerUseLogo({ size, className, style }: CustomSkillLogoProps): React.ReactElement {
+  const px = typeof size === 'number' ? size : parseInt(String(size), 10) || 24
+  return (
+    <svg
+      width={px}
+      height={px}
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      style={style}
+    >
+      <rect x="2" y="3" width="20" height="14" rx="2" stroke="currentColor" strokeWidth="1.7" fill="none" />
+      <path d="M8 21h8" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+      <path d="M12 17v4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+      <path d="M10 8l4 3-4 3" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 const SKILL_CUSTOM_LOGOS: Record<string, React.ComponentType<CustomSkillLogoProps>> = {
   web_research: WebResearchLogo,
   tavily: WebResearchLogo,
   code_execution: CodeExecutionLogo,
+  computer_use: ComputerUseLogo,
 }
 
 const SKILL_FALLBACK_ICONS: Record<string, React.ComponentType<{ size?: number | string; color?: string }>> = {
@@ -127,6 +148,7 @@ const SKILL_FALLBACK_COLORS: Record<string, string> = {
   web_research: '#4dabf7',
   tavily: '#4dabf7',
   code_execution: '#a78bfa',
+  computer_use: '#10b981',
 }
 
 const ASSET_EXTENSIONS = ['svg', 'png', 'webp', 'jpg', 'jpeg'] as const

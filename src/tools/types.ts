@@ -7,7 +7,7 @@ import type { ReasoningDetail } from '../services/types'
 
 export type ToolOrigin = 'builtin-main' | 'builtin-renderer' | 'mcp'
 
-export type ToolCategory = 'search' | 'utility' | 'system' | 'browser' | 'mcp'
+export type ToolCategory = 'search' | 'utility' | 'system' | 'browser' | 'mcp' | 'computer-use'
 
 export interface BuiltinToolExecutionMetadata {
     origin: 'builtin-main' | 'builtin-renderer'

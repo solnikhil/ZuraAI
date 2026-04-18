@@ -88,6 +88,9 @@ import { ShieldIcon as ShieldBase } from '@phosphor-icons/react/dist/csr/Shield'
 import { SparkleIcon as SparkleBase } from '@phosphor-icons/react/dist/csr/Sparkle'
 import { SquareIcon as SquareBase } from '@phosphor-icons/react/dist/csr/Square'
 import { StarIcon as StarBase } from '@phosphor-icons/react/dist/csr/Star'
+import { DesktopIcon as DesktopBase } from '@phosphor-icons/react/dist/csr/Desktop'
+import { CursorIcon as CursorBase } from '@phosphor-icons/react/dist/csr/Cursor'
+import { KeyboardIcon as KeyboardBase } from '@phosphor-icons/react/dist/csr/Keyboard'
 import { GearSixIcon as GearSixBase } from '@phosphor-icons/react/dist/csr/GearSix'
 import { TrendUpIcon as TrendUpBase } from '@phosphor-icons/react/dist/csr/TrendUp'
 import { TrashIcon as TrashBase } from '@phosphor-icons/react/dist/csr/Trash'
@@ -224,3 +227,6 @@ export const X = withDefaultWeight(XBase, 'duotone', 'X')
 export const XCircle = withDefaultWeight(XCircleBase, 'duotone', 'XCircle')
 export const XIcon = X
 export const Zap = withDefaultWeight(LightningBase, 'duotone', 'Zap')
+export const Monitor = withDefaultWeight(DesktopBase, 'duotone', 'Monitor')
+export const MousePointer = withDefaultWeight(CursorBase, 'duotone', 'MousePointer')
+export const Keyboard = withDefaultWeight(KeyboardBase, 'duotone', 'Keyboard')

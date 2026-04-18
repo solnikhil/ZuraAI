@@ -13,10 +13,11 @@ export function resolveSystemPromptTemplate(systemPrompt: string): string {
  * @param settings - Current application settings
  * @returns The effective system prompt to use for AI calls
  */
-export function getEffectiveSystemPrompt(settings: Pick<Settings, 'systemPrompt'> & Partial<Pick<Settings, 'skills' | 'codeExecutionPrompt'>>): string {
+export function getEffectiveSystemPrompt(settings: Pick<Settings, 'systemPrompt'> & Partial<Pick<Settings, 'skills' | 'codeExecutionPrompt' | 'computerUsePrompt'>>): string {
     const resolvedSystemPrompt = resolveSystemPromptTemplate(settings.systemPrompt)
     const enabledSkillsSection = buildEnabledSkillsPrompt(settings.skills, {
         codeExecutionPrompt: settings.codeExecutionPrompt,
+        computerUsePrompt: settings.computerUsePrompt,
     })
     if (!enabledSkillsSection) {
         return resolvedSystemPrompt

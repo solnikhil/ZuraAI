@@ -100,6 +100,90 @@ Best practices:
     category: 'utility',
     origin: 'builtin-main',
   },
+  computer_screenshot: {
+    description: 'Capture a screenshot of the desktop. Always call this first before performing any action to see the current screen state. Returns a base64 PNG image with screen dimensions.',
+    parameters: {
+      type: 'object',
+      description: 'Arguments for taking a screenshot.',
+      properties: {
+        display_id: { type: 'string', description: 'Optional display ID for multi-monitor setups. Defaults to primary display.' },
+      },
+      required: [],
+    },
+    category: 'computer-use',
+    origin: 'builtin-main',
+  },
+  computer_click: {
+    description: 'Click at specific pixel coordinates on the screen. Coordinates must match the screenshot dimensions. Returns a post-action screenshot.',
+    parameters: {
+      type: 'object',
+      description: 'Arguments for clicking.',
+      properties: {
+        x: { type: 'number', description: 'X coordinate in pixels.' },
+        y: { type: 'number', description: 'Y coordinate in pixels.' },
+        button: { type: 'string', description: 'Mouse button.', enum: ['left', 'right', 'middle'], default: 'left' },
+      },
+      required: ['x', 'y'],
+    },
+    category: 'computer-use',
+    origin: 'builtin-main',
+  },
+  computer_type: {
+    description: 'Type text at the current cursor position. Click the target input field first before typing.',
+    parameters: {
+      type: 'object',
+      description: 'Arguments for typing text.',
+      properties: {
+        text: { type: 'string', description: 'Text to type.' },
+      },
+      required: ['text'],
+    },
+    category: 'computer-use',
+    origin: 'builtin-main',
+  },
+  computer_key: {
+    description: 'Press a key or key combination. Use for keyboard shortcuts, Enter, Tab, Escape, arrow keys, etc. Format: "enter", "ctrl+c", "alt+tab", "shift+ctrl+s".',
+    parameters: {
+      type: 'object',
+      description: 'Arguments for pressing keys.',
+      properties: {
+        key: { type: 'string', description: 'Key or combo string, e.g. "enter", "ctrl+c", "alt+tab".' },
+      },
+      required: ['key'],
+    },
+    category: 'computer-use',
+    origin: 'builtin-main',
+  },
+  computer_scroll: {
+    description: 'Scroll at specific coordinates. Move the cursor to the position first, then scroll.',
+    parameters: {
+      type: 'object',
+      description: 'Arguments for scrolling.',
+      properties: {
+        x: { type: 'number', description: 'X coordinate to scroll at.' },
+        y: { type: 'number', description: 'Y coordinate to scroll at.' },
+        direction: { type: 'string', description: 'Scroll direction.', enum: ['up', 'down', 'left', 'right'] },
+        amount: { type: 'number', description: 'Scroll amount in clicks (default 3).', default: 3 },
+      },
+      required: ['x', 'y', 'direction'],
+    },
+    category: 'computer-use',
+    origin: 'builtin-main',
+  },
+  computer_cursor_position: {
+    description: 'Move the cursor to specific coordinates without clicking. Use to hover over elements.',
+    parameters: {
+      type: 'object',
+      description: 'Arguments for moving the cursor.',
+      properties: {
+        x: { type: 'number', description: 'X coordinate.' },
+        y: { type: 'number', description: 'Y coordinate.' },
+      },
+      required: ['x', 'y'],
+    },
+    category: 'computer-use',
+    origin: 'builtin-main',
+  },
 } satisfies Record<string, BuiltinMainToolManifestEntry>
 
 export type BuiltinMainToolName = keyof typeof builtInMainToolManifest

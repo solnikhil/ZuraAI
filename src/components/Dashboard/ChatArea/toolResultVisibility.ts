@@ -24,6 +24,10 @@ export function shouldHideGenericToolResultCard(result: ToolCallResult): boolean
     return true
   }
 
+  if (result.toolCall.name.startsWith('computer_')) {
+    return true
+  }
+
 
   if (/^mcp__/.test(result.toolCall.name)) {
     return true

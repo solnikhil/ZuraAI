@@ -150,7 +150,7 @@ contextBridge.exposeInMainWorld(
       // Extra validation for tool execution
       if (channel === 'execute-tool') {
         const toolName = args[0]
-        if (toolName !== 'web_search' && toolName !== 'code_execution') {
+        if (toolName !== 'web_search' && toolName !== 'code_execution' && !(typeof toolName === 'string' && toolName.startsWith('computer_'))) {
           return Promise.resolve({
             success: false,
             error: `Tool "${String(toolName)}" is disabled.`,
@@ -274,6 +274,25 @@ contextBridge.exposeInMainWorld(
       const listener = (_event: IpcRendererEvent, pending: unknown[]) => callback(pending)
       ipcRenderer.on('code-execution:pending-approval', listener)
       return () => ipcRenderer.removeListener('code-execution:pending-approval', listener)
+    },
+  })
+)
+
+
+contextBridge.exposeInMainWorld(
+  'computerUse',
+  Object.freeze({
+    resolveApproval: (requestId: string, approved: boolean) =>
+      ipcRenderer.invoke('computer-use:resolve-approval', requestId, approved),
+    onPendingApproval: (callback: (pending: unknown[]) => void) => {
+      const listener = (_event: IpcRendererEvent, pending: unknown[]) => callback(pending)
+      ipcRenderer.on('computer-use:pending-approval', listener)
+      return () => ipcRenderer.removeListener('computer-use:pending-approval', listener)
+    },
+    onKilled: (callback: () => void) => {
+      const listener = () => callback()
+      ipcRenderer.on('computer-use:killed', listener)
+      return () => ipcRenderer.removeListener('computer-use:killed', listener)
     },
   })
 )

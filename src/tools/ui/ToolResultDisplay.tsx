@@ -258,6 +258,68 @@ export default function ToolResultDisplay({
   }
 
 
+  if (toolName.startsWith('computer_')) {
+    const data = result as Record<string, unknown> | undefined
+    const action = typeof data?.action === 'string' ? data.action : toolName.replace('computer_', '')
+    const screenshot = typeof data?.screenshot === 'string' ? data.screenshot : (typeof data?.image === 'string' ? data.image : null)
+    const screenW = typeof data?.screenWidth === 'number' ? data.screenWidth : null
+    const screenH = typeof data?.screenHeight === 'number' ? data.screenHeight : null
+    const actionLabel = action === 'screenshot' ? 'Screenshot' : action === 'click' ? 'Click' : action === 'type' ? 'Type' : action === 'key' ? 'Key Press' : action === 'scroll' ? 'Scroll' : action === 'cursor_position' ? 'Move Cursor' : action
+
+    return (
+      <div className={`tool-result tool-result-mcp tool-result-mcp-status-${error ? 'error' : 'success'}`}>
+        <div
+          className="tool-result-header tool-result-clickable"
+          onClick={() => setIsExpanded(!isExpanded)}
+        >
+          <div className="tool-result-heading">
+            <span className="tool-result-leading-icon">
+              {error ? <XCircle size={16} /> : <CheckCircle size={16} />}
+            </span>
+            <div className="tool-result-title-group">
+              <span className="tool-result-title">{actionLabel}</span>
+              {screenW && screenH && <span className="tool-result-subtitle">{screenW}×{screenH}</span>}
+            </div>
+          </div>
+          <div className="tool-result-badge-row">
+            <span className={`tool-result-mcp-status tool-result-mcp-status-${error ? 'error' : 'success'}`}>
+              {error ? 'Failed' : 'Done'}
+            </span>
+            {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          </div>
+        </div>
+
+        {isExpanded && (
+          <div className="tool-result-body">
+            {error && (
+              <div className="tool-result-mcp-detail-row">
+                <span className="tool-result-mcp-detail-label">Error</span>
+                <pre className="tool-result-mcp-detail-value" style={{ whiteSpace: 'pre-wrap' }}>{error}</pre>
+              </div>
+            )}
+            {screenshot && (
+              <div style={{ padding: '8px 12px' }}>
+                <img
+                  src={`data:image/png;base64,${screenshot}`}
+                  alt={`${actionLabel} result`}
+                  style={{ width: '100%', maxHeight: '300px', objectFit: 'contain', borderRadius: '8px', background: '#000' }}
+                />
+              </div>
+            )}
+            {durationMs != null && (
+              <div className="tool-result-mcp-detail-row">
+                <span className="tool-result-mcp-detail-label">Duration</span>
+                <span className="tool-result-mcp-detail-value">{durationMs}ms</span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+
+
   const status = getGenericToolStatus(mcpMetadata, error)
   const resultBody = stringifyToolValue(result)
   const detailBody = error || resultBody

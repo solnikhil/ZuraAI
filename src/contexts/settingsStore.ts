@@ -209,6 +209,10 @@ export function normalizeStoredSettings(raw: string | null): Settings {
     parsed.codeExecutionPrompt = defaultSettings.codeExecutionPrompt
   }
 
+  if (parsed.computerUsePrompt === undefined) {
+    parsed.computerUsePrompt = defaultSettings.computerUsePrompt
+  }
+
   if (!parsed.modelProvider) parsed.modelProvider = defaultSettings.modelProvider
   if (!ALL_PROVIDER_IDS.includes(parsed.modelProvider as typeof ALL_PROVIDER_IDS[number])) {
     parsed.modelProvider = 'openrouter'
@@ -369,6 +373,10 @@ export function normalizeStoredSettings(raw: string | null): Settings {
     parsed.codeExecutionAutoApprove = defaultSettings.codeExecutionAutoApprove
   }
 
+  if (typeof parsed.computerUseAutoApprove !== 'boolean') {
+    parsed.computerUseAutoApprove = defaultSettings.computerUseAutoApprove
+  }
+
   if (!parsed.favoriteModels) parsed.favoriteModels = defaultSettings.favoriteModels
 
   parsed.titleBarDensity = 'compact'
@@ -519,12 +527,14 @@ export function getInitialConfigSettings(settings: Settings): Partial<SettingsCo
     systemPrompt: settings.systemPrompt,
     webSearchPrompt: settings.webSearchPrompt,
     codeExecutionPrompt: settings.codeExecutionPrompt,
+    computerUsePrompt: settings.computerUsePrompt,
     streamResponses: settings.streamResponses,
     toolsEnabled: settings.toolsEnabled,
     enabledTools: settings.enabledTools,
     skills: settings.skills,
     titleModel: settings.titleModel,
     codeExecutionAutoApprove: settings.codeExecutionAutoApprove,
+    computerUseAutoApprove: settings.computerUseAutoApprove,
     titleModelProvider: settings.titleModelProvider,
     titleGenerationPrompt: settings.titleGenerationPrompt,
     titleGenerationDisplayMode: settings.titleGenerationDisplayMode,

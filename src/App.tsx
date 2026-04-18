@@ -17,6 +17,7 @@ import { McpProvider } from './mcp/McpContext'
 import { ToastProvider, ErrorBoundary } from './components/shared'
 import { McpApprovalDialog } from './components/mcp/McpApprovalDialog'
 import { CodeExecutionApprovalDialog } from './components/CodeExecutionApprovalDialog'
+import { ComputerUseApprovalDialog } from './components/ComputerUseApprovalDialog'
 
 import { loadSettingsModule } from './components/Settings/settingsLoader'
 
@@ -92,6 +93,7 @@ function App() {
                     <McpApprovalDialog />
                   </ModelSelectorProvider>
                     <CodeExecutionApprovalDialog />
+                    <ComputerUseApprovalDialog />
 
                   </QuickSendProvider>
                 </StreamingProvider>

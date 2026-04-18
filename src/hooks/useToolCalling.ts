@@ -20,7 +20,7 @@ import {
 import { getAllToolDefinitions, getBuiltinToolDefinitions } from '../tools/definitions'
 import { shouldRequestToolFollowUp } from '../tools/followUpPolicy'
 import { shouldEnableTools } from '../utils/promptSelection'
-import { getWebResearchToolExposure, getCodeExecutionToolExposure } from '../skills'
+import { getWebResearchToolExposure, getCodeExecutionToolExposure, getComputerUseToolExposure } from '../skills'
 import { createMcpToolRegistry } from '../tools/mcpRegistry'
 import type { ProviderId } from '../providers'
 
@@ -91,6 +91,16 @@ export function useToolCalling() {
         } else {
             if (!enabledTools.includes('code_execution')) {
                 enabledTools.push('code_execution')
+            }
+        }
+
+        const computerUseToolExposure = getComputerUseToolExposure(settings.skills)
+        const computerUseTools = ['computer_screenshot', 'computer_click', 'computer_type', 'computer_key', 'computer_scroll', 'computer_cursor_position']
+        if (!computerUseToolExposure.exposeComputerUse) {
+            enabledTools = enabledTools.filter((tool) => !computerUseTools.includes(tool))
+        } else {
+            for (const tool of computerUseTools) {
+                if (!enabledTools.includes(tool)) enabledTools.push(tool)
             }
         }
 

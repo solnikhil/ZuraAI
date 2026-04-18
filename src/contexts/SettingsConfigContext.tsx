@@ -26,6 +26,7 @@ import { defaultSystemPrompt } from '../prompts/defaultSystemPrompt'
 import { defaultWebSearchPrompt } from '../prompts/defaultWebSearchPrompt'
 import { defaultTitleGenerationPrompt } from '../prompts/defaultTitleGenerationPrompt'
 import { defaultCodeExecutionPrompt } from '../prompts/defaultCodeExecutionPrompt'
+import { defaultComputerUsePrompt } from '../prompts/defaultComputerUsePrompt'
 import { defaultSkillsSettings, type SkillsSettings } from '../skills'
 import type { ProviderId } from '../providers/providerTypes'
 import { warnOnceDuringHmr } from './hmrWarnings'
@@ -108,6 +109,8 @@ export interface SettingsConfig {
   webSearchPrompt: string
   /** Code execution instructions appended when Code Execution is enabled */
   codeExecutionPrompt: string
+  /** Computer use instructions appended when Computer Use is enabled */
+  computerUsePrompt: string
   streamResponses: boolean
 
   // Tool settings
@@ -116,6 +119,8 @@ export interface SettingsConfig {
   skills: SkillsSettings
   /** When true, code execution runs without the approval dialog */
   codeExecutionAutoApprove: boolean
+  /** When true, computer use actions run without the approval dialog */
+  computerUseAutoApprove: boolean
   /** @deprecated Legacy migration input only; do not use in runtime logic. */
   webSearchEnabled?: boolean
   /** @deprecated Legacy migration input only; do not use in runtime logic. */
@@ -259,6 +264,7 @@ export const defaultSettingsConfig: SettingsConfig = {
   systemPrompt: defaultSystemPrompt,
   webSearchPrompt: defaultWebSearchPrompt,
   codeExecutionPrompt: defaultCodeExecutionPrompt,
+  computerUsePrompt: defaultComputerUsePrompt,
   streamResponses: true,
 
   // Tool settings
@@ -267,6 +273,7 @@ export const defaultSettingsConfig: SettingsConfig = {
   skills: defaultSkillsSettings,
 
   codeExecutionAutoApprove: false,
+  computerUseAutoApprove: false,
   // Title generation
   titleModelProvider: 'openrouter',
   titleModel: '',

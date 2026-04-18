@@ -325,6 +325,7 @@ if (!hasSettingsChanges && !hasMcpChanges) {
               <SkillsSection
                 skills={pendingSettings.skills}
                 codeExecutionAutoApprove={pendingSettings.codeExecutionAutoApprove}
+                computerUseAutoApprove={pendingSettings.computerUseAutoApprove}
                 onChange={(changes) => handleChange(changes)}
               />
             )}

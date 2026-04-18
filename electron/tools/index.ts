@@ -7,6 +7,11 @@ import { executeWebSearch } from './webSearch'
 import type { WebSearchArgs } from './webSearch'
 import { executeCode } from './codeExecution'
 import type { CodeExecutionArgs } from './codeExecution'
+import {
+  executeScreenshot, executeClick, executeType, executeKey, executeScroll, executeCursorPosition,
+} from './computerUse'
+import type { ScreenshotArgs, ClickArgs, TypeArgs, KeyArgs, ScrollArgs, CursorPositionArgs } from './computerUse'
+import { showSpotlight } from '../windows/spotlightOverlay'
 import { isBuiltinMainToolName, type BuiltinMainToolName } from '../../src/tools/builtinTools'
 
 import type { ToolResult, ToolHandler } from './types'
@@ -93,9 +98,50 @@ function normalizeCodeExecutionArgsInput(args: unknown): CodeExecutionArgs {
 /**
  * Registry of all tool handlers (restricted)
  */
+
+function normalizeScreenshotArgs(args: unknown): ScreenshotArgs {
+  const r = (typeof args === 'object' && args !== null) ? args as Record<string, unknown> : {}
+  return { display_id: typeof r.display_id === 'string' ? r.display_id : undefined }
+}
+
+function normalizeClickArgs(args: unknown): { args: ClickArgs; autoApprove: boolean } {
+  const r = (typeof args === 'object' && args !== null) ? args as Record<string, unknown> : {}
+  const button = (r.button === 'right' || r.button === 'middle') ? r.button : 'left' as const
+  return { args: { x: Number(r.x) || 0, y: Number(r.y) || 0, button }, autoApprove: r.autoApprove === true }
+}
+
+function normalizeTypeArgs(args: unknown): { args: TypeArgs; autoApprove: boolean } {
+  const r = (typeof args === 'object' && args !== null) ? args as Record<string, unknown> : {}
+  return { args: { text: typeof r.text === 'string' ? r.text : '' }, autoApprove: r.autoApprove === true }
+}
+
+function normalizeKeyArgs(args: unknown): { args: KeyArgs; autoApprove: boolean } {
+  const r = (typeof args === 'object' && args !== null) ? args as Record<string, unknown> : {}
+  return { args: { key: typeof r.key === 'string' ? r.key : '' }, autoApprove: r.autoApprove === true }
+}
+
+function normalizeScrollArgs(args: unknown): { args: ScrollArgs; autoApprove: boolean } {
+  const r = (typeof args === 'object' && args !== null) ? args as Record<string, unknown> : {}
+  const dir = ['up', 'down', 'left', 'right'].includes(r.direction as string) ? r.direction as ScrollArgs['direction'] : 'down'
+  return { args: { x: Number(r.x) || 0, y: Number(r.y) || 0, direction: dir, amount: typeof r.amount === 'number' ? r.amount : undefined }, autoApprove: r.autoApprove === true }
+}
+
+function normalizeCursorArgs(args: unknown): { args: CursorPositionArgs; autoApprove: boolean } {
+  const r = (typeof args === 'object' && args !== null) ? args as Record<string, unknown> : {}
+  return { args: { x: Number(r.x) || 0, y: Number(r.y) || 0 }, autoApprove: r.autoApprove === true }
+}
+
+const spotlightFn = (opts: { x: number; y: number; label?: string }) => showSpotlight(opts)
+
 const toolHandlers: Record<BuiltinMainToolName, ToolHandler> = {
   web_search: (args) => executeWebSearch(normalizeWebSearchArgsInput(args)),
   code_execution: (args) => executeCode(normalizeCodeExecutionArgsInput(args)),
+  computer_screenshot: (args) => executeScreenshot(normalizeScreenshotArgs(args)),
+  computer_click: (args) => { const n = normalizeClickArgs(args); return executeClick(n.args, n.autoApprove, spotlightFn) },
+  computer_type: (args) => { const n = normalizeTypeArgs(args); return executeType(n.args, n.autoApprove) },
+  computer_key: (args) => { const n = normalizeKeyArgs(args); return executeKey(n.args, n.autoApprove) },
+  computer_scroll: (args) => { const n = normalizeScrollArgs(args); return executeScroll(n.args, n.autoApprove, spotlightFn) },
+  computer_cursor_position: (args) => { const n = normalizeCursorArgs(args); return executeCursorPosition(n.args, n.autoApprove, spotlightFn) },
 }
 
 /**

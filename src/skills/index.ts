@@ -1,4 +1,4 @@
-export type SkillId = 'web_research' | 'code_execution'
+export type SkillId = 'web_research' | 'code_execution' | 'computer_use'
 
 export interface SkillState {
   enabled: boolean
@@ -9,9 +9,12 @@ export interface WebResearchSkillState extends SkillState {}
 
 export interface CodeExecutionSkillState extends SkillState {}
 
+export interface ComputerUseSkillState extends SkillState {}
+
 export type SkillsSettings = Record<string, SkillState> & {
   web_research: WebResearchSkillState
   code_execution: CodeExecutionSkillState
+  computer_use: ComputerUseSkillState
 }
 
 export interface BuiltInSkill {
@@ -43,6 +46,17 @@ export const BUILT_IN_SKILLS: BuiltInSkill[] = [
       'Prefer Python for math/data tasks and JavaScript for string/JSON manipulation.',
     ],
   },
+  {
+    id: 'computer_use',
+    name: 'Computer Use',
+    description: 'Control your computer with AI — take screenshots, click, type, scroll, and automate desktop tasks.',
+    note: 'Requires approval before each action. Press Esc+Esc to emergency stop.',
+    usageGuidance: [
+      'Always take a screenshot first to see the current screen state.',
+      'Analyze the screenshot carefully before performing any action.',
+      'Verify results with a follow-up screenshot after each action.',
+    ],
+  },
 ]
 
 const DEFAULT_WEB_RESEARCH_SKILL: WebResearchSkillState = {
@@ -53,9 +67,14 @@ const DEFAULT_CODE_EXECUTION_SKILL: CodeExecutionSkillState = {
   enabled: false,
 }
 
+const DEFAULT_COMPUTER_USE_SKILL: ComputerUseSkillState = {
+  enabled: false,
+}
+
 export const defaultSkillsSettings: SkillsSettings = {
   web_research: DEFAULT_WEB_RESEARCH_SKILL,
   code_execution: DEFAULT_CODE_EXECUTION_SKILL,
+  computer_use: DEFAULT_COMPUTER_USE_SKILL,
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -86,7 +105,7 @@ export function normalizeSkillsSettings(raw: unknown): SkillsSettings {
 
   if (isRecord(raw)) {
     for (const [skillId, value] of Object.entries(raw)) {
-      if (skillId === 'web_research' || skillId === 'code_execution' || skillId === 'testing') continue
+      if (skillId === 'web_research' || skillId === 'code_execution' || skillId === 'testing' || skillId === 'computer_use') continue
       const generic = normalizeGenericSkillState(value)
       if (generic) {
         normalized[skillId] = generic
@@ -102,6 +121,10 @@ export function normalizeSkillsSettings(raw: unknown): SkillsSettings {
   normalized.code_execution = normalizeKnownSkill(
     rawRecord?.code_execution,
     defaultSkillsSettings.code_execution
+  )
+  normalized.computer_use = normalizeKnownSkill(
+    rawRecord?.computer_use,
+    defaultSkillsSettings.computer_use
   )
 
   return normalized as SkillsSettings
@@ -195,6 +218,31 @@ export function getCodeExecutionToolExposure(skills: SkillsSettings | undefined)
   }
 }
 
+// ==================== Computer Use helpers ====================
+
+export function isComputerUseEnabled(skills: SkillsSettings | undefined): boolean {
+  return normalizeSkillsSettings(skills).computer_use.enabled
+}
+
+export function withComputerUseEnabled(skills: SkillsSettings | undefined, enabled: boolean): SkillsSettings {
+  const normalized = normalizeSkillsSettings(skills)
+  return {
+    ...normalized,
+    computer_use: {
+      ...normalized.computer_use,
+      enabled,
+    },
+  }
+}
+
+export function getComputerUseToolExposure(skills: SkillsSettings | undefined): {
+  exposeComputerUse: boolean
+} {
+  return {
+    exposeComputerUse: normalizeSkillsSettings(skills).computer_use.enabled,
+  }
+}
+
 // ==================== Generic skill helpers ====================
 
 export function isSkillEnabled(skills: SkillsSettings | undefined, skillId: SkillId): boolean {
@@ -215,7 +263,7 @@ export function withSkillEnabled(skills: SkillsSettings | undefined, skillId: Sk
 
 export function buildEnabledSkillsPrompt(
   skills: SkillsSettings | undefined,
-  options?: { codeExecutionPrompt?: string },
+  options?: { codeExecutionPrompt?: string; computerUsePrompt?: string },
 ): string {
   if (!skills) return ''
 
@@ -234,12 +282,21 @@ export function buildEnabledSkillsPrompt(
     skillLines.push('- Prefer Python for math/data tasks. Keep code concise and self-contained. The sandbox has no filesystem or network access.')
   }
 
+  if (normalized.computer_use.enabled) {
+    skillLines.push('- Computer Use (`computer_use`): take screenshots, click, type, scroll, and automate desktop tasks.')
+    skillLines.push('- Always screenshot first, analyze before acting, verify results with follow-up screenshots.')
+  }
+
   if (skillLines.length > 0) {
     sections.push(`Enabled Skills:\n${skillLines.join('\n')}`)
   }
 
   if (normalized.code_execution.enabled && options?.codeExecutionPrompt) {
     sections.push(options.codeExecutionPrompt)
+  }
+
+  if (normalized.computer_use.enabled && options?.computerUsePrompt) {
+    sections.push(options.computerUsePrompt)
   }
 
   return sections.join('\n\n')
