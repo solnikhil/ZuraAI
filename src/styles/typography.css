@@ -329,8 +329,11 @@
     font-weight: normal;
 }
 
-/* Ensure code-block backgrounds stay transparent across syntax highlighter layers */
-.markdown-code-block,
+/* Keep the outer code-block container tinted while clearing inner highlighter layers */
+.markdown-code-block {
+    background: color-mix(in srgb, var(--theme-surface-active) 58%, black 42%) !important;
+}
+
 .markdown-code-block > div,
 .markdown-code-block pre,
 .markdown-code-block code,

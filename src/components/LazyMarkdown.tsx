@@ -409,7 +409,7 @@ const MarkdownContent = React.memo(function MarkdownContent({ content, webSource
                         borderRadius: '30px',
                         overflow: 'hidden',
                         border: '1px solid var(--theme-border)',
-                        background: 'transparent',
+                        background: 'color-mix(in srgb, var(--theme-surface-active) 72%, black 28%)',
                         boxShadow: 'none'
                     }
                     const codeHeaderStyle: React.CSSProperties = {
