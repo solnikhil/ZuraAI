@@ -95,7 +95,7 @@ export function useToolCalling() {
         }
 
         const computerUseToolExposure = getComputerUseToolExposure(settings.skills)
-        const computerUseTools = ['computer_screenshot', 'computer_click', 'computer_type', 'computer_key', 'computer_scroll', 'computer_cursor_position']
+        const computerUseTools = ['computer_screenshot', 'computer_click', 'computer_type', 'computer_key', 'computer_scroll', 'computer_cursor_position', 'computer_list_windows', 'computer_launch_app', 'computer_find_app', 'computer_close_app']
         if (!computerUseToolExposure.exposeComputerUse) {
             enabledTools = enabledTools.filter((tool) => !computerUseTools.includes(tool))
         } else {

@@ -11,6 +11,7 @@ import { defaultSystemPrompt } from '../../../prompts/defaultSystemPrompt'
 import { defaultWebSearchPrompt } from '../../../prompts/defaultWebSearchPrompt'
 import { defaultTitleGenerationPrompt } from '../../../prompts/defaultTitleGenerationPrompt'
 import { defaultCodeExecutionPrompt } from '../../../prompts/defaultCodeExecutionPrompt'
+import { defaultComputerUsePrompt } from '../../../prompts/defaultComputerUsePrompt'
 import { estimateMessageTokens } from '../../../utils/tokenUtils'
 
 /**
@@ -25,12 +26,15 @@ export interface SystemPromptSectionProps {
   titleGenerationPrompt: string
   /** Current code execution prompt value */
   codeExecutionPrompt: string
+  /** Current computer use prompt value */
+  computerUsePrompt: string
   /** Callback when system prompt changes */
   onChange: (changes: {
     systemPrompt?: string
     webSearchPrompt?: string
     titleGenerationPrompt?: string
     codeExecutionPrompt?: string
+    computerUsePrompt?: string
   }) => void
 }
 
@@ -42,6 +46,7 @@ export function SystemPromptSection({
   webSearchPrompt,
   titleGenerationPrompt,
   codeExecutionPrompt,
+  computerUsePrompt,
   onChange,
 }: SystemPromptSectionProps): React.ReactElement {
   const [localValue, setLocalValue] = useState(systemPrompt)
@@ -58,6 +63,9 @@ export function SystemPromptSection({
   const [localCodeExecutionValue, setLocalCodeExecutionValue] = useState(codeExecutionPrompt)
   const [codeExecutionCharCount, setCodeExecutionCharCount] = useState(codeExecutionPrompt.length)
   const [isCodeExecutionEditorExpanded, setIsCodeExecutionEditorExpanded] = useState(false)
+  const [localComputerUseValue, setLocalComputerUseValue] = useState(computerUsePrompt)
+  const [computerUseCharCount, setComputerUseCharCount] = useState(computerUsePrompt.length)
+  const [isComputerUseEditorExpanded, setIsComputerUseEditorExpanded] = useState(false)
 
   // Sync local state when props change (e.g. discard/reset from parent settings bar)
   useEffect(() => {
@@ -87,6 +95,13 @@ export function SystemPromptSection({
       setCodeExecutionCharCount(codeExecutionPrompt.length)
     }
   }, [codeExecutionPrompt, localCodeExecutionValue])
+
+  useEffect(() => {
+    if (computerUsePrompt !== localComputerUseValue) {
+      setLocalComputerUseValue(computerUsePrompt)
+      setComputerUseCharCount(computerUsePrompt.length)
+    }
+  }, [computerUsePrompt, localComputerUseValue])
 
   const handleChange = (value: string) => {
     setLocalValue(value)
@@ -136,6 +151,18 @@ export function SystemPromptSection({
     onChange({ codeExecutionPrompt: defaultCodeExecutionPrompt })
   }
 
+  const handleComputerUseChange = (value: string) => {
+    setLocalComputerUseValue(value)
+    setComputerUseCharCount(value.length)
+    onChange({ computerUsePrompt: value })
+  }
+
+  const handleComputerUseReset = () => {
+    setLocalComputerUseValue(defaultComputerUsePrompt)
+    setComputerUseCharCount(defaultComputerUsePrompt.length)
+    onChange({ computerUsePrompt: defaultComputerUsePrompt })
+  }
+
   const estTokensInput = useMemo(
     () => estimateMessageTokens({ role: 'system', content: localValue }),
     [localValue]
@@ -154,6 +181,11 @@ export function SystemPromptSection({
   const estCodeExecutionTokensInput = useMemo(
     () => estimateMessageTokens({ role: 'system', content: localCodeExecutionValue }),
     [localCodeExecutionValue]
+  )
+
+  const estComputerUseTokensInput = useMemo(
+    () => estimateMessageTokens({ role: 'system', content: localComputerUseValue }),
+    [localComputerUseValue]
   )
 
   const showLengthWarning = charCount > 10000
@@ -334,6 +366,60 @@ export function SystemPromptSection({
           </div>
         )}
       </Card>
+
+      <Card className="settings-list-card settings-prompt-card">
+        <div className="settings-prompt-header">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Computer Use Prompt</h3>
+            <div className="settings-list-row__description">
+              Instructions appended when Computer Use is enabled. Guides how the assistant
+              takes screenshots, clicks, types, and navigates the desktop.
+            </div>
+            <div className="settings-prompt-note">
+              This only applies when the Computer Use skill is active.
+            </div>
+          </div>
+          <div className="settings-prompt-metrics" aria-live="polite">
+            <span className="settings-prompt-badge">
+              {computerUseCharCount.toLocaleString()} chars
+            </span>
+            <span className="settings-prompt-badge">
+              ~{estComputerUseTokensInput.toLocaleString()} tokens input
+            </span>
+          </div>
+        </div>
+
+        <div className="settings-prompt-controls">
+          <button
+            type="button"
+            className="settings-prompt-toggle"
+            onClick={() => setIsComputerUseEditorExpanded((prev) => !prev)}
+            aria-expanded={isComputerUseEditorExpanded}
+          >
+            <ChevronDown
+              size={14}
+              className={`settings-prompt-toggle__icon ${isComputerUseEditorExpanded ? 'is-open' : ''}`}
+              aria-hidden="true"
+            />
+            {isComputerUseEditorExpanded ? 'Hide Computer Use Prompt' : 'Show Computer Use Prompt'}
+          </button>
+          <button type="button" onClick={handleComputerUseReset} className="settings-row-button">
+            Load Default Computer Use Prompt
+          </button>
+        </div>
+
+        {isComputerUseEditorExpanded && (
+          <div className="settings-prompt-editor-wrap">
+            <textarea
+              value={localComputerUseValue}
+              onChange={(e) => handleComputerUseChange(e.target.value)}
+              className="settings-prompt-editor"
+              placeholder="Enter your computer use prompt here..."
+            />
+          </div>
+        )}
+      </Card>
+
 
       <Card className="settings-list-card settings-prompt-card">
         <div className="settings-prompt-header">

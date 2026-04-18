@@ -8,7 +8,7 @@ import type { WebSearchArgs } from './webSearch'
 import { executeCode } from './codeExecution'
 import type { CodeExecutionArgs } from './codeExecution'
 import {
-  executeScreenshot, executeClick, executeType, executeKey, executeScroll, executeCursorPosition,
+  executeScreenshot, executeClick, executeType, executeKey, executeScroll, executeCursorPosition, executeListWindows, executeLaunchApp, executeCloseApp, executeFindApp,
 } from './computerUse'
 import type { ScreenshotArgs, ClickArgs, TypeArgs, KeyArgs, ScrollArgs, CursorPositionArgs } from './computerUse'
 import { showSpotlight } from '../windows/spotlightOverlay'
@@ -142,6 +142,10 @@ const toolHandlers: Record<BuiltinMainToolName, ToolHandler> = {
   computer_key: (args) => { const n = normalizeKeyArgs(args); return executeKey(n.args, n.autoApprove) },
   computer_scroll: (args) => { const n = normalizeScrollArgs(args); return executeScroll(n.args, n.autoApprove, spotlightFn) },
   computer_cursor_position: (args) => { const n = normalizeCursorArgs(args); return executeCursorPosition(n.args, n.autoApprove, spotlightFn) },
+  computer_list_windows: () => executeListWindows(),
+  computer_launch_app: (args) => { const r = (typeof args === 'object' && args !== null) ? args as Record<string, unknown> : {}; return executeLaunchApp({ name: typeof r.name === 'string' ? r.name : '' }) },
+  computer_find_app: (args) => { const r = (typeof args === 'object' && args !== null) ? args as Record<string, unknown> : {}; return executeFindApp({ query: typeof r.query === 'string' ? r.query : '' }) },
+  computer_close_app: (args) => { const r = (typeof args === 'object' && args !== null) ? args as Record<string, unknown> : {}; return executeCloseApp({ title: typeof r.title === 'string' ? r.title : '' }) },
 }
 
 /**

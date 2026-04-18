@@ -33,7 +33,7 @@ export default defineConfig({
                 vite: {
                     build: {
                         rollupOptions: {
-                            external: ['bufferutil', 'utf-8-validate', 'duck-duck-scrape'],
+                            external: ['bufferutil', 'utf-8-validate', 'duck-duck-scrape', '@nut-tree-fork/nut-js', '@nut-tree-fork/libnut', '@nut-tree-fork/shared', '@nut-tree-fork/provider-interfaces', '@nut-tree-fork/default-clipboard-provider'],
                         },
                     },
                     define: {

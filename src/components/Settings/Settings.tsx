@@ -345,6 +345,7 @@ if (!hasSettingsChanges && !hasMcpChanges) {
                 webSearchPrompt={pendingSettings.webSearchPrompt}
                 titleGenerationPrompt={pendingSettings.titleGenerationPrompt}
                 codeExecutionPrompt={pendingSettings.codeExecutionPrompt}
+                computerUsePrompt={pendingSettings.computerUsePrompt}
                 onChange={(changes) => handleChange(changes)}
               />
             )}

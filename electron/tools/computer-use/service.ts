@@ -1,7 +1,7 @@
 import type { ToolResult } from '../types'
 import type { ScreenshotArgs, ClickArgs, TypeArgs, KeyArgs, ScrollArgs, CursorPositionArgs, ComputerActionType } from './types'
 import type { ComputerUseApprovalManager } from './approvalManager'
-import { captureScreenshot } from './screenshot'
+import { captureScreenshot, listWindows } from './screenshot'
 import { performClick, performType, performKeyPress, performScroll, performCursorMove } from './actions'
 import { MAX_ACTIONS_PER_SESSION, ACTION_DELAY_MS } from './constants'
 import { registerKillSwitch, unregisterKillSwitch } from './killSwitch'
@@ -10,6 +10,9 @@ let approvalManager: ComputerUseApprovalManager | null = null
 let actionCount = 0
 let aborted = false
 let maxActions = MAX_ACTIONS_PER_SESSION
+// Coordinate scaling: screenshot may be resized, so we track the ratio
+let scaleX = 1
+let scaleY = 1
 
 export function setApprovalManager(manager: ComputerUseApprovalManager): void {
   approvalManager = manager
@@ -53,6 +56,9 @@ export async function executeScreenshot(args: ScreenshotArgs): Promise<ToolResul
   registerKillSwitch()
   try {
     const result = await captureScreenshot(args.display_id)
+    // Store scale factors so action coordinates (based on resized screenshot) map to actual screen
+    scaleX = result.actualWidth / result.width
+    scaleY = result.actualHeight / result.height
     return {
       success: true,
       data: {
@@ -114,8 +120,15 @@ async function executeAction(
   }
 }
 
+/** Scale model coordinates (based on resized screenshot) to actual screen coordinates */
+function scaleCoords(x: number, y: number): { x: number; y: number } {
+  return { x: Math.round(x * scaleX), y: Math.round(y * scaleY) }
+}
+
 export async function executeClick(args: ClickArgs, autoApprove: boolean, showSpotlight?: (opts: { x: number; y: number; label?: string }) => Promise<void>): Promise<ToolResult> {
-  return executeAction('click', args as unknown as Record<string, unknown>, () => performClick(args), autoApprove, showSpotlight)
+  const scaled = scaleCoords(args.x, args.y)
+  const scaledArgs = { ...args, ...scaled }
+  return executeAction('click', args as unknown as Record<string, unknown>, () => performClick(scaledArgs), autoApprove, showSpotlight ? (opts) => showSpotlight({ ...opts, ...scaleCoords(opts.x, opts.y) }) : undefined)
 }
 
 export async function executeType(args: TypeArgs, autoApprove: boolean): Promise<ToolResult> {
@@ -127,9 +140,160 @@ export async function executeKey(args: KeyArgs, autoApprove: boolean): Promise<T
 }
 
 export async function executeScroll(args: ScrollArgs, autoApprove: boolean, showSpotlight?: (opts: { x: number; y: number; label?: string }) => Promise<void>): Promise<ToolResult> {
-  return executeAction('scroll', args as unknown as Record<string, unknown>, () => performScroll(args), autoApprove, showSpotlight)
+  const scaled = scaleCoords(args.x, args.y)
+  const scaledArgs = { ...args, ...scaled }
+  return executeAction('scroll', args as unknown as Record<string, unknown>, () => performScroll(scaledArgs), autoApprove, showSpotlight ? (opts) => showSpotlight({ ...opts, ...scaleCoords(opts.x, opts.y) }) : undefined)
 }
 
 export async function executeCursorPosition(args: CursorPositionArgs, autoApprove: boolean, showSpotlight?: (opts: { x: number; y: number; label?: string }) => Promise<void>): Promise<ToolResult> {
-  return executeAction('cursor_position', args as unknown as Record<string, unknown>, () => performCursorMove(args), autoApprove, showSpotlight)
+  const scaled = scaleCoords(args.x, args.y)
+  const scaledArgs = { ...args, ...scaled }
+  return executeAction('cursor_position', args as unknown as Record<string, unknown>, () => performCursorMove(scaledArgs), autoApprove, showSpotlight ? (opts) => showSpotlight({ ...opts, ...scaleCoords(opts.x, opts.y) }) : undefined)
+}
+
+
+export async function executeListWindows(): Promise<ToolResult> {
+  try {
+    const result = await listWindows()
+    return { success: true, data: result }
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : 'Failed to list windows' }
+  }
+}
+
+export async function executeLaunchApp(args: { name: string }): Promise<ToolResult> {
+  const { name } = args
+  if (!name?.trim()) return { success: false, error: 'App name is required' }
+
+  try {
+    const { shell } = await import('electron')
+    const appName = name.trim()
+
+    // If it looks like a path, open it directly
+    if (appName.includes('/') || appName.includes('\\') || appName.endsWith('.exe') || appName.endsWith('.app')) {
+      await shell.openPath(appName)
+    } else if (process.platform === 'win32') {
+      // On Windows, use start command
+      const { exec } = await import('child_process')
+      await new Promise<void>((resolve, reject) => {
+        exec(`start "" "${appName}"`, (err) => err ? reject(err) : resolve())
+      })
+    } else {
+      // macOS: use open -a
+      const { exec } = await import('child_process')
+      await new Promise<void>((resolve, reject) => {
+        exec(`open -a "${appName}"`, (err) => err ? reject(err) : resolve())
+      })
+    }
+
+    await delay(500) // Wait for app to start
+    return { success: true, data: { launched: appName } }
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : 'Failed to launch app' }
+  }
+}
+
+export async function executeCloseApp(args: { title: string }): Promise<ToolResult> {
+  const { title } = args
+  if (!title?.trim()) return { success: false, error: 'Window title is required' }
+
+  try {
+    const target = title.trim().toLowerCase()
+
+    if (process.platform === 'win32') {
+      const { exec } = await import('child_process')
+      await new Promise<void>((resolve, reject) => {
+        exec(`taskkill /FI "WINDOWTITLE eq ${title.trim()}" /F`, (err) => {
+          // taskkill returns error if no matching window, but that's ok
+          if (err && !err.message.includes('not found')) reject(err)
+          else resolve()
+        })
+      })
+    } else {
+      // macOS: use osascript
+      const { exec } = await import('child_process')
+      await new Promise<void>((resolve, reject) => {
+        exec(`osascript -e 'tell application "${title.trim()}" to quit'`, (err) => err ? reject(err) : resolve())
+      })
+    }
+
+    return { success: true, data: { closed: target } }
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : 'Failed to close app' }
+  }
+}
+
+
+export async function executeFindApp(args: { query: string }): Promise<ToolResult> {
+  const { query } = args
+  if (!query?.trim()) return { success: false, error: 'Search query is required' }
+
+  try {
+    const fs = await import('fs')
+    const pathMod = await import('path')
+    const os = await import('os')
+    const searchTerms = query.toLowerCase().split(/\s+/).filter(Boolean)
+
+    interface AppEntry { name: string; path: string; score: number }
+    const results: AppEntry[] = []
+
+    function fuzzyScore(name: string): number {
+      const lower = name.toLowerCase()
+      let score = 0
+      for (const term of searchTerms) {
+        if (lower.includes(term)) score += term.length
+      }
+      return score
+    }
+
+    function scanDir(dir: string, depth = 0) {
+      if (depth > 3) return
+      try {
+        const entries = fs.readdirSync(dir, { withFileTypes: true })
+        for (const entry of entries) {
+          const full = pathMod.join(dir, entry.name)
+          if (entry.isDirectory()) {
+            scanDir(full, depth + 1)
+          } else {
+            const ext = pathMod.extname(entry.name).toLowerCase()
+            if (process.platform === 'win32' && ext === '.lnk') {
+              const baseName = pathMod.basename(entry.name, ext)
+              const score = fuzzyScore(baseName)
+              if (score > 0) results.push({ name: baseName, path: full, score })
+            } else if (process.platform === 'darwin' && ext === '.app') {
+              const baseName = pathMod.basename(entry.name, ext)
+              const score = fuzzyScore(baseName)
+              if (score > 0) results.push({ name: baseName, path: full, score })
+            }
+          }
+        }
+      } catch { /* permission denied etc */ }
+    }
+
+    if (process.platform === 'win32') {
+      const startMenuPaths = [
+        pathMod.join(os.homedir(), 'AppData', 'Roaming', 'Microsoft', 'Windows', 'Start Menu', 'Programs'),
+        'C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs',
+      ]
+      for (const p of startMenuPaths) scanDir(p)
+    } else if (process.platform === 'darwin') {
+      scanDir('/Applications')
+      scanDir(pathMod.join(os.homedir(), 'Applications'))
+    }
+
+    // Sort by score descending, take top 10
+    results.sort((a, b) => b.score - a.score)
+    const top = results.slice(0, 10).map((r) => ({ name: r.name, path: r.path }))
+
+    return {
+      success: true,
+      data: {
+        query: query.trim(),
+        matches: top,
+        count: top.length,
+      },
+    }
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : 'Failed to search apps' }
+  }
 }

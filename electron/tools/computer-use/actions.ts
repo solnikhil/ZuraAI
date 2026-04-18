@@ -10,12 +10,14 @@ let nut: typeof import('@nut-tree-fork/nut-js') | null = null
 async function getNut() {
   if (!nut) {
     try {
-      nut = await import('@nut-tree-fork/nut-js')
+      // Use require() for Electron main process compatibility
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      nut = require('@nut-tree-fork/nut-js')
     } catch {
       throw new Error('nut.js is not installed. Run: bun add @nut-tree-fork/nut-js')
     }
   }
-  return nut
+  return nut!
 }
 
 function validateCoords(x: number, y: number): void {
@@ -52,52 +54,60 @@ export async function performKeyPress(args: KeyArgs): Promise<void> {
   const { keyboard, Key } = await getNut()
 
   const parts = key.toLowerCase().split('+').map((k) => k.trim())
+
+  // Map common key names to Key enum values
   const keyMap: Record<string, number> = {
     ctrl: Key.LeftControl, control: Key.LeftControl,
     alt: Key.LeftAlt, option: Key.LeftAlt,
     shift: Key.LeftShift,
     meta: Key.LeftSuper, cmd: Key.LeftSuper, command: Key.LeftSuper, win: Key.LeftSuper,
-    enter: Key.Return, return: Key.Return,
+    enter: Key.Enter, return: Key.Return,
     tab: Key.Tab, escape: Key.Escape, esc: Key.Escape,
     space: Key.Space, backspace: Key.Backspace, delete: Key.Delete,
     up: Key.Up, down: Key.Down, left: Key.Left, right: Key.Right,
     home: Key.Home, end: Key.End, pageup: Key.PageUp, pagedown: Key.PageDown,
+    insert: Key.Insert, capslock: Key.CapsLock, numlock: Key.NumLock,
+    pause: Key.Pause, print: Key.Print, scrolllock: Key.ScrollLock, menu: Key.Menu,
     f1: Key.F1, f2: Key.F2, f3: Key.F3, f4: Key.F4, f5: Key.F5, f6: Key.F6,
     f7: Key.F7, f8: Key.F8, f9: Key.F9, f10: Key.F10, f11: Key.F11, f12: Key.F12,
+    f13: Key.F13, f14: Key.F14, f15: Key.F15, f16: Key.F16, f17: Key.F17, f18: Key.F18,
+    f19: Key.F19, f20: Key.F20, f21: Key.F21, f22: Key.F22, f23: Key.F23, f24: Key.F24,
   }
 
-  const keys: number[] = []
+  // Map single digit characters to Key.Num* enum values
+  const digitMap: Record<string, number> = {
+    '0': Key.Num0, '1': Key.Num1, '2': Key.Num2, '3': Key.Num3, '4': Key.Num4,
+    '5': Key.Num5, '6': Key.Num6, '7': Key.Num7, '8': Key.Num8, '9': Key.Num9,
+  }
+
+  // Resolve each part to a Key enum value or flag it as a raw character for keyboard.type()
+  const resolved: (number | string)[] = []
   for (const part of parts) {
     if (keyMap[part] !== undefined) {
-      keys.push(keyMap[part])
-    } else if (part.length === 1) {
-      // Single character — use Key enum for letters/digits
-      const upper = part.toUpperCase()
-      const keyVal = (Key as unknown as Record<string, number>)[upper]
+      resolved.push(keyMap[part])
+    } else if (part.length === 1 && digitMap[part] !== undefined) {
+      resolved.push(digitMap[part])
+    } else if (part.length === 1 && /^[a-z]$/.test(part)) {
+      // Single letter — look up Key.A through Key.Z
+      const keyVal = (Key as unknown as Record<string, number>)[part.toUpperCase()]
       if (keyVal !== undefined) {
-        keys.push(keyVal)
+        resolved.push(keyVal)
       } else {
         throw new Error(`Unknown key: "${part}"`)
       }
+    } else if (part.length === 1) {
+      // Single non-letter, non-digit character (punctuation etc.) — use as raw string
+      resolved.push(part)
     } else {
       throw new Error(`Unknown key: "${part}"`)
     }
   }
 
-  if (keys.length === 0) throw new Error('No valid keys parsed')
+  if (resolved.length === 0) throw new Error('No valid keys parsed')
 
-  if (keys.length === 1) {
-    await keyboard.pressKey(keys[0])
-    await keyboard.releaseKey(keys[0])
-  } else {
-    // Hold modifiers, press last key, release all
-    const modifiers = keys.slice(0, -1)
-    const mainKey = keys[keys.length - 1]
-    for (const mod of modifiers) await keyboard.pressKey(mod)
-    await keyboard.pressKey(mainKey)
-    await keyboard.releaseKey(mainKey)
-    for (const mod of modifiers.reverse()) await keyboard.releaseKey(mod)
-  }
+  // keyboard.type() handles both single keys and combos (multiple Key args = simultaneous press)
+  // It also accepts raw strings for characters not in the Key enum
+  await keyboard.type(...(resolved as Parameters<typeof keyboard.type>))
 }
 
 export async function performScroll(args: ScrollArgs): Promise<void> {

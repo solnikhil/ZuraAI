@@ -14,6 +14,10 @@ const toolIcons: Record<string, React.ReactNode> = {
   computer_key: <Monitor size={16} />,
   computer_scroll: <Monitor size={16} />,
   computer_cursor_position: <MousePointer size={16} />,
+  computer_list_windows: <Monitor size={16} />,
+  computer_launch_app: <Monitor size={16} />,
+  computer_find_app: <Search size={16} />,
+  computer_close_app: <Monitor size={16} />,
 }
 
 const toolDisplayNames: Record<string, string> = {
@@ -25,6 +29,10 @@ const toolDisplayNames: Record<string, string> = {
   computer_key: 'Key Press',
   computer_scroll: 'Scroll',
   computer_cursor_position: 'Move Cursor',
+  computer_list_windows: 'List Windows',
+  computer_launch_app: 'Launch App',
+  computer_find_app: 'Find App',
+  computer_close_app: 'Close App',
 }
 
 interface ToolCallIndicatorProps {
@@ -71,6 +79,10 @@ export default function ToolCallIndicator({
           return desc ? `Running ${lang}: ${desc}` : `Running ${lang} code…`
         }
         if (toolName === 'computer_screenshot') return 'Taking screenshot…'
+        if (toolName === 'computer_list_windows') return 'Listing open windows…'
+        if (toolName === 'computer_launch_app') return `Launching ${args?.name ?? 'app'}…`
+        if (toolName === 'computer_find_app') return `Searching for "${args?.query ?? ''}…"`
+        if (toolName === 'computer_close_app') return `Closing ${args?.title ?? 'app'}…`
         if (toolName === 'computer_click') return `Clicking at (${args?.x ?? '?'}, ${args?.y ?? '?'})…`
         if (toolName === 'computer_type') return `Typing "${String(args?.text ?? '').slice(0, 30)}"…`
         if (toolName === 'computer_key') return `Pressing ${args?.key ?? '?'}…`
