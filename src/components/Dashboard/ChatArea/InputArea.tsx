@@ -11,7 +11,7 @@ import {
   Square,
   Plus,
   Check,
-  Wrench,
+  Wrench, Monitor,
 } from 'lucide-react'
 import ModelSelector from '../ModelSelector/index'
 import { useSettings } from '../../../contexts/SettingsContext'
@@ -47,7 +47,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu'
-import { withWebResearchEnabled } from '@/skills'
+import { withWebResearchEnabled, withComputerUseEnabled } from '@/skills'
 import { ComposerAttachments } from './ComposerAttachments'
 import McpLibraryDialog from '@/components/mcp/McpLibraryDialog'
 
@@ -95,6 +95,7 @@ export function InputArea({
   const { animationsEnabled } = useMotionPreferences()
   const { frostedPrompt } = settings
 const webResearchEnabled = settings.skills?.web_research?.enabled !== false
+  const computerUseEnabled = settings.skills?.computer_use?.enabled === true
   const fastTransition = {
     duration: motionDuration(animationsEnabled, motionDurations.fast),
     ease: motionEasing.standard,
@@ -170,6 +171,13 @@ const webResearchEnabled = settings.skills?.web_research?.enabled !== false
       skills: withWebResearchEnabled(settings.skills, nextEnabled),
     })
   }, [settings.skills, updateSettings, webResearchEnabled])
+
+  const toggleComputerUseSkill = React.useCallback(() => {
+    const nextEnabled = !computerUseEnabled
+    updateSettings({
+      skills: withComputerUseEnabled(settings.skills, nextEnabled),
+    })
+  }, [settings.skills, updateSettings, computerUseEnabled])
 
   React.useEffect(() => {
     const handleShortcut = (event: KeyboardEvent) => {
@@ -461,6 +469,29 @@ const webResearchEnabled = settings.skills?.web_research?.enabled !== false
                 </DropdownMenu>
 
                 {showContextRing && <TokenUsageIndicator input={input} />}
+
+                <TooltipProvider delayDuration={300}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={toggleComputerUseSkill}
+                        className={cn(
+                          'theme-control-btn rounded-lg p-1.5 transition-colors',
+                          computerUseEnabled
+                            ? 'text-emerald-500 bg-emerald-500/10'
+                            : 'text-[var(--theme-text-tertiary)] hover:text-[var(--theme-text-secondary)]'
+                        )}
+                        aria-label={computerUseEnabled ? 'Disable Computer Use' : 'Enable Computer Use'}
+                      >
+                        <Monitor size={16} />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="rounded-full">
+                      {computerUseEnabled ? 'Computer Use: On' : 'Computer Use: Off'}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
 
               <div className="flex items-center gap-2">
