@@ -119,6 +119,20 @@ function getLanguageMeta(language?: string): LanguageMeta {
     return { label: fallbackLabel }
 }
 
+function hasMarkdownCodeBlock(node: React.ReactNode): boolean {
+    if (!React.isValidElement(node)) return false
+
+    const className = (node.props as { className?: unknown }).className
+    if (typeof className === 'string' && className.includes('markdown-code-block')) {
+        return true
+    }
+
+    const children = (node.props as { children?: React.ReactNode }).children
+    if (!children) return false
+
+    return React.Children.toArray(children).some((child) => hasMarkdownCodeBlock(child))
+}
+
 // Pure helper: wraps bare tree-like blocks in code fences (no component state needed)
 function injectTreeCodeFences(markdown: string): string {
     const lines = markdown.split('\n')
@@ -394,8 +408,8 @@ const MarkdownContent = React.memo(function MarkdownContent({ content, webSource
                         margin: '4px 0',
                         borderRadius: '30px',
                         overflow: 'hidden',
-                        border: '1px solid #3A3C40',
-                        background: '#202226',
+                        border: '1px solid var(--theme-border)',
+                        background: 'transparent',
                         boxShadow: 'none'
                     }
                     const codeHeaderStyle: React.CSSProperties = {
@@ -404,6 +418,7 @@ const MarkdownContent = React.memo(function MarkdownContent({ content, webSource
                         alignItems: 'center',
                         gap: '10px',
                         padding: '13px 56px 9px 16px',
+                        background: 'transparent',
                     }
                     const codeHeaderLeftStyle: React.CSSProperties = {
                         display: 'inline-flex',
@@ -421,11 +436,11 @@ const MarkdownContent = React.memo(function MarkdownContent({ content, webSource
                         flexShrink: 0
                     }
                     const codeGlyphStyle: React.CSSProperties = {
-                        color: '#B5C2DC',
+                        color: 'var(--theme-text-muted)',
                         display: 'block'
                     }
                     const codeHeaderLabelStyle: React.CSSProperties = {
-                        color: '#D9E2F3',
+                        color: 'var(--theme-text-primary)',
                         fontFamily: "'Google Sans Flex', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif",
                         fontWeight: 600,
                         fontSize: '0.95rem',
@@ -446,9 +461,9 @@ const MarkdownContent = React.memo(function MarkdownContent({ content, webSource
                         overflowX: 'auto'
                     }
                     const getCopyButtonStyle = (isGenerating: boolean): React.CSSProperties => ({
-                        background: 'rgba(255, 255, 255, 0.03)',
-                        border: '1px solid rgba(255, 255, 255, 0.1)',
-                        color: '#B5C2DC',
+                        background: 'transparent',
+                        border: '1px solid color-mix(in srgb, var(--theme-border) 72%, transparent)',
+                        color: 'var(--theme-text-muted)',
                         cursor: isGenerating ? 'default' : 'pointer',
                         width: '32px',
                         height: '32px',
@@ -462,7 +477,7 @@ const MarkdownContent = React.memo(function MarkdownContent({ content, webSource
                         justifyContent: 'center',
                         lineHeight: 1,
                         flexShrink: 0,
-                        boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.08)',
+                        boxShadow: 'none',
                         pointerEvents: isGenerating ? 'none' : 'auto'
                     })
                     const iconSlotStyle: React.CSSProperties = {
@@ -483,7 +498,7 @@ const MarkdownContent = React.memo(function MarkdownContent({ content, webSource
                     })
                     const loadingSpinnerStyle: React.CSSProperties = {
                         display: 'block',
-                        color: '#B5C2DC',
+                        color: 'var(--theme-text-muted)',
                         animation: 'markdown-code-spin 900ms linear infinite',
                     }
                     const renderCodeHeader = (meta: LanguageMeta, isCopied: boolean, isGenerating: boolean, onCopy: () => void) => (
@@ -501,13 +516,13 @@ const MarkdownContent = React.memo(function MarkdownContent({ content, webSource
                                 aria-label={isGenerating ? 'Generating code' : (isCopied ? 'Copied code' : 'Copy code')}
                                 onMouseEnter={(event) => {
                                     if (isGenerating) return
-                                    event.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)'
-                                    event.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.16)'
+                                    event.currentTarget.style.background = 'color-mix(in srgb, var(--theme-surface-active) 42%, transparent)'
+                                    event.currentTarget.style.borderColor = 'var(--theme-border-hover)'
                                 }}
                                 onMouseLeave={(event) => {
                                     if (isGenerating) return
-                                    event.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)'
-                                    event.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)'
+                                    event.currentTarget.style.background = 'transparent'
+                                    event.currentTarget.style.borderColor = 'color-mix(in srgb, var(--theme-border) 72%, transparent)'
                                 }}
                             >
                                 {isGenerating ? (
@@ -515,7 +530,7 @@ const MarkdownContent = React.memo(function MarkdownContent({ content, webSource
                                 ) : (
                                     <span style={iconSlotStyle}>
                                         <span style={getIconStateStyle(!isCopied)}>
-                                            <Copy size={16} style={{ display: 'block', color: '#B5C2DC' }} />
+                                            <Copy size={16} style={{ display: 'block', color: 'var(--theme-text-muted)' }} />
                                         </span>
                                         <span style={getIconStateStyle(isCopied)}>
                                             <Check size={16} style={{ display: 'block', color: 'var(--theme-success)' }} />
@@ -547,11 +562,13 @@ const MarkdownContent = React.memo(function MarkdownContent({ content, webSource
                                     language={match[1]}
                                     PreTag="div"
                                     customStyle={codeBodyStyle}
+                                    useInlineStyles={false}
                                     codeTagProps={{
                                         style: {
                                             fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
                                             fontSize: '0.95rem',
                                             lineHeight: '1.72',
+                                            background: 'transparent',
                                         }
                                     }}
                                 />
@@ -572,7 +589,7 @@ const MarkdownContent = React.memo(function MarkdownContent({ content, webSource
                                 {renderCodeHeader(getLanguageMeta(), isCopied, isGeneratingBlock, handleCopy)}
                                 <pre style={codeBodyStyle}>
                                     <code style={{
-                                        color: '#E6ECF8',
+                                        color: 'var(--theme-text-primary)',
                                         whiteSpace: 'pre',
                                         fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
                                         fontSize: '0.95rem',
@@ -591,6 +608,15 @@ const MarkdownContent = React.memo(function MarkdownContent({ content, webSource
                             </code>
                         )
                     }
+                },
+                pre: ({ node: _node, children, ...props }: ExtraProps & React.HTMLAttributes<HTMLPreElement>) => {
+                    const wrapsCustomCodeBlock = React.Children.toArray(children).some((child) => hasMarkdownCodeBlock(child))
+
+                    if (wrapsCustomCodeBlock) {
+                        return <>{children}</>
+                    }
+
+                    return <pre {...props}>{children}</pre>
                 },
                 blockquote: ({ node: _node, ...props }: ExtraProps & React.BlockquoteHTMLAttributes<HTMLQuoteElement>) => <blockquote {...props} />,
                 table: ({ node: _node, ...props }: ExtraProps & React.TableHTMLAttributes<HTMLTableElement>) => (

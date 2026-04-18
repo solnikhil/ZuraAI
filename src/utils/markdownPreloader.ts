@@ -35,6 +35,7 @@ function buildPrismStyle(base: Record<string, React.CSSProperties>): Record<stri
         'code[class*="language-"]': {
             ...(base['code[class*="language-"]'] || {}),
             color: '#E6ECF8',
+            background: 'transparent',
             textShadow: 'none',
             fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
             fontSize: '0.95rem',

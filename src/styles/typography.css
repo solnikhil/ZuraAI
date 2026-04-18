@@ -318,7 +318,7 @@
     margin: 1.5rem 0;
     border-radius: 0.375rem;
     overflow: hidden;
-    background: var(--theme-surface);
+    background: transparent;
 }
 
 .markdown-body pre code,
@@ -327,6 +327,26 @@
     padding: 0;
     background: transparent;
     font-weight: normal;
+}
+
+/* Ensure code-block backgrounds stay transparent across syntax highlighter layers */
+.markdown-code-block,
+.markdown-code-block > div,
+.markdown-code-block pre,
+.markdown-code-block code,
+.markdown-code-block [class*="language-"],
+.markdown-code-block [class*="language-"] > code[class*="language-"] {
+    background: transparent !important;
+    background-color: transparent !important;
+}
+
+/* Prism class-based rendering path (useInlineStyles=false) */
+.markdown-code-block pre[class*="language-"],
+.markdown-code-block code[class*="language-"],
+.markdown-code-block pre.prismjs,
+.markdown-code-block code.prismjs {
+    background: transparent !important;
+    background-color: transparent !important;
 }
 
 /* Standard markdown links. Web-search citations keep their dedicated component styling. */

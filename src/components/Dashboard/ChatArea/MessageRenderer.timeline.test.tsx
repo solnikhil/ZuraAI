@@ -347,6 +347,6 @@ describe('MessageRenderer follow-up timeline', () => {
 
     const thinkingBlocks = await screen.findAllByTestId('thinking-block')
     expect(thinkingBlocks).toHaveLength(1)
-    expect(thinkingBlocks[0]).not.toHaveTextContent('code_execution')
+    expect(thinkingBlocks[0]).toHaveTextContent('Preparing final response')
   })
 })
