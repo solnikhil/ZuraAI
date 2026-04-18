@@ -10,6 +10,7 @@ import { ChevronDown } from 'lucide-react'
 import { defaultSystemPrompt } from '../../../prompts/defaultSystemPrompt'
 import { defaultWebSearchPrompt } from '../../../prompts/defaultWebSearchPrompt'
 import { defaultTitleGenerationPrompt } from '../../../prompts/defaultTitleGenerationPrompt'
+import { defaultCodeExecutionPrompt } from '../../../prompts/defaultCodeExecutionPrompt'
 import { estimateMessageTokens } from '../../../utils/tokenUtils'
 
 /**
@@ -22,11 +23,14 @@ export interface SystemPromptSectionProps {
   webSearchPrompt: string
   /** Current title generation prompt value */
   titleGenerationPrompt: string
+  /** Current code execution prompt value */
+  codeExecutionPrompt: string
   /** Callback when system prompt changes */
   onChange: (changes: {
     systemPrompt?: string
     webSearchPrompt?: string
     titleGenerationPrompt?: string
+    codeExecutionPrompt?: string
   }) => void
 }
 
@@ -37,6 +41,7 @@ export function SystemPromptSection({
   systemPrompt,
   webSearchPrompt,
   titleGenerationPrompt,
+  codeExecutionPrompt,
   onChange,
 }: SystemPromptSectionProps): React.ReactElement {
   const [localValue, setLocalValue] = useState(systemPrompt)
@@ -50,6 +55,9 @@ export function SystemPromptSection({
     titleGenerationPrompt.length
   )
   const [isTitleGenerationEditorExpanded, setIsTitleGenerationEditorExpanded] = useState(false)
+  const [localCodeExecutionValue, setLocalCodeExecutionValue] = useState(codeExecutionPrompt)
+  const [codeExecutionCharCount, setCodeExecutionCharCount] = useState(codeExecutionPrompt.length)
+  const [isCodeExecutionEditorExpanded, setIsCodeExecutionEditorExpanded] = useState(false)
 
   // Sync local state when props change (e.g. discard/reset from parent settings bar)
   useEffect(() => {
@@ -72,6 +80,13 @@ export function SystemPromptSection({
       setTitleGenerationCharCount(titleGenerationPrompt.length)
     }
   }, [titleGenerationPrompt, localTitleGenerationValue])
+
+  useEffect(() => {
+    if (codeExecutionPrompt !== localCodeExecutionValue) {
+      setLocalCodeExecutionValue(codeExecutionPrompt)
+      setCodeExecutionCharCount(codeExecutionPrompt.length)
+    }
+  }, [codeExecutionPrompt, localCodeExecutionValue])
 
   const handleChange = (value: string) => {
     setLocalValue(value)
@@ -109,6 +124,18 @@ export function SystemPromptSection({
     onChange({ titleGenerationPrompt: defaultTitleGenerationPrompt })
   }
 
+  const handleCodeExecutionChange = (value: string) => {
+    setLocalCodeExecutionValue(value)
+    setCodeExecutionCharCount(value.length)
+    onChange({ codeExecutionPrompt: value })
+  }
+
+  const handleCodeExecutionReset = () => {
+    setLocalCodeExecutionValue(defaultCodeExecutionPrompt)
+    setCodeExecutionCharCount(defaultCodeExecutionPrompt.length)
+    onChange({ codeExecutionPrompt: defaultCodeExecutionPrompt })
+  }
+
   const estTokensInput = useMemo(
     () => estimateMessageTokens({ role: 'system', content: localValue }),
     [localValue]
@@ -122,6 +149,11 @@ export function SystemPromptSection({
   const estTitleGenerationTokensInput = useMemo(
     () => estimateMessageTokens({ role: 'system', content: localTitleGenerationValue }),
     [localTitleGenerationValue]
+  )
+
+  const estCodeExecutionTokensInput = useMemo(
+    () => estimateMessageTokens({ role: 'system', content: localCodeExecutionValue }),
+    [localCodeExecutionValue]
   )
 
   const showLengthWarning = charCount > 10000
@@ -247,6 +279,59 @@ export function SystemPromptSection({
               />
             </div>
           </>
+        )}
+      </Card>
+
+      <Card className="settings-list-card settings-prompt-card">
+        <div className="settings-prompt-header">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Code Execution Prompt</h3>
+            <div className="settings-list-row__description">
+              Instructions appended when Code Execution is enabled. Use this to guide how the
+              assistant uses the code execution sandbox.
+            </div>
+            <div className="settings-prompt-note">
+              This only applies when the Code Execution skill is active.
+            </div>
+          </div>
+          <div className="settings-prompt-metrics" aria-live="polite">
+            <span className="settings-prompt-badge">
+              {codeExecutionCharCount.toLocaleString()} chars
+            </span>
+            <span className="settings-prompt-badge">
+              ~{estCodeExecutionTokensInput.toLocaleString()} tokens input
+            </span>
+          </div>
+        </div>
+
+        <div className="settings-prompt-controls">
+          <button
+            type="button"
+            className="settings-prompt-toggle"
+            onClick={() => setIsCodeExecutionEditorExpanded((prev) => !prev)}
+            aria-expanded={isCodeExecutionEditorExpanded}
+          >
+            <ChevronDown
+              size={14}
+              className={`settings-prompt-toggle__icon ${isCodeExecutionEditorExpanded ? 'is-open' : ''}`}
+              aria-hidden="true"
+            />
+            {isCodeExecutionEditorExpanded ? 'Hide Code Execution Prompt' : 'Show Code Execution Prompt'}
+          </button>
+          <button type="button" onClick={handleCodeExecutionReset} className="settings-row-button">
+            Load Default Code Execution Prompt
+          </button>
+        </div>
+
+        {isCodeExecutionEditorExpanded && (
+          <div className="settings-prompt-editor-wrap">
+            <textarea
+              value={localCodeExecutionValue}
+              onChange={(e) => handleCodeExecutionChange(e.target.value)}
+              className="settings-prompt-editor"
+              placeholder="Enter your code execution prompt here..."
+            />
+          </div>
         )}
       </Card>
 

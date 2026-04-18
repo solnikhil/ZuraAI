@@ -1704,6 +1704,26 @@
     line-height: 1.45;
 }
 
+
+.skills-row__option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+    cursor: pointer;
+}
+
+.skills-row__option input[type="checkbox"] {
+    accent-color: var(--theme-accent);
+    width: 15px;
+    height: 15px;
+    cursor: pointer;
+}
+
+.skills-row__option-label {
+    font-size: 0.81rem;
+    color: var(--theme-text-secondary);
+}
 .skills-row__guidance {
     display: grid;
     gap: 6px;

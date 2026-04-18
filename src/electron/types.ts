@@ -228,6 +228,12 @@ export interface DevToolsAPI {
   inspectElement: (x: number, y: number) => Promise<void>
 }
 
+export interface CodeExecutionAPI {
+  resolveApproval: (requestId: string, approved: boolean) => Promise<unknown>
+  onPendingApproval: (callback: (pending: unknown[]) => void) => () => void
+}
+
+
 export interface McpAPI {
   listServers: () => Promise<McpServerConfig[]>
   addServer: (serverConfig: McpServerInputPayload) => Promise<McpServerConfig>

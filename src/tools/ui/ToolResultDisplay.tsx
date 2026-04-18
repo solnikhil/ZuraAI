@@ -187,6 +187,77 @@ export default function ToolResultDisplay({
     )
   }
 
+
+  if (toolName === 'code_execution') {
+    const data = result as Record<string, unknown> | undefined
+    const stdout = typeof data?.stdout === 'string' ? data.stdout : ''
+    const stderr = typeof data?.stderr === 'string' ? data.stderr : ''
+    const exitCode = typeof data?.exitCode === 'number' ? data.exitCode : null
+    const lang = typeof data?.language === 'string' ? data.language : (typeof toolArguments?.language === 'string' ? toolArguments.language : 'code')
+    const langLabel = lang === 'python' ? 'Python' : lang === 'javascript' ? 'JavaScript' : lang
+    const hasOutput = stdout || stderr || error
+
+    return (
+      <div className={`tool-result tool-result-mcp tool-result-mcp-status-${error ? 'error' : 'success'}`}>
+        <div
+          className="tool-result-header tool-result-clickable"
+          onClick={() => setIsExpanded(!isExpanded)}
+        >
+          <div className="tool-result-heading">
+            <span className="tool-result-leading-icon">
+              {error ? <XCircle size={16} /> : <CheckCircle size={16} />}
+            </span>
+            <div className="tool-result-title-group">
+              <span className="tool-result-title">Code Execution</span>
+              <span className="tool-result-subtitle">{langLabel}{exitCode !== null && exitCode !== 0 ? ` • exit ${exitCode}` : ''}</span>
+            </div>
+          </div>
+          <div className="tool-result-badge-row">
+            <span className={`tool-result-mcp-status tool-result-mcp-status-${error ? 'error' : 'success'}`}>
+              {error ? 'Failed' : 'Completed'}
+            </span>
+            {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          </div>
+        </div>
+
+        {isExpanded && (
+          <div className="tool-result-body">
+            {error && (
+              <div className="tool-result-mcp-detail-row">
+                <span className="tool-result-mcp-detail-label">Error</span>
+                <pre className="tool-result-mcp-detail-value" style={{ whiteSpace: 'pre-wrap' }}>{error}</pre>
+              </div>
+            )}
+            {stdout && (
+              <div className="tool-result-mcp-detail-row">
+                <span className="tool-result-mcp-detail-label">Output</span>
+                <pre className="tool-result-mcp-detail-value" style={{ whiteSpace: 'pre-wrap', maxHeight: '300px', overflow: 'auto' }}>{stdout}</pre>
+              </div>
+            )}
+            {stderr && (
+              <div className="tool-result-mcp-detail-row">
+                <span className="tool-result-mcp-detail-label">Stderr</span>
+                <pre className="tool-result-mcp-detail-value" style={{ whiteSpace: 'pre-wrap', maxHeight: '200px', overflow: 'auto', color: 'var(--theme-text-warning, #f59e0b)' }}>{stderr}</pre>
+              </div>
+            )}
+            {!hasOutput && (
+              <div className="tool-result-mcp-detail-row">
+                <span className="tool-result-mcp-detail-value">No output produced.</span>
+              </div>
+            )}
+            {durationMs != null && (
+              <div className="tool-result-mcp-detail-row">
+                <span className="tool-result-mcp-detail-label">Duration</span>
+                <span className="tool-result-mcp-detail-value">{durationMs}ms</span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+
   const status = getGenericToolStatus(mcpMetadata, error)
   const resultBody = stringifyToolValue(result)
   const detailBody = error || resultBody

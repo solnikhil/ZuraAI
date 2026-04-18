@@ -64,6 +64,8 @@ Core capabilities:
 - `electron/tools/` — main-process tool implementations (IPC registry is restricted)
   - `electron/tools/web-search/` — built-in web-search intent classification, backend adapters (Tavily / DuckDuckGo), result normalization, and orchestration service
 - `electron/updater.ts` — auto-updater (production only)
+  - `electron/tools/code-execution/` — built-in code execution skill: Piston API service, approval manager, IPC registration, types, and constants
+
 
 - `src/` — React/Vite **renderer**
   - `src/main.tsx` — renderer entrypoint; initializes performance tracking, lazy-image styles, applies saved theme, mounts `App`, and schedules non-critical preloads after first paint
@@ -223,6 +225,10 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - listens for: `mcp:state-changed`
 
 **Important:** IPC handlers may exist in `electron/ipc/*` but are not reachable unless they’re also wired through preload allowlists or a dedicated preload bridge.
+- `window.codeExecution`
+  - invokes: `code-execution:resolve-approval`
+  - listens for: `code-execution:pending-approval`
+
 
 **If you add/rename any IPC channel:**
 1. Add it to the correct allowlist(s) in `electron/preload.ts`
@@ -323,6 +329,22 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - Skill ON: expose `web_search`
 
 #### Theme + Windows Titlebar Overlay
+
+#### Code Execution Skill (`settings.skills.code_execution`)
+- Built-in skill: `code_execution` (`settings.skills.code_execution`), default disabled.
+- When enabled, the model can call `code_execution` with `code` (string) and `language` (`'javascript'` | `'python'`) parameters.
+- Execution uses the free public Piston API (`https://emkc.org/api/v2/piston/execute`) — no API key, no local sandbox, no native addons.
+- Every execution requires explicit user approval via `CodeExecutionApprovalDialog` (AlertDialog pattern matching MCP approval).
+- Approval flow uses `CodeExecutionApprovalManager` in `electron/tools/code-execution/approvalManager.ts` — same Promise-blocking pattern as `McpApprovalManager`.
+- Approval timeout: 60 seconds. Renderer executor timeout extended to 90 seconds for `code_execution`.
+- IPC channels: `code-execution:resolve-approval` (invoke), `code-execution:pending-approval` (main→renderer broadcast).
+- Preload bridge: `window.codeExecution` with `resolveApproval(requestId, approved)` and `onPendingApproval(callback)`.
+- Main-process files: `electron/tools/code-execution/` (types, constants, service, approvalManager, index).
+- Renderer files: `src/components/CodeExecutionApprovalDialog.tsx`, skill gating in `src/hooks/useToolCalling.ts`.
+- Tool results render as expandable cards in chat via `ToolResultDisplay.tsx` (not hidden by `toolResultVisibility`).
+- Piston sandbox constraints: no filesystem, no network, 5s run timeout, 64MB memory limit.
+
+
 - Startup theme apply: `src/main.tsx` reads `localStorage['zura-settings']` and applies theme with user customization (`themeAccent`, `themeBackground`, `themeForeground`, `themeContrast`).
 - Active theme preset (`activeTheme`) selects a base theme; accent/background/foreground colors can be overridden per-user.
 - Contrast slider (`themeContrast` 0-100) adjusts theme intensity; 100 = full contrast, lower values = softer.
@@ -389,7 +411,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
     - `titleModel` (model used for title generation)
     - `titleGenerationPrompt` (prompt template for generating titles; supports `{{userMessage}}` token)
     - `titleGenerationDisplayMode` (`instant` or `typewriter` sidebar reveal)
-  - Skills map: `skills` (built-in IDs keyed by `skillId`, currently `web_research` with `enabled`).
+  - Skills map: `skills` (built-in IDs keyed by `skillId`, currently `web_research` (default enabled) and `code_execution` (default disabled), each with `enabled`).
   - Legacy `webSearchEnabled` / `structuredResearchEnabled` are migrated into `skills.web_research.enabled`; `structuredResearchEnabled` is retained only as a migration input and is not used by runtime logic.
   - `themeContrast` (0-100, default 100): Numeric contrast intensity; lower values produce a softer look.
   - `themeAccent`, `themeBackground`, `themeForeground`: Optional hex color overrides for theme base colors; when set, they override the preset's base colors.

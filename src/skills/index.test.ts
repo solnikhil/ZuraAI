@@ -2,8 +2,12 @@ import { describe, it, expect } from 'vitest'
 import {
   buildEnabledSkillsPrompt,
   defaultSkillsSettings,
+  getCodeExecutionToolExposure,
   getWebResearchToolExposure,
+  isCodeExecutionEnabled,
   migrateSkillsFromLegacySettings,
+  normalizeSkillsSettings,
+  withCodeExecutionEnabled,
 } from './index'
 
 describe('skills settings migration', () => {
@@ -67,5 +71,62 @@ describe('skills tool exposure', () => {
     const prompt = buildEnabledSkillsPrompt(defaultSkillsSettings)
     expect(prompt).toContain('Enabled Skills:')
     expect(prompt).toContain('Tavily (`web_research`)')
+  })
+})
+
+describe('code_execution skill', () => {
+  it('defaults to disabled', () => {
+    expect(defaultSkillsSettings.code_execution.enabled).toBe(false)
+  })
+
+  it('normalizes missing code_execution to default', () => {
+    const normalized = normalizeSkillsSettings({ web_research: { enabled: true } })
+    expect(normalized.code_execution.enabled).toBe(false)
+  })
+
+  it('preserves persisted code_execution state', () => {
+    const normalized = normalizeSkillsSettings({
+      web_research: { enabled: true },
+      code_execution: { enabled: true },
+    })
+    expect(normalized.code_execution.enabled).toBe(true)
+  })
+
+  it('isCodeExecutionEnabled returns correct state', () => {
+    expect(isCodeExecutionEnabled(defaultSkillsSettings)).toBe(false)
+    expect(isCodeExecutionEnabled({
+      ...defaultSkillsSettings,
+      code_execution: { enabled: true },
+    })).toBe(true)
+  })
+
+  it('withCodeExecutionEnabled toggles the skill', () => {
+    const updated = withCodeExecutionEnabled(defaultSkillsSettings, true)
+    expect(updated.code_execution.enabled).toBe(true)
+    expect(updated.web_research.enabled).toBe(true)
+  })
+
+  it('getCodeExecutionToolExposure reflects skill state', () => {
+    expect(getCodeExecutionToolExposure(defaultSkillsSettings)).toEqual({
+      exposeCodeExecution: false,
+    })
+    expect(getCodeExecutionToolExposure({
+      ...defaultSkillsSettings,
+      code_execution: { enabled: true },
+    })).toEqual({
+      exposeCodeExecution: true,
+    })
+  })
+
+  it('buildEnabledSkillsPrompt includes code execution when enabled', () => {
+    const skills = { ...defaultSkillsSettings, code_execution: { enabled: true } }
+    const prompt = buildEnabledSkillsPrompt(skills)
+    expect(prompt).toContain('Code Execution')
+    expect(prompt).toContain('code_execution')
+  })
+
+  it('buildEnabledSkillsPrompt excludes code execution when disabled', () => {
+    const prompt = buildEnabledSkillsPrompt(defaultSkillsSettings)
+    expect(prompt).not.toContain('code_execution')
   })
 })

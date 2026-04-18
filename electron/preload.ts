@@ -150,7 +150,7 @@ contextBridge.exposeInMainWorld(
       // Extra validation for tool execution
       if (channel === 'execute-tool') {
         const toolName = args[0]
-        if (toolName !== 'web_search') {
+        if (toolName !== 'web_search' && toolName !== 'code_execution') {
           return Promise.resolve({
             success: false,
             error: `Tool "${String(toolName)}" is disabled.`,
@@ -264,6 +264,20 @@ contextBridge.exposeInMainWorld(
     inspectElement: (x: number, y: number) => ipcRenderer.invoke('devtools:inspect-element', x, y),
   })
 )
+
+contextBridge.exposeInMainWorld(
+  'codeExecution',
+  Object.freeze({
+    resolveApproval: (requestId: string, approved: boolean) =>
+      ipcRenderer.invoke('code-execution:resolve-approval', requestId, approved),
+    onPendingApproval: (callback: (pending: unknown[]) => void) => {
+      const listener = (_event: IpcRendererEvent, pending: unknown[]) => callback(pending)
+      ipcRenderer.on('code-execution:pending-approval', listener)
+      return () => ipcRenderer.removeListener('code-execution:pending-approval', listener)
+    },
+  })
+)
+
 
 contextBridge.exposeInMainWorld(
   'mcp',

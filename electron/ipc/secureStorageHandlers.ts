@@ -16,6 +16,7 @@ const ALLOWED_SECURE_STORAGE_KEYS = new Set([
   'tavilyApiKey',
   'alibabaApiKey',
   'fireworksApiKey',
+  'onlineCompilerApiKey',
 ])
 
 const ALLOWED_SECURE_STORAGE_KEY_LIST = [...ALLOWED_SECURE_STORAGE_KEYS] as const
@@ -27,6 +28,7 @@ type SecureStorageKey =
   | 'tavilyApiKey'
   | 'alibabaApiKey'
   | 'fireworksApiKey'
+  | 'onlineCompilerApiKey'
 
 function assertSecureStorageKey(key: string): asserts key is SecureStorageKey {
   if (!ALLOWED_SECURE_STORAGE_KEYS.has(key)) {

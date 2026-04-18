@@ -1,4 +1,4 @@
-import type { ToolCallResult } from '../../../chat/types'
+import type { ThinkingBlock, ToolCallResult } from '../../../chat/types'
 
 function hasMcpMetadataShape(metadata: unknown): boolean {
   if (!metadata || typeof metadata !== 'object') {
@@ -20,10 +20,46 @@ export function shouldHideGenericToolResultCard(result: ToolCallResult): boolean
     return true
   }
 
+  if (result.toolCall.name === 'code_execution') {
+    return true
+  }
+
+
   if (/^mcp__/.test(result.toolCall.name)) {
     return true
   }
 
   return hasMcpMetadataShape(result.result?.metadata)
+}
+
+function hasCompletedToolThinkingBlock(
+  thinkingBlocks: ThinkingBlock[] | undefined,
+  toolName: string
+): boolean {
+  if (!thinkingBlocks || thinkingBlocks.length === 0) {
+    return false
+  }
+
+  return thinkingBlocks.some(
+    (block) => block.type === 'tool' && block.toolName === toolName
+  )
+}
+
+export function shouldHideMessageToolResultCard(
+  result: ToolCallResult,
+  thinkingBlocks: ThinkingBlock[] | undefined
+): boolean {
+  if (shouldHideGenericToolResultCard(result)) {
+    return true
+  }
+
+  if (
+    result.toolCall.name === 'code_execution' &&
+    hasCompletedToolThinkingBlock(thinkingBlocks, result.toolCall.name)
+  ) {
+    return true
+  }
+
+  return false
 }
 

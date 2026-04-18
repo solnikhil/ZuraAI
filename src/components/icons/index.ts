@@ -48,6 +48,8 @@ export {
   Ellipsis,
   Paintbrush,
   Bell,
+  Terminal,
+
   Play,
   Square,
   ShieldCheck,

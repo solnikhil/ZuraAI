@@ -22,6 +22,12 @@ import {
 import { registerToolHandlers } from './tools'
 import { initializeAutoUpdater, registerUpdaterHandlers, cleanupAutoUpdater } from './updater'
 import { deferredInitializer } from './startup/deferredInit'
+import {
+  registerCodeExecutionHandlers,
+  unregisterCodeExecutionHandlers,
+  disposeCodeExecutionApprovalManager,
+} from './tools/code-execution'
+
 
 // Resolve packaged asset paths consistently in both development and production.
 const DIST_PATH = process.env.DIST || path.join(__dirname, '../dist')
@@ -72,6 +78,9 @@ app.on('will-quit', () => {
   cleanupOverlay()
   destroyPromptPopup()
   unregisterMcpHandlers()
+  disposeCodeExecutionApprovalManager()
+  unregisterCodeExecutionHandlers()
+
   cleanupAutoUpdater()
   destroyTray()
 })
@@ -125,6 +134,8 @@ app.whenReady().then(async () => {
   registerMcpHandlers()
   registerToolHandlers()
   registerUpdaterHandlers()
+  registerCodeExecutionHandlers()
+
   registerSessionSecurityHandlers()
   await initializeMcpManager({
     autoConnect: true,

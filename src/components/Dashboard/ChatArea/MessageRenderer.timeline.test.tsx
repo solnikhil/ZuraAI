@@ -322,4 +322,31 @@ describe('MessageRenderer follow-up timeline', () => {
       expect(screen.getByText('zura ai overview | zura ai pricing | zura ai docs')).toBeInTheDocument()
     })
   })
+
+  it('hides completed code_execution thinking blocks while streaming', async () => {
+    render(
+      <MessageRenderer
+        message={{
+          id: 'message-streaming-code-tool',
+          role: 'assistant',
+          content: '',
+          thinking: 'Preparing final response',
+          timestamp: 1,
+          thinkingBlocks: [
+            {
+              type: 'tool',
+              toolName: 'code_execution',
+              timestamp: 1,
+            },
+          ],
+        }}
+        isStreaming={true}
+        streamPhase="answering"
+      />
+    )
+
+    const thinkingBlocks = await screen.findAllByTestId('thinking-block')
+    expect(thinkingBlocks).toHaveLength(1)
+    expect(thinkingBlocks[0]).not.toHaveTextContent('code_execution')
+  })
 })

@@ -205,6 +205,10 @@ export function normalizeStoredSettings(raw: string | null): Settings {
     parsed.webSearchPrompt = defaultSettings.webSearchPrompt
   }
 
+  if (parsed.codeExecutionPrompt === undefined) {
+    parsed.codeExecutionPrompt = defaultSettings.codeExecutionPrompt
+  }
+
   if (!parsed.modelProvider) parsed.modelProvider = defaultSettings.modelProvider
   if (!ALL_PROVIDER_IDS.includes(parsed.modelProvider as typeof ALL_PROVIDER_IDS[number])) {
     parsed.modelProvider = 'openrouter'
@@ -361,6 +365,10 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   delete legacySettingsRecord.webSearchEnabled
   delete legacySettingsRecord.structuredResearchEnabled
 
+  if (typeof parsed.codeExecutionAutoApprove !== 'boolean') {
+    parsed.codeExecutionAutoApprove = defaultSettings.codeExecutionAutoApprove
+  }
+
   if (!parsed.favoriteModels) parsed.favoriteModels = defaultSettings.favoriteModels
 
   parsed.titleBarDensity = 'compact'
@@ -496,6 +504,7 @@ export function getInitialConfigSettings(settings: Settings): Partial<SettingsCo
     alibabaApiKey: settings.alibabaApiKey,
     fireworksApiKey: settings.fireworksApiKey,
     aiModel: settings.aiModel,
+    onlineCompilerApiKey: settings.onlineCompilerApiKey,
     modelProvider: settings.modelProvider,
     providerEnabled: settings.providerEnabled,
     configuredModels: settings.configuredModels,
@@ -509,11 +518,13 @@ export function getInitialConfigSettings(settings: Settings): Partial<SettingsCo
     maxTokens: settings.maxTokens,
     systemPrompt: settings.systemPrompt,
     webSearchPrompt: settings.webSearchPrompt,
+    codeExecutionPrompt: settings.codeExecutionPrompt,
     streamResponses: settings.streamResponses,
     toolsEnabled: settings.toolsEnabled,
     enabledTools: settings.enabledTools,
     skills: settings.skills,
     titleModel: settings.titleModel,
+    codeExecutionAutoApprove: settings.codeExecutionAutoApprove,
     titleModelProvider: settings.titleModelProvider,
     titleGenerationPrompt: settings.titleGenerationPrompt,
     titleGenerationDisplayMode: settings.titleGenerationDisplayMode,

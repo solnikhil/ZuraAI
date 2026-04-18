@@ -88,7 +88,7 @@ describe('ProviderHubSection', () => {
 
     expect(screen.getByRole('heading', { name: 'Providers' })).toBeInTheDocument()
     expect(screen.getByText('Model Providers')).toBeInTheDocument()
-    expect(screen.getByText('Search APIs')).toBeInTheDocument()
+    expect(screen.getByText('Service APIs')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /add custom model/i })).not.toBeInTheDocument()
   })
 
@@ -461,7 +461,7 @@ describe('ProviderHubSection', () => {
     const onChange = vi.fn()
     render(<ProviderHubSection {...baseProps} onChange={onChange} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Search APIs' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Service APIs' }))
     fireEvent.click(
       screen.getByText('AI-optimized search for web_search. Add a key for best results.')
     )
@@ -477,7 +477,7 @@ describe('ProviderHubSection', () => {
     const onChange = vi.fn()
     render(<ProviderHubSection {...baseProps} onChange={onChange} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Search APIs' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Service APIs' }))
     fireEvent.click(
       screen.getByText('AI-optimized search for web_search. Add a key for best results.')
     )

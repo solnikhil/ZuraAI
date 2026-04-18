@@ -5,6 +5,8 @@
 import { ipcMain } from 'electron'
 import { executeWebSearch } from './webSearch'
 import type { WebSearchArgs } from './webSearch'
+import { executeCode } from './codeExecution'
+import type { CodeExecutionArgs } from './codeExecution'
 import { isBuiltinMainToolName, type BuiltinMainToolName } from '../../src/tools/builtinTools'
 
 import type { ToolResult, ToolHandler } from './types'
@@ -73,11 +75,27 @@ function normalizeWebSearchArgsInput(args: unknown): WebSearchArgs {
   }
 }
 
+function normalizeCodeExecutionArgsInput(args: unknown): CodeExecutionArgs {
+  if (typeof args !== 'object' || args === null) {
+    return { code: '', language: 'javascript' }
+  }
+
+  const record = args as Record<string, unknown>
+  const language = record.language === 'python' ? 'python' : 'javascript'
+
+  return {
+    code: typeof record.code === 'string' ? record.code : '',
+    language,
+    autoApprove: record.autoApprove === true,
+  }
+}
+
 /**
  * Registry of all tool handlers (restricted)
  */
 const toolHandlers: Record<BuiltinMainToolName, ToolHandler> = {
   web_search: (args) => executeWebSearch(normalizeWebSearchArgsInput(args)),
+  code_execution: (args) => executeCode(normalizeCodeExecutionArgsInput(args)),
 }
 
 /**

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { shouldHideGenericToolResultCard } from './toolResultVisibility'
+import { shouldHideGenericToolResultCard, shouldHideMessageToolResultCard } from './toolResultVisibility'
 import type { ToolCallResult } from '../../../chat/types'
 import type { ToolCall, ToolResult } from '../../../tools/types'
 
@@ -79,6 +79,49 @@ describe('shouldHideGenericToolResultCard', () => {
           },
         })
       )
+    ).toBe(false)
+  })
+})
+
+describe('shouldHideMessageToolResultCard', () => {
+  it('hides code execution card when thinking block already contains completed code_execution tool', () => {
+    const result = buildToolResult({
+      toolCall: { name: 'code_execution' },
+      result: {
+        success: false,
+        error: 'Piston API error',
+      },
+    })
+
+    expect(
+      shouldHideMessageToolResultCard(result, [
+        {
+          type: 'tool',
+          timestamp: Date.now(),
+          toolName: 'code_execution',
+          toolInput: { code: 'print(2 + 2)', language: 'python' },
+          toolOutput: {
+            success: false,
+            error: 'Piston API error',
+          },
+        },
+      ])
+    ).toBe(true)
+  })
+
+  it('keeps code execution card when no matching thinking block exists', () => {
+    const result = buildToolResult({
+      toolCall: { name: 'code_execution' },
+    })
+
+    expect(
+      shouldHideMessageToolResultCard(result, [
+        {
+          type: 'tool',
+          timestamp: Date.now(),
+          toolName: 'some_other_tool',
+        },
+      ])
     ).toBe(false)
   })
 })

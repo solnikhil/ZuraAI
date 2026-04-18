@@ -1,5 +1,6 @@
 import type {
   AppInfoAPI,
+  CodeExecutionAPI,
   DevToolsAPI,
   IElectronAPI,
   McpAPI,
@@ -23,6 +24,7 @@ declare global {
     shell: ShellAPI
     devTools: DevToolsAPI
     mcp: McpAPI
+    codeExecution: CodeExecutionAPI
   }
 }
 

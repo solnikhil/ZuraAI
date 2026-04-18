@@ -1,5 +1,5 @@
 import React from 'react'
-import { Search, Loader2, Globe, Wrench } from '../../components/icons'
+import { Search, Loader2, Globe, Wrench, Terminal } from '../../components/icons'
 import { getWebToolLabel, inferWebToolModeFromArgs } from './webToolDisplay'
 import { getToolArgumentSummary, getToolPresentation } from './toolPresentation'
 
@@ -7,10 +7,12 @@ import './ToolCallIndicator.css'
 
 const toolIcons: Record<string, React.ReactNode> = {
   web_search: <Search size={16} />,
+  code_execution: <Terminal size={16} />,
 }
 
 const toolDisplayNames: Record<string, string> = {
   web_search: 'Web Search',
+  code_execution: 'Code Execution',
 }
 
 interface ToolCallIndicatorProps {
@@ -50,6 +52,11 @@ export default function ToolCallIndicator({
         }
         if (toolName === 'web_search') {
           return `Tool: ${displayName}`
+        }
+        if (toolName === 'code_execution') {
+          const desc = args?.description ? String(args.description) : null
+          const lang = args?.language === 'python' ? 'Python' : 'JavaScript'
+          return desc ? `Running ${lang}: ${desc}` : `Running ${lang} code…`
         }
         return argumentSummary
           ? `Running ${displayName}: ${argumentSummary}`

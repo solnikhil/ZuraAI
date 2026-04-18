@@ -59,6 +59,47 @@ Query formulation best practices:
     category: 'search',
     origin: 'builtin-main',
   },
+  code_execution: {
+    description: `Execute JavaScript or Python code in a secure remote sandbox. Returns stdout, stderr, and exit code.
+
+Sandbox constraints:
+- No filesystem access. No network access. No persistent state between calls.
+- Execution is time-limited (30 seconds) and memory-limited (512 MB).
+- Output is limited to ~999 characters. Keep printed output concise.
+- Each call requires explicit user approval before running.
+
+When to use:
+- Calculations the model cannot do reliably (large numbers, statistics, date math).
+- Data transformations (parsing, formatting, aggregation).
+- Algorithm verification or logic that benefits from actual execution.
+
+Best practices:
+- Use print()/console.log() to produce output — the return value of the last expression is not captured.
+- Keep code concise and self-contained.
+- Prefer Python for math and data tasks, JavaScript for string/JSON manipulation.`,
+    parameters: {
+      type: 'object',
+      description: 'Arguments for the code execution tool.',
+      properties: {
+        code: {
+          type: 'string',
+          description: 'The source code to execute. Must use print() (Python) or console.log() (JavaScript) to produce output.',
+        },
+        language: {
+          type: 'string',
+          description: 'Programming language to use.',
+          enum: ['javascript', 'python'],
+        },
+        description: {
+          type: 'string',
+          description: 'A brief one-line summary of what this code does (e.g. "Calculate factorial of 20").',
+        },
+      },
+      required: ['code', 'language', 'description'],
+    },
+    category: 'utility',
+    origin: 'builtin-main',
+  },
 } satisfies Record<string, BuiltinMainToolManifestEntry>
 
 export type BuiltinMainToolName = keyof typeof builtInMainToolManifest

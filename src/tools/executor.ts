@@ -6,12 +6,19 @@ import { resolveWebSearchArgsForExecution } from './webSearchPreferences'
 // Re-export types for backward compatibility
 export type { ToolResult, ToolCall, ToolCallResult }
 
+const DEFAULT_TIMEOUT_MS = 30_000
+const CODE_EXECUTION_TIMEOUT_MS = 100_000 // 60s approval + 30s OnlineCompiler + buffer
+
+function getTimeoutForTool(toolName: string): number {
+    return toolName === 'code_execution' ? CODE_EXECUTION_TIMEOUT_MS : DEFAULT_TIMEOUT_MS
+}
+
 /**
  * Execute a single tool call via IPC
  */
 export async function executeTool(toolName: string, args: Record<string, unknown>): Promise<ToolResult> {
     const startTime = performance.now()
-    const TIMEOUT_MS = 30_000
+    const TIMEOUT_MS = getTimeoutForTool(toolName)
     
     try {
         if (isMcpNamespacedToolName(toolName)) {
@@ -54,6 +61,19 @@ export async function executeTool(toolName: string, args: Record<string, unknown
         }
 
         const resolvedArgs = resolveWebSearchArgsForExecution(toolName, args)
+
+        // Inject auto-approve preference for code execution
+        if (toolName === 'code_execution') {
+            try {
+                const raw = localStorage.getItem('zura-settings')
+                if (raw) {
+                    const parsed = JSON.parse(raw)
+                    if (parsed?.codeExecutionAutoApprove === true) {
+                        resolvedArgs.autoApprove = true
+                    }
+                }
+            } catch { /* ignore */ }
+        }
         
         // Add timeout handling (and ensure the timer is cleared)
         let timeoutId: ReturnType<typeof setTimeout> | undefined

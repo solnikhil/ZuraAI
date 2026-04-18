@@ -65,6 +65,13 @@ function getToolCallText(tool: { name: string; arguments?: Record<string, unknow
     return `Using ${displayName}: "${String(tool.arguments.query)}"`
   }
 
+  if (tool.name === 'code_execution') {
+    const desc = tool.arguments?.description ? String(tool.arguments.description) : null
+    const lang = tool.arguments?.language === 'python' ? 'Python' : 'JavaScript'
+    return desc ? `Running ${lang}: ${desc}` : `Running ${lang} code…`
+  }
+
+
   const argumentSummary = getToolArgumentSummary(tool.arguments)
   return argumentSummary ? `Running ${displayName}: ${argumentSummary}` : `Running ${displayName}...`
 }
@@ -94,6 +101,11 @@ function getCompletedToolBlockText(block: ThinkingBlockType): string {
   if (toolName === 'web_search') {
     return `${displayName}${block.query ? `: "${block.query}"` : ''}`
   }
+
+  if (toolName === 'code_execution' && block.toolInput?.description) {
+    return `${displayName}: ${String(block.toolInput.description)}`
+  }
+
 
   const argumentSummary = getToolArgumentSummary(block.toolInput)
   return argumentSummary ? `${displayName}: ${argumentSummary}` : displayName
