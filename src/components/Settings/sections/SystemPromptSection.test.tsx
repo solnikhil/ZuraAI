@@ -11,6 +11,7 @@ describe('SystemPromptSection', () => {
         systemPrompt="Base prompt"
         webSearchPrompt="Web prompt"
         titleGenerationPrompt="Title prompt"
+        codeExecutionPrompt="Code prompt"
         onChange={vi.fn()}
       />
     )
@@ -27,6 +28,7 @@ describe('SystemPromptSection', () => {
         systemPrompt="Base prompt"
         webSearchPrompt="Web prompt"
         titleGenerationPrompt="Title prompt"
+        codeExecutionPrompt="Code prompt"
         onChange={onChange}
       />
     )

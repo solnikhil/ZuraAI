@@ -3,7 +3,7 @@
 import * as React from 'react'
 const { Suspense, useState, useEffect, useMemo } = React
 import { lazy } from 'react'
-import { Check, Code2, Copy, LoaderCircle } from 'lucide-react'
+import { Check, Code2, Copy, LoaderCircle, Play } from 'lucide-react'
 import WebSourceCitation from './Dashboard/ChatArea/WebSourceCitation'
 import type { WebSource } from './Dashboard/ChatArea/WebSourceCitation'
 import MarkdownFileTree from './MarkdownFileTree'
@@ -14,6 +14,9 @@ import {
     type SyntaxHighlighterComponent,
 } from '../utils/markdownPreloader'
 import { normalizeSafeHttpUrl } from '../utils/urlSafety'
+import { useSettings } from '../contexts/SettingsContext'
+import { isCodeExecutionEnabled } from '../skills'
+import { executeTool } from '../tools/executor'
 const MermaidDiagram = lazy(() => import('./MermaidDiagram'))
 
 // Lazy load react-markdown component (plugins are handled by markdownPreloader)
@@ -61,26 +64,32 @@ type LanguageMeta = {
     label: string
 }
 
-function getLanguageMeta(language?: string): LanguageMeta {
-    if (!language) return { label: 'Code' }
+const LANGUAGE_ALIASES: Record<string, string> = {
+    ts: 'typescript',
+    js: 'javascript',
+    py: 'python',
+    sh: 'bash',
+    shell: 'bash',
+    zsh: 'bash',
+    yml: 'yaml',
+    md: 'markdown',
+    plaintext: 'text',
+    csharp: 'csharp',
+    cs: 'csharp',
+    cpp: 'cpp',
+    cxx: 'cpp',
+}
+
+export function normalizeHighlightLanguage(language?: string): string | undefined {
+    if (!language) return undefined
 
     const normalized = language.toLowerCase()
-    const aliases: Record<string, string> = {
-        ts: 'typescript',
-        js: 'javascript',
-        py: 'python',
-        sh: 'shell',
-        bash: 'shell',
-        zsh: 'shell',
-        yml: 'yaml',
-        md: 'markdown',
-        plaintext: 'text',
-        csharp: 'c#',
-        cs: 'c#',
-        cpp: 'c++',
-        cxx: 'c++',
-    }
-    const key = aliases[normalized] ?? normalized
+    return LANGUAGE_ALIASES[normalized] ?? normalized
+}
+
+function getLanguageMeta(language?: string): LanguageMeta {
+    const key = normalizeHighlightLanguage(language)
+    if (!key) return { label: 'Code' }
 
     const meta: Record<string, LanguageMeta> = {
         typescript: { label: 'TypeScript' },
@@ -93,6 +102,7 @@ function getLanguageMeta(language?: string): LanguageMeta {
         json: { label: 'JSON' },
         yaml: { label: 'YAML' },
         shell: { label: 'Shell' },
+        bash: { label: 'Shell' },
         sql: { label: 'SQL' },
         markdown: { label: 'Markdown' },
         text: { label: 'Plain Text' },
@@ -104,7 +114,9 @@ function getLanguageMeta(language?: string): LanguageMeta {
         php: { label: 'PHP' },
         ruby: { label: 'Ruby' },
         c: { label: 'C' },
+        cpp: { label: 'C++' },
         'c++': { label: 'C++' },
+        csharp: { label: 'C#' },
         'c#': { label: 'C#' },
     }
 
@@ -117,6 +129,20 @@ function getLanguageMeta(language?: string): LanguageMeta {
         .join(' ')
 
     return { label: fallbackLabel }
+}
+
+function hasMarkdownCodeBlock(node: React.ReactNode): boolean {
+    if (!React.isValidElement(node)) return false
+
+    const className = (node.props as { className?: unknown }).className
+    if (typeof className === 'string' && className.includes('markdown-code-block')) {
+        return true
+    }
+
+    const children = (node.props as { children?: React.ReactNode }).children
+    if (!children) return false
+
+    return React.Children.toArray(children).some((child) => hasMarkdownCodeBlock(child))
 }
 
 // Pure helper: wraps bare tree-like blocks in code fences (no component state needed)
@@ -242,6 +268,167 @@ function normalizeMathDelimiters(
     }).join('```')
 }
 
+// Languages the sandbox can execute (normalized keys)
+const RUNNABLE_LANGUAGES: Record<string, 'javascript' | 'python'> = {
+    javascript: 'javascript', js: 'javascript', jsx: 'javascript',
+    typescript: 'javascript', ts: 'javascript', tsx: 'javascript',
+    python: 'python', py: 'python',
+}
+
+interface ExecOutput { stdout: string; stderr: string; exitCode: number | null }
+
+/** Wraps a code block with run-button + code/output toggle when execution is available. */
+function RunnableCodeBlock({ code, execLanguage, codeView, headerStyle, headerLeftContent, copyButton, isGenerating }: {
+    code: string
+    execLanguage: 'javascript' | 'python'
+    codeView: React.ReactNode
+    headerStyle: React.CSSProperties
+    headerLeftContent: React.ReactNode
+    copyButton: React.ReactNode
+    isGenerating: boolean
+}) {
+    const [execState, setExecState] = useState<'idle' | 'running' | 'done'>('idle')
+    const [viewMode, setViewMode] = useState<'code' | 'output'>('code')
+    const [output, setOutput] = useState<ExecOutput | null>(null)
+    const [error, setError] = useState<string | null>(null)
+
+    // Reset execution state when code changes (e.g. during streaming)
+    const prevCodeRef = React.useRef(code)
+    if (prevCodeRef.current !== code && execState === 'done') {
+        prevCodeRef.current = code
+        setExecState('idle')
+        setViewMode('code')
+    }
+    prevCodeRef.current = code
+
+    const handleRun = React.useCallback(async () => {
+        setExecState('running')
+        try {
+            const result = await executeTool('code_execution', {
+                code,
+                language: execLanguage,
+                description: 'User-initiated run',
+                autoApprove: true,
+            })
+            if (result.success && result.data) {
+                const d = result.data as Record<string, unknown>
+                setOutput({
+                    stdout: typeof d.stdout === 'string' ? d.stdout : '',
+                    stderr: typeof d.stderr === 'string' ? d.stderr : '',
+                    exitCode: typeof d.exitCode === 'number' ? d.exitCode : null,
+                })
+                setError(null)
+            } else {
+                setOutput(null)
+                setError(result.error || 'Execution failed')
+            }
+        } catch (e) {
+            setOutput(null)
+            setError(e instanceof Error ? e.message : 'Execution failed')
+        }
+        setExecState('done')
+        setViewMode('output')
+    }, [code, execLanguage])
+
+    const runButtonDisabled = isGenerating || execState === 'running'
+    const showOutput = viewMode === 'output' && execState === 'done'
+
+    const runButtonStyle: React.CSSProperties = {
+        background: 'transparent',
+        border: '1px solid color-mix(in srgb, var(--theme-border) 72%, transparent)',
+        color: 'var(--theme-text-muted)',
+        cursor: runButtonDisabled ? 'default' : 'pointer',
+        width: '32px',
+        height: '32px',
+        borderRadius: '11px',
+        position: 'absolute',
+        top: '14px',
+        right: '52px',
+        transition: 'background-color 160ms ease, border-color 160ms ease',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        lineHeight: 1,
+        flexShrink: 0,
+        boxShadow: 'none',
+        pointerEvents: runButtonDisabled ? 'none' : 'auto',
+    }
+
+    const runButtonTitle = execState === 'running' ? 'Running...'
+        : showOutput ? 'Show code' : 'Run code'
+
+    return (
+        <>
+            <div style={{ ...headerStyle, padding: '13px 94px 9px 16px' }}>
+                {headerLeftContent}
+                {showOutput && (
+                    <span style={{
+                        fontSize: '0.75rem',
+                        color: 'var(--theme-text-tertiary)',
+                        fontFamily: "'Google Sans Flex', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif",
+                        fontWeight: 500,
+                        letterSpacing: '0.02em',
+                        lineHeight: 1,
+                        transform: 'translateY(0.5px)',
+                    }}>Output</span>
+                )}
+                <button
+                    onClick={showOutput ? () => setViewMode('code') : () => { void handleRun() }}
+                    style={runButtonStyle}
+                    title={runButtonTitle}
+                    aria-label={runButtonTitle}
+                    onMouseEnter={(e) => {
+                        if (runButtonDisabled) return
+                        e.currentTarget.style.background = 'color-mix(in srgb, var(--theme-surface-active) 42%, transparent)'
+                        e.currentTarget.style.borderColor = 'var(--theme-border-hover)'
+                    }}
+                    onMouseLeave={(e) => {
+                        if (runButtonDisabled) return
+                        e.currentTarget.style.background = 'transparent'
+                        e.currentTarget.style.borderColor = 'color-mix(in srgb, var(--theme-border) 72%, transparent)'
+                    }}
+                >
+                    {execState === 'running' ? (
+                        <LoaderCircle size={16} style={{ display: 'block', color: 'var(--theme-text-muted)', animation: 'markdown-code-spin 900ms linear infinite' }} />
+                    ) : showOutput ? (
+                        <Code2 size={16} style={{ display: 'block', color: 'var(--theme-text-muted)' }} />
+                    ) : (
+                        <Play size={16} style={{ display: 'block', color: 'var(--theme-text-muted)' }} />
+                    )}
+                </button>
+                {copyButton}
+            </div>
+            {showOutput ? (
+                <pre style={{ margin: 0, padding: '14px 16px 18px', background: 'transparent', overflowX: 'auto', maxHeight: '400px', overflowY: 'auto' }}>
+                    <code style={{
+                        whiteSpace: 'pre-wrap',
+                        fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
+                        fontSize: '0.95rem',
+                        lineHeight: '1.72',
+                        color: error ? 'var(--theme-error, #ef4444)' : 'var(--theme-text-primary)',
+                    }}>
+                        {error ? error : (
+                            <>
+                                {output?.stdout || (!output?.stderr ? 'No output' : '')}
+                                {output?.stderr && (
+                                    <span style={{ color: 'var(--theme-text-warning, #f59e0b)' }}>
+                                        {output.stdout ? '\n' : ''}{output.stderr}
+                                    </span>
+                                )}
+                                {output?.exitCode != null && output.exitCode !== 0 && (
+                                    <span style={{ color: 'var(--theme-error, #ef4444)', display: 'block', marginTop: '4px', fontSize: '0.85rem' }}>
+                                        exit code {output.exitCode}
+                                    </span>
+                                )}
+                            </>
+                        )}
+                    </code>
+                </pre>
+            ) : codeView}
+        </>
+    )
+}
+
 const MarkdownContent = React.memo(function MarkdownContent({ content, webSources, isStreaming = false }: { content: string; webSources?: Map<string, WebSource>; isStreaming?: boolean }) {
     // Initialize from preloaded cache if available (avoids flash of unstyled content)
     const preloaded = getPreloadedMarkdown()
@@ -274,6 +461,9 @@ const MarkdownContent = React.memo(function MarkdownContent({ content, webSource
     }, [loadAttempted])
 
     const SyntaxHighlighter = syntaxHighlighter
+    // Derive code execution availability from settings
+    const { settings } = useSettings()
+    const codeExecutionEnabled = isCodeExecutionEnabled(settings.skills)
     // Memoize the normalized content to avoid re-running expensive math/tree
     // transformations on every render when content hasn't changed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -296,6 +486,7 @@ const MarkdownContent = React.memo(function MarkdownContent({ content, webSource
                     const isCodeBlock = !isInline && (!!match || codeString.includes('\n'))
 
                     const language = match?.[1]?.toLowerCase()
+                    const highlightLanguage = normalizeHighlightLanguage(match?.[1])
                     
                     // Mermaid diagrams
                     const isMermaid = language === 'mermaid'
@@ -394,8 +585,8 @@ const MarkdownContent = React.memo(function MarkdownContent({ content, webSource
                         margin: '4px 0',
                         borderRadius: '30px',
                         overflow: 'hidden',
-                        border: '1px solid #3A3C40',
-                        background: '#202226',
+                        border: '1px solid var(--theme-border)',
+                        background: 'color-mix(in srgb, var(--theme-surface-active) 72%, black 28%)',
                         boxShadow: 'none'
                     }
                     const codeHeaderStyle: React.CSSProperties = {
@@ -404,6 +595,7 @@ const MarkdownContent = React.memo(function MarkdownContent({ content, webSource
                         alignItems: 'center',
                         gap: '10px',
                         padding: '13px 56px 9px 16px',
+                        background: 'transparent',
                     }
                     const codeHeaderLeftStyle: React.CSSProperties = {
                         display: 'inline-flex',
@@ -421,11 +613,11 @@ const MarkdownContent = React.memo(function MarkdownContent({ content, webSource
                         flexShrink: 0
                     }
                     const codeGlyphStyle: React.CSSProperties = {
-                        color: '#B5C2DC',
+                        color: 'var(--theme-text-muted)',
                         display: 'block'
                     }
                     const codeHeaderLabelStyle: React.CSSProperties = {
-                        color: '#D9E2F3',
+                        color: 'var(--theme-text-primary)',
                         fontFamily: "'Google Sans Flex', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif",
                         fontWeight: 600,
                         fontSize: '0.95rem',
@@ -446,9 +638,9 @@ const MarkdownContent = React.memo(function MarkdownContent({ content, webSource
                         overflowX: 'auto'
                     }
                     const getCopyButtonStyle = (isGenerating: boolean): React.CSSProperties => ({
-                        background: 'rgba(255, 255, 255, 0.03)',
-                        border: '1px solid rgba(255, 255, 255, 0.1)',
-                        color: '#B5C2DC',
+                        background: 'transparent',
+                        border: '1px solid color-mix(in srgb, var(--theme-border) 72%, transparent)',
+                        color: 'var(--theme-text-muted)',
                         cursor: isGenerating ? 'default' : 'pointer',
                         width: '32px',
                         height: '32px',
@@ -462,7 +654,7 @@ const MarkdownContent = React.memo(function MarkdownContent({ content, webSource
                         justifyContent: 'center',
                         lineHeight: 1,
                         flexShrink: 0,
-                        boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.08)',
+                        boxShadow: 'none',
                         pointerEvents: isGenerating ? 'none' : 'auto'
                     })
                     const iconSlotStyle: React.CSSProperties = {
@@ -483,7 +675,7 @@ const MarkdownContent = React.memo(function MarkdownContent({ content, webSource
                     })
                     const loadingSpinnerStyle: React.CSSProperties = {
                         display: 'block',
-                        color: '#B5C2DC',
+                        color: 'var(--theme-text-muted)',
                         animation: 'markdown-code-spin 900ms linear infinite',
                     }
                     const renderCodeHeader = (meta: LanguageMeta, isCopied: boolean, isGenerating: boolean, onCopy: () => void) => (
@@ -501,13 +693,13 @@ const MarkdownContent = React.memo(function MarkdownContent({ content, webSource
                                 aria-label={isGenerating ? 'Generating code' : (isCopied ? 'Copied code' : 'Copy code')}
                                 onMouseEnter={(event) => {
                                     if (isGenerating) return
-                                    event.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)'
-                                    event.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.16)'
+                                    event.currentTarget.style.background = 'color-mix(in srgb, var(--theme-surface-active) 42%, transparent)'
+                                    event.currentTarget.style.borderColor = 'var(--theme-border-hover)'
                                 }}
                                 onMouseLeave={(event) => {
                                     if (isGenerating) return
-                                    event.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)'
-                                    event.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)'
+                                    event.currentTarget.style.background = 'transparent'
+                                    event.currentTarget.style.borderColor = 'color-mix(in srgb, var(--theme-border) 72%, transparent)'
                                 }}
                             >
                                 {isGenerating ? (
@@ -515,7 +707,7 @@ const MarkdownContent = React.memo(function MarkdownContent({ content, webSource
                                 ) : (
                                     <span style={iconSlotStyle}>
                                         <span style={getIconStateStyle(!isCopied)}>
-                                            <Copy size={16} style={{ display: 'block', color: '#B5C2DC' }} />
+                                            <Copy size={16} style={{ display: 'block', color: 'var(--theme-text-muted)' }} />
                                         </span>
                                         <span style={getIconStateStyle(isCopied)}>
                                             <Check size={16} style={{ display: 'block', color: 'var(--theme-success)' }} />
@@ -536,25 +728,82 @@ const MarkdownContent = React.memo(function MarkdownContent({ content, webSource
                         }
                         const languageMeta = getLanguageMeta(match[1])
                         const isGeneratingBlock = isStreaming && normalizedContent.trimEnd().endsWith(normalizedCode.trimEnd())
+                        const execLang = language ? RUNNABLE_LANGUAGES[language] : undefined
+                        const canRun = codeExecutionEnabled && !!execLang && !isGeneratingBlock
 
-                        return (
-                            <div style={codeFrameStyle} className="markdown-code-block">
-                                {renderCodeHeader(languageMeta, isCopied, isGeneratingBlock, handleCopy)}
+                        const syntaxView = (
                                 <SyntaxHighlighter
                                     {...props}
                                     children={normalizedCode}
                                     style={prismStyle}
-                                    language={match[1]}
+                                    language={highlightLanguage}
                                     PreTag="div"
                                     customStyle={codeBodyStyle}
-                                    codeTagProps={{
-                                        style: {
-                                            fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
-                                            fontSize: '0.95rem',
-                                            lineHeight: '1.72',
-                                        }
+                                    useInlineStyles={true}
+                                codeTagProps={{
+                                    style: {
+                                        fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
+                                        fontSize: '0.95rem',
+                                        lineHeight: '1.72',
+                                        background: 'transparent',
+                                    }
+                                }}
+                            />
+                        )
+
+                        if (canRun) {
+                            const headerLeft = (
+                                <span style={codeHeaderLeftStyle}>
+                                    <span style={codeGlyphWrapStyle} aria-hidden="true">
+                                        <Code2 size={13} strokeWidth={2.2} style={codeGlyphStyle} />
+                                    </span>
+                                    <span style={codeHeaderLabelStyle}>{languageMeta.label}</span>
+                                </span>
+                            )
+                            const copyBtn = (
+                                <button
+                                    onClick={handleCopy}
+                                    style={getCopyButtonStyle(false)}
+                                    title={isCopied ? 'Copied!' : 'Copy code'}
+                                    aria-label={isCopied ? 'Copied code' : 'Copy code'}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.background = 'color-mix(in srgb, var(--theme-surface-active) 42%, transparent)'
+                                        e.currentTarget.style.borderColor = 'var(--theme-border-hover)'
                                     }}
-                                />
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.background = 'transparent'
+                                        e.currentTarget.style.borderColor = 'color-mix(in srgb, var(--theme-border) 72%, transparent)'
+                                    }}
+                                >
+                                    <span style={iconSlotStyle}>
+                                        <span style={getIconStateStyle(!isCopied)}>
+                                            <Copy size={16} style={{ display: 'block', color: 'var(--theme-text-muted)' }} />
+                                        </span>
+                                        <span style={getIconStateStyle(isCopied)}>
+                                            <Check size={16} style={{ display: 'block', color: 'var(--theme-success)' }} />
+                                        </span>
+                                    </span>
+                                </button>
+                            )
+                            return (
+                                <div style={codeFrameStyle} className="markdown-code-block">
+                                    <RunnableCodeBlock
+                                        code={normalizedCode}
+                                        execLanguage={execLang}
+                                        codeView={syntaxView}
+                                        headerStyle={codeHeaderStyle}
+                                        headerLeftContent={headerLeft}
+                                        copyButton={copyBtn}
+                                        isGenerating={isGeneratingBlock}
+                                    />
+                                </div>
+                            )
+                        }
+
+                        return (
+                            <div style={codeFrameStyle} className="markdown-code-block">
+                                {renderCodeHeader(languageMeta, isCopied, isGeneratingBlock, handleCopy)}
+                                {syntaxView}
                             </div>
                         )
                     } else if (isCodeBlock) {
@@ -572,7 +821,7 @@ const MarkdownContent = React.memo(function MarkdownContent({ content, webSource
                                 {renderCodeHeader(getLanguageMeta(), isCopied, isGeneratingBlock, handleCopy)}
                                 <pre style={codeBodyStyle}>
                                     <code style={{
-                                        color: '#E6ECF8',
+                                        color: 'var(--theme-text-primary)',
                                         whiteSpace: 'pre',
                                         fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
                                         fontSize: '0.95rem',
@@ -591,6 +840,15 @@ const MarkdownContent = React.memo(function MarkdownContent({ content, webSource
                             </code>
                         )
                     }
+                },
+                pre: ({ node: _node, children, ...props }: ExtraProps & React.HTMLAttributes<HTMLPreElement>) => {
+                    const wrapsCustomCodeBlock = React.Children.toArray(children).some((child) => hasMarkdownCodeBlock(child))
+
+                    if (wrapsCustomCodeBlock) {
+                        return <>{children}</>
+                    }
+
+                    return <pre {...props}>{children}</pre>
                 },
                 blockquote: ({ node: _node, ...props }: ExtraProps & React.BlockquoteHTMLAttributes<HTMLQuoteElement>) => <blockquote {...props} />,
                 table: ({ node: _node, ...props }: ExtraProps & React.TableHTMLAttributes<HTMLTableElement>) => (
@@ -633,7 +891,7 @@ const MarkdownContent = React.memo(function MarkdownContent({ content, webSource
                 h6: ({ node: _node, ...props }: ExtraProps & React.HTMLAttributes<HTMLHeadingElement>) => <h6 {...props} />,
                 p: ({ node: _node, ...props }: ExtraProps & React.HTMLAttributes<HTMLParagraphElement>) => <p {...props} />
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }), [copiedCode, isStreaming, normalizedContent, SyntaxHighlighter, prismStyle, webSources])
+    }), [copiedCode, isStreaming, normalizedContent, SyntaxHighlighter, prismStyle, webSources, codeExecutionEnabled])
 
     if (!loadAttempted) return <MarkdownSkeleton />
 

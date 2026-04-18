@@ -1,25 +1,17 @@
-// @vitest-environment node
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+const ipcMainMocks = {
+  handle: vi.fn((channel: string, handler: (...args: unknown[]) => unknown) => {
+    ipcMainMocks.handlers.set(channel, handler)
+  }),
+  removeHandler: vi.fn(),
+  handlers: new Map<string, (...args: unknown[]) => unknown>(),
+}
 
-const secureStorageMocks = vi.hoisted(() => ({
+const secureStorageMocks = {
   getSecureValueAsync: vi.fn(),
   setSecureValueAsync: vi.fn(),
-}))
-
-const ipcMainMocks = vi.hoisted(() => {
-  const handlers = new Map<string, (...args: unknown[]) => unknown>()
-
-  return {
-    handlers,
-    handle: vi.fn((channel: string, handler: (...args: unknown[]) => unknown) => {
-      handlers.set(channel, handler)
-    }),
-    removeHandler: vi.fn((channel: string) => {
-      handlers.delete(channel)
-    }),
-  }
-})
+}
 
 vi.mock('electron', () => ({
   ipcMain: {
@@ -51,6 +43,7 @@ describe('registerSecureStorageHandlers', () => {
       .mockResolvedValueOnce('tavily-key')
       .mockResolvedValueOnce('alibaba-key')
       .mockResolvedValueOnce('fireworks-key')
+      .mockResolvedValueOnce('oc-key')
 
     const { registerSecureStorageHandlers } = await import('./secureStorageHandlers')
     registerSecureStorageHandlers()
@@ -65,9 +58,10 @@ describe('registerSecureStorageHandlers', () => {
       tavilyApiKey: 'tavily-key',
       alibabaApiKey: 'alibaba-key',
       fireworksApiKey: 'fireworks-key',
+      onlineCompilerApiKey: 'oc-key',
     })
 
-    expect(secureStorageMocks.getSecureValueAsync).toHaveBeenCalledTimes(6)
+    expect(secureStorageMocks.getSecureValueAsync).toHaveBeenCalledTimes(7)
     expect(secureStorageMocks.getSecureValueAsync).not.toHaveBeenCalledWith('mcp.server.demo.token')
   })
 })

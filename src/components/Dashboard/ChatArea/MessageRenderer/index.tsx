@@ -19,7 +19,7 @@ import {
   splitMessageTimeline,
   type FollowUpTimelineSnapshot,
 } from '../messageTimeline'
-import { shouldHideGenericToolResultCard } from '../toolResultVisibility'
+import { shouldHideMessageToolResultCard } from '../toolResultVisibility'
 
 import type { MessageRendererProps } from './types'
 import { areMessagePropsEqual } from './messagePropsComparison'
@@ -125,7 +125,13 @@ function MessageRendererComponent({
   const rawDisplayContent = displayMessage?.content || ''
   const displayContent = removeToolFollowUpSplitMarker(rawDisplayContent)
   const hasDisplayContent = displayContent.trim().length > 0
-  const completedBlocks = message.thinkingBlocks || []
+  const completedBlocks = useMemo(() => {
+    if (!message.thinkingBlocks?.length) {
+      return []
+    }
+
+    return message.thinkingBlocks
+  }, [message.thinkingBlocks])
 
   const isUser = message.role === 'user'
   const hasThinking = typeof message.thinking === 'string' && message.thinking.trim().length > 0
@@ -178,8 +184,11 @@ function MessageRendererComponent({
   const hasTopDisplayContent = topProcessedContent.trim().length > 0
   const hasBottomDisplayContent = bottomProcessedContent.trim().length > 0
   const visibleToolResults = useMemo(
-    () => (message.toolResults || []).filter((result) => !shouldHideGenericToolResultCard(result)),
-    [message.toolResults]
+    () =>
+      (message.toolResults || []).filter(
+        (result) => !shouldHideMessageToolResultCard(result, message.thinkingBlocks)
+      ),
+    [message.toolResults, message.thinkingBlocks]
   )
   const showVisibleToolResults = !isStreaming && visibleToolResults.length > 0
   const hasSplitFollowUpSection =

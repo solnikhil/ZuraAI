@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { findMatchingWebSource } from './LazyMarkdown'
+import { findMatchingWebSource, normalizeHighlightLanguage } from './LazyMarkdown'
 
 describe('findMatchingWebSource', () => {
   it('matches exact URLs from the web source map', () => {
@@ -23,5 +23,22 @@ describe('findMatchingWebSource', () => {
     ])
 
     expect(findMatchingWebSource('https://www.npmjs.com/package/@modelcontextprotocol/inspector', webSources)).toBeUndefined()
+  })
+})
+
+describe('normalizeHighlightLanguage', () => {
+  it('maps common aliases to registered prism languages', () => {
+    expect(normalizeHighlightLanguage('py')).toBe('python')
+    expect(normalizeHighlightLanguage('js')).toBe('javascript')
+    expect(normalizeHighlightLanguage('ts')).toBe('typescript')
+    expect(normalizeHighlightLanguage('yml')).toBe('yaml')
+    expect(normalizeHighlightLanguage('csharp')).toBe('csharp')
+    expect(normalizeHighlightLanguage('cpp')).toBe('cpp')
+  })
+
+  it('normalizes case and keeps canonical names unchanged', () => {
+    expect(normalizeHighlightLanguage('Python')).toBe('python')
+    expect(normalizeHighlightLanguage('javascript')).toBe('javascript')
+    expect(normalizeHighlightLanguage('bash')).toBe('bash')
   })
 })

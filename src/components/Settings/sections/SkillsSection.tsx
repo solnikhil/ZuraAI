@@ -13,28 +13,25 @@ import {
 } from '@/components/ui/dropdown-menu'
 import {
   BUILT_IN_SKILLS,
-  isWebResearchEnabled,
-  withWebResearchEnabled,
+  isSkillEnabled as checkSkillEnabled,
+  withSkillEnabled,
+  type SkillId,
   type SkillsSettings,
 } from '@/skills'
 
 export interface SkillsSectionProps {
   skills: SkillsSettings
-  onChange: (changes: { skills: SkillsSettings }) => void
+  codeExecutionAutoApprove: boolean
+  onChange: (changes: { skills?: SkillsSettings; codeExecutionAutoApprove?: boolean }) => void
 }
 
-export function SkillsSection({ skills, onChange }: SkillsSectionProps): React.ReactElement {
-  const webResearchEnabled = isWebResearchEnabled(skills)
+export function SkillsSection({ skills, codeExecutionAutoApprove, onChange }: SkillsSectionProps): React.ReactElement {
+  const isEnabled = (skillId: SkillId): boolean => checkSkillEnabled(skills, skillId)
 
-  const setEnabled = (_skillId: string, enabled: boolean) => {
+  const setEnabled = (skillId: SkillId, enabled: boolean) => {
     onChange({
-      skills: withWebResearchEnabled(skills, enabled),
+      skills: withSkillEnabled(skills, skillId, enabled),
     })
-  }
-
-  const isSkillEnabled = (skillId: string): boolean => {
-    if (skillId === 'web_research') return webResearchEnabled
-    return false
   }
 
   return (
@@ -42,14 +39,14 @@ export function SkillsSection({ skills, onChange }: SkillsSectionProps): React.R
       <div className="page-header">
         <h2 className="page-title">Skills</h2>
         <div className="page-subtitle">
-          Enable built-in capabilities that allow the assistant to search the web and cite sources.
+          Enable built-in capabilities that allow the assistant to search the web, run code, and more.
         </div>
       </div>
 
       <Card className="settings-list-card settings-skills-card p-0">
         <div className="skills-list">
           {BUILT_IN_SKILLS.map((skill) => {
-            const enabled = isSkillEnabled(skill.id)
+            const enabled = isEnabled(skill.id)
 
             return (
               <div key={skill.id} className="skills-row">
@@ -83,11 +80,17 @@ export function SkillsSection({ skills, onChange }: SkillsSectionProps): React.R
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuLabel inset>{skill.name}</DropdownMenuLabel>
-                      <DropdownMenuSeparator />
                       <DropdownMenuItem onClick={() => setEnabled(skill.id, !enabled)}>
                         {enabled ? 'Disable' : 'Enable'}
                       </DropdownMenuItem>
+                      {skill.id === 'code_execution' && enabled && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => onChange({ codeExecutionAutoApprove: !codeExecutionAutoApprove })}>
+                            {codeExecutionAutoApprove ? '✓ ' : ''}Auto-approve execution
+                          </DropdownMenuItem>
+                        </>
+                      )}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>

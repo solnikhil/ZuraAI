@@ -16,6 +16,8 @@ import { ModelSelectorProvider, useModelSelectorContext } from './contexts/Model
 import { McpProvider } from './mcp/McpContext'
 import { ToastProvider, ErrorBoundary } from './components/shared'
 import { McpApprovalDialog } from './components/mcp/McpApprovalDialog'
+import { CodeExecutionApprovalDialog } from './components/CodeExecutionApprovalDialog'
+
 import { loadSettingsModule } from './components/Settings/settingsLoader'
 
 const Settings = lazy(loadSettingsModule)
@@ -89,6 +91,8 @@ function App() {
                     </Router>
                     <McpApprovalDialog />
                   </ModelSelectorProvider>
+                    <CodeExecutionApprovalDialog />
+
                   </QuickSendProvider>
                 </StreamingProvider>
               </ChatHistoryProvider>

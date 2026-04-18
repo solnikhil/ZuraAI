@@ -134,13 +134,26 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
     }
   })
 
-  // Show when ready to prevent white flash
-  mainWindow.once('ready-to-show', () => {
-    mainWindow?.show()
-    // Mark window as visible and trigger deferred task execution
+  let hasShownMainWindow = false
+  const showMainWindowWhenReady = () => {
+    if (hasShownMainWindow || !mainWindow || mainWindow.isDestroyed()) return
+
+    hasShownMainWindow = true
+    mainWindow.show()
+
+    // Mark window as visible and trigger deferred task execution.
     deferredInitializer.markWindowVisible()
     deferredInitializer.executeAfterWindowVisible()
-  })
+  }
+
+  // In development, wait for did-finish-load so the app route is mounted before
+  // showing the window. This avoids exposing the launch fallback screen.
+  if (process.env.VITE_DEV_SERVER_URL) {
+    mainWindow.webContents.once('did-finish-load', showMainWindowWhenReady)
+  } else {
+    // In production, keep ready-to-show to minimize startup latency.
+    mainWindow.once('ready-to-show', showMainWindowWhenReady)
+  }
 
   // Track window creation
   deferredInitializer.markWindowCreated()

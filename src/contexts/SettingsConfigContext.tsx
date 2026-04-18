@@ -25,6 +25,7 @@ import {
 import { defaultSystemPrompt } from '../prompts/defaultSystemPrompt'
 import { defaultWebSearchPrompt } from '../prompts/defaultWebSearchPrompt'
 import { defaultTitleGenerationPrompt } from '../prompts/defaultTitleGenerationPrompt'
+import { defaultCodeExecutionPrompt } from '../prompts/defaultCodeExecutionPrompt'
 import { defaultSkillsSettings, type SkillsSettings } from '../skills'
 import type { ProviderId } from '../providers/providerTypes'
 import { warnOnceDuringHmr } from './hmrWarnings'
@@ -85,6 +86,7 @@ export interface SettingsConfig {
   webSearchIncludeImages: boolean
   alibabaApiKey: string
   fireworksApiKey: string
+  onlineCompilerApiKey: string
 
   // Model settings
   aiModel: string
@@ -104,12 +106,16 @@ export interface SettingsConfig {
   systemPrompt: string
   /** Web search instructions appended when Web Search is enabled */
   webSearchPrompt: string
+  /** Code execution instructions appended when Code Execution is enabled */
+  codeExecutionPrompt: string
   streamResponses: boolean
 
   // Tool settings
   toolsEnabled: boolean
   enabledTools: string[]
   skills: SkillsSettings
+  /** When true, code execution runs without the approval dialog */
+  codeExecutionAutoApprove: boolean
   /** @deprecated Legacy migration input only; do not use in runtime logic. */
   webSearchEnabled?: boolean
   /** @deprecated Legacy migration input only; do not use in runtime logic. */
@@ -152,6 +158,7 @@ export const defaultSettingsConfig: SettingsConfig = {
   alibabaApiKey: '',
   fireworksApiKey: '',
 
+  onlineCompilerApiKey: '',
   // Model settings
   aiModel: '',
   modelProvider: 'openrouter',
@@ -251,6 +258,7 @@ export const defaultSettingsConfig: SettingsConfig = {
   maxTokens: 8000,
   systemPrompt: defaultSystemPrompt,
   webSearchPrompt: defaultWebSearchPrompt,
+  codeExecutionPrompt: defaultCodeExecutionPrompt,
   streamResponses: true,
 
   // Tool settings
@@ -258,6 +266,7 @@ export const defaultSettingsConfig: SettingsConfig = {
   enabledTools: ['web_search'],
   skills: defaultSkillsSettings,
 
+  codeExecutionAutoApprove: false,
   // Title generation
   titleModelProvider: 'openrouter',
   titleModel: '',

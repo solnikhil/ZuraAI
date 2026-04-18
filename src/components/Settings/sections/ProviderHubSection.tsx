@@ -15,6 +15,7 @@ import {
   MoreVertical,
   Plus,
   Search,
+  Terminal,
   Trash2,
 } from 'lucide-react'
 import { Card } from '@/components/ui/card'
@@ -134,7 +135,7 @@ const PROVIDER_MODEL_LIST_FIELD: Record<ProviderKey, ProviderModelListField> = {
   ollama: 'ollamaModels',
 }
 
-type SearchApiKey = 'tavily'
+type SearchApiKey = 'tavily' | 'onlinecompiler'
 
 interface SearchApiDefinition {
   key: SearchApiKey
@@ -144,7 +145,7 @@ interface SearchApiDefinition {
   icon: React.ReactNode
   color?: string
   learnMoreUrl?: string
-  apiKeyField?: 'tavilyApiKey'
+  apiKeyField?: 'tavilyApiKey' | 'onlineCompilerApiKey'
 }
 
 const SEARCH_APIS: SearchApiDefinition[] = [
@@ -158,6 +159,16 @@ const SEARCH_APIS: SearchApiDefinition[] = [
     color: '#4dabf7',
     learnMoreUrl: 'https://tavily.com',
     apiKeyField: 'tavilyApiKey',
+  },
+  {
+    key: 'onlinecompiler',
+    name: 'Code Execution API',
+    description: 'Free code execution sandbox for the code_execution tool (1M requests/month).',
+    shortDescription: 'Run code_execution with OnlineCompiler. Add a key for best results.',
+    icon: <Terminal size={16} />,
+    color: '#a78bfa',
+    learnMoreUrl: 'https://onlinecompiler.io',
+    apiKeyField: 'onlineCompilerApiKey',
   },
 ]
 
@@ -175,6 +186,7 @@ export interface ProviderHubSectionProps {
   openRouterDebug: boolean
   perplexityApiKey: string
   tavilyApiKey: string
+  onlineCompilerApiKey: string
   tavilySearchDepthPreference: TavilySearchDepthPreference
   webSearchIncludeImages: boolean
   ollamaUrl: string
@@ -200,6 +212,7 @@ export interface ProviderHubSectionProps {
       openRouterDebug: boolean
       perplexityApiKey: string
       tavilyApiKey: string
+      onlineCompilerApiKey: string
       tavilySearchDepthPreference: TavilySearchDepthPreference
       webSearchIncludeImages: boolean
       ollamaUrl: string
@@ -238,6 +251,7 @@ export function ProviderHubSection({
   alibabaApiKey,
   fireworksApiKey,
   tavilyApiKey,
+  onlineCompilerApiKey,
   tavilySearchDepthPreference,
   webSearchIncludeImages,
   ollamaUrl,
@@ -762,7 +776,7 @@ export function ProviderHubSection({
               color: 'var(--theme-text-primary)',
             }}
           >
-            Search APIs
+            Service APIs
           </button>
         </div>
       </div>
@@ -1160,12 +1174,13 @@ export function ProviderHubSection({
               apis={SEARCH_APIS}
               selectedApi={selectedSearchApi}
               tavilyApiKey={tavilyApiKey}
+              onlineCompilerApiKey={onlineCompilerApiKey}
               tavilySearchDepthPreference={tavilySearchDepthPreference}
               onCardClick={(api) => {
                 setSelectedSearchApi(api.key)
                 setSearchApiView('detail')
               }}
-              onTavilyDisable={() => onChange({ tavilyApiKey: '' })}
+              onChange={onChange}
             />
           </Card>
         </div>
@@ -1175,6 +1190,7 @@ export function ProviderHubSection({
         <SearchApiDetail
           api={SEARCH_APIS.find((a) => a.key === selectedSearchApi)!}
           tavilyApiKey={tavilyApiKey}
+          onlineCompilerApiKey={onlineCompilerApiKey}
           tavilySearchDepthPreference={tavilySearchDepthPreference}
           webSearchIncludeImages={webSearchIncludeImages}
           onBack={() => setSearchApiView('catalog')}
@@ -1554,16 +1570,18 @@ function SearchApiSection({
   apis,
   selectedApi,
   tavilyApiKey,
+  onlineCompilerApiKey,
   tavilySearchDepthPreference,
   onCardClick,
-  onTavilyDisable,
+  onChange,
 }: {
   apis: SearchApiDefinition[]
   selectedApi: SearchApiKey
   tavilyApiKey: string
+  onlineCompilerApiKey: string
   tavilySearchDepthPreference: TavilySearchDepthPreference
   onCardClick: (api: SearchApiDefinition) => void
-  onTavilyDisable: () => void
+  onChange: ProviderHubSectionProps['onChange']
 }): React.ReactElement {
   const getDepthSummary = (preference: TavilySearchDepthPreference): string => {
     switch (preference) {
@@ -1590,14 +1608,21 @@ function SearchApiSection({
           {apis.length}
         </span>
       </div>
-      <div
-        className="grid gap-3"
-        style={{
-          gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-        }}
-      >
+      <div className="flex flex-col gap-px overflow-hidden rounded-lg border border-white/10">
         {apis.map((api) => {
-          const enabled = Boolean(api.apiKeyField && (tavilyApiKey || '').trim())
+          const keyValue =
+            api.apiKeyField === 'tavilyApiKey'
+              ? tavilyApiKey
+              : api.apiKeyField === 'onlineCompilerApiKey'
+                ? onlineCompilerApiKey
+                : ''
+          const normalizedKeyValue = typeof keyValue === 'string' ? keyValue : ''
+          const enabled = Boolean(api.apiKeyField && normalizedKeyValue.trim())
+          const speedSummary =
+            api.key === 'tavily'
+              ? `Default search speed: ${getDepthSummary(tavilySearchDepthPreference)}`
+              : null
+
           return (
             <div
               key={api.key}
@@ -1610,16 +1635,19 @@ function SearchApiSection({
               }}
               role="button"
               tabIndex={0}
-              className="w-full rounded-xl border border-white/15 p-4 text-left transition hover:border-white/30"
+              className="flex items-center gap-3 px-3.5 py-3 text-left transition hover:bg-white/[0.04]"
               style={{
                 background: CATALOG_CARD_BACKGROUND,
-                boxShadow: selectedApi === api.key ? 'inset 0 0 0 1px var(--theme-accent)' : 'none',
+                boxShadow: selectedApi === api.key ? 'inset 0 0 0 1px var(--theme-surface-active)' : 'none',
               }}
             >
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex shrink-0 items-center justify-center">
+                <span style={api.color ? { color: api.color } : undefined}>{api.icon}</span>
+              </div>
+
+              <div className="min-w-0 flex-1">
                 <div className="flex min-w-0 items-center gap-2">
-                  <span style={api.color ? { color: api.color } : undefined}>{api.icon}</span>
-                  <span className="truncate text-[15px] font-semibold text-foreground">
+                  <span className="truncate text-sm font-semibold text-foreground">
                     {api.name}
                   </span>
                   {api.key === 'tavily' && (
@@ -1628,29 +1656,46 @@ function SearchApiSection({
                     </span>
                   )}
                 </div>
-                <Switch
-                  className="provider-hub-toggle"
-                  checked={enabled}
-                  onCheckedChange={(checked) => {
-                    if (!checked) {
-                      if (api.apiKeyField === 'tavilyApiKey') onTavilyDisable()
-                    } else {
-                      onCardClick(api)
-                    }
-                  }}
-                  aria-label={`Toggle ${api.name}`}
-                  onClick={(e) => e.stopPropagation()}
-                />
+                <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                  {api.shortDescription || api.description}
+                </p>
+                {speedSummary && <div className="mt-1 text-xs text-muted-foreground">{speedSummary}</div>}
               </div>
-              <p className="mt-3 min-h-[50px] text-sm text-muted-foreground">
-                {api.shortDescription || api.description}
-              </p>
-              {api.key === 'tavily' && (
-                <div className="mt-2 text-xs text-muted-foreground">
-                  Default search speed: {getDepthSummary(tavilySearchDepthPreference)}
-                </div>
-              )}
-              <div className="mt-4 border-t border-border pt-2" />
+
+              <div className="flex shrink-0 items-center gap-2">
+                <span
+                  className="inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-medium"
+                  style={{
+                    background: enabled ? 'rgba(74, 222, 128, 0.10)' : 'rgba(250, 204, 21, 0.10)',
+                    color: enabled ? 'rgb(74, 222, 128)' : 'rgb(250, 204, 21)',
+                  }}
+                >
+                  <span
+                    className="inline-block h-1.5 w-1.5 rounded-full"
+                    style={{ background: enabled ? 'rgb(74, 222, 128)' : 'rgb(250, 204, 21)' }}
+                  />
+                  {enabled ? 'Key set' : 'No key'}
+                </span>
+              </div>
+
+              <Switch
+                className="provider-hub-toggle"
+                checked={enabled}
+                onCheckedChange={(checked) => {
+                  if (!checked) {
+                    if (api.apiKeyField === 'tavilyApiKey') {
+                      onChange({ tavilyApiKey: '' })
+                    }
+                    if (api.apiKeyField === 'onlineCompilerApiKey') {
+                      onChange({ onlineCompilerApiKey: '' })
+                    }
+                  } else {
+                    onCardClick(api)
+                  }
+                }}
+                aria-label={`Toggle ${api.name}`}
+                onClick={(e) => e.stopPropagation()}
+              />
             </div>
           )
         })}
@@ -1662,6 +1707,7 @@ function SearchApiSection({
 function SearchApiDetail({
   api,
   tavilyApiKey,
+  onlineCompilerApiKey,
   tavilySearchDepthPreference,
   webSearchIncludeImages,
   onBack,
@@ -1669,13 +1715,21 @@ function SearchApiDetail({
 }: {
   api: SearchApiDefinition
   tavilyApiKey: string
+  onlineCompilerApiKey: string
   tavilySearchDepthPreference: TavilySearchDepthPreference
   webSearchIncludeImages: boolean
   onBack: () => void
   onChange: ProviderHubSectionProps['onChange']
 }): React.ReactElement {
   const [showApiKey, setShowApiKey] = useState(false)
-  const isEnabled = Boolean(api.apiKeyField && (tavilyApiKey || '').trim())
+  const apiKeyValue =
+    api.apiKeyField === 'tavilyApiKey'
+      ? tavilyApiKey
+      : api.apiKeyField === 'onlineCompilerApiKey'
+        ? onlineCompilerApiKey
+        : ''
+  const normalizedApiKeyValue = typeof apiKeyValue === 'string' ? apiKeyValue : ''
+  const isEnabled = Boolean(api.apiKeyField && normalizedApiKeyValue.trim())
 
   return (
     <Card
@@ -1711,6 +1765,9 @@ function SearchApiDetail({
                 if (api.apiKeyField === 'tavilyApiKey') {
                   onChange({ tavilyApiKey: '' })
                 }
+                if (api.apiKeyField === 'onlineCompilerApiKey') {
+                  onChange({ onlineCompilerApiKey: '' })
+                }
               }
             }}
             aria-label={`Enable ${api.name}`}
@@ -1718,18 +1775,26 @@ function SearchApiDetail({
         </div>
 
         <div className="border-t border-border pt-6">
-          {api.apiKeyField === 'tavilyApiKey' ? (
+          {(api.apiKeyField === 'tavilyApiKey' || api.apiKeyField === 'onlineCompilerApiKey') ? (
             <div className="space-y-6">
               <DetailField
                 label="API Key"
-                description="Without a key, a limited free fallback is used. Add a key for best results. Only API key is required here."
+                description={
+                  api.apiKeyField === 'tavilyApiKey'
+                    ? 'Without a key, a limited free fallback is used. Add a key for best results. Only API key is required here.'
+                    : 'Used for code execution requests. Add your OnlineCompiler key to enable hosted code sandbox calls.'
+                }
                 control={
                   <div className="relative w-full">
                     <Input
                       type={showApiKey ? 'text' : 'password'}
-                      value={tavilyApiKey}
-                      onChange={(e) => onChange({ tavilyApiKey: e.target.value })}
-                      placeholder="tvly-..."
+                      value={api.apiKeyField === 'tavilyApiKey' ? tavilyApiKey : onlineCompilerApiKey}
+                      onChange={(e) =>
+                        api.apiKeyField === 'tavilyApiKey'
+                          ? onChange({ tavilyApiKey: e.target.value })
+                          : onChange({ onlineCompilerApiKey: e.target.value })
+                      }
+                      placeholder={api.apiKeyField === 'tavilyApiKey' ? 'tvly-...' : 'Paste your OnlineCompiler API key'}
                       className="border-border bg-secondary pr-10"
                       autoComplete="new-password"
                       spellCheck={false}
@@ -1745,42 +1810,46 @@ function SearchApiDetail({
                   </div>
                 }
               />
-              <DetailField
-                label="Search Speed"
-                description="Sets the default Tavily search depth when the model does not specify one. Auto lets the app choose per query."
-                control={
-                  <Select
-                    value={tavilySearchDepthPreference}
-                    onValueChange={(value: TavilySearchDepthPreference) =>
-                      onChange({ tavilySearchDepthPreference: value })
+              {api.apiKeyField === 'tavilyApiKey' && (
+                <>
+                  <DetailField
+                    label="Search Speed"
+                    description="Sets the default Tavily search depth when the model does not specify one. Auto lets the app choose per query."
+                    control={
+                      <Select
+                        value={tavilySearchDepthPreference}
+                        onValueChange={(value: TavilySearchDepthPreference) =>
+                          onChange({ tavilySearchDepthPreference: value })
+                        }
+                      >
+                        <SelectTrigger className="border-border bg-secondary">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="auto">Auto</SelectItem>
+                          <SelectItem value="ultra-fast">Lightning</SelectItem>
+                          <SelectItem value="fast">Fast</SelectItem>
+                          <SelectItem value="basic">Standard</SelectItem>
+                          <SelectItem value="advanced">Thorough</SelectItem>
+                        </SelectContent>
+                      </Select>
                     }
-                  >
-                    <SelectTrigger className="border-border bg-secondary">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="auto">Auto</SelectItem>
-                      <SelectItem value="ultra-fast">Lightning</SelectItem>
-                      <SelectItem value="fast">Fast</SelectItem>
-                      <SelectItem value="basic">Standard</SelectItem>
-                      <SelectItem value="advanced">Thorough</SelectItem>
-                    </SelectContent>
-                  </Select>
-                }
-              />
-              <DetailField
-                label="Result Images"
-                description="Include image results in web_search responses and show the inline image strip in chat."
-                control={
-                  <div className="flex justify-end">
-                    <Switch
-                      checked={webSearchIncludeImages}
-                      onCheckedChange={(checked) => onChange({ webSearchIncludeImages: checked })}
-                      aria-label="Include web search images"
-                    />
-                  </div>
-                }
-              />
+                  />
+                  <DetailField
+                    label="Result Images"
+                    description="Include image results in web_search responses and show the inline image strip in chat."
+                    control={
+                      <div className="flex justify-end">
+                        <Switch
+                          checked={webSearchIncludeImages}
+                          onCheckedChange={(checked) => onChange({ webSearchIncludeImages: checked })}
+                          aria-label="Include web search images"
+                        />
+                      </div>
+                    }
+                  />
+                </>
+              )}
               {api.learnMoreUrl && (
                 <p className="text-sm text-muted-foreground">
                   Learn more:{' '}

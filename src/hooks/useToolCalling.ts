@@ -20,7 +20,7 @@ import {
 import { getAllToolDefinitions, getBuiltinToolDefinitions } from '../tools/definitions'
 import { shouldRequestToolFollowUp } from '../tools/followUpPolicy'
 import { shouldEnableTools } from '../utils/promptSelection'
-import { getWebResearchToolExposure } from '../skills'
+import { getWebResearchToolExposure, getCodeExecutionToolExposure } from '../skills'
 import { createMcpToolRegistry } from '../tools/mcpRegistry'
 import type { ProviderId } from '../providers'
 
@@ -82,6 +82,15 @@ export function useToolCalling() {
         } else {
             if (!enabledTools.includes('web_search')) {
                 enabledTools.push('web_search')
+            }
+        }
+
+        const codeExecutionToolExposure = getCodeExecutionToolExposure(settings.skills)
+        if (!codeExecutionToolExposure.exposeCodeExecution) {
+            enabledTools = enabledTools.filter((tool) => tool !== 'code_execution')
+        } else {
+            if (!enabledTools.includes('code_execution')) {
+                enabledTools.push('code_execution')
             }
         }
 

@@ -58,7 +58,7 @@ export function getToolArgumentSummary(args?: Record<string, unknown>): string |
     return null
   }
 
-  const preferredKeys = ['query', 'url', 'path', 'filePath', 'command', 'prompt', 'topic', 'name']
+  const preferredKeys = ['description', 'query', 'url', 'path', 'filePath', 'command', 'prompt', 'topic', 'name']
 
   for (const key of preferredKeys) {
     const value = normalizePrimitiveValue(args[key])

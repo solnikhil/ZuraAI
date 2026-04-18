@@ -132,6 +132,7 @@ export default function Settings({
         { key: 'openRouterApiKey', current: pendingSettings.openRouterApiKey, original: settings.openRouterApiKey },
         { key: 'perplexityApiKey', current: pendingSettings.perplexityApiKey, original: settings.perplexityApiKey },
         { key: 'tavilyApiKey', current: pendingSettings.tavilyApiKey, original: settings.tavilyApiKey },
+        { key: 'onlineCompilerApiKey', current: pendingSettings.onlineCompilerApiKey, original: settings.onlineCompilerApiKey },
       ]
       for (const { key, current, original } of keyMappings) {
         if (current !== original) {
@@ -293,6 +294,7 @@ if (!hasSettingsChanges && !hasMcpChanges) {
                 openRouterDebug={pendingSettings.openRouterDebug}
                 perplexityApiKey={pendingSettings.perplexityApiKey}
                 tavilyApiKey={pendingSettings.tavilyApiKey}
+                onlineCompilerApiKey={pendingSettings.onlineCompilerApiKey}
                 tavilySearchDepthPreference={pendingSettings.tavilySearchDepthPreference}
                 webSearchIncludeImages={pendingSettings.webSearchIncludeImages}
                 ollamaUrl={pendingSettings.ollamaUrl}
@@ -322,6 +324,7 @@ if (!hasSettingsChanges && !hasMcpChanges) {
             {normalizedActiveSection === 'skills' && (
               <SkillsSection
                 skills={pendingSettings.skills}
+                codeExecutionAutoApprove={pendingSettings.codeExecutionAutoApprove}
                 onChange={(changes) => handleChange(changes)}
               />
             )}
@@ -340,6 +343,7 @@ if (!hasSettingsChanges && !hasMcpChanges) {
                 systemPrompt={pendingSettings.systemPrompt}
                 webSearchPrompt={pendingSettings.webSearchPrompt}
                 titleGenerationPrompt={pendingSettings.titleGenerationPrompt}
+                codeExecutionPrompt={pendingSettings.codeExecutionPrompt}
                 onChange={(changes) => handleChange(changes)}
               />
             )}
