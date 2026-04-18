@@ -64,26 +64,32 @@ type LanguageMeta = {
     label: string
 }
 
-function getLanguageMeta(language?: string): LanguageMeta {
-    if (!language) return { label: 'Code' }
+const LANGUAGE_ALIASES: Record<string, string> = {
+    ts: 'typescript',
+    js: 'javascript',
+    py: 'python',
+    sh: 'bash',
+    shell: 'bash',
+    zsh: 'bash',
+    yml: 'yaml',
+    md: 'markdown',
+    plaintext: 'text',
+    csharp: 'csharp',
+    cs: 'csharp',
+    cpp: 'cpp',
+    cxx: 'cpp',
+}
+
+export function normalizeHighlightLanguage(language?: string): string | undefined {
+    if (!language) return undefined
 
     const normalized = language.toLowerCase()
-    const aliases: Record<string, string> = {
-        ts: 'typescript',
-        js: 'javascript',
-        py: 'python',
-        sh: 'shell',
-        bash: 'shell',
-        zsh: 'shell',
-        yml: 'yaml',
-        md: 'markdown',
-        plaintext: 'text',
-        csharp: 'c#',
-        cs: 'c#',
-        cpp: 'c++',
-        cxx: 'c++',
-    }
-    const key = aliases[normalized] ?? normalized
+    return LANGUAGE_ALIASES[normalized] ?? normalized
+}
+
+function getLanguageMeta(language?: string): LanguageMeta {
+    const key = normalizeHighlightLanguage(language)
+    if (!key) return { label: 'Code' }
 
     const meta: Record<string, LanguageMeta> = {
         typescript: { label: 'TypeScript' },
@@ -96,6 +102,7 @@ function getLanguageMeta(language?: string): LanguageMeta {
         json: { label: 'JSON' },
         yaml: { label: 'YAML' },
         shell: { label: 'Shell' },
+        bash: { label: 'Shell' },
         sql: { label: 'SQL' },
         markdown: { label: 'Markdown' },
         text: { label: 'Plain Text' },
@@ -107,7 +114,9 @@ function getLanguageMeta(language?: string): LanguageMeta {
         php: { label: 'PHP' },
         ruby: { label: 'Ruby' },
         c: { label: 'C' },
+        cpp: { label: 'C++' },
         'c++': { label: 'C++' },
+        csharp: { label: 'C#' },
         'c#': { label: 'C#' },
     }
 
@@ -477,6 +486,7 @@ const MarkdownContent = React.memo(function MarkdownContent({ content, webSource
                     const isCodeBlock = !isInline && (!!match || codeString.includes('\n'))
 
                     const language = match?.[1]?.toLowerCase()
+                    const highlightLanguage = normalizeHighlightLanguage(match?.[1])
                     
                     // Mermaid diagrams
                     const isMermaid = language === 'mermaid'
@@ -722,14 +732,14 @@ const MarkdownContent = React.memo(function MarkdownContent({ content, webSource
                         const canRun = codeExecutionEnabled && !!execLang && !isGeneratingBlock
 
                         const syntaxView = (
-                            <SyntaxHighlighter
-                                {...props}
-                                children={normalizedCode}
-                                style={prismStyle}
-                                language={match[1]}
-                                PreTag="div"
-                                customStyle={codeBodyStyle}
-                                useInlineStyles={true}
+                                <SyntaxHighlighter
+                                    {...props}
+                                    children={normalizedCode}
+                                    style={prismStyle}
+                                    language={highlightLanguage}
+                                    PreTag="div"
+                                    customStyle={codeBodyStyle}
+                                    useInlineStyles={true}
                                 codeTagProps={{
                                     style: {
                                         fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
