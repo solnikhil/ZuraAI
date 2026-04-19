@@ -2,7 +2,8 @@
  * Property-Based Tests for Secure API Keys Storage
  *
  * These tests verify the correctness properties for secure storage of API keys
- * including OpenRouter, Perplexity, Groq, Tavily, Alibaba, and Fireworks.
+ * including OpenRouter, Perplexity, Groq, Tavily, Alibaba, Fireworks, and
+ * Online Compiler.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
@@ -62,7 +63,8 @@ describe('Secure API Keys Property Tests', () => {
       'groqApiKey',
       'tavilyApiKey',
       'alibabaApiKey',
-      'fireworksApiKey'
+      'fireworksApiKey',
+      'onlineCompilerApiKey'
     ) as fc.Arbitrary<
       | 'openRouterApiKey'
       | 'perplexityApiKey'
@@ -70,6 +72,7 @@ describe('Secure API Keys Property Tests', () => {
       | 'tavilyApiKey'
       | 'alibabaApiKey'
       | 'fireworksApiKey'
+      | 'onlineCompilerApiKey'
     >
 
     it('should return identical value after save and load for any API key', async () => {
@@ -167,6 +170,7 @@ describe('Secure API Keys Property Tests', () => {
             tavilyApiKey: apiKeyArb,
             alibabaApiKey: apiKeyArb,
             fireworksApiKey: apiKeyArb,
+            onlineCompilerApiKey: apiKeyArb,
           }),
           async (allKeys) => {
             mockSecureStorage.get.mockImplementation((key: string) =>
@@ -183,6 +187,7 @@ describe('Secure API Keys Property Tests', () => {
             expect(loadedKeys.tavilyApiKey).toBe(allKeys.tavilyApiKey)
             expect(loadedKeys.alibabaApiKey).toBe(allKeys.alibabaApiKey)
             expect(loadedKeys.fireworksApiKey).toBe(allKeys.fireworksApiKey)
+            expect(loadedKeys.onlineCompilerApiKey).toBe(allKeys.onlineCompilerApiKey)
           }
         ),
         { numRuns: 100 }
@@ -215,7 +220,8 @@ describe('Secure API Keys Property Tests', () => {
         'groqApiKey',
         'tavilyApiKey',
         'alibabaApiKey',
-        'fireworksApiKey'
+        'fireworksApiKey',
+        'onlineCompilerApiKey'
       ) as fc.Arbitrary<
         | 'openRouterApiKey'
         | 'perplexityApiKey'
@@ -223,6 +229,7 @@ describe('Secure API Keys Property Tests', () => {
         | 'tavilyApiKey'
         | 'alibabaApiKey'
         | 'fireworksApiKey'
+        | 'onlineCompilerApiKey'
       >
 
       await fc.assert(

@@ -27,7 +27,7 @@ export interface SystemPromptSectionProps {
   /** Current code execution prompt value */
   codeExecutionPrompt: string
   /** Current computer use prompt value */
-  computerUsePrompt: string
+  computerUsePrompt?: string
   /** Callback when system prompt changes */
   onChange: (changes: {
     systemPrompt?: string
@@ -46,7 +46,7 @@ export function SystemPromptSection({
   webSearchPrompt,
   titleGenerationPrompt,
   codeExecutionPrompt,
-  computerUsePrompt,
+  computerUsePrompt = defaultComputerUsePrompt,
   onChange,
 }: SystemPromptSectionProps): React.ReactElement {
   const [localValue, setLocalValue] = useState(systemPrompt)

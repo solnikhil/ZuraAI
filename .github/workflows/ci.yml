@@ -37,7 +37,7 @@ jobs:
         run: bun run typecheck
 
       - name: Test
-        run: bun test
+        run: bun run test
 
       - name: Renderer build
         run: bun run build:renderer

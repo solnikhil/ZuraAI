@@ -20,7 +20,7 @@ Core capabilities:
 ## Quick Start (Agent Commands)
 - Install: `bun install`
 - Dev: `bun run dev`
-- Tests: `bun test`
+- Tests: `bun run test`
 - Tests (watch): `bun run test:watch`
 - Build (typecheck + Vite build + electron-builder): `bun run build`
 - Build portable dir: `bun run build:dir`

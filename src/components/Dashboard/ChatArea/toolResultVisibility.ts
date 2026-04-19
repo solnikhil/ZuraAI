@@ -53,17 +53,10 @@ export function shouldHideMessageToolResultCard(
   result: ToolCallResult,
   thinkingBlocks: ThinkingBlock[] | undefined
 ): boolean {
-  if (shouldHideGenericToolResultCard(result)) {
-    return true
+  if (result.toolCall.name === 'code_execution') {
+    return hasCompletedToolThinkingBlock(thinkingBlocks, result.toolCall.name)
   }
 
-  if (
-    result.toolCall.name === 'code_execution' &&
-    hasCompletedToolThinkingBlock(thinkingBlocks, result.toolCall.name)
-  ) {
-    return true
-  }
-
-  return false
+  return shouldHideGenericToolResultCard(result)
 }
 
