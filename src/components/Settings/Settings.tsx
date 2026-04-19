@@ -124,7 +124,7 @@ export default function Settings({
     let allSaved = true
     const failedKeys: string[] = []
     try {
-      type ApiKeyType = 'alibabaApiKey' | 'fireworksApiKey' | 'groqApiKey' | 'openRouterApiKey' | 'perplexityApiKey' | 'tavilyApiKey'
+      type ApiKeyType = 'alibabaApiKey' | 'fireworksApiKey' | 'groqApiKey' | 'openRouterApiKey' | 'perplexityApiKey' | 'tavilyApiKey' | 'onlineCompilerApiKey'
       const keyMappings: Array<{ key: ApiKeyType; current: string; original: string }> = [
         { key: 'alibabaApiKey', current: pendingSettings.alibabaApiKey, original: settings.alibabaApiKey },
         { key: 'fireworksApiKey', current: pendingSettings.fireworksApiKey, original: settings.fireworksApiKey },

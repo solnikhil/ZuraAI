@@ -7,6 +7,7 @@ type SecureStorageKey =
     | 'openRouterApiKey'
     | 'perplexityApiKey'
     | 'tavilyApiKey'
+    | 'onlineCompilerApiKey'
 
 const SECURE_API_KEY_NAMES: SecureStorageKey[] = [
     'alibabaApiKey',
@@ -15,6 +16,7 @@ const SECURE_API_KEY_NAMES: SecureStorageKey[] = [
     'openRouterApiKey',
     'perplexityApiKey',
     'tavilyApiKey',
+    'onlineCompilerApiKey',
 ]
 
 export async function loadApiKeysFromSecureStorage(): Promise<{
@@ -24,6 +26,7 @@ export async function loadApiKeysFromSecureStorage(): Promise<{
     openRouterApiKey: string
     perplexityApiKey: string
     tavilyApiKey: string
+    onlineCompilerApiKey: string
 }> {
     const defaults = {
         alibabaApiKey: '',
@@ -32,6 +35,7 @@ export async function loadApiKeysFromSecureStorage(): Promise<{
         openRouterApiKey: '',
         perplexityApiKey: '',
         tavilyApiKey: '',
+        onlineCompilerApiKey: '',
     }
 
     if (!window.secureStorage) {
@@ -49,6 +53,7 @@ export async function loadApiKeysFromSecureStorage(): Promise<{
                 openRouterApiKey: all.openRouterApiKey || '',
                 perplexityApiKey: all.perplexityApiKey || '',
                 tavilyApiKey: all.tavilyApiKey || '',
+                onlineCompilerApiKey: all.onlineCompilerApiKey || '',
             }
         }
 
@@ -60,6 +65,7 @@ export async function loadApiKeysFromSecureStorage(): Promise<{
             openRouterApiKey,
             perplexityApiKey,
             tavilyApiKey,
+            onlineCompilerApiKey,
         ] = await Promise.all([
             window.secureStorage.get('alibabaApiKey'),
             window.secureStorage.get('fireworksApiKey'),
@@ -67,6 +73,7 @@ export async function loadApiKeysFromSecureStorage(): Promise<{
             window.secureStorage.get('openRouterApiKey'),
             window.secureStorage.get('perplexityApiKey'),
             window.secureStorage.get('tavilyApiKey'),
+            window.secureStorage.get('onlineCompilerApiKey'),
         ])
 
         return {
@@ -76,6 +83,7 @@ export async function loadApiKeysFromSecureStorage(): Promise<{
             openRouterApiKey: openRouterApiKey || '',
             perplexityApiKey: perplexityApiKey || '',
             tavilyApiKey: tavilyApiKey || '',
+            onlineCompilerApiKey: onlineCompilerApiKey || '',
         }
     } catch (error) {
         console.error('[SecureApiKeys] Failed to load:', error)

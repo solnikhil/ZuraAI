@@ -21,6 +21,7 @@ export type SecureStorageKey =
   | 'tavilyApiKey'
   | 'alibabaApiKey'
   | 'fireworksApiKey'
+  | 'onlineCompilerApiKey'
 
 export interface StorageStatus {
   encryptionAvailable: boolean
