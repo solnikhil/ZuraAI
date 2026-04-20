@@ -90,7 +90,6 @@
     "typescript": "^5.9.3",
     "vite": "^8.0.3",
     "vite-plugin-electron": "^0.29.0",
-    "vite-plugin-electron-renderer": "^0.14.6",
     "vitest": "^4.0.18"
   },
   "build": {

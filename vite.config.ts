@@ -1,7 +1,6 @@
 import path from 'path'
 import { defineConfig } from 'vite'
 import electron from 'vite-plugin-electron'
-import renderer from 'vite-plugin-electron-renderer'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { execSync } from 'child_process'
@@ -20,9 +19,6 @@ const getGitInfo = () => {
 const gitInfo = getGitInfo()
 
 export default defineConfig({
-    esbuild: {
-        drop: ['console', 'debugger'],
-    },
     plugins: [
         tailwindcss(),
         react(),
@@ -49,7 +45,6 @@ export default defineConfig({
                 },
             },
         ]),
-        renderer(),
     ],
     define: {
         'import.meta.env.VITE_GIT_COMMIT_HASH': JSON.stringify(gitInfo.commitHash),
