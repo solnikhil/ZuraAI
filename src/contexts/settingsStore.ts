@@ -169,6 +169,7 @@ export function parseStoredSettings(raw: string | null): Partial<Settings> {
 export function normalizeStoredSettings(raw: string | null): Settings {
   const parsedFromStorage = parseStoredSettings(raw)
   const parsed = { ...defaultSettings, ...parsedFromStorage }
+  const hasStoredOverlay = Object.prototype.hasOwnProperty.call(parsedFromStorage, 'overlay')
 
   delete (parsed as Record<string, unknown>).autoHideOverlay
   delete (parsed as Record<string, unknown>).overlayTransparency
@@ -398,9 +399,13 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   if (parsed.rememberLastDashboardView === undefined) {
     parsed.rememberLastDashboardView = defaultSettings.rememberLastDashboardView
   }
-// Migrate legacy buddyOverlay key to overlay
+  // Migrate legacy buddyOverlay key to overlay.
   const legacyRecord = parsed as Record<string, unknown>
-  if (legacyRecord.buddyOverlay && typeof legacyRecord.buddyOverlay === 'object' && !parsed.overlay) {
+  if (
+    legacyRecord.buddyOverlay &&
+    typeof legacyRecord.buddyOverlay === 'object' &&
+    !hasStoredOverlay
+  ) {
     parsed.overlay = {
       ...defaultSettings.overlay,
       ...(legacyRecord.buddyOverlay as Partial<typeof defaultSettings.overlay>),

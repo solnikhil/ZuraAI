@@ -42,4 +42,32 @@ describe('normalizeStoredSettings overlay', () => {
       promptAutoHideTimeout: 120,
     })
   })
+
+  it('migrates legacy buddyOverlay settings when overlay is missing', () => {
+    const settings = normalizeStoredSettings(
+      JSON.stringify({
+        buddyOverlay: {
+          enabled: true,
+          launchOnStartup: true,
+          hotkey: 'Alt+Z',
+          anchor: 'left',
+          compactWidth: 400,
+          expandedWidth: 520,
+          promptAutoHideEnabled: true,
+          promptAutoHideTimeout: 90,
+        },
+      })
+    )
+
+    expect(settings.overlay).toEqual({
+      enabled: true,
+      launchOnStartup: true,
+      hotkey: 'Alt+Z',
+      anchor: 'right',
+      compactWidth: 400,
+      expandedWidth: 520,
+      promptAutoHideEnabled: true,
+      promptAutoHideTimeout: 90,
+    })
+  })
 })
