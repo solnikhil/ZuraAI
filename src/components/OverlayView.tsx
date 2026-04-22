@@ -686,8 +686,8 @@ export default function OverlayView() {
           border-color: rgba(210, 220, 238, 0.28);
         }
         .overlay__send-button {
-          width: 42px;
-          height: 42px;
+          width: 44px;
+          height: 44px;
           display: inline-flex;
           align-items: center;
           justify-content: center;
@@ -719,8 +719,8 @@ export default function OverlayView() {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          width: 32px;
-          height: 32px;
+          width: 44px;
+          height: 44px;
           border-radius: 999px;
           border: none;
           background: transparent;

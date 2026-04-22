@@ -68,6 +68,29 @@ export interface InputAreaProps {
   /** Expose the textarea ref to the parent (for keyboard reactivation focus) */
   textareaRefCallback?: (ref: React.RefObject<HTMLTextAreaElement | null>) => void
 }
+
+function isInteractiveComposerTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+
+  return Boolean(
+    target.closest(
+      [
+        'button',
+        'a[href]',
+        'input',
+        'textarea',
+        'select',
+        '[role="button"]',
+        '[role="menuitem"]',
+        '[role="option"]',
+        '[data-slot="dropdown-menu-trigger"]',
+        '[data-slot="popover-trigger"]',
+        '[data-slot="select-trigger"]',
+      ].join(', ')
+    )
+  )
+}
+
 export function InputArea({
   input,
   setInput,
@@ -247,11 +270,11 @@ const webResearchEnabled = settings.skills?.web_research?.enabled !== false
     onFilesChange(attachedFiles.filter((f) => f.id !== fileId))
   }
 
-  const handleContainerClick = () => {
+  const handleContainerClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (isInteractiveComposerTarget(event.target)) return
+
     onActivity?.()
-    if (textareaRef.current) {
-      textareaRef.current.focus()
-    }
+    textareaRef.current?.focus()
   }
 
   const canSend = !isLoading && (input.trim() || attachedFiles.length > 0)
@@ -298,9 +321,8 @@ const webResearchEnabled = settings.skills?.web_research?.enabled !== false
       >
         <div className="relative w-full mx-auto">
           <div
-            role="textbox"
-            tabIndex={0}
-            aria-label="Chat input container"
+            role="group"
+            aria-label="Chat composer"
             className={cn(
               'relative flex flex-col rounded-2xl w-full text-left cursor-text overflow-hidden p-1.5',
               frostedPrompt ? 'zura-frosted-prompt' : 'theme-composer-surface',
@@ -308,11 +330,6 @@ const webResearchEnabled = settings.skills?.web_research?.enabled !== false
               isDragging && 'ring-2 ring-[var(--theme-accent)]'
             )}
             onClick={handleContainerClick}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                handleContainerClick()
-              }
-            }}
           >
 <AnimatePresence initial={false}>
               {isDragging && (
@@ -372,7 +389,7 @@ const webResearchEnabled = settings.skills?.web_research?.enabled !== false
                       type="button"
                       onClick={(e) => e.stopPropagation()}
                       className={cn(
-                        'theme-control-btn h-8 w-8 inline-flex items-center justify-center rounded-[10px]',
+                        'theme-control-btn h-11 w-11 inline-flex items-center justify-center rounded-[10px]',
                         quickActionsOpen && 'is-active'
                       )}
                       aria-label="Open quick actions"
@@ -393,7 +410,7 @@ const webResearchEnabled = settings.skills?.web_research?.enabled !== false
                         event.preventDefault()
                         fileInputRef.current?.click()
                       }}
-                      className="group/menu-item h-9 px-2.5 text-[13px]"
+                      className="group/menu-item h-11 px-2.5 text-[13px]"
                     >
                       <Paperclip className="h-4 w-4 text-[var(--theme-text-secondary)]" />
                       <span>Add photos & files</span>
@@ -406,7 +423,7 @@ const webResearchEnabled = settings.skills?.web_research?.enabled !== false
                     <DropdownMenuSeparator className="mx-0 my-1 h-px" />
 
                     <DropdownMenuSub>
-                      <DropdownMenuSubTrigger className="h-9 px-2.5 text-[13px]">
+                      <DropdownMenuSubTrigger className="h-11 px-2.5 text-[13px]">
                         <Wrench className="h-4 w-4 text-[var(--theme-text-secondary)]" />
                         <span>MCP Library</span>
                       </DropdownMenuSubTrigger>
@@ -416,21 +433,21 @@ const webResearchEnabled = settings.skills?.web_research?.enabled !== false
                         className="w-[220px] rounded-xl p-1.5"
                       >
                         <DropdownMenuItem
-                          onSelect={(event) => {
-                            event.preventDefault()
+                          onSelect={() => {
                             setMcpDialogMode('resources')
+                            setQuickActionsOpen(false)
                           }}
-                          className="group/menu-item h-9 px-2.5 text-[13px]"
+                          className="group/menu-item h-11 px-2.5 text-[13px]"
                         >
                           <Wrench className="h-4 w-4 text-[var(--theme-text-secondary)]" />
                           <span>Browse resources</span>
                         </DropdownMenuItem>
                         <DropdownMenuItem
-                          onSelect={(event) => {
-                            event.preventDefault()
+                          onSelect={() => {
                             setMcpDialogMode('prompts')
+                            setQuickActionsOpen(false)
                           }}
-                          className="group/menu-item h-9 px-2.5 text-[13px]"
+                          className="group/menu-item h-11 px-2.5 text-[13px]"
                         >
                           <Wrench className="h-4 w-4 text-[var(--theme-text-secondary)]" />
                           <span>Browse prompts</span>
@@ -439,7 +456,7 @@ const webResearchEnabled = settings.skills?.web_research?.enabled !== false
                     </DropdownMenuSub>
 
                     <DropdownMenuSub>
-                      <DropdownMenuSubTrigger className="h-9 px-2.5 text-[13px]">
+                      <DropdownMenuSubTrigger className="h-11 px-2.5 text-[13px]">
                         <Wrench className="h-4 w-4 text-[var(--theme-text-secondary)]" />
                         <span>Skills</span>
                       </DropdownMenuSubTrigger>
@@ -453,7 +470,7 @@ const webResearchEnabled = settings.skills?.web_research?.enabled !== false
                             event.preventDefault()
                             toggleWebResearchSkill()
                           }}
-                          className="group/menu-item h-9 px-2.5 text-[13px]"
+                          className="group/menu-item h-11 px-2.5 text-[13px]"
                         >
                           <SkillLogo skill="tavily" size={16} />
                           <span>Tavily</span>
@@ -475,9 +492,12 @@ const webResearchEnabled = settings.skills?.web_research?.enabled !== false
                     <TooltipTrigger asChild>
                       <button
                         type="button"
-                        onClick={toggleComputerUseSkill}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          toggleComputerUseSkill()
+                        }}
                         className={cn(
-                          'theme-control-btn rounded-lg p-1.5 transition-colors',
+                          'theme-control-btn h-11 w-11 rounded-lg p-1.5 transition-colors',
                           computerUseEnabled
                             ? 'text-emerald-500 bg-emerald-500/10'
                             : 'text-[var(--theme-text-tertiary)] hover:text-[var(--theme-text-secondary)]'
@@ -518,7 +538,7 @@ const webResearchEnabled = settings.skills?.web_research?.enabled !== false
                           e.stopPropagation()
                           onStop?.()
                         }}
-                        className="theme-control-btn rounded-lg p-2 text-[var(--theme-error)] hover:!bg-[var(--theme-error-bg)] hover:!text-[var(--theme-error)]"
+                        className="theme-control-btn h-11 w-11 rounded-lg p-2 text-[var(--theme-error)] hover:!bg-[var(--theme-error-bg)] hover:!text-[var(--theme-error)]"
                       >
                         <Square className="w-3.5 h-3.5 fill-current" />
                       </motion.button>
@@ -551,7 +571,7 @@ const webResearchEnabled = settings.skills?.web_research?.enabled !== false
                         }}
                         disabled={!canSend}
                         className={cn(
-                          'theme-control-btn rounded-lg p-2',
+                          'theme-control-btn h-11 w-11 rounded-lg p-2',
                           canSend
                             ? 'text-[var(--theme-text-primary)]'
                             : 'cursor-default text-[var(--theme-text-muted)] opacity-60'

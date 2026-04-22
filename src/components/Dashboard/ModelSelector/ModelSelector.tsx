@@ -66,10 +66,10 @@ export default function ModelSelector({ minimal, popoverAlign = 'start' }: Model
           className={cn(
             'flex cursor-pointer items-center gap-2 rounded-xl px-3 py-1.5',
             minimal
-              ? 'theme-control-btn rounded-[10px] px-2.5 py-1 text-[var(--theme-text-secondary)]'
+              ? 'theme-control-btn min-h-11 rounded-[10px] px-3 py-2 text-[var(--theme-text-secondary)]'
               : 'border border-[var(--theme-border)] bg-[var(--theme-surface-subtle)] text-[var(--theme-text-secondary)] transition-[background-color,border-color,color,box-shadow] duration-150 hover:bg-[var(--theme-surface-hover)] hover:border-[var(--theme-border-hover)] hover:text-[var(--theme-text-primary)] hover:shadow-[var(--theme-shadow-sm)]',
             minimal && state.isOpen && 'is-active',
-            minimal && compactMode !== 'none' && 'px-2 py-1'
+            minimal && compactMode !== 'none' && 'px-2.5 py-2'
           )}
         >
           {!minimal &&
