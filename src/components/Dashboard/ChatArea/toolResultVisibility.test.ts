@@ -109,7 +109,7 @@ describe('shouldHideMessageToolResultCard', () => {
     ).toBe(true)
   })
 
-  it('keeps code execution card when no matching thinking block exists', () => {
+  it('hides code execution card even when no matching thinking block exists', () => {
     const result = buildToolResult({
       toolCall: { name: 'code_execution' },
     })
@@ -122,6 +122,6 @@ describe('shouldHideMessageToolResultCard', () => {
           toolName: 'some_other_tool',
         },
       ])
-    ).toBe(false)
+    ).toBe(true)
   })
 })
