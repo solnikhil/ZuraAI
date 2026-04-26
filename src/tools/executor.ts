@@ -6,6 +6,10 @@ import { resolveWebSearchArgsForExecution } from './webSearchPreferences'
 // Re-export types for backward compatibility
 export type { ToolResult, ToolCall, ToolCallResult }
 
+export interface ExecuteToolOptions {
+    userContextText?: string
+}
+
 const DEFAULT_TIMEOUT_MS = 30_000
 const CODE_EXECUTION_TIMEOUT_MS = 100_000 // 60s approval + 30s OnlineCompiler + buffer
 
@@ -16,7 +20,11 @@ function getTimeoutForTool(toolName: string): number {
 /**
  * Execute a single tool call via IPC
  */
-export async function executeTool(toolName: string, args: Record<string, unknown>): Promise<ToolResult> {
+export async function executeTool(
+    toolName: string,
+    args: Record<string, unknown>,
+    options: ExecuteToolOptions = {}
+): Promise<ToolResult> {
     const startTime = performance.now()
     const TIMEOUT_MS = getTimeoutForTool(toolName)
     
@@ -60,7 +68,7 @@ export async function executeTool(toolName: string, args: Record<string, unknown
             }
         }
 
-        const resolvedArgs = resolveWebSearchArgsForExecution(toolName, args)
+        const resolvedArgs = resolveWebSearchArgsForExecution(toolName, args, options.userContextText)
 
         // Inject auto-approve preference for code execution
         if (toolName === 'code_execution') {
@@ -128,8 +136,11 @@ export async function executeTool(toolName: string, args: Record<string, unknown
 /**
  * Execute a tool call object
  */
-async function executeToolCall(toolCall: ToolCall): Promise<ToolCallResult> {
-    const result = await executeTool(toolCall.name, toolCall.arguments)
+async function executeToolCall(
+    toolCall: ToolCall,
+    options: ExecuteToolOptions = {}
+): Promise<ToolCallResult> {
+    const result = await executeTool(toolCall.name, toolCall.arguments, options)
     return {
         toolCall,
         result
@@ -139,6 +150,9 @@ async function executeToolCall(toolCall: ToolCall): Promise<ToolCallResult> {
 /**
  * Execute multiple tool calls in parallel
  */
-export async function executeToolCalls(toolCalls: ToolCall[]): Promise<ToolCallResult[]> {
-    return Promise.all(toolCalls.map(executeToolCall))
+export async function executeToolCalls(
+    toolCalls: ToolCall[],
+    options: ExecuteToolOptions = {}
+): Promise<ToolCallResult[]> {
+    return Promise.all(toolCalls.map((toolCall) => executeToolCall(toolCall, options)))
 }

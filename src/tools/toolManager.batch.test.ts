@@ -182,13 +182,16 @@ describe('toolManager web search batch policy', () => {
       },
     })
 
-    expect(mocks.executeToolCalls).toHaveBeenCalledWith([
-      expect.objectContaining({
-        arguments: expect.objectContaining({
-          query: 'Claude code leak Anthropic 2026',
+    expect(mocks.executeToolCalls).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          arguments: expect.objectContaining({
+            query: 'Claude code leak Anthropic 2026',
+          }),
         }),
-      }),
-    ])
+      ],
+      { userContextText: 'give me info about the latest claude code leak' }
+    )
     expect(processed.results[0]?.toolCall.arguments.query).toBe('Claude code leak Anthropic 2026')
     expect(processed.executionSummary.executedWebSearchQueries).toEqual(['Claude code leak Anthropic 2026'])
   })
@@ -242,13 +245,16 @@ describe('toolManager web search batch policy', () => {
       },
     })
 
-    expect(mocks.executeToolCalls).toHaveBeenCalledWith([
-      expect.objectContaining({
-        arguments: expect.objectContaining({
-          query: 'zura ai architecture',
+    expect(mocks.executeToolCalls).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          arguments: expect.objectContaining({
+            query: 'zura ai architecture',
+          }),
         }),
-      }),
-    ])
+      ],
+      { userContextText: undefined }
+    )
     expect(processed.results[0]?.toolCall.arguments.query).toBe('zura ai architecture')
     expect(processed.executionSummary.executedWebSearchQueries).toEqual(['zura ai architecture'])
   })
