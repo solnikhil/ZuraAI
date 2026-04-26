@@ -17,6 +17,7 @@ describe('executeTool web_search argument normalization', () => {
     } as any
     localStorage.clear()
   })
+
   it('preserves user-requested historical years when context is provided', async () => {
     await executeTool(
       'web_search',
