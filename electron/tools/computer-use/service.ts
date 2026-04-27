@@ -5,14 +5,18 @@ import { captureScreenshot, listWindows } from './screenshot'
 import { performClick, performType, performKeyPress, performScroll, performCursorMove } from './actions'
 import { MAX_ACTIONS_PER_SESSION, ACTION_DELAY_MS } from './constants'
 import { registerKillSwitch, unregisterKillSwitch } from './killSwitch'
+import {
+  mapScreenshotPointToDesktop,
+  serializeCoordinateContext,
+  type DesktopPoint,
+  type ScreenshotCoordinateContext,
+} from './coordinates'
 
 let approvalManager: ComputerUseApprovalManager | null = null
 let actionCount = 0
 let aborted = false
 let maxActions = MAX_ACTIONS_PER_SESSION
-// Coordinate scaling: screenshot may be resized, so we track the ratio
-let scaleX = 1
-let scaleY = 1
+let latestCoordinateContext: ScreenshotCoordinateContext | null = null
 
 export function setApprovalManager(manager: ComputerUseApprovalManager): void {
   approvalManager = manager
@@ -56,9 +60,7 @@ export async function executeScreenshot(args: ScreenshotArgs): Promise<ToolResul
   registerKillSwitch()
   try {
     const result = await captureScreenshot(args.display_id)
-    // Store scale factors so action coordinates (based on resized screenshot) map to actual screen
-    scaleX = result.actualWidth / result.width
-    scaleY = result.actualHeight / result.height
+    latestCoordinateContext = result.coordinateContext
     return {
       success: true,
       data: {
@@ -66,6 +68,7 @@ export async function executeScreenshot(args: ScreenshotArgs): Promise<ToolResul
         image: result.image,
         screenWidth: result.width,
         screenHeight: result.height,
+        coordinateContext: serializeCoordinateContext(result.coordinateContext),
       },
     }
   } catch (e) {
@@ -79,6 +82,7 @@ async function executeAction(
   executor: () => Promise<void>,
   autoApprove: boolean,
   showSpotlightFn?: (opts: { x: number; y: number; label?: string }) => Promise<void>,
+  spotlightPoint?: DesktopPoint,
 ): Promise<ToolResult> {
   if (aborted) return { success: false, error: 'Computer use session was aborted. Take a new screenshot to start again.' }
 
@@ -94,8 +98,8 @@ async function executeAction(
 
   try {
     // Show spotlight before action
-    const x = typeof args.x === 'number' ? args.x : undefined
-    const y = typeof args.y === 'number' ? args.y : undefined
+    const x = spotlightPoint?.x
+    const y = spotlightPoint?.y
     if (showSpotlightFn && x !== undefined && y !== undefined) {
       const label = action === 'click' ? 'Click' : action === 'scroll' ? 'Scroll' : action === 'cursor_position' ? 'Move' : undefined
       await showSpotlightFn({ x, y, label })
@@ -105,7 +109,8 @@ async function executeAction(
     await delay(ACTION_DELAY_MS)
 
     // Post-action screenshot
-    const screenshot = await captureScreenshot()
+    const screenshot = await captureScreenshot(latestCoordinateContext?.displayId)
+    latestCoordinateContext = screenshot.coordinateContext
     return {
       success: true,
       data: {
@@ -113,6 +118,7 @@ async function executeAction(
         screenshot: screenshot.image,
         screenWidth: screenshot.width,
         screenHeight: screenshot.height,
+        coordinateContext: serializeCoordinateContext(screenshot.coordinateContext),
       },
     }
   } catch (e) {
@@ -120,15 +126,18 @@ async function executeAction(
   }
 }
 
-/** Scale model coordinates (based on resized screenshot) to actual screen coordinates */
-function scaleCoords(x: number, y: number): { x: number; y: number } {
-  return { x: Math.round(x * scaleX), y: Math.round(y * scaleY) }
+function mapActionPoint(args: { x: number; y: number }): DesktopPoint {
+  if (!latestCoordinateContext) {
+    throw new Error('No screenshot context is available. Take a computer_screenshot before clicking, scrolling, or moving the cursor.')
+  }
+
+  return mapScreenshotPointToDesktop({ x: args.x, y: args.y }, latestCoordinateContext)
 }
 
 export async function executeClick(args: ClickArgs, autoApprove: boolean, showSpotlight?: (opts: { x: number; y: number; label?: string }) => Promise<void>): Promise<ToolResult> {
-  const scaled = scaleCoords(args.x, args.y)
-  const scaledArgs = { ...args, ...scaled }
-  return executeAction('click', args as unknown as Record<string, unknown>, () => performClick(scaledArgs), autoApprove, showSpotlight ? (opts) => showSpotlight({ ...opts, ...scaleCoords(opts.x, opts.y) }) : undefined)
+  const desktopPoint = mapActionPoint(args)
+  const desktopArgs = { ...args, ...desktopPoint }
+  return executeAction('click', args as unknown as Record<string, unknown>, () => performClick(desktopArgs), autoApprove, showSpotlight, desktopPoint)
 }
 
 export async function executeType(args: TypeArgs, autoApprove: boolean): Promise<ToolResult> {
@@ -140,15 +149,15 @@ export async function executeKey(args: KeyArgs, autoApprove: boolean): Promise<T
 }
 
 export async function executeScroll(args: ScrollArgs, autoApprove: boolean, showSpotlight?: (opts: { x: number; y: number; label?: string }) => Promise<void>): Promise<ToolResult> {
-  const scaled = scaleCoords(args.x, args.y)
-  const scaledArgs = { ...args, ...scaled }
-  return executeAction('scroll', args as unknown as Record<string, unknown>, () => performScroll(scaledArgs), autoApprove, showSpotlight ? (opts) => showSpotlight({ ...opts, ...scaleCoords(opts.x, opts.y) }) : undefined)
+  const desktopPoint = mapActionPoint(args)
+  const desktopArgs = { ...args, ...desktopPoint }
+  return executeAction('scroll', args as unknown as Record<string, unknown>, () => performScroll(desktopArgs), autoApprove, showSpotlight, desktopPoint)
 }
 
 export async function executeCursorPosition(args: CursorPositionArgs, autoApprove: boolean, showSpotlight?: (opts: { x: number; y: number; label?: string }) => Promise<void>): Promise<ToolResult> {
-  const scaled = scaleCoords(args.x, args.y)
-  const scaledArgs = { ...args, ...scaled }
-  return executeAction('cursor_position', args as unknown as Record<string, unknown>, () => performCursorMove(scaledArgs), autoApprove, showSpotlight ? (opts) => showSpotlight({ ...opts, ...scaleCoords(opts.x, opts.y) }) : undefined)
+  const desktopPoint = mapActionPoint(args)
+  const desktopArgs = { ...args, ...desktopPoint }
+  return executeAction('cursor_position', args as unknown as Record<string, unknown>, () => performCursorMove(desktopArgs), autoApprove, showSpotlight, desktopPoint)
 }
 
 

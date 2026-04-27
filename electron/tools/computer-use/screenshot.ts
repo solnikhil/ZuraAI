@@ -1,7 +1,27 @@
 import { desktopCapturer, screen } from 'electron'
 import { SCREENSHOT_MAX_WIDTH } from './constants'
+import type { ScreenshotCoordinateContext } from './coordinates'
 
-export async function captureScreenshot(displayId?: string): Promise<{ image: string; width: number; height: number; actualWidth: number; actualHeight: number }> {
+export interface ScreenshotCaptureResult {
+  image: string
+  width: number
+  height: number
+  actualWidth: number
+  actualHeight: number
+  coordinateContext: ScreenshotCoordinateContext
+}
+
+function getDisplayForSource(source: Electron.DesktopCapturerSource, requestedDisplayId?: string): Electron.Display {
+  const displays = screen.getAllDisplays()
+  const displayId = source.display_id || requestedDisplayId
+  const matchedDisplay = displayId
+    ? displays.find((display) => String(display.id) === String(displayId))
+    : undefined
+
+  return matchedDisplay ?? screen.getPrimaryDisplay()
+}
+
+export async function captureScreenshot(displayId?: string): Promise<ScreenshotCaptureResult> {
   const sources = await desktopCapturer.getSources({
     types: ['screen'],
     thumbnailSize: { width: 3840, height: 2160 },
@@ -31,6 +51,7 @@ export async function captureScreenshot(displayId?: string): Promise<{ image: st
 
   const finalSize = image.getSize()
   const base64 = image.toPNG().toString('base64')
+  const display = getDisplayForSource(source, displayId)
 
   return {
     image: base64,
@@ -38,6 +59,21 @@ export async function captureScreenshot(displayId?: string): Promise<{ image: st
     height: finalSize.height,
     actualWidth: originalSize.width,
     actualHeight: originalSize.height,
+    coordinateContext: {
+      displayId: String(display.id),
+      displayLabel: display.label || `Display ${display.id}`,
+      renderedWidth: finalSize.width,
+      renderedHeight: finalSize.height,
+      nativeWidth: originalSize.width,
+      nativeHeight: originalSize.height,
+      displayBounds: {
+        x: display.bounds.x,
+        y: display.bounds.y,
+        width: display.bounds.width,
+        height: display.bounds.height,
+      },
+      scaleFactor: display.scaleFactor,
+    },
   }
 }
 

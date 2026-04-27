@@ -101,7 +101,7 @@ Best practices:
     origin: 'builtin-main',
   },
   computer_screenshot: {
-    description: 'Capture a screenshot of the desktop. Always call this first before performing any action to see the current screen state. Returns a base64 PNG image with screen dimensions.',
+    description: 'Capture a screenshot of the desktop. Always call this first before performing any action to see the current screen state. Returns a base64 PNG image with screen dimensions and coordinate metadata used by follow-up actions.',
     parameters: {
       type: 'object',
       description: 'Arguments for taking a screenshot.',
@@ -114,13 +114,13 @@ Best practices:
     origin: 'builtin-main',
   },
   computer_click: {
-    description: 'Click at specific pixel coordinates on the screen. Coordinates must match the screenshot dimensions. Returns a post-action screenshot.',
+    description: 'Click at specific pixel coordinates from the latest computer_screenshot image. Use the screenshot dimensions exactly and click the center of the intended target. The app maps screenshot coordinates to the real desktop. Returns a post-action screenshot.',
     parameters: {
       type: 'object',
       description: 'Arguments for clicking.',
       properties: {
-        x: { type: 'number', description: 'X coordinate in pixels.' },
-        y: { type: 'number', description: 'Y coordinate in pixels.' },
+        x: { type: 'number', description: 'X coordinate in pixels from the latest screenshot image.' },
+        y: { type: 'number', description: 'Y coordinate in pixels from the latest screenshot image.' },
         button: { type: 'string', description: 'Mouse button.', enum: ['left', 'right', 'middle'], default: 'left' },
       },
       required: ['x', 'y'],
@@ -155,13 +155,13 @@ Best practices:
     origin: 'builtin-main',
   },
   computer_scroll: {
-    description: 'Scroll at specific coordinates. Move the cursor to the position first, then scroll.',
+    description: 'Scroll at specific coordinates from the latest computer_screenshot image. Move the cursor to the screenshot position first, then scroll.',
     parameters: {
       type: 'object',
       description: 'Arguments for scrolling.',
       properties: {
-        x: { type: 'number', description: 'X coordinate to scroll at.' },
-        y: { type: 'number', description: 'Y coordinate to scroll at.' },
+        x: { type: 'number', description: 'X coordinate from the latest screenshot image to scroll at.' },
+        y: { type: 'number', description: 'Y coordinate from the latest screenshot image to scroll at.' },
         direction: { type: 'string', description: 'Scroll direction.', enum: ['up', 'down', 'left', 'right'] },
         amount: { type: 'number', description: 'Scroll amount in clicks (default 3).', default: 3 },
       },
@@ -171,13 +171,13 @@ Best practices:
     origin: 'builtin-main',
   },
   computer_cursor_position: {
-    description: 'Move the cursor to specific coordinates without clicking. Use to hover over elements.',
+    description: 'Move the cursor to specific coordinates from the latest computer_screenshot image without clicking. Use to hover over elements.',
     parameters: {
       type: 'object',
       description: 'Arguments for moving the cursor.',
       properties: {
-        x: { type: 'number', description: 'X coordinate.' },
-        y: { type: 'number', description: 'Y coordinate.' },
+        x: { type: 'number', description: 'X coordinate in pixels from the latest screenshot image.' },
+        y: { type: 'number', description: 'Y coordinate in pixels from the latest screenshot image.' },
       },
       required: ['x', 'y'],
     },
