@@ -29,7 +29,7 @@ function assertFiniteCoordinate(name: string, value: number): void {
 
 function assertPositiveDimension(name: string, value: number): void {
   if (!Number.isFinite(value) || value <= 0) {
-    throw new Error(`Invalid screenshot context: ${name} must be greater than 0`)
+    throw new Error(`Invalid screen context: ${name} must be greater than 0`)
   }
 }
 
@@ -46,7 +46,7 @@ export function mapScreenshotPointToDesktop(
 
   if (point.x < 0 || point.x >= context.renderedWidth || point.y < 0 || point.y >= context.renderedHeight) {
     throw new Error(
-      `Screenshot coordinates (${point.x}, ${point.y}) are outside the latest screenshot bounds (${context.renderedWidth}x${context.renderedHeight})`
+      `Screen coordinates (${point.x}, ${point.y}) are outside the latest screen bounds (${context.renderedWidth}x${context.renderedHeight})`
     )
   }
 

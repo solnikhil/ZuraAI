@@ -72,7 +72,7 @@ export async function executeScreenshot(args: ScreenshotArgs): Promise<ToolResul
       },
     }
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : 'Screenshot failed' }
+    return { success: false, error: e instanceof Error ? e.message : 'Screen capture failed' }
   }
 }
 
@@ -84,7 +84,7 @@ async function executeAction(
   showSpotlightFn?: (opts: { x: number; y: number; label?: string }) => Promise<void>,
   spotlightPoint?: DesktopPoint,
 ): Promise<ToolResult> {
-  if (aborted) return { success: false, error: 'Computer use session was aborted. Take a new screenshot to start again.' }
+  if (aborted) return { success: false, error: 'Computer use session was aborted. Check the screen again to start a new action sequence.' }
 
   actionCount++
   if (actionCount > maxActions) {
@@ -108,7 +108,7 @@ async function executeAction(
     await executor()
     await delay(ACTION_DELAY_MS)
 
-    // Post-action screenshot
+    // Post-action screen capture
     const screenshot = await captureScreenshot(latestCoordinateContext?.displayId)
     latestCoordinateContext = screenshot.coordinateContext
     return {
@@ -128,7 +128,7 @@ async function executeAction(
 
 function mapActionPoint(args: { x: number; y: number }): DesktopPoint {
   if (!latestCoordinateContext) {
-    throw new Error('No screenshot context is available. Take a computer_screenshot before clicking, scrolling, or moving the cursor.')
+    throw new Error('No screen context is available. Use computer_screenshot before clicking, scrolling, or moving the cursor.')
   }
 
   return mapScreenshotPointToDesktop({ x: args.x, y: args.y }, latestCoordinateContext)

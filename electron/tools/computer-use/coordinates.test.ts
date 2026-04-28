@@ -65,7 +65,7 @@ describe('computer-use coordinate mapping', () => {
 
   it('rejects out-of-bounds screenshot coordinates before desktop conversion', () => {
     expect(() => mapScreenshotPointToDesktop({ x: 1280, y: 100 }, context()))
-      .toThrow('outside the latest screenshot bounds')
+      .toThrow('outside the latest screen bounds')
   })
 
   it('rejects invalid coordinate values', () => {
