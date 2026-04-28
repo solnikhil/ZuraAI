@@ -346,6 +346,7 @@ if (!hasSettingsChanges && !hasMcpChanges) {
                 titleGenerationPrompt={pendingSettings.titleGenerationPrompt}
                 codeExecutionPrompt={pendingSettings.codeExecutionPrompt}
                 computerUsePrompt={pendingSettings.computerUsePrompt}
+                chartGenerationPrompt={pendingSettings.chartGenerationPrompt}
                 onChange={(changes) => handleChange(changes)}
               />
             )}

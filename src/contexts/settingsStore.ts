@@ -214,6 +214,10 @@ export function normalizeStoredSettings(raw: string | null): Settings {
     parsed.computerUsePrompt = defaultSettings.computerUsePrompt
   }
 
+  if (parsed.chartGenerationPrompt === undefined) {
+    parsed.chartGenerationPrompt = defaultSettings.chartGenerationPrompt
+  }
+
   if (!parsed.modelProvider) parsed.modelProvider = defaultSettings.modelProvider
   if (!ALL_PROVIDER_IDS.includes(parsed.modelProvider as typeof ALL_PROVIDER_IDS[number])) {
     parsed.modelProvider = 'openrouter'
@@ -533,6 +537,7 @@ export function getInitialConfigSettings(settings: Settings): Partial<SettingsCo
     webSearchPrompt: settings.webSearchPrompt,
     codeExecutionPrompt: settings.codeExecutionPrompt,
     computerUsePrompt: settings.computerUsePrompt,
+    chartGenerationPrompt: settings.chartGenerationPrompt,
     streamResponses: settings.streamResponses,
     toolsEnabled: settings.toolsEnabled,
     enabledTools: settings.enabledTools,

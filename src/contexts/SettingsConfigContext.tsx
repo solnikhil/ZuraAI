@@ -27,6 +27,7 @@ import { defaultWebSearchPrompt } from '../prompts/defaultWebSearchPrompt'
 import { defaultTitleGenerationPrompt } from '../prompts/defaultTitleGenerationPrompt'
 import { defaultCodeExecutionPrompt } from '../prompts/defaultCodeExecutionPrompt'
 import { defaultComputerUsePrompt } from '../prompts/defaultComputerUsePrompt'
+import { defaultChartGenerationPrompt } from '../prompts/defaultChartGenerationPrompt'
 import { defaultSkillsSettings, type SkillsSettings } from '../skills'
 import type { ProviderId } from '../providers/providerTypes'
 import { warnOnceDuringHmr } from './hmrWarnings'
@@ -111,6 +112,8 @@ export interface SettingsConfig {
   codeExecutionPrompt: string
   /** Computer use instructions appended when Computer Use is enabled */
   computerUsePrompt: string
+  /** Chart generation instructions appended when Chart Generation is enabled */
+  chartGenerationPrompt: string
   streamResponses: boolean
 
   // Tool settings
@@ -265,6 +268,7 @@ export const defaultSettingsConfig: SettingsConfig = {
   webSearchPrompt: defaultWebSearchPrompt,
   codeExecutionPrompt: defaultCodeExecutionPrompt,
   computerUsePrompt: defaultComputerUsePrompt,
+  chartGenerationPrompt: defaultChartGenerationPrompt,
   streamResponses: true,
 
   // Tool settings

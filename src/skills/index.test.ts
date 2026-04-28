@@ -5,9 +5,11 @@ import {
   getCodeExecutionToolExposure,
   getWebResearchToolExposure,
   isCodeExecutionEnabled,
+  isChartGenerationEnabled,
   migrateSkillsFromLegacySettings,
   normalizeSkillsSettings,
   withCodeExecutionEnabled,
+  withChartGenerationEnabled,
 } from './index'
 
 describe('skills settings migration', () => {
@@ -128,5 +130,53 @@ describe('code_execution skill', () => {
   it('buildEnabledSkillsPrompt excludes code execution when disabled', () => {
     const prompt = buildEnabledSkillsPrompt(defaultSkillsSettings)
     expect(prompt).not.toContain('code_execution')
+  })
+})
+
+
+describe('chart_generation skill', () => {
+  it('defaults to disabled', () => {
+    expect(defaultSkillsSettings.chart_generation.enabled).toBe(false)
+  })
+
+  it('normalizes missing chart_generation to default', () => {
+    const normalized = normalizeSkillsSettings({ web_research: { enabled: true } })
+    expect(normalized.chart_generation.enabled).toBe(false)
+  })
+
+  it('preserves persisted chart_generation state', () => {
+    const normalized = normalizeSkillsSettings({
+      web_research: { enabled: true },
+      chart_generation: { enabled: true },
+    })
+    expect(normalized.chart_generation.enabled).toBe(true)
+  })
+
+  it('isChartGenerationEnabled returns correct state', () => {
+    expect(isChartGenerationEnabled(defaultSkillsSettings)).toBe(false)
+    expect(isChartGenerationEnabled({
+      ...defaultSkillsSettings,
+      chart_generation: { enabled: true },
+    })).toBe(true)
+  })
+
+  it('withChartGenerationEnabled toggles the skill', () => {
+    const updated = withChartGenerationEnabled(defaultSkillsSettings, true)
+    expect(updated.chart_generation.enabled).toBe(true)
+    expect(updated.web_research.enabled).toBe(true)
+  })
+
+  it('buildEnabledSkillsPrompt includes chart generation when enabled', () => {
+    const skills = { ...defaultSkillsSettings, chart_generation: { enabled: true } }
+    const prompt = buildEnabledSkillsPrompt(skills, { chartGenerationPrompt: 'CHART_PROMPT_CONTENT' })
+    expect(prompt).toContain('Chart Generation')
+    expect(prompt).toContain('chart_generation')
+    expect(prompt).toContain('CHART_PROMPT_CONTENT')
+  })
+
+  it('buildEnabledSkillsPrompt excludes chart generation when disabled', () => {
+    const prompt = buildEnabledSkillsPrompt(defaultSkillsSettings)
+    expect(prompt).not.toContain('chart_generation')
+    expect(prompt).not.toContain('Chart Generation')
   })
 })

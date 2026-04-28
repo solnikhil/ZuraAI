@@ -12,6 +12,7 @@ import { defaultWebSearchPrompt } from '../../../prompts/defaultWebSearchPrompt'
 import { defaultTitleGenerationPrompt } from '../../../prompts/defaultTitleGenerationPrompt'
 import { defaultCodeExecutionPrompt } from '../../../prompts/defaultCodeExecutionPrompt'
 import { defaultComputerUsePrompt } from '../../../prompts/defaultComputerUsePrompt'
+import { defaultChartGenerationPrompt } from '../../../prompts/defaultChartGenerationPrompt'
 import { estimateMessageTokens } from '../../../utils/tokenUtils'
 
 /**
@@ -28,6 +29,8 @@ export interface SystemPromptSectionProps {
   codeExecutionPrompt: string
   /** Current computer use prompt value */
   computerUsePrompt?: string
+  /** Current chart generation prompt value */
+  chartGenerationPrompt?: string
   /** Callback when system prompt changes */
   onChange: (changes: {
     systemPrompt?: string
@@ -35,6 +38,7 @@ export interface SystemPromptSectionProps {
     titleGenerationPrompt?: string
     codeExecutionPrompt?: string
     computerUsePrompt?: string
+    chartGenerationPrompt?: string
   }) => void
 }
 
@@ -47,6 +51,7 @@ export function SystemPromptSection({
   titleGenerationPrompt,
   codeExecutionPrompt,
   computerUsePrompt = defaultComputerUsePrompt,
+  chartGenerationPrompt = defaultChartGenerationPrompt,
   onChange,
 }: SystemPromptSectionProps): React.ReactElement {
   const [localValue, setLocalValue] = useState(systemPrompt)
@@ -66,6 +71,9 @@ export function SystemPromptSection({
   const [localComputerUseValue, setLocalComputerUseValue] = useState(computerUsePrompt)
   const [computerUseCharCount, setComputerUseCharCount] = useState(computerUsePrompt.length)
   const [isComputerUseEditorExpanded, setIsComputerUseEditorExpanded] = useState(false)
+  const [localChartGenerationValue, setLocalChartGenerationValue] = useState(chartGenerationPrompt)
+  const [chartGenerationCharCount, setChartGenerationCharCount] = useState(chartGenerationPrompt.length)
+  const [isChartGenerationEditorExpanded, setIsChartGenerationEditorExpanded] = useState(false)
 
   // Sync local state when props change (e.g. discard/reset from parent settings bar)
   useEffect(() => {
@@ -102,6 +110,13 @@ export function SystemPromptSection({
       setComputerUseCharCount(computerUsePrompt.length)
     }
   }, [computerUsePrompt, localComputerUseValue])
+
+  useEffect(() => {
+    if (chartGenerationPrompt !== localChartGenerationValue) {
+      setLocalChartGenerationValue(chartGenerationPrompt)
+      setChartGenerationCharCount(chartGenerationPrompt.length)
+    }
+  }, [chartGenerationPrompt, localChartGenerationValue])
 
   const handleChange = (value: string) => {
     setLocalValue(value)
@@ -163,6 +178,18 @@ export function SystemPromptSection({
     onChange({ computerUsePrompt: defaultComputerUsePrompt })
   }
 
+  const handleChartGenerationChange = (value: string) => {
+    setLocalChartGenerationValue(value)
+    setChartGenerationCharCount(value.length)
+    onChange({ chartGenerationPrompt: value })
+  }
+
+  const handleChartGenerationReset = () => {
+    setLocalChartGenerationValue(defaultChartGenerationPrompt)
+    setChartGenerationCharCount(defaultChartGenerationPrompt.length)
+    onChange({ chartGenerationPrompt: defaultChartGenerationPrompt })
+  }
+
   const estTokensInput = useMemo(
     () => estimateMessageTokens({ role: 'system', content: localValue }),
     [localValue]
@@ -186,6 +213,11 @@ export function SystemPromptSection({
   const estComputerUseTokensInput = useMemo(
     () => estimateMessageTokens({ role: 'system', content: localComputerUseValue }),
     [localComputerUseValue]
+  )
+
+  const estChartGenerationTokensInput = useMemo(
+    () => estimateMessageTokens({ role: 'system', content: localChartGenerationValue }),
+    [localChartGenerationValue]
   )
 
   const showLengthWarning = charCount > 10000
@@ -415,6 +447,60 @@ export function SystemPromptSection({
               onChange={(e) => handleComputerUseChange(e.target.value)}
               className="settings-prompt-editor"
               placeholder="Enter your computer use prompt here..."
+            />
+          </div>
+        )}
+      </Card>
+
+
+      <Card className="settings-list-card settings-prompt-card">
+        <div className="settings-prompt-header">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Chart Generation Prompt</h3>
+            <div className="settings-list-row__description">
+              Instructions appended when Chart Generation is enabled. Guides how the assistant
+              creates Mermaid bar, line, and pie charts from data.
+            </div>
+            <div className="settings-prompt-note">
+              This only applies when the Chart Generation skill is active.
+            </div>
+          </div>
+          <div className="settings-prompt-metrics" aria-live="polite">
+            <span className="settings-prompt-badge">
+              {chartGenerationCharCount.toLocaleString()} chars
+            </span>
+            <span className="settings-prompt-badge">
+              ~{estChartGenerationTokensInput.toLocaleString()} tokens input
+            </span>
+          </div>
+        </div>
+
+        <div className="settings-prompt-controls">
+          <button
+            type="button"
+            className="settings-prompt-toggle"
+            onClick={() => setIsChartGenerationEditorExpanded((prev) => !prev)}
+            aria-expanded={isChartGenerationEditorExpanded}
+          >
+            <ChevronDown
+              size={14}
+              className={`settings-prompt-toggle__icon ${isChartGenerationEditorExpanded ? 'is-open' : ''}`}
+              aria-hidden="true"
+            />
+            {isChartGenerationEditorExpanded ? 'Hide Chart Generation Prompt' : 'Show Chart Generation Prompt'}
+          </button>
+          <button type="button" onClick={handleChartGenerationReset} className="settings-row-button">
+            Load Default Chart Generation Prompt
+          </button>
+        </div>
+
+        {isChartGenerationEditorExpanded && (
+          <div className="settings-prompt-editor-wrap">
+            <textarea
+              value={localChartGenerationValue}
+              onChange={(e) => handleChartGenerationChange(e.target.value)}
+              className="settings-prompt-editor"
+              placeholder="Enter your chart generation prompt here..."
             />
           </div>
         )}
