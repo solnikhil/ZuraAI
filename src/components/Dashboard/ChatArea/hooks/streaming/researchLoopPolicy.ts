@@ -111,7 +111,7 @@ export function hasReachedSearchBudget(
   return searchCount >= getEffectiveSearchBudget(maxRounds, safetyCap, practicalCap)
 }
 
-export function normalizeResearchQuery(query: string | null | undefined): string {
+function normalizeResearchQuery(query: string | null | undefined): string {
   return String(query || '')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, ' ')

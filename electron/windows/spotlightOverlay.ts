@@ -101,7 +101,3 @@ export function hideSpotlight(): void {
   if (spotlightWindow && !spotlightWindow.isDestroyed()) spotlightWindow.hide()
 }
 
-export function destroySpotlight(): void {
-  if (spotlightWindow && !spotlightWindow.isDestroyed()) spotlightWindow.destroy()
-  spotlightWindow = null
-}

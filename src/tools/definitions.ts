@@ -4,18 +4,6 @@
 import type { ToolDescriptor } from './types'
 import { builtInMainToolDefinitions, builtInMainToolManifest } from './builtinTools'
 
-export type ToolSchemaType = 'string' | 'number' | 'boolean' | 'object' | 'array'
-
-export interface ToolSchemaProperty {
-  type: ToolSchemaType
-  description: string
-  enum?: string[]
-  default?: unknown
-  properties?: Record<string, ToolSchemaProperty>
-  required?: string[]
-  items?: ToolSchemaProperty
-}
-
 export type ToolDefinition = ToolDescriptor
 
 /**

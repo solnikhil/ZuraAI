@@ -156,13 +156,11 @@ export const generateGroqCompletion = async (
         throw new Error("Groq API Key is missing")
     }
 
-    // Build request body
     const requestBody: GroqRequestBody = {
         model: model,
         messages: messages
     }
 
-    // Add optional parameters if defined
     if (options?.temperature !== undefined) {
         requestBody.temperature = options.temperature
     }
@@ -188,18 +186,13 @@ export const generateGroqCompletion = async (
             const errorText = await response.text()
             const errorData = parseErrorResponse(errorText)
             
-            // Handle Groq's tool_use_failed error - try to extract tool calls from failed_generation
             if (errorData.error?.code === 'tool_use_failed' && errorData.error?.failed_generation) {
                 const failedContent = errorData.error.failed_generation
                 
-                // Try to extract tool call from failed_generation text (model generated tool call as text)
-                // Look for JSON arrays or objects that look like tool calls
                 try {
-                    // Try to find JSON array/object in the text
                     const jsonMatch = failedContent.match(/\[[\s\S]*?\]|{[\s\S]*?}/)
                     if (jsonMatch) {
                         const parsed = JSON.parse(jsonMatch[0])
-                        // Check if it looks like a tool call
                         if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].name && parsed[0].parameters) {
                             const toolCall = parsed[0]
                             // Coerce num_results to number if present
@@ -209,7 +202,6 @@ export const generateGroqCompletion = async (
                                     toolCall.parameters.num_results = num
                                 }
                             }
-                            // Return a mock response with tool_calls format
                             return {
                                 id: 'groq-extracted-tool-call',
                                 object: 'chat.completion',

@@ -137,6 +137,3 @@ export async function setSecureValueAsync(key: string, value: string): Promise<b
   return writeSecureDataAsync(data)
 }
 
-export async function getAllSecureValuesAsync(): Promise<SecureData> {
-  return readSecureDataAsync()
-}

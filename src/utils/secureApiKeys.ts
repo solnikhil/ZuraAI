@@ -43,47 +43,15 @@ export async function loadApiKeysFromSecureStorage(): Promise<{
     }
 
     try {
-        // Single IPC roundtrip instead of 6 individual calls
-        if (window.secureStorage.getAll) {
-            const all = await window.secureStorage.getAll()
-            return {
-                alibabaApiKey: all.alibabaApiKey || '',
-                fireworksApiKey: all.fireworksApiKey || '',
-                groqApiKey: all.groqApiKey || '',
-                openRouterApiKey: all.openRouterApiKey || '',
-                perplexityApiKey: all.perplexityApiKey || '',
-                tavilyApiKey: all.tavilyApiKey || '',
-                onlineCompilerApiKey: all.onlineCompilerApiKey || '',
-            }
-        }
-
-        // Fallback for older preload (shouldn't happen, but safe)
-        const [
-            alibabaApiKey,
-            fireworksApiKey,
-            groqApiKey,
-            openRouterApiKey,
-            perplexityApiKey,
-            tavilyApiKey,
-            onlineCompilerApiKey,
-        ] = await Promise.all([
-            window.secureStorage.get('alibabaApiKey'),
-            window.secureStorage.get('fireworksApiKey'),
-            window.secureStorage.get('groqApiKey'),
-            window.secureStorage.get('openRouterApiKey'),
-            window.secureStorage.get('perplexityApiKey'),
-            window.secureStorage.get('tavilyApiKey'),
-            window.secureStorage.get('onlineCompilerApiKey'),
-        ])
-
+        const all = await window.secureStorage.getAll()
         return {
-            alibabaApiKey: alibabaApiKey || '',
-            fireworksApiKey: fireworksApiKey || '',
-            groqApiKey: groqApiKey || '',
-            openRouterApiKey: openRouterApiKey || '',
-            perplexityApiKey: perplexityApiKey || '',
-            tavilyApiKey: tavilyApiKey || '',
-            onlineCompilerApiKey: onlineCompilerApiKey || '',
+            alibabaApiKey: all.alibabaApiKey || '',
+            fireworksApiKey: all.fireworksApiKey || '',
+            groqApiKey: all.groqApiKey || '',
+            openRouterApiKey: all.openRouterApiKey || '',
+            perplexityApiKey: all.perplexityApiKey || '',
+            tavilyApiKey: all.tavilyApiKey || '',
+            onlineCompilerApiKey: all.onlineCompilerApiKey || '',
         }
     } catch (error) {
         console.error('[SecureApiKeys] Failed to load:', error)

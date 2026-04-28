@@ -1,19 +1,25 @@
-import { globalShortcut } from 'electron'
+import { BrowserWindow, globalShortcut } from 'electron'
 import { KILL_SWITCH_WINDOW_MS } from './constants'
-import { abortSession } from './service'
-import { broadcastKilled, getApprovalManager } from './index'
 import { hideSpotlight } from '../../windows/spotlightOverlay'
 
 let registered = false
 let lastEscapeTime = 0
+let onKillCallback: (() => void) | null = null
+
+function broadcastKilled(): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) {
+      win.webContents.send('computer-use:killed')
+    }
+  }
+}
 
 function onEscape(): void {
   const now = Date.now()
   if (now - lastEscapeTime < KILL_SWITCH_WINDOW_MS) {
     // Double-tap detected — kill everything
     lastEscapeTime = 0
-    abortSession()
-    getApprovalManager()?.dispose()
+    onKillCallback?.()
     hideSpotlight()
     broadcastKilled()
     unregisterKillSwitch()
@@ -22,8 +28,11 @@ function onEscape(): void {
   }
 }
 
-export function registerKillSwitch(): void {
+export function registerKillSwitch(onKill?: () => void): void {
   if (registered) return
+  if (onKill) {
+    onKillCallback = onKill
+  }
   try {
     globalShortcut.register('Escape', onEscape)
     registered = true

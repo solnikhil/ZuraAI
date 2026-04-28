@@ -486,23 +486,6 @@ export function filterModels<T extends { code: string; displayName: string }>(
 }
 
 /**
- * Format context length for display (e.g. 131072 -> "131K", 1000000 -> "1M")
- */
-export function formatContextLength(tokens: number | undefined): string {
-  if (tokens == null || tokens <= 0) return ''
-  if (tokens >= 1_000_000) return `${Math.round(tokens / 1_000_000)}M`
-  return `${Math.round(tokens / 1000)}K`
-}
-
-/**
- * Get context length for a model from settings (ConfiguredModel.maxContext only).
- * Only uses the value explicitly set in settings; no fallback lookup.
- */
-export function getModelContextLength(model: { maxContext?: number }): number | undefined {
-  if (model.maxContext != null && model.maxContext > 0) return model.maxContext
-  return undefined
-}
-
 /**
  * Group models by provider
  *
@@ -526,7 +509,7 @@ export function groupModelsByProvider<T extends ModelInfo>(models: T[]): Record<
 /**
  * Provider configuration with colors and icons
  */
-export const PROVIDER_CONFIG = {
+const PROVIDER_CONFIG = {
   openrouter: {
     title: getProviderDefinition('openrouter').label,
     color: getProviderAccentColor('openrouter'),

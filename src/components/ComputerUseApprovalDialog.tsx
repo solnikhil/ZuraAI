@@ -13,15 +13,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
-
-interface PendingComputerAction {
-  id: string
-  action: string
-  args: Record<string, unknown>
-  screenshot?: string
-  requestedAt: number
-  expiresAt: number
-}
+import type { PendingComputerAction } from '@/electron/types'
 
 function describeAction(action: string, args: Record<string, unknown>): string {
   switch (action) {
@@ -49,7 +41,7 @@ export function ComputerUseApprovalDialog(): React.ReactElement | null {
   useEffect(() => {
     if (!window.computerUse?.onPendingApproval) return
     const unsubscribe = window.computerUse.onPendingApproval((list) => {
-      setPending(list as PendingComputerAction[])
+      setPending(list)
     })
     return unsubscribe
   }, [])

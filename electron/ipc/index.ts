@@ -58,21 +58,6 @@ export function registerAllHandlers(): void {
 }
 
 /**
- * Unregisters every main-process IPC handler registered by `registerAllHandlers`.
- *
- * This is primarily useful for teardown flows such as app shutdown, tests, or
- * hot-reload scenarios where handlers might otherwise be registered more than
- * once. Electron keeps handlers attached until they are explicitly removed, so
- * centralized cleanup helps prevent duplicate registrations and hard-to-trace
- * behavior.
- */
-export function unregisterAllHandlers(): void {
-  for (const domain of IPC_DOMAIN_HANDLERS) {
-    domain.unregister()
-  }
-}
-
-/**
  * Re-export individual registrars so specific IPC domains can be composed or
  * tested independently without forcing the full handler set to be installed.
  */

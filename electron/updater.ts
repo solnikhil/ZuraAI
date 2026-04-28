@@ -3,7 +3,6 @@ import { autoUpdater, type UpdateInfo } from 'electron-updater'
 
 const isProduction = app.isPackaged
 
-// Check every 12 hours after the initial check
 const UPDATE_INTERVAL_MS = 12 * 60 * 60 * 1000
 
 // Delay before first check (10s after window visible)
@@ -56,8 +55,6 @@ export function initializeAutoUpdater(getMainWindow: () => BrowserWindow | null)
 
   configureAutoUpdater()
 
-  // ---- Event handlers ----
-
   autoUpdater.on('checking-for-update', () => {
     console.log('[UPDATER] Checking for update...')
   })
@@ -96,8 +93,6 @@ export function initializeAutoUpdater(getMainWindow: () => BrowserWindow | null)
     console.error('[UPDATER] Error:', err.message)
   })
 
-  // ---- Scheduling ----
-
   initialTimeout = setTimeout(() => {
     initialTimeout = null
     void checkOnce()
@@ -128,15 +123,6 @@ export function registerUpdaterHandlers(): void {
   ipcMain.handle('updater:get-version', () => {
     return app.getVersion()
   })
-}
-
-/**
- * Unregister IPC handlers (called on will-quit).
- */
-export function unregisterUpdaterHandlers(): void {
-  ipcMain.removeHandler('updater:check-for-updates')
-  ipcMain.removeHandler('updater:quit-and-install')
-  ipcMain.removeHandler('updater:get-version')
 }
 
 /**

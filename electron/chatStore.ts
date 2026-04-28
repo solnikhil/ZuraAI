@@ -94,7 +94,6 @@ export function migrateData(data: ChatHistoryData): ChatHistoryData {
       version: 2,
     }
   }
-  // Ensure folders field exists even for v2+ data
   if (!data.folders) {
     data.folders = []
   }
@@ -102,7 +101,6 @@ export function migrateData(data: ChatHistoryData): ChatHistoryData {
 }
 
 async function readStoreAsync(): Promise<ChatHistoryData> {
-  // Return cached data if fresh
   if (cachedData && Date.now() - cacheTimestamp < CACHE_TTL) {
     return cachedData
   }
@@ -169,7 +167,6 @@ function readStore(): ChatHistoryData {
 }
 
 function writeStore(data: ChatHistoryData): void {
-  // Update the cache first so sync readers see the latest state immediately.
   cachedData = data
   cacheTimestamp = Date.now()
   writeStoreAsync(data).catch((err) => console.error('Async write failed:', err))

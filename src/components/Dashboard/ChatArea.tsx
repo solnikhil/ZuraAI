@@ -160,7 +160,6 @@ export default function ChatArea() {
     return () => container.removeEventListener('scroll', handleScroll)
   }, [isLoading])
 
-  // Handle new message detection and scroll
   useEffect(() => {
     const currentMessageCount = messages.length
     const lastMessage = messages[messages.length - 1]

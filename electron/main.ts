@@ -33,7 +33,6 @@ import {
   disposeComputerUseApprovalManager,
 } from './tools/computer-use'
 
-
 // Resolve packaged asset paths consistently in both development and production.
 const DIST_PATH = process.env.DIST || path.join(__dirname, '../dist')
 process.env.DIST = DIST_PATH
@@ -60,16 +59,13 @@ function registerSessionSecurityHandlers(): void {
   defaultSession.setPermissionCheckHandler(() => false)
 }
 
-// Add process identifier for Task Manager (visible in "Command line" column)
 app.commandLine.appendSwitch('process-name', 'ZuraAI-Main')
 
-// Set App Name explicitly for Windows Task Manager
 if (process.platform === 'win32') {
   app.setAppUserModelId(WINDOWS_APP_ID)
 }
 app.setName(APP_NAME)
 
-// Set process title for main process (shows in Task Manager)
 process.title = 'ZuraAI - Main'
 
 app.on('window-all-closed', () => {

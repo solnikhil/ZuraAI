@@ -31,13 +31,14 @@ import {
 import type { ChatMessage, ReasoningDetail } from '../services/types'
 import { DEFAULT_OLLAMA_URL } from './providerRegistry'
 import type { ActiveProviderId } from './providerTypes'
-import type {
-  NormalizedStreamEvent,
-  NormalizedToolCallDelta,
-  NormalizedUsage,
-  ProviderRuntimeFileAttachment as FileAttachment,
-  ProviderRuntimeSettings as StreamingSettings,
-  ProviderRuntimeStreamRequest as StreamRequest,
+import type { FileAttachment } from '../chat/types'
+import {
+  emptyUsage,
+  type NormalizedStreamEvent,
+  type NormalizedToolCallDelta,
+  type NormalizedUsage,
+  type ProviderRuntimeSettings as StreamingSettings,
+  type ProviderRuntimeStreamRequest as StreamRequest,
 } from './providerRuntimeTypes'
 import { getOpenRouterApiKey } from '../utils/openRouterKey'
 
@@ -106,11 +107,6 @@ type TitleGenerationSettings = Partial<
   >
 >
 
-const emptyUsage = (): NormalizedUsage => ({
-  inputTokens: 0,
-  outputTokens: 0,
-  totalTokens: 0,
-})
 
 function inferMimeTypeFromDataUrl(dataUrl: string): string {
   const match = dataUrl.match(/^data:([^;,]+)[;,]/i)

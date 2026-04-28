@@ -163,7 +163,7 @@ const ModelSelectorResultRow = memo(function ModelSelectorResultRow({
               onClick={(e) => {
                 e.stopPropagation()
                 e.preventDefault()
-                onToggleFavorite(model.code, e as unknown as React.MouseEvent)
+                onToggleFavorite(model.code, e)
               }}
               onPointerDown={(e) => e.stopPropagation()}
               className="shrink-0 rounded p-0.5 transition-colors hover:bg-muted"

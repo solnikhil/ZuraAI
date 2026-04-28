@@ -77,16 +77,6 @@ export async function captureScreenshot(displayId?: string): Promise<ScreenshotC
   }
 }
 
-export function getDisplays(): Array<{ id: string; label: string; width: number; height: number; primary: boolean }> {
-  return screen.getAllDisplays().map((d) => ({
-    id: String(d.id),
-    label: d.label || `Display ${d.id}`,
-    width: d.size.width,
-    height: d.size.height,
-    primary: d.id === screen.getPrimaryDisplay().id,
-  }))
-}
-
 
 export async function listWindows(): Promise<{ windows: Array<{ title: string; id: string }> }> {
   const sources = await desktopCapturer.getSources({ types: ['window'], thumbnailSize: { width: 0, height: 0 } })

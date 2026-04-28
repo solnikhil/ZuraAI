@@ -333,11 +333,11 @@ function toMcpSlug(value: string, fallback: string): string {
   return slug || fallback
 }
 
-export function toMcpServerSlug(serverName: string): string {
+function toMcpServerSlug(serverName: string): string {
   return toMcpSlug(serverName, 'server')
 }
 
-export function toMcpToolSlug(toolName: string): string {
+function toMcpToolSlug(toolName: string): string {
   return toMcpSlug(toolName, 'tool')
 }
 

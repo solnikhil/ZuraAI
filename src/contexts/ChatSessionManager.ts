@@ -136,7 +136,6 @@ export class ChatSessionManager {
       return // Already running
     }
 
-    // Check every minute for inactive sessions
     this.cleanupIntervalId = setInterval(() => {
       this.unloadInactiveSessions()
     }, 60000)
@@ -176,13 +175,10 @@ export class ChatSessionManager {
    * @returns The loaded session or null if not found
    */
   async loadSession(id: string): Promise<LoadedSession | null> {
-    // Update access time
     this.lastAccessTime.set(id, Date.now())
 
-    // Check if already loaded
     const existing = this.loadedSessions.get(id)
     if (existing) {
-      // Update loadedAt to track recent access
       existing.loadedAt = Date.now()
       return existing
     }
@@ -190,13 +186,11 @@ export class ChatSessionManager {
     // Enforce max loaded sessions limit before loading new one
     await this.enforceMaxLoadedSessions()
 
-    // Load from storage
     const session = await this.sessionLoader(id)
     if (!session) {
       return null
     }
 
-    // Create loaded session
     const loadedSession: LoadedSession = {
       metadata: {
         id: session.id,
@@ -209,10 +203,8 @@ export class ChatSessionManager {
       loadedAt: Date.now(),
     }
 
-    // Store in cache
     this.loadedSessions.set(id, loadedSession)
 
-    // Update metadata in case it changed
     this.metadata.set(id, loadedSession.metadata)
 
     return loadedSession
@@ -228,8 +220,7 @@ export class ChatSessionManager {
   getLoadedSession(id: string): LoadedSession | null {
     const session = this.loadedSessions.get(id)
     if (session) {
-      // Update access time
-      this.lastAccessTime.set(id, Date.now())
+        this.lastAccessTime.set(id, Date.now())
     }
     return session ?? null
   }
@@ -274,7 +265,6 @@ export class ChatSessionManager {
     if (session) {
       // Keep metadata updated
       this.metadata.set(id, session.metadata)
-      // Remove from loaded sessions
       this.loadedSessions.delete(id)
       this.lastAccessTime.delete(id)
     }
@@ -307,11 +297,9 @@ export class ChatSessionManager {
       loaded.metadata.messageCount = messages.length
       loaded.metadata.updatedAt = Date.now()
 
-      // Update metadata map as well
-      this.metadata.set(id, loaded.metadata)
+        this.metadata.set(id, loaded.metadata)
 
-      // Update access time
-      this.lastAccessTime.set(id, Date.now())
+        this.lastAccessTime.set(id, Date.now())
     }
   }
 
@@ -328,7 +316,6 @@ export class ChatSessionManager {
     }
     this.metadata.set(session.id, meta)
 
-    // Also add to loaded sessions if we have room
     if (this.loadedSessions.size < this.config.maxLoadedSessions) {
       const loadedSession: LoadedSession = {
         metadata: meta,

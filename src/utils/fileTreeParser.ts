@@ -142,7 +142,6 @@ export function parseTreeText(content: string): FileTreeNode[] {
 
   if (lines.length === 0) return []
 
-  // Check if first line is a root folder (ends with / and no tree markers)
   let rootName: string | null = null
   let startIdx = 0
   const firstLine = lines[0]!

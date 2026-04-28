@@ -150,7 +150,7 @@ export function providerSupportsVisionUploads(provider: AttachmentProvider) {
   return providerSupportsVisionUploadsFromRegistry(provider)
 }
 
-export function currentModelSupportsVision(settings: AttachmentSettingsLike) {
+function currentModelSupportsVision(settings: AttachmentSettingsLike) {
   const models = getProviderModels(settings, settings.modelProvider)
   const matchedModel =
     models.find((model) => model.code === settings.aiModel) || {
@@ -165,7 +165,7 @@ export function canAnalyzeImageAttachments(settings: AttachmentSettingsLike) {
   return providerSupportsVisionUploads(settings.modelProvider) && currentModelSupportsVision(settings)
 }
 
-export function stripDataUrlPrefix(dataUrl: string) {
+function stripDataUrlPrefix(dataUrl: string) {
   const parts = dataUrl.split(',', 2)
   return parts.length === 2 ? parts[1] : dataUrl
 }

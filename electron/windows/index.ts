@@ -6,7 +6,6 @@ export {
 } from './mainWindow'
 
 export {
-    createAboutWindow,
     showAboutWindow,
 } from './aboutWindow'
 
@@ -18,7 +17,6 @@ export {
     getOverlayState,
     applyOverlaySettings,
     showOverlayAtPosition,
-    getOverlayWindow,
 } from './overlayWindow'
 
 export {
@@ -26,7 +24,6 @@ export {
     hidePromptPopup,
     destroyPromptPopup,
     submitPrompt,
-    getPromptPopupWindow,
 } from './promptPopup'
 
 export {
@@ -37,5 +34,4 @@ export {
 export {
     showSpotlight,
     hideSpotlight,
-    destroySpotlight,
 } from './spotlightOverlay'

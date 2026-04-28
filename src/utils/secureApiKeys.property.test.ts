@@ -17,6 +17,7 @@ import {
 // Mock window.secureStorage
 const mockSecureStorage = {
   get: vi.fn(),
+  getAll: vi.fn(),
   set: vi.fn(),
 }
 
@@ -82,9 +83,7 @@ describe('Secure API Keys Property Tests', () => {
           mockSecureStorage.set.mockResolvedValue(true)
 
           // Setup mock to return empty for other keys and saved value for this key
-          mockSecureStorage.get.mockImplementation((key: string) =>
-            Promise.resolve(key === keyName ? keyValue : '')
-          )
+          mockSecureStorage.getAll.mockResolvedValue({ [keyName]: keyValue })
 
           // Save the key
           const saveResult = await saveApiKeyToSecureStorage(keyName, keyValue)
@@ -106,9 +105,7 @@ describe('Secure API Keys Property Tests', () => {
           // Setup mock to simulate successful save
           mockSecureStorage.set.mockResolvedValue(true)
 
-          mockSecureStorage.get.mockImplementation((key: string) =>
-            Promise.resolve(key === 'alibabaApiKey' ? keyValue : '')
-          )
+          mockSecureStorage.getAll.mockResolvedValue({ alibabaApiKey: keyValue })
 
           // Save the Alibaba API key
           const saveResult = await saveApiKeyToSecureStorage('alibabaApiKey', keyValue)
@@ -129,9 +126,7 @@ describe('Secure API Keys Property Tests', () => {
         fc.asyncProperty(apiKeyArb, async (keyValue) => {
           mockSecureStorage.set.mockResolvedValue(true)
 
-          mockSecureStorage.get.mockImplementation((key: string) =>
-            Promise.resolve(key === 'fireworksApiKey' ? keyValue : '')
-          )
+          mockSecureStorage.getAll.mockResolvedValue({ fireworksApiKey: keyValue })
 
           const saveResult = await saveApiKeyToSecureStorage('fireworksApiKey', keyValue)
           expect(saveResult).toBe(true)
@@ -148,7 +143,7 @@ describe('Secure API Keys Property Tests', () => {
       await fc.assert(
         fc.asyncProperty(apiKeyNameArb, async (keyName) => {
           // Setup mock to return empty values (no keys stored)
-          mockSecureStorage.get.mockResolvedValue('')
+          mockSecureStorage.getAll.mockResolvedValue({})
 
           // Load all keys
           const loadedKeys = await loadApiKeysFromSecureStorage()
@@ -173,9 +168,7 @@ describe('Secure API Keys Property Tests', () => {
             onlineCompilerApiKey: apiKeyArb,
           }),
           async (allKeys) => {
-            mockSecureStorage.get.mockImplementation((key: string) =>
-              Promise.resolve((allKeys as Record<string, string>)[key] ?? '')
-            )
+            mockSecureStorage.getAll.mockResolvedValue(allKeys)
 
             // Load all keys
             const loadedKeys = await loadApiKeysFromSecureStorage()

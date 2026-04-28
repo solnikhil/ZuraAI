@@ -3,7 +3,7 @@ import type {
     McpToolExecutionMetadata,
     McpToolLookupRecord,
 } from '../mcp/types'
-import type { ReasoningDetail } from '../services/types'
+import type { ReasoningDetail, ServiceToolCall } from '../services/types'
 
 export type ToolOrigin = 'builtin-main' | 'builtin-renderer' | 'mcp'
 
@@ -106,7 +106,14 @@ export interface ToolExecutionSummary {
     executedWebSearchQueries: string[]
 }
 
-// ==================== Provider-specific response types ====================
+// Provider-specific response types
+
+/**
+ * OpenRouter/OpenAI tool call format.
+ * Canonical definition lives in `ServiceToolCall` (`../services/types`);
+ * this alias preserves the name used throughout the tools layer.
+ */
+export type OpenRouterToolCall = ServiceToolCall
 
 /**
  * OpenRouter/OpenAI message format
@@ -119,20 +126,6 @@ export interface OpenRouterMessage {
     reasoning_details?: ReasoningDetail[]
 }
 
-export interface ToolCallingMessage extends OpenRouterMessage {}
-
-/**
- * OpenRouter/OpenAI tool call format
- */
-export interface OpenRouterToolCall {
-    id: string
-    type: 'function'
-    function: {
-        name: string
-        arguments: string  // JSON string
-    }
-}
-
 /**
  * OpenRouter/OpenAI API response format
  */
@@ -143,14 +136,12 @@ export interface OpenRouterResponse {
     }>
 }
 
-export interface ToolCallingResponse {
-    choices: Array<{
-        message: ToolCallingMessage
-        finish_reason?: string | null
-    }>
-}
+/**
+ * Alias kept for call-sites that use the provider-agnostic name.
+ */
+export type ToolCallingResponse = OpenRouterResponse
 
-// ==================== Tool result formatting types ====================
+// Tool result formatting types
 
 /**
  * OpenRouter tool result message format
@@ -159,17 +150,4 @@ export interface OpenRouterToolResultMessage {
     role: 'tool'
     tool_call_id: string
     content: string
-}
-
-// ==================== Search result types ====================
-
-/**
- * Web search result data
- */
-export interface WebSearchData {
-    results?: Array<{
-        title: string
-        url: string
-        snippet: string
-    }>
 }

@@ -25,7 +25,6 @@ describe('providerRegistry', () => {
       'fireworks',
     ])
     expect(normalizeActiveProviderId('fireworks')).toBe('fireworks')
-    expect(getProviderDefinition('fireworks').activeSurface).toBe(true)
   })
 
   it('resolves endpoints and retry policy from the registry', () => {

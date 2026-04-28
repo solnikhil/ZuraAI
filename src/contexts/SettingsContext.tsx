@@ -107,8 +107,6 @@ function SettingsContextBridge({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // Update appropriate contexts - React 18+ batches these updates automatically
-      // Both context updates will result in a single render cycle
       if (Object.keys(uiUpdates).length > 0) {
         updateSettingsUI(uiUpdates)
       }
@@ -142,7 +140,6 @@ function SettingsContextBridge({ children }: { children: React.ReactNode }) {
  * Maintains backward compatibility with existing code
  */
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
-  // Load settings from localStorage
   const [storedSettings] = useState<Settings>(() =>
     normalizeStoredSettings(localStorage.getItem('zura-settings'))
   )

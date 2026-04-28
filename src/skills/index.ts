@@ -187,7 +187,7 @@ export function migrateSkillsFromLegacySettings({
   }
 }
 
-// ==================== Web Research helpers ====================
+// Web Research
 
 export function isWebResearchEnabled(skills: SkillsSettings | undefined): boolean {
   return normalizeSkillsSettings(skills).web_research.enabled
@@ -215,7 +215,7 @@ export function getWebResearchToolExposure(skills: SkillsSettings | undefined): 
   }
 }
 
-// ==================== Code Execution helpers ====================
+// Code Execution
 
 export function isCodeExecutionEnabled(skills: SkillsSettings | undefined): boolean {
   return normalizeSkillsSettings(skills).code_execution.enabled
@@ -240,11 +240,7 @@ export function getCodeExecutionToolExposure(skills: SkillsSettings | undefined)
   }
 }
 
-// ==================== Computer Use helpers ====================
-
-export function isComputerUseEnabled(skills: SkillsSettings | undefined): boolean {
-  return normalizeSkillsSettings(skills).computer_use.enabled
-}
+// Computer Use
 
 export function withComputerUseEnabled(skills: SkillsSettings | undefined, enabled: boolean): SkillsSettings {
   const normalized = normalizeSkillsSettings(skills)
@@ -265,7 +261,7 @@ export function getComputerUseToolExposure(skills: SkillsSettings | undefined): 
   }
 }
 
-// ==================== Chart Generation helpers ====================
+// Chart Generation
 
 export function isChartGenerationEnabled(skills: SkillsSettings | undefined): boolean {
   return normalizeSkillsSettings(skills).chart_generation.enabled
@@ -282,7 +278,7 @@ export function withChartGenerationEnabled(skills: SkillsSettings | undefined, e
   }
 }
 
-// ==================== Generic skill helpers ====================
+// Generic
 
 export function isSkillEnabled(skills: SkillsSettings | undefined, skillId: SkillId): boolean {
   const normalized = normalizeSkillsSettings(skills)

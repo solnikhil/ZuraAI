@@ -173,14 +173,12 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
         fullSessions = saved ? JSON.parse(saved) : []
       }
 
-      // Update the manager with full session data
       for (const session of fullSessions) {
         manager.addSession(session)
       }
 
       setSessions(fullSessions)
 
-      // Load folders from IPC (sidebar redesign)
       if (isElectron) {
         try {
           const storedFolders = await window.ipcRenderer.invoke('chat-store:get-all-folders')
@@ -241,12 +239,10 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     }
   }, [getSessionManager])
 
-  // Initialize and migrate from localStorage if needed
   useEffect(() => {
     const initializeStore = async () => {
       if (isElectron) {
         try {
-          // Check if electron-store has data
           const storedSessions = await window.ipcRenderer.invoke('chat-store:get-all')
 
           // If empty, try to migrate from localStorage
@@ -271,7 +267,6 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     initializeStore()
   }, [loadSessions])
 
-  // Start auto-cleanup when initialized
   useEffect(() => {
     if (!isInitialized) return
 
@@ -283,8 +278,6 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     }
   }, [isInitialized, getSessionManager])
 
-  // Save sessions whenever they change (after initialization)
-  // Debounced to avoid excessive IPC/disk writes during streaming.
   useEffect(() => {
     if (!isInitialized) return
 
@@ -314,8 +307,6 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     return () => clearTimeout(timeoutId)
   }, [sessions, isInitialized])
 
-  // Save folders whenever they change (after initialization)
-  // Debounced to avoid excessive IPC/disk writes.
   useEffect(() => {
     if (!isInitialized) return
 
@@ -341,7 +332,6 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     return () => clearTimeout(timeoutId)
   }, [folders, isInitialized])
 
-  // Restore last active chat session (optional)
   useEffect(() => {
     if (!isInitialized) return
     if (currentSessionId) return
@@ -390,7 +380,6 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     }
   }, [hasExternalStoreChanges, isInitialized, reloadFromExternalStore])
 
-  // Persist last active chat session (optional)
   useEffect(() => {
     if (!isInitialized) return
     if (!settings.rememberLastChatSession) {
@@ -431,7 +420,6 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
               updatedAt: now,
             }
 
-            // Update the session manager
             const manager = getSessionManager()
             manager.updateMetadata(existing.id, { updatedAt: now })
 
@@ -466,7 +454,6 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
           updatedAt: now,
         }
 
-        // Add to session manager
         const manager = getSessionManager()
         manager.addSession(newSession)
 
@@ -480,7 +467,6 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     [getSessionManager]
   )
 
-  // Load full session content on demand
   const loadFullSession = useCallback(
     async (id: string): Promise<ChatSession | null> => {
       const manager = getSessionManager()
@@ -490,7 +476,6 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
         return null
       }
 
-      // Convert LoadedSession to ChatSession format
       const chatSession: ChatSession = {
         id: loadedSession.metadata.id,
         title: loadedSession.metadata.title,
@@ -499,7 +484,6 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
         updatedAt: loadedSession.metadata.updatedAt,
       }
 
-      // Update the sessions state to include the full messages
       setSessions((prev) => prev.map((s) => (s.id === id ? chatSession : s)))
 
       return chatSession
@@ -507,13 +491,11 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     [getSessionManager]
   )
 
-  // Get session metadata without loading full content
   const getSessionMetadata = useCallback((): SessionMetadata[] => {
     const manager = getSessionManager()
     return manager.getSessionMetadata()
   }, [getSessionManager])
 
-  // Check if a session is currently loaded in memory
   const isSessionLoaded = useCallback(
     (id: string): boolean => {
       const manager = getSessionManager()
@@ -528,10 +510,8 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
         if (prev.find((s) => s.id === id)) {
           setCurrentSessionId(id)
 
-          // Load full session content on demand when switching
           const manager = getSessionManager()
           if (!manager.isSessionLoaded(id)) {
-            // Load asynchronously - the session will be updated when loaded
             manager
               .loadSession(id)
               .then((loadedSession) => {
@@ -584,7 +564,6 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
               updatedAt: Date.now(),
             }
 
-            // Update the session manager
             const manager = getSessionManager()
             manager.updateLoadedSessionMessages(sessionId, updatedSession.messages)
             manager.updateMetadata(sessionId, {
@@ -619,7 +598,6 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
               updatedAt: Date.now(),
             }
 
-            // Update the session manager with the new messages
             const manager = getSessionManager()
             manager.updateLoadedSessionMessages(sessionId, updatedMessages)
 
@@ -634,7 +612,6 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
 
   const deleteSession = useCallback(
     (id: string) => {
-      // Remove from session manager
       const manager = getSessionManager()
       manager.removeSession(id)
 
@@ -655,7 +632,6 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
 
   const updateSessionTitle = useCallback(
     (id: string, title: string) => {
-      // Update in session manager
       const manager = getSessionManager()
       manager.updateMetadata(id, { title })
 
@@ -683,7 +659,6 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
               updatedAt: Date.now(),
             }
 
-            // Update the session manager
             const manager = getSessionManager()
             manager.updateLoadedSessionMessages(sessionId, updatedMessages)
             manager.updateMetadata(sessionId, {
@@ -735,7 +710,6 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
           tags: [...(original.tags || [])],
         }
 
-        // Add to session manager
         const manager = getSessionManager()
         manager.addSession(newSession)
 
@@ -798,7 +772,6 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
   }, [])
 
   const deleteFolder = useCallback((id: string) => {
-    // Remove folder and unassign all sessions from it
     setFolders((prev) => prev.filter((f) => f.id !== id))
     setSessions((prev) =>
       prev.map((s) => (s.folderId === id ? { ...s, folderId: null, updatedAt: Date.now() } : s))
@@ -813,7 +786,6 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     setFolders((prev) => prev.map((f) => (f.id === id ? { ...f, order } : f)))
   }, [])
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (sessionManagerRef.current) {
@@ -841,7 +813,6 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
       loadFullSession,
       getSessionMetadata,
       isSessionLoaded,
-      // Sidebar redesign actions
       pinSession,
       unpinSession,
       duplicateSession,
@@ -872,7 +843,6 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
       loadFullSession,
       getSessionMetadata,
       isSessionLoaded,
-      // Sidebar redesign actions
       pinSession,
       unpinSession,
       duplicateSession,
@@ -910,8 +880,6 @@ export function useChatHistory() {
   const context = useContext(ChatHistoryContext)
   if (context === undefined) {
     // During HMR, the context may temporarily be undefined.
-    // Return safe defaults to prevent the throw from cascading to ErrorBoundary
-    // and tearing down the entire component tree (which resets all contexts).
     if (import.meta.hot) {
       warnOnceDuringHmr('ChatHistoryContext', '[ChatHistoryContext] Context undefined during HMR, using defaults')
       const noop = () => {}
@@ -1003,7 +971,6 @@ export function useChatHistoryActions() {
     throw new Error('useChatHistoryActions must be used within a ChatHistoryProvider')
   }
 
-  // Return only the action methods, not the state
   return useMemo(
     () => ({
       createSession: context.createSession,
@@ -1019,7 +986,6 @@ export function useChatHistoryActions() {
       loadFullSession: context.loadFullSession,
       getSessionMetadata: context.getSessionMetadata,
       isSessionLoaded: context.isSessionLoaded,
-      // Sidebar redesign actions
       pinSession: context.pinSession,
       unpinSession: context.unpinSession,
       duplicateSession: context.duplicateSession,
@@ -1046,7 +1012,6 @@ export function useChatHistoryActions() {
       context.loadFullSession,
       context.getSessionMetadata,
       context.isSessionLoaded,
-      // Sidebar redesign actions
       context.pinSession,
       context.unpinSession,
       context.duplicateSession,

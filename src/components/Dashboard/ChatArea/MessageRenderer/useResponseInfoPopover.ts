@@ -96,7 +96,6 @@ export function useResponseInfoPopover() {
     scheduleHidePopover()
   }
 
-  // Update position on scroll/resize when hovering
   useEffect(() => {
     if (isHoveringInfo) {
       const animationFrame = window.requestAnimationFrame(() => {

@@ -238,7 +238,7 @@ Best practices:
 
 export type BuiltinMainToolName = keyof typeof builtInMainToolManifest
 
-export const BUILTIN_MAIN_TOOL_NAMES = Object.keys(
+const BUILTIN_MAIN_TOOL_NAMES = Object.keys(
   builtInMainToolManifest
 ) as BuiltinMainToolName[]
 

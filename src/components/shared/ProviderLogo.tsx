@@ -174,7 +174,6 @@ export function ProviderLogo({
     )
   }
 
-  // Render fallback icon if enabled and available
   if (showFallback) {
     const FallbackIcon = PROVIDER_FALLBACK_ICONS[normalizedProvider]
     const color = PROVIDER_COLORS[normalizedProvider] || '#b0b0b0'

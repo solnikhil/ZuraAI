@@ -84,10 +84,8 @@ class RendererPerformanceTracker {
     this.initialized = true
     if (import.meta.env.DEV) console.log('[RendererPerformance] Initializing performance tracking')
 
-    // Get navigation timing
     this.collectNavigationTiming()
 
-    // Set up performance observers
     this.observeFCP()
     this.observeLCP()
     this.observeFID()
@@ -126,7 +124,6 @@ class RendererPerformanceTracker {
    */
   private observeFCP(): void {
     try {
-      // Check for existing FCP entries first
       const existingEntries = performance.getEntriesByName('first-contentful-paint', 'paint')
       if (existingEntries.length > 0) {
         this.metrics.fcp = existingEntries[0].startTime
@@ -321,14 +318,12 @@ class RendererPerformanceTracker {
    * Listen for DOM events to update timing metrics
    */
   private listenForDOMEvents(): void {
-    // Update DOM content loaded timing
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', () => {
         this.collectNavigationTiming()
       })
     }
 
-    // Update load complete timing
     if (document.readyState !== 'complete') {
       window.addEventListener('load', () => {
         this.collectNavigationTiming()
@@ -435,11 +430,7 @@ class RendererPerformanceTracker {
    */
   cleanup(): void {
     for (const observer of this.observers) {
-      try {
-        observer.disconnect()
-      } catch (error) {
-        // Ignore disconnect errors
-      }
+      observer.disconnect()
     }
     this.observers = []
     this.callbacks = []

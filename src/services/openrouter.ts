@@ -1,6 +1,7 @@
 import {
     ChatMessage,
     ReasoningDetail,
+    ServiceToolCall,
     ToolDefinition,
     parseErrorResponse,
     extractErrorMessage
@@ -182,8 +183,8 @@ function summarizeMessages(messages: ChatMessage[]): Array<Record<string, unknow
             role: message.role,
             contentLength: content.length,
             contentPreview: content.slice(0, 160),
-            hasToolCalls: Array.isArray((message as ChatMessage & { tool_calls?: unknown[] }).tool_calls)
-                ? ((message as ChatMessage & { tool_calls?: unknown[] }).tool_calls?.length || 0) > 0
+            hasToolCalls: Array.isArray((message as ChatMessage & { tool_calls?: ServiceToolCall[] }).tool_calls)
+                ? ((message as ChatMessage & { tool_calls?: ServiceToolCall[] }).tool_calls?.length || 0) > 0
                 : false,
         }
     })
@@ -405,35 +406,4 @@ export async function generateOpenRouterCompletion(
     return response.json()
 }
 
-const SYNTHESIS_SYSTEM = `You are a research synthesizer. Given a user question and web search results, write a clear, well-structured answer. Use the research to support your response. Cite sources when relevant. Be concise but thorough.`
 
-/**
- * Stream the synthesis of research results into a final answer.
- * Used when a research-heavy response needs a final synthesis pass.
- */
-export async function* streamResearchSynthesis(
-    apiKey: string,
-    model: string,
-    userQuestion: string,
-    researchResults: string,
-    options?: {
-        temperature?: number
-        maxTokens?: number
-        signal?: AbortSignal
-    }
-): AsyncGenerator<OpenRouterStreamChunk, void, unknown> {
-    if (!apiKey) {
-        throw new Error("OpenRouter API Key is missing")
-    }
-
-    const messages: ChatMessage[] = [
-        { role: 'system', content: SYNTHESIS_SYSTEM },
-        { role: 'user', content: `User question: ${userQuestion}\n\nResearch results:\n${researchResults}\n\nPlease synthesize a clear answer based on the research above.` }
-    ]
-
-    yield* streamOpenRouterCompletion(apiKey, model, messages, {
-        temperature: options?.temperature ?? 0.5,
-        maxTokens: options?.maxTokens ?? 8000,
-        signal: options?.signal
-    })
-}

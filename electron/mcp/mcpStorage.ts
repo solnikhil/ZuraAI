@@ -402,12 +402,6 @@ export async function loadMcpServers(): Promise<McpServerConfig[]> {
   return store.servers
 }
 
-export async function saveMcpServerStore(store: McpServerStoreFile): Promise<void> {
-  await writeMcpStoreInternal({
-    version: MCP_SERVER_STORE_VERSION,
-    servers: store.servers,
-  })
-}
 
 export async function saveMcpServers(servers: McpServerConfig[]): Promise<void> {
   await writeMcpStoreInternal({

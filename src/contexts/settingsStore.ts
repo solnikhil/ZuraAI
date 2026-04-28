@@ -44,8 +44,7 @@ const SECRET_SETTING_KEYS: Array<
   >
 > = ['openRouterApiKey', 'perplexityApiKey', 'groqApiKey', 'tavilyApiKey', 'alibabaApiKey', 'fireworksApiKey']
 
-const ALL_PROVIDER_IDS = getProviderDefinitions({ includeLegacy: true }).map((provider) => provider.id)
-const ACTIVE_PROVIDER_IDS = getProviderDefinitions({ includeLegacy: false }).map((provider) => provider.id)
+const PROVIDER_IDS = getProviderDefinitions().map((provider) => provider.id)
 const LEGACY_FIREWORKS_MODEL_ID_MAP: Record<string, string> = {
   'accounts/fireworks/models/kimi-k2p5-turbo': 'accounts/fireworks/routers/kimi-k2p5-turbo',
   'accounts/fireworks/models/kimi-k2p5-turbo-instruct': 'accounts/fireworks/routers/kimi-k2p5-turbo',
@@ -219,7 +218,7 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   }
 
   if (!parsed.modelProvider) parsed.modelProvider = defaultSettings.modelProvider
-  if (!ALL_PROVIDER_IDS.includes(parsed.modelProvider as typeof ALL_PROVIDER_IDS[number])) {
+  if (!PROVIDER_IDS.includes(parsed.modelProvider as typeof PROVIDER_IDS[number])) {
     parsed.modelProvider = 'openrouter'
   }
 
@@ -291,7 +290,7 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   }
 
   if (!parsed.titleModelProvider) parsed.titleModelProvider = defaultSettings.titleModelProvider
-  if (!ACTIVE_PROVIDER_IDS.includes(parsed.titleModelProvider as typeof ACTIVE_PROVIDER_IDS[number])) {
+  if (!PROVIDER_IDS.includes(parsed.titleModelProvider as typeof PROVIDER_IDS[number])) {
     parsed.titleModelProvider = defaultSettings.titleModelProvider
   }
   if (parsed.titleModel === undefined || parsed.titleModel === null) {
@@ -451,7 +450,7 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   }
 
   if (parsed.themeContrast === undefined) {
-    parsed.themeContrast = parsed.softenedContrast === true ? 85 : 100
+    parsed.themeContrast = (parsed as Record<string, unknown>).softenedContrast === true ? 85 : 100
   }
   delete (parsed as Record<string, unknown>).softenedContrast
   delete (parsed as Record<string, unknown>).notificationsEnabled

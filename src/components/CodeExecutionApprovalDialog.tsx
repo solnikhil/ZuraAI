@@ -15,14 +15,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
-
-interface PendingCodeApproval {
-  id: string
-  code: string
-  language: string
-  requestedAt: number
-  expiresAt: number
-}
+import type { PendingCodeApproval } from '@/electron/types'
 
 export function CodeExecutionApprovalDialog(): React.ReactElement | null {
   const [pending, setPending] = useState<PendingCodeApproval[]>([])
@@ -33,7 +26,7 @@ export function CodeExecutionApprovalDialog(): React.ReactElement | null {
   useEffect(() => {
     if (!window.codeExecution?.onPendingApproval) return
     const unsubscribe = window.codeExecution.onPendingApproval((list) => {
-      setPending(list as PendingCodeApproval[])
+      setPending(list)
     })
     return unsubscribe
   }, [])

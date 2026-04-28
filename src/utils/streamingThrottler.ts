@@ -73,7 +73,6 @@ export class StreamingThrottler {
     const key = this.getKey(sessionId, messageId)
     const now = Date.now()
 
-    // Initialize tracking for this key if needed
     if (!this.windowStart.has(key)) {
       this.windowStart.set(key, now)
       this.updateCount.set(key, 0)
@@ -90,7 +89,6 @@ export class StreamingThrottler {
     const lastUpdate = this.lastUpdateTime.get(key) || 0
     const timeSinceLastUpdate = now - lastUpdate
 
-    // Check if we can update immediately
     if (
       currentCount < this.config.maxUpdatesPerSecond &&
       timeSinceLastUpdate >= this.minIntervalMs
@@ -115,7 +113,6 @@ export class StreamingThrottler {
   ): void {
     const now = Date.now()
 
-    // Update tracking
     this.lastUpdateTime.set(key, now)
     this.updateCount.set(key, (this.updateCount.get(key) || 0) + 1)
 
@@ -141,7 +138,6 @@ export class StreamingThrottler {
     updates: Partial<Message>,
     updateFn: (sessionId: string, messageId: string, updates: Partial<Message>) => void
   ): void {
-    // Store the pending update (overwrites previous pending update)
     this.pendingUpdates.set(key, {
       sessionId,
       messageId,
@@ -280,18 +276,4 @@ export class StreamingThrottler {
     return { ...this.config }
   }
 }
-
-// Singleton instance for global use
-let globalThrottler: StreamingThrottler | null = null
-
-/**
- * Reset the global streaming throttler (useful for testing)
- */
-export function resetStreamingThrottler(): void {
-  if (globalThrottler) {
-    globalThrottler.clearAll()
-    globalThrottler = null
-  }
-}
-
 export type { ThrottlerConfig }

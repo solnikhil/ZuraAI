@@ -258,7 +258,6 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
     }
   }, [])
 
-  // Build container class list
   const containerClasses = [
     'sidebar-container',
     sidebarHidden ? 'sidebar-container--hidden' : '',

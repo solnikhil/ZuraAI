@@ -35,10 +35,6 @@ function getOrCreateApprovalManager(): McpApprovalManager {
   return approvalManager
 }
 
-export function getMcpManager(): McpManager {
-  return getOrCreateMcpManager()
-}
-
 export async function initializeMcpManager(options: {
   autoConnect?: boolean
   clientInfo?: { name: string; version: string }

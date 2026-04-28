@@ -56,7 +56,6 @@ export function groupSessions(sessions: ChatSession[], folders: Folder[]): Group
   const sevenDaysAgoMs = sevenDaysAgoStart.getTime()
   const thirtyDaysAgoMs = thirtyDaysAgoStart.getTime()
 
-  // Initialize folder groups for all known folders
   const folderMap = new Map<string, ChatSession[]>()
   for (const folder of folders) {
     folderMap.set(folder.id, [])

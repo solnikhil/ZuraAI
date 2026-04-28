@@ -218,7 +218,6 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
   const currentSession = sessions.find((s) => s.id === currentSessionId)
   const messages = currentSession?.messages || []
 
-  // Create throttled update function that uses isolated streaming context
   const throttledUpdateStreamingMessage = useCallback(
     (sessionId: string, messageId: string, updates: Partial<Message>) => {
       // Use isolated streaming context for updates during streaming
@@ -226,7 +225,6 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         streamingMessageRef.current?.sessionId === sessionId &&
         streamingMessageRef.current?.messageId === messageId
       ) {
-        // Update isolated streaming context (doesn't trigger message list re-render)
         if (throttlerRef.current) {
           throttlerRef.current.throttle(sessionId, messageId, updates, (_sid, _mid, upd) => {
             updateStreaming(upd)
@@ -263,7 +261,6 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     }
   }, [updateStreamingMessage, updateStreaming])
 
-  // Convert settings to StreamingSettings type for hooks
 const streamingSettings: StreamingSettings = useMemo(
     () => ({
       aiModel: settings.aiModel,
@@ -311,7 +308,6 @@ const streamingSettings: StreamingSettings = useMemo(
     getResearchContext,
   } = useStreamingToolCalls({ settings: streamingSettings })
 
-  // Create tool calling hook interface for provider hooks
   const toolCalling: ToolCallingHook = useMemo(
     () => ({
       canUseTools,
@@ -415,7 +411,6 @@ const streamingSettings: StreamingSettings = useMemo(
       const startTime = performance.now()
 
       try {
-        // Build conversation history
         const conversationHistory = toConversationMessages(
           messages.map((message) => ({
             role: message.role,
@@ -463,7 +458,6 @@ const streamingSettings: StreamingSettings = useMemo(
           return
         }
 
-        // Create streaming message
         const streamingMessageId = addMessageToSession(targetSessionId!, {
           role: 'assistant',
           content: '',
@@ -531,7 +525,6 @@ enableTools: true,
         options.onStreamEnd?.()
         options.onMessageSent?.()
 
-        // Generate title for new sessions (slight delay to avoid request burst after streaming)
         if (isNewSession && targetSessionId) {
           setTimeout(() => {
             generateChatTitle(content, settings)
@@ -604,7 +597,6 @@ enableTools: true,
 
       let effectiveSettings = settings
 
-      // Handle switch_model instruction
       if (instruction === 'switch_model') {
         const models = getAvailableModelOptions(settings)
         if (models.length === 0) {
@@ -654,7 +646,6 @@ enableTools: true,
         }
 
         const userMessage = session.messages[messageIndex - 1]
-        // Get conversation history BEFORE the user message being regenerated
         const conversationHistory = toConversationMessages(
           session.messages.slice(0, messageIndex - 1).map((entry) => ({
             role: entry.role,

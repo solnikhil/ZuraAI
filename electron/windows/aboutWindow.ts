@@ -14,7 +14,7 @@ function isExternalHttpUrl(url: string): boolean {
   return true
 }
 
-export function createAboutWindow(): BrowserWindow {
+function createAboutWindow(): BrowserWindow {
   if (aboutWindow && !aboutWindow.isDestroyed()) {
     if (aboutWindow.isMinimized()) {
       aboutWindow.restore()

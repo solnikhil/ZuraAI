@@ -151,6 +151,3 @@ export async function submitPrompt(prompt: string): Promise<void> {
   }
 }
 
-export function getPromptPopupWindow(): BrowserWindow | null {
-  return promptPopup && !promptPopup.isDestroyed() ? promptPopup : null
-}

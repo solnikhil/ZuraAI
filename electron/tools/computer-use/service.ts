@@ -22,9 +22,6 @@ export function setApprovalManager(manager: ComputerUseApprovalManager): void {
   approvalManager = manager
 }
 
-export function setMaxActions(max: number): void {
-  maxActions = Math.max(1, Math.round(max))
-}
 
 export function abortSession(): void {
   aborted = true
@@ -33,9 +30,6 @@ export function abortSession(): void {
   unregisterKillSwitch()
 }
 
-export function isAborted(): boolean {
-  return aborted
-}
 
 function resetAbortOnNewTask(): void {
   aborted = false
@@ -43,11 +37,11 @@ function resetAbortOnNewTask(): void {
 
 const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
 
-async function gateApproval(action: ComputerActionType, args: Record<string, unknown>, autoApprove: boolean): Promise<{ approved: boolean; reason?: string }> {
+async function gateApproval(action: ComputerActionType, args: object, autoApprove: boolean): Promise<{ approved: boolean; reason?: string }> {
   if (autoApprove || !approvalManager) return { approved: true }
 
   const screenshot = action !== 'screenshot' ? (await captureScreenshot()).image : undefined
-  const decision = await approvalManager.requestApproval({ action, args, screenshot })
+  const decision = await approvalManager.requestApproval({ action, args: { ...args } as Record<string, unknown>, screenshot })
   if (!decision.approved) {
     const reason = decision.outcome === 'timed_out' ? 'Approval timed out.' : 'Action rejected by user.'
     return { approved: false, reason }
@@ -57,7 +51,7 @@ async function gateApproval(action: ComputerActionType, args: Record<string, unk
 
 export async function executeScreenshot(args: ScreenshotArgs): Promise<ToolResult> {
   resetAbortOnNewTask()
-  registerKillSwitch()
+  registerKillSwitch(() => abortSession())
   try {
     const result = await captureScreenshot(args.display_id)
     latestCoordinateContext = result.coordinateContext
@@ -78,7 +72,7 @@ export async function executeScreenshot(args: ScreenshotArgs): Promise<ToolResul
 
 async function executeAction(
   action: ComputerActionType,
-  args: Record<string, unknown>,
+  args: object,
   executor: () => Promise<void>,
   autoApprove: boolean,
   showSpotlightFn?: (opts: { x: number; y: number; label?: string }) => Promise<void>,
@@ -137,27 +131,27 @@ function mapActionPoint(args: { x: number; y: number }): DesktopPoint {
 export async function executeClick(args: ClickArgs, autoApprove: boolean, showSpotlight?: (opts: { x: number; y: number; label?: string }) => Promise<void>): Promise<ToolResult> {
   const desktopPoint = mapActionPoint(args)
   const desktopArgs = { ...args, ...desktopPoint }
-  return executeAction('click', args as unknown as Record<string, unknown>, () => performClick(desktopArgs), autoApprove, showSpotlight, desktopPoint)
+  return executeAction('click', args, () => performClick(desktopArgs), autoApprove, showSpotlight, desktopPoint)
 }
 
 export async function executeType(args: TypeArgs, autoApprove: boolean): Promise<ToolResult> {
-  return executeAction('type', args as unknown as Record<string, unknown>, () => performType(args), autoApprove)
+  return executeAction('type', args, () => performType(args), autoApprove)
 }
 
 export async function executeKey(args: KeyArgs, autoApprove: boolean): Promise<ToolResult> {
-  return executeAction('key', args as unknown as Record<string, unknown>, () => performKeyPress(args), autoApprove)
+  return executeAction('key', args, () => performKeyPress(args), autoApprove)
 }
 
 export async function executeScroll(args: ScrollArgs, autoApprove: boolean, showSpotlight?: (opts: { x: number; y: number; label?: string }) => Promise<void>): Promise<ToolResult> {
   const desktopPoint = mapActionPoint(args)
   const desktopArgs = { ...args, ...desktopPoint }
-  return executeAction('scroll', args as unknown as Record<string, unknown>, () => performScroll(desktopArgs), autoApprove, showSpotlight, desktopPoint)
+  return executeAction('scroll', args, () => performScroll(desktopArgs), autoApprove, showSpotlight, desktopPoint)
 }
 
 export async function executeCursorPosition(args: CursorPositionArgs, autoApprove: boolean, showSpotlight?: (opts: { x: number; y: number; label?: string }) => Promise<void>): Promise<ToolResult> {
   const desktopPoint = mapActionPoint(args)
   const desktopArgs = { ...args, ...desktopPoint }
-  return executeAction('cursor_position', args as unknown as Record<string, unknown>, () => performCursorMove(desktopArgs), autoApprove, showSpotlight, desktopPoint)
+  return executeAction('cursor_position', args, () => performCursorMove(desktopArgs), autoApprove, showSpotlight, desktopPoint)
 }
 
 

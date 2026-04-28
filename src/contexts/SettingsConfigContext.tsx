@@ -31,6 +31,9 @@ import { defaultChartGenerationPrompt } from '../prompts/defaultChartGenerationP
 import { defaultSkillsSettings, type SkillsSettings } from '../skills'
 import type { ProviderId } from '../providers/providerTypes'
 import { warnOnceDuringHmr } from './hmrWarnings'
+import type { OverlaySettings } from '../electron/types'
+
+export type { OverlaySettings }
 
 // Todo item structure (shared with main Settings)
 export interface TodoItem {
@@ -62,17 +65,6 @@ type ProviderKey = ProviderId
 type ProviderEnabledMap = Partial<Record<ProviderKey, boolean>>
 export type TavilySearchDepth = 'ultra-fast' | 'fast' | 'basic' | 'advanced'
 export type TavilySearchDepthPreference = 'auto' | TavilySearchDepth
-
-export interface OverlaySettings {
-  enabled: boolean
-  launchOnStartup: boolean
-  hotkey: string
-  anchor: 'right'
-  compactWidth: number
-  expandedWidth: number
-  promptAutoHideEnabled: boolean
-  promptAutoHideTimeout: number
-}
 
 /**
  * Configuration-related settings that change infrequently
@@ -124,10 +116,6 @@ export interface SettingsConfig {
   codeExecutionAutoApprove: boolean
   /** When true, computer use actions run without the approval dialog */
   computerUseAutoApprove: boolean
-  /** @deprecated Legacy migration input only; do not use in runtime logic. */
-  webSearchEnabled?: boolean
-  /** @deprecated Legacy migration input only; do not use in runtime logic. */
-  structuredResearchEnabled?: boolean
 
   // Title generation
   titleModelProvider: ProviderId
@@ -352,7 +340,6 @@ export function SettingsConfigProvider({
     }
   }, [initialSettings])
 
-  // Load API keys from secure storage on startup
   useEffect(() => {
     const loadSecureKeys = async () => {
       try {
@@ -366,10 +353,8 @@ export function SettingsConfigProvider({
           tavilyApiKey: settingsConfig.tavilyApiKey,
         })
 
-        // Load from secure storage (single IPC roundtrip via getAll)
         const secureKeys = await loadApiKeysFromSecureStorage()
 
-        // Check if we got any keys
         const hasSecureKeys =
           secureKeys.alibabaApiKey ||
           secureKeys.fireworksApiKey ||
@@ -379,7 +364,6 @@ export function SettingsConfigProvider({
           secureKeys.tavilyApiKey
 
         if (hasSecureKeys) {
-          // Update settings with secure keys - prefer secure storage values
           setSettingsConfig((prev) => ({
             ...prev,
             alibabaApiKey: secureKeys.alibabaApiKey || prev.alibabaApiKey,

@@ -22,15 +22,10 @@ if (savedSettings) {
       themeBackground?: string
       themeForeground?: string
       themeContrast?: number
-      softenedContrast?: boolean
     }
     const theme = parsed.activeTheme ? getThemeById(parsed.activeTheme) : getDefaultTheme()
     
-    // Migrate softenedContrast to themeContrast if needed
-    let contrast = parsed.themeContrast
-    if (contrast === undefined && parsed.softenedContrast === true) {
-      contrast = 85
-    }
+    const contrast = parsed.themeContrast
     
     applyThemeToDocument(theme || getDefaultTheme(), {
       customAccent: parsed.themeAccent,

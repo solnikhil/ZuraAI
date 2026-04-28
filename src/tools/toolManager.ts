@@ -21,6 +21,7 @@ import {
   formatToolResultsForOpenRouter,
 } from './adapters/openrouter'
 import { executeToolCalls } from './executor'
+import type { ServiceToolCall } from '../services/types'
 import {
   ToolCall,
   ToolCallResult,
@@ -34,10 +35,8 @@ import {
 import { classifyResearchQueryDuplicate } from '../components/Dashboard/ChatArea/hooks/streaming/researchLoopPolicy'
 import { normalizeWebSearchQueryYear } from './webSearchPreferences'
 
-// Type for provider API responses
 type ProviderResponse = OpenRouterResponse
 
-// Type for formatted tool results
 type FormattedToolResults = OpenRouterToolResultMessage[]
 
 /**
@@ -60,7 +59,6 @@ function isMissingRequiredParameterValue(value: unknown, toolDef: ToolDescriptor
 function validateRequiredParameters(toolCall: ToolCall, availableTools: ToolDescriptor[]): string | null {
   const toolDef = getToolByName(toolCall.name, availableTools)
 
-  // Check if tool exists
   if (!toolDef) {
     const availableToolNames = availableTools
       .map((t) => t.name)
@@ -104,7 +102,6 @@ function coerceToolArguments(toolCall: ToolCall, availableTools: ToolDescriptor[
 
     // Coerce based on expected type
     if (paramDef.type === 'number') {
-      // Convert string numbers to actual numbers
       if (typeof value === 'string' && value.trim() !== '') {
         const num = Number(value)
         coercedArgs[key] = isNaN(num)
@@ -118,7 +115,6 @@ function coerceToolArguments(toolCall: ToolCall, availableTools: ToolDescriptor[
         coercedArgs[key] = paramDef.default !== undefined ? paramDef.default : value
       }
     } else if (paramDef.type === 'boolean') {
-      // Convert string booleans to actual booleans
       if (typeof value === 'string') {
         coercedArgs[key] = value.toLowerCase() === 'true' || value === '1'
       } else {
@@ -386,7 +382,7 @@ export async function processToolCalls(
 interface OpenRouterMessage {
   role: string
   content?: string | null
-  tool_calls?: unknown[]
+  tool_calls?: ServiceToolCall[]
 }
 
 type ProviderMessage = OpenRouterMessage

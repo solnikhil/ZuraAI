@@ -64,7 +64,6 @@ export default function MermaidDiagram({ code }: MermaidDiagramProps) {
   // Track the last successfully rendered code to avoid redundant renders
   const lastRenderedCodeRef = useRef<string>('')
 
-  // Render mermaid diagram with debounce to prevent rapid re-renders
   useEffect(() => {
     if (!isValidCode) {
       setSvg(null)
@@ -88,7 +87,6 @@ export default function MermaidDiagram({ code }: MermaidDiagramProps) {
         setIsLoading(true)
         setError(null)
 
-        // Add timeout to prevent infinite loading
         timeoutId = setTimeout(() => {
           if (mounted) {
             setError('Diagram rendering timed out. Please check the mermaid syntax.')
@@ -98,7 +96,6 @@ export default function MermaidDiagram({ code }: MermaidDiagramProps) {
 
         const mermaidModule = await mermaidPromise
 
-        // Handle different export formats and cache instance
         if (!mermaidInstance) {
           const mermaidCandidate =
             mermaidModule.default ||
@@ -124,7 +121,6 @@ export default function MermaidDiagram({ code }: MermaidDiagramProps) {
         // Bail out early if unmounted during async init
         if (!mounted) return
 
-        // Initialize mermaid only once with security settings
         if (!mermaidInitialized) {
           mermaidInstance.initialize({
             startOnLoad: false,
@@ -191,7 +187,6 @@ export default function MermaidDiagram({ code }: MermaidDiagramProps) {
           })
           mermaidInitialized = true
         } else {
-          // Update theme if already initialized
           mermaidInstance.initialize({
             startOnLoad: false,
             securityLevel: 'strict',
@@ -199,13 +194,11 @@ export default function MermaidDiagram({ code }: MermaidDiagramProps) {
           })
         }
 
-        // Validate code is not empty
         const trimmedCode = code.trim()
         if (!trimmedCode) {
           throw new Error('Mermaid diagram code is empty')
         }
 
-        // Render the diagram
         const renderId = `mermaid-${uniqueId}`
 
         // mermaid.render() returns a Promise that resolves to { svg, bindFunctions }

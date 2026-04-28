@@ -21,18 +21,6 @@ function broadcastPending(pending: PendingComputerAction[]): void {
   }
 }
 
-export function broadcastKilled(): void {
-  for (const win of BrowserWindow.getAllWindows()) {
-    if (!win.isDestroyed()) {
-      win.webContents.send('computer-use:killed')
-    }
-  }
-}
-
-export function getApprovalManager(): ComputerUseApprovalManager | null {
-  return approvalManager
-}
-
 export function registerComputerUseHandlers(): void {
   unregisterComputerUseHandlers()
 

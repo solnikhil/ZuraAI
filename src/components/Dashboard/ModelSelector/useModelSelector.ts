@@ -127,7 +127,6 @@ export function useModelSelector(): UseModelSelectorReturn {
   // Sync selectedProvider with settings.modelProvider when dropdown opens
   useEffect(() => {
     if (isOpen) {
-      // Set initial view mode based on defaultView setting
       if (modelSelector.defaultView === 'favorites') {
         setViewMode('favorites')
       } else {
@@ -196,7 +195,6 @@ export function useModelSelector(): UseModelSelectorReturn {
     void refresh()
   }, [isOpen, settings.ollamaUrl, settings.ollamaModels, updateSettings, isProviderEnabled])
 
-  // Get ALL models from providers that are manually enabled and configured
   const allModels = useMemo((): ModelWithProvider[] => {
     const models: ModelWithProvider[] = []
 
@@ -250,14 +248,12 @@ export function useModelSelector(): UseModelSelectorReturn {
     }
   }, [filteredModels])
 
-  // Get favorite models
   const favoriteModels = useMemo(() => {
     const favs = settings.favoriteModels || []
     if (favs.length === 0) return []
     return allModels.filter((m) => favs.includes(m.code))
   }, [allModels, settings.favoriteModels])
 
-  // Get models for the current view
   const currentModels = useMemo((): ModelWithProvider[] => {
     if (searchQuery.trim()) {
       return filteredModels
@@ -301,7 +297,6 @@ export function useModelSelector(): UseModelSelectorReturn {
     )
   }, [allModels, settings.aiModel, settings.modelProvider])
 
-  // Get current model name for display
   const currentName = useMemo(() => {
     const nameRaw =
       currentModel?.displayName ||
@@ -354,7 +349,6 @@ export function useModelSelector(): UseModelSelectorReturn {
     [settings.favoriteModels, updateSettings]
   )
 
-  // Handle model selection
   const handleSelect = useCallback(
     (model: ModelWithProvider, e?: React.MouseEvent) => {
       if (e) {

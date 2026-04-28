@@ -21,6 +21,8 @@ import type {
   IpcSendChannel,
   OverlaySettings,
   OverlayState,
+  PendingCodeApproval,
+  PendingComputerAction,
 } from '../src/electron/types'
 
 const preloadLog = (message: string) => {
@@ -270,8 +272,8 @@ contextBridge.exposeInMainWorld(
   Object.freeze({
     resolveApproval: (requestId: string, approved: boolean) =>
       ipcRenderer.invoke('code-execution:resolve-approval', requestId, approved),
-    onPendingApproval: (callback: (pending: unknown[]) => void) => {
-      const listener = (_event: IpcRendererEvent, pending: unknown[]) => callback(pending)
+    onPendingApproval: (callback: (pending: PendingCodeApproval[]) => void) => {
+      const listener = (_event: IpcRendererEvent, pending: PendingCodeApproval[]) => callback(pending)
       ipcRenderer.on('code-execution:pending-approval', listener)
       return () => ipcRenderer.removeListener('code-execution:pending-approval', listener)
     },
@@ -284,8 +286,8 @@ contextBridge.exposeInMainWorld(
   Object.freeze({
     resolveApproval: (requestId: string, approved: boolean) =>
       ipcRenderer.invoke('computer-use:resolve-approval', requestId, approved),
-    onPendingApproval: (callback: (pending: unknown[]) => void) => {
-      const listener = (_event: IpcRendererEvent, pending: unknown[]) => callback(pending)
+    onPendingApproval: (callback: (pending: PendingComputerAction[]) => void) => {
+      const listener = (_event: IpcRendererEvent, pending: PendingComputerAction[]) => callback(pending)
       ipcRenderer.on('computer-use:pending-approval', listener)
       return () => ipcRenderer.removeListener('computer-use:pending-approval', listener)
     },

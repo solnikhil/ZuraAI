@@ -72,7 +72,6 @@ function getNextColor(usedColors: Set<string>): string {
 export function assignColor(modelName: string): string {
   const mappings = loadMappings()
   
-  // Return existing color if already assigned
   if (mappings[modelName]) {
     return mappings[modelName]
   }

@@ -151,10 +151,6 @@ export function preloadMarkdown(): Promise<void> {
 
 // ── Query helpers (used by LazyMarkdown) ──────────────────────────────────
 
-export function isMarkdownPreloaded(): boolean {
-    return preloadDone
-}
-
 export function getPreloadedMarkdown() {
     return {
         remarkGfm: cachedRemarkGfm,

@@ -1,7 +1,7 @@
 // OpenRouter/OpenAI Function Calling Adapter
 // Converts tool definitions to OpenAI-compatible format
 
-import type { ToolDescriptor, ToolResult, OpenRouterToolCall, OpenRouterToolResultMessage } from '../types'
+import type { ToolDescriptor, ToolResult, OpenRouterToolResultMessage } from '../types'
 
 export {
   hasToolCalls,
@@ -25,11 +25,6 @@ export interface OpenAITool {
     }
   }
 }
-
-/**
- * Tool call from OpenAI response (re-export for backward compatibility)
- */
-export type OpenAIToolCall = OpenRouterToolCall
 
 function cloneJsonSchema(value: unknown): unknown {
   if (Array.isArray(value)) {
