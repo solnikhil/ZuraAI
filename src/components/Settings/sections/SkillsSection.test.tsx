@@ -4,6 +4,25 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { SkillsSection } from './SkillsSection'
 import { defaultSkillsSettings } from '../../../skills'
 
+vi.mock('@/components/ui/dropdown-menu', () => ({
+  DropdownMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  DropdownMenuContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenuLabel: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenuSeparator: () => <div />,
+  DropdownMenuItem: ({
+    children,
+    onClick,
+  }: {
+    children: React.ReactNode
+    onClick?: () => void
+  }) => (
+    <button type="button" role="menuitem" onClick={onClick}>
+      {children}
+    </button>
+  ),
+}))
+
 describe('SkillsSection', () => {
   it('renders skills list row with actions', () => {
     render(<SkillsSection skills={defaultSkillsSettings} onChange={vi.fn()} />)

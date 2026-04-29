@@ -168,9 +168,10 @@ describe('Property 2: Preservation — Runtime Behavior Unchanged After Build Co
     // Primary exports are those created via withDefaultWeight(SomeBase, ...)
     const primaryExports = exports.filter((e) => !aliases.has(e))
 
-    // All Phosphor icon imports in the barrel file
+    // All Phosphor icon imports in the barrel file. The barrel currently
+    // imports directly from package subpaths like `@phosphor-icons/react/X`.
     const phosphorImportRegex =
-      /import\s*\{[^}]+\}\s*from\s*['"]@phosphor-icons\/react\/dist\/csr\/(\w+)['"]/g
+      /import\s*\{[^}]+\}\s*from\s*['"]@phosphor-icons\/react\/(\w+)['"]/g
     const phosphorImports: string[] = []
     let pMatch: RegExpExecArray | null
     while ((pMatch = phosphorImportRegex.exec(lucideBarrelSource)) !== null) {

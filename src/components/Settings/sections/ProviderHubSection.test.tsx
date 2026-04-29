@@ -4,6 +4,27 @@ import { beforeEach, describe, it, expect, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { ProviderHubSection } from './ProviderHubSection'
 
+vi.mock('@/components/ui/dropdown-menu', () => ({
+  DropdownMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  DropdownMenuContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenuItem: ({
+    children,
+    onSelect,
+  }: {
+    children: React.ReactNode
+    onSelect?: (event: { preventDefault: () => void }) => void
+  }) => (
+    <button
+      type="button"
+      role="menuitem"
+      onClick={() => onSelect?.({ preventDefault: () => undefined })}
+    >
+      {children}
+    </button>
+  ),
+}))
+
 Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
   value: vi.fn(),
   writable: true,
@@ -284,10 +305,8 @@ describe('ProviderHubSection', () => {
     )
 
     const moreButtons = screen.getAllByRole('button', { name: /more actions for grok 4\.1 fast/i })
-    fireEvent.pointerDown(moreButtons[0])
-
-    const deleteItem = await screen.findByRole('menuitem', { name: /delete/i })
-    fireEvent.click(deleteItem)
+    fireEvent.pointerDown(moreButtons[0], { button: 0, ctrlKey: false })
+    fireEvent.click(screen.getAllByRole('menuitem', { name: /delete/i })[0])
 
     expect(screen.getByText('Delete Model')).toBeInTheDocument()
     expect(
@@ -308,9 +327,8 @@ describe('ProviderHubSection', () => {
     )
 
     const moreButtons = screen.getAllByRole('button', { name: /more actions for grok 4\.1 fast/i })
-    fireEvent.pointerDown(moreButtons[0])
-    const deleteItem = await screen.findByRole('menuitem', { name: /delete/i })
-    fireEvent.click(deleteItem)
+    fireEvent.pointerDown(moreButtons[0], { button: 0, ctrlKey: false })
+    fireEvent.click(screen.getAllByRole('menuitem', { name: /delete/i })[0])
     fireEvent.click(screen.getByRole('button', { name: /^delete$/i }))
 
     expect(onChange).toHaveBeenCalledWith(

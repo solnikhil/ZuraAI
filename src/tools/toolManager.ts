@@ -354,7 +354,7 @@ export async function processToolCalls(
 
   const executionPromises = executableCalls.map(async ({ index, toolCall: executableToolCall }) => {
     try {
-      const result = await executeToolCalls([executableToolCall])
+      const result = await executeToolCalls([executableToolCall], { userContextText })
       resultsByIndex[index] = result[0]
       config.onToolComplete?.(result[0])
     } catch (execError: unknown) {

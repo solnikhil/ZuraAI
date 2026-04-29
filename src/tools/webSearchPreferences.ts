@@ -136,7 +136,8 @@ export function normalizeWebSearchQueryYear(
 
 export function resolveWebSearchArgsForExecution(
   toolName: string,
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
+  userContextText?: string
 ): Record<string, unknown> {
   if (toolName !== 'web_search') return args
 
@@ -152,7 +153,7 @@ export function resolveWebSearchArgsForExecution(
   }
 
   if (typeof args.query === 'string') {
-    resolvedArgs.query = normalizeWebSearchQueryYear(args.query)
+    resolvedArgs.query = normalizeWebSearchQueryYear(args.query, userContextText)
   }
 
   return resolvedArgs

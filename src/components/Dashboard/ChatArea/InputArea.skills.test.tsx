@@ -48,6 +48,38 @@ vi.mock('./ComposerAttachments', () => ({
   ComposerAttachments: () => <div>Composer Attachments</div>,
 }))
 
+vi.mock('@/components/ui/dropdown-menu', () => ({
+  DropdownMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  DropdownMenuContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenuGroup: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenuItem: ({
+    children,
+    onClick,
+    onSelect,
+  }: {
+    children: React.ReactNode
+    onClick?: () => void
+    onSelect?: (event: { preventDefault: () => void }) => void
+  }) => (
+    <button
+      type="button"
+      role="menuitem"
+      onClick={() => {
+        onClick?.()
+        onSelect?.({ preventDefault: () => undefined })
+      }}
+    >
+      {children}
+    </button>
+  ),
+  DropdownMenuSeparator: () => <div />,
+  DropdownMenuShortcut: ({ children }: { children: React.ReactNode }) => <span>{children}</span>,
+  DropdownMenuSub: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenuSubTrigger: ({ children }: { children: React.ReactNode }) => <button type="button">{children}</button>,
+  DropdownMenuSubContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+}))
+
 import InputArea from './InputArea'
 
 describe('InputArea skills menu', () => {
