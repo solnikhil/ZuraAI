@@ -105,9 +105,6 @@ export interface SettingsUI {
     timeout: number
   }
 
-  // Softened contrast (deprecated - migrated to themeContrast)
-  softenedContrast?: boolean
-
   // Chat bubble style
   chatBubbleStyle?: ChatBubbleStyle
 

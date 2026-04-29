@@ -26,14 +26,14 @@ import {
 
 // Constants
 
-export const UPDATE_INTERVAL = STREAM_UPDATE_INTERVAL_MS
+const UPDATE_INTERVAL = STREAM_UPDATE_INTERVAL_MS
 export const SAFETY_CAP = STREAM_RESEARCH_SAFETY_CAP
 export const MAX_RESEARCH_ROUNDS = STREAM_MAX_RESEARCH_ROUNDS
 export const FINAL_SYNTHESIS_PROMPT =
   '\n\n*** FINAL SYNTHESIS REQUIRED *** You have enough search results. Do not call any more tools or web_search. Provide your final synthesized answer now using only the results already returned. If the results are inconclusive, say that clearly, summarize the strongest relevant evidence, and state what could not be verified. Never return an empty response.\n\n'
 export const FINAL_SYNTHESIS_RECOVERY_PROMPT =
   '\n\n*** FINAL ANSWER REQUIRED *** Your previous synthesis attempt returned no answer. Do not call any tools or web_search. Respond with at least one concise paragraph using only the results already returned. If the evidence is inconclusive, say so directly and summarize what was checked.\n\n'
-export const FINAL_SYNTHESIS_PLAIN_TEXT_ONLY_PROMPT =
+const FINAL_SYNTHESIS_PLAIN_TEXT_ONLY_PROMPT =
   '\n\n*** PLAIN TEXT ONLY FINAL ANSWER REQUIRED *** You must respond with plain assistant text only. Do not emit tool_calls, function calls, JSON, XML, markdown code fences, or any request for more searching. Do not call any tools or web_search. Write at least one concise paragraph using only the returned search results. If the evidence is inconclusive, say so directly and summarize the strongest relevant findings.\n\n'
 export const SEARCH_SYNTHESIS_FAILURE_MESSAGE =
   'I gathered web search results, but the provider failed to produce a final written answer. The search results are still available above.'
@@ -66,7 +66,7 @@ export interface DeltaToolCall {
 // Token estimation (Groq / Alibaba)
 
 /** ~4 chars per token heuristic when API doesn't return usage */
-export function estimateOutputTokens(content: string): number {
+function estimateOutputTokens(content: string): number {
   if (!content || content.length === 0) return 0
   return Math.ceil(content.length / 4)
 }
@@ -220,7 +220,7 @@ export function buildThinkingBlocksFromResults(
 }
 
 /** Create a persisted reasoning block from a completed active thinking segment. */
-export function createThinkingBlock(
+function createThinkingBlock(
   content: string | undefined,
   duration?: number
 ): ThinkingBlock | null {
@@ -264,7 +264,7 @@ export function getThinkingTranscript(
 // Tool result mapping
 
 /** Map tool results for persistent storage (strips internal data) */
-export function mapToolResultsForStorage(toolResults: ToolCallResult[]): ToolCallResult[] {
+function mapToolResultsForStorage(toolResults: ToolCallResult[]): ToolCallResult[] {
   return toolResults.map((tr) => ({
     toolCall: { id: tr.toolCall.id, name: tr.toolCall.name, arguments: tr.toolCall.arguments },
     result: {
@@ -310,7 +310,7 @@ export function publishStreamingToolResults(
 // Search query extraction
 
 /** Extract search query string from the first web_search result. */
-export function extractSearchQuery(webSearchCalls: ToolCallResult[]): string {
+function extractSearchQuery(webSearchCalls: ToolCallResult[]): string {
   const firstSearch = webSearchCalls[0]
   if (!firstSearch) return ''
   const args = firstSearch.toolCall.arguments

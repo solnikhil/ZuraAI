@@ -97,7 +97,6 @@ function MessageRendererComponent({
     setFollowUpSnapshot(null)
   }, [message.id])
 
-  // Get all versions including current message
   const versions = message.responseVersions || []
   const totalVersions = versions.length + (message.content ? 1 : 0)
   const currentVersionIndex = message.currentVersionIndex || 0
@@ -111,7 +110,6 @@ function MessageRendererComponent({
     setDisplayVersionIndex(currentVersionIndex)
   }, [message.id, currentVersionIndex])
 
-  // Get the content to display based on version
   const getVersionContent = () => {
     if (displayVersionIndex === versions.length && message.content) {
       return message
@@ -204,7 +202,6 @@ function MessageRendererComponent({
     hasBottomDisplayContent ||
     (activeTimelineOwner === 'lower' && hasActiveThinkingState)
 
-  // Handle copy
   const handleCopy = async () => {
     const contentToCopy = removeToolFollowUpSplitMarker(message.content)
     const copiedSuccessfully = onCopy
@@ -219,7 +216,6 @@ function MessageRendererComponent({
     setTimeout(() => setCopied(false), 2000)
   }
 
-  // Handle version navigation
   const navigateVersion = (direction: 'prev' | 'next') => {
     setDisplayVersionIndex((prev) => {
       if (direction === 'next' && prev < totalVersions - 1) {
@@ -231,7 +227,6 @@ function MessageRendererComponent({
     })
   }
 
-  // Handle keyboard shortcuts
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
       e.preventDefault()
@@ -245,12 +240,10 @@ function MessageRendererComponent({
     }
   }
 
-  // Render user message
   if (isUser) {
     return <UserMessageBubble message={message} bubbleStyle={settings.chatBubbleStyle || 'solid'} />
   }
 
-  // Render assistant message
   const shouldShowInfoTooltip =
     !isStreaming &&
     (hasDisplayContent ||

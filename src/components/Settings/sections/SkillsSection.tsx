@@ -22,10 +22,11 @@ import {
 export interface SkillsSectionProps {
   skills: SkillsSettings
   codeExecutionAutoApprove: boolean
-  onChange: (changes: { skills?: SkillsSettings; codeExecutionAutoApprove?: boolean }) => void
+  computerUseAutoApprove: boolean
+  onChange: (changes: { skills?: SkillsSettings; codeExecutionAutoApprove?: boolean; computerUseAutoApprove?: boolean }) => void
 }
 
-export function SkillsSection({ skills, codeExecutionAutoApprove, onChange }: SkillsSectionProps): React.ReactElement {
+export function SkillsSection({ skills, codeExecutionAutoApprove, computerUseAutoApprove, onChange }: SkillsSectionProps): React.ReactElement {
   const isEnabled = (skillId: SkillId): boolean => checkSkillEnabled(skills, skillId)
 
   const setEnabled = (skillId: SkillId, enabled: boolean) => {
@@ -89,6 +90,17 @@ export function SkillsSection({ skills, codeExecutionAutoApprove, onChange }: Sk
                           <DropdownMenuItem onClick={() => onChange({ codeExecutionAutoApprove: !codeExecutionAutoApprove })}>
                             {codeExecutionAutoApprove ? '✓ ' : ''}Auto-approve execution
                           </DropdownMenuItem>
+                        </>
+                      )}
+                      {skill.id === 'computer_use' && enabled && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => onChange({ computerUseAutoApprove: !computerUseAutoApprove })}>
+                            {computerUseAutoApprove ? '✓ ' : ''}Auto-approve actions
+                          </DropdownMenuItem>
+                          <DropdownMenuLabel className="text-xs text-muted-foreground font-normal px-2 py-1">
+                            Kill switch: Esc+Esc
+                          </DropdownMenuLabel>
                         </>
                       )}
                     </DropdownMenuContent>

@@ -73,7 +73,6 @@ export function parseThinkingContent(rawContent: string): { thinking: string | u
             }
         }
 
-        // Ensure we have valid content
         if (!answerContent || answerContent === rawContent) {
             answerContent = rawContent.replace(
                 new RegExp(`.*?${thinkingMarkerRegex.source}[\\s\\S]*?(?=\\n\\n|$)`, 'i'),

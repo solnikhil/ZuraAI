@@ -140,6 +140,32 @@ export function isRetryableHttpStatus(status: number): boolean {
   return status === 408 || status === 425 || status === 429 || status >= 500
 }
 
+/**
+ * Shared retry loop for MCP remote transport connect operations.
+ * Both SSE and WebSocket transports use the same retry/backoff pattern.
+ */
+export async function connectWithRetry(
+  policy: McpReconnectPolicy,
+  attempt: () => Promise<void>
+): Promise<Error | null> {
+  const maxAttempts = policy.enabled ? policy.maxAttempts + 1 : 1
+  let lastError: Error | null = null
+
+  for (let i = 0; i < maxAttempts; i += 1) {
+    try {
+      await attempt()
+      return null
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error))
+      if (i >= maxAttempts - 1) break
+      await waitForMcpReconnectDelay(buildMcpReconnectDelay(policy, i))
+    }
+  }
+
+  return lastError
+}
+
+
 function isSensitiveHeaderName(headerName: string): boolean {
   return /authorization|token|secret|cookie|key/i.test(headerName)
 }

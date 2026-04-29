@@ -14,6 +14,51 @@ import type {
 import type { McpServerInputPayload } from '../mcp/draft'
 import type { ToolResult } from '../tools/types'
 
+/**
+ * Renderer-side subset of electron-updater's UpdateInfo.
+ * Only the fields the renderer actually reads are included.
+ */
+export interface UpdateCheckInfo {
+  version: string
+  releaseDate?: string
+  releaseName?: string | null
+  releaseNotes?: string | Array<{ version: string; note: string | null }> | null
+}
+
+/**
+ * Renderer-side approval decision shape (mirrors BaseApprovalDecision from main).
+ */
+export interface ApprovalDecision {
+  requestId: string
+  approved: boolean
+  resolvedAt: number
+  outcome: 'approved' | 'rejected' | 'timed_out' | 'cancelled'
+}
+
+/**
+ * Pending code execution approval request shape (mirrors PendingCodeApproval from main).
+ */
+export interface PendingCodeApproval {
+  id: string
+  code: string
+  language: string
+  requestedAt: number
+  expiresAt: number
+}
+
+/**
+ * Pending computer use approval request shape (mirrors PendingComputerAction from main).
+ */
+export interface PendingComputerAction {
+  id: string
+  action: string
+  args: Record<string, unknown>
+  screenshot?: string
+  requestedAt: number
+  expiresAt: number
+}
+
+
 export type SecureStorageKey =
   | 'openRouterApiKey'
   | 'perplexityApiKey'
@@ -21,6 +66,7 @@ export type SecureStorageKey =
   | 'tavilyApiKey'
   | 'alibabaApiKey'
   | 'fireworksApiKey'
+  | 'onlineCompilerApiKey'
 
 export interface StorageStatus {
   encryptionAvailable: boolean
@@ -125,7 +171,7 @@ export interface IpcInvokeReturnMap {
   'secure-storage:get-all': Record<SecureStorageKey, string>
   'execute-tool': ToolResult
   'window-resize': void
-  'updater:check-for-updates': unknown
+  'updater:check-for-updates': UpdateCheckInfo | null
   'updater:quit-and-install': boolean
   'updater:get-version': string
 }
@@ -175,7 +221,7 @@ export interface SecureStorageAPI {
 }
 
 export interface UpdaterAPI {
-  checkForUpdates: () => Promise<unknown>
+  checkForUpdates: () => Promise<UpdateCheckInfo | null>
   quitAndInstall: () => Promise<boolean>
   getVersion: () => Promise<string>
   onUpdateAvailable: (callback: (version: string) => void) => () => void
@@ -229,8 +275,14 @@ export interface DevToolsAPI {
 }
 
 export interface CodeExecutionAPI {
-  resolveApproval: (requestId: string, approved: boolean) => Promise<unknown>
-  onPendingApproval: (callback: (pending: unknown[]) => void) => () => void
+  resolveApproval: (requestId: string, approved: boolean) => Promise<ApprovalDecision>
+  onPendingApproval: (callback: (pending: PendingCodeApproval[]) => void) => () => void
+}
+
+export interface ComputerUseAPI {
+  resolveApproval: (requestId: string, approved: boolean) => Promise<ApprovalDecision>
+  onPendingApproval: (callback: (pending: PendingComputerAction[]) => void) => () => void
+  onKilled: (callback: () => void) => () => void
 }
 
 

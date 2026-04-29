@@ -170,7 +170,7 @@ body {
     position: absolute;
     inset: 0;
     overflow: hidden;
-    background: var(--theme-background);
+    background: var(--theme-content-solid);
     border-top-left-radius: var(--dashboard-canvas-radius);
     border-bottom-left-radius: var(--dashboard-canvas-radius-subtle);
     background-clip: padding-box;
@@ -848,8 +848,8 @@ li .katex-inline {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
+    width: 36px;
+    height: 36px;
     border: 1px solid rgba(255, 255, 255, 0.1);
     background: rgba(38, 38, 42, 0.82);
     color: rgba(220, 220, 230, 0.85);

@@ -64,3 +64,30 @@ describe('Tool Enablement', () => {
         expect(prompt).toContain('Tavily (`web_research`)')
     })
 })
+
+describe('Chart Generation skill prompt integration', () => {
+    it('appends chart generation prompt when skill is enabled', () => {
+        const prompt = getEffectiveSystemPrompt({
+            systemPrompt: 'Base prompt',
+            skills: {
+                ...defaultSkillsSettings,
+                chart_generation: { enabled: true },
+            },
+            chartGenerationPrompt: 'CHART_GEN_INSTRUCTIONS',
+        })
+
+        expect(prompt).toContain('Chart Generation')
+        expect(prompt).toContain('CHART_GEN_INSTRUCTIONS')
+    })
+
+    it('excludes chart generation prompt when skill is disabled', () => {
+        const prompt = getEffectiveSystemPrompt({
+            systemPrompt: 'Base prompt',
+            skills: defaultSkillsSettings,
+            chartGenerationPrompt: 'CHART_GEN_INSTRUCTIONS',
+        })
+
+        expect(prompt).not.toContain('CHART_GEN_INSTRUCTIONS')
+        expect(prompt).not.toContain('chart_generation')
+    })
+})

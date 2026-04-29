@@ -39,7 +39,6 @@ export interface ProviderDefinition {
   id: ProviderId
   label: string
   description: string
-  activeSurface: boolean
   accentColor: string
   capabilities: ProviderCapabilities
   endpoints: ProviderEndpoints
@@ -179,7 +178,6 @@ const PROVIDERS: Record<ProviderId, ProviderDefinition> = {
     id: 'openrouter',
     label: 'OpenRouter',
     description: 'OpenRouter provides access to many frontier models through one API.',
-    activeSurface: true,
     accentColor: '#a855f7',
     capabilities: {
       supportsStreaming: true,
@@ -211,7 +209,6 @@ const PROVIDERS: Record<ProviderId, ProviderDefinition> = {
     id: 'groq',
     label: 'Groq',
     description: 'Ultra-low-latency model inference for high-speed chat experiences.',
-    activeSurface: true,
     accentColor: '#f97316',
     capabilities: {
       supportsStreaming: true,
@@ -242,7 +239,6 @@ const PROVIDERS: Record<ProviderId, ProviderDefinition> = {
     id: 'alibaba',
     label: 'Alibaba Cloud',
     description: 'Qwen models via DashScope API (Tongyi).',
-    activeSurface: true,
     accentColor: '#ff6a00',
     capabilities: {
       supportsStreaming: true,
@@ -274,7 +270,6 @@ const PROVIDERS: Record<ProviderId, ProviderDefinition> = {
     id: 'perplexity',
     label: 'Perplexity',
     description: 'Research-focused model provider with search-native reasoning models.',
-    activeSurface: true,
     accentColor: '#22c55e',
     capabilities: {
       supportsStreaming: true,
@@ -306,7 +301,6 @@ const PROVIDERS: Record<ProviderId, ProviderDefinition> = {
     id: 'ollama',
     label: 'Ollama',
     description: 'Run local models privately on your machine with local networking.',
-    activeSurface: true,
     accentColor: '#339af0',
     capabilities: {
       supportsStreaming: true,
@@ -337,7 +331,6 @@ const PROVIDERS: Record<ProviderId, ProviderDefinition> = {
     id: 'fireworks',
     label: 'Fireworks',
     description: 'Fast inference platform with an official serverless model catalog.',
-    activeSurface: true,
     accentColor: '#ef4444',
     capabilities: {
       supportsStreaming: true,
@@ -382,17 +375,12 @@ export function getProviderDefinition(provider: string | null | undefined): Prov
   return PROVIDERS[normalizeProviderId(provider)]
 }
 
-export function getProviderDefinitions(options?: {
-  includeLegacy?: boolean
-}): ProviderDefinition[] {
-  const includeLegacy = options?.includeLegacy ?? true
-  return (Object.values(PROVIDERS) as ProviderDefinition[]).filter(
-    (provider) => includeLegacy || provider.activeSurface
-  )
+export function getProviderDefinitions(): ProviderDefinition[] {
+  return Object.values(PROVIDERS) as ProviderDefinition[]
 }
 
 export function getActiveProviderDefinitions(): ProviderDefinition[] {
-  return getProviderDefinitions({ includeLegacy: false }) as ProviderDefinition[]
+  return getProviderDefinitions()
 }
 
 export function getActiveProviderIds(): ActiveProviderId[] {
@@ -425,14 +413,6 @@ export function providerSupportsTools(provider: string | null | undefined): bool
 
 export function providerSupportsVisionUploads(provider: string | null | undefined): boolean {
   return getProviderDefinition(provider).capabilities.supportsVisionUploads
-}
-
-export function providerSupportsReasoning(provider: string | null | undefined): boolean {
-  return getProviderDefinition(provider).capabilities.supportsReasoning
-}
-
-export function providerSupportsImageGeneration(provider: string | null | undefined): boolean {
-  return getProviderDefinition(provider).capabilities.supportsImageGeneration
 }
 
 export function providerUsesNativeSearch(provider: string | null | undefined): boolean {

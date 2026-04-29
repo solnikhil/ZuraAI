@@ -266,13 +266,11 @@ export const LazyImage: React.FC<LazyImageProps> = ({
   // Determine if we should render the actual image
   const shouldRenderImage = !lazy || useNativeLazy || shouldLoad
 
-  // Handle image load start
   const handleLoadStart = useCallback(() => {
     setLoadingState('loading')
     onLoadStart?.()
   }, [onLoadStart])
 
-  // Handle image load complete
   const handleLoad = useCallback(
     (event: React.SyntheticEvent<HTMLImageElement>) => {
       setLoadingState('loaded')
@@ -281,7 +279,6 @@ export const LazyImage: React.FC<LazyImageProps> = ({
     [onLoad]
   )
 
-  // Handle image load error
   const handleError = useCallback(
     (event: React.SyntheticEvent<HTMLImageElement>) => {
       setLoadingState('error')
@@ -297,7 +294,6 @@ export const LazyImage: React.FC<LazyImageProps> = ({
     }
   }, [shouldRenderImage, loadingState, handleLoadStart])
 
-  // Render placeholder based on type
   const renderPlaceholder = () => {
     if (loadingState === 'loaded') return null
 
@@ -316,7 +312,6 @@ export const LazyImage: React.FC<LazyImageProps> = ({
     }
   }
 
-  // Render fallback on error
   if (loadingState === 'error' && fallback) {
     return <>{fallback}</>
   }

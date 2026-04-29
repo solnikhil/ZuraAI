@@ -10,7 +10,7 @@ export function isRecord(value: unknown): value is JsonRecord {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-export function getString(value: unknown): string {
+function getString(value: unknown): string {
   return typeof value === 'string' ? value : ''
 }
 
@@ -39,7 +39,7 @@ export function getFailureMessage(failures: readonly unknown[]): string {
   return firstFailure?.error ? ` ${firstFailure.error}` : ''
 }
 
-export function getFaviconUrl(url: string): string {
+function getFaviconUrl(url: string): string {
   try {
     const domain = new URL(url).hostname
     return `https://www.google.com/s2/favicons?domain=${domain}&sz=32`
@@ -48,7 +48,7 @@ export function getFaviconUrl(url: string): string {
   }
 }
 
-export function getSourceFromUrl(url: string): string {
+function getSourceFromUrl(url: string): string {
   try {
     return new URL(url).hostname.replace(/^www\./, '')
   } catch {
@@ -56,7 +56,7 @@ export function getSourceFromUrl(url: string): string {
   }
 }
 
-export function getDisplayedLink(url: string): string {
+function getDisplayedLink(url: string): string {
   try {
     const urlObj = new URL(url)
     const hostname = urlObj.hostname.replace(/^www\./, '')
@@ -81,7 +81,7 @@ export function getDisplayedLink(url: string): string {
   }
 }
 
-export function buildSnippetFromRawContent(rawContent: string): string {
+function buildSnippetFromRawContent(rawContent: string): string {
   const flattened = rawContent.replace(/\s+/g, ' ').trim()
 
   if (!flattened) return ''
@@ -89,7 +89,7 @@ export function buildSnippetFromRawContent(rawContent: string): string {
   return `${flattened.slice(0, SEARCH_EXTRACT_SNIPPET_LENGTH - 3)}...`
 }
 
-export function inferTitleFromRawContent(rawContent: string, url: string): string {
+function inferTitleFromRawContent(rawContent: string, url: string): string {
   const candidate = rawContent
     .split('\n')
     .map((line) => line.trim())

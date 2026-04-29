@@ -3,6 +3,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'child_process'
 import type { McpJsonRpcMessage } from '../../../src/mcp/types'
 
 import { BaseMcpTransport, splitMcpMessageLines } from './base'
+import { normalizeTimeout } from '../../utils/normalizeTimeout'
 
 const DEFAULT_STARTUP_TIMEOUT_MS = 10000
 const DEFAULT_SHUTDOWN_TIMEOUT_MS = 2000
@@ -309,13 +310,6 @@ function normalizeEnv(env: Record<string, string> | undefined): Record<string, s
   )
 }
 
-function normalizeTimeout(value: number | undefined, fallback: number): number {
-  if (typeof value !== 'number' || !Number.isFinite(value)) {
-    return fallback
-  }
-
-  return Math.max(1, Math.round(value))
-}
 
 function appendDiagnosticChunk(current: string, chunk: string, maxLength: number): string {
   const next = current + chunk

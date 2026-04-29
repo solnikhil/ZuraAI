@@ -128,7 +128,6 @@ export default function CommandPaletteResultList({
   const recentItems = recentSuggestions.slice(0, 3)
   const showRecent = !hasQuery && recentItems.length > 0
 
-  // Build flat item list for index tracking
   const items: CommandBarSuggestion[] = []
   if (!hasQuery) {
     if (showRecent) items.push(...recentItems)

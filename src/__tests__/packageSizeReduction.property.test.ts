@@ -214,20 +214,21 @@ describe('Property 1: Bug Condition — Build Configuration Bloat Detection', ()
     )
   })
 
-  // ── (g) esbuild.drop config EXISTS in vite.config.ts ─────────────────────
+  // ── (g) stale renderer/build compatibility config is absent ──────────────
 
-  it('(g) esbuild.drop config should exist in vite.config.ts', () => {
+  it('(g) vite.config.ts should not keep ignored esbuild or renderer shim config', () => {
     /**
      * **Validates: Requirements 1.7**
      *
-     * The Vite config must include esbuild drop options to remove
-     * console/debugger statements in production builds.
+     * Vite 8 uses OXC by default. Keeping esbuild.drop in this config is now
+     * ignored and emits a misleading warning. The renderer also does not import
+     * Electron/Node modules, so vite-plugin-electron-renderer should not be
+     * wired into the renderer build.
      */
     fc.assert(
       fc.property(fc.constant(viteConfigSource), (source: string) => {
-        // Must contain esbuild config with drop
-        const hasEsbuildDrop = /esbuild\s*:\s*\{[^}]*drop\s*:/.test(source)
-        expect(hasEsbuildDrop).toBe(true)
+        expect(/esbuild\s*:\s*\{[^}]*drop\s*:/.test(source)).toBe(false)
+        expect(source).not.toContain('vite-plugin-electron-renderer')
       }),
       PBT_CONFIG
     )

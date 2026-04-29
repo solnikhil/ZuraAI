@@ -12,26 +12,14 @@ import type { AppRuntimeInfo } from '../electron/types'
 import { List } from './icons'
 import { useToast } from './shared/Toast'
 
+import type { UpdateCheckInfo } from '@/electron/types'
+
 type UpdateState = 'idle' | 'checking' | 'upToDate' | 'available' | 'downloaded' | 'error'
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
-
-function extractUpdateVersion(result: unknown): string | null {
-  if (!isRecord(result)) return null
-
-  // checkForUpdates() now returns UpdateInfo directly from the main process
+function extractUpdateVersion(result: UpdateCheckInfo | null): string | null {
+  if (!result) return null
   const version = result.version
-  if (typeof version === 'string' && version.trim().length > 0) return version
-
-  // Fallback: handle wrapped { updateInfo: { version } } shape
-  const updateInfo = result.updateInfo
-  if (!isRecord(updateInfo)) return null
-  const nestedVersion = updateInfo.version
-  return typeof nestedVersion === 'string' && nestedVersion.trim().length > 0
-    ? nestedVersion
-    : null
+  return typeof version === 'string' && version.trim().length > 0 ? version : null
 }
 
 interface TitleBarInfoMenuProps {

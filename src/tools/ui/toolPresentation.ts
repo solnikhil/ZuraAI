@@ -92,13 +92,3 @@ export function stringifyToolValue(value: unknown): string {
     return String(value)
   }
 }
-
-export function getToolValuePreview(value: unknown, maxLength = 200): string | null {
-  const text = stringifyToolValue(value).trim()
-  if (!text) {
-    return null
-  }
-
-  const singleLine = text.replace(/\s+/g, ' ')
-  return truncateText(singleLine, maxLength)
-}

@@ -160,7 +160,6 @@ export default function ChatArea() {
     return () => container.removeEventListener('scroll', handleScroll)
   }, [isLoading])
 
-  // Handle new message detection and scroll
   useEffect(() => {
     const currentMessageCount = messages.length
     const lastMessage = messages[messages.length - 1]
@@ -269,7 +268,7 @@ export default function ChatArea() {
           justifyContent: 'center',
           height: '100%',
           minHeight: 0,
-          background: 'var(--theme-background)',
+          background: 'var(--theme-content-solid)',
           padding: '20px',
         }}
       >
@@ -328,7 +327,7 @@ export default function ChatArea() {
         flexDirection: 'column',
         height: '100%',
         minHeight: 0,
-        background: 'var(--theme-background)',
+        background: 'var(--theme-content-solid)',
         position: 'relative',
       }}
     >

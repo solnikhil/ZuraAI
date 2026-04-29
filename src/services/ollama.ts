@@ -61,7 +61,7 @@ const OLLAMA_DEFAULT_CONTEXT = 4096
  * Fetch context length for a single Ollama model via /api/show.
  * Returns the context_length from model_info, or OLLAMA_DEFAULT_CONTEXT on failure.
  */
-export const getOllamaModelContextLength = async (
+const getOllamaModelContextLength = async (
     baseUrl: string,
     modelName: string
 ): Promise<number> => {

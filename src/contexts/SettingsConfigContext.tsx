@@ -26,9 +26,14 @@ import { defaultSystemPrompt } from '../prompts/defaultSystemPrompt'
 import { defaultWebSearchPrompt } from '../prompts/defaultWebSearchPrompt'
 import { defaultTitleGenerationPrompt } from '../prompts/defaultTitleGenerationPrompt'
 import { defaultCodeExecutionPrompt } from '../prompts/defaultCodeExecutionPrompt'
+import { defaultComputerUsePrompt } from '../prompts/defaultComputerUsePrompt'
+import { defaultChartGenerationPrompt } from '../prompts/defaultChartGenerationPrompt'
 import { defaultSkillsSettings, type SkillsSettings } from '../skills'
 import type { ProviderId } from '../providers/providerTypes'
 import { warnOnceDuringHmr } from './hmrWarnings'
+import type { OverlaySettings } from '../electron/types'
+
+export type { OverlaySettings }
 
 // Todo item structure (shared with main Settings)
 export interface TodoItem {
@@ -60,17 +65,6 @@ type ProviderKey = ProviderId
 type ProviderEnabledMap = Partial<Record<ProviderKey, boolean>>
 export type TavilySearchDepth = 'ultra-fast' | 'fast' | 'basic' | 'advanced'
 export type TavilySearchDepthPreference = 'auto' | TavilySearchDepth
-
-export interface OverlaySettings {
-  enabled: boolean
-  launchOnStartup: boolean
-  hotkey: string
-  anchor: 'right'
-  compactWidth: number
-  expandedWidth: number
-  promptAutoHideEnabled: boolean
-  promptAutoHideTimeout: number
-}
 
 /**
  * Configuration-related settings that change infrequently
@@ -108,6 +102,10 @@ export interface SettingsConfig {
   webSearchPrompt: string
   /** Code execution instructions appended when Code Execution is enabled */
   codeExecutionPrompt: string
+  /** Computer use instructions appended when Computer Use is enabled */
+  computerUsePrompt: string
+  /** Chart generation instructions appended when Chart Generation is enabled */
+  chartGenerationPrompt: string
   streamResponses: boolean
 
   // Tool settings
@@ -116,10 +114,8 @@ export interface SettingsConfig {
   skills: SkillsSettings
   /** When true, code execution runs without the approval dialog */
   codeExecutionAutoApprove: boolean
-  /** @deprecated Legacy migration input only; do not use in runtime logic. */
-  webSearchEnabled?: boolean
-  /** @deprecated Legacy migration input only; do not use in runtime logic. */
-  structuredResearchEnabled?: boolean
+  /** When true, computer use actions run without the approval dialog */
+  computerUseAutoApprove: boolean
 
   // Title generation
   titleModelProvider: ProviderId
@@ -259,6 +255,8 @@ export const defaultSettingsConfig: SettingsConfig = {
   systemPrompt: defaultSystemPrompt,
   webSearchPrompt: defaultWebSearchPrompt,
   codeExecutionPrompt: defaultCodeExecutionPrompt,
+  computerUsePrompt: defaultComputerUsePrompt,
+  chartGenerationPrompt: defaultChartGenerationPrompt,
   streamResponses: true,
 
   // Tool settings
@@ -267,6 +265,7 @@ export const defaultSettingsConfig: SettingsConfig = {
   skills: defaultSkillsSettings,
 
   codeExecutionAutoApprove: false,
+  computerUseAutoApprove: false,
   // Title generation
   titleModelProvider: 'openrouter',
   titleModel: '',
@@ -341,7 +340,6 @@ export function SettingsConfigProvider({
     }
   }, [initialSettings])
 
-  // Load API keys from secure storage on startup
   useEffect(() => {
     const loadSecureKeys = async () => {
       try {
@@ -355,10 +353,8 @@ export function SettingsConfigProvider({
           tavilyApiKey: settingsConfig.tavilyApiKey,
         })
 
-        // Load from secure storage (single IPC roundtrip via getAll)
         const secureKeys = await loadApiKeysFromSecureStorage()
 
-        // Check if we got any keys
         const hasSecureKeys =
           secureKeys.alibabaApiKey ||
           secureKeys.fireworksApiKey ||
@@ -368,7 +364,6 @@ export function SettingsConfigProvider({
           secureKeys.tavilyApiKey
 
         if (hasSecureKeys) {
-          // Update settings with secure keys - prefer secure storage values
           setSettingsConfig((prev) => ({
             ...prev,
             alibabaApiKey: secureKeys.alibabaApiKey || prev.alibabaApiKey,

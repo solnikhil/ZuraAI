@@ -1,4 +1,4 @@
-export type SkillId = 'web_research' | 'code_execution'
+export type SkillId = 'web_research' | 'code_execution' | 'computer_use' | 'chart_generation'
 
 export interface SkillState {
   enabled: boolean
@@ -9,9 +9,15 @@ export interface WebResearchSkillState extends SkillState {}
 
 export interface CodeExecutionSkillState extends SkillState {}
 
+export interface ComputerUseSkillState extends SkillState {}
+
+export interface ChartGenerationSkillState extends SkillState {}
+
 export type SkillsSettings = Record<string, SkillState> & {
   web_research: WebResearchSkillState
   code_execution: CodeExecutionSkillState
+  computer_use: ComputerUseSkillState
+  chart_generation: ChartGenerationSkillState
 }
 
 export interface BuiltInSkill {
@@ -43,6 +49,27 @@ export const BUILT_IN_SKILLS: BuiltInSkill[] = [
       'Prefer Python for math/data tasks and JavaScript for string/JSON manipulation.',
     ],
   },
+  {
+    id: 'computer_use',
+    name: 'Computer Use',
+    description: 'Control your computer with AI — take screenshots, click, type, scroll, and automate desktop tasks.',
+    note: 'Requires approval before each action. Press Esc+Esc to emergency stop.',
+    usageGuidance: [
+      'Always take a screenshot first to see the current screen state.',
+      'Analyze the screenshot carefully before performing any action.',
+      'Verify results with a follow-up screenshot after each action.',
+    ],
+  },
+  {
+    id: 'chart_generation',
+    name: 'Chart Generation',
+    description: 'Automatically generate bar, line, and pie charts using Mermaid when data is present in the conversation.',
+    note: 'Uses Mermaid syntax — no additional dependencies required.',
+    usageGuidance: [
+      'Generate charts proactively when data is present.',
+      'Use pie for proportions, bar for comparisons, line for trends.',
+    ],
+  },
 ]
 
 const DEFAULT_WEB_RESEARCH_SKILL: WebResearchSkillState = {
@@ -53,9 +80,19 @@ const DEFAULT_CODE_EXECUTION_SKILL: CodeExecutionSkillState = {
   enabled: false,
 }
 
+const DEFAULT_COMPUTER_USE_SKILL: ComputerUseSkillState = {
+  enabled: false,
+}
+
+const DEFAULT_CHART_GENERATION_SKILL: ChartGenerationSkillState = {
+  enabled: false,
+}
+
 export const defaultSkillsSettings: SkillsSettings = {
   web_research: DEFAULT_WEB_RESEARCH_SKILL,
   code_execution: DEFAULT_CODE_EXECUTION_SKILL,
+  computer_use: DEFAULT_COMPUTER_USE_SKILL,
+  chart_generation: DEFAULT_CHART_GENERATION_SKILL,
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -86,7 +123,7 @@ export function normalizeSkillsSettings(raw: unknown): SkillsSettings {
 
   if (isRecord(raw)) {
     for (const [skillId, value] of Object.entries(raw)) {
-      if (skillId === 'web_research' || skillId === 'code_execution' || skillId === 'testing') continue
+      if (skillId === 'web_research' || skillId === 'code_execution' || skillId === 'testing' || skillId === 'computer_use' || skillId === 'chart_generation') continue
       const generic = normalizeGenericSkillState(value)
       if (generic) {
         normalized[skillId] = generic
@@ -102,6 +139,14 @@ export function normalizeSkillsSettings(raw: unknown): SkillsSettings {
   normalized.code_execution = normalizeKnownSkill(
     rawRecord?.code_execution,
     defaultSkillsSettings.code_execution
+  )
+  normalized.computer_use = normalizeKnownSkill(
+    rawRecord?.computer_use,
+    defaultSkillsSettings.computer_use
+  )
+  normalized.chart_generation = normalizeKnownSkill(
+    rawRecord?.chart_generation,
+    defaultSkillsSettings.chart_generation
   )
 
   return normalized as SkillsSettings
@@ -142,7 +187,7 @@ export function migrateSkillsFromLegacySettings({
   }
 }
 
-// ==================== Web Research helpers ====================
+// Web Research
 
 export function isWebResearchEnabled(skills: SkillsSettings | undefined): boolean {
   return normalizeSkillsSettings(skills).web_research.enabled
@@ -170,7 +215,7 @@ export function getWebResearchToolExposure(skills: SkillsSettings | undefined): 
   }
 }
 
-// ==================== Code Execution helpers ====================
+// Code Execution
 
 export function isCodeExecutionEnabled(skills: SkillsSettings | undefined): boolean {
   return normalizeSkillsSettings(skills).code_execution.enabled
@@ -195,7 +240,45 @@ export function getCodeExecutionToolExposure(skills: SkillsSettings | undefined)
   }
 }
 
-// ==================== Generic skill helpers ====================
+// Computer Use
+
+export function withComputerUseEnabled(skills: SkillsSettings | undefined, enabled: boolean): SkillsSettings {
+  const normalized = normalizeSkillsSettings(skills)
+  return {
+    ...normalized,
+    computer_use: {
+      ...normalized.computer_use,
+      enabled,
+    },
+  }
+}
+
+export function getComputerUseToolExposure(skills: SkillsSettings | undefined): {
+  exposeComputerUse: boolean
+} {
+  return {
+    exposeComputerUse: normalizeSkillsSettings(skills).computer_use.enabled,
+  }
+}
+
+// Chart Generation
+
+export function isChartGenerationEnabled(skills: SkillsSettings | undefined): boolean {
+  return normalizeSkillsSettings(skills).chart_generation.enabled
+}
+
+export function withChartGenerationEnabled(skills: SkillsSettings | undefined, enabled: boolean): SkillsSettings {
+  const normalized = normalizeSkillsSettings(skills)
+  return {
+    ...normalized,
+    chart_generation: {
+      ...normalized.chart_generation,
+      enabled,
+    },
+  }
+}
+
+// Generic
 
 export function isSkillEnabled(skills: SkillsSettings | undefined, skillId: SkillId): boolean {
   const normalized = normalizeSkillsSettings(skills)
@@ -215,7 +298,7 @@ export function withSkillEnabled(skills: SkillsSettings | undefined, skillId: Sk
 
 export function buildEnabledSkillsPrompt(
   skills: SkillsSettings | undefined,
-  options?: { codeExecutionPrompt?: string },
+  options?: { codeExecutionPrompt?: string; computerUsePrompt?: string; chartGenerationPrompt?: string },
 ): string {
   if (!skills) return ''
 
@@ -234,12 +317,30 @@ export function buildEnabledSkillsPrompt(
     skillLines.push('- Prefer Python for math/data tasks. Keep code concise and self-contained. The sandbox has no filesystem or network access.')
   }
 
+  if (normalized.computer_use.enabled) {
+    skillLines.push('- Computer Use (`computer_use`): take screenshots, click, type, scroll, and automate desktop tasks.')
+    skillLines.push('- Always screenshot first, analyze before acting, verify results with follow-up screenshots.')
+  }
+
+  if (normalized.chart_generation.enabled) {
+    skillLines.push('- Chart Generation (`chart_generation`): generate Mermaid charts (bar, line, pie) when data is present.')
+    skillLines.push('- Use pie for proportions, bar for comparisons, line for trends. Generate charts proactively.')
+  }
+
   if (skillLines.length > 0) {
     sections.push(`Enabled Skills:\n${skillLines.join('\n')}`)
   }
 
   if (normalized.code_execution.enabled && options?.codeExecutionPrompt) {
     sections.push(options.codeExecutionPrompt)
+  }
+
+  if (normalized.computer_use.enabled && options?.computerUsePrompt) {
+    sections.push(options.computerUsePrompt)
+  }
+
+  if (normalized.chart_generation.enabled && options?.chartGenerationPrompt) {
+    sections.push(options.chartGenerationPrompt)
   }
 
   return sections.join('\n\n')

@@ -85,14 +85,12 @@ export function useDropdownPosition(options: UseDropdownPositionOptions): {
     const viewportHeight = window.innerHeight
     const viewportWidth = window.innerWidth
 
-    // Calculate available space above and below
     const spaceAbove = rect.top
     const spaceBelow = viewportHeight - rect.bottom
 
     // Determine if dropdown should appear above or below
     const showAbove = spaceAbove >= preferredHeight + viewportPadding || spaceAbove > spaceBelow
 
-    // Calculate top position
     let top: number
     if (showAbove) {
       top = rect.top - offset
@@ -100,7 +98,6 @@ export function useDropdownPosition(options: UseDropdownPositionOptions): {
       top = rect.bottom + offset
     }
 
-    // Calculate left position, keeping dropdown within viewport
     let left = rect.left
     if (left + preferredWidth > viewportWidth - viewportPadding) {
       left = viewportWidth - preferredWidth - viewportPadding
@@ -132,7 +129,6 @@ export function useDropdownPosition(options: UseDropdownPositionOptions): {
     }
   }, [isOpen, calculatePosition])
 
-  // Update position on window resize and scroll
   useEffect(() => {
     if (!isOpen) return
 

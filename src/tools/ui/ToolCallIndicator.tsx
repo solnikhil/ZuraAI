@@ -1,5 +1,5 @@
 import React from 'react'
-import { Search, Loader2, Globe, Wrench, Terminal } from '../../components/icons'
+import { Search, Loader2, Globe, Wrench, Terminal, Monitor, MousePointer } from '../../components/icons'
 import { getWebToolLabel, inferWebToolModeFromArgs } from './webToolDisplay'
 import { getToolArgumentSummary, getToolPresentation } from './toolPresentation'
 
@@ -8,11 +8,31 @@ import './ToolCallIndicator.css'
 const toolIcons: Record<string, React.ReactNode> = {
   web_search: <Search size={16} />,
   code_execution: <Terminal size={16} />,
+  computer_screenshot: <Monitor size={16} />,
+  computer_click: <MousePointer size={16} />,
+  computer_type: <Monitor size={16} />,
+  computer_key: <Monitor size={16} />,
+  computer_scroll: <Monitor size={16} />,
+  computer_cursor_position: <MousePointer size={16} />,
+  computer_list_windows: <Monitor size={16} />,
+  computer_launch_app: <Monitor size={16} />,
+  computer_find_app: <Search size={16} />,
+  computer_close_app: <Monitor size={16} />,
 }
 
 const toolDisplayNames: Record<string, string> = {
   web_search: 'Web Search',
   code_execution: 'Code Execution',
+  computer_screenshot: 'Screenshot',
+  computer_click: 'Click',
+  computer_type: 'Type',
+  computer_key: 'Key Press',
+  computer_scroll: 'Scroll',
+  computer_cursor_position: 'Move Cursor',
+  computer_list_windows: 'List Windows',
+  computer_launch_app: 'Launch App',
+  computer_find_app: 'Find App',
+  computer_close_app: 'Close App',
 }
 
 interface ToolCallIndicatorProps {
@@ -58,6 +78,16 @@ export default function ToolCallIndicator({
           const lang = args?.language === 'python' ? 'Python' : 'JavaScript'
           return desc ? `Running ${lang}: ${desc}` : `Running ${lang} code…`
         }
+        if (toolName === 'computer_screenshot') return 'Taking screenshot…'
+        if (toolName === 'computer_list_windows') return 'Listing open windows…'
+        if (toolName === 'computer_launch_app') return `Launching ${args?.name ?? 'app'}…`
+        if (toolName === 'computer_find_app') return `Searching for "${args?.query ?? ''}…"`
+        if (toolName === 'computer_close_app') return `Closing ${args?.title ?? 'app'}…`
+        if (toolName === 'computer_click') return `Clicking at (${args?.x ?? '?'}, ${args?.y ?? '?'})…`
+        if (toolName === 'computer_type') return `Typing "${String(args?.text ?? '').slice(0, 30)}"…`
+        if (toolName === 'computer_key') return `Pressing ${args?.key ?? '?'}…`
+        if (toolName === 'computer_scroll') return `Scrolling ${args?.direction ?? '?'}…`
+        if (toolName === 'computer_cursor_position') return `Moving cursor to (${args?.x ?? '?'}, ${args?.y ?? '?'})…`
         return argumentSummary
           ? `Running ${displayName}: ${argumentSummary}`
           : `Running ${displayName}...`

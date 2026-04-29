@@ -1,0 +1,5 @@
+export const SCREENSHOT_MAX_WIDTH = 1280
+export const ACTION_DELAY_MS = 150
+export const DEFAULT_SCROLL_AMOUNT = 3
+export const MAX_ACTIONS_PER_SESSION = 50
+export const KILL_SWITCH_WINDOW_MS = 500

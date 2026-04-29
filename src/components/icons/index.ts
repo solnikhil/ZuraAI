@@ -53,6 +53,8 @@ export {
   Play,
   Square,
   ShieldCheck,
+  Monitor,
+  MousePointer,
 } from 'lucide-react'
 
 // Animated icons

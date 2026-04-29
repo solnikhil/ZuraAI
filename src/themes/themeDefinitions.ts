@@ -77,10 +77,3 @@ export interface ThemeCustomization {
   themeContrast: number
 }
 
-export const DEFAULT_THEME_CUSTOMIZATION: ThemeCustomization = {
-  activeThemePreset: 'zuraai',
-  themeAccent: '#FFFFFF',
-  themeBackground: '#181818',
-  themeForeground: '#FFFFFF',
-  themeContrast: 100,
-}

@@ -44,8 +44,7 @@ const SECRET_SETTING_KEYS: Array<
   >
 > = ['openRouterApiKey', 'perplexityApiKey', 'groqApiKey', 'tavilyApiKey', 'alibabaApiKey', 'fireworksApiKey']
 
-const ALL_PROVIDER_IDS = getProviderDefinitions({ includeLegacy: true }).map((provider) => provider.id)
-const ACTIVE_PROVIDER_IDS = getProviderDefinitions({ includeLegacy: false }).map((provider) => provider.id)
+const PROVIDER_IDS = getProviderDefinitions().map((provider) => provider.id)
 const LEGACY_FIREWORKS_MODEL_ID_MAP: Record<string, string> = {
   'accounts/fireworks/models/kimi-k2p5-turbo': 'accounts/fireworks/routers/kimi-k2p5-turbo',
   'accounts/fireworks/models/kimi-k2p5-turbo-instruct': 'accounts/fireworks/routers/kimi-k2p5-turbo',
@@ -169,6 +168,7 @@ export function parseStoredSettings(raw: string | null): Partial<Settings> {
 export function normalizeStoredSettings(raw: string | null): Settings {
   const parsedFromStorage = parseStoredSettings(raw)
   const parsed = { ...defaultSettings, ...parsedFromStorage }
+  const hasStoredOverlay = Object.prototype.hasOwnProperty.call(parsedFromStorage, 'overlay')
 
   delete (parsed as Record<string, unknown>).autoHideOverlay
   delete (parsed as Record<string, unknown>).overlayTransparency
@@ -209,8 +209,16 @@ export function normalizeStoredSettings(raw: string | null): Settings {
     parsed.codeExecutionPrompt = defaultSettings.codeExecutionPrompt
   }
 
+  if (parsed.computerUsePrompt === undefined) {
+    parsed.computerUsePrompt = defaultSettings.computerUsePrompt
+  }
+
+  if (parsed.chartGenerationPrompt === undefined) {
+    parsed.chartGenerationPrompt = defaultSettings.chartGenerationPrompt
+  }
+
   if (!parsed.modelProvider) parsed.modelProvider = defaultSettings.modelProvider
-  if (!ALL_PROVIDER_IDS.includes(parsed.modelProvider as typeof ALL_PROVIDER_IDS[number])) {
+  if (!PROVIDER_IDS.includes(parsed.modelProvider as typeof PROVIDER_IDS[number])) {
     parsed.modelProvider = 'openrouter'
   }
 
@@ -282,7 +290,7 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   }
 
   if (!parsed.titleModelProvider) parsed.titleModelProvider = defaultSettings.titleModelProvider
-  if (!ACTIVE_PROVIDER_IDS.includes(parsed.titleModelProvider as typeof ACTIVE_PROVIDER_IDS[number])) {
+  if (!PROVIDER_IDS.includes(parsed.titleModelProvider as typeof PROVIDER_IDS[number])) {
     parsed.titleModelProvider = defaultSettings.titleModelProvider
   }
   if (parsed.titleModel === undefined || parsed.titleModel === null) {
@@ -369,6 +377,10 @@ export function normalizeStoredSettings(raw: string | null): Settings {
     parsed.codeExecutionAutoApprove = defaultSettings.codeExecutionAutoApprove
   }
 
+  if (typeof parsed.computerUseAutoApprove !== 'boolean') {
+    parsed.computerUseAutoApprove = defaultSettings.computerUseAutoApprove
+  }
+
   if (!parsed.favoriteModels) parsed.favoriteModels = defaultSettings.favoriteModels
 
   parsed.titleBarDensity = 'compact'
@@ -390,9 +402,13 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   if (parsed.rememberLastDashboardView === undefined) {
     parsed.rememberLastDashboardView = defaultSettings.rememberLastDashboardView
   }
-// Migrate legacy buddyOverlay key to overlay
+  // Migrate legacy buddyOverlay key to overlay.
   const legacyRecord = parsed as Record<string, unknown>
-  if (legacyRecord.buddyOverlay && typeof legacyRecord.buddyOverlay === 'object' && !parsed.overlay) {
+  if (
+    legacyRecord.buddyOverlay &&
+    typeof legacyRecord.buddyOverlay === 'object' &&
+    !hasStoredOverlay
+  ) {
     parsed.overlay = {
       ...defaultSettings.overlay,
       ...(legacyRecord.buddyOverlay as Partial<typeof defaultSettings.overlay>),
@@ -434,7 +450,7 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   }
 
   if (parsed.themeContrast === undefined) {
-    parsed.themeContrast = parsed.softenedContrast === true ? 85 : 100
+    parsed.themeContrast = (parsed as Record<string, unknown>).softenedContrast === true ? 85 : 100
   }
   delete (parsed as Record<string, unknown>).softenedContrast
   delete (parsed as Record<string, unknown>).notificationsEnabled
@@ -519,12 +535,15 @@ export function getInitialConfigSettings(settings: Settings): Partial<SettingsCo
     systemPrompt: settings.systemPrompt,
     webSearchPrompt: settings.webSearchPrompt,
     codeExecutionPrompt: settings.codeExecutionPrompt,
+    computerUsePrompt: settings.computerUsePrompt,
+    chartGenerationPrompt: settings.chartGenerationPrompt,
     streamResponses: settings.streamResponses,
     toolsEnabled: settings.toolsEnabled,
     enabledTools: settings.enabledTools,
     skills: settings.skills,
     titleModel: settings.titleModel,
     codeExecutionAutoApprove: settings.codeExecutionAutoApprove,
+    computerUseAutoApprove: settings.computerUseAutoApprove,
     titleModelProvider: settings.titleModelProvider,
     titleGenerationPrompt: settings.titleGenerationPrompt,
     titleGenerationDisplayMode: settings.titleGenerationDisplayMode,

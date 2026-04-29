@@ -10,7 +10,7 @@ export function createPromptCacheKey(
   return `${serverId}::prompt::${promptName}::${stableStringify(args)}`
 }
 
-export function stableStringify(value: unknown): string {
+function stableStringify(value: unknown): string {
   if (value == null || typeof value !== 'object') {
     return JSON.stringify(value)
   }

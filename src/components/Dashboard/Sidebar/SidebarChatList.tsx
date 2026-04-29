@@ -77,7 +77,6 @@ export default function SidebarChatList({
     })
   }, [folders])
 
-  // Build time-group buckets (only include non-empty ones)
   const timeGroups: TimeGroupBucket[] = React.useMemo(() => {
     const buckets: TimeGroupBucket[] = [
       { label: 'Today', sessions: groupedSessions.today },

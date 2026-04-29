@@ -152,7 +152,7 @@ export function derivePaletteFromBase(
   }
 }
 
-export const themes: Record<string, Theme> = {
+const themes: Record<string, Theme> = {
   zuraai: createTheme(
     'zuraai',
     'Obsidian Core',
@@ -274,36 +274,6 @@ export const themes: Record<string, Theme> = {
     '#e6edf5'
   ),
 }
-
-const THEME_CATEGORY_LABELS = {
-  classic: 'Classic',
-  colorful: 'Colorful',
-  minimal: 'Minimal',
-  ai: 'AI Inspired',
-  terminal: 'Terminal',
-  creative: 'Creative',
-} satisfies Record<Theme['category'], string>
-
-const THEME_CATEGORY_ORDER: Theme['category'][] = [
-  'classic',
-  'colorful',
-  'minimal',
-  'ai',
-  'terminal',
-  'creative',
-]
-
-const availableCategoryIds = new Set(Object.values(themes).map((theme) => theme.category))
-
-export const themeCategories = [
-  { id: 'all', name: 'All Themes' },
-  ...THEME_CATEGORY_ORDER.filter((category) => availableCategoryIds.has(category)).map(
-    (category) => ({
-      id: category,
-      name: THEME_CATEGORY_LABELS[category],
-    })
-  ),
-]
 
 export function getThemeById(id: string): Theme | undefined {
   return themes[id]

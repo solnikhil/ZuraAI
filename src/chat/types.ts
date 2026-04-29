@@ -1,19 +1,6 @@
-import type { ToolExecutionMetadata } from '../tools/types'
+import type { ToolCallResult, ToolExecutionMetadata } from '../tools/types'
 
-export interface ToolCallResult {
-  toolCall: {
-    id: string
-    name: string
-    arguments: Record<string, unknown>
-  }
-  result: {
-    success: boolean
-    data?: unknown
-    error?: string
-    executionTime?: number
-    metadata?: ToolExecutionMetadata
-  }
-}
+export type { ToolCallResult }
 
 export interface FileAttachment {
   id: string

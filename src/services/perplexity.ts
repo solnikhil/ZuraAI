@@ -49,14 +49,12 @@ export function cleanSonarResponse(
 ): string {
   if (!content) return content
 
-  // Remove <grok:richcontent> tags and their contents (citation markers)
   // Pattern: <grok:richcontent id="N" type="render_inline_citation"> <argument name="citation_id">N</argument> </grok:richcontent>
   let cleaned = content.replace(/<grok:richcontent[^>]*>[\s\S]*?<\/grok:richcontent>/gi, '')
 
   // Also remove any standalone grok tags that might be malformed
   cleaned = cleaned.replace(/<\/?grok:[^>]*>/gi, '')
 
-  // Build citation URL map from either citations array or search_results
   const citationUrls: Map<number, { url: string; title?: string }> = new Map()
 
   if (citations && citations.length > 0) {
@@ -69,14 +67,12 @@ export function cleanSonarResponse(
     })
   }
 
-  // Convert citation markers [1], [2], etc. to inline clickable links
   if (citationUrls.size > 0) {
     // Replace [1], [2], etc. with clickable markdown links [[1]](url)
     cleaned = cleaned.replace(/\[(\d+)\]/g, (match, numStr) => {
       const num = parseInt(numStr, 10)
       const citation = citationUrls.get(num)
       if (citation) {
-        // Create inline clickable citation link
         return `[[${num}]](${citation.url})`
       }
       return match // Keep original if no citation found
@@ -197,7 +193,6 @@ export const generatePerplexityCompletion = async (
     throw new Error('Perplexity API Key is missing')
   }
 
-  // Build request body with only defined properties
   const requestBody: PerplexityRequestBody = {
     model: model,
     messages: messages,

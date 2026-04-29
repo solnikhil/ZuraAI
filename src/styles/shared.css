@@ -10,7 +10,8 @@
     --frosted-glass-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.08), inset -2px 0 0 rgba(0, 0, 0, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.05);
     --frosted-glass-filter: blur(15px) saturate(138%) brightness(1.08);
     --frosted-sidebar-shadow: 0 9px 26px rgba(0, 0, 0, 0.14), 1px 0 0 rgba(255, 255, 255, 0.08), 2px 0 0 rgba(0, 0, 0, 0.16);
-    --theme-sidebar-solid: color-mix(in srgb, var(--theme-surface) 92%, var(--theme-text-primary) 8%);
+    --theme-sidebar-solid: var(--theme-background);
+    --theme-content-solid: color-mix(in srgb, var(--theme-surface) 92%, var(--theme-text-primary) 8%);
     --motion-duration-micro: 120ms;
     --motion-duration-fast: 160ms;
     --motion-duration-normal: 220ms;

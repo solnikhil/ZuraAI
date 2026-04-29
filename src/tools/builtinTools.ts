@@ -100,11 +100,145 @@ Best practices:
     category: 'utility',
     origin: 'builtin-main',
   },
+  computer_screenshot: {
+    description: 'Capture the desktop screen. Always call this first before performing any action to see the current screen state. Returns a base64 PNG image with screen dimensions and coordinate metadata used by follow-up actions.',
+    parameters: {
+      type: 'object',
+      description: 'Arguments for capturing the screen.',
+      properties: {
+        display_id: { type: 'string', description: 'Optional display ID for multi-monitor setups. Defaults to primary display.' },
+      },
+      required: [],
+    },
+    category: 'computer-use',
+    origin: 'builtin-main',
+  },
+  computer_click: {
+    description: 'Click at specific pixel coordinates from the latest screen image returned by computer_screenshot. Use the screen dimensions exactly and click the center of the intended target. The app maps screen coordinates to the real desktop. Returns an updated screen image.',
+    parameters: {
+      type: 'object',
+      description: 'Arguments for clicking.',
+      properties: {
+        x: { type: 'number', description: 'X coordinate in pixels from the latest screen image.' },
+        y: { type: 'number', description: 'Y coordinate in pixels from the latest screen image.' },
+        button: { type: 'string', description: 'Mouse button.', enum: ['left', 'right', 'middle'], default: 'left' },
+      },
+      required: ['x', 'y'],
+    },
+    category: 'computer-use',
+    origin: 'builtin-main',
+  },
+  computer_type: {
+    description: 'Type text at the current cursor position. Click the target input field first before typing.',
+    parameters: {
+      type: 'object',
+      description: 'Arguments for typing text.',
+      properties: {
+        text: { type: 'string', description: 'Text to type.' },
+      },
+      required: ['text'],
+    },
+    category: 'computer-use',
+    origin: 'builtin-main',
+  },
+  computer_key: {
+    description: 'Press a key or key combination. Use for keyboard shortcuts, Enter, Tab, Escape, arrow keys, etc. Format: "enter", "ctrl+c", "alt+tab", "shift+ctrl+s".',
+    parameters: {
+      type: 'object',
+      description: 'Arguments for pressing keys.',
+      properties: {
+        key: { type: 'string', description: 'Key or combo string, e.g. "enter", "ctrl+c", "alt+tab".' },
+      },
+      required: ['key'],
+    },
+    category: 'computer-use',
+    origin: 'builtin-main',
+  },
+  computer_scroll: {
+    description: 'Scroll at specific coordinates from the latest screen image returned by computer_screenshot. Move the cursor to the screen position first, then scroll.',
+    parameters: {
+      type: 'object',
+      description: 'Arguments for scrolling.',
+      properties: {
+        x: { type: 'number', description: 'X coordinate from the latest screen image to scroll at.' },
+        y: { type: 'number', description: 'Y coordinate from the latest screen image to scroll at.' },
+        direction: { type: 'string', description: 'Scroll direction.', enum: ['up', 'down', 'left', 'right'] },
+        amount: { type: 'number', description: 'Scroll amount in clicks (default 3).', default: 3 },
+      },
+      required: ['x', 'y', 'direction'],
+    },
+    category: 'computer-use',
+    origin: 'builtin-main',
+  },
+  computer_cursor_position: {
+    description: 'Move the cursor to specific coordinates from the latest screen image returned by computer_screenshot without clicking. Use to hover over elements.',
+    parameters: {
+      type: 'object',
+      description: 'Arguments for moving the cursor.',
+      properties: {
+        x: { type: 'number', description: 'X coordinate in pixels from the latest screen image.' },
+        y: { type: 'number', description: 'Y coordinate in pixels from the latest screen image.' },
+      },
+      required: ['x', 'y'],
+    },
+    category: 'computer-use',
+    origin: 'builtin-main',
+  },
+  computer_list_windows: {
+    description: 'List all currently open application windows on the system. Returns window titles. Use this to find which apps are running before interacting with them.',
+    parameters: {
+      type: 'object',
+      description: 'No arguments required.',
+      properties: {},
+      required: [],
+    },
+    category: 'computer-use',
+    origin: 'builtin-main',
+  },
+  computer_launch_app: {
+    description: 'Launch an application by name or path. On Windows use the app name (e.g. "notepad", "chrome", "code") or full path. On macOS use the app name (e.g. "Safari", "Terminal").',
+    parameters: {
+      type: 'object',
+      description: 'Arguments for launching an app.',
+      properties: {
+        name: { type: 'string', description: 'Application name or executable path (e.g. "notepad", "chrome", "code", "C:\\\\Program Files\\\\app.exe").' },
+      },
+      required: ['name'],
+    },
+    category: 'computer-use',
+    origin: 'builtin-main',
+  },
+  computer_find_app: {
+    description: 'Search for installed applications by a fuzzy query. Returns matching app names and their launch paths. Use this when you are unsure of the exact app name — e.g. searching "discord canary" will find "Discord Canary" and its executable path. Then use computer_launch_app with the returned path.',
+    parameters: {
+      type: 'object',
+      description: 'Arguments for finding an app.',
+      properties: {
+        query: { type: 'string', description: 'Fuzzy search query (e.g. "discord canary", "vs code", "firefox").' },
+      },
+      required: ['query'],
+    },
+    category: 'computer-use',
+    origin: 'builtin-main',
+  },
+  computer_close_app: {
+    description: 'Close an application window by its title. Use computer_list_windows first to find the exact window title.',
+    parameters: {
+      type: 'object',
+      description: 'Arguments for closing an app.',
+      properties: {
+        title: { type: 'string', description: 'Window title (or substring) to close.' },
+      },
+      required: ['title'],
+    },
+    category: 'computer-use',
+    origin: 'builtin-main',
+  },
 } satisfies Record<string, BuiltinMainToolManifestEntry>
 
 export type BuiltinMainToolName = keyof typeof builtInMainToolManifest
 
-export const BUILTIN_MAIN_TOOL_NAMES = Object.keys(
+const BUILTIN_MAIN_TOOL_NAMES = Object.keys(
   builtInMainToolManifest
 ) as BuiltinMainToolName[]
 

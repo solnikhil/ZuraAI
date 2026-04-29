@@ -212,16 +212,12 @@ export function createSelectableContext<T extends object>(): SelectableContext<T
    * Provider component that manages the store and provides it to children
    */
   const Provider: React.FC<{ value: T; children: React.ReactNode }> = ({ value, children }) => {
-    // Create store ref that persists across renders
     const storeRef = useRef<Store<T>>(null as unknown as Store<T>)
 
-    // Initialize store on first render
     if (storeRef.current === null) {
       storeRef.current = createStore(value)
     }
 
-    // Update store when value changes - use useLayoutEffect to update
-    // synchronously before paint, but after the current render completes
     useLayoutEffect(() => {
       storeRef.current.setState(value)
     }, [value])
@@ -256,11 +252,9 @@ export function createSelectableContext<T extends object>(): SelectableContext<T
     // Cache for the selected value - persists across renders
     const cacheRef = useRef<{ value: R; storeVersion: number } | null>(null)
 
-    // Update refs on each render (but don't trigger re-render)
     selectorRef.current = selector
     equalityFnRef.current = equalityFn
 
-    // Create a stable getSnapshot function
     // This function must return the same reference if the selected value is equal
     const getSnapshot = useCallback((): R => {
       const currentVersion = store.getVersion()

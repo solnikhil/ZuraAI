@@ -23,7 +23,7 @@ export function estimateMessageTokens(message: { role: string; content: string }
 /**
  * Estimate total tokens for a conversation
  */
-export function estimateConversationTokens<T extends { role: string; content: string }>(
+function estimateConversationTokens<T extends { role: string; content: string }>(
     messages: T[],
     systemPrompt?: string
 ): number {
@@ -82,7 +82,7 @@ function getContextWindow(model: string): ContextWindow {
  * 2. Keep last N messages that fit
  * 3. Optionally summarize older messages
  */
-export function truncateHistory<T extends { role: string; content: string }>(
+function truncateHistory<T extends { role: string; content: string }>(
     messages: T[],
     systemPrompt: string | undefined,
     model: string,
@@ -120,11 +120,9 @@ export function truncateHistory<T extends { role: string; content: string }>(
     const mustKeepTokens = mustKeep.reduce((sum, m) => sum + estimateMessageTokens(m), 0)
     usedTokens += mustKeepTokens
 
-    // Calculate how many older messages we can fit
     const olderMessages = messages.slice(0, -keepLastN)
     const truncatedMessages: Array<T | { role: string; content: string }> = []
 
-    // Add older messages from most recent to oldest until we run out of space
     for (let i = olderMessages.length - 1; i >= 0; i--) {
         const msgTokens = estimateMessageTokens(olderMessages[i])
         if (usedTokens + msgTokens <= availableTokens) {
@@ -145,7 +143,6 @@ export function truncateHistory<T extends { role: string; content: string }>(
         }
     }
 
-    // Add the must-keep messages at the end
     truncatedMessages.push(...mustKeep)
 
     return {
@@ -170,7 +167,6 @@ export function buildOptimizedContext<T extends { role: string; content: string 
             ? ({ role: 'user', content: newUserMessage } as T)
             : newUserMessage
 
-    // Build full history including new message
     const fullHistory = [...messages, nextUserMessage]
 
     // Truncate if needed

@@ -66,10 +66,6 @@ export function createTray(): Tray {
 
 /**
  * Get the current tray instance
- */
-export function getTray(): Tray | null {
-    return tray
-}
 
 /**
  * Destroy the tray icon

@@ -7,7 +7,7 @@ export interface ShellRouteState {
   hasSidebar: boolean
 }
 
-export function getShellRouteState(pathname: string): ShellRouteState {
+function getShellRouteState(pathname: string): ShellRouteState {
   const isDashboardRoute = pathname === '/' || pathname === '/dashboard'
   const isSettingsRoute = pathname === '/settings'
   const isLegacyChatRoute = pathname === '/chat'

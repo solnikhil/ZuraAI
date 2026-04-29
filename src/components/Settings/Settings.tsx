@@ -124,7 +124,7 @@ export default function Settings({
     let allSaved = true
     const failedKeys: string[] = []
     try {
-      type ApiKeyType = 'alibabaApiKey' | 'fireworksApiKey' | 'groqApiKey' | 'openRouterApiKey' | 'perplexityApiKey' | 'tavilyApiKey'
+      type ApiKeyType = 'alibabaApiKey' | 'fireworksApiKey' | 'groqApiKey' | 'openRouterApiKey' | 'perplexityApiKey' | 'tavilyApiKey' | 'onlineCompilerApiKey'
       const keyMappings: Array<{ key: ApiKeyType; current: string; original: string }> = [
         { key: 'alibabaApiKey', current: pendingSettings.alibabaApiKey, original: settings.alibabaApiKey },
         { key: 'fireworksApiKey', current: pendingSettings.fireworksApiKey, original: settings.fireworksApiKey },
@@ -325,6 +325,7 @@ if (!hasSettingsChanges && !hasMcpChanges) {
               <SkillsSection
                 skills={pendingSettings.skills}
                 codeExecutionAutoApprove={pendingSettings.codeExecutionAutoApprove}
+                computerUseAutoApprove={pendingSettings.computerUseAutoApprove}
                 onChange={(changes) => handleChange(changes)}
               />
             )}
@@ -344,6 +345,8 @@ if (!hasSettingsChanges && !hasMcpChanges) {
                 webSearchPrompt={pendingSettings.webSearchPrompt}
                 titleGenerationPrompt={pendingSettings.titleGenerationPrompt}
                 codeExecutionPrompt={pendingSettings.codeExecutionPrompt}
+                computerUsePrompt={pendingSettings.computerUsePrompt}
+                chartGenerationPrompt={pendingSettings.chartGenerationPrompt}
                 onChange={(changes) => handleChange(changes)}
               />
             )}

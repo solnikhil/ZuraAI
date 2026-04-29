@@ -20,7 +20,6 @@ export default function GradientText({
 }: GradientTextProps) {
     const { settings } = useSettings();
     
-    // Get theme colors from the theme registry
     const theme = getThemeById(settings.activeTheme) || getDefaultTheme();
     const themeColors = theme.colors;
     

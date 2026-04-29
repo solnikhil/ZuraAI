@@ -20,6 +20,7 @@ import { buildMcpReconnectDelay, waitForMcpReconnectDelay } from './transports/r
 import { SseMcpTransport } from './transports/sse'
 import { StdioMcpTransport } from './transports/stdio'
 import { WebSocketMcpTransport } from './transports/websocket'
+import { normalizeTimeout } from '../utils/normalizeTimeout'
 
 export const DEFAULT_MCP_PROTOCOL_VERSION = '2025-06-18'
 export const DEFAULT_MCP_CONNECTION_TIMEOUT_MS = 10000
@@ -591,13 +592,6 @@ function normalizeClientInfo(clientInfo: McpConnectionClientInfo | undefined): M
   }
 }
 
-function normalizeTimeout(value: number | undefined, fallback: number): number {
-  if (typeof value !== 'number' || !Number.isFinite(value)) {
-    return fallback
-  }
-
-  return Math.max(1, Math.round(value))
-}
 
 function parseInitializeResult(result: unknown): McpInitializeResult {
   if (!isRecord(result) || typeof result.protocolVersion !== 'string' || !result.protocolVersion.trim()) {

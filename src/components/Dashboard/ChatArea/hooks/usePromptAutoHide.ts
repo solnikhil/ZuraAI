@@ -58,6 +58,8 @@ export interface UsePromptAutoHideReturn {
   /** Props to spread onto the hover trigger zone */
   triggerZoneProps: {
     onMouseEnter: () => void
+    onPointerDown: () => void
+    onClick: () => void
   }
 }
 
@@ -185,6 +187,8 @@ export function usePromptAutoHide({
 
   const triggerZoneProps = {
     onMouseEnter: showPrompt,
+    onPointerDown: showPrompt,
+    onClick: showPrompt,
   }
 
   // -- Effects --

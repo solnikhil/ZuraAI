@@ -31,7 +31,7 @@ export function normalizeUrlCandidate(value: string): string | null {
   }
 }
 
-export function extractUrlsFromQuery(query: string, explicitUrls?: unknown): string[] {
+function extractUrlsFromQuery(query: string, explicitUrls?: unknown): string[] {
   const candidates: string[] = []
 
   if (Array.isArray(explicitUrls)) {

@@ -114,7 +114,6 @@ export function useIsolatedStreaming(): UseIsolatedStreamingReturn {
         updates.usage = finalState.usage
       }
 
-      // Update the session with final content
       updateStreamingMessage(finalState.sessionId, finalState.messageId, updates)
     }
 

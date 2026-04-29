@@ -279,12 +279,6 @@ export function validateDraftServer(draft: McpDraftServer): string[] {
   return dedupeStrings(errors)
 }
 
-export function formatTransportLabel(transport: McpTransportType): string {
-  if (transport === 'stdio') return 'Stdio'
-  if (transport === 'sse') return 'SSE'
-  return 'WebSocket'
-}
-
 function configValueToDraft(
   entry: McpConfigValue,
   fallbackStorageKind: McpSecretStorageKind,

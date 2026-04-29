@@ -24,7 +24,6 @@ export function getSuggestionIcon(suggestion: CommandBarSuggestion): { Icon: Rea
   if (suggestion.id === 'go-settings-commandbar') return { Icon: Command, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
   if (suggestion.id === 'go-settings-experimental') return { Icon: FlaskConical, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
 
-  // Create actions
   if (suggestion.id === 'new-chat') return { Icon: Plus, iconClass: 'app-titlebar__commandbar-item-icon--create' }
 
   // Toggle actions
@@ -32,7 +31,6 @@ export function getSuggestionIcon(suggestion: CommandBarSuggestion): { Icon: Rea
     return { Icon: PanelLeft, iconClass: 'app-titlebar__commandbar-item-icon--toggle' }
   }
 
-  // Export actions
   if (suggestion.id.startsWith('export-')) {
     return { Icon: Search, iconClass: 'app-titlebar__commandbar-item-icon--export' }
   }

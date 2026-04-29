@@ -7,12 +7,11 @@ import {
   MCP_EXPERIMENTAL_REMOTE_TRANSPORTS_ENV,
   type McpReconnectPolicy,
   type McpRemoteTransportBaseOptions,
-  buildMcpReconnectDelay,
+  connectWithRetry,
   isExperimentalRemoteTransportEnabled,
   normalizeMcpReconnectPolicy,
   summarizeMcpRemoteTarget,
   validateMcpRemoteUrl,
-  waitForMcpReconnectDelay,
 } from './remote'
 
 const DEFAULT_WEBSOCKET_CONNECT_TIMEOUT_MS = 15000
@@ -67,29 +66,15 @@ export class WebSocketMcpTransport extends BaseMcpTransport {
 
     this.closedByUser = false
 
-    let lastError: Error | null = null
-    const attempts = this.reconnectPolicy.enabled ? this.reconnectPolicy.maxAttempts + 1 : 1
-
-    for (let attempt = 0; attempt < attempts; attempt += 1) {
-      try {
-        await this.connectSocket()
-        return
-      } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error))
-        if (attempt >= attempts - 1) {
-          break
-        }
-
-        await waitForMcpReconnectDelay(buildMcpReconnectDelay(this.reconnectPolicy, attempt))
-      }
+    const lastError = await connectWithRetry(this.reconnectPolicy, () => this.connectSocket())
+    if (lastError) {
+      throw this.createError('connect', 'Failed to establish MCP WebSocket connection', lastError, {
+        details: {
+          ...summarizeMcpRemoteTarget(this.url, this.headers),
+          reconnectPolicy: this.reconnectPolicy,
+        },
+      })
     }
-
-    throw this.createError('connect', 'Failed to establish MCP WebSocket connection', lastError, {
-      details: {
-        ...summarizeMcpRemoteTarget(this.url, this.headers),
-        reconnectPolicy: this.reconnectPolicy,
-      },
-    })
   }
 
   protected override async performDisconnect(): Promise<void> {

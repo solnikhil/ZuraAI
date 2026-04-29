@@ -25,7 +25,7 @@ export function formatResourceForComposer(
   return `MCP resource from ${serverName}\nURI: ${uri}\n\n${extractedText}`
 }
 
-export function flattenPromptResultText(result: McpPromptResult): string {
+function flattenPromptResultText(result: McpPromptResult): string {
   return result.messages
     .map((message) => {
       const contentText = stringifyPromptContent(message.content)

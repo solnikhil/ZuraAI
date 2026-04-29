@@ -352,9 +352,6 @@ export async function focusMainWindow(): Promise<void> {
   showMainWindow()
 }
 
-export function getOverlayWindow(): BrowserWindow | null {
-  return overlayWindow && !overlayWindow.isDestroyed() ? overlayWindow : null
-}
 
 export function startOverlayDrag(cursorX: number, cursorY: number): void {
   if (!overlayWindow || overlayWindow.isDestroyed()) return

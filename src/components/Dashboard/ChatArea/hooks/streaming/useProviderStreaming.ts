@@ -13,6 +13,7 @@ import {
   type ActiveProviderId,
 } from '../../../../../providers'
 import { extractXmlToolCallsFromContent } from '../../../../../tools/adapters/openrouterToolCalls'
+import { emptyUsage } from '../../../../../providers/providerRuntimeTypes'
 import {
   SAFETY_CAP,
   MAX_RESEARCH_ROUNDS,
@@ -91,11 +92,6 @@ export interface UseProviderStreamingReturn {
   runProviderStream: (options: ProviderStreamingRunOptions) => Promise<StreamingResult>
 }
 
-const emptyUsage = (): NormalizedUsage => ({
-  inputTokens: 0,
-  outputTokens: 0,
-  totalTokens: 0,
-})
 
 function mergeUsage(existing: NormalizedUsage, incoming: NormalizedUsage): NormalizedUsage {
   return {

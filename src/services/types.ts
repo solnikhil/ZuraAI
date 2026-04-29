@@ -76,7 +76,6 @@ export interface APIErrorResponse {
     detail?: string
 }
 
-// Parse error response safely
 export function parseErrorResponse(text: string): APIErrorResponse {
     try {
         return JSON.parse(text) as APIErrorResponse
@@ -99,7 +98,6 @@ export function extractErrorMessage(
         fallbackText ||
         statusText
 
-    // Build a descriptive error that always includes the HTTP status code
     // so callers can reliably detect 429/401/403 from the message string
     const parts: string[] = [`${status}`]
     parts.push(baseMessage)

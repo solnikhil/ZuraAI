@@ -118,7 +118,6 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
     show: false,
   })
 
-  // Handle external links - open in default browser
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (isExternalHttpUrl(url)) {
       shell.openExternal(url)
@@ -126,7 +125,6 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
     return { action: 'deny' }
   })
 
-  // Handle in-page navigation (e.g. clicking links)
   mainWindow.webContents.on('will-navigate', (event, url) => {
     if (isExternalHttpUrl(url)) {
       event.preventDefault()
@@ -167,7 +165,6 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
     showFallbackError(mainWindow!, String(error?.message || error))
   })
 
-  // Handle page load failures (e.g. dev server not running, file not found)
   mainWindow.webContents.on(
     'did-fail-load',
     (_event, errorCode, errorDescription, validatedURL) => {
@@ -183,7 +180,6 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
     }
   )
 
-  // Handle renderer process crashes
   mainWindow.webContents.on('render-process-gone', (_event, details) => {
     console.error('[MAIN] Renderer process gone:', details.reason, details.exitCode)
     showFallbackError(

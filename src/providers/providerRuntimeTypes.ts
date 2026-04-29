@@ -3,16 +3,8 @@ import type {
   ServiceAssistantMessage,
   ToolDefinition,
 } from '../services/types'
+import type { FileAttachment } from '../chat/types'
 import type { ActiveProviderId } from './providerTypes'
-
-export interface ProviderRuntimeFileAttachment {
-  id: string
-  name: string
-  type: string
-  size: number
-  data: string
-  mimeType: string
-}
 
 export interface NormalizedUsage {
   inputTokens: number
@@ -26,6 +18,7 @@ export interface NormalizedUsage {
 export interface NormalizedToolCallDelta {
   index?: number
   id?: string
+
   type?: 'function'
   function?: {
     name?: string
@@ -38,7 +31,7 @@ export type NormalizedStreamEvent =
   | { type: 'reasoning-delta'; delta: string }
   | { type: 'reasoning-details'; details: ReasoningDetail[] }
   | { type: 'tool-call-delta'; delta: NormalizedToolCallDelta[] }
-  | { type: 'file-delta'; files: ProviderRuntimeFileAttachment[] }
+  | { type: 'file-delta'; files: FileAttachment[] }
   | { type: 'usage'; usage: NormalizedUsage }
   | { type: 'citation'; citations: string[] }
   | { type: 'finish'; finishReason?: string | null }
@@ -85,3 +78,9 @@ export interface ProviderRuntimeSettings {
   openRouterApiKey?: string
   perplexityApiKey?: string
 }
+
+export const emptyUsage = (): NormalizedUsage => ({
+  inputTokens: 0,
+  outputTokens: 0,
+  totalTokens: 0,
+})

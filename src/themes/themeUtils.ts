@@ -49,7 +49,6 @@ type ThemeCssVar = (typeof THEME_CSS_VAR_MAP)[keyof typeof THEME_CSS_VAR_MAP]
 type AllColorPaletteKeys = keyof ColorPalette | 'scrollbar' | 'scrollbarHover'
 
 export interface ApplyThemeOptions {
-  softenedContrast?: boolean
   contrast?: number
   customAccent?: string
   customBackground?: string
@@ -60,7 +59,7 @@ function resolveTheme(theme: Theme, options?: ApplyThemeOptions): Theme {
   const accent = options?.customAccent ?? theme.baseColors.accent
   const background = options?.customBackground ?? theme.baseColors.background
   const foreground = options?.customForeground ?? theme.baseColors.foreground
-  const contrast = options?.contrast ?? (options?.softenedContrast ? 85 : 100)
+  const contrast = options?.contrast ?? 100
 
   return {
     ...theme,
@@ -73,9 +72,7 @@ function resolveTheme(theme: Theme, options?: ApplyThemeOptions): Theme {
   }
 }
 
-export function softenThemeColors(theme: Theme): Theme {
-  return resolveTheme(theme, { contrast: 85 })
-}
+
 
 export function getThemeCssVariables(theme: Theme): Record<ThemeCssVar, string> {
   const cssVars = {} as Record<ThemeCssVar, string>

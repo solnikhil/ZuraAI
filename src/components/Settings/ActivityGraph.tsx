@@ -49,10 +49,8 @@ interface CustomTooltipProps {
 const CustomTooltip: React.FC<CustomTooltipProps> = ({ active, payload, label }) => {
   if (!active || !payload || payload.length === 0) return null
 
-  // Get the date from the first payload item
   const date = (payload[0]?.payload?.date as string) || label
 
-  // Calculate total tokens for percentage
   const totalTokens = payload.reduce((sum, item) => sum + (item.value || 0), 0)
 
   // Filter out items with 0 tokens and sort by value descending
@@ -208,7 +206,6 @@ export function ActivityGraph({
         tokens: item.tokens,
       }
 
-      // Add each model's tokens as a separate field
       if (item.modelBreakdown) {
         Object.entries(item.modelBreakdown).forEach(([model, tokens]) => {
           point[model] = tokens

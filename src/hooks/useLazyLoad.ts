@@ -102,7 +102,6 @@ function initializeGlobalTTI(): void {
   if (globalTTIInitialized) return
   globalTTIInitialized = true
 
-  // Check if TTI is already available
   const metrics = rendererPerformanceTracker.getMetrics()
   if (metrics.tti !== null) {
     globalTTIReached = true
@@ -197,7 +196,6 @@ export function useLazyLoad<T extends HTMLElement = HTMLElement>(
   const observerRef = useRef<IntersectionObserver | null>(null)
   const hasTriggeredRef = useRef(false)
 
-  // Initialize global TTI tracking if needed
   useEffect(() => {
     if (waitForTTI) {
       initializeGlobalTTI()
@@ -212,7 +210,6 @@ export function useLazyLoad<T extends HTMLElement = HTMLElement>(
       setIsTTIReached(true)
     })
 
-    // Set up timeout fallback
     const timeoutId = setTimeout(() => {
       if (!globalTTIReached) {
         if (import.meta.env.DEV) console.warn('[useLazyLoad] TTI timeout reached, forcing load')
@@ -233,7 +230,6 @@ export function useLazyLoad<T extends HTMLElement = HTMLElement>(
     setIsTTIReached(true)
   }, [])
 
-  // Set up Intersection Observer
   useEffect(() => {
     if (!enabled || forcedLoad) {
       setIsIntersecting(true)
@@ -243,7 +239,6 @@ export function useLazyLoad<T extends HTMLElement = HTMLElement>(
     const element = ref.current
     if (!element) return
 
-    // Check if IntersectionObserver is available
     if (typeof IntersectionObserver === 'undefined') {
       if (import.meta.env.DEV)
         console.warn('[useLazyLoad] IntersectionObserver not available, loading immediately')
@@ -289,7 +284,6 @@ export function useLazyLoad<T extends HTMLElement = HTMLElement>(
     }
   }, [enabled, forcedLoad, rootMargin, threshold, triggerOnce, onVisible])
 
-  // Calculate shouldLoad
   const shouldLoad = forcedLoad || (isIntersecting && isTTIReached)
 
   return {

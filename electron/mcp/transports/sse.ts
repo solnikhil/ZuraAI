@@ -5,14 +5,13 @@ import {
   MCP_EXPERIMENTAL_REMOTE_TRANSPORTS_ENV,
   type McpReconnectPolicy,
   type McpRemoteTransportBaseOptions,
-  buildMcpReconnectDelay,
+  connectWithRetry,
   isExperimentalRemoteTransportEnabled,
   isRetryableHttpStatus,
   normalizeMcpReconnectPolicy,
   resolveValidatedMcpRemoteUrl,
   summarizeMcpRemoteTarget,
   validateMcpRemoteUrl,
-  waitForMcpReconnectDelay,
 } from './remote'
 
 const DEFAULT_SSE_CONNECT_TIMEOUT_MS = 15000
@@ -59,29 +58,15 @@ export class SseMcpTransport extends BaseMcpTransport {
     this.closedByUser = false
     this.messageEndpoint = this.url
 
-    let lastError: Error | null = null
-    const attempts = this.reconnectPolicy.enabled ? this.reconnectPolicy.maxAttempts + 1 : 1
-
-    for (let attempt = 0; attempt < attempts; attempt += 1) {
-      try {
-        await this.openStream()
-        return
-      } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error))
-        if (attempt >= attempts - 1) {
-          break
-        }
-
-        await waitForMcpReconnectDelay(buildMcpReconnectDelay(this.reconnectPolicy, attempt))
-      }
+    const lastError = await connectWithRetry(this.reconnectPolicy, () => this.openStream())
+    if (lastError) {
+      throw this.createError('connect', 'Failed to establish MCP SSE stream', lastError, {
+        details: {
+          ...summarizeMcpRemoteTarget(this.url, this.headers),
+          reconnectPolicy: this.reconnectPolicy,
+        },
+      })
     }
-
-    throw this.createError('connect', 'Failed to establish MCP SSE stream', lastError, {
-      details: {
-        ...summarizeMcpRemoteTarget(this.url, this.headers),
-        reconnectPolicy: this.reconnectPolicy,
-      },
-    })
   }
 
   protected override async performDisconnect(): Promise<void> {
