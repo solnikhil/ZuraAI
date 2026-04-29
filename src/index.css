@@ -170,7 +170,7 @@ body {
     position: absolute;
     inset: 0;
     overflow: hidden;
-    background: var(--theme-background);
+    background: var(--theme-content-solid);
     border-top-left-radius: var(--dashboard-canvas-radius);
     border-bottom-left-radius: var(--dashboard-canvas-radius-subtle);
     background-clip: padding-box;
