@@ -10,6 +10,7 @@ import { SIDEBAR_COLLAPSED_WIDTH_PX, clampSidebarWidth } from '../../constants/s
 import './Sidebar/Sidebar.css'
 import SidebarChatView from './SidebarChatView'
 import SidebarSettingsView from './SidebarSettingsView'
+import { isMacOSRuntime } from '../../utils/platform'
 
 interface SidebarProps {
   view: 'chat' | 'settings'
@@ -18,6 +19,7 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ view, activeSettingsSection, onNavigateSettings }: SidebarProps) {
+  const isMacOS = isMacOSRuntime()
   const [searchQuery, setSearchQuery] = useState('')
   const [searchOverlayOpen, setSearchOverlayOpen] = useState(false)
   const { sidebarHidden, sidebarCollapsed, sidebarWidth, setSidebarWidth, setIsResizingSidebar } =
@@ -260,6 +262,7 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
 
   const containerClasses = [
     'sidebar-container',
+    isMacOS ? 'sidebar-container--macos' : '',
     sidebarHidden ? 'sidebar-container--hidden' : '',
     sidebarCollapsed ? 'sidebar-container--collapsed' : 'sidebar-container--expanded',
     isResizing ? 'sidebar-container--resizing' : '',
