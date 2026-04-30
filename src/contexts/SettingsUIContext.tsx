@@ -25,6 +25,7 @@ import { warnOnceDuringHmr } from './hmrWarnings'
 
 export type ChatBubbleStyle = 'solid' | 'glass' | 'outline' | 'gradient' | 'elevated' | 'terminal'
 export type ChatSelectedOverlayStyle = 'linear' | 'notion' | 'slack' | 'discord' | 'github'
+export type PlaceholderStyle = 'normal' | 'genz'
 
 /**
  * Model Selector settings
@@ -111,6 +112,9 @@ export interface SettingsUI {
   // Sidebar selected chat overlay style
   chatSelectedOverlayStyle?: ChatSelectedOverlayStyle
 
+  // Empty state placeholder style
+  placeholderStyle?: PlaceholderStyle
+
   // Model Selector settings
   modelSelector?: ModelSelectorSettings
 }
@@ -145,6 +149,7 @@ export const defaultSettingsUI: SettingsUI = {
   },
   chatBubbleStyle: 'solid',
   chatSelectedOverlayStyle: 'linear',
+  placeholderStyle: 'genz',
   modelSelector: {
     sidebarPosition: 'left',
     sidebarShowLabels: true,

@@ -3,7 +3,7 @@
 .settings-container {
     display: flex;
     height: 100%;
-    background-color: var(--theme-background);
+    background-color: var(--theme-content-solid);
     color: var(--theme-text-secondary);
     font-family: var(--font-sans);
     overflow: hidden;
@@ -1356,7 +1356,7 @@
 
 .settings-container {
     position: relative;
-    background: var(--theme-background);
+    background: var(--theme-content-solid);
     color: var(--theme-text-secondary);
 }
 
@@ -1984,8 +1984,8 @@
 .settings-container {
     position: relative;
     isolation: isolate;
-    --settings-panel-container-bg: #212121;
-    background: var(--theme-background);
+    --settings-panel-container-bg: var(--theme-background);
+    background: var(--theme-content-solid);
 }
 
 .settings-shell {
@@ -2088,10 +2088,7 @@
     border: 1px solid color-mix(in srgb, var(--theme-border) 88%, transparent);
     border-radius: 16px;
     padding: 14px 16px;
-    background:
-        radial-gradient(120% 170% at 100% 0%, color-mix(in srgb, var(--theme-accent) 16%, transparent) 0%, transparent 55%),
-        linear-gradient(170deg, color-mix(in srgb, var(--theme-surface) 94%, transparent), color-mix(in srgb, var(--theme-background) 90%, transparent));
-    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    background: var(--theme-surface);
 }
 
 .provider-hub-header__intro {

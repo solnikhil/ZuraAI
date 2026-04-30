@@ -41,9 +41,7 @@ process.env.PUBLIC = app.isPackaged ? DIST_PATH : path.join(__dirname, '../publi
 
 app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion')
 
-if (process.platform === 'win32') {
-  app.commandLine.appendSwitch('wm-window-animations-disabled')
-}
+
 
 const WINDOWS_APP_ID = 'in.zuraai.desktop'
 const APP_NAME = 'ZuraAI'

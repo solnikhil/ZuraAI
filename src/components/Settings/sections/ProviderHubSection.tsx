@@ -115,8 +115,7 @@ const PROVIDER_DASHBOARD_URLS: Partial<Record<ProviderKey, string>> = {
   perplexity: 'https://www.perplexity.ai/settings/api',
 }
 
-const CATALOG_BASE_BACKGROUND =
-  'linear-gradient(170deg, color-mix(in srgb, var(--theme-surface) 94%, transparent), color-mix(in srgb, var(--theme-background) 90%, transparent))'
+const CATALOG_BASE_BACKGROUND = 'var(--theme-background)'
 const CATALOG_CARD_BACKGROUND =
   'color-mix(in srgb, var(--theme-surface) 86%, var(--theme-background) 14%)'
 const STATUS_COLORS = {

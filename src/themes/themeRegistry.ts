@@ -22,7 +22,7 @@ function toHex(r: number, g: number, b: number): string {
   return `#${toChannel(r)}${toChannel(g)}${toChannel(b)}`
 }
 
-function mixHex(baseHex: string, targetHex: string, amount: number): string {
+export function mixHex(baseHex: string, targetHex: string, amount: number): string {
   const base = parseHex(baseHex)
   const target = parseHex(targetHex)
   const ratio = clamp(amount, 0, 1)
@@ -75,10 +75,10 @@ export function derivePaletteFromBase(
   const contrastScale = clamp(contrast, 0, 100) / 100
   const isDark = true
   const textInverse = isDark ? '#0b0b0b' : '#ffffff'
-  const surface = mixHex(background, '#ffffff', 0.05 + 0.02 * contrastScale)
-  const surfaceHover = mixHex(background, '#ffffff', 0.08 + 0.03 * contrastScale)
-  const surfaceActive = mixHex(background, '#ffffff', 0.12 + 0.04 * contrastScale)
-  const surfacePressed = mixHex(background, '#ffffff', 0.16 + 0.05 * contrastScale)
+  const surface = mixHex(background, '#ffffff', 0.08 + 0.04 * contrastScale)
+  const surfaceHover = mixHex(background, '#ffffff', 0.12 + 0.05 * contrastScale)
+  const surfaceActive = mixHex(background, '#ffffff', 0.16 + 0.06 * contrastScale)
+  const surfacePressed = mixHex(background, '#ffffff', 0.20 + 0.07 * contrastScale)
   const surfaceSubtle = alpha('#ffffff', 0.015 + 0.015 * contrastScale)
 
   const textPrimary = foreground

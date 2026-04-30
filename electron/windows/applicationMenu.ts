@@ -2,7 +2,7 @@ import { app, Menu, shell, type MenuItemConstructorOptions } from 'electron'
 
 import { showAboutWindow } from './aboutWindow'
 import { showMainWindow } from './mainWindow'
-import { showMainWindowAndNavigateSettings } from './navigation'
+import { showMainWindowAndNavigateSettings, showMainWindowAndStartNewChat } from './navigation'
 
 const HELP_URL = 'https://github.com/solnikhil/ZuraAI'
 
@@ -51,6 +51,8 @@ function createMacApplicationMenu(): Menu {
     {
       label: 'File',
       submenu: [
+        { label: 'New Chat', accelerator: 'CommandOrControl+N', click: () => showMainWindowAndStartNewChat() },
+        { type: 'separator' },
         { label: 'Show ZuraAI', accelerator: 'Command+0', click: () => showMainWindow() },
         { type: 'separator' },
         { role: 'close' },

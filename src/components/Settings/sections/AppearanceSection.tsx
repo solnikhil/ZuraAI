@@ -884,6 +884,45 @@ export function AppearanceSection({
             })}
           </div>
         </div>
+
+        <div
+          style={{
+            marginTop: 22,
+            paddingTop: 18,
+            borderTop: '1px solid var(--theme-border-subtle)',
+          }}
+        >
+          <h4
+            style={{
+              margin: '0 0 6px',
+              fontSize: '1rem',
+              fontWeight: 600,
+              color: 'var(--theme-text-primary)',
+            }}
+          >
+            Empty State Placeholder
+          </h4>
+          <p
+            style={{
+              margin: '0 0 14px',
+              fontSize: '0.82rem',
+              color: 'var(--theme-text-muted)',
+            }}
+          >
+            Choose the style of placeholder text shown in an empty chat.
+          </p>
+          <SettingsSelect
+            value={settings.placeholderStyle || 'genz'}
+            onValueChange={(value) =>
+              updateSettings({ placeholderStyle: value as 'normal' | 'genz' })
+            }
+            options={[
+              { value: 'normal', label: 'Normal' },
+              { value: 'genz', label: 'Gen Z' },
+            ]}
+            aria-label="Empty state placeholder style"
+          />
+        </div>
       </Card>
 
       <h3 className="appearance-group-heading">Chat Title Generation</h3>

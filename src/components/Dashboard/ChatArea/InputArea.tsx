@@ -391,7 +391,7 @@ const webResearchEnabled = settings.skills?.web_research?.enabled !== false
                       type="button"
                       onClick={(e) => e.stopPropagation()}
                       className={cn(
-                        'theme-control-btn h-11 w-11 inline-flex items-center justify-center rounded-[10px]',
+                        'theme-control-btn h-9 w-9 inline-flex items-center justify-center rounded-lg',
                         quickActionsOpen && 'is-active'
                       )}
                       aria-label="Open quick actions"
@@ -404,7 +404,7 @@ const webResearchEnabled = settings.skills?.web_research?.enabled !== false
                     alignOffset={0}
                     side="top"
                     sideOffset={2}
-                    className="w-[248px] rounded-xl p-1.5"
+                    className="w-[280px] rounded-xl p-1.5"
                   >
                     <DropdownMenuGroup>
                     <DropdownMenuItem
@@ -432,7 +432,7 @@ const webResearchEnabled = settings.skills?.web_research?.enabled !== false
                       <DropdownMenuSubContent
                         sideOffset={8}
                         collisionPadding={12}
-                        className="w-[220px] rounded-xl p-1.5"
+                        className="w-[260px] rounded-xl p-1.5"
                       >
                         <DropdownMenuItem
                           onSelect={() => {
@@ -465,7 +465,7 @@ const webResearchEnabled = settings.skills?.web_research?.enabled !== false
                       <DropdownMenuSubContent
                         sideOffset={8}
                         collisionPadding={12}
-                        className="w-[220px] rounded-xl p-1.5"
+                        className="w-[260px] rounded-xl p-1.5"
                       >
                         <DropdownMenuItem
                           onSelect={(event) => {

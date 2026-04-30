@@ -11,7 +11,7 @@
     --frosted-glass-filter: blur(18px) saturate(1.05);
     --frosted-sidebar-shadow: none;
     --theme-sidebar-solid: var(--theme-background);
-    --theme-content-solid: var(--theme-surface);
+    --theme-content-solid: var(--theme-background);
     --motion-duration-micro: 100ms;
     --motion-duration-fast: 140ms;
     --motion-duration-normal: 180ms;
@@ -137,8 +137,8 @@
 }
 
 .theme-composer-surface {
-    background: var(--theme-surface);
-    border: 1px solid color-mix(in srgb, var(--theme-border) 90%, transparent);
+    background: var(--theme-background);
+    border: 1px solid color-mix(in srgb, var(--theme-border) 80%, transparent);
     box-shadow: none;
 }
 

@@ -5,7 +5,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { getThemeCssVariables, applyThemeToDocument } from './themeUtils'
-import { getDefaultTheme, getThemeById } from './themeRegistry'
+import { getDefaultTheme, getThemeById, mixHex } from './themeRegistry'
 
 describe('themeUtils', () => {
   describe('getThemeCssVariables', () => {
@@ -46,7 +46,7 @@ describe('themeUtils', () => {
         theme.colors.background
       )
       expect(document.documentElement.style.getPropertyValue('--theme-content-solid')).toBe(
-        theme.colors.surface
+        mixHex(theme.colors.background, '#ffffff', 0.04)
       )
     })
 

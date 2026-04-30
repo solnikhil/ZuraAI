@@ -108,7 +108,7 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
       sandbox: true,
       devTools: options?.devTools ?? !app.isPackaged,
       backgroundThrottling: false,
-      spellcheck: false,
+      spellcheck: isMacOS,
       additionalArguments: ['--process-name=ZuraAI-Dashboard'],
     },
     autoHideMenuBar: isWindows,

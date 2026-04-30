@@ -114,6 +114,25 @@ export interface WindowBounds {
   height: number
 }
 
+export type NativeContextMenuAction =
+  | 'undo'
+  | 'redo'
+  | 'cut'
+  | 'copy'
+  | 'paste'
+  | 'select-all'
+
+export interface NativeContextMenuRequest {
+  hasSelection: boolean
+  isEditable: boolean
+  isContentEditable: boolean
+  hasLink: boolean
+  linkUrl: string
+  mouseX: number
+  mouseY: number
+  isDev: boolean
+}
+
 export type IpcSendChannel =
   | 'overlay:drag-start'
   | 'overlay:drag-move'
@@ -141,6 +160,7 @@ export type IpcInvokeChannel =
   | 'secure-storage:get-all'
   | 'execute-tool'
   | 'window-resize'
+  | 'context-menu:show'
   | 'updater:check-for-updates'
   | 'updater:quit-and-install'
   | 'updater:get-version'
@@ -157,6 +177,7 @@ export interface IpcInvokeArgsMap {
   'secure-storage:get-all': []
   'execute-tool': [toolName: string, args: Record<string, unknown>]
   'window-resize': [newBounds: WindowBounds]
+  'context-menu:show': [request: NativeContextMenuRequest]
   'updater:check-for-updates': []
   'updater:quit-and-install': []
   'updater:get-version': []
@@ -174,6 +195,7 @@ export interface IpcInvokeReturnMap {
   'secure-storage:get-all': Record<SecureStorageKey, string>
   'execute-tool': ToolResult
   'window-resize': void
+  'context-menu:show': void
   'updater:check-for-updates': UpdateCheckInfo | null
   'updater:quit-and-install': boolean
   'updater:get-version': string
@@ -185,8 +207,10 @@ export type IpcOnChannel =
   | 'prompt-popup:focus'
   | 'overlay:pending-prompt'
   | 'model-selector:open'
+  | 'app:new-chat'
   | 'settings:navigate'
   | 'chat-store:changed'
+  | 'context-menu:action'
 
 export interface IpcOnArgsMap {
   'update-available': [version: string]
@@ -194,8 +218,10 @@ export interface IpcOnArgsMap {
   'prompt-popup:focus': []
   'overlay:pending-prompt': [prompt: string]
   'model-selector:open': []
+  'app:new-chat': []
   'settings:navigate': [section: string]
   'chat-store:changed': []
+  'context-menu:action': [action: NativeContextMenuAction]
 }
 
 export interface IElectronAPI {
@@ -276,6 +302,11 @@ export interface ShellAPI {
 
 export interface DevToolsAPI {
   inspectElement: (x: number, y: number) => Promise<void>
+}
+
+export interface ContextMenuAPI {
+  show: (request: NativeContextMenuRequest) => Promise<void>
+  onAction: (callback: (action: NativeContextMenuAction) => void) => () => void
 }
 
 export interface CodeExecutionAPI {

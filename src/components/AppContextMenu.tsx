@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import {
   ContextMenu,
@@ -8,6 +8,8 @@ import {
   ContextMenuTrigger,
 } from '@/components/ui/context-menu'
 import { Copy, ExternalLink, Link2, Scissors, Clipboard, RotateCcw, RotateCw, Code, CheckSquare } from 'lucide-react'
+import type { NativeContextMenuAction } from '../electron/types'
+import { isMacOSRuntime } from '../utils/platform'
 
 interface ContextInfo {
   hasSelection: boolean
@@ -161,6 +163,8 @@ export default function AppContextMenu({ children }: { children: React.ReactNode
   const [contextInfo, setContextInfo] = useState<ContextInfo>(defaultContextInfo)
   const targetElementRef = useRef<HTMLElement | null>(null)
   const isDev = import.meta.env.DEV
+  const isMacOS = isMacOSRuntime()
+  const supportsNativeMacContextMenu = isMacOS && Boolean(window.contextMenu?.show)
 
   const handleContextMenu = useCallback((event: React.MouseEvent) => {
     const info = getContextInfo(event.target as HTMLElement, event.clientX, event.clientY)
@@ -168,7 +172,24 @@ export default function AppContextMenu({ children }: { children: React.ReactNode
     flushSync(() => {
       setContextInfo(info)
     })
-  }, [])
+
+    if (!supportsNativeMacContextMenu) {
+      return
+    }
+
+    event.preventDefault()
+
+    void window.contextMenu.show({
+      hasSelection: info.hasSelection,
+      isEditable: info.isEditable,
+      isContentEditable: info.isContentEditable,
+      hasLink: info.hasLink,
+      linkUrl: info.linkUrl,
+      mouseX: info.mouseX,
+      mouseY: info.mouseY,
+      isDev,
+    })
+  }, [isDev, supportsNativeMacContextMenu])
 
   const handleCopy = useCallback(() => {
     if (contextInfo.selectionText) {
@@ -178,12 +199,23 @@ export default function AppContextMenu({ children }: { children: React.ReactNode
 
   const handleCut = useCallback(() => {
     if (!contextInfo.selectionText) return
-    
+
     void copyTextToClipboard(contextInfo.selectionText)
-    
+
     const target = targetElementRef.current
     if (isInputOrTextarea(target)) {
       target.focus()
+      document.execCommand('cut')
+      return
+    }
+
+    const editableTarget =
+      target?.isContentEditable === true
+        ? target
+        : ((target?.closest('[contenteditable="true"]') as HTMLElement | null) ?? null)
+
+    if (editableTarget) {
+      editableTarget.focus()
       document.execCommand('cut')
     }
   }, [contextInfo.selectionText])
@@ -299,6 +331,43 @@ export default function AppContextMenu({ children }: { children: React.ReactNode
   const showEditActions = contextInfo.isEditable || contextInfo.isContentEditable
   const showLinkActions = contextInfo.hasLink
   const showSelectionActions = contextInfo.hasSelection
+
+  useEffect(() => {
+    if (!supportsNativeMacContextMenu || !window.contextMenu?.onAction) {
+      return
+    }
+
+    const actionHandlers: Record<NativeContextMenuAction, () => void> = {
+      undo: handleUndo,
+      redo: handleRedo,
+      cut: handleCut,
+      copy: handleCopy,
+      paste: () => {
+        void handlePaste()
+      },
+      'select-all': handleSelectAll,
+    }
+
+    return window.contextMenu.onAction((action) => {
+      actionHandlers[action]?.()
+    })
+  }, [
+    handleCopy,
+    handleCut,
+    handlePaste,
+    handleRedo,
+    handleSelectAll,
+    handleUndo,
+    supportsNativeMacContextMenu,
+  ])
+
+  if (supportsNativeMacContextMenu) {
+    return (
+      <div className="app-context-wrapper w-full h-full" onContextMenu={handleContextMenu}>
+        {children}
+      </div>
+    )
+  }
 
   return (
     <ContextMenu>

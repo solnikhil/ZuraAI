@@ -33,6 +33,7 @@ export const UI_SETTING_KEYS: (keyof SettingsUI)[] = [
   'sidebarAutoHideOnResize',
   'chatBubbleStyle',
   'chatSelectedOverlayStyle',
+  'placeholderStyle',
   'modelSelector',
   'promptAutoHide',
 ]

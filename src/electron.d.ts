@@ -2,6 +2,7 @@ import type {
   AppInfoAPI,
   CodeExecutionAPI,
   ComputerUseAPI,
+  ContextMenuAPI,
   DevToolsAPI,
   IElectronAPI,
   McpAPI,
@@ -24,6 +25,7 @@ declare global {
     windowControls: WindowControlsAPI
     shell: ShellAPI
     devTools: DevToolsAPI
+    contextMenu: ContextMenuAPI
     mcp: McpAPI
     codeExecution: CodeExecutionAPI
     computerUse: ComputerUseAPI

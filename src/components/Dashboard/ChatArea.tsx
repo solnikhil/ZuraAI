@@ -5,7 +5,6 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import GradientText from '../GradientText'
 import { useToast } from '../shared/Toast'
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
 import { useStreamingState } from '../../contexts/StreamingContext'
@@ -21,6 +20,7 @@ import { InputArea } from './ChatArea/InputArea'
 import { shouldHideGenericToolResultCard } from './ChatArea/toolResultVisibility'
 import { useStreamingChat, usePromptAutoHide } from './ChatArea/hooks'
 import type { AttachedFile } from './ChatArea/attachmentUtils'
+import { NORMAL_PLACEHOLDERS, GENZ_PLACEHOLDERS } from './ChatArea/placeholders'
 
 /**
  * Virtualization threshold - activate virtual scrolling for lists > 50 messages
@@ -64,6 +64,11 @@ export default function ChatArea() {
       })
     },
   })
+
+  const vibe = useMemo(() => {
+    const texts = settings.placeholderStyle === 'normal' ? NORMAL_PLACEHOLDERS : GENZ_PLACEHOLDERS
+    return texts[Math.floor(Math.random() * texts.length)]
+  }, [settings.placeholderStyle])
 
   const promptAutoHideSettings = settings.promptAutoHide
   const { isPromptHidden, resetTimer, triggerZoneProps } = usePromptAutoHide({
@@ -278,21 +283,24 @@ export default function ChatArea() {
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: '16px',
+            gap: '28px',
             maxWidth: 'min(720px, 100%)',
             width: '100%',
           }}
         >
-          <div style={{ textAlign: 'center' }}>
-            <GradientText
-              showBorder={false}
-              useThemeAccent={true}
-              className="zura-title"
-            >
-              zura
-            </GradientText>
+          <div
+            style={{
+              fontSize: 'clamp(1.6rem, 3vw, 2.4rem)',
+              fontWeight: 500,
+              letterSpacing: '-0.02em',
+              color: 'var(--theme-text-primary)',
+              textAlign: 'center',
+              lineHeight: 1.2,
+              minHeight: '1.2em',
+            }}
+          >
+            {vibe}
           </div>
-
           <div style={{ width: '100%' }}>
             <InputArea
               input={input}
@@ -307,14 +315,6 @@ export default function ChatArea() {
             />
           </div>
         </div>
-
-        <style>{`
-          .zura-title {
-            font-size: 4rem;
-            font-weight: 800;
-            letter-spacing: -0.03em;
-          }
-        `}</style>
       </div>
     )
   }

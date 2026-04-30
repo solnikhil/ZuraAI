@@ -136,7 +136,7 @@ Core capabilities:
   - `nodeIntegration: false`, `contextIsolation: true`, `sandbox: true`
   - Windows uses a hidden title bar with **renderer-driven window controls** (`window.windowControls.*`), with native `titleBarOverlay` disabled and a solid background path for stable compositor behavior
   - macOS keeps the native menu bar active, preserves traffic-light window controls with hidden-titlebar styling, and uses normal macOS app activation to recreate the main window after all windows are closed
-  - Global right-click context menu is handled via a **React/Radix UI context menu** (`src/components/AppContextMenu.tsx`) wrapped around the app shell, providing copy/paste/cut, undo/redo, select all, open link in browser, and inspect element (dev only) actions
+  - Global right-click context menu is handled by `src/components/AppContextMenu.tsx`: macOS requests a native Electron `Menu.popup()` context menu through the dedicated `window.contextMenu` preload bridge, while Windows/Linux keep the existing React/Radix renderer menu
   - External links are opened via `shell.openExternal` through the `window.shell.openExternal` IPC bridge
 
 - **About Window** (`electron/windows/aboutWindow.ts`)
@@ -178,8 +178,8 @@ Core capabilities:
   - `/about` is intentionally outside `AppShellLayout` and renders a standalone About window surface (`src/components/AboutWindow.tsx`)
 
 - **Platform menus and status item**
-  - `electron/windows/applicationMenu.ts` installs the native macOS application menu during startup using Electron menu roles for standard app, edit, view, window, help, Settings, About, Hide, and Quit actions
-  - `electron/windows/tray.ts` keeps Windows tray behavior separate from the macOS status-item menu; macOS menu actions can show the app, open Settings/About, or quit without adding new IPC channels
+  - `electron/windows/applicationMenu.ts` installs the native macOS application menu during startup using Electron menu roles plus app-specific actions for showing the app, opening Settings, and starting a new chat via the renderer
+  - `electron/windows/tray.ts` keeps Windows tray behavior separate from the macOS status-item menu; macOS menu actions can show the app, open Settings/About, start a new chat, or quit without changing Windows tray flows
 
 ### Windows Installer Packaging
 - Windows packaging uses `electron-builder` + NSIS **wizard installer** (`oneClick: false`) with install-directory selection enabled via `allowToChangeInstallationDirectory: true`, plus a repo-local include override at `installer/installer.nsh`.
@@ -207,9 +207,10 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - `secure-storage:get`, `secure-storage:set`, `secure-storage:get-presence`, `secure-storage:get-all`
   - `execute-tool`
   - `window-resize`
+  - `context-menu:show`
   - `updater:check-for-updates`, `updater:quit-and-install`, `updater:get-version`
 - `ON_CHANNELS`:
-  - `update-available`, `update-downloaded`
+  - `update-available`, `update-downloaded`, `app:new-chat`, `context-menu:action`
 
 **Dedicated preload bridges (not part of `window.ipcRenderer` allowlists):**
 - `window.windowControls`
@@ -227,6 +228,9 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - invokes: `shell:open-external` (opens URLs in default browser; only http/https allowed), `clipboard:read-text` (reads plain text clipboard content from trusted main process)
 - `window.devTools`
   - invokes: `devtools:inspect-element` (development only; opens DevTools element inspector)
+- `window.contextMenu`
+  - invokes: `context-menu:show` (macOS native app-shell context menu request with sanitized target metadata)
+  - listens for: `context-menu:action` (main→renderer callbacks for `undo`, `redo`, `cut`, `copy`, `paste`, `select-all`)
 - `window.mcp`
   - invokes: `mcp:list-servers`, `mcp:add-server`, `mcp:update-server`, `mcp:remove-server`, `mcp:connect-server`, `mcp:disconnect-server`, `mcp:get-state`, `mcp:list-tools`, `mcp:list-resources`, `mcp:read-resource`, `mcp:list-prompts`, `mcp:get-prompt`, `mcp:execute-tool`, `mcp:resolve-approval`
   - listens for: `mcp:state-changed`
@@ -251,6 +255,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Startup installs the native macOS app menu before creating the main window and only disables native window animations on Windows.
 - Main-process startup also denies Chromium permission requests/checks on the default session and relies on explicit IPC bridges plus `shell.openExternal` for outbound navigation instead of granting renderer permissions.
 - Renderer context-menu paste now uses a clipboard read fallback via `window.shell.readClipboardText()` → `clipboard:read-text` when direct `navigator.clipboard.readText()` is unavailable/blocked.
+- macOS app-shell right-click now flows through `window.contextMenu.show(...)` → `context-menu:show` in the main process, which builds a native Electron menu and sends narrow `context-menu:action` callbacks back only to the originating renderer window for DOM-bound edit operations.
 - Renderer secure-key hydration reads only key-presence metadata at startup via `secure-storage:get-presence`; actual Keychain-backed decryption is deferred until a provider/tool call needs a specific secret.
 - MCP startup integration now registers `electron/mcp/index.ts` handlers during `app.whenReady()`, initializes the singleton MCP manager with renderer-facing client info, and auto-connects only servers where both `enabled` and `autoConnect` are true.
 - App shutdown now performs an MCP disconnect pass before quit completes so managed transports can exit cleanly.
@@ -260,6 +265,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - `OverlaySync` runs inside the shared provider tree on non-macOS platforms and mirrors persisted `settings.overlay` values into the trusted overlay runtime through the dedicated preload bridge. If startup auto-open is enabled, the main window renderer triggers the initial overlay show after settings hydrate.
 - Overlay preferences are persisted in the existing sanitized renderer settings blob under `settings.overlay` with `enabled`, `launchOnStartup`, `hotkey`, `anchor`, `compactWidth`, `expandedWidth`, `promptAutoHideEnabled`, and `promptAutoHideTimeout`. No new secure-storage or Overlay-only settings file is introduced for Phase 1.
 - Main-shell navigation history is now tracked entirely in the renderer through `AppShellProvider` + `src/contexts/appShellNavigation.ts`; both the titlebar arrows and side-mouse buttons call the same history controller instead of using raw `react-router` delta navigation.
+- Native macOS app-menu `New Chat` requests are routed back into the shared renderer shell through `app:new-chat`, so session creation still uses the existing `ChatHistoryContext` flow and unsaved-settings guard instead of a main-process shortcut.
 
 #### MCP Runtime Foundation
 - Shared MCP contracts and naming helpers live in `src/mcp/types.ts`.
@@ -361,7 +367,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Legacy `softenedContrast: boolean` is migrated to `themeContrast: number` (true → 85, false/undefined → 100).
 - Window controls are driven from renderer (`src/components/TitleBar.tsx`) through `window.windowControls` (preload) → `window-controls:*` IPC handlers (`electron/ipc/systemHandlers.ts`). Main emits `window-controls:state` on maximize/unmaximize/fullscreen transitions.
 - The titlebar info menu (`src/components/TitleBarInfoMenu.tsx`) uses `window.updater` for release actions and `window.appInfo` for both runtime/build metadata (`app-info:get`) and launching the separate About window (`app-info:open-about-window`).
-- The main shell now uses solid titlebar/sidebar surfaces; there is no renderer-to-main native blur toggle for the main window.
+- The main shell still uses the same hidden-titlebar/vibrancy window model on macOS, but the renderer title bar is visually lighter there: traffic-light spacing is preserved while solid sidebar/content overlays remain a Windows/Linux shell treatment.
 
 #### Renderer Performance Tracking
 - Renderer startup/performance metrics are tracked locally in `src/utils/rendererPerformance.ts`.

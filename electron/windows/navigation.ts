@@ -28,3 +28,20 @@ export function showMainWindowAndNavigateSettings(section = 'providers'): void {
   sendNavigation()
 }
 
+export function showMainWindowAndStartNewChat(): void {
+  const win = getMainWindow() ?? createMainWindow()
+  showAndFocus(win)
+
+  const sendNewChat = () => {
+    if (!win.isDestroyed()) {
+      win.webContents.send('app:new-chat')
+    }
+  }
+
+  if (win.webContents.isLoading()) {
+    win.webContents.once('did-finish-load', sendNewChat)
+    return
+  }
+
+  sendNewChat()
+}

@@ -77,6 +77,7 @@ const INVOKE_CHANNELS = new Set<IpcInvokeChannel>([
 
   // Window resize
   'window-resize',
+  'context-menu:show',
 
   // Updater
   'updater:check-for-updates',
@@ -90,8 +91,10 @@ const ON_CHANNELS = new Set<IpcOnChannel>([
   'prompt-popup:focus',
   'overlay:pending-prompt',
   'model-selector:open',
+  'app:new-chat',
   'settings:navigate',
   'chat-store:changed',
+  'context-menu:action',
 ])
 
 const MCP_INVOKE_CHANNELS = new Set<string>([
@@ -250,6 +253,20 @@ contextBridge.exposeInMainWorld(
       const listener = () => callback()
       ipcRenderer.on('prompt-popup:focus', listener)
       return () => ipcRenderer.removeListener('prompt-popup:focus', listener)
+    },
+  })
+)
+
+contextBridge.exposeInMainWorld(
+  'contextMenu',
+  Object.freeze({
+    show: (request: IpcInvokeArgsMap['context-menu:show'][0]) =>
+      ipcRenderer.invoke('context-menu:show', request) as Promise<void>,
+    onAction: (callback: (action: IpcOnArgsMap['context-menu:action'][0]) => void) => {
+      const listener = (_event: IpcRendererEvent, action: IpcOnArgsMap['context-menu:action'][0]) =>
+        callback(action)
+      ipcRenderer.on('context-menu:action', listener)
+      return () => ipcRenderer.removeListener('context-menu:action', listener)
     },
   })
 )
