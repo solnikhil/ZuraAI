@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import {
   ContextMenu,
   ContextMenuContent,
@@ -10,6 +10,7 @@ import {
 import { Copy, Edit2, Pin, Trash2 } from '../../icons'
 import DeleteChatAlertDialog from './DeleteChatAlertDialog'
 import type { ChatRowAction } from './ChatRow'
+import { isMacOSRuntime } from '../../../utils/platform'
 
 interface ChatRowContextMenuProps {
   isPinned: boolean
@@ -23,6 +24,9 @@ export default function ChatRowContextMenu({
   children,
 }: ChatRowContextMenuProps) {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const awaitingNativeActionRef = useRef(false)
+  const isDev = import.meta.env.DEV
+  const supportsNativeMacContextMenu = isMacOSRuntime() && Boolean(window.contextMenu?.show)
 
   const handleAction = (action: ChatRowAction) => {
     if (action === 'delete') {
@@ -31,6 +35,75 @@ export default function ChatRowContextMenu({
     }
 
     onAction(action)
+  }
+
+  useEffect(() => {
+    if (!supportsNativeMacContextMenu || !window.contextMenu?.onAction) {
+      return
+    }
+
+    return window.contextMenu.onAction((action) => {
+      if (!awaitingNativeActionRef.current) {
+        return
+      }
+
+      const mappedAction: ChatRowAction | null =
+        action === 'chat-rename'
+          ? 'rename'
+          : action === 'chat-pin'
+            ? 'pin'
+            : action === 'chat-unpin'
+              ? 'unpin'
+              : action === 'chat-duplicate'
+                ? 'duplicate'
+                : action === 'chat-delete'
+                  ? 'delete'
+                  : null
+
+      if (!mappedAction) {
+        return
+      }
+
+      awaitingNativeActionRef.current = false
+      handleAction(mappedAction)
+    })
+  }, [supportsNativeMacContextMenu, isPinned, onAction])
+
+  if (supportsNativeMacContextMenu) {
+    return (
+      <>
+        <div
+          onContextMenu={(event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            awaitingNativeActionRef.current = true
+
+            void window.contextMenu.show({
+              hasSelection: false,
+              isEditable: false,
+              isContentEditable: false,
+              hasLink: false,
+              linkUrl: '',
+              mouseX: event.clientX,
+              mouseY: event.clientY,
+              isDev,
+              kind: 'chat-row',
+              isPinnedChatRow: isPinned,
+            })
+          }}
+        >
+          {children}
+        </div>
+
+        <DeleteChatAlertDialog
+          open={deleteConfirmOpen}
+          onOpenChange={setDeleteConfirmOpen}
+          onConfirm={() => {
+            onAction('delete')
+          }}
+        />
+      </>
+    )
   }
 
   return (

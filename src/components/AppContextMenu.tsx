@@ -337,7 +337,7 @@ export default function AppContextMenu({ children }: { children: React.ReactNode
       return
     }
 
-    const actionHandlers: Record<NativeContextMenuAction, () => void> = {
+    const actionHandlers: Partial<Record<NativeContextMenuAction, () => void>> = {
       undo: handleUndo,
       redo: handleRedo,
       cut: handleCut,

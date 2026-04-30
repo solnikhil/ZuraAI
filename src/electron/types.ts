@@ -121,6 +121,13 @@ export type NativeContextMenuAction =
   | 'copy'
   | 'paste'
   | 'select-all'
+  | 'chat-rename'
+  | 'chat-pin'
+  | 'chat-unpin'
+  | 'chat-duplicate'
+  | 'chat-delete'
+
+export type NativeContextMenuKind = 'default' | 'chat-row'
 
 export interface NativeContextMenuRequest {
   hasSelection: boolean
@@ -131,6 +138,8 @@ export interface NativeContextMenuRequest {
   mouseX: number
   mouseY: number
   isDev: boolean
+  kind?: NativeContextMenuKind
+  isPinnedChatRow?: boolean
 }
 
 export type IpcSendChannel =

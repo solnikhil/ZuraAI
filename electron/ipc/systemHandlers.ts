@@ -69,6 +69,8 @@ function sanitizeContextMenuRequest(value: unknown): NativeContextMenuRequest | 
   const mouseX = request.mouseX
   const mouseY = request.mouseY
   const isDev = request.isDev
+  const kind = request.kind
+  const isPinnedChatRow = request.isPinnedChatRow
 
   if (
     !isBoolean(hasSelection) ||
@@ -80,7 +82,9 @@ function sanitizeContextMenuRequest(value: unknown): NativeContextMenuRequest | 
     typeof mouseY !== 'number' ||
     !Number.isFinite(mouseX) ||
     !Number.isFinite(mouseY) ||
-    !isBoolean(isDev)
+    !isBoolean(isDev) ||
+    (kind !== undefined && kind !== 'default' && kind !== 'chat-row') ||
+    (isPinnedChatRow !== undefined && !isBoolean(isPinnedChatRow))
   ) {
     return null
   }
@@ -94,6 +98,8 @@ function sanitizeContextMenuRequest(value: unknown): NativeContextMenuRequest | 
     mouseX: Math.round(mouseX),
     mouseY: Math.round(mouseY),
     isDev,
+    kind: kind === 'chat-row' ? 'chat-row' : 'default',
+    isPinnedChatRow: isPinnedChatRow === true,
   }
 }
 
@@ -267,13 +273,35 @@ export function registerSystemHandlers(): void {
     if (!sanitizedRequest) return
 
     const template: MenuItemConstructorOptions[] = []
-    const { hasSelection, isEditable, isContentEditable, hasLink, linkUrl, mouseX, mouseY, isDev } =
+    const {
+      hasSelection,
+      isEditable,
+      isContentEditable,
+      hasLink,
+      linkUrl,
+      mouseX,
+      mouseY,
+      isDev,
+      kind,
+      isPinnedChatRow,
+    } =
       sanitizedRequest
 
     const showEditActions = isEditable || isContentEditable
     const safeLinkUrl = hasLink ? maybeGetSafeHttpUrl(linkUrl) : null
 
-    if (safeLinkUrl) {
+    if (kind === 'chat-row') {
+      template.push(
+        { label: 'Rename', click: () => sendContextMenuAction(win, 'chat-rename') },
+        {
+          label: isPinnedChatRow ? 'Unpin' : 'Pin',
+          click: () => sendContextMenuAction(win, isPinnedChatRow ? 'chat-unpin' : 'chat-pin'),
+        },
+        { label: 'Duplicate', click: () => sendContextMenuAction(win, 'chat-duplicate') },
+        { type: 'separator' },
+        { label: 'Delete', click: () => sendContextMenuAction(win, 'chat-delete') }
+      )
+    } else if (safeLinkUrl) {
       template.push(
         {
           label: 'Open Link in Browser',
@@ -291,7 +319,7 @@ export function registerSystemHandlers(): void {
       )
     }
 
-    if (showEditActions) {
+    if (kind === 'default' && showEditActions) {
       template.push(
         { label: 'Undo', click: () => sendContextMenuAction(win, 'undo') },
         { label: 'Redo', click: () => sendContextMenuAction(win, 'redo') },
@@ -302,13 +330,13 @@ export function registerSystemHandlers(): void {
         { type: 'separator' },
         { label: 'Select All', click: () => sendContextMenuAction(win, 'select-all') }
       )
-    } else if (hasSelection) {
+    } else if (kind === 'default' && hasSelection) {
       template.push(
         { label: 'Copy', click: () => sendContextMenuAction(win, 'copy') },
         { type: 'separator' },
         { label: 'Select All', click: () => sendContextMenuAction(win, 'select-all') }
       )
-    } else {
+    } else if (kind === 'default') {
       template.push({ label: 'Select All', click: () => sendContextMenuAction(win, 'select-all') })
     }
 
