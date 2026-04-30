@@ -365,7 +365,7 @@ function RunnableCodeBlock({ code, execLanguage, codeView, headerStyle, headerLe
                     <span style={{
                         fontSize: '0.75rem',
                         color: 'var(--theme-text-tertiary)',
-                        fontFamily: "'Google Sans Flex', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif",
+                        fontFamily: 'var(--font-sans)',
                         fontWeight: 500,
                         letterSpacing: '0.02em',
                         lineHeight: 1,
@@ -402,7 +402,7 @@ function RunnableCodeBlock({ code, execLanguage, codeView, headerStyle, headerLe
                 <pre style={{ margin: 0, padding: '14px 16px 18px', background: 'transparent', overflowX: 'auto', maxHeight: '400px', overflowY: 'auto' }}>
                     <code style={{
                         whiteSpace: 'pre-wrap',
-                        fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
+                        fontFamily: 'var(--font-mono)',
                         fontSize: '0.95rem',
                         lineHeight: '1.72',
                         color: error ? 'var(--theme-error, #ef4444)' : 'var(--theme-text-primary)',
@@ -618,7 +618,7 @@ const MarkdownContent = React.memo(function MarkdownContent({ content, webSource
                     }
                     const codeHeaderLabelStyle: React.CSSProperties = {
                         color: 'var(--theme-text-primary)',
-                        fontFamily: "'Google Sans Flex', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif",
+                        fontFamily: 'var(--font-sans)',
                         fontWeight: 600,
                         fontSize: '0.95rem',
                         lineHeight: 1,
@@ -742,7 +742,7 @@ const MarkdownContent = React.memo(function MarkdownContent({ content, webSource
                                     useInlineStyles={true}
                                 codeTagProps={{
                                     style: {
-                                        fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
+                                        fontFamily: 'var(--font-mono)',
                                         fontSize: '0.95rem',
                                         lineHeight: '1.72',
                                         background: 'transparent',
@@ -823,7 +823,7 @@ const MarkdownContent = React.memo(function MarkdownContent({ content, webSource
                                     <code style={{
                                         color: 'var(--theme-text-primary)',
                                         whiteSpace: 'pre',
-                                        fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
+                                        fontFamily: 'var(--font-mono)',
                                         fontSize: '0.95rem',
                                         lineHeight: '1.72',
                                     }}>

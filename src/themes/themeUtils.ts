@@ -102,6 +102,18 @@ export function applyThemeToDocument(theme: Theme, options?: ApplyThemeOptions):
     root.style.setProperty(cssVar, value)
   }
 
+  root.style.setProperty('--theme-sidebar-solid', effectiveTheme.colors.background)
+  root.style.setProperty('--theme-content-solid', effectiveTheme.colors.surface)
+  root.style.setProperty(
+    '--theme-chrome-elevated',
+    effectiveTheme.colors.surfaceActive
+  )
+  root.style.setProperty(
+    '--theme-panel-inset',
+    effectiveTheme.colors.surfaceHover
+  )
+
   root.setAttribute('data-theme', theme.id)
   root.classList.toggle('dark', effectiveTheme.isDark)
+  root.style.colorScheme = effectiveTheme.isDark ? 'dark' : 'light'
 }

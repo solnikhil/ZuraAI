@@ -61,7 +61,7 @@ function AppShellContent() {
                         color: 'var(--theme-text-primary)',
                         fontSize: '0.78rem',
                         lineHeight: 1,
-                        fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
+                        fontFamily: 'var(--font-mono)',
                         boxShadow: 'var(--theme-shadow-sm)',
                         letterSpacing: '0.02em'
                     }}>

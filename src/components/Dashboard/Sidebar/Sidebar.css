@@ -22,7 +22,7 @@
   z-index: 1;
   background: var(--theme-sidebar-solid);
   border-right: none;
-  transition: opacity 0.15s ease, background 0.2s ease;
+  transition: opacity var(--motion-duration-fast) var(--motion-ease-standard), background var(--motion-duration-normal) var(--motion-ease-standard);
 }
 
 .sidebar-container--resizing {
@@ -526,20 +526,20 @@
   right: -8px;
   bottom: 100%;
   height: 56px;
-  background: linear-gradient(to bottom, transparent, var(--theme-surface));
+  background: linear-gradient(to bottom, transparent, var(--theme-sidebar-solid));
   pointer-events: none;
 }
 
 .sidebar-container.frosted .sidebar-footer-wrapper::before {
-  background: linear-gradient(to bottom, transparent, rgba(12, 14, 18, 0.28));
+  background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--theme-surface) 60%, transparent));
 }
 
 .sidebar-footer {
   padding: 8px;
-  border-radius: 14px;
+  border-radius: 10px;
   border: 1px solid color-mix(in srgb, var(--theme-border) 80%, transparent);
-  background: color-mix(in srgb, var(--theme-surface) 95%, transparent);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  background: color-mix(in srgb, var(--theme-surface) 98%, transparent);
+  box-shadow: none;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -552,13 +552,11 @@
 }
 
 .sidebar-container.frosted .sidebar-footer {
-  border-color: rgba(255, 255, 255, 0.12);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0.03) 100%),
-    rgba(10, 13, 17, 0.22);
+  border-color: color-mix(in srgb, var(--theme-border) 88%, transparent);
+  background: color-mix(in srgb, var(--theme-surface) 78%, transparent);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+  box-shadow: none;
 }
 
 .sidebar-footer__btn {
@@ -634,17 +632,17 @@
 
 /* Frosted footer */
 .sidebar-container.frosted .sidebar-footer__btn {
-  background: rgba(255, 255, 255, 0.045);
-  border-color: rgba(255, 255, 255, 0.12);
+  background: color-mix(in srgb, var(--theme-surface-hover) 80%, transparent);
+  border-color: color-mix(in srgb, var(--theme-border) 88%, transparent);
 }
 
 .sidebar-container.frosted .sidebar-footer__btn:hover {
-  background: rgba(255, 255, 255, 0.07);
+  background: color-mix(in srgb, var(--theme-surface-active) 82%, transparent);
 }
 
 .sidebar-container.frosted .sidebar-footer__icon-wrap {
-  border-color: rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.11);
+  border-color: color-mix(in srgb, var(--theme-border) 92%, transparent);
+  background: color-mix(in srgb, var(--theme-surface-active) 86%, transparent);
   color: color-mix(in srgb, var(--theme-text-primary) 80%, white);
 }
 

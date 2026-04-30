@@ -74,31 +74,29 @@ export function derivePaletteFromBase(
 ): Theme['colors'] {
   const contrastScale = clamp(contrast, 0, 100) / 100
   const isDark = true
-  const surfaceTarget = isDark ? '#ffffff' : '#000000'
   const textInverse = isDark ? '#0b0b0b' : '#ffffff'
+  const surface = mixHex(background, '#ffffff', 0.05 + 0.02 * contrastScale)
+  const surfaceHover = mixHex(background, '#ffffff', 0.08 + 0.03 * contrastScale)
+  const surfaceActive = mixHex(background, '#ffffff', 0.12 + 0.04 * contrastScale)
+  const surfacePressed = mixHex(background, '#ffffff', 0.16 + 0.05 * contrastScale)
+  const surfaceSubtle = alpha('#ffffff', 0.015 + 0.015 * contrastScale)
 
-  const surface = mixHex(background, surfaceTarget, 0.02 + 0.03 * contrastScale)
-  const surfaceHover = mixHex(background, surfaceTarget, 0.03 + 0.055 * contrastScale)
-  const surfaceActive = mixHex(background, surfaceTarget, 0.045 + 0.085 * contrastScale)
-  const surfacePressed = mixHex(background, surfaceTarget, 0.06 + 0.115 * contrastScale)
-  const surfaceSubtle = alpha(foreground, 0.008 + 0.016 * contrastScale)
+  const textPrimary = foreground
+  const textSecondary = alpha(foreground, 0.5 + 0.12 * contrastScale)
+  const textTertiary = alpha(foreground, 0.4 + 0.08 * contrastScale)
+  const textMuted = alpha(foreground, 0.26 + 0.09 * contrastScale)
 
-  const textSecondary = mixHex(foreground, background, 0.06 + (1 - contrastScale) * 0.12)
-  const textTertiary = mixHex(foreground, background, 0.24 + (1 - contrastScale) * 0.12)
-  const textMuted = mixHex(foreground, background, 0.45 + (1 - contrastScale) * 0.16)
+  const border = alpha('#ffffff', 0.06 + 0.02 * contrastScale)
+  const borderHover = alpha('#ffffff', 0.09 + 0.03 * contrastScale)
+  const borderActive = alpha('#ffffff', 0.12 + 0.04 * contrastScale)
+  const borderSubtle = alpha('#ffffff', 0.035 + 0.02 * contrastScale)
 
-  const borderStrength = 0.45 + 0.55 * contrastScale
-  const border = alpha(foreground, 0.05 + 0.04 * borderStrength)
-  const borderHover = alpha(foreground, 0.08 + 0.05 * borderStrength)
-  const borderActive = alpha(foreground, 0.11 + 0.06 * borderStrength)
-  const borderSubtle = alpha(foreground, 0.025 + 0.02 * borderStrength)
+  const accentSecondary = mixHex(accent, '#ffffff', 0.12)
+  const accentHover = mixHex(accent, '#ffffff', 0.18)
+  const accentMuted = alpha(accent, 0.14 + 0.06 * contrastScale)
 
-  const accentSecondary = mixHex(accent, foreground, 0.08 + 0.12 * contrastScale)
-  const accentHover = mixHex(accent, '#ffffff', 0.05 + 0.08 * contrastScale)
-  const accentMuted = alpha(accent, 0.1 + 0.1 * contrastScale)
-
-  const assistantMessageBg = alpha(foreground, 0.02 + 0.03 * contrastScale)
-  const userMessageBg = `linear-gradient(135deg, ${alpha(accent, 0.72 + 0.16 * contrastScale)} 0%, ${alpha(accentSecondary, 0.62 + 0.14 * contrastScale)} 100%)`
+  const assistantMessageBg = alpha('#ffffff', 0.03 + 0.02 * contrastScale)
+  const userMessageBg = mixHex(accent, surface, 0.12)
 
   return {
     background,
@@ -108,7 +106,7 @@ export function derivePaletteFromBase(
     surfacePressed,
     surfaceSubtle,
 
-    textPrimary: foreground,
+    textPrimary,
     textSecondary,
     textTertiary,
     textMuted,
@@ -124,28 +122,28 @@ export function derivePaletteFromBase(
     accentHover,
     accentMuted,
 
-    error: '#ef4444',
-    errorBg: alpha('#ef4444', 0.14),
-    success: '#4ade80',
-    successBg: alpha('#4ade80', 0.14),
-    warning: '#f59e0b',
-    warningBg: alpha('#f59e0b', 0.14),
-    info: '#3b82f6',
-    infoBg: alpha('#3b82f6', 0.14),
-    favorite: '#fbbf24',
+    error: '#ff453a',
+    errorBg: alpha('#ff453a', 0.18),
+    success: '#32d74b',
+    successBg: alpha('#32d74b', 0.18),
+    warning: '#ffd60a',
+    warningBg: alpha('#ffd60a', 0.18),
+    info: '#0a84ff',
+    infoBg: alpha('#0a84ff', 0.18),
+    favorite: '#ffd60a',
 
     userMessageBg,
     userMessageText: '#ffffff',
     assistantMessageBg,
-    assistantMessageText: foreground,
+    assistantMessageText: textPrimary,
     overlayBg: alpha('#000000', 0.62 + 0.12 * contrastScale),
     dimmerBg: alpha('#000000', 0.38 + 0.12 * contrastScale),
-    selectionBg: alpha(accent, 0.18 + 0.16 * contrastScale),
+    selectionBg: alpha(accent, 0.18 + 0.1 * contrastScale),
     selectionText: '#ffffff',
 
-    shadowSm: '0 1px 2px rgba(0, 0, 0, 0.3)',
-    shadowMd: '0 6px 18px rgba(0, 0, 0, 0.4)',
-    shadowLg: '0 12px 32px rgba(0, 0, 0, 0.5)',
+    shadowSm: '0 1px 2px rgba(0, 0, 0, 0.18)',
+    shadowMd: '0 4px 14px rgba(0, 0, 0, 0.2)',
+    shadowLg: '0 10px 28px rgba(0, 0, 0, 0.22)',
 
     scrollbar: alpha(foreground, 0.12 + 0.06 * contrastScale),
     scrollbarHover: alpha(foreground, 0.18 + 0.08 * contrastScale),
@@ -157,10 +155,10 @@ const themes: Record<string, Theme> = {
     'zuraai',
     'Obsidian Core',
     'Stealth minimal',
-    'Default graphite-black workspace with sharp white contrast',
+    'Neutral graphite workspace with restrained gold accents',
     'classic',
-    '#ffffff',
-    '#181818',
+    '#c9a66e',
+    '#1a1a1a',
     '#ffffff'
   ),
   sentry: createTheme(
@@ -169,8 +167,8 @@ const themes: Record<string, Theme> = {
     'Electric nightlife',
     'Dusty violet glow over a muted charcoal base',
     'ai',
-    '#7055f6',
-    '#2d2935',
+    '#8e8cff',
+    '#232229',
     '#e6dff9'
   ),
   ayu: createTheme(
@@ -189,8 +187,8 @@ const themes: Record<string, Theme> = {
     'Clean midnight focus',
     'Controlled cobalt signal on a tight near-black canvas',
     'minimal',
-    '#0169cc',
-    '#111111',
+    '#0a84ff',
+    '#111315',
     '#fcfcfc'
   ),
   gruvbox: createTheme(
@@ -220,7 +218,7 @@ const themes: Record<string, Theme> = {
     'Smoked graphite neutrals with a cool steel highlight',
     'minimal',
     '#8fa3b8',
-    '#14171c',
+    '#17181a',
     '#eef2f6'
   ),
   emberfall: createTheme(

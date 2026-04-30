@@ -42,6 +42,12 @@ describe('themeUtils', () => {
       applyThemeToDocument(theme)
       const bg = document.documentElement.style.getPropertyValue('--theme-background')
       expect(bg).toBe(theme.colors.background)
+      expect(document.documentElement.style.getPropertyValue('--theme-sidebar-solid')).toBe(
+        theme.colors.background
+      )
+      expect(document.documentElement.style.getPropertyValue('--theme-content-solid')).toBe(
+        theme.colors.surface
+      )
     })
 
     it('sets data-theme attribute', () => {
@@ -54,6 +60,7 @@ describe('themeUtils', () => {
       const theme = getDefaultTheme()
       applyThemeToDocument(theme)
       expect(document.documentElement.classList.contains('dark')).toBe(theme.isDark)
+      expect(document.documentElement.style.colorScheme).toBe('dark')
     })
 
     it('applies custom accent color when provided', () => {
@@ -87,7 +94,7 @@ describe('themeUtils', () => {
     it('includes sentry theme preset', () => {
       const sentryTheme = getThemeById('sentry')
       expect(sentryTheme).toBeDefined()
-      expect(sentryTheme?.baseColors.accent).toBe('#7055f6')
+      expect(sentryTheme?.baseColors.accent).toBe('#8e8cff')
     })
 
     it('includes ayu theme preset', () => {
@@ -99,7 +106,7 @@ describe('themeUtils', () => {
     it('includes codex theme preset', () => {
       const codexTheme = getThemeById('codex')
       expect(codexTheme).toBeDefined()
-      expect(codexTheme?.baseColors.accent).toBe('#0169cc')
+      expect(codexTheme?.baseColors.accent).toBe('#0a84ff')
     })
 
     it('includes gruvbox theme preset', () => {

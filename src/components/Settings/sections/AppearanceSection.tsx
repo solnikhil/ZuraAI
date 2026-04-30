@@ -119,7 +119,7 @@ const chatBubblePresets = [
       border: '1px dashed var(--theme-border-hover)',
       boxShadow: 'none',
       color: 'var(--theme-text-primary)',
-      fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
+      fontFamily: 'var(--font-mono)',
       letterSpacing: '0.01em',
     },
   },
