@@ -111,7 +111,7 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
       spellcheck: false,
       additionalArguments: ['--process-name=ZuraAI-Dashboard'],
     },
-    autoHideMenuBar: true,
+    autoHideMenuBar: isWindows,
     // Keep the main window on a solid background to avoid transparent border artifacts
     // and compositor instability on Windows.
     backgroundColor: '#14120B',
@@ -207,6 +207,9 @@ export function getMainWindow(): BrowserWindow | null {
  */
 export function showMainWindow(): void {
   if (mainWindow) {
+    if (mainWindow.isMinimized()) {
+      mainWindow.restore()
+    }
     mainWindow.show()
     mainWindow.focus()
   } else {

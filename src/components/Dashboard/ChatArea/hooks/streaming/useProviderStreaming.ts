@@ -56,6 +56,7 @@ import type {
 export interface ProviderStreamingRunOptions {
   provider: ActiveProviderId
   model: string
+  settingsOverride?: StreamingSettings
   sessionId: string
   messageId: string
   messages: Array<ServiceAssistantMessage & { images?: string[]; thinking?: string }>
@@ -205,7 +206,8 @@ export function useProviderStreaming({
     async (options: ProviderStreamingRunOptions): Promise<StreamingResult> => {
       const provider = options.provider
       const model = options.model
-      const client = createProviderStreamClient(settings, provider)
+      const runtimeSettings = options.settingsOverride ?? settings
+      const client = createProviderStreamClient(runtimeSettings, provider)
       const supportsExternalTools = providerSupportsTools(provider)
       const toolsAvailable = options.enableTools !== false && toolCalling.canUseTools && supportsExternalTools
       const tools = toolsAvailable ? toolCalling.getToolsForRequest() : null

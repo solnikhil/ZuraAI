@@ -41,7 +41,7 @@ function createAboutWindow(): BrowserWindow {
     fullscreenable: false,
     resizable: false,
     show: false,
-    autoHideMenuBar: true,
+    autoHideMenuBar: process.platform !== 'darwin',
     skipTaskbar: true,
     backgroundColor: '#181818',
     webPreferences: {

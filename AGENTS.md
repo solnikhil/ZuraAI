@@ -135,6 +135,7 @@ Core capabilities:
   - Loads `#/dashboard` (HashRouter)
   - `nodeIntegration: false`, `contextIsolation: true`, `sandbox: true`
   - Windows uses a hidden title bar with **renderer-driven window controls** (`window.windowControls.*`), with native `titleBarOverlay` disabled and a solid background path for stable compositor behavior
+  - macOS keeps the native menu bar active, preserves traffic-light window controls with hidden-titlebar styling, and uses normal macOS app activation to recreate the main window after all windows are closed
   - Global right-click context menu is handled via a **React/Radix UI context menu** (`src/components/AppContextMenu.tsx`) wrapped around the app shell, providing copy/paste/cut, undo/redo, select all, open link in browser, and inspect element (dev only) actions
   - External links are opened via `shell.openExternal` through the `window.shell.openExternal` IPC bridge
 
@@ -145,7 +146,7 @@ Core capabilities:
 
 - **Overlay Window** (`electron/windows/overlayWindow.ts`)
   - Loads `#/overlay` in its own dedicated `BrowserWindow`
-  - Windows-first overlay surface: frameless, `alwaysOnTop`, `skipTaskbar`, non-click-through, and positioned against the active display `workArea`
+  - Platform-polished overlay surface: frameless, `alwaysOnTop`, `skipTaskbar`, non-click-through, and positioned against the active display `workArea`; on macOS it uses floating always-on-top behavior, workspace/fullscreen visibility, and a native window shadow
   - Reuses the shared preload bundle plus a dedicated `window.overlay` bridge for lifecycle actions
   - Supports compact and expanded bounds, hide/show/toggle behavior, and display-metrics repositioning
   - Opens from explicit UI entry points plus the global Overlay shortcut; the shortcut now opens the Overlay directly at the cursor position in expanded mode (single-step flow)
@@ -174,6 +175,10 @@ Core capabilities:
   - `/` is a dashboard alias
   - `/about` is intentionally outside `AppShellLayout` and renders a standalone About window surface (`src/components/AboutWindow.tsx`)
 
+- **Platform menus and status item**
+  - `electron/windows/applicationMenu.ts` installs the native macOS application menu during startup using Electron menu roles for standard app, edit, view, window, help, Settings, About, Hide, and Quit actions
+  - `electron/windows/tray.ts` keeps Windows tray behavior separate from the macOS status-item menu; macOS menu actions can show the app, toggle the Overlay, open Settings/About, or quit without adding new IPC channels
+
 ### Windows Installer Packaging
 - Windows packaging uses `electron-builder` + NSIS **wizard installer** (`oneClick: false`) with install-directory selection enabled via `allowToChangeInstallationDirectory: true`, plus a repo-local include override at `installer/installer.nsh`.
 - The installer uses the directory the user selects as the **final install path** for app files; it does not force an extra `\ZuraAI` subfolder when the user picks a custom location.
@@ -197,7 +202,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 **Allowlisted channels (as implemented today):**
 - `INVOKE_CHANNELS`:
   - `chat-store:get-all`, `chat-store:save-all`, `chat-store:migrate`, `chat-store:get-all-folders`, `chat-store:save-folders`
-  - `secure-storage:get`, `secure-storage:set`, `secure-storage:get-all`
+  - `secure-storage:get`, `secure-storage:set`, `secure-storage:get-presence`, `secure-storage:get-all`
   - `execute-tool`
   - `window-resize`
   - `updater:check-for-updates`, `updater:quit-and-install`, `updater:get-version`
@@ -241,8 +246,10 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 #### Startup + Shell Initialization
 - Main-process startup uses `electron/startup/deferredInit.ts` to defer non-critical work until the main window is visible.
 - Current deferred tasks include delayed React DevTools install in development and deferred auto-updater initialization after first paint.
+- Startup installs the native macOS app menu before creating the main window and only disables native window animations on Windows.
 - Main-process startup also denies Chromium permission requests/checks on the default session and relies on explicit IPC bridges plus `shell.openExternal` for outbound navigation instead of granting renderer permissions.
 - Renderer context-menu paste now uses a clipboard read fallback via `window.shell.readClipboardText()` → `clipboard:read-text` when direct `navigator.clipboard.readText()` is unavailable/blocked.
+- Renderer secure-key hydration reads only key-presence metadata at startup via `secure-storage:get-presence`; actual Keychain-backed decryption is deferred until a provider/tool call needs a specific secret.
 - MCP startup integration now registers `electron/mcp/index.ts` handlers during `app.whenReady()`, initializes the singleton MCP manager with renderer-facing client info, and auto-connects only servers where both `enabled` and `autoConnect` are true.
 - App shutdown now performs an MCP disconnect pass before quit completes so managed transports can exit cleanly.
 - Overlay startup now initializes the dedicated overlay runtime in main, keeps shortcut registration and display listeners on the trusted side, and relies on renderer-synced `settings.overlay` values instead of a new storage file.
@@ -441,7 +448,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - Legacy plaintext secret entries from older builds are only migrated forward into encrypted values when `safeStorage` is available
   - Stored API keys: `openRouterApiKey`, `perplexityApiKey`, `groqApiKey`, `alibabaApiKey`, `fireworksApiKey`, `tavilyApiKey`
   - Also stores MCP secret entries under deterministic keys like `mcp.server.<serverId>.(env|header|token).<name>`
-  - The preload batch read bridge (`secure-storage:get-all`) is restricted to the provider-key allowlist above; MCP secret entries never hydrate into renderer settings payloads.
+  - The preload presence bridge (`secure-storage:get-presence`) reads only allowlisted key existence without decrypting values; the batch read bridge (`secure-storage:get-all`) remains restricted to the provider-key allowlist for explicit full hydration paths.
 - No dedicated performance metrics file is persisted by the app.
 
 ### Tool System (Function Calling)
@@ -550,4 +557,3 @@ Update **this file’s “Architecture”** whenever you:
 - Add/enable tools or change tool execution policy
 - Add a new AI provider or change provider/tool support rules
 - Change build outputs/packaging assumptions (`dist/`, `dist-electron/`, installer)
-

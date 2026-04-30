@@ -11,6 +11,7 @@ const ipcMainMocks = {
 const secureStorageMocks = {
   getSecureValueAsync: vi.fn(),
   setSecureValueAsync: vi.fn(),
+  getSecureValuePresenceAsync: vi.fn(),
 }
 
 vi.mock('electron', () => ({
@@ -23,6 +24,7 @@ vi.mock('electron', () => ({
 vi.mock('../secureStorage', () => ({
   getSecureValueAsync: secureStorageMocks.getSecureValueAsync,
   setSecureValueAsync: secureStorageMocks.setSecureValueAsync,
+  getSecureValuePresenceAsync: secureStorageMocks.getSecureValuePresenceAsync,
 }))
 
 describe('registerSecureStorageHandlers', () => {
@@ -33,6 +35,7 @@ describe('registerSecureStorageHandlers', () => {
     ipcMainMocks.removeHandler.mockClear()
     secureStorageMocks.getSecureValueAsync.mockReset()
     secureStorageMocks.setSecureValueAsync.mockReset()
+    secureStorageMocks.getSecureValuePresenceAsync.mockReset()
   })
 
   it('returns only the provider-key allowlist from secure-storage:get-all', async () => {
@@ -63,5 +66,36 @@ describe('registerSecureStorageHandlers', () => {
 
     expect(secureStorageMocks.getSecureValueAsync).toHaveBeenCalledTimes(7)
     expect(secureStorageMocks.getSecureValueAsync).not.toHaveBeenCalledWith('mcp.server.demo.token')
+  })
+
+  it('returns provider-key presence without decrypting secure values', async () => {
+    secureStorageMocks.getSecureValuePresenceAsync.mockResolvedValue({
+      openRouterApiKey: true,
+      perplexityApiKey: false,
+      groqApiKey: false,
+      tavilyApiKey: true,
+      alibabaApiKey: false,
+      fireworksApiKey: false,
+      onlineCompilerApiKey: false,
+    })
+
+    const { registerSecureStorageHandlers } = await import('./secureStorageHandlers')
+    registerSecureStorageHandlers()
+
+    const handler = ipcMainMocks.handlers.get('secure-storage:get-presence')
+    expect(handler).toBeTypeOf('function')
+
+    await expect(handler?.()).resolves.toEqual({
+      openRouterApiKey: true,
+      perplexityApiKey: false,
+      groqApiKey: false,
+      tavilyApiKey: true,
+      alibabaApiKey: false,
+      fireworksApiKey: false,
+      onlineCompilerApiKey: false,
+    })
+
+    expect(secureStorageMocks.getSecureValuePresenceAsync).toHaveBeenCalledTimes(1)
+    expect(secureStorageMocks.getSecureValueAsync).not.toHaveBeenCalled()
   })
 })

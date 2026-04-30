@@ -17,6 +17,7 @@ import { inferAlibabaSupportsDeepThinking } from '../../../../services/alibabaMo
 import { buildOptimizedContext } from '../../../../utils/tokenUtils'
 import { getEffectiveSystemPrompt } from '../../../../utils/promptSelection'
 import { StreamingThrottler } from '../../../../utils/streamingThrottler'
+import { resolveProviderApiKeysForSettings } from '../../../../utils/secureApiKeys'
 import {
   getAvailableModelOptions,
   getProviderCredentialError,
@@ -450,8 +451,12 @@ const streamingSettings: StreamingSettings = useMemo(
           settings.modelProvider
         )
         const provider = normalizeActiveProviderId(settings.modelProvider)
+        const effectiveStreamingSettings = await resolveProviderApiKeysForSettings(
+          streamingSettings,
+          provider
+        )
 
-        const credentialError = getProviderCredentialError(settings, provider)
+        const credentialError = getProviderCredentialError(effectiveStreamingSettings, provider)
         if (credentialError) {
           setIsLoading(false)
           showToast(credentialError, 'error')
@@ -494,6 +499,7 @@ const streamingSettings: StreamingSettings = useMemo(
         const streamResult = await runProviderStream({
           provider,
           model: settings.aiModel,
+          settingsOverride: effectiveStreamingSettings,
           sessionId: targetSessionId!,
           messageId: streamingMessageId,
           messages: providerMessages,
@@ -570,6 +576,7 @@ enableTools: true,
       currentSessionId,
       messages,
       settings,
+      streamingSettings,
       canUseTools,
       createSession,
       addMessageToSession,
@@ -667,7 +674,27 @@ enableTools: true,
         }
 
         const effectiveProvider = normalizeActiveProviderId(effectiveSettings.modelProvider)
-        const credentialError = getProviderCredentialError(effectiveSettings, effectiveProvider)
+        const effectiveRegenerationSettings = await resolveProviderApiKeysForSettings(
+          {
+            aiModel: effectiveSettings.aiModel,
+            modelProvider: effectiveSettings.modelProvider,
+            temperature: effectiveSettings.temperature,
+            maxTokens: effectiveSettings.maxTokens,
+            streamResponses: effectiveSettings.streamResponses,
+            webSearchPrompt: effectiveSettings.webSearchPrompt,
+            ollamaUrl: effectiveSettings.ollamaUrl,
+            openRouterDebug: effectiveSettings.openRouterDebug,
+            openRouterApiKey: effectiveSettings.openRouterApiKey,
+            configuredModels: effectiveSettings.configuredModels,
+            alibabaModels: effectiveSettings.alibabaModels,
+            perplexityApiKey: effectiveSettings.perplexityApiKey,
+            groqApiKey: effectiveSettings.groqApiKey,
+            alibabaApiKey: effectiveSettings.alibabaApiKey,
+            fireworksApiKey: effectiveSettings.fireworksApiKey,
+          },
+          effectiveProvider
+        )
+        const credentialError = getProviderCredentialError(effectiveRegenerationSettings, effectiveProvider)
         if (credentialError) {
           showToast(credentialError, 'error')
           setIsLoading(false)
@@ -744,6 +771,7 @@ const openRouterReasoning =
           const regenerationResult = await runProviderStream({
             provider: effectiveProvider,
             model: effectiveSettings.aiModel,
+            settingsOverride: effectiveRegenerationSettings,
             sessionId: currentSessionId,
             messageId: streamingMessageId,
             messages: apiMessages,

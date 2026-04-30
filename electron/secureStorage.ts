@@ -97,6 +97,31 @@ async function readSecureDataAsync(): Promise<SecureData> {
   }
 }
 
+export async function getSecureValuePresenceAsync(keys: readonly string[]): Promise<Record<string, boolean>> {
+  const presence: Record<string, boolean> = {}
+  for (const key of keys) {
+    presence[key] = false
+  }
+
+  try {
+    if (!fsSync.existsSync(STORAGE_FILE)) {
+      return presence
+    }
+
+    const data = await fs.readFile(STORAGE_FILE, 'utf-8')
+    const parsed = JSON.parse(data) as Record<string, unknown>
+
+    for (const key of keys) {
+      presence[key] = typeof parsed[key] === 'string' && parsed[key].trim().length > 0
+    }
+
+    return presence
+  } catch (error) {
+    console.error('Failed to read secure storage key presence.', error)
+    return presence
+  }
+}
+
 async function writeSecureDataAsync(data: SecureData): Promise<boolean> {
   try {
     if (!isEncryptionAvailable()) {
@@ -136,4 +161,3 @@ export async function setSecureValueAsync(key: string, value: string): Promise<b
   }
   return writeSecureDataAsync(data)
 }
-

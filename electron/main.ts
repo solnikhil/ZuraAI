@@ -6,6 +6,7 @@ import {
   applyOverlaySettings,
   cleanupOverlay,
   createMainWindow,
+  createApplicationMenu,
   createTray,
   destroyTray,
   getMainWindow,
@@ -40,8 +41,9 @@ process.env.PUBLIC = app.isPackaged ? DIST_PATH : path.join(__dirname, '../publi
 
 app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion')
 
-// Disable window animations
-app.commandLine.appendSwitch('wm-window-animations-disabled')
+if (process.platform === 'win32') {
+  app.commandLine.appendSwitch('wm-window-animations-disabled')
+}
 
 const WINDOWS_APP_ID = 'in.zuraai.desktop'
 const APP_NAME = 'ZuraAI'
@@ -71,6 +73,12 @@ process.title = 'ZuraAI - Main'
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
+  }
+})
+
+app.on('activate', () => {
+  if (process.platform === 'darwin' && !getMainWindow()) {
+    createMainWindow()
   }
 })
 
@@ -149,7 +157,8 @@ app.whenReady().then(async () => {
     },
   })
   deferredInitializer.markIPCReady()
-initializeOverlay()
+  createApplicationMenu()
+  initializeOverlay()
   applyOverlaySettings({})
 
   // Defer auto-updater initialization (only in production)

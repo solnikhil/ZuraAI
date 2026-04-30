@@ -143,6 +143,7 @@ function createOverlayWindow(): BrowserWindow {
 
   const distPath = resolveDistPath(__dirname)
   const initialBounds = getOverlayBounds(overlayMode)
+  const isMacOS = process.platform === 'darwin'
 
   overlayWindow = new BrowserWindow({
     ...initialBounds,
@@ -162,7 +163,7 @@ function createOverlayWindow(): BrowserWindow {
     alwaysOnTop: true,
     transparent: true,
     backgroundColor: '#00000000',
-    hasShadow: false,
+    hasShadow: isMacOS,
     autoHideMenuBar: true,
     backgroundMaterial: 'none',
     webPreferences: {
@@ -178,6 +179,9 @@ function createOverlayWindow(): BrowserWindow {
   })
 
   overlayWindow.setAlwaysOnTop(true, 'floating')
+  if (isMacOS) {
+    overlayWindow.setVisibleOnAllWorkspaces?.(true, { visibleOnFullScreen: true })
+  }
 
   const loadPromise = process.env.VITE_DEV_SERVER_URL
     ? overlayWindow.loadURL(`${process.env.VITE_DEV_SERVER_URL}#/overlay`)

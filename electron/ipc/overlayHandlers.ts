@@ -14,7 +14,7 @@ import {
   toggleOverlay,
   type OverlaySettings,
 } from '../windows/overlayWindow'
-import { getMainWindow } from '../windows/mainWindow'
+import { showMainWindowAndNavigateSettings } from '../windows/navigation'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -64,15 +64,7 @@ export function registerOverlayHandlers(): void {
   })
   ipcMain.on('overlay:navigate-settings', (_event, section: unknown) => {
     if (typeof section !== 'string') return
-    const mainWindow = getMainWindow()
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('settings:navigate', section)
-      if (mainWindow.isMinimized()) {
-        mainWindow.restore()
-      }
-      mainWindow.show()
-      mainWindow.focus()
-    }
+    showMainWindowAndNavigateSettings(section)
   })
 }
 

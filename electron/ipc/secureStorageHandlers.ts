@@ -55,6 +55,10 @@ export function registerSecureStorageHandlers(): void {
     return secureStorage.setSecureValueAsync(key, value)
   })
 
+  ipcMain.handle('secure-storage:get-presence', async () => {
+    return secureStorage.getSecureValuePresenceAsync(ALLOWED_SECURE_STORAGE_KEY_LIST)
+  })
+
   /**
    * Batch endpoint for startup hydration.
    *
@@ -78,5 +82,6 @@ export function registerSecureStorageHandlers(): void {
 export function unregisterSecureStorageHandlers(): void {
   ipcMain.removeHandler('secure-storage:get')
   ipcMain.removeHandler('secure-storage:set')
+  ipcMain.removeHandler('secure-storage:get-presence')
   ipcMain.removeHandler('secure-storage:get-all')
 }

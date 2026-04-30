@@ -137,6 +137,7 @@ export type IpcInvokeChannel =
   | 'chat-store:save-folders'
   | 'secure-storage:get'
   | 'secure-storage:set'
+  | 'secure-storage:get-presence'
   | 'secure-storage:get-all'
   | 'execute-tool'
   | 'window-resize'
@@ -152,6 +153,7 @@ export interface IpcInvokeArgsMap {
   'chat-store:save-folders': [folders: Folder[]]
   'secure-storage:get': [key: SecureStorageKey]
   'secure-storage:set': [key: SecureStorageKey, value: string]
+  'secure-storage:get-presence': []
   'secure-storage:get-all': []
   'execute-tool': [toolName: string, args: Record<string, unknown>]
   'window-resize': [newBounds: WindowBounds]
@@ -168,6 +170,7 @@ export interface IpcInvokeReturnMap {
   'chat-store:save-folders': boolean
   'secure-storage:get': string
   'secure-storage:set': boolean
+  'secure-storage:get-presence': Record<SecureStorageKey, boolean>
   'secure-storage:get-all': Record<SecureStorageKey, string>
   'execute-tool': ToolResult
   'window-resize': void
@@ -217,6 +220,7 @@ export interface IElectronAPI {
 export interface SecureStorageAPI {
   get: (key: SecureStorageKey) => Promise<string>
   set: (key: SecureStorageKey, value: string) => Promise<boolean>
+  getPresence: () => Promise<Record<SecureStorageKey, boolean>>
   getAll: () => Promise<Record<SecureStorageKey, string>>
 }
 

@@ -69,6 +69,7 @@ const INVOKE_CHANNELS = new Set<IpcInvokeChannel>([
   // Secure storage
   'secure-storage:get',
   'secure-storage:set',
+  'secure-storage:get-presence',
   'secure-storage:get-all',
 
   // Tools
@@ -171,6 +172,7 @@ contextBridge.exposeInMainWorld(
   Object.freeze({
     get: (key: string) => ipcRenderer.invoke('secure-storage:get', key),
     set: (key: string, value: string) => ipcRenderer.invoke('secure-storage:set', key, value),
+    getPresence: () => ipcRenderer.invoke('secure-storage:get-presence'),
     getAll: () => ipcRenderer.invoke('secure-storage:get-all'),
   })
 )

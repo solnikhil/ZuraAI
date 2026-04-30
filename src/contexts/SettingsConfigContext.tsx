@@ -19,7 +19,7 @@ import {
   enrichOllamaModelsWithContext,
 } from '../services/ollama'
 import {
-  loadApiKeysFromSecureStorage,
+  loadApiKeyPresenceFromSecureStorage,
   migrateApiKeysFromLocalStorage,
 } from '../utils/secureApiKeys'
 import { defaultSystemPrompt } from '../prompts/defaultSystemPrompt'
@@ -353,7 +353,7 @@ export function SettingsConfigProvider({
           tavilyApiKey: settingsConfig.tavilyApiKey,
         })
 
-        const secureKeys = await loadApiKeysFromSecureStorage()
+        const secureKeys = await loadApiKeyPresenceFromSecureStorage()
 
         const hasSecureKeys =
           secureKeys.alibabaApiKey ||
@@ -361,7 +361,8 @@ export function SettingsConfigProvider({
           secureKeys.groqApiKey ||
           secureKeys.openRouterApiKey ||
           secureKeys.perplexityApiKey ||
-          secureKeys.tavilyApiKey
+          secureKeys.tavilyApiKey ||
+          secureKeys.onlineCompilerApiKey
 
         if (hasSecureKeys) {
           setSettingsConfig((prev) => ({
@@ -372,6 +373,7 @@ export function SettingsConfigProvider({
             openRouterApiKey: secureKeys.openRouterApiKey || prev.openRouterApiKey,
             perplexityApiKey: secureKeys.perplexityApiKey || prev.perplexityApiKey,
             tavilyApiKey: secureKeys.tavilyApiKey || prev.tavilyApiKey,
+            onlineCompilerApiKey: secureKeys.onlineCompilerApiKey || prev.onlineCompilerApiKey,
           }))
         }
       } catch (error) {
