@@ -290,18 +290,19 @@ export default function ChatArea() {
         >
           <div
             style={{
-              fontSize: 'clamp(1.6rem, 3vw, 2.4rem)',
+              fontSize: 'clamp(2rem, 4.2vw, 3.25rem)',
               fontWeight: 500,
-              letterSpacing: '-0.02em',
+              letterSpacing: '-0.035em',
               color: 'var(--theme-text-primary)',
               textAlign: 'center',
-              lineHeight: 1.2,
+              lineHeight: 1.08,
               minHeight: '1.2em',
+              maxWidth: '14ch',
             }}
           >
             {vibe}
           </div>
-          <div style={{ width: '100%' }}>
+          <div style={{ width: '100%', maxWidth: 'min(1180px, 100%)' }}>
             <InputArea
               input={input}
               setInput={setInput}
@@ -312,6 +313,7 @@ export default function ChatArea() {
               onFilesChange={setAttachedFiles}
               onError={(msg) => showToast(msg, 'error')}
               showContextRing={false}
+              layoutVariant="landing"
             />
           </div>
         </div>

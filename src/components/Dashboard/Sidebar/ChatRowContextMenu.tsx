@@ -109,7 +109,15 @@ export default function ChatRowContextMenu({
   return (
     <>
       <ContextMenu>
-        <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
+        <ContextMenuTrigger asChild>
+          <div
+            onContextMenu={(event) => {
+              event.stopPropagation()
+            }}
+          >
+            {children}
+          </div>
+        </ContextMenuTrigger>
         <ContextMenuContent>
           <ContextMenuGroup>
             <ContextMenuItem onSelect={() => handleAction('rename')}>
