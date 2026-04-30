@@ -1,6 +1,7 @@
 import React from 'react'
 import { SETTINGS_SECTIONS, type SettingsSectionId } from '../../constants/settingsSections'
 import { Box, ChartNoAxesCombined, Cloud, MessageCircle, Paintbrush, FlaskConical, FileText, Wrench } from '../icons'
+import { isMacOSRuntime } from '../../utils/platform'
 
 interface SidebarSettingsViewProps {
   active: boolean
@@ -19,11 +20,13 @@ const settingsIcons: Record<SettingsSectionId, React.ReactNode> = {
   experimental: <FlaskConical size={18} />,
 }
 
-const navItems = SETTINGS_SECTIONS.map((section) => ({
-  id: section.id,
-  label: section.navLabel,
-  icon: settingsIcons[section.id],
-}))
+const navItems = SETTINGS_SECTIONS
+  .filter((section) => !(isMacOSRuntime() && section.id === 'overlay'))
+  .map((section) => ({
+    id: section.id,
+    label: section.navLabel,
+    icon: settingsIcons[section.id],
+  }))
 
 export default function SidebarSettingsView({
   active,

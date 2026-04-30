@@ -11,6 +11,7 @@ import {
 import type { AppRuntimeInfo } from '../electron/types'
 import { List } from './icons'
 import { useToast } from './shared/Toast'
+import { isMacOSRuntime } from '@/utils/platform'
 
 import type { UpdateCheckInfo } from '@/electron/types'
 
@@ -71,6 +72,7 @@ export default function TitleBarInfoMenu({
   }, [showToast])
 
   const isPackaged = appInfo?.isPackaged ?? false
+  const overlayAvailable = !isMacOSRuntime()
   const settingsButtonDisabled = isSettingsView && hasUnsavedSettings
 
   const handleCheckForUpdates = useCallback(async () => {
@@ -165,14 +167,18 @@ const handleToggleOverlay = useCallback(() => {
         sideOffset={6}
         className="w-52 rounded-lg border border-border/80 bg-popover p-1"
       >
-        <DropdownMenuItem
-          className="flex cursor-pointer items-center rounded-md px-2 py-1.5 text-xs"
-          onSelect={handleToggleOverlay}
-        >
-          <span className="truncate">Overlay</span>
-        </DropdownMenuItem>
+        {overlayAvailable && (
+          <>
+            <DropdownMenuItem
+              className="flex cursor-pointer items-center rounded-md px-2 py-1.5 text-xs"
+              onSelect={handleToggleOverlay}
+            >
+              <span className="truncate">Overlay</span>
+            </DropdownMenuItem>
 
-        <DropdownMenuSeparator className="-mx-1 my-1" />
+            <DropdownMenuSeparator className="-mx-1 my-1" />
+          </>
+        )}
 
         <DropdownMenuItem
           className="flex cursor-pointer items-center rounded-md px-2 py-1.5 text-xs"

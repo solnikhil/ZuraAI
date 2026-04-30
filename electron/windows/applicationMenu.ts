@@ -3,18 +3,11 @@ import { app, Menu, shell, type MenuItemConstructorOptions } from 'electron'
 import { showAboutWindow } from './aboutWindow'
 import { showMainWindow } from './mainWindow'
 import { showMainWindowAndNavigateSettings } from './navigation'
-import { toggleOverlay } from './overlayWindow'
 
 const HELP_URL = 'https://github.com/solnikhil/ZuraAI'
 
 function openHelp(): void {
   void shell.openExternal(HELP_URL)
-}
-
-function toggleOverlayFromMenu(): void {
-  void toggleOverlay().catch((error) => {
-    console.warn('[application-menu] Failed to toggle overlay', error)
-  })
 }
 
 function createMacApplicationMenu(): Menu {
@@ -59,7 +52,6 @@ function createMacApplicationMenu(): Menu {
       label: 'File',
       submenu: [
         { label: 'Show ZuraAI', accelerator: 'Command+0', click: () => showMainWindow() },
-        { label: 'Toggle Overlay', accelerator: 'Command+Shift+/', click: toggleOverlayFromMenu },
         { type: 'separator' },
         { role: 'close' },
       ],

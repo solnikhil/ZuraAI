@@ -48,6 +48,7 @@ if (process.platform === 'win32') {
 const WINDOWS_APP_ID = 'in.zuraai.desktop'
 const APP_NAME = 'ZuraAI'
 const STARTUP_LOG_PREFIX = '[startup]'
+const IS_MACOS = process.platform === 'darwin'
 let isAwaitingMcpShutdown = false
 let hasCompletedMcpShutdown = false
 
@@ -77,7 +78,7 @@ app.on('window-all-closed', () => {
 })
 
 app.on('activate', () => {
-  if (process.platform === 'darwin' && !getMainWindow()) {
+  if (IS_MACOS && !getMainWindow()) {
     createMainWindow()
   }
 })
@@ -146,7 +147,9 @@ app.whenReady().then(async () => {
   registerToolHandlers()
   registerUpdaterHandlers()
   registerCodeExecutionHandlers()
-  registerComputerUseHandlers()
+  if (!IS_MACOS) {
+    registerComputerUseHandlers()
+  }
 
   registerSessionSecurityHandlers()
   await initializeMcpManager({

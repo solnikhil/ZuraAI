@@ -33,7 +33,7 @@ Core capabilities:
 ## Key Concepts (Read First)
 - The **renderer is untrusted**. Anything privileged must be implemented in the **main process** and exposed via a **narrow, allowlisted** IPC surface.
 - The app uses a **primary BrowserWindow** for the main app plus a dedicated **About window**. Main-app renderer routes live inside the primary window (`#/dashboard`, `#/settings`, `#/chat`) under a shared shell layout, while `#/about` is rendered in the separate utility window.
-- The app now also supports an optional **Overlay window**. `#/overlay` renders in its own always-on-top frameless `BrowserWindow` and reuses the standard chat/runtime stack rather than introducing a second assistant runtime.
+- The app supports an optional **Overlay window** on non-macOS platforms. `#/overlay` renders in its own always-on-top frameless `BrowserWindow` and reuses the standard chat/runtime stack rather than introducing a second assistant runtime; macOS disables this floating-window surface for now.
 - Persistence is split:
   - **Sanitized non-secret settings + UI state** live in renderer `localStorage`.
   - **API keys and MCP secrets** live in main-process secure storage and are hydrated/resolved at runtime.
@@ -146,7 +146,8 @@ Core capabilities:
 
 - **Overlay Window** (`electron/windows/overlayWindow.ts`)
   - Loads `#/overlay` in its own dedicated `BrowserWindow`
-  - Platform-polished overlay surface: frameless, `alwaysOnTop`, `skipTaskbar`, non-click-through, and positioned against the active display `workArea`; on macOS it uses floating always-on-top behavior, workspace/fullscreen visibility, and a native window shadow
+  - Disabled on macOS for now; main-process overlay APIs report disabled state and do not create floating windows or register shortcuts
+  - Platform-polished overlay surface on supported platforms: frameless, `alwaysOnTop`, `skipTaskbar`, non-click-through, and positioned against the active display `workArea`
   - Reuses the shared preload bundle plus a dedicated `window.overlay` bridge for lifecycle actions
   - Supports compact and expanded bounds, hide/show/toggle behavior, and display-metrics repositioning
   - Opens from explicit UI entry points plus the global Overlay shortcut; the shortcut now opens the Overlay directly at the cursor position in expanded mode (single-step flow)
@@ -154,6 +155,7 @@ Core capabilities:
 
 - **Prompt Popup** (`electron/windows/promptPopup.ts`)
   - Loads `#/prompt-popup` in its own dedicated frameless `BrowserWindow`
+  - Disabled on macOS while the Overlay floating-window surface is disabled
   - Lightweight cursor-position prompt input surface for optional prompt-only entry flows
   - Appears at cursor position, auto-focuses the text input, and submits the prompt to the overlay via main-process relay
   - On submit, hides the popup, opens/creates the overlay window at the cursor position, and sends the prompt text to the overlay renderer via `overlay:pending-prompt`
@@ -166,7 +168,7 @@ Core capabilities:
 
 - **Renderer route fallback**
 - `src/App.tsx` defines `Route path="*"` to render the `NotFound404` component (`src/components/ui/demo.tsx`) for unknown hash routes.
- - Standalone utility routes outside `AppShellLayout` currently include `#/about`, `#/overlay`, and `#/prompt-popup`.
+ - Standalone utility routes outside `AppShellLayout` currently include `#/about`, plus `#/overlay` and `#/prompt-popup` on non-macOS platforms.
 
 - **Shared shell layout**
   - `src/App.tsx` wraps `/`, `/dashboard`, `/settings`, and `/chat` in `AppShellLayout`
@@ -177,7 +179,7 @@ Core capabilities:
 
 - **Platform menus and status item**
   - `electron/windows/applicationMenu.ts` installs the native macOS application menu during startup using Electron menu roles for standard app, edit, view, window, help, Settings, About, Hide, and Quit actions
-  - `electron/windows/tray.ts` keeps Windows tray behavior separate from the macOS status-item menu; macOS menu actions can show the app, toggle the Overlay, open Settings/About, or quit without adding new IPC channels
+  - `electron/windows/tray.ts` keeps Windows tray behavior separate from the macOS status-item menu; macOS menu actions can show the app, open Settings/About, or quit without adding new IPC channels
 
 ### Windows Installer Packaging
 - Windows packaging uses `electron-builder` + NSIS **wizard installer** (`oneClick: false`) with install-directory selection enabled via `allowToChangeInstallationDirectory: true`, plus a repo-local include override at `installer/installer.nsh`.
@@ -252,10 +254,10 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Renderer secure-key hydration reads only key-presence metadata at startup via `secure-storage:get-presence`; actual Keychain-backed decryption is deferred until a provider/tool call needs a specific secret.
 - MCP startup integration now registers `electron/mcp/index.ts` handlers during `app.whenReady()`, initializes the singleton MCP manager with renderer-facing client info, and auto-connects only servers where both `enabled` and `autoConnect` are true.
 - App shutdown now performs an MCP disconnect pass before quit completes so managed transports can exit cleanly.
-- Overlay startup now initializes the dedicated overlay runtime in main, keeps shortcut registration and display listeners on the trusted side, and relies on renderer-synced `settings.overlay` values instead of a new storage file.
-- The global Overlay hotkey opens the Overlay window directly at the cursor position in expanded mode (single-step flow).
-- Prompt Popup remains available as an optional path; submitting from it opens the Overlay at the cursor position and sends the prompt text via `overlay:pending-prompt`.
-- `OverlaySync` runs inside the shared provider tree and mirrors persisted `settings.overlay` values into the trusted overlay runtime through the dedicated preload bridge. If startup auto-open is enabled, the main window renderer triggers the initial overlay show after settings hydrate.
+- Overlay startup initializes the dedicated overlay runtime only on non-macOS platforms, keeps shortcut registration and display listeners on the trusted side, and relies on renderer-synced `settings.overlay` values instead of a new storage file.
+- The global Overlay hotkey opens the Overlay window directly at the cursor position in expanded mode on supported platforms (single-step flow).
+- Prompt Popup remains available as an optional path on non-macOS platforms; submitting from it opens the Overlay at the cursor position and sends the prompt text via `overlay:pending-prompt`.
+- `OverlaySync` runs inside the shared provider tree on non-macOS platforms and mirrors persisted `settings.overlay` values into the trusted overlay runtime through the dedicated preload bridge. If startup auto-open is enabled, the main window renderer triggers the initial overlay show after settings hydrate.
 - Overlay preferences are persisted in the existing sanitized renderer settings blob under `settings.overlay` with `enabled`, `launchOnStartup`, `hotkey`, `anchor`, `compactWidth`, `expandedWidth`, `promptAutoHideEnabled`, and `promptAutoHideTimeout`. No new secure-storage or Overlay-only settings file is introduced for Phase 1.
 - Main-shell navigation history is now tracked entirely in the renderer through `AppShellProvider` + `src/contexts/appShellNavigation.ts`; both the titlebar arrows and side-mouse buttons call the same history controller instead of using raw `react-router` delta navigation.
 
@@ -325,7 +327,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Persisted assistant-message response stats (`usage`) now reflect only the final visible answer round for that assistant turn. Pre-search planning/tool-call rounds and no-tools recovery rounds remain part of orchestration latency/tool history, but they are no longer merged into the final answer's token stats.
 - Research-mode finalization now runs bounded no-tools synthesis retries inside `src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.ts`: after tool rounds finish, the orchestrator first requests a normal final synthesis, then escalates to stricter recovery prompts including a plain-text-only pass if the provider still returns blank output or `tool_calls` despite tools being disabled. If every no-tools pass still fails, the renderer commits a concise failure message while preserving the gathered `web_search` results in the timeline/tool UI.
   - OpenRouter image-generation models now flow through the same chat pipeline: renderer model metadata persists `inputModalities` / `outputModalities`, `src/services/openrouter.ts` sends `modalities` to `/api/v1/chat/completions` for image-capable models, the streaming hook captures `delta.images` payloads, and generated images are persisted back into chat history `files` so assistant image outputs render inline in the dashboard.
-- Computer Use screen captures now record a main-process coordinate context for the captured display (`electron/tools/computer-use/coordinates.ts`), including rendered screen image size, native capture size, display bounds, and DPI scale factor. Follow-up click, scroll, and cursor-move actions continue to accept latest-screen pixel coordinates from the model, but main maps them into desktop coordinates before invoking `nut-js` and before drawing the spotlight overlay.
+- Computer Use is disabled on macOS for now: main does not register the approval IPC handlers, built-in `computer_*` tool execution is rejected in the main process, and renderer tool exposure/UI hides Computer Use. On supported platforms, screen captures record a main-process coordinate context for the captured display (`electron/tools/computer-use/coordinates.ts`), including rendered screen image size, native capture size, display bounds, and DPI scale factor.
 
 #### Skills-Based Research (`settings.skills`)
 - Research capability is now controlled by built-in skills, not direct tool toggles.

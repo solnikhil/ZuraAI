@@ -115,8 +115,30 @@ const PROVIDER_DASHBOARD_URLS: Partial<Record<ProviderKey, string>> = {
   perplexity: 'https://www.perplexity.ai/settings/api',
 }
 
-const CATALOG_BASE_BACKGROUND = '#212121'
-const CATALOG_CARD_BACKGROUND = '#2c2c2c'
+const CATALOG_BASE_BACKGROUND =
+  'linear-gradient(170deg, color-mix(in srgb, var(--theme-surface) 94%, transparent), color-mix(in srgb, var(--theme-background) 90%, transparent))'
+const CATALOG_CARD_BACKGROUND =
+  'color-mix(in srgb, var(--theme-surface) 86%, var(--theme-background) 14%)'
+const STATUS_COLORS = {
+  success: {
+    background: 'color-mix(in srgb, var(--theme-success) 14%, transparent)',
+    color: 'var(--theme-success)',
+  },
+  warning: {
+    background: 'color-mix(in srgb, var(--theme-warning) 14%, transparent)',
+    color: 'var(--theme-warning)',
+  },
+  error: {
+    border: 'color-mix(in srgb, var(--theme-error) 56%, transparent)',
+    background: 'color-mix(in srgb, var(--theme-error) 22%, transparent)',
+    icon: 'var(--theme-error)',
+  },
+  connectivitySuccess: {
+    border: 'color-mix(in srgb, var(--theme-success) 40%, transparent)',
+    background: 'color-mix(in srgb, var(--theme-success) 20%, transparent)',
+    icon: 'var(--theme-success)',
+  },
+} as const
 const DEFAULT_PROVIDER_ENABLED: Record<ProviderKey, boolean> = {
   alibaba: true,
   fireworks: true,
@@ -972,15 +994,15 @@ export function ProviderHubSection({
                           style={{
                             borderColor:
                               connectivityStatus === 'error'
-                                ? 'rgba(244, 63, 94, 0.55)'
+                                ? STATUS_COLORS.error.border
                                 : connectivityStatus === 'success'
-                                  ? 'rgba(34, 197, 94, 0.4)'
+                                  ? STATUS_COLORS.connectivitySuccess.border
                                   : 'var(--theme-border)',
                             background:
                               connectivityStatus === 'error'
-                                ? 'rgba(136, 19, 55, 0.44)'
+                                ? STATUS_COLORS.error.background
                                 : connectivityStatus === 'success'
-                                  ? 'rgba(21, 128, 61, 0.22)'
+                                  ? STATUS_COLORS.connectivitySuccess.background
                                   : 'var(--theme-surface-hover)',
                           }}
                         >
@@ -990,10 +1012,18 @@ export function ProviderHubSection({
                                 <Loader2 size={16} className="mt-0.5 animate-spin" />
                               )}
                               {connectivityStatus === 'success' && (
-                                <CheckCircle2 size={16} className="mt-0.5 text-green-400" />
+                                <CheckCircle2
+                                  size={16}
+                                  className="mt-0.5"
+                                  style={{ color: STATUS_COLORS.connectivitySuccess.icon }}
+                                />
                               )}
                               {connectivityStatus === 'error' && (
-                                <AlertCircle size={16} className="mt-0.5 text-rose-300" />
+                                <AlertCircle
+                                  size={16}
+                                  className="mt-0.5"
+                                  style={{ color: STATUS_COLORS.error.icon }}
+                                />
                               )}
                               {connectivityStatus === 'idle' && (
                                 <Globe size={16} className="mt-0.5 text-muted-foreground" />
@@ -1396,13 +1426,19 @@ function ProviderSection({
               <span
                 className="inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-medium"
                 style={{
-                  background: hasApiKey ? 'rgba(74, 222, 128, 0.10)' : 'rgba(250, 204, 21, 0.10)',
-                  color: hasApiKey ? 'rgb(74, 222, 128)' : 'rgb(250, 204, 21)',
+                  background: hasApiKey
+                    ? STATUS_COLORS.success.background
+                    : STATUS_COLORS.warning.background,
+                  color: hasApiKey ? STATUS_COLORS.success.color : STATUS_COLORS.warning.color,
                 }}
               >
                 <span
                   className="inline-block h-1.5 w-1.5 rounded-full"
-                  style={{ background: hasApiKey ? 'rgb(74, 222, 128)' : 'rgb(250, 204, 21)' }}
+                  style={{
+                    background: hasApiKey
+                      ? STATUS_COLORS.success.color
+                      : STATUS_COLORS.warning.color,
+                  }}
                 />
                 {provider.apiKeyField ? (hasApiKey ? 'Key set' : 'No key') : 'Local'}
               </span>
@@ -1666,13 +1702,19 @@ function SearchApiSection({
                 <span
                   className="inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-medium"
                   style={{
-                    background: enabled ? 'rgba(74, 222, 128, 0.10)' : 'rgba(250, 204, 21, 0.10)',
-                    color: enabled ? 'rgb(74, 222, 128)' : 'rgb(250, 204, 21)',
+                    background: enabled
+                      ? STATUS_COLORS.success.background
+                      : STATUS_COLORS.warning.background,
+                    color: enabled ? STATUS_COLORS.success.color : STATUS_COLORS.warning.color,
                   }}
                 >
                   <span
                     className="inline-block h-1.5 w-1.5 rounded-full"
-                    style={{ background: enabled ? 'rgb(74, 222, 128)' : 'rgb(250, 204, 21)' }}
+                    style={{
+                      background: enabled
+                        ? STATUS_COLORS.success.color
+                        : STATUS_COLORS.warning.color,
+                    }}
                   />
                   {enabled ? 'Key set' : 'No key'}
                 </span>

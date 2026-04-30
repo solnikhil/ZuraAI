@@ -16,6 +16,7 @@ import { SystemPromptSection } from './sections/SystemPromptSection'
 import { ExperimentalSection } from './sections/ExperimentalSection'
 import { computeUsageStats } from './sections/usageMetrics'
 import { normalizeSettingsSection } from '../../constants/settingsSections'
+import { isMacOSRuntime } from '../../utils/platform'
 
 import './Settings.css'
 
@@ -61,7 +62,8 @@ export default function Settings({
   const usageStats = useMemo(() => computeUsageStats(sessions, usageModelCatalog), [sessions, usageModelCatalog])
 
   const normalizedActiveSection = useMemo(() => {
-    return normalizeSettingsSection(activeSection) ?? 'providers'
+    const normalized = normalizeSettingsSection(activeSection) ?? 'providers'
+    return isMacOSRuntime() && normalized === 'overlay' ? 'providers' : normalized
   }, [activeSection])
 
   const handleExportUsageSnapshot = useCallback(() => {
@@ -312,7 +314,7 @@ if (!hasSettingsChanges && !hasMcpChanges) {
               />
             )}
 
-{normalizedActiveSection === 'overlay' && (
+            {!isMacOSRuntime() && normalizedActiveSection === 'overlay' && (
               <OverlaySection
                 overlay={pendingSettings.overlay}
                 onChange={(changes) => handleChange(changes)}

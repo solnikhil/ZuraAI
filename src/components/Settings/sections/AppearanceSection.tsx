@@ -4,7 +4,7 @@
  *
  */
 
-import React, { useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 
 import { Card } from '@/components/ui/card'
 import {
@@ -23,7 +23,6 @@ import {
   getDefaultTheme,
   getThemesByCategory,
 } from '../../../themes/themeRegistry'
-import { applyThemeToDocument } from '../../../themes/themeUtils'
 import { getTitleEligibleModels } from '../../../utils/titleGenerationModels'
 import { getActiveProviderDefinitions, type ActiveProviderId } from '../../../providers'
 
@@ -316,16 +315,6 @@ export function AppearanceSection({
     setBackgroundInput(themeBackgroundColor)
     setForegroundInput(themeForegroundColor)
   }, [themeAccentColor, themeBackgroundColor, themeForegroundColor])
-
-  useLayoutEffect(() => {
-    const theme = getThemeById(settings.activeTheme) || getDefaultTheme()
-    applyThemeToDocument(theme, {
-      customAccent: settings.themeAccent,
-      customBackground: settings.themeBackground,
-      customForeground: settings.themeForeground,
-      contrast: currentContrast < 100 ? currentContrast : undefined,
-    })
-  }, [settings.activeTheme, settings.themeAccent, settings.themeBackground, settings.themeForeground, currentContrast])
 
   const allThemes = useMemo(() => getThemesByCategory('all'), [])
   const hasCustomThemeOverrides =

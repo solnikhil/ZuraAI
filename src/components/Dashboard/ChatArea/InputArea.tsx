@@ -50,6 +50,7 @@ import {
 import { withWebResearchEnabled, withComputerUseEnabled } from '@/skills'
 import { ComposerAttachments } from './ComposerAttachments'
 import McpLibraryDialog from '@/components/mcp/McpLibraryDialog'
+import { isMacOSRuntime } from '@/utils/platform'
 
 export interface InputAreaProps {
   input: string
@@ -118,6 +119,7 @@ export function InputArea({
   const { animationsEnabled } = useMotionPreferences()
   const { frostedPrompt } = settings
 const webResearchEnabled = settings.skills?.web_research?.enabled !== false
+  const computerUseAvailable = !isMacOSRuntime()
   const computerUseEnabled = settings.skills?.computer_use?.enabled === true
   const fastTransition = {
     duration: motionDuration(animationsEnabled, motionDurations.fast),
@@ -487,31 +489,33 @@ const webResearchEnabled = settings.skills?.web_research?.enabled !== false
 
                 {showContextRing && <TokenUsageIndicator input={input} />}
 
-                <TooltipProvider delayDuration={300}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          toggleComputerUseSkill()
-                        }}
-                        className={cn(
-                          'theme-control-btn h-11 w-11 rounded-lg p-1.5 transition-colors',
-                          computerUseEnabled
-                            ? 'text-emerald-500 bg-emerald-500/10'
-                            : 'text-[var(--theme-text-tertiary)] hover:text-[var(--theme-text-secondary)]'
-                        )}
-                        aria-label={computerUseEnabled ? 'Disable Computer Use' : 'Enable Computer Use'}
-                      >
-                        <Monitor size={16} />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="rounded-full">
-                      {computerUseEnabled ? 'Computer Use: On' : 'Computer Use: Off'}
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                {computerUseAvailable && (
+                  <TooltipProvider delayDuration={300}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            toggleComputerUseSkill()
+                          }}
+                          className={cn(
+                            'theme-control-btn h-11 w-11 rounded-lg p-1.5 transition-colors',
+                            computerUseEnabled
+                              ? 'text-emerald-500 bg-emerald-500/10'
+                              : 'text-[var(--theme-text-tertiary)] hover:text-[var(--theme-text-secondary)]'
+                          )}
+                          aria-label={computerUseEnabled ? 'Disable Computer Use' : 'Enable Computer Use'}
+                        >
+                          <Monitor size={16} />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="rounded-full">
+                        {computerUseEnabled ? 'Computer Use: On' : 'Computer Use: Off'}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
               </div>
 
               <div className="flex items-center gap-2">

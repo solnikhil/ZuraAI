@@ -3,7 +3,6 @@ import path from 'path'
 import { showAboutWindow } from './aboutWindow'
 import { createMainWindow, getMainWindow, showMainWindow } from './mainWindow'
 import { showMainWindowAndNavigateSettings } from './navigation'
-import { toggleOverlay } from './overlayWindow'
 
 // Global reference to tray
 let tray: Tray | null = null
@@ -52,12 +51,6 @@ export function createTray(): Tray {
           {
             label: 'Show ZuraAI',
             click: () => showMainWindow(),
-          },
-          {
-            label: 'Toggle Overlay',
-            click: () => {
-              void toggleOverlay()
-            },
           },
           {
             label: 'Settings...',
