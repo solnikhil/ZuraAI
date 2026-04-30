@@ -50,8 +50,8 @@
 /* macOS specific: Add padding for traffic lights */
 
 .app-titlebar--macos {
-    /* Traffic lights are positioned at x: 12, y: 12 with ~78px width */
-    padding-left: 100px;
+    /* Reserve only the native traffic-light zone so the custom controls sit close to it. */
+    padding-left: 86px;
 }
 
 
@@ -165,6 +165,10 @@
 
 .app-titlebar__nav-cluster {
     gap: 2px;
+    margin-right: 2px;
+}
+
+.app-titlebar__controls--sidebar {
     margin-right: 2px;
 }
 
@@ -605,6 +609,36 @@
 .app-titlebar--compact .app-titlebar__tab {
     padding: 4px 10px;
     font-size: 0.72rem;
+}
+
+.app-titlebar--macos .app-titlebar__left {
+    gap: 6px;
+}
+
+.app-titlebar--macos .app-titlebar__controls {
+    align-self: center;
+    min-height: 28px;
+}
+
+.app-titlebar--macos .app-titlebar__controls--sidebar {
+    margin-left: -2px;
+    margin-right: 0;
+}
+
+.app-titlebar--macos .app-titlebar__nav-cluster {
+    gap: 1px;
+    margin-right: 0;
+}
+
+.app-titlebar--macos .app-titlebar__icon-btn--nav {
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+}
+
+.app-titlebar--macos.app-titlebar--compact .app-titlebar__icon-btn--nav {
+    width: 26px;
+    height: 26px;
 }
 
 @keyframes app-titlebar-spin {

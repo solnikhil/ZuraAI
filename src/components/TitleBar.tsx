@@ -124,6 +124,7 @@ export default function TitleBar() {
                 <TitleBarSidebarControls
                     canGoBack={canGoBack}
                     canGoForward={canGoForward}
+                    isMacOS={isMacOS}
                     onBack={goBack}
                     onForward={goForward}
                     hasSidebar={hasSidebar}

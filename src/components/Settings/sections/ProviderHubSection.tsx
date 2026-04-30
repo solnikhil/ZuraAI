@@ -810,6 +810,7 @@ export function ProviderHubSection({
           >
             <ProviderSection
               providers={PROVIDERS}
+              selectedProvider={selectedProvider}
               onCardClick={(provider) => {
                 setSelectedProvider(provider.key)
                 setProviderView('detail')
@@ -1366,6 +1367,7 @@ export function ProviderHubSection({
 
 function ProviderSection({
   providers,
+  selectedProvider,
   onCardClick,
   isProviderEnabled,
   setProviderEnabled,
@@ -1373,6 +1375,7 @@ function ProviderSection({
   modelMap,
 }: {
   providers: ProviderDefinition[]
+  selectedProvider: ProviderKey
   onCardClick: (provider: ProviderDefinition) => void
   isProviderEnabled: (provider: ProviderDefinition) => boolean
   setProviderEnabled: (providerKey: ProviderKey, enabled: boolean) => void
@@ -1387,6 +1390,7 @@ function ProviderSection({
     <div className="flex flex-col gap-px overflow-hidden rounded-lg border border-white/10">
       {providers.map((provider) => {
         const enabled = isProviderEnabled(provider)
+        const isSelected = provider.key === selectedProvider
         const hasApiKey = provider.apiKeyField ? getApiKey(provider).trim().length > 0 : true
         const models = modelMap[provider.key] || []
         const modelCount = models.length
@@ -1403,8 +1407,14 @@ function ProviderSection({
             }}
             role="button"
             tabIndex={0}
-            className="flex items-center gap-3 px-3.5 py-3 text-left transition hover:bg-white/[0.04]"
-            style={{ background: CATALOG_CARD_BACKGROUND }}
+            aria-pressed={isSelected}
+            className={[
+              'provider-hub-provider-row',
+              'flex items-center gap-3 px-3.5 py-3 text-left transition',
+              isSelected ? 'provider-hub-provider-row--selected' : null,
+            ]
+              .filter(Boolean)
+              .join(' ')}
           >
             <div className="flex shrink-0 items-center justify-center">
               <ProviderLogo provider={provider.key} size={20} />
