@@ -71,6 +71,7 @@ export interface ProviderRuntimeSettings {
   maxTokens: number
   streamResponses: boolean
   alibabaApiKey?: string
+  deepseekApiKey?: string
   fireworksApiKey?: string
   groqApiKey?: string
   ollamaUrl?: string

@@ -2,6 +2,7 @@
 
 type SecureStorageKey =
     | 'alibabaApiKey'
+    | 'deepseekApiKey'
     | 'fireworksApiKey'
     | 'groqApiKey'
     | 'openRouterApiKey'
@@ -11,6 +12,7 @@ type SecureStorageKey =
 
 const SECURE_API_KEY_NAMES: SecureStorageKey[] = [
     'alibabaApiKey',
+    'deepseekApiKey',
     'fireworksApiKey',
     'groqApiKey',
     'openRouterApiKey',
@@ -23,6 +25,7 @@ export const SECURE_API_KEY_PRESENT_VALUE = '__zura_secure_key_present__'
 
 type SecureApiKeyValues = {
     alibabaApiKey: string
+    deepseekApiKey: string
     fireworksApiKey: string
     groqApiKey: string
     openRouterApiKey: string
@@ -34,6 +37,7 @@ type SecureApiKeyValues = {
 function defaultSecureApiKeys(): SecureApiKeyValues {
     return {
         alibabaApiKey: '',
+        deepseekApiKey: '',
         fireworksApiKey: '',
         groqApiKey: '',
         openRouterApiKey: '',
@@ -109,16 +113,18 @@ export async function resolveApiKeyFromSecureStorage(
 
 export async function resolveProviderApiKeysForSettings<TSettings extends {
     alibabaApiKey?: string
+    deepseekApiKey?: string
     fireworksApiKey?: string
     groqApiKey?: string
     openRouterApiKey?: string
     perplexityApiKey?: string
 }>(
     settings: TSettings,
-    provider: 'alibaba' | 'fireworks' | 'groq' | 'openrouter' | 'perplexity' | 'ollama'
+    provider: 'alibaba' | 'deepseek' | 'fireworks' | 'groq' | 'openrouter' | 'perplexity' | 'ollama'
 ): Promise<TSettings> {
     const providerKeyMap = {
         alibaba: 'alibabaApiKey',
+        deepseek: 'deepseekApiKey',
         fireworks: 'fireworksApiKey',
         groq: 'groqApiKey',
         openrouter: 'openRouterApiKey',

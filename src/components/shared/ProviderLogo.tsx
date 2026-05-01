@@ -18,6 +18,7 @@ export type ProviderType =
   | 'groq'
   | 'minimax'
   | 'alibaba'
+  | 'deepseek'
   | 'fireworks'
 
 /**
@@ -61,12 +62,10 @@ const PROVIDER_FALLBACK_ICONS: Record<string, React.ComponentType<{ size?: numbe
   ollama: Database,
   minimax: Brain,
   alibaba: Cloud,
+  deepseek: Brain,
   fireworks: Sparkles,
 }
 
-/**
- * Provider colors for fallback icons
- */
 const PROVIDER_COLORS: Record<string, string> = {
   gemini: '#4dabf7',
   openrouter: '#a855f7',
@@ -75,6 +74,7 @@ const PROVIDER_COLORS: Record<string, string> = {
   ollama: '#339af0',
   minimax: '#6366f1',
   alibaba: '#ff6a00',
+  deepseek: '#4d6bfe',
   fireworks: '#ef4444',
 }
 
@@ -91,6 +91,7 @@ const PROVIDER_LOGO_ADJUSTMENTS: Record<
   groq: { scale: 1.22 },
   fireworks: { scale: 0.94, translateY: 0.25 },
   alibaba: { scale: 1.08 },
+  deepseek: { scale: 0.92 },
   ollama: { scale: 1.04, translateY: 0.25 },
 }
 
@@ -230,6 +231,7 @@ export function isKnownProvider(provider: string): provider is ProviderType {
     'groq',
     'minimax',
     'alibaba',
+    'deepseek',
     'fireworks',
   ].includes(provider.toLowerCase())
 }

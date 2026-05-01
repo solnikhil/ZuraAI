@@ -46,6 +46,7 @@ import { ProviderLogo, SkillLogo } from '@/components/shared'
 import type { ConfiguredModel, TavilySearchDepthPreference } from '@/contexts/SettingsConfigContext'
 import { CreateCustomModelDialog } from './CreateCustomModelDialog'
 import { AlibabaModelSearchDialog } from './AlibabaModelSearchDialog'
+import { DeepseekModelSearchDialog } from './DeepseekModelSearchDialog'
 import { FireworksModelSearchDialog } from './FireworksModelSearchDialog'
 import { OpenRouterModelSearchDialog } from './OpenRouterModelSearchDialog'
 import { PerplexityModelSearchDialog } from './PerplexityModelSearchDialog'
@@ -68,7 +69,7 @@ interface ProviderDefinition {
   description: string
   apiKeyField?: keyof Pick<
     ProviderHubSectionProps,
-    'alibabaApiKey' | 'fireworksApiKey' | 'groqApiKey' | 'openRouterApiKey' | 'perplexityApiKey'
+    'alibabaApiKey' | 'deepseekApiKey' | 'fireworksApiKey' | 'groqApiKey' | 'openRouterApiKey' | 'perplexityApiKey'
   >
 }
 
@@ -78,28 +79,32 @@ type ProviderModelListField =
   | 'groqModels'
   | 'alibabaModels'
   | 'fireworksModels'
+  | 'deepseekModels'
   | 'ollamaModels'
 
 const PROVIDERS: ProviderDefinition[] = getActiveProviderDefinitions().map((provider) => ({
   key: provider.id as ProviderKey,
   name: provider.label,
   description: provider.description,
-  apiKeyField:
-    provider.id === 'openrouter'
-      ? 'openRouterApiKey'
-      : provider.id === 'groq'
-        ? 'groqApiKey'
-        : provider.id === 'alibaba'
-          ? 'alibabaApiKey'
-          : provider.id === 'fireworks'
-            ? 'fireworksApiKey'
-            : provider.id === 'perplexity'
-              ? 'perplexityApiKey'
-              : undefined,
+apiKeyField:
+     provider.id === 'openrouter'
+       ? 'openRouterApiKey'
+       : provider.id === 'groq'
+         ? 'groqApiKey'
+         : provider.id === 'alibaba'
+           ? 'alibabaApiKey'
+           : provider.id === 'fireworks'
+             ? 'fireworksApiKey'
+             : provider.id === 'deepseek'
+               ? 'deepseekApiKey'
+               : provider.id === 'perplexity'
+                 ? 'perplexityApiKey'
+                 : undefined,
 }))
 
 const PROVIDER_ENDPOINTS: Record<ProviderKey, string> = {
   alibaba: getProviderEndpoint('alibaba', 'baseUrl') || '',
+  deepseek: getProviderEndpoint('deepseek', 'baseUrl') || '',
   fireworks: getProviderEndpoint('fireworks', 'baseUrl') || '',
   groq: getProviderEndpoint('groq', 'baseUrl') || '',
   ollama: getProviderEndpoint('ollama', 'baseUrl') || DEFAULT_OLLAMA_URL,
@@ -109,6 +114,7 @@ const PROVIDER_ENDPOINTS: Record<ProviderKey, string> = {
 
 const PROVIDER_DASHBOARD_URLS: Partial<Record<ProviderKey, string>> = {
   alibaba: 'https://dashscope.console.aliyun.com/',
+  deepseek: 'https://platform.deepseek.com/api_keys',
   fireworks: 'https://fireworks.ai/account/api-keys',
   groq: 'https://console.groq.com/keys',
   openrouter: 'https://openrouter.ai/settings/keys',
@@ -140,6 +146,7 @@ const STATUS_COLORS = {
 } as const
 const DEFAULT_PROVIDER_ENABLED: Record<ProviderKey, boolean> = {
   alibaba: true,
+  deepseek: true,
   fireworks: true,
   groq: true,
   ollama: true,
@@ -153,6 +160,7 @@ const PROVIDER_MODEL_LIST_FIELD: Record<ProviderKey, ProviderModelListField> = {
   groq: 'groqModels',
   alibaba: 'alibabaModels',
   fireworks: 'fireworksModels',
+  deepseek: 'deepseekModels',
   ollama: 'ollamaModels',
 }
 
@@ -201,6 +209,7 @@ interface ModelBasic {
 
 export interface ProviderHubSectionProps {
   alibabaApiKey: string
+  deepseekApiKey: string
   fireworksApiKey: string
   groqApiKey: string
   openRouterApiKey: string
@@ -216,6 +225,7 @@ export interface ProviderHubSectionProps {
   providerEnabled?: ProviderEnabledMap
   configuredModels: ConfiguredModel[]
   alibabaModels: ModelBasic[]
+  deepseekModels: ModelBasic[]
   fireworksModels: ModelBasic[]
   groqModels: ModelBasic[]
   ollamaModels: ModelBasic[]
@@ -227,6 +237,7 @@ export interface ProviderHubSectionProps {
   onChange: (
     changes: Partial<{
       alibabaApiKey: string
+      deepseekApiKey: string
       fireworksApiKey: string
       groqApiKey: string
       openRouterApiKey: string
@@ -239,6 +250,7 @@ export interface ProviderHubSectionProps {
       ollamaUrl: string
       configuredModels: ConfiguredModel[]
       alibabaModels: ConfiguredModel[]
+      deepseekModels: ConfiguredModel[]
       fireworksModels: ConfiguredModel[]
       groqModels: ConfiguredModel[]
       ollamaModels: ConfiguredModel[]
@@ -257,6 +269,7 @@ type ProviderSettingsUpdate = Partial<Pick<
   | 'perplexityModels'
   | 'groqModels'
   | 'alibabaModels'
+  | 'deepseekModels'
   | 'fireworksModels'
   | 'ollamaModels'
   | 'aiModel'
@@ -270,6 +283,7 @@ export function ProviderHubSection({
   perplexityApiKey,
   groqApiKey,
   alibabaApiKey,
+  deepseekApiKey,
   fireworksApiKey,
   tavilyApiKey,
   onlineCompilerApiKey,
@@ -283,6 +297,7 @@ export function ProviderHubSection({
   perplexityModels,
   groqModels,
   alibabaModels,
+  deepseekModels,
   fireworksModels,
   ollamaModels,
   initialProvider,
@@ -306,6 +321,7 @@ export function ProviderHubSection({
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [alibabaSearchDialogOpen, setAlibabaSearchDialogOpen] = useState(false)
+  const [deepseekSearchDialogOpen, setDeepseekSearchDialogOpen] = useState(false)
   const [fireworksSearchDialogOpen, setFireworksSearchDialogOpen] = useState(false)
   const [perplexitySearchDialogOpen, setPerplexitySearchDialogOpen] = useState(false)
   const [modelToEdit, setModelToEdit] = useState<{
@@ -363,6 +379,7 @@ export function ProviderHubSection({
     perplexity: perplexityModels,
     groq: groqModels,
     alibaba: alibabaModels,
+    deepseek: deepseekModels,
     fireworks: fireworksModels,
     ollama: ollamaModels,
   }
@@ -482,6 +499,7 @@ export function ProviderHubSection({
     if (provider.apiKeyField === 'perplexityApiKey') return perplexityApiKey ?? ''
     if (provider.apiKeyField === 'groqApiKey') return groqApiKey ?? ''
     if (provider.apiKeyField === 'alibabaApiKey') return alibabaApiKey ?? ''
+    if (provider.apiKeyField === 'deepseekApiKey') return deepseekApiKey ?? ''
     if (provider.apiKeyField === 'fireworksApiKey') return fireworksApiKey ?? ''
     return ''
   }
@@ -493,6 +511,7 @@ export function ProviderHubSection({
       groq: providerEnabled?.groq !== false,
       ollama: providerEnabled?.ollama !== false,
       alibaba: providerEnabled?.alibaba !== false,
+      deepseek: providerEnabled?.deepseek !== false,
       fireworks: providerEnabled?.fireworks !== false,
     }
   }, [
@@ -501,6 +520,7 @@ export function ProviderHubSection({
     providerEnabled?.groq,
     providerEnabled?.ollama,
     providerEnabled?.alibaba,
+    providerEnabled?.deepseek,
     providerEnabled?.fireworks,
   ])
 
@@ -513,6 +533,7 @@ export function ProviderHubSection({
     if (provider.apiKeyField === 'perplexityApiKey') onChange({ perplexityApiKey: value })
     if (provider.apiKeyField === 'groqApiKey') onChange({ groqApiKey: value })
     if (provider.apiKeyField === 'alibabaApiKey') onChange({ alibabaApiKey: value })
+    if (provider.apiKeyField === 'deepseekApiKey') onChange({ deepseekApiKey: value })
     if (provider.apiKeyField === 'fireworksApiKey') onChange({ fireworksApiKey: value })
   }
 
@@ -659,6 +680,10 @@ export function ProviderHubSection({
     }
     if (provider === 'alibaba') {
       setAlibabaSearchDialogOpen(true)
+      return
+    }
+    if (provider === 'deepseek') {
+      setDeepseekSearchDialogOpen(true)
     }
   }
 
@@ -735,6 +760,14 @@ export function ProviderHubSection({
           selectedKey,
           connectivityModel,
           'Fireworks check failed',
+          controller.signal
+        )
+      } else if (selectedProviderDef.key === 'deepseek') {
+        await runChatCompletionsConnectivityCheck(
+          endpoint,
+          selectedKey,
+          connectivityModel,
+          'DeepSeek check failed',
           controller.signal
         )
       } else {
@@ -1146,6 +1179,7 @@ export function ProviderHubSection({
                 {(selectedProviderDef.key === 'openrouter' ||
                   selectedProviderDef.key === 'fireworks' ||
                   selectedProviderDef.key === 'alibaba' ||
+                  selectedProviderDef.key === 'deepseek' ||
                   selectedProviderDef.key === 'perplexity') && (
                   <Button
                     variant="outline"
@@ -1358,6 +1392,16 @@ export function ProviderHubSection({
           onAddModel={(model) => addCustomModel(model, 'perplexity')}
           apiKey={perplexityApiKey}
           existingModelCodes={perplexityModels.map((m) => m.code)}
+        />
+      )}
+
+      {selectedProviderDef.key === 'deepseek' && (
+        <DeepseekModelSearchDialog
+          open={deepseekSearchDialogOpen}
+          onOpenChange={setDeepseekSearchDialogOpen}
+          onAddModel={(model) => addCustomModel(model, 'deepseek')}
+          apiKey={deepseekApiKey}
+          existingModelCodes={deepseekModels.map((m) => m.code)}
         />
       )}
     </div>

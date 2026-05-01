@@ -17,6 +17,7 @@ import ModelSelector from '../ModelSelector/index'
 import { useSettings } from '../../../contexts/SettingsContext'
 import {
   canAnalyzeImageAttachments,
+  isTextExtractableAttachment,
   mergeAttachedFiles,
   processFiles,
   providerSupportsVisionUploads,
@@ -163,9 +164,21 @@ export function InputArea({
     (incoming: AttachedFile[]) => {
       let acceptedIncoming = incoming
 
+      const unsupportedDocuments = acceptedIncoming.filter(
+        (file) => file.type !== 'image' && !isTextExtractableAttachment(file)
+      )
+      if (unsupportedDocuments.length > 0) {
+        onError?.(
+          `These attachments are not supported yet: ${unsupportedDocuments
+            .map((file) => file.name)
+            .join(', ')}. Use text-based files like .txt, .md, .csv, .json, or .xml.`
+        )
+        acceptedIncoming = acceptedIncoming.filter((file) => !unsupportedDocuments.includes(file))
+      }
+
       if (!canUseImageUploads) {
-        const nonImageFiles = incoming.filter((file) => file.type !== 'image')
-        if (nonImageFiles.length !== incoming.length) {
+        const nonImageFiles = acceptedIncoming.filter((file) => file.type !== 'image')
+        if (nonImageFiles.length !== acceptedIncoming.length) {
           onError?.(
             visionUploadsAvailable
               ? 'Select a vision-capable model to attach images.'
@@ -521,7 +534,7 @@ export function InputArea({
                     ref={fileInputRef}
                     onChange={handleFileSelect}
                     multiple
-                    accept="image/*,.pdf,.txt,.doc,.docx,.csv,.json,.xml"
+                    accept="image/*,.txt,.md,.markdown,.csv,.tsv,.json,.xml,.yaml,.yml"
                     className="hidden"
                   />
 
@@ -763,7 +776,7 @@ export function InputArea({
                   ref={fileInputRef}
                   onChange={handleFileSelect}
                   multiple
-                  accept="image/*,.pdf,.txt,.doc,.docx,.csv,.json,.xml"
+                  accept="image/*,.txt,.md,.markdown,.csv,.tsv,.json,.xml,.yaml,.yml"
                   className="hidden"
                 />
 

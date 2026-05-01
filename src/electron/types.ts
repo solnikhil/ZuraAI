@@ -65,6 +65,7 @@ export type SecureStorageKey =
   | 'groqApiKey'
   | 'tavilyApiKey'
   | 'alibabaApiKey'
+  | 'deepseekApiKey'
   | 'fireworksApiKey'
   | 'onlineCompilerApiKey'
 

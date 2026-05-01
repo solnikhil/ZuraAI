@@ -16,6 +16,7 @@ interface SecureData {
   groqApiKey?: string
   tavilyApiKey?: string
   alibabaApiKey?: string
+  deepseekApiKey?: string
   fireworksApiKey?: string
   [key: string]: string | undefined
 }

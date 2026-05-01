@@ -129,11 +129,13 @@ export function useToolCalling() {
                     ? settings.alibabaModels
                     : provider === 'fireworks'
                         ? settings.fireworksModels
-                        : provider === 'ollama'
-                            ? settings.ollamaModels
-                            : provider === 'perplexity'
-                                ? settings.perplexityModels
-                                : []
+                        : provider === 'deepseek'
+                            ? settings.deepseekModels ?? []
+                            : provider === 'ollama'
+                                ? settings.ollamaModels
+                                : provider === 'perplexity'
+                                    ? settings.perplexityModels
+                                    : []
 
         const selectedModel = providerModels.find((model) => {
             const candidateCode = normalizeSelectedModelCode(provider, model.code)

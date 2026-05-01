@@ -41,9 +41,9 @@ export const UI_SETTING_KEYS: (keyof SettingsUI)[] = [
 const SECRET_SETTING_KEYS: Array<
   keyof Pick<
     Settings,
-    'openRouterApiKey' | 'perplexityApiKey' | 'groqApiKey' | 'tavilyApiKey' | 'alibabaApiKey' | 'fireworksApiKey'
+    'openRouterApiKey' | 'perplexityApiKey' | 'groqApiKey' | 'tavilyApiKey' | 'alibabaApiKey' | 'fireworksApiKey' | 'deepseekApiKey'
   >
-> = ['openRouterApiKey', 'perplexityApiKey', 'groqApiKey', 'tavilyApiKey', 'alibabaApiKey', 'fireworksApiKey']
+> = ['openRouterApiKey', 'perplexityApiKey', 'groqApiKey', 'tavilyApiKey', 'alibabaApiKey', 'fireworksApiKey', 'deepseekApiKey']
 
 const PROVIDER_IDS = getProviderDefinitions().map((provider) => provider.id)
 const LEGACY_FIREWORKS_MODEL_ID_MAP: Record<string, string> = {
@@ -275,6 +275,12 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   parsed.fireworksModels = shouldClearLegacyFireworksSeededModels(normalizedFireworksModels)
     ? []
     : normalizedFireworksModels
+
+  if (!parsed.deepseekApiKey) parsed.deepseekApiKey = defaultSettings.deepseekApiKey
+  parsed.deepseekModels = normalizeProviderModels(
+    parsed.deepseekModels,
+    defaultSettings.deepseekModels
+  )
 
   const deprecatedGroqModelMap: Record<string, string> = {
     'llama-4-scout': 'meta-llama/llama-4-scout-17b-16e-instruct',
@@ -520,6 +526,7 @@ export function getInitialConfigSettings(settings: Settings): Partial<SettingsCo
     webSearchIncludeImages: settings.webSearchIncludeImages,
     alibabaApiKey: settings.alibabaApiKey,
     fireworksApiKey: settings.fireworksApiKey,
+    deepseekApiKey: settings.deepseekApiKey,
     aiModel: settings.aiModel,
     onlineCompilerApiKey: settings.onlineCompilerApiKey,
     modelProvider: settings.modelProvider,
@@ -531,6 +538,7 @@ export function getInitialConfigSettings(settings: Settings): Partial<SettingsCo
     groqModels: settings.groqModels,
     alibabaModels: settings.alibabaModels,
     fireworksModels: settings.fireworksModels,
+    deepseekModels: settings.deepseekModels,
     temperature: settings.temperature,
     maxTokens: settings.maxTokens,
     systemPrompt: settings.systemPrompt,

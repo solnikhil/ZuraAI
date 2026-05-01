@@ -235,6 +235,7 @@ export function AppearanceSection({
   const titleProviderModelMap = useMemo(
     () => ({
       alibaba: settings.alibabaModels || [],
+      deepseek: settings.deepseekModels || [],
       fireworks: settings.fireworksModels || [],
       groq: settings.groqModels || [],
       ollama: settings.ollamaModels || [],
@@ -243,6 +244,7 @@ export function AppearanceSection({
     }),
     [
       settings.alibabaModels,
+      settings.deepseekModels,
       settings.fireworksModels,
       settings.groqModels,
       settings.ollamaModels,

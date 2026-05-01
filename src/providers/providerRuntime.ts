@@ -4,6 +4,11 @@ import {
   type AlibabaResponse,
 } from '../services/alibaba'
 import {
+  generateDeepSeekCompletion,
+  streamDeepSeekCompletion,
+  type DeepSeekResponse,
+} from '../services/deepseek'
+import {
   generateFireworksCompletion,
   streamFireworksCompletion,
   type FireworksResponse,
@@ -94,11 +99,13 @@ type OpenAiCompatibleResponse =
   | AlibabaResponse
   | PerplexityResponse
   | FireworksResponse
+  | DeepSeekResponse
 
 type TitleGenerationSettings = Partial<
   Pick<
     StreamingSettings,
     | 'alibabaApiKey'
+    | 'deepseekApiKey'
     | 'fireworksApiKey'
     | 'groqApiKey'
     | 'ollamaUrl'
@@ -333,6 +340,9 @@ function getProviderCredential(
     case 'alibaba':
       if (!settings.alibabaApiKey) throw new Error('Alibaba API Key is missing')
       return settings.alibabaApiKey
+    case 'deepseek':
+      if (!settings.deepseekApiKey) throw new Error('DeepSeek API Key is missing')
+      return settings.deepseekApiKey
     case 'fireworks':
       if (!settings.fireworksApiKey) throw new Error('Fireworks API Key is missing')
       return settings.fireworksApiKey
@@ -391,6 +401,15 @@ export async function generateProviderTitleText(
     }
     case 'alibaba': {
       const result = await generateAlibabaCompletion(
+        getProviderCredential(settings, provider),
+        normalizedModel,
+        messages,
+        { temperature: 0.3, max_tokens: 20 }
+      )
+      return result.choices?.[0]?.message?.content || ''
+    }
+    case 'deepseek': {
+      const result = await generateDeepSeekCompletion(
         getProviderCredential(settings, provider),
         normalizedModel,
         messages,
@@ -538,6 +557,46 @@ export async function* streamProviderEvents(
       }
 
       for await (const chunk of streamAlibabaCompletion(apiKey, normalizedModel, request.messages, {
+        temperature: request.temperature,
+        max_tokens: request.maxTokens,
+        tools: request.tools || undefined,
+        toolChoice: request.toolChoice,
+        signal: request.signal,
+        enableThinking: request.enableThinking,
+      })) {
+        const reasoningDelta = chunk.choices?.[0]?.delta?.reasoning_content
+        if (reasoningDelta) {
+          yield { type: 'reasoning-delta', delta: reasoningDelta }
+        }
+
+        const delta = chunk.choices?.[0]?.delta?.content || ''
+        if (delta) yield { type: 'text-delta', delta }
+        if (chunk.choices?.[0]?.delta?.tool_calls?.length) {
+          yield { type: 'tool-call-delta', delta: chunk.choices[0].delta.tool_calls }
+        }
+        if (chunk.usage) yield { type: 'usage', usage: normalizeUsage(chunk.usage) }
+        if (chunk.choices?.[0]?.finish_reason) {
+          yield { type: 'finish', finishReason: chunk.choices[0].finish_reason }
+        }
+      }
+      return
+    }
+    case 'deepseek': {
+      const apiKey = getProviderCredential(settings, 'deepseek')
+      if (request.streamResponses === false) {
+        const response = await generateDeepSeekCompletion(apiKey, normalizedModel, request.messages, {
+          temperature: request.temperature,
+          max_tokens: request.maxTokens,
+          tools: request.tools || undefined,
+          toolChoice: request.toolChoice,
+          signal: request.signal,
+          enableThinking: request.enableThinking,
+        })
+        yield* emitOpenAiCompatibleResponse(response, { includeReasoning: true, reasoningContentField: 'reasoning_content' })
+        return
+      }
+
+      for await (const chunk of streamDeepSeekCompletion(apiKey, normalizedModel, request.messages, {
         temperature: request.temperature,
         max_tokens: request.maxTokens,
         tools: request.tools || undefined,

@@ -80,6 +80,7 @@ export interface SettingsConfig {
   webSearchIncludeImages: boolean
   alibabaApiKey: string
   fireworksApiKey: string
+  deepseekApiKey: string
   onlineCompilerApiKey: string
 
   // Model settings
@@ -93,6 +94,7 @@ export interface SettingsConfig {
   groqModels: ConfiguredModel[]
   alibabaModels: ConfiguredModel[]
   fireworksModels: ConfiguredModel[]
+  deepseekModels: ConfiguredModel[]
 
   // AI parameters
   temperature: number
@@ -153,6 +155,7 @@ export const defaultSettingsConfig: SettingsConfig = {
   webSearchIncludeImages: true,
   alibabaApiKey: '',
   fireworksApiKey: '',
+  deepseekApiKey: '',
 
   onlineCompilerApiKey: '',
   // Model settings
@@ -160,6 +163,7 @@ export const defaultSettingsConfig: SettingsConfig = {
   modelProvider: 'openrouter',
   providerEnabled: {
     alibaba: true,
+    deepseek: true,
     fireworks: true,
     groq: true,
     ollama: true,
@@ -248,6 +252,10 @@ export const defaultSettingsConfig: SettingsConfig = {
   ],
   alibabaModels: [],
   fireworksModels: [],
+  deepseekModels: [
+    { code: 'deepseek-v4-flash', displayName: 'DeepSeek V4 Flash', enabled: true, maxContext: 1048576, supportsToolCall: true, modelType: 'chat' },
+    { code: 'deepseek-v4-pro', displayName: 'DeepSeek V4 Pro', enabled: true, maxContext: 1048576, supportsToolCall: true, supportsDeepThinking: true, modelType: 'reasoning' },
+  ],
 
   // AI parameters
   temperature: 0.7,
@@ -346,6 +354,7 @@ export function SettingsConfigProvider({
         // Migrate existing keys from localStorage if needed
         await migrateApiKeysFromLocalStorage({
           alibabaApiKey: settingsConfig.alibabaApiKey,
+          deepseekApiKey: settingsConfig.deepseekApiKey,
           fireworksApiKey: settingsConfig.fireworksApiKey,
           groqApiKey: settingsConfig.groqApiKey,
           openRouterApiKey: settingsConfig.openRouterApiKey,
@@ -357,6 +366,7 @@ export function SettingsConfigProvider({
 
         const hasSecureKeys =
           secureKeys.alibabaApiKey ||
+          secureKeys.deepseekApiKey ||
           secureKeys.fireworksApiKey ||
           secureKeys.groqApiKey ||
           secureKeys.openRouterApiKey ||
@@ -368,6 +378,7 @@ export function SettingsConfigProvider({
           setSettingsConfig((prev) => ({
             ...prev,
             alibabaApiKey: secureKeys.alibabaApiKey || prev.alibabaApiKey,
+            deepseekApiKey: secureKeys.deepseekApiKey || prev.deepseekApiKey,
             fireworksApiKey: secureKeys.fireworksApiKey || prev.fireworksApiKey,
             groqApiKey: secureKeys.groqApiKey || prev.groqApiKey,
             openRouterApiKey: secureKeys.openRouterApiKey || prev.openRouterApiKey,

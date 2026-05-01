@@ -455,7 +455,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Secure storage: `secure-storage.json` (`electron/secureStorage.ts`)
   - Encryption: `safeStorage` is required for reads/writes; the app no longer falls back to plaintext persistence when OS-backed encryption is unavailable
   - Legacy plaintext secret entries from older builds are only migrated forward into encrypted values when `safeStorage` is available
-  - Stored API keys: `openRouterApiKey`, `perplexityApiKey`, `groqApiKey`, `alibabaApiKey`, `fireworksApiKey`, `tavilyApiKey`
+  - Stored API keys: `openRouterApiKey`, `perplexityApiKey`, `groqApiKey`, `alibabaApiKey`, `fireworksApiKey`, `deepseekApiKey`, `tavilyApiKey`
   - Also stores MCP secret entries under deterministic keys like `mcp.server.<serverId>.(env|header|token).<name>`
   - The preload presence bridge (`secure-storage:get-presence`) reads only allowlisted key existence without decrypting values; the batch read bridge (`secure-storage:get-all`) remains restricted to the provider-key allowlist for explicit full hydration paths.
 - No dedicated performance metrics file is persisted by the app.
@@ -499,7 +499,8 @@ There is currently no built-in trusted browser-testing workflow; any replacement
 - OpenRouter: `src/services/openrouter.ts` (OpenAI-compatible tool calling)
 - Groq: `src/services/groq.ts` (OpenAI-compatible)
 - Alibaba Cloud: `src/services/alibaba.ts` (DashScope/Tongyi Qwen; OpenAI-compatible at dashscope-intl.aliyuncs.com/compatible-mode/v1; thinking models stream `reasoning_content` deltas with `enable_thinking: true` request param)
-- Fireworks: `src/services/fireworks.ts` (OpenAI-compatible inference) plus `src/services/fireworksModels.ts` for the serverless model catalog used by Provider Hub
+- DeepSeek: `src/services/deepseek.ts` (OpenAI-compatible at api.deepseek.com; supports streaming, tool calling, thinking mode via `reasoning_content`, JSON output, and model catalog via `/models`; balance check via `/user/balance`)
+- Fireworks: `src/services/fireworks.ts` (OpenAI-compatible inference) plus `src/services/fireworksModels.ts` for the serverless model catalog
 - Ollama: `src/services/ollama.ts` (local server; tools supported for compatible models)
 - Perplexity: `src/services/perplexity.ts` (native web/research; excluded from external tools)
 - Chat title generation: `src/services/titleGenerator.ts` (uses `settings.titleModelProvider`, `settings.titleModel`, `settings.titleGenerationPrompt`)

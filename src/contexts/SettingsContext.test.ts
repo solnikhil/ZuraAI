@@ -132,6 +132,22 @@ describe('SettingsContext Provider Integration', () => {
       expect(defaultSettingsConfig.alibabaModels).toEqual([])
     })
 
+    it('defaults DeepSeek models to the documented v4 model ids', async () => {
+      const { defaultSettingsConfig } = await import('./SettingsConfigContext')
+      expect(defaultSettingsConfig.deepseekModels).toEqual([
+        expect.objectContaining({
+          code: 'deepseek-v4-flash',
+          displayName: 'DeepSeek V4 Flash',
+          modelType: 'chat',
+        }),
+        expect.objectContaining({
+          code: 'deepseek-v4-pro',
+          displayName: 'DeepSeek V4 Pro',
+          modelType: 'reasoning',
+        }),
+      ])
+    })
+
     it('migrates legacy Fireworks turbo model ids to the supported router id', () => {
       expect(
         migrateConfiguredModelCode({

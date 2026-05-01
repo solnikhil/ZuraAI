@@ -290,6 +290,7 @@ if (!hasSettingsChanges && !hasMcpChanges) {
                 initialManageMode={settingsSectionParams?.manageMode}
                 onParamsConsumed={clearParams}
                 alibabaApiKey={pendingSettings.alibabaApiKey}
+                deepseekApiKey={pendingSettings.deepseekApiKey}
                 fireworksApiKey={pendingSettings.fireworksApiKey}
                 groqApiKey={pendingSettings.groqApiKey}
                 openRouterApiKey={pendingSettings.openRouterApiKey}
@@ -305,6 +306,7 @@ if (!hasSettingsChanges && !hasMcpChanges) {
                 providerEnabled={pendingSettings.providerEnabled}
                 configuredModels={pendingSettings.configuredModels}
                 alibabaModels={pendingSettings.alibabaModels}
+                deepseekModels={pendingSettings.deepseekModels}
                 fireworksModels={pendingSettings.fireworksModels}
                 groqModels={pendingSettings.groqModels}
                 ollamaModels={pendingSettings.ollamaModels}
