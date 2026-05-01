@@ -309,7 +309,7 @@ export function InputArea({
   const placeholder = isDragging
     ? 'Drop files here...'
     : showCompactLanding
-      ? 'Ask anything'
+      ? 'Type here...'
       : 'Enter your message to continue...'
 
   const insertMcpTextIntoComposer = React.useCallback(
@@ -495,7 +495,7 @@ export function InputArea({
                     value={input}
                     placeholder={placeholder}
                     className={cn(
-                      'w-full min-h-[28px] overflow-hidden rounded-xl border-none bg-transparent px-2 py-2 text-[1.15rem] leading-[1.35] text-[var(--theme-text-primary)] placeholder:text-[var(--theme-text-muted)] resize-none focus-visible:ring-0 shadow-none transition-colors duration-200 md:text-[1.2rem]'
+                      'w-full h-11 min-h-[44px] overflow-hidden rounded-xl border-none bg-transparent px-2 py-[10px] text-[1.1rem] leading-[1.15] text-[var(--theme-text-primary)] placeholder:text-[var(--theme-text-muted)] resize-none focus-visible:ring-0 shadow-none transition-colors duration-200 md:text-[1.15rem]'
                     )}
                     onFocus={() => {
                       onFocusChange?.(true)

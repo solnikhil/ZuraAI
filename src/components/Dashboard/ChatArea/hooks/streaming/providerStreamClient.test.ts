@@ -100,6 +100,8 @@ describe('createProviderStreamClient', () => {
           prompt_tokens: 10,
           completion_tokens: 4,
           total_tokens: 14,
+          prompt_cache_tokens: 6,
+          completion_cache_tokens: 1,
           completion_tokens_details: { reasoning_tokens: 2 },
         },
       }
@@ -172,6 +174,8 @@ describe('createProviderStreamClient', () => {
           outputTokens: 4,
           totalTokens: 14,
           thinkingTokens: 2,
+          cachedInputTokens: 6,
+          cachedOutputTokens: 1,
         },
       },
       { type: 'finish', finishReason: 'tool_calls' },

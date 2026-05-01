@@ -18,7 +18,6 @@ export default function TitleBar() {
     const { sessions, currentSessionId } = useChatHistory()
     const {
         dashboardView,
-        setDashboardView,
         activeSettingsSection,
         hasUnsavedSettings,
         sidebarCollapsed,
@@ -147,9 +146,6 @@ export default function TitleBar() {
                     isMacOS={isMacOS}
                     isMaximized={isMaximized}
                     setIsMaximized={setIsMaximized}
-                    hasUnsavedSettings={hasUnsavedSettings}
-                    isSettingsView={isSettingsView}
-                    setDashboardView={setDashboardView}
                 />
             </div>
         </div>

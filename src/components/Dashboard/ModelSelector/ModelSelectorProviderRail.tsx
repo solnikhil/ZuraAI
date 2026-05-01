@@ -31,7 +31,7 @@ export const ModelSelectorProviderRail = memo(function ModelSelectorProviderRail
   return (
     <div
       data-sidebar
-      className="relative z-10 flex h-full flex-col overflow-y-auto bg-transparent"
+      className="relative z-10 flex h-full flex-col gap-1 overflow-y-auto bg-transparent px-1.5 py-2"
     >
       <ProviderRailItem
         isActive={activeTabKey === 'favorites'}
@@ -84,13 +84,15 @@ const ProviderRailItem = memo(function ProviderRailItem({
         e.preventDefault()
       }}
       className={cn(
-        'theme-hover-surface relative flex w-full cursor-pointer items-center justify-center rounded-[10px] px-3 py-3.5 text-sm font-medium transition-colors',
+        'theme-hover-surface relative flex w-full cursor-pointer items-center justify-center rounded-[10px] px-2 py-2.5 text-sm font-medium transition-colors',
         isActive ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'
       )}
       data-active={isActive ? 'true' : undefined}
     >
       {icon}
-      {isActive && <div className="absolute left-0 top-0 bottom-0 w-1 rounded-r bg-primary" />}
+      {isActive && (
+        <div className="absolute left-1 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-primary/80" />
+      )}
     </button>
   )
 })

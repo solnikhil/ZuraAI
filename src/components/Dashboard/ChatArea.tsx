@@ -297,7 +297,7 @@ export default function ChatArea() {
               textAlign: 'center',
               lineHeight: 1.08,
               minHeight: '1.2em',
-              maxWidth: '14ch',
+              maxWidth: '24ch',
             }}
           >
             {vibe}

@@ -81,6 +81,10 @@ vi.mock('../../contexts/ChatHistoryContext', () => ({
   useChatHistory: () => mockChatHistory,
 }))
 
+vi.mock('../TitleBarInfoMenu', () => ({
+  default: () => <div data-testid="mock-app-menu">App</div>,
+}))
+
 describe('Sidebar', () => {
   const defaultProps = {
     view: 'chat' as const,
@@ -130,5 +134,11 @@ describe('Sidebar', () => {
     render(<Sidebar {...defaultProps} view="settings" activeSettingsSection="themes" />)
 
     expect(screen.getByRole('button', { name: 'Appearance' })).toHaveClass('active')
+  })
+
+  it('renders the app menu trigger in the sidebar footer', () => {
+    render(<Sidebar {...defaultProps} />)
+
+    expect(screen.getByTestId('mock-app-menu')).toBeInTheDocument()
   })
 })

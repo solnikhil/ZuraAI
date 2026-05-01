@@ -43,6 +43,7 @@ export default function ModelSelector({ minimal, popoverAlign = 'start' }: Model
   const { compactMode, effectiveDropdownWidth, effectiveDropdownHeight, triggerLabelMaxWidth } = useResponsiveModelSelector(settings.modelSelector?.dropdownWidth || 'default', minimal)
   const { animationsEnabled } = useMotionPreferences()
   const triggerTitle = `${currentName} - ${settings.modelProvider || 'auto'}`
+  const showLeadingIcon = !minimal
 
   useEffect(() => {
     const requested = consumeRequest()
@@ -57,22 +58,22 @@ export default function ModelSelector({ minimal, popoverAlign = 'start' }: Model
           aria-haspopup="dialog"
           aria-expanded={state.isOpen}
           title={triggerTitle}
-          whileHover={!minimal ? maybeAnimate(animationsEnabled, { scale: 1.01 }) : undefined}
-          whileTap={maybeAnimate(animationsEnabled, minimal ? { scale: 0.995 } : { scale: 0.99 })}
+          whileHover={!minimal ? maybeAnimate(animationsEnabled, { scale: 1.008 }) : undefined}
+          whileTap={maybeAnimate(animationsEnabled, minimal ? { scale: 0.998 } : { scale: 0.992 })}
           transition={{
             duration: motionDuration(animationsEnabled, motionDurations.micro),
             ease: motionEasing.standard,
           }}
           className={cn(
-            'flex cursor-pointer items-center gap-2 rounded-xl px-3 py-1.5',
+            'flex cursor-pointer items-center gap-2 rounded-xl px-3 py-1.5 transition-[background-color,border-color,color] duration-150',
             minimal
-              ? 'theme-control-btn min-h-11 rounded-[10px] px-3 py-2 text-[var(--theme-text-secondary)]'
-              : 'border border-[var(--theme-border)] bg-[var(--theme-surface-subtle)] text-[var(--theme-text-secondary)] transition-[background-color,border-color,color,box-shadow] duration-150 hover:bg-[var(--theme-surface-hover)] hover:border-[var(--theme-border-hover)] hover:text-[var(--theme-text-primary)] hover:shadow-[var(--theme-shadow-sm)]',
+              ? 'min-h-11 rounded-[10px] border border-transparent bg-transparent px-3 py-2 text-[var(--theme-text-secondary)] hover:bg-[color-mix(in_srgb,var(--theme-surface)_72%,transparent)] hover:text-[var(--theme-text-primary)]'
+              : 'border border-[var(--theme-border)] bg-[var(--theme-surface-subtle)] text-[var(--theme-text-secondary)] hover:border-[var(--theme-border-hover)] hover:bg-[var(--theme-surface-hover)] hover:text-[var(--theme-text-primary)]',
             minimal && state.isOpen && 'is-active',
             minimal && compactMode !== 'none' && 'px-2.5 py-2'
           )}
         >
-          {!minimal &&
+          {showLeadingIcon &&
             (currentModel ? (
               <ModelIcon model={currentModel} icon={getModelAttributes(currentModel).icon} color={getModelAttributes(currentModel).color} size={16} />
             ) : (
@@ -95,7 +96,7 @@ export default function ModelSelector({ minimal, popoverAlign = 'start' }: Model
                 ease: motionEasing.standard,
               }}
             >
-              <ChevronDown size={12} className="opacity-50" />
+              <ChevronDown size={12} className={cn('opacity-50', minimal && 'opacity-40')} />
             </motion.div>
           )}
         </motion.button>

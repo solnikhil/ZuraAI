@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
 import { useAppShell } from '../../contexts/AppShellContext'
 import { useSettingsUI } from '../../contexts/SettingsUIContext'
+import TitleBarInfoMenu from '../TitleBarInfoMenu'
 import SidebarSearchOverlay from './Sidebar/SidebarSearchOverlay'
 import { groupSessions } from './Sidebar/utils/groupSessions'
 import type { ChatRowAction } from './Sidebar/ChatRow'
@@ -22,8 +23,16 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
   const isMacOS = isMacOSRuntime()
   const [searchQuery, setSearchQuery] = useState('')
   const [searchOverlayOpen, setSearchOverlayOpen] = useState(false)
-  const { sidebarHidden, sidebarCollapsed, sidebarWidth, setSidebarWidth, setIsResizingSidebar } =
-    useAppShell()
+  const {
+    dashboardView,
+    setDashboardView,
+    hasUnsavedSettings,
+    sidebarHidden,
+    sidebarCollapsed,
+    sidebarWidth,
+    setSidebarWidth,
+    setIsResizingSidebar,
+  } = useAppShell()
   const {
     sessions,
     folders,
@@ -310,6 +319,16 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
           activeSettingsSection={activeSettingsSection}
           onNavigateSettings={onNavigateSettings}
         />
+
+        <div className="sidebar-footer-wrapper">
+          <TitleBarInfoMenu
+            hasUnsavedSettings={hasUnsavedSettings}
+            isSettingsView={dashboardView === 'settings'}
+            setDashboardView={setDashboardView}
+            triggerVariant="sidebar"
+            sidebarCollapsed={sidebarCollapsed}
+          />
+        </div>
       </div>
 
       <SidebarSearchOverlay

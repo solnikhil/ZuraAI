@@ -143,9 +143,13 @@ const ModelSelectorResultRow = memo(function ModelSelectorResultRow({
       onClick={(e) => onSelect(model, e)}
       onMouseEnter={() => onFocusedIndexChange(index)}
       className={cn(
-        'theme-hover-surface relative flex w-full items-center gap-3 rounded-[10px] px-4 text-left outline-hidden',
+        'theme-hover-surface relative flex w-full items-center gap-3 rounded-[10px] px-4 text-left outline-hidden transition-colors',
         densityClasses,
-        isActive || isFocused ? 'text-foreground' : 'hover:text-foreground'
+        isActive
+          ? 'bg-[color-mix(in_srgb,var(--theme-surface-hover)_80%,transparent)] text-foreground'
+          : isFocused
+            ? 'text-foreground'
+            : 'hover:text-foreground'
       )}
       aria-current={isActive ? 'true' : undefined}
       aria-selected={isFocused}
@@ -193,6 +197,7 @@ const ModelSelectorResultRow = memo(function ModelSelectorResultRow({
           ))}
         </div>
       )}
+      {isActive && <div className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary/85" aria-hidden="true" />}
     </div>
   )
 })

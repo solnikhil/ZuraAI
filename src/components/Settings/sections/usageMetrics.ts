@@ -25,6 +25,9 @@ export interface ProviderUsageEntry {
   tokens: number
   inputTokens: number
   outputTokens: number
+  cachedInputTokens: number
+  cachedOutputTokens: number
+  cachedTotalTokens: number
   avgLatencyMs: number
   errors: number
   estimatedCostUsd: number
@@ -53,6 +56,9 @@ export interface UsageStats {
   totalSessions: number
   totalMessages: number
   totalTokens: number
+  cachedInputTokens: number
+  cachedOutputTokens: number
+  cachedTotalTokens: number
   tokensLast7Days: number
   tokensLast30Days: number
   avgTokensPerAssistant: number
@@ -365,6 +371,8 @@ export function computeUsageStats(sessions: ChatSession[], modelCatalog?: UsageM
 
   let totalMessages = 0
   let totalTokens = 0
+  let cachedInputTokens = 0
+  let cachedOutputTokens = 0
   let todayMessages = 0
   let assistantMessages = 0
   let userMessages = 0
@@ -404,6 +412,8 @@ export function computeUsageStats(sessions: ChatSession[], modelCatalog?: UsageM
     tokens: number
     inputTokens: number
     outputTokens: number
+    cachedInputTokens: number
+    cachedOutputTokens: number
     latencySumMs: number
     latencyCount: number
     errors: number
@@ -460,6 +470,11 @@ export function computeUsageStats(sessions: ChatSession[], modelCatalog?: UsageM
       totalRegenerations += message.responseVersions?.length || 0
 
       const tokenBreakdown = getTokenBreakdown(message)
+      const messageCachedInputTokens = message.usage?.cachedInputTokens || 0
+      const messageCachedOutputTokens = message.usage?.cachedOutputTokens || 0
+
+      cachedInputTokens += messageCachedInputTokens
+      cachedOutputTokens += messageCachedOutputTokens
 
       if (messageTokens > 0) {
         assistantMessagesWithTokens += 1
@@ -494,6 +509,8 @@ export function computeUsageStats(sessions: ChatSession[], modelCatalog?: UsageM
         tokens: 0,
         inputTokens: 0,
         outputTokens: 0,
+        cachedInputTokens: 0,
+        cachedOutputTokens: 0,
         latencySumMs: 0,
         latencyCount: 0,
         errors: 0,
@@ -503,6 +520,8 @@ export function computeUsageStats(sessions: ChatSession[], modelCatalog?: UsageM
       existingProviderUsage.tokens += messageTokens
       existingProviderUsage.inputTokens += tokenBreakdown.inputTokens
       existingProviderUsage.outputTokens += tokenBreakdown.outputTokens
+      existingProviderUsage.cachedInputTokens += messageCachedInputTokens
+      existingProviderUsage.cachedOutputTokens += messageCachedOutputTokens
 
       if (typeof message.latency === 'number' && message.latency > 0) {
         existingProviderUsage.latencySumMs += message.latency
@@ -551,6 +570,9 @@ export function computeUsageStats(sessions: ChatSession[], modelCatalog?: UsageM
         tokens: data.tokens,
         inputTokens: data.inputTokens,
         outputTokens: data.outputTokens,
+        cachedInputTokens: data.cachedInputTokens,
+        cachedOutputTokens: data.cachedOutputTokens,
+        cachedTotalTokens: data.cachedInputTokens + data.cachedOutputTokens,
         avgLatencyMs: data.latencyCount > 0 ? Math.round(data.latencySumMs / data.latencyCount) : 0,
         errors: data.errors,
         estimatedCostUsd,
@@ -604,6 +626,9 @@ export function computeUsageStats(sessions: ChatSession[], modelCatalog?: UsageM
     totalSessions: sessions.length,
     totalMessages,
     totalTokens,
+    cachedInputTokens,
+    cachedOutputTokens,
+    cachedTotalTokens: cachedInputTokens + cachedOutputTokens,
     tokensLast7Days,
     tokensLast30Days,
     avgTokensPerAssistant: assistantMessagesWithTokens > 0

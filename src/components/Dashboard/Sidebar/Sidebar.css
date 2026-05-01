@@ -580,116 +580,70 @@
   background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--theme-surface) 60%, transparent));
 }
 
-.sidebar-footer {
-  padding: 8px;
-  border-radius: 10px;
-  border: 1px solid color-mix(in srgb, var(--theme-border) 80%, transparent);
-  background: color-mix(in srgb, var(--theme-surface) 98%, transparent);
-  box-shadow: none;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 0;
-  min-width: 0;
+.sidebar-footer-row {
+  box-shadow: 0 -8px 18px color-mix(in srgb, var(--theme-sidebar-solid) 62%, transparent);
 }
 
-.sidebar-footer--collapsed {
-  padding: 4px;
+.sidebar-container--collapsed .sidebar-footer-row {
+  justify-content: center;
+  grid-template-columns: 1fr;
+  padding-left: 0;
+  padding-right: 0;
 }
 
-.sidebar-container.frosted .sidebar-footer {
-  border-color: color-mix(in srgb, var(--theme-border) 88%, transparent);
-  background: color-mix(in srgb, var(--theme-surface) 78%, transparent);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  box-shadow: none;
+.sidebar-container--collapsed .sidebar-footer-row .sidebar-header__label {
+  display: none;
 }
 
-.sidebar-footer__btn {
-  width: 100%;
-  min-height: 44px;
-  padding: 6px 8px;
-  cursor: pointer;
-  border-radius: 11px;
-  border: 1px solid transparent;
-  background: transparent;
-  color: var(--theme-text-primary);
+.app-menu-panel {
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.app-menu-panel__separator {
+  margin: 4px 2px;
+}
+
+.app-menu-panel__item {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
-  gap: 10px;
-  font-size: var(--sidebar-font-size-md);
-  font-weight: 600;
-  min-width: 0;
-  overflow: hidden;
-  transition: background 0.15s ease, border-color 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease, color 0.15s ease;
-}
-
-.sidebar-footer__btn:hover {
-  background: var(--theme-surface-hover);
-}
-
-.sidebar-footer__btn:focus-visible {
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 36px;
+  border-radius: 10px;
+  padding: 0 8px;
+  font-size: 0.88rem;
+  color: var(--theme-text-primary);
+  transition: background 140ms ease, color 140ms ease;
   outline: none;
-  box-shadow: 0 0 0 2px var(--theme-accent-muted);
 }
 
-.sidebar-footer__btn:active {
-  transform: translateY(1px);
+.app-menu-panel__item[data-highlighted] {
+  background: color-mix(in srgb, var(--theme-surface-hover) 86%, transparent);
+  color: var(--theme-text-primary);
+  border-radius: 10px;
 }
 
-.sidebar-footer__icon-wrap {
-  width: 24px;
-  height: 24px;
-  border-radius: 8px;
-  border: 1px solid color-mix(in srgb, var(--theme-border) 80%, transparent);
-  background: color-mix(in srgb, var(--theme-surface-hover) 75%, transparent);
-  color: var(--theme-text-secondary);
+.app-menu-panel__item[data-highlighted] .app-menu-panel__item-left svg,
+.app-menu-panel__item[data-highlighted] .app-menu-panel__chevron {
+  opacity: 1;
+}
+
+.app-menu-panel__item[data-disabled] {
+  opacity: 0.5;
+}
+
+.app-menu-panel__item-left {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.sidebar-footer__label {
-  flex: 1;
+  gap: 10px;
   min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  text-align: left;
 }
 
-.sidebar-footer__chevron {
-  opacity: 0.45;
-  transition: transform 0.15s ease, opacity 0.15s ease;
+.app-menu-panel__item-left svg,
+.app-menu-panel__chevron {
   flex-shrink: 0;
-}
-
-.sidebar-footer__btn:hover .sidebar-footer__chevron {
   opacity: 0.72;
-  transform: translateX(1px);
-}
-
-.sidebar-footer__btn--collapsed {
-  justify-content: center;
-  padding: 0;
-}
-
-/* Frosted footer */
-.sidebar-container.frosted .sidebar-footer__btn {
-  background: color-mix(in srgb, var(--theme-surface-hover) 80%, transparent);
-  border-color: color-mix(in srgb, var(--theme-border) 88%, transparent);
-}
-
-.sidebar-container.frosted .sidebar-footer__btn:hover {
-  background: color-mix(in srgb, var(--theme-surface-active) 82%, transparent);
-}
-
-.sidebar-container.frosted .sidebar-footer__icon-wrap {
-  border-color: color-mix(in srgb, var(--theme-border) 92%, transparent);
-  background: color-mix(in srgb, var(--theme-surface-active) 86%, transparent);
-  color: color-mix(in srgb, var(--theme-text-primary) 80%, white);
 }
 
 /* ── Settings nav ──────────────────────────────────────────── */

@@ -89,6 +89,16 @@ export function UsageSection({
             <div className="stat-label-sm">Avg tokens/assistant</div>
           </div>
         </div>
+
+        <div className="stat-card compact usage-motion-card usage-motion-card--compact" style={delayStyle(4)}>
+          <div className="stat-icon-wrapper" style={{ color: 'var(--theme-accent)' }}>
+            <Download size={16} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="stat-value-sm">{stats.cachedTotalTokens.toLocaleString()}</div>
+            <div className="stat-label-sm">Cached tokens</div>
+          </div>
+        </div>
       </div>
 
       <div className="usage-bento-grid">
@@ -177,6 +187,9 @@ export function UsageSection({
                     </span>
                     <span style={{ fontSize: '0.76rem', color: 'var(--theme-text-primary)', textAlign: 'right' }}>
                       {formatMs(provider.avgLatencyMs)}
+                    </span>
+                    <span style={{ gridColumn: '2 / span 2', fontSize: '0.72rem', color: 'var(--theme-text-muted)', textAlign: 'right' }}>
+                      Cached {provider.cachedTotalTokens.toLocaleString()} tok
                     </span>
                   </div>
                 ))}

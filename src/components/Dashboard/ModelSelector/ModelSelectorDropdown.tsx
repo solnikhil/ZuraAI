@@ -114,7 +114,7 @@ export function ModelSelectorDropdown({
     setDashboardView('settings')
   }
 
-  const sidebarWidthClass = 'w-[56px]'
+  const sidebarWidthClass = isTight ? 'w-[44px]' : isCompact ? 'w-[48px]' : 'w-[52px]'
   const sidebarBorderSide = modelSelector.sidebarPosition === 'right' ? 'border-l' : 'border-r'
 
   return (
@@ -138,7 +138,7 @@ export function ModelSelectorDropdown({
           className={cn(
             sidebarWidthClass,
             sidebarBorderSide,
-            'min-h-0 shrink-0 overflow-hidden bg-muted/20'
+            'min-h-0 shrink-0 overflow-hidden bg-transparent'
           )}
         >
           <ModelSelectorProviderRail

@@ -40,7 +40,13 @@ describe('usageMetrics', () => {
           timestamp: now - 3_500_000,
           model: 'llama-3.3-70b-versatile',
           latency: 1000,
-          usage: { inputTokens: 120, outputTokens: 80, totalTokens: 200 },
+          usage: {
+            inputTokens: 120,
+            outputTokens: 80,
+            totalTokens: 200,
+            cachedInputTokens: 40,
+            cachedOutputTokens: 5,
+          },
           toolResults: [
             {
               toolCall: { id: 't1', name: 'web_search', arguments: { query: 'zura ai' } },
@@ -55,7 +61,12 @@ describe('usageMetrics', () => {
           timestamp: now - 3_200_000,
           model: 'llama-3.3-70b-versatile',
           latency: 900,
-          usage: { inputTokens: 60, outputTokens: 40, totalTokens: 100 },
+          usage: {
+            inputTokens: 60,
+            outputTokens: 40,
+            totalTokens: 100,
+            cachedInputTokens: 10,
+          },
           responseVersions: [
             { id: 'v1', content: 'old', timestamp: now - 3_100_000 },
             { id: 'v2', content: 'older', timestamp: now - 3_000_000 },
@@ -85,6 +96,9 @@ describe('usageMetrics', () => {
     })
 
     expect(stats.totalTokens).toBe(475)
+    expect(stats.cachedInputTokens).toBe(50)
+    expect(stats.cachedOutputTokens).toBe(5)
+    expect(stats.cachedTotalTokens).toBe(55)
     expect(stats.tokensLast7Days).toBe(325)
     expect(stats.tokensLast30Days).toBe(475)
 
@@ -103,9 +117,13 @@ describe('usageMetrics', () => {
     expect(groqEntry?.tokens).toBe(300)
     expect(groqEntry?.messages).toBe(2)
     expect(groqEntry?.errors).toBe(1)
+    expect(groqEntry?.cachedInputTokens).toBe(50)
+    expect(groqEntry?.cachedOutputTokens).toBe(5)
+    expect(groqEntry?.cachedTotalTokens).toBe(55)
 
     const alibabaEntry = stats.providerEntries.find((entry) => entry.provider === 'alibaba')
     expect(alibabaEntry?.tokens).toBe(150)
+    expect(alibabaEntry?.cachedTotalTokens).toBe(0)
     expect(stats.estimatedSpendUsd).toBeGreaterThan(0)
     expect(stats.spendCoveragePercent).toBe(100)
   })
@@ -129,6 +147,8 @@ describe('usageMetrics', () => {
     const unknownEntry = stats.providerEntries.find((entry) => entry.provider === 'unknown')
 
     expect(unknownEntry?.tokens).toBe(100)
+    expect(unknownEntry?.cachedTotalTokens).toBe(0)
+    expect(stats.cachedTotalTokens).toBe(0)
     expect(stats.estimatedSpendUsd).toBe(0)
     expect(stats.spendCoveragePercent).toBe(0)
   })

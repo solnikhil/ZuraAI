@@ -250,7 +250,7 @@ export function TokenUsageIndicator({ input, className }: TokenUsageIndicatorPro
       : 'No model selected'
 
   return (
-    <Popover open={open} onOpenChange={handleOpenChange}>
+    <Popover open={open} onOpenChange={handleOpenChange} modal={false}>
       <PopoverAnchor asChild>
         <motion.button
           ref={triggerRef}
