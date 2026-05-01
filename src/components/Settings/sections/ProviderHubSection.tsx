@@ -810,7 +810,6 @@ export function ProviderHubSection({
           >
             <ProviderSection
               providers={PROVIDERS}
-              selectedProvider={selectedProvider}
               onCardClick={(provider) => {
                 setSelectedProvider(provider.key)
                 setProviderView('detail')
@@ -1367,7 +1366,6 @@ export function ProviderHubSection({
 
 function ProviderSection({
   providers,
-  selectedProvider,
   onCardClick,
   isProviderEnabled,
   setProviderEnabled,
@@ -1375,7 +1373,6 @@ function ProviderSection({
   modelMap,
 }: {
   providers: ProviderDefinition[]
-  selectedProvider: ProviderKey
   onCardClick: (provider: ProviderDefinition) => void
   isProviderEnabled: (provider: ProviderDefinition) => boolean
   setProviderEnabled: (providerKey: ProviderKey, enabled: boolean) => void

@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 
 import type { AppRuntimeInfo } from '../electron/types'
-import { ArrowLeft, ChevronRight, Clock, Info, MessageCircle, SettingsIcon } from './icons'
+import { ArrowLeft, ChevronRight, Clock, Info, List, MessageCircle, SettingsIcon } from './icons'
 import { useToast } from './shared/Toast'
 import { isMacOSRuntime } from '@/utils/platform'
 
