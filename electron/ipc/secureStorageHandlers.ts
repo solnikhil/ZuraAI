@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron'
 import * as secureStorage from '../secureStorage'
+import { getProviderSecretFields, type ProviderSecretField } from '../../src/providers/providerSettingsRegistry'
 
 /**
  * Explicit allowlist of secrets that the renderer is permitted to read/write
@@ -10,24 +11,16 @@ import * as secureStorage from '../secureStorage'
  * being added implicitly.
  */
 const ALLOWED_SECURE_STORAGE_KEYS = new Set([
-  'openRouterApiKey',
-  'perplexityApiKey',
-  'groqApiKey',
+  ...getProviderSecretFields(),
   'tavilyApiKey',
-  'alibabaApiKey',
-  'fireworksApiKey',
   'onlineCompilerApiKey',
 ])
 
 const ALLOWED_SECURE_STORAGE_KEY_LIST = [...ALLOWED_SECURE_STORAGE_KEYS] as const
 
 type SecureStorageKey =
-  | 'openRouterApiKey'
-  | 'perplexityApiKey'
-  | 'groqApiKey'
+  | ProviderSecretField
   | 'tavilyApiKey'
-  | 'alibabaApiKey'
-  | 'fireworksApiKey'
   | 'onlineCompilerApiKey'
 
 function assertSecureStorageKey(key: string): asserts key is SecureStorageKey {

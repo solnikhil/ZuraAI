@@ -104,10 +104,11 @@ export default function ModelSelector({ minimal, popoverAlign = 'start' }: Model
       <PopoverContent
         className="theme-menu-surface model-selector-popover overflow-hidden p-0"
         align={popoverAlign}
+        collisionPadding={12}
         style={{
-          width: `${effectiveDropdownWidth}px`,
+          width: `min(${effectiveDropdownWidth}px, max(320px, calc(var(--radix-popover-content-available-width) - 8px)))`,
           maxWidth: 'calc(100vw - 24px)',
-          height: `${effectiveDropdownHeight}px`,
+          height: `min(${effectiveDropdownHeight}px, max(160px, calc(var(--radix-popover-content-available-height) - 8px)))`,
           maxHeight: 'calc(100vh - 24px)',
         }}
         onOpenAutoFocus={(e) => e.preventDefault()}

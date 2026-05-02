@@ -1,22 +1,11 @@
+import { getProviderSecretFields, type ProviderSecretField } from '../providers'
+
 // Utility functions for managing API keys in secure storage
 
-type SecureStorageKey =
-    | 'alibabaApiKey'
-    | 'deepseekApiKey'
-    | 'fireworksApiKey'
-    | 'groqApiKey'
-    | 'openRouterApiKey'
-    | 'perplexityApiKey'
-    | 'tavilyApiKey'
-    | 'onlineCompilerApiKey'
+type SecureStorageKey = ProviderSecretField | 'tavilyApiKey' | 'onlineCompilerApiKey'
 
-const SECURE_API_KEY_NAMES: SecureStorageKey[] = [
-    'alibabaApiKey',
-    'deepseekApiKey',
-    'fireworksApiKey',
-    'groqApiKey',
-    'openRouterApiKey',
-    'perplexityApiKey',
+export const SECURE_API_KEY_NAMES: SecureStorageKey[] = [
+    ...getProviderSecretFields(),
     'tavilyApiKey',
     'onlineCompilerApiKey',
 ]

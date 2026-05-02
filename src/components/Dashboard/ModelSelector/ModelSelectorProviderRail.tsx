@@ -3,15 +3,7 @@ import { Star } from 'lucide-react'
 import { ProviderLogo } from '@/components/shared'
 import type { GroupedModels } from './types'
 import { cn } from '@/lib/utils'
-
-const PROVIDERS = [
-  { key: 'openrouter', title: 'OpenRouter' },
-  { key: 'perplexity', title: 'Perplexity' },
-  { key: 'groq', title: 'Groq' },
-  { key: 'fireworks', title: 'Fireworks' },
-  { key: 'alibaba', title: 'Alibaba Cloud' },
-  { key: 'ollama', title: 'Ollama' },
-] as const
+import { getPickerVisibleProviders } from '@/providers'
 
 interface ModelSelectorProviderRailProps {
   activeTabKey: string
@@ -24,8 +16,13 @@ export const ModelSelectorProviderRail = memo(function ModelSelectorProviderRail
   groupedModels,
   onTabSelect,
 }: ModelSelectorProviderRailProps): React.ReactElement {
+  const providers = getPickerVisibleProviders().map((provider) => ({
+    key: provider.id,
+    title: provider.label,
+  }))
+
   const getModelCount = (providerKey: string): number => {
-    return groupedModels[providerKey as keyof GroupedModels]?.length || 0
+    return groupedModels[providerKey]?.length || 0
   }
 
   return (
@@ -40,7 +37,7 @@ export const ModelSelectorProviderRail = memo(function ModelSelectorProviderRail
         ariaLabel="Favorites"
       />
 
-      {PROVIDERS.filter((provider) => getModelCount(provider.key) > 0).map((provider) => (
+      {providers.filter((provider) => getModelCount(provider.key) > 0).map((provider) => (
         <ProviderRailItem
           key={provider.key}
           isActive={activeTabKey === provider.key}

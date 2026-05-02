@@ -35,6 +35,7 @@ vi.mock('./useModelSelector', () => ({
     currentModels: [],
     groupedModels: {
       alibaba: [],
+      deepseek: [],
       fireworks: [],
       groq: [],
       ollama: [],

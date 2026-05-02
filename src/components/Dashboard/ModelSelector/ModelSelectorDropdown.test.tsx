@@ -82,6 +82,23 @@ describe('ModelSelectorDropdown', () => {
     supportsVision: true,
   }
 
+  const deepseekModel = {
+    code: 'deepseek-v4-flash',
+    displayName: 'DeepSeek V4 Flash',
+    provider: 'deepseek' as const,
+    supportsDeepThinking: true,
+  }
+
+  const emptyGroups = {
+    alibaba: [],
+    deepseek: [],
+    fireworks: [],
+    groq: [],
+    ollama: [],
+    openrouter: [],
+    perplexity: [],
+  }
+
   it('renders the search input above the provider rail', () => {
     const { container } = render(
       <ModelSelectorDropdown
@@ -94,12 +111,8 @@ describe('ModelSelectorDropdown', () => {
         onProviderSelect={vi.fn()}
         currentModels={[fireworksModel]}
         groupedModels={{
-          alibaba: [],
+          ...emptyGroups,
           fireworks: [fireworksModel],
-          groq: [],
-          ollama: [],
-          openrouter: [],
-          perplexity: [],
         }}
         focusedIndex={-1}
         selectedModelCode="accounts/fireworks/models/deepseek-v3p2"
@@ -116,7 +129,9 @@ describe('ModelSelectorDropdown', () => {
 
     expect(searchInput).toBeInTheDocument()
     expect(sidebar).toBeInTheDocument()
-    expect(searchInput.compareDocumentPosition(sidebar as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(
+      searchInput.compareDocumentPosition(sidebar as Node) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
   })
 
   it('shows Fireworks in the provider sidebar when Fireworks models are available', () => {
@@ -131,12 +146,8 @@ describe('ModelSelectorDropdown', () => {
         onProviderSelect={vi.fn()}
         currentModels={[fireworksModel]}
         groupedModels={{
-          alibaba: [],
+          ...emptyGroups,
           fireworks: [fireworksModel],
-          groq: [],
-          ollama: [],
-          openrouter: [],
-          perplexity: [],
         }}
         focusedIndex={-1}
         selectedModelCode="accounts/fireworks/models/deepseek-v3p2"
@@ -155,6 +166,35 @@ describe('ModelSelectorDropdown', () => {
     expect(screen.queryByText('OpenRouter')).not.toBeInTheDocument()
   })
 
+  it('shows DeepSeek in the provider sidebar when DeepSeek models are available', () => {
+    render(
+      <ModelSelectorDropdown
+        searchInputRef={{ current: null }}
+        searchQuery=""
+        onSearchChange={vi.fn()}
+        viewMode="all"
+        onViewModeChange={vi.fn()}
+        selectedProvider="deepseek"
+        onProviderSelect={vi.fn()}
+        currentModels={[deepseekModel]}
+        groupedModels={{
+          ...emptyGroups,
+          deepseek: [deepseekModel],
+        }}
+        focusedIndex={-1}
+        selectedModelCode="deepseek-v4-flash"
+        selectedModelProvider="deepseek"
+        favoriteModels={[]}
+        onModelSelect={vi.fn()}
+        onToggleFavorite={vi.fn()}
+        onFocusedIndexChange={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: /deepseek/i })).toBeInTheDocument()
+    expect(screen.getByText('DeepSeek V4 Flash')).toBeInTheDocument()
+  })
+
   it('does not show the empty provider CTA when another provider still has models', () => {
     render(
       <ModelSelectorDropdown
@@ -167,12 +207,8 @@ describe('ModelSelectorDropdown', () => {
         onProviderSelect={vi.fn()}
         currentModels={[fireworksModel]}
         groupedModels={{
-          alibaba: [],
+          ...emptyGroups,
           fireworks: [fireworksModel],
-          groq: [],
-          ollama: [],
-          openrouter: [],
-          perplexity: [],
         }}
         focusedIndex={-1}
         selectedModelCode="accounts/fireworks/models/deepseek-v3p2"
@@ -200,12 +236,8 @@ describe('ModelSelectorDropdown', () => {
         onProviderSelect={vi.fn()}
         currentModels={[fireworksModel]}
         groupedModels={{
-          alibaba: [],
+          ...emptyGroups,
           fireworks: [fireworksModel],
-          groq: [],
-          ollama: [],
-          openrouter: [],
-          perplexity: [],
         }}
         focusedIndex={-1}
         selectedModelCode="accounts/fireworks/models/deepseek-v3p2"
@@ -241,12 +273,8 @@ describe('ModelSelectorDropdown', () => {
         onProviderSelect={vi.fn()}
         currentModels={[fireworksModel]}
         groupedModels={{
-          alibaba: [],
+          ...emptyGroups,
           fireworks: [fireworksModel],
-          groq: [],
-          ollama: [],
-          openrouter: [],
-          perplexity: [],
         }}
         focusedIndex={-1}
         selectedModelCode="accounts/fireworks/models/deepseek-v3p2"

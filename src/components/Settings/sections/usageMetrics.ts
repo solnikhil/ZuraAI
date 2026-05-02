@@ -6,7 +6,7 @@ const WEEK_MS = 7 * DAY_MS
 const MONTH_30_MS = 30 * DAY_MS
 const ONE_MILLION = 1_000_000
 
-export type UsageProvider = 'alibaba' | 'fireworks' | 'groq' | 'ollama' | 'openrouter' | 'perplexity' | 'unknown'
+export type UsageProvider = 'alibaba' | 'deepseek' | 'fireworks' | 'groq' | 'ollama' | 'openrouter' | 'perplexity' | 'unknown'
 
 interface ModelUsageEntry {
   name: string
@@ -44,6 +44,7 @@ export interface UsageErrorBreakdown {
 
 export interface UsageModelCatalog {
   alibabaModels?: string[]
+  deepseekModels?: string[]
   fireworksModels?: string[]
   groqModels?: string[]
   ollamaModels?: string[]
@@ -94,6 +95,7 @@ export interface UsageStats {
 
 const PROVIDER_TOKEN_RATES_PER_MILLION: Record<Exclude<UsageProvider, 'unknown'>, { inputUsd: number; outputUsd: number }> = {
   alibaba: { inputUsd: 0.5, outputUsd: 1.5 },
+  deepseek: { inputUsd: 0.27, outputUsd: 1.1 },
   fireworks: { inputUsd: 0.9, outputUsd: 2.7 },
   groq: { inputUsd: 0.8, outputUsd: 0.8 },
   ollama: { inputUsd: 0, outputUsd: 0 },
@@ -328,6 +330,7 @@ function buildModelProviderMap(catalog?: UsageModelCatalog): Map<string, UsagePr
   }
 
   register('alibaba', catalog?.alibabaModels)
+  register('deepseek', catalog?.deepseekModels)
   register('fireworks', catalog?.fireworksModels)
   register('groq', catalog?.groqModels)
   register('ollama', catalog?.ollamaModels)

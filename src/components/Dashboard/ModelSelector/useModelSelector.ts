@@ -13,6 +13,8 @@ import {
 import {
   DEFAULT_OLLAMA_URL,
   getActiveProviderIds,
+  getPickerVisibleProviders,
+  getProviderModelListField,
   hasProviderAccess,
   type ActiveProviderId,
 } from '../../../providers'
@@ -92,6 +94,7 @@ export function useModelSelector(): UseModelSelectorReturn {
   const [searchQuery, setSearchQuery] = useState('')
   const [viewMode, setViewMode] = useState<ViewMode>(getInitialViewMode())
   const validProviders = getActiveProviderIds()
+  const pickerProviders = getPickerVisibleProviders()
 
   const isProviderEnabled = useCallback(
     (provider: string): boolean => {
@@ -110,14 +113,9 @@ export function useModelSelector(): UseModelSelectorReturn {
 
   // Wrapper to accept string type
   const setSelectedProvider = (provider: string) => setSelectedProviderState(provider)
-  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({
-    alibaba: false,
-    fireworks: false,
-    groq: false,
-    ollama: false,
-    openrouter: false,
-    perplexity: false,
-  })
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(
+    Object.fromEntries(pickerProviders.map((provider) => [provider.id, false]))
+  )
 
   const searchInputRef = useRef<HTMLInputElement>(null)
 
@@ -196,40 +194,21 @@ export function useModelSelector(): UseModelSelectorReturn {
   }, [isOpen, settings.ollamaUrl, settings.ollamaModels, updateSettings, isProviderEnabled])
 
   const allModels = useMemo((): ModelWithProvider[] => {
-    const models: ModelWithProvider[] = []
+    return pickerProviders.flatMap((provider) => {
+      if (!isProviderEnabled(provider.id)) {
+        return []
+      }
 
-    if (isProviderEnabled('alibaba') && settings.alibabaModels) {
-      settings.alibabaModels
-        .filter((m) => m.enabled !== false)
-        .forEach((m) => models.push({ ...m, provider: 'alibaba' }))
-    }
-    if (isProviderEnabled('fireworks') && settings.fireworksModels) {
-      settings.fireworksModels
-        .filter((m) => m.enabled !== false)
-        .forEach((m) => models.push({ ...m, provider: 'fireworks' }))
-    }
-    if (isProviderEnabled('groq') && settings.groqModels) {
-      settings.groqModels
-        .filter((m) => m.enabled !== false)
-        .forEach((m) => models.push({ ...m, provider: 'groq' }))
-    }
-    if (isProviderEnabled('ollama') && settings.ollamaModels) {
-      settings.ollamaModels
-        .filter((m) => m.enabled !== false)
-        .forEach((m) => models.push({ ...m, provider: 'ollama' }))
-    }
-    if (isProviderEnabled('openrouter') && settings.configuredModels) {
-      settings.configuredModels
-        .filter((m) => m.enabled !== false)
-        .forEach((m) => models.push({ ...m, provider: 'openrouter' }))
-    }
-    if (isProviderEnabled('perplexity') && settings.perplexityModels) {
-      settings.perplexityModels
-        .filter((m) => m.enabled !== false)
-        .forEach((m) => models.push({ ...m, provider: 'perplexity' }))
-    }
-    return models
-  }, [settings, isProviderEnabled])
+      const modelListField = getProviderModelListField(provider.id)
+      if (!modelListField) {
+        return []
+      }
+
+      return (settings[modelListField] || [])
+        .filter((model) => model.enabled !== false)
+        .map((model) => ({ ...model, provider: provider.id }))
+    })
+  }, [settings, isProviderEnabled, pickerProviders])
 
   // Filter models based on search query
   const filteredModels = useMemo(() => {
@@ -238,15 +217,13 @@ export function useModelSelector(): UseModelSelectorReturn {
 
   // Group models by provider
   const groupedModels = useMemo((): GroupedModels => {
-    return {
-      alibaba: filteredModels.filter((m) => m.provider === 'alibaba'),
-      fireworks: filteredModels.filter((m) => m.provider === 'fireworks'),
-      groq: filteredModels.filter((m) => m.provider === 'groq'),
-      ollama: filteredModels.filter((m) => m.provider === 'ollama'),
-      openrouter: filteredModels.filter((m) => m.provider === 'openrouter'),
-      perplexity: filteredModels.filter((m) => m.provider === 'perplexity'),
-    }
-  }, [filteredModels])
+    return Object.fromEntries(
+      pickerProviders.map((provider) => [
+        provider.id,
+        filteredModels.filter((model) => model.provider === provider.id),
+      ])
+    )
+  }, [filteredModels, pickerProviders])
 
   const favoriteModels = useMemo(() => {
     const favs = settings.favoriteModels || []

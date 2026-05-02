@@ -29,6 +29,7 @@ import { defaultCodeExecutionPrompt } from '../prompts/defaultCodeExecutionPromp
 import { defaultComputerUsePrompt } from '../prompts/defaultComputerUsePrompt'
 import { defaultChartGenerationPrompt } from '../prompts/defaultChartGenerationPrompt'
 import { defaultSkillsSettings, type SkillsSettings } from '../skills'
+import { getProviderEnabledDefaults, getProviderSecretFields } from '../providers'
 import type { ProviderId } from '../providers/providerTypes'
 import { warnOnceDuringHmr } from './hmrWarnings'
 import type { OverlaySettings } from '../electron/types'
@@ -65,6 +66,11 @@ type ProviderKey = ProviderId
 type ProviderEnabledMap = Partial<Record<ProviderKey, boolean>>
 export type TavilySearchDepth = 'ultra-fast' | 'fast' | 'basic' | 'advanced'
 export type TavilySearchDepthPreference = 'auto' | TavilySearchDepth
+const SECURE_SETTINGS_KEY_NAMES = [
+  ...getProviderSecretFields(),
+  'tavilyApiKey',
+  'onlineCompilerApiKey',
+] as const
 
 /**
  * Configuration-related settings that change infrequently
@@ -161,15 +167,7 @@ export const defaultSettingsConfig: SettingsConfig = {
   // Model settings
   aiModel: '',
   modelProvider: 'openrouter',
-  providerEnabled: {
-    alibaba: true,
-    deepseek: true,
-    fireworks: true,
-    groq: true,
-    ollama: true,
-    openrouter: true,
-    perplexity: true,
-  },
+  providerEnabled: getProviderEnabledDefaults(),
   configuredModels: [],
   ollamaUrl: 'http://localhost:11434',
   ollamaModels: [],
@@ -352,39 +350,18 @@ export function SettingsConfigProvider({
     const loadSecureKeys = async () => {
       try {
         // Migrate existing keys from localStorage if needed
-        await migrateApiKeysFromLocalStorage({
-          alibabaApiKey: settingsConfig.alibabaApiKey,
-          deepseekApiKey: settingsConfig.deepseekApiKey,
-          fireworksApiKey: settingsConfig.fireworksApiKey,
-          groqApiKey: settingsConfig.groqApiKey,
-          openRouterApiKey: settingsConfig.openRouterApiKey,
-          perplexityApiKey: settingsConfig.perplexityApiKey,
-          tavilyApiKey: settingsConfig.tavilyApiKey,
-        })
+        await migrateApiKeysFromLocalStorage(settingsConfig as unknown as Record<string, string | undefined>)
 
         const secureKeys = await loadApiKeyPresenceFromSecureStorage()
-
-        const hasSecureKeys =
-          secureKeys.alibabaApiKey ||
-          secureKeys.deepseekApiKey ||
-          secureKeys.fireworksApiKey ||
-          secureKeys.groqApiKey ||
-          secureKeys.openRouterApiKey ||
-          secureKeys.perplexityApiKey ||
-          secureKeys.tavilyApiKey ||
-          secureKeys.onlineCompilerApiKey
+        const hasSecureKeys = SECURE_SETTINGS_KEY_NAMES.some((key) => Boolean(secureKeys[key]))
 
         if (hasSecureKeys) {
+          const secureKeyUpdates = Object.fromEntries(
+            SECURE_SETTINGS_KEY_NAMES.map((key) => [key, secureKeys[key]])
+          )
           setSettingsConfig((prev) => ({
             ...prev,
-            alibabaApiKey: secureKeys.alibabaApiKey || prev.alibabaApiKey,
-            deepseekApiKey: secureKeys.deepseekApiKey || prev.deepseekApiKey,
-            fireworksApiKey: secureKeys.fireworksApiKey || prev.fireworksApiKey,
-            groqApiKey: secureKeys.groqApiKey || prev.groqApiKey,
-            openRouterApiKey: secureKeys.openRouterApiKey || prev.openRouterApiKey,
-            perplexityApiKey: secureKeys.perplexityApiKey || prev.perplexityApiKey,
-            tavilyApiKey: secureKeys.tavilyApiKey || prev.tavilyApiKey,
-            onlineCompilerApiKey: secureKeys.onlineCompilerApiKey || prev.onlineCompilerApiKey,
+            ...secureKeyUpdates,
           }))
         }
       } catch (error) {

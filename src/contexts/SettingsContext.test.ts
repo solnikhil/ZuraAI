@@ -6,7 +6,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { migrateConfiguredModelCode } from './SettingsContext'
-import { normalizeStoredSettings } from './settingsStore'
+import { normalizeStoredSettings, stripSecretSettings } from './settingsStore'
 
 // Mock localStorage
 const localStorageMock = (() => {
@@ -146,6 +146,33 @@ describe('SettingsContext Provider Integration', () => {
           modelType: 'reasoning',
         }),
       ])
+    })
+
+    it('derives provider-enabled defaults from the provider registry', async () => {
+      const { defaultSettingsConfig } = await import('./SettingsConfigContext')
+      expect(defaultSettingsConfig.providerEnabled).toEqual({
+        alibaba: true,
+        deepseek: true,
+        fireworks: true,
+        groq: true,
+        ollama: true,
+        openrouter: true,
+        perplexity: true,
+      })
+    })
+
+    it('strips all secure keys from persisted renderer settings', () => {
+      expect(
+        stripSecretSettings({
+          openRouterApiKey: 'or-key',
+          deepseekApiKey: 'deepseek-key',
+          tavilyApiKey: 'tavily-key',
+          onlineCompilerApiKey: 'compiler-key',
+          aiModel: 'deepseek-v4-flash',
+        })
+      ).toEqual({
+        aiModel: 'deepseek-v4-flash',
+      })
     })
 
     it('migrates legacy Fireworks turbo model ids to the supported router id', () => {

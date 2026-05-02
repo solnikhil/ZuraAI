@@ -5,7 +5,7 @@ import { useChatHistory } from '../../contexts/ChatHistoryContext'
 import { useAppShell } from '../../contexts/AppShellContext'
 import { useMcp } from '../../mcp/McpContext'
 import { checkOllamaStatus, listOllamaModels, enrichOllamaModelsWithContext } from '../../services/ollama'
-import { saveApiKeyToSecureStorage } from '../../utils/secureApiKeys'
+import { SECURE_API_KEY_NAMES, saveApiKeyToSecureStorage } from '../../utils/secureApiKeys'
 import { UsageSection } from './sections/UsageSection'
 import { OverlaySection } from './sections/OverlaySection'
 import { McpSection } from './sections/McpSection'
@@ -17,6 +17,7 @@ import { ExperimentalSection } from './sections/ExperimentalSection'
 import { computeUsageStats } from './sections/usageMetrics'
 import { normalizeSettingsSection } from '../../constants/settingsSections'
 import { isMacOSRuntime } from '../../utils/platform'
+import { getProviderModelListField, getProviderSettingsDefinitions } from '../../providers'
 
 import './Settings.css'
 
@@ -43,21 +44,17 @@ export default function Settings({
   const [statusMessage, setStatusMessage] = useState('')
   const clearParams = useCallback(() => setSettingsSectionParams(null), [setSettingsSectionParams])
 
-  const usageModelCatalog = useMemo(() => ({
-    alibabaModels: (pendingSettings.alibabaModels || []).map((model) => model.code),
-    fireworksModels: (pendingSettings.fireworksModels || []).map((model) => model.code),
-    groqModels: (pendingSettings.groqModels || []).map((model) => model.code),
-    ollamaModels: (pendingSettings.ollamaModels || []).map((model) => model.code),
-    openrouterModels: (pendingSettings.configuredModels || []).map((model) => model.code),
-    perplexityModels: (pendingSettings.perplexityModels || []).map((model) => model.code),
-  }), [
-    pendingSettings.alibabaModels,
-    pendingSettings.fireworksModels,
-    pendingSettings.groqModels,
-    pendingSettings.ollamaModels,
-    pendingSettings.configuredModels,
-    pendingSettings.perplexityModels,
-  ])
+  const usageModelCatalog = useMemo(() => {
+    return Object.fromEntries(
+      getProviderSettingsDefinitions().flatMap((provider) => {
+        const modelListField = getProviderModelListField(provider.id)
+        if (!modelListField) return []
+        const usageCatalogKey = provider.id === 'openrouter' ? 'openrouterModels' : modelListField
+        const models = (pendingSettings[modelListField] || []).map((model) => model.code)
+        return [[usageCatalogKey, models]]
+      })
+    )
+  }, [pendingSettings])
 
   const usageStats = useMemo(() => computeUsageStats(sessions, usageModelCatalog), [sessions, usageModelCatalog])
 
@@ -126,17 +123,9 @@ export default function Settings({
     let allSaved = true
     const failedKeys: string[] = []
     try {
-      type ApiKeyType = 'alibabaApiKey' | 'fireworksApiKey' | 'groqApiKey' | 'openRouterApiKey' | 'perplexityApiKey' | 'tavilyApiKey' | 'onlineCompilerApiKey'
-      const keyMappings: Array<{ key: ApiKeyType; current: string; original: string }> = [
-        { key: 'alibabaApiKey', current: pendingSettings.alibabaApiKey, original: settings.alibabaApiKey },
-        { key: 'fireworksApiKey', current: pendingSettings.fireworksApiKey, original: settings.fireworksApiKey },
-        { key: 'groqApiKey', current: pendingSettings.groqApiKey, original: settings.groqApiKey },
-        { key: 'openRouterApiKey', current: pendingSettings.openRouterApiKey, original: settings.openRouterApiKey },
-        { key: 'perplexityApiKey', current: pendingSettings.perplexityApiKey, original: settings.perplexityApiKey },
-        { key: 'tavilyApiKey', current: pendingSettings.tavilyApiKey, original: settings.tavilyApiKey },
-        { key: 'onlineCompilerApiKey', current: pendingSettings.onlineCompilerApiKey, original: settings.onlineCompilerApiKey },
-      ]
-      for (const { key, current, original } of keyMappings) {
+      for (const key of SECURE_API_KEY_NAMES) {
+        const current = pendingSettings[key]
+        const original = settings[key]
         if (current !== original) {
           const success = await saveApiKeyToSecureStorage(key, current)
           if (!success) { failedKeys.push(key); allSaved = false }

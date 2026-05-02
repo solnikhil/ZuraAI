@@ -34,6 +34,7 @@ export function UsageSection({
 
   const providerName: Record<UsageProvider, string> = {
     alibaba: 'Alibaba',
+    deepseek: 'DeepSeek',
     fireworks: 'Fireworks',
     groq: 'Groq',
     ollama: 'Ollama',

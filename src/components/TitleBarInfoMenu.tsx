@@ -156,23 +156,27 @@ export default function TitleBarInfoMenu({
       })
   }, [showToast])
 
+  if (isSidebarTrigger && isSettingsView) {
+    return (
+      <button
+        type="button"
+        className="sidebar-header__btn sidebar-footer-row"
+        aria-label="Back to chat"
+        title="Back to chat"
+        onClick={handleSettingsToggle}
+      >
+        <span className="sidebar-header__icon-slot" aria-hidden="true">
+          <ArrowLeft size={16} className="sidebar-header__icon" />
+        </span>
+        {!sidebarCollapsed ? <span className="sidebar-header__label">Back to chat</span> : null}
+      </button>
+    )
+  }
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        {isSidebarTrigger && isSettingsView ? (
-          <button
-            type="button"
-            className="sidebar-header__btn sidebar-footer-row"
-            aria-label="Back to chat"
-            title="Back to chat"
-            onClick={handleSettingsToggle}
-          >
-            <span className="sidebar-header__icon-slot" aria-hidden="true">
-              <ArrowLeft size={16} className="sidebar-header__icon" />
-            </span>
-            {!sidebarCollapsed ? <span className="sidebar-header__label">Back to chat</span> : null}
-          </button>
-        ) : isSidebarTrigger ? (
+        {isSidebarTrigger ? (
           <button
             type="button"
             className="sidebar-header__btn sidebar-footer-row"

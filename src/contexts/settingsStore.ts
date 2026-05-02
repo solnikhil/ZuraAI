@@ -8,7 +8,13 @@ import {
 } from './SettingsConfigContext'
 import { getAllToolDefinitions } from '../tools/definitions'
 import { migrateSkillsFromLegacySettings } from '../skills'
-import { getProviderDefinitions } from '../providers'
+import {
+  getProviderDefinitions,
+  getProviderEnabledDefaults,
+  getProviderModelListFields,
+  getProviderSecretFields,
+  type ProviderModelListKey,
+} from '../providers'
 
 export interface Settings extends SettingsUI, SettingsConfig {}
 
@@ -38,14 +44,15 @@ export const UI_SETTING_KEYS: (keyof SettingsUI)[] = [
   'promptAutoHide',
 ]
 
-const SECRET_SETTING_KEYS: Array<
-  keyof Pick<
-    Settings,
-    'openRouterApiKey' | 'perplexityApiKey' | 'groqApiKey' | 'tavilyApiKey' | 'alibabaApiKey' | 'fireworksApiKey' | 'deepseekApiKey'
-  >
-> = ['openRouterApiKey', 'perplexityApiKey', 'groqApiKey', 'tavilyApiKey', 'alibabaApiKey', 'fireworksApiKey', 'deepseekApiKey']
+const SECRET_SETTING_KEYS: Array<keyof Settings> = [
+  ...getProviderSecretFields(),
+  'tavilyApiKey',
+  'onlineCompilerApiKey',
+]
 
 const PROVIDER_IDS = getProviderDefinitions().map((provider) => provider.id)
+const PROVIDER_ENABLED_DEFAULTS = getProviderEnabledDefaults()
+const PROVIDER_MODEL_LIST_FIELDS = getProviderModelListFields()
 const LEGACY_FIREWORKS_MODEL_ID_MAP: Record<string, string> = {
   'accounts/fireworks/models/kimi-k2p5-turbo': 'accounts/fireworks/routers/kimi-k2p5-turbo',
   'accounts/fireworks/models/kimi-k2p5-turbo-instruct': 'accounts/fireworks/routers/kimi-k2p5-turbo',
@@ -121,6 +128,13 @@ function normalizeProviderModels<T extends { code: string; enabled?: boolean }>(
   defaultModels: T[]
 ): T[] {
   return mergeProviderModelsWithDefaults(storedModels, defaultModels)
+}
+
+function getDefaultProviderModels(
+  settings: Settings,
+  modelListField: ProviderModelListKey
+): Settings[ProviderModelListKey] {
+  return settings[modelListField]
 }
 
 export function stripSecretSettings<T extends Record<string, unknown>>(raw: T): T {
@@ -224,44 +238,33 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   }
 
   parsed.providerEnabled = {
-    ...defaultSettings.providerEnabled,
+    ...PROVIDER_ENABLED_DEFAULTS,
     ...(typeof parsed.providerEnabled === 'object' && parsed.providerEnabled !== null
       ? parsed.providerEnabled
       : {}),
   }
 
   if (!parsed.ollamaUrl) parsed.ollamaUrl = defaultSettings.ollamaUrl
-  if (!parsed.ollamaModels) parsed.ollamaModels = defaultSettings.ollamaModels
-  if (!parsed.perplexityApiKey) parsed.perplexityApiKey = defaultSettings.perplexityApiKey
   if (typeof parsed.openRouterDebug !== 'boolean') {
     parsed.openRouterDebug = defaultSettings.openRouterDebug
   }
-  if (!parsed.perplexityModels) {
-    parsed.perplexityModels = defaultSettings.perplexityModels
-  } else {
-    parsed.perplexityModels = mergeProviderModelsWithDefaults(
-      parsed.perplexityModels,
-      defaultSettings.perplexityModels
-    )
+  for (const secretKey of SECRET_SETTING_KEYS) {
+    if (!parsed[secretKey]) {
+      parsed[secretKey] = defaultSettings[secretKey] as never
+    }
   }
 
-  if (!parsed.groqApiKey) parsed.groqApiKey = defaultSettings.groqApiKey
-  if (!parsed.groqModels) {
-    parsed.groqModels = defaultSettings.groqModels
-  } else {
-    parsed.groqModels = mergeProviderModelsWithDefaults(
-      parsed.groqModels,
-      defaultSettings.groqModels
-    )
+  for (const modelListField of PROVIDER_MODEL_LIST_FIELDS) {
+    if (modelListField === 'fireworksModels') {
+      continue
+    }
+
+    parsed[modelListField] = normalizeProviderModels(
+      parsed[modelListField],
+      getDefaultProviderModels(defaultSettings, modelListField)
+    ) as never
   }
 
-  if (!parsed.alibabaApiKey) parsed.alibabaApiKey = defaultSettings.alibabaApiKey
-  parsed.alibabaModels = normalizeProviderModels(
-    parsed.alibabaModels,
-    defaultSettings.alibabaModels
-  )
-
-  if (!parsed.fireworksApiKey) parsed.fireworksApiKey = defaultSettings.fireworksApiKey
   if (parsed.aiModel && LEGACY_FIREWORKS_MODEL_ID_MAP[parsed.aiModel]) {
     parsed.aiModel = LEGACY_FIREWORKS_MODEL_ID_MAP[parsed.aiModel]
   }
@@ -275,12 +278,6 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   parsed.fireworksModels = shouldClearLegacyFireworksSeededModels(normalizedFireworksModels)
     ? []
     : normalizedFireworksModels
-
-  if (!parsed.deepseekApiKey) parsed.deepseekApiKey = defaultSettings.deepseekApiKey
-  parsed.deepseekModels = normalizeProviderModels(
-    parsed.deepseekModels,
-    defaultSettings.deepseekModels
-  )
 
   const deprecatedGroqModelMap: Record<string, string> = {
     'llama-4-scout': 'meta-llama/llama-4-scout-17b-16e-instruct',

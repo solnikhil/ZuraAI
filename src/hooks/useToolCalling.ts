@@ -22,7 +22,7 @@ import { shouldRequestToolFollowUp } from '../tools/followUpPolicy'
 import { shouldEnableTools } from '../utils/promptSelection'
 import { getWebResearchToolExposure, getCodeExecutionToolExposure, getComputerUseToolExposure } from '../skills'
 import { createMcpToolRegistry } from '../tools/mcpRegistry'
-import type { ProviderId } from '../providers'
+import { getProviderModels, type ProviderId } from '../providers'
 import { isMacOSRuntime } from '../utils/platform'
 
 export interface ToolCallState {
@@ -120,22 +120,7 @@ export function useToolCalling() {
     const getCurrentModelSupportsTools = (): boolean | undefined => {
         const provider = settings.modelProvider
         const selectedModelCode = normalizeSelectedModelCode(provider, settings.aiModel)
-
-        const providerModels = provider === 'openrouter'
-            ? settings.configuredModels
-            : provider === 'groq'
-                ? settings.groqModels
-                : provider === 'alibaba'
-                    ? settings.alibabaModels
-                    : provider === 'fireworks'
-                        ? settings.fireworksModels
-                        : provider === 'deepseek'
-                            ? settings.deepseekModels ?? []
-                            : provider === 'ollama'
-                                ? settings.ollamaModels
-                                : provider === 'perplexity'
-                                    ? settings.perplexityModels
-                                    : []
+        const providerModels = getProviderModels(settings, provider)
 
         const selectedModel = providerModels.find((model) => {
             const candidateCode = normalizeSelectedModelCode(provider, model.code)
