@@ -18,6 +18,7 @@ import {
 import { fetchDeepSeekBalance, type DeepSeekBalanceInfo } from '../../../services/deepseek'
 import type { ConfiguredModel } from '@/contexts/SettingsConfigContext'
 import { CAPABILITY_BADGES, getCapabilitiesFromModel } from '../../../utils/modelUtils'
+import { resolveApiKeyFromSecureStorage } from '../../../utils/secureApiKeys'
 
 interface DeepseekModelSearchDialogProps {
   open: boolean
@@ -40,15 +41,17 @@ export function DeepseekModelSearchDialog({
   const [error, setError] = useState<string | null>(null)
   const [balance, setBalance] = useState<DeepSeekBalanceInfo | null>(null)
 
-  const loadModels = useCallback(() => {
-    if (!apiKey?.trim()) {
+  const loadModels = useCallback(async () => {
+    const resolvedApiKey = await resolveApiKeyFromSecureStorage('deepseekApiKey', apiKey ?? '')
+
+    if (!resolvedApiKey.trim()) {
       setError('Add a DeepSeek API key before loading the catalog.')
       return
     }
 
     setLoading(true)
     setError(null)
-    fetchDeepSeekModels(apiKey)
+    fetchDeepSeekModels(resolvedApiKey)
       .then((fetchedModels) => {
         setModels(fetchedModels)
         setLoading(false)
@@ -58,7 +61,7 @@ export function DeepseekModelSearchDialog({
         setLoading(false)
       })
 
-    fetchDeepSeekBalance(apiKey)
+    fetchDeepSeekBalance(resolvedApiKey)
       .then((balanceInfo) => {
         setBalance(balanceInfo)
       })

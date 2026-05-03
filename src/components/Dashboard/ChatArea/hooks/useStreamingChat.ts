@@ -278,6 +278,7 @@ const streamingSettings: StreamingSettings = useMemo(
       perplexityApiKey: settings.perplexityApiKey,
       groqApiKey: settings.groqApiKey,
       alibabaApiKey: settings.alibabaApiKey,
+      deepseekApiKey: settings.deepseekApiKey,
       fireworksApiKey: settings.fireworksApiKey,
     }),
     [
@@ -295,6 +296,7 @@ const streamingSettings: StreamingSettings = useMemo(
       settings.perplexityApiKey,
       settings.groqApiKey,
       settings.alibabaApiKey,
+      settings.deepseekApiKey,
       settings.fireworksApiKey,
     ]
   )

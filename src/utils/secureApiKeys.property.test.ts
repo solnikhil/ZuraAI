@@ -2,8 +2,8 @@
  * Property-Based Tests for Secure API Keys Storage
  *
  * These tests verify the correctness properties for secure storage of API keys
- * including OpenRouter, Perplexity, Groq, Tavily, Alibaba, Fireworks, and
- * Online Compiler.
+ * including OpenRouter, Perplexity, Groq, Tavily, Alibaba, DeepSeek,
+ * Fireworks, and Online Compiler.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
@@ -64,6 +64,7 @@ describe('Secure API Keys Property Tests', () => {
       'groqApiKey',
       'tavilyApiKey',
       'alibabaApiKey',
+      'deepseekApiKey',
       'fireworksApiKey',
       'onlineCompilerApiKey'
     ) as fc.Arbitrary<
@@ -72,6 +73,7 @@ describe('Secure API Keys Property Tests', () => {
       | 'groqApiKey'
       | 'tavilyApiKey'
       | 'alibabaApiKey'
+      | 'deepseekApiKey'
       | 'fireworksApiKey'
       | 'onlineCompilerApiKey'
     >
@@ -121,6 +123,24 @@ describe('Secure API Keys Property Tests', () => {
       )
     })
 
+    it('should preserve deepseekApiKey specifically through round-trip', async () => {
+      await fc.assert(
+        fc.asyncProperty(apiKeyArb, async (keyValue) => {
+          mockSecureStorage.set.mockResolvedValue(true)
+
+          mockSecureStorage.getAll.mockResolvedValue({ deepseekApiKey: keyValue })
+
+          const saveResult = await saveApiKeyToSecureStorage('deepseekApiKey', keyValue)
+          expect(saveResult).toBe(true)
+
+          const loadedKeys = await loadApiKeysFromSecureStorage()
+
+          expect(loadedKeys.deepseekApiKey).toBe(keyValue)
+        }),
+        { numRuns: 100 }
+      )
+    })
+
     it('should preserve fireworksApiKey specifically through round-trip', async () => {
       await fc.assert(
         fc.asyncProperty(apiKeyArb, async (keyValue) => {
@@ -164,6 +184,7 @@ describe('Secure API Keys Property Tests', () => {
             groqApiKey: apiKeyArb,
             tavilyApiKey: apiKeyArb,
             alibabaApiKey: apiKeyArb,
+            deepseekApiKey: apiKeyArb,
             fireworksApiKey: apiKeyArb,
             onlineCompilerApiKey: apiKeyArb,
           }),
@@ -179,6 +200,7 @@ describe('Secure API Keys Property Tests', () => {
             expect(loadedKeys.groqApiKey).toBe(allKeys.groqApiKey)
             expect(loadedKeys.tavilyApiKey).toBe(allKeys.tavilyApiKey)
             expect(loadedKeys.alibabaApiKey).toBe(allKeys.alibabaApiKey)
+            expect(loadedKeys.deepseekApiKey).toBe(allKeys.deepseekApiKey)
             expect(loadedKeys.fireworksApiKey).toBe(allKeys.fireworksApiKey)
             expect(loadedKeys.onlineCompilerApiKey).toBe(allKeys.onlineCompilerApiKey)
           }
@@ -213,6 +235,7 @@ describe('Secure API Keys Property Tests', () => {
         'groqApiKey',
         'tavilyApiKey',
         'alibabaApiKey',
+        'deepseekApiKey',
         'fireworksApiKey',
         'onlineCompilerApiKey'
       ) as fc.Arbitrary<
@@ -221,6 +244,7 @@ describe('Secure API Keys Property Tests', () => {
         | 'groqApiKey'
         | 'tavilyApiKey'
         | 'alibabaApiKey'
+        | 'deepseekApiKey'
         | 'fireworksApiKey'
         | 'onlineCompilerApiKey'
       >

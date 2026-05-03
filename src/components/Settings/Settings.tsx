@@ -40,6 +40,7 @@ export default function Settings({
 
   const [pendingSettings, setPendingSettings] = useState(settings)
   const lastSyncedSettingsRef = useRef(settings)
+  const touchedSecureKeysRef = useRef(new Set<string>())
   const [isSaving, setIsSaving] = useState(false)
   const [statusMessage, setStatusMessage] = useState('')
   const clearParams = useCallback(() => setSettingsSectionParams(null), [setSettingsSectionParams])
@@ -117,19 +118,26 @@ export default function Settings({
     window.setTimeout(() => URL.revokeObjectURL(url), 0)
   }, [usageStats])
 
-  const handleChange = (changes: Partial<typeof settings>) => setPendingSettings(prev => ({ ...prev, ...changes }))
+  const handleChange = (changes: Partial<typeof settings>) =>
+    setPendingSettings((prev) => {
+      for (const key of SECURE_API_KEY_NAMES) {
+        if (Object.prototype.hasOwnProperty.call(changes, key) && prev[key] !== changes[key]) {
+          touchedSecureKeysRef.current.add(key)
+        }
+      }
+
+      return { ...prev, ...changes }
+    })
 
   const savePendingSettings = async (): Promise<{ allSaved: boolean; failedKeys: string[] }> => {
     let allSaved = true
     const failedKeys: string[] = []
     try {
       for (const key of SECURE_API_KEY_NAMES) {
+        if (!touchedSecureKeysRef.current.has(key)) continue
         const current = pendingSettings[key]
-        const original = settings[key]
-        if (current !== original) {
-          const success = await saveApiKeyToSecureStorage(key, current)
-          if (!success) { failedKeys.push(key); allSaved = false }
-        }
+        const success = await saveApiKeyToSecureStorage(key, current)
+        if (!success) { failedKeys.push(key); allSaved = false }
       }
       if (failedKeys.length > 0) console.warn('[Settings] Failed to save some API keys:', failedKeys.join(', '))
     } catch (error) {
@@ -138,6 +146,16 @@ export default function Settings({
     }
 
     updateSettings(pendingSettings)
+
+    if (allSaved) {
+      touchedSecureKeysRef.current.clear()
+    } else {
+      for (const key of SECURE_API_KEY_NAMES) {
+        if (!failedKeys.includes(key)) {
+          touchedSecureKeysRef.current.delete(key)
+        }
+      }
+    }
 
     return { allSaved, failedKeys }
   }
@@ -186,6 +204,7 @@ if (!hasSettingsChanges && !hasMcpChanges) {
     if (hasSettingsChanges) {
       setPendingSettings(settings)
     }
+    touchedSecureKeysRef.current.clear()
     if (hasMcpChanges) {
       discardMcpDraft()
     }

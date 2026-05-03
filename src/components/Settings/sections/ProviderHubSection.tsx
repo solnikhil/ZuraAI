@@ -44,7 +44,7 @@ import {
 } from '@/components/ui/dialog'
 import { ProviderLogo, SkillLogo } from '@/components/shared'
 import type { ConfiguredModel, TavilySearchDepthPreference } from '@/contexts/SettingsConfigContext'
-import { isSecureApiKeyPlaceholder } from '@/utils/secureApiKeys'
+import { isSecureApiKeyPlaceholder, resolveApiKeyFromSecureStorage } from '@/utils/secureApiKeys'
 import { CreateCustomModelDialog } from './CreateCustomModelDialog'
 import { AlibabaModelSearchDialog } from './AlibabaModelSearchDialog'
 import { DeepseekModelSearchDialog } from './DeepseekModelSearchDialog'
@@ -503,6 +503,14 @@ export function ProviderHubSection({
     onChange({ [provider.apiKeyField]: value })
   }
 
+  const resolveProviderApiKey = async (provider: ProviderDefinition): Promise<string> => {
+    if (!provider.apiKeyField) return ''
+    return resolveApiKeyFromSecureStorage(
+      provider.apiKeyField,
+      getProviderApiKey(provider)
+    )
+  }
+
   const setProviderEnabled = (providerKey: ProviderKey, enabled: boolean) => {
     const nextProviderEnabled: ProviderEnabledMap = {
       ...DEFAULT_PROVIDER_ENABLED,
@@ -659,7 +667,7 @@ export function ProviderHubSection({
   }
 
   const runConnectivityCheck = async () => {
-    const selectedKey = getProviderApiKey(selectedProviderDef).trim()
+    const selectedKey = (await resolveProviderApiKey(selectedProviderDef)).trim()
     const endpoint =
       providerProxyUrls[selectedProviderDef.key] || PROVIDER_ENDPOINTS[selectedProviderDef.key]
 
@@ -1369,7 +1377,7 @@ export function ProviderHubSection({
           open={deepseekSearchDialogOpen}
           onOpenChange={setDeepseekSearchDialogOpen}
           onAddModel={(model) => addCustomModel(model, 'deepseek')}
-          apiKey={deepseekApiKey}
+          apiKey={getProviderApiKey(selectedProviderDef)}
           existingModelCodes={deepseekModels.map((m) => m.code)}
         />
       )}
