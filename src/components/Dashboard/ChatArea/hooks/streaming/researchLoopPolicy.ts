@@ -32,8 +32,8 @@ const FORCE_WEB_SEARCH_PREFIX =
 const FOLLOW_UP_DECISION_GUIDANCE =
   `\n\n*** FOLLOW-UP SEARCH DECISION ***\n` +
   `After each search batch, briefly decide what is already answered by evidence, what important gap or conflict remains, and whether another search is actually needed.\n` +
-  `If you continue, issue one or more distinct targeted queries only when the missing facets are independent. Keep the batch minimal, stay within the remaining search budget, and change the angle when needed: overview, recent updates, source verification, official docs/specs, pricing, comparisons, examples, implementation details, or edge cases.\n` +
-  `Do not repeat the same facet with only minor rewording, and do not pre-plan large speculative batches before inspecting the current results.`
+  `If the missing evidence can be split into obvious independent facets, issue those distinct web_search calls together in the same assistant turn so they run as one parallel batch. Good batch cases include one query per requested year for multi-year data, one query per competitor or provider for comparisons, one query per region/category/product when the user asks for those slices, and one official/source-verification query when needed.\n` +
+  `Keep each batch compact and within the remaining search budget. Avoid redundant searches and avoid speculative batches where the facets are not clear yet; change the angle when needed: overview, recent updates, source verification, official docs/specs, pricing, comparisons, examples, implementation details, or edge cases.`
 
 type ResearchQueryFacet =
   | 'general'
@@ -125,6 +125,23 @@ function tokenizeResearchQuery(query: string): string[] {
     .filter((token) => token.length > 2)
 }
 
+function extractExplicitYears(query: string): Set<string> {
+  return new Set(tokenizeResearchQuery(query).filter((token) => /^\d{4}$/.test(token)))
+}
+
+function haveDifferentExplicitYears(left: string, right: string): boolean {
+  const leftYears = extractExplicitYears(left)
+  const rightYears = extractExplicitYears(right)
+  if (leftYears.size === 0 || rightYears.size === 0) return false
+  if (leftYears.size !== rightYears.size) return true
+
+  for (const year of leftYears) {
+    if (!rightYears.has(year)) return true
+  }
+
+  return false
+}
+
 function inferResearchQueryFacet(query: string): ResearchQueryFacet {
   const tokens = tokenizeResearchQuery(query)
 
@@ -150,6 +167,7 @@ function areQueriesNearDuplicate(left: string, right: string): boolean {
   const normalizedRight = normalizeResearchQuery(right)
 
   if (!normalizedLeft || !normalizedRight) return false
+  if (haveDifferentExplicitYears(normalizedLeft, normalizedRight)) return false
   if (normalizedLeft === normalizedRight) return true
 
   if (
@@ -176,6 +194,8 @@ function areQueriesNearDuplicate(left: string, right: string): boolean {
 }
 
 function areQueriesFacetDuplicate(left: string, right: string): boolean {
+  if (haveDifferentExplicitYears(left, right)) return false
+
   const leftFacet = inferResearchQueryFacet(left)
   const rightFacet = inferResearchQueryFacet(right)
   if (leftFacet === 'general' || rightFacet === 'general') return false

@@ -113,6 +113,23 @@ interface DeepSeekMessage {
     prefix?: boolean
 }
 
+type DeepSeekToolChoice = NonNullable<DeepSeekRequestBody['tool_choice']>
+
+function normalizeDeepSeekToolChoice(
+    toolChoice: DeepSeekToolChoice | undefined
+): DeepSeekToolChoice {
+    if (!toolChoice) return 'auto'
+
+    // DeepSeek rejects OpenAI's forced single-function object form for reasoner
+    // models. Keep tools available and let the prompt/tool schema drive the
+    // call instead of failing the whole request with a 400.
+    if (typeof toolChoice === 'object') {
+        return 'auto'
+    }
+
+    return toolChoice
+}
+
 export function convertToDeepSeekMessages(messages: ChatMessage[]): DeepSeekMessage[] {
     return messages.map((msg) => {
         const dsMsg: DeepSeekMessage = {
@@ -176,7 +193,7 @@ export async function* streamDeepSeekCompletion(
     }
     if (options?.tools && options.tools.length > 0) {
         requestBody.tools = options.tools
-        requestBody.tool_choice = options.toolChoice || 'auto'
+        requestBody.tool_choice = normalizeDeepSeekToolChoice(options.toolChoice)
     }
 
     if (options?.enableThinking) {
@@ -255,7 +272,7 @@ export const generateDeepSeekCompletion = async (
     }
     if (options?.tools && options.tools.length > 0) {
         requestBody.tools = options.tools
-        requestBody.tool_choice = options.toolChoice || 'auto'
+        requestBody.tool_choice = normalizeDeepSeekToolChoice(options.toolChoice)
     }
     if (options?.enableThinking) {
         requestBody.thinking = {

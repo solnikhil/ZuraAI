@@ -47,6 +47,10 @@ const UNGROUNDED_SEARCH_SYNTHESIS_PATTERNS = [
   /\bsearch results (?:returned|yielded|provided) no (?:information|results|evidence)\b/i,
   /\bskipped (?:the )?query as (?:a )?duplicate\b/i,
   /\bwithout successful retrieval\b/i,
+  /<tool_call>[\s\S]*?<\/tool_call>/i,
+  /<\s*\|\s*\|\s*DSML\s*\|\s*\|\s*tool_calls\s*>/i,
+  /\btool_calls\b/i,
+  /invoke\s+name="web_search"/i,
 ]
 
 /** Compute per-chunk UI update cadence. */

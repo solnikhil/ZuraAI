@@ -36,8 +36,9 @@ QUERY WRITING RULES:
 - Bad query example: Can you find when OpenAI will release GPT-5?
 
 SEARCH STRATEGY:
-- For research or discovery tasks, begin with ONE broad exploratory search
-- Do not pre-plan several searches from memory before seeing results
+- For research or discovery tasks with no obvious independent slices, begin with ONE broad exploratory search
+- If the user asks for an explicit range or independent slices (for example: past 5 years, 2021-2025, regions, providers, products, competitors, or categories), do NOT start with one broad search. Instead, issue one focused web_search call per slice in the same assistant turn so the app can execute the batch in parallel
+- Do not pre-plan several searches from memory before seeing results unless the user already gave a clear range or clear independent facets
 - Let the first results guide follow-up searches
 - After each search, decide whether another search is needed for verification, coverage, or specifics
 - Use additional searches when the first results are incomplete, ambiguous, too narrow, or miss major expected entities

@@ -249,6 +249,14 @@ describe('streamingUtils final synthesis helpers', () => {
     ).toBe(true)
   })
 
+  it('flags raw DSML tool markup as a failed post-search synthesis', () => {
+    expect(
+      shouldRetryUngroundedSearchSynthesis(
+        '<| | DSML | | tool_calls><| | DSML | | invoke name="web_search"><| | DSML | | parameter name="query" string="true">latest docs</| | DSML | | parameter></| | DSML | | invoke></| | DSML | | tool_calls>'
+      )
+    ).toBe(true)
+  })
+
   it('does not flag grounded synthesized answers as failed post-search synthesis', () => {
     expect(
       shouldRetryUngroundedSearchSynthesis(

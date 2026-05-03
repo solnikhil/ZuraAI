@@ -12,7 +12,7 @@ import {
   providerUsesNativeSearch,
   type ActiveProviderId,
 } from '../../../../../providers'
-import { extractXmlToolCallsFromContent } from '../../../../../tools/adapters/openrouterToolCalls'
+import { extractInlineToolCallsFromContent } from '../../../../../tools/adapters/openrouterToolCalls'
 import { emptyUsage } from '../../../../../providers/providerRuntimeTypes'
 import {
   SAFETY_CAP,
@@ -105,6 +105,19 @@ function mergeUsage(existing: NormalizedUsage, incoming: NormalizedUsage): Norma
     cachedOutputTokens:
       (existing.cachedOutputTokens || 0) + (incoming.cachedOutputTokens || 0) || undefined,
   }
+}
+
+const TOOL_MARKUP_PREVIEW_LIMIT = 240
+
+function logToolMarkupLeak(
+  event:
+    | 'detected'
+    | 'recovered'
+    | 'suppressed-during-no-tools-pass'
+    | 'recovery-failed',
+  details: Record<string, unknown>
+): void {
+  console.warn('[tool-markup-leak]', event, details)
 }
 
 function mergeGeneratedFiles(existing: FileAttachment[], incoming: FileAttachment[]): FileAttachment[] {
@@ -290,6 +303,10 @@ export function useProviderStreaming({
         }
       ) => {
         const roundStartContent = accumulatedContent
+        const roundTools = roundOptions?.tools === undefined ? tools : roundOptions.tools
+        const roundAllowsTools =
+          Array.isArray(roundTools) && roundTools.length > 0 && roundOptions?.toolChoice !== 'none'
+        const roundType = roundAllowsTools ? 'tool-enabled' : 'no-tools'
         let roundContent = ''
         let roundToolCalls: DeltaToolCall[] = []
         let roundReasoningDetails: ReasoningDetail[] = []
@@ -297,6 +314,7 @@ export function useProviderStreaming({
         let roundUsage = emptyUsage()
         let roundFirstTokenTime: number | null = null
         let strippedToolPrelude = false
+        let suppressedInlineToolMarkup = false
 
         const persistToolPreludeAsThinkingBlock = () => {
           if (accumulatedContent === roundStartContent) return
@@ -314,7 +332,7 @@ export function useProviderStreaming({
           temperature: settings.temperature,
           maxTokens: settings.maxTokens,
           streamResponses: settings.streamResponses,
-          tools: roundOptions?.tools === undefined ? tools : roundOptions.tools,
+          tools: roundTools,
           toolChoice: roundOptions?.toolChoice,
           modalities: options.modalities,
           reasoning: options.reasoning,
@@ -422,35 +440,74 @@ export function useProviderStreaming({
           ? cleanSonarResponse(accumulatedContent, citations)
           : accumulatedContent
 
-        if (
-          provider === 'openrouter' &&
-          toolsAvailable &&
-          !hasValidRoundToolCalls &&
-          finalRoundContent.includes('<tool_call>')
-        ) {
-          const extracted = extractXmlToolCallsFromContent(finalRoundContent, {
+        if (!hasValidRoundToolCalls) {
+          const extracted = extractInlineToolCallsFromContent(finalRoundContent, {
             lastUserMessage: getUserContextText(roundMessages),
             reasoning: getThinkingTranscript(localThinkingBlocks),
           })
 
-          if (extracted.toolCalls.length > 0) {
-            logOpenRouterDebug('xml-tool-call-recovered', {
+          if (extracted.hadMarkup) {
+            logToolMarkupLeak('detected', {
+              provider,
               model,
-              toolNames: extracted.toolCalls.map((toolCall) => toolCall.name),
-              cleanedContentLength: extracted.cleanedContent.length,
-              rawContentPreview: finalRoundContent.slice(0, 240),
+              roundType,
+              format: extracted.format,
+              rawPreview: extracted.rawPreview.slice(0, TOOL_MARKUP_PREVIEW_LIMIT),
             })
-            roundToolCalls = extracted.toolCalls.map((toolCall, index) => ({
-              index,
-              id: toolCall.id,
-              type: 'function',
-              function: {
-                name: toolCall.name,
-                arguments: JSON.stringify(toolCall.arguments),
-              },
-            }))
+
             finalRoundContent = extracted.cleanedContent
-            roundFinishReason = 'tool_calls'
+
+            if (roundAllowsTools && extracted.toolCalls.length > 0) {
+              if (provider === 'openrouter') {
+                logOpenRouterDebug('xml-tool-call-recovered', {
+                  model,
+                  toolNames: extracted.toolCalls.map((toolCall) => toolCall.name),
+                  cleanedContentLength: extracted.cleanedContent.length,
+                  rawContentPreview: extracted.rawPreview.slice(0, TOOL_MARKUP_PREVIEW_LIMIT),
+                })
+              }
+
+              roundToolCalls = extracted.toolCalls.map((toolCall, index) => ({
+                index,
+                id: toolCall.id,
+                type: 'function',
+                function: {
+                  name: toolCall.name,
+                  arguments: JSON.stringify(toolCall.arguments),
+                },
+              }))
+              roundFinishReason = 'tool_calls'
+              logToolMarkupLeak('recovered', {
+                provider,
+                model,
+                roundType,
+                format: extracted.format,
+                toolNames: extracted.recoveredToolNames,
+                cleanedContentLength: extracted.cleanedContent.length,
+                rawPreview: extracted.rawPreview.slice(0, TOOL_MARKUP_PREVIEW_LIMIT),
+              })
+            } else if (!roundAllowsTools) {
+              suppressedInlineToolMarkup = true
+              logToolMarkupLeak('suppressed-during-no-tools-pass', {
+                provider,
+                model,
+                roundType,
+                format: extracted.format,
+                toolNames: extracted.recoveredToolNames,
+                cleanedContentLength: extracted.cleanedContent.length,
+                rawPreview: extracted.rawPreview.slice(0, TOOL_MARKUP_PREVIEW_LIMIT),
+              })
+            } else {
+              logToolMarkupLeak('recovery-failed', {
+                provider,
+                model,
+                roundType,
+                format: extracted.format,
+                reason: 'markup-detected-but-no-tool-calls-recovered',
+                cleanedContentLength: extracted.cleanedContent.length,
+                rawPreview: extracted.rawPreview.slice(0, TOOL_MARKUP_PREVIEW_LIMIT),
+              })
+            }
           }
         }
 
@@ -476,7 +533,7 @@ export function useProviderStreaming({
           finishReason = roundFinishReason
         }
 
-        if (roundFinishReason !== 'tool_calls' && finalRoundContent.trim()) {
+        if (roundFinishReason !== 'tool_calls' && finalRoundContent.trim() && !suppressedInlineToolMarkup) {
           finalVisibleAnswerRound = {
             content: finalRoundContent,
             usage: roundUsage,
@@ -484,7 +541,17 @@ export function useProviderStreaming({
           }
         }
 
-        return { roundContent, roundToolCalls, roundReasoningDetails, roundFinishReason }
+        const returnedRoundContent = finalRoundContent.startsWith(roundStartContent)
+          ? finalRoundContent.slice(roundStartContent.length)
+          : finalRoundContent
+
+        return {
+          roundContent: returnedRoundContent,
+          roundToolCalls,
+          roundReasoningDetails,
+          roundFinishReason,
+          suppressedInlineToolMarkup,
+        }
       }
 
       const runNoToolsSynthesisAttempt = async (
@@ -827,7 +894,7 @@ export function useProviderStreaming({
               totalSearchCount: pendingFinalSynthesis.totalSearchCount,
               researchRound: pendingFinalSynthesis.researchRound,
             })
-            await runNoToolsSynthesisAttempt(pendingFinalSynthesis, 'final')
+            const finalSynthesisRound = await runNoToolsSynthesisAttempt(pendingFinalSynthesis, 'final')
             logResearchLoop('final-synthesis-complete', {
               totalSearchCount: pendingFinalSynthesis.totalSearchCount,
               researchRound: pendingFinalSynthesis.researchRound,
@@ -848,6 +915,10 @@ export function useProviderStreaming({
                 false
               ),
             })
+
+            if (finalSynthesisRound.suppressedInlineToolMarkup) {
+              resetAccumulatedAnswerForRetry()
+            }
           }
 
           if (
@@ -875,6 +946,7 @@ export function useProviderStreaming({
               const recoveryRound = await runNoToolsSynthesisAttempt(lastSynthesisContext, mode)
               const needsRetry =
                 recoveryRound.roundFinishReason === 'tool_calls' ||
+                recoveryRound.suppressedInlineToolMarkup ||
                 shouldRecoverSearchSynthesis(accumulatedContent)
 
               if (!needsRetry) {

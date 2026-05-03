@@ -70,6 +70,22 @@ const LEGACY_FIREWORKS_SEEDED_MODEL_CODES = new Set([
   'accounts/fireworks/models/glm-4p7',
   'accounts/fireworks/models/nvidia-nemotron-3-super-120b-a12b-fp8',
 ])
+const LEGACY_WEB_SEARCH_STRATEGY_BLOCK =
+  `SEARCH STRATEGY:
+- For research or discovery tasks, begin with ONE broad exploratory search
+- Do not pre-plan several searches from memory before seeing results`
+const UPDATED_WEB_SEARCH_STRATEGY_BLOCK =
+  `SEARCH STRATEGY:
+- For research or discovery tasks with no obvious independent slices, begin with ONE broad exploratory search
+- If the user asks for an explicit range or independent slices (for example: past 5 years, 2021-2025, regions, providers, products, competitors, or categories), do NOT start with one broad search. Instead, issue one focused web_search call per slice in the same assistant turn so the app can execute the batch in parallel
+- Do not pre-plan several searches from memory before seeing results unless the user already gave a clear range or clear independent facets`
+
+function migrateWebSearchPrompt(prompt: unknown): unknown {
+  if (typeof prompt !== 'string') return prompt
+  if (!prompt.includes(LEGACY_WEB_SEARCH_STRATEGY_BLOCK)) return prompt
+
+  return prompt.replace(LEGACY_WEB_SEARCH_STRATEGY_BLOCK, UPDATED_WEB_SEARCH_STRATEGY_BLOCK)
+}
 
 function shouldClearLegacyFireworksSeededModels(models: unknown): boolean {
   if (!Array.isArray(models) || models.length !== LEGACY_FIREWORKS_SEEDED_MODEL_CODES.size) {
@@ -218,6 +234,8 @@ export function normalizeStoredSettings(raw: string | null): Settings {
 
   if (parsed.webSearchPrompt === undefined) {
     parsed.webSearchPrompt = defaultSettings.webSearchPrompt
+  } else {
+    parsed.webSearchPrompt = migrateWebSearchPrompt(parsed.webSearchPrompt) as Settings['webSearchPrompt']
   }
 
   if (parsed.codeExecutionPrompt === undefined) {

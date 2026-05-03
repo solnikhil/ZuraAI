@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import {
   fetchDeepSeekBalance,
   fetchDeepSeekModels,
+  generateDeepSeekCompletion,
   getCanonicalDeepSeekModelId,
   isDeepSeekCompatibilityAlias,
   mapDeepSeekModelToConfiguredModel,
@@ -110,5 +111,44 @@ describe('deepseek service helpers', () => {
         is_available: true,
       })
     )
+  })
+
+  it('degrades forced function tool_choice to auto for DeepSeek requests', async () => {
+    const fetchMock = vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        id: 'chatcmpl-1',
+        object: 'chat.completion',
+        created: 1,
+        model: 'deepseek-v4-pro',
+        choices: [{ index: 0, message: { role: 'assistant', content: '' }, finish_reason: 'stop' }],
+      }),
+    } as Response)
+
+    await generateDeepSeekCompletion(
+      'deepseek-key',
+      'deepseek-v4-pro',
+      [{ role: 'user', content: 'use web search' }],
+      {
+        tools: [
+          {
+            type: 'function',
+            function: {
+              name: 'web_search',
+              description: 'Search the web',
+              parameters: {
+                type: 'object',
+                properties: { query: { type: 'string' } },
+                required: ['query'],
+              },
+            },
+          },
+        ],
+        toolChoice: { type: 'function', function: { name: 'web_search' } },
+      }
+    )
+
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))
+    expect(body.tool_choice).toBe('auto')
   })
 })

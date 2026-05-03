@@ -199,6 +199,25 @@ describe('SettingsContext Provider Integration', () => {
       expect(normalized.openRouterDebug).toBe(false)
     })
 
+    it('migrates saved default web-search strategy to allow explicit parallel range batches', () => {
+      const legacyPrompt = `Custom header
+
+SEARCH STRATEGY:
+- For research or discovery tasks, begin with ONE broad exploratory search
+- Do not pre-plan several searches from memory before seeing results
+- Let the first results guide follow-up searches`
+
+      const normalized = normalizeStoredSettings(JSON.stringify({ webSearchPrompt: legacyPrompt }))
+
+      expect(normalized.webSearchPrompt).toContain('do NOT start with one broad search')
+      expect(normalized.webSearchPrompt).toContain('one focused web_search call per slice')
+      expect(normalized.webSearchPrompt).toContain('Custom header')
+      expect(normalized.webSearchPrompt).toContain('Let the first results guide follow-up searches')
+      expect(normalized.webSearchPrompt).not.toContain(
+        'For research or discovery tasks, begin with ONE broad exploratory search'
+      )
+    })
+
     it('preserves an explicitly emptied provider model list', () => {
       const normalized = normalizeStoredSettings(
         JSON.stringify({

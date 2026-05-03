@@ -3,6 +3,10 @@ export type TavilySearchDepthPreference = 'auto' | TavilySearchDepth
 
 const EXPLICIT_YEAR_PATTERN = /\b20\d{2}\b/g
 const URL_PATTERN = /https?:\/\//i
+const RELATIVE_YEAR_RANGE_PATTERN =
+  /\b(?:past|last|previous|prior|recent|latest|across|over)\s+(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+years?\b/i
+const YEAR_RANGE_PATTERN =
+  /\b(?:from|between)?\s*20\d{2}\s*(?:-|to|through|thru|and)\s*20\d{2}\b/i
 
 const SEARCH_DEPTH_PREFERENCES = new Set<TavilySearchDepthPreference>([
   'auto',
@@ -105,6 +109,10 @@ function extractExplicitYearsFromText(text: string): string[] {
   return Array.from(new Set(text.match(EXPLICIT_YEAR_PATTERN) ?? []))
 }
 
+function userAskedForYearRange(text: string): boolean {
+  return RELATIVE_YEAR_RANGE_PATTERN.test(text) || YEAR_RANGE_PATTERN.test(text)
+}
+
 export function normalizeWebSearchQueryYear(
   query: string,
   userContextText: string = '',
@@ -115,7 +123,7 @@ export function normalizeWebSearchQueryYear(
   if (URL_PATTERN.test(trimmedQuery)) return query
 
   const explicitUserYears = extractExplicitYearsFromText(userContextText)
-  if (explicitUserYears.length > 0) {
+  if (explicitUserYears.length > 0 || userAskedForYearRange(userContextText)) {
     return query
   }
 
