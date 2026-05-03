@@ -21,6 +21,7 @@ type TitleGenerationSettings = Partial<
     | 'aiModel'
     | 'titleGenerationPrompt'
     | 'alibabaApiKey'
+    | 'deepseekApiKey'
     | 'fireworksApiKey'
     | 'groqApiKey'
     | 'ollamaUrl'
@@ -32,6 +33,7 @@ type TitleGenerationSettings = Partial<
     | 'groqModels'
     | 'alibabaModels'
     | 'fireworksModels'
+    | 'deepseekModels'
   >
 >
 

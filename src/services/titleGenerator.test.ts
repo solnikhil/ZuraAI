@@ -8,6 +8,10 @@ vi.mock('./alibaba', () => ({
   generateAlibabaCompletion: vi.fn(),
 }))
 
+vi.mock('./deepseek', () => ({
+  generateDeepSeekCompletion: vi.fn(),
+}))
+
 vi.mock('./ollama', () => ({
   generateOllamaCompletion: vi.fn(),
 }))
@@ -25,6 +29,7 @@ vi.mock('../utils/openRouterKey', () => ({
 }))
 
 const { generateChatTitle } = await import('./titleGenerator')
+const { generateDeepSeekCompletion } = await import('./deepseek')
 const { generateGroqCompletion } = await import('./groq')
 const { generateOpenRouterCompletion } = await import('./openrouter')
 const { generateOllamaCompletion } = await import('./ollama')
@@ -84,6 +89,32 @@ describe('generateChatTitle', () => {
       'enabled-model',
       [{ role: 'user', content: expect.stringContaining('User message: "Write deployment notes"') }],
       { temperature: 0.3 },
+    )
+  })
+
+  it('uses the DeepSeek API key for DeepSeek title generation', async () => {
+    vi.mocked(generateDeepSeekCompletion).mockResolvedValue({
+      choices: [{ message: { content: 'DeepSeek Planning Notes' } }],
+    } as never)
+
+    const result = await generateChatTitle('Summarize the migration plan', {
+      titleModelProvider: 'deepseek',
+      titleModel: 'deepseek-v4-flash',
+      deepseekApiKey: 'deepseek-key',
+      deepseekModels: [{ code: 'deepseek-v4-flash', displayName: 'DeepSeek V4 Flash' }],
+    })
+
+    expect(result).toBe('DeepSeek Planning Notes')
+    expect(generateDeepSeekCompletion).toHaveBeenCalledWith(
+      'deepseek-key',
+      'deepseek-v4-flash',
+      [
+        {
+          role: 'user',
+          content: expect.stringContaining('User message: "Summarize the migration plan"'),
+        },
+      ],
+      { temperature: 0.3, max_tokens: 20 },
     )
   })
 
