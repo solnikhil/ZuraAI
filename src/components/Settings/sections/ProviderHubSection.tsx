@@ -119,10 +119,6 @@ const DEFAULT_PROVIDER_ENABLED: Record<ProviderKey, boolean> = {
   ...getProviderEnabledDefaults(),
 } as Record<ProviderKey, boolean>
 
-function getSecretFieldDisplayValue(value: string | undefined): string {
-  return isSecureApiKeyPlaceholder(value) ? '' : value ?? ''
-}
-
 function getSecretFieldPlaceholder(label: string, value: string | undefined): string {
   if (isSecureApiKeyPlaceholder(value)) {
     return `${label} stored securely. Enter a new key to replace it.`
@@ -284,6 +280,7 @@ export function ProviderHubSection({
   const [searchApiView, setSearchApiView] = useState<'catalog' | 'detail'>('catalog')
   const [selectedSearchApi, setSelectedSearchApi] = useState<SearchApiKey>('tavily')
   const [showApiKey, setShowApiKey] = useState(false)
+  const [displayedApiKey, setDisplayedApiKey] = useState('')
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [alibabaSearchDialogOpen, setAlibabaSearchDialogOpen] = useState(false)
@@ -421,6 +418,32 @@ export function ProviderHubSection({
 
   const selectedProviderDef =
     PROVIDERS.find((provider) => provider.key === selectedProvider) ?? PROVIDERS[0]
+
+  useEffect(() => {
+    setShowApiKey(false)
+    setDisplayedApiKey('')
+
+    const apiKeyField = selectedProviderDef.apiKeyField
+    if (!apiKeyField) return
+
+    const currentValue = getProviderApiKey(selectedProviderDef)
+    if (isSecureApiKeyPlaceholder(currentValue)) {
+      let cancelled = false
+      resolveApiKeyFromSecureStorage(apiKeyField, currentValue)
+        .then((realKey) => {
+          if (!cancelled) setDisplayedApiKey(realKey)
+        })
+        .catch(() => {
+          if (!cancelled) setDisplayedApiKey('')
+        })
+      return () => {
+        cancelled = true
+      }
+    } else {
+      setDisplayedApiKey(currentValue)
+    }
+  }, [selectedProviderDef.key, selectedProviderDef.apiKeyField])
+
   const providerModels = providerModelMap[selectedProviderDef.key] || []
   const providerDashboardUrl = getProviderDashboardUrl(selectedProviderDef.key)
 
@@ -894,8 +917,13 @@ export function ProviderHubSection({
                         <Input
                           ref={apiKeyOrEndpointInputRef}
                           type={showApiKey ? 'text' : 'password'}
-                          value={getSecretFieldDisplayValue(getProviderApiKey(selectedProviderDef))}
+                          value={
+                            isSecureApiKeyPlaceholder(getProviderApiKey(selectedProviderDef))
+                              ? displayedApiKey
+                              : getProviderApiKey(selectedProviderDef)
+                          }
                           onChange={(e) => {
+                            setDisplayedApiKey(e.target.value)
                             setProviderApiKey(selectedProviderDef, e.target.value)
                             resetConnectivityState('API key changed. Run connectivity check to verify.')
                           }}
@@ -1783,6 +1811,8 @@ function SearchApiDetail({
   onChange: ProviderHubSectionProps['onChange']
 }): React.ReactElement {
   const [showApiKey, setShowApiKey] = useState(false)
+  const [displayedApiKey, setDisplayedApiKey] = useState('')
+
   const apiKeyValue =
     api.apiKeyField === 'tavilyApiKey'
       ? tavilyApiKey
@@ -1791,6 +1821,29 @@ function SearchApiDetail({
         : ''
   const normalizedApiKeyValue = typeof apiKeyValue === 'string' ? apiKeyValue : ''
   const isEnabled = Boolean(api.apiKeyField && normalizedApiKeyValue.trim())
+
+  useEffect(() => {
+    setShowApiKey(false)
+    setDisplayedApiKey('')
+
+    if (!api.apiKeyField) return
+
+    if (isSecureApiKeyPlaceholder(normalizedApiKeyValue)) {
+      let cancelled = false
+      resolveApiKeyFromSecureStorage(api.apiKeyField, normalizedApiKeyValue)
+        .then((realKey) => {
+          if (!cancelled) setDisplayedApiKey(realKey)
+        })
+        .catch(() => {
+          if (!cancelled) setDisplayedApiKey('')
+        })
+      return () => {
+        cancelled = true
+      }
+    } else {
+      setDisplayedApiKey(normalizedApiKeyValue)
+    }
+  }, [api.apiKeyField, normalizedApiKeyValue])
 
   return (
     <Card
@@ -1849,14 +1902,19 @@ function SearchApiDetail({
                   <div className="relative w-full">
                     <Input
                       type={showApiKey ? 'text' : 'password'}
-                      value={getSecretFieldDisplayValue(
-                        api.apiKeyField === 'tavilyApiKey' ? tavilyApiKey : onlineCompilerApiKey
-                      )}
-                      onChange={(e) =>
-                        api.apiKeyField === 'tavilyApiKey'
-                          ? onChange({ tavilyApiKey: e.target.value })
-                          : onChange({ onlineCompilerApiKey: e.target.value })
+                      value={
+                        isSecureApiKeyPlaceholder(normalizedApiKeyValue)
+                          ? displayedApiKey
+                          : normalizedApiKeyValue
                       }
+                      onChange={(e) => {
+                        setDisplayedApiKey(e.target.value)
+                        if (api.apiKeyField === 'tavilyApiKey') {
+                          onChange({ tavilyApiKey: e.target.value })
+                        } else if (api.apiKeyField === 'onlineCompilerApiKey') {
+                          onChange({ onlineCompilerApiKey: e.target.value })
+                        }
+                      }}
                       placeholder={
                         api.apiKeyField === 'tavilyApiKey'
                           ? (

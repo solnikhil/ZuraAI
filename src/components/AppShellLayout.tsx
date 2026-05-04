@@ -13,7 +13,6 @@ import { useWindowMaximizeState } from './shell/useWindowMaximizeState'
 
 function AppShellContent() {
   const navigate = useNavigate()
-  const location = useLocation()
   const { dashboardView, hasUnsavedSettings, setDashboardView } = useAppShell()
   const { createSession } = useChatHistory()
   const { showToast } = useToast()
