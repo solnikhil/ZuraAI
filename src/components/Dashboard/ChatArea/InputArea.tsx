@@ -526,7 +526,7 @@ export function InputArea({
             />
 
             {showCompactLanding ? (
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2.5">
                 <div className={cn(controlClusterClass, 'shrink-0')}>{quickActionsMenu}</div>
                 <div className="min-w-0 flex-1 px-0.5">
                   <Textarea
@@ -534,7 +534,7 @@ export function InputArea({
                     value={input}
                     placeholder={placeholder}
                     className={cn(
-                      'h-10 min-h-[40px] w-full overflow-hidden rounded-[22px] border-none bg-transparent px-3 py-[9px] text-[1.05rem] leading-[1.15] text-[var(--theme-text-primary)] placeholder:text-[var(--theme-text-muted)] shadow-none transition-colors duration-200 resize-none focus-visible:ring-0 md:text-[1.1rem]'
+                      'block h-10 min-h-[40px] w-full appearance-none overflow-hidden rounded-[22px] border-none bg-transparent px-3 py-[9px] text-[1.05rem] leading-[22px] md:text-[1.1rem] text-[var(--theme-text-primary)] placeholder:text-[var(--theme-text-muted)] shadow-none transition-colors duration-200 resize-none focus-visible:ring-0'
                     )}
                     onFocus={() => {
                       onFocusChange?.(true)
@@ -602,7 +602,7 @@ export function InputArea({
                           disabled={!canSend}
                           className={sendButtonClass}
                         >
-                          <SendHorizonal className="w-4 h-4" />
+                          <span className="translate-y-[0.5px]"><SendHorizonal className="w-4 h-4" /></span>
                         </motion.button>
                       </TooltipTrigger>
                       <TooltipContent side="top" className="rounded-full">
@@ -613,7 +613,7 @@ export function InputArea({
                 </div>
               </div>
             ) : (
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2.5">
                 <div className="flex items-center gap-2 shrink-0">
                   <div className={controlClusterClass}>{quickActionsMenu}</div>
 
@@ -651,31 +651,29 @@ export function InputArea({
                 </div>
 
                 <div className="min-w-0 flex-1">
-                  <div className="overflow-hidden">
-                    <Textarea
-                      ref={textareaRef}
-                      value={input}
-                      placeholder={placeholder}
-                      rows={1}
-                      className={cn(
-                        'h-9 min-h-[36px] w-full overflow-x-auto overflow-y-hidden whitespace-nowrap rounded-[20px] border-none bg-transparent px-2.5 py-[7px] text-[0.98rem] leading-[1.2] text-[var(--theme-text-primary)] placeholder:text-[var(--theme-text-muted)] shadow-none transition-colors duration-200 resize-none focus-visible:ring-0'
-                      )}
-                      onFocus={() => {
-                        onFocusChange?.(true)
-                        onActivity?.()
-                      }}
-                      onBlur={() => {
-                        onFocusChange?.(false)
-                      }}
-                      onKeyDown={handleKeyDown}
-                      onPaste={handlePaste}
-                      onChange={(e) => {
-                        setInput(e.target.value)
-                        adjustHeight()
-                        onActivity?.()
-                      }}
-                    />
-                  </div>
+                  <Textarea
+                    ref={textareaRef}
+                    value={input}
+                    placeholder={placeholder}
+                    rows={1}
+                    className={cn(
+                      'block h-9 min-h-[36px] w-full appearance-none overflow-x-auto overflow-y-hidden whitespace-nowrap rounded-[20px] border-none bg-transparent px-2 py-[8px] text-[0.98rem] leading-[20px] md:text-[0.98rem] text-[var(--theme-text-primary)] placeholder:text-[var(--theme-text-muted)] shadow-none transition-colors duration-200 resize-none focus-visible:ring-0'
+                    )}
+                    onFocus={() => {
+                      onFocusChange?.(true)
+                      onActivity?.()
+                    }}
+                    onBlur={() => {
+                      onFocusChange?.(false)
+                    }}
+                    onKeyDown={handleKeyDown}
+                    onPaste={handlePaste}
+                    onChange={(e) => {
+                      setInput(e.target.value)
+                      adjustHeight()
+                      onActivity?.()
+                    }}
+                  />
                 </div>
 
                 <div className="flex items-center justify-end gap-2 shrink-0">
@@ -728,7 +726,7 @@ export function InputArea({
                             disabled={!canSend}
                             className={sendButtonClass}
                           >
-                            <SendHorizonal className="w-4 h-4" />
+                            <span className="translate-y-[0.5px]"><SendHorizonal className="w-4 h-4" /></span>
                           </motion.button>
                         </TooltipTrigger>
                         <TooltipContent side="top" className="rounded-full">
