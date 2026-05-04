@@ -84,7 +84,7 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
   mainWindow = new BrowserWindow({
     width: options?.width ?? 1200,
     height: options?.height ?? 800,
-    minWidth: 900,
+    minWidth: 820,
     minHeight: 600,
     title: 'ZuraAI - Dashboard',
     icon: resolveAppIconPath(),
