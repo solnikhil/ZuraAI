@@ -117,7 +117,7 @@ export function InputArea({
   const [landingExpanded, setLandingExpanded] = React.useState(false)
   const showCompactLanding = isLandingVariant && !landingExpanded && attachedFiles.length === 0
   const { textareaRef, adjustHeight } = useAutoResizeTextarea({
-    minHeight: showCompactLanding ? 40 : 36,
+    minHeight: 36,
     maxHeight: 200,
   })
   const fileInputRef = React.useRef<HTMLInputElement>(null)
@@ -325,14 +325,12 @@ export function InputArea({
       ? 'Type here...'
       : 'Enter your message to continue...'
   const composerWidthClass = isLandingVariant
-    ? 'max-w-[min(860px,100%)]'
+    ? 'max-w-[min(745px,100%)]'
     : 'max-w-full'
   const shellRadiusClass = showCompactLanding ? 'rounded-[32px]' : 'rounded-[28px] md:rounded-[30px]'
-  const shellPaddingClass = showCompactLanding
-    ? 'px-3 py-2'
-    : showAttachmentRail
-      ? 'px-3 py-3'
-      : 'px-3 py-2.5'
+  const shellPaddingClass = showAttachmentRail
+    ? 'px-3 py-3'
+    : 'px-3 py-2.5'
   const controlClusterClass = 'flex items-center gap-1.5'
   const secondaryControlButtonClass =
     'theme-control-btn inline-flex h-9 w-9 items-center justify-center rounded-full p-2'
@@ -533,8 +531,9 @@ export function InputArea({
                     ref={textareaRef}
                     value={input}
                     placeholder={placeholder}
+                    rows={1}
                     className={cn(
-                      'block h-10 min-h-[40px] w-full appearance-none overflow-hidden rounded-[22px] border-none bg-transparent px-3 py-[9px] text-[1.05rem] leading-[22px] md:text-[1.1rem] text-[var(--theme-text-primary)] placeholder:text-[var(--theme-text-muted)] shadow-none transition-colors duration-200 resize-none focus-visible:ring-0'
+                      'block h-9 min-h-[36px] w-full appearance-none overflow-x-auto overflow-y-hidden whitespace-nowrap rounded-[20px] border-none bg-transparent px-2 py-[8px] text-[0.98rem] leading-[20px] md:text-[0.98rem] text-[var(--theme-text-primary)] placeholder:text-[var(--theme-text-muted)] shadow-none transition-colors duration-200 resize-none focus-visible:ring-0'
                     )}
                     onFocus={() => {
                       onFocusChange?.(true)

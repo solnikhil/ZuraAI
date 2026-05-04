@@ -46,6 +46,7 @@ import {
   type ProviderRuntimeStreamRequest as StreamRequest,
 } from './providerRuntimeTypes'
 import { getOpenRouterApiKey } from '../utils/openRouterKey'
+import { resolveProviderApiKeysForSettings } from '../utils/secureApiKeys'
 
 function extractOpenRouterReasoningDelta(
   reasoningDetails:
@@ -368,13 +369,14 @@ export async function generateProviderTitleText(
   model: string,
   prompt: string
 ): Promise<string> {
+  const resolvedSettings = await resolveProviderApiKeysForSettings(settings, provider)
   const normalizedModel = normalizeProviderModel(provider, model)
   const messages: ChatMessage[] = [{ role: 'user', content: prompt }]
 
   switch (provider) {
     case 'groq': {
       const result = await generateGroqCompletion(
-        getProviderCredential(settings, provider),
+        getProviderCredential(resolvedSettings, provider),
         normalizedModel,
         messages,
         { temperature: 0.3 }
@@ -383,7 +385,7 @@ export async function generateProviderTitleText(
     }
     case 'perplexity': {
       const result = await generatePerplexityCompletion(
-        getProviderCredential(settings, provider),
+        getProviderCredential(resolvedSettings, provider),
         normalizedModel,
         messages,
         { temperature: 0.3, max_tokens: 20 }
@@ -392,7 +394,7 @@ export async function generateProviderTitleText(
     }
     case 'ollama': {
       const result = await generateOllamaCompletion(
-        getProviderCredential(settings, provider),
+        getProviderCredential(resolvedSettings, provider),
         normalizedModel,
         messages,
         { temperature: 0.3 }
@@ -401,7 +403,7 @@ export async function generateProviderTitleText(
     }
     case 'alibaba': {
       const result = await generateAlibabaCompletion(
-        getProviderCredential(settings, provider),
+        getProviderCredential(resolvedSettings, provider),
         normalizedModel,
         messages,
         { temperature: 0.3, max_tokens: 20 }
@@ -410,7 +412,7 @@ export async function generateProviderTitleText(
     }
     case 'deepseek': {
       const result = await generateDeepSeekCompletion(
-        getProviderCredential(settings, provider),
+        getProviderCredential(resolvedSettings, provider),
         normalizedModel,
         messages,
         { temperature: 0.3, max_tokens: 20 }
@@ -419,7 +421,7 @@ export async function generateProviderTitleText(
     }
     case 'fireworks': {
       const result = await generateFireworksCompletion(
-        getProviderCredential(settings, provider),
+        getProviderCredential(resolvedSettings, provider),
         normalizedModel,
         messages,
         { temperature: 0.3, max_tokens: 20 }
@@ -428,7 +430,7 @@ export async function generateProviderTitleText(
     }
     case 'openrouter': {
       const result = await generateOpenRouterCompletion(
-        getProviderCredential(settings, provider),
+        getProviderCredential(resolvedSettings, provider),
         normalizedModel,
         messages,
         { temperature: 0.3, max_tokens: 20 }

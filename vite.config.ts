@@ -6,6 +6,7 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { execFileSync, execSync, spawn, type ChildProcess } from 'child_process'
 import { createRequire } from 'module'
+import crypto from 'crypto'
 
 const require = createRequire(import.meta.url)
 const IS_MACOS = process.platform === 'darwin'
@@ -17,6 +18,16 @@ const DEV_APP_EXECUTABLE_PATH = path.join(DEV_APP_BUNDLE_PATH, 'Contents', 'MacO
 const DEV_APP_MARKER_PATH = path.join(DEV_APP_CACHE_DIR, 'bundle-meta.json')
 const processWithElectronApp = process as typeof process & { electronApp?: ChildProcess }
 let devElectronApp: ChildProcess | undefined
+let lastPreloadBundleHash: string | undefined
+
+const hashFileIfExists = (filePath: string) => {
+    try {
+        const buf = fs.readFileSync(filePath)
+        return crypto.createHash('sha256').update(buf).digest('hex')
+    } catch {
+        return undefined
+    }
+}
 
 // Get git commit info at build time
 const getGitInfo = () => {
@@ -117,7 +128,22 @@ export default defineConfig({
             {
                 entry: 'electron/preload.ts',
                 onstart(options) {
-                    options.reload()
+                    // Preload code is only evaluated on page load; we need a reload for runtime changes.
+                    // However, Vite rebuilds can be triggered by type-only churn. Only full-reload when
+                    // the emitted preload bundle actually changed.
+                    const forceReload = process.env.ZURA_PRELOAD_FULL_RELOAD === '1'
+                    const disableReload = process.env.ZURA_PRELOAD_RELOAD === '0'
+                    if (disableReload) return
+
+                    const preloadOutPath = path.join(process.cwd(), 'dist-electron', 'preload.js')
+                    const nextHash = hashFileIfExists(preloadOutPath)
+
+                    const prevHash = lastPreloadBundleHash
+                    lastPreloadBundleHash = nextHash
+
+                    if (forceReload || (nextHash && nextHash !== prevHash)) {
+                        options.reload()
+                    }
                 },
             },
         ]),
