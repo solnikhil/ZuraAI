@@ -1,8 +1,8 @@
 import { app, Tray, Menu, nativeImage } from 'electron'
-import path from 'path'
 import { showAboutWindow } from './aboutWindow'
 import { createMainWindow, getMainWindow, showMainWindow } from './mainWindow'
 import { showMainWindowAndNavigateSettings } from './navigation'
+import { createAppIcon, resolveAppIconPath } from '../windowIcon'
 
 // Global reference to tray
 let tray: Tray | null = null
@@ -11,14 +11,11 @@ let tray: Tray | null = null
  * Create the system tray icon and menu
  */
 export function createTray(): Tray {
-  const iconPath = path.join(process.env.PUBLIC || '', 'icon.png')
-
-  let icon = nativeImage.createFromPath(iconPath)
+  let icon = createAppIcon()
 
   // Try alternative path if icon not found
   if (icon.isEmpty()) {
-    const altPath = path.join(__dirname, '../../public/icon.png')
-    icon = nativeImage.createFromPath(altPath)
+    icon = nativeImage.createFromPath(resolveAppIconPath())
   }
 
   // Resize icon for tray based on platform

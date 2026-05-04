@@ -13,6 +13,7 @@ import {
   initializeOverlay,
   destroyPromptPopup,
 } from './windows'
+import { applyDevelopmentAppIcon } from './windowIcon'
 import { registerAllHandlers } from './ipc'
 import {
   initializeMcpManager,
@@ -159,6 +160,7 @@ app.whenReady().then(async () => {
   })
   deferredInitializer.markIPCReady()
   createApplicationMenu()
+  applyDevelopmentAppIcon()
   initializeOverlay()
   applyOverlaySettings({})
 

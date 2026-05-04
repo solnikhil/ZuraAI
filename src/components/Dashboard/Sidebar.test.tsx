@@ -5,7 +5,6 @@ import Sidebar from './Sidebar'
 
 const mockSettingsUI = {
   settingsUI: {
-    frostedPrompt: false,
     theme: 'dark',
     activeTheme: 'dark-default',
     titleBarDensity: 'compact' as const,

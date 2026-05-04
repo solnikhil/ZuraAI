@@ -123,7 +123,7 @@ export function InputArea({
   const fileInputRef = React.useRef<HTMLInputElement>(null)
   const { settings, updateSettings } = useSettings()
   const { animationsEnabled } = useMotionPreferences()
-  const { frostedPrompt } = settings
+  
   const webResearchEnabled = settings.skills?.web_research?.enabled !== false
   const computerUseAvailable = !isMacOSRuntime()
   const computerUseEnabled = settings.skills?.computer_use?.enabled === true
@@ -369,7 +369,7 @@ export function InputArea({
             aria-label="Chat composer"
             className={cn(
               'relative flex flex-col rounded-2xl w-full text-left cursor-text overflow-hidden p-1.5',
-              frostedPrompt ? 'zura-frosted-prompt' : 'theme-composer-surface',
+              'theme-composer-surface',
               showCompactLanding
                 ? 'rounded-[28px] px-3 py-2'
                 : showAttachmentRail

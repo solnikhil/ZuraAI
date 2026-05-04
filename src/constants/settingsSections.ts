@@ -6,7 +6,6 @@ export type SettingsSectionId =
   | 'skills'
   | 'themes'
   | 'systemprompt'
-  | 'experimental'
 
 export interface SettingsSectionMeta {
   id: SettingsSectionId
@@ -66,14 +65,7 @@ export const SETTINGS_SECTIONS: SettingsSectionMeta[] = [
     description: 'Define default assistant behavior and response guidelines.',
     keywords: ['instruction', 'persona', 'behavior', 'prompt'],
   },
-  {
-    id: 'experimental',
-    navLabel: 'Experimental',
-    title: 'Experimental Features',
-    description: 'Try early capabilities and tune advanced interface behavior.',
-    keywords: ['labs', 'beta', 'feature flags', 'frosted'],
-  },
-]
+  ]
 
 export const SETTINGS_SECTION_MAP: Record<SettingsSectionId, SettingsSectionMeta> =
   SETTINGS_SECTIONS.reduce<Record<SettingsSectionId, SettingsSectionMeta>>((acc, section) => {

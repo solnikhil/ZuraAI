@@ -13,7 +13,7 @@ import { ProviderHubSection } from './sections/ProviderHubSection'
 import { SkillsSection } from './sections/SkillsSection'
 import { AppearanceSection } from './sections/AppearanceSection'
 import { SystemPromptSection } from './sections/SystemPromptSection'
-import { ExperimentalSection } from './sections/ExperimentalSection'
+
 import { computeUsageStats } from './sections/usageMetrics'
 import { normalizeSettingsSection } from '../../constants/settingsSections'
 import { isMacOSRuntime } from '../../utils/platform'
@@ -363,13 +363,7 @@ if (!hasSettingsChanges && !hasMcpChanges) {
               />
             )}
 
-            {normalizedActiveSection === 'experimental' && (
-              <ExperimentalSection
-                frostedPrompt={pendingSettings.frostedPrompt}
-                sidebarAutoHideOnResize={pendingSettings.sidebarAutoHideOnResize}
-                onChange={(changes) => handleChange(changes)}
-              />
-            )}
+            
           </div>
         </div>
       </ScrollArea>

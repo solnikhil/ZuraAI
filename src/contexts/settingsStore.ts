@@ -35,8 +35,7 @@ export const UI_SETTING_KEYS: (keyof SettingsUI)[] = [
   'titleBarShowChatTitle',
   'titleBarShowModel',
   'commandBar',
-  'frostedPrompt',
-  'sidebarAutoHideOnResize',
+  
   'chatBubbleStyle',
   'chatSelectedOverlayStyle',
   'placeholderStyle',
@@ -79,12 +78,42 @@ const UPDATED_WEB_SEARCH_STRATEGY_BLOCK =
 - For research or discovery tasks with no obvious independent slices, begin with ONE broad exploratory search
 - If the user asks for an explicit range or independent slices (for example: past 5 years, 2021-2025, regions, providers, products, competitors, or categories), do NOT start with one broad search. Instead, issue one focused web_search call per slice in the same assistant turn so the app can execute the batch in parallel
 - Do not pre-plan several searches from memory before seeing results unless the user already gave a clear range or clear independent facets`
+const WEB_SEARCH_LIMITATION_NOTE =
+  '- Briefly note when the answer depends on web search results and that web results can be incomplete, outdated, or occasionally incorrect'
+const WEB_SEARCH_PRIMARY_SOURCE_NOTE =
+  '- When double-checking or verifying facts, prioritize official or primary sources over third-party summaries. Use third-party sources only when official sources are unavailable, incomplete, or useful for context, and label that limitation clearly'
+const WEB_SEARCH_SOURCES_REQUIREMENT =
+  '- In Sources:, list the relevant URLs as markdown links in the format [Title](URL)'
 
 function migrateWebSearchPrompt(prompt: unknown): unknown {
   if (typeof prompt !== 'string') return prompt
-  if (!prompt.includes(LEGACY_WEB_SEARCH_STRATEGY_BLOCK)) return prompt
 
-  return prompt.replace(LEGACY_WEB_SEARCH_STRATEGY_BLOCK, UPDATED_WEB_SEARCH_STRATEGY_BLOCK)
+  let migratedPrompt = prompt
+  if (migratedPrompt.includes(LEGACY_WEB_SEARCH_STRATEGY_BLOCK)) {
+    migratedPrompt = migratedPrompt.replace(LEGACY_WEB_SEARCH_STRATEGY_BLOCK, UPDATED_WEB_SEARCH_STRATEGY_BLOCK)
+  }
+
+  if (
+    !migratedPrompt.includes(WEB_SEARCH_LIMITATION_NOTE) &&
+    migratedPrompt.includes(WEB_SEARCH_SOURCES_REQUIREMENT)
+  ) {
+    migratedPrompt = migratedPrompt.replace(
+      WEB_SEARCH_SOURCES_REQUIREMENT,
+      `${WEB_SEARCH_SOURCES_REQUIREMENT}\n${WEB_SEARCH_LIMITATION_NOTE}`
+    )
+  }
+
+  if (
+    !migratedPrompt.includes(WEB_SEARCH_PRIMARY_SOURCE_NOTE) &&
+    migratedPrompt.includes(WEB_SEARCH_LIMITATION_NOTE)
+  ) {
+    migratedPrompt = migratedPrompt.replace(
+      WEB_SEARCH_LIMITATION_NOTE,
+      `${WEB_SEARCH_LIMITATION_NOTE}\n${WEB_SEARCH_PRIMARY_SOURCE_NOTE}`
+    )
+  }
+
+  return migratedPrompt
 }
 
 function shouldClearLegacyFireworksSeededModels(models: unknown): boolean {
@@ -461,10 +490,8 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   )
   if (!parsed.activeTheme) parsed.activeTheme = defaultSettings.activeTheme
   delete (parsed as Record<string, unknown>).frostedSidebar
-  if (parsed.frostedPrompt === undefined) parsed.frostedPrompt = defaultSettings.frostedPrompt
-  if (parsed.sidebarAutoHideOnResize === undefined) {
-    parsed.sidebarAutoHideOnResize = defaultSettings.sidebarAutoHideOnResize
-  }
+  delete (parsed as Record<string, unknown>).frostedPrompt
+  delete (parsed as Record<string, unknown>).sidebarAutoHideOnResize
   if (!parsed.promptAutoHide) {
     parsed.promptAutoHide = defaultSettings.promptAutoHide
   } else {
@@ -521,8 +548,6 @@ export function getInitialUISettings(settings: Settings): Partial<SettingsUI> {
     titleBarShowChatTitle: settings.titleBarShowChatTitle,
     titleBarShowModel: settings.titleBarShowModel,
     commandBar: settings.commandBar,
-    frostedPrompt: settings.frostedPrompt,
-    sidebarAutoHideOnResize: settings.sidebarAutoHideOnResize,
     promptAutoHide: settings.promptAutoHide,
     chatBubbleStyle: settings.chatBubbleStyle,
     chatSelectedOverlayStyle: settings.chatSelectedOverlayStyle,

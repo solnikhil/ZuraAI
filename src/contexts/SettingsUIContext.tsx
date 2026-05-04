@@ -93,11 +93,7 @@ export interface SettingsUI {
     palettePosition: 'top' | 'center' | 'lower'
   }
 
-  // Frosted prompt (glassmorphism effect)
-  frostedPrompt: boolean
-
-  // Sidebar auto-hide when window is narrow
-  sidebarAutoHideOnResize: boolean
+  
 
   // Prompt auto-hide (slide away after inactivity)
   promptAutoHide: {
@@ -141,8 +137,7 @@ export const defaultSettingsUI: SettingsUI = {
     paletteWidth: 'default',
     palettePosition: 'center',
   },
-  frostedPrompt: false,
-  sidebarAutoHideOnResize: true,
+  
   promptAutoHide: {
     enabled: false,
     timeout: 120,

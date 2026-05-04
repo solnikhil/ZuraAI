@@ -3,6 +3,7 @@ import path from 'path'
 
 import { resolveDistPath } from './mainWindow'
 import { showOverlayAtPosition } from './overlayWindow'
+import { resolveAppIconPath } from '../windowIcon'
 
 const POPUP_WIDTH = 500
 const POPUP_HEIGHT = 236
@@ -50,7 +51,7 @@ function createPromptPopup(cursorX: number, cursorY: number): BrowserWindow {
     maxWidth: 640,
     maxHeight: POPUP_HEIGHT,
     title: 'ZuraAI Prompt',
-    icon: path.join(process.env.PUBLIC || '', 'icon.png'),
+    icon: resolveAppIconPath(),
     frame: false,
     resizable: false,
     minimizable: false,

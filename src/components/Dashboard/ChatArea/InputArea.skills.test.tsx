@@ -12,7 +12,6 @@ const mockSettings = {
         enabled: true,
       },
     },
-    frostedPrompt: false,
     modelProvider: 'openrouter',
   },
   updateSettings,

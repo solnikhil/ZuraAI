@@ -2,6 +2,7 @@ import { app, BrowserWindow, globalShortcut, screen } from 'electron'
 import path from 'path'
 
 import { getMainWindow, resolveDistPath, showMainWindow } from './mainWindow'
+import { resolveAppIconPath } from '../windowIcon'
 
 export type OverlayMode = 'hidden' | 'compact' | 'expanded'
 
@@ -166,7 +167,7 @@ function createOverlayWindow(): BrowserWindow {
     maxWidth: MAX_WIDTH,
     maxHeight: WINDOW_HEIGHTS.expanded,
     title: 'ZuraAI Overlay',
-    icon: path.join(process.env.PUBLIC || '', 'icon.png'),
+    icon: resolveAppIconPath(),
     frame: false,
     resizable: false,
     minimizable: false,

@@ -279,13 +279,6 @@ function buildBaseSuggestions(
       action: { type: 'open_settings_section', section: 'themes', commandPaletteTab: true },
     },
     {
-      id: 'go-settings-experimental',
-      title: 'Experimental Settings',
-      subtitle: 'Labs & feature flags',
-      keywords: ['experimental', 'labs', 'beta', 'feature', 'flags', 'streaming'],
-      action: { type: 'open_settings_section', section: 'experimental' },
-    },
-    {
       id: 'new-chat',
       title: 'New Chat',
       subtitle: 'Start fresh',

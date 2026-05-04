@@ -202,6 +202,11 @@ describe('SettingsContext Provider Integration', () => {
     it('migrates saved default web-search strategy to allow explicit parallel range batches', () => {
       const legacyPrompt = `Custom header
 
+CRITICAL REQUIREMENTS:
+- After using web_search, you MUST include a Sources: section at the end of the response
+- In Sources:, list the relevant URLs as markdown links in the format [Title](URL)
+- Do not claim certainty beyond what the sources support
+
 SEARCH STRATEGY:
 - For research or discovery tasks, begin with ONE broad exploratory search
 - Do not pre-plan several searches from memory before seeing results
@@ -211,11 +216,37 @@ SEARCH STRATEGY:
 
       expect(normalized.webSearchPrompt).toContain('do NOT start with one broad search')
       expect(normalized.webSearchPrompt).toContain('one focused web_search call per slice')
+      expect(normalized.webSearchPrompt).toContain('web results can be incomplete')
+      expect(normalized.webSearchPrompt).toContain('prioritize official or primary sources')
       expect(normalized.webSearchPrompt).toContain('Custom header')
       expect(normalized.webSearchPrompt).toContain('Let the first results guide follow-up searches')
       expect(normalized.webSearchPrompt).not.toContain(
         'For research or discovery tasks, begin with ONE broad exploratory search'
       )
+    })
+
+    it('adds the web-search limitation note to saved prompts without duplicating it', () => {
+      const savedPrompt = `CRITICAL REQUIREMENTS:
+- After using web_search, you MUST include a Sources: section at the end of the response
+- In Sources:, list the relevant URLs as markdown links in the format [Title](URL)
+- Do not claim certainty beyond what the sources support`
+
+      const normalized = normalizeStoredSettings(JSON.stringify({ webSearchPrompt: savedPrompt }))
+      const matches = normalized.webSearchPrompt.match(/web results can be incomplete/g) || []
+
+      expect(matches).toHaveLength(1)
+    })
+
+    it('adds the primary-source verification note to saved prompts without duplicating it', () => {
+      const savedPrompt = `CRITICAL REQUIREMENTS:
+- In Sources:, list the relevant URLs as markdown links in the format [Title](URL)
+- Briefly note when the answer depends on web search results and that web results can be incomplete, outdated, or occasionally incorrect
+- Do not claim certainty beyond what the sources support`
+
+      const normalized = normalizeStoredSettings(JSON.stringify({ webSearchPrompt: savedPrompt }))
+      const matches = normalized.webSearchPrompt.match(/prioritize official or primary sources/g) || []
+
+      expect(matches).toHaveLength(1)
     })
 
     it('preserves an explicitly emptied provider model list', () => {

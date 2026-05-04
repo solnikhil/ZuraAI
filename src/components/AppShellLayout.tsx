@@ -2,7 +2,6 @@ import { useEffect, useMemo } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { AppShellProvider, useAppShell } from '../contexts/AppShellContext'
 import { useChatHistory } from '../contexts/ChatHistoryContext'
-import { useSettingsUI } from '../contexts/SettingsUIContext'
 import TitleBar from './TitleBar'
 import ResizeHandles from './ResizeHandles'
 import { CommandPalette } from './CommandPalette'
@@ -10,26 +9,15 @@ import AppContextMenu from './AppContextMenu'
 import { useToast } from './shared/Toast'
 import { useMouseNavigation } from './shell/useMouseNavigation'
 import { useResizeIndicator } from './shell/useResizeIndicator'
-import { useShellRouteState } from './shell/useShellRouteState'
-import { useSidebarAutoHide } from './shell/useSidebarAutoHide'
 import { useWindowMaximizeState } from './shell/useWindowMaximizeState'
 
 function AppShellContent() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { settingsUI } = useSettingsUI()
-  const { sidebarAutoHideOnResize } = settingsUI
-  const { setSidebarHidden, dashboardView, hasUnsavedSettings, setDashboardView } = useAppShell()
+  const { dashboardView, hasUnsavedSettings, setDashboardView } = useAppShell()
   const { createSession } = useChatHistory()
   const { showToast } = useToast()
   const isDev = import.meta.env.DEV
-  const { hasSidebar } = useShellRouteState(location.pathname)
-
-  useSidebarAutoHide({
-    enabled: sidebarAutoHideOnResize,
-    hasSidebar,
-    setSidebarHidden,
-  })
 
   const isWindows = useMemo(() => {
     return navigator.platform.toLowerCase().includes('win')
