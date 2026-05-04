@@ -362,7 +362,7 @@ export default function ChatArea() {
           data-select-all-scope="chat"
           style={{ minHeight: 0 }}
           viewportRef={messagesContainerRef}
-          viewportStyle={{ padding: '16px 20px 180px 20px', minHeight: 0 }}
+          viewportStyle={{ padding: '16px 20px 112px 20px', minHeight: 0 }}
         >
           <div
             data-select-all-scope="chat"
