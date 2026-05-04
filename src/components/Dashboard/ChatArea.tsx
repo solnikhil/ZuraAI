@@ -284,7 +284,7 @@ export default function ChatArea() {
             alignItems: 'center',
             justifyContent: 'center',
             gap: '28px',
-            maxWidth: 'min(720px, 100%)',
+            maxWidth: 'min(860px, 100%)',
             width: '100%',
           }}
         >
@@ -302,7 +302,7 @@ export default function ChatArea() {
           >
             {vibe}
           </div>
-          <div style={{ width: '100%', maxWidth: 'min(1180px, 100%)' }}>
+          <div style={{ width: '100%', maxWidth: 'min(860px, 100%)' }}>
             <InputArea
               input={input}
               setInput={setInput}
@@ -532,7 +532,7 @@ export default function ChatArea() {
           left: 0;
           right: 0;
           bottom: 0;
-          padding: 0 20px 20px;
+          padding: 0 20px 10px;
           pointer-events: none;
           background: transparent;
         }

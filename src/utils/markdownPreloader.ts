@@ -20,8 +20,6 @@ export type SyntaxHighlighterComponent = React.ComponentType<{
 // ── Cached resolved modules ────────────────────────────────────────────────
 
 let cachedRemarkGfm: (() => void) | null = null
-let cachedRemarkMath: (() => void) | null = null
-let cachedRehypeKatex: (() => void) | null = null
 let cachedSyntaxHighlighter: SyntaxHighlighterComponent | null = null
 let cachedPrismStyle: Record<string, React.CSSProperties> | null = null
 let preloadDone = false
@@ -122,17 +120,13 @@ export function preloadMarkdown(): Promise<void> {
     preloadPromise = (async () => {
         const results = await Promise.allSettled([
             import('remark-gfm').then(m => m.default),
-            import('remark-math').then(m => m.default),
-            import('rehype-katex').then(m => m.default),
             import('react-syntax-highlighter/dist/esm/prism-light').then(m => m.default),
             import('react-syntax-highlighter/dist/esm/styles/prism').then(m => buildPrismStyle(m.vscDarkPlus)),
         ])
 
-        const [gfm, math, katex, highlighter, style] = results
+        const [gfm, highlighter, style] = results
 
         if (gfm.status === 'fulfilled') cachedRemarkGfm = gfm.value
-        if (math.status === 'fulfilled') cachedRemarkMath = math.value
-        if (katex.status === 'fulfilled') cachedRehypeKatex = katex.value
         if (highlighter.status === 'fulfilled') {
             const SyntaxHighlighter = highlighter.value as unknown as SyntaxHighlighterComponent & {
                 registerLanguage: (name: string, lang: unknown) => void
@@ -154,8 +148,6 @@ export function preloadMarkdown(): Promise<void> {
 export function getPreloadedMarkdown() {
     return {
         remarkGfm: cachedRemarkGfm,
-        remarkMath: cachedRemarkMath,
-        rehypeKatex: cachedRehypeKatex,
         syntaxHighlighter: cachedSyntaxHighlighter,
         prismStyle: cachedPrismStyle,
         ready: preloadDone,

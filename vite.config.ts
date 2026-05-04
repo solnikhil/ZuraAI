@@ -144,8 +144,6 @@ export default defineConfig({
                     if (
                         id.includes('node_modules/react-markdown') ||
                         id.includes('node_modules/remark-gfm') ||
-                        id.includes('node_modules/remark-math') ||
-                        id.includes('node_modules/rehype-katex') ||
                         id.includes('node_modules/react-syntax-highlighter')
                     ) {
                         return 'markdown'

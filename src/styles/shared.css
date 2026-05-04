@@ -137,8 +137,8 @@
 }
 
 .theme-composer-surface {
-    background: var(--theme-background);
-    border: 1px solid color-mix(in srgb, var(--theme-border) 80%, transparent);
+    background: color-mix(in srgb, var(--theme-background) 94%, var(--theme-surface) 6%);
+    border: 1px solid color-mix(in srgb, var(--theme-border) 74%, transparent);
     box-shadow: none;
 }
 
