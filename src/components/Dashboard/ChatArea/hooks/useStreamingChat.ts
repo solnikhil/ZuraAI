@@ -534,13 +534,11 @@ enableTools: true,
         options.onMessageSent?.()
 
         if (isNewSession && targetSessionId) {
-          setTimeout(() => {
-            generateChatTitle(content, settings)
-              .then((title) => {
-                if (title) applyGeneratedSessionTitle(targetSessionId!, title)
-              })
-              .catch(console.error)
-          }, 1500)
+          generateChatTitle(content, settings)
+            .then((title) => {
+              if (title) applyGeneratedSessionTitle(targetSessionId!, title)
+            })
+            .catch(console.error)
         }
       } catch (error: unknown) {
         // Silently handle abort (user clicked stop)

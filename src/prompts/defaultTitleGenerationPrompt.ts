@@ -1,16 +1,15 @@
-// Default title generation prompt
+export const defaultTitleGenerationPrompt = `Give this conversation a short descriptive title (2-6 words).
 
-export const defaultTitleGenerationPrompt = `Generate a concise 2-3-word title for this chat.
+Rules:
+- Return ONLY the title text. No quotes, no prefix, no explanation.
+- Do NOT repeat the instruction back.
+- Do NOT use markdown or punctuation at the end.
 
-Format style examples:
-- "UI/UX improvement tips"
-- "Real-time systems explained"
-- "Repo maintenance guide"
-
-IMPORTANT rules:
-1. Return ONLY the 2-3-word title.
-2. Do NOT say "Here is the title" or any other conversational text.
-3. Do NOT use quotes.
-4. Do NOT use markdown.
+Good: "Python web scraping guide"
+Good: "Fixing React hydration error"
+Good: "Deploying to AWS"
+Bad: "Here is a title: Python web scraping guide"
+Bad: "Title: Fixing React hydration error"
+Bad: "Generate a short descriptive title"
 
 User message: "{{userMessage}}"`

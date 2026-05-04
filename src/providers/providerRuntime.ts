@@ -102,18 +102,53 @@ type OpenAiCompatibleResponse =
   | FireworksResponse
   | DeepSeekResponse
 
-type TitleGenerationSettings = Partial<
-  Pick<
-    StreamingSettings,
-    | 'alibabaApiKey'
-    | 'deepseekApiKey'
-    | 'fireworksApiKey'
-    | 'groqApiKey'
-    | 'ollamaUrl'
-    | 'openRouterApiKey'
-    | 'perplexityApiKey'
-  >
+type TitleGenerationSettings = Pick<
+  StreamingSettings,
+  | 'alibabaApiKey'
+  | 'deepseekApiKey'
+  | 'fireworksApiKey'
+  | 'groqApiKey'
+  | 'ollamaUrl'
+  | 'openRouterApiKey'
+  | 'perplexityApiKey'
 >
+
+
+function extractTitleTextFromMessage(message: unknown): string {
+  if (!message || typeof message !== 'object') return ''
+  const record = message as Record<string, unknown>
+
+  const content = record.content
+  if (typeof content === 'string' && content.trim()) {
+    return content
+  }
+
+  // Some providers return content as an array of parts.
+  if (Array.isArray(content)) {
+    const joined = content
+      .map((part) => {
+        if (!part || typeof part !== 'object') return ''
+        const text = (part as Record<string, unknown>).text
+        return typeof text === 'string' ? text : ''
+      })
+      .join('')
+      .trim()
+    if (joined) return joined
+  }
+
+  // DeepSeek (and some others) may populate reasoning fields with the only text.
+  const reasoningContent = record.reasoning_content
+  if (typeof reasoningContent === 'string' && reasoningContent.trim()) {
+    return reasoningContent
+  }
+
+  const reasoning = record.reasoning
+  if (typeof reasoning === 'string' && reasoning.trim()) {
+    return reasoning
+  }
+
+  return ''
+}
 
 
 function inferMimeTypeFromDataUrl(dataUrl: string): string {
@@ -363,6 +398,9 @@ function normalizeProviderModel(provider: ActiveProviderId, model: string): stri
   return model
 }
 
+const TITLE_MAX_TOKENS = 40
+const TITLE_TEMPERATURE = 0.3
+
 export async function generateProviderTitleText(
   settings: TitleGenerationSettings,
   provider: ActiveProviderId,
@@ -379,63 +417,63 @@ export async function generateProviderTitleText(
         getProviderCredential(resolvedSettings, provider),
         normalizedModel,
         messages,
-        { temperature: 0.3 }
+        { temperature: TITLE_TEMPERATURE, max_tokens: TITLE_MAX_TOKENS }
       )
-      return result.choices?.[0]?.message?.content || ''
+      return extractTitleTextFromMessage(result.choices?.[0]?.message)
     }
     case 'perplexity': {
       const result = await generatePerplexityCompletion(
         getProviderCredential(resolvedSettings, provider),
         normalizedModel,
         messages,
-        { temperature: 0.3, max_tokens: 20 }
+        { temperature: TITLE_TEMPERATURE, max_tokens: TITLE_MAX_TOKENS }
       )
-      return result.choices?.[0]?.message?.content || ''
+      return extractTitleTextFromMessage(result.choices?.[0]?.message)
     }
     case 'ollama': {
       const result = await generateOllamaCompletion(
         getProviderCredential(resolvedSettings, provider),
         normalizedModel,
         messages,
-        { temperature: 0.3 }
+        { temperature: TITLE_TEMPERATURE, think: false }
       )
-      return result.message?.content || ''
+      return extractTitleTextFromMessage(result.message)
     }
     case 'alibaba': {
       const result = await generateAlibabaCompletion(
         getProviderCredential(resolvedSettings, provider),
         normalizedModel,
         messages,
-        { temperature: 0.3, max_tokens: 20 }
+        { temperature: TITLE_TEMPERATURE, max_tokens: TITLE_MAX_TOKENS, enableThinking: false }
       )
-      return result.choices?.[0]?.message?.content || ''
+      return extractTitleTextFromMessage(result.choices?.[0]?.message)
     }
     case 'deepseek': {
       const result = await generateDeepSeekCompletion(
         getProviderCredential(resolvedSettings, provider),
         normalizedModel,
         messages,
-        { temperature: 0.3, max_tokens: 20 }
+        { temperature: TITLE_TEMPERATURE, max_tokens: TITLE_MAX_TOKENS, enableThinking: false }
       )
-      return result.choices?.[0]?.message?.content || ''
+      return extractTitleTextFromMessage(result.choices?.[0]?.message)
     }
     case 'fireworks': {
       const result = await generateFireworksCompletion(
         getProviderCredential(resolvedSettings, provider),
         normalizedModel,
         messages,
-        { temperature: 0.3, max_tokens: 20 }
+        { temperature: TITLE_TEMPERATURE, max_tokens: TITLE_MAX_TOKENS }
       )
-      return result.choices?.[0]?.message?.content || ''
+      return extractTitleTextFromMessage(result.choices?.[0]?.message)
     }
     case 'openrouter': {
       const result = await generateOpenRouterCompletion(
         getProviderCredential(resolvedSettings, provider),
         normalizedModel,
         messages,
-        { temperature: 0.3, max_tokens: 20 }
+        { temperature: TITLE_TEMPERATURE, max_tokens: TITLE_MAX_TOKENS, reasoning: { exclude: true } }
       )
-      return result.choices?.[0]?.message?.content || ''
+      return extractTitleTextFromMessage(result.choices?.[0]?.message)
     }
   }
 }

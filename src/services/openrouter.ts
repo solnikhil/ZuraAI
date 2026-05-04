@@ -367,6 +367,7 @@ export async function generateOpenRouterCompletion(
     options?: {
         temperature?: number
         max_tokens?: number
+        reasoning?: OpenRouterRequestBody['reasoning']
         signal?: AbortSignal
     }
 ): Promise<OpenRouterResponse> {
@@ -383,6 +384,9 @@ export async function generateOpenRouterCompletion(
     }
     if (options?.max_tokens !== undefined) {
         requestBody.max_completion_tokens = options.max_tokens
+    }
+    if (options?.reasoning !== undefined) {
+        requestBody.reasoning = options.reasoning
     }
 
     const response = await fetch(OPENROUTER_CHAT_COMPLETIONS_URL, {
