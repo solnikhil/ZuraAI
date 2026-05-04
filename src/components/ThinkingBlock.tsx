@@ -11,7 +11,7 @@ import {
   inferWebToolModeFromResultData,
 } from '../tools/ui/webToolDisplay'
 import { getToolArgumentSummary, getToolPresentation } from '../tools/ui/toolPresentation'
-import { motionDuration, motionDurations, motionEasing, useMotionPreferences } from '@/lib/motion'
+import { motionDuration, motionDurations, motionEasing, motionSpring, motionSpringTransition, useMotionPreferences } from '@/lib/motion'
 
 function formatToolDisplayName(
   name: string,
@@ -252,7 +252,7 @@ function InlineWebSearchBlock({ block }: { block: ThinkingBlockType }) {
   return (
     <div className="thinking-block thinking-inline-tool-call">
       <div
-        className={`thinking-header tool-call ${isExpanded ? 'expanded' : ''} ${hasDetails ? 'clickable' : ''}`}
+        className={`thinking-header tool-call ${hasDetails ? 'clickable' : ''}`}
         onClick={() => hasDetails && setIsExpanded(!isExpanded)}
       >
         <div className="thinking-label">
@@ -266,10 +266,7 @@ function InlineWebSearchBlock({ block }: { block: ThinkingBlockType }) {
           {hasDetails && (
             <motion.div
               animate={{ rotate: isExpanded ? 90 : 0 }}
-              transition={{
-                duration: motionDuration(animationsEnabled, motionDurations.fast),
-                ease: motionEasing.standard,
-              }}
+              transition={motionSpringTransition(animationsEnabled, motionSpring.bouncy)}
             >
               <ChevronRight size={14} className="thinking-chevron" />
             </motion.div>
@@ -283,10 +280,7 @@ function InlineWebSearchBlock({ block }: { block: ThinkingBlockType }) {
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{
-              height: {
-                duration: motionDuration(animationsEnabled, motionDurations.normal),
-                ease: motionEasing.standard,
-              },
+              height: motionSpringTransition(animationsEnabled, motionSpring.bouncy),
               opacity: {
                 duration: motionDuration(animationsEnabled, motionDurations.fast),
                 ease: motionEasing.standard,
@@ -387,7 +381,7 @@ function CompletedBlock({
     const auditLine = formatToolAuditLine(block)
 
     return (
-      <div className={`thinking-block completed thinking-tool-call ${isExpanded ? 'expanded' : ''}`}>
+      <div className="thinking-block completed thinking-tool-call">
         <div
           className={`thinking-header completed tool-call ${hasDetails ? 'clickable' : ''}`}
           onClick={() => hasDetails && setIsExpanded(!isExpanded)}
@@ -409,10 +403,12 @@ function CompletedBlock({
               </span>
             )}
             {hasDetails && (
-              <ChevronRight
-                size={14}
-                className={`thinking-chevron ${isExpanded ? 'rotated' : ''}`}
-              />
+              <motion.div
+                animate={{ rotate: isExpanded ? 90 : 0 }}
+                transition={motionSpringTransition(animationsEnabled, motionSpring.bouncy)}
+              >
+                <ChevronRight size={14} className="thinking-chevron" />
+              </motion.div>
             )}
           </div>
         </div>
@@ -423,10 +419,7 @@ function CompletedBlock({
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
               transition={{
-                height: {
-                  duration: motionDuration(animationsEnabled, motionDurations.normal),
-                  ease: motionEasing.standard,
-                },
+                height: motionSpringTransition(animationsEnabled, motionSpring.bouncy),
                 opacity: {
                   duration: motionDuration(animationsEnabled, motionDurations.fast),
                   ease: motionEasing.standard,
@@ -477,7 +470,7 @@ function CompletedBlock({
   // Thinking block
   const hasContent = block.content && block.content.trim().length > 0
   return (
-    <div className={`thinking-block completed ${isExpanded ? 'expanded' : ''}`}>
+    <div className="thinking-block completed">
       <div className="thinking-header completed" onClick={() => setIsExpanded(!isExpanded)}>
         <div className="thinking-label">
           <span className="thinking-text">
@@ -486,7 +479,7 @@ function CompletedBlock({
           {hasContent && (
             <motion.div
               animate={{ rotate: isExpanded ? 90 : 0 }}
-              transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+              transition={motionSpringTransition(animationsEnabled, motionSpring.bouncy)}
             >
               <ChevronRight size={14} className="thinking-chevron" />
             </motion.div>
@@ -500,8 +493,11 @@ function CompletedBlock({
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{
-              height: { duration: 0.25, ease: [0.4, 0, 0.2, 1] },
-              opacity: { duration: 0.15, ease: 'easeInOut' },
+              height: motionSpringTransition(animationsEnabled, motionSpring.bouncy),
+              opacity: {
+                duration: motionDuration(animationsEnabled, motionDurations.fast),
+                ease: motionEasing.standard,
+              },
             }}
             style={{ overflow: 'hidden' }}
           >
@@ -527,6 +523,7 @@ export default function ThinkingBlock({
 }: ThinkingBlockProps) {
   const hasActiveToolCalls = activeToolCalls && activeToolCalls.length > 0
   const extraActiveToolCalls = hasActiveToolCalls ? activeToolCalls.slice(1) : []
+  const { animationsEnabled } = useMotionPreferences()
   const [isExpanded, setIsExpanded] = useState(isThinking || isSearching || hasActiveToolCalls)
   const [elapsedTime, setElapsedTime] = useState(0)
   const [finalTime, setFinalTime] = useState<number | null>(
@@ -711,7 +708,7 @@ export default function ThinkingBlock({
       ))}
 
       {showActiveBlock && (
-        <div className={`thinking-block ${isExpanded ? 'expanded' : ''}`}>
+        <div className="thinking-block">
           <div
             className={`thinking-header ${hasActiveToolCalls ? 'tool-calling' : isSearching ? 'searching' : ''}`}
             onClick={handleToggle}
@@ -763,7 +760,7 @@ export default function ThinkingBlock({
                   </span>
                   <motion.div
                     animate={{ rotate: isExpanded ? 90 : 0 }}
-                    transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+                    transition={motionSpringTransition(animationsEnabled, motionSpring.bouncy)}
                   >
                     <ChevronRight size={14} className="thinking-chevron" />
                   </motion.div>
@@ -778,8 +775,11 @@ export default function ThinkingBlock({
                 animate={{ height: 'auto', opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
                 transition={{
-                  height: { duration: 0.25, ease: [0.4, 0, 0.2, 1] },
-                  opacity: { duration: 0.15, ease: 'easeInOut' },
+                  height: motionSpringTransition(animationsEnabled, motionSpring.bouncy),
+                  opacity: {
+                    duration: motionDuration(animationsEnabled, motionDurations.fast),
+                    ease: motionEasing.standard,
+                  },
                 }}
                 style={{ overflow: 'hidden' }}
               >
@@ -798,8 +798,11 @@ export default function ThinkingBlock({
                 animate={{ height: 'auto', opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
                 transition={{
-                  height: { duration: 0.25, ease: [0.4, 0, 0.2, 1] },
-                  opacity: { duration: 0.15, ease: 'easeInOut' },
+                  height: motionSpringTransition(animationsEnabled, motionSpring.bouncy),
+                  opacity: {
+                    duration: motionDuration(animationsEnabled, motionDurations.fast),
+                    ease: motionEasing.standard,
+                  },
                 }}
                 style={{ overflow: 'hidden' }}
               >
@@ -824,8 +827,11 @@ export default function ThinkingBlock({
                 animate={{ height: 'auto', opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
                 transition={{
-                  height: { duration: 0.25, ease: [0.4, 0, 0.2, 1] },
-                  opacity: { duration: 0.15, ease: 'easeInOut' },
+                  height: motionSpringTransition(animationsEnabled, motionSpring.bouncy),
+                  opacity: {
+                    duration: motionDuration(animationsEnabled, motionDurations.fast),
+                    ease: motionEasing.standard,
+                  },
                 }}
                 style={{ overflow: 'hidden' }}
               >

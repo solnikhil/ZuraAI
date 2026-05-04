@@ -293,11 +293,6 @@
 
 .thinking-chevron {
     color: rgba(255, 255, 255, 0.65);
-    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.thinking-chevron.rotated {
-    transform: rotate(90deg);
 }
 
 
@@ -313,44 +308,6 @@
     border-left: 2px solid rgba(255, 255, 255, 0.1);
     padding-left: 16px;
     margin-left: 4px;
-    animation: thinkingFadeIn 0.2s ease;
-    overflow: hidden;
-    transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease, padding 0.3s ease, margin 0.3s ease;
-}
-
-.thinking-block:not(.expanded) .thinking-content {
-    max-height: 0;
-    opacity: 0;
-    padding-top: 0;
-    padding-bottom: 0;
-    margin-top: 0;
-    margin-bottom: 0;
-}
-
-/* Tool details blocks use framer-motion for expand/collapse, not the CSS .expanded class.
-   Override the :not(.expanded) constraints so content is visible when animated open. */
-.thinking-block:not(.expanded) .thinking-content.thinking-tool-details {
-    max-height: none;
-    opacity: 1;
-    overflow: visible;
-}
-
-.thinking-block.expanded .thinking-content {
-    max-height: none;
-    opacity: 1;
-    overflow: visible;
-}
-
-@keyframes thinkingFadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(-4px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
 }
 
 
@@ -394,4 +351,26 @@
 
 .thinking-active-tool-item {
     color: rgba(255, 255, 255, 0.62);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tool-call-spinner {
+        animation: none;
+    }
+
+    .thinking-header.tool-calling .thinking-label {
+        animation: none;
+    }
+
+    .thinking-copy-btn {
+        transition: none;
+    }
+
+    .thinking-copy-btn svg {
+        transition: none;
+    }
+
+    .thinking-header {
+        transition: none;
+    }
 }

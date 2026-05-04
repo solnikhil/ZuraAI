@@ -27,6 +27,12 @@ export const motionSpring = {
     damping: 28,
     mass: 0.9,
   },
+  bouncy: {
+    type: 'spring' as const,
+    stiffness: 320,
+    damping: 22,
+    mass: 0.8,
+  },
 } as const
 
 function getPrefersReducedMotion() {
@@ -73,4 +79,14 @@ export function maybeAnimate<T>(animationsEnabled: boolean, value: T): T | undef
 
 export function motionDuration(animationsEnabled: boolean, seconds: number) {
   return animationsEnabled ? seconds : 0
+}
+
+export function motionSpringTransition(
+  animationsEnabled: boolean,
+  spring: { type: 'spring'; stiffness: number; damping: number; mass: number } = motionSpring.bouncy
+) {
+  if (!animationsEnabled) {
+    return { type: 'tween' as const, duration: 0 }
+  }
+  return spring
 }
