@@ -166,7 +166,7 @@ export function VirtualMessageList({
         data-message-id={message.id}
         style={{
           width: '100%',
-          maxWidth: 'min(860px, 100%)',
+          maxWidth: 'min(735px, 100%)',
           margin: '0 auto',
           padding: '0 20px',
         }}
@@ -213,7 +213,7 @@ export function VirtualMessageList({
             <div
               style={{
                 width: '100%',
-                maxWidth: 'min(860px, 100%)',
+                maxWidth: 'min(735px, 100%)',
                 margin: '0 auto',
                 padding: '10px 20px',
               }}

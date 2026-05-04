@@ -368,7 +368,7 @@ export default function ChatArea() {
             data-select-all-scope="chat"
             style={{
               width: '100%',
-              maxWidth: 'min(860px, 100%)',
+              maxWidth: 'min(735px, 100%)',
               margin: '0 auto',
               minHeight: '100%',
               display: 'flex',
@@ -481,7 +481,7 @@ export default function ChatArea() {
               left: '50%',
               transform: 'translateX(-50%)',
               width: '100%',
-              maxWidth: 'min(860px, 100%)',
+              maxWidth: 'min(735px, 100%)',
               height: '48px',
               cursor: 'pointer',
               zIndex: 10,
@@ -538,7 +538,7 @@ export default function ChatArea() {
         }
         .chat-input-overlay__inner {
           width: 100%;
-          max-width: min(860px, 100%);
+          max-width: min(735px, 100%);
           margin: 0 auto;
           pointer-events: auto;
         }
