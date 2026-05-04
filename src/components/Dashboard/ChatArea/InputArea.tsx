@@ -117,7 +117,7 @@ export function InputArea({
   const [landingExpanded, setLandingExpanded] = React.useState(false)
   const showCompactLanding = isLandingVariant && !landingExpanded && attachedFiles.length === 0
   const { textareaRef, adjustHeight } = useAutoResizeTextarea({
-    minHeight: showCompactLanding ? 28 : 52,
+    minHeight: showCompactLanding ? 40 : 36,
     maxHeight: 200,
   })
   const fileInputRef = React.useRef<HTMLInputElement>(null)
