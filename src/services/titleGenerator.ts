@@ -56,48 +56,6 @@ function isInvalidTitle(title: string): boolean {
   if (!normalized) return true
   if (normalized.length < 2) return true
 
-  if (normalized.includes('does not support')) return true
-  if (normalized.includes('does not allow')) return true
-  if (normalized.includes('cannot read')) return true
-  if (normalized.includes('cannot access')) return true
-  if (normalized.includes('error:')) return true
-  if (normalized.includes('inform the user')) return true
-  if (normalized.includes('i cannot')) return true
-  if (normalized.includes("i'm unable")) return true
-  if (normalized.includes('i am unable')) return true
-  if (normalized.includes('not supported')) return true
-  if (normalized.includes('image input')) return true
-  if (normalized.includes('clipboard')) return true
-  if (/^sorry/i.test(normalized)) return true
-  if (/^apologi/i.test(normalized)) return true
-
-  const instructionPhrases = [
-    'generate a title',
-    'generate title',
-    'generate a short',
-    'create a title',
-    'make a title',
-    'write a title',
-    'return a title',
-    'give this conversation',
-    'here is a title',
-    'here is the title',
-    "here's a title",
-    "here's the title",
-    'suggested title',
-    'chat title',
-  ]
-  if (instructionPhrases.some((phrase) => normalized === phrase)) return true
-
-  const words = normalized.split(/\s+/).filter(Boolean)
-  if (words.length <= 6) {
-    const hasTitleWord = words.includes('title') || words.includes('titles')
-    const hasInstructionVerb = words.some((w) =>
-      w === 'generate' || w === 'create' || w === 'make' || w === 'write' || w === 'return' || w === 'give'
-    )
-    if (hasTitleWord && hasInstructionVerb) return true
-  }
-
   return false
 }
 

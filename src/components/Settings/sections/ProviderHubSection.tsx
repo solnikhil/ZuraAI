@@ -1168,7 +1168,7 @@ export function ProviderHubSection({
                 </button>
               </div>
 
-              <div className="grid gap-2 md:grid-cols-[1fr_auto_auto_auto]">
+              <div className="grid items-center gap-2 md:grid-cols-[1fr_auto_auto_auto]">
                 <div className="relative">
                   <Search
                     size={16}
@@ -1178,7 +1178,7 @@ export function ProviderHubSection({
                     value={providerModelQuery}
                     onChange={(e) => setProviderModelQuery(e.target.value)}
                     placeholder="Search models..."
-                    className="border-border bg-secondary pl-9"
+                    className="h-8 border-border bg-secondary pl-9"
                   />
                 </div>
                 {(selectedProviderDef.key === 'openrouter' ||
@@ -1208,7 +1208,7 @@ export function ProviderHubSection({
                 </Button>
                 <Button
                   variant="outline"
-                  size="icon"
+                  size="icon-sm"
                   onClick={() => setAddDialogOpen(true)}
                   aria-label="Add custom model"
                 >
@@ -1589,8 +1589,8 @@ function ModelGroup({
             <div className="flex items-center gap-1 shrink-0">
               <Button
                 variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                size="icon-sm"
+                className="text-muted-foreground hover:text-foreground"
                 onClick={(e) => {
                   e.stopPropagation()
                   onEditModel(model)
@@ -1603,8 +1603,8 @@ function ModelGroup({
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                    size="icon-sm"
+                    className="text-muted-foreground hover:text-foreground"
                     onClick={(e) => e.stopPropagation()}
                     aria-label={`More actions for ${model.displayName}`}
                   >

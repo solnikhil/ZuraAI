@@ -38,6 +38,7 @@ import { ArrowBendDownLeftIcon as ArrowBendDownLeftBase } from '@phosphor-icons/
 import { NotePencilIcon as NotePencilBase } from '@phosphor-icons/react/dist/csr/NotePencil'
 import { PencilLineIcon as PencilLineBase } from '@phosphor-icons/react/dist/csr/PencilLine'
 import { ArrowSquareOutIcon as ArrowSquareOutBase } from '@phosphor-icons/react/dist/csr/ArrowSquareOut'
+import { ArrowUpRightIcon as ArrowUpRightBase } from '@phosphor-icons/react/dist/csr/ArrowUpRight'
 import { EyeSlashIcon as EyeSlashBase } from '@phosphor-icons/react/dist/csr/EyeSlash'
 import { EyeIcon as EyeBase } from '@phosphor-icons/react/dist/csr/Eye'
 import { FileArchiveIcon as FileArchiveBase } from '@phosphor-icons/react/dist/csr/FileArchive'
@@ -117,6 +118,7 @@ function withDefaultWeight(
 export const AlertCircle = withDefaultWeight(WarningCircleBase, 'duotone', 'AlertCircle')
 export const AlertTriangle = withDefaultWeight(WarningDiamondBase, 'duotone', 'AlertTriangle')
 export const ArrowLeft = withDefaultWeight(ArrowLeftBase, 'duotone', 'ArrowLeft')
+export const ArrowUpRight = withDefaultWeight(ArrowUpRightBase, 'duotone', 'ArrowUpRight')
 export const BarChart = withDefaultWeight(ChartBarBase, 'duotone', 'BarChart')
 export const Bell = withDefaultWeight(BellSimpleBase, 'duotone', 'Bell')
 export const Box = withDefaultWeight(CubeBase, 'duotone', 'Box')

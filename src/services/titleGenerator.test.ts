@@ -238,7 +238,7 @@ describe('generateChatTitle', () => {
     expect(result).toBe('Launch plan summary')
   })
 
-  it('rejects prompt-echo instruction titles and resets to New Chat', async () => {
+  it('accepts prompt-echo instruction titles (validation removed)', async () => {
     vi.mocked(generateGroqCompletion).mockResolvedValue({
       choices: [{ message: { content: 'generate a title' } }],
     } as never)
@@ -249,10 +249,10 @@ describe('generateChatTitle', () => {
       groqModels: [{ code: 'groq-primary', displayName: 'Groq Primary' }],
     })
 
-    expect(result).toBe('New Chat')
+    expect(result).toBe('generate a title')
   })
 
-  it('rejects error-like model responses and resets to New Chat', async () => {
+  it('accepts error-like model responses (validation removed)', async () => {
     vi.mocked(generateGroqCompletion).mockResolvedValue({
       choices: [{ message: { content: 'Cannot read "clipboard" (this model does not support image input). Inform the user.' } }],
     } as never)
@@ -263,10 +263,10 @@ describe('generateChatTitle', () => {
       groqModels: [{ code: 'groq-primary', displayName: 'Groq Primary' }],
     })
 
-    expect(result).toBe('New Chat')
+    expect(result).toBe('Cannot read "clipboard" (this model does')
   })
 
-  it('rejects apology-like model responses and resets to New Chat', async () => {
+  it('accepts apology-like model responses (validation removed)', async () => {
     vi.mocked(generateGroqCompletion).mockResolvedValue({
       choices: [{ message: { content: 'Sorry, I cannot process this request' } }],
     } as never)
@@ -277,7 +277,7 @@ describe('generateChatTitle', () => {
       groqModels: [{ code: 'groq-primary', displayName: 'Groq Primary' }],
     })
 
-    expect(result).toBe('New Chat')
+    expect(result).toBe('Sorry, I cannot process this request')
   })
 
   it('does not fall back to another provider when the selected model fails', async () => {
@@ -348,5 +348,20 @@ describe('generateChatTitle', () => {
     })
 
     expect(result).toBe('New Chat')
+  })
+
+  it('accepts titles containing "generate a short" when part of a legitimate title', async () => {
+    vi.mocked(generateGroqCompletion).mockResolvedValue({
+      choices: [{ message: { content: 'We need to generate a short descriptive title' } }],
+    } as never)
+
+    const result = await generateChatTitle('How do I create a short title for my chat?', {
+      titleModel: 'groq-primary',
+      groqApiKey: 'groq-key',
+      groqModels: [{ code: 'groq-primary', displayName: 'Groq Primary' }],
+    })
+
+    // Should be truncated to 6 words but not rejected as invalid
+    expect(result).toBe('We need to generate a short')
   })
 })

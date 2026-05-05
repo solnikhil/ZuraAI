@@ -78,7 +78,7 @@ export function PerplexityModelSearchDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="border-border bg-card p-0 sm:max-w-[900px] max-h-[85vh] flex flex-col">
+      <DialogContent className="p-0 sm:max-w-[900px] max-h-[85vh] flex flex-col">
         <DialogHeader className="border-b border-border px-6 py-4">
           <DialogTitle>Add Model from Perplexity Catalog</DialogTitle>
           <DialogDescription>
