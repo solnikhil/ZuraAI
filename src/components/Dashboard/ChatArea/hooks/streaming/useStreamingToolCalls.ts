@@ -15,6 +15,7 @@ export interface ToolCallProcessingResult {
   toolResults: ToolCallResult[]
   formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>
   needsFollowUp: boolean
+  shouldContinueResearch: boolean
   executionSummary: ToolExecutionSummary
 }
 
@@ -68,6 +69,7 @@ export function useStreamingToolCalls({ settings }: UseStreamingToolCallsOptions
         toolResults: [],
         formattedResults: [],
         needsFollowUp: false,
+        shouldContinueResearch: false,
         executionSummary: {
           attemptedWebSearchCount: 0,
           executedWebSearchCount: 0,

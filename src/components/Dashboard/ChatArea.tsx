@@ -528,15 +528,30 @@ export default function ChatArea() {
           margin-bottom: 8px;
         }
         .chat-input-overlay {
+          --chat-input-split-start: 44px;
           position: absolute;
           left: 0;
           right: 0;
           bottom: 0;
-          padding: 0 20px 10px;
+          padding: 0 20px 29px;
           pointer-events: none;
           background: transparent;
+          isolation: isolate;
+        }
+        .chat-input-overlay::before {
+          content: "";
+          position: absolute;
+          left: 0;
+          right: 0;
+          top: var(--chat-input-split-start);
+          bottom: 0;
+          z-index: 0;
+          pointer-events: none;
+          background: var(--theme-content-solid);
         }
         .chat-input-overlay__inner {
+          position: relative;
+          z-index: 1;
           width: 100%;
           max-width: min(735px, 100%);
           margin: 0 auto;

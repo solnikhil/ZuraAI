@@ -704,8 +704,12 @@ export function useProviderStreaming({
             initialDecision: initialLoopDecision.reason || 'continue',
           })
 
+          const shouldSynthesizeAfterInitialBatch =
+            initialLoopDecision.shouldForceFinalSynthesis ||
+            toolResult.shouldContinueResearch === false
+
           if (
-            initialLoopDecision.shouldForceFinalSynthesis &&
+            shouldSynthesizeAfterInitialBatch &&
             toolResult.needsFollowUp &&
             toolResult.formattedResults.length > 0
           ) {
@@ -716,7 +720,7 @@ export function useProviderStreaming({
               researchRound,
             }
             logResearchLoop('final-synthesis-scheduled', {
-              reason: initialLoopDecision.reason || 'unknown',
+              reason: initialLoopDecision.reason || 'sufficient-tool-results',
               totalSearchCount,
               researchRound,
             })
@@ -862,8 +866,12 @@ export function useProviderStreaming({
             })
             searchQueryHistory.push(...executedSearchQueries)
 
+            const shouldSynthesizeAfterFollowUpBatch =
+              continuationDecision.shouldForceFinalSynthesis ||
+              nextToolResult.shouldContinueResearch === false
+
             if (
-              continuationDecision.shouldForceFinalSynthesis &&
+              shouldSynthesizeAfterFollowUpBatch &&
               nextToolResult.needsFollowUp &&
               nextToolResult.formattedResults.length > 0
             ) {
@@ -874,7 +882,7 @@ export function useProviderStreaming({
                 researchRound,
               }
               logResearchLoop('final-synthesis-scheduled', {
-                reason: continuationDecision.reason || 'unknown',
+                reason: continuationDecision.reason || 'sufficient-tool-results',
                 totalSearchCount,
                 researchRound,
               })

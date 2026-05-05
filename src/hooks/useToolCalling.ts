@@ -18,7 +18,7 @@ import {
     type ToolExecutionSummary,
 } from '../tools/types'
 import { getAllToolDefinitions, getBuiltinToolDefinitions } from '../tools/definitions'
-import { shouldRequestToolFollowUp } from '../tools/followUpPolicy'
+import { shouldContinueToolResearch, shouldRequestToolFollowUp } from '../tools/followUpPolicy'
 import { shouldEnableTools } from '../utils/promptSelection'
 import { getWebResearchToolExposure, getCodeExecutionToolExposure, getComputerUseToolExposure } from '../skills'
 import { createMcpToolRegistry } from '../tools/mcpRegistry'
@@ -170,14 +170,15 @@ export function useToolCalling() {
 
     const handleToolCalls = async (
         response: ToolCallingResponse,
-    onToolStart?: (toolCall: ToolCall) => void,
-    onToolComplete?: (result: ToolCallResult) => void,
-    executionPolicy?: ToolExecutionPolicy
-  ): Promise<{
+        onToolStart?: (toolCall: ToolCall) => void,
+        onToolComplete?: (result: ToolCallResult) => void,
+        executionPolicy?: ToolExecutionPolicy
+    ): Promise<{
         hasTools: boolean
         toolResults: ToolCallResult[]
         formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>
         needsFollowUp: boolean
+        shouldContinueResearch: boolean
         executionSummary: ToolExecutionSummary
     }> => {
         if (!canUseToolsNow() || !responseHasToolCalls(response, settings.modelProvider)) {
@@ -186,6 +187,7 @@ export function useToolCalling() {
                 toolResults: [],
                 formattedResults: [],
                 needsFollowUp: false,
+                shouldContinueResearch: false,
                 executionSummary: {
                     attemptedWebSearchCount: 0,
                     executedWebSearchCount: 0,
@@ -241,6 +243,7 @@ export function useToolCalling() {
                 toolResults: results,
                 formattedResults,
                 needsFollowUp: shouldRequestToolFollowUp(results, formattedResults),
+                shouldContinueResearch: shouldContinueToolResearch(results),
                 executionSummary,
             }
         } catch (error: unknown) {
@@ -252,6 +255,7 @@ export function useToolCalling() {
                 toolResults: [],
                 formattedResults: [],
                 needsFollowUp: false,
+                shouldContinueResearch: false,
                 executionSummary: {
                     attemptedWebSearchCount: 0,
                     executedWebSearchCount: 0,

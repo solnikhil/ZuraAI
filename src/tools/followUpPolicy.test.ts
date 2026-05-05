@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { shouldRequestToolFollowUp } from './followUpPolicy'
+import { shouldContinueToolResearch, shouldRequestToolFollowUp } from './followUpPolicy'
 
 describe('shouldRequestToolFollowUp', () => {
   it('keeps the second model pass for web search outputs', () => {
@@ -43,5 +43,66 @@ describe('shouldRequestToolFollowUp', () => {
         [{ role: 'tool', tool_call_id: 'tool-2', content: '{"results":[]}' }]
       )
     ).toBe(true)
+  })
+})
+
+describe('shouldContinueToolResearch', () => {
+  it('stops after successful web search results so the next pass synthesizes', () => {
+    expect(
+      shouldContinueToolResearch([
+        {
+          toolCall: {
+            id: 'tool-1',
+            name: 'web_search',
+            arguments: { query: 'MrBeast subscribers 2026' },
+          },
+          result: {
+            success: true,
+            data: { results: [{ title: 'MrBeast subscriber count' }] },
+          },
+        },
+      ])
+    ).toBe(false)
+  })
+
+  it('allows another search when the batch returned no usable results', () => {
+    expect(
+      shouldContinueToolResearch([
+        {
+          toolCall: {
+            id: 'tool-1',
+            name: 'web_search',
+            arguments: { query: 'specific obscure query' },
+          },
+          result: {
+            success: true,
+            data: { results: [] },
+          },
+        },
+      ])
+    ).toBe(true)
+  })
+
+  it('does not continue after skipped duplicate or over-budget searches', () => {
+    expect(
+      shouldContinueToolResearch([
+        {
+          toolCall: {
+            id: 'tool-1',
+            name: 'web_search',
+            arguments: { query: 'cursor pricing plans' },
+          },
+          result: {
+            success: false,
+            error: 'Skipped duplicate web_search query.',
+            metadata: {
+              origin: 'builtin-main',
+              executionDisposition: 'skipped',
+              skippedReason: 'duplicate-query',
+            },
+          },
+        },
+      ])
+    ).toBe(false)
   })
 })

@@ -327,7 +327,7 @@ export function InputArea({
   const composerWidthClass = isLandingVariant
     ? 'max-w-[min(745px,100%)]'
     : 'max-w-full'
-  const shellRadiusClass = showCompactLanding ? 'rounded-[32px]' : 'rounded-[28px] md:rounded-[30px]'
+  const shellRadiusClass = showCompactLanding ? 'rounded-[30px]' : 'rounded-[24px] md:rounded-[26px]'
   const shellPaddingClass = showAttachmentRail
     ? 'px-3 py-3'
     : 'px-3 py-2.5'
@@ -616,8 +616,6 @@ export function InputArea({
                 <div className="flex items-center gap-2 shrink-0">
                   <div className={controlClusterClass}>{quickActionsMenu}</div>
 
-                  {showContextRing && <TokenUsageIndicator input={input} />}
-
                   {computerUseAvailable && (
                     <TooltipProvider delayDuration={300}>
                       <Tooltip>
@@ -738,6 +736,14 @@ export function InputArea({
               </div>
             )}
           </div>
+          {showContextRing && !showCompactLanding && (
+            <div className="pointer-events-auto absolute left-3 top-full mt-2 flex h-5 items-center">
+              <TokenUsageIndicator
+                input={input}
+                className="text-[var(--theme-text-muted)]"
+              />
+            </div>
+          )}
         </div>
       </div>
 

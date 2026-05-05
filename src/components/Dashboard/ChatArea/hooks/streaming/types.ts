@@ -135,6 +135,7 @@ export interface ToolCallingHook {
     toolResults: ToolCallResult[]
     formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>
     needsFollowUp: boolean
+    shouldContinueResearch: boolean
     executionSummary: ToolExecutionSummary
   }>
   getResearchContext: (searchCount: number, maxRounds: number) => string

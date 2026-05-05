@@ -1195,6 +1195,111 @@ describe('useProviderStreaming', () => {
     expect(streamResult.content).toBe('Answer [[1]](https://example.com/source)')
   })
 
+  it('switches to no-tools synthesis after a successful search batch', async () => {
+    const streamCalls: Array<{ toolChoice?: unknown }> = []
+    let invocation = 0
+
+    mocks.createProviderStreamClient.mockReturnValue({
+      stream: async function* (request: { toolChoice?: unknown }) {
+        streamCalls.push({ toolChoice: request.toolChoice })
+        invocation += 1
+
+        if (invocation === 1) {
+          yield {
+            type: 'tool-call-delta',
+            delta: [{
+              index: 0,
+              id: 'call_1',
+              type: 'function',
+              function: {
+                name: 'web_search',
+                arguments: '{"query":"MrBeast subscribers 2026"}',
+              },
+            }],
+          }
+          yield { type: 'finish', finishReason: 'tool_calls' }
+          return
+        }
+
+        if (request.toolChoice !== 'none') {
+          yield {
+            type: 'tool-call-delta',
+            delta: [{
+              index: 0,
+              id: 'call_2',
+              type: 'function',
+              function: {
+                name: 'web_search',
+                arguments: '{"query":"best YouTuber ranking 2026"}',
+              },
+            }],
+          }
+          yield { type: 'finish', finishReason: 'tool_calls' }
+          return
+        }
+
+        yield { type: 'text-delta', delta: '2027 has not happened yet, but MrBeast is the current leading candidate.' }
+        yield { type: 'finish', finishReason: 'stop' }
+      },
+    })
+
+    const updateStreamingMessage = vi.fn()
+    const handleToolCalls = vi.fn().mockResolvedValueOnce({
+      hasTools: true,
+      toolResults: [buildWebSearchToolResult('call_1', 'MrBeast subscribers 2026')],
+      formattedResults: [{ role: 'tool', tool_call_id: 'call_1', content: 'search results' }],
+      needsFollowUp: true,
+      shouldContinueResearch: false,
+      executionSummary: buildExecutionSummary('MrBeast subscribers 2026'),
+    })
+
+    const { result } = renderHook(() =>
+      useProviderStreaming({
+        settings: {
+          aiModel: 'openai/gpt-4.1',
+          modelProvider: 'openrouter',
+          temperature: 0.4,
+          maxTokens: 1024,
+          streamResponses: true,
+          openRouterApiKey: 'or-key',
+        },
+        toolCalling: {
+          canUseTools: true,
+          getToolsForRequest: () => [{
+            type: 'function',
+            function: {
+              name: 'web_search',
+              description: 'Search the web',
+              parameters: { type: 'object', properties: {} },
+            },
+          }],
+          handleToolCalls,
+          getResearchContext: () => 'Research context',
+        },
+        updateStreamingMessage,
+        flushThrottledUpdates: vi.fn(),
+        throttledUpdateStreamingMessage: vi.fn(),
+      })
+    )
+
+    const streamResult = await result.current.runProviderStream({
+      provider: 'openrouter',
+      model: 'openai/gpt-4.1',
+      sessionId: 'session-1',
+      messageId: 'message-1',
+      messages: [{ role: 'user', content: 'who is the best youtuber in 2027' }],
+      startTime: performance.now() - 25,
+      researchMaxRounds: 0,
+      syncToStreamingContext: false,
+      enableTools: true,
+    })
+
+    expect(handleToolCalls).toHaveBeenCalledTimes(1)
+    expect(streamCalls).toHaveLength(2)
+    expect(streamCalls[1]?.toolChoice).toBe('none')
+    expect(streamResult.content).toBe('2027 has not happened yet, but MrBeast is the current leading candidate.')
+  })
+
   it('forces final synthesis after the practical uncapped search budget is exhausted', async () => {
     const streamCalls: Array<{ toolChoice?: unknown }> = []
     let invocation = 0
