@@ -97,9 +97,9 @@ describe('SettingsContext Provider Integration', () => {
       expect(defaultSettingsConfig.titleModel).toBe('')
     })
 
-    it('default title generation provider is openrouter', async () => {
+    it('does not include a default title generation provider override', async () => {
       const { defaultSettingsConfig } = await import('./SettingsConfigContext')
-      expect(defaultSettingsConfig.titleModelProvider).toBe('openrouter')
+      expect('titleModelProvider' in defaultSettingsConfig).toBe(false)
     })
 
     it('default title generation display mode is instant', async () => {
@@ -223,6 +223,30 @@ SEARCH STRATEGY:
       expect(normalized.webSearchPrompt).not.toContain(
         'For research or discovery tasks, begin with ONE broad exploratory search'
       )
+    })
+
+    it('drops legacy titleModelProvider when normalizing stored settings', async () => {
+      expect(
+        normalizeStoredSettings(
+          JSON.stringify({
+            titleModelProvider: 'groq',
+            titleModel: 'groq-primary',
+          })
+        )
+      ).toEqual(
+        expect.objectContaining({
+          titleModel: 'groq-primary',
+        })
+      )
+      expect(
+        'titleModelProvider' in
+          normalizeStoredSettings(
+            JSON.stringify({
+              titleModelProvider: 'groq',
+              titleModel: 'groq-primary',
+            })
+          )
+      ).toBe(false)
     })
 
     it('adds the web-search limitation note to saved prompts without duplicating it', () => {

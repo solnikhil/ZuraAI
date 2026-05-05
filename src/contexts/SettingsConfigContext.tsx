@@ -126,7 +126,6 @@ export interface SettingsConfig {
   computerUseAutoApprove: boolean
 
   // Title generation
-  titleModelProvider: ProviderId
   titleModel: string
   titleGenerationPrompt: string
   titleGenerationDisplayMode: 'instant' | 'typewriter'
@@ -273,7 +272,6 @@ export const defaultSettingsConfig: SettingsConfig = {
   codeExecutionAutoApprove: false,
   computerUseAutoApprove: false,
   // Title generation
-  titleModelProvider: 'openrouter',
   titleModel: '',
   titleGenerationPrompt: defaultTitleGenerationPrompt,
   titleGenerationDisplayMode: 'instant',

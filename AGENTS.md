@@ -407,9 +407,10 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Current shell width calculations (sidebar panel and titlebar overlays) consume `sidebarWidth` from `AppShellContext` when not hidden/collapsed.
 
 #### Chat Title Generation Controls
-- Title generation configuration UI lives in **Appearance** (`src/components/Settings/sections/AppearanceSection.tsx`) for provider/model selection and sidebar reveal mode.
+- Title generation configuration UI lives in **Appearance** (`src/components/Settings/sections/AppearanceSection.tsx`) for dedicated title-model selection and sidebar reveal mode.
 - Title generation prompt editing lives in **System Prompt** (`src/components/Settings/sections/SystemPromptSection.tsx`) as a dedicated prompt block.
-- Runtime generation is handled by `src/services/titleGenerator.ts` using `settings.titleModelProvider`, `settings.titleModel`, and `settings.titleGenerationPrompt`, with provider-specific title requests routed through `src/providers/providerRuntime.ts`.
+- Runtime generation is handled by `src/services/titleGenerator.ts` using `settings.titleModel` and `settings.titleGenerationPrompt`; the selected title model is resolved through the shared provider registry and executed through the shared non-streaming provider runtime helper in `src/providers/providerRuntime.ts`.
+- Title generation no longer follows the active chat model and no longer performs cross-provider fallback attempts; failures reset the session title to `New Chat`.
 - New-session title reveal behavior is applied in `src/components/Dashboard/ChatArea/hooks/useStreamingChat.ts`:
   - `instant`: apply generated title immediately
   - `typewriter`: progressively reveal generated title in sidebar
@@ -424,8 +425,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Provider-level enablement map: `providerEnabled` (per-provider manual on/off state, independent from API key presence).
   - Search API preference: `tavilySearchDepthPreference` (`auto`, `ultra-fast`, `fast`, `basic`, `advanced`) controls the default Tavily `search_depth` used when the model omits it.
   - Title generation settings:
-    - `titleModelProvider` (provider used for title generation)
-    - `titleModel` (model used for title generation)
+    - `titleModel` (dedicated model used for title generation; provider inferred from the selected model)
     - `titleGenerationPrompt` (prompt template for generating titles; supports `{{userMessage}}` token)
     - `titleGenerationDisplayMode` (`instant` or `typewriter` sidebar reveal)
   - Skills map: `skills` (built-in IDs keyed by `skillId`, currently `web_research` (default enabled) and `code_execution` (default disabled), each with `enabled`).
@@ -503,7 +503,7 @@ There is currently no built-in trusted browser-testing workflow; any replacement
 - Fireworks: `src/services/fireworks.ts` (OpenAI-compatible inference) plus `src/services/fireworksModels.ts` for the serverless model catalog
 - Ollama: `src/services/ollama.ts` (local server; tools supported for compatible models)
 - Perplexity: `src/services/perplexity.ts` (native web/research; excluded from external tools)
-- Chat title generation: `src/services/titleGenerator.ts` (uses `settings.titleModelProvider`, `settings.titleModel`, `settings.titleGenerationPrompt`)
+- Chat title generation: `src/services/titleGenerator.ts` (uses `settings.titleModel` and `settings.titleGenerationPrompt`, resolves provider from the chosen model, and executes through the shared provider runtime)
 
 ### Environment & Secrets
 - `VITE_DEV_SERVER_URL` — set in dev (used by Electron windows)

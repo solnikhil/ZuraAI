@@ -1,5 +1,6 @@
 import type { ConfiguredModel, SettingsConfig } from '../contexts/SettingsConfigContext'
 import { getOpenRouterApiKey } from '../utils/openRouterKey'
+import { getTitleEligibleModels } from '../utils/titleGenerationModels'
 import type { ActiveProviderId, ProviderId } from './providerTypes'
 
 export interface ProviderCapabilities {
@@ -81,6 +82,10 @@ export interface ProviderModelOption {
   id: string
   provider: ActiveProviderId
   displayName: string
+}
+
+export interface ResolvedProviderModelOption extends ProviderModelOption {
+  model: ConfiguredModel
 }
 
 const OPENAI_COMPATIBLE_RETRY_POLICY: ProviderRetryPolicy = {
@@ -496,4 +501,44 @@ export function getAvailableModelOptions(settings: ProviderSettingsLike): Provid
   }
 
   return models
+}
+
+export function getAvailableTitleModelOptions(
+  settings: ProviderSettingsLike
+): ResolvedProviderModelOption[] {
+  const models: ResolvedProviderModelOption[] = []
+
+  for (const provider of getActiveProviderDefinitions()) {
+    if (!hasProviderAccess(settings, provider.id)) continue
+
+    const providerModels = getProviderModels(settings, provider.id).filter(
+      (model): model is ConfiguredModel =>
+        Boolean(model && typeof model.code === 'string' && model.code.trim().length > 0)
+    )
+    const enabledModels = providerModels.filter((model) => model.enabled !== false)
+    const candidateModels = enabledModels.length > 0 ? enabledModels : providerModels
+
+    for (const model of getTitleEligibleModels(candidateModels)) {
+      models.push({
+        id: model.code,
+        provider: provider.id as ActiveProviderId,
+        displayName: model.displayName,
+        model,
+      })
+    }
+  }
+
+  return models
+}
+
+export function resolveProviderForModel(
+  settings: ProviderSettingsLike,
+  modelCode: string
+): ResolvedProviderModelOption | null {
+  const normalizedCode = modelCode.trim()
+  if (!normalizedCode) return null
+
+  return (
+    getAvailableTitleModelOptions(settings).find((option) => option.id.trim() === normalizedCode) ?? null
+  )
 }

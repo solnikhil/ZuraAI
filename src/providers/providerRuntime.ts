@@ -34,7 +34,9 @@ import {
   type PerplexityResponse,
 } from '../services/perplexity'
 import type { ChatMessage, ReasoningDetail } from '../services/types'
+import type { SettingsConfig } from '../contexts/SettingsConfigContext'
 import { DEFAULT_OLLAMA_URL } from './providerRegistry'
+import { resolveProviderForModel } from './providerRegistry'
 import type { ActiveProviderId } from './providerTypes'
 import type { FileAttachment } from '../chat/types'
 import {
@@ -476,6 +478,31 @@ export async function generateProviderTitleText(
       return extractTitleTextFromMessage(result.choices?.[0]?.message)
     }
   }
+}
+
+export async function generateTitleTextForModel(
+  settings: TitleGenerationSettings &
+    Partial<
+      Pick<
+        SettingsConfig,
+        | 'configuredModels'
+        | 'ollamaModels'
+        | 'perplexityModels'
+        | 'groqModels'
+        | 'alibabaModels'
+        | 'fireworksModels'
+        | 'deepseekModels'
+      >
+    >,
+  model: string,
+  prompt: string
+): Promise<string> {
+  const resolvedModel = resolveProviderForModel(settings, model)
+  if (!resolvedModel) {
+    throw new Error('Title model not found')
+  }
+
+  return generateProviderTitleText(settings, resolvedModel.provider, resolvedModel.id, prompt)
 }
 
 export async function* streamProviderEvents(

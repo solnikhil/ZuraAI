@@ -3,6 +3,7 @@ import {
   DEFAULT_OLLAMA_URL,
   getActiveProviderIds,
   getAvailableModelOptions,
+  getAvailableTitleModelOptions,
   getProviderCredentialError,
   getProviderDefinition,
   getProviderEndpoint,
@@ -12,6 +13,7 @@ import {
   normalizeActiveProviderId,
   providerSupportsTools,
   providerUsesNativeSearch,
+  resolveProviderForModel,
 } from './providerRegistry'
 
 describe('providerRegistry', () => {
@@ -81,5 +83,44 @@ describe('providerRegistry', () => {
       { id: 'sonar', provider: 'perplexity', displayName: 'Sonar' },
       { id: 'llama3.2', provider: 'ollama', displayName: 'Llama 3.2' },
     ])
+  })
+
+  it('builds title-model options and resolves providers from the selected model', () => {
+    const settings = {
+      openRouterApiKey: 'or-key',
+      groqApiKey: 'groq-key',
+      ollamaUrl: DEFAULT_OLLAMA_URL,
+      configuredModels: [
+        { code: 'openai/gpt-4.1-mini', displayName: 'GPT-4.1 Mini', enabled: true, outputModalities: ['text'] },
+        { code: 'openai/gpt-image', displayName: 'GPT Image', enabled: true, outputModalities: ['image'] },
+      ],
+      groqModels: [{ code: 'llama-3.1-8b-instant', displayName: 'Llama Instant', enabled: true }],
+      ollamaModels: [{ code: 'llama3.2', displayName: 'Llama 3.2', enabled: false }],
+    }
+
+    expect(getAvailableTitleModelOptions(settings)).toEqual([
+      expect.objectContaining({
+        id: 'openai/gpt-4.1-mini',
+        provider: 'openrouter',
+        displayName: 'GPT-4.1 Mini',
+      }),
+      expect.objectContaining({
+        id: 'llama-3.1-8b-instant',
+        provider: 'groq',
+        displayName: 'Llama Instant',
+      }),
+      expect.objectContaining({
+        id: 'llama3.2',
+        provider: 'ollama',
+        displayName: 'Llama 3.2',
+      }),
+    ])
+    expect(resolveProviderForModel(settings, 'llama-3.1-8b-instant')).toEqual(
+      expect.objectContaining({
+        provider: 'groq',
+        id: 'llama-3.1-8b-instant',
+      })
+    )
+    expect(resolveProviderForModel(settings, 'missing-model')).toBeNull()
   })
 })

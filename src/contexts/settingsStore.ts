@@ -340,9 +340,8 @@ export function normalizeStoredSettings(raw: string | null): Settings {
     parsed.aiModel = deprecatedGroqModelMap[parsed.aiModel]
   }
 
-  if (!parsed.titleModelProvider) parsed.titleModelProvider = defaultSettings.titleModelProvider
-  if (!PROVIDER_IDS.includes(parsed.titleModelProvider as typeof PROVIDER_IDS[number])) {
-    parsed.titleModelProvider = defaultSettings.titleModelProvider
+  if ('titleModelProvider' in parsed) {
+    delete parsed.titleModelProvider
   }
   if (parsed.titleModel === undefined || parsed.titleModel === null) {
     parsed.titleModel = defaultSettings.titleModel
@@ -593,7 +592,6 @@ export function getInitialConfigSettings(settings: Settings): Partial<SettingsCo
     titleModel: settings.titleModel,
     codeExecutionAutoApprove: settings.codeExecutionAutoApprove,
     computerUseAutoApprove: settings.computerUseAutoApprove,
-    titleModelProvider: settings.titleModelProvider,
     titleGenerationPrompt: settings.titleGenerationPrompt,
     titleGenerationDisplayMode: settings.titleGenerationDisplayMode,
     favoriteModels: settings.favoriteModels,
