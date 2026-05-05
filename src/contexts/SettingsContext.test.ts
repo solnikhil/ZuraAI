@@ -107,6 +107,19 @@ describe('SettingsContext Provider Integration', () => {
       expect(defaultSettingsConfig.titleGenerationDisplayMode).toBe('instant')
     })
 
+    it('migrates the legacy default title generation prompt to the hardened prompt', () => {
+      const legacyPrompt = `Give this conversation a short descriptive title (2-6 words).
+
+Rules:
+- Return ONLY the title text. No quotes, no prefix, no explanation.`
+
+      const normalized = normalizeStoredSettings(JSON.stringify({ titleGenerationPrompt: legacyPrompt }))
+
+      expect(normalized.titleGenerationPrompt).toContain('Hard bans:')
+      expect(normalized.titleGenerationPrompt).toContain('Do not explain your reasoning.')
+      expect(normalized.titleGenerationPrompt).not.toBe(legacyPrompt)
+    })
+
     it('defaults streamResponses to true', async () => {
       const { defaultSettingsConfig } = await import('./SettingsConfigContext')
       expect(defaultSettingsConfig.streamResponses).toBe(true)

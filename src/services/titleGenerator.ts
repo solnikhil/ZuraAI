@@ -1,6 +1,7 @@
 import { defaultTitleGenerationPrompt } from '../prompts/defaultTitleGenerationPrompt'
 import type { SettingsConfig } from '../contexts/SettingsConfigContext'
 import { generateTitleTextForModel } from '../providers/providerRuntime'
+import { isLikelyBadGeneratedTitle } from '../utils/chatTitleRepair'
 
 type TitleGenerationSettings = Partial<
   Pick<
@@ -26,7 +27,6 @@ type TitleGenerationSettings = Partial<
 
 const MAX_TITLE_WORDS = 6
 const TITLE_GENERATION_TIMEOUT_MS = 10_000
-const TITLE_FALLBACK = 'New Chat'
 
 const TITLE_PREFIX_PATTERNS: RegExp[] = [
   /^\s*(?:here(?:'s| is)\s+(?:the\s+)?)?title\s*[:\-]\s*/i,
@@ -55,6 +55,7 @@ function isInvalidTitle(title: string): boolean {
   const normalized = title.trim().toLowerCase()
   if (!normalized) return true
   if (normalized.length < 2) return true
+  if (isLikelyBadGeneratedTitle(title)) return true
 
   return false
 }
@@ -63,6 +64,7 @@ const sanitizeTitle = (title: string): string => {
   const lines = title.split(/\r?\n/).map((line) => line.trim())
 
   const cleanLine = (raw: string): string => {
+    if (/^```/.test(raw)) return ''
     const deMarked = raw.replace(/^#+\s+/, '').replace(/^[-*]\s+/, '')
     const unquoted = deMarked.trim().replace(/^["'`]+|["'`]+$/g, '')
     const dePrefixed = stripTitlePrefixes(unquoted)
@@ -100,6 +102,10 @@ function normalizeGeneratedTitle(title: string): string {
     throw new Error('Empty generated title')
   }
 
+  if (isInvalidTitle(cleaned)) {
+    throw new Error('Invalid generated title')
+  }
+
   const constrained = enforceMaxWords(cleaned)
   if (constrained.length < 2) {
     throw new Error('Generated title too short')
@@ -128,13 +134,13 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 export const generateChatTitle = async (
   userMessage: string,
   settings: TitleGenerationSettings
-): Promise<string> => {
+): Promise<string | null> => {
   const prompt = buildTitlePrompt(userMessage, settings)
   const model = typeof settings.titleModel === 'string' ? settings.titleModel.trim() : ''
 
   if (!model) {
-    console.warn('[title-generator] No dedicated title model is configured. Resetting title to "New Chat".')
-    return TITLE_FALLBACK
+    console.warn('[title-generator] No dedicated title model is configured. Keeping existing chat title.')
+    return null
   }
 
   try {
@@ -143,8 +149,8 @@ export const generateChatTitle = async (
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error || 'Unknown title generation error')
     console.warn(
-      `[title-generator] Title generation failed for model "${model}". Resetting title to "${TITLE_FALLBACK}". ${message}`
+      `[title-generator] Title generation failed for model "${model}". Keeping existing chat title. ${message}`
     )
-    return TITLE_FALLBACK
+    return null
   }
 }

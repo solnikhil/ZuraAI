@@ -84,6 +84,8 @@ const WEB_SEARCH_PRIMARY_SOURCE_NOTE =
   '- When double-checking or verifying facts, prioritize official or primary sources over third-party summaries. Use third-party sources only when official sources are unavailable, incomplete, or useful for context, and label that limitation clearly'
 const WEB_SEARCH_SOURCES_REQUIREMENT =
   '- In Sources:, list the relevant URLs as markdown links in the format [Title](URL)'
+const LEGACY_TITLE_GENERATION_PROMPT_PREFIX =
+  'Give this conversation a short descriptive title (2-6 words).'
 
 function migrateWebSearchPrompt(prompt: unknown): unknown {
   if (typeof prompt !== 'string') return prompt
@@ -353,6 +355,8 @@ export function normalizeStoredSettings(raw: string | null): Settings {
     parsed.titleModel = ''
   }
   if (typeof parsed.titleGenerationPrompt !== 'string') {
+    parsed.titleGenerationPrompt = defaultSettings.titleGenerationPrompt
+  } else if (parsed.titleGenerationPrompt.startsWith(LEGACY_TITLE_GENERATION_PROMPT_PREFIX)) {
     parsed.titleGenerationPrompt = defaultSettings.titleGenerationPrompt
   }
   if (

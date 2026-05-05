@@ -43,6 +43,7 @@ describe('generateChatTitle', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.spyOn(console, 'info').mockImplementation(() => {})
     vi.spyOn(console, 'warn').mockImplementation(() => {})
   })
 
@@ -68,9 +69,32 @@ describe('generateChatTitle', () => {
       'groq-key',
       'groq-primary',
       [{ role: 'user', content: expect.any(String) }],
-      { temperature: 0.3, max_tokens: 40 }
+      {}
     )
     expect(generateOpenRouterCompletion).not.toHaveBeenCalled()
+  })
+
+  it('logs sanitized title generation sent and received JSON', async () => {
+    vi.mocked(generateGroqCompletion).mockResolvedValue({
+      choices: [{ message: { content: 'Planning Thread Summary Notes' } }],
+    } as never)
+
+    await generateChatTitle('Summarize this planning thread', {
+      titleModel: 'groq-primary',
+      groqApiKey: 'groq-secret-key',
+      groqModels: [{ code: 'groq-primary', displayName: 'Groq Primary' }],
+    })
+
+    const infoCalls = vi.mocked(console.info).mock.calls
+    const sentCall = infoCalls.find(([label]) => label === '[title-generator] sent JSON')
+    const receivedCall = infoCalls.find(([label]) => label === '[title-generator] received JSON')
+
+    expect(sentCall).toBeTruthy()
+    expect(receivedCall).toBeTruthy()
+    expect(String(sentCall?.[1])).toContain('"provider": "groq"')
+    expect(String(sentCall?.[1])).toContain('"model": "groq-primary"')
+    expect(String(sentCall?.[1])).not.toContain('groq-secret-key')
+    expect(String(receivedCall?.[1])).toContain('"extractedTitle": "Planning Thread Summary Notes"')
   })
 
   it('strips the openrouter/ prefix before requesting title generation', async () => {
@@ -90,27 +114,27 @@ describe('generateChatTitle', () => {
       'or-key',
       'meta-llama/llama-3.3',
       [{ role: 'user', content: 'Make a title for Please draft a launch plan' }],
-      { temperature: 0.3, max_tokens: 40, reasoning: { exclude: true } }
+      { reasoning: { exclude: true } }
     )
   })
 
-  it('returns New Chat when no dedicated title model is configured', async () => {
+  it('returns null when no dedicated title model is configured', async () => {
     const result = await generateChatTitle('Please draft a launch plan', {
       titleModel: '',
       openRouterApiKey: 'or-key',
     })
 
-    expect(result).toBe('New Chat')
+    expect(result).toBeNull()
   })
 
-  it('returns New Chat when the dedicated title model cannot be resolved', async () => {
+  it('returns null when the dedicated title model cannot be resolved', async () => {
     const result = await generateChatTitle('Please draft a launch plan', {
       titleModel: 'missing-model',
       groqApiKey: 'groq-key',
       groqModels: [{ code: 'groq-primary', displayName: 'Groq Primary' }],
     })
 
-    expect(result).toBe('New Chat')
+    expect(result).toBeNull()
     expect(generateGroqCompletion).not.toHaveBeenCalled()
   })
 
@@ -130,11 +154,11 @@ describe('generateChatTitle', () => {
       'deepseek-key',
       'deepseek-v4-flash',
       [{ role: 'user', content: expect.any(String) }],
-      { temperature: 0.3, max_tokens: 40, enableThinking: false }
+      { enableThinking: false }
     )
   })
 
-  it('accepts DeepSeek reasoning_content as a title when content is empty', async () => {
+  it('rejects DeepSeek reasoning_content when content is empty', async () => {
     vi.mocked(generateDeepSeekCompletion).mockResolvedValue({
       choices: [{ message: { content: '', reasoning_content: 'DeepSeek Title Output' } }],
     } as never)
@@ -145,7 +169,7 @@ describe('generateChatTitle', () => {
       deepseekModels: [{ code: 'deepseek-v4-flash', displayName: 'DeepSeek V4 Flash' }],
     })
 
-    expect(result).toBe('DeepSeek Title Output')
+    expect(result).toBeNull()
   })
 
   it('skips image-only OpenRouter models in the title selector pipeline', async () => {
@@ -178,7 +202,7 @@ describe('generateChatTitle', () => {
       'or-key',
       'text-model',
       [{ role: 'user', content: expect.any(String) }],
-      { temperature: 0.3, max_tokens: 40, reasoning: { exclude: true } }
+      { reasoning: { exclude: true } }
     )
   })
 
@@ -238,7 +262,7 @@ describe('generateChatTitle', () => {
     expect(result).toBe('Launch plan summary')
   })
 
-  it('accepts prompt-echo instruction titles (validation removed)', async () => {
+  it('rejects prompt-echo instruction titles', async () => {
     vi.mocked(generateGroqCompletion).mockResolvedValue({
       choices: [{ message: { content: 'generate a title' } }],
     } as never)
@@ -249,10 +273,10 @@ describe('generateChatTitle', () => {
       groqModels: [{ code: 'groq-primary', displayName: 'Groq Primary' }],
     })
 
-    expect(result).toBe('generate a title')
+    expect(result).toBeNull()
   })
 
-  it('accepts error-like model responses (validation removed)', async () => {
+  it('rejects error-like model responses', async () => {
     vi.mocked(generateGroqCompletion).mockResolvedValue({
       choices: [{ message: { content: 'Cannot read "clipboard" (this model does not support image input). Inform the user.' } }],
     } as never)
@@ -263,10 +287,10 @@ describe('generateChatTitle', () => {
       groqModels: [{ code: 'groq-primary', displayName: 'Groq Primary' }],
     })
 
-    expect(result).toBe('Cannot read "clipboard" (this model does')
+    expect(result).toBeNull()
   })
 
-  it('accepts apology-like model responses (validation removed)', async () => {
+  it('rejects apology-like model responses', async () => {
     vi.mocked(generateGroqCompletion).mockResolvedValue({
       choices: [{ message: { content: 'Sorry, I cannot process this request' } }],
     } as never)
@@ -277,7 +301,69 @@ describe('generateChatTitle', () => {
       groqModels: [{ code: 'groq-primary', displayName: 'Groq Primary' }],
     })
 
-    expect(result).toBe('Sorry, I cannot process this request')
+    expect(result).toBeNull()
+  })
+
+  it('rejects generic assistant greeting and help-offer responses', async () => {
+    for (const badTitle of [
+      'Hello! How can I help you',
+      'Hey there! 👋',
+      'What can I do for you today?',
+      "I'm ready to help with research",
+    ]) {
+      vi.mocked(generateGroqCompletion).mockResolvedValueOnce({
+        choices: [{ message: { content: badTitle } }],
+      } as never)
+
+      const result = await generateChatTitle('hello', {
+        titleModel: 'groq-primary',
+        groqApiKey: 'groq-key',
+        groqModels: [{ code: 'groq-primary', displayName: 'Groq Primary' }],
+      })
+
+      expect(result).toBeNull()
+    }
+  })
+
+  it('rejects reasoning-trace responses from thinking models', async () => {
+    for (const badTitle of [
+      'We are given: "hello". The user',
+      'We need to generate a concise title',
+      'The user asks for help with code',
+      'The prompt is asking for a title',
+    ]) {
+      vi.mocked(generateGroqCompletion).mockResolvedValueOnce({
+        choices: [{ message: { content: badTitle } }],
+      } as never)
+
+      const result = await generateChatTitle('hello', {
+        titleModel: 'groq-primary',
+        groqApiKey: 'groq-key',
+        groqModels: [{ code: 'groq-primary', displayName: 'Groq Primary' }],
+      })
+
+      expect(result).toBeNull()
+    }
+  })
+
+  it('rejects JSON, markdown fence, and HTML-looking responses', async () => {
+    for (const badTitle of [
+      '{"title":"Launch plan"}',
+      '```json\n{"title":"Launch plan"}\n```',
+      '<title>Launch plan</title>',
+    ]) {
+      vi.mocked(generateGroqCompletion).mockResolvedValueOnce({
+        choices: [{ message: { content: badTitle } }],
+      } as never)
+
+      const result = await generateChatTitle('Please draft a launch plan', {
+        titleModel: 'groq-primary',
+        groqApiKey: 'groq-key',
+        groqModels: [{ code: 'groq-primary', displayName: 'Groq Primary' }],
+      })
+
+      expect(result).toBeNull()
+    }
   })
 
   it('does not fall back to another provider when the selected model fails', async () => {
@@ -294,7 +380,7 @@ describe('generateChatTitle', () => {
       groqModels: [{ code: 'groq-primary', displayName: 'Groq Primary' }],
     })
 
-    expect(result).toBe('New Chat')
+    expect(result).toBeNull()
     expect(generateGroqCompletion).not.toHaveBeenCalled()
   })
 
@@ -314,7 +400,7 @@ describe('generateChatTitle', () => {
       'http://localhost:11434',
       'llama3.2',
       [{ role: 'user', content: expect.any(String) }],
-      { temperature: 0.3, think: false }
+      { think: false }
     )
   })
 
@@ -334,11 +420,11 @@ describe('generateChatTitle', () => {
       'alibaba-key',
       'qwen-turbo',
       [{ role: 'user', content: expect.any(String) }],
-      { temperature: 0.3, max_tokens: 40, enableThinking: false }
+      { enableThinking: false }
     )
   })
 
-  it('resets to New Chat on provider auth failures', async () => {
+  it('returns null on provider auth failures', async () => {
     vi.mocked(generateGroqCompletion).mockRejectedValue(new Error('401 unauthorized'))
 
     const result = await generateChatTitle('Need a title for this long conversation about quantum computing', {
@@ -347,10 +433,10 @@ describe('generateChatTitle', () => {
       groqModels: [{ code: 'groq-primary', displayName: 'Groq Primary' }],
     })
 
-    expect(result).toBe('New Chat')
+    expect(result).toBeNull()
   })
 
-  it('accepts titles containing "generate a short" when part of a legitimate title', async () => {
+  it('rejects reasoning-like titles even when they mention generating a short title', async () => {
     vi.mocked(generateGroqCompletion).mockResolvedValue({
       choices: [{ message: { content: 'We need to generate a short descriptive title' } }],
     } as never)
@@ -361,7 +447,6 @@ describe('generateChatTitle', () => {
       groqModels: [{ code: 'groq-primary', displayName: 'Groq Primary' }],
     })
 
-    // Should be truncated to 6 words but not rejected as invalid
-    expect(result).toBe('We need to generate a short')
+    expect(result).toBeNull()
   })
 })

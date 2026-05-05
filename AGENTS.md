@@ -39,6 +39,7 @@ Core capabilities:
   - **API keys and MCP secrets** live in main-process secure storage and are hydrated/resolved at runtime.
   - **Chat history, MCP server metadata, and secure storage** live in the main process under `app.getPath('userData')`.
 - UI styling guardrail: keep settings cards, chat composer containers, and dropdown/menu surfaces flat. Do **not** reintroduce outer drop shadows on those surfaces unless the user explicitly asks for them.
+- Fallback behavior guardrail: do **not** add new fallback paths, silent substitutions, local heuristics, provider fallbacks, or “safe default” behavior unless it is explicitly required by the user or you ask and get confirmation first. Prefer surfacing the real failure and fixing the root cause; unnecessary fallbacks can hide bugs and change product behavior.
 
 ---
 

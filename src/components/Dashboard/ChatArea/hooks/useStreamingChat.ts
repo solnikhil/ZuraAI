@@ -97,6 +97,11 @@ export function buildCommittedStreamingUpdates(
   return updates
 }
 
+export function normalizeGeneratedSessionTitle(generatedTitle: string | null | undefined): string | null {
+  const normalizedTitle = generatedTitle?.trim() || ''
+  return normalizedTitle || null
+}
+
 function hasImageAttachments(files?: AttachedFile[]) {
   return (files || []).some(isImageAttachment)
 }
@@ -181,8 +186,8 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
   }, [])
 
   const applyGeneratedSessionTitle = useCallback(
-    (sessionId: string, generatedTitle: string) => {
-      const normalizedTitle = generatedTitle.trim()
+    (sessionId: string, generatedTitle: string | null) => {
+      const normalizedTitle = normalizeGeneratedSessionTitle(generatedTitle)
       if (!normalizedTitle) return
 
       clearTitleRevealInterval(sessionId)
