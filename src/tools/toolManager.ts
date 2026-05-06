@@ -32,7 +32,6 @@ import {
   type ToolExecutionPolicy,
   type ToolExecutionSummary,
 } from './types'
-import { classifyResearchQueryDuplicate } from '../components/Dashboard/ChatArea/hooks/streaming/researchLoopPolicy'
 import { normalizeWebSearchQueryYear } from './webSearchPreferences'
 
 type ProviderResponse = OpenRouterResponse
@@ -172,7 +171,7 @@ function normalizeWebSearchToolCall(toolCall: ToolCall, userContextText?: string
 function createSyntheticToolResult(
   toolCall: ToolCall,
   error: string,
-  skippedReason: 'budget' | 'duplicate-query' | 'duplicate-facet'
+  skippedReason: 'budget'
 ): ToolCallResult {
   return {
     toolCall,
@@ -283,7 +282,6 @@ export async function processToolCalls(
     0,
     Math.floor(config.executionPolicy?.remainingWebSearchBudget ?? Number.MAX_SAFE_INTEGER)
   )
-  const priorWebSearchQueries = [...(config.executionPolicy?.priorWebSearchQueries ?? [])]
   const userContextText = config.executionPolicy?.userContextText
 
   for (const [index, toolCall] of toolCalls.entries()) {
@@ -309,21 +307,6 @@ export async function processToolCalls(
       executionSummary.attemptedWebSearchCount += 1
 
       const query = getWebSearchQuery(coercedToolCall)
-      const duplicateReason = classifyResearchQueryDuplicate(query, priorWebSearchQueries)
-      if (duplicateReason) {
-        const duplicateResult = createSyntheticToolResult(
-          coercedToolCall,
-          duplicateReason === 'duplicate-query'
-            ? 'Skipped duplicate web_search query in this response. Change the angle or synthesize from existing results.'
-            : 'Skipped web_search call because this facet was already searched in this response. Try a different facet or synthesize from existing results.',
-          duplicateReason
-        )
-        config.onToolStart?.(coercedToolCall)
-        resultsByIndex[index] = duplicateResult
-        config.onToolComplete?.(duplicateResult)
-        continue
-      }
-
       if (remainingWebSearchBudget <= 0) {
         const budgetResult = createSyntheticToolResult(
           coercedToolCall,
@@ -338,7 +321,6 @@ export async function processToolCalls(
 
       remainingWebSearchBudget -= 1
       if (query) {
-        priorWebSearchQueries.push(query)
         executionSummary.executedWebSearchQueries.push(query)
       }
       executionSummary.executedWebSearchCount += 1

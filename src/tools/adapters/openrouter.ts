@@ -101,7 +101,7 @@ export function formatToolResultsForOpenRouter(
         role: 'tool' as const,
         tool_call_id: toolCall.id,
         content:
-          'No additional web_search results were returned for this repeated or over-budget request. Ignore this tool result in the final answer and use only previously returned search evidence.',
+          'No additional web_search results were returned for this over-budget request. Ignore this tool result in the final answer and use only previously returned search evidence.',
       }
     }
 

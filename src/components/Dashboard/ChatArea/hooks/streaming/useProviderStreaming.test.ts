@@ -1394,7 +1394,7 @@ describe('useProviderStreaming', () => {
     expect(streamResult.content).toBe('Final synthesized answer.')
   })
 
-  it('forces final synthesis when the model repeats the same search facet with minor rewording', async () => {
+  it('allows repeated same-facet searches while budget remains', async () => {
     const streamCalls: Array<{ toolChoice?: unknown }> = []
     let invocation = 0
 
@@ -1422,7 +1422,7 @@ describe('useProviderStreaming', () => {
           return
         }
 
-        yield { type: 'text-delta', delta: 'Answer after deduped search loop.' }
+        yield { type: 'text-delta', delta: 'Answer after repeated search loop.' }
         yield { type: 'finish', finishReason: 'stop' }
       },
     })
@@ -1488,8 +1488,8 @@ describe('useProviderStreaming', () => {
 
     expect(handleToolCalls).toHaveBeenCalledTimes(2)
     expect(streamCalls).toHaveLength(3)
-    expect(streamCalls[streamCalls.length - 1]?.toolChoice).toBe('none')
-    expect(streamResult.content).toBe('Answer after deduped search loop.')
+    expect(streamCalls[streamCalls.length - 1]?.toolChoice).toBeUndefined()
+    expect(streamResult.content).toBe('Answer after repeated search loop.')
   })
 
   it('drops partial assistant text from tool-call rounds instead of persisting truncated preludes', async () => {

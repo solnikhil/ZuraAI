@@ -83,7 +83,7 @@ describe('shouldContinueToolResearch', () => {
     ).toBe(true)
   })
 
-  it('does not continue after skipped duplicate or over-budget searches', () => {
+  it('does not continue after skipped over-budget searches', () => {
     expect(
       shouldContinueToolResearch([
         {
@@ -94,11 +94,11 @@ describe('shouldContinueToolResearch', () => {
           },
           result: {
             success: false,
-            error: 'Skipped duplicate web_search query.',
+            error: 'Skipped web_search call because the per-response search budget has been reached.',
             metadata: {
               origin: 'builtin-main',
               executionDisposition: 'skipped',
-              skippedReason: 'duplicate-query',
+              skippedReason: 'budget',
             },
           },
         },

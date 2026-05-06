@@ -110,7 +110,7 @@ describe('toolManager web search batch policy', () => {
     ])
   })
 
-  it('skips duplicate and over-budget web_search calls without consuming budget', async () => {
+  it('executes repeated web_search calls until the budget is consumed', async () => {
     mocks.executeToolCalls.mockImplementation(async ([toolCall]) => [
       {
         toolCall,
@@ -132,24 +132,20 @@ describe('toolManager web search batch policy', () => {
       provider: 'openrouter',
       model: 'openai/gpt-4.1',
       executionPolicy: {
-        remainingWebSearchBudget: 1,
+        remainingWebSearchBudget: 2,
         priorWebSearchQueries: [],
       },
     })
 
-    expect(mocks.executeToolCalls).toHaveBeenCalledTimes(1)
+    expect(mocks.executeToolCalls).toHaveBeenCalledTimes(2)
     expect(processed.executionSummary).toEqual({
       attemptedWebSearchCount: 3,
-      executedWebSearchCount: 1,
-      executedWebSearchQueries: ['zura ai architecture'],
+      executedWebSearchCount: 2,
+      executedWebSearchQueries: ['zura ai architecture', 'Zura AI architecture'],
     })
     expect(processed.results).toHaveLength(3)
     expect(processed.results[0]?.result.success).toBe(true)
-    expect(processed.results[1]?.result.metadata).toMatchObject({
-      origin: 'builtin-main',
-      executionDisposition: 'skipped',
-      skippedReason: 'duplicate-query',
-    })
+    expect(processed.results[1]?.result.success).toBe(true)
     expect(processed.results[2]?.result.metadata).toMatchObject({
       origin: 'builtin-main',
       executionDisposition: 'skipped',

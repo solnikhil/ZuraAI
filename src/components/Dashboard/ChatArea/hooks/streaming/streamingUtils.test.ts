@@ -201,11 +201,11 @@ describe('streamingUtils final synthesis helpers', () => {
           },
           result: {
             success: false,
-            error: 'Skipped duplicate web_search query in this response.',
+            error: 'Skipped web_search call because the per-response search budget has been reached.',
             metadata: {
               origin: 'builtin-main' as const,
               executionDisposition: 'skipped' as const,
-              skippedReason: 'duplicate-query' as const,
+              skippedReason: 'budget' as const,
             },
           },
         },

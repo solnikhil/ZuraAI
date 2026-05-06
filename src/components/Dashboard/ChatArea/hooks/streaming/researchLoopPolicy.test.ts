@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 
 import {
   buildResearchProgressPrompt,
-  classifyResearchQueryDuplicate,
   evaluateResearchContinuation,
   getEffectiveSearchBudget,
   hasReachedSearchBudget,
@@ -28,7 +27,6 @@ describe('researchLoopPolicy', () => {
     })
 
     expect(prompt).toContain('You have completed 3 of 8 targeted search(es)')
-    expect(prompt).toContain('do not keep reformulating similar searches')
     expect(prompt).toContain('what is already answered by evidence')
     expect(prompt).toContain('same assistant turn so they run as one parallel batch')
     expect(prompt).toContain('one query per requested year for multi-year data')
@@ -58,23 +56,7 @@ describe('researchLoopPolicy', () => {
     expect(hasReachedSearchBudget(4, 4, 50)).toBe(true)
   })
 
-  it('classifies duplicate queries for batch filtering', () => {
-    expect(
-      classifyResearchQueryDuplicate('Cursor pricing plans enterprise', [
-        'cursor team pricing costs',
-      ])
-    ).toBe('duplicate-facet')
-  })
-
-  it('does not treat explicit year-sliced searches as duplicates', () => {
-    expect(
-      classifyResearchQueryDuplicate('AI market size 2025', [
-        'AI market size 2024',
-      ])
-    ).toBeNull()
-  })
-
-  it('forces final synthesis when the model repeats materially similar searches', () => {
+  it('allows materially similar searches to continue while budget remains', () => {
     expect(
       evaluateResearchContinuation({
         searchCount: 2,
@@ -85,12 +67,12 @@ describe('researchLoopPolicy', () => {
         practicalCap: 6,
       })
     ).toEqual({
-      shouldForceFinalSynthesis: true,
-      reason: 'duplicate-query',
+      shouldForceFinalSynthesis: false,
+      reason: null,
     })
   })
 
-  it('forces final synthesis when the model repeats the same facet on the same topic', () => {
+  it('allows repeated same-facet searches to continue while budget remains', () => {
     expect(
       evaluateResearchContinuation({
         searchCount: 2,
@@ -101,8 +83,8 @@ describe('researchLoopPolicy', () => {
         practicalCap: 6,
       })
     ).toEqual({
-      shouldForceFinalSynthesis: true,
-      reason: 'duplicate-facet',
+      shouldForceFinalSynthesis: false,
+      reason: null,
     })
   })
 

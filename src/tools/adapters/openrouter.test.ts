@@ -33,24 +33,25 @@ describe('convertToOpenRouterFormat', () => {
     expect(formatted[0]?.content).toContain('Result A')
   })
 
-  it('formats skipped web search results without exposing duplicate policy details', () => {
+  it('formats skipped web search results without exposing budget policy details', () => {
     const formatted = formatToolResultsForOpenRouter(
       [{ id: 'tool-1', name: 'web_search' }],
       [
         {
           success: false,
-          error: 'Skipped duplicate web_search query in this response.',
+          error: 'Skipped web_search call because the per-response search budget has been reached.',
           metadata: {
             origin: 'builtin-main',
             executionDisposition: 'skipped',
-            skippedReason: 'duplicate-query',
+            skippedReason: 'budget',
           },
         },
       ]
     )
 
     expect(formatted[0]?.content).toContain('No additional web_search results')
-    expect(formatted[0]?.content).not.toContain('duplicate')
+    expect(formatted[0]?.content).toContain('over-budget')
+    expect(formatted[0]?.content).not.toContain('repeated')
     expect(formatted[0]?.content).not.toContain('Skipped')
   })
 
