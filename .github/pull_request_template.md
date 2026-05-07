@@ -14,9 +14,9 @@
 
 ## Testing
 
-- [ ] `npm run typecheck`
-- [ ] `npm test`
-- [ ] `npm run build` (required for packaging, Electron, or release-flow changes)
+- [ ] `bun run typecheck`
+- [ ] `bun run test`
+- [ ] `bun run build` (required for packaging, Electron, or release-flow changes)
 - Manual verification:
   -
 

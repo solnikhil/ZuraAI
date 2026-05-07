@@ -43,7 +43,6 @@ import {
 } from './streaming'
 
 export interface UseStreamingChatOptions {
-  onMessageSent?: () => void
   onStreamStart?: () => void
   onStreamEnd?: () => void
   onRegenerateStart?: () => void
@@ -536,7 +535,6 @@ enableTools: true,
         setIsLoading(false)
         clearToolState()
         options.onStreamEnd?.()
-        options.onMessageSent?.()
 
         if (isNewSession && targetSessionId) {
           generateChatTitle(content, settings)

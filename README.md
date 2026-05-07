@@ -51,7 +51,7 @@
 
 Most desktop AI apps make you pick one provider, one workflow, or one trust model. ZuraAI is built for people who want all three under control.
 
-- Multi-provider by design: use `OpenRouter`, `Ollama`, `Perplexity`, `Groq`, and `Alibaba Cloud` from one desktop app.
+- Multi-provider by design: use `OpenRouter`, `Ollama`, `Perplexity`, `Groq`, `Alibaba Cloud`, `Fireworks`, and `DeepSeek` from one desktop app.
 - Research that stays in the flow: turn on built-in web search or use structured research mode with live progress and citations.
 - Local-first storage: chat history lives in the Electron main process and API keys are stored with Electron secure storage.
 - Better chat organization: pin sessions, sort them into folders, tag them, and generate titles automatically.
@@ -79,6 +79,8 @@ Most desktop AI apps make you pick one provider, one workflow, or one trust mode
 | `Perplexity` | Research-heavy chats | Strong fit for answers grounded in live web information |
 | `Groq` | Fast responses | Useful when low latency matters more than provider breadth |
 | `Alibaba Cloud` | Qwen-based workflows | Good option for teams already using Alibaba Cloud models |
+| `Fireworks` | Open-weight serverless models | Useful for fast access to hosted open models |
+| `DeepSeek` | DeepSeek-native workflows | Good option for DeepSeek chat and reasoning models |
 
 ZuraAI is actively adding and testing new providers. If the model stack you want is missing, open an issue and we can prioritize it.
 
@@ -87,7 +89,7 @@ ZuraAI is actively adding and testing new providers. If the model stack you want
 ### Requirements
 
 - Node.js `>= 18`
-- npm `>= 9`
+- Bun `>= 1.1`
 - macOS or Windows
 
 ### Install and run
@@ -95,8 +97,8 @@ ZuraAI is actively adding and testing new providers. If the model stack you want
 ```bash
 git clone https://github.com/solnikhil/ZuraAI.git
 cd ZuraAI
-npm install
-npm run dev
+bun install
+bun run dev
 ```
 
 > [!NOTE]
@@ -105,23 +107,23 @@ npm run dev
 ### Build production artifacts
 
 ```bash
-npm run build
+bun run build
 ```
 
-Use `npm run build:dir` if you want an unpacked directory build instead of the installer package.
+Use `bun run build:dir` if you want an unpacked directory build instead of the installer package.
 
 ## Scripts
 
 | Command | Purpose |
 | --- | --- |
-| `npm run dev` | Start the Vite development server |
-| `npm run typecheck` | Run TypeScript checks with `tsc --noEmit` |
-| `npm run test` | Run the Vitest suite |
-| `npm run test:watch` | Run tests in watch mode |
-| `npm run build:renderer` | Typecheck and build the renderer |
-| `npm run build` | Create the production Electron package |
-| `npm run build:dir` | Create an unpacked Electron directory build |
-| `npm run preview` | Preview the renderer build locally |
+| `bun run dev` | Start the Vite development server |
+| `bun run typecheck` | Run TypeScript checks with `tsc --noEmit` |
+| `bun run test` | Run the Vitest suite |
+| `bun run test:watch` | Run tests in watch mode |
+| `bun run build:renderer` | Typecheck and build the renderer |
+| `bun run build` | Create the production Electron package |
+| `bun run build:dir` | Create an unpacked Electron directory build |
+| `bun run preview` | Preview the renderer build locally |
 
 ## Security model
 
@@ -133,9 +135,6 @@ ZuraAI is built around a narrow desktop security boundary.
 - Chat history is stored locally under Electron `userData`.
 - API keys are stored locally with Electron `safeStorage` when available.
 
-> [!IMPORTANT]
-> MCP support is documented in `docs/mcp-guide.md` and the implementation checklist in `docs/mcp-taskwise-plan.md`.
-
 For the full architecture and security notes, see `AGENTS.md`.
 
 ## Project docs
@@ -143,8 +142,6 @@ For the full architecture and security notes, see `AGENTS.md`.
 - `AGENTS.md` - architecture, IPC boundaries, data flow, and agent rules for this repo
 - `CONTRIBUTING.md` - local workflow, quality checks, and commit conventions
 - `CODE_OF_CONDUCT.md` - community expectations
-- `docs/mcp-guide.md` - MCP setup, safety model, example configs, and troubleshooting
-- `docs/mcp-taskwise-plan.md` - MCP implementation phases and checklist
 
 ## Contributing
 
@@ -152,7 +149,7 @@ Contributions are welcome. Before opening a pull request:
 
 1. Read `CONTRIBUTING.md`.
 2. Review the architecture notes in `AGENTS.md`.
-3. Run `npm run typecheck` and `npm run test`.
+3. Run `bun run typecheck` and `bun run test`.
 4. Call out any IPC, storage, provider, or tool-surface changes clearly.
 
 ## License

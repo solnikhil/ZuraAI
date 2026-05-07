@@ -18,10 +18,7 @@ import {
 } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 import './ModelSelector.css'
-export interface ModelSelectorProps {
-  minimal?: boolean
-  popoverAlign?: 'start' | 'center' | 'end'
-}
+export interface ModelSelectorProps { minimal?: boolean; popoverAlign?: 'start' | 'center' | 'end' }
 export default function ModelSelector({ minimal, popoverAlign = 'start' }: ModelSelectorProps) {
   const { consumeRequest } = useModelSelectorContext()
   const { settings } = useSettings()

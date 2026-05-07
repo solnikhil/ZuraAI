@@ -39,14 +39,20 @@ describe('registerSecureStorageHandlers', () => {
   })
 
   it('returns only the provider-key allowlist from secure-storage:get-all', async () => {
-    secureStorageMocks.getSecureValueAsync
-      .mockResolvedValueOnce('or-key')
-      .mockResolvedValueOnce('pplx-key')
-      .mockResolvedValueOnce('groq-key')
-      .mockResolvedValueOnce('tavily-key')
-      .mockResolvedValueOnce('alibaba-key')
-      .mockResolvedValueOnce('fireworks-key')
-      .mockResolvedValueOnce('oc-key')
+    const storedValues: Record<string, string> = {
+      openRouterApiKey: 'or-key',
+      perplexityApiKey: 'pplx-key',
+      groqApiKey: 'groq-key',
+      tavilyApiKey: 'tavily-key',
+      alibabaApiKey: 'alibaba-key',
+      fireworksApiKey: 'fireworks-key',
+      deepseekApiKey: 'deepseek-key',
+      onlineCompilerApiKey: 'oc-key',
+    }
+
+    secureStorageMocks.getSecureValueAsync.mockImplementation((key: string) =>
+      Promise.resolve(storedValues[key])
+    )
 
     const { registerSecureStorageHandlers } = await import('./secureStorageHandlers')
     registerSecureStorageHandlers()
@@ -61,10 +67,11 @@ describe('registerSecureStorageHandlers', () => {
       tavilyApiKey: 'tavily-key',
       alibabaApiKey: 'alibaba-key',
       fireworksApiKey: 'fireworks-key',
+      deepseekApiKey: 'deepseek-key',
       onlineCompilerApiKey: 'oc-key',
     })
 
-    expect(secureStorageMocks.getSecureValueAsync).toHaveBeenCalledTimes(7)
+    expect(secureStorageMocks.getSecureValueAsync).toHaveBeenCalledTimes(8)
     expect(secureStorageMocks.getSecureValueAsync).not.toHaveBeenCalledWith('mcp.server.demo.token')
   })
 

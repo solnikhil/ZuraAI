@@ -53,10 +53,6 @@ export default function ChatArea() {
   const userScrolledAwayRef = useRef(false)
 
   const { isLoading, toolState, sendMessage, regenerateMessage, stopStreaming } = useStreamingChat({
-    onMessageSent: () => {
-      setInput('')
-      setAttachedFiles([])
-    },
     onRegenerateStart: () => {
       // Scroll to position the new message in view when regenerating with smooth animation
       requestAnimationFrame(() => {
