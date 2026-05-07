@@ -30,9 +30,15 @@ describe('computeTokenBreakdown', () => {
       expect(result.systemPrompt).toBe(0)
       expect(result.chatMessages).toBe(0)
       expect(result.currentInput).toBe(0)
+      expect(result.attachments).toBe(0)
+      expect(result.imageAttachments).toBe(0)
       expect(result.streamingOutput).toBe(0)
+      expect(result.responseReserve).toBe(0)
       expect(result.totalUsed).toBe(0)
+      expect(result.totalWithReserve).toBe(0)
       expect(result.fillRatio).toBe(0)
+      expect(result.reserveFillRatio).toBe(0)
+      expect(result.status).toBe('normal')
     })
 
     it('uses DEFAULT_MAX_CONTEXT when maxContext is undefined', () => {
@@ -113,6 +119,45 @@ describe('computeTokenBreakdown', () => {
     })
   })
 
+  describe('attachment and response reserve tokens', () => {
+    it('counts text attachment context separately from current input', () => {
+      const result = computeTokenBreakdown(
+        makeParams({
+          currentInput: 'ask',
+          attachmentText: 'a'.repeat(40),
+        })
+      )
+      expect(result.currentInput).toBe(1)
+      expect(result.attachments).toBe(10)
+      expect(result.totalUsed).toBe(11)
+    })
+
+    it('counts image attachments with a bounded approximation', () => {
+      const result = computeTokenBreakdown(
+        makeParams({
+          imageAttachments: [{ size: 0 }, { size: 4096 }],
+        })
+      )
+      expect(result.imageAttachments).toBe(85 + 86)
+      expect(result.totalUsed).toBe(171)
+    })
+
+    it('adds response reserve to totalWithReserve without inflating totalUsed', () => {
+      const result = computeTokenBreakdown(
+        makeParams({
+          maxContext: 100,
+          currentInput: 'abcd',
+          responseReserve: 25,
+        })
+      )
+      expect(result.totalUsed).toBe(1)
+      expect(result.responseReserve).toBe(25)
+      expect(result.totalWithReserve).toBe(26)
+      expect(result.remaining).toBe(99)
+      expect(result.remainingAfterReserve).toBe(74)
+    })
+  })
+
   describe('totalUsed', () => {
     it('sums all token categories', () => {
       const result = computeTokenBreakdown(
@@ -149,6 +194,18 @@ describe('computeTokenBreakdown', () => {
       )
       expect(result.remaining).toBe(0)
     })
+
+    it('clamps remainingAfterReserve to 0 when reserve pushes over maxContext', () => {
+      const result = computeTokenBreakdown(
+        makeParams({
+          maxContext: 10,
+          currentInput: 'abcd',
+          responseReserve: 20,
+        })
+      )
+      expect(result.remaining).toBe(9)
+      expect(result.remainingAfterReserve).toBe(0)
+    })
   })
 
   describe('fillRatio', () => {
@@ -182,6 +239,38 @@ describe('computeTokenBreakdown', () => {
     })
   })
 
+  describe('status thresholds', () => {
+    it('is normal below the caution threshold', () => {
+      const result = computeTokenBreakdown(
+        makeParams({ maxContext: 100, currentInput: 'a'.repeat(200) })
+      )
+      expect(result.status).toBe('normal')
+      expect(result.reserveUsagePercent).toBe(50)
+    })
+
+    it('is caution at the caution threshold', () => {
+      const result = computeTokenBreakdown(
+        makeParams({ maxContext: 100, currentInput: 'a'.repeat(288) })
+      )
+      expect(result.status).toBe('caution')
+    })
+
+    it('is critical near the model limit', () => {
+      const result = computeTokenBreakdown(
+        makeParams({ maxContext: 100, currentInput: 'a'.repeat(360) })
+      )
+      expect(result.status).toBe('critical')
+    })
+
+    it('is over-limit when response reserve exceeds the model window', () => {
+      const result = computeTokenBreakdown(
+        makeParams({ maxContext: 100, currentInput: 'a'.repeat(200), responseReserve: 50 })
+      )
+      expect(result.status).toBe('over-limit')
+      expect(result.reserveFillRatio).toBe(1)
+    })
+  })
+
   describe('combined scenario', () => {
     it('correctly computes a realistic chat scenario', () => {
       const systemPrompt = 'You are a helpful assistant.'
@@ -193,6 +282,7 @@ describe('computeTokenBreakdown', () => {
         ],
         currentInput: 'Thanks!',  // ceil(7/4) = 2
         streamingContent: '',
+        responseReserve: 10,
         maxContext: 128000,
       })
       expect(result.systemPrompt).toBe(11)
@@ -200,9 +290,12 @@ describe('computeTokenBreakdown', () => {
       expect(result.currentInput).toBe(2)
       expect(result.streamingOutput).toBe(0)
       expect(result.totalUsed).toBe(28)
+      expect(result.totalWithReserve).toBe(38)
       expect(result.maxContext).toBe(128000)
       expect(result.remaining).toBe(128000 - 28)
+      expect(result.remainingAfterReserve).toBe(128000 - 38)
       expect(result.fillRatio).toBeCloseTo(28 / 128000, 8)
+      expect(result.reserveFillRatio).toBeCloseTo(38 / 128000, 8)
     })
   })
 })

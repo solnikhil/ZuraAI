@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useRef, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from 'react'
 
 interface ModelSelectorContextValue {
   openSelector: () => void
@@ -16,9 +16,11 @@ export function useModelSelectorContext() {
 
 export function ModelSelectorProvider({ children }: { children: ReactNode }) {
   const pendingRef = useRef(false)
+  const [, setRequestVersion] = useState(0)
 
   const openSelector = useCallback(() => {
     pendingRef.current = true
+    setRequestVersion((version) => version + 1)
   }, [])
 
   const consumeRequest = useCallback(() => {

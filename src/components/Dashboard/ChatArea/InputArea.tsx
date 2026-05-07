@@ -740,6 +740,7 @@ export function InputArea({
             <div className="pointer-events-auto absolute left-3 top-full mt-2 flex h-5 items-center">
               <TokenUsageIndicator
                 input={input}
+                attachedFiles={attachedFiles}
                 className="text-[var(--theme-text-muted)]"
               />
             </div>

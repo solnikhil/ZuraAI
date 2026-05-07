@@ -250,7 +250,7 @@ function formatAttachmentExcerpt(file: AttachedFile) {
   return `Attached file: ${file.name}\n\`\`\`\n${excerpt}\n\`\`\``
 }
 
-function buildAttachmentText(files?: AttachedFile[]) {
+export function buildAttachmentText(files?: AttachedFile[]) {
   if (!files?.length) return ''
 
   const excerpts: string[] = []
