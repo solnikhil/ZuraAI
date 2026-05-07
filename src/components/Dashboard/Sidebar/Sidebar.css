@@ -559,9 +559,11 @@
   position: absolute;
   left: 8px;
   right: 8px;
-  bottom: 8px;
+  bottom: 0;
   z-index: 3;
   pointer-events: auto;
+  padding-bottom: 8px;
+  background: var(--theme-sidebar-solid);
 }
 
 /* Gradient fade above footer so content doesn't abruptly cut off */
@@ -581,6 +583,7 @@
 }
 
 .sidebar-footer-row {
+  background: var(--theme-sidebar-solid);
   box-shadow: 0 -8px 18px color-mix(in srgb, var(--theme-sidebar-solid) 62%, transparent);
 }
 
