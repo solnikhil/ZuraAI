@@ -25,6 +25,7 @@ import { warnOnceDuringHmr } from './hmrWarnings'
 
 export type ChatBubbleStyle = 'solid' | 'glass' | 'outline' | 'gradient' | 'elevated' | 'terminal'
 export type ChatSelectedOverlayStyle = 'linear' | 'notion' | 'slack' | 'discord' | 'github'
+export type PlaceholderStyle = 'normal' | 'genz'
 
 /**
  * Model Selector settings
@@ -92,11 +93,7 @@ export interface SettingsUI {
     palettePosition: 'top' | 'center' | 'lower'
   }
 
-  // Frosted prompt (glassmorphism effect)
-  frostedPrompt: boolean
-
-  // Sidebar auto-hide when window is narrow
-  sidebarAutoHideOnResize: boolean
+  
 
   // Prompt auto-hide (slide away after inactivity)
   promptAutoHide: {
@@ -110,6 +107,9 @@ export interface SettingsUI {
 
   // Sidebar selected chat overlay style
   chatSelectedOverlayStyle?: ChatSelectedOverlayStyle
+
+  // Empty state placeholder style
+  placeholderStyle?: PlaceholderStyle
 
   // Model Selector settings
   modelSelector?: ModelSelectorSettings
@@ -137,28 +137,28 @@ export const defaultSettingsUI: SettingsUI = {
     paletteWidth: 'default',
     palettePosition: 'center',
   },
-  frostedPrompt: false,
-  sidebarAutoHideOnResize: true,
+  
   promptAutoHide: {
     enabled: false,
     timeout: 120,
   },
   chatBubbleStyle: 'solid',
   chatSelectedOverlayStyle: 'linear',
+  placeholderStyle: 'genz',
   modelSelector: {
     sidebarPosition: 'left',
-    sidebarShowLabels: true,
-    sidebarShowModelCount: true,
+    sidebarShowLabels: false,
+    sidebarShowModelCount: false,
     dropdownWidth: 'default',
-    showDescriptions: true,
-    showCapabilityBadges: true,
+    showDescriptions: false,
+    showCapabilityBadges: false,
     capabilityBadgeDisplay: 'both',
     showProviderLogos: true,
-    showFavoriteStars: true,
+    showFavoriteStars: false,
     showContextLength: true,
     showInfoTooltips: true,
     activeIndicatorStyle: 'dot',
-    itemDensity: 'comfortable',
+    itemDensity: 'compact',
     defaultView: 'lastUsed',
     autoCloseOnSelect: true,
     rememberProvider: true,

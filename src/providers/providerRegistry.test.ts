@@ -3,6 +3,7 @@ import {
   DEFAULT_OLLAMA_URL,
   getActiveProviderIds,
   getAvailableModelOptions,
+  getAvailableTitleModelOptions,
   getProviderCredentialError,
   getProviderDefinition,
   getProviderEndpoint,
@@ -12,6 +13,7 @@ import {
   normalizeActiveProviderId,
   providerSupportsTools,
   providerUsesNativeSearch,
+  resolveProviderForModel,
 } from './providerRegistry'
 
 describe('providerRegistry', () => {
@@ -20,6 +22,7 @@ describe('providerRegistry', () => {
       'openrouter',
       'groq',
       'alibaba',
+      'deepseek',
       'perplexity',
       'ollama',
       'fireworks',
@@ -46,23 +49,27 @@ describe('providerRegistry', () => {
         openrouter: true,
         groq: true,
         alibaba: true,
+        deepseek: true,
         perplexity: true,
         ollama: true,
       },
       openRouterApiKey: 'or-key',
       groqApiKey: '',
       alibabaApiKey: 'ali-key',
+      deepseekApiKey: 'deepseek-key',
       perplexityApiKey: 'px-key',
       ollamaUrl: DEFAULT_OLLAMA_URL,
       configuredModels: [{ code: 'openai/gpt-4.1', displayName: 'GPT-4.1', enabled: true }],
       groqModels: [{ code: 'llama-3.1-8b-instant', displayName: 'Llama Instant', enabled: true }],
       alibabaModels: [{ code: 'qwen-max', displayName: 'Qwen Max', enabled: true }],
+      deepseekModels: [{ code: 'deepseek-v4-flash', displayName: 'DeepSeek V4 Flash', enabled: true }],
       perplexityModels: [{ code: 'sonar', displayName: 'Sonar', enabled: true }],
       ollamaModels: [{ code: 'llama3.2', displayName: 'Llama 3.2', enabled: true }],
     }
 
     expect(hasProviderAccess(settings, 'openrouter')).toBe(true)
     expect(hasProviderAccess(settings, 'groq')).toBe(false)
+    expect(hasProviderAccess(settings, 'deepseek')).toBe(true)
     expect(getProviderCredentialError(settings, 'groq')).toContain('Groq API key is required')
     expect(providerSupportsTools('perplexity')).toBe(false)
     expect(providerUsesNativeSearch('perplexity')).toBe(true)
@@ -72,8 +79,48 @@ describe('providerRegistry', () => {
     expect(getAvailableModelOptions(settings)).toEqual([
       { id: 'openai/gpt-4.1', provider: 'openrouter', displayName: 'GPT-4.1' },
       { id: 'qwen-max', provider: 'alibaba', displayName: 'Qwen Max' },
+      { id: 'deepseek-v4-flash', provider: 'deepseek', displayName: 'DeepSeek V4 Flash' },
       { id: 'sonar', provider: 'perplexity', displayName: 'Sonar' },
       { id: 'llama3.2', provider: 'ollama', displayName: 'Llama 3.2' },
     ])
+  })
+
+  it('builds title-model options and resolves providers from the selected model', () => {
+    const settings = {
+      openRouterApiKey: 'or-key',
+      groqApiKey: 'groq-key',
+      ollamaUrl: DEFAULT_OLLAMA_URL,
+      configuredModels: [
+        { code: 'openai/gpt-4.1-mini', displayName: 'GPT-4.1 Mini', enabled: true, outputModalities: ['text'] },
+        { code: 'openai/gpt-image', displayName: 'GPT Image', enabled: true, outputModalities: ['image'] },
+      ],
+      groqModels: [{ code: 'llama-3.1-8b-instant', displayName: 'Llama Instant', enabled: true }],
+      ollamaModels: [{ code: 'llama3.2', displayName: 'Llama 3.2', enabled: false }],
+    }
+
+    expect(getAvailableTitleModelOptions(settings)).toEqual([
+      expect.objectContaining({
+        id: 'openai/gpt-4.1-mini',
+        provider: 'openrouter',
+        displayName: 'GPT-4.1 Mini',
+      }),
+      expect.objectContaining({
+        id: 'llama-3.1-8b-instant',
+        provider: 'groq',
+        displayName: 'Llama Instant',
+      }),
+      expect.objectContaining({
+        id: 'llama3.2',
+        provider: 'ollama',
+        displayName: 'Llama 3.2',
+      }),
+    ])
+    expect(resolveProviderForModel(settings, 'llama-3.1-8b-instant')).toEqual(
+      expect.objectContaining({
+        provider: 'groq',
+        id: 'llama-3.1-8b-instant',
+      })
+    )
+    expect(resolveProviderForModel(settings, 'missing-model')).toBeNull()
   })
 })

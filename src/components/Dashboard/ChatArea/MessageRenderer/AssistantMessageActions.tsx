@@ -17,7 +17,13 @@ interface ResponseInfoData {
   model?: string
   defaultModel: string
   latency?: number
-  usage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number }
+  usage?: {
+    inputTokens?: number
+    outputTokens?: number
+    totalTokens?: number
+    cachedInputTokens?: number
+    cachedOutputTokens?: number
+  }
   finishReason?: string
   requestedMaxTokens?: number
 }

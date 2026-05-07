@@ -36,27 +36,9 @@ export function shouldHideGenericToolResultCard(result: ToolCallResult): boolean
   return hasMcpMetadataShape(result.result?.metadata)
 }
 
-function hasCompletedToolThinkingBlock(
-  thinkingBlocks: ThinkingBlock[] | undefined,
-  toolName: string
-): boolean {
-  if (!thinkingBlocks || thinkingBlocks.length === 0) {
-    return false
-  }
-
-  return thinkingBlocks.some(
-    (block) => block.type === 'tool' && block.toolName === toolName
-  )
-}
-
 export function shouldHideMessageToolResultCard(
   result: ToolCallResult,
-  thinkingBlocks: ThinkingBlock[] | undefined
+  _thinkingBlocks: ThinkingBlock[] | undefined
 ): boolean {
-  if (result.toolCall.name === 'code_execution') {
-    return hasCompletedToolThinkingBlock(thinkingBlocks, result.toolCall.name)
-  }
-
   return shouldHideGenericToolResultCard(result)
 }
-

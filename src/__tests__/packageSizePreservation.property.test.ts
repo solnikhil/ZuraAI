@@ -171,7 +171,7 @@ describe('Property 2: Preservation — Runtime Behavior Unchanged After Build Co
     // All Phosphor icon imports in the barrel file. The barrel currently
     // imports directly from package subpaths like `@phosphor-icons/react/X`.
     const phosphorImportRegex =
-      /import\s*\{[^}]+\}\s*from\s*['"]@phosphor-icons\/react\/(\w+)['"]/g
+      /import\s*\{[^}]+\}\s*from\s*['"]@phosphor-icons\/react\/(?:dist\/csr\/)?(\w+)['"]/g
     const phosphorImports: string[] = []
     let pMatch: RegExpExecArray | null
     while ((pMatch = phosphorImportRegex.exec(lucideBarrelSource)) !== null) {
@@ -236,7 +236,7 @@ describe('Property 2: Preservation — Runtime Behavior Unchanged After Build Co
       { library: 'react-markdown', chunk: 'markdown' },
       { library: 'react-syntax-highlighter', chunk: 'markdown' },
       { library: 'remark-gfm', chunk: 'markdown' },
-      { library: 'rehype-katex', chunk: 'markdown' },
+
       { library: '@radix-ui/react-dialog', chunk: 'radix' },
       { library: '@radix-ui/react-popover', chunk: 'radix' },
       { library: '@radix-ui/react-tooltip', chunk: 'radix' },

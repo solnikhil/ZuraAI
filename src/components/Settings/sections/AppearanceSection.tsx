@@ -4,7 +4,7 @@
  *
  */
 
-import React, { useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 
 import { Card } from '@/components/ui/card'
 import {
@@ -23,9 +23,10 @@ import {
   getDefaultTheme,
   getThemesByCategory,
 } from '../../../themes/themeRegistry'
-import { applyThemeToDocument } from '../../../themes/themeUtils'
-import { getTitleEligibleModels } from '../../../utils/titleGenerationModels'
-import { getActiveProviderDefinitions, type ActiveProviderId } from '../../../providers'
+import {
+  getAvailableTitleModelOptions,
+  getProviderDefinition,
+} from '../../../providers'
 
 function clampNumber(value: number, min: number, max: number): number {
   if (Number.isNaN(value)) return min
@@ -120,7 +121,7 @@ const chatBubblePresets = [
       border: '1px dashed var(--theme-border-hover)',
       boxShadow: 'none',
       color: 'var(--theme-text-primary)',
-      fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
+      fontFamily: 'var(--font-mono)',
       letterSpacing: '0.01em',
     },
   },
@@ -191,15 +192,6 @@ export interface AppearanceSectionProps {
   onParamsConsumed?: () => void
 }
 
-type TitleProviderKey = ActiveProviderId
-
-const TITLE_PROVIDER_OPTIONS: Array<{ key: TitleProviderKey; label: string }> = [
-  ...getActiveProviderDefinitions().map((provider) => ({
-    key: provider.id as TitleProviderKey,
-    label: provider.label,
-  })),
-]
-
 export function AppearanceSection({
   settings,
   onChange,
@@ -231,37 +223,10 @@ export function AppearanceSection({
   const overlayOpacity = clampNumber(commandBar.overlayOpacity, 0, 80)
   const promptAutoHide = settings.promptAutoHide
   const promptTimeout = clampNumber(promptAutoHide.timeout, 30, 600)
-  const titleProvider = (settings.titleModelProvider || 'openrouter') as TitleProviderKey
 
-  const titleProviderModelMap = useMemo(
-    () => ({
-      alibaba: settings.alibabaModels || [],
-      fireworks: settings.fireworksModels || [],
-      groq: settings.groqModels || [],
-      ollama: settings.ollamaModels || [],
-      openrouter: settings.configuredModels || [],
-      perplexity: settings.perplexityModels || [],
-    }),
-    [
-      settings.alibabaModels,
-      settings.fireworksModels,
-      settings.groqModels,
-      settings.ollamaModels,
-      settings.configuredModels,
-      settings.perplexityModels,
-    ]
-  )
-
-  const titleProviderModelsAll = titleProviderModelMap[titleProvider] || []
-  const titleProviderEnabledModels = titleProviderModelsAll.filter(
-    (model) => model.enabled !== false
-  )
-  const titleProviderModels = getTitleEligibleModels(
-    titleProviderEnabledModels.length > 0 ? titleProviderEnabledModels : titleProviderModelsAll
-  )
-  const titleModelOptions = titleProviderModels.map((model) => ({
-    value: model.code,
-    label: model.displayName,
+  const titleModelOptions = getAvailableTitleModelOptions(settings).map((option) => ({
+    value: option.id,
+    label: `${getProviderDefinition(option.provider).label} - ${option.displayName}`,
   }))
 
   if (
@@ -269,22 +234,6 @@ export function AppearanceSection({
     !titleModelOptions.some((model) => model.value === settings.titleModel)
   ) {
     titleModelOptions.push({ value: settings.titleModel, label: settings.titleModel })
-  }
-
-  const handleTitleProviderChange = (provider: TitleProviderKey) => {
-    const nextModelsAll = titleProviderModelMap[provider] || []
-    const nextEnabled = nextModelsAll.filter((model) => model.enabled !== false)
-    const nextCandidates = getTitleEligibleModels(
-      nextEnabled.length > 0 ? nextEnabled : nextModelsAll
-    )
-    const nextTitleModel = nextCandidates.some((model) => model.code === settings.titleModel)
-      ? settings.titleModel
-      : nextCandidates[0]?.code || settings.titleModel
-
-    updateSettings({
-      titleModelProvider: provider,
-      titleModel: nextTitleModel,
-    })
   }
 
   const updateCommandBar = (changes: Partial<typeof settings.commandBar>) => {
@@ -316,16 +265,6 @@ export function AppearanceSection({
     setBackgroundInput(themeBackgroundColor)
     setForegroundInput(themeForegroundColor)
   }, [themeAccentColor, themeBackgroundColor, themeForegroundColor])
-
-  useLayoutEffect(() => {
-    const theme = getThemeById(settings.activeTheme) || getDefaultTheme()
-    applyThemeToDocument(theme, {
-      customAccent: settings.themeAccent,
-      customBackground: settings.themeBackground,
-      customForeground: settings.themeForeground,
-      contrast: currentContrast < 100 ? currentContrast : undefined,
-    })
-  }, [settings.activeTheme, settings.themeAccent, settings.themeBackground, settings.themeForeground, currentContrast])
 
   const allThemes = useMemo(() => getThemesByCategory('all'), [])
   const hasCustomThemeOverrides =
@@ -895,35 +834,54 @@ export function AppearanceSection({
             })}
           </div>
         </div>
+
+        <div
+          style={{
+            marginTop: 22,
+            paddingTop: 18,
+            borderTop: '1px solid var(--theme-border-subtle)',
+          }}
+        >
+          <h4
+            style={{
+              margin: '0 0 6px',
+              fontSize: '1rem',
+              fontWeight: 600,
+              color: 'var(--theme-text-primary)',
+            }}
+          >
+            Empty State Placeholder
+          </h4>
+          <p
+            style={{
+              margin: '0 0 14px',
+              fontSize: '0.82rem',
+              color: 'var(--theme-text-muted)',
+            }}
+          >
+            Choose the style of placeholder text shown in an empty chat.
+          </p>
+          <SettingsSelect
+            value={settings.placeholderStyle || 'genz'}
+            onValueChange={(value) =>
+              updateSettings({ placeholderStyle: value as 'normal' | 'genz' })
+            }
+            options={[
+              { value: 'normal', label: 'Normal' },
+              { value: 'genz', label: 'Gen Z' },
+            ]}
+            aria-label="Empty state placeholder style"
+          />
+        </div>
       </Card>
 
       <h3 className="appearance-group-heading">Chat Title Generation</h3>
       <Card className="settings-list-card">
         <div className="settings-list-row">
           <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Title provider</h3>
-            <div className="settings-list-row__description">
-              Choose which provider generates automatic chat titles
-            </div>
-          </div>
-          <div className="settings-list-row__control">
-            <SettingsSelect
-              value={titleProvider}
-              onValueChange={(value) => handleTitleProviderChange(value as TitleProviderKey)}
-              options={TITLE_PROVIDER_OPTIONS.map((provider) => ({
-                value: provider.key,
-                label: provider.label,
-              }))}
-              aria-label="Title generation provider"
-            />
-          </div>
-        </div>
-
-        <div className="settings-list-row">
-          <div className="settings-list-row__meta">
             <h3 className="settings-list-row__label">Title model</h3>
             <div className="settings-list-row__description">
-              Model used for auto-title generation under the selected provider
+              Model used for automatic chat titles across all configured providers
             </div>
           </div>
           <div className="settings-list-row__control">

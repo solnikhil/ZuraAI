@@ -57,9 +57,9 @@ jobs:
           PREV_TAG=$(git describe --tags --abbrev=0 "${CURRENT_TAG}^" 2>/dev/null || echo "")
 
           if [ -n "$PREV_TAG" ]; then
-            CHANGELOG=$(bunx tsx scripts/generate-changelog.ts --from-tag "$PREV_TAG" --to-ref "$CURRENT_TAG")
+            CHANGELOG=$(bun scripts/generate-changelog.mjs --from-tag "$PREV_TAG" --to-ref "$CURRENT_TAG")
           else
-            CHANGELOG=$(bunx tsx scripts/generate-changelog.ts --to-ref "$CURRENT_TAG")
+            CHANGELOG=$(bun scripts/generate-changelog.mjs --to-ref "$CURRENT_TAG")
           fi
 
           # Write changelog to a file for the release step

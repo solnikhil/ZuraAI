@@ -5,25 +5,25 @@
    ======================================== */
 :root {
     /* Core surfaces */
-    --theme-background: #181818;
-    --theme-surface: #1B1913;
-    --theme-surface-subtle: rgba(255, 255, 255, 0.02);
-    --theme-surface-hover: rgba(255, 255, 255, 0.05);
-    --theme-surface-active: rgba(255, 255, 255, 0.08);
-    --theme-surface-pressed: rgba(255, 255, 255, 0.1);
+    --theme-background: #1a1a1a;
+    --theme-surface: #1c1c1e;
+    --theme-surface-subtle: rgba(255, 255, 255, 0.03);
+    --theme-surface-hover: rgba(255, 255, 255, 0.06);
+    --theme-surface-active: rgba(255, 255, 255, 0.1);
+    --theme-surface-pressed: rgba(255, 255, 255, 0.13);
     
     /* Text hierarchy */
-    --theme-text-primary: #ffffff;
-    --theme-text-secondary: #f0f0f0;
-    --theme-text-tertiary: #b0b0b0;
-    --theme-text-muted: #999999;
+    --theme-text-primary: rgba(255, 255, 255, 0.85);
+    --theme-text-secondary: rgba(255, 255, 255, 0.62);
+    --theme-text-tertiary: rgba(255, 255, 255, 0.48);
+    --theme-text-muted: rgba(255, 255, 255, 0.35);
     --theme-text-inverse: #000000;
     
     /* Borders */
-    --theme-border: rgba(255, 255, 255, 0.06);
-    --theme-border-hover: rgba(255, 255, 255, 0.1);
-    --theme-border-active: rgba(255, 255, 255, 0.12);
-    --theme-border-subtle: rgba(255, 255, 255, 0.03);
+    --theme-border: rgba(255, 255, 255, 0.08);
+    --theme-border-hover: rgba(255, 255, 255, 0.12);
+    --theme-border-active: rgba(255, 255, 255, 0.16);
+    --theme-border-subtle: rgba(255, 255, 255, 0.05);
     
     /* Accents */
     --theme-accent: #c9a66e;
@@ -33,29 +33,29 @@
     --theme-favorite: #d7b35b;
     
     /* Semantic */
-    --theme-error: #ef4444;
-    --theme-error-bg: rgba(239, 68, 68, 0.1);
-    --theme-success: #4ade80;
-    --theme-success-bg: rgba(74, 222, 128, 0.1);
-    --theme-warning: #fbbf24;
-    --theme-warning-bg: rgba(251, 191, 36, 0.1);
-    --theme-info: #3b82f6;
-    --theme-info-bg: rgba(59, 130, 246, 0.1);
+    --theme-error: #ff453a;
+    --theme-error-bg: rgba(255, 69, 58, 0.16);
+    --theme-success: #32d74b;
+    --theme-success-bg: rgba(50, 215, 75, 0.16);
+    --theme-warning: #ffd60a;
+    --theme-warning-bg: rgba(255, 214, 10, 0.16);
+    --theme-info: #0a84ff;
+    --theme-info-bg: rgba(10, 132, 255, 0.16);
     
     /* Special elements */
-    --theme-user-message-bg: linear-gradient(135deg, #ff7a50 0%, #ff5a30 100%);
+    --theme-user-message-bg: color-mix(in srgb, var(--theme-accent) 82%, var(--theme-surface));
     --theme-user-message-text: #ffffff;
-    --theme-assistant-message-bg: rgba(27, 25, 19, 0.85);
-    --theme-assistant-message-text: #e0e0e0;
+    --theme-assistant-message-bg: rgba(255, 255, 255, 0.04);
+    --theme-assistant-message-text: rgba(255, 255, 255, 0.85);
     --theme-overlay-bg: rgba(0, 0, 0, 0.7);
     --theme-dimmer-bg: rgba(0, 0, 0, 0.4);
-    --theme-selection-bg: rgba(139, 92, 246, 0.3);
+    --theme-selection-bg: rgba(10, 132, 255, 0.28);
     --theme-selection-text: #ffffff;
     
     /* Shadows */
-    --theme-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-    --theme-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
-    --theme-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+    --theme-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.18);
+    --theme-shadow-md: 0 4px 14px rgba(0, 0, 0, 0.2);
+    --theme-shadow-lg: 0 10px 28px rgba(0, 0, 0, 0.22);
     
     /* Scrollbar */
     --theme-scrollbar: rgba(255, 255, 255, 0.08);
@@ -64,10 +64,10 @@
     /* Glassmorphism variables */
     --theme-glass-bg: transparent;
     --theme-glass-bg-light: transparent;
-    --theme-glass-border: rgba(255, 255, 255, 0.2);
+    --theme-glass-border: rgba(255, 255, 255, 0.14);
     --theme-glass-border-light: rgba(0, 0, 0, 0.1);
-    --theme-glass-blur: blur(0px);
-    --theme-glass-gloss: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 50%, transparent 100%);
+    --theme-glass-blur: blur(16px);
+    --theme-glass-gloss: linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.02) 100%);
     
     /* Legacy variable mappings (for backward compatibility) */
     --bg-primary: var(--theme-background);
@@ -86,7 +86,6 @@
 }
 
 /* Theme values are applied at runtime from theme definitions. */
-
 
 
 

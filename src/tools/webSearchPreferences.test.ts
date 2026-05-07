@@ -89,4 +89,24 @@ describe('webSearchPreferences', () => {
       normalizeWebSearchQueryYear('Claude code leak Anthropic 2024 2025', 'compare the 2024 and 2025 Claude incidents', 2026)
     ).toBe('Claude code leak Anthropic 2024 2025')
   })
+
+  it('preserves year-sliced queries when the user asks for a relative multi-year range', () => {
+    expect(
+      normalizeWebSearchQueryYear(
+        'JEE Main registration numbers 2022',
+        'can you generate a chart on the number of people who registered for jee in the past 5 years',
+        2026
+      )
+    ).toBe('JEE Main registration numbers 2022')
+  })
+
+  it('preserves year-sliced queries when the user asks for an explicit year range', () => {
+    expect(
+      normalizeWebSearchQueryYear(
+        'AI market size 2021',
+        'Search AI market size data from 2021 through 2025',
+        2026
+      )
+    ).toBe('AI market size 2021')
+  })
 })

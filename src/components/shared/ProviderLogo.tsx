@@ -6,19 +6,12 @@
 
 import React, { useState } from 'react'
 import { Cloud, Database, Globe, Sparkles, Zap, Brain } from 'lucide-react'
+import { getLogoVisibleProviderIds, getProviderAccentColor, type ProviderId } from '../../providers'
 
 /**
  * Provider types supported by the application
  */
-export type ProviderType =
-  | 'ollama'
-  | 'perplexity'
-  | 'openrouter'
-  | 'gemini'
-  | 'groq'
-  | 'minimax'
-  | 'alibaba'
-  | 'fireworks'
+export type ProviderType = ProviderId | 'gemini' | 'minimax'
 
 /**
  * Size variants for the provider logo
@@ -61,24 +54,17 @@ const PROVIDER_FALLBACK_ICONS: Record<string, React.ComponentType<{ size?: numbe
   ollama: Database,
   minimax: Brain,
   alibaba: Cloud,
+  deepseek: Brain,
   fireworks: Sparkles,
 }
 
-/**
- * Provider colors for fallback icons
- */
 const PROVIDER_COLORS: Record<string, string> = {
   gemini: '#4dabf7',
-  openrouter: '#a855f7',
-  perplexity: '#22c55e',
-  groq: '#f97316',
-  ollama: '#339af0',
   minimax: '#6366f1',
-  alibaba: '#ff6a00',
-  fireworks: '#ef4444',
 }
 
 const PROVIDER_LOGO_EXTENSIONS: Record<string, 'png' | 'svg'> = {
+  deepseek: 'svg',
   fireworks: 'svg',
 }
 
@@ -91,6 +77,7 @@ const PROVIDER_LOGO_ADJUSTMENTS: Record<
   groq: { scale: 1.22 },
   fireworks: { scale: 0.94, translateY: 0.25 },
   alibaba: { scale: 1.08 },
+  deepseek: { scale: 0.92 },
   ollama: { scale: 1.04, translateY: 0.25 },
 }
 
@@ -212,7 +199,11 @@ export function ProviderLogo({
  * @returns Hex color string
  */
 export function getProviderLogoColor(provider: string): string {
-  return PROVIDER_COLORS[provider.toLowerCase()] || '#b0b0b0'
+  const normalizedProvider = provider.toLowerCase()
+  if (normalizedProvider in PROVIDER_COLORS) {
+    return PROVIDER_COLORS[normalizedProvider] || '#b0b0b0'
+  }
+  return getProviderAccentColor(normalizedProvider) || '#b0b0b0'
 }
 
 /**
@@ -222,16 +213,12 @@ export function getProviderLogoColor(provider: string): string {
  * @returns True if provider is known
  */
 export function isKnownProvider(provider: string): provider is ProviderType {
-  return [
-    'ollama',
-    'perplexity',
-    'openrouter',
-    'gemini',
-    'groq',
-    'minimax',
-    'alibaba',
-    'fireworks',
-  ].includes(provider.toLowerCase())
+  const normalizedProvider = provider.toLowerCase()
+  return (
+    normalizedProvider === 'gemini' ||
+    normalizedProvider === 'minimax' ||
+    getLogoVisibleProviderIds().includes(normalizedProvider as ProviderId)
+  )
 }
 
 export default ProviderLogo

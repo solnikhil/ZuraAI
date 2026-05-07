@@ -19,7 +19,7 @@ import {
   enrichOllamaModelsWithContext,
 } from '../services/ollama'
 import {
-  loadApiKeysFromSecureStorage,
+  loadApiKeyPresenceFromSecureStorage,
   migrateApiKeysFromLocalStorage,
 } from '../utils/secureApiKeys'
 import { defaultSystemPrompt } from '../prompts/defaultSystemPrompt'
@@ -29,6 +29,7 @@ import { defaultCodeExecutionPrompt } from '../prompts/defaultCodeExecutionPromp
 import { defaultComputerUsePrompt } from '../prompts/defaultComputerUsePrompt'
 import { defaultChartGenerationPrompt } from '../prompts/defaultChartGenerationPrompt'
 import { defaultSkillsSettings, type SkillsSettings } from '../skills'
+import { getProviderEnabledDefaults, getProviderSecretFields } from '../providers'
 import type { ProviderId } from '../providers/providerTypes'
 import { warnOnceDuringHmr } from './hmrWarnings'
 import type { OverlaySettings } from '../electron/types'
@@ -65,6 +66,11 @@ type ProviderKey = ProviderId
 type ProviderEnabledMap = Partial<Record<ProviderKey, boolean>>
 export type TavilySearchDepth = 'ultra-fast' | 'fast' | 'basic' | 'advanced'
 export type TavilySearchDepthPreference = 'auto' | TavilySearchDepth
+const SECURE_SETTINGS_KEY_NAMES = [
+  ...getProviderSecretFields(),
+  'tavilyApiKey',
+  'onlineCompilerApiKey',
+] as const
 
 /**
  * Configuration-related settings that change infrequently
@@ -80,6 +86,7 @@ export interface SettingsConfig {
   webSearchIncludeImages: boolean
   alibabaApiKey: string
   fireworksApiKey: string
+  deepseekApiKey: string
   onlineCompilerApiKey: string
 
   // Model settings
@@ -93,6 +100,7 @@ export interface SettingsConfig {
   groqModels: ConfiguredModel[]
   alibabaModels: ConfiguredModel[]
   fireworksModels: ConfiguredModel[]
+  deepseekModels: ConfiguredModel[]
 
   // AI parameters
   temperature: number
@@ -118,7 +126,6 @@ export interface SettingsConfig {
   computerUseAutoApprove: boolean
 
   // Title generation
-  titleModelProvider: ProviderId
   titleModel: string
   titleGenerationPrompt: string
   titleGenerationDisplayMode: 'instant' | 'typewriter'
@@ -153,19 +160,13 @@ export const defaultSettingsConfig: SettingsConfig = {
   webSearchIncludeImages: true,
   alibabaApiKey: '',
   fireworksApiKey: '',
+  deepseekApiKey: '',
 
   onlineCompilerApiKey: '',
   // Model settings
   aiModel: '',
   modelProvider: 'openrouter',
-  providerEnabled: {
-    alibaba: true,
-    fireworks: true,
-    groq: true,
-    ollama: true,
-    openrouter: true,
-    perplexity: true,
-  },
+  providerEnabled: getProviderEnabledDefaults(),
   configuredModels: [],
   ollamaUrl: 'http://localhost:11434',
   ollamaModels: [],
@@ -248,6 +249,10 @@ export const defaultSettingsConfig: SettingsConfig = {
   ],
   alibabaModels: [],
   fireworksModels: [],
+  deepseekModels: [
+    { code: 'deepseek-v4-flash', displayName: 'DeepSeek V4 Flash', enabled: true, maxContext: 1048576, supportsToolCall: true, modelType: 'chat' },
+    { code: 'deepseek-v4-pro', displayName: 'DeepSeek V4 Pro', enabled: true, maxContext: 1048576, supportsToolCall: true, supportsDeepThinking: true, modelType: 'reasoning' },
+  ],
 
   // AI parameters
   temperature: 0.7,
@@ -267,7 +272,6 @@ export const defaultSettingsConfig: SettingsConfig = {
   codeExecutionAutoApprove: false,
   computerUseAutoApprove: false,
   // Title generation
-  titleModelProvider: 'openrouter',
   titleModel: '',
   titleGenerationPrompt: defaultTitleGenerationPrompt,
   titleGenerationDisplayMode: 'instant',
@@ -344,34 +348,18 @@ export function SettingsConfigProvider({
     const loadSecureKeys = async () => {
       try {
         // Migrate existing keys from localStorage if needed
-        await migrateApiKeysFromLocalStorage({
-          alibabaApiKey: settingsConfig.alibabaApiKey,
-          fireworksApiKey: settingsConfig.fireworksApiKey,
-          groqApiKey: settingsConfig.groqApiKey,
-          openRouterApiKey: settingsConfig.openRouterApiKey,
-          perplexityApiKey: settingsConfig.perplexityApiKey,
-          tavilyApiKey: settingsConfig.tavilyApiKey,
-        })
+        await migrateApiKeysFromLocalStorage(settingsConfig as unknown as Record<string, string | undefined>)
 
-        const secureKeys = await loadApiKeysFromSecureStorage()
-
-        const hasSecureKeys =
-          secureKeys.alibabaApiKey ||
-          secureKeys.fireworksApiKey ||
-          secureKeys.groqApiKey ||
-          secureKeys.openRouterApiKey ||
-          secureKeys.perplexityApiKey ||
-          secureKeys.tavilyApiKey
+        const secureKeys = await loadApiKeyPresenceFromSecureStorage()
+        const hasSecureKeys = SECURE_SETTINGS_KEY_NAMES.some((key) => Boolean(secureKeys[key]))
 
         if (hasSecureKeys) {
+          const secureKeyUpdates = Object.fromEntries(
+            SECURE_SETTINGS_KEY_NAMES.map((key) => [key, secureKeys[key]])
+          )
           setSettingsConfig((prev) => ({
             ...prev,
-            alibabaApiKey: secureKeys.alibabaApiKey || prev.alibabaApiKey,
-            fireworksApiKey: secureKeys.fireworksApiKey || prev.fireworksApiKey,
-            groqApiKey: secureKeys.groqApiKey || prev.groqApiKey,
-            openRouterApiKey: secureKeys.openRouterApiKey || prev.openRouterApiKey,
-            perplexityApiKey: secureKeys.perplexityApiKey || prev.perplexityApiKey,
-            tavilyApiKey: secureKeys.tavilyApiKey || prev.tavilyApiKey,
+            ...secureKeyUpdates,
           }))
         }
       } catch (error) {

@@ -54,14 +54,7 @@ export interface ProviderConfig {
 /**
  * Grouped models by provider
  */
-export interface GroupedModels {
-  ollama: ModelWithProvider[]
-  perplexity: ModelWithProvider[]
-  openrouter: ModelWithProvider[]
-  groq: ModelWithProvider[]
-  alibaba: ModelWithProvider[]
-  fireworks: ModelWithProvider[]
-}
+export type GroupedModels = Record<string, ModelWithProvider[]>
 
 /**
  * Dropdown position state

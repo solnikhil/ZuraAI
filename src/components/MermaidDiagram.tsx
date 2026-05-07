@@ -360,7 +360,7 @@ export default function MermaidDiagram({ code }: MermaidDiagramProps) {
           style={{
             padding: '12px 16px',
             overflowX: 'auto',
-            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+            fontFamily: 'var(--font-mono)',
             fontSize: '0.9em',
             lineHeight: '1.6',
             whiteSpace: 'pre-wrap',
@@ -546,7 +546,7 @@ export default function MermaidDiagram({ code }: MermaidDiagramProps) {
                 border: '1px solid var(--theme-error)',
                 fontSize: '0.85rem',
                 color: 'var(--theme-error)',
-                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                fontFamily: 'var(--font-mono)',
                 whiteSpace: 'pre-wrap',
                 wordBreak: 'break-word',
               }}
@@ -571,7 +571,7 @@ export default function MermaidDiagram({ code }: MermaidDiagramProps) {
                   background: 'var(--theme-surface)',
                   border: '1px solid var(--theme-border)',
                   fontSize: '0.85rem',
-                  fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                  fontFamily: 'var(--font-mono)',
                   whiteSpace: 'pre-wrap',
                   wordBreak: 'break-word',
                   color: 'var(--theme-text-secondary)',
@@ -720,7 +720,7 @@ export default function MermaidDiagram({ code }: MermaidDiagramProps) {
                     border: '1px solid var(--theme-error)',
                     fontSize: '0.85rem',
                     color: 'var(--theme-error)',
-                    fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                    fontFamily: 'var(--font-mono)',
                     whiteSpace: 'pre-wrap',
                     wordBreak: 'break-word',
                   }}

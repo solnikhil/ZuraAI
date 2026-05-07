@@ -18,6 +18,7 @@ import { ToastProvider, ErrorBoundary } from './components/shared'
 import { McpApprovalDialog } from './components/mcp/McpApprovalDialog'
 import { CodeExecutionApprovalDialog } from './components/CodeExecutionApprovalDialog'
 import { ComputerUseApprovalDialog } from './components/ComputerUseApprovalDialog'
+import { isMacOSRuntime } from './utils/platform'
 
 import { loadSettingsModule } from './components/Settings/settingsLoader'
 
@@ -57,6 +58,8 @@ function SettingsLoadingFallback() {
 }
 
 function App() {
+  const macOS = isMacOSRuntime()
+
   return (
     <ErrorBoundary>
       <MotionConfig reducedMotion="user">
@@ -68,12 +71,12 @@ function App() {
                   <QuickSendProvider>
                     <ModelSelectorProvider>
                     <ModelSelectorOpener />
-                    <OverlaySync />
+                    {!macOS && <OverlaySync />}
                     <Router>
                       <Routes>
 <Route path="/about" element={<AboutWindow />} />
-                        <Route path="/overlay" element={<OverlayView />} />
-                        <Route path="/prompt-popup" element={<PromptPopupView />} />
+                        {!macOS && <Route path="/overlay" element={<OverlayView />} />}
+                        {!macOS && <Route path="/prompt-popup" element={<PromptPopupView />} />}
                         <Route element={<AppShellLayout />}>
                           <Route path="/" element={<DashboardLayout />} />
                           <Route path="/dashboard" element={<DashboardLayout />} />
@@ -93,7 +96,7 @@ function App() {
                     <McpApprovalDialog />
                   </ModelSelectorProvider>
                     <CodeExecutionApprovalDialog />
-                    <ComputerUseApprovalDialog />
+                    {!macOS && <ComputerUseApprovalDialog />}
 
                   </QuickSendProvider>
                 </StreamingProvider>

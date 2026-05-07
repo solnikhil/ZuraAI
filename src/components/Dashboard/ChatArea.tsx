@@ -5,7 +5,6 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import GradientText from '../GradientText'
 import { useToast } from '../shared/Toast'
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
 import { useStreamingState } from '../../contexts/StreamingContext'
@@ -21,6 +20,7 @@ import { InputArea } from './ChatArea/InputArea'
 import { shouldHideGenericToolResultCard } from './ChatArea/toolResultVisibility'
 import { useStreamingChat, usePromptAutoHide } from './ChatArea/hooks'
 import type { AttachedFile } from './ChatArea/attachmentUtils'
+import { NORMAL_PLACEHOLDERS, GENZ_PLACEHOLDERS } from './ChatArea/placeholders'
 
 /**
  * Virtualization threshold - activate virtual scrolling for lists > 50 messages
@@ -53,10 +53,6 @@ export default function ChatArea() {
   const userScrolledAwayRef = useRef(false)
 
   const { isLoading, toolState, sendMessage, regenerateMessage, stopStreaming } = useStreamingChat({
-    onMessageSent: () => {
-      setInput('')
-      setAttachedFiles([])
-    },
     onRegenerateStart: () => {
       // Scroll to position the new message in view when regenerating with smooth animation
       requestAnimationFrame(() => {
@@ -64,6 +60,11 @@ export default function ChatArea() {
       })
     },
   })
+
+  const vibe = useMemo(() => {
+    const texts = settings.placeholderStyle === 'normal' ? NORMAL_PLACEHOLDERS : GENZ_PLACEHOLDERS
+    return texts[Math.floor(Math.random() * texts.length)]
+  }, [settings.placeholderStyle])
 
   const promptAutoHideSettings = settings.promptAutoHide
   const { isPromptHidden, resetTimer, triggerZoneProps } = usePromptAutoHide({
@@ -278,22 +279,26 @@ export default function ChatArea() {
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: '16px',
-            maxWidth: 'min(720px, 100%)',
+            gap: '28px',
+            maxWidth: 'min(860px, 100%)',
             width: '100%',
           }}
         >
-          <div style={{ textAlign: 'center' }}>
-            <GradientText
-              showBorder={false}
-              useThemeAccent={true}
-              className="zura-title"
-            >
-              zura
-            </GradientText>
+          <div
+            style={{
+              fontSize: 'clamp(2rem, 4.2vw, 3.25rem)',
+              fontWeight: 500,
+              letterSpacing: '-0.035em',
+              color: 'var(--theme-text-primary)',
+              textAlign: 'center',
+              lineHeight: 1.08,
+              minHeight: '1.2em',
+              maxWidth: '24ch',
+            }}
+          >
+            {vibe}
           </div>
-
-          <div style={{ width: '100%' }}>
+          <div style={{ width: '100%', maxWidth: 'min(860px, 100%)' }}>
             <InputArea
               input={input}
               setInput={setInput}
@@ -304,17 +309,10 @@ export default function ChatArea() {
               onFilesChange={setAttachedFiles}
               onError={(msg) => showToast(msg, 'error')}
               showContextRing={false}
+              layoutVariant="landing"
             />
           </div>
         </div>
-
-        <style>{`
-          .zura-title {
-            font-size: 4rem;
-            font-weight: 800;
-            letter-spacing: -0.03em;
-          }
-        `}</style>
       </div>
     )
   }
@@ -360,13 +358,13 @@ export default function ChatArea() {
           data-select-all-scope="chat"
           style={{ minHeight: 0 }}
           viewportRef={messagesContainerRef}
-          viewportStyle={{ padding: '16px 20px 180px 20px', minHeight: 0 }}
+          viewportStyle={{ padding: '16px 20px 112px 20px', minHeight: 0 }}
         >
           <div
             data-select-all-scope="chat"
             style={{
               width: '100%',
-              maxWidth: 'min(860px, 100%)',
+              maxWidth: 'min(735px, 100%)',
               margin: '0 auto',
               minHeight: '100%',
               display: 'flex',
@@ -479,7 +477,7 @@ export default function ChatArea() {
               left: '50%',
               transform: 'translateX(-50%)',
               width: '100%',
-              maxWidth: 'min(860px, 100%)',
+              maxWidth: 'min(735px, 100%)',
               height: '48px',
               cursor: 'pointer',
               zIndex: 10,
@@ -526,17 +524,32 @@ export default function ChatArea() {
           margin-bottom: 8px;
         }
         .chat-input-overlay {
+          --chat-input-split-start: 44px;
           position: absolute;
           left: 0;
           right: 0;
           bottom: 0;
-          padding: 0 20px 20px;
+          padding: 0 20px 29px;
           pointer-events: none;
           background: transparent;
+          isolation: isolate;
+        }
+        .chat-input-overlay::before {
+          content: "";
+          position: absolute;
+          left: 0;
+          right: 0;
+          top: var(--chat-input-split-start);
+          bottom: 0;
+          z-index: 0;
+          pointer-events: none;
+          background: var(--theme-content-solid);
         }
         .chat-input-overlay__inner {
+          position: relative;
+          z-index: 1;
           width: 100%;
-          max-width: min(860px, 100%);
+          max-width: min(735px, 100%);
           margin: 0 auto;
           pointer-events: auto;
         }

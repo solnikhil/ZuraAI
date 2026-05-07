@@ -534,6 +534,10 @@ const PROVIDER_CONFIG = {
     title: getProviderDefinition('fireworks').label,
     color: getProviderAccentColor('fireworks'),
   },
+  deepseek: {
+    title: getProviderDefinition('deepseek').label,
+    color: getProviderAccentColor('deepseek'),
+  },
 } as const
 
 /**
@@ -600,6 +604,12 @@ export function getModelDescription(model: {
 
   if (model.provider === 'fireworks') {
     return 'Serverless inference via Fireworks'
+  }
+
+  if (model.provider === 'deepseek') {
+    if (name.includes('reasoner') || code.includes('reasoner')) return 'Advanced reasoning with deep thinking'
+    if (name.includes('chat') || code.includes('chat')) return 'General-purpose chat model'
+    return 'DeepSeek AI model'
   }
 
   // Fallback for any unhandled provider

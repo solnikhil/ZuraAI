@@ -33,12 +33,13 @@ Core capabilities:
 ## Key Concepts (Read First)
 - The **renderer is untrusted**. Anything privileged must be implemented in the **main process** and exposed via a **narrow, allowlisted** IPC surface.
 - The app uses a **primary BrowserWindow** for the main app plus a dedicated **About window**. Main-app renderer routes live inside the primary window (`#/dashboard`, `#/settings`, `#/chat`) under a shared shell layout, while `#/about` is rendered in the separate utility window.
-- The app now also supports an optional **Overlay window**. `#/overlay` renders in its own always-on-top frameless `BrowserWindow` and reuses the standard chat/runtime stack rather than introducing a second assistant runtime.
+- The app supports an optional **Overlay window** on non-macOS platforms. `#/overlay` renders in its own always-on-top frameless `BrowserWindow` and reuses the standard chat/runtime stack rather than introducing a second assistant runtime; macOS disables this floating-window surface for now.
 - Persistence is split:
   - **Sanitized non-secret settings + UI state** live in renderer `localStorage`.
   - **API keys and MCP secrets** live in main-process secure storage and are hydrated/resolved at runtime.
   - **Chat history, MCP server metadata, and secure storage** live in the main process under `app.getPath('userData')`.
 - UI styling guardrail: keep settings cards, chat composer containers, and dropdown/menu surfaces flat. Do **not** reintroduce outer drop shadows on those surfaces unless the user explicitly asks for them.
+- Fallback behavior guardrail: do **not** add new fallback paths, silent substitutions, local heuristics, provider fallbacks, or “safe default” behavior unless it is explicitly required by the user or you ask and get confirmation first. Prefer surfacing the real failure and fixing the root cause; unnecessary fallbacks can hide bugs and change product behavior.
 
 ---
 
@@ -135,7 +136,8 @@ Core capabilities:
   - Loads `#/dashboard` (HashRouter)
   - `nodeIntegration: false`, `contextIsolation: true`, `sandbox: true`
   - Windows uses a hidden title bar with **renderer-driven window controls** (`window.windowControls.*`), with native `titleBarOverlay` disabled and a solid background path for stable compositor behavior
-  - Global right-click context menu is handled via a **React/Radix UI context menu** (`src/components/AppContextMenu.tsx`) wrapped around the app shell, providing copy/paste/cut, undo/redo, select all, open link in browser, and inspect element (dev only) actions
+  - macOS keeps the native menu bar active, preserves traffic-light window controls with hidden-titlebar styling, and uses normal macOS app activation to recreate the main window after all windows are closed
+  - Global right-click context menu is handled by `src/components/AppContextMenu.tsx`: macOS requests a native Electron `Menu.popup()` context menu through the dedicated `window.contextMenu` preload bridge, while Windows/Linux keep the existing React/Radix renderer menu
   - External links are opened via `shell.openExternal` through the `window.shell.openExternal` IPC bridge
 
 - **About Window** (`electron/windows/aboutWindow.ts`)
@@ -145,7 +147,8 @@ Core capabilities:
 
 - **Overlay Window** (`electron/windows/overlayWindow.ts`)
   - Loads `#/overlay` in its own dedicated `BrowserWindow`
-  - Windows-first overlay surface: frameless, `alwaysOnTop`, `skipTaskbar`, non-click-through, and positioned against the active display `workArea`
+  - Disabled on macOS for now; main-process overlay APIs report disabled state and do not create floating windows or register shortcuts
+  - Platform-polished overlay surface on supported platforms: frameless, `alwaysOnTop`, `skipTaskbar`, non-click-through, and positioned against the active display `workArea`
   - Reuses the shared preload bundle plus a dedicated `window.overlay` bridge for lifecycle actions
   - Supports compact and expanded bounds, hide/show/toggle behavior, and display-metrics repositioning
   - Opens from explicit UI entry points plus the global Overlay shortcut; the shortcut now opens the Overlay directly at the cursor position in expanded mode (single-step flow)
@@ -153,6 +156,7 @@ Core capabilities:
 
 - **Prompt Popup** (`electron/windows/promptPopup.ts`)
   - Loads `#/prompt-popup` in its own dedicated frameless `BrowserWindow`
+  - Disabled on macOS while the Overlay floating-window surface is disabled
   - Lightweight cursor-position prompt input surface for optional prompt-only entry flows
   - Appears at cursor position, auto-focuses the text input, and submits the prompt to the overlay via main-process relay
   - On submit, hides the popup, opens/creates the overlay window at the cursor position, and sends the prompt text to the overlay renderer via `overlay:pending-prompt`
@@ -165,7 +169,7 @@ Core capabilities:
 
 - **Renderer route fallback**
 - `src/App.tsx` defines `Route path="*"` to render the `NotFound404` component (`src/components/ui/demo.tsx`) for unknown hash routes.
- - Standalone utility routes outside `AppShellLayout` currently include `#/about`, `#/overlay`, and `#/prompt-popup`.
+ - Standalone utility routes outside `AppShellLayout` currently include `#/about`, plus `#/overlay` and `#/prompt-popup` on non-macOS platforms.
 
 - **Shared shell layout**
   - `src/App.tsx` wraps `/`, `/dashboard`, `/settings`, and `/chat` in `AppShellLayout`
@@ -173,6 +177,10 @@ Core capabilities:
   - `AppShellLayout` now passes the active router pathname into `AppShellProvider`, which maintains a renderer-local shell history across pathname changes plus in-shell `dashboardView` / settings-section transitions for the titlebar back/forward controls
   - `/` is a dashboard alias
   - `/about` is intentionally outside `AppShellLayout` and renders a standalone About window surface (`src/components/AboutWindow.tsx`)
+
+- **Platform menus and status item**
+  - `electron/windows/applicationMenu.ts` installs the native macOS application menu during startup using Electron menu roles plus app-specific actions for showing the app, opening Settings, and starting a new chat via the renderer
+  - `electron/windows/tray.ts` keeps Windows tray behavior separate from the macOS status-item menu; macOS menu actions can show the app, open Settings/About, start a new chat, or quit without changing Windows tray flows
 
 ### Windows Installer Packaging
 - Windows packaging uses `electron-builder` + NSIS **wizard installer** (`oneClick: false`) with install-directory selection enabled via `allowToChangeInstallationDirectory: true`, plus a repo-local include override at `installer/installer.nsh`.
@@ -197,12 +205,13 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 **Allowlisted channels (as implemented today):**
 - `INVOKE_CHANNELS`:
   - `chat-store:get-all`, `chat-store:save-all`, `chat-store:migrate`, `chat-store:get-all-folders`, `chat-store:save-folders`
-  - `secure-storage:get`, `secure-storage:set`, `secure-storage:get-all`
+  - `secure-storage:get`, `secure-storage:set`, `secure-storage:get-presence`, `secure-storage:get-all`
   - `execute-tool`
   - `window-resize`
+  - `context-menu:show`
   - `updater:check-for-updates`, `updater:quit-and-install`, `updater:get-version`
 - `ON_CHANNELS`:
-  - `update-available`, `update-downloaded`
+  - `update-available`, `update-downloaded`, `app:new-chat`, `context-menu:action`
 
 **Dedicated preload bridges (not part of `window.ipcRenderer` allowlists):**
 - `window.windowControls`
@@ -220,6 +229,9 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - invokes: `shell:open-external` (opens URLs in default browser; only http/https allowed), `clipboard:read-text` (reads plain text clipboard content from trusted main process)
 - `window.devTools`
   - invokes: `devtools:inspect-element` (development only; opens DevTools element inspector)
+- `window.contextMenu`
+  - invokes: `context-menu:show` (macOS native app-shell context menu request with sanitized target metadata)
+  - listens for: `context-menu:action` (main→renderer callbacks for `undo`, `redo`, `cut`, `copy`, `paste`, `select-all`)
 - `window.mcp`
   - invokes: `mcp:list-servers`, `mcp:add-server`, `mcp:update-server`, `mcp:remove-server`, `mcp:connect-server`, `mcp:disconnect-server`, `mcp:get-state`, `mcp:list-tools`, `mcp:list-resources`, `mcp:read-resource`, `mcp:list-prompts`, `mcp:get-prompt`, `mcp:execute-tool`, `mcp:resolve-approval`
   - listens for: `mcp:state-changed`
@@ -241,16 +253,21 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 #### Startup + Shell Initialization
 - Main-process startup uses `electron/startup/deferredInit.ts` to defer non-critical work until the main window is visible.
 - Current deferred tasks include delayed React DevTools install in development and deferred auto-updater initialization after first paint.
+- Startup installs the native macOS app menu before creating the main window and only disables native window animations on Windows.
 - Main-process startup also denies Chromium permission requests/checks on the default session and relies on explicit IPC bridges plus `shell.openExternal` for outbound navigation instead of granting renderer permissions.
 - Renderer context-menu paste now uses a clipboard read fallback via `window.shell.readClipboardText()` → `clipboard:read-text` when direct `navigator.clipboard.readText()` is unavailable/blocked.
+- macOS app-shell right-click now flows through `window.contextMenu.show(...)` → `context-menu:show` in the main process, which builds a native Electron menu and sends narrow `context-menu:action` callbacks back only to the originating renderer window for DOM-bound edit operations.
+- Sidebar chat rows on macOS also route right-click through that same native `context-menu:show` bridge with a row-specific menu variant, so native menus can invoke renderer-side `rename` / `pin` / `duplicate` / `delete` chat actions without stacking the generic app-shell menu on top.
+- Renderer secure-key hydration reads only key-presence metadata at startup via `secure-storage:get-presence`; actual Keychain-backed decryption is deferred until a provider/tool call needs a specific secret.
 - MCP startup integration now registers `electron/mcp/index.ts` handlers during `app.whenReady()`, initializes the singleton MCP manager with renderer-facing client info, and auto-connects only servers where both `enabled` and `autoConnect` are true.
 - App shutdown now performs an MCP disconnect pass before quit completes so managed transports can exit cleanly.
-- Overlay startup now initializes the dedicated overlay runtime in main, keeps shortcut registration and display listeners on the trusted side, and relies on renderer-synced `settings.overlay` values instead of a new storage file.
-- The global Overlay hotkey opens the Overlay window directly at the cursor position in expanded mode (single-step flow).
-- Prompt Popup remains available as an optional path; submitting from it opens the Overlay at the cursor position and sends the prompt text via `overlay:pending-prompt`.
-- `OverlaySync` runs inside the shared provider tree and mirrors persisted `settings.overlay` values into the trusted overlay runtime through the dedicated preload bridge. If startup auto-open is enabled, the main window renderer triggers the initial overlay show after settings hydrate.
+- Overlay startup initializes the dedicated overlay runtime only on non-macOS platforms, keeps shortcut registration and display listeners on the trusted side, and relies on renderer-synced `settings.overlay` values instead of a new storage file.
+- The global Overlay hotkey opens the Overlay window directly at the cursor position in expanded mode on supported platforms (single-step flow).
+- Prompt Popup remains available as an optional path on non-macOS platforms; submitting from it opens the Overlay at the cursor position and sends the prompt text via `overlay:pending-prompt`.
+- `OverlaySync` runs inside the shared provider tree on non-macOS platforms and mirrors persisted `settings.overlay` values into the trusted overlay runtime through the dedicated preload bridge. If startup auto-open is enabled, the main window renderer triggers the initial overlay show after settings hydrate.
 - Overlay preferences are persisted in the existing sanitized renderer settings blob under `settings.overlay` with `enabled`, `launchOnStartup`, `hotkey`, `anchor`, `compactWidth`, `expandedWidth`, `promptAutoHideEnabled`, and `promptAutoHideTimeout`. No new secure-storage or Overlay-only settings file is introduced for Phase 1.
 - Main-shell navigation history is now tracked entirely in the renderer through `AppShellProvider` + `src/contexts/appShellNavigation.ts`; both the titlebar arrows and side-mouse buttons call the same history controller instead of using raw `react-router` delta navigation.
+- Native macOS app-menu `New Chat` requests are routed back into the shared renderer shell through `app:new-chat`, so session creation still uses the existing `ChatHistoryContext` flow and unsaved-settings guard instead of a main-process shortcut.
 
 #### MCP Runtime Foundation
 - Shared MCP contracts and naming helpers live in `src/mcp/types.ts`.
@@ -318,7 +335,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Persisted assistant-message response stats (`usage`) now reflect only the final visible answer round for that assistant turn. Pre-search planning/tool-call rounds and no-tools recovery rounds remain part of orchestration latency/tool history, but they are no longer merged into the final answer's token stats.
 - Research-mode finalization now runs bounded no-tools synthesis retries inside `src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.ts`: after tool rounds finish, the orchestrator first requests a normal final synthesis, then escalates to stricter recovery prompts including a plain-text-only pass if the provider still returns blank output or `tool_calls` despite tools being disabled. If every no-tools pass still fails, the renderer commits a concise failure message while preserving the gathered `web_search` results in the timeline/tool UI.
   - OpenRouter image-generation models now flow through the same chat pipeline: renderer model metadata persists `inputModalities` / `outputModalities`, `src/services/openrouter.ts` sends `modalities` to `/api/v1/chat/completions` for image-capable models, the streaming hook captures `delta.images` payloads, and generated images are persisted back into chat history `files` so assistant image outputs render inline in the dashboard.
-- Computer Use screen captures now record a main-process coordinate context for the captured display (`electron/tools/computer-use/coordinates.ts`), including rendered screen image size, native capture size, display bounds, and DPI scale factor. Follow-up click, scroll, and cursor-move actions continue to accept latest-screen pixel coordinates from the model, but main maps them into desktop coordinates before invoking `nut-js` and before drawing the spotlight overlay.
+- Computer Use is disabled on macOS for now: main does not register the approval IPC handlers, built-in `computer_*` tool execution is rejected in the main process, and renderer tool exposure/UI hides Computer Use. On supported platforms, screen captures record a main-process coordinate context for the captured display (`electron/tools/computer-use/coordinates.ts`), including rendered screen image size, native capture size, display bounds, and DPI scale factor.
 
 #### Skills-Based Research (`settings.skills`)
 - Research capability is now controlled by built-in skills, not direct tool toggles.
@@ -352,7 +369,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Legacy `softenedContrast: boolean` is migrated to `themeContrast: number` (true → 85, false/undefined → 100).
 - Window controls are driven from renderer (`src/components/TitleBar.tsx`) through `window.windowControls` (preload) → `window-controls:*` IPC handlers (`electron/ipc/systemHandlers.ts`). Main emits `window-controls:state` on maximize/unmaximize/fullscreen transitions.
 - The titlebar info menu (`src/components/TitleBarInfoMenu.tsx`) uses `window.updater` for release actions and `window.appInfo` for both runtime/build metadata (`app-info:get`) and launching the separate About window (`app-info:open-about-window`).
-- The main shell now uses solid titlebar/sidebar surfaces; there is no renderer-to-main native blur toggle for the main window.
+- The main shell still uses the same hidden-titlebar/vibrancy window model on macOS, but the renderer title bar is visually lighter there: traffic-light spacing is preserved while solid sidebar/content overlays remain a Windows/Linux shell treatment.
 
 #### Renderer Performance Tracking
 - Renderer startup/performance metrics are tracked locally in `src/utils/rendererPerformance.ts`.
@@ -391,9 +408,10 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Current shell width calculations (sidebar panel and titlebar overlays) consume `sidebarWidth` from `AppShellContext` when not hidden/collapsed.
 
 #### Chat Title Generation Controls
-- Title generation configuration UI lives in **Appearance** (`src/components/Settings/sections/AppearanceSection.tsx`) for provider/model selection and sidebar reveal mode.
+- Title generation configuration UI lives in **Appearance** (`src/components/Settings/sections/AppearanceSection.tsx`) for dedicated title-model selection and sidebar reveal mode.
 - Title generation prompt editing lives in **System Prompt** (`src/components/Settings/sections/SystemPromptSection.tsx`) as a dedicated prompt block.
-- Runtime generation is handled by `src/services/titleGenerator.ts` using `settings.titleModelProvider`, `settings.titleModel`, and `settings.titleGenerationPrompt`, with provider-specific title requests routed through `src/providers/providerRuntime.ts`.
+- Runtime generation is handled by `src/services/titleGenerator.ts` using `settings.titleModel` and `settings.titleGenerationPrompt`; the selected title model is resolved through the shared provider registry and executed through the shared non-streaming provider runtime helper in `src/providers/providerRuntime.ts`.
+- Title generation no longer follows the active chat model and no longer performs cross-provider fallback attempts; failures reset the session title to `New Chat`.
 - New-session title reveal behavior is applied in `src/components/Dashboard/ChatArea/hooks/useStreamingChat.ts`:
   - `instant`: apply generated title immediately
   - `typewriter`: progressively reveal generated title in sidebar
@@ -408,8 +426,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Provider-level enablement map: `providerEnabled` (per-provider manual on/off state, independent from API key presence).
   - Search API preference: `tavilySearchDepthPreference` (`auto`, `ultra-fast`, `fast`, `basic`, `advanced`) controls the default Tavily `search_depth` used when the model omits it.
   - Title generation settings:
-    - `titleModelProvider` (provider used for title generation)
-    - `titleModel` (model used for title generation)
+    - `titleModel` (dedicated model used for title generation; provider inferred from the selected model)
     - `titleGenerationPrompt` (prompt template for generating titles; supports `{{userMessage}}` token)
     - `titleGenerationDisplayMode` (`instant` or `typewriter` sidebar reveal)
   - Skills map: `skills` (built-in IDs keyed by `skillId`, currently `web_research` (default enabled) and `code_execution` (default disabled), each with `enabled`).
@@ -439,9 +456,9 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Secure storage: `secure-storage.json` (`electron/secureStorage.ts`)
   - Encryption: `safeStorage` is required for reads/writes; the app no longer falls back to plaintext persistence when OS-backed encryption is unavailable
   - Legacy plaintext secret entries from older builds are only migrated forward into encrypted values when `safeStorage` is available
-  - Stored API keys: `openRouterApiKey`, `perplexityApiKey`, `groqApiKey`, `alibabaApiKey`, `fireworksApiKey`, `tavilyApiKey`
+  - Stored API keys: `openRouterApiKey`, `perplexityApiKey`, `groqApiKey`, `alibabaApiKey`, `fireworksApiKey`, `deepseekApiKey`, `tavilyApiKey`
   - Also stores MCP secret entries under deterministic keys like `mcp.server.<serverId>.(env|header|token).<name>`
-  - The preload batch read bridge (`secure-storage:get-all`) is restricted to the provider-key allowlist above; MCP secret entries never hydrate into renderer settings payloads.
+  - The preload presence bridge (`secure-storage:get-presence`) reads only allowlisted key existence without decrypting values; the batch read bridge (`secure-storage:get-all`) remains restricted to the provider-key allowlist for explicit full hydration paths.
 - No dedicated performance metrics file is persisted by the app.
 
 ### Tool System (Function Calling)
@@ -483,10 +500,11 @@ There is currently no built-in trusted browser-testing workflow; any replacement
 - OpenRouter: `src/services/openrouter.ts` (OpenAI-compatible tool calling)
 - Groq: `src/services/groq.ts` (OpenAI-compatible)
 - Alibaba Cloud: `src/services/alibaba.ts` (DashScope/Tongyi Qwen; OpenAI-compatible at dashscope-intl.aliyuncs.com/compatible-mode/v1; thinking models stream `reasoning_content` deltas with `enable_thinking: true` request param)
-- Fireworks: `src/services/fireworks.ts` (OpenAI-compatible inference) plus `src/services/fireworksModels.ts` for the serverless model catalog used by Provider Hub
+- DeepSeek: `src/services/deepseek.ts` (OpenAI-compatible at api.deepseek.com; supports streaming, tool calling, thinking mode via `reasoning_content`, JSON output, and model catalog via `/models`; balance check via `/user/balance`)
+- Fireworks: `src/services/fireworks.ts` (OpenAI-compatible inference) plus `src/services/fireworksModels.ts` for the serverless model catalog
 - Ollama: `src/services/ollama.ts` (local server; tools supported for compatible models)
 - Perplexity: `src/services/perplexity.ts` (native web/research; excluded from external tools)
-- Chat title generation: `src/services/titleGenerator.ts` (uses `settings.titleModelProvider`, `settings.titleModel`, `settings.titleGenerationPrompt`)
+- Chat title generation: `src/services/titleGenerator.ts` (uses `settings.titleModel` and `settings.titleGenerationPrompt`, resolves provider from the chosen model, and executes through the shared provider runtime)
 
 ### Environment & Secrets
 - `VITE_DEV_SERVER_URL` — set in dev (used by Electron windows)
@@ -550,4 +568,3 @@ Update **this file’s “Architecture”** whenever you:
 - Add/enable tools or change tool execution policy
 - Add a new AI provider or change provider/tool support rules
 - Change build outputs/packaging assumptions (`dist/`, `dist-electron/`, installer)
-

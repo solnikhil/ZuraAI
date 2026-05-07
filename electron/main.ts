@@ -6,12 +6,14 @@ import {
   applyOverlaySettings,
   cleanupOverlay,
   createMainWindow,
+  createApplicationMenu,
   createTray,
   destroyTray,
   getMainWindow,
   initializeOverlay,
   destroyPromptPopup,
 } from './windows'
+import { applyDevelopmentAppIcon } from './windowIcon'
 import { registerAllHandlers } from './ipc'
 import {
   initializeMcpManager,
@@ -40,12 +42,12 @@ process.env.PUBLIC = app.isPackaged ? DIST_PATH : path.join(__dirname, '../publi
 
 app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion')
 
-// Disable window animations
-app.commandLine.appendSwitch('wm-window-animations-disabled')
+
 
 const WINDOWS_APP_ID = 'in.zuraai.desktop'
 const APP_NAME = 'ZuraAI'
 const STARTUP_LOG_PREFIX = '[startup]'
+const IS_MACOS = process.platform === 'darwin'
 let isAwaitingMcpShutdown = false
 let hasCompletedMcpShutdown = false
 
@@ -71,6 +73,12 @@ process.title = 'ZuraAI - Main'
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
+  }
+})
+
+app.on('activate', () => {
+  if (IS_MACOS && !getMainWindow()) {
+    createMainWindow()
   }
 })
 
@@ -138,7 +146,9 @@ app.whenReady().then(async () => {
   registerToolHandlers()
   registerUpdaterHandlers()
   registerCodeExecutionHandlers()
-  registerComputerUseHandlers()
+  if (!IS_MACOS) {
+    registerComputerUseHandlers()
+  }
 
   registerSessionSecurityHandlers()
   await initializeMcpManager({
@@ -149,7 +159,9 @@ app.whenReady().then(async () => {
     },
   })
   deferredInitializer.markIPCReady()
-initializeOverlay()
+  createApplicationMenu()
+  applyDevelopmentAppIcon()
+  initializeOverlay()
   applyOverlaySettings({})
 
   // Defer auto-updater initialization (only in production)

@@ -8,7 +8,13 @@ import {
 } from './SettingsConfigContext'
 import { getAllToolDefinitions } from '../tools/definitions'
 import { migrateSkillsFromLegacySettings } from '../skills'
-import { getProviderDefinitions } from '../providers'
+import {
+  getProviderDefinitions,
+  getProviderEnabledDefaults,
+  getProviderModelListFields,
+  getProviderSecretFields,
+  type ProviderModelListKey,
+} from '../providers'
 
 export interface Settings extends SettingsUI, SettingsConfig {}
 
@@ -29,22 +35,23 @@ export const UI_SETTING_KEYS: (keyof SettingsUI)[] = [
   'titleBarShowChatTitle',
   'titleBarShowModel',
   'commandBar',
-  'frostedPrompt',
-  'sidebarAutoHideOnResize',
+  
   'chatBubbleStyle',
   'chatSelectedOverlayStyle',
+  'placeholderStyle',
   'modelSelector',
   'promptAutoHide',
 ]
 
-const SECRET_SETTING_KEYS: Array<
-  keyof Pick<
-    Settings,
-    'openRouterApiKey' | 'perplexityApiKey' | 'groqApiKey' | 'tavilyApiKey' | 'alibabaApiKey' | 'fireworksApiKey'
-  >
-> = ['openRouterApiKey', 'perplexityApiKey', 'groqApiKey', 'tavilyApiKey', 'alibabaApiKey', 'fireworksApiKey']
+const SECRET_SETTING_KEYS: Array<keyof Settings> = [
+  ...getProviderSecretFields(),
+  'tavilyApiKey',
+  'onlineCompilerApiKey',
+]
 
 const PROVIDER_IDS = getProviderDefinitions().map((provider) => provider.id)
+const PROVIDER_ENABLED_DEFAULTS = getProviderEnabledDefaults()
+const PROVIDER_MODEL_LIST_FIELDS = getProviderModelListFields()
 const LEGACY_FIREWORKS_MODEL_ID_MAP: Record<string, string> = {
   'accounts/fireworks/models/kimi-k2p5-turbo': 'accounts/fireworks/routers/kimi-k2p5-turbo',
   'accounts/fireworks/models/kimi-k2p5-turbo-instruct': 'accounts/fireworks/routers/kimi-k2p5-turbo',
@@ -62,6 +69,54 @@ const LEGACY_FIREWORKS_SEEDED_MODEL_CODES = new Set([
   'accounts/fireworks/models/glm-4p7',
   'accounts/fireworks/models/nvidia-nemotron-3-super-120b-a12b-fp8',
 ])
+const LEGACY_WEB_SEARCH_STRATEGY_BLOCK =
+  `SEARCH STRATEGY:
+- For research or discovery tasks, begin with ONE broad exploratory search
+- Do not pre-plan several searches from memory before seeing results`
+const UPDATED_WEB_SEARCH_STRATEGY_BLOCK =
+  `SEARCH STRATEGY:
+- For research or discovery tasks with no obvious independent slices, begin with ONE broad exploratory search
+- If the user asks for an explicit range or independent slices (for example: past 5 years, 2021-2025, regions, providers, products, competitors, or categories), do NOT start with one broad search. Instead, issue one focused web_search call per slice in the same assistant turn so the app can execute the batch in parallel
+- Do not pre-plan several searches from memory before seeing results unless the user already gave a clear range or clear independent facets`
+const WEB_SEARCH_LIMITATION_NOTE =
+  '- Briefly note when the answer depends on web search results and that web results can be incomplete, outdated, or occasionally incorrect'
+const WEB_SEARCH_PRIMARY_SOURCE_NOTE =
+  '- When double-checking or verifying facts, prioritize official or primary sources over third-party summaries. Use third-party sources only when official sources are unavailable, incomplete, or useful for context, and label that limitation clearly'
+const WEB_SEARCH_SOURCES_REQUIREMENT =
+  '- In Sources:, list the relevant URLs as markdown links in the format [Title](URL)'
+const LEGACY_TITLE_GENERATION_PROMPT_PREFIX =
+  'Give this conversation a short descriptive title (2-6 words).'
+
+function migrateWebSearchPrompt(prompt: unknown): unknown {
+  if (typeof prompt !== 'string') return prompt
+
+  let migratedPrompt = prompt
+  if (migratedPrompt.includes(LEGACY_WEB_SEARCH_STRATEGY_BLOCK)) {
+    migratedPrompt = migratedPrompt.replace(LEGACY_WEB_SEARCH_STRATEGY_BLOCK, UPDATED_WEB_SEARCH_STRATEGY_BLOCK)
+  }
+
+  if (
+    !migratedPrompt.includes(WEB_SEARCH_LIMITATION_NOTE) &&
+    migratedPrompt.includes(WEB_SEARCH_SOURCES_REQUIREMENT)
+  ) {
+    migratedPrompt = migratedPrompt.replace(
+      WEB_SEARCH_SOURCES_REQUIREMENT,
+      `${WEB_SEARCH_SOURCES_REQUIREMENT}\n${WEB_SEARCH_LIMITATION_NOTE}`
+    )
+  }
+
+  if (
+    !migratedPrompt.includes(WEB_SEARCH_PRIMARY_SOURCE_NOTE) &&
+    migratedPrompt.includes(WEB_SEARCH_LIMITATION_NOTE)
+  ) {
+    migratedPrompt = migratedPrompt.replace(
+      WEB_SEARCH_LIMITATION_NOTE,
+      `${WEB_SEARCH_LIMITATION_NOTE}\n${WEB_SEARCH_PRIMARY_SOURCE_NOTE}`
+    )
+  }
+
+  return migratedPrompt
+}
 
 function shouldClearLegacyFireworksSeededModels(models: unknown): boolean {
   if (!Array.isArray(models) || models.length !== LEGACY_FIREWORKS_SEEDED_MODEL_CODES.size) {
@@ -120,6 +175,13 @@ function normalizeProviderModels<T extends { code: string; enabled?: boolean }>(
   defaultModels: T[]
 ): T[] {
   return mergeProviderModelsWithDefaults(storedModels, defaultModels)
+}
+
+function getDefaultProviderModels(
+  settings: Settings,
+  modelListField: ProviderModelListKey
+): Settings[ProviderModelListKey] {
+  return settings[modelListField]
 }
 
 export function stripSecretSettings<T extends Record<string, unknown>>(raw: T): T {
@@ -203,6 +265,8 @@ export function normalizeStoredSettings(raw: string | null): Settings {
 
   if (parsed.webSearchPrompt === undefined) {
     parsed.webSearchPrompt = defaultSettings.webSearchPrompt
+  } else {
+    parsed.webSearchPrompt = migrateWebSearchPrompt(parsed.webSearchPrompt) as Settings['webSearchPrompt']
   }
 
   if (parsed.codeExecutionPrompt === undefined) {
@@ -223,44 +287,33 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   }
 
   parsed.providerEnabled = {
-    ...defaultSettings.providerEnabled,
+    ...PROVIDER_ENABLED_DEFAULTS,
     ...(typeof parsed.providerEnabled === 'object' && parsed.providerEnabled !== null
       ? parsed.providerEnabled
       : {}),
   }
 
   if (!parsed.ollamaUrl) parsed.ollamaUrl = defaultSettings.ollamaUrl
-  if (!parsed.ollamaModels) parsed.ollamaModels = defaultSettings.ollamaModels
-  if (!parsed.perplexityApiKey) parsed.perplexityApiKey = defaultSettings.perplexityApiKey
   if (typeof parsed.openRouterDebug !== 'boolean') {
     parsed.openRouterDebug = defaultSettings.openRouterDebug
   }
-  if (!parsed.perplexityModels) {
-    parsed.perplexityModels = defaultSettings.perplexityModels
-  } else {
-    parsed.perplexityModels = mergeProviderModelsWithDefaults(
-      parsed.perplexityModels,
-      defaultSettings.perplexityModels
-    )
+  for (const secretKey of SECRET_SETTING_KEYS) {
+    if (!parsed[secretKey]) {
+      parsed[secretKey] = defaultSettings[secretKey] as never
+    }
   }
 
-  if (!parsed.groqApiKey) parsed.groqApiKey = defaultSettings.groqApiKey
-  if (!parsed.groqModels) {
-    parsed.groqModels = defaultSettings.groqModels
-  } else {
-    parsed.groqModels = mergeProviderModelsWithDefaults(
-      parsed.groqModels,
-      defaultSettings.groqModels
-    )
+  for (const modelListField of PROVIDER_MODEL_LIST_FIELDS) {
+    if (modelListField === 'fireworksModels') {
+      continue
+    }
+
+    parsed[modelListField] = normalizeProviderModels(
+      parsed[modelListField],
+      getDefaultProviderModels(defaultSettings, modelListField)
+    ) as never
   }
 
-  if (!parsed.alibabaApiKey) parsed.alibabaApiKey = defaultSettings.alibabaApiKey
-  parsed.alibabaModels = normalizeProviderModels(
-    parsed.alibabaModels,
-    defaultSettings.alibabaModels
-  )
-
-  if (!parsed.fireworksApiKey) parsed.fireworksApiKey = defaultSettings.fireworksApiKey
   if (parsed.aiModel && LEGACY_FIREWORKS_MODEL_ID_MAP[parsed.aiModel]) {
     parsed.aiModel = LEGACY_FIREWORKS_MODEL_ID_MAP[parsed.aiModel]
   }
@@ -289,9 +342,8 @@ export function normalizeStoredSettings(raw: string | null): Settings {
     parsed.aiModel = deprecatedGroqModelMap[parsed.aiModel]
   }
 
-  if (!parsed.titleModelProvider) parsed.titleModelProvider = defaultSettings.titleModelProvider
-  if (!PROVIDER_IDS.includes(parsed.titleModelProvider as typeof PROVIDER_IDS[number])) {
-    parsed.titleModelProvider = defaultSettings.titleModelProvider
+  if ('titleModelProvider' in parsed) {
+    delete parsed.titleModelProvider
   }
   if (parsed.titleModel === undefined || parsed.titleModel === null) {
     parsed.titleModel = defaultSettings.titleModel
@@ -303,6 +355,8 @@ export function normalizeStoredSettings(raw: string | null): Settings {
     parsed.titleModel = ''
   }
   if (typeof parsed.titleGenerationPrompt !== 'string') {
+    parsed.titleGenerationPrompt = defaultSettings.titleGenerationPrompt
+  } else if (parsed.titleGenerationPrompt.startsWith(LEGACY_TITLE_GENERATION_PROMPT_PREFIX)) {
     parsed.titleGenerationPrompt = defaultSettings.titleGenerationPrompt
   }
   if (
@@ -439,10 +493,8 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   )
   if (!parsed.activeTheme) parsed.activeTheme = defaultSettings.activeTheme
   delete (parsed as Record<string, unknown>).frostedSidebar
-  if (parsed.frostedPrompt === undefined) parsed.frostedPrompt = defaultSettings.frostedPrompt
-  if (parsed.sidebarAutoHideOnResize === undefined) {
-    parsed.sidebarAutoHideOnResize = defaultSettings.sidebarAutoHideOnResize
-  }
+  delete (parsed as Record<string, unknown>).frostedPrompt
+  delete (parsed as Record<string, unknown>).sidebarAutoHideOnResize
   if (!parsed.promptAutoHide) {
     parsed.promptAutoHide = defaultSettings.promptAutoHide
   } else {
@@ -499,8 +551,6 @@ export function getInitialUISettings(settings: Settings): Partial<SettingsUI> {
     titleBarShowChatTitle: settings.titleBarShowChatTitle,
     titleBarShowModel: settings.titleBarShowModel,
     commandBar: settings.commandBar,
-    frostedPrompt: settings.frostedPrompt,
-    sidebarAutoHideOnResize: settings.sidebarAutoHideOnResize,
     promptAutoHide: settings.promptAutoHide,
     chatBubbleStyle: settings.chatBubbleStyle,
     chatSelectedOverlayStyle: settings.chatSelectedOverlayStyle,
@@ -519,6 +569,7 @@ export function getInitialConfigSettings(settings: Settings): Partial<SettingsCo
     webSearchIncludeImages: settings.webSearchIncludeImages,
     alibabaApiKey: settings.alibabaApiKey,
     fireworksApiKey: settings.fireworksApiKey,
+    deepseekApiKey: settings.deepseekApiKey,
     aiModel: settings.aiModel,
     onlineCompilerApiKey: settings.onlineCompilerApiKey,
     modelProvider: settings.modelProvider,
@@ -530,6 +581,7 @@ export function getInitialConfigSettings(settings: Settings): Partial<SettingsCo
     groqModels: settings.groqModels,
     alibabaModels: settings.alibabaModels,
     fireworksModels: settings.fireworksModels,
+    deepseekModels: settings.deepseekModels,
     temperature: settings.temperature,
     maxTokens: settings.maxTokens,
     systemPrompt: settings.systemPrompt,
@@ -544,7 +596,6 @@ export function getInitialConfigSettings(settings: Settings): Partial<SettingsCo
     titleModel: settings.titleModel,
     codeExecutionAutoApprove: settings.codeExecutionAutoApprove,
     computerUseAutoApprove: settings.computerUseAutoApprove,
-    titleModelProvider: settings.titleModelProvider,
     titleGenerationPrompt: settings.titleGenerationPrompt,
     titleGenerationDisplayMode: settings.titleGenerationDisplayMode,
     favoriteModels: settings.favoriteModels,

@@ -1,5 +1,12 @@
-import { describe, expect, it } from 'vitest'
-import { buildCommittedStreamingUpdates } from './useStreamingChat'
+import { describe, expect, it, vi } from 'vitest'
+
+vi.mock('../attachmentUtils', () => ({
+  buildProviderMessages: vi.fn(),
+  canAnalyzeImageAttachments: vi.fn(),
+  isImageAttachment: vi.fn(() => false),
+}))
+
+import { buildCommittedStreamingUpdates, normalizeGeneratedSessionTitle } from './useStreamingChat'
 
 describe('useStreamingChat final commit helpers', () => {
   it('prefers the final provider stream result over stale isolated streaming content', () => {
@@ -27,5 +34,17 @@ describe('useStreamingChat final commit helpers', () => {
         latency: 250,
       })
     )
+  })
+})
+
+describe('useStreamingChat generated title helpers', () => {
+  it('does not produce a title update for failed title generation', () => {
+    expect(normalizeGeneratedSessionTitle(null)).toBeNull()
+    expect(normalizeGeneratedSessionTitle(undefined)).toBeNull()
+    expect(normalizeGeneratedSessionTitle('   ')).toBeNull()
+  })
+
+  it('trims valid generated titles before applying them', () => {
+    expect(normalizeGeneratedSessionTitle('  React hydration fix  ')).toBe('React hydration fix')
   })
 })

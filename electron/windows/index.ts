@@ -32,6 +32,10 @@ export {
 } from './tray'
 
 export {
+    createApplicationMenu,
+} from './applicationMenu'
+
+export {
     showSpotlight,
     hideSpotlight,
 } from './spotlightOverlay'

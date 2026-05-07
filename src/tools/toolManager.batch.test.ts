@@ -36,7 +36,81 @@ describe('toolManager web search batch policy', () => {
     mocks.executeToolCalls.mockReset()
   })
 
-  it('skips duplicate and over-budget web_search calls without consuming budget', async () => {
+  it('executes five independent year-sliced web_search calls as one parallel batch and preserves order', async () => {
+    const startedQueries: string[] = []
+    const resolvers: Array<() => void> = []
+    mocks.executeToolCalls.mockImplementation(async ([toolCall]) => {
+      startedQueries.push(String(toolCall.arguments.query))
+      await new Promise<void>((resolve) => {
+        resolvers.push(resolve)
+      })
+      return [
+        {
+          toolCall,
+          result: {
+            success: true,
+            data: { query: toolCall.arguments.query, results: [{ title: String(toolCall.arguments.query) }] },
+            metadata: { origin: 'builtin-main' as const },
+          },
+        },
+      ]
+    })
+
+    const response = buildToolResponse([
+      { id: 'search-2021', name: 'web_search', arguments: { query: 'AI market size 2021' } },
+      { id: 'search-2022', name: 'web_search', arguments: { query: 'AI market size 2022' } },
+      { id: 'search-2023', name: 'web_search', arguments: { query: 'AI market size 2023' } },
+      { id: 'search-2024', name: 'web_search', arguments: { query: 'AI market size 2024' } },
+      { id: 'search-2025', name: 'web_search', arguments: { query: 'AI market size 2025' } },
+    ])
+
+    const processedPromise = processToolCalls(response, {
+      provider: 'openrouter',
+      model: 'openai/gpt-4.1',
+      executionPolicy: {
+        remainingWebSearchBudget: 5,
+        priorWebSearchQueries: [],
+        userContextText: 'Search AI market size data across 5 years from 2021 through 2025',
+      },
+    })
+
+    await vi.waitFor(() => {
+      expect(startedQueries).toHaveLength(5)
+    })
+    expect(resolvers).toHaveLength(5)
+    resolvers.forEach((resolve) => resolve())
+
+    const processed = await processedPromise
+
+    expect(mocks.executeToolCalls).toHaveBeenCalledTimes(5)
+    expect(processed.executionSummary).toEqual({
+      attemptedWebSearchCount: 5,
+      executedWebSearchCount: 5,
+      executedWebSearchQueries: [
+        'AI market size 2021',
+        'AI market size 2022',
+        'AI market size 2023',
+        'AI market size 2024',
+        'AI market size 2025',
+      ],
+    })
+    expect(processed.results.map((result) => result.toolCall.id)).toEqual([
+      'search-2021',
+      'search-2022',
+      'search-2023',
+      'search-2024',
+      'search-2025',
+    ])
+    expect(processed.formattedResults.map((result) => result.tool_call_id)).toEqual([
+      'search-2021',
+      'search-2022',
+      'search-2023',
+      'search-2024',
+      'search-2025',
+    ])
+  })
+
+  it('executes repeated web_search calls until the budget is consumed', async () => {
     mocks.executeToolCalls.mockImplementation(async ([toolCall]) => [
       {
         toolCall,
@@ -58,24 +132,20 @@ describe('toolManager web search batch policy', () => {
       provider: 'openrouter',
       model: 'openai/gpt-4.1',
       executionPolicy: {
-        remainingWebSearchBudget: 1,
+        remainingWebSearchBudget: 2,
         priorWebSearchQueries: [],
       },
     })
 
-    expect(mocks.executeToolCalls).toHaveBeenCalledTimes(1)
+    expect(mocks.executeToolCalls).toHaveBeenCalledTimes(2)
     expect(processed.executionSummary).toEqual({
       attemptedWebSearchCount: 3,
-      executedWebSearchCount: 1,
-      executedWebSearchQueries: ['zura ai architecture'],
+      executedWebSearchCount: 2,
+      executedWebSearchQueries: ['zura ai architecture', 'Zura AI architecture'],
     })
     expect(processed.results).toHaveLength(3)
     expect(processed.results[0]?.result.success).toBe(true)
-    expect(processed.results[1]?.result.metadata).toMatchObject({
-      origin: 'builtin-main',
-      executionDisposition: 'skipped',
-      skippedReason: 'duplicate-query',
-    })
+    expect(processed.results[1]?.result.success).toBe(true)
     expect(processed.results[2]?.result.metadata).toMatchObject({
       origin: 'builtin-main',
       executionDisposition: 'skipped',

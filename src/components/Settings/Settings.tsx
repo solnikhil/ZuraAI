@@ -5,7 +5,7 @@ import { useChatHistory } from '../../contexts/ChatHistoryContext'
 import { useAppShell } from '../../contexts/AppShellContext'
 import { useMcp } from '../../mcp/McpContext'
 import { checkOllamaStatus, listOllamaModels, enrichOllamaModelsWithContext } from '../../services/ollama'
-import { saveApiKeyToSecureStorage } from '../../utils/secureApiKeys'
+import { SECURE_API_KEY_NAMES, saveApiKeyToSecureStorage } from '../../utils/secureApiKeys'
 import { UsageSection } from './sections/UsageSection'
 import { OverlaySection } from './sections/OverlaySection'
 import { McpSection } from './sections/McpSection'
@@ -13,9 +13,11 @@ import { ProviderHubSection } from './sections/ProviderHubSection'
 import { SkillsSection } from './sections/SkillsSection'
 import { AppearanceSection } from './sections/AppearanceSection'
 import { SystemPromptSection } from './sections/SystemPromptSection'
-import { ExperimentalSection } from './sections/ExperimentalSection'
+
 import { computeUsageStats } from './sections/usageMetrics'
 import { normalizeSettingsSection } from '../../constants/settingsSections'
+import { isMacOSRuntime } from '../../utils/platform'
+import { getProviderModelListField, getProviderSettingsDefinitions } from '../../providers'
 
 import './Settings.css'
 
@@ -38,30 +40,28 @@ export default function Settings({
 
   const [pendingSettings, setPendingSettings] = useState(settings)
   const lastSyncedSettingsRef = useRef(settings)
+  const touchedSecureKeysRef = useRef(new Set<string>())
   const [isSaving, setIsSaving] = useState(false)
   const [statusMessage, setStatusMessage] = useState('')
   const clearParams = useCallback(() => setSettingsSectionParams(null), [setSettingsSectionParams])
 
-  const usageModelCatalog = useMemo(() => ({
-    alibabaModels: (pendingSettings.alibabaModels || []).map((model) => model.code),
-    fireworksModels: (pendingSettings.fireworksModels || []).map((model) => model.code),
-    groqModels: (pendingSettings.groqModels || []).map((model) => model.code),
-    ollamaModels: (pendingSettings.ollamaModels || []).map((model) => model.code),
-    openrouterModels: (pendingSettings.configuredModels || []).map((model) => model.code),
-    perplexityModels: (pendingSettings.perplexityModels || []).map((model) => model.code),
-  }), [
-    pendingSettings.alibabaModels,
-    pendingSettings.fireworksModels,
-    pendingSettings.groqModels,
-    pendingSettings.ollamaModels,
-    pendingSettings.configuredModels,
-    pendingSettings.perplexityModels,
-  ])
+  const usageModelCatalog = useMemo(() => {
+    return Object.fromEntries(
+      getProviderSettingsDefinitions().flatMap((provider) => {
+        const modelListField = getProviderModelListField(provider.id)
+        if (!modelListField) return []
+        const usageCatalogKey = provider.id === 'openrouter' ? 'openrouterModels' : modelListField
+        const models = (pendingSettings[modelListField] || []).map((model) => model.code)
+        return [[usageCatalogKey, models]]
+      })
+    )
+  }, [pendingSettings])
 
   const usageStats = useMemo(() => computeUsageStats(sessions, usageModelCatalog), [sessions, usageModelCatalog])
 
   const normalizedActiveSection = useMemo(() => {
-    return normalizeSettingsSection(activeSection) ?? 'providers'
+    const normalized = normalizeSettingsSection(activeSection) ?? 'providers'
+    return isMacOSRuntime() && normalized === 'overlay' ? 'providers' : normalized
   }, [activeSection])
 
   const handleExportUsageSnapshot = useCallback(() => {
@@ -118,27 +118,26 @@ export default function Settings({
     window.setTimeout(() => URL.revokeObjectURL(url), 0)
   }, [usageStats])
 
-  const handleChange = (changes: Partial<typeof settings>) => setPendingSettings(prev => ({ ...prev, ...changes }))
+  const handleChange = (changes: Partial<typeof settings>) =>
+    setPendingSettings((prev) => {
+      for (const key of SECURE_API_KEY_NAMES) {
+        if (Object.prototype.hasOwnProperty.call(changes, key) && prev[key] !== changes[key]) {
+          touchedSecureKeysRef.current.add(key)
+        }
+      }
+
+      return { ...prev, ...changes }
+    })
 
   const savePendingSettings = async (): Promise<{ allSaved: boolean; failedKeys: string[] }> => {
     let allSaved = true
     const failedKeys: string[] = []
     try {
-      type ApiKeyType = 'alibabaApiKey' | 'fireworksApiKey' | 'groqApiKey' | 'openRouterApiKey' | 'perplexityApiKey' | 'tavilyApiKey' | 'onlineCompilerApiKey'
-      const keyMappings: Array<{ key: ApiKeyType; current: string; original: string }> = [
-        { key: 'alibabaApiKey', current: pendingSettings.alibabaApiKey, original: settings.alibabaApiKey },
-        { key: 'fireworksApiKey', current: pendingSettings.fireworksApiKey, original: settings.fireworksApiKey },
-        { key: 'groqApiKey', current: pendingSettings.groqApiKey, original: settings.groqApiKey },
-        { key: 'openRouterApiKey', current: pendingSettings.openRouterApiKey, original: settings.openRouterApiKey },
-        { key: 'perplexityApiKey', current: pendingSettings.perplexityApiKey, original: settings.perplexityApiKey },
-        { key: 'tavilyApiKey', current: pendingSettings.tavilyApiKey, original: settings.tavilyApiKey },
-        { key: 'onlineCompilerApiKey', current: pendingSettings.onlineCompilerApiKey, original: settings.onlineCompilerApiKey },
-      ]
-      for (const { key, current, original } of keyMappings) {
-        if (current !== original) {
-          const success = await saveApiKeyToSecureStorage(key, current)
-          if (!success) { failedKeys.push(key); allSaved = false }
-        }
+      for (const key of SECURE_API_KEY_NAMES) {
+        if (!touchedSecureKeysRef.current.has(key)) continue
+        const current = pendingSettings[key]
+        const success = await saveApiKeyToSecureStorage(key, current)
+        if (!success) { failedKeys.push(key); allSaved = false }
       }
       if (failedKeys.length > 0) console.warn('[Settings] Failed to save some API keys:', failedKeys.join(', '))
     } catch (error) {
@@ -147,6 +146,16 @@ export default function Settings({
     }
 
     updateSettings(pendingSettings)
+
+    if (allSaved) {
+      touchedSecureKeysRef.current.clear()
+    } else {
+      for (const key of SECURE_API_KEY_NAMES) {
+        if (!failedKeys.includes(key)) {
+          touchedSecureKeysRef.current.delete(key)
+        }
+      }
+    }
 
     return { allSaved, failedKeys }
   }
@@ -195,6 +204,7 @@ if (!hasSettingsChanges && !hasMcpChanges) {
     if (hasSettingsChanges) {
       setPendingSettings(settings)
     }
+    touchedSecureKeysRef.current.clear()
     if (hasMcpChanges) {
       discardMcpDraft()
     }
@@ -288,6 +298,7 @@ if (!hasSettingsChanges && !hasMcpChanges) {
                 initialManageMode={settingsSectionParams?.manageMode}
                 onParamsConsumed={clearParams}
                 alibabaApiKey={pendingSettings.alibabaApiKey}
+                deepseekApiKey={pendingSettings.deepseekApiKey}
                 fireworksApiKey={pendingSettings.fireworksApiKey}
                 groqApiKey={pendingSettings.groqApiKey}
                 openRouterApiKey={pendingSettings.openRouterApiKey}
@@ -303,6 +314,7 @@ if (!hasSettingsChanges && !hasMcpChanges) {
                 providerEnabled={pendingSettings.providerEnabled}
                 configuredModels={pendingSettings.configuredModels}
                 alibabaModels={pendingSettings.alibabaModels}
+                deepseekModels={pendingSettings.deepseekModels}
                 fireworksModels={pendingSettings.fireworksModels}
                 groqModels={pendingSettings.groqModels}
                 ollamaModels={pendingSettings.ollamaModels}
@@ -312,7 +324,7 @@ if (!hasSettingsChanges && !hasMcpChanges) {
               />
             )}
 
-{normalizedActiveSection === 'overlay' && (
+            {!isMacOSRuntime() && normalizedActiveSection === 'overlay' && (
               <OverlaySection
                 overlay={pendingSettings.overlay}
                 onChange={(changes) => handleChange(changes)}
@@ -351,13 +363,7 @@ if (!hasSettingsChanges && !hasMcpChanges) {
               />
             )}
 
-            {normalizedActiveSection === 'experimental' && (
-              <ExperimentalSection
-                frostedPrompt={pendingSettings.frostedPrompt}
-                sidebarAutoHideOnResize={pendingSettings.sidebarAutoHideOnResize}
-                onChange={(changes) => handleChange(changes)}
-              />
-            )}
+            
           </div>
         </div>
       </ScrollArea>

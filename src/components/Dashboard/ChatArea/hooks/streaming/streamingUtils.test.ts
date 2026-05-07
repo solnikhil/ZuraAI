@@ -201,11 +201,11 @@ describe('streamingUtils final synthesis helpers', () => {
           },
           result: {
             success: false,
-            error: 'Skipped duplicate web_search query in this response.',
+            error: 'Skipped web_search call because the per-response search budget has been reached.',
             metadata: {
               origin: 'builtin-main' as const,
               executionDisposition: 'skipped' as const,
-              skippedReason: 'duplicate-query' as const,
+              skippedReason: 'budget' as const,
             },
           },
         },
@@ -245,6 +245,14 @@ describe('streamingUtils final synthesis helpers', () => {
     expect(
       shouldRetryUngroundedSearchSynthesis(
         "The search results returned no information about Justin Bieber's latest Coachella news, and the system skipped the query as a duplicate."
+      )
+    ).toBe(true)
+  })
+
+  it('flags raw DSML tool markup as a failed post-search synthesis', () => {
+    expect(
+      shouldRetryUngroundedSearchSynthesis(
+        '<| | DSML | | tool_calls><| | DSML | | invoke name="web_search"><| | DSML | | parameter name="query" string="true">latest docs</| | DSML | | parameter></| | DSML | | invoke></| | DSML | | tool_calls>'
       )
     ).toBe(true)
   })

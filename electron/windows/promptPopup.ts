@@ -3,10 +3,13 @@ import path from 'path'
 
 import { resolveDistPath } from './mainWindow'
 import { showOverlayAtPosition } from './overlayWindow'
+import { resolveAppIconPath } from '../windowIcon'
 
 const POPUP_WIDTH = 500
 const POPUP_HEIGHT = 236
 const POPUP_MARGIN = 10
+const PROMPT_POPUP_SUPPORTED =
+  process.platform !== 'darwin' || process.env.ZURA_ENABLE_MACOS_FLOATING_WINDOWS === 'true'
 
 let promptPopup: BrowserWindow | null = null
 
@@ -21,6 +24,10 @@ function clampToWorkArea(x: number, y: number, width: number, height: number) {
 }
 
 function createPromptPopup(cursorX: number, cursorY: number): BrowserWindow {
+  if (!PROMPT_POPUP_SUPPORTED) {
+    throw new Error('Prompt popup is disabled on macOS.')
+  }
+
   if (promptPopup && !promptPopup.isDestroyed()) {
     promptPopup.destroy()
     promptPopup = null
@@ -44,7 +51,7 @@ function createPromptPopup(cursorX: number, cursorY: number): BrowserWindow {
     maxWidth: 640,
     maxHeight: POPUP_HEIGHT,
     title: 'ZuraAI Prompt',
-    icon: path.join(process.env.PUBLIC || '', 'icon.png'),
+    icon: resolveAppIconPath(),
     frame: false,
     resizable: false,
     minimizable: false,
@@ -92,6 +99,8 @@ function createPromptPopup(cursorX: number, cursorY: number): BrowserWindow {
 }
 
 export function showPromptPopup(): void {
+  if (!PROMPT_POPUP_SUPPORTED) return
+
   const { x: cursorX, y: cursorY } = screen.getCursorScreenPoint()
 
   if (promptPopup && !promptPopup.isDestroyed()) {
@@ -129,6 +138,8 @@ export function destroyPromptPopup(): void {
 }
 
 export async function submitPrompt(prompt: string): Promise<void> {
+  if (!PROMPT_POPUP_SUPPORTED) return
+
   if (!prompt.trim()) {
     hidePromptPopup()
     return
@@ -150,4 +161,3 @@ export async function submitPrompt(prompt: string): Promise<void> {
     overlayWin.webContents.send('overlay:pending-prompt', prompt)
   }
 }
-

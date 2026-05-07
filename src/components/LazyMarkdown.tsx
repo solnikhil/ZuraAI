@@ -145,129 +145,6 @@ function hasMarkdownCodeBlock(node: React.ReactNode): boolean {
     return React.Children.toArray(children).some((child) => hasMarkdownCodeBlock(child))
 }
 
-// Pure helper: wraps bare tree-like blocks in code fences (no component state needed)
-function injectTreeCodeFences(markdown: string): string {
-    const lines = markdown.split('\n')
-    const out: string[] = []
-
-    const markerRe = /^(?:\s*(?:\|   )*|\s*(?:│   )*)?(?:├──|└──|\|--|\+--|\|[-─—]{2,}|\+[-─—]{2,}|├[-─—]{2,}|└[-─—]{2,})\s*/
-    const allowedCharsRe = /^[\s\w.\-_/\\'"@(){}\[\]:,#+=<>|│├└─—]+$/
-
-    const isTreeCandidateLine = (line: string) => {
-        if (!line.trim()) return false
-        if (!allowedCharsRe.test(line)) return false
-        if (markerRe.test(line)) return true
-        if (line.trim().endsWith('/')) return true
-        return false
-    }
-
-    let i = 0
-    while (i < lines.length) {
-        const line = lines[i] ?? ''
-
-        if (!isTreeCandidateLine(line)) {
-            out.push(line)
-            i += 1
-            continue
-        }
-
-        let j = i
-        let markerCount = 0
-        const block: string[] = []
-
-        while (j < lines.length) {
-            const l = lines[j] ?? ''
-            if (!l.trim()) break
-            if (!allowedCharsRe.test(l)) break
-            if (!isTreeCandidateLine(l) && !markerRe.test(l)) break
-            if (markerRe.test(l)) markerCount += 1
-            block.push(l)
-            j += 1
-        }
-
-        if (block.length >= 3 && markerCount >= 2) {
-            out.push('```tree')
-            out.push(...block)
-            out.push('```')
-            i = j
-            continue
-        }
-
-        out.push(line)
-        i += 1
-    }
-
-    return out.join('\n')
-}
-
-// Pure helper: normalizes math delimiters for remark-math (no component state needed)
-function normalizeMathDelimiters(
-    markdown: string,
-    options: { enableTreeFences?: boolean } = {}
-): string {
-    const { enableTreeFences = true } = options
-    const parts = markdown.split(/```/)
-    return parts.map((part, index) => {
-        if (index % 2 !== 0) return part
-        const unescaped = part.replace(/\\\\/g, '\\')
-
-        const normalized = unescaped
-            .replace(/\\\[/g, '$$')
-            .replace(/\\\]/g, '$$')
-            .replace(/\\\(/g, '$')
-            .replace(/\\\)/g, '$')
-
-        const withMathInline = normalized.replace(/`([^`]+)`/g, (match: string, content: string) => {
-            const trimmedContent = content.trim()
-
-            const isCodeLike = /\b(const|let|var|function|return|=>|;\s*$|[{}])\b/.test(content) ||
-                /^\s*\w+\s*[=\(]\s*/.test(content)
-            if (isCodeLike) return match
-
-            if (/https?:\/\//.test(content)) return match
-
-            if (/^(git|npm|yarn|pnpm|npx|pip|curl|wget|docker|cd|ls|cat|mkdir|rm|cp|mv|chmod|chown|ssh|scp)\s/.test(content)) return match
-            if (/^[.~]?\//.test(content) || /\w\/\w.*\/\w/.test(content)) return match
-
-            const hyphenSegments = trimmedContent.split('-').filter(Boolean)
-            const looksLikeHyphenatedIdentifier =
-                !/\s/.test(trimmedContent) &&
-                hyphenSegments.length >= 2 &&
-                hyphenSegments.every((segment: string) => /^[A-Za-z0-9@._/]+$/.test(segment)) &&
-                hyphenSegments.filter((segment: string) => segment.length > 1).length >= 2
-            if (looksLikeHyphenatedIdentifier) return match
-
-            const hasMathChars = /[\\^_={}\[\]()*/+\-]/.test(content)
-            const hasMathPattern = /[a-zA-Z]\s*[+\-*/=]\s*[a-zA-Z0-9]/.test(content)
-            const hasGreekOrSubscript = /[α-ωΑ-ΩΔΣΠπ∞]|_[a-zA-Z0-9]/.test(content)
-            const hasVariablePattern = /[a-zA-Z][(_][a-zA-Z0-9]/.test(content) || /Δ[a-zA-Z]/.test(content)
-            
-            if ((hasMathChars && hasMathPattern) || hasGreekOrSubscript || hasVariablePattern) {
-                if (content.startsWith('$') || content.endsWith('$')) {
-                    return `$${content}$`
-                }
-                if (/^[a-zA-Zα-ωΑ-ΩΔΣΠπ∞_]+$/.test(content.trim())) {
-                    return `$${content}$`
-                }
-                return `$${content}$`
-            }
-            return match
-        })
-
-        const withMathLines = withMathInline.split('\n').map((line: string) => {
-            const match = line.match(/^(\s*(?:[-*+]\s+)?)\[(.+)\]\s*$/)
-            if (!match) return line
-            const prefix = match[1] || ''
-            const inner = (match[2] ?? '').trim()
-            const formulaLike = /[\\^_={}]/.test(inner) || /[a-zA-Z]\s*[+\-*/=]\s*[a-zA-Z0-9]/.test(inner)
-            if (!formulaLike) return line
-            return `${prefix}$$${inner}$$`
-        }).join('\n')
-
-        return enableTreeFences ? injectTreeCodeFences(withMathLines) : withMathLines
-    }).join('```')
-}
-
 // Languages the sandbox can execute (normalized keys)
 const RUNNABLE_LANGUAGES: Record<string, 'javascript' | 'python'> = {
     javascript: 'javascript', js: 'javascript', jsx: 'javascript',
@@ -365,7 +242,7 @@ function RunnableCodeBlock({ code, execLanguage, codeView, headerStyle, headerLe
                     <span style={{
                         fontSize: '0.75rem',
                         color: 'var(--theme-text-tertiary)',
-                        fontFamily: "'Google Sans Flex', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif",
+                        fontFamily: 'var(--font-sans)',
                         fontWeight: 500,
                         letterSpacing: '0.02em',
                         lineHeight: 1,
@@ -402,7 +279,7 @@ function RunnableCodeBlock({ code, execLanguage, codeView, headerStyle, headerLe
                 <pre style={{ margin: 0, padding: '14px 16px 18px', background: 'transparent', overflowX: 'auto', maxHeight: '400px', overflowY: 'auto' }}>
                     <code style={{
                         whiteSpace: 'pre-wrap',
-                        fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
+                        fontFamily: 'var(--font-mono)',
                         fontSize: '0.95rem',
                         lineHeight: '1.72',
                         color: error ? 'var(--theme-error, #ef4444)' : 'var(--theme-text-primary)',
@@ -435,8 +312,6 @@ const MarkdownContent = React.memo(function MarkdownContent({ content, webSource
     // Wrap function/component values in arrow functions so React doesn't
     // call them as lazy initialisers (useState treats bare functions as initialisers).
     const [remarkPlugin, setRemarkPlugin] = useState<(() => void) | null>(() => preloaded.remarkGfm)
-    const [remarkMath, setRemarkMath] = useState<(() => void) | null>(() => preloaded.remarkMath)
-    const [rehypeKatex, setRehypeKatex] = useState<(() => void) | null>(() => preloaded.rehypeKatex)
     const [syntaxHighlighter, setSyntaxHighlighter] = useState<SyntaxHighlighterComponent | null>(() => preloaded.syntaxHighlighter)
     const [prismStyle, setPrismStyle] = useState<Record<string, React.CSSProperties> | null>(preloaded.prismStyle)
     const [copiedCode, setCopiedCode] = useState<string | null>(null)
@@ -451,8 +326,6 @@ const MarkdownContent = React.memo(function MarkdownContent({ content, webSource
             if (!mounted) return
             const cached = getPreloadedMarkdown()
             if (cached.remarkGfm) setRemarkPlugin(() => cached.remarkGfm)
-            if (cached.remarkMath) setRemarkMath(() => cached.remarkMath)
-            if (cached.rehypeKatex) setRehypeKatex(() => cached.rehypeKatex)
             if (cached.syntaxHighlighter) setSyntaxHighlighter(() => cached.syntaxHighlighter)
             if (cached.prismStyle) setPrismStyle(cached.prismStyle)
             setLoadAttempted(true)
@@ -464,15 +337,7 @@ const MarkdownContent = React.memo(function MarkdownContent({ content, webSource
     // Derive code execution availability from settings
     const { settings } = useSettings()
     const codeExecutionEnabled = isCodeExecutionEnabled(settings.skills)
-    // Memoize the normalized content to avoid re-running expensive math/tree
-    // transformations on every render when content hasn't changed.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    const normalizedContent = useMemo(
-        () => normalizeMathDelimiters(content, { enableTreeFences: !isStreaming }),
-        [content, isStreaming]
-    )
-    const remarkPlugins = [remarkPlugin, remarkMath].filter(Boolean) as (() => void)[]
-    const rehypePlugins = [rehypeKatex].filter(Boolean) as (() => void)[]
+    const remarkPlugins = [remarkPlugin].filter(Boolean) as (() => void)[]
 
     // Memoize the components object to give ReactMarkdown a stable reference,
     // preventing it from doing a full internal reconciliation on every render.
@@ -495,7 +360,7 @@ const MarkdownContent = React.memo(function MarkdownContent({ content, webSource
                         // During streaming, if this mermaid block is still being generated
                         // (it's the trailing code block), show a static placeholder instead
                         // of repeatedly attempting expensive mermaid.render() with partial code.
-                        const isMermaidStillStreaming = isStreaming && normalizedContent.trimEnd().endsWith(mermaidCode.trimEnd())
+                        const isMermaidStillStreaming = isStreaming && content.trimEnd().endsWith(mermaidCode.trimEnd())
 
                         if (isMermaidStillStreaming) {
                             return (
@@ -618,7 +483,7 @@ const MarkdownContent = React.memo(function MarkdownContent({ content, webSource
                     }
                     const codeHeaderLabelStyle: React.CSSProperties = {
                         color: 'var(--theme-text-primary)',
-                        fontFamily: "'Google Sans Flex', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif",
+                        fontFamily: 'var(--font-sans)',
                         fontWeight: 600,
                         fontSize: '0.95rem',
                         lineHeight: 1,
@@ -727,7 +592,7 @@ const MarkdownContent = React.memo(function MarkdownContent({ content, webSource
                             setTimeout(() => setCopiedCode(null), 2000)
                         }
                         const languageMeta = getLanguageMeta(match[1])
-                        const isGeneratingBlock = isStreaming && normalizedContent.trimEnd().endsWith(normalizedCode.trimEnd())
+                        const isGeneratingBlock = isStreaming && content.trimEnd().endsWith(normalizedCode.trimEnd())
                         const execLang = language ? RUNNABLE_LANGUAGES[language] : undefined
                         const canRun = codeExecutionEnabled && !!execLang && !isGeneratingBlock
 
@@ -742,7 +607,7 @@ const MarkdownContent = React.memo(function MarkdownContent({ content, webSource
                                     useInlineStyles={true}
                                 codeTagProps={{
                                     style: {
-                                        fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
+                                        fontFamily: 'var(--font-mono)',
                                         fontSize: '0.95rem',
                                         lineHeight: '1.72',
                                         background: 'transparent',
@@ -814,7 +679,7 @@ const MarkdownContent = React.memo(function MarkdownContent({ content, webSource
                             setCopiedCode(codeString)
                             setTimeout(() => setCopiedCode(null), 2000)
                         }
-                        const isGeneratingBlock = isStreaming && normalizedContent.trimEnd().endsWith(normalizedCode.trimEnd())
+                        const isGeneratingBlock = isStreaming && content.trimEnd().endsWith(normalizedCode.trimEnd())
 
                         return (
                             <div style={codeFrameStyle} className="markdown-code-block">
@@ -823,7 +688,7 @@ const MarkdownContent = React.memo(function MarkdownContent({ content, webSource
                                     <code style={{
                                         color: 'var(--theme-text-primary)',
                                         whiteSpace: 'pre',
-                                        fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
+                                        fontFamily: 'var(--font-mono)',
                                         fontSize: '0.95rem',
                                         lineHeight: '1.72',
                                     }}>
@@ -891,17 +756,16 @@ const MarkdownContent = React.memo(function MarkdownContent({ content, webSource
                 h6: ({ node: _node, ...props }: ExtraProps & React.HTMLAttributes<HTMLHeadingElement>) => <h6 {...props} />,
                 p: ({ node: _node, ...props }: ExtraProps & React.HTMLAttributes<HTMLParagraphElement>) => <p {...props} />
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }), [copiedCode, isStreaming, normalizedContent, SyntaxHighlighter, prismStyle, webSources, codeExecutionEnabled])
+    }), [copiedCode, isStreaming, content, SyntaxHighlighter, prismStyle, webSources, codeExecutionEnabled])
 
     if (!loadAttempted) return <MarkdownSkeleton />
 
     return (
         <ReactMarkdown
             remarkPlugins={remarkPlugins}
-            rehypePlugins={rehypePlugins}
             components={components}
         >
-            {normalizedContent}
+            {content}
         </ReactMarkdown>
     )
 })

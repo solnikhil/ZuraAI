@@ -34,6 +34,8 @@
 }
 
 :root {
+    --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
     --background: 0 0% 100%;
     --foreground: 240 10% 3.9%;
     --card: 0 0% 100%;
@@ -130,12 +132,19 @@ body {
     width: 100%;
     height: 100%;
     overflow: hidden;
-    font-family: 'Google Sans Flex', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.45;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     background-color: var(--theme-background);
     color: var(--theme-text-primary);
     transition: background-color var(--motion-duration-slow) var(--motion-ease-standard), color var(--motion-duration-slow) var(--motion-ease-standard);
+}
+
+::selection {
+    background: var(--theme-selection-bg);
+    color: var(--theme-selection-text);
 }
 
 
@@ -184,47 +193,7 @@ body {
     }
 }
 
-.zura-frosted-prompt {
-    position: relative;
-    background: linear-gradient(180deg, rgba(36, 36, 42, 0.55) 0%, rgba(24, 24, 28, 0.62) 100%);
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
-    backdrop-filter: blur(28px) saturate(150%);
-    -webkit-backdrop-filter: blur(28px) saturate(150%);
-    isolation: isolate;
-    transform: translateZ(0);
-}
 
-.zura-frosted-prompt::before,
-.zura-frosted-prompt::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    pointer-events: none;
-    z-index: 0;
-}
-
-.zura-frosted-prompt::before {
-    background: linear-gradient(220deg, rgba(200, 200, 200, 0.08) 0%, rgba(120, 120, 120, 0.03) 50%, transparent 70%);
-    opacity: 1;
-}
-
-.zura-frosted-prompt::after {
-    background: radial-gradient(ellipse 80% 50% at 50% 0%, rgba(255, 255, 255, 0.06) 0%, transparent 60%);
-    opacity: 1;
-}
-
-.zura-frosted-prompt>* {
-    position: relative;
-    z-index: 1;
-}
-
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-    .zura-frosted-prompt {
-        background: linear-gradient(180deg, rgba(38, 38, 44, 0.96) 0%, rgba(30, 30, 34, 0.98) 100%);
-    }
-}
 
 
 /* === Tooltip Animations === */

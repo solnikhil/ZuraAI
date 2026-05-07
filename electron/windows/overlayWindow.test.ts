@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.hoisted(() => {
+  process.env.ZURA_ENABLE_MACOS_FLOATING_WINDOWS = 'true'
+})
+
 const browserWindowInstances: any[] = []
 
 vi.mock('electron', () => {

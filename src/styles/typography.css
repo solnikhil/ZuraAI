@@ -3,7 +3,7 @@
 .markdown-body,
 .markdown-content,
 .markdown-typography {
-    font-family: 'Google Sans Flex', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+    font-family: var(--font-sans);
     color: var(--theme-text-primary);
     /* Prevent horizontal layout shift when container resizes (scrollbar appear/disappear) */
     overflow-wrap: break-word;
@@ -306,7 +306,7 @@
     position: relative;
     border-radius: 0.25rem;
     padding: 0.125rem 0.3rem; /* px-[0.3rem] py-[0.2rem] */
-    font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace; /* font-mono */
+    font-family: var(--font-mono); /* font-mono */
     font-size: 0.875rem; /* text-sm */
     font-weight: 600; /* font-semibold */
     font-style: normal; /* prevent italic inheritance from blockquote/em */

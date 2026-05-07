@@ -35,11 +35,7 @@ export default function OverlayView() {
   const currentSession = sessions.find((session) => session.id === currentSessionId) || null
   const messages = currentSession?.messages || []
 
-  const { isLoading, toolState, sendMessage, regenerateMessage, stopStreaming } = useStreamingChat({
-    onMessageSent: () => {
-      setInput('')
-    },
-  })
+  const { isLoading, toolState, sendMessage, regenerateMessage, stopStreaming } = useStreamingChat()
 
   const visibleLiveToolResults = useMemo(
     () => toolState.toolResults.filter((result) => !shouldHideGenericToolResultCard(result)),

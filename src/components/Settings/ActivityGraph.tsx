@@ -277,8 +277,6 @@ export function ActivityGraph({
           minHeight: 280,
           width: '100%',
           position: 'relative',
-          background: 'var(--theme-surface)',
-          border: '1px solid var(--theme-border)',
           borderRadius: 12,
           padding: '16px 16px 8px 8px',
           boxSizing: 'border-box',

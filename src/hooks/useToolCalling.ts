@@ -18,11 +18,12 @@ import {
     type ToolExecutionSummary,
 } from '../tools/types'
 import { getAllToolDefinitions, getBuiltinToolDefinitions } from '../tools/definitions'
-import { shouldRequestToolFollowUp } from '../tools/followUpPolicy'
+import { shouldContinueToolResearch, shouldRequestToolFollowUp } from '../tools/followUpPolicy'
 import { shouldEnableTools } from '../utils/promptSelection'
 import { getWebResearchToolExposure, getCodeExecutionToolExposure, getComputerUseToolExposure } from '../skills'
 import { createMcpToolRegistry } from '../tools/mcpRegistry'
-import type { ProviderId } from '../providers'
+import { getProviderModels, type ProviderId } from '../providers'
+import { isMacOSRuntime } from '../utils/platform'
 
 export interface ToolCallState {
     activeToolCalls: ToolCall[]
@@ -96,7 +97,7 @@ export function useToolCalling() {
 
         const computerUseToolExposure = getComputerUseToolExposure(settings.skills)
         const computerUseTools = ['computer_screenshot', 'computer_click', 'computer_type', 'computer_key', 'computer_scroll', 'computer_cursor_position', 'computer_list_windows', 'computer_launch_app', 'computer_find_app', 'computer_close_app']
-        if (!computerUseToolExposure.exposeComputerUse) {
+        if (isMacOSRuntime() || !computerUseToolExposure.exposeComputerUse) {
             enabledTools = enabledTools.filter((tool) => !computerUseTools.includes(tool))
         } else {
             for (const tool of computerUseTools) {
@@ -119,20 +120,7 @@ export function useToolCalling() {
     const getCurrentModelSupportsTools = (): boolean | undefined => {
         const provider = settings.modelProvider
         const selectedModelCode = normalizeSelectedModelCode(provider, settings.aiModel)
-
-        const providerModels = provider === 'openrouter'
-            ? settings.configuredModels
-            : provider === 'groq'
-                ? settings.groqModels
-                : provider === 'alibaba'
-                    ? settings.alibabaModels
-                    : provider === 'fireworks'
-                        ? settings.fireworksModels
-                        : provider === 'ollama'
-                            ? settings.ollamaModels
-                            : provider === 'perplexity'
-                                ? settings.perplexityModels
-                                : []
+        const providerModels = getProviderModels(settings, provider)
 
         const selectedModel = providerModels.find((model) => {
             const candidateCode = normalizeSelectedModelCode(provider, model.code)
@@ -182,14 +170,15 @@ export function useToolCalling() {
 
     const handleToolCalls = async (
         response: ToolCallingResponse,
-    onToolStart?: (toolCall: ToolCall) => void,
-    onToolComplete?: (result: ToolCallResult) => void,
-    executionPolicy?: ToolExecutionPolicy
-  ): Promise<{
+        onToolStart?: (toolCall: ToolCall) => void,
+        onToolComplete?: (result: ToolCallResult) => void,
+        executionPolicy?: ToolExecutionPolicy
+    ): Promise<{
         hasTools: boolean
         toolResults: ToolCallResult[]
         formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>
         needsFollowUp: boolean
+        shouldContinueResearch: boolean
         executionSummary: ToolExecutionSummary
     }> => {
         if (!canUseToolsNow() || !responseHasToolCalls(response, settings.modelProvider)) {
@@ -198,6 +187,7 @@ export function useToolCalling() {
                 toolResults: [],
                 formattedResults: [],
                 needsFollowUp: false,
+                shouldContinueResearch: false,
                 executionSummary: {
                     attemptedWebSearchCount: 0,
                     executedWebSearchCount: 0,
@@ -253,6 +243,7 @@ export function useToolCalling() {
                 toolResults: results,
                 formattedResults,
                 needsFollowUp: shouldRequestToolFollowUp(results, formattedResults),
+                shouldContinueResearch: shouldContinueToolResearch(results),
                 executionSummary,
             }
         } catch (error: unknown) {
@@ -264,6 +255,7 @@ export function useToolCalling() {
                 toolResults: [],
                 formattedResults: [],
                 needsFollowUp: false,
+                shouldContinueResearch: false,
                 executionSummary: {
                     attemptedWebSearchCount: 0,
                     executedWebSearchCount: 0,

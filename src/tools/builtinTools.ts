@@ -17,8 +17,9 @@ URL-aware behavior:
 Query formulation best practices:
 - Keep queries concise (under 400 chars). Use search keywords, not full sentences.
 - Use keyword-focused phrasing: "OpenAI GPT-5 release date ${new Date().getFullYear()}" not "Can you tell me when OpenAI will release GPT-5?"
-- If you need a year and the user did not specify one, use only ${new Date().getFullYear()}. Do not add older years or multi-year ranges unless the user explicitly asks for them.
-- Break complex topics into separate focused searches (overview, recent developments, specifics, verification).
+- If you need a year and the user did not specify one or ask for a relative range, use only ${new Date().getFullYear()}. Do not add older years or multi-year ranges unless the user explicitly asks for them.
+- When the user explicitly asks for independent slices such as years, regions, providers, products, competitors, or categories, emit multiple focused web_search calls in the same assistant turn so the app can execute them in parallel. Example: for "data across 5 years", call web_search once per year in one batch.
+- Break complex topics into separate focused searches (overview, recent developments, specifics, verification), batching the independent searches together when those facets are clear up front.
 - For current events or news, use topic="news" and time_range when relevant.`,
     parameters: {
       type: 'object',
@@ -27,12 +28,12 @@ Query formulation best practices:
         query: {
           type: 'string',
           description:
-            `Search query. For URL tasks, include the URL directly (with optional instruction). Examples: "https://foo.com/article" or "summarize this https://foo.com/article". For general search, use concise keywords (e.g. "X market size ${new Date().getFullYear()}", "latest AI developments"). If you include a year without user guidance, use only ${new Date().getFullYear()}.`,
+            `Search query. For URL tasks, include the URL directly (with optional instruction). Examples: "https://foo.com/article" or "summarize this https://foo.com/article". For general search, use concise keywords (e.g. "X market size ${new Date().getFullYear()}", "latest AI developments"). If you include a year without user guidance, use only ${new Date().getFullYear()}. If the user asks for a relative range such as "past 5 years", emit one focused query per year in the same turn.`,
         },
         num_results: {
           type: 'number',
           description:
-            'Number of results to return per call (default: 4, max: 4). Keep each search focused and lightweight. If coverage is still incomplete, call web_search again with a new angle rather than requesting a larger batch in one call.',
+            'Number of results to return per call (default: 4, max: 4). Keep each search focused and lightweight. For multiple independent facets, emit multiple web_search calls in the same turn rather than requesting more results in one call.',
           default: 4,
         },
         search_depth: {

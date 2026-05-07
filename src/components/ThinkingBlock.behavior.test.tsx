@@ -128,7 +128,7 @@ describe('ThinkingBlock behavior', () => {
     expect(await screen.findByText('Thought for <1s')).toBeInTheDocument()
     expect(screen.queryByText('Follow-up reasoning')).not.toBeInTheDocument()
     expect(screen.getByText('Thought for <1s')).toBeInTheDocument()
-    expect(container.querySelector('.thinking-block.completed.expanded')).toBeNull()
+    expect(container.querySelector('.thinking-block.completed .thinking-content')).toBeNull()
   })
 
   it('shows generic MCP tool activity copy for non-search tool calls', async () => {

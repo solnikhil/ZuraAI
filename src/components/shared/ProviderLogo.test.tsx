@@ -72,6 +72,25 @@ describe('ProviderLogo', () => {
     })
   })
 
+  describe('DeepSeek provider support', () => {
+    it('should recognize deepseek as a known provider', () => {
+      expect(isKnownProvider('deepseek')).toBe(true)
+      expect(isKnownProvider('DeepSeek')).toBe(true)
+    })
+
+    it('should return correct color for deepseek provider', () => {
+      const color = getProviderLogoColor('deepseek')
+      expect(color).toBe('#4d6bfe')
+    })
+
+    it('should render deepseek logo image initially', () => {
+      render(<ProviderLogo provider="deepseek" />)
+      const img = screen.getByAltText('deepseek logo')
+      expect(img).toBeInTheDocument()
+      expect(img).toHaveAttribute('src', './provider-logos/deepseek.svg')
+    })
+  })
+
   describe('size variants', () => {
     it('should apply small size by default', () => {
       render(<ProviderLogo provider="minimax" />)
@@ -112,7 +131,7 @@ describe('ProviderLogo', () => {
   })
 
   describe('all providers', () => {
-    const providers = ['ollama', 'perplexity', 'openrouter', 'gemini', 'groq', 'minimax']
+    const providers = ['ollama', 'perplexity', 'openrouter', 'gemini', 'groq', 'minimax', 'alibaba', 'deepseek', 'fireworks']
 
     it.each(providers)('should recognize %s as a known provider', (provider) => {
       expect(isKnownProvider(provider)).toBe(true)
@@ -122,7 +141,8 @@ describe('ProviderLogo', () => {
       render(<ProviderLogo provider={provider} />)
       const img = screen.getByAltText(`${provider} logo`)
       expect(img).toBeInTheDocument()
-      expect(img).toHaveAttribute('src', `./provider-logos/${provider}.png`)
+      const expectedExt = provider === 'fireworks' || provider === 'deepseek' ? 'svg' : 'png'
+      expect(img).toHaveAttribute('src', `./provider-logos/${provider}.${expectedExt}`)
     })
   })
 })

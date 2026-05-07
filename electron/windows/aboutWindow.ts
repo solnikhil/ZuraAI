@@ -2,6 +2,7 @@ import { app, BrowserWindow, shell } from 'electron'
 import path from 'path'
 
 import { getMainWindow, resolveDistPath } from './mainWindow'
+import { resolveAppIconPath } from '../windowIcon'
 
 const devServerUrl = process.env.VITE_DEV_SERVER_URL
 const devServerOrigin = devServerUrl ? new URL(devServerUrl).origin : null
@@ -33,7 +34,7 @@ function createAboutWindow(): BrowserWindow {
     minWidth: 520,
     minHeight: 580,
     title: 'About ZuraAI',
-    icon: path.join(process.env.PUBLIC || '', 'icon.png'),
+    icon: resolveAppIconPath(),
     parent: parentWindow,
     modal: false,
     minimizable: false,
@@ -41,7 +42,7 @@ function createAboutWindow(): BrowserWindow {
     fullscreenable: false,
     resizable: false,
     show: false,
-    autoHideMenuBar: true,
+    autoHideMenuBar: process.platform !== 'darwin',
     skipTaskbar: true,
     backgroundColor: '#181818',
     webPreferences: {

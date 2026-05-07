@@ -23,7 +23,7 @@ export interface ResearchLoopContinuationOptions {
 
 export interface ResearchLoopDecision {
   shouldForceFinalSynthesis: boolean
-  reason: 'budget' | 'duplicate-query' | 'duplicate-facet' | 'empty-batch' | null
+  reason: 'budget' | 'empty-batch' | null
 }
 
 const FORCE_WEB_SEARCH_PREFIX =
@@ -32,61 +32,8 @@ const FORCE_WEB_SEARCH_PREFIX =
 const FOLLOW_UP_DECISION_GUIDANCE =
   `\n\n*** FOLLOW-UP SEARCH DECISION ***\n` +
   `After each search batch, briefly decide what is already answered by evidence, what important gap or conflict remains, and whether another search is actually needed.\n` +
-  `If you continue, issue one or more distinct targeted queries only when the missing facets are independent. Keep the batch minimal, stay within the remaining search budget, and change the angle when needed: overview, recent updates, source verification, official docs/specs, pricing, comparisons, examples, implementation details, or edge cases.\n` +
-  `Do not repeat the same facet with only minor rewording, and do not pre-plan large speculative batches before inspecting the current results.`
-
-type ResearchQueryFacet =
-  | 'general'
-  | 'overview'
-  | 'recent'
-  | 'verification'
-  | 'docs'
-  | 'pricing'
-  | 'comparison'
-  | 'examples'
-  | 'implementation'
-
-const FACET_KEYWORDS: Array<{ facet: ResearchQueryFacet; keywords: string[] }> = [
-  { facet: 'comparison', keywords: ['vs', 'versus', 'compare', 'comparison', 'alternative', 'alternatives', 'competitor', 'competitors', 'difference'] },
-  { facet: 'pricing', keywords: ['price', 'pricing', 'cost', 'costs', 'billing', 'plan', 'plans', 'subscription', 'subscriptions', 'enterprise'] },
-  { facet: 'docs', keywords: ['docs', 'documentation', 'api', 'sdk', 'reference', 'spec', 'specification', 'guide', 'manual'] },
-  { facet: 'recent', keywords: ['latest', 'recent', 'today', 'news', 'updates', 'new', 'release', 'released', 'launch', 'launched'] },
-  { facet: 'verification', keywords: ['verify', 'verification', 'confirm', 'confirmed', 'fact', 'facts', 'official', 'source', 'sources', 'accuracy'] },
-  { facet: 'examples', keywords: ['example', 'examples', 'sample', 'samples', 'tutorial', 'walkthrough', 'demo'] },
-  { facet: 'implementation', keywords: ['implementation', 'implement', 'implementation', 'architecture', 'design', 'workflow', 'integration', 'setup', 'install', 'configuration'] },
-  { facet: 'overview', keywords: ['overview', 'summary', 'what', 'list', 'landscape', 'providers', 'options', 'market'] },
-]
-
-const FACET_STOPWORDS = new Set(
-  FACET_KEYWORDS.flatMap(({ keywords }) => keywords).concat([
-    'search',
-    'searches',
-    'find',
-    'looking',
-    'about',
-    'into',
-    'with',
-    'without',
-    'from',
-    'that',
-    'this',
-    'these',
-    'those',
-    'their',
-    'there',
-    'user',
-    'users',
-    'best',
-    'top',
-    'latest',
-    'recent',
-    'current',
-    '2024',
-    '2025',
-    '2026',
-    '2027',
-  ])
-)
+  `If the missing evidence can be split into obvious independent facets, issue those distinct web_search calls together in the same assistant turn so they run as one parallel batch. Good batch cases include one query per requested year for multi-year data, one query per competitor or provider for comparisons, one query per region/category/product when the user asks for those slices, and one official/source-verification query when needed.\n` +
+  `Keep each batch compact and within the remaining search budget. Avoid speculative batches where the facets are not clear yet; change the angle when needed: overview, recent updates, source verification, official docs/specs, pricing, comparisons, examples, implementation details, or edge cases.`
 
 export function getEffectiveSearchBudget(
   maxRounds: number,
@@ -119,106 +66,9 @@ function normalizeResearchQuery(query: string | null | undefined): string {
     .trim()
 }
 
-function tokenizeResearchQuery(query: string): string[] {
-  return normalizeResearchQuery(query)
-    .split(' ')
-    .filter((token) => token.length > 2)
-}
-
-function inferResearchQueryFacet(query: string): ResearchQueryFacet {
-  const tokens = tokenizeResearchQuery(query)
-
-  for (const { facet, keywords } of FACET_KEYWORDS) {
-    if (keywords.some((keyword) => tokens.includes(keyword))) {
-      return facet
-    }
-  }
-
-  return 'general'
-}
-
-function getResearchCoreTokens(query: string): string[] {
-  return tokenizeResearchQuery(query).filter((token) => {
-    if (FACET_STOPWORDS.has(token)) return false
-    if (/^\d{4}$/.test(token)) return false
-    return true
-  })
-}
-
-function areQueriesNearDuplicate(left: string, right: string): boolean {
-  const normalizedLeft = normalizeResearchQuery(left)
-  const normalizedRight = normalizeResearchQuery(right)
-
-  if (!normalizedLeft || !normalizedRight) return false
-  if (normalizedLeft === normalizedRight) return true
-
-  if (
-    normalizedLeft.length >= 16 &&
-    normalizedRight.length >= 16 &&
-    (normalizedLeft.includes(normalizedRight) || normalizedRight.includes(normalizedLeft))
-  ) {
-    return true
-  }
-
-  const leftTokens = new Set(tokenizeResearchQuery(normalizedLeft))
-  const rightTokens = new Set(tokenizeResearchQuery(normalizedRight))
-  if (leftTokens.size < 3 || rightTokens.size < 3) return false
-
-  let overlap = 0
-  for (const token of leftTokens) {
-    if (rightTokens.has(token)) {
-      overlap += 1
-    }
-  }
-
-  const denominator = Math.max(leftTokens.size, rightTokens.size)
-  return denominator > 0 && overlap / denominator >= 0.75
-}
-
-function areQueriesFacetDuplicate(left: string, right: string): boolean {
-  const leftFacet = inferResearchQueryFacet(left)
-  const rightFacet = inferResearchQueryFacet(right)
-  if (leftFacet === 'general' || rightFacet === 'general') return false
-  if (leftFacet !== rightFacet) return false
-
-  const leftCoreTokens = new Set(getResearchCoreTokens(left))
-  const rightCoreTokens = new Set(getResearchCoreTokens(right))
-  if (leftCoreTokens.size === 0 || rightCoreTokens.size === 0) return false
-
-  let overlap = 0
-  for (const token of leftCoreTokens) {
-    if (rightCoreTokens.has(token)) {
-      overlap += 1
-    }
-  }
-
-  const smallerSetSize = Math.min(leftCoreTokens.size, rightCoreTokens.size)
-  return smallerSetSize > 0 && overlap / smallerSetSize >= 0.6
-}
-
-export function classifyResearchQueryDuplicate(
-  query: string,
-  priorQueries: string[]
-): 'duplicate-query' | 'duplicate-facet' | null {
-  if (!query.trim() || priorQueries.length === 0) {
-    return null
-  }
-
-  if (priorQueries.some((priorQuery) => areQueriesNearDuplicate(priorQuery, query))) {
-    return 'duplicate-query'
-  }
-
-  if (priorQueries.some((priorQuery) => areQueriesFacetDuplicate(priorQuery, query))) {
-    return 'duplicate-facet'
-  }
-
-  return null
-}
-
 export function evaluateResearchContinuation({
   searchCount,
   maxRounds,
-  priorQueries = [],
   nextQueries = [],
   safetyCap = STREAM_RESEARCH_SAFETY_CAP,
   practicalCap = STREAM_MAX_RESEARCH_ROUNDS,
@@ -230,9 +80,6 @@ export function evaluateResearchContinuation({
     }
   }
 
-  const normalizedPriorQueries = priorQueries
-    .map((query) => normalizeResearchQuery(query))
-    .filter(Boolean)
   const normalizedNextQueries = nextQueries
     .map((query) => normalizeResearchQuery(query))
     .filter(Boolean)
@@ -241,32 +88,6 @@ export function evaluateResearchContinuation({
     return {
       shouldForceFinalSynthesis: true,
       reason: 'empty-batch',
-    }
-  }
-
-  if (
-    normalizedPriorQueries.length > 0 &&
-    normalizedNextQueries.length > 0 &&
-    normalizedNextQueries.every((query) =>
-      normalizedPriorQueries.some((priorQuery) => areQueriesNearDuplicate(priorQuery, query))
-    )
-  ) {
-    return {
-      shouldForceFinalSynthesis: true,
-      reason: 'duplicate-query',
-    }
-  }
-
-  if (
-    priorQueries.length > 0 &&
-    nextQueries.length > 0 &&
-    nextQueries.every((query) =>
-      priorQueries.some((priorQuery) => areQueriesFacetDuplicate(priorQuery, query))
-    )
-  ) {
-    return {
-      shouldForceFinalSynthesis: true,
-      reason: 'duplicate-facet',
     }
   }
 
@@ -324,5 +145,5 @@ export function buildResearchProgressPrompt({
     ? ` You are close to the practical cap of ${effectiveBudget} searches, so only continue if another targeted search is necessary.`
     : ''
 
-  return `${prefix}\n\n*** WEB SEARCH PROGRESS ***\nYou have completed ${searchCount} of ${effectiveBudget} targeted search(es) in this research loop. Use the returned evidence to decide whether another targeted search batch is still needed. Prefer synthesis once you have enough coverage, and do not keep reformulating similar searches without adding new evidence.${practicalWarning}${FOLLOW_UP_DECISION_GUIDANCE}`
+  return `${prefix}\n\n*** WEB SEARCH PROGRESS ***\nYou have completed ${searchCount} of ${effectiveBudget} targeted search(es) in this research loop. Use the returned evidence to decide whether another targeted search batch is still needed. Prefer synthesis once you have enough coverage.${practicalWarning}${FOLLOW_UP_DECISION_GUIDANCE}`
 }

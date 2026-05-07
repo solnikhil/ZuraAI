@@ -1,5 +1,6 @@
 import type { ConfiguredModel, SettingsConfig } from '../contexts/SettingsConfigContext'
 import { getOpenRouterApiKey } from '../utils/openRouterKey'
+import { getTitleEligibleModels } from '../utils/titleGenerationModels'
 import type { ActiveProviderId, ProviderId } from './providerTypes'
 
 export interface ProviderCapabilities {
@@ -54,6 +55,7 @@ export type ProviderModelListKey =
   | 'groqModels'
   | 'alibabaModels'
   | 'fireworksModels'
+  | 'deepseekModels'
 
 export type ProviderSettingsLike = Partial<
   Pick<
@@ -64,6 +66,7 @@ export type ProviderSettingsLike = Partial<
     | 'groqApiKey'
     | 'alibabaApiKey'
     | 'fireworksApiKey'
+    | 'deepseekApiKey'
     | 'ollamaUrl'
     | 'configuredModels'
     | 'ollamaModels'
@@ -71,6 +74,7 @@ export type ProviderSettingsLike = Partial<
     | 'groqModels'
     | 'alibabaModels'
     | 'fireworksModels'
+    | 'deepseekModels'
   >
 >
 
@@ -78,6 +82,10 @@ export interface ProviderModelOption {
   id: string
   provider: ActiveProviderId
   displayName: string
+}
+
+export interface ResolvedProviderModelOption extends ProviderModelOption {
+  model: ConfiguredModel
 }
 
 const OPENAI_COMPATIBLE_RETRY_POLICY: ProviderRetryPolicy = {
@@ -109,6 +117,7 @@ const PROVIDER_TOOL_MODEL_PREFIXES: Record<ProviderId, string[]> = {
     'openai/gpt-oss-safeguard-20b',
   ],
   ollama: ['llama3.1', 'llama3.2', 'mistral', 'mixtral'],
+  deepseek: [],
   alibaba: [
     'qwen-plus',
     'qwen-max',
@@ -147,7 +156,7 @@ export const STREAM_MAX_RESEARCH_ROUNDS = 8
 export const TITLE_REVEAL_INTERVAL_MS = 24
 
 const allowAllToolModels = (provider: ProviderId) =>
-  provider === 'openrouter' || provider === 'fireworks'
+  provider === 'openrouter' || provider === 'fireworks' || provider === 'deepseek'
 
 const supportsModelTools = (provider: ProviderId, model: string): boolean => {
   if (allowAllToolModels(provider)) return true
@@ -264,6 +273,37 @@ const PROVIDERS: Record<ProviderId, ProviderDefinition> = {
     models: {
       settingsModelKey: 'alibabaModels',
       supportsTools: (model) => supportsModelTools('alibaba', model),
+    },
+  },
+  deepseek: {
+    id: 'deepseek',
+    label: 'DeepSeek',
+    description: 'DeepSeek V4 Flash and V4 Pro with tool calling and optional thinking mode.',
+    accentColor: '#4d6bfe',
+    capabilities: {
+      supportsStreaming: true,
+      supportsTools: true,
+      supportsVisionUploads: false,
+      supportsReasoning: true,
+      supportsImageGeneration: false,
+      supportsNativeSearch: false,
+    },
+    endpoints: {
+      baseUrl: 'https://api.deepseek.com',
+      chatCompletionsUrl: 'https://api.deepseek.com/chat/completions',
+      modelCatalogUrl: 'https://api.deepseek.com/models',
+    },
+    retryPolicy: OPENAI_COMPATIBLE_RETRY_POLICY,
+    auth: {
+      hasAccess: (settings) => hasConfiguredApiKey(settings.deepseekApiKey),
+      getCredentialError: (settings) =>
+        hasConfiguredApiKey(settings.deepseekApiKey)
+          ? null
+          : 'DeepSeek API key is required. Add it in Settings > Providers and save.',
+    },
+    models: {
+      settingsModelKey: 'deepseekModels',
+      supportsTools: (model) => supportsModelTools('deepseek', model),
     },
   },
   perplexity: {
@@ -461,4 +501,44 @@ export function getAvailableModelOptions(settings: ProviderSettingsLike): Provid
   }
 
   return models
+}
+
+export function getAvailableTitleModelOptions(
+  settings: ProviderSettingsLike
+): ResolvedProviderModelOption[] {
+  const models: ResolvedProviderModelOption[] = []
+
+  for (const provider of getActiveProviderDefinitions()) {
+    if (!hasProviderAccess(settings, provider.id)) continue
+
+    const providerModels = getProviderModels(settings, provider.id).filter(
+      (model): model is ConfiguredModel =>
+        Boolean(model && typeof model.code === 'string' && model.code.trim().length > 0)
+    )
+    const enabledModels = providerModels.filter((model) => model.enabled !== false)
+    const candidateModels = enabledModels.length > 0 ? enabledModels : providerModels
+
+    for (const model of getTitleEligibleModels(candidateModels)) {
+      models.push({
+        id: model.code,
+        provider: provider.id as ActiveProviderId,
+        displayName: model.displayName,
+        model,
+      })
+    }
+  }
+
+  return models
+}
+
+export function resolveProviderForModel(
+  settings: ProviderSettingsLike,
+  modelCode: string
+): ResolvedProviderModelOption | null {
+  const normalizedCode = modelCode.trim()
+  if (!normalizedCode) return null
+
+  return (
+    getAvailableTitleModelOptions(settings).find((option) => option.id.trim() === normalizedCode) ?? null
+  )
 }

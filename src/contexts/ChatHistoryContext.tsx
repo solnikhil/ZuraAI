@@ -15,6 +15,7 @@ import { useSettings } from './SettingsContext'
 import { ChatSessionManager, type SessionMetadata } from './ChatSessionManager'
 import { createSelectableContext } from './createSelectableContext'
 import { warnOnceDuringHmr } from './hmrWarnings'
+import { repairPersistedChatTitles } from '../utils/chatTitleRepair'
 import type {
   ChatSession,
   FileAttachment,
@@ -173,6 +174,9 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
         fullSessions = saved ? JSON.parse(saved) : []
       }
 
+      const repaired = repairPersistedChatTitles(fullSessions)
+      fullSessions = repaired.sessions
+
       for (const session of fullSessions) {
         manager.addSession(session)
       }
@@ -210,6 +214,9 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
         const saved = localStorage.getItem('zura-chat-history')
         fullSessions = saved ? JSON.parse(saved) : []
       }
+
+      const repaired = repairPersistedChatTitles(fullSessions)
+      fullSessions = repaired.sessions
 
       manager.clear()
       for (const session of fullSessions) {

@@ -18,6 +18,10 @@ import { normalizeClickArgs, normalizeCursorArgs, normalizeScrollArgs } from './
 import type { ToolResult, ToolHandler } from './types'
 export type { ToolResult, ToolHandler } from './types'
 
+function isComputerUseToolName(toolName: string): boolean {
+  return toolName.startsWith('computer_')
+}
+
 function normalizeWebSearchArgsInput(args: unknown): WebSearchArgs {
   if (typeof args !== 'object' || args === null) {
     return { query: '' }
@@ -142,6 +146,13 @@ export function registerToolHandlers(): void {
       return {
         success: false,
         error: `Tool "${String(toolName)}" is disabled.`
+      }
+    }
+
+    if (process.platform === 'darwin' && isComputerUseToolName(toolName)) {
+      return {
+        success: false,
+        error: 'Computer Use is disabled on macOS for now.',
       }
     }
 

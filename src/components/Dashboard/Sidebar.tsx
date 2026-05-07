@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
 import { useAppShell } from '../../contexts/AppShellContext'
 import { useSettingsUI } from '../../contexts/SettingsUIContext'
+import TitleBarInfoMenu from '../TitleBarInfoMenu'
 import SidebarSearchOverlay from './Sidebar/SidebarSearchOverlay'
 import { groupSessions } from './Sidebar/utils/groupSessions'
 import type { ChatRowAction } from './Sidebar/ChatRow'
@@ -10,6 +11,7 @@ import { SIDEBAR_COLLAPSED_WIDTH_PX, clampSidebarWidth } from '../../constants/s
 import './Sidebar/Sidebar.css'
 import SidebarChatView from './SidebarChatView'
 import SidebarSettingsView from './SidebarSettingsView'
+import { isMacOSRuntime } from '../../utils/platform'
 
 interface SidebarProps {
   view: 'chat' | 'settings'
@@ -18,10 +20,19 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ view, activeSettingsSection, onNavigateSettings }: SidebarProps) {
+  const isMacOS = isMacOSRuntime()
   const [searchQuery, setSearchQuery] = useState('')
   const [searchOverlayOpen, setSearchOverlayOpen] = useState(false)
-  const { sidebarHidden, sidebarCollapsed, sidebarWidth, setSidebarWidth, setIsResizingSidebar } =
-    useAppShell()
+  const {
+    dashboardView,
+    setDashboardView,
+    hasUnsavedSettings,
+    sidebarHidden,
+    sidebarCollapsed,
+    sidebarWidth,
+    setSidebarWidth,
+    setIsResizingSidebar,
+  } = useAppShell()
   const {
     sessions,
     folders,
@@ -260,6 +271,7 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
 
   const containerClasses = [
     'sidebar-container',
+    isMacOS ? 'sidebar-container--macos' : '',
     sidebarHidden ? 'sidebar-container--hidden' : '',
     sidebarCollapsed ? 'sidebar-container--collapsed' : 'sidebar-container--expanded',
     isResizing ? 'sidebar-container--resizing' : '',
@@ -307,6 +319,16 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
           activeSettingsSection={activeSettingsSection}
           onNavigateSettings={onNavigateSettings}
         />
+
+        <div className="sidebar-footer-wrapper">
+          <TitleBarInfoMenu
+            hasUnsavedSettings={hasUnsavedSettings}
+            isSettingsView={dashboardView === 'settings'}
+            setDashboardView={setDashboardView}
+            triggerVariant="sidebar"
+            sidebarCollapsed={sidebarCollapsed}
+          />
+        </div>
       </div>
 
       <SidebarSearchOverlay

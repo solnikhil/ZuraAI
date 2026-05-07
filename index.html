@@ -7,28 +7,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta
     http-equiv="Content-Security-Policy"
-    content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net data:; img-src 'self' data: blob: https:; connect-src 'self' http: https: ws: wss:; media-src 'self' blob: data:; object-src 'none'; frame-src 'none'; base-uri 'self'; form-action 'self'"
+    content="default-src 'self'; script-src 'self'; worker-src 'self' blob:; child-src 'self' blob:; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' https://cdn.jsdelivr.net data:; img-src 'self' data: blob: https:; connect-src 'self' http: https: ws: wss:; media-src 'self' blob: data:; object-src 'none'; frame-src 'none'; base-uri 'self'; form-action 'self'"
   />
   <title>Zura</title>
-  
-  <!-- Preconnect to font origins for faster DNS/TLS handshake -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-  
-  <!-- Preload critical fonts for above-the-fold content -->
-  <!-- Google Sans Flex (primary UI font) - preload the CSS which triggers font loading -->
-  <link rel="preload" href="https://fonts.googleapis.com/css2?family=Google+Sans+Flex:wght@400;500;600;700&family=Sacramento&display=swap" as="style">
-  
-  <!-- Preload KaTeX main font (critical for math rendering) -->
-  <link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.16.28/dist/fonts/KaTeX_Main-Regular.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.16.28/dist/fonts/KaTeX_Math-Italic.woff2" as="font" type="font/woff2" crossorigin>
-  
-  <!-- Google Fonts - display=swap ensures text is visible with fallback font while loading -->
-  <link href="https://fonts.googleapis.com/css2?family=Google+Sans+Flex:wght@400;500;600;700&family=Sacramento&display=swap" rel="stylesheet">
-  
-  <!-- KaTeX CSS for math rendering -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.28/dist/katex.min.css" integrity="sha384-Wsr4Nh3yrvMf2KCebJchRJoVo1gTU6kcP05uRSh5NV3sj9+a8IomuJoQzf3sMq4T" crossorigin="anonymous">
+
+
 </head>
 
 <body>
@@ -42,10 +25,12 @@
       text-align: center; padding: 2rem;
     ">
       <div id="fallback-text" style="
-        font-family: 'Sacramento', cursive;
-        font-size: 52px; color: #d6d3d1;
+        font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+        font-size: 34px; color: #f2f2f7;
+        font-weight: 600;
         opacity: 0; animation: fb-fade 1.2s ease-out 0.1s forwards;
-        letter-spacing: 2px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
       ">Zura</div>
       <div id="fallback-bar" style="
         width: 180px; height: 3px;

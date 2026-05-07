@@ -72,8 +72,10 @@ describe('ProviderHubSection', () => {
     perplexityApiKey: '',
     groqApiKey: '',
     alibabaApiKey: '',
+    deepseekApiKey: '',
     fireworksApiKey: '',
     tavilyApiKey: '',
+    onlineCompilerApiKey: '',
     tavilySearchDepthPreference: 'auto' as const,
     webSearchIncludeImages: true,
     ollamaUrl: 'http://localhost:11434',
@@ -87,6 +89,7 @@ describe('ProviderHubSection', () => {
     perplexityModels: [{ code: 'sonar', displayName: 'Sonar' }],
     groqModels: [{ code: 'llama-3.1-8b-instant', displayName: 'Llama 3.1 8B Instant' }],
     alibabaModels: [{ code: 'qwen-plus', displayName: 'Qwen Plus' }],
+    deepseekModels: [{ code: 'deepseek-v4-flash', displayName: 'DeepSeek V4 Flash' }],
     fireworksModels: [
       { code: 'accounts/fireworks/models/deepseek-v3p2', displayName: 'DeepSeek V3.2' },
     ],
@@ -442,6 +445,47 @@ describe('ProviderHubSection', () => {
         })
       )
     })
+
+    fetchMock.mockRestore()
+  })
+
+  it('runs DeepSeek connectivity check against chat completions endpoint and shows success', async () => {
+    const fetchMock = vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ id: 'ok' }),
+    } as Response)
+
+    render(<ProviderHubSection {...baseProps} deepseekApiKey="deepseek-key" />)
+
+    fireEvent.click(
+      screen.getByText('DeepSeek V4 Flash and V4 Pro with tool calling and optional thinking mode.')
+    )
+
+    const checkButton = await screen.findByRole('button', { name: /^check$/i })
+    fireEvent.click(checkButton)
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://api.deepseek.com/chat/completions',
+        expect.objectContaining({
+          method: 'POST',
+          headers: expect.objectContaining({
+            Authorization: 'Bearer deepseek-key',
+            'Content-Type': 'application/json',
+          }),
+          body: JSON.stringify({
+            model: 'deepseek-v4-flash',
+            messages: [{ role: 'user', content: 'ping' }],
+            max_tokens: 1,
+          }),
+        })
+      )
+    })
+
+    expect(
+      await screen.findByText('Connection successful. API key and model are reachable.')
+    ).toBeInTheDocument()
 
     fetchMock.mockRestore()
   })

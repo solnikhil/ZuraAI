@@ -1,6 +1,7 @@
-import { app, ipcMain, BrowserWindow, clipboard, shell } from 'electron'
+import { app, ipcMain, BrowserWindow, Menu, clipboard, shell, type MenuItemConstructorOptions } from 'electron'
 import { getAppRuntimeInfo } from '../runtimeInfo'
 import { showAboutWindow } from '../windows'
+import type { NativeContextMenuAction, NativeContextMenuRequest } from '../../src/electron/types'
 
 /**
  * Tracks which windows already have window-state listeners attached.
@@ -47,6 +48,76 @@ function ensureWindowStateListeners(win: BrowserWindow): void {
   })
 
   windowStateListenersAttached.add(win)
+}
+
+function isBoolean(value: unknown): value is boolean {
+  return typeof value === 'boolean'
+}
+
+function sanitizeContextMenuRequest(value: unknown): NativeContextMenuRequest | null {
+  if (typeof value !== 'object' || value === null) {
+    return null
+  }
+
+  const request = value as Record<string, unknown>
+
+  const hasSelection = request.hasSelection
+  const isEditable = request.isEditable
+  const isContentEditable = request.isContentEditable
+  const hasLink = request.hasLink
+  const linkUrl = request.linkUrl
+  const mouseX = request.mouseX
+  const mouseY = request.mouseY
+  const isDev = request.isDev
+  const kind = request.kind
+  const isPinnedChatRow = request.isPinnedChatRow
+
+  if (
+    !isBoolean(hasSelection) ||
+    !isBoolean(isEditable) ||
+    !isBoolean(isContentEditable) ||
+    !isBoolean(hasLink) ||
+    typeof linkUrl !== 'string' ||
+    typeof mouseX !== 'number' ||
+    typeof mouseY !== 'number' ||
+    !Number.isFinite(mouseX) ||
+    !Number.isFinite(mouseY) ||
+    !isBoolean(isDev) ||
+    (kind !== undefined && kind !== 'default' && kind !== 'chat-row') ||
+    (isPinnedChatRow !== undefined && !isBoolean(isPinnedChatRow))
+  ) {
+    return null
+  }
+
+  return {
+    hasSelection,
+    isEditable,
+    isContentEditable,
+    hasLink,
+    linkUrl,
+    mouseX: Math.round(mouseX),
+    mouseY: Math.round(mouseY),
+    isDev,
+    kind: kind === 'chat-row' ? 'chat-row' : 'default',
+    isPinnedChatRow: isPinnedChatRow === true,
+  }
+}
+
+function sendContextMenuAction(win: BrowserWindow, action: NativeContextMenuAction): void {
+  if (win.isDestroyed()) return
+  win.webContents.send('context-menu:action', action)
+}
+
+function maybeGetSafeHttpUrl(url: string): string | null {
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return null
+    }
+    return parsed.toString()
+  } catch {
+    return null
+  }
 }
 
 /**
@@ -190,6 +261,102 @@ export function registerSystemHandlers(): void {
     }
   })
 
+  ipcMain.handle('context-menu:show', async (event, request: unknown) => {
+    if (process.platform !== 'darwin') {
+      return
+    }
+
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win) return
+
+    const sanitizedRequest = sanitizeContextMenuRequest(request)
+    if (!sanitizedRequest) return
+
+    const template: MenuItemConstructorOptions[] = []
+    const {
+      hasSelection,
+      isEditable,
+      isContentEditable,
+      hasLink,
+      linkUrl,
+      mouseX,
+      mouseY,
+      isDev,
+      kind,
+      isPinnedChatRow,
+    } =
+      sanitizedRequest
+
+    const showEditActions = isEditable || isContentEditable
+    const safeLinkUrl = hasLink ? maybeGetSafeHttpUrl(linkUrl) : null
+
+    if (kind === 'chat-row') {
+      template.push(
+        { label: 'Rename', click: () => sendContextMenuAction(win, 'chat-rename') },
+        {
+          label: isPinnedChatRow ? 'Unpin' : 'Pin',
+          click: () => sendContextMenuAction(win, isPinnedChatRow ? 'chat-unpin' : 'chat-pin'),
+        },
+        { label: 'Duplicate', click: () => sendContextMenuAction(win, 'chat-duplicate') },
+        { type: 'separator' },
+        { label: 'Delete', click: () => sendContextMenuAction(win, 'chat-delete') }
+      )
+    } else if (safeLinkUrl) {
+      template.push(
+        {
+          label: 'Open Link in Browser',
+          click: () => {
+            void shell.openExternal(safeLinkUrl)
+          },
+        },
+        {
+          label: 'Copy Link Address',
+          click: () => {
+            clipboard.writeText(safeLinkUrl)
+          },
+        },
+        { type: 'separator' }
+      )
+    }
+
+    if (kind === 'default' && showEditActions) {
+      template.push(
+        { label: 'Undo', click: () => sendContextMenuAction(win, 'undo') },
+        { label: 'Redo', click: () => sendContextMenuAction(win, 'redo') },
+        { type: 'separator' },
+        { label: 'Cut', enabled: hasSelection, click: () => sendContextMenuAction(win, 'cut') },
+        { label: 'Copy', enabled: hasSelection, click: () => sendContextMenuAction(win, 'copy') },
+        { label: 'Paste', click: () => sendContextMenuAction(win, 'paste') },
+        { type: 'separator' },
+        { label: 'Select All', click: () => sendContextMenuAction(win, 'select-all') }
+      )
+    } else if (kind === 'default' && hasSelection) {
+      template.push(
+        { label: 'Copy', click: () => sendContextMenuAction(win, 'copy') },
+        { type: 'separator' },
+        { label: 'Select All', click: () => sendContextMenuAction(win, 'select-all') }
+      )
+    } else if (kind === 'default') {
+      template.push({ label: 'Select All', click: () => sendContextMenuAction(win, 'select-all') })
+    }
+
+    if (!app.isPackaged && isDev) {
+      template.push(
+        { type: 'separator' },
+        {
+          label: 'Inspect Element',
+          click: () => {
+            if (!win.isDestroyed()) {
+              win.webContents.inspectElement(mouseX, mouseY)
+            }
+          },
+        }
+      )
+    }
+
+    Menu.buildFromTemplate(template).popup({ window: win })
+  })
+
   /**
    * Applies explicit bounds to the sender's window.
    *
@@ -270,4 +437,5 @@ export function unregisterSystemHandlers(): void {
   ipcMain.removeHandler('shell:open-external')
   ipcMain.removeHandler('devtools:inspect-element')
   ipcMain.removeHandler('clipboard:read-text')
+  ipcMain.removeHandler('context-menu:show')
 }

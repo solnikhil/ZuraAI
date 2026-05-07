@@ -6,7 +6,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { migrateConfiguredModelCode } from './SettingsContext'
-import { normalizeStoredSettings } from './settingsStore'
+import { normalizeStoredSettings, stripSecretSettings } from './settingsStore'
 
 // Mock localStorage
 const localStorageMock = (() => {
@@ -97,14 +97,27 @@ describe('SettingsContext Provider Integration', () => {
       expect(defaultSettingsConfig.titleModel).toBe('')
     })
 
-    it('default title generation provider is openrouter', async () => {
+    it('does not include a default title generation provider override', async () => {
       const { defaultSettingsConfig } = await import('./SettingsConfigContext')
-      expect(defaultSettingsConfig.titleModelProvider).toBe('openrouter')
+      expect('titleModelProvider' in defaultSettingsConfig).toBe(false)
     })
 
     it('default title generation display mode is instant', async () => {
       const { defaultSettingsConfig } = await import('./SettingsConfigContext')
       expect(defaultSettingsConfig.titleGenerationDisplayMode).toBe('instant')
+    })
+
+    it('migrates the legacy default title generation prompt to the hardened prompt', () => {
+      const legacyPrompt = `Give this conversation a short descriptive title (2-6 words).
+
+Rules:
+- Return ONLY the title text. No quotes, no prefix, no explanation.`
+
+      const normalized = normalizeStoredSettings(JSON.stringify({ titleGenerationPrompt: legacyPrompt }))
+
+      expect(normalized.titleGenerationPrompt).toContain('Hard bans:')
+      expect(normalized.titleGenerationPrompt).toContain('Do not explain your reasoning.')
+      expect(normalized.titleGenerationPrompt).not.toBe(legacyPrompt)
     })
 
     it('defaults streamResponses to true', async () => {
@@ -132,6 +145,49 @@ describe('SettingsContext Provider Integration', () => {
       expect(defaultSettingsConfig.alibabaModels).toEqual([])
     })
 
+    it('defaults DeepSeek models to the documented v4 model ids', async () => {
+      const { defaultSettingsConfig } = await import('./SettingsConfigContext')
+      expect(defaultSettingsConfig.deepseekModels).toEqual([
+        expect.objectContaining({
+          code: 'deepseek-v4-flash',
+          displayName: 'DeepSeek V4 Flash',
+          modelType: 'chat',
+        }),
+        expect.objectContaining({
+          code: 'deepseek-v4-pro',
+          displayName: 'DeepSeek V4 Pro',
+          modelType: 'reasoning',
+        }),
+      ])
+    })
+
+    it('derives provider-enabled defaults from the provider registry', async () => {
+      const { defaultSettingsConfig } = await import('./SettingsConfigContext')
+      expect(defaultSettingsConfig.providerEnabled).toEqual({
+        alibaba: true,
+        deepseek: true,
+        fireworks: true,
+        groq: true,
+        ollama: true,
+        openrouter: true,
+        perplexity: true,
+      })
+    })
+
+    it('strips all secure keys from persisted renderer settings', () => {
+      expect(
+        stripSecretSettings({
+          openRouterApiKey: 'or-key',
+          deepseekApiKey: 'deepseek-key',
+          tavilyApiKey: 'tavily-key',
+          onlineCompilerApiKey: 'compiler-key',
+          aiModel: 'deepseek-v4-flash',
+        })
+      ).toEqual({
+        aiModel: 'deepseek-v4-flash',
+      })
+    })
+
     it('migrates legacy Fireworks turbo model ids to the supported router id', () => {
       expect(
         migrateConfiguredModelCode({
@@ -154,6 +210,80 @@ describe('SettingsContext Provider Integration', () => {
     it('normalizes missing openRouterDebug to false', () => {
       const normalized = normalizeStoredSettings(JSON.stringify({}))
       expect(normalized.openRouterDebug).toBe(false)
+    })
+
+    it('migrates saved default web-search strategy to allow explicit parallel range batches', () => {
+      const legacyPrompt = `Custom header
+
+CRITICAL REQUIREMENTS:
+- After using web_search, you MUST include a Sources: section at the end of the response
+- In Sources:, list the relevant URLs as markdown links in the format [Title](URL)
+- Do not claim certainty beyond what the sources support
+
+SEARCH STRATEGY:
+- For research or discovery tasks, begin with ONE broad exploratory search
+- Do not pre-plan several searches from memory before seeing results
+- Let the first results guide follow-up searches`
+
+      const normalized = normalizeStoredSettings(JSON.stringify({ webSearchPrompt: legacyPrompt }))
+
+      expect(normalized.webSearchPrompt).toContain('do NOT start with one broad search')
+      expect(normalized.webSearchPrompt).toContain('one focused web_search call per slice')
+      expect(normalized.webSearchPrompt).toContain('web results can be incomplete')
+      expect(normalized.webSearchPrompt).toContain('prioritize official or primary sources')
+      expect(normalized.webSearchPrompt).toContain('Custom header')
+      expect(normalized.webSearchPrompt).toContain('Let the first results guide follow-up searches')
+      expect(normalized.webSearchPrompt).not.toContain(
+        'For research or discovery tasks, begin with ONE broad exploratory search'
+      )
+    })
+
+    it('drops legacy titleModelProvider when normalizing stored settings', async () => {
+      expect(
+        normalizeStoredSettings(
+          JSON.stringify({
+            titleModelProvider: 'groq',
+            titleModel: 'groq-primary',
+          })
+        )
+      ).toEqual(
+        expect.objectContaining({
+          titleModel: 'groq-primary',
+        })
+      )
+      expect(
+        'titleModelProvider' in
+          normalizeStoredSettings(
+            JSON.stringify({
+              titleModelProvider: 'groq',
+              titleModel: 'groq-primary',
+            })
+          )
+      ).toBe(false)
+    })
+
+    it('adds the web-search limitation note to saved prompts without duplicating it', () => {
+      const savedPrompt = `CRITICAL REQUIREMENTS:
+- After using web_search, you MUST include a Sources: section at the end of the response
+- In Sources:, list the relevant URLs as markdown links in the format [Title](URL)
+- Do not claim certainty beyond what the sources support`
+
+      const normalized = normalizeStoredSettings(JSON.stringify({ webSearchPrompt: savedPrompt }))
+      const matches = normalized.webSearchPrompt.match(/web results can be incomplete/g) || []
+
+      expect(matches).toHaveLength(1)
+    })
+
+    it('adds the primary-source verification note to saved prompts without duplicating it', () => {
+      const savedPrompt = `CRITICAL REQUIREMENTS:
+- In Sources:, list the relevant URLs as markdown links in the format [Title](URL)
+- Briefly note when the answer depends on web search results and that web results can be incomplete, outdated, or occasionally incorrect
+- Do not claim certainty beyond what the sources support`
+
+      const normalized = normalizeStoredSettings(JSON.stringify({ webSearchPrompt: savedPrompt }))
+      const matches = normalized.webSearchPrompt.match(/prioritize official or primary sources/g) || []
+
+      expect(matches).toHaveLength(1)
     })
 
     it('preserves an explicitly emptied provider model list', () => {

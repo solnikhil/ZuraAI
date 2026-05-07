@@ -65,6 +65,7 @@ export type SecureStorageKey =
   | 'groqApiKey'
   | 'tavilyApiKey'
   | 'alibabaApiKey'
+  | 'deepseekApiKey'
   | 'fireworksApiKey'
   | 'onlineCompilerApiKey'
 
@@ -114,6 +115,34 @@ export interface WindowBounds {
   height: number
 }
 
+export type NativeContextMenuAction =
+  | 'undo'
+  | 'redo'
+  | 'cut'
+  | 'copy'
+  | 'paste'
+  | 'select-all'
+  | 'chat-rename'
+  | 'chat-pin'
+  | 'chat-unpin'
+  | 'chat-duplicate'
+  | 'chat-delete'
+
+export type NativeContextMenuKind = 'default' | 'chat-row'
+
+export interface NativeContextMenuRequest {
+  hasSelection: boolean
+  isEditable: boolean
+  isContentEditable: boolean
+  hasLink: boolean
+  linkUrl: string
+  mouseX: number
+  mouseY: number
+  isDev: boolean
+  kind?: NativeContextMenuKind
+  isPinnedChatRow?: boolean
+}
+
 export type IpcSendChannel =
   | 'overlay:drag-start'
   | 'overlay:drag-move'
@@ -137,9 +166,11 @@ export type IpcInvokeChannel =
   | 'chat-store:save-folders'
   | 'secure-storage:get'
   | 'secure-storage:set'
+  | 'secure-storage:get-presence'
   | 'secure-storage:get-all'
   | 'execute-tool'
   | 'window-resize'
+  | 'context-menu:show'
   | 'updater:check-for-updates'
   | 'updater:quit-and-install'
   | 'updater:get-version'
@@ -152,9 +183,11 @@ export interface IpcInvokeArgsMap {
   'chat-store:save-folders': [folders: Folder[]]
   'secure-storage:get': [key: SecureStorageKey]
   'secure-storage:set': [key: SecureStorageKey, value: string]
+  'secure-storage:get-presence': []
   'secure-storage:get-all': []
   'execute-tool': [toolName: string, args: Record<string, unknown>]
   'window-resize': [newBounds: WindowBounds]
+  'context-menu:show': [request: NativeContextMenuRequest]
   'updater:check-for-updates': []
   'updater:quit-and-install': []
   'updater:get-version': []
@@ -168,9 +201,11 @@ export interface IpcInvokeReturnMap {
   'chat-store:save-folders': boolean
   'secure-storage:get': string
   'secure-storage:set': boolean
+  'secure-storage:get-presence': Record<SecureStorageKey, boolean>
   'secure-storage:get-all': Record<SecureStorageKey, string>
   'execute-tool': ToolResult
   'window-resize': void
+  'context-menu:show': void
   'updater:check-for-updates': UpdateCheckInfo | null
   'updater:quit-and-install': boolean
   'updater:get-version': string
@@ -182,8 +217,10 @@ export type IpcOnChannel =
   | 'prompt-popup:focus'
   | 'overlay:pending-prompt'
   | 'model-selector:open'
+  | 'app:new-chat'
   | 'settings:navigate'
   | 'chat-store:changed'
+  | 'context-menu:action'
 
 export interface IpcOnArgsMap {
   'update-available': [version: string]
@@ -191,8 +228,10 @@ export interface IpcOnArgsMap {
   'prompt-popup:focus': []
   'overlay:pending-prompt': [prompt: string]
   'model-selector:open': []
+  'app:new-chat': []
   'settings:navigate': [section: string]
   'chat-store:changed': []
+  'context-menu:action': [action: NativeContextMenuAction]
 }
 
 export interface IElectronAPI {
@@ -217,6 +256,7 @@ export interface IElectronAPI {
 export interface SecureStorageAPI {
   get: (key: SecureStorageKey) => Promise<string>
   set: (key: SecureStorageKey, value: string) => Promise<boolean>
+  getPresence: () => Promise<Record<SecureStorageKey, boolean>>
   getAll: () => Promise<Record<SecureStorageKey, string>>
 }
 
@@ -272,6 +312,11 @@ export interface ShellAPI {
 
 export interface DevToolsAPI {
   inspectElement: (x: number, y: number) => Promise<void>
+}
+
+export interface ContextMenuAPI {
+  show: (request: NativeContextMenuRequest) => Promise<void>
+  onAction: (callback: (action: NativeContextMenuAction) => void) => () => void
 }
 
 export interface CodeExecutionAPI {

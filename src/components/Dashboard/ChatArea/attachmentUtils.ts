@@ -42,6 +42,7 @@ interface AttachmentSettingsLike {
   modelProvider: AttachmentProvider
   alibabaModels?: ModelLike[]
   configuredModels?: ModelLike[]
+  deepseekModels?: ModelLike[]
   fireworksModels?: ModelLike[]
   groqModels?: ModelLike[]
   ollamaModels?: ModelLike[]
@@ -59,6 +60,36 @@ export interface ConversationMessage {
   files?: AttachedFile[]
 }
 
+const TEXT_ATTACHMENT_MIME_TYPES = new Set([
+  'application/json',
+  'application/ld+json',
+  'application/xml',
+  'application/x-yaml',
+  'application/yaml',
+  'text/csv',
+  'text/json',
+  'text/markdown',
+  'text/plain',
+  'text/tab-separated-values',
+  'text/xml',
+  'text/yaml',
+])
+
+const TEXT_ATTACHMENT_EXTENSIONS = new Set([
+  '.csv',
+  '.json',
+  '.md',
+  '.markdown',
+  '.txt',
+  '.tsv',
+  '.xml',
+  '.yaml',
+  '.yml',
+])
+
+const MAX_ATTACHMENT_TEXT_CHARS = 12_000
+const MAX_TOTAL_ATTACHMENT_TEXT_CHARS = 24_000
+
 function getFileFingerprint(file: Pick<AttachedFile, 'name' | 'size' | 'mimeType'>) {
   return `${file.name}::${file.size}::${file.mimeType}`
 }
@@ -74,6 +105,21 @@ function readFileAsDataUrl(file: File) {
 
 export function isImageAttachment(file: Pick<AttachedFile, 'type' | 'mimeType'>) {
   return file.type === 'image' || file.mimeType.startsWith('image/')
+}
+
+function getFileExtension(name: string) {
+  const match = /\.[^.]+$/.exec(name.toLowerCase())
+  return match?.[0] || ''
+}
+
+export function isTextExtractableAttachment(file: Pick<AttachedFile, 'name' | 'mimeType' | 'type'>) {
+  if (isImageAttachment(file)) return false
+
+  const mimeType = file.mimeType.toLowerCase()
+  if (mimeType.startsWith('text/')) return true
+  if (TEXT_ATTACHMENT_MIME_TYPES.has(mimeType)) return true
+
+  return TEXT_ATTACHMENT_EXTENSIONS.has(getFileExtension(file.name))
 }
 
 export function splitAttachedFiles(files: AttachedFile[]) {
@@ -170,13 +216,84 @@ function stripDataUrlPrefix(dataUrl: string) {
   return parts.length === 2 ? parts[1] : dataUrl
 }
 
+function decodeBase64Utf8(base64: string) {
+  const binary = atob(base64)
+  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0))
+  return new TextDecoder().decode(bytes)
+}
+
+function dataUrlToText(dataUrl: string) {
+  const parts = dataUrl.split(',', 2)
+  if (parts.length !== 2) return ''
+
+  const [header, payload] = parts
+  if (/;base64/i.test(header)) {
+    return decodeBase64Utf8(payload)
+  }
+
+  try {
+    return decodeURIComponent(payload)
+  } catch {
+    return payload
+  }
+}
+
+function formatAttachmentExcerpt(file: AttachedFile) {
+  const rawText = dataUrlToText(file.data).trim()
+  if (!rawText) return null
+
+  const excerpt =
+    rawText.length > MAX_ATTACHMENT_TEXT_CHARS
+      ? `${rawText.slice(0, MAX_ATTACHMENT_TEXT_CHARS)}\n[Truncated]`
+      : rawText
+
+  return `Attached file: ${file.name}\n\`\`\`\n${excerpt}\n\`\`\``
+}
+
+export function buildAttachmentText(files?: AttachedFile[]) {
+  if (!files?.length) return ''
+
+  const excerpts: string[] = []
+  let consumedChars = 0
+
+  for (const file of files) {
+    if (!isTextExtractableAttachment(file)) continue
+
+    const excerpt = formatAttachmentExcerpt(file)
+    if (!excerpt) continue
+
+    if (consumedChars >= MAX_TOTAL_ATTACHMENT_TEXT_CHARS) break
+
+    const remainingChars = MAX_TOTAL_ATTACHMENT_TEXT_CHARS - consumedChars
+    const boundedExcerpt =
+      excerpt.length > remainingChars
+        ? `${excerpt.slice(0, remainingChars)}\n[Attachment context truncated]`
+        : excerpt
+
+    excerpts.push(boundedExcerpt)
+    consumedChars += boundedExcerpt.length
+  }
+
+  if (excerpts.length === 0) return ''
+
+  return `Attached file contents:\n\n${excerpts.join('\n\n')}`
+}
+
+function buildTextContent(content: string, files?: AttachedFile[]) {
+  const attachmentText = buildAttachmentText(files)
+  if (!attachmentText) return content
+  if (!content.trim()) return attachmentText
+  return `${content}\n\n${attachmentText}`
+}
+
 function buildOpenAIImageParts(content: string, files?: AttachedFile[]): MessageContent[] | null {
   const imageFiles = (files || []).filter(isImageAttachment)
   if (imageFiles.length === 0) return null
 
   const parts: MessageContent[] = []
-  if (content.trim()) {
-    parts.push({ type: 'text', text: content })
+  const textContent = buildTextContent(content, files)
+  if (textContent.trim()) {
+    parts.push({ type: 'text', text: textContent })
   }
 
   for (const file of imageFiles) {
@@ -191,21 +308,22 @@ function buildOpenAIImageParts(content: string, files?: AttachedFile[]): Message
 
 function toProviderMessage(message: ConversationMessage, provider: AttachmentProvider): ComposerMessage {
   const imageFiles = (message.files || []).filter(isImageAttachment)
+  const textContent = buildTextContent(message.content, message.files)
   if (imageFiles.length === 0) {
-    return { role: message.role, content: message.content }
+    return { role: message.role, content: textContent }
   }
 
   if (provider === 'ollama') {
     return {
       role: message.role,
-      content: message.content,
+      content: textContent,
       images: imageFiles.map((file) => stripDataUrlPrefix(file.data)),
     }
   }
 
-  const contentParts = buildOpenAIImageParts(message.content as string, imageFiles)
+  const contentParts = buildOpenAIImageParts(message.content as string, message.files)
   if (!contentParts) {
-    return { role: message.role, content: message.content }
+    return { role: message.role, content: textContent }
   }
 
   return {
@@ -219,7 +337,10 @@ export function buildProviderMessages(
   provider: AttachmentProvider
 ): ComposerMessage[] {
   if (provider === 'ollama' && !providerSupportsVisionUploadsFromRegistry(provider)) {
-    return messages.map((message) => ({ role: message.role, content: message.content }))
+    return messages.map((message) => ({
+      role: message.role,
+      content: buildTextContent(message.content, message.files),
+    }))
   }
   return messages.map((message) => toProviderMessage(message, provider))
 }

@@ -12,7 +12,7 @@ export type ToolCategory = 'search' | 'utility' | 'system' | 'browser' | 'mcp' |
 export interface BuiltinToolExecutionMetadata {
     origin: 'builtin-main' | 'builtin-renderer'
     executionDisposition?: 'executed' | 'skipped'
-    skippedReason?: 'budget' | 'duplicate-query' | 'duplicate-facet'
+    skippedReason?: 'budget'
 }
 
 export type ToolExecutionMetadata = BuiltinToolExecutionMetadata | McpToolExecutionMetadata

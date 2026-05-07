@@ -47,7 +47,7 @@ body:
       label: Where did you hit this?
       options:
         - Packaged desktop app
-        - Local dev build (npm run dev)
+        - Local dev build (bun run dev)
         - Renderer preview/build
         - Docs only
         - Not sure

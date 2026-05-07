@@ -4,6 +4,7 @@ import TitleBarNavigation from './TitleBarNavigation'
 interface TitleBarSidebarControlsProps {
   canGoBack: boolean
   canGoForward: boolean
+  isMacOS: boolean
   onBack: () => void
   onForward: () => void
   hasSidebar: boolean
@@ -16,6 +17,7 @@ interface TitleBarSidebarControlsProps {
 export default function TitleBarSidebarControls({
   canGoBack,
   canGoForward,
+  isMacOS,
   onBack,
   onForward,
   hasSidebar,
@@ -27,7 +29,16 @@ export default function TitleBarSidebarControls({
   return (
     <>
       {hasSidebar && (
-        <div className="app-titlebar__controls no-drag">
+        <div
+          className={[
+            'app-titlebar__controls',
+            'app-titlebar__controls--sidebar',
+            'no-drag',
+            isMacOS ? 'app-titlebar__controls--macos' : null,
+          ]
+            .filter(Boolean)
+            .join(' ')}
+        >
           <button
             type="button"
             className="app-titlebar__icon-btn app-titlebar__icon-btn--nav"

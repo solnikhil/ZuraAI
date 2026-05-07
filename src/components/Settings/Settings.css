@@ -3,9 +3,9 @@
 .settings-container {
     display: flex;
     height: 100%;
-    background-color: var(--theme-background);
+    background-color: var(--theme-content-solid);
     color: var(--theme-text-secondary);
-    font-family: 'Google Sans Flex', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: var(--font-sans);
     overflow: hidden;
     gap: 0;
 }
@@ -397,16 +397,20 @@
 /* Activity section */
 
 .activity-section {
-    background: var(--theme-surface);
-    border: 1px solid var(--theme-border);
+    background:
+        linear-gradient(180deg,
+            color-mix(in srgb, var(--theme-surface) 92%, var(--theme-accent) 8%),
+            color-mix(in srgb, var(--theme-background) 88%, var(--theme-surface) 12%));
+    border: 1px solid color-mix(in srgb, var(--theme-border) 78%, var(--theme-accent) 22%);
     border-radius: 12px;
     padding: 20px;
     margin-top: 20px;
+    box-shadow: inset 0 1px 0 color-mix(in srgb, white 5%, transparent);
     transition: border-color 180ms ease, background-color 180ms ease, box-shadow 220ms ease;
 }
 
 .activity-section:hover {
-    border-color: var(--theme-border-hover);
+    border-color: color-mix(in srgb, var(--theme-border-hover) 72%, var(--theme-accent) 28%);
     box-shadow: var(--theme-shadow-sm);
 }
 
@@ -460,6 +464,10 @@
 .activity-section--embedded {
     margin-top: 0;
     height: 100%;
+    background:
+        linear-gradient(180deg,
+            color-mix(in srgb, var(--theme-surface) 86%, var(--theme-accent) 14%),
+            color-mix(in srgb, var(--theme-background) 90%, var(--theme-surface) 10%));
 }
 
 /* Usage Bento Layout */
@@ -506,11 +514,17 @@
 }
 
 .usage-chart-surface {
+    background:
+        linear-gradient(180deg,
+            color-mix(in srgb, var(--theme-surface-hover) 72%, var(--theme-accent) 12%),
+            color-mix(in srgb, var(--theme-background) 92%, var(--theme-surface) 8%));
+    border: 1px solid color-mix(in srgb, var(--theme-border) 76%, var(--theme-accent) 24%);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, white 4%, transparent);
     transition: border-color var(--motion-duration-normal) var(--motion-ease-standard), box-shadow var(--motion-duration-normal) var(--motion-ease-standard);
 }
 
 .usage-chart-surface:hover {
-    border-color: var(--theme-border-hover) !important;
+    border-color: color-mix(in srgb, var(--theme-border-hover) 70%, var(--theme-accent) 30%) !important;
     box-shadow: var(--theme-shadow-sm);
 }
 
@@ -1356,7 +1370,7 @@
 
 .settings-container {
     position: relative;
-    background: var(--theme-background);
+    background: var(--theme-content-solid);
     color: var(--theme-text-secondary);
 }
 
@@ -1984,8 +1998,8 @@
 .settings-container {
     position: relative;
     isolation: isolate;
-    --settings-panel-container-bg: #212121;
-    background: var(--theme-background);
+    --settings-panel-container-bg: var(--theme-background);
+    background: var(--theme-content-solid);
 }
 
 .settings-shell {
@@ -2088,10 +2102,7 @@
     border: 1px solid color-mix(in srgb, var(--theme-border) 88%, transparent);
     border-radius: 16px;
     padding: 14px 16px;
-    background:
-        radial-gradient(120% 170% at 100% 0%, color-mix(in srgb, var(--theme-accent) 16%, transparent) 0%, transparent 55%),
-        linear-gradient(170deg, color-mix(in srgb, var(--theme-surface) 94%, transparent), color-mix(in srgb, var(--theme-background) 90%, transparent));
-    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    background: var(--theme-surface);
 }
 
 .provider-hub-header__intro {
@@ -2156,17 +2167,32 @@
 .provider-hub-api-card {
     border: 1px solid color-mix(in srgb, var(--theme-border) 74%, transparent) !important;
     border-radius: 13px !important;
-    background:
-        linear-gradient(165deg, color-mix(in srgb, var(--theme-surface) 96%, transparent), color-mix(in srgb, var(--theme-background) 90%, transparent)) !important;
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.22);
-    transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.2s ease;
+    background: color-mix(in srgb, var(--theme-surface) 92%, var(--theme-background) 8%) !important;
+    box-shadow: none;
+    transition: border-color 0.18s ease, background-color 0.18s ease;
 }
 
 .provider-hub-provider-card:hover,
 .provider-hub-api-card:hover {
-    transform: translateY(-1px);
-    border-color: color-mix(in srgb, var(--theme-accent) 40%, transparent) !important;
-    box-shadow: 0 14px 24px rgba(0, 0, 0, 0.26);
+    transform: none;
+    border-color: color-mix(in srgb, var(--theme-border-hover) 78%, transparent) !important;
+    box-shadow: none;
+}
+
+.provider-hub-provider-row {
+    position: relative;
+    background: transparent;
+    border-left: 2px solid transparent;
+    transition: background-color 0.18s ease, border-color 0.18s ease;
+}
+
+.provider-hub-provider-row:hover {
+    background: color-mix(in srgb, var(--theme-surface-hover) 74%, transparent);
+}
+
+.provider-hub-provider-row:focus-visible {
+    outline: none;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--theme-accent) 34%, transparent);
 }
 
 .provider-hub-connectivity {

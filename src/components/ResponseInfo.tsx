@@ -4,6 +4,8 @@ interface UsageData {
     inputTokens?: number
     outputTokens?: number
     totalTokens?: number
+    cachedInputTokens?: number
+    cachedOutputTokens?: number
     tps?: number
     ttft?: number
     // Provider-specific field names (OpenAI/Groq format)
@@ -32,6 +34,9 @@ export default function ResponseInfo({ model, latency, usage, finishReason, requ
     const inputTokens = usage?.inputTokens ?? usage?.prompt_tokens ?? usage?.prompt_eval_count ?? 0
     const outputTokens = usage?.outputTokens ?? usage?.completion_tokens ?? usage?.eval_count ?? 0
     const totalTokens = usage?.totalTokens ?? usage?.total_tokens ?? 0
+    const cachedInputTokens = usage?.cachedInputTokens ?? 0
+    const cachedOutputTokens = usage?.cachedOutputTokens ?? 0
+    const shouldShowCachedTokens = cachedInputTokens > 0 || cachedOutputTokens > 0
 
     const tokenMax = Math.max(inputTokens, outputTokens, 1)
 
@@ -222,6 +227,23 @@ export default function ResponseInfo({ model, latency, usage, finishReason, requ
                                 }} />
                             </div>
                         </div>
+
+                        {shouldShowCachedTokens && (
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '6px 12px', padding: '2px 0 0' }}>
+                                <span style={{ fontSize: '10px', color: 'var(--theme-text-muted)', fontWeight: 500 }}>
+                                    Cached input
+                                </span>
+                                <span style={{ fontSize: '11px', color: 'var(--theme-text-secondary)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+                                    {fmt(cachedInputTokens)}
+                                </span>
+                                <span style={{ fontSize: '10px', color: 'var(--theme-text-muted)', fontWeight: 500 }}>
+                                    Cached output
+                                </span>
+                                <span style={{ fontSize: '11px', color: 'var(--theme-text-secondary)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+                                    {fmt(cachedOutputTokens)}
+                                </span>
+                            </div>
+                        )}
                     </div>
 
                     {/* Speed / TTFT row */}

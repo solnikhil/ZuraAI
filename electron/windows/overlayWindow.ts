@@ -2,6 +2,7 @@ import { app, BrowserWindow, globalShortcut, screen } from 'electron'
 import path from 'path'
 
 import { getMainWindow, resolveDistPath, showMainWindow } from './mainWindow'
+import { resolveAppIconPath } from '../windowIcon'
 
 export type OverlayMode = 'hidden' | 'compact' | 'expanded'
 
@@ -49,6 +50,8 @@ const WINDOW_HEIGHTS = {
 const MIN_WIDTH = 320
 const MAX_WIDTH = 640
 const WINDOW_MARGIN = 20
+const OVERLAY_SUPPORTED =
+  process.platform !== 'darwin' || process.env.ZURA_ENABLE_MACOS_FLOATING_WINDOWS === 'true'
 
 let overlayWindow: BrowserWindow | null = null
 let overlaySettings: OverlaySettings = { ...DEFAULT_SETTINGS }
@@ -73,6 +76,14 @@ function clampWidth(width: number, fallback: number): number {
 }
 
 function sanitizeSettings(input: Partial<OverlaySettings>): OverlaySettings {
+  if (!OVERLAY_SUPPORTED) {
+    return {
+      ...DEFAULT_SETTINGS,
+      enabled: false,
+      launchOnStartup: false,
+    }
+  }
+
   const compactWidth = clampWidth(input.compactWidth ?? overlaySettings.compactWidth, DEFAULT_SETTINGS.compactWidth)
   const expandedWidth = Math.max(
     compactWidth,
@@ -137,12 +148,17 @@ function applyWindowBounds(mode: Exclude<OverlayMode, 'hidden'>) {
 }
 
 function createOverlayWindow(): BrowserWindow {
+  if (!OVERLAY_SUPPORTED) {
+    throw new Error('Overlay is disabled on macOS.')
+  }
+
   if (overlayWindow && !overlayWindow.isDestroyed()) {
     return overlayWindow
   }
 
   const distPath = resolveDistPath(__dirname)
   const initialBounds = getOverlayBounds(overlayMode)
+  const isMacOS = process.platform === 'darwin'
 
   overlayWindow = new BrowserWindow({
     ...initialBounds,
@@ -151,7 +167,7 @@ function createOverlayWindow(): BrowserWindow {
     maxWidth: MAX_WIDTH,
     maxHeight: WINDOW_HEIGHTS.expanded,
     title: 'ZuraAI Overlay',
-    icon: path.join(process.env.PUBLIC || '', 'icon.png'),
+    icon: resolveAppIconPath(),
     frame: false,
     resizable: false,
     minimizable: false,
@@ -162,7 +178,7 @@ function createOverlayWindow(): BrowserWindow {
     alwaysOnTop: true,
     transparent: true,
     backgroundColor: '#00000000',
-    hasShadow: false,
+    hasShadow: isMacOS,
     autoHideMenuBar: true,
     backgroundMaterial: 'none',
     webPreferences: {
@@ -178,6 +194,9 @@ function createOverlayWindow(): BrowserWindow {
   })
 
   overlayWindow.setAlwaysOnTop(true, 'floating')
+  if (isMacOS) {
+    overlayWindow.setVisibleOnAllWorkspaces?.(true, { visibleOnFullScreen: true })
+  }
 
   const loadPromise = process.env.VITE_DEV_SERVER_URL
     ? overlayWindow.loadURL(`${process.env.VITE_DEV_SERVER_URL}#/overlay`)
@@ -214,7 +233,7 @@ function unregisterShortcut() {
 function registerShortcut() {
   unregisterShortcut()
 
-  if (!overlaySettings.enabled || !overlaySettings.hotkey) {
+  if (!OVERLAY_SUPPORTED || !overlaySettings.enabled || !overlaySettings.hotkey) {
     return
   }
 
@@ -239,6 +258,7 @@ function handleDisplayMetricsChanged() {
 }
 
 export function initializeOverlay(): void {
+  if (!OVERLAY_SUPPORTED) return
   if (initialized) return
   initialized = true
 
@@ -267,7 +287,7 @@ export function getOverlayState(): OverlayState {
   return {
     visible,
     mode: visible ? overlayMode : 'hidden',
-    enabled: overlaySettings.enabled,
+    enabled: OVERLAY_SUPPORTED && overlaySettings.enabled,
     shortcutRegistered,
     hotkey: overlaySettings.hotkey,
     launchOnStartup: overlaySettings.launchOnStartup,
@@ -293,7 +313,7 @@ export function applyOverlaySettings(input: Partial<OverlaySettings>): OverlaySt
 }
 
 export async function showOverlay(): Promise<OverlayState> {
-  if (!overlaySettings.enabled) {
+  if (!OVERLAY_SUPPORTED || !overlaySettings.enabled) {
     return getOverlayState()
   }
 
@@ -315,7 +335,7 @@ export async function hideOverlay(): Promise<OverlayState> {
 }
 
 export async function expandOverlay(): Promise<OverlayState> {
-  if (!overlaySettings.enabled) {
+  if (!OVERLAY_SUPPORTED || !overlaySettings.enabled) {
     return getOverlayState()
   }
 
@@ -329,7 +349,7 @@ export async function expandOverlay(): Promise<OverlayState> {
 }
 
 export async function collapseOverlay(): Promise<OverlayState> {
-  if (!overlaySettings.enabled) {
+  if (!OVERLAY_SUPPORTED || !overlaySettings.enabled) {
     return getOverlayState()
   }
 
@@ -337,7 +357,7 @@ export async function collapseOverlay(): Promise<OverlayState> {
 }
 
 export async function toggleOverlay(): Promise<OverlayState> {
-  if (!overlaySettings.enabled) {
+  if (!OVERLAY_SUPPORTED || !overlaySettings.enabled) {
     return getOverlayState()
   }
 
@@ -382,7 +402,7 @@ export async function showOverlayAtPosition(
   anchorBounds?: OverlayAnchorBounds,
   mode: Exclude<OverlayMode, 'hidden'> = 'expanded'
 ): Promise<BrowserWindow | null> {
-  if (!overlaySettings.enabled) {
+  if (!OVERLAY_SUPPORTED || !overlaySettings.enabled) {
     return null
   }
 

@@ -1,5 +1,5 @@
 import { ColorPalette, Theme } from './themeDefinitions'
-import { derivePaletteFromBase } from './themeRegistry'
+import { derivePaletteFromBase, mixHex } from './themeRegistry'
 
 const THEME_CSS_VAR_MAP = {
   background: '--theme-background',
@@ -102,6 +102,20 @@ export function applyThemeToDocument(theme: Theme, options?: ApplyThemeOptions):
     root.style.setProperty(cssVar, value)
   }
 
+  root.style.setProperty('--theme-sidebar-solid', effectiveTheme.colors.background)
+  // Content area is intentionally darker than card surfaces so cards pop
+  const contentSolid = mixHex(effectiveTheme.colors.background, '#ffffff', 0.04)
+  root.style.setProperty('--theme-content-solid', contentSolid)
+  root.style.setProperty(
+    '--theme-chrome-elevated',
+    effectiveTheme.colors.surfaceActive
+  )
+  root.style.setProperty(
+    '--theme-panel-inset',
+    effectiveTheme.colors.surfaceHover
+  )
+
   root.setAttribute('data-theme', theme.id)
   root.classList.toggle('dark', effectiveTheme.isDark)
+  root.style.colorScheme = effectiveTheme.isDark ? 'dark' : 'light'
 }

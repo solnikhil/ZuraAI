@@ -6,6 +6,17 @@ export interface ToolCallFallbackContext {
   reasoning?: string
 }
 
+export type InlineToolMarkupFormat = 'xml' | 'dsml'
+
+export interface InlineToolCallExtractionResult {
+  toolCalls: ToolCall[]
+  cleanedContent: string
+  format: InlineToolMarkupFormat | null
+  hadMarkup: boolean
+  recoveredToolNames: string[]
+  rawPreview: string
+}
+
 function isJsonComplete(str: string): boolean {
   const trimmed = str.trim()
   if (trimmed.length === 0) return false
@@ -178,18 +189,20 @@ function parseXmlToolCallArgs(toolName: string, innerContent: string): Record<st
   return fallbackQuery ? { query: fallbackQuery } : null
 }
 
-export function extractXmlToolCallsFromContent(
-  content: string | null | undefined,
+function extractXmlToolCalls(
+  rawContent: string,
   fallbackContext?: ToolCallFallbackContext | null
-): { toolCalls: ToolCall[]; cleanedContent: string } {
-  const rawContent = typeof content === 'string' ? content : ''
-  if (!rawContent.trim()) {
-    return { toolCalls: [], cleanedContent: '' }
-  }
-
+): InlineToolCallExtractionResult {
   const matches = Array.from(rawContent.matchAll(/<tool_call>([\s\S]*?)<\/tool_call>/gi))
   if (matches.length === 0) {
-    return { toolCalls: [], cleanedContent: rawContent }
+    return {
+      toolCalls: [],
+      cleanedContent: rawContent,
+      format: null,
+      hadMarkup: false,
+      recoveredToolNames: [],
+      rawPreview: '',
+    }
   }
 
   const toolCalls: ToolCall[] = []
@@ -226,7 +239,125 @@ export function extractXmlToolCallsFromContent(
     .replace(/\n{3,}/g, '\n\n')
     .trim()
 
-  return { toolCalls, cleanedContent }
+  return {
+    toolCalls,
+    cleanedContent,
+    format: 'xml',
+    hadMarkup: true,
+    recoveredToolNames: toolCalls.map((toolCall) => toolCall.name),
+    rawPreview: matches.map((match) => match[0]).join('\n').slice(0, 240),
+  }
+}
+
+function parseDsmlToolCallArgs(toolName: string, innerContent: string): Record<string, unknown> | null {
+  const args: Record<string, unknown> = {}
+  const parameterPattern =
+    /<\s*\|\s*\|\s*DSML\s*\|\s*\|\s*parameter\s+name="([^"]+)"(?:\s+string="(?:true|false)")?\s*>([\s\S]*?)<\s*\/\s*\|\s*\|\s*DSML\s*\|\s*\|\s*parameter\s*>/gi
+
+  for (const match of innerContent.matchAll(parameterPattern)) {
+    const key = match[1]?.trim()
+    const value = match[2]?.trim()
+    if (!key || value == null || value.length === 0) continue
+    args[key] = value
+  }
+
+  if (Object.keys(args).length > 0) {
+    return args
+  }
+
+  const fallbackQuery = extractFallbackQuery(toolName, { reasoning: innerContent })
+  return fallbackQuery ? { query: fallbackQuery } : null
+}
+
+function extractDsmlToolCalls(
+  rawContent: string,
+  fallbackContext?: ToolCallFallbackContext | null
+): InlineToolCallExtractionResult {
+  const blockPattern =
+    /<\s*\|\s*\|\s*DSML\s*\|\s*\|\s*tool_calls\s*>([\s\S]*?)<\s*\/\s*\|\s*\|\s*DSML\s*\|\s*\|\s*tool_calls\s*>/gi
+  const matches = Array.from(rawContent.matchAll(blockPattern))
+  if (matches.length === 0) {
+    return {
+      toolCalls: [],
+      cleanedContent: rawContent,
+      format: null,
+      hadMarkup: false,
+      recoveredToolNames: [],
+      rawPreview: '',
+    }
+  }
+
+  const toolCalls: ToolCall[] = []
+  const invokePattern =
+    /<\s*\|\s*\|\s*DSML\s*\|\s*\|\s*invoke\s+name="([^"]+)"\s*>([\s\S]*?)<\s*\/\s*\|\s*\|\s*DSML\s*\|\s*\|\s*invoke\s*>/gi
+
+  matches.forEach((blockMatch) => {
+    const blockContent = blockMatch[1] || ''
+    for (const invokeMatch of blockContent.matchAll(invokePattern)) {
+      const toolName = invokeMatch[1]?.trim()
+      const innerContent = invokeMatch[2]?.trim() || ''
+      if (!toolName) continue
+
+      let args = parseDsmlToolCallArgs(toolName, innerContent)
+      if (!args) {
+        const fallbackQuery = extractFallbackQuery(toolName, fallbackContext)
+        if (fallbackQuery) {
+          args = { query: fallbackQuery }
+        } else {
+          args = getSyntheticErrorArgs(toolName)
+        }
+      }
+
+      toolCalls.push({
+        id: `content-tool-call-${toolCalls.length + 1}`,
+        name: toolName,
+        arguments: args,
+      })
+    }
+  })
+
+  const cleanedContent = rawContent
+    .replace(blockPattern, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+
+  return {
+    toolCalls,
+    cleanedContent,
+    format: 'dsml',
+    hadMarkup: true,
+    recoveredToolNames: toolCalls.map((toolCall) => toolCall.name),
+    rawPreview: matches.map((match) => match[0]).join('\n').slice(0, 240),
+  }
+}
+
+export function extractInlineToolCallsFromContent(
+  content: string | null | undefined,
+  fallbackContext?: ToolCallFallbackContext | null
+): InlineToolCallExtractionResult {
+  const rawContent = typeof content === 'string' ? content : ''
+  if (!rawContent.trim()) {
+    return {
+      toolCalls: [],
+      cleanedContent: '',
+      format: null,
+      hadMarkup: false,
+      recoveredToolNames: [],
+      rawPreview: '',
+    }
+  }
+
+  const dsml = extractDsmlToolCalls(rawContent, fallbackContext)
+  if (dsml.hadMarkup) return dsml
+
+  return extractXmlToolCalls(rawContent, fallbackContext)
+}
+
+export function extractXmlToolCallsFromContent(
+  content: string | null | undefined,
+  fallbackContext?: ToolCallFallbackContext | null
+): InlineToolCallExtractionResult {
+  return extractInlineToolCallsFromContent(content, fallbackContext)
 }
 
 function extractFallbackQuery(
@@ -373,7 +504,7 @@ export function parseOpenRouterToolCalls(
   }
 
   if (!message.tool_calls || message.tool_calls.length === 0) {
-    return extractXmlToolCallsFromContent(message.content, fallbackContext).toolCalls
+    return extractInlineToolCallsFromContent(message.content, fallbackContext).toolCalls
   }
 
   const toolCalls: ToolCall[] = []
@@ -426,5 +557,5 @@ export function hasToolCalls(response: OpenRouterResponse): boolean {
   const message = response.choices?.[0]?.message
   if (!message) return false
   if (message.tool_calls && message.tool_calls.length > 0) return true
-  return extractXmlToolCallsFromContent(message.content).toolCalls.length > 0
+  return extractInlineToolCallsFromContent(message.content).toolCalls.length > 0
 }

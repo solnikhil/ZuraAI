@@ -44,16 +44,23 @@ import {
 } from '@/components/ui/dialog'
 import { ProviderLogo, SkillLogo } from '@/components/shared'
 import type { ConfiguredModel, TavilySearchDepthPreference } from '@/contexts/SettingsConfigContext'
+import { isSecureApiKeyPlaceholder, resolveApiKeyFromSecureStorage } from '@/utils/secureApiKeys'
 import { CreateCustomModelDialog } from './CreateCustomModelDialog'
 import { AlibabaModelSearchDialog } from './AlibabaModelSearchDialog'
+import { DeepseekModelSearchDialog } from './DeepseekModelSearchDialog'
 import { FireworksModelSearchDialog } from './FireworksModelSearchDialog'
 import { OpenRouterModelSearchDialog } from './OpenRouterModelSearchDialog'
 import { PerplexityModelSearchDialog } from './PerplexityModelSearchDialog'
 import {
   DEFAULT_OLLAMA_URL,
-  getActiveProviderDefinitions,
   getProviderEndpoint,
+  getProviderDashboardUrl,
+  getProviderEnabledDefaults,
+  getProviderModelListField,
+  getSettingsVisibleProviders,
   type ProviderId,
+  type ProviderModelListKey,
+  type ProviderSecretField,
 } from '../../../providers'
 
 type ManageMode = 'providers' | 'search-apis'
@@ -66,40 +73,18 @@ interface ProviderDefinition {
   key: ProviderKey
   name: string
   description: string
-  apiKeyField?: keyof Pick<
-    ProviderHubSectionProps,
-    'alibabaApiKey' | 'fireworksApiKey' | 'groqApiKey' | 'openRouterApiKey' | 'perplexityApiKey'
-  >
+  apiKeyField?: ProviderSecretField
 }
-
-type ProviderModelListField =
-  | 'configuredModels'
-  | 'perplexityModels'
-  | 'groqModels'
-  | 'alibabaModels'
-  | 'fireworksModels'
-  | 'ollamaModels'
-
-const PROVIDERS: ProviderDefinition[] = getActiveProviderDefinitions().map((provider) => ({
-  key: provider.id as ProviderKey,
+const PROVIDERS: ProviderDefinition[] = getSettingsVisibleProviders().map((provider) => ({
+  key: provider.id,
   name: provider.label,
   description: provider.description,
-  apiKeyField:
-    provider.id === 'openrouter'
-      ? 'openRouterApiKey'
-      : provider.id === 'groq'
-        ? 'groqApiKey'
-        : provider.id === 'alibaba'
-          ? 'alibabaApiKey'
-          : provider.id === 'fireworks'
-            ? 'fireworksApiKey'
-            : provider.id === 'perplexity'
-              ? 'perplexityApiKey'
-              : undefined,
+  apiKeyField: provider.secretKeyField,
 }))
 
 const PROVIDER_ENDPOINTS: Record<ProviderKey, string> = {
   alibaba: getProviderEndpoint('alibaba', 'baseUrl') || '',
+  deepseek: getProviderEndpoint('deepseek', 'baseUrl') || '',
   fireworks: getProviderEndpoint('fireworks', 'baseUrl') || '',
   groq: getProviderEndpoint('groq', 'baseUrl') || '',
   ollama: getProviderEndpoint('ollama', 'baseUrl') || DEFAULT_OLLAMA_URL,
@@ -107,32 +92,38 @@ const PROVIDER_ENDPOINTS: Record<ProviderKey, string> = {
   perplexity: getProviderEndpoint('perplexity', 'baseUrl') || '',
 }
 
-const PROVIDER_DASHBOARD_URLS: Partial<Record<ProviderKey, string>> = {
-  alibaba: 'https://dashscope.console.aliyun.com/',
-  fireworks: 'https://fireworks.ai/account/api-keys',
-  groq: 'https://console.groq.com/keys',
-  openrouter: 'https://openrouter.ai/settings/keys',
-  perplexity: 'https://www.perplexity.ai/settings/api',
-}
-
-const CATALOG_BASE_BACKGROUND = '#212121'
-const CATALOG_CARD_BACKGROUND = '#2c2c2c'
+const CATALOG_BASE_BACKGROUND = 'var(--theme-background)'
+const CATALOG_CARD_BACKGROUND =
+  'color-mix(in srgb, var(--theme-surface) 86%, var(--theme-background) 14%)'
+const STATUS_COLORS = {
+  success: {
+    background: 'color-mix(in srgb, var(--theme-success) 14%, transparent)',
+    color: 'var(--theme-success)',
+  },
+  warning: {
+    background: 'color-mix(in srgb, var(--theme-warning) 14%, transparent)',
+    color: 'var(--theme-warning)',
+  },
+  error: {
+    border: 'color-mix(in srgb, var(--theme-error) 56%, transparent)',
+    background: 'color-mix(in srgb, var(--theme-error) 22%, transparent)',
+    icon: 'var(--theme-error)',
+  },
+  connectivitySuccess: {
+    border: 'color-mix(in srgb, var(--theme-success) 40%, transparent)',
+    background: 'color-mix(in srgb, var(--theme-success) 20%, transparent)',
+    icon: 'var(--theme-success)',
+  },
+} as const
 const DEFAULT_PROVIDER_ENABLED: Record<ProviderKey, boolean> = {
-  alibaba: true,
-  fireworks: true,
-  groq: true,
-  ollama: true,
-  openrouter: true,
-  perplexity: true,
-}
+  ...getProviderEnabledDefaults(),
+} as Record<ProviderKey, boolean>
 
-const PROVIDER_MODEL_LIST_FIELD: Record<ProviderKey, ProviderModelListField> = {
-  openrouter: 'configuredModels',
-  perplexity: 'perplexityModels',
-  groq: 'groqModels',
-  alibaba: 'alibabaModels',
-  fireworks: 'fireworksModels',
-  ollama: 'ollamaModels',
+function getSecretFieldPlaceholder(label: string, value: string | undefined): string {
+  if (isSecureApiKeyPlaceholder(value)) {
+    return `${label} stored securely. Enter a new key to replace it.`
+  }
+  return `${label} API Key`
 }
 
 type SearchApiKey = 'tavily' | 'onlinecompiler'
@@ -180,6 +171,7 @@ interface ModelBasic {
 
 export interface ProviderHubSectionProps {
   alibabaApiKey: string
+  deepseekApiKey: string
   fireworksApiKey: string
   groqApiKey: string
   openRouterApiKey: string
@@ -195,6 +187,7 @@ export interface ProviderHubSectionProps {
   providerEnabled?: ProviderEnabledMap
   configuredModels: ConfiguredModel[]
   alibabaModels: ModelBasic[]
+  deepseekModels: ModelBasic[]
   fireworksModels: ModelBasic[]
   groqModels: ModelBasic[]
   ollamaModels: ModelBasic[]
@@ -206,6 +199,7 @@ export interface ProviderHubSectionProps {
   onChange: (
     changes: Partial<{
       alibabaApiKey: string
+      deepseekApiKey: string
       fireworksApiKey: string
       groqApiKey: string
       openRouterApiKey: string
@@ -218,6 +212,7 @@ export interface ProviderHubSectionProps {
       ollamaUrl: string
       configuredModels: ConfiguredModel[]
       alibabaModels: ConfiguredModel[]
+      deepseekModels: ConfiguredModel[]
       fireworksModels: ConfiguredModel[]
       groqModels: ConfiguredModel[]
       ollamaModels: ConfiguredModel[]
@@ -236,6 +231,7 @@ type ProviderSettingsUpdate = Partial<Pick<
   | 'perplexityModels'
   | 'groqModels'
   | 'alibabaModels'
+  | 'deepseekModels'
   | 'fireworksModels'
   | 'ollamaModels'
   | 'aiModel'
@@ -249,6 +245,7 @@ export function ProviderHubSection({
   perplexityApiKey,
   groqApiKey,
   alibabaApiKey,
+  deepseekApiKey,
   fireworksApiKey,
   tavilyApiKey,
   onlineCompilerApiKey,
@@ -262,6 +259,7 @@ export function ProviderHubSection({
   perplexityModels,
   groqModels,
   alibabaModels,
+  deepseekModels,
   fireworksModels,
   ollamaModels,
   initialProvider,
@@ -282,9 +280,11 @@ export function ProviderHubSection({
   const [searchApiView, setSearchApiView] = useState<'catalog' | 'detail'>('catalog')
   const [selectedSearchApi, setSelectedSearchApi] = useState<SearchApiKey>('tavily')
   const [showApiKey, setShowApiKey] = useState(false)
+  const [displayedApiKey, setDisplayedApiKey] = useState('')
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [alibabaSearchDialogOpen, setAlibabaSearchDialogOpen] = useState(false)
+  const [deepseekSearchDialogOpen, setDeepseekSearchDialogOpen] = useState(false)
   const [fireworksSearchDialogOpen, setFireworksSearchDialogOpen] = useState(false)
   const [perplexitySearchDialogOpen, setPerplexitySearchDialogOpen] = useState(false)
   const [modelToEdit, setModelToEdit] = useState<{
@@ -342,6 +342,7 @@ export function ProviderHubSection({
     perplexity: perplexityModels,
     groq: groqModels,
     alibaba: alibabaModels,
+    deepseek: deepseekModels,
     fireworks: fireworksModels,
     ollama: ollamaModels,
   }
@@ -349,9 +350,12 @@ export function ProviderHubSection({
   const buildModelUpdateForProvider = (
     provider: ProviderKey,
     models: ConfiguredModel[]
-  ): ProviderSettingsUpdate => ({
-    [PROVIDER_MODEL_LIST_FIELD[provider]]: models,
-  })
+  ): ProviderSettingsUpdate => {
+    const modelListField = getProviderModelListField(provider) as ProviderModelListKey
+    return {
+      [modelListField]: models,
+    }
+  }
 
   const resetConnectivityState = (message: string) => {
     setConnectivityStatus('idle')
@@ -414,8 +418,34 @@ export function ProviderHubSection({
 
   const selectedProviderDef =
     PROVIDERS.find((provider) => provider.key === selectedProvider) ?? PROVIDERS[0]
+
+  useEffect(() => {
+    setShowApiKey(false)
+    setDisplayedApiKey('')
+
+    const apiKeyField = selectedProviderDef.apiKeyField
+    if (!apiKeyField) return
+
+    const currentValue = getProviderApiKey(selectedProviderDef)
+    if (isSecureApiKeyPlaceholder(currentValue)) {
+      let cancelled = false
+      resolveApiKeyFromSecureStorage(apiKeyField, currentValue)
+        .then((realKey) => {
+          if (!cancelled) setDisplayedApiKey(realKey)
+        })
+        .catch(() => {
+          if (!cancelled) setDisplayedApiKey('')
+        })
+      return () => {
+        cancelled = true
+      }
+    } else {
+      setDisplayedApiKey(currentValue)
+    }
+  }, [selectedProviderDef.key, selectedProviderDef.apiKeyField])
+
   const providerModels = providerModelMap[selectedProviderDef.key] || []
-  const providerDashboardUrl = PROVIDER_DASHBOARD_URLS[selectedProviderDef.key]
+  const providerDashboardUrl = getProviderDashboardUrl(selectedProviderDef.key)
 
   useEffect(() => {
     if (providerModels.length === 0) {
@@ -457,12 +487,15 @@ export function ProviderHubSection({
 
   const getProviderApiKey = (provider: ProviderDefinition): string => {
     if (!provider.apiKeyField) return ''
-    if (provider.apiKeyField === 'openRouterApiKey') return openRouterApiKey ?? ''
-    if (provider.apiKeyField === 'perplexityApiKey') return perplexityApiKey ?? ''
-    if (provider.apiKeyField === 'groqApiKey') return groqApiKey ?? ''
-    if (provider.apiKeyField === 'alibabaApiKey') return alibabaApiKey ?? ''
-    if (provider.apiKeyField === 'fireworksApiKey') return fireworksApiKey ?? ''
-    return ''
+    const providerApiKeys: Record<ProviderSecretField, string> = {
+      alibabaApiKey: alibabaApiKey ?? '',
+      deepseekApiKey: deepseekApiKey ?? '',
+      fireworksApiKey: fireworksApiKey ?? '',
+      groqApiKey: groqApiKey ?? '',
+      openRouterApiKey: openRouterApiKey ?? '',
+      perplexityApiKey: perplexityApiKey ?? '',
+    }
+    return providerApiKeys[provider.apiKeyField] ?? ''
   }
 
   const normalizedProviderEnabled = useMemo<Record<ProviderKey, boolean>>(() => {
@@ -472,6 +505,7 @@ export function ProviderHubSection({
       groq: providerEnabled?.groq !== false,
       ollama: providerEnabled?.ollama !== false,
       alibaba: providerEnabled?.alibaba !== false,
+      deepseek: providerEnabled?.deepseek !== false,
       fireworks: providerEnabled?.fireworks !== false,
     }
   }, [
@@ -480,6 +514,7 @@ export function ProviderHubSection({
     providerEnabled?.groq,
     providerEnabled?.ollama,
     providerEnabled?.alibaba,
+    providerEnabled?.deepseek,
     providerEnabled?.fireworks,
   ])
 
@@ -488,11 +523,15 @@ export function ProviderHubSection({
 
   const setProviderApiKey = (provider: ProviderDefinition, value: string) => {
     if (!provider.apiKeyField) return
-    if (provider.apiKeyField === 'openRouterApiKey') onChange({ openRouterApiKey: value })
-    if (provider.apiKeyField === 'perplexityApiKey') onChange({ perplexityApiKey: value })
-    if (provider.apiKeyField === 'groqApiKey') onChange({ groqApiKey: value })
-    if (provider.apiKeyField === 'alibabaApiKey') onChange({ alibabaApiKey: value })
-    if (provider.apiKeyField === 'fireworksApiKey') onChange({ fireworksApiKey: value })
+    onChange({ [provider.apiKeyField]: value })
+  }
+
+  const resolveProviderApiKey = async (provider: ProviderDefinition): Promise<string> => {
+    if (!provider.apiKeyField) return ''
+    return resolveApiKeyFromSecureStorage(
+      provider.apiKeyField,
+      getProviderApiKey(provider)
+    )
   }
 
   const setProviderEnabled = (providerKey: ProviderKey, enabled: boolean) => {
@@ -638,6 +677,10 @@ export function ProviderHubSection({
     }
     if (provider === 'alibaba') {
       setAlibabaSearchDialogOpen(true)
+      return
+    }
+    if (provider === 'deepseek') {
+      setDeepseekSearchDialogOpen(true)
     }
   }
 
@@ -647,7 +690,7 @@ export function ProviderHubSection({
   }
 
   const runConnectivityCheck = async () => {
-    const selectedKey = getProviderApiKey(selectedProviderDef).trim()
+    const selectedKey = (await resolveProviderApiKey(selectedProviderDef)).trim()
     const endpoint =
       providerProxyUrls[selectedProviderDef.key] || PROVIDER_ENDPOINTS[selectedProviderDef.key]
 
@@ -714,6 +757,14 @@ export function ProviderHubSection({
           selectedKey,
           connectivityModel,
           'Fireworks check failed',
+          controller.signal
+        )
+      } else if (selectedProviderDef.key === 'deepseek') {
+        await runChatCompletionsConnectivityCheck(
+          endpoint,
+          selectedKey,
+          connectivityModel,
+          'DeepSeek check failed',
           controller.signal
         )
       } else {
@@ -866,13 +917,21 @@ export function ProviderHubSection({
                         <Input
                           ref={apiKeyOrEndpointInputRef}
                           type={showApiKey ? 'text' : 'password'}
-                          value={getProviderApiKey(selectedProviderDef)}
+                          value={
+                            isSecureApiKeyPlaceholder(getProviderApiKey(selectedProviderDef))
+                              ? displayedApiKey
+                              : getProviderApiKey(selectedProviderDef)
+                          }
                           onChange={(e) => {
+                            setDisplayedApiKey(e.target.value)
                             setProviderApiKey(selectedProviderDef, e.target.value)
                             resetConnectivityState('API key changed. Run connectivity check to verify.')
                           }}
                           className="border-border bg-secondary pr-10"
-                          placeholder={`${selectedProviderDef.name} API Key`}
+                          placeholder={getSecretFieldPlaceholder(
+                            selectedProviderDef.name,
+                            getProviderApiKey(selectedProviderDef)
+                          )}
                           autoComplete="new-password"
                           spellCheck={false}
                         />
@@ -972,15 +1031,15 @@ export function ProviderHubSection({
                           style={{
                             borderColor:
                               connectivityStatus === 'error'
-                                ? 'rgba(244, 63, 94, 0.55)'
+                                ? STATUS_COLORS.error.border
                                 : connectivityStatus === 'success'
-                                  ? 'rgba(34, 197, 94, 0.4)'
+                                  ? STATUS_COLORS.connectivitySuccess.border
                                   : 'var(--theme-border)',
                             background:
                               connectivityStatus === 'error'
-                                ? 'rgba(136, 19, 55, 0.44)'
+                                ? STATUS_COLORS.error.background
                                 : connectivityStatus === 'success'
-                                  ? 'rgba(21, 128, 61, 0.22)'
+                                  ? STATUS_COLORS.connectivitySuccess.background
                                   : 'var(--theme-surface-hover)',
                           }}
                         >
@@ -990,10 +1049,18 @@ export function ProviderHubSection({
                                 <Loader2 size={16} className="mt-0.5 animate-spin" />
                               )}
                               {connectivityStatus === 'success' && (
-                                <CheckCircle2 size={16} className="mt-0.5 text-green-400" />
+                                <CheckCircle2
+                                  size={16}
+                                  className="mt-0.5"
+                                  style={{ color: STATUS_COLORS.connectivitySuccess.icon }}
+                                />
                               )}
                               {connectivityStatus === 'error' && (
-                                <AlertCircle size={16} className="mt-0.5 text-rose-300" />
+                                <AlertCircle
+                                  size={16}
+                                  className="mt-0.5"
+                                  style={{ color: STATUS_COLORS.error.icon }}
+                                />
                               )}
                               {connectivityStatus === 'idle' && (
                                 <Globe size={16} className="mt-0.5 text-muted-foreground" />
@@ -1101,7 +1168,7 @@ export function ProviderHubSection({
                 </button>
               </div>
 
-              <div className="grid gap-2 md:grid-cols-[1fr_auto_auto_auto]">
+              <div className="grid items-center gap-2 md:grid-cols-[1fr_auto_auto_auto]">
                 <div className="relative">
                   <Search
                     size={16}
@@ -1111,12 +1178,13 @@ export function ProviderHubSection({
                     value={providerModelQuery}
                     onChange={(e) => setProviderModelQuery(e.target.value)}
                     placeholder="Search models..."
-                    className="border-border bg-secondary pl-9"
+                    className="h-8 border-border bg-secondary pl-9"
                   />
                 </div>
                 {(selectedProviderDef.key === 'openrouter' ||
                   selectedProviderDef.key === 'fireworks' ||
                   selectedProviderDef.key === 'alibaba' ||
+                  selectedProviderDef.key === 'deepseek' ||
                   selectedProviderDef.key === 'perplexity') && (
                   <Button
                     variant="outline"
@@ -1140,7 +1208,7 @@ export function ProviderHubSection({
                 </Button>
                 <Button
                   variant="outline"
-                  size="icon"
+                  size="icon-sm"
                   onClick={() => setAddDialogOpen(true)}
                   aria-label="Add custom model"
                 >
@@ -1331,6 +1399,16 @@ export function ProviderHubSection({
           existingModelCodes={perplexityModels.map((m) => m.code)}
         />
       )}
+
+      {selectedProviderDef.key === 'deepseek' && (
+        <DeepseekModelSearchDialog
+          open={deepseekSearchDialogOpen}
+          onOpenChange={setDeepseekSearchDialogOpen}
+          onAddModel={(model) => addCustomModel(model, 'deepseek')}
+          apiKey={getProviderApiKey(selectedProviderDef)}
+          existingModelCodes={deepseekModels.map((m) => m.code)}
+        />
+      )}
     </div>
   )
 }
@@ -1374,8 +1452,7 @@ function ProviderSection({
             }}
             role="button"
             tabIndex={0}
-            className="flex items-center gap-3 px-3.5 py-3 text-left transition hover:bg-white/[0.04]"
-            style={{ background: CATALOG_CARD_BACKGROUND }}
+            className="provider-hub-provider-row flex items-center gap-3 px-3.5 py-3 text-left transition"
           >
             <div className="flex shrink-0 items-center justify-center">
               <ProviderLogo provider={provider.key} size={20} />
@@ -1396,13 +1473,19 @@ function ProviderSection({
               <span
                 className="inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-medium"
                 style={{
-                  background: hasApiKey ? 'rgba(74, 222, 128, 0.10)' : 'rgba(250, 204, 21, 0.10)',
-                  color: hasApiKey ? 'rgb(74, 222, 128)' : 'rgb(250, 204, 21)',
+                  background: hasApiKey
+                    ? STATUS_COLORS.success.background
+                    : STATUS_COLORS.warning.background,
+                  color: hasApiKey ? STATUS_COLORS.success.color : STATUS_COLORS.warning.color,
                 }}
               >
                 <span
                   className="inline-block h-1.5 w-1.5 rounded-full"
-                  style={{ background: hasApiKey ? 'rgb(74, 222, 128)' : 'rgb(250, 204, 21)' }}
+                  style={{
+                    background: hasApiKey
+                      ? STATUS_COLORS.success.color
+                      : STATUS_COLORS.warning.color,
+                  }}
                 />
                 {provider.apiKeyField ? (hasApiKey ? 'Key set' : 'No key') : 'Local'}
               </span>
@@ -1506,8 +1589,8 @@ function ModelGroup({
             <div className="flex items-center gap-1 shrink-0">
               <Button
                 variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                size="icon-sm"
+                className="text-muted-foreground hover:text-foreground"
                 onClick={(e) => {
                   e.stopPropagation()
                   onEditModel(model)
@@ -1520,8 +1603,8 @@ function ModelGroup({
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                    size="icon-sm"
+                    className="text-muted-foreground hover:text-foreground"
                     onClick={(e) => e.stopPropagation()}
                     aria-label={`More actions for ${model.displayName}`}
                   >
@@ -1666,13 +1749,19 @@ function SearchApiSection({
                 <span
                   className="inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-medium"
                   style={{
-                    background: enabled ? 'rgba(74, 222, 128, 0.10)' : 'rgba(250, 204, 21, 0.10)',
-                    color: enabled ? 'rgb(74, 222, 128)' : 'rgb(250, 204, 21)',
+                    background: enabled
+                      ? STATUS_COLORS.success.background
+                      : STATUS_COLORS.warning.background,
+                    color: enabled ? STATUS_COLORS.success.color : STATUS_COLORS.warning.color,
                   }}
                 >
                   <span
                     className="inline-block h-1.5 w-1.5 rounded-full"
-                    style={{ background: enabled ? 'rgb(74, 222, 128)' : 'rgb(250, 204, 21)' }}
+                    style={{
+                      background: enabled
+                        ? STATUS_COLORS.success.color
+                        : STATUS_COLORS.warning.color,
+                    }}
                   />
                   {enabled ? 'Key set' : 'No key'}
                 </span>
@@ -1722,6 +1811,8 @@ function SearchApiDetail({
   onChange: ProviderHubSectionProps['onChange']
 }): React.ReactElement {
   const [showApiKey, setShowApiKey] = useState(false)
+  const [displayedApiKey, setDisplayedApiKey] = useState('')
+
   const apiKeyValue =
     api.apiKeyField === 'tavilyApiKey'
       ? tavilyApiKey
@@ -1730,6 +1821,29 @@ function SearchApiDetail({
         : ''
   const normalizedApiKeyValue = typeof apiKeyValue === 'string' ? apiKeyValue : ''
   const isEnabled = Boolean(api.apiKeyField && normalizedApiKeyValue.trim())
+
+  useEffect(() => {
+    setShowApiKey(false)
+    setDisplayedApiKey('')
+
+    if (!api.apiKeyField) return
+
+    if (isSecureApiKeyPlaceholder(normalizedApiKeyValue)) {
+      let cancelled = false
+      resolveApiKeyFromSecureStorage(api.apiKeyField, normalizedApiKeyValue)
+        .then((realKey) => {
+          if (!cancelled) setDisplayedApiKey(realKey)
+        })
+        .catch(() => {
+          if (!cancelled) setDisplayedApiKey('')
+        })
+      return () => {
+        cancelled = true
+      }
+    } else {
+      setDisplayedApiKey(normalizedApiKeyValue)
+    }
+  }, [api.apiKeyField, normalizedApiKeyValue])
 
   return (
     <Card
@@ -1788,13 +1902,32 @@ function SearchApiDetail({
                   <div className="relative w-full">
                     <Input
                       type={showApiKey ? 'text' : 'password'}
-                      value={api.apiKeyField === 'tavilyApiKey' ? tavilyApiKey : onlineCompilerApiKey}
-                      onChange={(e) =>
-                        api.apiKeyField === 'tavilyApiKey'
-                          ? onChange({ tavilyApiKey: e.target.value })
-                          : onChange({ onlineCompilerApiKey: e.target.value })
+                      value={
+                        isSecureApiKeyPlaceholder(normalizedApiKeyValue)
+                          ? displayedApiKey
+                          : normalizedApiKeyValue
                       }
-                      placeholder={api.apiKeyField === 'tavilyApiKey' ? 'tvly-...' : 'Paste your OnlineCompiler API key'}
+                      onChange={(e) => {
+                        setDisplayedApiKey(e.target.value)
+                        if (api.apiKeyField === 'tavilyApiKey') {
+                          onChange({ tavilyApiKey: e.target.value })
+                        } else if (api.apiKeyField === 'onlineCompilerApiKey') {
+                          onChange({ onlineCompilerApiKey: e.target.value })
+                        }
+                      }}
+                      placeholder={
+                        api.apiKeyField === 'tavilyApiKey'
+                          ? (
+                              isSecureApiKeyPlaceholder(tavilyApiKey)
+                                ? 'Tavily key stored securely. Enter a new key to replace it.'
+                                : 'tvly-...'
+                            )
+                          : (
+                              isSecureApiKeyPlaceholder(onlineCompilerApiKey)
+                                ? 'OnlineCompiler key stored securely. Enter a new key to replace it.'
+                                : 'Paste your OnlineCompiler API key'
+                            )
+                      }
                       className="border-border bg-secondary pr-10"
                       autoComplete="new-password"
                       spellCheck={false}

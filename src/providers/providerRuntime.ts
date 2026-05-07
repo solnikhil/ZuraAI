@@ -4,6 +4,11 @@ import {
   type AlibabaResponse,
 } from '../services/alibaba'
 import {
+  generateDeepSeekCompletion,
+  streamDeepSeekCompletion,
+  type DeepSeekResponse,
+} from '../services/deepseek'
+import {
   generateFireworksCompletion,
   streamFireworksCompletion,
   type FireworksResponse,
@@ -29,7 +34,9 @@ import {
   type PerplexityResponse,
 } from '../services/perplexity'
 import type { ChatMessage, ReasoningDetail } from '../services/types'
+import type { SettingsConfig } from '../contexts/SettingsConfigContext'
 import { DEFAULT_OLLAMA_URL } from './providerRegistry'
+import { resolveProviderForModel } from './providerRegistry'
 import type { ActiveProviderId } from './providerTypes'
 import type { FileAttachment } from '../chat/types'
 import {
@@ -41,6 +48,7 @@ import {
   type ProviderRuntimeStreamRequest as StreamRequest,
 } from './providerRuntimeTypes'
 import { getOpenRouterApiKey } from '../utils/openRouterKey'
+import { resolveProviderApiKeysForSettings } from '../utils/secureApiKeys'
 
 function extractOpenRouterReasoningDelta(
   reasoningDetails:
@@ -94,18 +102,44 @@ type OpenAiCompatibleResponse =
   | AlibabaResponse
   | PerplexityResponse
   | FireworksResponse
+  | DeepSeekResponse
 
-type TitleGenerationSettings = Partial<
-  Pick<
-    StreamingSettings,
-    | 'alibabaApiKey'
-    | 'fireworksApiKey'
-    | 'groqApiKey'
-    | 'ollamaUrl'
-    | 'openRouterApiKey'
-    | 'perplexityApiKey'
-  >
+type TitleGenerationSettings = Pick<
+  StreamingSettings,
+  | 'alibabaApiKey'
+  | 'deepseekApiKey'
+  | 'fireworksApiKey'
+  | 'groqApiKey'
+  | 'ollamaUrl'
+  | 'openRouterApiKey'
+  | 'perplexityApiKey'
 >
+
+
+function extractTitleTextFromMessage(message: unknown): string {
+  if (!message || typeof message !== 'object') return ''
+  const record = message as Record<string, unknown>
+
+  const content = record.content
+  if (typeof content === 'string' && content.trim()) {
+    return content
+  }
+
+  // Some providers return content as an array of parts.
+  if (Array.isArray(content)) {
+    const joined = content
+      .map((part) => {
+        if (!part || typeof part !== 'object') return ''
+        const text = (part as Record<string, unknown>).text
+        return typeof text === 'string' ? text : ''
+      })
+      .join('')
+      .trim()
+    if (joined) return joined
+  }
+
+  return ''
+}
 
 
 function inferMimeTypeFromDataUrl(dataUrl: string): string {
@@ -333,6 +367,9 @@ function getProviderCredential(
     case 'alibaba':
       if (!settings.alibabaApiKey) throw new Error('Alibaba API Key is missing')
       return settings.alibabaApiKey
+    case 'deepseek':
+      if (!settings.deepseekApiKey) throw new Error('DeepSeek API Key is missing')
+      return settings.deepseekApiKey
     case 'fireworks':
       if (!settings.fireworksApiKey) throw new Error('Fireworks API Key is missing')
       return settings.fireworksApiKey
@@ -352,71 +389,194 @@ function normalizeProviderModel(provider: ActiveProviderId, model: string): stri
   return model
 }
 
+function logTitleGenerationJson(direction: 'sent' | 'received', payload: Record<string, unknown>): void {
+  console.info(`[title-generator] ${direction} JSON`, JSON.stringify(payload, null, 2))
+}
+
+async function runLoggedTitleRequest<TResponse>(
+  provider: ActiveProviderId,
+  model: string,
+  messages: ChatMessage[],
+  options: Record<string, unknown>,
+  request: () => Promise<TResponse>,
+  extractTitle: (response: TResponse) => string
+): Promise<string> {
+  logTitleGenerationJson('sent', {
+    provider,
+    model,
+    messages,
+    options,
+  })
+
+  const response = await request()
+  const extractedTitle = extractTitle(response)
+
+  logTitleGenerationJson('received', {
+    provider,
+    model,
+    response,
+    extractedTitle,
+  })
+
+  return extractedTitle
+}
+
 export async function generateProviderTitleText(
   settings: TitleGenerationSettings,
   provider: ActiveProviderId,
   model: string,
   prompt: string
 ): Promise<string> {
+  const resolvedSettings = await resolveProviderApiKeysForSettings(settings, provider)
   const normalizedModel = normalizeProviderModel(provider, model)
   const messages: ChatMessage[] = [{ role: 'user', content: prompt }]
 
   switch (provider) {
     case 'groq': {
-      const result = await generateGroqCompletion(
-        getProviderCredential(settings, provider),
+      const options = {}
+      return runLoggedTitleRequest(
+        provider,
         normalizedModel,
         messages,
-        { temperature: 0.3 }
+        options,
+        () =>
+          generateGroqCompletion(
+            getProviderCredential(resolvedSettings, provider),
+            normalizedModel,
+            messages,
+            options
+          ),
+        (result) => extractTitleTextFromMessage(result.choices?.[0]?.message)
       )
-      return result.choices?.[0]?.message?.content || ''
     }
     case 'perplexity': {
-      const result = await generatePerplexityCompletion(
-        getProviderCredential(settings, provider),
+      const options = {}
+      return runLoggedTitleRequest(
+        provider,
         normalizedModel,
         messages,
-        { temperature: 0.3, max_tokens: 20 }
+        options,
+        () =>
+          generatePerplexityCompletion(
+            getProviderCredential(resolvedSettings, provider),
+            normalizedModel,
+            messages,
+            options
+          ),
+        (result) => extractTitleTextFromMessage(result.choices?.[0]?.message)
       )
-      return result.choices?.[0]?.message?.content || ''
     }
     case 'ollama': {
-      const result = await generateOllamaCompletion(
-        getProviderCredential(settings, provider),
+      const options = { think: false }
+      return runLoggedTitleRequest(
+        provider,
         normalizedModel,
         messages,
-        { temperature: 0.3 }
+        options,
+        () =>
+          generateOllamaCompletion(
+            getProviderCredential(resolvedSettings, provider),
+            normalizedModel,
+            messages,
+            options
+          ),
+        (result) => extractTitleTextFromMessage(result.message)
       )
-      return result.message?.content || ''
     }
     case 'alibaba': {
-      const result = await generateAlibabaCompletion(
-        getProviderCredential(settings, provider),
+      const options = { enableThinking: false }
+      return runLoggedTitleRequest(
+        provider,
         normalizedModel,
         messages,
-        { temperature: 0.3, max_tokens: 20 }
+        options,
+        () =>
+          generateAlibabaCompletion(
+            getProviderCredential(resolvedSettings, provider),
+            normalizedModel,
+            messages,
+            options
+          ),
+        (result) => extractTitleTextFromMessage(result.choices?.[0]?.message)
       )
-      return result.choices?.[0]?.message?.content || ''
+    }
+    case 'deepseek': {
+      const options = { enableThinking: false }
+      return runLoggedTitleRequest(
+        provider,
+        normalizedModel,
+        messages,
+        options,
+        () =>
+          generateDeepSeekCompletion(
+            getProviderCredential(resolvedSettings, provider),
+            normalizedModel,
+            messages,
+            options
+          ),
+        (result) => extractTitleTextFromMessage(result.choices?.[0]?.message)
+      )
     }
     case 'fireworks': {
-      const result = await generateFireworksCompletion(
-        getProviderCredential(settings, provider),
+      const options = {}
+      return runLoggedTitleRequest(
+        provider,
         normalizedModel,
         messages,
-        { temperature: 0.3, max_tokens: 20 }
+        options,
+        () =>
+          generateFireworksCompletion(
+            getProviderCredential(resolvedSettings, provider),
+            normalizedModel,
+            messages,
+            options
+          ),
+        (result) => extractTitleTextFromMessage(result.choices?.[0]?.message)
       )
-      return result.choices?.[0]?.message?.content || ''
     }
     case 'openrouter': {
-      const result = await generateOpenRouterCompletion(
-        getProviderCredential(settings, provider),
+      const options = { reasoning: { exclude: true } }
+      return runLoggedTitleRequest(
+        provider,
         normalizedModel,
         messages,
-        { temperature: 0.3, max_tokens: 20 }
+        options,
+        () =>
+          generateOpenRouterCompletion(
+            getProviderCredential(resolvedSettings, provider),
+            normalizedModel,
+            messages,
+            options
+          ),
+        (result) => extractTitleTextFromMessage(result.choices?.[0]?.message)
       )
-      return result.choices?.[0]?.message?.content || ''
     }
   }
+}
+
+export async function generateTitleTextForModel(
+  settings: TitleGenerationSettings &
+    Partial<
+      Pick<
+        SettingsConfig,
+        | 'configuredModels'
+        | 'ollamaModels'
+        | 'perplexityModels'
+        | 'groqModels'
+        | 'alibabaModels'
+        | 'fireworksModels'
+        | 'deepseekModels'
+      >
+    >,
+  model: string,
+  prompt: string
+): Promise<string> {
+  const resolvedModel = resolveProviderForModel(settings, model)
+  if (!resolvedModel) {
+    throw new Error('Title model not found')
+  }
+
+  return generateProviderTitleText(settings, resolvedModel.provider, resolvedModel.id, prompt)
 }
 
 export async function* streamProviderEvents(
@@ -538,6 +698,46 @@ export async function* streamProviderEvents(
       }
 
       for await (const chunk of streamAlibabaCompletion(apiKey, normalizedModel, request.messages, {
+        temperature: request.temperature,
+        max_tokens: request.maxTokens,
+        tools: request.tools || undefined,
+        toolChoice: request.toolChoice,
+        signal: request.signal,
+        enableThinking: request.enableThinking,
+      })) {
+        const reasoningDelta = chunk.choices?.[0]?.delta?.reasoning_content
+        if (reasoningDelta) {
+          yield { type: 'reasoning-delta', delta: reasoningDelta }
+        }
+
+        const delta = chunk.choices?.[0]?.delta?.content || ''
+        if (delta) yield { type: 'text-delta', delta }
+        if (chunk.choices?.[0]?.delta?.tool_calls?.length) {
+          yield { type: 'tool-call-delta', delta: chunk.choices[0].delta.tool_calls }
+        }
+        if (chunk.usage) yield { type: 'usage', usage: normalizeUsage(chunk.usage) }
+        if (chunk.choices?.[0]?.finish_reason) {
+          yield { type: 'finish', finishReason: chunk.choices[0].finish_reason }
+        }
+      }
+      return
+    }
+    case 'deepseek': {
+      const apiKey = getProviderCredential(settings, 'deepseek')
+      if (request.streamResponses === false) {
+        const response = await generateDeepSeekCompletion(apiKey, normalizedModel, request.messages, {
+          temperature: request.temperature,
+          max_tokens: request.maxTokens,
+          tools: request.tools || undefined,
+          toolChoice: request.toolChoice,
+          signal: request.signal,
+          enableThinking: request.enableThinking,
+        })
+        yield* emitOpenAiCompatibleResponse(response, { includeReasoning: true, reasoningContentField: 'reasoning_content' })
+        return
+      }
+
+      for await (const chunk of streamDeepSeekCompletion(apiKey, normalizedModel, request.messages, {
         temperature: request.temperature,
         max_tokens: request.maxTokens,
         tools: request.tools || undefined,

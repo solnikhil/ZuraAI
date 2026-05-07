@@ -20,7 +20,6 @@ import '@testing-library/jest-dom'
 // Mutable mock state that property tests will mutate per iteration
 const mockSettingsUI = {
   settingsUI: {
-    frostedPrompt: false,
     theme: 'dark' as const,
     activeTheme: 'dark-default',
     titleBarDensity: 'compact' as const,

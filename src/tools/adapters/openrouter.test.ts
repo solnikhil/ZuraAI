@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { getToolByName } from '../definitions'
 import { convertToOpenRouterFormat, formatToolResultsForOpenRouter } from './openrouter'
-import { extractXmlToolCallsFromContent } from './openrouterToolCalls'
+import { extractInlineToolCallsFromContent, extractXmlToolCallsFromContent } from './openrouterToolCalls'
 
 describe('convertToOpenRouterFormat', () => {
   it('preserves web search schemas during conversion', () => {
@@ -33,24 +33,25 @@ describe('convertToOpenRouterFormat', () => {
     expect(formatted[0]?.content).toContain('Result A')
   })
 
-  it('formats skipped web search results without exposing duplicate policy details', () => {
+  it('formats skipped web search results without exposing budget policy details', () => {
     const formatted = formatToolResultsForOpenRouter(
       [{ id: 'tool-1', name: 'web_search' }],
       [
         {
           success: false,
-          error: 'Skipped duplicate web_search query in this response.',
+          error: 'Skipped web_search call because the per-response search budget has been reached.',
           metadata: {
             origin: 'builtin-main',
             executionDisposition: 'skipped',
-            skippedReason: 'duplicate-query',
+            skippedReason: 'budget',
           },
         },
       ]
     )
 
     expect(formatted[0]?.content).toContain('No additional web_search results')
-    expect(formatted[0]?.content).not.toContain('duplicate')
+    expect(formatted[0]?.content).toContain('over-budget')
+    expect(formatted[0]?.content).not.toContain('repeated')
     expect(formatted[0]?.content).not.toContain('Skipped')
   })
 
@@ -114,6 +115,7 @@ describe('convertToOpenRouterFormat', () => {
       },
     ])
     expect(extracted.cleanedContent).toBe('Before\n\nAfter')
+    expect(extracted.format).toBe('xml')
   })
 
   it('extracts XML-style tool calls that use tool_name and nested argument tags', () => {
@@ -140,5 +142,36 @@ describe('convertToOpenRouterFormat', () => {
       },
     ])
     expect(extracted.cleanedContent).toBe('Before\n\nAfter')
+    expect(extracted.format).toBe('xml')
+  })
+
+  it('extracts DSML-style tool calls from assistant content', () => {
+    const extracted = extractInlineToolCallsFromContent(
+      [
+        'Before',
+        '<| | DSML | | tool_calls>',
+        '<| | DSML | | invoke name="web_search">',
+        '<| | DSML | | parameter name="query" string="true">JEE Main registration count 2026</| | DSML | | parameter>',
+        '<| | DSML | | parameter name="num_results" string="false">5</| | DSML | | parameter>',
+        '<| | DSML | | parameter name="search_depth" string="true">advanced</| | DSML | | parameter>',
+        '</| | DSML | | invoke>',
+        '</| | DSML | | tool_calls>',
+        'After',
+      ].join('\n')
+    )
+
+    expect(extracted.toolCalls).toEqual([
+      {
+        id: 'content-tool-call-1',
+        name: 'web_search',
+        arguments: {
+          query: 'JEE Main registration count 2026',
+          num_results: '5',
+          search_depth: 'advanced',
+        },
+      },
+    ])
+    expect(extracted.cleanedContent).toBe('Before\n\nAfter')
+    expect(extracted.format).toBe('dsml')
   })
 })

@@ -18,6 +18,7 @@ import {
   type SkillId,
   type SkillsSettings,
 } from '@/skills'
+import { isMacOSRuntime } from '@/utils/platform'
 
 export interface SkillsSectionProps {
   skills: SkillsSettings
@@ -28,6 +29,9 @@ export interface SkillsSectionProps {
 
 export function SkillsSection({ skills, codeExecutionAutoApprove, computerUseAutoApprove, onChange }: SkillsSectionProps): React.ReactElement {
   const isEnabled = (skillId: SkillId): boolean => checkSkillEnabled(skills, skillId)
+  const visibleSkills = isMacOSRuntime()
+    ? BUILT_IN_SKILLS.filter((skill) => skill.id !== 'computer_use')
+    : BUILT_IN_SKILLS
 
   const setEnabled = (skillId: SkillId, enabled: boolean) => {
     onChange({
@@ -46,7 +50,7 @@ export function SkillsSection({ skills, codeExecutionAutoApprove, computerUseAut
 
       <Card className="settings-list-card settings-skills-card p-0">
         <div className="skills-list">
-          {BUILT_IN_SKILLS.map((skill) => {
+          {visibleSkills.map((skill) => {
             const enabled = isEnabled(skill.id)
 
             return (

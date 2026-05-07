@@ -501,6 +501,7 @@ describe('useProviderStreaming', () => {
 
   it('recovers XML-style tool markup from content without leaking it into the final message', async () => {
     const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {})
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     mocks.createProviderStreamClient.mockReturnValue({
       stream: streamFrom([
         {
@@ -566,6 +567,7 @@ describe('useProviderStreaming', () => {
     })
 
     expect(handleToolCalls).toHaveBeenCalledTimes(1)
+    expect(handleToolCalls.mock.calls[0]?.[0]?.choices?.[0]?.message?.content).toBe('')
     expect(streamResult.content).toBe('')
     expect(streamResult.toolResults).toEqual([
       buildWebSearchToolResult('content-tool-call-1', 'global gay population percentage statistics'),
@@ -587,7 +589,221 @@ describe('useProviderStreaming', () => {
         toolNames: ['web_search'],
       })
     )
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[tool-markup-leak]',
+      'recovered',
+      expect.objectContaining({
+        format: 'xml',
+        toolNames: ['web_search'],
+      })
+    )
     debugSpy.mockRestore()
+    warnSpy.mockRestore()
+  })
+
+  it('recovers DSML-style tool markup during tool-enabled research rounds without leaking it', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    mocks.createProviderStreamClient.mockReturnValue({
+      stream: streamFrom([
+        {
+          type: 'text-delta',
+          delta: [
+            '<| | DSML | | tool_calls>',
+            '<| | DSML | | invoke name="web_search">',
+            '<| | DSML | | parameter name="query" string="true">JEE Main registration count 2026</| | DSML | | parameter>',
+            '<| | DSML | | parameter name="num_results" string="false">5</| | DSML | | parameter>',
+            '</| | DSML | | invoke>',
+            '</| | DSML | | tool_calls>',
+          ].join('\n'),
+        },
+        { type: 'finish', finishReason: 'stop' },
+      ]),
+    })
+
+    const updateStreamingMessage = vi.fn()
+    const handleToolCalls = vi.fn().mockResolvedValueOnce({
+      hasTools: true,
+      toolResults: [buildWebSearchToolResult('content-tool-call-1', 'JEE Main registration count 2026')],
+      formattedResults: [],
+      needsFollowUp: false,
+      executionSummary: buildExecutionSummary('JEE Main registration count 2026'),
+    })
+
+    const { result } = renderHook(() =>
+      useProviderStreaming({
+        settings: {
+          aiModel: 'deepseek-v4-flash',
+          modelProvider: 'deepseek',
+          temperature: 0.4,
+          maxTokens: 1024,
+          streamResponses: true,
+          deepseekApiKey: 'deepseek-key',
+        },
+        toolCalling: {
+          canUseTools: true,
+          getToolsForRequest: () => [{
+            type: 'function',
+            function: {
+              name: 'web_search',
+              description: 'Search the web',
+              parameters: { type: 'object', properties: {} },
+            },
+          }],
+          handleToolCalls,
+          getResearchContext: () => 'Research context',
+        },
+        updateStreamingMessage,
+        flushThrottledUpdates: vi.fn(),
+        throttledUpdateStreamingMessage: vi.fn(),
+      })
+    )
+
+    const streamResult = await result.current.runProviderStream({
+      provider: 'deepseek',
+      model: 'deepseek-v4-flash',
+      sessionId: 'session-1',
+      messageId: 'message-dsml',
+      messages: [{ role: 'user', content: 'Find the 2026 registration count' }],
+      startTime: performance.now() - 25,
+      researchMaxRounds: 1,
+      syncToStreamingContext: false,
+      enableTools: true,
+    })
+
+    expect(handleToolCalls).toHaveBeenCalledTimes(1)
+    expect(handleToolCalls.mock.calls[0]?.[0]?.choices?.[0]?.message?.content).toBe('')
+    expect(streamResult.content).toBe('')
+    expect(updateStreamingMessage).toHaveBeenLastCalledWith(
+      'session-1',
+      'message-dsml',
+      expect.objectContaining({
+        content: '',
+        toolResults: [
+          buildWebSearchToolResult('content-tool-call-1', 'JEE Main registration count 2026'),
+        ],
+      })
+    )
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[tool-markup-leak]',
+      'recovered',
+      expect.objectContaining({
+        provider: 'deepseek',
+        model: 'deepseek-v4-flash',
+        format: 'dsml',
+        toolNames: ['web_search'],
+      })
+    )
+    warnSpy.mockRestore()
+  })
+
+  it('suppresses DSML-style tool markup during final no-tools synthesis and retries plain text', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    let invocation = 0
+
+    mocks.createProviderStreamClient.mockReturnValue({
+      stream: async function* () {
+        invocation += 1
+
+        if (invocation === 1) {
+          yield {
+            type: 'tool-call-delta',
+            delta: [
+              {
+                index: 0,
+                id: 'call_1',
+                type: 'function',
+                function: { name: 'web_search', arguments: '{"query":"cursor pricing"}' },
+              },
+            ],
+          }
+          yield { type: 'finish', finishReason: 'tool_calls' }
+          return
+        }
+
+        if (invocation === 2) {
+          yield {
+            type: 'text-delta',
+            delta: [
+              '<| | DSML | | tool_calls>',
+              '<| | DSML | | invoke name="web_search">',
+              '<| | DSML | | parameter name="query" string="true">cursor pricing latest</| | DSML | | parameter>',
+              '</| | DSML | | invoke>',
+              '</| | DSML | | tool_calls>',
+            ].join('\n'),
+          }
+          yield { type: 'finish', finishReason: 'stop' }
+          return
+        }
+
+        yield { type: 'text-delta', delta: 'Cursor pricing starts at $20 per month on the Pro plan.' }
+        yield { type: 'finish', finishReason: 'stop' }
+      },
+    })
+
+    const updateStreamingMessage = vi.fn()
+    const handleToolCalls = vi.fn().mockResolvedValueOnce({
+      hasTools: true,
+      toolResults: [buildWebSearchToolResult('call_1', 'cursor pricing')],
+      formattedResults: [{ role: 'tool', tool_call_id: 'call_1', content: 'search results' }],
+      needsFollowUp: true,
+      executionSummary: buildExecutionSummary('cursor pricing'),
+    })
+
+    const { result } = renderHook(() =>
+      useProviderStreaming({
+        settings: {
+          aiModel: 'deepseek-v4-flash',
+          modelProvider: 'deepseek',
+          temperature: 0.4,
+          maxTokens: 1024,
+          streamResponses: true,
+          deepseekApiKey: 'deepseek-key',
+        },
+        toolCalling: {
+          canUseTools: true,
+          getToolsForRequest: () => [{
+            type: 'function',
+            function: {
+              name: 'web_search',
+              description: 'Search the web',
+              parameters: { type: 'object', properties: {} },
+            },
+          }],
+          handleToolCalls,
+          getResearchContext: () => 'Research context',
+        },
+        updateStreamingMessage,
+        flushThrottledUpdates: vi.fn(),
+        throttledUpdateStreamingMessage: vi.fn(),
+      })
+    )
+
+    const streamResult = await result.current.runProviderStream({
+      provider: 'deepseek',
+      model: 'deepseek-v4-flash',
+      sessionId: 'session-1',
+      messageId: 'message-dsml-synthesis',
+      messages: [{ role: 'user', content: 'research cursor pricing' }],
+      startTime: performance.now() - 25,
+      researchMaxRounds: 1,
+      syncToStreamingContext: false,
+      enableTools: true,
+    })
+
+    expect(handleToolCalls).toHaveBeenCalledTimes(1)
+    expect(streamResult.content).toBe('Cursor pricing starts at $20 per month on the Pro plan.')
+    expect(streamResult.content).not.toContain('DSML')
+    expect(streamResult.content).not.toContain('tool_calls')
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[tool-markup-leak]',
+      'suppressed-during-no-tools-pass',
+      expect.objectContaining({
+        provider: 'deepseek',
+        model: 'deepseek-v4-flash',
+        format: 'dsml',
+      })
+    )
+    warnSpy.mockRestore()
   })
 
   it('supports parallel web_search batches until the total executed cap is reached', async () => {
@@ -785,6 +1001,153 @@ describe('useProviderStreaming', () => {
     expect(streamResult.content).toBe('Final answer after eight searches.')
   })
 
+  it('passes a five-search batch into the next synthesis turn in order', async () => {
+    const streamRequests: Array<{ messages: Array<{ role: string; tool_call_id?: string }> }> = []
+    let invocation = 0
+
+    mocks.createProviderStreamClient.mockReturnValue({
+      stream: async function* (request: { messages: Array<{ role: string; tool_call_id?: string }> }) {
+        streamRequests.push(request)
+        invocation += 1
+
+        if (invocation === 1) {
+          yield {
+            type: 'tool-call-delta',
+            delta: [
+              {
+                index: 0,
+                id: 'call_2021',
+                type: 'function',
+                function: { name: 'web_search', arguments: '{"query":"AI market size 2021"}' },
+              },
+              {
+                index: 1,
+                id: 'call_2022',
+                type: 'function',
+                function: { name: 'web_search', arguments: '{"query":"AI market size 2022"}' },
+              },
+              {
+                index: 2,
+                id: 'call_2023',
+                type: 'function',
+                function: { name: 'web_search', arguments: '{"query":"AI market size 2023"}' },
+              },
+              {
+                index: 3,
+                id: 'call_2024',
+                type: 'function',
+                function: { name: 'web_search', arguments: '{"query":"AI market size 2024"}' },
+              },
+              {
+                index: 4,
+                id: 'call_2025',
+                type: 'function',
+                function: { name: 'web_search', arguments: '{"query":"AI market size 2025"}' },
+              },
+            ],
+          }
+          yield { type: 'finish', finishReason: 'tool_calls' }
+          return
+        }
+
+        yield { type: 'text-delta', delta: 'Final answer from five year-sliced searches.' }
+        yield { type: 'finish', finishReason: 'stop' }
+      },
+    })
+
+    const updateStreamingMessage = vi.fn()
+    const handleToolCalls = vi.fn().mockResolvedValueOnce({
+      hasTools: true,
+      toolResults: [
+        buildWebSearchToolResult('call_2021', 'AI market size 2021'),
+        buildWebSearchToolResult('call_2022', 'AI market size 2022'),
+        buildWebSearchToolResult('call_2023', 'AI market size 2023'),
+        buildWebSearchToolResult('call_2024', 'AI market size 2024'),
+        buildWebSearchToolResult('call_2025', 'AI market size 2025'),
+      ],
+      formattedResults: [
+        { role: 'tool', tool_call_id: 'call_2021', content: '2021 results' },
+        { role: 'tool', tool_call_id: 'call_2022', content: '2022 results' },
+        { role: 'tool', tool_call_id: 'call_2023', content: '2023 results' },
+        { role: 'tool', tool_call_id: 'call_2024', content: '2024 results' },
+        { role: 'tool', tool_call_id: 'call_2025', content: '2025 results' },
+      ],
+      needsFollowUp: true,
+      executionSummary: buildExecutionSummary(
+        'AI market size 2021',
+        'AI market size 2022',
+        'AI market size 2023',
+        'AI market size 2024',
+        'AI market size 2025'
+      ),
+    })
+
+    const { result } = renderHook(() =>
+      useProviderStreaming({
+        settings: {
+          aiModel: 'openai/gpt-4.1',
+          modelProvider: 'openrouter',
+          temperature: 0.4,
+          maxTokens: 1024,
+          streamResponses: true,
+          openRouterApiKey: 'or-key',
+        },
+        toolCalling: {
+          canUseTools: true,
+          getToolsForRequest: () => [{
+            type: 'function',
+            function: {
+              name: 'web_search',
+              description: 'Search the web',
+              parameters: { type: 'object', properties: {} },
+            },
+          }],
+          handleToolCalls,
+          getResearchContext: () => 'Research context',
+        },
+        updateStreamingMessage,
+        flushThrottledUpdates: vi.fn(),
+        throttledUpdateStreamingMessage: vi.fn(),
+      })
+    )
+
+    const streamResult = await result.current.runProviderStream({
+      provider: 'openrouter',
+      model: 'openai/gpt-4.1',
+      sessionId: 'session-1',
+      messageId: 'message-five-year-batch',
+      messages: [{ role: 'user', content: 'search AI market data across 5 years' }],
+      startTime: performance.now() - 25,
+      researchMaxRounds: 0,
+      syncToStreamingContext: false,
+      enableTools: true,
+    })
+
+    expect(handleToolCalls).toHaveBeenCalledTimes(1)
+    expect(handleToolCalls.mock.calls[0]?.[1]).toMatchObject({
+      executionPolicy: {
+        remainingWebSearchBudget: 8,
+        priorWebSearchQueries: [],
+      },
+    })
+    expect(streamRequests).toHaveLength(2)
+    expect(streamRequests[1]?.messages.filter((message) => message.role === 'tool')).toEqual([
+      expect.objectContaining({ tool_call_id: 'call_2021' }),
+      expect.objectContaining({ tool_call_id: 'call_2022' }),
+      expect.objectContaining({ tool_call_id: 'call_2023' }),
+      expect.objectContaining({ tool_call_id: 'call_2024' }),
+      expect.objectContaining({ tool_call_id: 'call_2025' }),
+    ])
+    expect(streamResult.toolResults?.map((result) => result.toolCall.id)).toEqual([
+      'call_2021',
+      'call_2022',
+      'call_2023',
+      'call_2024',
+      'call_2025',
+    ])
+    expect(streamResult.content).toBe('Final answer from five year-sliced searches.')
+  })
+
   it('applies citation cleanup through the shared native-search path', async () => {
     mocks.createProviderStreamClient.mockReturnValue({
       stream: streamFrom([
@@ -830,6 +1193,111 @@ describe('useProviderStreaming', () => {
     })
 
     expect(streamResult.content).toBe('Answer [[1]](https://example.com/source)')
+  })
+
+  it('switches to no-tools synthesis after a successful search batch', async () => {
+    const streamCalls: Array<{ toolChoice?: unknown }> = []
+    let invocation = 0
+
+    mocks.createProviderStreamClient.mockReturnValue({
+      stream: async function* (request: { toolChoice?: unknown }) {
+        streamCalls.push({ toolChoice: request.toolChoice })
+        invocation += 1
+
+        if (invocation === 1) {
+          yield {
+            type: 'tool-call-delta',
+            delta: [{
+              index: 0,
+              id: 'call_1',
+              type: 'function',
+              function: {
+                name: 'web_search',
+                arguments: '{"query":"MrBeast subscribers 2026"}',
+              },
+            }],
+          }
+          yield { type: 'finish', finishReason: 'tool_calls' }
+          return
+        }
+
+        if (request.toolChoice !== 'none') {
+          yield {
+            type: 'tool-call-delta',
+            delta: [{
+              index: 0,
+              id: 'call_2',
+              type: 'function',
+              function: {
+                name: 'web_search',
+                arguments: '{"query":"best YouTuber ranking 2026"}',
+              },
+            }],
+          }
+          yield { type: 'finish', finishReason: 'tool_calls' }
+          return
+        }
+
+        yield { type: 'text-delta', delta: '2027 has not happened yet, but MrBeast is the current leading candidate.' }
+        yield { type: 'finish', finishReason: 'stop' }
+      },
+    })
+
+    const updateStreamingMessage = vi.fn()
+    const handleToolCalls = vi.fn().mockResolvedValueOnce({
+      hasTools: true,
+      toolResults: [buildWebSearchToolResult('call_1', 'MrBeast subscribers 2026')],
+      formattedResults: [{ role: 'tool', tool_call_id: 'call_1', content: 'search results' }],
+      needsFollowUp: true,
+      shouldContinueResearch: false,
+      executionSummary: buildExecutionSummary('MrBeast subscribers 2026'),
+    })
+
+    const { result } = renderHook(() =>
+      useProviderStreaming({
+        settings: {
+          aiModel: 'openai/gpt-4.1',
+          modelProvider: 'openrouter',
+          temperature: 0.4,
+          maxTokens: 1024,
+          streamResponses: true,
+          openRouterApiKey: 'or-key',
+        },
+        toolCalling: {
+          canUseTools: true,
+          getToolsForRequest: () => [{
+            type: 'function',
+            function: {
+              name: 'web_search',
+              description: 'Search the web',
+              parameters: { type: 'object', properties: {} },
+            },
+          }],
+          handleToolCalls,
+          getResearchContext: () => 'Research context',
+        },
+        updateStreamingMessage,
+        flushThrottledUpdates: vi.fn(),
+        throttledUpdateStreamingMessage: vi.fn(),
+      })
+    )
+
+    const streamResult = await result.current.runProviderStream({
+      provider: 'openrouter',
+      model: 'openai/gpt-4.1',
+      sessionId: 'session-1',
+      messageId: 'message-1',
+      messages: [{ role: 'user', content: 'who is the best youtuber in 2027' }],
+      startTime: performance.now() - 25,
+      researchMaxRounds: 0,
+      syncToStreamingContext: false,
+      enableTools: true,
+    })
+
+    expect(handleToolCalls).toHaveBeenCalledTimes(1)
+    expect(streamCalls).toHaveLength(2)
+    expect(streamCalls[1]?.toolChoice).toBe('none')
+    expect(streamResult.content).toBe('2027 has not happened yet, but MrBeast is the current leading candidate.')
   })
 
   it('forces final synthesis after the practical uncapped search budget is exhausted', async () => {
@@ -926,7 +1394,7 @@ describe('useProviderStreaming', () => {
     expect(streamResult.content).toBe('Final synthesized answer.')
   })
 
-  it('forces final synthesis when the model repeats the same search facet with minor rewording', async () => {
+  it('allows repeated same-facet searches while budget remains', async () => {
     const streamCalls: Array<{ toolChoice?: unknown }> = []
     let invocation = 0
 
@@ -954,7 +1422,7 @@ describe('useProviderStreaming', () => {
           return
         }
 
-        yield { type: 'text-delta', delta: 'Answer after deduped search loop.' }
+        yield { type: 'text-delta', delta: 'Answer after repeated search loop.' }
         yield { type: 'finish', finishReason: 'stop' }
       },
     })
@@ -1020,8 +1488,8 @@ describe('useProviderStreaming', () => {
 
     expect(handleToolCalls).toHaveBeenCalledTimes(2)
     expect(streamCalls).toHaveLength(3)
-    expect(streamCalls[streamCalls.length - 1]?.toolChoice).toBe('none')
-    expect(streamResult.content).toBe('Answer after deduped search loop.')
+    expect(streamCalls[streamCalls.length - 1]?.toolChoice).toBeUndefined()
+    expect(streamResult.content).toBe('Answer after repeated search loop.')
   })
 
   it('drops partial assistant text from tool-call rounds instead of persisting truncated preludes', async () => {

@@ -59,11 +59,4 @@ Never fabricate citations or attach citations to unsupported claims.
 Level of Detail
 Match response length and depth to the task complexity and the user's stated preference.
 
-Mathematical Content & LaTeX Formatting
-Use LaTeX for all math: $...$ for inline and $$...$$ for display.
-Never use backticks for math.
-For multi-step derivations, use one transformation per display line.
-Example:
-$$A = B$$
-$$= C$$
-$$= D$$`
+`

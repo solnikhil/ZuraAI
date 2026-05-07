@@ -107,6 +107,28 @@ describe('preload MCP bridge', () => {
     expect(preloadMocks.removeListener).toHaveBeenCalledWith('mcp:state-changed', listener)
   })
 
+  it('exposes the native context-menu bridge with narrow action callbacks', async () => {
+    const contextMenu = getExposedBridge<{
+      show: (request: { hasSelection: boolean }) => Promise<void>
+      onAction: (callback: (action: string) => void) => () => void
+    }>('contextMenu')
+    const callback = vi.fn()
+
+    preloadMocks.invoke.mockResolvedValueOnce(undefined)
+    await expect(contextMenu.show({ hasSelection: true })).resolves.toBeUndefined()
+    expect(preloadMocks.invoke).toHaveBeenCalledWith('context-menu:show', { hasSelection: true })
+
+    const unsubscribe = contextMenu.onAction(callback)
+    expect(preloadMocks.on).toHaveBeenCalledWith('context-menu:action', expect.any(Function))
+
+    const listener = preloadMocks.on.mock.calls.find((call) => call[0] === 'context-menu:action')?.[1]
+    listener?.({}, 'copy')
+    expect(callback).toHaveBeenCalledWith('copy')
+
+    unsubscribe()
+    expect(preloadMocks.removeListener).toHaveBeenCalledWith('context-menu:action', listener)
+  })
+
   it('keeps MCP tools blocked from the generic execute-tool bridge', async () => {
     const ipcRenderer = getExposedBridge<{
       send: (channel: string, ...args: unknown[]) => void

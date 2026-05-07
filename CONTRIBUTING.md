@@ -16,23 +16,23 @@ ZuraAI is a Windows-first desktop AI assistant built with Electron, React, Vite,
 Requirements:
 
 - Node.js `>= 18`
-- npm
+- Bun `>= 1.1`
 
 Clone and install:
 
 ```bash
 git clone https://github.com/solnikhil/ZuraAI.git
 cd ZuraAI
-npm install
+bun install
 ```
 
 Useful commands:
 
 ```bash
-npm run dev
-npm run typecheck
-npm test
-npm run build
+bun run dev
+bun run typecheck
+bun run test
+bun run build
 ```
 
 ## Ways to contribute
@@ -93,14 +93,14 @@ If you add or change an exposed Electron capability, make sure the related piece
 Before opening a PR, run:
 
 ```bash
-npm run typecheck
-npm test
+bun run typecheck
+bun run test
 ```
 
 Also run this when your change affects packaging, Electron build behavior, release flow, or app startup integration:
 
 ```bash
-npm run build
+bun run build
 ```
 
 If you changed UI behavior, include a short note in the PR about how you verified it manually.

@@ -17,6 +17,7 @@ import ModelSelector from '../ModelSelector/index'
 import { useSettings } from '../../../contexts/SettingsContext'
 import {
   canAnalyzeImageAttachments,
+  isTextExtractableAttachment,
   mergeAttachedFiles,
   processFiles,
   providerSupportsVisionUploads,
@@ -50,6 +51,7 @@ import {
 import { withWebResearchEnabled, withComputerUseEnabled } from '@/skills'
 import { ComposerAttachments } from './ComposerAttachments'
 import McpLibraryDialog from '@/components/mcp/McpLibraryDialog'
+import { isMacOSRuntime } from '@/utils/platform'
 
 export interface InputAreaProps {
   input: string
@@ -67,6 +69,7 @@ export interface InputAreaProps {
   onFocusChange?: (focused: boolean) => void
   /** Expose the textarea ref to the parent (for keyboard reactivation focus) */
   textareaRefCallback?: (ref: React.RefObject<HTMLTextAreaElement | null>) => void
+  layoutVariant?: 'default' | 'landing'
 }
 
 function isInteractiveComposerTarget(target: EventTarget | null): boolean {
@@ -104,20 +107,25 @@ export function InputArea({
   onActivity,
   onFocusChange,
   textareaRefCallback,
+  layoutVariant = 'default',
 }: InputAreaProps) {
+  const isLandingVariant = layoutVariant === 'landing'
   const MAX_ATTACHMENTS = 10
   const [isDragging, setIsDragging] = React.useState(false)
   const [quickActionsOpen, setQuickActionsOpen] = React.useState(false)
   const [mcpDialogMode, setMcpDialogMode] = React.useState<'resources' | 'prompts' | null>(null)
+  const [landingExpanded, setLandingExpanded] = React.useState(false)
+  const showCompactLanding = isLandingVariant && !landingExpanded && attachedFiles.length === 0
   const { textareaRef, adjustHeight } = useAutoResizeTextarea({
-    minHeight: 52,
+    minHeight: 36,
     maxHeight: 200,
   })
   const fileInputRef = React.useRef<HTMLInputElement>(null)
   const { settings, updateSettings } = useSettings()
   const { animationsEnabled } = useMotionPreferences()
-  const { frostedPrompt } = settings
-const webResearchEnabled = settings.skills?.web_research?.enabled !== false
+  
+  const webResearchEnabled = settings.skills?.web_research?.enabled !== false
+  const computerUseAvailable = !isMacOSRuntime()
   const computerUseEnabled = settings.skills?.computer_use?.enabled === true
   const fastTransition = {
     duration: motionDuration(animationsEnabled, motionDurations.fast),
@@ -129,6 +137,26 @@ const webResearchEnabled = settings.skills?.web_research?.enabled !== false
     textareaRefCallback?.(textareaRef)
   }, [textareaRef, textareaRefCallback])
 
+  React.useLayoutEffect(() => {
+    if (!isLandingVariant) {
+      return
+    }
+
+    const textarea = textareaRef.current
+    if (!textarea) {
+      return
+    }
+
+    const styles = window.getComputedStyle(textarea)
+    const lineHeight = Number.parseFloat(styles.lineHeight || '0') || 24
+    const paddingTop = Number.parseFloat(styles.paddingTop || '0') || 0
+    const paddingBottom = Number.parseFloat(styles.paddingBottom || '0') || 0
+    const singleLineHeight = lineHeight + paddingTop + paddingBottom
+    const shouldExpand = attachedFiles.length > 0 || textarea.scrollHeight > singleLineHeight + 4
+
+    setLandingExpanded(shouldExpand)
+  }, [attachedFiles.length, input, isLandingVariant, textareaRef])
+
   const visionUploadsAvailable = providerSupportsVisionUploads(settings.modelProvider)
   const canUseImageUploads = canAnalyzeImageAttachments(settings)
 
@@ -136,9 +164,21 @@ const webResearchEnabled = settings.skills?.web_research?.enabled !== false
     (incoming: AttachedFile[]) => {
       let acceptedIncoming = incoming
 
+      const unsupportedDocuments = acceptedIncoming.filter(
+        (file) => file.type !== 'image' && !isTextExtractableAttachment(file)
+      )
+      if (unsupportedDocuments.length > 0) {
+        onError?.(
+          `These attachments are not supported yet: ${unsupportedDocuments
+            .map((file) => file.name)
+            .join(', ')}. Use text-based files like .txt, .md, .csv, .json, or .xml.`
+        )
+        acceptedIncoming = acceptedIncoming.filter((file) => !unsupportedDocuments.includes(file))
+      }
+
       if (!canUseImageUploads) {
-        const nonImageFiles = incoming.filter((file) => file.type !== 'image')
-        if (nonImageFiles.length !== incoming.length) {
+        const nonImageFiles = acceptedIncoming.filter((file) => file.type !== 'image')
+        if (nonImageFiles.length !== acceptedIncoming.length) {
           onError?.(
             visionUploadsAvailable
               ? 'Select a vision-capable model to attach images.'
@@ -279,7 +319,130 @@ const webResearchEnabled = settings.skills?.web_research?.enabled !== false
 
   const canSend = !isLoading && (input.trim() || attachedFiles.length > 0)
   const showAttachmentRail = attachedFiles.length > 0
-  const placeholder = isDragging ? 'Drop files here...' : 'Enter your message to continue...'
+  const placeholder = isDragging
+    ? 'Drop files here...'
+    : showCompactLanding
+      ? 'Type here...'
+      : 'Enter your message to continue...'
+  const composerWidthClass = isLandingVariant
+    ? 'max-w-[min(745px,100%)]'
+    : 'max-w-full'
+  const shellRadiusClass = showCompactLanding ? 'rounded-[30px]' : 'rounded-[24px] md:rounded-[26px]'
+  const shellPaddingClass = showAttachmentRail
+    ? 'px-3 py-3'
+    : 'px-3 py-2.5'
+  const controlClusterClass = 'flex items-center gap-1.5'
+  const secondaryControlButtonClass =
+    'theme-control-btn inline-flex h-9 w-9 items-center justify-center rounded-full p-2'
+  const stopButtonClass =
+    'theme-control-btn h-9 w-9 rounded-full bg-[color-mix(in_srgb,var(--theme-error-bg)_52%,transparent)] p-2 text-[var(--theme-error)] hover:!bg-[var(--theme-error-bg)] hover:!text-[var(--theme-error)]'
+  const sendButtonClass = cn(
+    'theme-control-btn h-9 w-9 rounded-full p-2',
+    canSend
+      ? 'bg-[color-mix(in_srgb,var(--theme-surface)_88%,var(--theme-accent-muted)_12%)] text-[var(--theme-text-primary)]'
+      : 'cursor-default bg-transparent text-[var(--theme-text-muted)] opacity-60'
+  )
+
+  const quickActionsMenu = (
+    <DropdownMenu open={quickActionsOpen} onOpenChange={setQuickActionsOpen}>
+      <DropdownMenuTrigger asChild>
+        <motion.button
+          type="button"
+          onClick={(e) => e.stopPropagation()}
+          className={cn(secondaryControlButtonClass, quickActionsOpen && 'is-active')}
+          aria-label="Open quick actions"
+        >
+          <Plus size={18} />
+        </motion.button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="start"
+        alignOffset={0}
+        side="top"
+        sideOffset={6}
+        className="w-[280px] rounded-[20px] p-1.5"
+      >
+        <DropdownMenuGroup>
+          <DropdownMenuItem
+            onSelect={(event) => {
+              event.preventDefault()
+              fileInputRef.current?.click()
+            }}
+            className="group/menu-item h-11 rounded-[14px] px-2.5 text-[13px]"
+          >
+            <Paperclip className="h-4 w-4 text-[var(--theme-text-secondary)]" />
+            <span>Add photos & files</span>
+            <DropdownMenuShortcut className="text-[11px] opacity-0 group-hover/menu-item:opacity-100">
+              Ctrl+U
+            </DropdownMenuShortcut>
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
+
+        <DropdownMenuSeparator className="mx-0 my-1 h-px" />
+
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger className="h-11 rounded-[14px] px-2.5 text-[13px]">
+            <Wrench className="h-4 w-4 text-[var(--theme-text-secondary)]" />
+            <span>MCP Library</span>
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent
+            sideOffset={8}
+            collisionPadding={12}
+            className="w-[260px] rounded-[20px] p-1.5"
+          >
+            <DropdownMenuItem
+              onSelect={() => {
+                setMcpDialogMode('resources')
+                setQuickActionsOpen(false)
+              }}
+              className="group/menu-item h-11 rounded-[14px] px-2.5 text-[13px]"
+            >
+              <Wrench className="h-4 w-4 text-[var(--theme-text-secondary)]" />
+              <span>Browse resources</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={() => {
+                setMcpDialogMode('prompts')
+                setQuickActionsOpen(false)
+              }}
+              className="group/menu-item h-11 rounded-[14px] px-2.5 text-[13px]"
+            >
+              <Wrench className="h-4 w-4 text-[var(--theme-text-secondary)]" />
+              <span>Browse prompts</span>
+            </DropdownMenuItem>
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger className="h-11 rounded-[14px] px-2.5 text-[13px]">
+            <Wrench className="h-4 w-4 text-[var(--theme-text-secondary)]" />
+            <span>Skills</span>
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent
+            sideOffset={8}
+            collisionPadding={12}
+            className="w-[260px] rounded-[20px] p-1.5"
+          >
+            <DropdownMenuItem
+              onSelect={(event) => {
+                event.preventDefault()
+                toggleWebResearchSkill()
+              }}
+              className="group/menu-item h-11 rounded-[14px] px-2.5 text-[13px]"
+            >
+              <SkillLogo skill="tavily" size={16} />
+              <span>Tavily</span>
+              {webResearchEnabled && (
+                <span className="ml-auto inline-flex items-center text-[var(--theme-success)]">
+                  <Check className="h-3.5 w-3.5" />
+                </span>
+              )}
+            </DropdownMenuItem>
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
 
   const insertMcpTextIntoComposer = React.useCallback(
     (text: string) => {
@@ -313,32 +476,33 @@ const webResearchEnabled = settings.skills?.web_research?.enabled !== false
   return (
     <TooltipProvider>
       <div
-        className="w-full py-4"
+        className={cn('w-full', showCompactLanding ? 'py-0' : 'py-4')}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         onMouseMove={handleMouseMoveActivity}
       >
-        <div className="relative w-full mx-auto">
+        <div className={cn('relative mx-auto w-full', composerWidthClass)}>
           <div
             role="group"
             aria-label="Chat composer"
             className={cn(
-              'relative flex flex-col rounded-2xl w-full text-left cursor-text overflow-hidden p-1.5',
-              frostedPrompt ? 'zura-frosted-prompt' : 'theme-composer-surface',
-              showAttachmentRail ? 'pt-3' : 'pt-2',
+              'relative flex w-full flex-col overflow-hidden text-left cursor-text',
+              'theme-composer-surface',
+              shellRadiusClass,
+              shellPaddingClass,
               isDragging && 'ring-2 ring-[var(--theme-accent)]'
             )}
             onClick={handleContainerClick}
           >
-<AnimatePresence initial={false}>
+            <AnimatePresence initial={false}>
               {isDragging && (
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   transition={fastTransition}
-                  className="pointer-events-none absolute inset-2 z-20 flex items-center justify-center rounded-[22px] border border-dashed border-[var(--theme-accent)] bg-[color-mix(in_srgb,var(--theme-accent)_10%,var(--theme-surface))]"
+                  className="pointer-events-none absolute inset-2 z-20 flex items-center justify-center rounded-[26px] border border-dashed border-[var(--theme-accent)] bg-[color-mix(in_srgb,var(--theme-accent)_10%,var(--theme-surface))]"
                 >
                   <div className="flex items-center gap-3 rounded-full bg-[var(--theme-surface)] px-4 py-2 text-sm text-[var(--theme-text-primary)] shadow-lg">
                     <ImagePlus className="h-4 w-4 text-[var(--theme-accent)]" />
@@ -350,244 +514,237 @@ const webResearchEnabled = settings.skills?.web_research?.enabled !== false
 
             {showAttachmentRail && <ComposerAttachments files={attachedFiles} onRemove={removeFile} />}
 
-            <div className="px-2 pb-1">
-              <div className="overflow-y-auto max-h-[200px]">
-                <Textarea
-                  ref={textareaRef}
-                  value={input}
-                  placeholder={placeholder}
-                  className={cn(
-                    'w-full rounded-xl border-none px-4 py-3.5 resize-none focus-visible:ring-0 leading-[1.45] shadow-none',
-                    'bg-transparent',
-                    'text-[var(--theme-text-primary)]',
-                    'placeholder:text-[var(--theme-text-muted)]',
-                    'transition-colors duration-200'
-                  )}
-                  onFocus={() => {
-                    onFocusChange?.(true)
-                    onActivity?.()
-                  }}
-                  onBlur={() => {
-                    onFocusChange?.(false)
-                  }}
-                  onKeyDown={handleKeyDown}
-                  onPaste={handlePaste}
-                  onChange={(e) => {
-                    setInput(e.target.value)
-                    adjustHeight()
-                    onActivity?.()
-                  }}
-                />
-              </div>
-            </div>
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileSelect}
+              multiple
+              accept="image/*,.txt,.md,.markdown,.csv,.tsv,.json,.xml,.yaml,.yml"
+              className="hidden"
+            />
 
-            <div className="flex items-center justify-between gap-3 px-3 pb-3 pt-2">
-              <div className="flex items-center gap-1.5">
-                <DropdownMenu open={quickActionsOpen} onOpenChange={setQuickActionsOpen}>
-                  <DropdownMenuTrigger asChild>
-                    <motion.button
-                      type="button"
-                      onClick={(e) => e.stopPropagation()}
-                      className={cn(
-                        'theme-control-btn h-11 w-11 inline-flex items-center justify-center rounded-[10px]',
-                        quickActionsOpen && 'is-active'
-                      )}
-                      aria-label="Open quick actions"
-                    >
-                      <Plus size={20} />
-                    </motion.button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent
-                    align="start"
-                    alignOffset={0}
-                    side="top"
-                    sideOffset={2}
-                    className="w-[248px] rounded-xl p-1.5"
-                  >
-                    <DropdownMenuGroup>
-                    <DropdownMenuItem
-                      onSelect={(event) => {
-                        event.preventDefault()
-                        fileInputRef.current?.click()
-                      }}
-                      className="group/menu-item h-11 px-2.5 text-[13px]"
-                    >
-                      <Paperclip className="h-4 w-4 text-[var(--theme-text-secondary)]" />
-                      <span>Add photos & files</span>
-                      <DropdownMenuShortcut className="text-[11px] opacity-0 group-hover/menu-item:opacity-100">
-                        Ctrl+U
-                      </DropdownMenuShortcut>
-                    </DropdownMenuItem>
-                    </DropdownMenuGroup>
+            {showCompactLanding ? (
+              <div className="flex items-center gap-2.5">
+                <div className={cn(controlClusterClass, 'shrink-0')}>{quickActionsMenu}</div>
+                <div className="min-w-0 flex-1 px-0.5">
+                  <Textarea
+                    ref={textareaRef}
+                    value={input}
+                    placeholder={placeholder}
+                    rows={1}
+                    className={cn(
+                      'block h-9 min-h-[36px] w-full appearance-none overflow-x-auto overflow-y-hidden whitespace-nowrap rounded-[20px] border-none bg-transparent px-2 py-[8px] text-[0.98rem] leading-[20px] md:text-[0.98rem] text-[var(--theme-text-primary)] placeholder:text-[var(--theme-text-muted)] shadow-none transition-colors duration-200 resize-none focus-visible:ring-0'
+                    )}
+                    onFocus={() => {
+                      onFocusChange?.(true)
+                      onActivity?.()
+                    }}
+                    onBlur={() => {
+                      onFocusChange?.(false)
+                    }}
+                    onKeyDown={handleKeyDown}
+                    onPaste={handlePaste}
+                    onChange={(e) => {
+                      setInput(e.target.value)
+                      adjustHeight()
+                      onActivity?.()
+                    }}
+                  />
+                </div>
 
-                    <DropdownMenuSeparator className="mx-0 my-1 h-px" />
-
-                    <DropdownMenuSub>
-                      <DropdownMenuSubTrigger className="h-11 px-2.5 text-[13px]">
-                        <Wrench className="h-4 w-4 text-[var(--theme-text-secondary)]" />
-                        <span>MCP Library</span>
-                      </DropdownMenuSubTrigger>
-                      <DropdownMenuSubContent
-                        sideOffset={8}
-                        collisionPadding={12}
-                        className="w-[220px] rounded-xl p-1.5"
-                      >
-                        <DropdownMenuItem
-                          onSelect={() => {
-                            setMcpDialogMode('resources')
-                            setQuickActionsOpen(false)
+                <div className={cn(controlClusterClass, 'shrink-0')}>
+                  <ModelSelector minimal={true} popoverAlign="end" />
+                  {isLoading ? (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <motion.button
+                          type="button"
+                          initial={{ scale: 0.8, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          whileHover={maybeAnimate(animationsEnabled, { scale: 1.04 })}
+                          whileTap={maybeAnimate(animationsEnabled, { scale: 0.96 })}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onStop?.()
                           }}
-                          className="group/menu-item h-11 px-2.5 text-[13px]"
+                          className={stopButtonClass}
                         >
-                          <Wrench className="h-4 w-4 text-[var(--theme-text-secondary)]" />
-                          <span>Browse resources</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onSelect={() => {
-                            setMcpDialogMode('prompts')
-                            setQuickActionsOpen(false)
-                          }}
-                          className="group/menu-item h-11 px-2.5 text-[13px]"
-                        >
-                          <Wrench className="h-4 w-4 text-[var(--theme-text-secondary)]" />
-                          <span>Browse prompts</span>
-                        </DropdownMenuItem>
-                      </DropdownMenuSubContent>
-                    </DropdownMenuSub>
-
-                    <DropdownMenuSub>
-                      <DropdownMenuSubTrigger className="h-11 px-2.5 text-[13px]">
-                        <Wrench className="h-4 w-4 text-[var(--theme-text-secondary)]" />
-                        <span>Skills</span>
-                      </DropdownMenuSubTrigger>
-                      <DropdownMenuSubContent
-                        sideOffset={8}
-                        collisionPadding={12}
-                        className="w-[220px] rounded-xl p-1.5"
-                      >
-                        <DropdownMenuItem
-                          onSelect={(event) => {
-                            event.preventDefault()
-                            toggleWebResearchSkill()
-                          }}
-                          className="group/menu-item h-11 px-2.5 text-[13px]"
-                        >
-                          <SkillLogo skill="tavily" size={16} />
-                          <span>Tavily</span>
-                          {webResearchEnabled && (
-                            <span className="ml-auto inline-flex items-center text-[var(--theme-success)]">
-                              <Check className="h-3.5 w-3.5" />
-                            </span>
-                          )}
-                        </DropdownMenuItem>
-                      </DropdownMenuSubContent>
-                    </DropdownMenuSub>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-
-                {showContextRing && <TokenUsageIndicator input={input} />}
-
-                <TooltipProvider delayDuration={300}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          toggleComputerUseSkill()
-                        }}
-                        className={cn(
-                          'theme-control-btn h-11 w-11 rounded-lg p-1.5 transition-colors',
-                          computerUseEnabled
-                            ? 'text-emerald-500 bg-emerald-500/10'
-                            : 'text-[var(--theme-text-tertiary)] hover:text-[var(--theme-text-secondary)]'
-                        )}
-                        aria-label={computerUseEnabled ? 'Disable Computer Use' : 'Enable Computer Use'}
-                      >
-                        <Monitor size={16} />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="rounded-full">
-                      {computerUseEnabled ? 'Computer Use: On' : 'Computer Use: Off'}
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <ModelSelector minimal={true} popoverAlign="end" />
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleFileSelect}
-                  multiple
-                  accept="image/*,.pdf,.txt,.doc,.docx,.csv,.json,.xml"
-                  className="hidden"
-                />
-
-                {isLoading ? (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <motion.button
-                        type="button"
-                        initial={{ scale: 0.8, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        whileHover={maybeAnimate(animationsEnabled, { scale: 1.04 })}
-                        whileTap={maybeAnimate(animationsEnabled, { scale: 0.96 })}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onStop?.()
-                        }}
-                        className="theme-control-btn h-11 w-11 rounded-lg p-2 text-[var(--theme-error)] hover:!bg-[var(--theme-error-bg)] hover:!text-[var(--theme-error)]"
-                      >
-                        <Square className="w-3.5 h-3.5 fill-current" />
-                      </motion.button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="rounded-full">
-                      Stop generating
-                    </TooltipContent>
-                  </Tooltip>
-                ) : (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <motion.button
-                        type="button"
-                        whileHover={
-                          canSend ? maybeAnimate(animationsEnabled, { scale: 1.04 }) : undefined
-                        }
-                        whileTap={
-                          canSend ? maybeAnimate(animationsEnabled, { scale: 0.96 }) : undefined
-                        }
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          if (canSend) {
-                            onSend()
-                            setInput('')
-                            adjustHeight(true)
-                            if (attachedFiles.length > 0) {
-                              onFilesChange([])
-                            }
+                          <Square className="w-3.5 h-3.5 fill-current" />
+                        </motion.button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="rounded-full">
+                        Stop generating
+                      </TooltipContent>
+                    </Tooltip>
+                  ) : (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <motion.button
+                          type="button"
+                          whileHover={
+                            canSend ? maybeAnimate(animationsEnabled, { scale: 1.04 }) : undefined
                           }
-                        }}
-                        disabled={!canSend}
-                        className={cn(
-                          'theme-control-btn h-11 w-11 rounded-lg p-2',
-                          canSend
-                            ? 'text-[var(--theme-text-primary)]'
-                            : 'cursor-default text-[var(--theme-text-muted)] opacity-60'
-                        )}
-                      >
-                        <SendHorizonal className="w-4 h-4" />
-                      </motion.button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="rounded-full">
-                      Send message
-                    </TooltipContent>
-                  </Tooltip>
-                )}
+                          whileTap={
+                            canSend ? maybeAnimate(animationsEnabled, { scale: 0.96 }) : undefined
+                          }
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            if (canSend) {
+                              onSend()
+                              setInput('')
+                              adjustHeight(true)
+                              if (attachedFiles.length > 0) {
+                                onFilesChange([])
+                              }
+                            }
+                          }}
+                          disabled={!canSend}
+                          className={sendButtonClass}
+                        >
+                          <span className="translate-y-[0.5px]"><SendHorizonal className="w-4 h-4" /></span>
+                        </motion.button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="rounded-full">
+                        Send message
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="flex items-center gap-2.5">
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className={controlClusterClass}>{quickActionsMenu}</div>
+
+                  {computerUseAvailable && (
+                    <TooltipProvider delayDuration={300}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className={controlClusterClass}>
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                toggleComputerUseSkill()
+                              }}
+                              className={cn(
+                                secondaryControlButtonClass,
+                                computerUseEnabled
+                                  ? 'bg-emerald-500/10 text-emerald-500'
+                                  : 'text-[var(--theme-text-tertiary)] hover:text-[var(--theme-text-secondary)]'
+                              )}
+                              aria-label={computerUseEnabled ? 'Disable Computer Use' : 'Enable Computer Use'}
+                            >
+                              <Monitor size={16} />
+                            </button>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="rounded-full">
+                          {computerUseEnabled ? 'Computer Use: On' : 'Computer Use: Off'}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <Textarea
+                    ref={textareaRef}
+                    value={input}
+                    placeholder={placeholder}
+                    rows={1}
+                    className={cn(
+                      'block h-9 min-h-[36px] w-full appearance-none overflow-x-auto overflow-y-hidden whitespace-nowrap rounded-[20px] border-none bg-transparent px-2 py-[8px] text-[0.98rem] leading-[20px] md:text-[0.98rem] text-[var(--theme-text-primary)] placeholder:text-[var(--theme-text-muted)] shadow-none transition-colors duration-200 resize-none focus-visible:ring-0'
+                    )}
+                    onFocus={() => {
+                      onFocusChange?.(true)
+                      onActivity?.()
+                    }}
+                    onBlur={() => {
+                      onFocusChange?.(false)
+                    }}
+                    onKeyDown={handleKeyDown}
+                    onPaste={handlePaste}
+                    onChange={(e) => {
+                      setInput(e.target.value)
+                      adjustHeight()
+                      onActivity?.()
+                    }}
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 shrink-0">
+                  <div className={controlClusterClass}>
+                    <ModelSelector minimal={true} popoverAlign="end" />
+                    {isLoading ? (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <motion.button
+                            type="button"
+                            initial={{ scale: 0.8, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            whileHover={maybeAnimate(animationsEnabled, { scale: 1.04 })}
+                            whileTap={maybeAnimate(animationsEnabled, { scale: 0.96 })}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onStop?.()
+                            }}
+                            className={stopButtonClass}
+                          >
+                            <Square className="w-3.5 h-3.5 fill-current" />
+                          </motion.button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="rounded-full">
+                          Stop generating
+                        </TooltipContent>
+                      </Tooltip>
+                    ) : (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <motion.button
+                            type="button"
+                            whileHover={
+                              canSend ? maybeAnimate(animationsEnabled, { scale: 1.04 }) : undefined
+                            }
+                            whileTap={
+                              canSend ? maybeAnimate(animationsEnabled, { scale: 0.96 }) : undefined
+                            }
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (canSend) {
+                                onSend()
+                                setInput('')
+                                adjustHeight(true)
+                                if (attachedFiles.length > 0) {
+                                  onFilesChange([])
+                                }
+                              }
+                            }}
+                            disabled={!canSend}
+                            className={sendButtonClass}
+                          >
+                            <span className="translate-y-[0.5px]"><SendHorizonal className="w-4 h-4" /></span>
+                          </motion.button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="rounded-full">
+                          Send message
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
+          {showContextRing && !showCompactLanding && (
+            <div className="pointer-events-auto absolute left-3 top-full mt-2 flex h-5 items-center">
+              <TokenUsageIndicator
+                input={input}
+                attachedFiles={attachedFiles}
+                className="text-[var(--theme-text-muted)]"
+              />
+            </div>
+          )}
         </div>
       </div>
 

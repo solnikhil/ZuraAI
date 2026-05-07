@@ -1,6 +1,7 @@
 import { app, BrowserWindow, shell } from 'electron'
 import path from 'path'
 import { deferredInitializer } from '../startup/deferredInit'
+import { resolveAppIconPath } from '../windowIcon'
 
 export function resolveDistPath(dirname: string, envDist = process.env.DIST): string {
   return envDist || path.join(dirname, '../dist')
@@ -83,10 +84,10 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
   mainWindow = new BrowserWindow({
     width: options?.width ?? 1200,
     height: options?.height ?? 800,
-    minWidth: 900,
+    minWidth: 820,
     minHeight: 600,
     title: 'ZuraAI - Dashboard',
-    icon: path.join(process.env.PUBLIC || '', 'icon.png'),
+    icon: resolveAppIconPath(),
     ...(isWindows
       ? {
           frame: false,
@@ -108,10 +109,10 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
       sandbox: true,
       devTools: options?.devTools ?? !app.isPackaged,
       backgroundThrottling: false,
-      spellcheck: false,
+      spellcheck: isMacOS,
       additionalArguments: ['--process-name=ZuraAI-Dashboard'],
     },
-    autoHideMenuBar: true,
+    autoHideMenuBar: isWindows,
     // Keep the main window on a solid background to avoid transparent border artifacts
     // and compositor instability on Windows.
     backgroundColor: '#14120B',
@@ -207,6 +208,9 @@ export function getMainWindow(): BrowserWindow | null {
  */
 export function showMainWindow(): void {
   if (mainWindow) {
+    if (mainWindow.isMinimized()) {
+      mainWindow.restore()
+    }
     mainWindow.show()
     mainWindow.focus()
   } else {
