@@ -97,7 +97,9 @@ export function UsageSection({
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div className="stat-value-sm">{stats.cachedTotalTokens.toLocaleString()}</div>
-            <div className="stat-label-sm">Cached tokens</div>
+            <div className="stat-label-sm">
+              Cached tokens{stats.cacheWriteInputTokens > 0 ? ` / wrote ${stats.cacheWriteInputTokens.toLocaleString()}` : ''}
+            </div>
           </div>
         </div>
       </div>
@@ -191,6 +193,7 @@ export function UsageSection({
                     </span>
                     <span style={{ gridColumn: '2 / span 2', fontSize: '0.72rem', color: 'var(--theme-text-muted)', textAlign: 'right' }}>
                       Cached {provider.cachedTotalTokens.toLocaleString()} tok
+                      {provider.cacheWriteInputTokens > 0 ? ` / wrote ${provider.cacheWriteInputTokens.toLocaleString()}` : ''}
                     </span>
                   </div>
                 ))}

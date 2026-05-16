@@ -38,6 +38,7 @@ import type { SettingsConfig } from '../contexts/SettingsConfigContext'
 import { DEFAULT_OLLAMA_URL } from './providerRegistry'
 import { resolveProviderForModel } from './providerRegistry'
 import type { ActiveProviderId } from './providerTypes'
+import { shapePromptCacheRequest } from './promptCaching'
 import type { FileAttachment } from '../chat/types'
 import {
   emptyUsage,
@@ -200,6 +201,11 @@ function normalizeUsage(
         total_tokens?: number
         prompt_cache_tokens?: number
         completion_cache_tokens?: number
+        prompt_cache_hit_tokens?: number
+        prompt_cache_miss_tokens?: number
+        cache_creation_input_tokens?: number
+        cache_write_input_tokens?: number
+        prompt_tokens_details?: { cached_tokens?: number }
         completion_tokens_details?: { reasoning_tokens?: number }
         reasoning_tokens?: number
         input_tokens?: number
@@ -211,14 +217,23 @@ function normalizeUsage(
 
   const inputTokens = usage.prompt_tokens ?? usage.input_tokens ?? 0
   const outputTokens = usage.completion_tokens ?? usage.output_tokens ?? 0
+  const cachedInputTokens =
+    usage.prompt_cache_tokens ??
+    usage.prompt_cache_hit_tokens ??
+    usage.prompt_tokens_details?.cached_tokens
+  const cacheWriteInputTokens =
+    usage.cache_write_input_tokens ??
+    usage.cache_creation_input_tokens
   return {
     inputTokens,
     outputTokens,
     totalTokens: usage.total_tokens ?? inputTokens + outputTokens,
     thinkingTokens:
       usage.completion_tokens_details?.reasoning_tokens ?? usage.reasoning_tokens ?? undefined,
-    cachedInputTokens: usage.prompt_cache_tokens,
+    cachedInputTokens,
     cachedOutputTokens: usage.completion_cache_tokens,
+    cacheMissInputTokens: usage.prompt_cache_miss_tokens,
+    cacheWriteInputTokens,
   }
 }
 
@@ -594,7 +609,14 @@ export async function* streamProviderEvents(
         )
       }
 
-      for await (const chunk of streamOpenRouterCompletion(apiKey, normalizedModel, request.messages, {
+      const cacheRequest = shapePromptCacheRequest({
+        provider: request.provider,
+        model: normalizedModel,
+        messages: request.messages,
+        sessionId: request.sessionId,
+      })
+
+      for await (const chunk of streamOpenRouterCompletion(apiKey, normalizedModel, cacheRequest.messages, {
         temperature: request.temperature,
         maxTokens: request.maxTokens,
         tools: request.tools || undefined,
@@ -697,7 +719,14 @@ export async function* streamProviderEvents(
         return
       }
 
-      for await (const chunk of streamAlibabaCompletion(apiKey, normalizedModel, request.messages, {
+      const cacheRequest = shapePromptCacheRequest({
+        provider: request.provider,
+        model: normalizedModel,
+        messages: request.messages,
+        sessionId: request.sessionId,
+      })
+
+      for await (const chunk of streamAlibabaCompletion(apiKey, normalizedModel, cacheRequest.messages, {
         temperature: request.temperature,
         max_tokens: request.maxTokens,
         tools: request.tools || undefined,
@@ -776,11 +805,19 @@ export async function* streamProviderEvents(
         return
       }
 
-      for await (const chunk of streamFireworksCompletion(apiKey, normalizedModel, request.messages, {
+      const cacheRequest = shapePromptCacheRequest({
+        provider: request.provider,
+        model: normalizedModel,
+        messages: request.messages,
+        sessionId: request.sessionId,
+      })
+
+      for await (const chunk of streamFireworksCompletion(apiKey, normalizedModel, cacheRequest.messages, {
         temperature: request.temperature,
         max_tokens: request.maxTokens,
         tools: request.tools || undefined,
         toolChoice: request.toolChoice,
+        extraHeaders: cacheRequest.headers,
         signal: request.signal,
       })) {
         const delta = chunk.choices?.[0]?.delta?.content || ''

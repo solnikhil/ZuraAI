@@ -196,6 +196,29 @@ export function registerSystemHandlers(): void {
   })
 
   /**
+   * Returns a development-only process memory snapshot for RAM profiling.
+   *
+   * Channel: `app-info:get-memory-report`
+   * Type: request/response
+   */
+  ipcMain.handle('app-info:get-memory-report', async () => {
+    if (app.isPackaged) return null
+    const currentProcess = await process.getProcessMemoryInfo()
+    return {
+      capturedAt: new Date().toISOString(),
+      currentProcess,
+      appMetrics: app.getAppMetrics().map((metric) => ({
+        pid: metric.pid,
+        type: metric.type,
+        name: metric.name,
+        memory: metric.memory,
+        cpu: metric.cpu,
+        creationTime: metric.creationTime,
+      })),
+    }
+  })
+
+  /**
    * Opens the dedicated About window.
    *
    * Channel: `app-info:open-about-window`
@@ -433,6 +456,7 @@ export function unregisterSystemHandlers(): void {
   ipcMain.removeHandler('window-controls:close')
   ipcMain.removeHandler('window-controls:is-maximized')
   ipcMain.removeHandler('app-info:get')
+  ipcMain.removeHandler('app-info:get-memory-report')
   ipcMain.removeHandler('app-info:open-about-window')
   ipcMain.removeHandler('shell:open-external')
   ipcMain.removeHandler('devtools:inspect-element')

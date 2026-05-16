@@ -1,0 +1,61 @@
+name: CI Cross-Platform
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+    paths:
+      - "electron/**"
+      - "src/**"
+      - "scripts/**"
+      - "vite.config.ts"
+      - "vitest.config.ts"
+      - "tsconfig.json"
+      - "package.json"
+      - "bun.lock"
+      - ".github/workflows/ci-cross-platform.yml"
+      - ".github/actions/setup-bun/**"
+
+permissions:
+  contents: read
+
+# Cancel in-progress runs for the same PR.
+concurrency:
+  group: ci-cross-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # test: typecheck + unit tests across the three runners we ship on.
+  #
+  # The existing ci.yml already runs the full Ubuntu pipeline (typecheck +
+  # test + renderer build) and stays the canonical fast-path required check.
+  # This workflow adds Mac/Windows coverage at PR time so platform-specific
+  # regressions (path separators, fs casing, native modules) get caught
+  # before merge.
+  # ---------------------------------------------------------------------------
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-14
+          - windows-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Bun and install dependencies
+        uses: ./.github/actions/setup-bun
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Test
+        run: bun run test

@@ -52,6 +52,8 @@ export interface StreamingResult {
     ttft?: number
     cachedInputTokens?: number
     cachedOutputTokens?: number
+    cacheMissInputTokens?: number
+    cacheWriteInputTokens?: number
   }
   /** Response latency in ms */
   latency?: number

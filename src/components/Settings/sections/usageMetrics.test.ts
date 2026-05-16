@@ -46,6 +46,7 @@ describe('usageMetrics', () => {
             totalTokens: 200,
             cachedInputTokens: 40,
             cachedOutputTokens: 5,
+            cacheWriteInputTokens: 8,
           },
           toolResults: [
             {
@@ -98,6 +99,7 @@ describe('usageMetrics', () => {
     expect(stats.totalTokens).toBe(475)
     expect(stats.cachedInputTokens).toBe(50)
     expect(stats.cachedOutputTokens).toBe(5)
+    expect(stats.cacheWriteInputTokens).toBe(8)
     expect(stats.cachedTotalTokens).toBe(55)
     expect(stats.tokensLast7Days).toBe(325)
     expect(stats.tokensLast30Days).toBe(475)
@@ -119,6 +121,7 @@ describe('usageMetrics', () => {
     expect(groqEntry?.errors).toBe(1)
     expect(groqEntry?.cachedInputTokens).toBe(50)
     expect(groqEntry?.cachedOutputTokens).toBe(5)
+    expect(groqEntry?.cacheWriteInputTokens).toBe(8)
     expect(groqEntry?.cachedTotalTokens).toBe(55)
 
     const alibabaEntry = stats.providerEntries.find((entry) => entry.provider === 'alibaba')

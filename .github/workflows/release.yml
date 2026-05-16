@@ -8,8 +8,47 @@ on:
 permissions:
   contents: write
 
+# Cancel duplicate runs for the same tag.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
-  release:
+  # ---------------------------------------------------------------------------
+  # validate: fail fast if the tag does not match package.json's version.
+  # Otherwise, electron-builder happily produces a latest.yml whose version
+  # disagrees with the GitHub release tag, and clients silently never see the
+  # update.
+  # ---------------------------------------------------------------------------
+  validate:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.read.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Verify tag matches package.json version
+        id: read
+        shell: bash
+        run: |
+          set -euo pipefail
+          PKG_VERSION=$(jq -r .version package.json)
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          echo "Tag (without leading v): ${TAG_VERSION}"
+          echo "package.json version:    ${PKG_VERSION}"
+          if [ "${PKG_VERSION}" != "${TAG_VERSION}" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} does not match package.json version ${PKG_VERSION}. Bump package.json (and re-tag) before publishing."
+            exit 1
+          fi
+          echo "version=${PKG_VERSION}" >> "$GITHUB_OUTPUT"
+
+  # ---------------------------------------------------------------------------
+  # build-windows: produce the NSIS installer and electron-updater feed.
+  # Artifacts uploaded as a workflow artifact for the publish job to pick up.
+  # ---------------------------------------------------------------------------
+  build-windows:
+    needs: validate
     runs-on: windows-latest
     steps:
       - name: Checkout
@@ -33,67 +72,167 @@ jobs:
         run: bun run verify:mcp-release
 
       - name: Verify packaged release artifacts
-        shell: pwsh
-        run: |
-          $requiredPatterns = @(
-            'release/ZuraAI-Setup-*.exe',
-            'release/ZuraAI-Setup-*.exe.blockmap',
-            'release/latest.yml'
-          )
-
-          foreach ($pattern in $requiredPatterns) {
-            $matches = Get-ChildItem -Path $pattern -ErrorAction SilentlyContinue
-            if (-not $matches) {
-              throw "Missing expected release artifact: $pattern"
-            }
-          }
-
-      - name: Generate changelog
-        id: changelog
         shell: bash
         run: |
-          # Find the previous tag for changelog range
+          set -euo pipefail
+          test -e "release/ZuraAI-Setup-${{ needs.validate.outputs.version }}.exe"
+          test -e "release/ZuraAI-Setup-${{ needs.validate.outputs.version }}.exe.blockmap"
+          test -e release/latest.yml
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-artifacts
+          path: |
+            release/ZuraAI-Setup-*.exe
+            release/ZuraAI-Setup-*.exe.blockmap
+            release/latest.yml
+          if-no-files-found: error
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # build-macos: produce the .dmg, .zip, and electron-updater feed.
+  #
+  # Note: these artifacts are unsigned and un-notarized. macOS users can install
+  # them manually but in-app auto-update will fail Gatekeeper assessment until
+  # an Apple Developer ID is wired in. See docs/MAINTENANCE.md.
+  # ---------------------------------------------------------------------------
+  build-macos:
+    needs: validate
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun and install dependencies
+        uses: ./.github/actions/setup-bun
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Test
+        run: bun run test
+
+      - name: Build macOS artifacts
+        # Disable signing; we have no Apple Developer ID secrets configured.
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: bun run build
+
+      - name: Verify packaged release artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -e release/latest-mac.yml
+          # at least one dmg + one zip with matching version must exist
+          ls release/ZuraAI-${{ needs.validate.outputs.version }}*.dmg
+          ls release/ZuraAI-${{ needs.validate.outputs.version }}*-mac.zip
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-artifacts
+          path: |
+            release/*.dmg
+            release/*.dmg.blockmap
+            release/*-mac.zip
+            release/*-mac.zip.blockmap
+            release/latest-mac.yml
+          if-no-files-found: error
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # publish: stitch together the per-OS artifacts, build the changelog, compute
+  # SHA-256 checksums, and create the GitHub Release. Runs once per tag.
+  # ---------------------------------------------------------------------------
+  publish:
+    needs: [validate, build-windows, build-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun and install dependencies
+        uses: ./.github/actions/setup-bun
+
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-artifacts
+          path: artifacts/windows
+
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-artifacts
+          path: artifacts/macos
+
+      - name: Stage release files
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          cp -v artifacts/windows/* release/
+          cp -v artifacts/macos/* release/
+          echo
+          echo "Staged release contents:"
+          ls -la release
+
+      - name: Generate changelog
+        shell: bash
+        run: |
+          set -euo pipefail
           CURRENT_TAG="${GITHUB_REF_NAME}"
           PREV_TAG=$(git describe --tags --abbrev=0 "${CURRENT_TAG}^" 2>/dev/null || echo "")
-
-          if [ -n "$PREV_TAG" ]; then
-            CHANGELOG=$(bun scripts/generate-changelog.mjs --from-tag "$PREV_TAG" --to-ref "$CURRENT_TAG")
+          if [ -n "${PREV_TAG}" ]; then
+            bun scripts/generate-changelog.mjs --from-tag "${PREV_TAG}" --to-ref "${CURRENT_TAG}" > release-notes.md
           else
-            CHANGELOG=$(bun scripts/generate-changelog.mjs --to-ref "$CURRENT_TAG")
+            bun scripts/generate-changelog.mjs --to-ref "${CURRENT_TAG}" > release-notes.md
           fi
 
-          # Write changelog to a file for the release step
-          echo "$CHANGELOG" > release-notes.md
-
       - name: Compute SHA-256 checksums
-        id: checksums
-        shell: pwsh
+        shell: bash
         run: |
-          $artifacts = @(
-            Get-ChildItem -Path 'release/ZuraAI-Setup-*.exe'
-            Get-ChildItem -Path 'release/ZuraAI-Setup-*.exe.blockmap'
-            Get-ChildItem -Path 'release/latest.yml'
-          ) | Sort-Object Name
+          set -euo pipefail
+          {
+            echo
+            echo "## SHA-256 Checksums"
+            echo
+            echo '```'
+            (cd release && for f in $(ls -1 | sort); do
+              if [ -f "$f" ]; then
+                sha256sum "$f"
+              fi
+            done)
+            echo '```'
+          } >> release-notes.md
 
-          Set-Content -Path checksums.md -Value '## SHA-256 Checksums'
-          Add-Content -Path checksums.md -Value ''
-          Add-Content -Path checksums.md -Value '```'
+      - name: Append known-limitations note
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat >> release-notes.md <<'EOF'
 
-          foreach ($artifact in $artifacts) {
-            $hash = (Get-FileHash -Path $artifact.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-            Add-Content -Path checksums.md -Value "$hash  $($artifact.Name)"
-          }
+          ## Known limitations
 
-          Add-Content -Path checksums.md -Value '```'
-          Add-Content -Path release-notes.md -Value ''
-          Get-Content -Path checksums.md | Add-Content -Path release-notes.md
+          - **macOS auto-update is not available yet.** The macOS build is currently unsigned and un-notarized, so in-app `Check for Updates` will fail Gatekeeper on macOS. Please download the latest `.dmg` from this release page when a new version is published. Tracked in [`docs/MAINTENANCE.md`](https://github.com/solnikhil/ZuraAI/blob/main/docs/MAINTENANCE.md).
+          EOF
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           body_path: release-notes.md
           files: |
             release/ZuraAI-Setup-*.exe
             release/ZuraAI-Setup-*.exe.blockmap
             release/latest.yml
+            release/*.dmg
+            release/*.dmg.blockmap
+            release/*-mac.zip
+            release/*-mac.zip.blockmap
+            release/latest-mac.yml
           fail_on_unmatched_files: true

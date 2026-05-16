@@ -13,6 +13,8 @@ export interface NormalizedUsage {
   thinkingTokens?: number
   cachedInputTokens?: number
   cachedOutputTokens?: number
+  cacheMissInputTokens?: number
+  cacheWriteInputTokens?: number
 }
 
 export interface NormalizedToolCallDelta {
@@ -63,6 +65,7 @@ export interface ProviderRuntimeStreamRequest {
     image_size?: string
   }
   enableThinking?: boolean
+  sessionId?: string
   signal?: AbortSignal
 }
 

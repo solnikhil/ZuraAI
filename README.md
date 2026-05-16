@@ -25,6 +25,7 @@
     <a href="https://github.com/solnikhil/ZuraAI/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/solnikhil/ZuraAI/ci.yml?branch=main&label=CI&style=flat-square" alt="CI status" /></a>
     <a href="https://github.com/solnikhil/ZuraAI/actions/workflows/codeql.yml"><img src="https://img.shields.io/github/actions/workflow/status/solnikhil/ZuraAI/codeql.yml?branch=main&label=CodeQL&style=flat-square" alt="CodeQL status" /></a>
     <a href="https://github.com/solnikhil/ZuraAI/actions/workflows/secret-scan.yml"><img src="https://img.shields.io/github/actions/workflow/status/solnikhil/ZuraAI/secret-scan.yml?branch=main&label=Secret%20Scan&style=flat-square" alt="Secret Scan status" /></a>
+    <a href="https://securityscorecards.dev/viewer/?uri=github.com/solnikhil/ZuraAI"><img src="https://api.securityscorecards.dev/projects/github.com/solnikhil/ZuraAI/badge" alt="OpenSSF Scorecard" /></a>
     <img src="https://img.shields.io/badge/storage-local--first-1f6feb?style=flat-square" alt="Local-first storage" />
     <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows-4b5563?style=flat-square" alt="macOS and Windows support" />
     <img src="https://img.shields.io/badge/node-%3E%3D18-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node 18 or newer" />

@@ -1,0 +1,90 @@
+name: Package Smoke
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+    paths:
+      - "electron/**"
+      - "installer/**"
+      - "build/**"
+      - "scripts/generate-icons.mjs"
+      - "package.json"
+      - "vite.config.ts"
+      - ".github/workflows/ci-package-smoke.yml"
+      - ".github/actions/setup-bun/**"
+
+permissions:
+  contents: read
+
+# Cancel in-progress runs for the same PR.
+concurrency:
+  group: package-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # build: run electron-builder in --dir mode (no installer, no notarization)
+  # to confirm the app still packages cleanly. Linux is intentionally skipped
+  # because we don't ship a Linux installer.
+  #
+  # Artifacts are NOT uploaded; this job is purely a smoke gate.
+  # ---------------------------------------------------------------------------
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - windows-latest
+          - macos-14
+    runs-on: ${{ matrix.os }}
+    env:
+      # Required for unsigned macOS smoke builds; mirrors release.yml.
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Bun and install dependencies
+        uses: ./.github/actions/setup-bun
+
+      - name: electron-builder --dir
+        run: bun run build:dir
+
+      - name: Verify unpacked output (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -d release || {
+            echo "::error::release/ directory missing after build:dir"
+            exit 1
+          }
+          if ! ls -d release/*-unpacked 1>/dev/null 2>&1; then
+            echo "::error::No release/*-unpacked directory found on Windows"
+            ls -la release || true
+            exit 1
+          fi
+          echo "Found unpacked Windows build:"
+          ls -d release/*-unpacked
+
+      - name: Verify unpacked output (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -d release || {
+            echo "::error::release/ directory missing after build:dir"
+            exit 1
+          }
+          if ! ls -d release/mac* 1>/dev/null 2>&1; then
+            echo "::error::No release/mac* directory found on macOS"
+            ls -la release || true
+            exit 1
+          fi
+          echo "Found unpacked macOS build:"
+          ls -d release/mac*

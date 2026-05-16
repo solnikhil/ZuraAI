@@ -104,6 +104,10 @@ function mergeUsage(existing: NormalizedUsage, incoming: NormalizedUsage): Norma
       (existing.cachedInputTokens || 0) + (incoming.cachedInputTokens || 0) || undefined,
     cachedOutputTokens:
       (existing.cachedOutputTokens || 0) + (incoming.cachedOutputTokens || 0) || undefined,
+    cacheMissInputTokens:
+      (existing.cacheMissInputTokens || 0) + (incoming.cacheMissInputTokens || 0) || undefined,
+    cacheWriteInputTokens:
+      (existing.cacheWriteInputTokens || 0) + (incoming.cacheWriteInputTokens || 0) || undefined,
   }
 }
 
@@ -258,6 +262,9 @@ export function useProviderStreaming({
         throttledUpdateStreamingMessage(options.sessionId, options.messageId, {
           content: accumulatedContent,
           thinking: activeThinking || undefined,
+          thinkingDuration: activeThinkingStartTime !== null
+            ? performance.now() - activeThinkingStartTime
+            : undefined,
           thinkingBlocks: localThinkingBlocks,
           files: generatedFiles,
           toolResults: savedToolResults,
@@ -269,7 +276,7 @@ export function useProviderStreaming({
         if (!activeThinking.trim()) return false
 
         const thinkingEndTime = performance.now()
-        const thinkingDuration = activeThinkingStartTime
+        const thinkingDuration = activeThinkingStartTime !== null
           ? thinkingEndTime - activeThinkingStartTime
           : undefined
 
@@ -281,6 +288,16 @@ export function useProviderStreaming({
         activeThinking = ''
         activeThinkingStartTime = null
         return true
+      }
+
+      const publishCompletedThinking = () => {
+        const completedThinkingUpdate = {
+          thinking: undefined,
+          thinkingDuration: undefined,
+          thinkingBlocks: localThinkingBlocks,
+        }
+        updateStreamingState(completedThinkingUpdate)
+        updateStreamingMessage(options.sessionId, options.messageId, completedThinkingUpdate)
       }
 
       const resetAccumulatedAnswerForRetry = () => {
@@ -338,6 +355,7 @@ export function useProviderStreaming({
           reasoning: options.reasoning,
           enableThinking: options.enableThinking,
           imageConfig: options.imageConfig,
+          sessionId: options.sessionId,
           signal: options.signal,
         })) {
           switch (event.type) {
@@ -348,13 +366,7 @@ export function useProviderStreaming({
 
               if (event.delta && activeThinking) {
                 finalizeActiveThinking()
-                const completedThinkingUpdate = {
-                  thinking: undefined,
-                  thinkingDuration: undefined,
-                  thinkingBlocks: localThinkingBlocks,
-                }
-                updateStreamingState(completedThinkingUpdate)
-                updateStreamingMessage(options.sessionId, options.messageId, completedThinkingUpdate)
+                publishCompletedThinking()
               }
 
               accumulatedContent += event.delta
@@ -373,13 +385,17 @@ export function useProviderStreaming({
               if (!roundFirstTokenTime && event.delta) {
                 roundFirstTokenTime = performance.now()
               }
-              if (!activeThinkingStartTime) {
+              if (activeThinkingStartTime === null) {
                 activeThinkingStartTime = performance.now()
               }
               activeThinking += event.delta
+              const thinkingDuration = activeThinkingStartTime !== null
+                ? performance.now() - activeThinkingStartTime
+                : undefined
               updateStreamingState({
                 phase: 'reasoning',
                 thinking: activeThinking,
+                thinkingDuration,
                 thinkingBlocks: localThinkingBlocks,
                 files: generatedFiles,
               })
@@ -389,6 +405,10 @@ export function useProviderStreaming({
               roundReasoningDetails.push(...event.details)
               break
             case 'tool-call-delta':
+              if (activeThinking) {
+                finalizeActiveThinking()
+                publishCompletedThinking()
+              }
               if (!strippedToolPrelude && accumulatedContent !== roundStartContent) {
                 strippedToolPrelude = true
                 persistToolPreludeAsThinkingBlock()
@@ -1038,6 +1058,8 @@ export function useProviderStreaming({
         thinkingTokens: visibleAnswerUsage?.thinkingTokens,
         cachedInputTokens: visibleAnswerUsage?.cachedInputTokens,
         cachedOutputTokens: visibleAnswerUsage?.cachedOutputTokens,
+        cacheMissInputTokens: visibleAnswerUsage?.cacheMissInputTokens,
+        cacheWriteInputTokens: visibleAnswerUsage?.cacheWriteInputTokens,
         tps:
           basicUsage.outputTokens > 0 && metrics.latency > 0
             ? basicUsage.outputTokens / (metrics.latency / 1000)

@@ -69,6 +69,11 @@ export interface OpenRouterStreamChunk {
         total_tokens: number
         prompt_cache_tokens?: number
         completion_cache_tokens?: number
+        cache_creation_input_tokens?: number
+        cache_write_input_tokens?: number
+        prompt_tokens_details?: {
+            cached_tokens?: number
+        }
         completion_tokens_details?: {
             reasoning_tokens?: number
             accepted_prediction_tokens?: number
@@ -108,6 +113,15 @@ export interface OpenRouterResponse {
         prompt_tokens: number
         completion_tokens: number
         total_tokens: number
+        prompt_cache_tokens?: number
+        completion_cache_tokens?: number
+        prompt_cache_hit_tokens?: number
+        prompt_cache_miss_tokens?: number
+        cache_creation_input_tokens?: number
+        cache_write_input_tokens?: number
+        prompt_tokens_details?: {
+            cached_tokens?: number
+        }
         completion_tokens_details?: {
             reasoning_tokens?: number
             accepted_prediction_tokens?: number
@@ -409,5 +423,4 @@ export async function generateOpenRouterCompletion(
 
     return response.json()
 }
-
 

@@ -16,7 +16,7 @@ ZuraAI is a Windows-first desktop AI assistant built with Electron, React, Vite,
 Requirements:
 
 - Node.js `>= 18`
-- Bun `>= 1.1`
+- Bun `>= 1.3.14 < 1.4.0` (see [Bun version policy](#bun-version-policy))
 
 Clone and install:
 
@@ -34,6 +34,25 @@ bun run typecheck
 bun run test
 bun run build
 ```
+
+### Bun version policy
+
+ZuraAI pins Bun to **1.3.14** (the last Zig-based release). CI uses the same version via `.github/actions/setup-bun`, and `package.json` `engines.bun` enforces `>=1.3.14 <1.4.0` for local installs.
+
+Why pinned:
+
+- Bun 1.3.14 (released 2026-05-13) is the last Zig version. The next minor will ship the AI-generated Rust rewrite (~1M LOC merged in a single commit). ZuraAI's release pipeline produces installers shipped to users, so we don't want a million-line implementation swap landing in our build chain without explicit validation.
+- The text-based `bun.lock` format is stable across the rewrite, so day-to-day workflow won't break — but the install runtime, script runner, and Node-compat surface are all newly-implemented Rust code.
+
+To upgrade locally, install the pinned version with:
+
+```bash
+curl -fsSL https://bun.sh/install | bash -s "bun-v1.3.14"
+```
+
+Or via `bun upgrade --to 1.3.14` if you already have a newer build installed.
+
+The upgrade plan to the Rust-Bun release lives in [`docs/MAINTENANCE.md`](docs/MAINTENANCE.md) under "Rust-Bun upgrade". macOS distribution caveats (signing, notarization) are tracked in the same document under "macOS signing and notarization".
 
 ## Ways to contribute
 
@@ -113,6 +132,21 @@ If you changed UI behavior, include a short note in the PR about how you verifie
 - Include screenshots or recordings for UI changes.
 - Call out security-sensitive or architecture-sensitive changes explicitly.
 - Follow the checklist in `.github/pull_request_template.md`.
+
+## What CI runs on your PR
+
+When you open a PR, GitHub Actions will run a series of checks. The full list (with triggers, path filters, and how to fix common failures) lives in [`docs/CI.md`](docs/CI.md). High-level summary:
+
+- **`CI / test`** — typecheck + unit tests + renderer build on Ubuntu (always runs)
+- **`Validate PR Title`** — your PR title must start with a Conventional Commits type (`feat:`, `fix:`, etc.)
+- **`Lint`** + **`Knip`** — informational ESLint/Prettier/unused-dep checks (will become required after a dedicated cleanup PR)
+- **`CI Cross-Platform`** — Mac + Windows + Linux test matrix (only runs on PRs touching code/configs)
+- **`Package Smoke`** — `electron-builder --dir` smoke build on Mac + Windows (only on packaging-relevant changes)
+- **`Dependency Review`** — vulnerability + license check (only on PRs touching `package.json` or lockfiles)
+- **`Pinned Actions`** — enforces SHA-pinned third-party actions (only on PRs touching `.github/`)
+- **`CodeQL`**, **`Secret Scan`** — static analysis + gitleaks on every PR
+
+PRs that only touch markdown / docs / images skip the heavy jobs (matrix + package smoke + lint + knip) automatically via path filters, so docs PRs run in well under a minute.
 
 ## Commit messages
 

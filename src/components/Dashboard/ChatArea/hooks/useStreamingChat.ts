@@ -60,6 +60,26 @@ type RegenerateMessage = Message & {
   instruction?: string
 }
 
+function addDynamicSystemPrompt<T extends { role: string; content: string }>(
+  messages: T[],
+  dynamicPrompt: string
+): T[] {
+  const trimmed = dynamicPrompt.trim()
+  if (!trimmed) return messages
+
+  const systemIndex = messages.findIndex((message) => message.role === 'system')
+  const dynamicMessage = { role: 'system', content: trimmed } as T
+  if (systemIndex < 0) {
+    return [dynamicMessage, ...messages]
+  }
+
+  return [
+    ...messages.slice(0, systemIndex + 1),
+    dynamicMessage,
+    ...messages.slice(systemIndex + 1),
+  ]
+}
+
 export function buildCommittedStreamingUpdates(
   finalState: StreamingMessageState,
   streamResult?: StreamingResult
@@ -444,16 +464,20 @@ const streamingSettings: StreamingSettings = useMemo(
           startResearchMode(researchMaxRounds, forceWebSearch)
         }
 
-        const effectiveSystemPrompt =
-          getEffectiveSystemPrompt(settings) + getResearchContext(0, researchMaxRounds)
+        const baseSystemPrompt = getEffectiveSystemPrompt(settings)
+        const dynamicResearchContext = getResearchContext(0, researchMaxRounds)
         const optimizedHistory = buildOptimizedContext(
           conversationHistory,
           outboundUserMessage,
-          effectiveSystemPrompt,
+          baseSystemPrompt,
           settings.aiModel
         )
-        const providerMessages = buildProviderMessages(
+        const cacheStableHistory = addDynamicSystemPrompt(
           optimizedHistory as ConversationMessage[],
+          dynamicResearchContext
+        )
+        const providerMessages = buildProviderMessages(
+          cacheStableHistory,
           settings.modelProvider
         )
         const provider = normalizeActiveProviderId(settings.modelProvider)

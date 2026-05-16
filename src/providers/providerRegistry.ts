@@ -12,6 +12,12 @@ export interface ProviderCapabilities {
   supportsNativeSearch: boolean
 }
 
+export interface ProviderPromptCachingPolicy {
+  promptCaching: 'none' | 'automatic' | 'explicit'
+  cacheControl?: 'message-content-block' | 'top-level'
+  sessionAffinity?: 'header' | 'body' | 'none'
+}
+
 export interface ProviderEndpoints {
   baseUrl?: string
   chatCompletionsUrl?: string
@@ -42,6 +48,7 @@ export interface ProviderDefinition {
   description: string
   accentColor: string
   capabilities: ProviderCapabilities
+  promptCaching: ProviderPromptCachingPolicy
   endpoints: ProviderEndpoints
   retryPolicy: ProviderRetryPolicy
   auth: ProviderAuthPolicy
@@ -196,6 +203,11 @@ const PROVIDERS: Record<ProviderId, ProviderDefinition> = {
       supportsImageGeneration: true,
       supportsNativeSearch: false,
     },
+    promptCaching: {
+      promptCaching: 'explicit',
+      cacheControl: 'message-content-block',
+      sessionAffinity: 'none',
+    },
     endpoints: {
       baseUrl: 'https://openrouter.ai/api/v1',
       chatCompletionsUrl: 'https://openrouter.ai/api/v1/chat/completions',
@@ -227,6 +239,10 @@ const PROVIDERS: Record<ProviderId, ProviderDefinition> = {
       supportsImageGeneration: false,
       supportsNativeSearch: false,
     },
+    promptCaching: {
+      promptCaching: 'automatic',
+      sessionAffinity: 'none',
+    },
     endpoints: {
       baseUrl: 'https://api.groq.com/openai/v1',
       chatCompletionsUrl: 'https://api.groq.com/openai/v1/chat/completions',
@@ -256,6 +272,11 @@ const PROVIDERS: Record<ProviderId, ProviderDefinition> = {
       supportsReasoning: true,
       supportsImageGeneration: false,
       supportsNativeSearch: false,
+    },
+    promptCaching: {
+      promptCaching: 'explicit',
+      cacheControl: 'message-content-block',
+      sessionAffinity: 'none',
     },
     endpoints: {
       baseUrl: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
@@ -288,6 +309,10 @@ const PROVIDERS: Record<ProviderId, ProviderDefinition> = {
       supportsImageGeneration: false,
       supportsNativeSearch: false,
     },
+    promptCaching: {
+      promptCaching: 'automatic',
+      sessionAffinity: 'none',
+    },
     endpoints: {
       baseUrl: 'https://api.deepseek.com',
       chatCompletionsUrl: 'https://api.deepseek.com/chat/completions',
@@ -318,6 +343,10 @@ const PROVIDERS: Record<ProviderId, ProviderDefinition> = {
       supportsReasoning: false,
       supportsImageGeneration: false,
       supportsNativeSearch: true,
+    },
+    promptCaching: {
+      promptCaching: 'none',
+      sessionAffinity: 'none',
     },
     endpoints: {
       baseUrl: 'https://api.perplexity.ai',
@@ -350,6 +379,10 @@ const PROVIDERS: Record<ProviderId, ProviderDefinition> = {
       supportsImageGeneration: false,
       supportsNativeSearch: false,
     },
+    promptCaching: {
+      promptCaching: 'none',
+      sessionAffinity: 'none',
+    },
     endpoints: {
       baseUrl: DEFAULT_OLLAMA_URL,
       defaultLocalUrl: DEFAULT_OLLAMA_URL,
@@ -379,6 +412,10 @@ const PROVIDERS: Record<ProviderId, ProviderDefinition> = {
       supportsReasoning: false,
       supportsImageGeneration: false,
       supportsNativeSearch: false,
+    },
+    promptCaching: {
+      promptCaching: 'automatic',
+      sessionAffinity: 'header',
     },
     endpoints: {
       baseUrl: 'https://api.fireworks.ai/inference/v1',
@@ -457,6 +494,12 @@ export function providerSupportsVisionUploads(provider: string | null | undefine
 
 export function providerUsesNativeSearch(provider: string | null | undefined): boolean {
   return getProviderDefinition(provider).capabilities.supportsNativeSearch
+}
+
+export function getProviderPromptCachingPolicy(
+  provider: string | null | undefined
+): ProviderPromptCachingPolicy {
+  return getProviderDefinition(provider).promptCaching
 }
 
 export function modelSupportsTools(provider: string | null | undefined, model: string): boolean {

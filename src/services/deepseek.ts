@@ -35,6 +35,8 @@ export interface DeepSeekResponse {
         total_tokens: number
         prompt_cache_hit_tokens?: number
         prompt_cache_miss_tokens?: number
+        cache_creation_input_tokens?: number
+        cache_write_input_tokens?: number
         completion_tokens_details?: {
             reasoning_tokens?: number
         }
@@ -72,6 +74,8 @@ export interface DeepSeekStreamChunk {
         total_tokens?: number
         prompt_cache_hit_tokens?: number
         prompt_cache_miss_tokens?: number
+        cache_creation_input_tokens?: number
+        cache_write_input_tokens?: number
         completion_tokens_details?: {
             reasoning_tokens?: number
         }

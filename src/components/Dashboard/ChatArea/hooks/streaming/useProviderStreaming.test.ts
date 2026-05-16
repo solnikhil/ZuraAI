@@ -173,6 +173,187 @@ describe('useProviderStreaming', () => {
     expect(throttledUpdateStreamingMessage).not.toHaveBeenCalled()
   })
 
+  it('publishes live reasoning duration and persists the completed reasoning block duration', async () => {
+    let now = 0
+    const performanceNowSpy = vi.spyOn(performance, 'now').mockImplementation(() => now)
+
+    mocks.createProviderStreamClient.mockReturnValue({
+      stream: async function* () {
+        now = 100
+        yield { type: 'reasoning-delta', delta: 'First thought.' }
+        now = 600
+        yield { type: 'reasoning-delta', delta: ' More thought.' }
+        now = 1600
+        yield { type: 'text-delta', delta: 'Final answer.' }
+        yield { type: 'finish', finishReason: 'stop' }
+      },
+    })
+
+    const updateStreamingMessage = vi.fn()
+
+    const { result } = renderHook(() =>
+      useProviderStreaming({
+        settings: {
+          aiModel: 'anthropic/claude-sonnet-4.5',
+          modelProvider: 'openrouter',
+          temperature: 0.4,
+          maxTokens: 1024,
+          streamResponses: true,
+          openRouterApiKey: 'or-key',
+        },
+        toolCalling: {
+          canUseTools: false,
+          getToolsForRequest: () => null,
+          handleToolCalls: vi.fn(),
+          getResearchContext: () => '',
+        },
+        updateStreamingMessage,
+        flushThrottledUpdates: vi.fn(),
+        throttledUpdateStreamingMessage: vi.fn(),
+      })
+    )
+
+    const streamResult = await result.current.runProviderStream({
+      provider: 'openrouter',
+      model: 'anthropic/claude-sonnet-4.5',
+      sessionId: 'session-1',
+      messageId: 'message-reasoning-duration',
+      messages: [{ role: 'user', content: 'think' }],
+      startTime: 0,
+      researchMaxRounds: 0,
+    })
+
+    expect(mocks.updateStreaming).toHaveBeenCalledWith(
+      expect.objectContaining({
+        thinking: 'First thought. More thought.',
+        thinkingDuration: 500,
+      })
+    )
+    expect(streamResult.thinkingBlocks).toEqual([
+      expect.objectContaining({
+        type: 'thinking',
+        content: 'First thought. More thought.',
+        duration: 1500,
+      }),
+    ])
+    expect(updateStreamingMessage).toHaveBeenCalledWith(
+      'session-1',
+      'message-reasoning-duration',
+      expect.objectContaining({
+        thinking: undefined,
+        thinkingDuration: undefined,
+        thinkingBlocks: [
+          expect.objectContaining({
+            type: 'thinking',
+            duration: 1500,
+          }),
+        ],
+      })
+    )
+
+    performanceNowSpy.mockRestore()
+  })
+
+  it('finalizes reasoning before tool execution so tool time is not counted', async () => {
+    let now = 0
+    const performanceNowSpy = vi.spyOn(performance, 'now').mockImplementation(() => now)
+
+    mocks.createProviderStreamClient.mockReturnValue({
+      stream: async function* () {
+        now = 100
+        yield { type: 'reasoning-delta', delta: 'Need a source.' }
+        now = 1100
+        yield {
+          type: 'tool-call-delta',
+          delta: [{
+            index: 0,
+            id: 'call_1',
+            type: 'function',
+            function: { name: 'web_search', arguments: '{"query":"zura ai docs"}' },
+          }],
+        }
+        yield { type: 'finish', finishReason: 'tool_calls' }
+      },
+    })
+
+    const updateStreamingMessage = vi.fn()
+    const handleToolCalls = vi.fn().mockImplementation(async () => {
+      now = 6100
+      return {
+        hasTools: true,
+        toolResults: [buildWebSearchToolResult('call_1', 'zura ai docs')],
+        formattedResults: [],
+        needsFollowUp: false,
+        executionSummary: buildExecutionSummary('zura ai docs'),
+      }
+    })
+
+    const { result } = renderHook(() =>
+      useProviderStreaming({
+        settings: {
+          aiModel: 'anthropic/claude-sonnet-4.5',
+          modelProvider: 'openrouter',
+          temperature: 0.4,
+          maxTokens: 1024,
+          streamResponses: true,
+          openRouterApiKey: 'or-key',
+        },
+        toolCalling: {
+          canUseTools: true,
+          getToolsForRequest: () => [{
+            type: 'function',
+            function: {
+              name: 'web_search',
+              description: 'Search the web',
+              parameters: { type: 'object', properties: {} },
+            },
+          }],
+          handleToolCalls,
+          getResearchContext: () => 'Research context',
+        },
+        updateStreamingMessage,
+        flushThrottledUpdates: vi.fn(),
+        throttledUpdateStreamingMessage: vi.fn(),
+      })
+    )
+
+    const streamResult = await result.current.runProviderStream({
+      provider: 'openrouter',
+      model: 'anthropic/claude-sonnet-4.5',
+      sessionId: 'session-1',
+      messageId: 'message-reasoning-tool-duration',
+      messages: [{ role: 'user', content: 'check docs' }],
+      startTime: 0,
+      researchMaxRounds: 1,
+      enableTools: true,
+    })
+
+    expect(handleToolCalls).toHaveBeenCalledTimes(1)
+    expect(streamResult.thinkingBlocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'thinking',
+          content: 'Need a source.',
+          duration: 1000,
+        }),
+        expect.objectContaining({
+          type: 'searching',
+          query: 'zura ai docs',
+        }),
+      ])
+    )
+    expect(streamResult.thinkingBlocks).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'thinking',
+          duration: 6000,
+        }),
+      ])
+    )
+
+    performanceNowSpy.mockRestore()
+  })
+
   it('reuses the same orchestrator for tool calls and follow-up answers', async () => {
     const streamCalls: Array<{ messages: Array<{ role: string }>; toolChoice?: unknown }> = []
     let invocation = 0

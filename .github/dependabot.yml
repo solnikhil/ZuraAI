@@ -1,0 +1,72 @@
+# Dependabot configuration for ZuraAI.
+#
+# Notes
+# - Bun is the primary package manager (bun.lock); Dependabot does not natively
+#   speak Bun yet, so it operates on package.json + package-lock.json. Update
+#   PRs may need a follow-up `bun install` locally before merge.
+# - We group updates aggressively to avoid weekly notification floods.
+# - No auto-merge directives: every dependency PR is reviewed manually.
+version: 2
+updates:
+  # ---------------------------------------------------------------------------
+  # npm: weekly grouped runtime + dev dep updates.
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Etc/UTC"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+    commit-message:
+      prefix: "build(deps)"
+      prefix-development: "build(deps-dev)"
+      include: "scope"
+    groups:
+      radix-ui:
+        patterns:
+          - "@radix-ui/*"
+      electron:
+        patterns:
+          - "electron"
+          - "electron-*"
+          - "@electron/*"
+      production-dependencies:
+        dependency-type: "production"
+        exclude-patterns:
+          - "@radix-ui/*"
+          - "electron"
+          - "electron-*"
+          - "@electron/*"
+      development-dependencies:
+        dependency-type: "development"
+        exclude-patterns:
+          - "@radix-ui/*"
+          - "electron"
+          - "electron-*"
+          - "@electron/*"
+
+  # ---------------------------------------------------------------------------
+  # github-actions: weekly grouped action version bumps.
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Etc/UTC"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "area: ci"
+    commit-message:
+      prefix: "ci(deps)"
+      include: "scope"
+    groups:
+      actions:
+        patterns:
+          - "*"

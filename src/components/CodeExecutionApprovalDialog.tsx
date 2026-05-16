@@ -1,7 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AlertTriangle, ShieldCheck, Terminal, TimerReset } from 'lucide-react'
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
-import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 
 import { useToast } from '@/components/shared'
 import {
@@ -16,9 +14,83 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import type { PendingCodeApproval } from '@/electron/types'
+import {
+  getPreloadedMarkdown,
+  waitForMarkdownPreload,
+  type SyntaxHighlighterComponent,
+} from '@/utils/markdownPreloader'
 
-export function CodeExecutionApprovalDialog(): React.ReactElement | null {
-  const [pending, setPending] = useState<PendingCodeApproval[]>([])
+function ApprovalSyntaxBlock({
+  code,
+  language,
+}: {
+  code: string
+  language: string
+}): React.ReactElement {
+  const [highlighter, setHighlighter] = useState<SyntaxHighlighterComponent | null>(
+    () => getPreloadedMarkdown().syntaxHighlighter
+  )
+  const [style, setStyle] = useState<Record<string, React.CSSProperties> | null>(
+    () => getPreloadedMarkdown().prismStyle
+  )
+
+  useEffect(() => {
+    let cancelled = false
+    if (highlighter && style) return
+
+    void waitForMarkdownPreload().then(() => {
+      if (cancelled) return
+      const preloaded = getPreloadedMarkdown()
+      setHighlighter(() => preloaded.syntaxHighlighter)
+      setStyle(preloaded.prismStyle)
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [highlighter, style])
+
+  if (!highlighter || !style) {
+    return (
+      <pre
+        style={{
+          margin: 0,
+          padding: 16,
+          whiteSpace: 'pre-wrap',
+          fontSize: '0.8rem',
+          color: 'var(--theme-text-primary)',
+          background: 'transparent',
+        }}
+      >
+        <code>{code}</code>
+      </pre>
+    )
+  }
+
+  const SyntaxHighlighter = highlighter
+  return (
+    <SyntaxHighlighter
+      language={language}
+      style={style}
+      customStyle={{
+        margin: 0,
+        borderRadius: 'var(--radius)',
+        fontSize: '0.8rem',
+      }}
+    >
+      {code}
+    </SyntaxHighlighter>
+  )
+}
+
+interface CodeExecutionApprovalDialogProps {
+  initialPending?: PendingCodeApproval[]
+}
+
+export function CodeExecutionApprovalDialog({
+  initialPending = [],
+}: CodeExecutionApprovalDialogProps): React.ReactElement | null {
+  const [pending, setPending] = useState<PendingCodeApproval[]>(initialPending)
   const [isResolving, setIsResolving] = useState(false)
   const resolvedRef = useRef(false)
   const { showToast } = useToast()
@@ -99,17 +171,7 @@ export function CodeExecutionApprovalDialog(): React.ReactElement | null {
           <div className="space-y-2">
             <div className="font-medium text-foreground">Code</div>
             <div className="max-h-72 overflow-auto rounded-xl border border-border/70">
-              <SyntaxHighlighter
-                language={syntaxLang}
-                style={oneDark}
-                customStyle={{
-                  margin: 0,
-                  borderRadius: 'var(--radius)',
-                  fontSize: '0.8rem',
-                }}
-              >
-                {request.code}
-              </SyntaxHighlighter>
+              <ApprovalSyntaxBlock code={request.code} language={syntaxLang} />
             </div>
           </div>
         </div>

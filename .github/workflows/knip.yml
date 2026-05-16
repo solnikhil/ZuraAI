@@ -1,0 +1,56 @@
+name: Knip
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+    paths-ignore:
+      - "**.md"
+      - "LICENSE"
+      - "images/**"
+      - "docs/**"
+      - "research/**"
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "**.md"
+      - "LICENSE"
+      - "images/**"
+      - "docs/**"
+      - "research/**"
+
+permissions:
+  contents: read
+
+# Cancel in-progress runs for the same PR/branch.
+concurrency:
+  group: knip-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # knip: unused dependency / export / file detection.
+  #
+  # NOTE: Currently informational (continue-on-error). The repo has 2 unused
+  # deps (rehype-katex, remark-math) flagged at the time this workflow was
+  # added. After a cleanup PR removes/justifies them, flip continue-on-error
+  # to false so this becomes a required PR gate.
+  # TODO: remove continue-on-error once existing knip findings are resolved.
+  # ---------------------------------------------------------------------------
+  knip:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Bun and install dependencies
+        uses: ./.github/actions/setup-bun
+
+      - name: Knip
+        continue-on-error: true
+        run: bun run knip --reporter compact

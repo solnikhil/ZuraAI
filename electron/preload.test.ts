@@ -159,6 +159,77 @@ describe('preload MCP bridge', () => {
   })
 })
 
+describe('preload updater bridge', () => {
+  beforeEach(async () => {
+    vi.resetModules()
+    preloadMocks.exposed.clear()
+    preloadMocks.exposeInMainWorld.mockClear()
+    preloadMocks.invoke.mockReset()
+    preloadMocks.on.mockReset()
+    preloadMocks.off.mockReset()
+    preloadMocks.removeListener.mockReset()
+    preloadMocks.send.mockReset()
+    vi.spyOn(console, 'log').mockImplementation(() => undefined)
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    await import('./preload')
+  })
+
+  it('forwards update-error messages and supports unsubscribe', () => {
+    const updater = getExposedBridge<{
+      onUpdateError: (callback: (message: string) => void) => () => void
+    }>('updater')
+    const callback = vi.fn()
+
+    const unsubscribe = updater.onUpdateError(callback)
+    expect(preloadMocks.on).toHaveBeenCalledWith('update-error', expect.any(Function))
+
+    const listener = preloadMocks.on.mock.calls.find((call) => call[0] === 'update-error')?.[1]
+    listener?.({}, 'Download failed: 404')
+    expect(callback).toHaveBeenCalledWith('Download failed: 404')
+
+    unsubscribe()
+    expect(preloadMocks.off).toHaveBeenCalledWith('update-error', listener)
+  })
+
+  it('forwards update-download-progress payloads and supports unsubscribe', () => {
+    const updater = getExposedBridge<{
+      onUpdateProgress: (
+        callback: (progress: { percent: number; transferred: number; total: number }) => void
+      ) => () => void
+    }>('updater')
+    const callback = vi.fn()
+
+    const unsubscribe = updater.onUpdateProgress(callback)
+    expect(preloadMocks.on).toHaveBeenCalledWith('update-download-progress', expect.any(Function))
+
+    const listener = preloadMocks.on.mock.calls.find(
+      (call) => call[0] === 'update-download-progress'
+    )?.[1]
+    const progress = { percent: 42.5, transferred: 1000, total: 2353 }
+    listener?.({}, progress)
+    expect(callback).toHaveBeenCalledWith(progress)
+
+    unsubscribe()
+    expect(preloadMocks.off).toHaveBeenCalledWith('update-download-progress', listener)
+  })
+
+  it('blocks update-error subscription via the generic ipcRenderer bridge before allowlisting', () => {
+    // Sanity check: the generic ipcRenderer.on path enforces ON_CHANNELS membership,
+    // and update-error is allowlisted (so this should NOT throw). This locks in the
+    // allowlist so accidental removal causes a regression.
+    const ipcRenderer = getExposedBridge<{
+      on: (channel: string, listener: (...args: unknown[]) => void) => void
+    }>('ipcRenderer')
+
+    expect(() => ipcRenderer.on('update-error', () => undefined)).not.toThrow()
+    expect(() => ipcRenderer.on('update-download-progress', () => undefined)).not.toThrow()
+    expect(() => ipcRenderer.on('not-an-allowlisted-channel' as never, () => undefined)).toThrow(
+      /Blocked IPC on channel/
+    )
+  })
+})
+
 function getExposedBridge<T>(name: string): T {
   const bridge = preloadMocks.exposed.get(name)
   if (!bridge) {

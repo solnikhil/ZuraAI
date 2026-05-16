@@ -204,7 +204,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 
 **Allowlisted channels (as implemented today):**
 - `INVOKE_CHANNELS`:
-  - `chat-store:get-all`, `chat-store:save-all`, `chat-store:migrate`, `chat-store:get-all-folders`, `chat-store:save-folders`
+  - `chat-store:get-metadata`, `chat-store:get-session`, `chat-store:save-session`, `chat-store:delete-session`, `chat-store:save-index`, `chat-store:get-all`, `chat-store:save-all`, `chat-store:migrate`, `chat-store:get-all-folders`, `chat-store:save-folders`
   - `secure-storage:get`, `secure-storage:set`, `secure-storage:get-presence`, `secure-storage:get-all`
   - `execute-tool`
   - `window-resize`
@@ -218,7 +218,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - invokes: `window-controls:minimize`, `window-controls:toggle-maximize`, `window-controls:close`, `window-controls:is-maximized`
   - listens for: `window-controls:state`
 - `window.appInfo`
-  - invokes: `app-info:get`, `app-info:open-about-window`
+  - invokes: `app-info:get`, `app-info:get-memory-report` (development-only), `app-info:open-about-window`
 - `window.overlay`
   - invokes: `overlay:show`, `overlay:hide`, `overlay:toggle`, `overlay:expand`, `overlay:collapse`, `overlay:get-state`, `overlay:focus-main-window`, `overlay:apply-settings`
   - listens for: `overlay:pending-prompt`
@@ -304,8 +304,9 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Shared stream orchestration: `src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.ts`
 - Compatibility provider/runtime wrapper: `src/components/Dashboard/ChatArea/hooks/chatProviderRuntime.ts`
 - State/persistence: `src/contexts/ChatHistoryContext.tsx`
-  - Electron path: `window.ipcRenderer.invoke('chat-store:get-all'|'chat-store:save-all'|'chat-store:migrate')`
-  - Main storage: `electron/chatStore.ts` → `chat-history.json` under `app.getPath('userData')`, written through same-directory temp-file replacement to reduce corruption risk during crashes or interrupted writes
+  - Electron path: metadata-first IPC uses `chat-store:get-metadata`, `chat-store:get-session`, `chat-store:save-session`, `chat-store:delete-session`, and `chat-store:save-index`; legacy `get-all` / `save-all` remain as compatibility wrappers.
+  - Main storage: `electron/chatStore.ts` → `chat-index.json` for folders + session metadata and `chat-sessions/{sessionId}.json` for full message arrays under `app.getPath('userData')`; old `chat-history.json` is migrated into this split layout on first read.
+  - Renderer memory policy: sidebar/session lists keep metadata-shaped sessions with `messages: []` for unloaded histories; only the active session plus two recent sessions keep full message arrays in memory.
 - Provider streaming entry points:
   - `src/services/openrouter.ts` (`streamOpenRouterCompletion`)
   - `src/services/groq.ts` (`streamGroqCompletion`)
@@ -314,8 +315,9 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - `src/services/ollama.ts` (`streamOllamaCompletion`)
   - `src/services/perplexity.ts` (`streamPerplexityCompletion`)
 - Provider services now only own request shaping and transport parsing. `src/providers/providerRuntime.ts` is the centralized execution layer for provider-specific streaming/non-streaming calls, title-generation text extraction, OpenRouter model normalization, and normalized event emission (`text-delta`, `reasoning-delta`, `tool-call-delta`, `file-delta`, `usage`, `citation`, `finish`, `error`) consumed by the shared orchestrator; `providerStreamClient.ts` is now a thin wrapper over that runtime.
+- Provider prompt caching is coordinated by `src/providers/promptCaching.ts` plus provider-registry cache capability metadata. Chat streaming requests can add documented explicit cache markers for eligible OpenRouter/Alibaba routes, Fireworks session-affinity headers, and normalized cache telemetry (`cachedInputTokens`, `cachedOutputTokens`, `cacheMissInputTokens`, `cacheWriteInputTokens`) while title generation and provider utility calls remain unmodified.
 - Send and regenerate now use the same normalized provider-stream pipeline. Regeneration no longer maintains a separate direct-stream code path.
-- Provider capabilities, auth checks, default endpoints, retry policy, tool support, image support, provider accent colors, and title/model selector provider availability are resolved through `src/providers/providerRegistry.ts` instead of repeated provider switches.
+- Provider capabilities, auth checks, default endpoints, retry policy, tool support, image support, prompt-cache policy, provider accent colors, and title/model selector provider availability are resolved through `src/providers/providerRegistry.ts` instead of repeated provider switches.
 - Fireworks is a first-class active provider again. It participates in provider selection, chat dispatch, title generation, model enablement, tool-capability checks, usage metrics, and the shared streaming pipeline through the provider registry.
 - Fireworks model discovery now has a dedicated serverless catalog path in `src/services/fireworksModels.ts`, surfaced from `src/components/Settings/sections/FireworksModelSearchDialog.tsx` through Provider Hub in the same custom-model workflow style as OpenRouter.
 - Tool calling:
@@ -448,7 +450,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Model color assignments: `zura-model-colors`
 
 **Main process (`app.getPath('userData')`)**
-- Chat history: `chat-history.json` (`electron/chatStore.ts`)
+- Chat history: `chat-index.json` plus `chat-sessions/{sessionId}.json` (`electron/chatStore.ts`); legacy `chat-history.json` is a migration input only.
 - Persisted assistant `thinkingBlocks` may now include completed MCP tool-history entries (`type: 'tool'`) with tool name/arguments/result metadata so the renderer can replay inline MCP call history from stored sessions.
 - MCP server metadata: `mcp-servers.json` (`electron/mcp/mcpStorage.ts`)
   - Stores versioned non-secret server config, last-known tools, last-known resources, last-known prompts, and last connection metadata.

@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   generateGroqCompletion: vi.fn(),
   streamAlibabaCompletion: vi.fn(),
   generateAlibabaCompletion: vi.fn(),
+  streamDeepSeekCompletion: vi.fn(),
+  generateDeepSeekCompletion: vi.fn(),
   streamFireworksCompletion: vi.fn(),
   generateFireworksCompletion: vi.fn(),
   streamOllamaCompletion: vi.fn(),
@@ -28,6 +30,11 @@ vi.mock('../../../../../services/groq', () => ({
 vi.mock('../../../../../services/alibaba', () => ({
   streamAlibabaCompletion: mocks.streamAlibabaCompletion,
   generateAlibabaCompletion: mocks.generateAlibabaCompletion,
+}))
+
+vi.mock('../../../../../services/deepseek', () => ({
+  streamDeepSeekCompletion: mocks.streamDeepSeekCompletion,
+  generateDeepSeekCompletion: mocks.generateDeepSeekCompletion,
 }))
 
 vi.mock('../../../../../services/fireworks', () => ({
@@ -102,6 +109,7 @@ describe('createProviderStreamClient', () => {
           total_tokens: 14,
           prompt_cache_tokens: 6,
           completion_cache_tokens: 1,
+          cache_creation_input_tokens: 3,
           completion_tokens_details: { reasoning_tokens: 2 },
         },
       }
@@ -176,10 +184,230 @@ describe('createProviderStreamClient', () => {
           thinkingTokens: 2,
           cachedInputTokens: 6,
           cachedOutputTokens: 1,
+          cacheWriteInputTokens: 3,
         },
       },
       { type: 'finish', finishReason: 'tool_calls' },
     ])
+  })
+
+  it('normalizes DeepSeek cache hit, cache miss, and reasoning usage tokens', async () => {
+    mocks.streamDeepSeekCompletion.mockImplementation(async function* () {
+      yield {
+        choices: [{ delta: {}, finish_reason: 'stop' }],
+        usage: {
+          prompt_tokens: 10,
+          completion_tokens: 4,
+          total_tokens: 14,
+          prompt_cache_hit_tokens: 6,
+          prompt_cache_miss_tokens: 4,
+          cache_write_input_tokens: 3,
+          completion_tokens_details: { reasoning_tokens: 2 },
+        },
+      }
+    })
+
+    const client = createProviderStreamClient(
+      {
+        aiModel: 'deepseek-reasoner',
+        modelProvider: 'deepseek',
+        temperature: 0.4,
+        maxTokens: 2048,
+        streamResponses: true,
+        deepseekApiKey: 'deepseek-key',
+      },
+      'deepseek'
+    )
+
+    const events = await collect(client.stream({
+      provider: 'deepseek',
+      model: 'deepseek-reasoner',
+      messages: [{ role: 'user', content: 'hello' }],
+      temperature: 0.4,
+      maxTokens: 2048,
+      streamResponses: true,
+    }))
+
+    expect(events).toContainEqual({
+      type: 'usage',
+      usage: {
+        inputTokens: 10,
+        outputTokens: 4,
+        totalTokens: 14,
+        thinkingTokens: 2,
+        cachedInputTokens: 6,
+        cachedOutputTokens: undefined,
+        cacheMissInputTokens: 4,
+        cacheWriteInputTokens: 3,
+      },
+    })
+  })
+
+  it('normalizes nested Groq cached token usage', async () => {
+    mocks.streamGroqCompletion.mockImplementation(async function* () {
+      yield {
+        choices: [{ delta: {}, finish_reason: 'stop' }],
+        usage: {
+          prompt_tokens: 10,
+          completion_tokens: 4,
+          total_tokens: 14,
+          prompt_tokens_details: { cached_tokens: 7 },
+        },
+      }
+    })
+
+    const client = createProviderStreamClient(
+      {
+        aiModel: 'llama-3.3-70b-versatile',
+        modelProvider: 'groq',
+        temperature: 0.4,
+        maxTokens: 2048,
+        streamResponses: true,
+        groqApiKey: 'groq-key',
+      },
+      'groq'
+    )
+
+    const events = await collect(client.stream({
+      provider: 'groq',
+      model: 'llama-3.3-70b-versatile',
+      messages: [{ role: 'user', content: 'hello' }],
+      streamResponses: true,
+    }))
+
+    expect(events).toContainEqual({
+      type: 'usage',
+      usage: {
+        inputTokens: 10,
+        outputTokens: 4,
+        totalTokens: 14,
+        thinkingTokens: undefined,
+        cachedInputTokens: 7,
+        cachedOutputTokens: undefined,
+        cacheMissInputTokens: undefined,
+        cacheWriteInputTokens: undefined,
+      },
+    })
+  })
+
+  it('adds OpenRouter explicit cache markers for eligible streaming chat models', async () => {
+    mocks.streamOpenRouterCompletion.mockImplementation(async function* () {
+      yield { choices: [{ delta: {}, finish_reason: 'stop' }] }
+    })
+
+    const client = createProviderStreamClient(
+      {
+        aiModel: 'anthropic/claude-sonnet-4.5',
+        modelProvider: 'openrouter',
+        temperature: 0.4,
+        maxTokens: 2048,
+        streamResponses: true,
+        openRouterApiKey: 'or-key',
+      },
+      'openrouter'
+    )
+
+    await collect(client.stream({
+      provider: 'openrouter',
+      model: 'anthropic/claude-sonnet-4.5',
+      messages: [
+        { role: 'system', content: 'Base system prompt' },
+        { role: 'system', content: 'Dynamic research context' },
+        { role: 'user', content: 'Latest question' },
+      ],
+      streamResponses: true,
+      sessionId: 'session-1',
+    }))
+
+    expect(mocks.streamOpenRouterCompletion).toHaveBeenCalledWith(
+      'or-key',
+      'anthropic/claude-sonnet-4.5',
+      [
+        {
+          role: 'system',
+          content: [{ type: 'text', text: 'Base system prompt', cache_control: { type: 'ephemeral' } }],
+        },
+        { role: 'system', content: 'Dynamic research context' },
+        { role: 'user', content: 'Latest question' },
+      ],
+      expect.any(Object)
+    )
+  })
+
+  it('adds Alibaba explicit cache markers for streaming chat requests', async () => {
+    mocks.streamAlibabaCompletion.mockImplementation(async function* () {
+      yield { choices: [{ delta: {}, finish_reason: 'stop' }] }
+    })
+
+    const client = createProviderStreamClient(
+      {
+        aiModel: 'qwen3-max',
+        modelProvider: 'alibaba',
+        temperature: 0.4,
+        maxTokens: 2048,
+        streamResponses: true,
+        alibabaApiKey: 'alibaba-key',
+      },
+      'alibaba'
+    )
+
+    await collect(client.stream({
+      provider: 'alibaba',
+      model: 'qwen3-max',
+      messages: [
+        { role: 'system', content: 'Base system prompt' },
+        { role: 'user', content: 'Latest question' },
+      ],
+      streamResponses: true,
+    }))
+
+    expect(mocks.streamAlibabaCompletion).toHaveBeenCalledWith(
+      'alibaba-key',
+      'qwen3-max',
+      [
+        {
+          role: 'system',
+          content: [{ type: 'text', text: 'Base system prompt', cache_control: { type: 'ephemeral' } }],
+        },
+        { role: 'user', content: 'Latest question' },
+      ],
+      expect.any(Object)
+    )
+  })
+
+  it('passes Fireworks session affinity for streaming chat requests only', async () => {
+    mocks.streamFireworksCompletion.mockImplementation(async function* () {
+      yield { choices: [{ delta: {}, finish_reason: 'stop' }] }
+    })
+
+    const client = createProviderStreamClient(
+      {
+        aiModel: 'accounts/fireworks/models/deepseek-v3p2',
+        modelProvider: 'fireworks',
+        temperature: 0.5,
+        maxTokens: 1024,
+        streamResponses: true,
+        fireworksApiKey: 'fw-key',
+      },
+      'fireworks'
+    )
+
+    await collect(client.stream({
+      provider: 'fireworks',
+      model: 'accounts/fireworks/models/deepseek-v3p2',
+      messages: [{ role: 'user', content: 'hello' }],
+      streamResponses: true,
+      sessionId: 'session-123',
+    }))
+
+    expect(mocks.streamFireworksCompletion).toHaveBeenCalledWith(
+      'fw-key',
+      'accounts/fireworks/models/deepseek-v3p2',
+      [{ role: 'user', content: 'hello' }],
+      expect.objectContaining({
+        extraHeaders: { 'x-session-affinity': 'session-123' },
+      })
+    )
   })
 
   it('extracts OpenRouter reasoning summaries when text reasoning is not present', async () => {

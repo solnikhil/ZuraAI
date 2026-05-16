@@ -71,6 +71,8 @@ export interface Message {
     ttft?: number
     cachedInputTokens?: number
     cachedOutputTokens?: number
+    cacheMissInputTokens?: number
+    cacheWriteInputTokens?: number
   }
   finishReason?: string
   requestedMaxTokens?: number
@@ -88,6 +90,19 @@ export interface ChatSession {
   pinned?: boolean
   folderId?: string | null
   tags?: string[]
+  messageCount?: number
+}
+
+export interface ChatSessionMetadata {
+  id: string
+  title: string
+  createdAt: number
+  updatedAt: number
+  totalTokens?: number
+  pinned: boolean
+  folderId: string | null
+  tags: string[]
+  messageCount: number
 }
 
 export interface Folder {
@@ -95,4 +110,10 @@ export interface Folder {
   name: string
   order: number
   createdAt: number
+}
+
+export interface ChatIndexData {
+  sessions: ChatSessionMetadata[]
+  folders: Folder[]
+  version: number
 }

@@ -38,6 +38,10 @@ export interface AlibabaResponse {
         prompt_tokens: number
         completion_tokens: number
         total_tokens: number
+        prompt_cache_hit_tokens?: number
+        prompt_cache_miss_tokens?: number
+        cache_creation_input_tokens?: number
+        cache_write_input_tokens?: number
     }
 }
 
@@ -68,6 +72,10 @@ export interface AlibabaStreamChunk {
         prompt_tokens: number
         completion_tokens: number
         total_tokens: number
+        prompt_cache_hit_tokens?: number
+        prompt_cache_miss_tokens?: number
+        cache_creation_input_tokens?: number
+        cache_write_input_tokens?: number
     }
 }
 

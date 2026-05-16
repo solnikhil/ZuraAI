@@ -12,6 +12,45 @@ let updateInterval: NodeJS.Timeout | null = null
 let initialTimeout: NodeJS.Timeout | null = null
 
 /**
+ * True from the moment the user accepts an update install until the app process
+ * exits. The `before-quit` handler in `electron/main.ts` consults this so it
+ * doesn't run a second async MCP shutdown that races with `quitAndInstall`.
+ */
+let installingUpdate = false
+
+/**
+ * Registered by `electron/main.ts` so the install path can cleanly shut MCP
+ * servers down before handing control to the platform installer. Kept as a
+ * hook (rather than a direct import) to avoid a cycle between updater and main.
+ */
+type ShutdownHook = () => Promise<void>
+let shutdownHook: ShutdownHook | null = null
+
+export function setShutdownHook(hook: ShutdownHook | null): void {
+  shutdownHook = hook
+}
+
+export function isInstallingUpdate(): boolean {
+  return installingUpdate
+}
+
+/**
+ * Send an IPC payload to the main app window if it is still alive.
+ * The updater never broadcasts to all windows because update UI lives in the
+ * main shell, and other surfaces (overlay, prompt popup) shouldn't react.
+ */
+function sendToMainWindow(
+  getMainWindow: () => BrowserWindow | null,
+  channel: string,
+  ...args: unknown[]
+): void {
+  const win = getMainWindow()
+  if (win && !win.isDestroyed()) {
+    win.webContents.send(channel, ...args)
+  }
+}
+
+/**
  * Configure autoUpdater defaults. Called once before any checks.
  */
 function configureAutoUpdater(): void {
@@ -61,13 +100,11 @@ export function initializeAutoUpdater(getMainWindow: () => BrowserWindow | null)
 
   autoUpdater.on('update-available', (info: UpdateInfo) => {
     console.log(`[UPDATER] Update available: v${info.version}`)
-    const win = getMainWindow()
-    if (win && !win.isDestroyed()) {
-      win.webContents.send('update-available', info.version)
-    }
+    sendToMainWindow(getMainWindow, 'update-available', info.version)
     // Start the download now that we know an update exists
-    autoUpdater.downloadUpdate().catch((err) => {
+    autoUpdater.downloadUpdate().catch((err: Error) => {
       console.error('[UPDATER] Download failed:', err)
+      sendToMainWindow(getMainWindow, 'update-error', err.message || 'Download failed')
     })
   })
 
@@ -76,21 +113,27 @@ export function initializeAutoUpdater(getMainWindow: () => BrowserWindow | null)
   })
 
   autoUpdater.on('download-progress', (progress) => {
+    const percent = typeof progress.percent === 'number' ? progress.percent : 0
+    const transferred = typeof progress.transferred === 'number' ? progress.transferred : 0
+    const total = typeof progress.total === 'number' ? progress.total : 0
     console.log(
-      `[UPDATER] Download progress: ${progress.percent.toFixed(1)}% (${(progress.transferred / 1_048_576).toFixed(1)}/${(progress.total / 1_048_576).toFixed(1)} MB)`
+      `[UPDATER] Download progress: ${percent.toFixed(1)}% (${(transferred / 1_048_576).toFixed(1)}/${(total / 1_048_576).toFixed(1)} MB)`
     )
+    sendToMainWindow(getMainWindow, 'update-download-progress', {
+      percent,
+      transferred,
+      total,
+    })
   })
 
   autoUpdater.on('update-downloaded', (info: UpdateInfo) => {
     console.log(`[UPDATER] Update downloaded: v${info.version}`)
-    const win = getMainWindow()
-    if (win && !win.isDestroyed()) {
-      win.webContents.send('update-downloaded', info.version)
-    }
+    sendToMainWindow(getMainWindow, 'update-downloaded', info.version)
   })
 
   autoUpdater.on('error', (err: Error) => {
     console.error('[UPDATER] Error:', err.message)
+    sendToMainWindow(getMainWindow, 'update-error', err.message || 'Updater error')
   })
 
   initialTimeout = setTimeout(() => {
@@ -106,18 +149,45 @@ export function initializeAutoUpdater(getMainWindow: () => BrowserWindow | null)
 /**
  * Register IPC handlers the renderer can call.
  */
-export function registerUpdaterHandlers(): void {
+export function registerUpdaterHandlers(getMainWindow: () => BrowserWindow | null): void {
   ipcMain.handle('updater:check-for-updates', async () => {
     if (!isProduction) return null
     return checkOnce()
   })
 
-  ipcMain.handle('updater:quit-and-install', () => {
-    if (isProduction) {
+  ipcMain.handle('updater:quit-and-install', async () => {
+    if (!isProduction) {
+      // In dev we still resolve truthy so the renderer flow advances, but we
+      // skip the actual install which would error against an unpacked build.
+      return true
+    }
+
+    installingUpdate = true
+
+    // Run the registered shutdown hook (typically MCP manager teardown) so the
+    // platform installer doesn't race with an async pre-quit task.
+    if (shutdownHook) {
+      try {
+        await shutdownHook()
+      } catch (err) {
+        console.error('[UPDATER] Shutdown hook failed before install:', err)
+        // Continue with install anyway — a failed shutdown is recoverable on
+        // restart, but a failed install would leave the user stuck on an old
+        // version.
+      }
+    }
+
+    try {
       // isSilent=false so the user sees the installer, isForceRunAfter=true to relaunch
       autoUpdater.quitAndInstall(false, true)
+      return true
+    } catch (err) {
+      installingUpdate = false
+      const message = err instanceof Error ? err.message : 'Install failed'
+      console.error('[UPDATER] quitAndInstall failed:', err)
+      sendToMainWindow(getMainWindow, 'update-error', message)
+      return false
     }
-    return true
   })
 
   ipcMain.handle('updater:get-version', () => {

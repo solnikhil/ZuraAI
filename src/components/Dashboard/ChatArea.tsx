@@ -28,7 +28,7 @@ import { NORMAL_PLACEHOLDERS, GENZ_PLACEHOLDERS } from './ChatArea/placeholders'
 const VIRTUALIZATION_THRESHOLD = 50
 
 export default function ChatArea() {
-  const { sessions, currentSessionId } = useChatHistory()
+  const { sessions, currentSessionId, isSessionLoaded, loadFullSession } = useChatHistory()
   const { settings } = useSettings()
   const { showToast } = useToast()
 
@@ -44,6 +44,9 @@ export default function ChatArea() {
 
   const currentSession = sessions.find((s) => s.id === currentSessionId)
   const messages = currentSession?.messages || []
+  const currentSessionMessageCount = currentSession?.messageCount ?? messages.length
+  const currentSessionIsLoading =
+    Boolean(currentSessionId && currentSessionMessageCount > 0 && !isSessionLoaded(currentSessionId))
 
   const useVirtualization = messages.length > VIRTUALIZATION_THRESHOLD
 
@@ -101,6 +104,12 @@ export default function ChatArea() {
       sendMessage(message, [])
     }
   }, [pendingMessage, isLoading, consumeMessage, sendMessage])
+
+  useEffect(() => {
+    if (currentSessionId && currentSessionIsLoading) {
+      void loadFullSession(currentSessionId)
+    }
+  }, [currentSessionId, currentSessionIsLoading, loadFullSession])
 
   useEffect(() => {
     const handlePromptShortcut = (event: KeyboardEvent) => {
@@ -257,6 +266,24 @@ export default function ChatArea() {
       toolState.activeToolCalls,
     ]
   )
+
+  if (currentSessionIsLoading) {
+    return (
+      <div
+        style={{
+          flex: 1,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100%',
+          color: 'var(--theme-text-muted)',
+          background: 'var(--theme-content-solid)',
+        }}
+      >
+        Loading chat...
+      </div>
+    )
+  }
 
   if (!currentSessionId || messages.length === 0) {
     return (

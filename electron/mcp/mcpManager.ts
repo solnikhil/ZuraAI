@@ -49,6 +49,13 @@ import {
 } from './mcpStorage'
 
 type SnapshotHandler = (snapshot: McpRuntimeSnapshot) => void
+type BoundedCacheEntry<T> = {
+  value: T
+  sizeBytes: number
+}
+
+const MAX_MCP_CONTENT_CACHE_ENTRIES = 50
+const MAX_MCP_CONTENT_CACHE_ENTRY_BYTES = 512 * 1024
 
 export interface McpManagedConnection {
   getRuntimeState(): McpServerRuntimeState
@@ -89,8 +96,8 @@ export class McpManager {
   private readonly connections = new Map<string, McpManagedConnection>()
   private readonly connectionUnsubscribers = new Map<string, () => void>()
   private readonly runtimeStates = new Map<string, McpServerRuntimeState>()
-  private readonly resourceReadCache = new Map<string, McpResourceReadResult>()
-  private readonly promptResultCache = new Map<string, McpPromptResult>()
+  private readonly resourceReadCache = new Map<string, BoundedCacheEntry<McpResourceReadResult>>()
+  private readonly promptResultCache = new Map<string, BoundedCacheEntry<McpPromptResult>>()
   private readonly snapshotHandlers = new Set<SnapshotHandler>()
 
   private initialized = false
@@ -398,11 +405,13 @@ export class McpManager {
     const cacheKey = createResourceCacheKey(executable.server.id, uri)
     const cached = this.resourceReadCache.get(cacheKey)
     if (cached) {
-      return cloneReadResourceResult(cached)
+      this.resourceReadCache.delete(cacheKey)
+      this.resourceReadCache.set(cacheKey, cached)
+      return cloneReadResourceResult(cached.value)
     }
 
     const result = await executable.connection.readResource(uri)
-    this.resourceReadCache.set(cacheKey, cloneReadResourceResult(result))
+    this.setBoundedCacheEntry(this.resourceReadCache, cacheKey, cloneReadResourceResult(result))
     return cloneReadResourceResult(result)
   }
 
@@ -415,11 +424,13 @@ export class McpManager {
     const cacheKey = createPromptCacheKey(executable.server.id, promptName, args)
     const cached = this.promptResultCache.get(cacheKey)
     if (cached) {
-      return clonePromptResult(cached)
+      this.promptResultCache.delete(cacheKey)
+      this.promptResultCache.set(cacheKey, cached)
+      return clonePromptResult(cached.value)
     }
 
     const result = await executable.connection.getPrompt(promptName, args)
-    this.promptResultCache.set(cacheKey, clonePromptResult(result))
+    this.setBoundedCacheEntry(this.promptResultCache, cacheKey, clonePromptResult(result))
     return clonePromptResult(result)
   }
 
@@ -666,5 +677,34 @@ export class McpManager {
         this.promptResultCache.delete(key)
       }
     }
+  }
+
+  private setBoundedCacheEntry<T>(
+    cache: Map<string, BoundedCacheEntry<T>>,
+    key: string,
+    value: T
+  ): void {
+    const sizeBytes = estimateSerializedBytes(value)
+    if (sizeBytes > MAX_MCP_CONTENT_CACHE_ENTRY_BYTES) {
+      cache.delete(key)
+      return
+    }
+
+    cache.delete(key)
+    cache.set(key, { value, sizeBytes })
+
+    while (cache.size > MAX_MCP_CONTENT_CACHE_ENTRIES) {
+      const oldestKey = cache.keys().next().value
+      if (typeof oldestKey !== 'string') break
+      cache.delete(oldestKey)
+    }
+  }
+}
+
+function estimateSerializedBytes(value: unknown): number {
+  try {
+    return Buffer.byteLength(JSON.stringify(value), 'utf8')
+  } catch {
+    return MAX_MCP_CONTENT_CACHE_ENTRY_BYTES + 1
   }
 }
