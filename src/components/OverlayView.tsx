@@ -44,6 +44,9 @@ export default function OverlayView() {
     () => toolState.toolResults.filter((result) => !shouldHideGenericToolResultCard(result)),
     [toolState.toolResults]
   )
+  const displayActiveToolCalls = toolState.activeToolBatch.length > 0
+    ? toolState.activeToolBatch
+    : toolState.activeToolCalls
   const isCompact = overlayMode === 'compact'
   const hasConversation =
     messages.length > 0 || currentSessionIsLoading || isLoading || visibleLiveToolResults.length > 0
@@ -193,7 +196,7 @@ export default function OverlayView() {
                           <StreamingMessage
                             message={message}
                             sessionId={currentSessionId!}
-                            activeToolCalls={toolState.activeToolCalls}
+                            activeToolCalls={displayActiveToolCalls}
                             onCopy={handleCopy}
                             onRegenerate={(instruction) => regenerateMessage(message, instruction)}
                           />
@@ -230,7 +233,7 @@ export default function OverlayView() {
                   })}
 
                   {!isLoading &&
-                    toolState.activeToolCalls.map((toolCall, index) => (
+                    displayActiveToolCalls.map((toolCall, index) => (
                       <div key={`active-tool-${index}`}>
                         <ToolCallIndicator
                           toolName={toolCall.name}
@@ -413,7 +416,7 @@ export default function OverlayView() {
                     <StreamingMessage
                       message={message}
                       sessionId={currentSessionId!}
-                      activeToolCalls={toolState.activeToolCalls}
+                      activeToolCalls={displayActiveToolCalls}
                       onCopy={handleCopy}
                       onRegenerate={(instruction) => regenerateMessage(message, instruction)}
                     />
@@ -451,7 +454,7 @@ export default function OverlayView() {
           )}
 
           {!isLoading &&
-            toolState.activeToolCalls.map((toolCall, index) => (
+            displayActiveToolCalls.map((toolCall, index) => (
               <div key={`active-tool-${index}`}>
                 <ToolCallIndicator
                   toolName={toolCall.name}

@@ -34,7 +34,7 @@ export type NormalizedStreamEvent =
   | { type: 'reasoning-details'; details: ReasoningDetail[] }
   | { type: 'tool-call-delta'; delta: NormalizedToolCallDelta[] }
   | { type: 'file-delta'; files: FileAttachment[] }
-  | { type: 'usage'; usage: NormalizedUsage }
+  | { type: 'usage'; usage: NormalizedUsage; rawUsage?: Record<string, unknown> }
   | { type: 'citation'; citations: string[] }
   | { type: 'finish'; finishReason?: string | null }
   | { type: 'error'; error: Error }

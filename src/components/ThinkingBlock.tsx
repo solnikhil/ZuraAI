@@ -525,9 +525,11 @@ export default function ThinkingBlock({
   const extraActiveToolCalls = hasActiveToolCalls ? activeToolCalls.slice(1) : []
   const { animationsEnabled } = useMotionPreferences()
   const [isExpanded, setIsExpanded] = useState(isThinking || isSearching || hasActiveToolCalls)
+  const [isSearchBatchExpanded, setIsSearchBatchExpanded] = useState(true)
 
   useEffect(() => {
     setIsExpanded(isThinking || isSearching || hasActiveToolCalls)
+    setIsSearchBatchExpanded(true)
   }, [messageId, activeBlockKey])
 
   // Auto-expand while actively thinking, tool calling, or searching.
@@ -599,10 +601,22 @@ export default function ThinkingBlock({
       ? activeSearchBatchQueries
       : activeSearchQueries
   const hasVisibleSearchQueryList = visibleSearchQueries.length > 0
-  const searchingText =
-    primarySearchQuery
-      ? `${searchingLabel}: "${primarySearchQuery}"`
+  const primaryVisibleSearchQuery = visibleSearchQueries[0]
+  const isSearchBatch = visibleSearchQueries.length > 1
+  const searchingText = isSearchBatch
+    ? `${searchingLabel} · ${visibleSearchQueries.length} queries`
+    : primaryVisibleSearchQuery
+      ? `${searchingLabel}: "${primaryVisibleSearchQuery}"`
       : searchingLabel
+  const showSearchBatchDetails =
+    (isSearching || isActiveSearchBatch) && isSearchBatch && hasVisibleSearchQueryList
+  const handleHeaderClick = () => {
+    if (showSearchBatchDetails) {
+      setIsSearchBatchExpanded((expanded) => !expanded)
+      return
+    }
+    handleToggle()
+  }
 
   return (
     <div className="thinking-blocks-container">
@@ -618,8 +632,8 @@ export default function ThinkingBlock({
       {showActiveBlock && (
         <div className="thinking-block">
           <div
-            className={`thinking-header ${hasActiveToolCalls ? 'tool-calling' : isSearching ? 'searching' : ''}`}
-            onClick={handleToggle}
+            className={`thinking-header ${hasActiveToolCalls ? 'tool-calling' : isSearching ? 'searching' : ''} ${showSearchBatchDetails ? 'search-batch' : ''}`}
+            onClick={handleHeaderClick}
           >
             <div className="thinking-label">
               {hasActiveToolCalls ? (
@@ -634,7 +648,7 @@ export default function ThinkingBlock({
                   <AITextLoading
                     text={
                       isActiveSearchBatch
-                        ? 'Searching web'
+                        ? searchingText
                         : getToolCallHeaderText(activeToolCalls)
                     }
                     animationKey="tool-calling"
@@ -677,6 +691,14 @@ export default function ThinkingBlock({
                     <ChevronRight size={14} className="thinking-chevron" />
                   </motion.div>
                 </>
+              )}
+              {showSearchBatchDetails && (
+                <motion.div
+                  animate={{ rotate: isSearchBatchExpanded ? 90 : 0 }}
+                  transition={motionSpringTransition(animationsEnabled, motionSpring.bouncy)}
+                >
+                  <ChevronRight size={14} className="thinking-chevron" />
+                </motion.div>
               )}
             </div>
           </div>
@@ -733,7 +755,7 @@ export default function ThinkingBlock({
                 </div>
               </motion.div>
             )}
-            {isExpanded && hasVisibleSearchQueryList && (
+            {isExpanded && showSearchBatchDetails && isSearchBatchExpanded && (
               <motion.div
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: 'auto', opacity: 1 }}
@@ -747,7 +769,7 @@ export default function ThinkingBlock({
                 }}
                 style={{ overflow: 'hidden' }}
               >
-                <div className="thinking-content thinking-active-tool-list">
+                <div className="thinking-active-search-batch">
                   {visibleSearchQueries.map((query, index) => (
                     <div key={`${query}-${index}`} className="thinking-active-tool-item">
                       {getActiveSearchItemText(query, index)}

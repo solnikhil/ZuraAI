@@ -1,9 +1,13 @@
-import { act, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ThinkingBlock from './ThinkingBlock'
 
 describe('ThinkingBlock behavior', () => {
+  beforeEach(() => {
+    window.scrollTo = vi.fn()
+  })
+
   afterEach(() => {
     vi.useRealTimers()
   })
@@ -243,7 +247,7 @@ describe('ThinkingBlock behavior', () => {
     )
 
     expect(
-      await screen.findByText('Searching web')
+      await screen.findByText('Searching web · 2 queries')
     ).toBeInTheDocument()
     expect(
       screen.getByText('1. Searching web: "openai responses api pricing"')
@@ -268,7 +272,7 @@ describe('ThinkingBlock behavior', () => {
     )
 
     expect(
-      await screen.findByText('Searching web: "electron app updater release notes"')
+      await screen.findByText('Searching web · 2 queries')
     ).toBeInTheDocument()
     expect(
       screen.getByText('1. Searching web: "electron app updater release notes"')
@@ -276,6 +280,29 @@ describe('ThinkingBlock behavior', () => {
     expect(
       screen.getByText('2. Searching web: "electron app updater windows installer behavior"')
     ).toBeInTheDocument()
+  })
+
+  it('does not let stale search queries override the thinking title after search finishes', async () => {
+    render(
+      <ThinkingBlock
+        messageId="message-3d"
+        activeBlockKey="message-3d:2:reasoning"
+        thinking="Synthesizing the search results into an answer."
+        thinkingDuration={9000}
+        isSearching={false}
+        searchQueries={[
+          '2026 FIFA World Cup schedule',
+          'latest Mars rover discoveries 2026',
+          'top programming languages 2026',
+          'global EV sales Q1 2026',
+        ]}
+      />
+    )
+
+    expect(screen.getByText('Thought For 9.0 Seconds')).toBeInTheDocument()
+    expect(screen.queryByText('Searching web · 4 queries')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByText('Thought For 9.0 Seconds'))
+    expect(screen.getByText('Synthesizing the search results into an answer.')).toBeInTheDocument()
   })
 
   it('renders completed MCP tool blocks with the same inline timeline treatment', async () => {

@@ -95,6 +95,41 @@ export interface UsageStats {
   activityData: ActivityData[]
 }
 
+export function mergeUsageSessionSnapshots(
+  storedSessions: ChatSession[],
+  currentSessions: ChatSession[]
+): ChatSession[] {
+  if (storedSessions.length === 0) return currentSessions
+
+  const currentById = new Map(currentSessions.map((session) => [session.id, session]))
+  const storedIds = new Set(storedSessions.map((session) => session.id))
+  const merged = storedSessions.map((storedSession) => {
+    const currentSession = currentById.get(storedSession.id)
+    if (!currentSession) return storedSession
+
+    const currentHasMessages = Array.isArray(currentSession.messages) && currentSession.messages.length > 0
+    const storedHasMessages = Array.isArray(storedSession.messages) && storedSession.messages.length > 0
+
+    if (currentHasMessages || !storedHasMessages) {
+      return currentSession
+    }
+
+    return {
+      ...currentSession,
+      messages: storedSession.messages,
+      messageCount: currentSession.messageCount ?? storedSession.messageCount,
+    }
+  })
+
+  for (const currentSession of currentSessions) {
+    if (!storedIds.has(currentSession.id)) {
+      merged.push(currentSession)
+    }
+  }
+
+  return merged
+}
+
 const PROVIDER_TOKEN_RATES_PER_MILLION: Record<Exclude<UsageProvider, 'unknown'>, { inputUsd: number; outputUsd: number }> = {
   alibaba: { inputUsd: 0.5, outputUsd: 1.5 },
   deepseek: { inputUsd: 0.27, outputUsd: 1.1 },

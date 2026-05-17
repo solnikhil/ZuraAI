@@ -118,6 +118,61 @@ describe('commandBar suggestions', () => {
       expect(skillsSuggestion).toBeDefined()
       expect(skillsSuggestion?.title).toBe('Skills Settings')
     })
+
+    it('offers dev-only chat debug id copy when a session is active', () => {
+      const suggestions = getCommandBarSuggestions('chat-id', {
+        hasCurrentSession: true,
+        isDev: true,
+      })
+
+      const copySuggestion = suggestions.find((s) => s.id === 'copy-chat-debug-id')
+      expect(copySuggestion).toBeDefined()
+      expect(copySuggestion?.action).toEqual({ type: 'copy_chat_debug_id' })
+    })
+
+    it('hides chat debug id copy outside dev mode or without an active session', () => {
+      expect(
+        getCommandBarSuggestions('chat-id', {
+          hasCurrentSession: true,
+          isDev: false,
+        }).some((s) => s.id === 'copy-chat-debug-id')
+      ).toBe(false)
+
+      expect(
+        getCommandBarSuggestions('chat-id', {
+          hasCurrentSession: false,
+          isDev: true,
+        }).some((s) => s.id === 'copy-chat-debug-id')
+      ).toBe(false)
+    })
+
+    it('offers dev-only chat debug panel when a session is active', () => {
+      const suggestions = getCommandBarSuggestions('debug logs', {
+        hasCurrentSession: true,
+        isDev: true,
+      })
+
+      const panelSuggestion = suggestions.find((s) => s.id === 'open-chat-debug-panel')
+      expect(panelSuggestion).toBeDefined()
+      expect(panelSuggestion?.title).toBe('Show Chat Debug Logs')
+      expect(panelSuggestion?.action).toEqual({ type: 'open_chat_debug_panel' })
+    })
+
+    it('hides the chat debug panel entry outside dev mode or without an active session', () => {
+      expect(
+        getCommandBarSuggestions('debug logs', {
+          hasCurrentSession: true,
+          isDev: false,
+        }).some((s) => s.id === 'open-chat-debug-panel')
+      ).toBe(false)
+
+      expect(
+        getCommandBarSuggestions('debug logs', {
+          hasCurrentSession: false,
+          isDev: true,
+        }).some((s) => s.id === 'open-chat-debug-panel')
+      ).toBe(false)
+    })
   })
 })
 

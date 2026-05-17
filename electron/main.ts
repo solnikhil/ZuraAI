@@ -12,6 +12,7 @@ import {
   getMainWindow,
   initializeOverlay,
   destroyPromptPopup,
+  destroyChatDebugWindow,
 } from './windows'
 import { applyDevelopmentAppIcon } from './windowIcon'
 import { registerAllHandlers } from './ipc'
@@ -92,6 +93,7 @@ app.on('will-quit', () => {
   globalShortcut.unregisterAll()
   cleanupOverlay()
   destroyPromptPopup()
+  destroyChatDebugWindow()
   unregisterMcpHandlers()
   disposeCodeExecutionApprovalManager()
   unregisterCodeExecutionHandlers()

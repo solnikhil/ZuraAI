@@ -70,6 +70,10 @@ const INVOKE_CHANNELS = new Set<IpcInvokeChannel>([
   'chat-store:migrate',
   'chat-store:get-all-folders',
   'chat-store:save-folders',
+  'chat-diagnostics:append-event',
+  'chat-diagnostics:get-debug-reference',
+  'chat-diagnostics:list-events',
+  'chat-debug-window:open',
 
   // Secure storage
   'secure-storage:get',
@@ -102,6 +106,7 @@ const ON_CHANNELS = new Set<IpcOnChannel>([
   'settings:navigate',
   'chat-store:changed',
   'context-menu:action',
+  'chat-diagnostics:event',
 ])
 
 const MCP_INVOKE_CHANNELS = new Set<string>([
@@ -319,6 +324,28 @@ contextBridge.exposeInMainWorld(
       ipcRenderer.on('code-execution:pending-approval', listener)
       return () => ipcRenderer.removeListener('code-execution:pending-approval', listener)
     },
+  })
+)
+
+
+contextBridge.exposeInMainWorld(
+  'chatDiagnostics',
+  Object.freeze({
+    listEvents: (sessionId: string) =>
+      ipcRenderer.invoke('chat-diagnostics:list-events', sessionId),
+    onEvent: (callback: (event: unknown) => void) => {
+      const listener = (_event: IpcRendererEvent, event: unknown) => callback(event)
+      ipcRenderer.on('chat-diagnostics:event', listener)
+      return () => ipcRenderer.removeListener('chat-diagnostics:event', listener)
+    },
+  })
+)
+
+contextBridge.exposeInMainWorld(
+  'chatDebug',
+  Object.freeze({
+    open: (sessionId: string) =>
+      ipcRenderer.invoke('chat-debug-window:open', sessionId) as Promise<boolean>,
   })
 )
 

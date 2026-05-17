@@ -173,6 +173,67 @@ describe('useProviderStreaming', () => {
     expect(throttledUpdateStreamingMessage).not.toHaveBeenCalled()
   })
 
+  it('stops processing provider events after the abort signal fires', async () => {
+    const controller = new AbortController()
+    mocks.createProviderStreamClient.mockReturnValue({
+      stream: async function* () {
+        yield { type: 'text-delta', delta: 'Before stop' }
+        controller.abort()
+        yield { type: 'text-delta', delta: ' after stop' }
+        yield { type: 'finish', finishReason: 'stop' }
+      },
+    })
+
+    const updateStreamingMessage = vi.fn()
+
+    const { result } = renderHook(() =>
+      useProviderStreaming({
+        settings: {
+          aiModel: 'deepseek-v4-pro',
+          modelProvider: 'deepseek',
+          temperature: 0.4,
+          maxTokens: 1024,
+          streamResponses: true,
+          deepseekApiKey: 'ds-key',
+        },
+        toolCalling: {
+          canUseTools: false,
+          getToolsForRequest: () => null,
+          handleToolCalls: vi.fn(),
+          getResearchContext: () => '',
+        },
+        updateStreamingMessage,
+        flushThrottledUpdates: vi.fn(),
+        throttledUpdateStreamingMessage: vi.fn(),
+      })
+    )
+
+    await expect(
+      result.current.runProviderStream({
+        provider: 'deepseek',
+        model: 'deepseek-v4-pro',
+        sessionId: 'session-1',
+        messageId: 'message-1',
+        messages: [{ role: 'user', content: 'hello' }],
+        startTime: performance.now() - 25,
+        researchMaxRounds: 0,
+        signal: controller.signal,
+      })
+    ).rejects.toMatchObject({ name: 'AbortError' })
+
+    expect(mocks.updateStreaming).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: 'Before stop',
+      })
+    )
+    expect(mocks.updateStreaming).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: 'Before stop after stop',
+      })
+    )
+    expect(updateStreamingMessage).not.toHaveBeenCalled()
+  })
+
   it('publishes live reasoning duration and persists the completed reasoning block duration', async () => {
     let now = 0
     const performanceNowSpy = vi.spyOn(performance, 'now').mockImplementation(() => now)

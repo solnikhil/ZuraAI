@@ -20,6 +20,12 @@ const mockToggleSidebarHidden = vi.fn()
 const mockCreateSession = vi.fn(() => 'new-session-id')
 const mockAddMessageToSession = vi.fn()
 const mockShowToast = vi.fn()
+const commandPaletteTestState = vi.hoisted(() => ({
+  writeTextToClipboard: vi.fn(async () => true),
+  invoke: vi.fn(async () => null),
+  sessions: [] as Array<{ id: string; title: string; messages: unknown[]; createdAt: number; updatedAt: number }>,
+  currentSessionId: null as string | null,
+}))
 
 // Mocks
 
@@ -47,8 +53,8 @@ vi.mock('../../../contexts/AppShellContext', () => ({
 
 vi.mock('../../../contexts/ChatHistoryContext', () => ({
   useChatHistory: () => ({
-    sessions: [],
-    currentSessionId: null,
+    sessions: commandPaletteTestState.sessions,
+    currentSessionId: commandPaletteTestState.currentSessionId,
     createSession: mockCreateSession,
     addMessageToSession: mockAddMessageToSession,
   }),
@@ -62,6 +68,10 @@ vi.mock('../../../utils/chatExport', () => ({
   exportChatToMarkdown: vi.fn(() => ''),
   exportChatToText: vi.fn(() => ''),
   downloadFile: vi.fn(),
+}))
+
+vi.mock('../../../utils/clipboard', () => ({
+  writeTextToClipboard: commandPaletteTestState.writeTextToClipboard,
 }))
 
 const mockQueueMessage = vi.fn()
@@ -104,6 +114,14 @@ function pressCtrlSpace() {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  commandPaletteTestState.sessions = []
+  commandPaletteTestState.currentSessionId = null
+  Object.defineProperty(window, 'ipcRenderer', {
+    configurable: true,
+    value: {
+      invoke: commandPaletteTestState.invoke,
+    },
+  })
   localStorage.clear()
 })
 
@@ -569,6 +587,52 @@ describe('CommandPalette unit tests', () => {
       await waitFor(() => {
         expect(container.querySelector('[role="dialog"]')).not.toBeInTheDocument()
       })
+    })
+
+    it('copies the active chat debug id from the command palette', async () => {
+      commandPaletteTestState.currentSessionId = 'session-debug-1'
+      commandPaletteTestState.invoke.mockResolvedValueOnce(
+        'zura-chat://session-debug-1?userData=dG1w'
+      )
+      commandPaletteTestState.sessions = [
+        {
+          id: 'session-debug-1',
+          title: 'Debug chat',
+          messages: [{ id: 'm1' }],
+          createdAt: 1,
+          updatedAt: 2,
+        },
+      ]
+
+      const { container } = render(<CommandPalette />)
+
+      act(() => {
+        pressCtrlSpace()
+      })
+
+      const input = container.querySelector('input[role="combobox"]') as HTMLInputElement
+      await act(async () => {
+        fireEvent.change(input, { target: { value: 'chat-id' } })
+      })
+
+      await waitFor(() => {
+        expect(screen.getByText('Copy Chat Debug ID')).toBeInTheDocument()
+      })
+
+      await act(async () => {
+        fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' })
+      })
+
+      await waitFor(() => {
+        expect(commandPaletteTestState.invoke).toHaveBeenCalledWith(
+          'chat-diagnostics:get-debug-reference',
+          'session-debug-1'
+        )
+        expect(commandPaletteTestState.writeTextToClipboard).toHaveBeenCalledWith(
+          'zura-chat://session-debug-1?userData=dG1w'
+        )
+      })
+      expect(mockShowToast).toHaveBeenCalledWith('Copied chat debug ID', 'success')
     })
   })
 })

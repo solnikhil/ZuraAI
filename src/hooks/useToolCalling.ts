@@ -27,6 +27,7 @@ import { isMacOSRuntime } from '../utils/platform'
 
 export interface ToolCallState {
     activeToolCalls: ToolCall[]
+    activeToolBatch: ToolCall[]
     toolResults: ToolCallResult[]
     isProcessingTools: boolean
     researchMode: {
@@ -39,6 +40,7 @@ export interface ToolCallState {
 
 const INITIAL_TOOL_STATE: ToolCallState = {
     activeToolCalls: [],
+    activeToolBatch: [],
     toolResults: [],
     isProcessingTools: false,
     researchMode: {
@@ -206,10 +208,19 @@ export function useToolCalling() {
                 enabledTools: enabledToolsForProcessing,
                 availableTools,
                 executionPolicy,
+                onToolBatchStart: (toolCalls) => {
+                    setToolState((prev) => ({
+                        ...prev,
+                        activeToolCalls: toolCalls,
+                        activeToolBatch: toolCalls,
+                    }))
+                },
                 onToolStart: (toolCall) => {
                     setToolState((prev) => ({
                         ...prev,
-                        activeToolCalls: [...prev.activeToolCalls, toolCall],
+                        activeToolCalls: prev.activeToolCalls.some((activeToolCall) => activeToolCall.id === toolCall.id)
+                            ? prev.activeToolCalls
+                            : [...prev.activeToolCalls, toolCall],
                     }))
                     onToolStart?.(toolCall)
                 },
@@ -236,7 +247,12 @@ export function useToolCalling() {
                 },
             })
 
-            setToolState((prev) => ({ ...prev, isProcessingTools: false }))
+            setToolState((prev) => ({
+                ...prev,
+                activeToolCalls: [],
+                activeToolBatch: [],
+                isProcessingTools: false,
+            }))
 
             return {
                 hasTools: true,
@@ -247,7 +263,12 @@ export function useToolCalling() {
                 executionSummary,
             }
         } catch (error: unknown) {
-            setToolState((prev) => ({ ...prev, isProcessingTools: false }))
+            setToolState((prev) => ({
+                ...prev,
+                activeToolCalls: [],
+                activeToolBatch: [],
+                isProcessingTools: false,
+            }))
             console.error('Tool processing error:', error instanceof Error ? error.message : error)
 
             return {

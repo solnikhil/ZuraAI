@@ -87,9 +87,6 @@ const ProviderRailItem = memo(function ProviderRailItem({
       data-active={isActive ? 'true' : undefined}
     >
       {icon}
-      {isActive && (
-        <div className="absolute left-1 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-primary/80" />
-      )}
     </button>
   )
 })

@@ -1,4 +1,5 @@
 import type { ChatIndexData, ChatSession, ChatSessionMetadata, Folder } from '../chat/types'
+import type { ChatDiagnosticEvent } from '../diagnostics/chatDiagnostics'
 import type {
   McpApprovalDecision,
   McpNamespacedTool,
@@ -195,6 +196,10 @@ export type IpcInvokeChannel =
   | 'chat-store:migrate'
   | 'chat-store:get-all-folders'
   | 'chat-store:save-folders'
+  | 'chat-diagnostics:append-event'
+  | 'chat-diagnostics:get-debug-reference'
+  | 'chat-diagnostics:list-events'
+  | 'chat-debug-window:open'
   | 'secure-storage:get'
   | 'secure-storage:set'
   | 'secure-storage:get-presence'
@@ -217,6 +222,10 @@ export interface IpcInvokeArgsMap {
   'chat-store:migrate': [localStorageData: ChatSession[]]
   'chat-store:get-all-folders': []
   'chat-store:save-folders': [folders: Folder[]]
+  'chat-diagnostics:append-event': [event: ChatDiagnosticEvent]
+  'chat-diagnostics:get-debug-reference': [sessionId: string]
+  'chat-diagnostics:list-events': [sessionId: string]
+  'chat-debug-window:open': [sessionId: string]
   'secure-storage:get': [key: SecureStorageKey]
   'secure-storage:set': [key: SecureStorageKey, value: string]
   'secure-storage:get-presence': []
@@ -240,6 +249,10 @@ export interface IpcInvokeReturnMap {
   'chat-store:migrate': boolean
   'chat-store:get-all-folders': Folder[]
   'chat-store:save-folders': boolean
+  'chat-diagnostics:append-event': boolean
+  'chat-diagnostics:get-debug-reference': string | null
+  'chat-diagnostics:list-events': ChatDiagnosticEvent[]
+  'chat-debug-window:open': boolean
   'secure-storage:get': string
   'secure-storage:set': boolean
   'secure-storage:get-presence': Record<SecureStorageKey, boolean>
@@ -264,6 +277,7 @@ export type IpcOnChannel =
   | 'settings:navigate'
   | 'chat-store:changed'
   | 'context-menu:action'
+  | 'chat-diagnostics:event'
 
 export interface UpdaterDownloadProgress {
   percent: number
@@ -283,6 +297,7 @@ export interface IpcOnArgsMap {
   'settings:navigate': [section: string]
   'chat-store:changed': []
   'context-menu:action': [action: NativeContextMenuAction]
+  'chat-diagnostics:event': [event: ChatDiagnosticEvent]
 }
 
 export interface IElectronAPI {
@@ -408,4 +423,28 @@ export interface McpAPI {
   ) => Promise<McpToolExecutionResult>
   resolveApproval: (requestId: string, approved: boolean) => Promise<McpApprovalDecision>
   onStateChange: (callback: (snapshot: McpRuntimeSnapshot) => void) => () => void
+}
+
+
+/**
+ * Renderer-facing bridge for the dev-only chat diagnostics surface.
+ *
+ * Available only when the app is running unpacked (`!app.isPackaged`).
+ * Outside dev the underlying channels are still allowlisted for type safety,
+ * but main returns empty/no-op responses.
+ */
+export interface ChatDiagnosticsAPI {
+  listEvents: (sessionId: string) => Promise<ChatDiagnosticEvent[]>
+  onEvent: (callback: (event: ChatDiagnosticEvent) => void) => () => void
+}
+
+
+/**
+ * Renderer-facing bridge for opening the dev-only chat debug BrowserWindow.
+ *
+ * Available only when the app is running unpacked (`!app.isPackaged`); main
+ * returns `false` in packaged builds without opening anything.
+ */
+export interface ChatDebugAPI {
+  open: (sessionId: string) => Promise<boolean>
 }

@@ -14,7 +14,8 @@ import { SkillsSection } from './sections/SkillsSection'
 import { AppearanceSection } from './sections/AppearanceSection'
 import { SystemPromptSection } from './sections/SystemPromptSection'
 
-import { computeUsageStats } from './sections/usageMetrics'
+import { computeUsageStats, mergeUsageSessionSnapshots } from './sections/usageMetrics'
+import type { ChatSession } from '@/chat/types'
 import { normalizeSettingsSection } from '../../constants/settingsSections'
 import { isMacOSRuntime } from '../../utils/platform'
 import { getProviderModelListField, getProviderSettingsDefinitions } from '../../providers'
@@ -43,7 +44,13 @@ export default function Settings({
   const touchedSecureKeysRef = useRef(new Set<string>())
   const [isSaving, setIsSaving] = useState(false)
   const [statusMessage, setStatusMessage] = useState('')
+  const [usageStoredSessions, setUsageStoredSessions] = useState<ChatSession[] | null>(null)
   const clearParams = useCallback(() => setSettingsSectionParams(null), [setSettingsSectionParams])
+
+  const normalizedActiveSection = useMemo(() => {
+    const normalized = normalizeSettingsSection(activeSection) ?? 'providers'
+    return isMacOSRuntime() && normalized === 'overlay' ? 'providers' : normalized
+  }, [activeSection])
 
   const usageModelCatalog = useMemo(() => {
     return Object.fromEntries(
@@ -57,12 +64,43 @@ export default function Settings({
     )
   }, [pendingSettings])
 
-  const usageStats = useMemo(() => computeUsageStats(sessions, usageModelCatalog), [sessions, usageModelCatalog])
+  const usageSessionSignature = useMemo(
+    () =>
+      sessions
+        .map((session) => `${session.id}:${session.updatedAt}:${session.messageCount ?? session.messages.length}`)
+        .join('|'),
+    [sessions]
+  )
 
-  const normalizedActiveSection = useMemo(() => {
-    const normalized = normalizeSettingsSection(activeSection) ?? 'providers'
-    return isMacOSRuntime() && normalized === 'overlay' ? 'providers' : normalized
-  }, [activeSection])
+  useEffect(() => {
+    if (normalizedActiveSection !== 'usage') return
+    if (typeof window === 'undefined' || !window.ipcRenderer) {
+      setUsageStoredSessions(null)
+      return
+    }
+
+    let cancelled = false
+    void window.ipcRenderer
+      .invoke('chat-store:get-all')
+      .then((storedSessions: ChatSession[]) => {
+        if (!cancelled) setUsageStoredSessions(storedSessions)
+      })
+      .catch((error) => {
+        console.error('Failed to load full chat history for usage metrics:', error)
+        if (!cancelled) setUsageStoredSessions(null)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [normalizedActiveSection, usageSessionSignature])
+
+  const usageSessions = useMemo(
+    () => mergeUsageSessionSnapshots(usageStoredSessions ?? [], sessions),
+    [usageStoredSessions, sessions]
+  )
+
+  const usageStats = useMemo(() => computeUsageStats(usageSessions, usageModelCatalog), [usageSessions, usageModelCatalog])
 
   const handleExportUsageSnapshot = useCallback(() => {
     const snapshot = {

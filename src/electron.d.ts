@@ -1,5 +1,7 @@
 import type {
   AppInfoAPI,
+  ChatDebugAPI,
+  ChatDiagnosticsAPI,
   CodeExecutionAPI,
   ComputerUseAPI,
   ContextMenuAPI,
@@ -29,6 +31,8 @@ declare global {
     mcp: McpAPI
     codeExecution: CodeExecutionAPI
     computerUse: ComputerUseAPI
+    chatDiagnostics?: ChatDiagnosticsAPI
+    chatDebug?: ChatDebugAPI
   }
 }
 

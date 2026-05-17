@@ -55,6 +55,7 @@ export type ComposerMessage = ChatMessage & {
 }
 
 export interface ConversationMessage {
+  id?: string
   role: string
   content: string
   files?: AttachedFile[]

@@ -1,4 +1,8 @@
 import { registerChatStoreHandlers, unregisterChatStoreHandlers } from './chatStoreHandlers'
+import {
+  registerChatDiagnosticsHandlers,
+  unregisterChatDiagnosticsHandlers,
+} from './chatDiagnosticsHandlers'
 import { registerOverlayHandlers, unregisterOverlayHandlers } from './overlayHandlers'
 import {
   registerPromptPopupHandlers,
@@ -19,6 +23,10 @@ const IPC_DOMAIN_HANDLERS: readonly IpcDomainHandlers[] = [
   {
     register: registerChatStoreHandlers,
     unregister: unregisterChatStoreHandlers,
+  },
+  {
+    register: registerChatDiagnosticsHandlers,
+    unregister: unregisterChatDiagnosticsHandlers,
   },
   {
     register: registerSecureStorageHandlers,
@@ -62,6 +70,10 @@ export function registerAllHandlers(): void {
  * tested independently without forcing the full handler set to be installed.
  */
 export { registerChatStoreHandlers, unregisterChatStoreHandlers } from './chatStoreHandlers'
+export {
+  registerChatDiagnosticsHandlers,
+  unregisterChatDiagnosticsHandlers,
+} from './chatDiagnosticsHandlers'
 export {
   registerSecureStorageHandlers,
   unregisterSecureStorageHandlers,

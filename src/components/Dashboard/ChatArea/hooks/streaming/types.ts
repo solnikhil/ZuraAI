@@ -23,6 +23,7 @@ import type {
   ToolDefinition,
 } from '../../../../../services/types'
 import type { ActiveProviderId } from '../../../../../providers'
+import type { ContextOptimizationTrace } from '../../../../../utils/tokenUtils'
 
 /**
  * Common streaming result returned by all provider hooks
@@ -81,6 +82,7 @@ export interface ProviderStreamingOptions {
   messageId: string
   /** Optimized conversation history */
   messages: Array<ServiceAssistantMessage & { images?: string[]; thinking?: string }>
+  contextTrace?: ContextOptimizationTrace
   /** Start time for latency calculation */
   startTime: number
   /** Abort signal for cancellation */

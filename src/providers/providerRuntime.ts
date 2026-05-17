@@ -312,7 +312,7 @@ async function* emitOpenAiCompatibleResponse(
   }
 
   if ('usage' in response && response.usage) {
-    yield { type: 'usage', usage: normalizeUsage(response.usage) }
+    yield { type: 'usage', usage: normalizeUsage(response.usage), rawUsage: response.usage }
   }
 
   if ('citations' in response && Array.isArray(response.citations) && response.citations.length > 0) {
@@ -361,6 +361,10 @@ async function* emitOllamaResponse(
       inputTokens: response.prompt_eval_count || 0,
       outputTokens: response.eval_count || 0,
       totalTokens: (response.prompt_eval_count || 0) + (response.eval_count || 0),
+    },
+    rawUsage: {
+      prompt_eval_count: response.prompt_eval_count,
+      eval_count: response.eval_count,
     },
   }
   yield { type: 'finish', finishReason: response.done ? 'stop' : undefined }
@@ -662,7 +666,7 @@ export async function* streamProviderEvents(
         }
 
         if (chunk.usage) {
-          yield { type: 'usage', usage: normalizeUsage(chunk.usage) }
+          yield { type: 'usage', usage: normalizeUsage(chunk.usage), rawUsage: chunk.usage }
         }
 
         if (chunk.choices?.[0]?.finish_reason) {
@@ -697,7 +701,7 @@ export async function* streamProviderEvents(
         if (chunk.choices?.[0]?.delta?.tool_calls?.length) {
           yield { type: 'tool-call-delta', delta: chunk.choices[0].delta.tool_calls }
         }
-        if (chunk.usage) yield { type: 'usage', usage: normalizeUsage(chunk.usage) }
+        if (chunk.usage) yield { type: 'usage', usage: normalizeUsage(chunk.usage), rawUsage: chunk.usage }
         if (chunk.choices?.[0]?.finish_reason) {
           yield { type: 'finish', finishReason: chunk.choices[0].finish_reason }
         }
@@ -744,7 +748,7 @@ export async function* streamProviderEvents(
         if (chunk.choices?.[0]?.delta?.tool_calls?.length) {
           yield { type: 'tool-call-delta', delta: chunk.choices[0].delta.tool_calls }
         }
-        if (chunk.usage) yield { type: 'usage', usage: normalizeUsage(chunk.usage) }
+        if (chunk.usage) yield { type: 'usage', usage: normalizeUsage(chunk.usage), rawUsage: chunk.usage }
         if (chunk.choices?.[0]?.finish_reason) {
           yield { type: 'finish', finishReason: chunk.choices[0].finish_reason }
         }
@@ -784,7 +788,7 @@ export async function* streamProviderEvents(
         if (chunk.choices?.[0]?.delta?.tool_calls?.length) {
           yield { type: 'tool-call-delta', delta: chunk.choices[0].delta.tool_calls }
         }
-        if (chunk.usage) yield { type: 'usage', usage: normalizeUsage(chunk.usage) }
+        if (chunk.usage) yield { type: 'usage', usage: normalizeUsage(chunk.usage), rawUsage: chunk.usage }
         if (chunk.choices?.[0]?.finish_reason) {
           yield { type: 'finish', finishReason: chunk.choices[0].finish_reason }
         }
@@ -825,7 +829,7 @@ export async function* streamProviderEvents(
         if (chunk.choices?.[0]?.delta?.tool_calls?.length) {
           yield { type: 'tool-call-delta', delta: chunk.choices[0].delta.tool_calls }
         }
-        if (chunk.usage) yield { type: 'usage', usage: normalizeUsage(chunk.usage) }
+        if (chunk.usage) yield { type: 'usage', usage: normalizeUsage(chunk.usage), rawUsage: chunk.usage }
         if (chunk.choices?.[0]?.finish_reason) {
           yield { type: 'finish', finishReason: chunk.choices[0].finish_reason }
         }
@@ -874,12 +878,16 @@ export async function* streamProviderEvents(
           if (chunk.done) {
             yield {
               type: 'usage',
-              usage: {
-                inputTokens: chunk.prompt_eval_count || 0,
-                outputTokens: chunk.eval_count || 0,
-                totalTokens: (chunk.prompt_eval_count || 0) + (chunk.eval_count || 0),
-              },
-            }
+            usage: {
+              inputTokens: chunk.prompt_eval_count || 0,
+              outputTokens: chunk.eval_count || 0,
+              totalTokens: (chunk.prompt_eval_count || 0) + (chunk.eval_count || 0),
+            },
+            rawUsage: {
+              prompt_eval_count: chunk.prompt_eval_count,
+              eval_count: chunk.eval_count,
+            },
+          }
             yield { type: 'finish', finishReason: 'stop' }
           }
         }
@@ -924,7 +932,7 @@ export async function* streamProviderEvents(
         }
 
         if (chunk.usage) {
-          yield { type: 'usage', usage: normalizeUsage(chunk.usage) }
+          yield { type: 'usage', usage: normalizeUsage(chunk.usage), rawUsage: chunk.usage }
         }
 
         if (chunk.choices?.[0]?.finish_reason) {

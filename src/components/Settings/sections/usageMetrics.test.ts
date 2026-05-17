@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import type { ChatSession } from '../../../chat/types'
-import { computeUsageStats } from './usageMetrics'
+import { computeUsageStats, mergeUsageSessionSnapshots } from './usageMetrics'
 
 function createBaseSession(messages: ChatSession['messages']): ChatSession {
   return {
@@ -154,5 +154,69 @@ describe('usageMetrics', () => {
     expect(stats.cachedTotalTokens).toBe(0)
     expect(stats.estimatedSpendUsd).toBe(0)
     expect(stats.spendCoveragePercent).toBe(0)
+  })
+
+  it('uses stored full messages when current sessions are metadata-only', () => {
+    const now = Date.now()
+    const stored = createBaseSession([
+      {
+        id: 'a1',
+        role: 'assistant',
+        content: 'stored response',
+        timestamp: now,
+        model: 'qwen3-max',
+        usage: { inputTokens: 20, outputTokens: 30, totalTokens: 50 },
+      },
+    ])
+    stored.messageCount = 1
+
+    const currentMetadataOnly: ChatSession = {
+      ...stored,
+      title: 'Renamed in memory',
+      messages: [],
+      messageCount: 1,
+    }
+
+    const merged = mergeUsageSessionSnapshots([stored], [currentMetadataOnly])
+    const stats = computeUsageStats(merged, { alibabaModels: ['qwen3-max'] })
+
+    expect(merged[0].title).toBe('Renamed in memory')
+    expect(merged[0].messages).toHaveLength(1)
+    expect(stats.totalTokens).toBe(50)
+    expect(stats.providerEntries[0]?.provider).toBe('alibaba')
+  })
+
+  it('prefers loaded current messages over the stored usage snapshot', () => {
+    const now = Date.now()
+    const stored = createBaseSession([
+      {
+        id: 'a1',
+        role: 'assistant',
+        content: 'stored response',
+        timestamp: now,
+        model: 'qwen3-max',
+        usage: { inputTokens: 20, outputTokens: 30, totalTokens: 50 },
+      },
+    ])
+
+    const currentLoaded: ChatSession = {
+      ...stored,
+      messages: [
+        {
+          id: 'a1',
+          role: 'assistant',
+          content: 'fresh response',
+          timestamp: now,
+          model: 'qwen3-max',
+          usage: { inputTokens: 40, outputTokens: 60, totalTokens: 100 },
+        },
+      ],
+      messageCount: 1,
+    }
+
+    const merged = mergeUsageSessionSnapshots([stored], [currentLoaded])
+    const stats = computeUsageStats(merged, { alibabaModels: ['qwen3-max'] })
+
+    expect(stats.totalTokens).toBe(100)
   })
 })

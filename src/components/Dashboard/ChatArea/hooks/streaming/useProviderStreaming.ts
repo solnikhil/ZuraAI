@@ -41,6 +41,11 @@ import {
 } from './streamingUtils'
 import { createProviderStreamClient } from './providerStreamClient'
 import {
+  appendChatDiagnosticEvent,
+  summarizeDiagnosticMessages,
+  summarizeDiagnosticToolResult,
+} from '../../../../../diagnostics/chatDiagnosticsClient'
+import {
   evaluateResearchContinuation,
   getEffectiveSearchBudget,
 } from './researchLoopPolicy'
@@ -52,6 +57,8 @@ import type {
   ToolCallingHook,
   UpdateStreamingCallback,
 } from './types'
+import type { ChatDiagnosticRequestShape } from '../../../../../diagnostics/chatDiagnostics'
+import { createStreamChunkCoalescer } from '../../../../../diagnostics/streamChunkCoalescer'
 
 export interface ProviderStreamingRunOptions {
   provider: ActiveProviderId
@@ -60,6 +67,7 @@ export interface ProviderStreamingRunOptions {
   sessionId: string
   messageId: string
   messages: Array<ServiceAssistantMessage & { images?: string[]; thinking?: string }>
+  contextTrace?: import('../../../../../utils/tokenUtils').ContextOptimizationTrace
   startTime: number
   researchMaxRounds: number
   forceWebSearch?: boolean
@@ -166,6 +174,45 @@ function getUserContextText(
   return ''
 }
 
+function countCacheMarkers(messages: ProviderStreamingRunOptions['messages']): number {
+  return messages.reduce((count, message) => {
+    if (!Array.isArray(message.content)) return count
+    return count + message.content.filter((part) => Boolean(part.cache_control)).length
+  }, 0)
+}
+
+function buildRequestShape(
+  messages: ProviderStreamingRunOptions['messages'],
+  toolCount: number,
+  toolChoice?: 'auto' | 'none' | { type: 'function'; function: { name: string } }
+): ChatDiagnosticRequestShape {
+  return {
+    roleOrder: messages.map((message) => message.role),
+    textLengths: messages.map((message) => {
+      if (typeof message.content === 'string') return message.content.length
+      return message.content
+        .filter((part) => part.type === 'text' && typeof part.text === 'string')
+        .reduce((total, part) => total + (part.text?.length || 0), 0)
+    }),
+    contentTypes: messages.map((message) => {
+      if (typeof message.content === 'string') return message.content ? 'text' : 'empty'
+      return message.content.length > 0 ? 'parts' : 'empty'
+    }),
+    partTypes: messages.map((message) =>
+      Array.isArray(message.content) ? message.content.map((part) => part.type) : []
+    ),
+    hasReasoning: messages.map((message) => Boolean(message.reasoning)),
+    hasThinking: messages.map((message) => Boolean(message.thinking)),
+    toolCount,
+    toolChoice: typeof toolChoice === 'string'
+      ? toolChoice
+      : toolChoice && typeof toolChoice === 'object'
+        ? 'function'
+        : undefined,
+    cacheMarkerCount: countCacheMarkers(messages),
+  }
+}
+
 function buildResearchStatus(
   currentRound: number,
   maxRounds: number,
@@ -234,6 +281,54 @@ export function useProviderStreaming({
         MAX_RESEARCH_ROUNDS
       )
 
+      const logDiagnostic = (event: Omit<Parameters<typeof appendChatDiagnosticEvent>[0], 'sessionId' | 'messageId' | 'timestamp' | 'provider' | 'model'>) => {
+        appendChatDiagnosticEvent({
+          sessionId: options.sessionId,
+          messageId: options.messageId,
+          timestamp: Date.now(),
+          provider,
+          model,
+          ...event,
+        })
+      }
+
+      // Coalesce provider deltas into batched stream-chunk diagnostic events.
+      // Disabled outside dev so production builds stay quiet.
+      const streamChunkCoalescer = createStreamChunkCoalescer({
+        enabled: import.meta.env.DEV,
+        emit: (streamChunk) => {
+          logDiagnostic({
+            phase: 'stream-chunk',
+            streamChunk,
+          })
+        },
+      })
+
+      const buildToolDiagnosticsCallbacks = (
+        executionPolicy: HandleToolCallsOptions['executionPolicy']
+      ): HandleToolCallsOptions => ({
+        ...options.toolEventCallbacks,
+        executionPolicy,
+        onToolStart: (toolCall) => {
+          logDiagnostic({
+            phase: 'tool-start',
+            tool: {
+              id: toolCall.id,
+              name: toolCall.name,
+              arguments: toolCall.arguments,
+            },
+          })
+          options.toolEventCallbacks?.onToolStart?.(toolCall)
+        },
+        onToolComplete: (result) => {
+          logDiagnostic({
+            phase: 'tool-complete',
+            tool: summarizeDiagnosticToolResult(result),
+          })
+          options.toolEventCallbacks?.onToolComplete?.(result)
+        },
+      })
+
       let accumulatedContent = ''
       let generatedFiles: FileAttachment[] = []
       let lastUpdateTime = Date.now()
@@ -246,16 +341,38 @@ export function useProviderStreaming({
       let activeThinkingStartTime: number | null = null
       let citations: string[] = []
 
+      const throwIfAborted = () => {
+        if (options.signal?.aborted) {
+          throw new DOMException('Streaming aborted', 'AbortError')
+        }
+      }
+
       const shouldRecoverSearchSynthesis = (content: string) =>
         !content.trim() || shouldRetryUngroundedSearchSynthesis(content)
 
       const updateStreamingState = (updates: Record<string, unknown>) => {
+        if (options.signal?.aborted) return
         if (options.syncToStreamingContext !== false) {
           updateStreaming(updates)
         }
       }
 
+      const updatePersistedStreamingMessage: UpdateStreamingCallback = (
+        sessionId,
+        messageId,
+        updates
+      ) => {
+        if (options.signal?.aborted) return
+        updateStreamingMessage(sessionId, messageId, updates)
+      }
+
+      const flushActiveThrottledUpdates = () => {
+        if (options.signal?.aborted) return
+        flushThrottledUpdates()
+      }
+
       const persistProgress = () => {
+        if (options.signal?.aborted) return
         const now = Date.now()
         if (now - lastUpdateTime < updateInterval) return
 
@@ -297,7 +414,7 @@ export function useProviderStreaming({
           thinkingBlocks: localThinkingBlocks,
         }
         updateStreamingState(completedThinkingUpdate)
-        updateStreamingMessage(options.sessionId, options.messageId, completedThinkingUpdate)
+        updatePersistedStreamingMessage(options.sessionId, options.messageId, completedThinkingUpdate)
       }
 
       const resetAccumulatedAnswerForRetry = () => {
@@ -307,7 +424,7 @@ export function useProviderStreaming({
           content: '',
           phase: 'reasoning',
         })
-        updateStreamingMessage(options.sessionId, options.messageId, {
+        updatePersistedStreamingMessage(options.sessionId, options.messageId, {
           content: '',
         })
       }
@@ -315,6 +432,7 @@ export function useProviderStreaming({
       const runRound = async (
         roundMessages: ProviderStreamingRunOptions['messages'],
         roundOptions?: {
+          round?: number
           toolChoice?: 'auto' | 'none' | { type: 'function'; function: { name: string } }
           tools?: ReturnType<ToolCallingHook['getToolsForRequest']>
         }
@@ -333,6 +451,24 @@ export function useProviderStreaming({
         let strippedToolPrelude = false
         let suppressedInlineToolMarkup = false
 
+        throwIfAborted()
+        logDiagnostic({
+          phase: 'round-start',
+          round: roundOptions?.round,
+          roundType,
+          messageCount: roundMessages.length,
+        })
+        logDiagnostic({
+          phase: 'request-shape',
+          round: roundOptions?.round,
+          roundType,
+          requestShape: buildRequestShape(
+            roundMessages,
+            Array.isArray(roundTools) ? roundTools.length : 0,
+            roundOptions?.toolChoice
+          ),
+        })
+
         const persistToolPreludeAsThinkingBlock = () => {
           if (accumulatedContent === roundStartContent) return
 
@@ -342,116 +478,137 @@ export function useProviderStreaming({
           localThinkingBlocks = appendCompletedThinkingBlock(localThinkingBlocks, toolPrelude)
         }
 
-        for await (const event of client.stream({
-          provider,
-          model,
-          messages: roundMessages,
-          temperature: settings.temperature,
-          maxTokens: settings.maxTokens,
-          streamResponses: settings.streamResponses,
-          tools: roundTools,
-          toolChoice: roundOptions?.toolChoice,
-          modalities: options.modalities,
-          reasoning: options.reasoning,
-          enableThinking: options.enableThinking,
-          imageConfig: options.imageConfig,
-          sessionId: options.sessionId,
-          signal: options.signal,
-        })) {
-          switch (event.type) {
-            case 'text-delta':
-              if (!roundFirstTokenTime && event.delta) {
-                roundFirstTokenTime = performance.now()
-              }
+        try {
+          for await (const event of client.stream({
+            provider,
+            model,
+            messages: roundMessages,
+            temperature: settings.temperature,
+            maxTokens: settings.maxTokens,
+            streamResponses: settings.streamResponses,
+            tools: roundTools,
+            toolChoice: roundOptions?.toolChoice,
+            modalities: options.modalities,
+            reasoning: options.reasoning,
+            enableThinking: options.enableThinking,
+            imageConfig: options.imageConfig,
+            sessionId: options.sessionId,
+            signal: options.signal,
+          })) {
+            throwIfAborted()
 
-              if (event.delta && activeThinking) {
-                finalizeActiveThinking()
-                publishCompletedThinking()
-              }
+            switch (event.type) {
+              case 'text-delta':
+                if (!roundFirstTokenTime && event.delta) {
+                  roundFirstTokenTime = performance.now()
+                }
 
-              accumulatedContent += event.delta
-              roundContent += event.delta
-              if (event.delta) {
+                if (event.delta && activeThinking) {
+                  finalizeActiveThinking()
+                  publishCompletedThinking()
+                }
+
+                accumulatedContent += event.delta
+                roundContent += event.delta
+                if (event.delta) {
+                  streamChunkCoalescer.recordTextDelta(event.delta, accumulatedContent.length)
+                  updateStreamingState({
+                    phase: 'answering',
+                    // Keep the isolated active-message view in sync on every delta.
+                    // Persisted chat-history writes stay throttled separately.
+                    content: accumulatedContent,
+                  })
+                }
+                persistProgress()
+                break
+              case 'reasoning-delta':
+                if (!roundFirstTokenTime && event.delta) {
+                  roundFirstTokenTime = performance.now()
+                }
+                if (activeThinkingStartTime === null) {
+                  activeThinkingStartTime = performance.now()
+                }
+                activeThinking += event.delta
+                const thinkingDuration = activeThinkingStartTime !== null
+                  ? performance.now() - activeThinkingStartTime
+                  : undefined
                 updateStreamingState({
-                  phase: 'answering',
-                  // Keep the isolated active-message view in sync on every delta.
-                  // Persisted chat-history writes stay throttled separately.
-                  content: accumulatedContent,
-                })
-              }
-              persistProgress()
-              break
-            case 'reasoning-delta':
-              if (!roundFirstTokenTime && event.delta) {
-                roundFirstTokenTime = performance.now()
-              }
-              if (activeThinkingStartTime === null) {
-                activeThinkingStartTime = performance.now()
-              }
-              activeThinking += event.delta
-              const thinkingDuration = activeThinkingStartTime !== null
-                ? performance.now() - activeThinkingStartTime
-                : undefined
-              updateStreamingState({
-                phase: 'reasoning',
-                thinking: activeThinking,
-                thinkingDuration,
-                thinkingBlocks: localThinkingBlocks,
-                files: generatedFiles,
-              })
-              persistProgress()
-              break
-            case 'reasoning-details':
-              roundReasoningDetails.push(...event.details)
-              break
-            case 'tool-call-delta':
-              if (activeThinking) {
-                finalizeActiveThinking()
-                publishCompletedThinking()
-              }
-              if (!strippedToolPrelude && accumulatedContent !== roundStartContent) {
-                strippedToolPrelude = true
-                persistToolPreludeAsThinkingBlock()
-                accumulatedContent = roundStartContent
-                updateStreamingState({
-                  content: accumulatedContent,
-                  thinking: undefined,
-                  thinkingDuration: undefined,
+                  phase: 'reasoning',
+                  thinking: activeThinking,
+                  thinkingDuration,
                   thinkingBlocks: localThinkingBlocks,
+                  files: generatedFiles,
                 })
-                updateStreamingMessage(options.sessionId, options.messageId, {
-                  content: accumulatedContent,
-                  thinking: undefined,
-                  thinkingDuration: undefined,
-                  thinkingBlocks: localThinkingBlocks,
-                })
-              }
-              accumulateDeltaToolCalls(roundToolCalls, event.delta)
-              break
-            case 'file-delta':
-              generatedFiles = mergeGeneratedFiles(generatedFiles, event.files)
-              updateStreamingState({ files: generatedFiles })
-              persistProgress()
-              break
-            case 'usage':
-              roundUsage = mergeUsage(roundUsage, event.usage)
-              break
-            case 'finish':
-              roundFinishReason = event.finishReason || null
-              break
-            case 'citation':
-              citations = [...new Set([...citations, ...event.citations])]
-              break
-            case 'error':
-              throw event.error
+                persistProgress()
+                break
+              case 'reasoning-details':
+                roundReasoningDetails.push(...event.details)
+                break
+              case 'tool-call-delta':
+                if (activeThinking) {
+                  finalizeActiveThinking()
+                  publishCompletedThinking()
+                }
+                if (!strippedToolPrelude && accumulatedContent !== roundStartContent) {
+                  strippedToolPrelude = true
+                  persistToolPreludeAsThinkingBlock()
+                  accumulatedContent = roundStartContent
+                  updateStreamingState({
+                    content: accumulatedContent,
+                    thinking: undefined,
+                    thinkingDuration: undefined,
+                    thinkingBlocks: localThinkingBlocks,
+                  })
+                  updatePersistedStreamingMessage(options.sessionId, options.messageId, {
+                    content: accumulatedContent,
+                    thinking: undefined,
+                    thinkingDuration: undefined,
+                    thinkingBlocks: localThinkingBlocks,
+                  })
+                }
+                accumulateDeltaToolCalls(roundToolCalls, event.delta)
+                streamChunkCoalescer.recordToolCallDelta(
+                  Array.isArray(event.delta) ? event.delta.length : 1
+                )
+                break
+              case 'file-delta':
+                generatedFiles = mergeGeneratedFiles(generatedFiles, event.files)
+                updateStreamingState({ files: generatedFiles })
+                persistProgress()
+                break
+              case 'usage':
+                roundUsage = mergeUsage(roundUsage, event.usage)
+                logDiagnostic({ phase: 'usage', round: roundOptions?.round, roundType, usage: event.usage, rawUsage: event.rawUsage })
+                break
+              case 'finish':
+                roundFinishReason = event.finishReason || null
+                break
+              case 'citation':
+                citations = [...new Set([...citations, ...event.citations])]
+                break
+              case 'error':
+                throw event.error
+            }
           }
+        } catch (streamError: unknown) {
+          if (!(streamError instanceof DOMException && streamError.name === 'AbortError')) {
+            streamChunkCoalescer.flush()
+            logDiagnostic({
+              phase: 'provider-error',
+              error: streamError instanceof Error ? streamError.message : String(streamError),
+            })
+          }
+          throw streamError
         }
+
+        throwIfAborted()
 
         if (activeThinking) {
           finalizeActiveThinking()
         }
 
-        flushThrottledUpdates()
+        flushActiveThrottledUpdates()
+        throwIfAborted()
         const hasValidRoundToolCalls = roundToolCalls.some((toolCall) => toolCall?.id)
         if (roundFinishReason === 'tool_calls' && hasValidRoundToolCalls) {
           accumulatedContent = roundStartContent
@@ -539,7 +696,7 @@ export function useProviderStreaming({
           thinkingBlocks: localThinkingBlocks,
           files: generatedFiles,
         })
-        updateStreamingMessage(options.sessionId, options.messageId, {
+        updatePersistedStreamingMessage(options.sessionId, options.messageId, {
           content: finalRoundContent,
           thinking: undefined,
           thinkingDuration: undefined,
@@ -565,6 +722,15 @@ export function useProviderStreaming({
           ? finalRoundContent.slice(roundStartContent.length)
           : finalRoundContent
 
+        streamChunkCoalescer.flush()
+        logDiagnostic({
+          phase: 'round-finish',
+          round: roundOptions?.round,
+          roundType,
+          finishReason: roundFinishReason || undefined,
+          usage: roundUsage,
+        })
+
         return {
           roundContent: returnedRoundContent,
           roundToolCalls,
@@ -578,6 +744,7 @@ export function useProviderStreaming({
         synthesisContext: SynthesisContext,
         mode: 'final' | 'recovery' | 'plain-text-only'
       ) => {
+        throwIfAborted()
         const researchContext = toolCalling.getResearchContext(
           synthesisContext.totalSearchCount,
           options.researchMaxRounds
@@ -611,8 +778,19 @@ export function useProviderStreaming({
                   synthesisContext.formattedResults
                 )
 
-        updateStreamingState({ phase: 'reasoning' })
-        return await runRound(synthesisMessages, { tools: null, toolChoice: 'none' })
+        updateStreamingState({
+          phase: 'reasoning',
+          researchStatus: buildResearchStatus(
+            synthesisContext.researchRound,
+            options.researchMaxRounds,
+            false
+          ),
+        })
+        return await runRound(synthesisMessages, {
+          round: synthesisContext.researchRound,
+          tools: null,
+          toolChoice: 'none',
+        })
       }
 
       const initialToolChoice =
@@ -621,9 +799,24 @@ export function useProviderStreaming({
           ? { type: 'function' as const, function: { name: 'web_search' } }
           : undefined
 
+      logDiagnostic({
+        phase: 'request-start',
+        messageCount: options.messages.length,
+        messages: summarizeDiagnosticMessages(options.messages),
+      })
+      if (options.contextTrace) {
+        logDiagnostic({
+          phase: 'context-optimized',
+          context: options.contextTrace,
+        })
+      }
+
+      throwIfAborted()
       const initialRound = await runRound(options.messages, {
+        round: 0,
         toolChoice: initialToolChoice,
       })
+      throwIfAborted()
       const userContextText = getUserContextText(options.messages)
 
       if (
@@ -646,14 +839,14 @@ export function useProviderStreaming({
             getThinkingTranscript(localThinkingBlocks)
           ),
           {
-            ...options.toolEventCallbacks,
-            executionPolicy: {
+            ...buildToolDiagnosticsCallbacks({
               remainingWebSearchBudget: effectiveSearchBudget,
               priorWebSearchQueries: [],
               userContextText,
-            },
+            }),
           }
         )
+        throwIfAborted()
         const initialAttemptedSearchQueries = extractWebSearchQueries(toolResult.toolResults)
         const initialExecutedSearchQueries =
           toolResult.executionSummary.executedWebSearchQueries || []
@@ -672,7 +865,7 @@ export function useProviderStreaming({
         savedToolResults = processed.savedToolResults
         publishStreamingToolResults(
           updateStreamingState,
-          updateStreamingMessage,
+          updatePersistedStreamingMessage,
           options.sessionId,
           options.messageId,
           savedToolResults,
@@ -683,11 +876,11 @@ export function useProviderStreaming({
           const researchStatus = buildResearchStatus(
             1,
             options.researchMaxRounds,
-            true,
+            false,
             initialExecutedSearchQueries
           )
-          updateStreamingState({ phase: 'searching', researchStatus, thinkingBlocks: localThinkingBlocks })
-          updateStreamingMessage(options.sessionId, options.messageId, {
+          updateStreamingState({ phase: 'reasoning', researchStatus, thinkingBlocks: localThinkingBlocks })
+          updatePersistedStreamingMessage(options.sessionId, options.messageId, {
             researchStatus,
             thinkingBlocks: localThinkingBlocks,
           })
@@ -757,6 +950,7 @@ export function useProviderStreaming({
               priorQueries: searchQueryHistory,
             })
 
+            throwIfAborted()
             const followUpMessages = buildFollowUpMessages(
               toolCalling.getResearchContext(totalSearchCount, options.researchMaxRounds),
               researchRound,
@@ -775,7 +969,8 @@ export function useProviderStreaming({
               ),
             })
 
-            const followUpRound = await runRound(followUpMessages)
+            const followUpRound = await runRound(followUpMessages, { round: researchRound })
+            throwIfAborted()
             const hasValidToolCalls =
               followUpRound.roundToolCalls.length > 0 &&
               followUpRound.roundToolCalls.some((toolCall) => toolCall?.function?.name)
@@ -818,14 +1013,14 @@ export function useProviderStreaming({
                 getThinkingTranscript(localThinkingBlocks)
               ),
               {
-                ...options.toolEventCallbacks,
-                executionPolicy: {
+                ...buildToolDiagnosticsCallbacks({
                   remainingWebSearchBudget: Math.max(0, effectiveSearchBudget - totalSearchCount),
                   priorWebSearchQueries: [...searchQueryHistory],
                   userContextText,
-                },
+                }),
               }
             )
+            throwIfAborted()
 
             const attemptedSearchQueries = extractWebSearchQueries(nextToolResult.toolResults)
             const executedSearchQueries =
@@ -857,7 +1052,7 @@ export function useProviderStreaming({
             )
             publishStreamingToolResults(
               updateStreamingState,
-              updateStreamingMessage,
+              updatePersistedStreamingMessage,
               options.sessionId,
               options.messageId,
               savedToolResults,
@@ -865,12 +1060,12 @@ export function useProviderStreaming({
             )
 
             updateStreamingState({
-              phase: 'searching',
+              phase: 'reasoning',
               thinkingBlocks: localThinkingBlocks,
               researchStatus: buildResearchStatus(
                 researchRound,
                 options.researchMaxRounds,
-                executedSearchQueries.length > 0,
+                false,
                 executedSearchQueries
               ),
             })
@@ -923,6 +1118,7 @@ export function useProviderStreaming({
               researchRound: pendingFinalSynthesis.researchRound,
             })
             const finalSynthesisRound = await runNoToolsSynthesisAttempt(pendingFinalSynthesis, 'final')
+            throwIfAborted()
             logResearchLoop('final-synthesis-complete', {
               totalSearchCount: pendingFinalSynthesis.totalSearchCount,
               researchRound: pendingFinalSynthesis.researchRound,
@@ -936,7 +1132,7 @@ export function useProviderStreaming({
                 false
               ),
             })
-            updateStreamingMessage(options.sessionId, options.messageId, {
+            updatePersistedStreamingMessage(options.sessionId, options.messageId, {
               researchStatus: buildResearchStatus(
                 pendingFinalSynthesis.researchRound,
                 options.researchMaxRounds,
@@ -972,6 +1168,7 @@ export function useProviderStreaming({
 
             for (const mode of recoveryModes) {
               const recoveryRound = await runNoToolsSynthesisAttempt(lastSynthesisContext, mode)
+              throwIfAborted()
               const needsRetry =
                 recoveryRound.roundFinishReason === 'tool_calls' ||
                 recoveryRound.suppressedInlineToolMarkup ||
@@ -1004,7 +1201,7 @@ export function useProviderStreaming({
                   content: accumulatedContent,
                   phase: 'answering',
                 })
-                updateStreamingMessage(options.sessionId, options.messageId, {
+                updatePersistedStreamingMessage(options.sessionId, options.messageId, {
                   content: accumulatedContent,
                 })
               }
@@ -1018,7 +1215,7 @@ export function useProviderStreaming({
                 false
               ),
             })
-            updateStreamingMessage(options.sessionId, options.messageId, {
+            updatePersistedStreamingMessage(options.sessionId, options.messageId, {
               researchStatus: buildResearchStatus(
                 lastSynthesisContext.researchRound,
                 options.researchMaxRounds,
@@ -1077,7 +1274,14 @@ export function useProviderStreaming({
         ...(localThinkingBlocks.length > 0 ? { thinkingBlocks: localThinkingBlocks } : {}),
       }
 
-      updateStreamingMessage(options.sessionId, options.messageId, finalMessageUpdates)
+      throwIfAborted()
+      updatePersistedStreamingMessage(options.sessionId, options.messageId, finalMessageUpdates)
+      logDiagnostic({
+        phase: 'finish',
+        latency: metrics.latency,
+        finishReason: finalFinishReason,
+        usage: finalUsage,
+      })
 
       return {
         content: finalMessageUpdates.content,

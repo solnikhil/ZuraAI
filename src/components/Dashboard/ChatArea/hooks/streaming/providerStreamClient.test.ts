@@ -186,6 +186,11 @@ describe('createProviderStreamClient', () => {
           cachedOutputTokens: 1,
           cacheWriteInputTokens: 3,
         },
+        rawUsage: expect.objectContaining({
+          prompt_tokens: 10,
+          completion_tokens: 4,
+          total_tokens: 14,
+        }),
       },
       { type: 'finish', finishReason: 'tool_calls' },
     ])
@@ -240,6 +245,11 @@ describe('createProviderStreamClient', () => {
         cacheMissInputTokens: 4,
         cacheWriteInputTokens: 3,
       },
+      rawUsage: expect.objectContaining({
+        prompt_tokens: 10,
+        completion_tokens: 4,
+        total_tokens: 14,
+      }),
     })
   })
 
@@ -287,6 +297,11 @@ describe('createProviderStreamClient', () => {
         cacheMissInputTokens: undefined,
         cacheWriteInputTokens: undefined,
       },
+      rawUsage: expect.objectContaining({
+        prompt_tokens: 10,
+        completion_tokens: 4,
+        total_tokens: 14,
+      }),
     })
   })
 
@@ -587,7 +602,11 @@ describe('createProviderStreamClient', () => {
     expect(events).toEqual([
       { type: 'reasoning-delta', delta: 'Local chain' },
       { type: 'text-delta', delta: 'Fallback answer' },
-      { type: 'usage', usage: { inputTokens: 7, outputTokens: 5, totalTokens: 12 } },
+      {
+        type: 'usage',
+        usage: { inputTokens: 7, outputTokens: 5, totalTokens: 12 },
+        rawUsage: { prompt_eval_count: 7, eval_count: 5 },
+      },
       { type: 'finish', finishReason: 'stop' },
     ])
   })
@@ -656,7 +675,11 @@ describe('createProviderStreamClient', () => {
           function: { name: 'web_search', arguments: '{"query":"fireworks"}' },
         }],
       },
-      { type: 'usage', usage: { inputTokens: 9, outputTokens: 5, totalTokens: 14 } },
+      {
+        type: 'usage',
+        usage: { inputTokens: 9, outputTokens: 5, totalTokens: 14 },
+        rawUsage: { prompt_tokens: 9, completion_tokens: 5, total_tokens: 14 },
+      },
       { type: 'finish', finishReason: 'tool_calls' },
     ])
   })
@@ -703,7 +726,11 @@ describe('createProviderStreamClient', () => {
 
     expect(events).toEqual([
       { type: 'text-delta', delta: 'Answer [1]' },
-      { type: 'usage', usage: { inputTokens: 3, outputTokens: 2, totalTokens: 5 } },
+      {
+        type: 'usage',
+        usage: { inputTokens: 3, outputTokens: 2, totalTokens: 5 },
+        rawUsage: { prompt_tokens: 3, completion_tokens: 2, total_tokens: 5 },
+      },
       { type: 'citation', citations: ['https://example.com/source'] },
       { type: 'finish', finishReason: 'stop' },
     ])

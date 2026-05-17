@@ -54,6 +54,8 @@ export default function ChatArea() {
   const lastMessageIdRef = useRef<string | null>(null)
   const hasScrolledToNewMessageRef = useRef(false)
   const userScrolledAwayRef = useRef(false)
+  const isAutoScrollingRef = useRef(false)
+  const lastScrollTopRef = useRef(0)
 
   const { isLoading, toolState, sendMessage, regenerateMessage, stopStreaming } = useStreamingChat({
     onRegenerateStart: () => {
@@ -139,11 +141,15 @@ export default function ChatArea() {
     const container = messagesContainerRef.current
     if (!container) return
     const scrollTop = Math.max(0, container.scrollHeight - container.clientHeight)
+    isAutoScrollingRef.current = true
     if (smooth) {
       container.scrollTo({ top: scrollTop, behavior: 'smooth' })
     } else {
       container.scrollTop = scrollTop
     }
+    window.setTimeout(() => {
+      isAutoScrollingRef.current = false
+    }, smooth ? 350 : 50)
   }
 
   const isNearBottom = () => {
@@ -157,17 +163,41 @@ export default function ChatArea() {
   useEffect(() => {
     const container = messagesContainerRef.current
     if (!container) return
+    lastScrollTopRef.current = container.scrollTop
 
     const handleScroll = () => {
+      const previousScrollTop = lastScrollTopRef.current
+      const currentScrollTop = container.scrollTop
+      const isUserScrollingUp = currentScrollTop < previousScrollTop
+      lastScrollTopRef.current = currentScrollTop
+
+      if (isAutoScrollingRef.current) return
+
+      if (isLoading && isUserScrollingUp) {
+        userScrolledAwayRef.current = true
+        return
+      }
+
       if (isLoading && !isNearBottom()) {
         userScrolledAwayRef.current = true
-      } else if (isNearBottom()) {
+      } else if (isNearBottom() && currentScrollTop >= previousScrollTop) {
         userScrolledAwayRef.current = false
       }
     }
 
+    const handleWheel = (event: WheelEvent) => {
+      if (!isLoading) return
+      if (event.deltaY < 0) {
+        userScrolledAwayRef.current = true
+      }
+    }
+
     container.addEventListener('scroll', handleScroll)
-    return () => container.removeEventListener('scroll', handleScroll)
+    container.addEventListener('wheel', handleWheel, { passive: true })
+    return () => {
+      container.removeEventListener('scroll', handleScroll)
+      container.removeEventListener('wheel', handleWheel)
+    }
   }, [isLoading])
 
   useEffect(() => {
@@ -194,6 +224,26 @@ export default function ChatArea() {
     lastMessageIdRef.current = lastMessageId
   }, [messages.length, messages[messages.length - 1]?.id])
 
+  useEffect(() => {
+    if (!isLoading || !streamingState?.isStreaming) return
+    if (streamingState.sessionId !== currentSessionId) return
+    if (!streamingState.content && !streamingState.thinking) return
+    if (userScrolledAwayRef.current) return
+
+    requestAnimationFrame(() => {
+      if (!userScrolledAwayRef.current) {
+        scrollToNewMessage()
+      }
+    })
+  }, [
+    currentSessionId,
+    isLoading,
+    streamingState?.content,
+    streamingState?.isStreaming,
+    streamingState?.sessionId,
+    streamingState?.thinking,
+  ])
+
   const handleSendMessage = async () => {
     if ((!input.trim() && attachedFiles.length === 0) || isLoading) return
     await sendMessage(input.trim(), attachedFiles)
@@ -211,6 +261,9 @@ export default function ChatArea() {
     () => toolState.toolResults.filter((result) => !shouldHideGenericToolResultCard(result)),
     [toolState.toolResults]
   )
+  const displayActiveToolCalls = toolState.activeToolBatch.length > 0
+    ? toolState.activeToolBatch
+    : toolState.activeToolCalls
 
   const renderMessage = useCallback(
     (index: number, msg: (typeof messages)[0]) => {
@@ -223,7 +276,7 @@ export default function ChatArea() {
             <StreamingMessage
               message={msg}
               sessionId={currentSessionId!}
-              activeToolCalls={toolState.activeToolCalls}
+              activeToolCalls={displayActiveToolCalls}
               onCopy={handleCopy}
               onRegenerate={(instruction) => regenerateMessage(msg, instruction)}
             />
@@ -263,7 +316,7 @@ export default function ChatArea() {
       handleCopy,
       regenerateMessage,
       visibleLiveToolResults,
-      toolState.activeToolCalls,
+      displayActiveToolCalls,
     ]
   )
 
@@ -367,7 +420,7 @@ export default function ChatArea() {
           footer={
             <>
               {!isLoading &&
-                toolState.activeToolCalls.map((toolCall, i) => (
+                displayActiveToolCalls.map((toolCall, i) => (
                   <div key={`tool-active-${i}`} style={{ marginBottom: '12px', padding: '0 20px' }}>
                     <ToolCallIndicator
                       toolName={toolCall.name}
@@ -408,7 +461,7 @@ export default function ChatArea() {
                     <StreamingMessage
                       message={msg}
                       sessionId={currentSessionId!}
-                      activeToolCalls={toolState.activeToolCalls}
+                      activeToolCalls={displayActiveToolCalls}
                       onCopy={handleCopy}
                       onRegenerate={(instruction) => regenerateMessage(msg, instruction)}
                     />
@@ -445,7 +498,7 @@ export default function ChatArea() {
             })}
 
             {!isLoading &&
-              toolState.activeToolCalls.map((toolCall, i) => (
+              displayActiveToolCalls.map((toolCall, i) => (
                 <div key={`tool-active-${i}`} style={{ marginBottom: '12px' }}>
                   <ToolCallIndicator
                     toolName={toolCall.name}
@@ -478,6 +531,7 @@ export default function ChatArea() {
             input={input}
             setInput={setInput}
             onSend={handleSendMessage}
+            onStop={stopStreaming}
             isLoading={isLoading}
             attachedFiles={attachedFiles}
             onFilesChange={setAttachedFiles}

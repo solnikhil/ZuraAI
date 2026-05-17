@@ -28,6 +28,15 @@ const CodeExecutionApprovalDialog = lazy(() =>
     default: module.CodeExecutionApprovalDialog,
   }))
 )
+// Loaded only inside the dev-only `#/chat-debug` BrowserWindow. Wrapped in
+// `import.meta.env.DEV` so the chunk is dropped from production bundles.
+const ChatDebugApp = import.meta.env.DEV
+  ? lazy(() =>
+      import('./components/ChatDebugPanel/ChatDebugApp').then((module) => ({
+        default: module.ChatDebugApp,
+      }))
+    )
+  : null
 
 function ModelSelectorOpener() {
   const { openSelector } = useModelSelectorContext()
@@ -91,41 +100,40 @@ function DashboardApp() {
           <StreamingProvider>
             <QuickSendProvider>
               <ModelSelectorProvider>
-                    <ModelSelectorOpener />
-                    {!macOS && <OverlaySync />}
-                    <Router>
-                      <Routes>
-                        <Route element={<AppShellLayout />}>
-                          <Route path="/" element={<DashboardLayout />} />
-                          <Route path="/dashboard" element={<DashboardLayout />} />
-                          <Route
-                            path="/settings"
-                            element={
-                              <Suspense fallback={<SettingsLoadingFallback />}>
-                                <Settings />
-                              </Suspense>
-                            }
-                          />
-                          <Route path="/chat" element={<DashboardLayout />} />
-                        </Route>
-                        {!macOS && (
-                          <Route
-                            path="/overlay"
-                            element={
-                              <Suspense fallback={null}>
-                                <OverlayView />
-                              </Suspense>
-                            }
-                          />
-                        )}
-                        <Route path="*" element={<NotFound404 />} />
-                      </Routes>
-                    </Router>
-                    <McpApprovalDialog />
-                  </ModelSelectorProvider>
-                  <CodeExecutionApprovalHost />
-                  {!macOS && <ComputerUseApprovalDialog />}
-
+                <ModelSelectorOpener />
+                {!macOS && <OverlaySync />}
+                <Router>
+                  <Routes>
+                    <Route element={<AppShellLayout />}>
+                      <Route path="/" element={<DashboardLayout />} />
+                      <Route path="/dashboard" element={<DashboardLayout />} />
+                      <Route
+                        path="/settings"
+                        element={
+                          <Suspense fallback={<SettingsLoadingFallback />}>
+                            <Settings />
+                          </Suspense>
+                        }
+                      />
+                      <Route path="/chat" element={<DashboardLayout />} />
+                    </Route>
+                    {!macOS && (
+                      <Route
+                        path="/overlay"
+                        element={
+                          <Suspense fallback={null}>
+                            <OverlayView />
+                          </Suspense>
+                        }
+                      />
+                    )}
+                    <Route path="*" element={<NotFound404 />} />
+                  </Routes>
+                </Router>
+                <McpApprovalDialog />
+              </ModelSelectorProvider>
+              <CodeExecutionApprovalHost />
+              {!macOS && <ComputerUseApprovalDialog />}
             </QuickSendProvider>
           </StreamingProvider>
         </ChatHistoryProvider>
@@ -152,6 +160,12 @@ function App() {
     content = <AboutWindow />
   } else if (hashPath.startsWith('#/prompt-popup')) {
     content = <PromptPopupApp />
+  } else if (hashPath.startsWith('#/chat-debug') && ChatDebugApp) {
+    content = (
+      <Suspense fallback={null}>
+        <ChatDebugApp />
+      </Suspense>
+    )
   } else {
     content = <DashboardApp />
   }

@@ -16,6 +16,8 @@ export type CommandBarAction =
   | { type: 'toggle_sidebar_hidden' }
   | { type: 'toggle_sidebar_collapsed' }
   | { type: 'new_chat' }
+  | { type: 'copy_chat_debug_id' }
+  | { type: 'open_chat_debug_panel' }
   | { type: 'export_chat'; format: 'markdown' | 'text' }
   | { type: 'send_chat_message'; content: string }
 
@@ -30,6 +32,7 @@ export interface CommandBarSuggestion {
 
 export interface CommandBarSuggestionContext {
   hasCurrentSession: boolean
+  isDev?: boolean
 }
 
 const COMMAND_STOPWORDS = new Set(['go', 'goto', 'to', 'open', 'show', 'navigate'])
@@ -303,6 +306,35 @@ function buildBaseSuggestions(
 
   if (ctx.hasCurrentSession) {
     suggestions.push(
+      ...(ctx.isDev
+        ? [
+            {
+              id: 'copy-chat-debug-id',
+              title: 'Copy Chat Debug ID',
+              subtitle: 'Copy current session id for local diagnostics',
+              keywords: ['chat-id', 'chat id', 'session id', 'debug id', 'copy chat id'],
+              action: { type: 'copy_chat_debug_id' as const },
+            },
+            {
+              id: 'open-chat-debug-panel',
+              title: 'Show Chat Debug Logs',
+              subtitle: 'View raw events for the current chat',
+              keywords: [
+                'debug',
+                'logs',
+                'diagnostics',
+                'tool',
+                'tools',
+                'errors',
+                'events',
+                'panel',
+                'inspector',
+                'chat debug logs',
+              ],
+              action: { type: 'open_chat_debug_panel' as const },
+            },
+          ]
+        : []),
       {
         id: 'export-chat-markdown',
         title: 'Export Chat (Markdown)',
