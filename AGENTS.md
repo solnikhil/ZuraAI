@@ -218,6 +218,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - `execute-tool`
   - `window-resize`
   - `context-menu:show`
+  - `native-dialog:confirm-delete-chat`
   - `updater:check-for-updates`, `updater:quit-and-install`, `updater:get-version`
 - `ON_CHANNELS`:
   - `update-available`, `update-downloaded`, `app:new-chat`, `context-menu:action`
@@ -241,6 +242,8 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - `window.contextMenu`
   - invokes: `context-menu:show` (macOS native app-shell context menu request with sanitized target metadata)
   - listens for: `context-menu:action` (main→renderer callbacks for `undo`, `redo`, `cut`, `copy`, `paste`, `select-all`)
+- `window.nativeDialog`
+  - invokes: `native-dialog:confirm-delete-chat` (macOS native chat-delete confirmation only; Windows/Linux keep the renderer alert dialog)
 - `window.mcp`
   - invokes: `mcp:list-servers`, `mcp:add-server`, `mcp:update-server`, `mcp:remove-server`, `mcp:connect-server`, `mcp:disconnect-server`, `mcp:get-state`, `mcp:list-tools`, `mcp:list-resources`, `mcp:read-resource`, `mcp:list-prompts`, `mcp:get-prompt`, `mcp:execute-tool`, `mcp:resolve-approval`
   - listens for: `mcp:state-changed`

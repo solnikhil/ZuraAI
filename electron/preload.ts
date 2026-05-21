@@ -87,6 +87,7 @@ const INVOKE_CHANNELS = new Set<IpcInvokeChannel>([
   // Window resize
   'window-resize',
   'context-menu:show',
+  'native-dialog:confirm-delete-chat',
 
   // Updater
   'updater:check-for-updates',
@@ -296,6 +297,14 @@ contextBridge.exposeInMainWorld(
       ipcRenderer.on('context-menu:action', listener)
       return () => ipcRenderer.removeListener('context-menu:action', listener)
     },
+  })
+)
+
+contextBridge.exposeInMainWorld(
+  'nativeDialog',
+  Object.freeze({
+    confirmDeleteChat: () =>
+      ipcRenderer.invoke('native-dialog:confirm-delete-chat') as Promise<boolean>,
   })
 )
 

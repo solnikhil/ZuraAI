@@ -129,6 +129,17 @@ describe('preload MCP bridge', () => {
     expect(preloadMocks.removeListener).toHaveBeenCalledWith('context-menu:action', listener)
   })
 
+  it('exposes the native dialog bridge for fixed delete confirmations', async () => {
+    const nativeDialog = getExposedBridge<{
+      confirmDeleteChat: () => Promise<boolean>
+    }>('nativeDialog')
+
+    preloadMocks.invoke.mockResolvedValueOnce(true)
+
+    await expect(nativeDialog.confirmDeleteChat()).resolves.toBe(true)
+    expect(preloadMocks.invoke).toHaveBeenCalledWith('native-dialog:confirm-delete-chat')
+  })
+
   it('keeps MCP tools blocked from the generic execute-tool bridge', async () => {
     const ipcRenderer = getExposedBridge<{
       send: (channel: string, ...args: unknown[]) => void

@@ -8,6 +8,7 @@ import type {
   DevToolsAPI,
   IElectronAPI,
   McpAPI,
+  NativeDialogAPI,
   OverlayAPI,
   PromptPopupAPI,
   SecureStorageAPI,
@@ -28,6 +29,7 @@ declare global {
     shell: ShellAPI
     devTools: DevToolsAPI
     contextMenu: ContextMenuAPI
+    nativeDialog: NativeDialogAPI
     mcp: McpAPI
     codeExecution: CodeExecutionAPI
     computerUse: ComputerUseAPI

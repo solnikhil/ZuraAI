@@ -207,6 +207,7 @@ export type IpcInvokeChannel =
   | 'execute-tool'
   | 'window-resize'
   | 'context-menu:show'
+  | 'native-dialog:confirm-delete-chat'
   | 'updater:check-for-updates'
   | 'updater:quit-and-install'
   | 'updater:get-version'
@@ -233,6 +234,7 @@ export interface IpcInvokeArgsMap {
   'execute-tool': [toolName: string, args: Record<string, unknown>]
   'window-resize': [newBounds: WindowBounds]
   'context-menu:show': [request: NativeContextMenuRequest]
+  'native-dialog:confirm-delete-chat': []
   'updater:check-for-updates': []
   'updater:quit-and-install': []
   'updater:get-version': []
@@ -260,6 +262,7 @@ export interface IpcInvokeReturnMap {
   'execute-tool': ToolResult
   'window-resize': void
   'context-menu:show': void
+  'native-dialog:confirm-delete-chat': boolean
   'updater:check-for-updates': UpdateCheckInfo | null
   'updater:quit-and-install': boolean
   'updater:get-version': string
@@ -386,6 +389,10 @@ export interface DevToolsAPI {
 export interface ContextMenuAPI {
   show: (request: NativeContextMenuRequest) => Promise<void>
   onAction: (callback: (action: NativeContextMenuAction) => void) => () => void
+}
+
+export interface NativeDialogAPI {
+  confirmDeleteChat: () => Promise<boolean>
 }
 
 export interface CodeExecutionAPI {

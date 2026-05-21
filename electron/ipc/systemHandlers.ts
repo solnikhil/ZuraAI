@@ -1,4 +1,4 @@
-import { app, ipcMain, BrowserWindow, Menu, clipboard, shell, type MenuItemConstructorOptions } from 'electron'
+import { app, ipcMain, BrowserWindow, Menu, clipboard, dialog, shell, type MenuItemConstructorOptions } from 'electron'
 import { getAppRuntimeInfo } from '../runtimeInfo'
 import { showAboutWindow } from '../windows'
 import type { NativeContextMenuAction, NativeContextMenuRequest } from '../../src/electron/types'
@@ -381,6 +381,39 @@ export function registerSystemHandlers(): void {
   })
 
   /**
+   * Shows a native macOS delete confirmation for chat rows.
+   *
+   * Channel: `native-dialog:confirm-delete-chat`
+   * Type: request/response
+   *
+   * This intentionally exposes only one fixed confirmation prompt instead of a
+   * generic arbitrary-message dialog surface.
+   */
+  ipcMain.handle('native-dialog:confirm-delete-chat', async (event) => {
+    if (process.platform !== 'darwin') {
+      return false
+    }
+
+    const win = BrowserWindow.fromWebContents(event.sender)
+    const options = {
+      type: 'none' as const,
+      buttons: ['Delete', 'Cancel'],
+      defaultId: 1,
+      cancelId: 1,
+      destructiveId: 0,
+      message: 'Delete chat?',
+      detail: 'This action cannot be undone. This will permanently delete this conversation.',
+      noLink: true,
+    }
+
+    const result = win && !win.isDestroyed()
+      ? await dialog.showMessageBox(win, options)
+      : await dialog.showMessageBox(options)
+
+    return result.response === 0
+  })
+
+  /**
    * Applies explicit bounds to the sender's window.
    *
    * Channel: `window-resize`
@@ -462,4 +495,5 @@ export function unregisterSystemHandlers(): void {
   ipcMain.removeHandler('devtools:inspect-element')
   ipcMain.removeHandler('clipboard:read-text')
   ipcMain.removeHandler('context-menu:show')
+  ipcMain.removeHandler('native-dialog:confirm-delete-chat')
 }

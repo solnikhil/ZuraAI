@@ -7,6 +7,7 @@ const systemHandlerMocks = vi.hoisted(() => {
   const inspectElement = vi.fn()
   const send = vi.fn()
   const popup = vi.fn()
+  const showMessageBox = vi.fn()
   const buildFromTemplate = vi.fn((template: unknown[]) => ({
     popup: (options: unknown) => {
       popup(options)
@@ -32,6 +33,7 @@ const systemHandlerMocks = vi.hoisted(() => {
     clipboardReadText: vi.fn(() => 'clipboard-text'),
     clipboardWriteText: vi.fn(),
     shellOpenExternal: vi.fn(),
+    showMessageBox,
     popup,
     buildFromTemplate,
     fromWebContents,
@@ -61,6 +63,9 @@ vi.mock('electron', () => ({
   shell: {
     openExternal: systemHandlerMocks.shellOpenExternal,
   },
+  dialog: {
+    showMessageBox: systemHandlerMocks.showMessageBox,
+  },
 }))
 
 vi.mock('../runtimeInfo', () => ({
@@ -82,6 +87,7 @@ describe('registerSystemHandlers context menu', () => {
     systemHandlerMocks.clipboardReadText.mockClear()
     systemHandlerMocks.clipboardWriteText.mockClear()
     systemHandlerMocks.shellOpenExternal.mockClear()
+    systemHandlerMocks.showMessageBox.mockReset()
     systemHandlerMocks.popup.mockClear()
     systemHandlerMocks.buildFromTemplate.mockClear()
     systemHandlerMocks.fromWebContents.mockClear()
@@ -155,5 +161,39 @@ describe('registerSystemHandlers context menu', () => {
 
     template.find((item) => item.label === 'Inspect Element')?.click?.()
     expect(systemHandlerMocks.inspectElement).toHaveBeenCalledWith(12, 25)
+  })
+
+  it('shows a native macOS delete confirmation and returns the user choice', async () => {
+    Object.defineProperty(process, 'platform', { value: 'darwin' })
+    systemHandlerMocks.showMessageBox.mockResolvedValueOnce({ response: 0 })
+
+    const { registerSystemHandlers } = await import('./systemHandlers')
+    registerSystemHandlers()
+
+    const handler = systemHandlerMocks.handlers.get('native-dialog:confirm-delete-chat')
+    await expect(handler?.({ sender: {} })).resolves.toBe(true)
+
+    expect(systemHandlerMocks.showMessageBox).toHaveBeenCalledWith(
+      expect.objectContaining({ isDestroyed: expect.any(Function) }),
+      expect.objectContaining({
+        type: 'none',
+        buttons: ['Delete', 'Cancel'],
+        defaultId: 1,
+        cancelId: 1,
+        destructiveId: 0,
+        message: 'Delete chat?',
+      })
+    )
+  })
+
+  it('does not show native delete confirmation off macOS', async () => {
+    Object.defineProperty(process, 'platform', { value: 'win32' })
+
+    const { registerSystemHandlers } = await import('./systemHandlers')
+    registerSystemHandlers()
+
+    const handler = systemHandlerMocks.handlers.get('native-dialog:confirm-delete-chat')
+    await expect(handler?.({ sender: {} })).resolves.toBe(false)
+    expect(systemHandlerMocks.showMessageBox).not.toHaveBeenCalled()
   })
 })
