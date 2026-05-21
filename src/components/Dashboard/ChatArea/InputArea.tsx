@@ -7,7 +7,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import {
   Paperclip,
   ImagePlus,
-  SendHorizonal,
+  ArrowUp,
   Square,
   Plus,
   Check,
@@ -114,8 +114,6 @@ export function InputArea({
   const [isDragging, setIsDragging] = React.useState(false)
   const [quickActionsOpen, setQuickActionsOpen] = React.useState(false)
   const [mcpDialogMode, setMcpDialogMode] = React.useState<'resources' | 'prompts' | null>(null)
-  const [landingExpanded, setLandingExpanded] = React.useState(false)
-  const showCompactLanding = isLandingVariant && !landingExpanded && attachedFiles.length === 0
   const { textareaRef, adjustHeight } = useAutoResizeTextarea({
     minHeight: 36,
     maxHeight: 200,
@@ -136,26 +134,6 @@ export function InputArea({
   React.useEffect(() => {
     textareaRefCallback?.(textareaRef)
   }, [textareaRef, textareaRefCallback])
-
-  React.useLayoutEffect(() => {
-    if (!isLandingVariant) {
-      return
-    }
-
-    const textarea = textareaRef.current
-    if (!textarea) {
-      return
-    }
-
-    const styles = window.getComputedStyle(textarea)
-    const lineHeight = Number.parseFloat(styles.lineHeight || '0') || 24
-    const paddingTop = Number.parseFloat(styles.paddingTop || '0') || 0
-    const paddingBottom = Number.parseFloat(styles.paddingBottom || '0') || 0
-    const singleLineHeight = lineHeight + paddingTop + paddingBottom
-    const shouldExpand = attachedFiles.length > 0 || textarea.scrollHeight > singleLineHeight + 4
-
-    setLandingExpanded(shouldExpand)
-  }, [attachedFiles.length, input, isLandingVariant, textareaRef])
 
   const visionUploadsAvailable = providerSupportsVisionUploads(settings.modelProvider)
   const canUseImageUploads = canAnalyzeImageAttachments(settings)
@@ -321,17 +299,15 @@ export function InputArea({
   const showAttachmentRail = attachedFiles.length > 0
   const placeholder = isDragging
     ? 'Drop files here...'
-    : showCompactLanding
-      ? 'Type here...'
-      : 'Enter your message to continue...'
+    : 'Enter your message to continue...'
   const composerWidthClass = isLandingVariant
     ? 'max-w-[min(745px,100%)]'
     : 'max-w-full'
-  const shellRadiusClass = showCompactLanding ? 'rounded-[30px]' : 'rounded-[24px] md:rounded-[26px]'
+  const shellRadiusClass = 'rounded-[24px] md:rounded-[26px]'
   const shellPaddingClass = showAttachmentRail
     ? 'px-3 py-3'
     : 'px-3 py-2.5'
-  const controlClusterClass = 'flex items-center gap-1.5'
+  const controlClusterClass = 'flex items-center gap-2'
   const secondaryControlButtonClass =
     'theme-control-btn inline-flex h-9 w-9 items-center justify-center rounded-full p-2'
   const stopButtonClass =
@@ -476,7 +452,7 @@ export function InputArea({
   return (
     <TooltipProvider>
       <div
-        className={cn('w-full', showCompactLanding ? 'py-0' : 'py-4')}
+        className="w-full pb-0 pt-3"
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
@@ -523,96 +499,32 @@ export function InputArea({
               className="hidden"
             />
 
-            {showCompactLanding ? (
-              <div className="flex items-center gap-2.5">
-                <div className={cn(controlClusterClass, 'shrink-0')}>{quickActionsMenu}</div>
-                <div className="min-w-0 flex-1 px-0.5">
-                  <Textarea
-                    ref={textareaRef}
-                    value={input}
-                    placeholder={placeholder}
-                    rows={1}
-                    className={cn(
-                      'block h-9 min-h-[36px] w-full appearance-none overflow-x-auto overflow-y-hidden whitespace-nowrap rounded-[20px] border-none bg-transparent px-2 py-[8px] text-[0.98rem] leading-[20px] md:text-[0.98rem] text-[var(--theme-text-primary)] placeholder:text-[var(--theme-text-muted)] shadow-none transition-colors duration-200 resize-none focus-visible:ring-0'
-                    )}
-                    onFocus={() => {
-                      onFocusChange?.(true)
-                      onActivity?.()
-                    }}
-                    onBlur={() => {
-                      onFocusChange?.(false)
-                    }}
-                    onKeyDown={handleKeyDown}
-                    onPaste={handlePaste}
-                    onChange={(e) => {
-                      setInput(e.target.value)
-                      adjustHeight()
-                      onActivity?.()
-                    }}
-                  />
-                </div>
+            <div className="flex flex-col gap-2">
+              <Textarea
+                ref={textareaRef}
+                value={input}
+                placeholder={placeholder}
+                rows={1}
+                className={cn(
+                  'block min-h-[44px] w-full appearance-none overflow-y-auto rounded-[18px] border-none bg-transparent px-2 py-2 text-[0.98rem] leading-[22px] md:text-[0.98rem] text-[var(--theme-text-primary)] placeholder:text-[var(--theme-text-muted)] shadow-none transition-colors duration-200 resize-none focus-visible:ring-0'
+                )}
+                onFocus={() => {
+                  onFocusChange?.(true)
+                  onActivity?.()
+                }}
+                onBlur={() => {
+                  onFocusChange?.(false)
+                }}
+                onKeyDown={handleKeyDown}
+                onPaste={handlePaste}
+                onChange={(e) => {
+                  setInput(e.target.value)
+                  adjustHeight()
+                  onActivity?.()
+                }}
+              />
 
-                <div className={cn(controlClusterClass, 'shrink-0')}>
-                  <ModelSelector minimal={true} popoverAlign="end" />
-                  {isLoading ? (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <motion.button
-                          type="button"
-                          initial={{ scale: 0.8, opacity: 0 }}
-                          animate={{ scale: 1, opacity: 1 }}
-                          whileHover={maybeAnimate(animationsEnabled, { scale: 1.04 })}
-                          whileTap={maybeAnimate(animationsEnabled, { scale: 0.96 })}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            onStop?.()
-                          }}
-                          className={stopButtonClass}
-                        >
-                          <Square className="w-3.5 h-3.5 fill-current" />
-                        </motion.button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top" className="rounded-full">
-                        Stop generating
-                      </TooltipContent>
-                    </Tooltip>
-                  ) : (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <motion.button
-                          type="button"
-                          whileHover={
-                            canSend ? maybeAnimate(animationsEnabled, { scale: 1.04 }) : undefined
-                          }
-                          whileTap={
-                            canSend ? maybeAnimate(animationsEnabled, { scale: 0.96 }) : undefined
-                          }
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            if (canSend) {
-                              onSend()
-                              setInput('')
-                              adjustHeight(true)
-                              if (attachedFiles.length > 0) {
-                                onFilesChange([])
-                              }
-                            }
-                          }}
-                          disabled={!canSend}
-                          className={sendButtonClass}
-                        >
-                          <span className="translate-y-[0.5px]"><SendHorizonal className="w-4 h-4" /></span>
-                        </motion.button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top" className="rounded-full">
-                        Send message
-                      </TooltipContent>
-                    </Tooltip>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2.5">
+              <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 shrink-0">
                   <div className={controlClusterClass}>{quickActionsMenu}</div>
 
@@ -647,41 +559,16 @@ export function InputArea({
                   )}
                 </div>
 
-                <div className="min-w-0 flex-1">
-                  <Textarea
-                    ref={textareaRef}
-                    value={input}
-                    placeholder={placeholder}
-                    rows={1}
-                    className={cn(
-                      'block h-9 min-h-[36px] w-full appearance-none overflow-x-auto overflow-y-hidden whitespace-nowrap rounded-[20px] border-none bg-transparent px-2 py-[8px] text-[0.98rem] leading-[20px] md:text-[0.98rem] text-[var(--theme-text-primary)] placeholder:text-[var(--theme-text-muted)] shadow-none transition-colors duration-200 resize-none focus-visible:ring-0'
-                    )}
-                    onFocus={() => {
-                      onFocusChange?.(true)
-                      onActivity?.()
-                    }}
-                    onBlur={() => {
-                      onFocusChange?.(false)
-                    }}
-                    onKeyDown={handleKeyDown}
-                    onPaste={handlePaste}
-                    onChange={(e) => {
-                      setInput(e.target.value)
-                      adjustHeight()
-                      onActivity?.()
-                    }}
-                  />
-                </div>
-
-                <div className="flex items-center justify-end gap-2 shrink-0">
-                  <div className={controlClusterClass}>
+                <div className="flex min-w-0 items-center justify-end gap-2">
+                  <div className={cn(controlClusterClass, 'min-w-0')}>
                     {showContextRing && (
                       <TokenUsageIndicator
                         input={input}
                         attachedFiles={attachedFiles}
-                        className="text-[var(--theme-text-muted)]"
+                        className="h-9 w-9 text-[var(--theme-text-muted)]"
                       />
                     )}
+                    <ModelSelector minimal={true} popoverAlign="end" />
                     {isLoading ? (
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -729,7 +616,7 @@ export function InputArea({
                             disabled={!canSend}
                             className={sendButtonClass}
                           >
-                            <span className="translate-y-[0.5px]"><SendHorizonal className="w-4 h-4" /></span>
+                            <ArrowUp className="h-4 w-4" />
                           </motion.button>
                         </TooltipTrigger>
                         <TooltipContent side="top" className="rounded-full">
@@ -740,13 +627,8 @@ export function InputArea({
                   </div>
                 </div>
               </div>
-            )}
-          </div>
-          {showContextRing && !showCompactLanding && (
-            <div className="pointer-events-auto absolute right-3 top-full mt-2 flex items-center">
-              <ModelSelector minimal={true} popoverAlign="end" />
             </div>
-          )}
+          </div>
         </div>
       </div>
 

@@ -610,7 +610,7 @@ export default function ChatArea() {
           left: 0;
           right: 0;
           bottom: 0;
-          padding: 0 20px 29px;
+          padding: 0 20px 6px;
           pointer-events: none;
           background: transparent;
           isolation: isolate;

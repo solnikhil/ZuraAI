@@ -569,20 +569,8 @@
   background: var(--theme-sidebar-solid);
 }
 
-/* Gradient fade above footer so content doesn't abruptly cut off */
 .sidebar-footer-wrapper::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 100%;
-  height: 24px;
-  background: linear-gradient(to bottom, transparent, var(--theme-sidebar-solid));
-  pointer-events: none;
-}
-
-.sidebar-container.frosted .sidebar-footer-wrapper::before {
-  background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--theme-surface) 60%, transparent));
+  content: none;
 }
 
 .sidebar-footer-row {

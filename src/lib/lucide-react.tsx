@@ -4,6 +4,7 @@ import type { Icon, IconProps, IconWeight } from '@phosphor-icons/react'
 import { WarningCircleIcon as WarningCircleBase } from '@phosphor-icons/react/dist/csr/WarningCircle'
 import { WarningDiamondIcon as WarningDiamondBase } from '@phosphor-icons/react/dist/csr/WarningDiamond'
 import { ArrowLeftIcon as ArrowLeftBase } from '@phosphor-icons/react/dist/csr/ArrowLeft'
+import { ArrowUpIcon as ArrowUpBase } from '@phosphor-icons/react/dist/csr/ArrowUp'
 import { ChartBarIcon as ChartBarBase } from '@phosphor-icons/react/dist/csr/ChartBar'
 import { ChartLineUpIcon as ChartLineUpBase } from '@phosphor-icons/react/dist/csr/ChartLineUp'
 import { CubeIcon as CubeBase } from '@phosphor-icons/react/dist/csr/Cube'
@@ -118,6 +119,7 @@ function withDefaultWeight(
 export const AlertCircle = withDefaultWeight(WarningCircleBase, 'duotone', 'AlertCircle')
 export const AlertTriangle = withDefaultWeight(WarningDiamondBase, 'duotone', 'AlertTriangle')
 export const ArrowLeft = withDefaultWeight(ArrowLeftBase, 'duotone', 'ArrowLeft')
+export const ArrowUp = withDefaultWeight(ArrowUpBase, 'duotone', 'ArrowUp')
 export const ArrowUpRight = withDefaultWeight(ArrowUpRightBase, 'duotone', 'ArrowUpRight')
 export const BarChart = withDefaultWeight(ChartBarBase, 'duotone', 'BarChart')
 export const Bell = withDefaultWeight(BellSimpleBase, 'duotone', 'Bell')
