@@ -675,7 +675,13 @@ export function InputArea({
 
                 <div className="flex items-center justify-end gap-2 shrink-0">
                   <div className={controlClusterClass}>
-                    <ModelSelector minimal={true} popoverAlign="end" />
+                    {showContextRing && (
+                      <TokenUsageIndicator
+                        input={input}
+                        attachedFiles={attachedFiles}
+                        className="text-[var(--theme-text-muted)]"
+                      />
+                    )}
                     {isLoading ? (
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -737,12 +743,8 @@ export function InputArea({
             )}
           </div>
           {showContextRing && !showCompactLanding && (
-            <div className="pointer-events-auto absolute left-3 top-full mt-2 flex h-5 items-center">
-              <TokenUsageIndicator
-                input={input}
-                attachedFiles={attachedFiles}
-                className="text-[var(--theme-text-muted)]"
-              />
+            <div className="pointer-events-auto absolute right-3 top-full mt-2 flex items-center">
+              <ModelSelector minimal={true} popoverAlign="end" />
             </div>
           )}
         </div>
