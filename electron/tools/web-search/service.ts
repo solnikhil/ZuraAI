@@ -75,6 +75,14 @@ function coerceTopic(value: unknown): 'general' | 'news' | 'finance' | undefined
   return undefined
 }
 
+function hasInvalidTimeRange(value: unknown): boolean {
+  return value !== undefined && coerceTimeRange(value) === undefined
+}
+
+function hasInvalidTopic(value: unknown): boolean {
+  return value !== undefined && coerceTopic(value) === undefined
+}
+
 function coerceIncludeImages(value: unknown): boolean {
   return typeof value === 'boolean' ? value : true
 }
@@ -133,6 +141,20 @@ function normalizeSearchRequest(args: WebSearchArgs): SearchExecutionOptions | T
 
   if (query.length > SEARCH_MAX_QUERY_LENGTH) {
     query = query.slice(0, SEARCH_MAX_QUERY_LENGTH)
+  }
+
+  if (hasInvalidTimeRange(args.time_range)) {
+    return {
+      success: false,
+      error: 'Invalid time_range. Expected one of: day, week, month, year.',
+    }
+  }
+
+  if (hasInvalidTopic(args.topic)) {
+    return {
+      success: false,
+      error: 'Invalid topic. Expected one of: general, news, finance.',
+    }
   }
 
   return {

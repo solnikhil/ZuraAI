@@ -31,6 +31,10 @@ export const SAFETY_CAP = STREAM_RESEARCH_SAFETY_CAP
 export const MAX_RESEARCH_ROUNDS = STREAM_MAX_RESEARCH_ROUNDS
 export const FINAL_SYNTHESIS_PROMPT =
   '\n\n*** FINAL SYNTHESIS REQUIRED *** You have enough search results. Do not call any more tools or web_search. Provide your final synthesized answer now using only the results already returned. If the results are inconclusive, say that clearly, summarize the strongest relevant evidence, and state what could not be verified. Never return an empty response.\n\n'
+export const FINAL_SYNTHESIS_BUDGET_EXHAUSTED_PROMPT =
+  '\n\n*** FINAL SYNTHESIS REQUIRED: WEB SEARCH BUDGET EXHAUSTED *** The available web_search budget for this response has been used. Do not call any more tools or web_search. Provide your final synthesized answer now using only the results already returned. If the gathered evidence is incomplete or conflicting, say so clearly, summarize the strongest relevant evidence, and state what could not be verified. Never return an empty response.\n\n'
+export const FINAL_SYNTHESIS_EMPTY_BATCH_PROMPT =
+  '\n\n*** FINAL SYNTHESIS REQUIRED: NO EXECUTABLE WEB SEARCH REMAINED *** The last attempted web_search batch did not contain an executable query. Do not call any more tools or web_search. Provide your final synthesized answer now using only the results already returned. If the gathered evidence is incomplete or conflicting, say so clearly, summarize the strongest relevant evidence, and state what could not be verified. Never return an empty response.\n\n'
 export const FINAL_SYNTHESIS_RECOVERY_PROMPT =
   '\n\n*** FINAL ANSWER REQUIRED *** Your previous synthesis attempt returned no answer. Do not call any tools or web_search. Respond with at least one concise paragraph using only the results already returned. If the evidence is inconclusive, say so directly and summarize what was checked.\n\n'
 const FINAL_SYNTHESIS_PLAIN_TEXT_ONLY_PROMPT =
@@ -401,10 +405,18 @@ export function buildFinalSynthesisMessages(
   totalSearchCount: number,
   optimizedHistory: Array<ServiceAssistantMessage>,
   lastAssistantMessage: ServiceAssistantMessage,
-  formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>
+  formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>,
+  stopReason?: 'budget' | 'empty-batch' | 'sufficient-results'
 ): Array<ServiceAssistantMessage> {
+  const prompt =
+    stopReason === 'budget'
+      ? FINAL_SYNTHESIS_BUDGET_EXHAUSTED_PROMPT
+      : stopReason === 'empty-batch'
+        ? FINAL_SYNTHESIS_EMPTY_BATCH_PROMPT
+        : FINAL_SYNTHESIS_PROMPT
+
   return [
-    { role: 'system', content: FINAL_SYNTHESIS_PROMPT },
+    { role: 'system', content: prompt },
     ...buildFollowUpMessages(
       researchContextMsg,
       researchRound,

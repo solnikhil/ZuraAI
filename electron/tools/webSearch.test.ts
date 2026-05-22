@@ -105,6 +105,22 @@ describe('executeWebSearch', () => {
 
             globalThis.fetch = originalFetch
         })
+
+        it('returns an error for invalid time_range instead of dropping it', async () => {
+            const result = await executeWebSearch({ query: 'test', time_range: 'hour' as any })
+
+            expect(result.success).toBe(false)
+            expect(result.error).toContain('Invalid time_range')
+            expect(duckDuckScrapeSearch).not.toHaveBeenCalled()
+        })
+
+        it('returns an error for invalid topic instead of dropping it', async () => {
+            const result = await executeWebSearch({ query: 'test', topic: 'sports' as any })
+
+            expect(result.success).toBe(false)
+            expect(result.error).toContain('Invalid topic')
+            expect(duckDuckScrapeSearch).not.toHaveBeenCalled()
+        })
     })
 
     describe('URL intent routing', () => {

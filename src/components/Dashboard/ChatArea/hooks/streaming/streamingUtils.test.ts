@@ -7,6 +7,8 @@ import {
   buildThinkingBlocksFromResults,
   buildFinalSynthesisMessages,
   buildRecoverySynthesisMessages,
+  FINAL_SYNTHESIS_BUDGET_EXHAUSTED_PROMPT,
+  FINAL_SYNTHESIS_EMPTY_BATCH_PROMPT,
   FINAL_SYNTHESIS_PROMPT,
   FINAL_SYNTHESIS_RECOVERY_PROMPT,
   SEARCH_SYNTHESIS_FAILURE_MESSAGE,
@@ -29,6 +31,38 @@ describe('streamingUtils final synthesis helpers', () => {
     expect(messages[0]).toEqual({ role: 'system', content: FINAL_SYNTHESIS_PROMPT })
     expect(messages.some((message) => message.role === 'tool')).toBe(true)
     expect(messages.some((message) => message.content === 'research context')).toBe(true)
+  })
+
+  it('tells the model when final synthesis is required because the web search budget is exhausted', () => {
+    const messages = buildFinalSynthesisMessages(
+      'research context',
+      6,
+      8,
+      [{ role: 'user', content: 'Find recent benchmark sources' }],
+      { role: 'assistant', content: 'I will search more.', tool_calls: [] },
+      [{ role: 'tool', content: 'search result' }],
+      'budget'
+    )
+
+    expect(messages[0]).toEqual({ role: 'system', content: FINAL_SYNTHESIS_BUDGET_EXHAUSTED_PROMPT })
+    expect(String(messages[0].content)).toContain('WEB SEARCH BUDGET EXHAUSTED')
+    expect(String(messages[0].content)).toContain('using only the results already returned')
+  })
+
+  it('tells the model when final synthesis is required because no executable search query remained', () => {
+    const messages = buildFinalSynthesisMessages(
+      'research context',
+      3,
+      2,
+      [{ role: 'user', content: 'Find recent product details' }],
+      { role: 'assistant', content: 'I will search more.', tool_calls: [] },
+      [{ role: 'tool', content: 'search result' }],
+      'empty-batch'
+    )
+
+    expect(messages[0]).toEqual({ role: 'system', content: FINAL_SYNTHESIS_EMPTY_BATCH_PROMPT })
+    expect(String(messages[0].content)).toContain('NO EXECUTABLE WEB SEARCH REMAINED')
+    expect(String(messages[0].content)).toContain('using only the results already returned')
   })
 
   it('builds a recovery synthesis instruction when the first synthesis returns empty', () => {

@@ -240,6 +240,7 @@ interface SynthesisContext {
   formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>
   totalSearchCount: number
   researchRound: number
+  stopReason?: 'budget' | 'empty-batch' | 'sufficient-results'
 }
 
 export function useProviderStreaming({
@@ -758,7 +759,8 @@ export function useProviderStreaming({
                 synthesisContext.totalSearchCount,
                 options.messages,
                 synthesisContext.lastAssistantMessage,
-                synthesisContext.formattedResults
+                synthesisContext.formattedResults,
+                synthesisContext.stopReason
               )
             : mode === 'recovery'
               ? buildRecoverySynthesisMessages(
@@ -931,6 +933,7 @@ export function useProviderStreaming({
               formattedResults: toolResult.formattedResults,
               totalSearchCount,
               researchRound,
+              stopReason: initialLoopDecision.reason || 'sufficient-results',
             }
             logResearchLoop('final-synthesis-scheduled', {
               reason: initialLoopDecision.reason || 'sufficient-tool-results',
@@ -1032,6 +1035,7 @@ export function useProviderStreaming({
               formattedResults: nextToolResult.formattedResults,
               totalSearchCount,
               researchRound,
+              stopReason: continuationDecision.reason || 'sufficient-results',
             }
 
             logResearchLoop('follow-up-tool-result', {
