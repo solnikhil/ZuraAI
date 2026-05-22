@@ -1,11 +1,8 @@
 import React, { useCallback, useEffect, useMemo } from 'react'
 import { useLocation } from 'react-router-dom'
-import { useChatHistory } from '../contexts/ChatHistoryContext'
 import { useSettings } from '../contexts/SettingsContext'
 import { useAppShell } from '../contexts/AppShellContext'
-import { SETTINGS_SECTION_MAP, type SettingsSectionId } from '../constants/settingsSections'
 import { SIDEBAR_COLLAPSED_WIDTH_PX } from '../constants/sidebar'
-import { getModelDisplayName } from '../providers'
 import TitleBarSidebarControls from './TitleBarSidebarControls'
 import TitleBarWindowActions from './TitleBarWindowActions'
 import './TitleBar.css'
@@ -15,10 +12,8 @@ import { useWindowMaximizeState } from './shell/useWindowMaximizeState'
 export default function TitleBar() {
     const location = useLocation()
     const { settings } = useSettings()
-    const { sessions, currentSessionId } = useChatHistory()
     const {
         dashboardView,
-        activeSettingsSection,
         hasUnsavedSettings,
         sidebarCollapsed,
         sidebarWidth,
@@ -30,39 +25,11 @@ export default function TitleBar() {
         goBack,
         goForward,
     } = useAppShell()
-    const { isDashboardRoute, isSettingsRoute, isLegacyChatRoute, hasSidebar } = useShellRouteState(location.pathname)
-
-    const currentSession = useMemo(() => {
-        return sessions.find(s => s.id === currentSessionId)
-    }, [sessions, currentSessionId])
-
-    const modelDisplayName = useMemo(() => getModelDisplayName(settings), [settings])
-
-    const centerTitle = useMemo(() => {
-        if (isLegacyChatRoute) return 'ZuraAI Chat'
-
-        if (isSettingsRoute) {
-            return 'Settings'
-        }
-
-        if (isDashboardRoute) {
-            if (dashboardView === 'settings') {
-                const label = SETTINGS_SECTION_MAP[activeSettingsSection as SettingsSectionId]?.navLabel || 'Settings'
-                return `Settings — ${label}`
-            }
-            return currentSession?.title || 'New Conversation'
-        }
-
-        return ''
-    }, [activeSettingsSection, currentSession?.title, dashboardView, isDashboardRoute, isLegacyChatRoute, isSettingsRoute])
+    const { hasSidebar } = useShellRouteState(location.pathname)
 
     useEffect(() => {
-        const titleParts = [centerTitle]
-        if (settings.titleBarShowModel !== false) {
-            titleParts.push(modelDisplayName)
-        }
-        document.title = titleParts.filter(Boolean).join(' — ')
-    }, [centerTitle, modelDisplayName, settings.titleBarShowModel])
+        document.title = 'ZuraAI'
+    }, [])
 
     const density = settings.titleBarDensity || 'comfortable'
     const isSettingsView = dashboardView === 'settings'

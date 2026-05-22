@@ -34,7 +34,7 @@
 }
 
 :root {
-    --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", sans-serif;
+    --font-sans: "Segoe UI Variable", -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", sans-serif;
     --font-mono: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
     --background: 0 0% 100%;
     --foreground: 240 10% 3.9%;

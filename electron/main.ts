@@ -68,14 +68,14 @@ function registerSessionSecurityHandlers(): void {
   defaultSession.setPermissionCheckHandler(() => false)
 }
 
-app.commandLine.appendSwitch('process-name', 'ZuraAI-Main')
+app.commandLine.appendSwitch('process-name', APP_NAME)
 
 if (process.platform === 'win32') {
   app.setAppUserModelId(WINDOWS_APP_ID)
 }
 app.setName(APP_NAME)
 
-process.title = 'ZuraAI - Main'
+process.title = APP_NAME
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {

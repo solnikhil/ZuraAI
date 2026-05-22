@@ -24,22 +24,21 @@ vi.mock('@/components/ui/dropdown-menu', () => ({
 }))
 
 describe('SkillsSection', () => {
-  it('renders skills list row with actions', () => {
+  it('renders grouped skills catalog with actions', () => {
     render(<SkillsSection skills={defaultSkillsSettings} onChange={vi.fn()} />)
 
     expect(screen.getByText('Skills')).toBeInTheDocument()
+    expect(screen.getByText('Recommended')).toBeInTheDocument()
+    expect(screen.getByText('System')).toBeInTheDocument()
     expect(screen.getByText('Web Research')).toBeInTheDocument()
-    expect(screen.getByText('Active')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /more actions for web research/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /disable web research/i })).toBeInTheDocument()
   })
 
-  it('toggles disable from 3-dot actions menu', () => {
+  it('toggles disable from skill action', () => {
     const onChange = vi.fn()
     render(<SkillsSection skills={defaultSkillsSettings} onChange={onChange} />)
 
-    const moreActions = screen.getByRole('button', { name: /more actions for web research/i })
-    fireEvent.pointerDown(moreActions, { button: 0, ctrlKey: false })
-    fireEvent.click(screen.getByRole('menuitem', { name: /disable/i }))
+    fireEvent.click(screen.getByRole('button', { name: /disable web research/i }))
 
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({
       skills: expect.objectContaining({

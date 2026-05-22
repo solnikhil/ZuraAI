@@ -321,22 +321,29 @@ export function InputArea({
 
   const quickActionsMenu = (
     <DropdownMenu open={quickActionsOpen} onOpenChange={setQuickActionsOpen}>
-      <DropdownMenuTrigger asChild>
-        <motion.button
-          type="button"
-          onClick={(e) => e.stopPropagation()}
-          className={cn(secondaryControlButtonClass, quickActionsOpen && 'is-active')}
-          aria-label="Open quick actions"
-        >
-          <Plus size={18} />
-        </motion.button>
-      </DropdownMenuTrigger>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger asChild>
+            <motion.button
+              type="button"
+              onClick={(e) => e.stopPropagation()}
+              className={cn(secondaryControlButtonClass, quickActionsOpen && 'is-active')}
+              aria-label="Open quick actions"
+            >
+              <Plus size={18} />
+            </motion.button>
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="rounded-full">
+          Quick Actions
+        </TooltipContent>
+      </Tooltip>
       <DropdownMenuContent
         align="start"
         alignOffset={0}
         side="top"
         sideOffset={6}
-        className="w-[280px] rounded-[20px] p-1.5"
+        className="w-[205px] rounded-[14px] p-0.5"
       >
         <DropdownMenuGroup>
           <DropdownMenuItem
@@ -344,36 +351,36 @@ export function InputArea({
               event.preventDefault()
               fileInputRef.current?.click()
             }}
-            className="group/menu-item h-11 rounded-[14px] px-2.5 text-[13px]"
+            className="group/menu-item h-8 rounded-[9px] px-1.5 text-[12px]"
           >
-            <Paperclip className="h-4 w-4 text-[var(--theme-text-secondary)]" />
+            <Paperclip className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
             <span>Add photos & files</span>
-            <DropdownMenuShortcut className="text-[11px] opacity-0 group-hover/menu-item:opacity-100">
+            <DropdownMenuShortcut className="text-[10px] opacity-0 group-hover/menu-item:opacity-100">
               Ctrl+U
             </DropdownMenuShortcut>
           </DropdownMenuItem>
         </DropdownMenuGroup>
 
-        <DropdownMenuSeparator className="mx-0 my-1 h-px" />
+        <DropdownMenuSeparator className="mx-0 my-px h-px" />
 
         <DropdownMenuSub>
-          <DropdownMenuSubTrigger className="h-11 rounded-[14px] px-2.5 text-[13px]">
-            <Wrench className="h-4 w-4 text-[var(--theme-text-secondary)]" />
+          <DropdownMenuSubTrigger className="h-8 rounded-[9px] px-1.5 text-[12px]">
+            <Wrench className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
             <span>MCP Library</span>
           </DropdownMenuSubTrigger>
           <DropdownMenuSubContent
             sideOffset={8}
             collisionPadding={12}
-            className="w-[260px] rounded-[20px] p-1.5"
+            className="w-[190px] rounded-[14px] p-0.5"
           >
             <DropdownMenuItem
               onSelect={() => {
                 setMcpDialogMode('resources')
                 setQuickActionsOpen(false)
               }}
-              className="group/menu-item h-11 rounded-[14px] px-2.5 text-[13px]"
+              className="group/menu-item h-8 rounded-[9px] px-1.5 text-[12px]"
             >
-              <Wrench className="h-4 w-4 text-[var(--theme-text-secondary)]" />
+              <Wrench className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
               <span>Browse resources</span>
             </DropdownMenuItem>
             <DropdownMenuItem
@@ -381,32 +388,32 @@ export function InputArea({
                 setMcpDialogMode('prompts')
                 setQuickActionsOpen(false)
               }}
-              className="group/menu-item h-11 rounded-[14px] px-2.5 text-[13px]"
+              className="group/menu-item h-8 rounded-[9px] px-1.5 text-[12px]"
             >
-              <Wrench className="h-4 w-4 text-[var(--theme-text-secondary)]" />
+              <Wrench className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
               <span>Browse prompts</span>
             </DropdownMenuItem>
           </DropdownMenuSubContent>
         </DropdownMenuSub>
 
         <DropdownMenuSub>
-          <DropdownMenuSubTrigger className="h-11 rounded-[14px] px-2.5 text-[13px]">
-            <Wrench className="h-4 w-4 text-[var(--theme-text-secondary)]" />
+          <DropdownMenuSubTrigger className="h-8 rounded-[9px] px-1.5 text-[12px]">
+            <Wrench className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
             <span>Skills</span>
           </DropdownMenuSubTrigger>
           <DropdownMenuSubContent
             sideOffset={8}
             collisionPadding={12}
-            className="w-[260px] rounded-[20px] p-1.5"
+            className="w-[190px] rounded-[14px] p-0.5"
           >
             <DropdownMenuItem
               onSelect={(event) => {
                 event.preventDefault()
                 toggleWebResearchSkill()
               }}
-              className="group/menu-item h-11 rounded-[14px] px-2.5 text-[13px]"
+              className="group/menu-item h-8 rounded-[9px] px-1.5 text-[12px]"
             >
-              <SkillLogo skill="tavily" size={16} />
+              <SkillLogo skill="tavily" size={14} />
               <span>Tavily</span>
               {webResearchEnabled && (
                 <span className="ml-auto inline-flex items-center text-[var(--theme-success)]">
