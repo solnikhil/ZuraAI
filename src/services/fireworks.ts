@@ -36,6 +36,9 @@ export interface FireworksResponse {
         prompt_tokens: number
         completion_tokens: number
         total_tokens: number
+        prompt_tokens_details?: {
+            cached_tokens?: number
+        }
     }
 }
 
@@ -65,6 +68,9 @@ export interface FireworksStreamChunk {
         prompt_tokens: number
         completion_tokens: number
         total_tokens: number
+        prompt_tokens_details?: {
+            cached_tokens?: number
+        }
     }
 }
 
@@ -88,6 +94,7 @@ export async function* streamFireworksCompletion(
         tools?: ToolDefinition[]
         toolChoice?: 'auto' | 'none' | { type: 'function'; function: { name: string } }
         onChunk?: (chunk: FireworksStreamChunk) => void
+        extraHeaders?: Record<string, string>
         signal?: AbortSignal
     }
 ): AsyncGenerator<FireworksStreamChunk, void, unknown> {
@@ -116,7 +123,8 @@ export async function* streamFireworksCompletion(
         method: "POST",
         headers: {
             "Authorization": `Bearer ${apiKey}`,
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            ...(options?.extraHeaders || {})
         },
         body: JSON.stringify(requestBody),
         signal: options?.signal

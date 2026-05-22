@@ -1,4 +1,5 @@
-import type { ChatSession, Folder } from '../chat/types'
+import type { ChatIndexData, ChatSession, ChatSessionMetadata, Folder } from '../chat/types'
+import type { ChatDiagnosticEvent } from '../diagnostics/chatDiagnostics'
 import type {
   McpApprovalDecision,
   McpNamespacedTool,
@@ -91,6 +92,32 @@ export interface AppRuntimeInfo {
   commitDate: string
 }
 
+export interface AppMemoryReport {
+  capturedAt: string
+  currentProcess: {
+    workingSetSize: number
+    peakWorkingSetSize: number
+    privateBytes: number
+    sharedBytes: number
+  }
+  appMetrics: Array<{
+    pid: number
+    type: string
+    name?: string
+    memory: {
+      workingSetSize: number
+      peakWorkingSetSize: number
+      privateBytes: number
+      sharedBytes: number
+    }
+    cpu: {
+      percentCPUUsage: number
+      idleWakeupsPerSecond: number
+    }
+    creationTime: number
+  }>
+}
+
 export interface OverlaySettings {
   enabled: boolean
   launchOnStartup: boolean
@@ -159,11 +186,20 @@ export interface IpcSendArgsMap {
 }
 
 export type IpcInvokeChannel =
+  | 'chat-store:get-metadata'
+  | 'chat-store:get-session'
+  | 'chat-store:save-session'
+  | 'chat-store:delete-session'
+  | 'chat-store:save-index'
   | 'chat-store:get-all'
   | 'chat-store:save-all'
   | 'chat-store:migrate'
   | 'chat-store:get-all-folders'
   | 'chat-store:save-folders'
+  | 'chat-diagnostics:append-event'
+  | 'chat-diagnostics:get-debug-reference'
+  | 'chat-diagnostics:list-events'
+  | 'chat-debug-window:open'
   | 'secure-storage:get'
   | 'secure-storage:set'
   | 'secure-storage:get-presence'
@@ -171,16 +207,26 @@ export type IpcInvokeChannel =
   | 'execute-tool'
   | 'window-resize'
   | 'context-menu:show'
+  | 'native-dialog:confirm-delete-chat'
   | 'updater:check-for-updates'
   | 'updater:quit-and-install'
   | 'updater:get-version'
 
 export interface IpcInvokeArgsMap {
+  'chat-store:get-metadata': []
+  'chat-store:get-session': [sessionId: string]
+  'chat-store:save-session': [session: ChatSession]
+  'chat-store:delete-session': [sessionId: string]
+  'chat-store:save-index': [index: ChatIndexData]
   'chat-store:get-all': []
   'chat-store:save-all': [sessions: ChatSession[]]
   'chat-store:migrate': [localStorageData: ChatSession[]]
   'chat-store:get-all-folders': []
   'chat-store:save-folders': [folders: Folder[]]
+  'chat-diagnostics:append-event': [event: ChatDiagnosticEvent]
+  'chat-diagnostics:get-debug-reference': [sessionId: string]
+  'chat-diagnostics:list-events': [sessionId: string]
+  'chat-debug-window:open': [sessionId: string]
   'secure-storage:get': [key: SecureStorageKey]
   'secure-storage:set': [key: SecureStorageKey, value: string]
   'secure-storage:get-presence': []
@@ -188,17 +234,27 @@ export interface IpcInvokeArgsMap {
   'execute-tool': [toolName: string, args: Record<string, unknown>]
   'window-resize': [newBounds: WindowBounds]
   'context-menu:show': [request: NativeContextMenuRequest]
+  'native-dialog:confirm-delete-chat': []
   'updater:check-for-updates': []
   'updater:quit-and-install': []
   'updater:get-version': []
 }
 
 export interface IpcInvokeReturnMap {
+  'chat-store:get-metadata': ChatSessionMetadata[]
+  'chat-store:get-session': ChatSession | null
+  'chat-store:save-session': boolean
+  'chat-store:delete-session': boolean
+  'chat-store:save-index': boolean
   'chat-store:get-all': ChatSession[]
   'chat-store:save-all': boolean
   'chat-store:migrate': boolean
   'chat-store:get-all-folders': Folder[]
   'chat-store:save-folders': boolean
+  'chat-diagnostics:append-event': boolean
+  'chat-diagnostics:get-debug-reference': string | null
+  'chat-diagnostics:list-events': ChatDiagnosticEvent[]
+  'chat-debug-window:open': boolean
   'secure-storage:get': string
   'secure-storage:set': boolean
   'secure-storage:get-presence': Record<SecureStorageKey, boolean>
@@ -206,6 +262,7 @@ export interface IpcInvokeReturnMap {
   'execute-tool': ToolResult
   'window-resize': void
   'context-menu:show': void
+  'native-dialog:confirm-delete-chat': boolean
   'updater:check-for-updates': UpdateCheckInfo | null
   'updater:quit-and-install': boolean
   'updater:get-version': string
@@ -214,6 +271,8 @@ export interface IpcInvokeReturnMap {
 export type IpcOnChannel =
   | 'update-available'
   | 'update-downloaded'
+  | 'update-error'
+  | 'update-download-progress'
   | 'prompt-popup:focus'
   | 'overlay:pending-prompt'
   | 'model-selector:open'
@@ -221,10 +280,19 @@ export type IpcOnChannel =
   | 'settings:navigate'
   | 'chat-store:changed'
   | 'context-menu:action'
+  | 'chat-diagnostics:event'
+
+export interface UpdaterDownloadProgress {
+  percent: number
+  transferred: number
+  total: number
+}
 
 export interface IpcOnArgsMap {
   'update-available': [version: string]
   'update-downloaded': [version: string]
+  'update-error': [message: string]
+  'update-download-progress': [progress: UpdaterDownloadProgress]
   'prompt-popup:focus': []
   'overlay:pending-prompt': [prompt: string]
   'model-selector:open': []
@@ -232,6 +300,7 @@ export interface IpcOnArgsMap {
   'settings:navigate': [section: string]
   'chat-store:changed': []
   'context-menu:action': [action: NativeContextMenuAction]
+  'chat-diagnostics:event': [event: ChatDiagnosticEvent]
 }
 
 export interface IElectronAPI {
@@ -266,6 +335,8 @@ export interface UpdaterAPI {
   getVersion: () => Promise<string>
   onUpdateAvailable: (callback: (version: string) => void) => () => void
   onUpdateDownloaded: (callback: (version: string) => void) => () => void
+  onUpdateError: (callback: (message: string) => void) => () => void
+  onUpdateProgress: (callback: (progress: UpdaterDownloadProgress) => void) => () => void
 }
 
 export interface OverlayAPI {
@@ -294,6 +365,7 @@ export interface PromptPopupAPI {
 
 export interface AppInfoAPI {
   get: () => Promise<AppRuntimeInfo>
+  getMemoryReport: () => Promise<AppMemoryReport | null>
   openAboutWindow: () => Promise<void>
 }
 
@@ -317,6 +389,10 @@ export interface DevToolsAPI {
 export interface ContextMenuAPI {
   show: (request: NativeContextMenuRequest) => Promise<void>
   onAction: (callback: (action: NativeContextMenuAction) => void) => () => void
+}
+
+export interface NativeDialogAPI {
+  confirmDeleteChat: () => Promise<boolean>
 }
 
 export interface CodeExecutionAPI {
@@ -354,4 +430,28 @@ export interface McpAPI {
   ) => Promise<McpToolExecutionResult>
   resolveApproval: (requestId: string, approved: boolean) => Promise<McpApprovalDecision>
   onStateChange: (callback: (snapshot: McpRuntimeSnapshot) => void) => () => void
+}
+
+
+/**
+ * Renderer-facing bridge for the dev-only chat diagnostics surface.
+ *
+ * Available only when the app is running unpacked (`!app.isPackaged`).
+ * Outside dev the underlying channels are still allowlisted for type safety,
+ * but main returns empty/no-op responses.
+ */
+export interface ChatDiagnosticsAPI {
+  listEvents: (sessionId: string) => Promise<ChatDiagnosticEvent[]>
+  onEvent: (callback: (event: ChatDiagnosticEvent) => void) => () => void
+}
+
+
+/**
+ * Renderer-facing bridge for opening the dev-only chat debug BrowserWindow.
+ *
+ * Available only when the app is running unpacked (`!app.isPackaged`); main
+ * returns `false` in packaged builds without opening anything.
+ */
+export interface ChatDebugAPI {
+  open: (sessionId: string) => Promise<boolean>
 }

@@ -38,6 +38,7 @@ import type { SettingsConfig } from '../contexts/SettingsConfigContext'
 import { DEFAULT_OLLAMA_URL } from './providerRegistry'
 import { resolveProviderForModel } from './providerRegistry'
 import type { ActiveProviderId } from './providerTypes'
+import { shapePromptCacheRequest } from './promptCaching'
 import type { FileAttachment } from '../chat/types'
 import {
   emptyUsage,
@@ -200,6 +201,11 @@ function normalizeUsage(
         total_tokens?: number
         prompt_cache_tokens?: number
         completion_cache_tokens?: number
+        prompt_cache_hit_tokens?: number
+        prompt_cache_miss_tokens?: number
+        cache_creation_input_tokens?: number
+        cache_write_input_tokens?: number
+        prompt_tokens_details?: { cached_tokens?: number }
         completion_tokens_details?: { reasoning_tokens?: number }
         reasoning_tokens?: number
         input_tokens?: number
@@ -211,14 +217,23 @@ function normalizeUsage(
 
   const inputTokens = usage.prompt_tokens ?? usage.input_tokens ?? 0
   const outputTokens = usage.completion_tokens ?? usage.output_tokens ?? 0
+  const cachedInputTokens =
+    usage.prompt_cache_tokens ??
+    usage.prompt_cache_hit_tokens ??
+    usage.prompt_tokens_details?.cached_tokens
+  const cacheWriteInputTokens =
+    usage.cache_write_input_tokens ??
+    usage.cache_creation_input_tokens
   return {
     inputTokens,
     outputTokens,
     totalTokens: usage.total_tokens ?? inputTokens + outputTokens,
     thinkingTokens:
       usage.completion_tokens_details?.reasoning_tokens ?? usage.reasoning_tokens ?? undefined,
-    cachedInputTokens: usage.prompt_cache_tokens,
+    cachedInputTokens,
     cachedOutputTokens: usage.completion_cache_tokens,
+    cacheMissInputTokens: usage.prompt_cache_miss_tokens,
+    cacheWriteInputTokens,
   }
 }
 
@@ -297,7 +312,7 @@ async function* emitOpenAiCompatibleResponse(
   }
 
   if ('usage' in response && response.usage) {
-    yield { type: 'usage', usage: normalizeUsage(response.usage) }
+    yield { type: 'usage', usage: normalizeUsage(response.usage), rawUsage: response.usage }
   }
 
   if ('citations' in response && Array.isArray(response.citations) && response.citations.length > 0) {
@@ -346,6 +361,10 @@ async function* emitOllamaResponse(
       inputTokens: response.prompt_eval_count || 0,
       outputTokens: response.eval_count || 0,
       totalTokens: (response.prompt_eval_count || 0) + (response.eval_count || 0),
+    },
+    rawUsage: {
+      prompt_eval_count: response.prompt_eval_count,
+      eval_count: response.eval_count,
     },
   }
   yield { type: 'finish', finishReason: response.done ? 'stop' : undefined }
@@ -594,7 +613,14 @@ export async function* streamProviderEvents(
         )
       }
 
-      for await (const chunk of streamOpenRouterCompletion(apiKey, normalizedModel, request.messages, {
+      const cacheRequest = shapePromptCacheRequest({
+        provider: request.provider,
+        model: normalizedModel,
+        messages: request.messages,
+        sessionId: request.sessionId,
+      })
+
+      for await (const chunk of streamOpenRouterCompletion(apiKey, normalizedModel, cacheRequest.messages, {
         temperature: request.temperature,
         maxTokens: request.maxTokens,
         tools: request.tools || undefined,
@@ -640,7 +666,7 @@ export async function* streamProviderEvents(
         }
 
         if (chunk.usage) {
-          yield { type: 'usage', usage: normalizeUsage(chunk.usage) }
+          yield { type: 'usage', usage: normalizeUsage(chunk.usage), rawUsage: chunk.usage }
         }
 
         if (chunk.choices?.[0]?.finish_reason) {
@@ -675,7 +701,7 @@ export async function* streamProviderEvents(
         if (chunk.choices?.[0]?.delta?.tool_calls?.length) {
           yield { type: 'tool-call-delta', delta: chunk.choices[0].delta.tool_calls }
         }
-        if (chunk.usage) yield { type: 'usage', usage: normalizeUsage(chunk.usage) }
+        if (chunk.usage) yield { type: 'usage', usage: normalizeUsage(chunk.usage), rawUsage: chunk.usage }
         if (chunk.choices?.[0]?.finish_reason) {
           yield { type: 'finish', finishReason: chunk.choices[0].finish_reason }
         }
@@ -697,7 +723,14 @@ export async function* streamProviderEvents(
         return
       }
 
-      for await (const chunk of streamAlibabaCompletion(apiKey, normalizedModel, request.messages, {
+      const cacheRequest = shapePromptCacheRequest({
+        provider: request.provider,
+        model: normalizedModel,
+        messages: request.messages,
+        sessionId: request.sessionId,
+      })
+
+      for await (const chunk of streamAlibabaCompletion(apiKey, normalizedModel, cacheRequest.messages, {
         temperature: request.temperature,
         max_tokens: request.maxTokens,
         tools: request.tools || undefined,
@@ -715,7 +748,7 @@ export async function* streamProviderEvents(
         if (chunk.choices?.[0]?.delta?.tool_calls?.length) {
           yield { type: 'tool-call-delta', delta: chunk.choices[0].delta.tool_calls }
         }
-        if (chunk.usage) yield { type: 'usage', usage: normalizeUsage(chunk.usage) }
+        if (chunk.usage) yield { type: 'usage', usage: normalizeUsage(chunk.usage), rawUsage: chunk.usage }
         if (chunk.choices?.[0]?.finish_reason) {
           yield { type: 'finish', finishReason: chunk.choices[0].finish_reason }
         }
@@ -755,7 +788,7 @@ export async function* streamProviderEvents(
         if (chunk.choices?.[0]?.delta?.tool_calls?.length) {
           yield { type: 'tool-call-delta', delta: chunk.choices[0].delta.tool_calls }
         }
-        if (chunk.usage) yield { type: 'usage', usage: normalizeUsage(chunk.usage) }
+        if (chunk.usage) yield { type: 'usage', usage: normalizeUsage(chunk.usage), rawUsage: chunk.usage }
         if (chunk.choices?.[0]?.finish_reason) {
           yield { type: 'finish', finishReason: chunk.choices[0].finish_reason }
         }
@@ -776,11 +809,19 @@ export async function* streamProviderEvents(
         return
       }
 
-      for await (const chunk of streamFireworksCompletion(apiKey, normalizedModel, request.messages, {
+      const cacheRequest = shapePromptCacheRequest({
+        provider: request.provider,
+        model: normalizedModel,
+        messages: request.messages,
+        sessionId: request.sessionId,
+      })
+
+      for await (const chunk of streamFireworksCompletion(apiKey, normalizedModel, cacheRequest.messages, {
         temperature: request.temperature,
         max_tokens: request.maxTokens,
         tools: request.tools || undefined,
         toolChoice: request.toolChoice,
+        extraHeaders: cacheRequest.headers,
         signal: request.signal,
       })) {
         const delta = chunk.choices?.[0]?.delta?.content || ''
@@ -788,7 +829,7 @@ export async function* streamProviderEvents(
         if (chunk.choices?.[0]?.delta?.tool_calls?.length) {
           yield { type: 'tool-call-delta', delta: chunk.choices[0].delta.tool_calls }
         }
-        if (chunk.usage) yield { type: 'usage', usage: normalizeUsage(chunk.usage) }
+        if (chunk.usage) yield { type: 'usage', usage: normalizeUsage(chunk.usage), rawUsage: chunk.usage }
         if (chunk.choices?.[0]?.finish_reason) {
           yield { type: 'finish', finishReason: chunk.choices[0].finish_reason }
         }
@@ -837,12 +878,16 @@ export async function* streamProviderEvents(
           if (chunk.done) {
             yield {
               type: 'usage',
-              usage: {
-                inputTokens: chunk.prompt_eval_count || 0,
-                outputTokens: chunk.eval_count || 0,
-                totalTokens: (chunk.prompt_eval_count || 0) + (chunk.eval_count || 0),
-              },
-            }
+            usage: {
+              inputTokens: chunk.prompt_eval_count || 0,
+              outputTokens: chunk.eval_count || 0,
+              totalTokens: (chunk.prompt_eval_count || 0) + (chunk.eval_count || 0),
+            },
+            rawUsage: {
+              prompt_eval_count: chunk.prompt_eval_count,
+              eval_count: chunk.eval_count,
+            },
+          }
             yield { type: 'finish', finishReason: 'stop' }
           }
         }
@@ -887,7 +932,7 @@ export async function* streamProviderEvents(
         }
 
         if (chunk.usage) {
-          yield { type: 'usage', usage: normalizeUsage(chunk.usage) }
+          yield { type: 'usage', usage: normalizeUsage(chunk.usage), rawUsage: chunk.usage }
         }
 
         if (chunk.choices?.[0]?.finish_reason) {

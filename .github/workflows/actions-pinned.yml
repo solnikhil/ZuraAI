@@ -1,0 +1,41 @@
+name: Pinned Actions
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+    paths:
+      - ".github/workflows/**"
+      - ".github/actions/**"
+
+permissions:
+  contents: read
+
+# Cancel in-progress runs for the same PR.
+concurrency:
+  group: pinned-actions-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # ensure-pinned: fail the PR if any third-party action is referenced by tag
+  # or branch instead of a 40-char commit SHA. First-party (actions/*,
+  # github/*) actions are exempt because GitHub's own orgs are the trust root
+  # for retagging behavior.
+  # ---------------------------------------------------------------------------
+  ensure-pinned:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Ensure third-party actions are SHA-pinned
+        uses: zgosalvez/github-actions-ensure-sha-pinned-actions@ca46236c6ce584ae24bc6283ba8dcf4b3ec8a066 # v5.0.4
+        with:
+          allowlist: |
+            actions/
+            github/

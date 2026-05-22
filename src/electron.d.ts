@@ -1,11 +1,14 @@
 import type {
   AppInfoAPI,
+  ChatDebugAPI,
+  ChatDiagnosticsAPI,
   CodeExecutionAPI,
   ComputerUseAPI,
   ContextMenuAPI,
   DevToolsAPI,
   IElectronAPI,
   McpAPI,
+  NativeDialogAPI,
   OverlayAPI,
   PromptPopupAPI,
   SecureStorageAPI,
@@ -26,9 +29,12 @@ declare global {
     shell: ShellAPI
     devTools: DevToolsAPI
     contextMenu: ContextMenuAPI
+    nativeDialog: NativeDialogAPI
     mcp: McpAPI
     codeExecution: CodeExecutionAPI
     computerUse: ComputerUseAPI
+    chatDiagnostics?: ChatDiagnosticsAPI
+    chatDebug?: ChatDebugAPI
   }
 }
 

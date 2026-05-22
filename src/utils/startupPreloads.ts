@@ -1,6 +1,4 @@
-import { waitForTTI } from '../hooks/useLazyLoad'
 import { preloadSettings } from '../components/Settings/settingsLoader'
-import { preloadMarkdown } from './markdownPreloader'
 
 type IdleWindow = Window &
   typeof globalThis & {
@@ -29,10 +27,4 @@ export function scheduleNonCriticalPreloads(): void {
   scheduleWhenIdle(() => {
     void preloadSettings()
   }, 1200)
-
-  void waitForTTI(3000).then(() => {
-    scheduleWhenIdle(() => {
-      void preloadMarkdown()
-    }, 2000)
-  })
 }

@@ -23,6 +23,22 @@ function extractUpdateVersion(result: UpdateCheckInfo | null): string | null {
   return typeof version === 'string' && version.trim().length > 0 ? version : null
 }
 
+/**
+ * Pure label resolver for the "Check for Updates" dropdown row.
+ * Exported so tests can cover all states without driving Radix popovers in jsdom.
+ */
+export function getUpdateMenuLabel(state: UpdateState, percent: number | null): string {
+  if (state === 'downloaded') return 'Install Update'
+  if (state === 'error') return 'Try again'
+  if (state === 'available') {
+    if (percent === null) return 'Downloading update…'
+    const rounded = Math.max(0, Math.min(100, Math.round(percent)))
+    return `Downloading update… ${rounded}%`
+  }
+  if (state === 'checking') return 'Checking…'
+  return 'Check for Updates'
+}
+
 interface TitleBarInfoMenuProps {
   hasUnsavedSettings: boolean
   isSettingsView: boolean
@@ -41,6 +57,7 @@ export default function TitleBarInfoMenu({
   const { showToast } = useToast()
   const [appInfo, setAppInfo] = useState<AppRuntimeInfo | null>(null)
   const [updateState, setUpdateState] = useState<UpdateState>('idle')
+  const [downloadPercent, setDownloadPercent] = useState<number | null>(null)
 
   const loadAppInfo = useCallback(async () => {
     try {
@@ -61,17 +78,34 @@ export default function TitleBarInfoMenu({
 
     const removeAvailableListener = window.updater.onUpdateAvailable((version) => {
       setUpdateState('available')
+      setDownloadPercent(null)
       showToast(`Update v${version} found. Downloading now...`, 'info')
     })
 
     const removeDownloadedListener = window.updater.onUpdateDownloaded((version) => {
       setUpdateState('downloaded')
+      setDownloadPercent(null)
       showToast(`Update v${version} ready. Install it from the info menu.`, 'success')
+    })
+
+    const removeErrorListener = window.updater.onUpdateError((message) => {
+      setUpdateState('error')
+      setDownloadPercent(null)
+      showToast(`Update failed: ${message || 'unknown error'}`, 'error')
+    })
+
+    const removeProgressListener = window.updater.onUpdateProgress((progress) => {
+      // electron-updater can emit 0% during the initial probe — treat that as
+      // "downloading started" but suppress the noisy 0% label by clamping to 1.
+      const clamped = Math.max(0, Math.min(100, progress.percent ?? 0))
+      setDownloadPercent(clamped)
     })
 
     return () => {
       removeAvailableListener()
       removeDownloadedListener()
+      removeErrorListener()
+      removeProgressListener()
     }
   }, [showToast])
 
@@ -257,7 +291,7 @@ export default function TitleBarInfoMenu({
         >
           <span className="app-menu-panel__item-left">
             <Clock size={16} />
-            <span>{updateState === 'downloaded' ? 'Install Update' : 'Check for Updates'}</span>
+            <span>{getUpdateMenuLabel(updateState, downloadPercent)}</span>
           </span>
           <ChevronRight size={15} className="app-menu-panel__chevron" />
         </DropdownMenuItem>

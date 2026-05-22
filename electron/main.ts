@@ -12,6 +12,7 @@ import {
   getMainWindow,
   initializeOverlay,
   destroyPromptPopup,
+  destroyChatDebugWindow,
 } from './windows'
 import { applyDevelopmentAppIcon } from './windowIcon'
 import { registerAllHandlers } from './ipc'
@@ -22,7 +23,13 @@ import {
   unregisterMcpHandlers,
 } from './mcp'
 import { registerToolHandlers } from './tools'
-import { initializeAutoUpdater, registerUpdaterHandlers, cleanupAutoUpdater } from './updater'
+import {
+  cleanupAutoUpdater,
+  initializeAutoUpdater,
+  isInstallingUpdate,
+  registerUpdaterHandlers,
+  setShutdownHook,
+} from './updater'
 import { deferredInitializer } from './startup/deferredInit'
 import {
   registerCodeExecutionHandlers,
@@ -86,6 +93,7 @@ app.on('will-quit', () => {
   globalShortcut.unregisterAll()
   cleanupOverlay()
   destroyPromptPopup()
+  destroyChatDebugWindow()
   unregisterMcpHandlers()
   disposeCodeExecutionApprovalManager()
   unregisterCodeExecutionHandlers()
@@ -98,6 +106,15 @@ app.on('will-quit', () => {
 
 app.on('before-quit', (event) => {
   if (hasCompletedMcpShutdown) {
+    return
+  }
+
+  // The update install path already runs the shutdown hook synchronously and
+  // then calls autoUpdater.quitAndInstall(...). Don't preventDefault here —
+  // that would race with the platform installer and freeze the app while async
+  // tasks unwind.
+  if (isInstallingUpdate()) {
+    hasCompletedMcpShutdown = true
     return
   }
 
@@ -144,7 +161,10 @@ app.whenReady().then(async () => {
   registerAllHandlers()
   registerMcpHandlers()
   registerToolHandlers()
-  registerUpdaterHandlers()
+  registerUpdaterHandlers(getMainWindow)
+  // Hook up MCP shutdown so the install path can drain managed MCP servers
+  // before the platform installer takes over.
+  setShutdownHook(() => shutdownMcpManager())
   registerCodeExecutionHandlers()
   if (!IS_MACOS) {
     registerComputerUseHandlers()

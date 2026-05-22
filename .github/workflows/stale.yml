@@ -1,0 +1,64 @@
+name: Stale
+
+on:
+  schedule:
+    # Daily at 01:00 UTC. Off-peak so it doesn't compete with PR CI.
+    - cron: "0 1 * * *"
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  pull-requests: write
+
+# Only one stale run at a time; if the previous run is still going (rate limits)
+# we just skip this trigger rather than queueing.
+concurrency:
+  group: stale
+  cancel-in-progress: false
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # stale: ping inactive issues/PRs and eventually close them. Conservative
+  # timings so the bot doesn't spam contributors. Maintainers can extend any
+  # individual issue/PR by labeling it `pinned` (or `wip`/`security`).
+  # ---------------------------------------------------------------------------
+  stale:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mark and close stale issues / PRs
+        uses: actions/stale@v9
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          operations-per-run: 100
+
+          # ----- Issues -------------------------------------------------------
+          days-before-issue-stale: 60
+          days-before-issue-close: 14
+          stale-issue-label: stale
+          exempt-issue-labels: "pinned,security,bug,help wanted"
+          stale-issue-message: |
+            This issue has been inactive for 60 days. If it is still relevant,
+            please add a comment so it stays open. Otherwise it will be closed
+            in 14 days.
+
+            Maintainer review capacity is limited; the `stale` label is not a
+            judgment on the issue's importance, just a way to keep the backlog
+            actionable. Add the `pinned` label (or comment) to keep it open.
+          close-issue-message: |
+            Closing this issue because there has been no activity for 74 days
+            after the stale notice. Feel free to reopen if it's still relevant.
+
+          # ----- PRs ----------------------------------------------------------
+          days-before-pr-stale: 30
+          days-before-pr-close: 14
+          stale-pr-label: stale
+          exempt-pr-labels: "pinned,wip,security"
+          stale-pr-message: |
+            This pull request has been inactive for 30 days. Please rebase on
+            `main` and address open review comments to keep it open. Otherwise
+            it will be closed in 14 days. Add the `pinned` or `wip` label to
+            opt out.
+          close-pr-message: |
+            Closing this pull request because there has been no activity for
+            44 days after the stale notice. Feel free to reopen and rebase if
+            you'd like to continue.

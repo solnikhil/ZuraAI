@@ -1,7 +1,7 @@
 import React from 'react'
 import {
   Search, SettingsIcon, LayoutDashboard, Plus, PanelLeft,
-  ChartNoAxesCombined, Cloud, Box, Command, FileText, Globe, Send, Wrench
+  ChartNoAxesCombined, Cloud, Box, Command, FileText, Globe, Send, Wrench, Terminal
 } from '../components/icons'
 import type { CommandBarSuggestion } from './suggestions'
 
@@ -24,6 +24,8 @@ export function getSuggestionIcon(suggestion: CommandBarSuggestion): { Icon: Rea
   if (suggestion.id === 'go-settings-commandbar') return { Icon: Command, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
 
   if (suggestion.id === 'new-chat') return { Icon: Plus, iconClass: 'app-titlebar__commandbar-item-icon--create' }
+  if (suggestion.id === 'copy-chat-debug-id') return { Icon: Command, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
+  if (suggestion.id === 'open-chat-debug-panel') return { Icon: Terminal, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
 
   // Toggle actions
   if (suggestion.id === 'toggle-sidebar-hidden' || suggestion.id === 'toggle-sidebar-collapsed') {

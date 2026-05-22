@@ -1,5 +1,9 @@
 /**
  * Manages chat sessions, persistence, and selector-based subscriptions.
+ *
+ * Renderer state is metadata-first: inactive sessions keep lightweight metadata
+ * only, while full message arrays are loaded on demand and capped to the active
+ * session plus two recently used sessions.
  */
 
 import React, {
@@ -12,12 +16,13 @@ import React, {
   useRef,
 } from 'react'
 import { useSettings } from './SettingsContext'
-import { ChatSessionManager, type SessionMetadata } from './ChatSessionManager'
+import type { SessionMetadata } from './ChatSessionManager'
 import { createSelectableContext } from './createSelectableContext'
 import { warnOnceDuringHmr } from './hmrWarnings'
-import { repairPersistedChatTitles } from '../utils/chatTitleRepair'
 import type {
+  ChatIndexData,
   ChatSession,
+  ChatSessionMetadata,
   FileAttachment,
   Folder,
   Message,
@@ -26,7 +31,6 @@ import type {
   ToolCallResult,
 } from '../chat/types'
 
-// Re-export SessionMetadata for consumers
 export type { SessionMetadata } from './ChatSessionManager'
 
 export type {
@@ -54,16 +58,12 @@ interface ChatHistoryContextType {
   updateSessionTitle: (id: string, title: string) => void
   refreshSessions: () => Promise<void>
   clearCurrentSession: () => void
-  /** Load full session content on demand. Returns the loaded session or `null` when missing. */
   loadFullSession: (id: string) => Promise<ChatSession | null>
-  /** Get session metadata without loading full content */
   getSessionMetadata: () => SessionMetadata[]
-  /** Check if a session's full content is currently loaded in memory */
   isSessionLoaded: (id: string) => boolean
 
   pinSession: (id: string) => void
   unpinSession: (id: string) => void
-
   duplicateSession: (id: string) => void
 
   assignFolder: (sessionId: string, folderId: string) => void
@@ -78,9 +78,6 @@ interface ChatHistoryContextType {
   reorderFolder: (id: string, order: number) => void
 }
 
-/**
- * State exposed through the selector-based store.
- */
 interface ChatHistoryState {
   sessions: ChatSession[]
   folders: Folder[]
@@ -88,19 +85,63 @@ interface ChatHistoryState {
   isLoading: boolean
 }
 
-/**
- * Selectable store used by the lightweight chat-history selectors.
- */
 const {
   Provider: SelectableChatHistoryProvider,
   useSelector: useChatHistoryStateSelector,
-  useStore: _useChatHistoryStore,
 } = createSelectableContext<ChatHistoryState>()
 
 const ChatHistoryContext = createContext<ChatHistoryContextType | undefined>(undefined)
 
 const isElectron = typeof window !== 'undefined' && Boolean(window.ipcRenderer)
 const LAST_SESSION_ID_KEY = 'zura-ui:lastChatSessionId'
+const MAX_LOADED_SESSIONS = 3
+const SAVE_DEBOUNCE_MS = 500
+const INDEX_VERSION = 3
+
+function sessionToMetadata(session: ChatSession): ChatSessionMetadata {
+  return {
+    id: session.id,
+    title: session.title,
+    createdAt: session.createdAt,
+    updatedAt: session.updatedAt,
+    totalTokens: session.totalTokens,
+    pinned: session.pinned ?? false,
+    folderId: session.folderId ?? null,
+    tags: Array.isArray(session.tags) ? session.tags : [],
+    messageCount: session.messages?.length ?? session.messageCount ?? 0,
+  }
+}
+
+function metadataToSession(metadata: ChatSessionMetadata, messages: Message[] = []): ChatSession {
+  return {
+    id: metadata.id,
+    title: metadata.title,
+    messages,
+    createdAt: metadata.createdAt,
+    updatedAt: metadata.updatedAt,
+    totalTokens: metadata.totalTokens,
+    pinned: metadata.pinned,
+    folderId: metadata.folderId,
+    tags: [...metadata.tags],
+    messageCount: metadata.messageCount,
+  }
+}
+
+function normalizeSession(session: ChatSession): ChatSession {
+  const messages = Array.isArray(session.messages) ? session.messages : []
+  return {
+    ...session,
+    messages,
+    pinned: session.pinned ?? false,
+    folderId: session.folderId ?? null,
+    tags: Array.isArray(session.tags) ? session.tags : [],
+    messageCount: session.messageCount ?? messages.length,
+  }
+}
+
+function isLoadedSession(session: ChatSession): boolean {
+  return session.messages.length > 0 || (session.messageCount ?? 0) === 0
+}
 
 export function ChatHistoryProvider({ children }: { children: React.ReactNode }) {
   const { settings } = useSettings()
@@ -110,234 +151,247 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
   const [isLoading, setIsLoading] = useState(true)
   const [isInitialized, setIsInitialized] = useState(false)
   const [hasExternalStoreChanges, setHasExternalStoreChanges] = useState(false)
-  const skipNextSessionPersistRef = useRef(false)
-  const skipNextFolderPersistRef = useRef(false)
 
-  // Lazily load full sessions while keeping sidebar metadata lightweight.
-  const sessionManagerRef = useRef<ChatSessionManager | null>(null)
+  const sessionsRef = useRef<ChatSession[]>([])
+  const foldersRef = useRef<Folder[]>([])
+  const loadedSessionIdsRef = useRef(new Set<string>())
+  const recentLoadedSessionIdsRef = useRef<string[]>([])
+  const indexSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const sessionSaveTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>())
+  const pendingSessionSavesRef = useRef(new Map<string, ChatSession>())
+  const localSessionRevisionRef = useRef(0)
+  const savedSessionRevisionRef = useRef(0)
+  const expectedSelfSessionStoreChangeRef = useRef(false)
 
-  const getSessionManager = useCallback(() => {
-    if (!sessionManagerRef.current) {
-      const sessionLoader = async (id: string): Promise<ChatSession | null> => {
-        try {
-          if (isElectron) {
-            const allSessions = await window.ipcRenderer.invoke('chat-store:get-all')
-            return allSessions.find((s) => s.id === id) ?? null
-          } else {
-            const saved = localStorage.getItem('zura-chat-history')
-            const parsed = saved ? JSON.parse(saved) : []
-            return parsed.find((s: ChatSession) => s.id === id) ?? null
-          }
-        } catch (error) {
-          console.error('Failed to load session:', error)
-          return null
-        }
-      }
+  useEffect(() => {
+    sessionsRef.current = sessions
+  }, [sessions])
 
-      const allSessionsLoader = async (): Promise<ChatSession[]> => {
-        try {
-          if (isElectron) {
-            return await window.ipcRenderer.invoke('chat-store:get-all')
-          } else {
-            const saved = localStorage.getItem('zura-chat-history')
-            return saved ? JSON.parse(saved) : []
-          }
-        } catch (error) {
-          console.error('Failed to load all sessions:', error)
-          const saved = localStorage.getItem('zura-chat-history')
-          return saved ? JSON.parse(saved) : []
-        }
-      }
+  useEffect(() => {
+    foldersRef.current = folders
+  }, [folders])
 
-      sessionManagerRef.current = new ChatSessionManager(sessionLoader, allSessionsLoader, {
-        maxLoadedSessions: 3,
-        unloadAfterMs: 300000, // 5 minutes
-        preloadMessageCount: 20,
-      })
-    }
-    return sessionManagerRef.current
+  const markSessionsDirty = useCallback(() => {
+    localSessionRevisionRef.current += 1
   }, [])
+
+  const hasUnsavedLocalSessionChanges = useCallback(
+    () => localSessionRevisionRef.current > savedSessionRevisionRef.current,
+    []
+  )
+
+  const flushIndexSave = useCallback(async () => {
+    if (!isInitialized) return
+
+    const revisionToSave = localSessionRevisionRef.current
+    const index: ChatIndexData = {
+      sessions: sessionsRef.current.map(sessionToMetadata),
+      folders: foldersRef.current,
+      version: INDEX_VERSION,
+    }
+
+    try {
+      if (isElectron) {
+        expectedSelfSessionStoreChangeRef.current = true
+        await window.ipcRenderer.invoke('chat-store:save-index', index)
+      } else {
+        localStorage.setItem('zura-chat-history', JSON.stringify(sessionsRef.current))
+      }
+
+      if (localSessionRevisionRef.current === revisionToSave) {
+        savedSessionRevisionRef.current = revisionToSave
+      }
+    } catch (error) {
+      expectedSelfSessionStoreChangeRef.current = false
+      console.error('Failed to save chat index:', error)
+      if (!isElectron) {
+        localStorage.setItem('zura-chat-history', JSON.stringify(sessionsRef.current))
+        if (localSessionRevisionRef.current === revisionToSave) {
+          savedSessionRevisionRef.current = revisionToSave
+        }
+      }
+    }
+  }, [isInitialized])
+
+  const scheduleIndexSave = useCallback(() => {
+    if (!isInitialized) return
+    if (indexSaveTimerRef.current) {
+      clearTimeout(indexSaveTimerRef.current)
+    }
+    indexSaveTimerRef.current = setTimeout(() => {
+      indexSaveTimerRef.current = null
+      void flushIndexSave()
+    }, SAVE_DEBOUNCE_MS)
+  }, [flushIndexSave, isInitialized])
+
+  const flushSessionSave = useCallback(async (sessionId: string) => {
+    const session = pendingSessionSavesRef.current.get(sessionId)
+    if (!session) return
+    pendingSessionSavesRef.current.delete(sessionId)
+
+    try {
+      if (isElectron) {
+        expectedSelfSessionStoreChangeRef.current = true
+        await window.ipcRenderer.invoke('chat-store:save-session', session)
+      } else {
+        localStorage.setItem('zura-chat-history', JSON.stringify(sessionsRef.current))
+      }
+    } catch (error) {
+      expectedSelfSessionStoreChangeRef.current = false
+      console.error(`Failed to save chat session ${sessionId}:`, error)
+    }
+  }, [])
+
+  const scheduleSessionSave = useCallback(
+    (session: ChatSession) => {
+      if (!isInitialized) return
+      pendingSessionSavesRef.current.set(session.id, normalizeSession(session))
+      const existingTimer = sessionSaveTimersRef.current.get(session.id)
+      if (existingTimer) clearTimeout(existingTimer)
+
+      const nextTimer = setTimeout(() => {
+        sessionSaveTimersRef.current.delete(session.id)
+        void flushSessionSave(session.id)
+      }, SAVE_DEBOUNCE_MS)
+      sessionSaveTimersRef.current.set(session.id, nextTimer)
+    },
+    [flushSessionSave, isInitialized]
+  )
+
+  const markLoaded = useCallback((id: string) => {
+    loadedSessionIdsRef.current.add(id)
+    recentLoadedSessionIdsRef.current = [
+      id,
+      ...recentLoadedSessionIdsRef.current.filter((candidate) => candidate !== id),
+    ].slice(0, MAX_LOADED_SESSIONS)
+  }, [])
+
+  const pruneLoadedSessions = useCallback((activeId?: string | null) => {
+    if (!isElectron) return
+
+    const keep = new Set(recentLoadedSessionIdsRef.current.slice(0, MAX_LOADED_SESSIONS))
+    if (activeId) keep.add(activeId)
+
+    setSessions((prev) =>
+      prev.map((session) => {
+        if (keep.has(session.id)) return session
+        if (!loadedSessionIdsRef.current.has(session.id)) return session
+        loadedSessionIdsRef.current.delete(session.id)
+        return { ...session, messages: [], messageCount: session.messageCount ?? session.messages.length }
+      })
+    )
+  }, [])
+
+  const loadFullSession = useCallback(
+    async (id: string): Promise<ChatSession | null> => {
+      const existing = sessionsRef.current.find((session) => session.id === id)
+      if (!existing) return null
+
+      if (loadedSessionIdsRef.current.has(id) && isLoadedSession(existing)) {
+        markLoaded(id)
+        pruneLoadedSessions(currentSessionId)
+        return existing
+      }
+
+      try {
+        const loaded = isElectron
+          ? await window.ipcRenderer.invoke('chat-store:get-session', id)
+          : (() => {
+              const saved = localStorage.getItem('zura-chat-history')
+              const parsed = saved ? (JSON.parse(saved) as ChatSession[]) : []
+              return parsed.find((session) => session.id === id) ?? null
+            })()
+
+        if (!loaded) return null
+
+        const normalized = normalizeSession({
+          ...loaded,
+          ...existing,
+          messages: loaded.messages ?? [],
+          messageCount: loaded.messages?.length ?? existing.messageCount ?? 0,
+        })
+
+        markLoaded(id)
+        setSessions((prev) => prev.map((session) => (session.id === id ? normalized : session)))
+        pruneLoadedSessions(id)
+        return normalized
+      } catch (error) {
+        console.error('Failed to load session:', error)
+        return null
+      }
+    },
+    [currentSessionId, markLoaded, pruneLoadedSessions]
+  )
 
   const loadSessions = useCallback(async () => {
     try {
-      const manager = getSessionManager()
-
-      await manager.initialize()
-      manager.getSessionMetadata()
-
-      let fullSessions: ChatSession[] = []
-
       if (isElectron) {
-        fullSessions = await window.ipcRenderer.invoke('chat-store:get-all')
+        let metadata = await window.ipcRenderer.invoke('chat-store:get-metadata')
+
+        if (metadata.length === 0) {
+          const localData = localStorage.getItem('zura-chat-history')
+          if (localData) {
+            const parsed = JSON.parse(localData)
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              await window.ipcRenderer.invoke('chat-store:migrate', parsed)
+              localStorage.removeItem('zura-chat-history')
+              metadata = await window.ipcRenderer.invoke('chat-store:get-metadata')
+            }
+          }
+        }
+
+        setSessions(metadata.map((entry) => metadataToSession(entry)))
+        setFolders(await window.ipcRenderer.invoke('chat-store:get-all-folders'))
       } else {
         const saved = localStorage.getItem('zura-chat-history')
-        fullSessions = saved ? JSON.parse(saved) : []
-      }
-
-      const repaired = repairPersistedChatTitles(fullSessions)
-      fullSessions = repaired.sessions
-
-      for (const session of fullSessions) {
-        manager.addSession(session)
-      }
-
-      setSessions(fullSessions)
-
-      if (isElectron) {
-        try {
-          const storedFolders = await window.ipcRenderer.invoke('chat-store:get-all-folders')
-          setFolders(storedFolders)
-        } catch (folderError) {
-          console.error('Failed to load folders:', folderError)
-          setFolders([])
-        }
+        const parsed = saved ? (JSON.parse(saved) as ChatSession[]) : []
+        const normalized = parsed.map(normalizeSession)
+        normalized.forEach((session) => markLoaded(session.id))
+        setSessions(normalized)
       }
     } catch (error) {
       console.error('Failed to load chat history:', error)
-      // Fallback to localStorage
       const saved = localStorage.getItem('zura-chat-history')
-      setSessions(saved ? JSON.parse(saved) : [])
+      const parsed = saved ? (JSON.parse(saved) as ChatSession[]) : []
+      setSessions(parsed.map(normalizeSession))
     } finally {
+      savedSessionRevisionRef.current = localSessionRevisionRef.current
       setIsLoading(false)
       setIsInitialized(true)
     }
-  }, [getSessionManager])
+  }, [markLoaded])
 
   const reloadFromExternalStore = useCallback(async () => {
     try {
-      const manager = getSessionManager()
-
-      let fullSessions: ChatSession[] = []
       if (isElectron) {
-        fullSessions = await window.ipcRenderer.invoke('chat-store:get-all')
+        const metadata = await window.ipcRenderer.invoke('chat-store:get-metadata')
+        const nextFolders = await window.ipcRenderer.invoke('chat-store:get-all-folders')
+        loadedSessionIdsRef.current.clear()
+        recentLoadedSessionIdsRef.current = []
+        setSessions(metadata.map((entry) => metadataToSession(entry)))
+        setFolders(nextFolders)
+        setCurrentSessionId((prev) => {
+          if (!prev) return null
+          return metadata.some((session) => session.id === prev) ? prev : null
+        })
       } else {
         const saved = localStorage.getItem('zura-chat-history')
-        fullSessions = saved ? JSON.parse(saved) : []
+        const parsed = saved ? (JSON.parse(saved) as ChatSession[]) : []
+        const normalized = parsed.map(normalizeSession)
+        normalized.forEach((session) => markLoaded(session.id))
+        setSessions(normalized)
       }
 
-      const repaired = repairPersistedChatTitles(fullSessions)
-      fullSessions = repaired.sessions
-
-      manager.clear()
-      for (const session of fullSessions) {
-        manager.addSession(session)
-      }
-
-      let nextFolders: Folder[] = []
-      if (isElectron) {
-        try {
-          nextFolders = await window.ipcRenderer.invoke('chat-store:get-all-folders')
-        } catch (folderError) {
-          console.error('Failed to reload folders:', folderError)
-        }
-      }
-
-      skipNextSessionPersistRef.current = true
-      skipNextFolderPersistRef.current = true
-      setSessions(fullSessions)
-      setFolders(nextFolders)
-      setCurrentSessionId((prev) => {
-        if (!prev) return null
-        return fullSessions.some((session) => session.id === prev) ? prev : null
-      })
+      savedSessionRevisionRef.current = localSessionRevisionRef.current
       setHasExternalStoreChanges(false)
     } catch (error) {
       console.error('Failed to reload chat history from external store:', error)
     }
-  }, [getSessionManager])
+  }, [markLoaded])
 
   useEffect(() => {
-    const initializeStore = async () => {
-      if (isElectron) {
-        try {
-          const storedSessions = await window.ipcRenderer.invoke('chat-store:get-all')
-
-          // If empty, try to migrate from localStorage
-          if (storedSessions.length === 0) {
-            const localData = localStorage.getItem('zura-chat-history')
-            if (localData) {
-              const parsed = JSON.parse(localData)
-              if (parsed && parsed.length > 0) {
-                await window.ipcRenderer.invoke('chat-store:migrate', parsed)
-                localStorage.removeItem('zura-chat-history')
-              }
-            }
-          }
-        } catch (error) {
-          console.error('Migration failed:', error)
-        }
-      }
-
-      await loadSessions()
-    }
-
-    initializeStore()
+    void loadSessions()
   }, [loadSessions])
-
-  useEffect(() => {
-    if (!isInitialized) return
-
-    const manager = getSessionManager()
-    manager.startAutoCleanup()
-
-    return () => {
-      manager.stopAutoCleanup()
-    }
-  }, [isInitialized, getSessionManager])
-
-  useEffect(() => {
-    if (!isInitialized) return
-
-    const timeoutId = setTimeout(() => {
-      if (skipNextSessionPersistRef.current) {
-        skipNextSessionPersistRef.current = false
-        return
-      }
-
-      const saveSessions = async () => {
-        try {
-          if (isElectron) {
-            await window.ipcRenderer.invoke('chat-store:save-all', sessions)
-          } else {
-            localStorage.setItem('zura-chat-history', JSON.stringify(sessions))
-          }
-        } catch (error) {
-          console.error('Failed to save chat history:', error)
-          // Fallback to localStorage
-          localStorage.setItem('zura-chat-history', JSON.stringify(sessions))
-        }
-      }
-
-      void saveSessions()
-    }, 1000)
-
-    return () => clearTimeout(timeoutId)
-  }, [sessions, isInitialized])
-
-  useEffect(() => {
-    if (!isInitialized) return
-
-    const timeoutId = setTimeout(() => {
-      if (skipNextFolderPersistRef.current) {
-        skipNextFolderPersistRef.current = false
-        return
-      }
-
-      const saveFolders = async () => {
-        try {
-          if (isElectron) {
-            await window.ipcRenderer.invoke('chat-store:save-folders', folders)
-          }
-        } catch (error) {
-          console.error('Failed to save folders:', error)
-        }
-      }
-
-      void saveFolders()
-    }, 1000)
-
-    return () => clearTimeout(timeoutId)
-  }, [folders, isInitialized])
 
   useEffect(() => {
     if (!isInitialized) return
@@ -346,15 +400,28 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
 
     const rememberedId = localStorage.getItem(LAST_SESSION_ID_KEY)
     if (!rememberedId) return
-    if (sessions.some((s) => s.id === rememberedId)) {
+    if (sessions.some((session) => session.id === rememberedId)) {
       setCurrentSessionId(rememberedId)
+      void loadFullSession(rememberedId)
     }
-  }, [currentSessionId, isInitialized, sessions, settings.rememberLastChatSession])
+  }, [currentSessionId, isInitialized, loadFullSession, sessions, settings.rememberLastChatSession])
+
+  useEffect(() => {
+    if (!currentSessionId) return
+    const session = sessions.find((entry) => entry.id === currentSessionId)
+    if (session && !loadedSessionIdsRef.current.has(currentSessionId)) {
+      void loadFullSession(currentSessionId)
+    }
+  }, [currentSessionId, loadFullSession, sessions])
 
   useEffect(() => {
     if (!isElectron || !window.ipcRenderer?.on) return
 
     const handleChatStoreChanged = () => {
+      if (expectedSelfSessionStoreChangeRef.current) {
+        expectedSelfSessionStoreChangeRef.current = false
+        return
+      }
       setHasExternalStoreChanges(true)
     }
 
@@ -369,6 +436,7 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
 
     const refreshIfNeeded = () => {
       if (!hasExternalStoreChanges) return
+      if (hasUnsavedLocalSessionChanges()) return
       void reloadFromExternalStore()
     }
 
@@ -385,7 +453,7 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
       window.removeEventListener('focus', refreshIfNeeded)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
-  }, [hasExternalStoreChanges, isInitialized, reloadFromExternalStore])
+  }, [hasExternalStoreChanges, hasUnsavedLocalSessionChanges, isInitialized, reloadFromExternalStore])
 
   useEffect(() => {
     if (!isInitialized) return
@@ -400,151 +468,131 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     }
   }, [currentSessionId, isInitialized, settings.rememberLastChatSession])
 
+  useEffect(() => {
+    return () => {
+      if (indexSaveTimerRef.current) clearTimeout(indexSaveTimerRef.current)
+      for (const timer of sessionSaveTimersRef.current.values()) {
+        clearTimeout(timer)
+      }
+      sessionSaveTimersRef.current.clear()
+    }
+  }, [])
+
   const refreshSessions = useCallback(async () => {
     await reloadFromExternalStore()
   }, [reloadFromExternalStore])
+
+  const persistSessionMutation = useCallback(
+    (session: ChatSession) => {
+      markSessionsDirty()
+      scheduleIndexSave()
+      if (loadedSessionIdsRef.current.has(session.id)) {
+        scheduleSessionSave(session)
+      }
+    },
+    [markSessionsDirty, scheduleIndexSave, scheduleSessionSave]
+  )
 
   const createSession = useCallback(
     (firstMessage?: string) => {
       const now = Date.now()
       const normalizedFirstMessage = typeof firstMessage === 'string' ? firstMessage.trim() : ''
+      const existingReusable =
+        !normalizedFirstMessage
+          ? sessionsRef.current.find(
+              (session) =>
+                session.title === 'New Chat' &&
+                (session.messageCount ?? session.messages.length) === 0
+            )
+          : undefined
 
-      let nextSessionId = ''
+      if (existingReusable) {
+        const updatedExisting = { ...existingReusable, updatedAt: now }
+        markLoaded(updatedExisting.id)
+        setSessions((prev) => [
+          updatedExisting,
+          ...prev.filter((session) => session.id !== updatedExisting.id),
+        ])
+        persistSessionMutation(updatedExisting)
+        setCurrentSessionId(updatedExisting.id)
+        return updatedExisting.id
+      }
 
-      setSessions((prev) => {
-        // If no first message is provided, try to reuse an existing empty "New Chat"
-        // session instead of creating a pile of empty chats.
-        if (!normalizedFirstMessage) {
-          const existingIndex = prev.findIndex(
-            (s) => s.title === 'New Chat' && (!s.messages || s.messages.length === 0)
-          )
-          if (existingIndex >= 0) {
-            const existing = prev[existingIndex]
-            nextSessionId = existing.id
+      const initialMessages: Message[] = normalizedFirstMessage
+        ? [
+            {
+              id: crypto.randomUUID(),
+              role: 'user',
+              content: normalizedFirstMessage,
+              timestamp: now,
+            },
+          ]
+        : []
 
-            const updatedExisting: ChatSession = {
-              ...existing,
-              updatedAt: now,
-            }
-
-            const manager = getSessionManager()
-            manager.updateMetadata(existing.id, { updatedAt: now })
-
-            // Move the reused empty session to the top for a consistent UX.
-            return [
-              updatedExisting,
-              ...prev.slice(0, existingIndex),
-              ...prev.slice(existingIndex + 1),
-            ]
-          }
-        }
-
-        const initialMessages: Message[] = normalizedFirstMessage
-          ? [
-              {
-                id: crypto.randomUUID(),
-                role: 'user',
-                content: normalizedFirstMessage,
-                timestamp: now,
-              },
-            ]
-          : []
-
-        const newSession: ChatSession = {
-          id: crypto.randomUUID(),
-          title: normalizedFirstMessage
-            ? normalizedFirstMessage.slice(0, 30) +
-              (normalizedFirstMessage.length > 30 ? '...' : '')
-            : 'New Chat',
-          messages: initialMessages,
-          createdAt: now,
-          updatedAt: now,
-        }
-
-        const manager = getSessionManager()
-        manager.addSession(newSession)
-
-        nextSessionId = newSession.id
-        return [newSession, ...prev]
+      const newSession: ChatSession = normalizeSession({
+        id: crypto.randomUUID(),
+        title: normalizedFirstMessage
+          ? normalizedFirstMessage.slice(0, 30) +
+            (normalizedFirstMessage.length > 30 ? '...' : '')
+          : 'New Chat',
+        messages: initialMessages,
+        createdAt: now,
+        updatedAt: now,
+        pinned: false,
+        folderId: null,
+        tags: [],
       })
 
-      setCurrentSessionId(nextSessionId)
-      return nextSessionId
+      markLoaded(newSession.id)
+      setSessions((prev) => [newSession, ...prev])
+      persistSessionMutation(newSession)
+      setCurrentSessionId(newSession.id)
+      return newSession.id
     },
-    [getSessionManager]
+    [markLoaded, persistSessionMutation]
   )
 
-  const loadFullSession = useCallback(
-    async (id: string): Promise<ChatSession | null> => {
-      const manager = getSessionManager()
-      const loadedSession = await manager.loadSession(id)
-
-      if (!loadedSession) {
-        return null
-      }
-
-      const chatSession: ChatSession = {
-        id: loadedSession.metadata.id,
-        title: loadedSession.metadata.title,
-        messages: loadedSession.messages,
-        createdAt: loadedSession.metadata.createdAt,
-        updatedAt: loadedSession.metadata.updatedAt,
-      }
-
-      setSessions((prev) => prev.map((s) => (s.id === id ? chatSession : s)))
-
-      return chatSession
-    },
-    [getSessionManager]
+  const getSessionMetadata = useCallback(
+    (): SessionMetadata[] =>
+      sessionsRef.current.map((session) => ({
+        id: session.id,
+        title: session.title,
+        createdAt: session.createdAt,
+        updatedAt: session.updatedAt,
+        messageCount: session.messageCount ?? session.messages.length,
+      })),
+    []
   )
 
-  const getSessionMetadata = useCallback((): SessionMetadata[] => {
-    const manager = getSessionManager()
-    return manager.getSessionMetadata()
-  }, [getSessionManager])
-
-  const isSessionLoaded = useCallback(
-    (id: string): boolean => {
-      const manager = getSessionManager()
-      return manager.isSessionLoaded(id)
-    },
-    [getSessionManager]
-  )
+  const isSessionLoaded = useCallback((id: string): boolean => loadedSessionIdsRef.current.has(id), [])
 
   const switchSession = useCallback(
     (id: string) => {
-      setSessions((prev) => {
-        if (prev.find((s) => s.id === id)) {
-          setCurrentSessionId(id)
+      if (!sessionsRef.current.some((session) => session.id === id)) return
+      setCurrentSessionId(id)
+      void loadFullSession(id)
+    },
+    [loadFullSession]
+  )
 
-          const manager = getSessionManager()
-          if (!manager.isSessionLoaded(id)) {
-            manager
-              .loadSession(id)
-              .then((loadedSession) => {
-                if (loadedSession) {
-                  setSessions((current) =>
-                    current.map((s) =>
-                      s.id === id
-                        ? {
-                            ...s,
-                            messages: loadedSession.messages,
-                            updatedAt: loadedSession.metadata.updatedAt,
-                          }
-                        : s
-                    )
-                  )
-                }
-              })
-              .catch((error) => {
-                console.error('Failed to load session on switch:', error)
-              })
-          }
+  const updateOneSession = useCallback(
+    (sessionId: string, updater: (session: ChatSession) => ChatSession) => {
+      setSessions((prev) => {
+        let updatedSession: ChatSession | null = null
+        const next = prev.map((session) => {
+          if (session.id !== sessionId) return session
+          updatedSession = normalizeSession(updater(session))
+          return updatedSession
+        })
+
+        if (updatedSession) {
+          persistSessionMutation(updatedSession)
         }
-        return prev
+
+        return next.sort((a, b) => b.updatedAt - a.updatedAt)
       })
     },
-    [getSessionManager]
+    [persistSessionMutation]
   )
 
   const addMessageToSession = useCallback(
@@ -555,159 +603,135 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
         timestamp: Date.now(),
       }
 
-      setSessions((prev) =>
-        prev.map((session) => {
-          if (session.id === sessionId) {
-            // If this is the first user message and title is generic, update title
-            let newTitle = session.title
-            if (session.messages.length === 0 && message.role === 'user') {
-              newTitle = message.content.slice(0, 30) + (message.content.length > 30 ? '...' : '')
-            }
+      markLoaded(sessionId)
+      updateOneSession(sessionId, (session) => {
+        const messages = [...session.messages, newMessage]
+        const firstUserMessage = (session.messageCount ?? session.messages.length) === 0 && message.role === 'user'
+        const title = firstUserMessage
+          ? message.content.slice(0, 30) + (message.content.length > 30 ? '...' : '')
+          : session.title
 
-            const updatedSession = {
-              ...session,
-              title: newTitle,
-              messages: [...session.messages, newMessage],
-              updatedAt: Date.now(),
-            }
-
-            const manager = getSessionManager()
-            manager.updateLoadedSessionMessages(sessionId, updatedSession.messages)
-            manager.updateMetadata(sessionId, {
-              title: newTitle,
-              updatedAt: updatedSession.updatedAt,
-              messageCount: updatedSession.messages.length,
-            })
-
-            return updatedSession
-          }
-          return session
-        })
-      )
+        return {
+          ...session,
+          title,
+          messages,
+          updatedAt: Date.now(),
+          messageCount: messages.length,
+        }
+      })
 
       return newMessage.id
     },
-    [getSessionManager]
+    [markLoaded, updateOneSession]
   )
 
   const updateStreamingMessage = useCallback(
     (sessionId: string, messageId: string, updates: Partial<Message>) => {
-      setSessions((prev) =>
-        prev.map((session) => {
-          if (session.id === sessionId) {
-            const updatedMessages = session.messages.map((msg) =>
-              msg.id === messageId ? { ...msg, ...updates } : msg
-            )
+      updateOneSession(sessionId, (session) => {
+        const updatedMessages = session.messages.map((message) =>
+          message.id === messageId ? { ...message, ...updates } : message
+        )
 
-            const updatedSession = {
-              ...session,
-              messages: updatedMessages,
-              updatedAt: Date.now(),
-            }
-
-            const manager = getSessionManager()
-            manager.updateLoadedSessionMessages(sessionId, updatedMessages)
-
-            return updatedSession
-          }
-          return session
-        })
-      )
+        return {
+          ...session,
+          messages: updatedMessages,
+          updatedAt: Date.now(),
+          messageCount: updatedMessages.length,
+        }
+      })
     },
-    [getSessionManager]
+    [updateOneSession]
+  )
+
+  const deleteMessageFromSession = useCallback(
+    (sessionId: string, messageId: string) => {
+      updateOneSession(sessionId, (session) => {
+        const messages = session.messages.filter((message) => message.id !== messageId)
+        return {
+          ...session,
+          messages,
+          updatedAt: Date.now(),
+          messageCount: messages.length,
+        }
+      })
+    },
+    [updateOneSession]
   )
 
   const deleteSession = useCallback(
     (id: string) => {
-      const manager = getSessionManager()
-      manager.removeSession(id)
-
-      setSessions((prev) => prev.filter((s) => s.id !== id))
+      markSessionsDirty()
+      loadedSessionIdsRef.current.delete(id)
+      recentLoadedSessionIdsRef.current = recentLoadedSessionIdsRef.current.filter((entry) => entry !== id)
+      setSessions((prev) => prev.filter((session) => session.id !== id))
       setCurrentSessionId((prev) => (prev === id ? null : prev))
+      if (isElectron) {
+        expectedSelfSessionStoreChangeRef.current = true
+        void window.ipcRenderer.invoke('chat-store:delete-session', id)
+      } else {
+        scheduleIndexSave()
+      }
     },
-    [getSessionManager]
+    [markSessionsDirty, scheduleIndexSave]
   )
 
   const clearAllSessions = useCallback(() => {
-    // Clear the session manager
-    const manager = getSessionManager()
-    manager.clear()
-
+    markSessionsDirty()
+    const ids = sessionsRef.current.map((session) => session.id)
+    loadedSessionIdsRef.current.clear()
+    recentLoadedSessionIdsRef.current = []
     setSessions([])
     setCurrentSessionId(null)
-  }, [getSessionManager])
+    if (isElectron) {
+      expectedSelfSessionStoreChangeRef.current = true
+      void Promise.all(ids.map((id) => window.ipcRenderer.invoke('chat-store:delete-session', id))).then(() =>
+        window.ipcRenderer.invoke('chat-store:save-index', { sessions: [], folders: foldersRef.current, version: INDEX_VERSION })
+      )
+    } else {
+      localStorage.setItem('zura-chat-history', '[]')
+    }
+  }, [markSessionsDirty])
 
   const updateSessionTitle = useCallback(
     (id: string, title: string) => {
-      const manager = getSessionManager()
-      manager.updateMetadata(id, { title })
-
-      setSessions((prev) => prev.map((s) => (s.id === id ? { ...s, title } : s)))
+      updateOneSession(id, (session) => ({ ...session, title, updatedAt: Date.now() }))
     },
-    [getSessionManager]
+    [updateOneSession]
   )
 
   const clearCurrentSession = useCallback(() => {
-    // Clear the remembered session so it doesn't auto-restore
     localStorage.removeItem(LAST_SESSION_ID_KEY)
     setCurrentSessionId(null)
   }, [])
 
-  const deleteMessageFromSession = useCallback(
-    (sessionId: string, messageId: string) => {
-      setSessions((prev) =>
-        prev.map((session) => {
-          if (session.id === sessionId) {
-            const updatedMessages = session.messages.filter((msg) => msg.id !== messageId)
-
-            const updatedSession = {
-              ...session,
-              messages: updatedMessages,
-              updatedAt: Date.now(),
-            }
-
-            const manager = getSessionManager()
-            manager.updateLoadedSessionMessages(sessionId, updatedMessages)
-            manager.updateMetadata(sessionId, {
-              updatedAt: updatedSession.updatedAt,
-              messageCount: updatedMessages.length,
-            })
-
-            return updatedSession
-          }
-          return session
-        })
-      )
+  const pinSession = useCallback(
+    (id: string) => {
+      updateOneSession(id, (session) => ({ ...session, pinned: true, updatedAt: Date.now() }))
     },
-    [getSessionManager]
+    [updateOneSession]
   )
 
-  const pinSession = useCallback((id: string) => {
-    setSessions((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, pinned: true, updatedAt: Date.now() } : s))
-    )
-  }, [])
-
-  const unpinSession = useCallback((id: string) => {
-    setSessions((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, pinned: false, updatedAt: Date.now() } : s))
-    )
-  }, [])
+  const unpinSession = useCallback(
+    (id: string) => {
+      updateOneSession(id, (session) => ({ ...session, pinned: false, updatedAt: Date.now() }))
+    },
+    [updateOneSession]
+  )
 
   const duplicateSession = useCallback(
     (id: string) => {
-      setSessions((prev) => {
-        const original = prev.find((s) => s.id === id)
-        if (!original) return prev
+      void (async () => {
+        const original = (await loadFullSession(id)) ?? sessionsRef.current.find((session) => session.id === id)
+        if (!original) return
 
         const now = Date.now()
-        const newSession: ChatSession = {
+        const newSession: ChatSession = normalizeSession({
           id: crypto.randomUUID(),
           title: `Copy of ${original.title}`,
-          messages: original.messages.map((msg) => ({
-            ...msg,
+          messages: original.messages.map((message) => ({
+            ...message,
             id: crypto.randomUUID(),
-            timestamp: msg.timestamp,
+            timestamp: message.timestamp,
           })),
           createdAt: now,
           updatedAt: now,
@@ -715,91 +739,106 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
           pinned: false,
           folderId: original.folderId,
           tags: [...(original.tags || [])],
-        }
+        })
 
-        const manager = getSessionManager()
-        manager.addSession(newSession)
-
-        return [newSession, ...prev]
-      })
+        markLoaded(newSession.id)
+        setSessions((prev) => [newSession, ...prev])
+        persistSessionMutation(newSession)
+      })()
     },
-    [getSessionManager]
+    [loadFullSession, markLoaded, persistSessionMutation]
   )
 
-  const assignFolder = useCallback((sessionId: string, folderId: string) => {
-    setSessions((prev) =>
-      prev.map((s) => (s.id === sessionId ? { ...s, folderId, updatedAt: Date.now() } : s))
-    )
-  }, [])
+  const assignFolder = useCallback(
+    (sessionId: string, folderId: string) => {
+      updateOneSession(sessionId, (session) => ({ ...session, folderId, updatedAt: Date.now() }))
+    },
+    [updateOneSession]
+  )
 
-  const removeFromFolder = useCallback((sessionId: string) => {
-    setSessions((prev) =>
-      prev.map((s) => (s.id === sessionId ? { ...s, folderId: null, updatedAt: Date.now() } : s))
-    )
-  }, [])
+  const removeFromFolder = useCallback(
+    (sessionId: string) => {
+      updateOneSession(sessionId, (session) => ({ ...session, folderId: null, updatedAt: Date.now() }))
+    },
+    [updateOneSession]
+  )
 
-  const addTag = useCallback((sessionId: string, tag: string) => {
-    setSessions((prev) =>
-      prev.map((s) => {
-        if (s.id !== sessionId) return s
-        const currentTags = s.tags || []
-        // Avoid duplicate tags
-        if (currentTags.includes(tag)) return s
-        return { ...s, tags: [...currentTags, tag], updatedAt: Date.now() }
+  const addTag = useCallback(
+    (sessionId: string, tag: string) => {
+      updateOneSession(sessionId, (session) => {
+        const currentTags = session.tags || []
+        if (currentTags.includes(tag)) return session
+        return { ...session, tags: [...currentTags, tag], updatedAt: Date.now() }
       })
-    )
-  }, [])
+    },
+    [updateOneSession]
+  )
 
-  const removeTag = useCallback((sessionId: string, tag: string) => {
-    setSessions((prev) =>
-      prev.map((s) => {
-        if (s.id !== sessionId) return s
-        const currentTags = s.tags || []
-        return { ...s, tags: currentTags.filter((t) => t !== tag), updatedAt: Date.now() }
+  const removeTag = useCallback(
+    (sessionId: string, tag: string) => {
+      updateOneSession(sessionId, (session) => {
+        const currentTags = session.tags || []
+        return { ...session, tags: currentTags.filter((entry) => entry !== tag), updatedAt: Date.now() }
       })
-    )
-  }, [])
+    },
+    [updateOneSession]
+  )
 
-  const createFolder = useCallback((name: string): string => {
-    const newFolder: Folder = {
-      id: crypto.randomUUID(),
-      name,
-      order: 0,
-      createdAt: Date.now(),
-    }
+  const saveFoldersAndIndex = useCallback(
+    (nextFolders: Folder[]) => {
+      setFolders(nextFolders)
+      markSessionsDirty()
+      scheduleIndexSave()
+    },
+    [markSessionsDirty, scheduleIndexSave]
+  )
 
-    setFolders((prev) => {
-      // New folder gets order = max existing order + 1
-      const maxOrder = prev.reduce((max, f) => Math.max(max, f.order), -1)
-      newFolder.order = maxOrder + 1
-      return [...prev, newFolder]
-    })
-
-    return newFolder.id
-  }, [])
-
-  const deleteFolder = useCallback((id: string) => {
-    setFolders((prev) => prev.filter((f) => f.id !== id))
-    setSessions((prev) =>
-      prev.map((s) => (s.folderId === id ? { ...s, folderId: null, updatedAt: Date.now() } : s))
-    )
-  }, [])
-
-  const renameFolder = useCallback((id: string, name: string) => {
-    setFolders((prev) => prev.map((f) => (f.id === id ? { ...f, name } : f)))
-  }, [])
-
-  const reorderFolder = useCallback((id: string, order: number) => {
-    setFolders((prev) => prev.map((f) => (f.id === id ? { ...f, order } : f)))
-  }, [])
-
-  useEffect(() => {
-    return () => {
-      if (sessionManagerRef.current) {
-        sessionManagerRef.current.dispose()
+  const createFolder = useCallback(
+    (name: string): string => {
+      const newFolder: Folder = {
+        id: crypto.randomUUID(),
+        name,
+        order: 0,
+        createdAt: Date.now(),
       }
-    }
-  }, [])
+
+      const maxOrder = foldersRef.current.reduce((max, folder) => Math.max(max, folder.order), -1)
+      newFolder.order = maxOrder + 1
+      saveFoldersAndIndex([...foldersRef.current, newFolder])
+      return newFolder.id
+    },
+    [saveFoldersAndIndex]
+  )
+
+  const deleteFolder = useCallback(
+    (id: string) => {
+      saveFoldersAndIndex(foldersRef.current.filter((folder) => folder.id !== id))
+      setSessions((prev) =>
+        prev.map((session) =>
+          session.folderId === id ? { ...session, folderId: null, updatedAt: Date.now() } : session
+        )
+      )
+      markSessionsDirty()
+      scheduleIndexSave()
+    },
+    [markSessionsDirty, saveFoldersAndIndex, scheduleIndexSave]
+  )
+
+  const renameFolder = useCallback(
+    (id: string, name: string) => {
+      saveFoldersAndIndex(foldersRef.current.map((folder) => (folder.id === id ? { ...folder, name } : folder)))
+    },
+    [saveFoldersAndIndex]
+  )
+
+  const reorderFolder = useCallback(
+    (id: string, order: number) => {
+      saveFoldersAndIndex(
+        foldersRef.current.map((folder) => (folder.id === id ? { ...folder, order } : folder))
+      )
+    },
+    [saveFoldersAndIndex]
+  )
 
   const contextValue = useMemo(
     () => ({
@@ -864,8 +903,6 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     ]
   )
 
-  // Memoized state for the selectable context
-  // This allows components to subscribe to specific state slices
   const selectableState = useMemo<ChatHistoryState>(
     () => ({
       sessions,
@@ -886,7 +923,6 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
 export function useChatHistory() {
   const context = useContext(ChatHistoryContext)
   if (context === undefined) {
-    // During HMR, the context may temporarily be undefined.
     if (import.meta.hot) {
       warnOnceDuringHmr('ChatHistoryContext', '[ChatHistoryContext] Context undefined during HMR, using defaults')
       const noop = () => {}
@@ -926,19 +962,6 @@ export function useChatHistory() {
   return context
 }
 
-/**
- * Get the chat history actions (methods) without subscribing to state changes
- * This hook never causes re-renders due to state changes
- *
- * Use this when you only need to call actions like createSession, switchSession, etc.
- *
- * @example
- * ```tsx
- * const { createSession, switchSession } = useChatHistoryActions()
- * // This component won't re-render when sessions change
- * ```
- *
- */
 export function useChatHistoryActions() {
   const context = useContext(ChatHistoryContext)
   if (context === undefined) {
@@ -1034,11 +1057,6 @@ export function useChatHistoryActions() {
   )
 }
 
-/**
- * Get the folders list only
- * Only re-renders when the folders array changes
- *
- */
 export function useFolders(): Folder[] {
   return useChatHistoryStateSelector((state) => state.folders)
 }

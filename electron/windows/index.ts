@@ -10,6 +10,11 @@ export {
 } from './aboutWindow'
 
 export {
+    showChatDebugWindow,
+    destroyChatDebugWindow,
+} from './chatDebugWindow'
+
+export {
     initializeOverlay,
     cleanupOverlay,
     showOverlay,

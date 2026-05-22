@@ -74,6 +74,7 @@ export function VirtualMessageList({
   // Track scroll state
   const [atBottom, setAtBottom] = useState(true)
   const [isScrolling, setIsScrolling] = useState(false)
+  const [userScrollLocked, setUserScrollLocked] = useState(false)
 
   // Track viewport height so preRenderBuffer recalculates on window resize
   const [viewportHeight, setViewportHeight] = useState(() =>
@@ -146,14 +147,14 @@ export function VirtualMessageList({
    */
   useEffect(() => {
     if (!autoScrollEnabled) return
-    if (atBottom && isGenerating && !isScrolling) {
+    if (atBottom && isGenerating && !isScrolling && !userScrollLocked) {
       virtuosoRef.current?.scrollToIndex({
         index: 'LAST',
         align: 'end',
         behavior: 'auto',
       })
     }
-  }, [atBottom, isGenerating, isScrolling, streamingContent, autoScrollEnabled])
+  }, [atBottom, isGenerating, isScrolling, streamingContent, autoScrollEnabled, userScrollLocked])
 
   // Keep a modest pre-render buffer for smooth wheel scrolling without over-rendering heavy messages.
   // viewportHeight is tracked via state + resize listener above so it stays current.
@@ -185,6 +186,12 @@ export function VirtualMessageList({
   return (
     <div
       data-select-all-scope="chat"
+      onWheelCapture={(event) => {
+        if (!isGenerating) return
+        if (event.deltaY < 0) {
+          setUserScrollLocked(true)
+        }
+      }}
       style={{
         position: 'relative',
         height: '100%',
@@ -204,7 +211,12 @@ export function VirtualMessageList({
           exit: (velocity) => Math.abs(velocity) < 110,
         }}
         initialTopMostItemIndex={messages.length - 1}
-        atBottomStateChange={setAtBottom}
+        atBottomStateChange={(nextAtBottom) => {
+          setAtBottom(nextAtBottom)
+          if (nextAtBottom) {
+            setUserScrollLocked(false)
+          }
+        }}
         isScrolling={setIsScrolling}
         style={{ flex: 1 }}
         components={{
@@ -237,7 +249,10 @@ export function VirtualMessageList({
       {/* Back to bottom button - appears when user scrolls up */}
       {!atBottom && (
         <button
-          onClick={() => scrollToBottom('smooth')}
+          onClick={() => {
+            setUserScrollLocked(false)
+            scrollToBottom('smooth')
+          }}
           style={{
             position: 'absolute',
             right: 24,

@@ -1,4 +1,4 @@
-import { app, ipcMain, BrowserWindow, Menu, clipboard, shell, type MenuItemConstructorOptions } from 'electron'
+import { app, ipcMain, BrowserWindow, Menu, clipboard, dialog, shell, type MenuItemConstructorOptions } from 'electron'
 import { getAppRuntimeInfo } from '../runtimeInfo'
 import { showAboutWindow } from '../windows'
 import type { NativeContextMenuAction, NativeContextMenuRequest } from '../../src/electron/types'
@@ -196,6 +196,29 @@ export function registerSystemHandlers(): void {
   })
 
   /**
+   * Returns a development-only process memory snapshot for RAM profiling.
+   *
+   * Channel: `app-info:get-memory-report`
+   * Type: request/response
+   */
+  ipcMain.handle('app-info:get-memory-report', async () => {
+    if (app.isPackaged) return null
+    const currentProcess = await process.getProcessMemoryInfo()
+    return {
+      capturedAt: new Date().toISOString(),
+      currentProcess,
+      appMetrics: app.getAppMetrics().map((metric) => ({
+        pid: metric.pid,
+        type: metric.type,
+        name: metric.name,
+        memory: metric.memory,
+        cpu: metric.cpu,
+        creationTime: metric.creationTime,
+      })),
+    }
+  })
+
+  /**
    * Opens the dedicated About window.
    *
    * Channel: `app-info:open-about-window`
@@ -358,6 +381,39 @@ export function registerSystemHandlers(): void {
   })
 
   /**
+   * Shows a native macOS delete confirmation for chat rows.
+   *
+   * Channel: `native-dialog:confirm-delete-chat`
+   * Type: request/response
+   *
+   * This intentionally exposes only one fixed confirmation prompt instead of a
+   * generic arbitrary-message dialog surface.
+   */
+  ipcMain.handle('native-dialog:confirm-delete-chat', async (event) => {
+    if (process.platform !== 'darwin') {
+      return false
+    }
+
+    const win = BrowserWindow.fromWebContents(event.sender)
+    const options = {
+      type: 'none' as const,
+      buttons: ['Delete', 'Cancel'],
+      defaultId: 1,
+      cancelId: 1,
+      destructiveId: 0,
+      message: 'Delete chat?',
+      detail: 'This action cannot be undone. This will permanently delete this conversation.',
+      noLink: true,
+    }
+
+    const result = win && !win.isDestroyed()
+      ? await dialog.showMessageBox(win, options)
+      : await dialog.showMessageBox(options)
+
+    return result.response === 0
+  })
+
+  /**
    * Applies explicit bounds to the sender's window.
    *
    * Channel: `window-resize`
@@ -433,9 +489,11 @@ export function unregisterSystemHandlers(): void {
   ipcMain.removeHandler('window-controls:close')
   ipcMain.removeHandler('window-controls:is-maximized')
   ipcMain.removeHandler('app-info:get')
+  ipcMain.removeHandler('app-info:get-memory-report')
   ipcMain.removeHandler('app-info:open-about-window')
   ipcMain.removeHandler('shell:open-external')
   ipcMain.removeHandler('devtools:inspect-element')
   ipcMain.removeHandler('clipboard:read-text')
   ipcMain.removeHandler('context-menu:show')
+  ipcMain.removeHandler('native-dialog:confirm-delete-chat')
 }

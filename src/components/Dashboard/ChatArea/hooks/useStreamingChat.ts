@@ -14,7 +14,7 @@ import type { ToolCallState } from '../../../../hooks/useToolCalling'
 import { generateChatTitle } from '../../../../services/titleGenerator'
 import { inferOpenRouterSupportsDeepThinking } from '../../../../services/openrouterModels'
 import { inferAlibabaSupportsDeepThinking } from '../../../../services/alibabaModels'
-import { buildOptimizedContext } from '../../../../utils/tokenUtils'
+import { buildOptimizedContextWithTrace } from '../../../../utils/tokenUtils'
 import { getEffectiveSystemPrompt } from '../../../../utils/promptSelection'
 import { StreamingThrottler } from '../../../../utils/streamingThrottler'
 import { resolveProviderApiKeysForSettings } from '../../../../utils/secureApiKeys'
@@ -58,6 +58,26 @@ export interface UseStreamingChatReturn {
 
 type RegenerateMessage = Message & {
   instruction?: string
+}
+
+function addDynamicSystemPrompt<T extends { role: string; content: string }>(
+  messages: T[],
+  dynamicPrompt: string
+): T[] {
+  const trimmed = dynamicPrompt.trim()
+  if (!trimmed) return messages
+
+  const systemIndex = messages.findIndex((message) => message.role === 'system')
+  const dynamicMessage = { role: 'system', content: trimmed } as T
+  if (systemIndex < 0) {
+    return [dynamicMessage, ...messages]
+  }
+
+  return [
+    ...messages.slice(0, systemIndex + 1),
+    dynamicMessage,
+    ...messages.slice(systemIndex + 1),
+  ]
 }
 
 export function buildCommittedStreamingUpdates(
@@ -106,9 +126,10 @@ function hasImageAttachments(files?: AttachedFile[]) {
 }
 
 function toConversationMessages(
-  messages: Array<{ role: string; content: string; files?: AttachedFile[] }>
+  messages: Array<{ id?: string; role: string; content: string; files?: AttachedFile[] }>
 ): ConversationMessage[] {
   return messages.map((message) => ({
+    id: message.id,
     role: message.role,
     content: message.content,
     files: message.files,
@@ -413,13 +434,14 @@ const streamingSettings: StreamingSettings = useMemo(
         isNewSession = true
       }
 
-      addMessageToSession(targetSessionId, outboundUserMessage)
+      const outboundUserMessageId = addMessageToSession(targetSessionId, outboundUserMessage)
 
       const startTime = performance.now()
 
       try {
         const conversationHistory = toConversationMessages(
           messages.map((message) => ({
+            id: message.id,
             role: message.role,
             content: message.content,
             files: message.files as AttachedFile[] | undefined,
@@ -444,16 +466,20 @@ const streamingSettings: StreamingSettings = useMemo(
           startResearchMode(researchMaxRounds, forceWebSearch)
         }
 
-        const effectiveSystemPrompt =
-          getEffectiveSystemPrompt(settings) + getResearchContext(0, researchMaxRounds)
-        const optimizedHistory = buildOptimizedContext(
+        const baseSystemPrompt = getEffectiveSystemPrompt(settings)
+        const dynamicResearchContext = getResearchContext(0, researchMaxRounds)
+        const optimizedContext = buildOptimizedContextWithTrace(
           conversationHistory,
-          outboundUserMessage,
-          effectiveSystemPrompt,
+          { ...outboundUserMessage, id: outboundUserMessageId },
+          baseSystemPrompt,
           settings.aiModel
         )
+        const cacheStableHistory = addDynamicSystemPrompt(
+          optimizedContext.messages as ConversationMessage[],
+          dynamicResearchContext
+        )
         const providerMessages = buildProviderMessages(
-          optimizedHistory as ConversationMessage[],
+          cacheStableHistory,
           settings.modelProvider
         )
         const provider = normalizeActiveProviderId(settings.modelProvider)
@@ -509,6 +535,7 @@ const streamingSettings: StreamingSettings = useMemo(
           sessionId: targetSessionId!,
           messageId: streamingMessageId,
           messages: providerMessages,
+          contextTrace: optimizedContext.trace,
           startTime,
           researchMaxRounds,
           forceWebSearch,
@@ -658,6 +685,7 @@ enableTools: true,
         const userMessage = session.messages[messageIndex - 1]
         const conversationHistory = toConversationMessages(
           session.messages.slice(0, messageIndex - 1).map((entry) => ({
+            id: entry.id,
             role: entry.role,
             content: entry.content,
             files: entry.files as AttachedFile[] | undefined,
@@ -760,13 +788,14 @@ const openRouterReasoning =
             ? true
             : undefined
 
+        const optimizedContext = buildOptimizedContextWithTrace(
+          conversationHistory,
+          { ...outboundUserMessage, id: userMessage.id },
+          systemPrompt,
+          effectiveSettings.aiModel
+        )
         const apiMessages = buildProviderMessages(
-          buildOptimizedContext(
-            conversationHistory,
-            outboundUserMessage,
-            systemPrompt,
-            effectiveSettings.aiModel
-          ) as ConversationMessage[],
+          optimizedContext.messages as ConversationMessage[],
           effectiveSettings.modelProvider
         )
 
@@ -778,6 +807,7 @@ const openRouterReasoning =
             sessionId: currentSessionId,
             messageId: streamingMessageId,
             messages: apiMessages,
+            contextTrace: optimizedContext.trace,
             startTime: performance.now(),
             researchMaxRounds: 0,
             forceWebSearch: false,

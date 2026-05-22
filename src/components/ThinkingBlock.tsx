@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronRight, Loader2, Search, Globe, Wrench } from './icons'
 import './ThinkingBlock.css'
@@ -525,102 +525,12 @@ export default function ThinkingBlock({
   const extraActiveToolCalls = hasActiveToolCalls ? activeToolCalls.slice(1) : []
   const { animationsEnabled } = useMotionPreferences()
   const [isExpanded, setIsExpanded] = useState(isThinking || isSearching || hasActiveToolCalls)
-  const [elapsedTime, setElapsedTime] = useState(0)
-  const [finalTime, setFinalTime] = useState<number | null>(
-    thinkingDuration !== undefined ? thinkingDuration / 1000 : null
-  )
-  const thinkingStartRef = useRef<number | null>(null)
-  // Grace-period timeout ref — keeps the timer alive during brief gaps between
-  // research loop rounds so the displayed time doesn't jump back to 0.
-  const graceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  // Whether any active state is happening right now.
-  const isActiveSession = isThinking || isSearching || hasActiveToolCalls
+  const [isSearchBatchExpanded, setIsSearchBatchExpanded] = useState(true)
 
   useEffect(() => {
     setIsExpanded(isThinking || isSearching || hasActiveToolCalls)
-    setElapsedTime(0)
-    setFinalTime(thinkingDuration !== undefined ? thinkingDuration / 1000 : null)
-    thinkingStartRef.current = null
-
-    if (graceTimeoutRef.current) {
-      clearTimeout(graceTimeoutRef.current)
-      graceTimeoutRef.current = null
-    }
+    setIsSearchBatchExpanded(true)
   }, [messageId, activeBlockKey])
-
-  // Unified timer: starts when any active state begins, keeps running across
-  // brief inactive gaps (grace period), and only finalizes when the response
-  // is truly done. This prevents the timer from resetting between web search rounds.
-  useEffect(() => {
-    let interval: ReturnType<typeof setInterval> | undefined
-
-    if (isActiveSession) {
-      // Cancel any pending grace-period finalization — we're active again.
-      if (graceTimeoutRef.current) {
-        clearTimeout(graceTimeoutRef.current)
-        graceTimeoutRef.current = null
-      }
-
-      // Start timer if not already running (never reset an existing one).
-      if (thinkingStartRef.current === null) {
-        thinkingStartRef.current = Date.now()
-        setFinalTime(null)
-        setElapsedTime(0)
-      }
-
-      // Live tick
-      interval = setInterval(() => {
-        const startTime = thinkingStartRef.current
-        if (startTime === null) return
-
-        setElapsedTime((Date.now() - startTime) / 1000)
-      }, 100)
-    } else if (thinkingStartRef.current) {
-      // All active states ended. Update the displayed time immediately but
-      // don't finalize yet — a new round may start within the grace window.
-      const elapsed = (Date.now() - thinkingStartRef.current) / 1000
-      setElapsedTime(elapsed)
-
-      // Grace period: if no new active state within 2s, finalize the timer.
-      // 2s is enough to cover the gap between tool-result processing and the
-      // next streaming round starting.
-      graceTimeoutRef.current = setTimeout(() => {
-        if (thinkingStartRef.current) {
-          const finalElapsed = (Date.now() - thinkingStartRef.current) / 1000
-          setFinalTime(finalElapsed)
-          setElapsedTime(finalElapsed)
-          thinkingStartRef.current = null
-        }
-        graceTimeoutRef.current = null
-      }, 2000)
-    }
-
-    return () => {
-      if (interval) clearInterval(interval)
-    }
-  }, [isActiveSession])
-
-  // Cleanup grace timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (graceTimeoutRef.current) {
-        clearTimeout(graceTimeoutRef.current)
-      }
-    }
-  }, [])
-
-  // Keep final time in sync with provider-reported duration updates.
-  useEffect(() => {
-    if (isActiveSession || thinkingDuration === undefined) return
-    // Only sync if the timer has already been finalized (no active start ref
-    // and no pending grace timeout).
-    if (thinkingStartRef.current || graceTimeoutRef.current) return
-
-    const durationInSeconds = Math.max(0, thinkingDuration / 1000)
-    setFinalTime(durationInSeconds)
-    setElapsedTime(durationInSeconds)
-  }, [thinkingDuration, isActiveSession])
 
   // Auto-expand while actively thinking, tool calling, or searching.
   // Once complete, leave the expanded state alone so the user's toggle is respected.
@@ -650,8 +560,8 @@ export default function ThinkingBlock({
   const hasThinkingContent = thinking && thinking.trim().length > 0
   const showActiveBlock = hasThinkingContent || isThinking || isSearching || hasActiveToolCalls
 
-  // Use finalTime when thinking is complete, otherwise use live elapsedTime
-  const displayTime = finalTime !== null ? finalTime : elapsedTime
+  const activeThinkingSeconds =
+    thinkingDuration !== undefined ? Math.max(0, thinkingDuration / 1000) : null
 
   // When thinking contains --- and we have search blocks, show them inline (don't duplicate above)
   const searchBlocks = completedBlocks.filter((b) => b.type === 'searching')
@@ -691,10 +601,22 @@ export default function ThinkingBlock({
       ? activeSearchBatchQueries
       : activeSearchQueries
   const hasVisibleSearchQueryList = visibleSearchQueries.length > 0
-  const searchingText =
-    primarySearchQuery
-      ? `${searchingLabel}: "${primarySearchQuery}"`
+  const primaryVisibleSearchQuery = visibleSearchQueries[0]
+  const isSearchBatch = visibleSearchQueries.length > 1
+  const searchingText = isSearchBatch
+    ? `${searchingLabel} · ${visibleSearchQueries.length} queries`
+    : primaryVisibleSearchQuery
+      ? `${searchingLabel}: "${primaryVisibleSearchQuery}"`
       : searchingLabel
+  const showSearchBatchDetails =
+    (isSearching || isActiveSearchBatch) && isSearchBatch && hasVisibleSearchQueryList
+  const handleHeaderClick = () => {
+    if (showSearchBatchDetails) {
+      setIsSearchBatchExpanded((expanded) => !expanded)
+      return
+    }
+    handleToggle()
+  }
 
   return (
     <div className="thinking-blocks-container">
@@ -710,8 +632,8 @@ export default function ThinkingBlock({
       {showActiveBlock && (
         <div className="thinking-block">
           <div
-            className={`thinking-header ${hasActiveToolCalls ? 'tool-calling' : isSearching ? 'searching' : ''}`}
-            onClick={handleToggle}
+            className={`thinking-header ${hasActiveToolCalls ? 'tool-calling' : isSearching ? 'searching' : ''} ${showSearchBatchDetails ? 'search-batch' : ''}`}
+            onClick={handleHeaderClick}
           >
             <div className="thinking-label">
               {hasActiveToolCalls ? (
@@ -726,7 +648,7 @@ export default function ThinkingBlock({
                   <AITextLoading
                     text={
                       isActiveSearchBatch
-                        ? 'Searching web'
+                        ? searchingText
                         : getToolCallHeaderText(activeToolCalls)
                     }
                     animationKey="tool-calling"
@@ -741,11 +663,11 @@ export default function ThinkingBlock({
                 </span>
               ) : isThinking ? (
                 <span className="thinking-text">
-                  {elapsedTime < 0.5 ? (
+                  {activeThinkingSeconds === null ? (
                     <AITextLoading text="Connecting" animationKey="connecting" />
                   ) : (
                     <AITextLoading
-                      text={`Thinking for ${elapsedTime.toFixed(1)} seconds`}
+                      text={`Thinking for ${activeThinkingSeconds.toFixed(1)} seconds`}
                       animationKey="thinking"
                     />
                   )}
@@ -754,7 +676,11 @@ export default function ThinkingBlock({
                 <>
                   <span className="thinking-text">
                     <AITextLoading
-                      text={`Thought For ${displayTime.toFixed(1)} Seconds`}
+                      text={
+                        activeThinkingSeconds === null
+                          ? 'Thought For a Moment'
+                          : `Thought For ${activeThinkingSeconds.toFixed(1)} Seconds`
+                      }
                       animationKey="completed"
                     />
                   </span>
@@ -765,6 +691,14 @@ export default function ThinkingBlock({
                     <ChevronRight size={14} className="thinking-chevron" />
                   </motion.div>
                 </>
+              )}
+              {showSearchBatchDetails && (
+                <motion.div
+                  animate={{ rotate: isSearchBatchExpanded ? 90 : 0 }}
+                  transition={motionSpringTransition(animationsEnabled, motionSpring.bouncy)}
+                >
+                  <ChevronRight size={14} className="thinking-chevron" />
+                </motion.div>
               )}
             </div>
           </div>
@@ -821,7 +755,7 @@ export default function ThinkingBlock({
                 </div>
               </motion.div>
             )}
-            {isExpanded && hasVisibleSearchQueryList && (
+            {isExpanded && showSearchBatchDetails && isSearchBatchExpanded && (
               <motion.div
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: 'auto', opacity: 1 }}
@@ -835,7 +769,7 @@ export default function ThinkingBlock({
                 }}
                 style={{ overflow: 'hidden' }}
               >
-                <div className="thinking-content thinking-active-tool-list">
+                <div className="thinking-active-search-batch">
                   {visibleSearchQueries.map((query, index) => (
                     <div key={`${query}-${index}`} className="thinking-active-tool-item">
                       {getActiveSearchItemText(query, index)}

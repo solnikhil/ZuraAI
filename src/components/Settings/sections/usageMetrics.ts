@@ -27,6 +27,7 @@ export interface ProviderUsageEntry {
   outputTokens: number
   cachedInputTokens: number
   cachedOutputTokens: number
+  cacheWriteInputTokens: number
   cachedTotalTokens: number
   avgLatencyMs: number
   errors: number
@@ -59,6 +60,7 @@ export interface UsageStats {
   totalTokens: number
   cachedInputTokens: number
   cachedOutputTokens: number
+  cacheWriteInputTokens: number
   cachedTotalTokens: number
   tokensLast7Days: number
   tokensLast30Days: number
@@ -91,6 +93,41 @@ export interface UsageStats {
   avgWebSearchExecutionMs: number
   topSearchQueries: SearchQueryEntry[]
   activityData: ActivityData[]
+}
+
+export function mergeUsageSessionSnapshots(
+  storedSessions: ChatSession[],
+  currentSessions: ChatSession[]
+): ChatSession[] {
+  if (storedSessions.length === 0) return currentSessions
+
+  const currentById = new Map(currentSessions.map((session) => [session.id, session]))
+  const storedIds = new Set(storedSessions.map((session) => session.id))
+  const merged = storedSessions.map((storedSession) => {
+    const currentSession = currentById.get(storedSession.id)
+    if (!currentSession) return storedSession
+
+    const currentHasMessages = Array.isArray(currentSession.messages) && currentSession.messages.length > 0
+    const storedHasMessages = Array.isArray(storedSession.messages) && storedSession.messages.length > 0
+
+    if (currentHasMessages || !storedHasMessages) {
+      return currentSession
+    }
+
+    return {
+      ...currentSession,
+      messages: storedSession.messages,
+      messageCount: currentSession.messageCount ?? storedSession.messageCount,
+    }
+  })
+
+  for (const currentSession of currentSessions) {
+    if (!storedIds.has(currentSession.id)) {
+      merged.push(currentSession)
+    }
+  }
+
+  return merged
 }
 
 const PROVIDER_TOKEN_RATES_PER_MILLION: Record<Exclude<UsageProvider, 'unknown'>, { inputUsd: number; outputUsd: number }> = {
@@ -376,6 +413,7 @@ export function computeUsageStats(sessions: ChatSession[], modelCatalog?: UsageM
   let totalTokens = 0
   let cachedInputTokens = 0
   let cachedOutputTokens = 0
+  let cacheWriteInputTokens = 0
   let todayMessages = 0
   let assistantMessages = 0
   let userMessages = 0
@@ -417,6 +455,7 @@ export function computeUsageStats(sessions: ChatSession[], modelCatalog?: UsageM
     outputTokens: number
     cachedInputTokens: number
     cachedOutputTokens: number
+    cacheWriteInputTokens: number
     latencySumMs: number
     latencyCount: number
     errors: number
@@ -475,9 +514,11 @@ export function computeUsageStats(sessions: ChatSession[], modelCatalog?: UsageM
       const tokenBreakdown = getTokenBreakdown(message)
       const messageCachedInputTokens = message.usage?.cachedInputTokens || 0
       const messageCachedOutputTokens = message.usage?.cachedOutputTokens || 0
+      const messageCacheWriteInputTokens = message.usage?.cacheWriteInputTokens || 0
 
       cachedInputTokens += messageCachedInputTokens
       cachedOutputTokens += messageCachedOutputTokens
+      cacheWriteInputTokens += messageCacheWriteInputTokens
 
       if (messageTokens > 0) {
         assistantMessagesWithTokens += 1
@@ -514,6 +555,7 @@ export function computeUsageStats(sessions: ChatSession[], modelCatalog?: UsageM
         outputTokens: 0,
         cachedInputTokens: 0,
         cachedOutputTokens: 0,
+        cacheWriteInputTokens: 0,
         latencySumMs: 0,
         latencyCount: 0,
         errors: 0,
@@ -525,6 +567,7 @@ export function computeUsageStats(sessions: ChatSession[], modelCatalog?: UsageM
       existingProviderUsage.outputTokens += tokenBreakdown.outputTokens
       existingProviderUsage.cachedInputTokens += messageCachedInputTokens
       existingProviderUsage.cachedOutputTokens += messageCachedOutputTokens
+      existingProviderUsage.cacheWriteInputTokens += messageCacheWriteInputTokens
 
       if (typeof message.latency === 'number' && message.latency > 0) {
         existingProviderUsage.latencySumMs += message.latency
@@ -575,6 +618,7 @@ export function computeUsageStats(sessions: ChatSession[], modelCatalog?: UsageM
         outputTokens: data.outputTokens,
         cachedInputTokens: data.cachedInputTokens,
         cachedOutputTokens: data.cachedOutputTokens,
+        cacheWriteInputTokens: data.cacheWriteInputTokens,
         cachedTotalTokens: data.cachedInputTokens + data.cachedOutputTokens,
         avgLatencyMs: data.latencyCount > 0 ? Math.round(data.latencySumMs / data.latencyCount) : 0,
         errors: data.errors,
@@ -631,6 +675,7 @@ export function computeUsageStats(sessions: ChatSession[], modelCatalog?: UsageM
     totalTokens,
     cachedInputTokens,
     cachedOutputTokens,
+    cacheWriteInputTokens,
     cachedTotalTokens: cachedInputTokens + cachedOutputTokens,
     tokensLast7Days,
     tokensLast30Days,

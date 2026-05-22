@@ -150,6 +150,28 @@ describe('McpManager', () => {
     expect(manager.listServers()).toEqual([])
     expect(snapshots.length).toBeGreaterThanOrEqual(3)
   })
+
+  it('does not retain oversized MCP resource payloads in cache', async () => {
+    const connection = new FakeMcpConnection('server-1')
+    const readResourceSpy = vi
+      .spyOn(connection, 'readResource')
+      .mockResolvedValue({ contents: [{ uri: 'file:///tmp/demo.txt', text: 'x'.repeat(600 * 1024) }] })
+
+    const manager = new McpManager({
+      loadServers: async () => [createServerConfig({ id: 'server-1', enabled: true, trustState: 'trusted' })],
+      saveServers: async () => undefined,
+      resolveServerSecrets: async (server) => createResolvedServerConfig(server),
+      connectionFactory: () => connection,
+    })
+
+    await manager.initialize({ autoConnect: false })
+    await manager.connectServer('server-1')
+
+    await manager.readResource('server-1', 'file:///tmp/demo.txt')
+    await manager.readResource('server-1', 'file:///tmp/demo.txt')
+
+    expect(readResourceSpy).toHaveBeenCalledTimes(2)
+  })
 })
 
 class FakeMcpConnection implements McpManagedConnection {

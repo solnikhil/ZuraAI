@@ -3,6 +3,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const chatStoreMocks = vi.hoisted(() => ({
+  getSessionMetadataAsync: vi.fn(),
+  getSessionAsync: vi.fn(),
+  saveSessionAsync: vi.fn(),
+  deleteSessionAsync: vi.fn(),
+  saveChatIndexAsync: vi.fn(),
   getAllSessionsAsync: vi.fn(),
   saveAllSessionsAsync: vi.fn(),
   migrateFromLocalStorage: vi.fn(),
@@ -52,6 +57,11 @@ vi.mock('electron', () => ({
 }))
 
 vi.mock('../chatStore', () => ({
+  getSessionMetadataAsync: chatStoreMocks.getSessionMetadataAsync,
+  getSessionAsync: chatStoreMocks.getSessionAsync,
+  saveSessionAsync: chatStoreMocks.saveSessionAsync,
+  deleteSessionAsync: chatStoreMocks.deleteSessionAsync,
+  saveChatIndexAsync: chatStoreMocks.saveChatIndexAsync,
   getAllSessionsAsync: chatStoreMocks.getAllSessionsAsync,
   saveAllSessionsAsync: chatStoreMocks.saveAllSessionsAsync,
   migrateFromLocalStorage: chatStoreMocks.migrateFromLocalStorage,
@@ -67,6 +77,11 @@ describe('registerChatStoreHandlers', () => {
     ipcMainMocks.removeHandler.mockClear()
     browserWindowMocks.getAllWindows.mockClear()
     browserWindowMocks.send.mockClear()
+    chatStoreMocks.getSessionMetadataAsync.mockReset()
+    chatStoreMocks.getSessionAsync.mockReset()
+    chatStoreMocks.saveSessionAsync.mockReset()
+    chatStoreMocks.deleteSessionAsync.mockReset()
+    chatStoreMocks.saveChatIndexAsync.mockReset()
     chatStoreMocks.getAllSessionsAsync.mockReset()
     chatStoreMocks.saveAllSessionsAsync.mockReset()
     chatStoreMocks.migrateFromLocalStorage.mockReset()

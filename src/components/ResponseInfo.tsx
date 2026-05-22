@@ -4,8 +4,11 @@ interface UsageData {
     inputTokens?: number
     outputTokens?: number
     totalTokens?: number
+    thinkingTokens?: number
     cachedInputTokens?: number
     cachedOutputTokens?: number
+    cacheMissInputTokens?: number
+    cacheWriteInputTokens?: number
     tps?: number
     ttft?: number
     // Provider-specific field names (OpenAI/Groq format)
@@ -34,11 +37,54 @@ export default function ResponseInfo({ model, latency, usage, finishReason, requ
     const inputTokens = usage?.inputTokens ?? usage?.prompt_tokens ?? usage?.prompt_eval_count ?? 0
     const outputTokens = usage?.outputTokens ?? usage?.completion_tokens ?? usage?.eval_count ?? 0
     const totalTokens = usage?.totalTokens ?? usage?.total_tokens ?? 0
+    const thinkingTokens = usage?.thinkingTokens ?? 0
     const cachedInputTokens = usage?.cachedInputTokens ?? 0
     const cachedOutputTokens = usage?.cachedOutputTokens ?? 0
-    const shouldShowCachedTokens = cachedInputTokens > 0 || cachedOutputTokens > 0
+    const cacheMissInputTokens = usage?.cacheMissInputTokens ?? 0
+    const cacheWriteInputTokens = usage?.cacheWriteInputTokens ?? 0
+    const shouldShowTokenDetails =
+        thinkingTokens > 0 ||
+        cachedInputTokens > 0 ||
+        cachedOutputTokens > 0 ||
+        cacheMissInputTokens > 0 ||
+        cacheWriteInputTokens > 0
 
-    const tokenMax = Math.max(inputTokens, outputTokens, 1)
+    const tokenMax = Math.max(
+        inputTokens,
+        outputTokens,
+        thinkingTokens,
+        cachedInputTokens,
+        cachedOutputTokens,
+        cacheMissInputTokens,
+        cacheWriteInputTokens,
+        1
+    )
+
+    const renderTokenBarRow = (label: string, value: number, opacity: number) => (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '10.5px', color: 'var(--theme-text-muted)', fontWeight: 500 }}>{label}</span>
+                <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--theme-text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
+                    {fmt(value)}
+                </span>
+            </div>
+            <div style={{
+                height: '4px',
+                borderRadius: '2px',
+                background: 'color-mix(in srgb, var(--theme-border) 30%, transparent)',
+                overflow: 'hidden',
+            }}>
+                <div style={{
+                    height: '100%',
+                    borderRadius: '2px',
+                    width: `${Math.max((value / tokenMax) * 100, 2)}%`,
+                    background: 'var(--theme-accent)',
+                    opacity,
+                    transition: 'width 0.3s ease',
+                }} />
+            </div>
+        </div>
+    )
 
     return (
         <div style={{
@@ -178,70 +224,16 @@ export default function ResponseInfo({ model, latency, usage, finishReason, requ
 
                     {/* Token bars */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        {/* Input tokens */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span style={{ fontSize: '10.5px', color: 'var(--theme-text-muted)', fontWeight: 500 }}>Input</span>
-                                <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--theme-text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
-                                    {fmt(inputTokens)}
-                                </span>
-                            </div>
-                            <div style={{
-                                height: '4px',
-                                borderRadius: '2px',
-                                background: 'color-mix(in srgb, var(--theme-border) 30%, transparent)',
-                                overflow: 'hidden',
-                            }}>
-                                <div style={{
-                                    height: '100%',
-                                    borderRadius: '2px',
-                                    width: `${Math.max((inputTokens / tokenMax) * 100, 2)}%`,
-                                    background: 'var(--theme-accent)',
-                                    opacity: 0.6,
-                                    transition: 'width 0.3s ease',
-                                }} />
-                            </div>
-                        </div>
+                        {renderTokenBarRow('Input', inputTokens, 0.6)}
+                        {renderTokenBarRow('Output', outputTokens, 0.85)}
 
-                        {/* Output tokens */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span style={{ fontSize: '10.5px', color: 'var(--theme-text-muted)', fontWeight: 500 }}>Output</span>
-                                <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--theme-text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
-                                    {fmt(outputTokens)}
-                                </span>
-                            </div>
-                            <div style={{
-                                height: '4px',
-                                borderRadius: '2px',
-                                background: 'color-mix(in srgb, var(--theme-border) 30%, transparent)',
-                                overflow: 'hidden',
-                            }}>
-                                <div style={{
-                                    height: '100%',
-                                    borderRadius: '2px',
-                                    width: `${Math.max((outputTokens / tokenMax) * 100, 2)}%`,
-                                    background: 'var(--theme-accent)',
-                                    opacity: 0.85,
-                                    transition: 'width 0.3s ease',
-                                }} />
-                            </div>
-                        </div>
-
-                        {shouldShowCachedTokens && (
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '6px 12px', padding: '2px 0 0' }}>
-                                <span style={{ fontSize: '10px', color: 'var(--theme-text-muted)', fontWeight: 500 }}>
-                                    Cached input
-                                </span>
-                                <span style={{ fontSize: '11px', color: 'var(--theme-text-secondary)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
-                                    {fmt(cachedInputTokens)}
-                                </span>
-                                <span style={{ fontSize: '10px', color: 'var(--theme-text-muted)', fontWeight: 500 }}>
-                                    Cached output
-                                </span>
-                                <span style={{ fontSize: '11px', color: 'var(--theme-text-secondary)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
-                                    {fmt(cachedOutputTokens)}
-                                </span>
+                        {shouldShowTokenDetails && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingTop: '2px' }}>
+                                {thinkingTokens > 0 && renderTokenBarRow('Reasoning', thinkingTokens, 0.72)}
+                                {cachedInputTokens > 0 && renderTokenBarRow('Cache hit input', cachedInputTokens, 0.55)}
+                                {cacheMissInputTokens > 0 && renderTokenBarRow('Cache miss input', cacheMissInputTokens, 0.4)}
+                                {cacheWriteInputTokens > 0 && renderTokenBarRow('Cache write input', cacheWriteInputTokens, 0.48)}
+                                {cachedOutputTokens > 0 && renderTokenBarRow('Cached output', cachedOutputTokens, 0.55)}
                             </div>
                         )}
                     </div>

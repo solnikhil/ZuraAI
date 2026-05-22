@@ -15,7 +15,7 @@
   "homepage": "https://github.com/solnikhil/ZuraAI#readme",
   "engines": {
     "node": ">=18",
-    "bun": ">=1.1"
+    "bun": ">=1.3.14 <1.4.0"
   },
   "scripts": {
     "dev": "vite",
@@ -28,7 +28,10 @@
     "preview": "vite preview",
     "test": "vitest --run",
     "test:watch": "vitest",
-    "knip": "knip"
+    "lint": "eslint .",
+    "format:check": "prettier --check .",
+    "knip": "knip",
+    "memory:scenario": "bun scripts/memory-scenario.mjs"
   },
   "dependencies": {
     "@nut-tree-fork/nut-js": "^4.2.6",
@@ -68,6 +71,7 @@
     "ws": "^8.19.0"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@tailwindcss/vite": "^4.1.18",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
@@ -82,12 +86,15 @@
     "electron": "^41.1.0",
     "electron-builder": "^26.5.0",
     "electron-devtools-installer": "^4.0.0",
+    "eslint": "^10.4.0",
     "fast-check": "^4.5.3",
     "jsdom": "26.1.0",
     "knip": "^6.0.6",
     "png-to-ico": "^3.0.1",
+    "prettier": "^3.4.2",
     "tailwindcss": "^4.1.18",
     "typescript": "^5.9.3",
+    "typescript-eslint": "^8.59.3",
     "vite": "^8.0.3",
     "vite-plugin-electron": "^0.29.0",
     "vitest": "^4.0.18"

@@ -8,6 +8,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { useEffect, useRef } from 'react'
+import { isMacOSRuntime } from '../../../utils/platform'
 
 interface DeleteChatAlertDialogProps {
   open: boolean
@@ -20,6 +22,33 @@ export default function DeleteChatAlertDialog({
   onOpenChange,
   onConfirm,
 }: DeleteChatAlertDialogProps) {
+  const nativeDialogOpenRef = useRef(false)
+  const useNativeMacDialog = isMacOSRuntime() && Boolean(window.nativeDialog?.confirmDeleteChat)
+
+  useEffect(() => {
+    if (!open || !useNativeMacDialog || nativeDialogOpenRef.current) {
+      return
+    }
+
+    nativeDialogOpenRef.current = true
+
+    void window.nativeDialog
+      .confirmDeleteChat()
+      .then((confirmed) => {
+        if (confirmed) {
+          onConfirm()
+        }
+      })
+      .finally(() => {
+        nativeDialogOpenRef.current = false
+        onOpenChange(false)
+      })
+  }, [onConfirm, onOpenChange, open, useNativeMacDialog])
+
+  if (useNativeMacDialog) {
+    return null
+  }
+
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent

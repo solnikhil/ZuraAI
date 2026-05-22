@@ -1,0 +1,60 @@
+name: Lint
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+    paths-ignore:
+      - "**.md"
+      - "LICENSE"
+      - "images/**"
+      - "docs/**"
+      - "research/**"
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "**.md"
+      - "LICENSE"
+      - "images/**"
+      - "docs/**"
+      - "research/**"
+
+permissions:
+  contents: read
+
+# Cancel in-progress runs for the same PR/branch.
+concurrency:
+  group: lint-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # lint: ESLint + Prettier check.
+  #
+  # NOTE: Currently run as informational (continue-on-error). The codebase has
+  # ~136 pre-existing ESLint errors and ~294 unformatted files that need a
+  # dedicated cleanup PR. After that cleanup lands, flip continue-on-error to
+  # false (or drop it) to make these required PR gates.
+  # TODO: remove continue-on-error once existing lint/format debt is resolved.
+  # ---------------------------------------------------------------------------
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Bun and install dependencies
+        uses: ./.github/actions/setup-bun
+
+      - name: ESLint
+        continue-on-error: true
+        run: bun run lint
+
+      - name: Prettier (format check)
+        continue-on-error: true
+        run: bun run format:check

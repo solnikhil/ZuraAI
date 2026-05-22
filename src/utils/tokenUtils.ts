@@ -45,6 +45,21 @@ interface ContextWindow {
     reserveForResponse: number
 }
 
+export interface ContextOptimizationTrace {
+    model: string
+    maxTokens: number
+    reserveForResponse: number
+    availableTokens: number
+    originalTokens: number
+    finalTokens: number
+    wasTruncated: boolean
+    insertedSummary: boolean
+    originalMessageCount: number
+    finalMessageCount: number
+    keptMessageIds?: string[]
+    droppedMessageIds?: string[]
+}
+
 const DEFAULT_CONTEXT_WINDOWS: Record<string, ContextWindow> = {
     'gpt-4': { maxTokens: 8192, reserveForResponse: 1000 },
     'gpt-4o': { maxTokens: 128000, reserveForResponse: 4000 },
@@ -54,6 +69,7 @@ const DEFAULT_CONTEXT_WINDOWS: Record<string, ContextWindow> = {
     'gemma': { maxTokens: 8192, reserveForResponse: 1000 },
     'mistral': { maxTokens: 32768, reserveForResponse: 2000 },
     'sonar': { maxTokens: 32768, reserveForResponse: 2000 },
+    'deepseek': { maxTokens: 1048576, reserveForResponse: 64000 },
     // OpenRouter models - allow up to 12k output tokens
     'openrouter': { maxTokens: 16384, reserveForResponse: 12000 },
     // Default for unknown models
@@ -73,6 +89,10 @@ function getContextWindow(model: string): ContextWindow {
     }
 
     return DEFAULT_CONTEXT_WINDOWS.default
+}
+
+function getMessageId(message: { id?: string }): string | undefined {
+    return typeof message.id === 'string' && message.id.trim() ? message.id : undefined
 }
 
 /**
@@ -162,15 +182,26 @@ export function buildOptimizedContext<T extends { role: string; content: string 
     systemPrompt: string | undefined,
     model: string
 ): Array<T | { role: string; content: string }> {
+    return buildOptimizedContextWithTrace(messages, newUserMessage, systemPrompt, model).messages
+}
+
+export function buildOptimizedContextWithTrace<T extends { role: string; content: string; id?: string }>(
+    messages: T[],
+    newUserMessage: string | T,
+    systemPrompt: string | undefined,
+    model: string
+): { messages: Array<T | { role: string; content: string }>; trace: ContextOptimizationTrace } {
     const nextUserMessage =
         typeof newUserMessage === 'string'
             ? ({ role: 'user', content: newUserMessage } as T)
             : newUserMessage
 
     const fullHistory = [...messages, nextUserMessage]
+    const contextWindow = getContextWindow(model)
+    const availableTokens = contextWindow.maxTokens - contextWindow.reserveForResponse
 
     // Truncate if needed
-    const { truncatedMessages } = truncateHistory(fullHistory, systemPrompt, model, {
+    const { truncatedMessages, wasTruncated, originalTokens, finalTokens } = truncateHistory(fullHistory, systemPrompt, model, {
         keepLastN: 6,  // Keep at least 3 user-assistant pairs
         summarizeOlder: true
     })
@@ -182,5 +213,35 @@ export function buildOptimizedContext<T extends { role: string; content: string 
     }
     result.push(...truncatedMessages)
 
-    return result
+    const keptIds = new Set(
+        truncatedMessages
+            .map((message) => getMessageId(message as T))
+            .filter((id): id is string => Boolean(id))
+    )
+    const originalIds = fullHistory
+        .map((message) => getMessageId(message))
+        .filter((id): id is string => Boolean(id))
+
+    return {
+        messages: result,
+        trace: {
+            model,
+            maxTokens: contextWindow.maxTokens,
+            reserveForResponse: contextWindow.reserveForResponse,
+            availableTokens,
+            originalTokens,
+            finalTokens,
+            wasTruncated,
+            insertedSummary: truncatedMessages.some(
+                (message) =>
+                    message.role === 'system' &&
+                    message.content.startsWith('[Previous ') &&
+                    message.content.includes(' messages were truncated')
+            ),
+            originalMessageCount: fullHistory.length,
+            finalMessageCount: result.length,
+            keptMessageIds: originalIds.filter((id) => keptIds.has(id)),
+            droppedMessageIds: originalIds.filter((id) => !keptIds.has(id)),
+        },
+    }
 }

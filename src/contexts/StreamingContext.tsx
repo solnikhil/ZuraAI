@@ -56,6 +56,8 @@ export interface StreamingMessageState {
     ttft?: number
     cachedInputTokens?: number
     cachedOutputTokens?: number
+    cacheMissInputTokens?: number
+    cacheWriteInputTokens?: number
   }
   /** Current ephemeral renderer phase for the active response */
   phase?: StreamingPhase

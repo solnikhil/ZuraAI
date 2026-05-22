@@ -18,6 +18,9 @@ export interface MessageContent {
     image_url?: {
         url: string
     }
+    cache_control?: {
+        type: 'ephemeral'
+    }
 }
 
 export interface ServiceToolCall {

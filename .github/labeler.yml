@@ -1,0 +1,57 @@
+# Mapping of file globs to PR labels for actions/labeler.
+# See https://github.com/actions/labeler#create-labeleryml for syntax.
+
+"area: main-process":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "electron/**"
+
+"area: ui":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/components/**"
+          - "src/styles/**"
+          - "src/index.css"
+
+"area: providers":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/services/**"
+          - "src/providers/**"
+
+"area: tools":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/tools/**"
+          - "electron/tools/**"
+
+"area: mcp":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "electron/mcp/**"
+          - "src/mcp/**"
+
+"area: ci":
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".github/**"
+
+"area: docs":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "docs/**"
+          - "**/*.md"
+
+"area: tests":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/__tests__/**"
+          - "**/*.test.*"
+          - "**/*.spec.*"
+
+dependencies:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "package.json"
+          - "bun.lock"
+          - "package-lock.json"

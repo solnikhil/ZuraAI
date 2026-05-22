@@ -186,6 +186,10 @@
     color: var(--theme-info, rgba(59, 130, 246, 0.9));
 }
 
+.thinking-header.search-batch {
+    padding-bottom: 4px;
+}
+
 /* Tool calling state - distinct styling with pulse animation */
 .thinking-header.tool-calling .thinking-text {
     color: var(--theme-info, rgba(59, 130, 246, 0.95));
@@ -349,8 +353,24 @@
     gap: 6px;
 }
 
+.thinking-active-search-batch {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 2px;
+    margin-left: 22px;
+    padding: 6px 0 2px 10px;
+    border-left: 1px solid color-mix(in srgb, var(--theme-info, #3b82f6) 24%, transparent);
+    font-size: 13px;
+    line-height: 1.45;
+}
+
 .thinking-active-tool-item {
     color: rgba(255, 255, 255, 0.62);
+}
+
+.thinking-active-search-batch .thinking-active-tool-item {
+    color: rgba(255, 255, 255, 0.52);
 }
 
 @media (prefers-reduced-motion: reduce) {

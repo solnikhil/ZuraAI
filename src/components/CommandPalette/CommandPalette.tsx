@@ -8,6 +8,7 @@ import { useSettingsUI } from '../../contexts/SettingsUIContext'
 import { useQuickSend } from '../../contexts/QuickSendContext'
 import { useToast } from '../shared/Toast'
 import { exportChatToMarkdown, exportChatToText, downloadFile } from '../../utils/chatExport'
+import { writeTextToClipboard } from '../../utils/clipboard'
 import {
   type CommandBarAction,
   type CommandBarSuggestion,
@@ -168,6 +169,7 @@ export default function CommandPalette() {
       deferredQuery,
       {
         hasCurrentSession: Boolean(currentSession),
+        isDev: import.meta.env.DEV,
       },
       commandBar.maxSuggestions
     )
@@ -355,6 +357,42 @@ export default function CommandPalette() {
           createSession()
           return true
         }
+        case 'copy_chat_debug_id': {
+          if (!currentSessionId) {
+            showToast('No active chat session to copy', 'warning')
+            return false
+          }
+
+          void (async () => {
+            const debugReference =
+              await window.ipcRenderer?.invoke('chat-diagnostics:get-debug-reference', currentSessionId)
+            const copied = await writeTextToClipboard(debugReference || currentSessionId)
+            showToast(
+              copied ? 'Copied chat debug ID' : 'Could not copy chat debug ID',
+              copied ? 'success' : 'error'
+            )
+          })()
+          return true
+        }
+        case 'open_chat_debug_panel': {
+          if (!import.meta.env.DEV) {
+            return false
+          }
+          if (!currentSessionId) {
+            showToast('No active chat session to debug', 'warning')
+            return false
+          }
+          if (!window.chatDebug?.open) {
+            showToast('Chat debug window is not available in this environment', 'error')
+            return false
+          }
+          void window.chatDebug.open(currentSessionId).then((opened) => {
+            if (!opened) {
+              showToast('Could not open chat debug window', 'error')
+            }
+          })
+          return true
+        }
         case 'export_chat': {
           if (!currentSession) {
             showToast('No active chat to export', 'warning')
@@ -406,6 +444,7 @@ export default function CommandPalette() {
       setDashboardView,
       showToast,
       createSession,
+      currentSessionId,
       currentSession,
       queueMessage,
     ]

@@ -140,6 +140,7 @@ export interface ToolManagerConfig {
   enabledTools?: string[] // If not provided, all tools enabled
   availableTools?: ToolDescriptor[]
   executionPolicy?: ToolExecutionPolicy
+  onToolBatchStart?: (toolCalls: ToolCall[]) => void
   onToolStart?: (toolCall: ToolCall) => void
   onToolComplete?: (result: ToolCallResult) => void
 }
@@ -330,6 +331,11 @@ export async function processToolCalls(
   }
 
   // Phase 2: Fire onToolStart for all executable calls, then execute them in parallel.
+  const executableToolCalls = executableCalls.map(({ toolCall }) => toolCall)
+  if (executableToolCalls.length > 0) {
+    config.onToolBatchStart?.(executableToolCalls)
+  }
+
   for (const { toolCall: executableToolCall } of executableCalls) {
     config.onToolStart?.(executableToolCall)
   }

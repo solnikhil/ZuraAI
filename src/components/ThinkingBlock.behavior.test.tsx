@@ -1,9 +1,13 @@
-import { act, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ThinkingBlock from './ThinkingBlock'
 
 describe('ThinkingBlock behavior', () => {
+  beforeEach(() => {
+    window.scrollTo = vi.fn()
+  })
+
   afterEach(() => {
     vi.useRealTimers()
   })
@@ -70,11 +74,8 @@ describe('ThinkingBlock behavior', () => {
     expect(await screen.findByText(/Follow-up reasoning/)).toBeInTheDocument()
   })
 
-  it('resets the live timer when the active block changes mid-stream', () => {
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-03-14T12:00:00.000Z'))
-
-    const { rerender } = render(
+  it('shows connecting before the streaming layer reports a reasoning duration', () => {
+    render(
       <ThinkingBlock
         messageId="message-1"
         activeBlockKey="message-1:0:reasoning"
@@ -84,22 +85,70 @@ describe('ThinkingBlock behavior', () => {
       />
     )
 
-    rerender(
+    expect(screen.getByText('Connecting')).toBeInTheDocument()
+    expect(screen.queryByText(/Thinking for/)).not.toBeInTheDocument()
+  })
+
+  it('shows active reasoning duration from props instead of owning a local timer', () => {
+    vi.useFakeTimers()
+    render(
       <ThinkingBlock
-        messageId="message-1"
-        activeBlockKey="message-1:1:reasoning"
+        messageId="message-2"
+        activeBlockKey="message-2:0:reasoning"
         thinking="Follow-up reasoning"
         isThinking={true}
+        thinkingDuration={1250}
         completedBlocks={[]}
       />
     )
 
     act(() => {
-      vi.advanceTimersByTime(100)
+      vi.advanceTimersByTime(5000)
     })
 
-    expect(screen.getByText('Connecting')).toBeInTheDocument()
-    expect(screen.queryByText(/Thinking for 1\d{9}/)).not.toBeInTheDocument()
+    expect(screen.getByText('Thinking for 1.3 seconds')).toBeInTheDocument()
+    expect(screen.queryByText(/Thinking for 6/)).not.toBeInTheDocument()
+  })
+
+  it('does not show or advance a thinking timer during search and tool activity', () => {
+    vi.useFakeTimers()
+    const { rerender } = render(
+      <ThinkingBlock
+        messageId="message-2b"
+        activeBlockKey="message-2b:0:searching"
+        thinking=""
+        isSearching={true}
+        searchQuery="zura ai"
+      />
+    )
+
+    act(() => {
+      vi.advanceTimersByTime(5000)
+    })
+
+    expect(screen.getByText('Searching web: "zura ai"')).toBeInTheDocument()
+    expect(screen.queryByText(/Thinking for/)).not.toBeInTheDocument()
+
+    rerender(
+      <ThinkingBlock
+        messageId="message-2b"
+        activeBlockKey="message-2b:1:tool"
+        thinking=""
+        activeToolCalls={[
+          {
+            name: 'mcp__filesystem__read_file',
+            arguments: { path: '/tmp/demo.txt' },
+          },
+        ]}
+      />
+    )
+
+    act(() => {
+      vi.advanceTimersByTime(5000)
+    })
+
+    expect(screen.getByText('Running Tool: Filesystem - read_file: /tmp/demo.txt')).toBeInTheDocument()
+    expect(screen.queryByText(/Thinking for/)).not.toBeInTheDocument()
   })
 
   it('keeps completed thoughts collapsed when no active block remains', async () => {
@@ -198,7 +247,7 @@ describe('ThinkingBlock behavior', () => {
     )
 
     expect(
-      await screen.findByText('Searching web')
+      await screen.findByText('Searching web · 2 queries')
     ).toBeInTheDocument()
     expect(
       screen.getByText('1. Searching web: "openai responses api pricing"')
@@ -223,7 +272,7 @@ describe('ThinkingBlock behavior', () => {
     )
 
     expect(
-      await screen.findByText('Searching web: "electron app updater release notes"')
+      await screen.findByText('Searching web · 2 queries')
     ).toBeInTheDocument()
     expect(
       screen.getByText('1. Searching web: "electron app updater release notes"')
@@ -231,6 +280,29 @@ describe('ThinkingBlock behavior', () => {
     expect(
       screen.getByText('2. Searching web: "electron app updater windows installer behavior"')
     ).toBeInTheDocument()
+  })
+
+  it('does not let stale search queries override the thinking title after search finishes', async () => {
+    render(
+      <ThinkingBlock
+        messageId="message-3d"
+        activeBlockKey="message-3d:2:reasoning"
+        thinking="Synthesizing the search results into an answer."
+        thinkingDuration={9000}
+        isSearching={false}
+        searchQueries={[
+          '2026 FIFA World Cup schedule',
+          'latest Mars rover discoveries 2026',
+          'top programming languages 2026',
+          'global EV sales Q1 2026',
+        ]}
+      />
+    )
+
+    expect(screen.getByText('Thought For 9.0 Seconds')).toBeInTheDocument()
+    expect(screen.queryByText('Searching web · 4 queries')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByText('Thought For 9.0 Seconds'))
+    expect(screen.getByText('Synthesizing the search results into an answer.')).toBeInTheDocument()
   })
 
   it('renders completed MCP tool blocks with the same inline timeline treatment', async () => {

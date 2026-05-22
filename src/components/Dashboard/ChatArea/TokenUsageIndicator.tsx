@@ -5,7 +5,7 @@
 
 import { useMemo, useState, useRef, useEffect, useId } from 'react'
 import { motion } from 'framer-motion'
-import { AlertTriangle, Cpu, Scissors } from 'lucide-react'
+import { AlertTriangle, Cpu } from 'lucide-react'
 import { useChatHistory } from '../../../contexts/ChatHistoryContext'
 import { useStreamingState } from '../../../contexts/StreamingContext'
 import { useSettings } from '../../../contexts/SettingsContext'
@@ -217,35 +217,6 @@ function getTokenPercent(count: number, maxContext: number) {
   return Math.max(1, Math.round((count / maxContext) * 100))
 }
 
-function getTrimPreview(messages: Array<{ role: string; content: string }>, breakdown: TokenBreakdown) {
-  if (breakdown.totalWithReserve <= breakdown.maxContext) {
-    return 'No trim needed for this model.'
-  }
-
-  let runningTotal =
-    breakdown.systemPrompt +
-    breakdown.currentInput +
-    breakdown.attachments +
-    breakdown.imageAttachments +
-    breakdown.streamingOutput +
-    breakdown.responseReserve
-  let keepCount = 0
-
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const tokens = estimateMessageTokens(messages[index])
-    if (runningTotal + tokens > breakdown.maxContext) break
-    runningTotal += tokens
-    keepCount += 1
-  }
-
-  const trimCount = Math.max(0, messages.length - keepCount)
-  if (trimCount === 0) {
-    return 'The active input and response reserve are the pressure point; older messages would not need removal.'
-  }
-
-  return `Would drop ${trimCount.toLocaleString()} oldest message${trimCount === 1 ? '' : 's'} and keep the latest ${keepCount.toLocaleString()} before sending.`
-}
-
 export function TokenUsageIndicator({ input, attachedFiles = [], className }: TokenUsageIndicatorProps) {
   const { animationsEnabled } = useMotionPreferences()
   const { sessions, currentSessionId } = useChatHistory()
@@ -254,7 +225,6 @@ export function TokenUsageIndicator({ input, attachedFiles = [], className }: To
   const { currentModel, currentName, allModels } = useModelSelector()
   const { openSelector } = useModelSelectorContext()
   const summaryId = useId()
-  const [showTrimPreview, setShowTrimPreview] = useState(false)
 
   const contextData = useMemo(() => {
     const sessionMessages = currentSessionId
@@ -293,7 +263,6 @@ export function TokenUsageIndicator({ input, attachedFiles = [], className }: To
 
     return {
       breakdown,
-      messages: mappedMessages,
     }
   }, [
     attachedFiles,
@@ -309,7 +278,7 @@ export function TokenUsageIndicator({ input, attachedFiles = [], className }: To
     currentModel?.maxContext,
   ])
 
-  const { breakdown, messages } = contextData
+  const { breakdown } = contextData
   const statusColor = getStatusColor(breakdown.status)
   const statusLabel = getStatusLabel(breakdown.status)
   const strokeDashoffset = CIRCUMFERENCE * (1 - breakdown.reserveFillRatio)
@@ -327,8 +296,6 @@ export function TokenUsageIndicator({ input, attachedFiles = [], className }: To
         : breakdown.status === 'caution'
           ? 'This chat is getting long for the selected model.'
           : null
-  const trimPreview = getTrimPreview(messages, breakdown)
-
   const [open, setOpen] = useState(false)
   const [isPinned, setIsPinned] = useState(false)
   const triggerRef = useRef<HTMLButtonElement | null>(null)
@@ -355,7 +322,6 @@ export function TokenUsageIndicator({ input, attachedFiles = [], className }: To
   const handleOpenChange = (next: boolean) => {
     if (!next) {
       setIsPinned(false)
-      setShowTrimPreview(false)
     }
     setOpen(next)
   }
@@ -397,7 +363,6 @@ export function TokenUsageIndicator({ input, attachedFiles = [], className }: To
     if (isPinned) {
       setIsPinned(false)
       setOpen(false)
-      setShowTrimPreview(false)
       return
     }
 
@@ -634,16 +599,10 @@ export function TokenUsageIndicator({ input, attachedFiles = [], className }: To
             </p>
           )}
 
-          {showTrimPreview && (
-            <div className="animate-token-context-item animate-token-context-item-delay-5 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-surface-subtle)] px-2 py-1.5 text-[11px] text-[var(--theme-text-secondary)]">
-              {trimPreview}
-            </div>
-          )}
-
-          <div className="animate-token-context-item animate-token-context-item-delay-5 grid grid-cols-2 gap-1.5 pt-0.5">
+          <div className="animate-token-context-item animate-token-context-item-delay-5 pt-0.5">
             <button
               type="button"
-              className="inline-flex min-h-7 items-center justify-center gap-1.5 rounded-lg border border-[var(--theme-border)] px-2 text-[11px] font-medium text-[var(--theme-text-secondary)] hover:bg-[var(--theme-surface-hover)] hover:text-[var(--theme-text-primary)]"
+              className="inline-flex min-h-7 w-full items-center justify-center gap-1.5 rounded-lg border border-[var(--theme-border)] px-2 text-[11px] font-medium text-[var(--theme-text-secondary)] hover:bg-[var(--theme-surface-hover)] hover:text-[var(--theme-text-primary)]"
               onClick={() => {
                 openSelector()
                 setOpen(false)
@@ -651,14 +610,6 @@ export function TokenUsageIndicator({ input, attachedFiles = [], className }: To
             >
               <Cpu className="h-3.5 w-3.5" />
               Model
-            </button>
-            <button
-              type="button"
-              className="inline-flex min-h-7 items-center justify-center gap-1.5 rounded-lg border border-[var(--theme-border)] px-2 text-[11px] font-medium text-[var(--theme-text-secondary)] hover:bg-[var(--theme-surface-hover)] hover:text-[var(--theme-text-primary)]"
-              onClick={() => setShowTrimPreview((value) => !value)}
-            >
-              <Scissors className="h-3.5 w-3.5" />
-              Trim
             </button>
           </div>
         </div>

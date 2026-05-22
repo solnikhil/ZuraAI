@@ -170,7 +170,12 @@ export function areMessagePropsEqual(
   if (
     prevMsg.usage?.inputTokens !== nextMsg.usage?.inputTokens ||
     prevMsg.usage?.outputTokens !== nextMsg.usage?.outputTokens ||
-    prevMsg.usage?.totalTokens !== nextMsg.usage?.totalTokens
+    prevMsg.usage?.totalTokens !== nextMsg.usage?.totalTokens ||
+    prevMsg.usage?.thinkingTokens !== nextMsg.usage?.thinkingTokens ||
+    prevMsg.usage?.cachedInputTokens !== nextMsg.usage?.cachedInputTokens ||
+    prevMsg.usage?.cachedOutputTokens !== nextMsg.usage?.cachedOutputTokens ||
+    prevMsg.usage?.cacheMissInputTokens !== nextMsg.usage?.cacheMissInputTokens ||
+    prevMsg.usage?.cacheWriteInputTokens !== nextMsg.usage?.cacheWriteInputTokens
   ) {
     return false
   }

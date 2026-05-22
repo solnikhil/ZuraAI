@@ -1,0 +1,61 @@
+name: Validate PR Title
+
+on:
+  pull_request_target:
+    branches:
+      - main
+    types:
+      - opened
+      - edited
+      - synchronize
+      - reopened
+
+permissions:
+  pull-requests: read
+
+# Cancel in-progress runs for the same PR (re-runs as the author edits the title).
+concurrency:
+  group: pr-title-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # validate: enforce Conventional Commits-style PR titles.
+  #
+  # Allowed types match .github/pull_request_template.md:
+  #   feat, fix, refactor, docs, chore, test, ci, build, perf, revert
+  # Subject must start lowercase and be non-empty.
+  # Scope is optional (no requireScope).
+  # ---------------------------------------------------------------------------
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate PR title
+        uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50 # v6.1.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            refactor
+            docs
+            chore
+            test
+            ci
+            build
+            perf
+            revert
+          requireScope: false
+          subjectPattern: ^[a-z].+$
+          subjectPatternError: |
+            The subject "{subject}" found in the pull request title "{title}"
+            doesn't match the required pattern. The subject must start with a
+            lowercase letter and be non-empty.
+
+            Valid examples:
+              feat: add overlay window resize handle
+              fix(mcp): handle disconnected server cleanly
+              docs: clarify provider hub setup steps
+
+            See .github/pull_request_template.md for the full list of allowed types.

@@ -21,8 +21,11 @@ interface ResponseInfoData {
     inputTokens?: number
     outputTokens?: number
     totalTokens?: number
+    thinkingTokens?: number
     cachedInputTokens?: number
     cachedOutputTokens?: number
+    cacheMissInputTokens?: number
+    cacheWriteInputTokens?: number
   }
   finishReason?: string
   requestedMaxTokens?: number

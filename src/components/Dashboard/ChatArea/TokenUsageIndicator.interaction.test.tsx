@@ -129,7 +129,7 @@ describe('TokenUsageIndicator interactions', () => {
     fireEvent.click(screen.getByRole('button'))
 
     expect(screen.getByText('Model')).toBeInTheDocument()
-    expect(screen.getByText('Trim')).toBeInTheDocument()
+    expect(screen.queryByText('Trim')).not.toBeInTheDocument()
     expect(screen.queryByText('Report')).not.toBeInTheDocument()
     expect(screen.queryByText('Healthy')).not.toBeInTheDocument()
 

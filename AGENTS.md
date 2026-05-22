@@ -145,6 +145,14 @@ Core capabilities:
   - Opens from the titlebar info menu via `window.appInfo.openAboutWindow()` → `app-info:open-about-window`
   - Uses the shared preload bridge, native OS window chrome, fixed utility-window sizing, `skipTaskbar: true`, and `sandbox: true`
 
+- **Chat Debug Window** (`electron/windows/chatDebugWindow.ts`) — dev-only
+  - Loads `#/chat-debug?sessionId=<id>` in its own `BrowserWindow`
+  - Disabled in packaged builds (`app.isPackaged` check returns `null` and the IPC handler returns `false`)
+  - Opens from the dev-only command palette entry **`Show Chat Debug Logs`** via `window.chatDebug.open(sessionId)` → `chat-debug-window:open`
+  - Reuses the shared preload bundle plus a dedicated `window.chatDebug` bridge for lifecycle
+  - Window is reused across opens: subsequent opens reload it onto the requested session id rather than creating a new window
+  - Closed automatically during app `will-quit` cleanup; `nodeIntegration: false`, `contextIsolation: true`, `sandbox: true`, DevTools enabled in dev only
+
 - **Overlay Window** (`electron/windows/overlayWindow.ts`)
   - Loads `#/overlay` in its own dedicated `BrowserWindow`
   - Disabled on macOS for now; main-process overlay APIs report disabled state and do not create floating windows or register shortcuts
@@ -169,7 +177,7 @@ Core capabilities:
 
 - **Renderer route fallback**
 - `src/App.tsx` defines `Route path="*"` to render the `NotFound404` component (`src/components/ui/demo.tsx`) for unknown hash routes.
- - Standalone utility routes outside `AppShellLayout` currently include `#/about`, plus `#/overlay` and `#/prompt-popup` on non-macOS platforms.
+ - Standalone utility routes outside `AppShellLayout` currently include `#/about` and the dev-only `#/chat-debug` window, plus `#/overlay` and `#/prompt-popup` on non-macOS platforms.
 
 - **Shared shell layout**
   - `src/App.tsx` wraps `/`, `/dashboard`, `/settings`, and `/chat` in `AppShellLayout`
@@ -204,11 +212,13 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 
 **Allowlisted channels (as implemented today):**
 - `INVOKE_CHANNELS`:
-  - `chat-store:get-all`, `chat-store:save-all`, `chat-store:migrate`, `chat-store:get-all-folders`, `chat-store:save-folders`
+  - `chat-store:get-metadata`, `chat-store:get-session`, `chat-store:save-session`, `chat-store:delete-session`, `chat-store:save-index`, `chat-store:get-all`, `chat-store:save-all`, `chat-store:migrate`, `chat-store:get-all-folders`, `chat-store:save-folders`
+  - `chat-diagnostics:append-event`, `chat-diagnostics:get-debug-reference`, `chat-diagnostics:list-events` (development diagnostics only; main process ignores diagnostics persistence/reference generation/listing in packaged builds)
   - `secure-storage:get`, `secure-storage:set`, `secure-storage:get-presence`, `secure-storage:get-all`
   - `execute-tool`
   - `window-resize`
   - `context-menu:show`
+  - `native-dialog:confirm-delete-chat`
   - `updater:check-for-updates`, `updater:quit-and-install`, `updater:get-version`
 - `ON_CHANNELS`:
   - `update-available`, `update-downloaded`, `app:new-chat`, `context-menu:action`
@@ -218,7 +228,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - invokes: `window-controls:minimize`, `window-controls:toggle-maximize`, `window-controls:close`, `window-controls:is-maximized`
   - listens for: `window-controls:state`
 - `window.appInfo`
-  - invokes: `app-info:get`, `app-info:open-about-window`
+  - invokes: `app-info:get`, `app-info:get-memory-report` (development-only), `app-info:open-about-window`
 - `window.overlay`
   - invokes: `overlay:show`, `overlay:hide`, `overlay:toggle`, `overlay:expand`, `overlay:collapse`, `overlay:get-state`, `overlay:focus-main-window`, `overlay:apply-settings`
   - listens for: `overlay:pending-prompt`
@@ -232,6 +242,8 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - `window.contextMenu`
   - invokes: `context-menu:show` (macOS native app-shell context menu request with sanitized target metadata)
   - listens for: `context-menu:action` (main→renderer callbacks for `undo`, `redo`, `cut`, `copy`, `paste`, `select-all`)
+- `window.nativeDialog`
+  - invokes: `native-dialog:confirm-delete-chat` (macOS native chat-delete confirmation only; Windows/Linux keep the renderer alert dialog)
 - `window.mcp`
   - invokes: `mcp:list-servers`, `mcp:add-server`, `mcp:update-server`, `mcp:remove-server`, `mcp:connect-server`, `mcp:disconnect-server`, `mcp:get-state`, `mcp:list-tools`, `mcp:list-resources`, `mcp:read-resource`, `mcp:list-prompts`, `mcp:get-prompt`, `mcp:execute-tool`, `mcp:resolve-approval`
   - listens for: `mcp:state-changed`
@@ -240,6 +252,8 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - `window.codeExecution`
   - invokes: `code-execution:resolve-approval`
   - listens for: `code-execution:pending-approval`
+- `window.chatDebug` (dev-only)
+  - invokes: `chat-debug-window:open`
 
 
 **If you add/rename any IPC channel:**
@@ -304,8 +318,9 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Shared stream orchestration: `src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.ts`
 - Compatibility provider/runtime wrapper: `src/components/Dashboard/ChatArea/hooks/chatProviderRuntime.ts`
 - State/persistence: `src/contexts/ChatHistoryContext.tsx`
-  - Electron path: `window.ipcRenderer.invoke('chat-store:get-all'|'chat-store:save-all'|'chat-store:migrate')`
-  - Main storage: `electron/chatStore.ts` → `chat-history.json` under `app.getPath('userData')`, written through same-directory temp-file replacement to reduce corruption risk during crashes or interrupted writes
+  - Electron path: metadata-first IPC uses `chat-store:get-metadata`, `chat-store:get-session`, `chat-store:save-session`, `chat-store:delete-session`, and `chat-store:save-index`; legacy `get-all` / `save-all` remain as compatibility wrappers.
+  - Main storage: `electron/chatStore.ts` → `chat-index.json` for folders + session metadata and `chat-sessions/{sessionId}.json` for full message arrays under `app.getPath('userData')`; old `chat-history.json` is migrated into this split layout on first read.
+  - Renderer memory policy: sidebar/session lists keep metadata-shaped sessions with `messages: []` for unloaded histories; only the active session plus two recent sessions keep full message arrays in memory.
 - Provider streaming entry points:
   - `src/services/openrouter.ts` (`streamOpenRouterCompletion`)
   - `src/services/groq.ts` (`streamGroqCompletion`)
@@ -314,8 +329,12 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - `src/services/ollama.ts` (`streamOllamaCompletion`)
   - `src/services/perplexity.ts` (`streamPerplexityCompletion`)
 - Provider services now only own request shaping and transport parsing. `src/providers/providerRuntime.ts` is the centralized execution layer for provider-specific streaming/non-streaming calls, title-generation text extraction, OpenRouter model normalization, and normalized event emission (`text-delta`, `reasoning-delta`, `tool-call-delta`, `file-delta`, `usage`, `citation`, `finish`, `error`) consumed by the shared orchestrator; `providerStreamClient.ts` is now a thin wrapper over that runtime.
+- Provider prompt caching is coordinated by `src/providers/promptCaching.ts` plus provider-registry cache capability metadata. Chat streaming requests can add documented explicit cache markers for eligible OpenRouter/Alibaba routes, Fireworks session-affinity headers, and normalized cache telemetry (`cachedInputTokens`, `cachedOutputTokens`, `cacheMissInputTokens`, `cacheWriteInputTokens`) while title generation and provider utility calls remain unmodified.
+- In development builds, chat streaming and tool execution append sanitized diagnostics through the narrow `chat-diagnostics:append-event` IPC channel into `debug-sessions/{sessionId}.jsonl` under `app.getPath('userData')`. These traces include provider/model, message summaries, context-optimization traces, request-shape summaries, per-round lifecycle, normalized and raw provider usage/cache stats, tool lifecycle, finish reasons, latency, and errors; they intentionally omit API keys, secure-storage values, raw response streams, full request bodies, file data, image data, and full message bodies.
+- External coding agents can inspect a local chat by running `bun scripts/inspect-chat-session.mjs <sessionId-or-zura-chat-url>` (or `--json`) after the user copies the active debug reference from the dev-only command palette action `Copy Chat Debug ID`. The copied reference is `zura-chat://<sessionId>?userData=<base64url app.getPath('userData')>` so local agents can resolve the correct Electron data directory; plain session ids and `ZURA_USER_DATA_DIR` remain supported. This diagnostics path is a local script workflow, not an in-app model-callable tool.
+- A dev-only in-app chat debug panel (`Show Chat Debug Logs` in the command palette) renders the same sanitized diagnostic events live for the active chat session. The panel hydrates its history through `chat-diagnostics:list-events` and subscribes to the `chat-diagnostics:event` broadcast channel; it offers a chronological timeline view and a categorized view (Request/Tool Calls/Streaming/Usage/Errors) selectable from the panel header. Streaming deltas captured during a response are coalesced (~50ms windows) into a new `stream-chunk` diagnostic phase via `src/diagnostics/streamChunkCoalescer.ts` so the panel can show provider activity without flooding the JSONL log. The panel and stream-chunk instrumentation are gated behind `import.meta.env.DEV` and the dynamic panel chunk is dropped from production bundles.
 - Send and regenerate now use the same normalized provider-stream pipeline. Regeneration no longer maintains a separate direct-stream code path.
-- Provider capabilities, auth checks, default endpoints, retry policy, tool support, image support, provider accent colors, and title/model selector provider availability are resolved through `src/providers/providerRegistry.ts` instead of repeated provider switches.
+- Provider capabilities, auth checks, default endpoints, retry policy, tool support, image support, prompt-cache policy, provider accent colors, and title/model selector provider availability are resolved through `src/providers/providerRegistry.ts` instead of repeated provider switches.
 - Fireworks is a first-class active provider again. It participates in provider selection, chat dispatch, title generation, model enablement, tool-capability checks, usage metrics, and the shared streaming pipeline through the provider registry.
 - Fireworks model discovery now has a dedicated serverless catalog path in `src/services/fireworksModels.ts`, surfaced from `src/components/Settings/sections/FireworksModelSearchDialog.tsx` through Provider Hub in the same custom-model workflow style as OpenRouter.
 - Tool calling:
@@ -448,7 +467,8 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Model color assignments: `zura-model-colors`
 
 **Main process (`app.getPath('userData')`)**
-- Chat history: `chat-history.json` (`electron/chatStore.ts`)
+- Chat history: `chat-index.json` plus `chat-sessions/{sessionId}.json` (`electron/chatStore.ts`); legacy `chat-history.json` is a migration input only.
+- Dev-only chat diagnostics: `debug-sessions/{sessionId}.jsonl` (`electron/chatDiagnostics.ts`); sanitized rolling JSONL traces capped per session and unavailable in packaged builds.
 - Persisted assistant `thinkingBlocks` may now include completed MCP tool-history entries (`type: 'tool'`) with tool name/arguments/result metadata so the renderer can replay inline MCP call history from stored sessions.
 - MCP server metadata: `mcp-servers.json` (`electron/mcp/mcpStorage.ts`)
   - Stores versioned non-secret server config, last-known tools, last-known resources, last-known prompts, and last connection metadata.

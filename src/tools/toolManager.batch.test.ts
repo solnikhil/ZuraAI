@@ -38,6 +38,7 @@ describe('toolManager web search batch policy', () => {
 
   it('executes five independent year-sliced web_search calls as one parallel batch and preserves order', async () => {
     const startedQueries: string[] = []
+    const batchQueries: string[][] = []
     const resolvers: Array<() => void> = []
     mocks.executeToolCalls.mockImplementation(async ([toolCall]) => {
       startedQueries.push(String(toolCall.arguments.query))
@@ -72,11 +73,21 @@ describe('toolManager web search batch policy', () => {
         priorWebSearchQueries: [],
         userContextText: 'Search AI market size data across 5 years from 2021 through 2025',
       },
+      onToolBatchStart: (toolCalls) => {
+        batchQueries.push(toolCalls.map((toolCall) => String(toolCall.arguments.query)))
+      },
     })
 
     await vi.waitFor(() => {
       expect(startedQueries).toHaveLength(5)
     })
+    expect(batchQueries).toEqual([[
+      'AI market size 2021',
+      'AI market size 2022',
+      'AI market size 2023',
+      'AI market size 2024',
+      'AI market size 2025',
+    ]])
     expect(resolvers).toHaveLength(5)
     resolvers.forEach((resolve) => resolve())
 

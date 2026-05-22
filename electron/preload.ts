@@ -60,11 +60,20 @@ const SEND_CHANNELS = new Set<IpcSendChannel>([
 
 const INVOKE_CHANNELS = new Set<IpcInvokeChannel>([
   // Chat store
+  'chat-store:get-metadata',
+  'chat-store:get-session',
+  'chat-store:save-session',
+  'chat-store:delete-session',
+  'chat-store:save-index',
   'chat-store:get-all',
   'chat-store:save-all',
   'chat-store:migrate',
   'chat-store:get-all-folders',
   'chat-store:save-folders',
+  'chat-diagnostics:append-event',
+  'chat-diagnostics:get-debug-reference',
+  'chat-diagnostics:list-events',
+  'chat-debug-window:open',
 
   // Secure storage
   'secure-storage:get',
@@ -78,6 +87,7 @@ const INVOKE_CHANNELS = new Set<IpcInvokeChannel>([
   // Window resize
   'window-resize',
   'context-menu:show',
+  'native-dialog:confirm-delete-chat',
 
   // Updater
   'updater:check-for-updates',
@@ -88,6 +98,8 @@ const INVOKE_CHANNELS = new Set<IpcInvokeChannel>([
 const ON_CHANNELS = new Set<IpcOnChannel>([
   'update-available',
   'update-downloaded',
+  'update-error',
+  'update-download-progress',
   'prompt-popup:focus',
   'overlay:pending-prompt',
   'model-selector:open',
@@ -95,6 +107,7 @@ const ON_CHANNELS = new Set<IpcOnChannel>([
   'settings:navigate',
   'chat-store:changed',
   'context-menu:action',
+  'chat-diagnostics:event',
 ])
 
 const MCP_INVOKE_CHANNELS = new Set<string>([
@@ -197,6 +210,21 @@ contextBridge.exposeInMainWorld(
       ipcRenderer.on('update-downloaded', listener)
       return () => ipcRenderer.off('update-downloaded', listener)
     },
+    onUpdateError: (callback: (message: string) => void) => {
+      const listener = (_event: IpcRendererEvent, message: string) => callback(message)
+      ipcRenderer.on('update-error', listener)
+      return () => ipcRenderer.off('update-error', listener)
+    },
+    onUpdateProgress: (
+      callback: (progress: IpcOnArgsMap['update-download-progress'][0]) => void
+    ) => {
+      const listener = (
+        _event: IpcRendererEvent,
+        progress: IpcOnArgsMap['update-download-progress'][0]
+      ) => callback(progress)
+      ipcRenderer.on('update-download-progress', listener)
+      return () => ipcRenderer.off('update-download-progress', listener)
+    },
   })
 )
 
@@ -236,6 +264,7 @@ contextBridge.exposeInMainWorld(
   'appInfo',
   Object.freeze({
     get: () => ipcRenderer.invoke('app-info:get'),
+    getMemoryReport: () => ipcRenderer.invoke('app-info:get-memory-report'),
     openAboutWindow: () => ipcRenderer.invoke('app-info:open-about-window'),
   })
 )
@@ -272,6 +301,14 @@ contextBridge.exposeInMainWorld(
 )
 
 contextBridge.exposeInMainWorld(
+  'nativeDialog',
+  Object.freeze({
+    confirmDeleteChat: () =>
+      ipcRenderer.invoke('native-dialog:confirm-delete-chat') as Promise<boolean>,
+  })
+)
+
+contextBridge.exposeInMainWorld(
   'shell',
   Object.freeze({
     openExternal: (url: string) => ipcRenderer.invoke('shell:open-external', url),
@@ -296,6 +333,28 @@ contextBridge.exposeInMainWorld(
       ipcRenderer.on('code-execution:pending-approval', listener)
       return () => ipcRenderer.removeListener('code-execution:pending-approval', listener)
     },
+  })
+)
+
+
+contextBridge.exposeInMainWorld(
+  'chatDiagnostics',
+  Object.freeze({
+    listEvents: (sessionId: string) =>
+      ipcRenderer.invoke('chat-diagnostics:list-events', sessionId),
+    onEvent: (callback: (event: unknown) => void) => {
+      const listener = (_event: IpcRendererEvent, event: unknown) => callback(event)
+      ipcRenderer.on('chat-diagnostics:event', listener)
+      return () => ipcRenderer.removeListener('chat-diagnostics:event', listener)
+    },
+  })
+)
+
+contextBridge.exposeInMainWorld(
+  'chatDebug',
+  Object.freeze({
+    open: (sessionId: string) =>
+      ipcRenderer.invoke('chat-debug-window:open', sessionId) as Promise<boolean>,
   })
 )
 
