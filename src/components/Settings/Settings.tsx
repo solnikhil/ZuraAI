@@ -13,6 +13,7 @@ import { ProviderHubSection } from './sections/ProviderHubSection'
 import { SkillsSection } from './sections/SkillsSection'
 import { AppearanceSection } from './sections/AppearanceSection'
 import { SystemPromptSection } from './sections/SystemPromptSection'
+import { ResourceMonitorSection } from './sections/ResourceMonitorSection'
 
 import { computeUsageStats, mergeUsageSessionSnapshots } from './sections/usageMetrics'
 import type { ChatSession } from '@/chat/types'
@@ -400,6 +401,8 @@ if (!hasSettingsChanges && !hasMcpChanges) {
                 onChange={(changes) => handleChange(changes)}
               />
             )}
+
+            {normalizedActiveSection === 'resource-monitor' && <ResourceMonitorSection />}
 
             
           </div>

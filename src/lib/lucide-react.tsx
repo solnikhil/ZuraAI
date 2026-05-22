@@ -91,6 +91,7 @@ import { SparkleIcon as SparkleBase } from '@phosphor-icons/react/dist/csr/Spark
 import { SquareIcon as SquareBase } from '@phosphor-icons/react/dist/csr/Square'
 import { StarIcon as StarBase } from '@phosphor-icons/react/dist/csr/Star'
 import { DesktopIcon as DesktopBase } from '@phosphor-icons/react/dist/csr/Desktop'
+import { PulseIcon as PulseBase } from '@phosphor-icons/react/dist/csr/Pulse'
 import { CursorIcon as CursorBase } from '@phosphor-icons/react/dist/csr/Cursor'
 import { KeyboardIcon as KeyboardBase } from '@phosphor-icons/react/dist/csr/Keyboard'
 import { GearSixIcon as GearSixBase } from '@phosphor-icons/react/dist/csr/GearSix'
@@ -232,5 +233,6 @@ export const XCircle = withDefaultWeight(XCircleBase, 'duotone', 'XCircle')
 export const XIcon = X
 export const Zap = withDefaultWeight(LightningBase, 'duotone', 'Zap')
 export const Monitor = withDefaultWeight(DesktopBase, 'duotone', 'Monitor')
+export const Activity = withDefaultWeight(PulseBase, 'duotone', 'Activity')
 export const MousePointer = withDefaultWeight(CursorBase, 'duotone', 'MousePointer')
 export const Keyboard = withDefaultWeight(KeyboardBase, 'duotone', 'Keyboard')

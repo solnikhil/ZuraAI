@@ -6,6 +6,7 @@ export type SettingsSectionId =
   | 'skills'
   | 'themes'
   | 'systemprompt'
+  | 'resource-monitor'
 
 export interface SettingsSectionMeta {
   id: SettingsSectionId
@@ -64,6 +65,13 @@ export const SETTINGS_SECTIONS: SettingsSectionMeta[] = [
     title: 'System Prompt',
     description: 'Define default assistant behavior and response guidelines.',
     keywords: ['instruction', 'persona', 'behavior', 'prompt'],
+  },
+  {
+    id: 'resource-monitor',
+    navLabel: 'Resources',
+    title: 'Resource Monitor',
+    description: 'Live per-process memory and CPU usage for the ZuraAI desktop app.',
+    keywords: ['memory', 'ram', 'cpu', 'processes', 'monitor', 'diagnostics', 'performance'],
   },
   ]
 

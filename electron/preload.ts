@@ -23,6 +23,7 @@ import type {
   OverlayState,
   PendingCodeApproval,
   PendingComputerAction,
+  ResourceSample,
 } from '../src/electron/types'
 
 const preloadLog = (message: string) => {
@@ -56,6 +57,8 @@ const SEND_CHANNELS = new Set<IpcSendChannel>([
   'overlay:drag-end',
   'open-model-selector',
   'overlay:navigate-settings',
+  'resource-monitor:subscribe',
+  'resource-monitor:unsubscribe',
 ])
 
 const INVOKE_CHANNELS = new Set<IpcInvokeChannel>([
@@ -93,6 +96,9 @@ const INVOKE_CHANNELS = new Set<IpcInvokeChannel>([
   'updater:check-for-updates',
   'updater:quit-and-install',
   'updater:get-version',
+
+  // Resource monitor
+  'resource-monitor:get-now',
 ])
 
 const ON_CHANNELS = new Set<IpcOnChannel>([
@@ -108,6 +114,7 @@ const ON_CHANNELS = new Set<IpcOnChannel>([
   'chat-store:changed',
   'context-menu:action',
   'chat-diagnostics:event',
+  'resource-monitor:sample',
 ])
 
 const MCP_INVOKE_CHANNELS = new Set<string>([
@@ -355,6 +362,22 @@ contextBridge.exposeInMainWorld(
   Object.freeze({
     open: (sessionId: string) =>
       ipcRenderer.invoke('chat-debug-window:open', sessionId) as Promise<boolean>,
+  })
+)
+
+contextBridge.exposeInMainWorld(
+  'resourceMonitor',
+  Object.freeze({
+    getNow: () => ipcRenderer.invoke('resource-monitor:get-now') as Promise<ResourceSample>,
+    subscribe: (callback: (sample: ResourceSample) => void) => {
+      const listener = (_event: IpcRendererEvent, sample: ResourceSample) => callback(sample)
+      ipcRenderer.on('resource-monitor:sample', listener)
+      ipcRenderer.send('resource-monitor:subscribe')
+      return () => {
+        ipcRenderer.removeListener('resource-monitor:sample', listener)
+        ipcRenderer.send('resource-monitor:unsubscribe')
+      }
+    },
   })
 )
 

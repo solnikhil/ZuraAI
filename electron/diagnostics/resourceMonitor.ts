@@ -122,7 +122,7 @@ function buildResourceMonitor(deps: ResourceMonitorDeps = {}): ResourceMonitorRu
   let timer: ReturnType<typeof setInterval> | null = null
 
   const sampleNow = (): ResourceSample => {
-    let metrics: RawProcessMetric[] = []
+    let metrics: RawProcessMetric[]
     try {
       metrics = getMetrics() ?? []
     } catch (error) {
@@ -191,6 +191,9 @@ function buildResourceMonitor(deps: ResourceMonitorDeps = {}): ResourceMonitorRu
   const start = () => {
     if (timer) return
     timer = setIntervalFn(tick, intervalMs)
+    // Intentional info-level log: surfaces sampler lifecycle in dev / packaged logs
+    // alongside other diagnostics modules.
+    // eslint-disable-next-line no-console
     console.log(`${LOG_PREFIX} sampler started (interval=${intervalMs}ms)`)
   }
 
@@ -198,6 +201,7 @@ function buildResourceMonitor(deps: ResourceMonitorDeps = {}): ResourceMonitorRu
     if (!timer) return
     clearIntervalFn(timer)
     timer = null
+    // eslint-disable-next-line no-console
     console.log(`${LOG_PREFIX} sampler stopped`)
   }
 

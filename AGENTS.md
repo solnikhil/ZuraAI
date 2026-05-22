@@ -254,6 +254,10 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - listens for: `code-execution:pending-approval`
 - `window.chatDebug` (dev-only)
   - invokes: `chat-debug-window:open`
+- `window.resourceMonitor`
+  - invokes: `resource-monitor:get-now`
+  - sends: `resource-monitor:subscribe`, `resource-monitor:unsubscribe`
+  - listens for: `resource-monitor:sample` (broadcast every 2s while at least one renderer is subscribed)
 
 
 **If you add/rename any IPC channel:**

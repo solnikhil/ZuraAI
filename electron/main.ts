@@ -31,6 +31,7 @@ import {
   setShutdownHook,
 } from './updater'
 import { deferredInitializer } from './startup/deferredInit'
+import { startResourceMonitor, stopResourceMonitor } from './diagnostics/resourceMonitor'
 import {
   registerCodeExecutionHandlers,
   unregisterCodeExecutionHandlers,
@@ -102,6 +103,7 @@ app.on('will-quit', () => {
 
   cleanupAutoUpdater()
   destroyTray()
+  stopResourceMonitor()
 })
 
 app.on('before-quit', (event) => {
@@ -169,6 +171,7 @@ app.whenReady().then(async () => {
   if (!IS_MACOS) {
     registerComputerUseHandlers()
   }
+  startResourceMonitor()
 
   registerSessionSecurityHandlers()
   await initializeMcpManager({

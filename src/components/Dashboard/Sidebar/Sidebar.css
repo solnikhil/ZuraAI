@@ -8,6 +8,7 @@
 
 .sidebar-container {
   --sidebar-chat-text-color: color-mix(in srgb, var(--theme-text-primary) 58%, var(--theme-text-muted) 42%);
+  --sidebar-header-action-color: var(--sidebar-chat-text-color);
   --sidebar-font-size-xs: 0.74rem;
   --sidebar-font-size-sm: 0.9rem;
   --sidebar-font-size-md: 0.95rem;
@@ -197,7 +198,6 @@
 /* ── Header ────────────────────────────────────────────────── */
 
 .sidebar-header {
-  --sidebar-header-action-color: var(--sidebar-chat-text-color);
   padding: 8px 8px 4px 4px;
   display: flex;
   flex-direction: column;
