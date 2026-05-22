@@ -11,6 +11,7 @@ import type {
   NativeDialogAPI,
   OverlayAPI,
   PromptPopupAPI,
+  ResourceMonitorAPI,
   SecureStorageAPI,
   ShellAPI,
   UpdaterAPI,
@@ -35,6 +36,7 @@ declare global {
     computerUse: ComputerUseAPI
     chatDiagnostics?: ChatDiagnosticsAPI
     chatDebug?: ChatDebugAPI
+    resourceMonitor: ResourceMonitorAPI
   }
 }
 
