@@ -1,0 +1,208 @@
+import { describe, it, expect, vi, afterEach } from 'vitest'
+import { buildMemoryBlock, loadMemoryBlock, MEMORY_BLOCK_TOKEN_BUDGET } from './buildMemoryBlock'
+import type { Memory } from '@/electron/types'
+
+const noop = () => undefined
+
+function memory(partial: Partial<Memory> & { content: string; updatedAt?: number }): Memory {
+  return {
+    id: partial.id ?? Math.random().toString(36).slice(2),
+    content: partial.content,
+    createdAt: partial.createdAt ?? partial.updatedAt ?? 1,
+    updatedAt: partial.updatedAt ?? 1,
+    source: partial.source ?? 'user',
+    scope: partial.scope ?? { type: 'global' },
+    sessionId: partial.sessionId,
+  }
+}
+
+describe('buildMemoryBlock', () => {
+  it('returns empty string for an empty list', () => {
+    expect(buildMemoryBlock([])).toBe('')
+  })
+
+  it('formats memories as dated bullets oldest-first', () => {
+    const block = buildMemoryBlock(
+      [
+        memory({ content: 'I prefer TypeScript', updatedAt: Date.UTC(2026, 4, 23) }),
+        memory({ content: 'I live in Bangalore', updatedAt: Date.UTC(2026, 4, 20) }),
+      ],
+      { type: 'global' },
+      { warn: noop }
+    )
+
+    expect(block).toContain('Saved Memories (Model Set Context)')
+    const bulletLines = block.split('\n').filter((line) => line.startsWith('- '))
+    expect(bulletLines).toEqual([
+      '- [2026-05-20] I live in Bangalore',
+      '- [2026-05-23] I prefer TypeScript',
+    ])
+  })
+
+  it('filters project-scoped memories out when scope is global', () => {
+    const block = buildMemoryBlock(
+      [
+        memory({ content: 'global one' }),
+        memory({ content: 'project one', scope: { type: 'project', projectId: 'p1' } }),
+      ],
+      { type: 'global' },
+      { warn: noop }
+    )
+    expect(block).toContain('global one')
+    expect(block).not.toContain('project one')
+  })
+
+  it('returns project + global entries when scope is project', () => {
+    const block = buildMemoryBlock(
+      [
+        memory({ content: 'global one' }),
+        memory({ content: 'p1 only', scope: { type: 'project', projectId: 'p1' } }),
+        memory({ content: 'p2 only', scope: { type: 'project', projectId: 'p2' } }),
+      ],
+      { type: 'project', projectId: 'p1' },
+      { warn: noop }
+    )
+    expect(block).toContain('global one')
+    expect(block).toContain('p1 only')
+    expect(block).not.toContain('p2 only')
+  })
+
+  it('drops oldest memories when token budget is exceeded', () => {
+    const longContent = 'lorem ipsum '.repeat(20)
+    const memories: Memory[] = []
+    for (let i = 0; i < 10; i += 1) {
+      memories.push(memory({ content: `${longContent} entry ${i}`, updatedAt: i + 1 }))
+    }
+
+    const warn = vi.fn()
+    const block = buildMemoryBlock(memories, { type: 'global' }, { tokenBudget: 400, warn })
+
+    // Newest must survive; oldest must be dropped.
+    expect(block).toContain('entry 9')
+    expect(block).not.toContain('entry 0')
+    expect(warn).toHaveBeenCalled()
+  })
+
+  it('returns empty string when only blank-content entries exist', () => {
+    expect(
+      buildMemoryBlock(
+        [memory({ content: '   ' }), memory({ content: '' })],
+        { type: 'global' },
+        { warn: noop }
+      )
+    ).toBe('')
+  })
+
+  it('honours the default budget of MEMORY_BLOCK_TOKEN_BUDGET', () => {
+    expect(MEMORY_BLOCK_TOKEN_BUDGET).toBeGreaterThan(500)
+    const tiny = memory({ content: 'small fact' })
+    expect(buildMemoryBlock([tiny], { type: 'global' }, { warn: noop })).toContain('small fact')
+  })
+
+  describe('autoSaveEnabled instruction', () => {
+    it('appends the save_memory instruction when autoSaveEnabled is true', () => {
+      const block = buildMemoryBlock(
+        [memory({ content: 'I prefer dark mode' })],
+        { type: 'global' },
+        { warn: noop, autoSaveEnabled: true }
+      )
+      expect(block).toContain('I prefer dark mode')
+      expect(block).toContain('save_memory')
+      expect(block).toMatch(/durable fact/i)
+    })
+
+    it('omits the instruction when autoSaveEnabled is false (default)', () => {
+      const block = buildMemoryBlock(
+        [memory({ content: 'I prefer dark mode' })],
+        { type: 'global' },
+        { warn: noop }
+      )
+      expect(block).not.toContain('save_memory')
+    })
+
+    it('returns just the instruction block (no bullets) when list is empty + autoSaveEnabled', () => {
+      const block = buildMemoryBlock([], { type: 'global' }, { warn: noop, autoSaveEnabled: true })
+      expect(block).toContain('Saved Memories')
+      expect(block).toContain('no saved memories yet')
+      expect(block).toContain('save_memory')
+    })
+
+    it('returns empty string when list is empty + autoSaveEnabled is false', () => {
+      const block = buildMemoryBlock([], { type: 'global' }, { warn: noop })
+      expect(block).toBe('')
+    })
+  })
+})
+
+describe('loadMemoryBlock', () => {
+  const originalWindow = globalThis.window
+
+  afterEach(() => {
+    if (originalWindow) {
+      globalThis.window = originalWindow
+    } else {
+      Reflect.deleteProperty(globalThis, 'window')
+    }
+  })
+
+  it('returns empty string when memory is disabled in settings', async () => {
+    const result = await loadMemoryBlock({ memoryEnabled: false })
+    expect(result).toBe('')
+  })
+
+  it('returns empty string when window.memory bridge is missing', async () => {
+    ;(globalThis as unknown as { window: Window }).window = {} as Window
+    const result = await loadMemoryBlock({ memoryEnabled: true })
+    expect(result).toBe('')
+  })
+
+  it('returns formatted block when bridge resolves memories', async () => {
+    const list = vi.fn().mockResolvedValue([
+      memory({ content: 'remember me', updatedAt: Date.UTC(2026, 4, 23) }),
+    ])
+    ;(globalThis as unknown as { window: { memory: { list: typeof list } } }).window = {
+      memory: { list },
+    }
+
+    const result = await loadMemoryBlock({ memoryEnabled: true })
+    expect(list).toHaveBeenCalledWith({ type: 'global' })
+    expect(result).toContain('remember me')
+  })
+
+  it('returns empty string when bridge throws', async () => {
+    const list = vi.fn().mockRejectedValue(new Error('boom'))
+    ;(globalThis as unknown as { window: { memory: { list: typeof list } } }).window = {
+      memory: { list },
+    }
+
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const result = await loadMemoryBlock({ memoryEnabled: true })
+    expect(result).toBe('')
+    warn.mockRestore()
+  })
+
+  it('omits the save_memory instruction when autoMemoryEnabled is false', async () => {
+    const list = vi.fn().mockResolvedValue([
+      memory({ content: 'fact', updatedAt: 1 }),
+    ])
+    ;(globalThis as unknown as { window: { memory: { list: typeof list } } }).window = {
+      memory: { list },
+    }
+
+    const result = await loadMemoryBlock({ memoryEnabled: true, autoMemoryEnabled: false })
+    expect(result).toContain('fact')
+    expect(result).not.toContain('save_memory')
+  })
+
+  it('includes the save_memory instruction when autoMemoryEnabled is true', async () => {
+    const list = vi.fn().mockResolvedValue([
+      memory({ content: 'fact', updatedAt: 1 }),
+    ])
+    ;(globalThis as unknown as { window: { memory: { list: typeof list } } }).window = {
+      memory: { list },
+    }
+
+    const result = await loadMemoryBlock({ memoryEnabled: true, autoMemoryEnabled: true })
+    expect(result).toContain('save_memory')
+  })
+})

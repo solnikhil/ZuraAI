@@ -36,6 +36,29 @@ describe('toolManager web search batch policy', () => {
     mocks.executeToolCalls.mockReset()
   })
 
+  it('blocks execution when manual tool approval is rejected', async () => {
+    const response = buildToolResponse([
+      { id: 'search-1', name: 'web_search', arguments: { query: 'zura ai' } },
+    ])
+
+    const result = await processToolCalls(response, {
+      provider: 'openrouter',
+      model: 'openai/gpt-4.1',
+      requestToolApproval: async () => false,
+    })
+
+    expect(mocks.executeToolCalls).not.toHaveBeenCalled()
+    expect(result.results[0]).toEqual(
+      expect.objectContaining({
+        result: expect.objectContaining({
+          success: false,
+          error: 'Tool call rejected by user.',
+        }),
+      })
+    )
+    expect(result.executionSummary.executedWebSearchCount).toBe(0)
+  })
+
   it('executes five independent year-sliced web_search calls as one parallel batch and preserves order', async () => {
     const startedQueries: string[] = []
     const batchQueries: string[][] = []

@@ -10,8 +10,9 @@ import {
   ArrowUp,
   Square,
   Plus,
-  Check,
-  Wrench, Monitor,
+  Wrench,
+  MessageSquare,
+  Brain,
 } from 'lucide-react'
 import ModelSelector from '../ModelSelector/index'
 import { useSettings } from '../../../contexts/SettingsContext'
@@ -24,7 +25,6 @@ import {
   type AttachedFile,
 } from './attachmentUtils'
 import { TokenUsageIndicator } from './TokenUsageIndicator'
-import { SkillLogo } from '@/components/shared'
 import { useAutoResizeTextarea } from '@/hooks/useAutoResizeTextarea'
 import { cn } from '@/lib/utils'
 import { Textarea } from '@/components/ui/textarea'
@@ -48,10 +48,9 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu'
-import { withWebResearchEnabled, withComputerUseEnabled } from '@/skills'
 import { ComposerAttachments } from './ComposerAttachments'
 import McpLibraryDialog from '@/components/mcp/McpLibraryDialog'
-import { isMacOSRuntime } from '@/utils/platform'
+import type { AssistantMode } from '@/chat/types'
 
 export interface InputAreaProps {
   input: string
@@ -122,9 +121,7 @@ export function InputArea({
   const { settings, updateSettings } = useSettings()
   const { animationsEnabled } = useMotionPreferences()
   
-  const webResearchEnabled = settings.skills?.web_research?.enabled !== false
-  const computerUseAvailable = !isMacOSRuntime()
-  const computerUseEnabled = settings.skills?.computer_use?.enabled === true
+  const assistantMode = settings.assistantMode || 'chat'
   const fastTransition = {
     duration: motionDuration(animationsEnabled, motionDurations.fast),
     ease: motionEasing.standard,
@@ -206,19 +203,12 @@ export function InputArea({
     }
   }
 
-  const toggleWebResearchSkill = React.useCallback(() => {
-    const nextEnabled = !webResearchEnabled
-    updateSettings({
-      skills: withWebResearchEnabled(settings.skills, nextEnabled),
-    })
-  }, [settings.skills, updateSettings, webResearchEnabled])
-
-  const toggleComputerUseSkill = React.useCallback(() => {
-    const nextEnabled = !computerUseEnabled
-    updateSettings({
-      skills: withComputerUseEnabled(settings.skills, nextEnabled),
-    })
-  }, [settings.skills, updateSettings, computerUseEnabled])
+  const setAssistantMode = React.useCallback(
+    (mode: AssistantMode) => {
+      updateSettings({ assistantMode: mode })
+    },
+    [updateSettings]
+  )
 
   React.useEffect(() => {
     const handleShortcut = (event: KeyboardEvent) => {
@@ -318,7 +308,13 @@ export function InputArea({
       ? 'bg-[color-mix(in_srgb,var(--theme-surface)_88%,var(--theme-accent-muted)_12%)] text-[var(--theme-text-primary)]'
       : 'cursor-default bg-transparent text-[var(--theme-text-muted)] opacity-60'
   )
-
+  const modeButtonClass = (mode: AssistantMode) =>
+    cn(
+      'inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-[11px] font-medium transition-colors',
+      assistantMode === mode
+        ? 'bg-[var(--theme-text-primary)] text-[var(--theme-background)]'
+        : 'text-[var(--theme-text-muted)] hover:bg-[var(--theme-surface-hover)] hover:text-[var(--theme-text-primary)]'
+    )
   const quickActionsMenu = (
     <DropdownMenu open={quickActionsOpen} onOpenChange={setQuickActionsOpen}>
       <Tooltip>
@@ -351,7 +347,7 @@ export function InputArea({
               event.preventDefault()
               fileInputRef.current?.click()
             }}
-            className="group/menu-item h-8 rounded-[9px] px-1.5 text-[12px]"
+            className="group/menu-item h-8 rounded-[12px] px-1.5 text-[12px]"
           >
             <Paperclip className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
             <span>Add photos & files</span>
@@ -364,7 +360,7 @@ export function InputArea({
         <DropdownMenuSeparator className="mx-0 my-px h-px" />
 
         <DropdownMenuSub>
-          <DropdownMenuSubTrigger className="h-8 rounded-[9px] px-1.5 text-[12px]">
+          <DropdownMenuSubTrigger className="h-8 rounded-[12px] px-1.5 text-[12px]">
             <Wrench className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
             <span>MCP Library</span>
           </DropdownMenuSubTrigger>
@@ -378,7 +374,7 @@ export function InputArea({
                 setMcpDialogMode('resources')
                 setQuickActionsOpen(false)
               }}
-              className="group/menu-item h-8 rounded-[9px] px-1.5 text-[12px]"
+              className="group/menu-item h-8 rounded-[12px] px-1.5 text-[12px]"
             >
               <Wrench className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
               <span>Browse resources</span>
@@ -388,38 +384,10 @@ export function InputArea({
                 setMcpDialogMode('prompts')
                 setQuickActionsOpen(false)
               }}
-              className="group/menu-item h-8 rounded-[9px] px-1.5 text-[12px]"
+              className="group/menu-item h-8 rounded-[12px] px-1.5 text-[12px]"
             >
               <Wrench className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
               <span>Browse prompts</span>
-            </DropdownMenuItem>
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
-
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger className="h-8 rounded-[9px] px-1.5 text-[12px]">
-            <Wrench className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
-            <span>Skills</span>
-          </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent
-            sideOffset={8}
-            collisionPadding={12}
-            className="w-[190px] rounded-[14px] p-0.5"
-          >
-            <DropdownMenuItem
-              onSelect={(event) => {
-                event.preventDefault()
-                toggleWebResearchSkill()
-              }}
-              className="group/menu-item h-8 rounded-[9px] px-1.5 text-[12px]"
-            >
-              <SkillLogo skill="tavily" size={14} />
-              <span>Tavily</span>
-              {webResearchEnabled && (
-                <span className="ml-auto inline-flex items-center text-[var(--theme-success)]">
-                  <Check className="h-3.5 w-3.5" />
-                </span>
-              )}
             </DropdownMenuItem>
           </DropdownMenuSubContent>
         </DropdownMenuSub>
@@ -531,39 +499,24 @@ export function InputArea({
                 }}
               />
 
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 shrink-0">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
                   <div className={controlClusterClass}>{quickActionsMenu}</div>
+                  <div
+                    className="flex items-center gap-1 rounded-full border border-[var(--theme-border-subtle)] bg-[color-mix(in_srgb,var(--theme-surface)_78%,transparent)] p-1"
+                    role="radiogroup"
+                    aria-label="Assistant mode"
+                  >
+                    <button type="button" className={modeButtonClass('chat')} onClick={() => setAssistantMode('chat')}>
+                      <MessageSquare className="h-3.5 w-3.5" />
+                      Chat
+                    </button>
+                    <button type="button" className={modeButtonClass('agent')} onClick={() => setAssistantMode('agent')}>
+                      <Brain className="h-3.5 w-3.5" />
+                      Agent
+                    </button>
+                  </div>
 
-                  {computerUseAvailable && (
-                    <TooltipProvider delayDuration={300}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <div className={controlClusterClass}>
-                            <button
-                              type="button"
-                              onClick={(event) => {
-                                event.stopPropagation()
-                                toggleComputerUseSkill()
-                              }}
-                              className={cn(
-                                secondaryControlButtonClass,
-                                computerUseEnabled
-                                  ? 'bg-emerald-500/10 text-emerald-500'
-                                  : 'text-[var(--theme-text-tertiary)] hover:text-[var(--theme-text-secondary)]'
-                              )}
-                              aria-label={computerUseEnabled ? 'Disable Computer Use' : 'Enable Computer Use'}
-                            >
-                              <Monitor size={16} />
-                            </button>
-                          </div>
-                        </TooltipTrigger>
-                        <TooltipContent side="top" className="rounded-full">
-                          {computerUseEnabled ? 'Computer Use: On' : 'Computer Use: Off'}
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  )}
                 </div>
 
                 <div className="flex min-w-0 items-center justify-end gap-2">

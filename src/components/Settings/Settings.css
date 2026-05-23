@@ -3827,3 +3827,361 @@
     outline: none;
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--theme-accent) 36%, transparent);
 }
+
+
+/* ──────────────────────────────────────────────────────────────────
+ * Memory & Personalization section
+ * Visual style mirrors the existing settings sections (flat surfaces,
+ * no outer drop shadows per AGENTS.md guardrail).
+ * ────────────────────────────────────────────────────────────────── */
+
+.memory-toggles {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.memory-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--border, hsl(0 0% 90%));
+  border-radius: 10px;
+  background: var(--card, transparent);
+}
+
+.memory-toggle-row__text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.memory-toggle-row__title {
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.memory-toggle-row__description {
+  font-size: 12.5px;
+  color: var(--muted-foreground, #6b7280);
+  line-height: 1.4;
+}
+
+.memory-list-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.memory-list-section__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.memory-list-section__header h3 {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0 0 4px 0;
+}
+
+.memory-list-section__header p {
+  font-size: 12.5px;
+  color: var(--muted-foreground, #6b7280);
+  margin: 0;
+}
+
+.memory-list-section__actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.memory-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.memory-list__row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border, hsl(0 0% 90%));
+  border-radius: 8px;
+  background: var(--card, transparent);
+  transition: border-color 120ms ease;
+}
+
+.memory-list__row:hover {
+  border-color: var(--border-strong, hsl(0 0% 80%));
+}
+
+.memory-list__row--editing {
+  padding: 8px;
+}
+
+.memory-list__source {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--muted, hsl(0 0% 95%));
+  color: var(--muted-foreground, #6b7280);
+}
+
+.memory-list__source-dot {
+  display: block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--muted-foreground, #6b7280);
+  opacity: 0.5;
+}
+
+.memory-list__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.memory-list__content {
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--foreground);
+  cursor: pointer;
+  word-break: break-word;
+}
+
+.memory-list__content:hover {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+}
+
+.memory-list__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--muted-foreground, #6b7280);
+}
+
+.memory-list__badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  border: 1px solid var(--border, hsl(0 0% 90%));
+}
+
+.memory-list__badge--user {
+  color: var(--muted-foreground, #6b7280);
+}
+
+.memory-list__badge--model {
+  color: var(--accent-foreground, #4b5563);
+  border-color: var(--accent, hsl(0 0% 85%));
+  background: var(--accent, hsl(0 0% 95%));
+}
+
+.memory-empty {
+  padding: 24px 16px;
+  border: 1px dashed var(--border, hsl(0 0% 88%));
+  border-radius: 10px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted-foreground, #6b7280);
+}
+
+.memory-empty__hint {
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.memory-error {
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--destructive-bg, #fef2f2);
+  color: var(--destructive, #b91c1c);
+  border: 1px solid var(--destructive-border, #fca5a5);
+  font-size: 12.5px;
+}
+
+.memory-draft {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border, hsl(0 0% 90%));
+  border-radius: 10px;
+  background: var(--card, transparent);
+}
+
+.memory-draft__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.memory-draft__counter {
+  font-size: 11.5px;
+  color: var(--muted-foreground, #6b7280);
+}
+
+.memory-draft__counter--invalid {
+  color: var(--destructive, #b91c1c);
+}
+
+.memory-draft__actions {
+  display: flex;
+  gap: 6px;
+}
+
+
+/* ──────────────────────────────────────────────────────────────────
+ * Inline Memory Update Pill (rendered inside assistant chat messages)
+ * ────────────────────────────────────────────────────────────────── */
+
+.memory-pill {
+  display: inline-flex;
+  flex-direction: column;
+  border: 1px solid var(--border, hsl(0 0% 90%));
+  border-radius: 10px;
+  background: var(--card, transparent);
+  font-size: 12.5px;
+  max-width: 100%;
+}
+
+.memory-pill__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--foreground);
+  border-radius: 10px;
+  font-size: 12.5px;
+  line-height: 1.2;
+}
+
+.memory-pill__trigger:hover {
+  background: var(--muted, hsl(0 0% 96%));
+}
+
+.memory-pill__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent, hsl(0 0% 92%));
+  color: var(--accent-foreground, #4b5563);
+}
+
+.memory-pill__label {
+  font-weight: 500;
+}
+
+.memory-pill__chevron {
+  display: inline-flex;
+  color: var(--muted-foreground, #6b7280);
+}
+
+.memory-pill__details {
+  border-top: 1px solid var(--border, hsl(0 0% 90%));
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.memory-pill__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.memory-pill__row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 10px;
+  align-items: baseline;
+}
+
+.memory-pill__row-tag {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+  color: var(--muted-foreground, #6b7280);
+}
+
+.memory-pill__row--added .memory-pill__row-tag {
+  color: #15803d; /* green-700 */
+}
+
+.memory-pill__row--updated .memory-pill__row-tag {
+  color: #1d4ed8; /* blue-700 */
+}
+
+.memory-pill__row--deleted .memory-pill__row-tag {
+  color: #b91c1c; /* red-700 */
+}
+
+.memory-pill__row-text {
+  font-size: 12.5px;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.memory-pill__row-previous {
+  grid-column: 2;
+  font-size: 11.5px;
+  color: var(--muted-foreground, #6b7280);
+  font-style: italic;
+}
+
+.memory-pill__manage {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  padding: 2px 0;
+  font-size: 11.5px;
+  color: var(--accent-foreground, #4b5563);
+  cursor: pointer;
+}
+
+.memory-pill__manage:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}

@@ -98,6 +98,11 @@ export interface ToolExecutionPolicy {
     remainingWebSearchBudget?: number
     priorWebSearchQueries?: string[]
     userContextText?: string
+    /**
+     * Active chat session id. Threaded down to memory tools so model-saved
+     * memories can record `sessionId` for traceability.
+     */
+    sessionId?: string
 }
 
 export interface ToolExecutionSummary {

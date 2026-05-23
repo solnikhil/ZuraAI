@@ -2,12 +2,16 @@
 
 import { ToolResult, ToolCall, ToolCallResult, isMcpNamespacedToolName } from './types'
 import { resolveWebSearchArgsForExecution } from './webSearchPreferences'
+import { executeMemoryTool, isMemoryToolName } from './memoryTools'
 
 // Re-export types for backward compatibility
 export type { ToolResult, ToolCall, ToolCallResult }
 
 export interface ExecuteToolOptions {
     userContextText?: string
+    bypassNativeApproval?: boolean
+    /** Active chat session id (used when memory tools are invoked by the model). */
+    sessionId?: string
 }
 
 const DEFAULT_TIMEOUT_MS = 30_000
@@ -29,6 +33,10 @@ export async function executeTool(
     const TIMEOUT_MS = getTimeoutForTool(toolName)
     
     try {
+        if (isMemoryToolName(toolName)) {
+            return await executeMemoryTool(toolName, args, { sessionId: options.sessionId })
+        }
+
         if (isMcpNamespacedToolName(toolName)) {
             if (!window.mcp) {
                 return {
@@ -76,11 +84,15 @@ export async function executeTool(
                 const raw = localStorage.getItem('zura-settings')
                 if (raw) {
                     const parsed = JSON.parse(raw)
-                    if (parsed?.codeExecutionAutoApprove === true) {
+                    if (options.bypassNativeApproval || parsed?.codeExecutionAutoApprove === true) {
                         resolvedArgs.autoApprove = true
                     }
                 }
             } catch { /* ignore */ }
+        }
+
+        if (toolName.startsWith('computer_') && options.bypassNativeApproval) {
+            resolvedArgs.autoApprove = true
         }
         
         // Add timeout handling (and ensure the timer is cleared)

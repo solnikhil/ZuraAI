@@ -12,6 +12,11 @@ import LazyMarkdown from '@/components/LazyMarkdown'
 import ThinkingBlockComponent from '@/components/ThinkingBlock'
 import { useSettings } from '@/contexts/SettingsContext'
 import ToolResultDisplay from '@/tools/ui/ToolResultDisplay'
+import {
+  MemoryUpdatePill,
+  extractMemoryEvents,
+} from '@/components/chat/MemoryUpdatePill'
+import { isMemoryToolName } from '@/tools/memoryTools'
 import { writeTextToClipboard } from '@/utils/clipboard'
 import {
   removeToolFollowUpSplitMarker,
@@ -28,6 +33,7 @@ import { WebSearchImageCarousel } from './WebSearchImageCarousel'
 import { AssistantMessageActions } from './AssistantMessageActions'
 import { RegenerateDialog } from './RegenerateDialog'
 import { useWebSources, useWebSearchImages } from './useWebSourceData'
+import { AgentActivityTimeline } from '../AgentActivityTimeline'
 
 export type { MessageRendererProps } from './types'
 
@@ -188,7 +194,18 @@ function MessageRendererComponent({
       ),
     [message.toolResults, message.thinkingBlocks]
   )
-  const showVisibleToolResults = !isStreaming && visibleToolResults.length > 0
+  const memoryEvents = useMemo(
+    () => extractMemoryEvents(message.toolResults),
+    [message.toolResults]
+  )
+  const visibleNonMemoryToolResults = useMemo(
+    () => visibleToolResults.filter((result) => !isMemoryToolName(result.toolCall.name)),
+    [visibleToolResults]
+  )
+  const showAgentTimeline = Boolean(message.agentRun)
+  const showVisibleToolResults =
+    !showAgentTimeline && !isStreaming && visibleNonMemoryToolResults.length > 0
+  const showMemoryPill = !showAgentTimeline && !isStreaming && memoryEvents.length > 0
   const hasSplitFollowUpSection =
     Boolean(followUpSnapshot) || timeline.afterBlocks.length > 0 || hasBottomDisplayContent
   const activeTimelineOwner = hasSplitFollowUpSection ? 'lower' : 'upper'
@@ -311,6 +328,8 @@ function MessageRendererComponent({
         <WebSearchImageCarousel images={webSearchImages} mode={webImageMode} />
       )}
 
+      {message.agentRun && <AgentActivityTimeline run={message.agentRun} />}
+
       {/* Message content - only show when not streaming or when content has arrived */}
       {((!isStreaming || hasContentDuringStreaming || completedBlocks.length > 0 || message.researchStatus) &&
         hasTopDisplayContent) && (
@@ -323,9 +342,21 @@ function MessageRendererComponent({
         </div>
       )}
 
+      {showMemoryPill && (
+        <div style={{ marginTop: '12px' }}>
+          <MemoryUpdatePill
+            events={memoryEvents}
+            onManageMemories={() => {
+              window.location.hash = '#/settings'
+              window.dispatchEvent(new CustomEvent('zura:settings:navigate', { detail: 'memory' }))
+            }}
+          />
+        </div>
+      )}
+
       {showVisibleToolResults && (
         <div style={{ marginTop: '12px', marginBottom: shouldShowActionRow ? '12px' : 0 }}>
-          {visibleToolResults.map((result, index) => {
+          {visibleNonMemoryToolResults.map((result, index) => {
             const toolResultIndex = (message.toolResults || []).findIndex(
               (item) => item.toolCall.id === result.toolCall.id
             )

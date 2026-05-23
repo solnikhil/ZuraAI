@@ -29,6 +29,7 @@ import { defaultCodeExecutionPrompt } from '../prompts/defaultCodeExecutionPromp
 import { defaultComputerUsePrompt } from '../prompts/defaultComputerUsePrompt'
 import { defaultChartGenerationPrompt } from '../prompts/defaultChartGenerationPrompt'
 import { defaultSkillsSettings, type SkillsSettings } from '../skills'
+import type { AssistantMode } from '../chat/types'
 import { getProviderEnabledDefaults, getProviderSecretFields } from '../providers'
 import type { ProviderId } from '../providers/providerTypes'
 import { warnOnceDuringHmr } from './hmrWarnings'
@@ -117,6 +118,7 @@ export interface SettingsConfig {
   streamResponses: boolean
 
   // Tool settings
+  assistantMode: AssistantMode
   toolsEnabled: boolean
   enabledTools: string[]
   skills: SkillsSettings
@@ -144,6 +146,17 @@ export interface SettingsConfig {
   rememberLastSettingsSection: boolean
   rememberLastDashboardView: boolean
   overlay: OverlaySettings
+
+  /**
+   * Memory feature toggles. When `memoryEnabled` is false the system prompt
+   * does not include the memory block and memory tools are not exposed. When
+   * true, `autoMemoryEnabled` controls whether the model can manage memories
+   * via tool calls (`save_memory`, `update_memory`, `delete_memory`,
+   * `search_memories`); the user can still manage memories manually in
+   * Settings → Personalization → Memory.
+   */
+  memoryEnabled: boolean
+  autoMemoryEnabled: boolean
 }
 
 /**
@@ -265,6 +278,7 @@ export const defaultSettingsConfig: SettingsConfig = {
   streamResponses: true,
 
   // Tool settings
+  assistantMode: 'chat',
   toolsEnabled: true,
   enabledTools: ['web_search'],
   skills: defaultSkillsSettings,
@@ -304,6 +318,12 @@ export const defaultSettingsConfig: SettingsConfig = {
     promptAutoHideEnabled: false,
     promptAutoHideTimeout: 120,
   },
+
+  // Memory feature (ChatGPT-style saved memories). Both default ON so the
+  // feature is discoverable; users can disable either or both in
+  // Settings → Personalization → Memory.
+  memoryEnabled: true,
+  autoMemoryEnabled: true,
 }
 
 interface SettingsConfigContextType {

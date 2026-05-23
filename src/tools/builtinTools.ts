@@ -115,7 +115,7 @@ Best practices:
     origin: 'builtin-main',
   },
   computer_click: {
-    description: 'Click at specific pixel coordinates from the latest screen image returned by computer_screenshot. Use the screen dimensions exactly and click the center of the intended target. The app maps screen coordinates to the real desktop. Returns an updated screen image.',
+    description: 'Click at specific pixel coordinates from the latest screen image returned by computer_screenshot. Requires a prior computer_screenshot in the current action sequence; computer_list_windows is not enough. Use the screen dimensions exactly and click the center of the intended target. The app maps screen coordinates to the real desktop. Returns an updated screen image.',
     parameters: {
       type: 'object',
       description: 'Arguments for clicking.',
@@ -156,7 +156,7 @@ Best practices:
     origin: 'builtin-main',
   },
   computer_scroll: {
-    description: 'Scroll at specific coordinates from the latest screen image returned by computer_screenshot. Move the cursor to the screen position first, then scroll.',
+    description: 'Scroll at specific coordinates from the latest screen image returned by computer_screenshot. Requires a prior computer_screenshot in the current action sequence; computer_list_windows is not enough. Move the cursor to the screen position first, then scroll.',
     parameters: {
       type: 'object',
       description: 'Arguments for scrolling.',
@@ -172,7 +172,7 @@ Best practices:
     origin: 'builtin-main',
   },
   computer_cursor_position: {
-    description: 'Move the cursor to specific coordinates from the latest screen image returned by computer_screenshot without clicking. Use to hover over elements.',
+    description: 'Move the cursor to specific coordinates from the latest screen image returned by computer_screenshot without clicking. Requires a prior computer_screenshot in the current action sequence; computer_list_windows is not enough. Use to hover over elements.',
     parameters: {
       type: 'object',
       description: 'Arguments for moving the cursor.',
@@ -186,7 +186,7 @@ Best practices:
     origin: 'builtin-main',
   },
   computer_list_windows: {
-    description: 'List all currently open application windows on the system. Returns window titles. Use this to find which apps are running before interacting with them.',
+    description: 'List all currently open application windows on the system. Returns window titles only. This is metadata, not visual screen context, and does not provide valid coordinates. After using this, call computer_screenshot before clicking, scrolling, or moving the cursor.',
     parameters: {
       type: 'object',
       description: 'No arguments required.',

@@ -290,7 +290,7 @@ export default function ChatArea() {
             />
           )}
 
-          {isLastAssistant && visibleLiveToolResults.length > 0 && (
+          {isLastAssistant && !msg.agentRun && visibleLiveToolResults.length > 0 && (
             <div style={{ marginTop: '8px', marginBottom: '24px' }}>
               {visibleLiveToolResults.map((result, i) => (
                 <ToolResultDisplay

@@ -3,6 +3,10 @@ import {
   registerChatDiagnosticsHandlers,
   unregisterChatDiagnosticsHandlers,
 } from './chatDiagnosticsHandlers'
+import {
+  registerMemoryStoreHandlers,
+  unregisterMemoryStoreHandlers,
+} from './memoryStoreHandlers'
 import { registerOverlayHandlers, unregisterOverlayHandlers } from './overlayHandlers'
 import {
   registerPromptPopupHandlers,
@@ -27,6 +31,10 @@ const IPC_DOMAIN_HANDLERS: readonly IpcDomainHandlers[] = [
   {
     register: registerChatDiagnosticsHandlers,
     unregister: unregisterChatDiagnosticsHandlers,
+  },
+  {
+    register: registerMemoryStoreHandlers,
+    unregister: unregisterMemoryStoreHandlers,
   },
   {
     register: registerSecureStorageHandlers,
@@ -74,6 +82,10 @@ export {
   registerChatDiagnosticsHandlers,
   unregisterChatDiagnosticsHandlers,
 } from './chatDiagnosticsHandlers'
+export {
+  registerMemoryStoreHandlers,
+  unregisterMemoryStoreHandlers,
+} from './memoryStoreHandlers'
 export {
   registerSecureStorageHandlers,
   unregisterSecureStorageHandlers,

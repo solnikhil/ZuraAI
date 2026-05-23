@@ -8,6 +8,7 @@ import type {
   DevToolsAPI,
   IElectronAPI,
   McpAPI,
+  MemoryAPI,
   NativeDialogAPI,
   OverlayAPI,
   PromptPopupAPI,
@@ -32,6 +33,7 @@ declare global {
     contextMenu: ContextMenuAPI
     nativeDialog: NativeDialogAPI
     mcp: McpAPI
+    memory: MemoryAPI
     codeExecution: CodeExecutionAPI
     computerUse: ComputerUseAPI
     chatDiagnostics?: ChatDiagnosticsAPI

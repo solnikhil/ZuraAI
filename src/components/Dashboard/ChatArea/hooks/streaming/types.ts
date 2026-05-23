@@ -121,7 +121,15 @@ export type FlushCallback = () => void
 
 export interface HandleToolCallsOptions {
   onToolStart?: (toolCall: { id: string; name: string; arguments: Record<string, unknown> }) => void
+  onToolApprovalStart?: (toolCall: { id: string; name: string; arguments: Record<string, unknown> }) => void
+  onToolApprovalResolved?: (
+    toolCall: { id: string; name: string; arguments: Record<string, unknown> },
+    approved: boolean
+  ) => void
   onToolComplete?: (result: ToolCallResult) => void
+  requestToolApproval?: (
+    toolCall: { id: string; name: string; arguments: Record<string, unknown> }
+  ) => Promise<boolean>
   executionPolicy?: ToolExecutionPolicy
 }
 

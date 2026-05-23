@@ -19,11 +19,15 @@ import type {
   IpcOnChannel,
   IpcSendArgsMap,
   IpcSendChannel,
+  AddMemoryInput,
+  Memory,
+  MemoryScope,
   OverlaySettings,
   OverlayState,
   PendingCodeApproval,
   PendingComputerAction,
   ResourceSample,
+  UpdateMemoryPatch,
 } from '../src/electron/types'
 
 const preloadLog = (message: string) => {
@@ -135,6 +139,17 @@ const MCP_INVOKE_CHANNELS = new Set<string>([
 ])
 
 const MCP_ON_CHANNELS = new Set<string>(['mcp:state-changed'])
+
+const MEMORY_INVOKE_CHANNELS = new Set<string>([
+  'memory:list',
+  'memory:add',
+  'memory:update',
+  'memory:delete',
+  'memory:clear',
+  'memory:search',
+])
+
+const MEMORY_ON_CHANNELS = new Set<string>(['memory-store:changed'])
 
 function assertAllowed<TChannel extends string>(
   kind: 'send' | 'invoke' | 'on' | 'off',
@@ -400,6 +415,45 @@ contextBridge.exposeInMainWorld(
   })
 )
 
+
+contextBridge.exposeInMainWorld(
+  'memory',
+  Object.freeze({
+    list: (scope?: MemoryScope) => {
+      assertAllowed('invoke', 'memory:list', MEMORY_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('memory:list', scope) as Promise<Memory[]>
+    },
+    add: (input: AddMemoryInput) => {
+      assertAllowed('invoke', 'memory:add', MEMORY_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('memory:add', input) as Promise<Memory>
+    },
+    update: (id: string, patch: UpdateMemoryPatch) => {
+      assertAllowed('invoke', 'memory:update', MEMORY_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('memory:update', id, patch) as Promise<Memory | null>
+    },
+    delete: (id: string) => {
+      assertAllowed('invoke', 'memory:delete', MEMORY_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('memory:delete', id) as Promise<boolean>
+    },
+    clear: () => {
+      assertAllowed('invoke', 'memory:clear', MEMORY_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('memory:clear') as Promise<boolean>
+    },
+    search: (query: string, limit?: number, scope?: MemoryScope) => {
+      assertAllowed('invoke', 'memory:search', MEMORY_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('memory:search', query, limit, scope) as Promise<Memory[]>
+    },
+    onChanged: (callback: () => void) => {
+      assertAllowed('on', 'memory-store:changed', MEMORY_ON_CHANNELS)
+      const listener = () => callback()
+      ipcRenderer.on('memory-store:changed', listener)
+      return () => {
+        assertAllowed('off', 'memory-store:changed', MEMORY_ON_CHANNELS)
+        ipcRenderer.removeListener('memory-store:changed', listener)
+      }
+    },
+  })
+)
 
 contextBridge.exposeInMainWorld(
   'mcp',

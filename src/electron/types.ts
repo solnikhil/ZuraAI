@@ -60,6 +60,54 @@ export interface PendingComputerAction {
 }
 
 
+/**
+ * Renderer-side Memory entry shape (mirrors the main-process Memory type in
+ * electron/memoryStore.ts). v1 only writes `{ type: 'global' }` scopes; the
+ * project variant is reserved for a future projects/folders feature.
+ */
+export type MemorySource = 'user' | 'model'
+
+export type MemoryScope =
+  | { type: 'global' }
+  | { type: 'project'; projectId: string }
+
+export interface Memory {
+  id: string
+  content: string
+  createdAt: number
+  updatedAt: number
+  source: MemorySource
+  scope: MemoryScope
+  sessionId?: string
+}
+
+export interface AddMemoryInput {
+  content: string
+  source?: MemorySource
+  scope?: MemoryScope
+  sessionId?: string
+}
+
+export interface UpdateMemoryPatch {
+  content?: string
+  scope?: MemoryScope
+}
+
+export interface MemoryAPI {
+  list: (scope?: MemoryScope) => Promise<Memory[]>
+  add: (input: AddMemoryInput) => Promise<Memory>
+  update: (id: string, patch: UpdateMemoryPatch) => Promise<Memory | null>
+  delete: (id: string) => Promise<boolean>
+  clear: () => Promise<boolean>
+  search: (query: string, limit?: number, scope?: MemoryScope) => Promise<Memory[]>
+  /**
+   * Subscribe to broadcast notifications when any window mutates the memory
+   * store. Returns an unsubscribe function.
+   */
+  onChanged: (callback: () => void) => () => void
+}
+
+
 export type SecureStorageKey =
   | 'openRouterApiKey'
   | 'perplexityApiKey'

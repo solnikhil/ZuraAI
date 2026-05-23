@@ -18,12 +18,25 @@ import {
     type ToolExecutionSummary,
 } from '../tools/types'
 import { getAllToolDefinitions, getBuiltinToolDefinitions } from '../tools/definitions'
+import { MEMORY_TOOL_NAMES } from '../tools/memoryTools'
 import { shouldContinueToolResearch, shouldRequestToolFollowUp } from '../tools/followUpPolicy'
 import { shouldEnableTools } from '../utils/promptSelection'
-import { getWebResearchToolExposure, getCodeExecutionToolExposure, getComputerUseToolExposure } from '../skills'
 import { createMcpToolRegistry } from '../tools/mcpRegistry'
 import { getProviderModels, type ProviderId } from '../providers'
-import { isMacOSRuntime } from '../utils/platform'
+import { isWindowsRuntime } from '../utils/platform'
+
+const COMPUTER_USE_TOOLS = [
+    'computer_screenshot',
+    'computer_click',
+    'computer_type',
+    'computer_key',
+    'computer_scroll',
+    'computer_cursor_position',
+    'computer_list_windows',
+    'computer_launch_app',
+    'computer_find_app',
+    'computer_close_app',
+]
 
 export interface ToolCallState {
     activeToolCalls: ToolCall[]
@@ -75,34 +88,40 @@ export function useToolCalling() {
         const knownBuiltInTools = new Set(builtinToolNames)
         const runtimeMcpToolNames = runtimeMcpTools.map((tool) => tool.name)
 
-        let enabledTools: string[] = settings.enabledTools.length > 0
+        let enabledTools: string[] = settings.assistantMode === 'chat'
+            ? ['web_search']
+            : settings.enabledTools.length > 0
             ? settings.enabledTools.filter((tool) => knownBuiltInTools.has(tool))
             : builtinToolNames
 
-        const webResearchToolExposure = getWebResearchToolExposure(settings.skills)
-        if (!webResearchToolExposure.exposeWebSearch) {
-            enabledTools = enabledTools.filter((tool) => tool !== 'web_search')
-        } else {
-            if (!enabledTools.includes('web_search')) {
-                enabledTools.push('web_search')
-            }
+        if (!enabledTools.includes('web_search')) {
+            enabledTools.push('web_search')
         }
 
-        const codeExecutionToolExposure = getCodeExecutionToolExposure(settings.skills)
-        if (!codeExecutionToolExposure.exposeCodeExecution) {
-            enabledTools = enabledTools.filter((tool) => tool !== 'code_execution')
-        } else {
-            if (!enabledTools.includes('code_execution')) {
-                enabledTools.push('code_execution')
-            }
+        if (settings.assistantMode === 'chat') {
+            return enabledTools.filter((tool) => tool === 'web_search')
         }
 
-        const computerUseToolExposure = getComputerUseToolExposure(settings.skills)
-        const computerUseTools = ['computer_screenshot', 'computer_click', 'computer_type', 'computer_key', 'computer_scroll', 'computer_cursor_position', 'computer_list_windows', 'computer_launch_app', 'computer_find_app', 'computer_close_app']
-        if (isMacOSRuntime() || !computerUseToolExposure.exposeComputerUse) {
-            enabledTools = enabledTools.filter((tool) => !computerUseTools.includes(tool))
+        if (!enabledTools.includes('code_execution')) {
+            enabledTools.push('code_execution')
+        }
+
+        // Memory tools are renderer-side and gated by both Memory toggles.
+        const memoryToolsEnabled = settings.memoryEnabled !== false && settings.autoMemoryEnabled !== false
+        if (memoryToolsEnabled) {
+            for (const tool of MEMORY_TOOL_NAMES) {
+                if (!enabledTools.includes(tool)) enabledTools.push(tool)
+            }
         } else {
-            for (const tool of computerUseTools) {
+            enabledTools = enabledTools.filter(
+                (tool) => !(MEMORY_TOOL_NAMES as readonly string[]).includes(tool)
+            )
+        }
+
+        if (!isWindowsRuntime()) {
+            enabledTools = enabledTools.filter((tool) => !COMPUTER_USE_TOOLS.includes(tool))
+        } else {
+            for (const tool of COMPUTER_USE_TOOLS) {
                 if (!enabledTools.includes(tool)) enabledTools.push(tool)
             }
         }
@@ -174,7 +193,12 @@ export function useToolCalling() {
         response: ToolCallingResponse,
         onToolStart?: (toolCall: ToolCall) => void,
         onToolComplete?: (result: ToolCallResult) => void,
-        executionPolicy?: ToolExecutionPolicy
+        executionPolicy?: ToolExecutionPolicy,
+        approvalCallbacks?: {
+            onToolApprovalStart?: (toolCall: ToolCall) => void
+            onToolApprovalResolved?: (toolCall: ToolCall, approved: boolean) => void
+            requestToolApproval?: (toolCall: ToolCall) => Promise<boolean>
+        }
     ): Promise<{
         hasTools: boolean
         toolResults: ToolCallResult[]
@@ -208,6 +232,11 @@ export function useToolCalling() {
                 enabledTools: enabledToolsForProcessing,
                 availableTools,
                 executionPolicy,
+                onToolApprovalStart: approvalCallbacks?.onToolApprovalStart,
+                onToolApprovalResolved: approvalCallbacks?.onToolApprovalResolved,
+                requestToolApproval: settings.assistantMode === 'agent'
+                    ? approvalCallbacks?.requestToolApproval
+                    : undefined,
                 onToolBatchStart: (toolCalls) => {
                     setToolState((prev) => ({
                         ...prev,

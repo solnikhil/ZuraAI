@@ -3,7 +3,7 @@
  */
 
 import React, { createContext, useContext, useState, useCallback, useRef, useMemo } from 'react'
-import type { FileAttachment, ThinkingBlock, ToolCallResult } from '../chat/types'
+import type { AgentRun, FileAttachment, ThinkingBlock, ToolCallResult } from '../chat/types'
 
 export type StreamingPhase = 'reasoning' | 'searching' | 'tool' | 'answering'
 
@@ -33,6 +33,8 @@ export interface StreamingMessageState {
   }
   /** Tool results from function calls */
   toolResults?: ToolCallResult[]
+  /** Agent workspace state for the active assistant response */
+  agentRun?: AgentRun
   /** Generated files returned while streaming */
   files?: FileAttachment[]
   /** Structured research plan (step-by-step mode) */

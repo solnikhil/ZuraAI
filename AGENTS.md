@@ -38,6 +38,7 @@ Core capabilities:
   - **Sanitized non-secret settings + UI state** live in renderer `localStorage`.
   - **API keys and MCP secrets** live in main-process secure storage and are hydrated/resolved at runtime.
   - **Chat history, MCP server metadata, and secure storage** live in the main process under `app.getPath('userData')`.
+  - **Agent Workspace runs** live on assistant messages inside the existing per-session chat JSON files, not in a separate store.
 - UI styling guardrail: keep settings cards, chat composer containers, and dropdown/menu surfaces flat. Do **not** reintroduce outer drop shadows on those surfaces unless the user explicitly asks for them.
 - Fallback behavior guardrail: do **not** add new fallback paths, silent substitutions, local heuristics, provider fallbacks, or “safe default” behavior unless it is explicitly required by the user or you ask and get confirmation first. Prefer surfacing the real failure and fixing the root cause; unnecessary fallbacks can hide bugs and change product behavior.
 
@@ -53,6 +54,7 @@ Core capabilities:
 - `electron/windows/overlayWindow.ts` — Overlay window creation/reuse, compact/expanded state, display-aware positioning, and shortcut-backed lifecycle
 - `electron/windows/promptPopup.ts` — optional lightweight cursor-position prompt popup route/bridge that can submit to the overlay and dismisses on blur/Escape
 - `electron/chatStore.ts` — chat history persistence (JSON under `app.getPath('userData')`)
+- `electron/memoryStore.ts` — ChatGPT-style saved-memories persistence (JSON under `app.getPath('userData')`); single `memory-index.json`; atomic whole-file writes; in-memory TTL cache; serialized read-modify-write so concurrent model + user mutations cannot clobber each other; FIFO cap at `MEMORY_CAP=200`; per-entry `MAX_MEMORY_CONTENT_LENGTH=1000`
 - `electron/mcp/mcpConnection.ts` — MCP initialize/tool-discovery connection orchestration
 - `electron/mcp/mcpManager.ts` — MCP server registry, runtime state aggregation, connection lifecycle coordination, and cache/persistence orchestration across the extracted MCP manager helper modules
 - `electron/mcp/mcpManagerState.ts` — MCP manager clone/state helpers plus persisted runtime-metadata diffing
@@ -247,6 +249,9 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - `window.mcp`
   - invokes: `mcp:list-servers`, `mcp:add-server`, `mcp:update-server`, `mcp:remove-server`, `mcp:connect-server`, `mcp:disconnect-server`, `mcp:get-state`, `mcp:list-tools`, `mcp:list-resources`, `mcp:read-resource`, `mcp:list-prompts`, `mcp:get-prompt`, `mcp:execute-tool`, `mcp:resolve-approval`
   - listens for: `mcp:state-changed`
+- `window.memory`
+  - invokes: `memory:list`, `memory:add`, `memory:update`, `memory:delete`, `memory:clear`, `memory:search`
+  - listens for: `memory-store:changed` (broadcast on any mutation so the settings UI and other windows stay in sync)
 
 **Important:** IPC handlers may exist in `electron/ipc/*` but are not reachable unless they’re also wired through preload allowlists or a dedicated preload bridge.
 - `window.codeExecution`
@@ -343,6 +348,8 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Fireworks model discovery now has a dedicated serverless catalog path in `src/services/fireworksModels.ts`, surfaced from `src/components/Settings/sections/FireworksModelSearchDialog.tsx` through Provider Hub in the same custom-model workflow style as OpenRouter.
 - Tool calling:
   - `src/hooks/useToolCalling.ts` → `src/tools/toolManager.ts` → `src/tools/executor.ts`
+  - Assistant mode (`settings.assistantMode`) controls request-time tool exposure: `chat` exposes `web_search` for normal source-backed research, and `agent` exposes web search, code execution, trusted MCP tools, and Windows-only Computer Use.
+  - Agent Workspace tool calls pass through a renderer-side manual approval gate before execution; approval and execution state are mirrored into the persisted `message.agentRun.steps` timeline.
   - Built-in main-process tools still execute through `window.ipcRenderer.invoke('execute-tool', toolName, args)`.
   - Namespaced MCP tools now execute through `window.mcp.executeTool(toolName, args)` so built-ins and MCP stay on separate IPC paths.
 - Main tool registry: `electron/tools/index.ts` (restricted)
@@ -350,6 +357,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - The Overlay reuses this same renderer chat pipeline through `useStreamingChat`; it does not create a parallel provider/tool execution path or a separate conversation store.
 - The Overlay also listens for `overlay:pending-prompt` events from the main process (triggered when a prompt popup submission opens the overlay) and auto-sends the received prompt text.
 - Active-response renderer state is split between persisted chat history and ephemeral `StreamingContext` data in `src/contexts/StreamingContext.tsx`.
+  - `StreamingContext` can carry the active assistant `agentRun` so the Agent Workspace timeline updates live and is committed back to chat history with the final assistant message.
   - `StreamingContext` now tracks an explicit per-response `phase` (`reasoning`, `searching`, `tool`, `answering`) so the thinking/search UI stays stable across multi-search loops without persisting transient renderer-only state.
   - Reasoning is now segmented per round: in-flight `streamingState.thinking` represents only the current active thought, while completed reasoning rounds are appended to `thinkingBlocks` alongside search blocks so resumed research continues in a new block instead of extending the previous one.
   - Completed MCP tool executions are now appended into persisted `thinkingBlocks` as inline tool-history entries (alongside web search/search blocks) so the renderer can replay MCP activity inside the same thought timeline instead of only in the generic post-message tool card area.
@@ -359,6 +367,17 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Research-mode finalization now runs bounded no-tools synthesis retries inside `src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.ts`: after tool rounds finish, the orchestrator first requests a normal final synthesis, then escalates to stricter recovery prompts including a plain-text-only pass if the provider still returns blank output or `tool_calls` despite tools being disabled. If every no-tools pass still fails, the renderer commits a concise failure message while preserving the gathered `web_search` results in the timeline/tool UI.
   - OpenRouter image-generation models now flow through the same chat pipeline: renderer model metadata persists `inputModalities` / `outputModalities`, `src/services/openrouter.ts` sends `modalities` to `/api/v1/chat/completions` for image-capable models, the streaming hook captures `delta.images` payloads, and generated images are persisted back into chat history `files` so assistant image outputs render inline in the dashboard.
 - Computer Use is disabled on macOS for now: main does not register the approval IPC handlers, built-in `computer_*` tool execution is rejected in the main process, and renderer tool exposure/UI hides Computer Use. On supported platforms, screen captures record a main-process coordinate context for the captured display (`electron/tools/computer-use/coordinates.ts`), including rendered screen image size, native capture size, display bounds, and DPI scale factor.
+
+#### Memory & Personalization (`settings.memoryEnabled`, `settings.autoMemoryEnabled`)
+- ChatGPT-style "saved memories" — short, user-visible facts that the model and the user can both manage. Persisted locally only.
+- Storage: `electron/memoryStore.ts` writes a single `memory-index.json` under `app.getPath('userData')`. Atomic whole-file writes; in-memory TTL cache; `withWriteLock` serializes the read-modify-write cycle so concurrent model + user mutations cannot clobber each other. FIFO cap at `MEMORY_CAP=200` (oldest by `updatedAt` evicted), per-entry max length `MAX_MEMORY_CONTENT_LENGTH=1000`.
+- Data shape includes a forward-compatible `scope: { type: 'global' } | { type: 'project'; projectId: string }`. v1 only writes global memories. When the projects/folders feature ships, callers thread `projectId` through `buildMemoryBlock` and `loadMemoryBlock`; no schema migration required.
+- Renderer bridge: `window.memory.{list, add, update, delete, clear, search, onChanged}` (see `electron/preload.ts` and `src/electron/types.ts`). All channels are private to that bridge — they are not part of the generic `window.ipcRenderer` allowlist.
+- System prompt injection: `src/prompts/buildMemoryBlock.ts` builds a "## Saved Memories (Model Set Context)" block with dated bullets, oldest-first, capped at `MEMORY_BLOCK_TOKEN_BUDGET≈2000` tokens (truncates oldest first with a console warning). When `autoMemoryEnabled` is on, the block additionally appends an explicit "when to save" instruction so the model proactively calls `save_memory` whenever the user mentions a durable fact (e.g. "I go to MIT", "I prefer dark mode") — same pattern ChatGPT uses with its `bio` tool. The instruction also renders on its own (with a `(no saved memories yet)` placeholder) so the nudge fires from the very first chat. `loadMemoryBlock(settings, scope?)` is the gated async helper used by `useStreamingChat` at both send and regenerate call sites; injection is appended after the skills section in `getEffectiveSystemPrompt`.
+- Model-callable tools (renderer-only, gated by both `memoryEnabled` and `autoMemoryEnabled` in `useToolCalling.getEnabledToolsForProvider`): `save_memory`, `update_memory`, `delete_memory`, `search_memories`. Defined in `src/tools/memoryTools.ts`; routed by `src/tools/executor.ts` ahead of the MCP / built-in main IPC paths. Each successful mutation fires a sonner toast and returns a `MemoryToolEvent` payload on `ToolResult.data` so the inline `MemoryUpdatePill` (see below) can render diffs without re-fetching.
+- Settings UI: Settings → Personalization → Memory (`src/components/Settings/sections/MemorySection.tsx`). Lists all memories with content + timestamps + source badge (You/AI), supports inline add/edit/delete, "Clear all" with confirmation, the master `memoryEnabled` toggle, and the `autoMemoryEnabled` toggle (disabled when memory is off). The panel writes through `window.memory.*` directly — no draft mode — and live-syncs via `memory-store:changed`.
+- Inline chat surface: `src/components/chat/MemoryUpdatePill.tsx` renders inside assistant messages (`MessageRenderer`). It groups all memory tool events from a single turn into one collapsed pill ("Memory updated" / "Memory updated · N changes" / "Searched memories"); expanding shows added / updated / removed rows with a "was: …" line for updates. Memory tool calls are filtered out of the generic `ToolResultDisplay` list so they only appear through this pill.
+- Out of scope for v1 (deliberately): embeddings / vector search, Mem0-style auto-extraction pipeline, dense AI-generated profile summary (ChatGPT's "User Knowledge Memories"), per-provider memory.
 
 #### Skills-Based Research (`settings.skills`)
 - Research capability is now controlled by built-in skills, not direct tool toggles.

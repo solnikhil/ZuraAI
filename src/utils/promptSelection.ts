@@ -9,22 +9,27 @@ export function resolveSystemPromptTemplate(systemPrompt: string): string {
 
 /**
  * Determines the effective system prompt based on current settings.
- * 
- * @param settings - Current application settings
- * @returns The effective system prompt to use for AI calls
+ *
+ * @param settings - Current application settings.
+ * @param memoryBlock - Optional pre-built memory block (see `src/prompts/buildMemoryBlock.ts`).
+ *   When non-empty it is appended after the skills section so memories sit at the
+ *   end of the system prompt — closest to the user message and most influential.
+ * @returns The effective system prompt to use for AI calls.
  */
-export function getEffectiveSystemPrompt(settings: Pick<Settings, 'systemPrompt'> & Partial<Pick<Settings, 'skills' | 'codeExecutionPrompt' | 'computerUsePrompt' | 'chartGenerationPrompt'>>): string {
+export function getEffectiveSystemPrompt(
+    settings: Pick<Settings, 'systemPrompt'> & Partial<Pick<Settings, 'skills' | 'codeExecutionPrompt' | 'computerUsePrompt' | 'chartGenerationPrompt'>>,
+    memoryBlock?: string
+): string {
     const resolvedSystemPrompt = resolveSystemPromptTemplate(settings.systemPrompt)
     const enabledSkillsSection = buildEnabledSkillsPrompt(settings.skills, {
         codeExecutionPrompt: settings.codeExecutionPrompt,
         computerUsePrompt: settings.computerUsePrompt,
         chartGenerationPrompt: settings.chartGenerationPrompt,
     })
-    if (!enabledSkillsSection) {
-        return resolvedSystemPrompt
-    }
-
-    return `${resolvedSystemPrompt}\n\n${enabledSkillsSection}`
+    const sections = [resolvedSystemPrompt]
+    if (enabledSkillsSection) sections.push(enabledSkillsSection)
+    if (memoryBlock && memoryBlock.trim()) sections.push(memoryBlock.trim())
+    return sections.join('\n\n')
 }
 
 /**

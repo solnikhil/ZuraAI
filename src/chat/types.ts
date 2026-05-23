@@ -2,6 +2,51 @@ import type { ToolCallResult, ToolExecutionMetadata } from '../tools/types'
 
 export type { ToolCallResult }
 
+export type AssistantMode = 'chat' | 'agent'
+
+export type AgentCapabilityState = 'enabled' | 'unavailable' | 'approval-required'
+
+export type AgentStepStatus =
+  | 'pending'
+  | 'awaiting-approval'
+  | 'running'
+  | 'completed'
+  | 'failed'
+  | 'rejected'
+
+export interface AgentRunCapabilities {
+  web: AgentCapabilityState
+  code: AgentCapabilityState
+  mcp: AgentCapabilityState
+  computer: AgentCapabilityState
+}
+
+export interface AgentStep {
+  id: string
+  kind: 'plan' | 'tool' | 'web' | 'code' | 'mcp' | 'computer' | 'verify' | 'answer'
+  status: AgentStepStatus
+  title: string
+  summary: string
+  toolCallId?: string
+  toolName?: string
+  arguments?: Record<string, unknown>
+  result?: unknown
+  startedAt?: number
+  completedAt?: number
+  durationMs?: number
+  approvalState?: 'not-required' | 'pending' | 'approved' | 'rejected' | 'timed_out' | 'cancelled'
+}
+
+export interface AgentRun {
+  id: string
+  mode: 'agent'
+  status: 'running' | 'completed' | 'failed' | 'cancelled'
+  startedAt: number
+  completedAt?: number
+  capabilities: AgentRunCapabilities
+  steps: AgentStep[]
+}
+
 export interface FileAttachment {
   id: string
   name: string
@@ -50,6 +95,7 @@ export interface Message {
   thinkingDuration?: number
   thinkingBlocks?: ThinkingBlock[]
   toolResults?: ToolCallResult[]
+  agentRun?: AgentRun
   researchStatus?: {
     currentRound: number
     maxRounds: number

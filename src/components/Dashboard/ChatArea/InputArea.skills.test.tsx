@@ -13,6 +13,7 @@ const mockSettings = {
       },
     },
     modelProvider: 'openrouter',
+    assistantMode: 'chat',
   },
   updateSettings,
 }
@@ -85,9 +86,10 @@ describe('InputArea skills menu', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockSettings.settings.skills.web_research.enabled = true
+    mockSettings.settings.assistantMode = 'chat'
   })
 
-  it('shows Tavily in the chat skills menu', async () => {
+  it('shows assistant mode controls in the composer', () => {
     render(
       <InputArea
         input=""
@@ -99,14 +101,11 @@ describe('InputArea skills menu', () => {
       />
     )
 
-    const quickActions = screen.getByRole('button', { name: /open quick actions/i })
-    fireEvent.pointerDown(quickActions, { button: 0, ctrlKey: false })
-    fireEvent.click(await screen.findByText('Skills'))
-
-    expect(await screen.findByText('Tavily')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /chat/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /agent/i })).toBeInTheDocument()
   })
 
-  it('toggles the Tavily skill from the chat skills menu', async () => {
+  it('switches to Agent mode from the composer control', () => {
     render(
       <InputArea
         input=""
@@ -118,17 +117,8 @@ describe('InputArea skills menu', () => {
       />
     )
 
-    const quickActions = screen.getByRole('button', { name: /open quick actions/i })
-    fireEvent.pointerDown(quickActions, { button: 0, ctrlKey: false })
-    fireEvent.click(await screen.findByText('Skills'))
-    fireEvent.click(await screen.findByText('Tavily'))
+    fireEvent.click(screen.getByRole('button', { name: /agent/i }))
 
-    expect(updateSettings).toHaveBeenCalledWith(
-      expect.objectContaining({
-        skills: expect.objectContaining({
-          web_research: expect.objectContaining({ enabled: false }),
-        }),
-      })
-    )
+    expect(updateSettings).toHaveBeenCalledWith({ assistantMode: 'agent' })
   })
 })

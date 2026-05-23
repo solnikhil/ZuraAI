@@ -389,6 +389,15 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   }
 
   if (!parsed.todos) parsed.todos = []
+  if ((parsed as Record<string, unknown>).assistantMode === 'research') {
+    parsed.assistantMode = 'chat'
+  }
+  if (
+    parsed.assistantMode !== 'chat' &&
+    parsed.assistantMode !== 'agent'
+  ) {
+    parsed.assistantMode = defaultSettings.assistantMode
+  }
   if (parsed.toolsEnabled === undefined) parsed.toolsEnabled = defaultSettings.toolsEnabled
   if (!parsed.tavilyApiKey) parsed.tavilyApiKey = defaultSettings.tavilyApiKey
   if (
@@ -590,6 +599,7 @@ export function getInitialConfigSettings(settings: Settings): Partial<SettingsCo
     computerUsePrompt: settings.computerUsePrompt,
     chartGenerationPrompt: settings.chartGenerationPrompt,
     streamResponses: settings.streamResponses,
+    assistantMode: settings.assistantMode,
     toolsEnabled: settings.toolsEnabled,
     enabledTools: settings.enabledTools,
     skills: settings.skills,

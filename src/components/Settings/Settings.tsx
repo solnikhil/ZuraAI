@@ -9,6 +9,7 @@ import { SECURE_API_KEY_NAMES, saveApiKeyToSecureStorage } from '../../utils/sec
 import { UsageSection } from './sections/UsageSection'
 import { OverlaySection } from './sections/OverlaySection'
 import { McpSection } from './sections/McpSection'
+import { MemorySection } from './sections/MemorySection'
 import { ProviderHubSection } from './sections/ProviderHubSection'
 import { SkillsSection } from './sections/SkillsSection'
 import { AppearanceSection } from './sections/AppearanceSection'
@@ -377,6 +378,14 @@ if (!hasSettingsChanges && !hasMcpChanges) {
                 skills={pendingSettings.skills}
                 codeExecutionAutoApprove={pendingSettings.codeExecutionAutoApprove}
                 computerUseAutoApprove={pendingSettings.computerUseAutoApprove}
+                onChange={(changes) => handleChange(changes)}
+              />
+            )}
+
+            {normalizedActiveSection === 'memory' && (
+              <MemorySection
+                memoryEnabled={pendingSettings.memoryEnabled}
+                autoMemoryEnabled={pendingSettings.autoMemoryEnabled}
                 onChange={(changes) => handleChange(changes)}
               />
             )}

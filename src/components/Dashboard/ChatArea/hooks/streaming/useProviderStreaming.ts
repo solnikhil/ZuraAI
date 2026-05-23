@@ -19,14 +19,9 @@ import {
   MAX_RESEARCH_ROUNDS,
   accumulateDeltaToolCalls,
   appendCompletedThinkingBlock,
-  buildFinalSynthesisMessages,
   buildFollowUpMessages,
-  buildPlainTextOnlySynthesisMessages,
-  buildRecoverySynthesisMessages,
-  buildSearchSynthesisFailureMessage,
   buildResponseWithFallback,
   buildThinkingBlocksFromResults,
-  shouldRetryUngroundedSearchSynthesis,
   computeStreamMetrics,
   fillMissingUsage,
   getStreamingUpdateInterval,
@@ -153,6 +148,10 @@ function extractWebSearchQueries(toolResults: ToolCallResult[] | undefined): str
     .filter(Boolean)
 }
 
+function hasNonWebToolResults(toolResults: ToolCallResult[] | undefined): boolean {
+  return (toolResults || []).some((result) => result.toolCall.name !== 'web_search')
+}
+
 function getUserContextText(
   messages: ProviderStreamingRunOptions['messages']
 ): string {
@@ -235,14 +234,6 @@ interface VisibleAnswerRound {
   firstTokenTime: number | null
 }
 
-interface SynthesisContext {
-  lastAssistantMessage: ServiceAssistantMessage
-  formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>
-  totalSearchCount: number
-  researchRound: number
-  stopReason?: 'budget' | 'empty-batch' | 'sufficient-results'
-}
-
 export function useProviderStreaming({
   settings,
   toolCalling,
@@ -310,6 +301,21 @@ export function useProviderStreaming({
       ): HandleToolCallsOptions => ({
         ...options.toolEventCallbacks,
         executionPolicy,
+        requestToolApproval: options.toolEventCallbacks?.requestToolApproval,
+        onToolApprovalStart: (toolCall) => {
+          logDiagnostic({
+            phase: 'tool-start',
+            tool: {
+              id: toolCall.id,
+              name: toolCall.name,
+              arguments: toolCall.arguments,
+            },
+          })
+          options.toolEventCallbacks?.onToolApprovalStart?.(toolCall)
+        },
+        onToolApprovalResolved: (toolCall, approved) => {
+          options.toolEventCallbacks?.onToolApprovalResolved?.(toolCall, approved)
+        },
         onToolStart: (toolCall) => {
           logDiagnostic({
             phase: 'tool-start',
@@ -337,7 +343,6 @@ export function useProviderStreaming({
       let savedToolResults: ToolCallResult[] | undefined
       let localThinkingBlocks: ThinkingBlock[] = []
       let finishReason: string | null = null
-      let finalAnswerForcedFailure = false
       let activeThinking = ''
       let activeThinkingStartTime: number | null = null
       let citations: string[] = []
@@ -347,9 +352,6 @@ export function useProviderStreaming({
           throw new DOMException('Streaming aborted', 'AbortError')
         }
       }
-
-      const shouldRecoverSearchSynthesis = (content: string) =>
-        !content.trim() || shouldRetryUngroundedSearchSynthesis(content)
 
       const updateStreamingState = (updates: Record<string, unknown>) => {
         if (options.signal?.aborted) return
@@ -416,18 +418,6 @@ export function useProviderStreaming({
         }
         updateStreamingState(completedThinkingUpdate)
         updatePersistedStreamingMessage(options.sessionId, options.messageId, completedThinkingUpdate)
-      }
-
-      const resetAccumulatedAnswerForRetry = () => {
-        accumulatedContent = ''
-        finalVisibleAnswerRound = null
-        updateStreamingState({
-          content: '',
-          phase: 'reasoning',
-        })
-        updatePersistedStreamingMessage(options.sessionId, options.messageId, {
-          content: '',
-        })
       }
 
       const runRound = async (
@@ -741,60 +731,6 @@ export function useProviderStreaming({
         }
       }
 
-      const runNoToolsSynthesisAttempt = async (
-        synthesisContext: SynthesisContext,
-        mode: 'final' | 'recovery' | 'plain-text-only'
-      ) => {
-        throwIfAborted()
-        const researchContext = toolCalling.getResearchContext(
-          synthesisContext.totalSearchCount,
-          options.researchMaxRounds
-        )
-
-        const synthesisMessages =
-          mode === 'final'
-            ? buildFinalSynthesisMessages(
-                researchContext,
-                synthesisContext.researchRound,
-                synthesisContext.totalSearchCount,
-                options.messages,
-                synthesisContext.lastAssistantMessage,
-                synthesisContext.formattedResults,
-                synthesisContext.stopReason
-              )
-            : mode === 'recovery'
-              ? buildRecoverySynthesisMessages(
-                  researchContext,
-                  synthesisContext.researchRound,
-                  synthesisContext.totalSearchCount,
-                  options.messages,
-                  synthesisContext.lastAssistantMessage,
-                  synthesisContext.formattedResults
-                )
-              : buildPlainTextOnlySynthesisMessages(
-                  researchContext,
-                  synthesisContext.researchRound,
-                  synthesisContext.totalSearchCount,
-                  options.messages,
-                  synthesisContext.lastAssistantMessage,
-                  synthesisContext.formattedResults
-                )
-
-        updateStreamingState({
-          phase: 'reasoning',
-          researchStatus: buildResearchStatus(
-            synthesisContext.researchRound,
-            options.researchMaxRounds,
-            false
-          ),
-        })
-        return await runRound(synthesisMessages, {
-          round: synthesisContext.researchRound,
-          tools: null,
-          toolChoice: 'none',
-        })
-      }
-
       const initialToolChoice =
         options.forceWebSearch &&
         tools?.some((tool) => tool.function?.name === 'web_search')
@@ -850,6 +786,7 @@ export function useProviderStreaming({
         )
         throwIfAborted()
         const initialAttemptedSearchQueries = extractWebSearchQueries(toolResult.toolResults)
+        const initialHasNonWebTools = hasNonWebToolResults(toolResult.toolResults)
         const initialExecutedSearchQueries =
           toolResult.executionSummary.executedWebSearchQueries || []
 
@@ -893,14 +830,6 @@ export function useProviderStreaming({
           const searchQueryHistory = [...initialExecutedSearchQueries]
           let lastAssistantMessage = reconstructedMessage
           let researchRound = 1
-          let didRunFinalSynthesis = false
-          let pendingFinalSynthesis: SynthesisContext | null = null
-          let lastSynthesisContext: SynthesisContext = {
-            lastAssistantMessage: reconstructedMessage,
-            formattedResults: toolResult.formattedResults,
-            totalSearchCount,
-            researchRound,
-          }
           const initialLoopDecision = evaluateResearchContinuation({
             searchCount: totalSearchCount,
             maxRounds: options.researchMaxRounds,
@@ -919,24 +848,17 @@ export function useProviderStreaming({
             initialDecision: initialLoopDecision.reason || 'continue',
           })
 
-          const shouldSynthesizeAfterInitialBatch =
-            initialLoopDecision.shouldForceFinalSynthesis ||
-            toolResult.shouldContinueResearch === false
+          const shouldStopAfterInitialBatch =
+            !initialHasNonWebTools &&
+            (initialLoopDecision.shouldForceFinalSynthesis ||
+              toolResult.shouldContinueResearch === false)
 
           if (
-            shouldSynthesizeAfterInitialBatch &&
-            toolResult.needsFollowUp &&
-            toolResult.formattedResults.length > 0
+            shouldStopAfterInitialBatch &&
+            toolResult.needsFollowUp
           ) {
-            pendingFinalSynthesis = {
-              lastAssistantMessage: reconstructedMessage,
-              formattedResults: toolResult.formattedResults,
-              totalSearchCount,
-              researchRound,
-              stopReason: initialLoopDecision.reason || 'sufficient-results',
-            }
-            logResearchLoop('final-synthesis-scheduled', {
-              reason: initialLoopDecision.reason || 'sufficient-tool-results',
+            logResearchLoop('tool-loop-stopped', {
+              reason: initialLoopDecision.reason || 'tool-result-complete',
               totalSearchCount,
               researchRound,
             })
@@ -985,13 +907,7 @@ export function useProviderStreaming({
                 hasAnswerText: Boolean(followUpRound.roundContent.trim()),
               })
               if (!followUpRound.roundContent.trim() && toolResult.formattedResults.length > 0) {
-                pendingFinalSynthesis = {
-                  lastAssistantMessage,
-                  formattedResults: toolResult.formattedResults,
-                  totalSearchCount,
-                  researchRound,
-                }
-                logResearchLoop('final-synthesis-scheduled', {
+                logResearchLoop('tool-loop-stopped', {
                   reason: 'empty-follow-up-answer',
                   totalSearchCount,
                   researchRound,
@@ -1026,17 +942,11 @@ export function useProviderStreaming({
             throwIfAborted()
 
             const attemptedSearchQueries = extractWebSearchQueries(nextToolResult.toolResults)
+            const hasNonWebTools = hasNonWebToolResults(nextToolResult.toolResults)
             const executedSearchQueries =
               nextToolResult.executionSummary.executedWebSearchQueries || []
             const newWebSearches = nextToolResult.executionSummary.executedWebSearchCount || 0
             totalSearchCount += newWebSearches
-            lastSynthesisContext = {
-              lastAssistantMessage: reconstructedFollowUp,
-              formattedResults: nextToolResult.formattedResults,
-              totalSearchCount,
-              researchRound,
-              stopReason: continuationDecision.reason || 'sufficient-results',
-            }
 
             logResearchLoop('follow-up-tool-result', {
               researchRound,
@@ -1085,23 +995,17 @@ export function useProviderStreaming({
             })
             searchQueryHistory.push(...executedSearchQueries)
 
-            const shouldSynthesizeAfterFollowUpBatch =
-              continuationDecision.shouldForceFinalSynthesis ||
-              nextToolResult.shouldContinueResearch === false
+            const shouldStopAfterFollowUpBatch =
+              !hasNonWebTools &&
+              (continuationDecision.shouldForceFinalSynthesis ||
+                nextToolResult.shouldContinueResearch === false)
 
             if (
-              shouldSynthesizeAfterFollowUpBatch &&
-              nextToolResult.needsFollowUp &&
-              nextToolResult.formattedResults.length > 0
+              shouldStopAfterFollowUpBatch &&
+              nextToolResult.needsFollowUp
             ) {
-              pendingFinalSynthesis = {
-                lastAssistantMessage: reconstructedFollowUp,
-                formattedResults: nextToolResult.formattedResults,
-                totalSearchCount,
-                researchRound,
-              }
-              logResearchLoop('final-synthesis-scheduled', {
-                reason: continuationDecision.reason || 'sufficient-tool-results',
+              logResearchLoop('tool-loop-stopped', {
+                reason: continuationDecision.reason || 'tool-result-complete',
                 totalSearchCount,
                 researchRound,
               })
@@ -1113,119 +1017,6 @@ export function useProviderStreaming({
             }
 
             toolResult = nextToolResult
-          }
-
-          if (pendingFinalSynthesis) {
-            didRunFinalSynthesis = true
-            logResearchLoop('final-synthesis-start', {
-              totalSearchCount: pendingFinalSynthesis.totalSearchCount,
-              researchRound: pendingFinalSynthesis.researchRound,
-            })
-            const finalSynthesisRound = await runNoToolsSynthesisAttempt(pendingFinalSynthesis, 'final')
-            throwIfAborted()
-            logResearchLoop('final-synthesis-complete', {
-              totalSearchCount: pendingFinalSynthesis.totalSearchCount,
-              researchRound: pendingFinalSynthesis.researchRound,
-            })
-
-            updateStreamingState({
-              phase: 'answering',
-              researchStatus: buildResearchStatus(
-                pendingFinalSynthesis.researchRound,
-                options.researchMaxRounds,
-                false
-              ),
-            })
-            updatePersistedStreamingMessage(options.sessionId, options.messageId, {
-              researchStatus: buildResearchStatus(
-                pendingFinalSynthesis.researchRound,
-                options.researchMaxRounds,
-                false
-              ),
-            })
-
-            if (finalSynthesisRound.suppressedInlineToolMarkup) {
-              resetAccumulatedAnswerForRetry()
-            }
-          }
-
-          if (
-            hasSearchResults(savedToolResults) &&
-            shouldRecoverSearchSynthesis(accumulatedContent) &&
-            lastSynthesisContext.formattedResults.length > 0
-          ) {
-            const recoveryReason = !accumulatedContent.trim() ? 'blank-answer' : 'ungrounded-answer'
-            logResearchLoop('final-synthesis-recovery', {
-              totalSearchCount: lastSynthesisContext.totalSearchCount,
-              researchRound: lastSynthesisContext.researchRound,
-              afterPriorSynthesis: didRunFinalSynthesis,
-              reason: recoveryReason,
-            })
-
-            const recoveryModes: Array<'final' | 'recovery' | 'plain-text-only'> = didRunFinalSynthesis
-              ? ['recovery', 'plain-text-only']
-              : ['final', 'recovery', 'plain-text-only']
-
-            if (accumulatedContent.trim()) {
-              resetAccumulatedAnswerForRetry()
-            }
-
-            for (const mode of recoveryModes) {
-              const recoveryRound = await runNoToolsSynthesisAttempt(lastSynthesisContext, mode)
-              throwIfAborted()
-              const needsRetry =
-                recoveryRound.roundFinishReason === 'tool_calls' ||
-                recoveryRound.suppressedInlineToolMarkup ||
-                shouldRecoverSearchSynthesis(accumulatedContent)
-
-              if (!needsRetry) {
-                break
-              }
-
-              logResearchLoop('final-synthesis-retry-needed', {
-                mode,
-                totalSearchCount: lastSynthesisContext.totalSearchCount,
-                researchRound: lastSynthesisContext.researchRound,
-                finishReason: recoveryRound.roundFinishReason,
-                hasContent: Boolean(accumulatedContent.trim()),
-                stillUngrounded: shouldRetryUngroundedSearchSynthesis(accumulatedContent),
-              })
-
-              if (shouldRecoverSearchSynthesis(accumulatedContent)) {
-                resetAccumulatedAnswerForRetry()
-              }
-            }
-
-            if (shouldRecoverSearchSynthesis(accumulatedContent)) {
-              const failureContent = buildSearchSynthesisFailureMessage(savedToolResults)
-              if (failureContent) {
-                accumulatedContent = failureContent
-                finalAnswerForcedFailure = true
-                updateStreamingState({
-                  content: accumulatedContent,
-                  phase: 'answering',
-                })
-                updatePersistedStreamingMessage(options.sessionId, options.messageId, {
-                  content: accumulatedContent,
-                })
-              }
-            }
-
-            updateStreamingState({
-              phase: 'answering',
-              researchStatus: buildResearchStatus(
-                lastSynthesisContext.researchRound,
-                options.researchMaxRounds,
-                false
-              ),
-            })
-            updatePersistedStreamingMessage(options.sessionId, options.messageId, {
-              researchStatus: buildResearchStatus(
-                lastSynthesisContext.researchRound,
-                options.researchMaxRounds,
-                false
-              ),
-            })
           }
         }
       }
@@ -1253,7 +1044,7 @@ export function useProviderStreaming({
       const finalContent = hasSearchResults(savedToolResults)
         ? stripStandaloneHorizontalRule(accumulatedContent)
         : accumulatedContent
-      const finalFinishReason = finalAnswerForcedFailure ? undefined : finishReason || undefined
+      const finalFinishReason = finishReason || undefined
       const finalUsage = {
         ...basicUsage,
         thinkingTokens: visibleAnswerUsage?.thinkingTokens,

@@ -141,6 +141,9 @@ export interface ToolManagerConfig {
   availableTools?: ToolDescriptor[]
   executionPolicy?: ToolExecutionPolicy
   onToolBatchStart?: (toolCalls: ToolCall[]) => void
+  onToolApprovalStart?: (toolCall: ToolCall) => void
+  onToolApprovalResolved?: (toolCall: ToolCall, approved: boolean) => void
+  requestToolApproval?: (toolCall: ToolCall) => Promise<boolean>
   onToolStart?: (toolCall: ToolCall) => void
   onToolComplete?: (result: ToolCallResult) => void
 }
@@ -330,19 +333,53 @@ export async function processToolCalls(
     executableCalls.push({ index, toolCall: coercedToolCall })
   }
 
-  // Phase 2: Fire onToolStart for all executable calls, then execute them in parallel.
+  // Phase 2: Gate executable calls behind optional manual approval, then execute approved calls.
   const executableToolCalls = executableCalls.map(({ toolCall }) => toolCall)
   if (executableToolCalls.length > 0) {
     config.onToolBatchStart?.(executableToolCalls)
   }
 
-  for (const { toolCall: executableToolCall } of executableCalls) {
+  for (const { index, toolCall: executableToolCall } of executableCalls) {
+    if (config.requestToolApproval) {
+      config.onToolApprovalStart?.(executableToolCall)
+      const approved = await config.requestToolApproval(executableToolCall)
+      config.onToolApprovalResolved?.(executableToolCall, approved)
+
+      if (!approved) {
+        if (executableToolCall.name === 'web_search') {
+          executionSummary.executedWebSearchCount = Math.max(
+            0,
+            executionSummary.executedWebSearchCount - 1
+          )
+          const query = getWebSearchQuery(executableToolCall)
+          executionSummary.executedWebSearchQueries = executionSummary.executedWebSearchQueries.filter(
+            (candidate) => candidate !== query
+          )
+        }
+        const rejectedResult: ToolCallResult = {
+          toolCall: executableToolCall,
+          result: {
+            success: false,
+            error: 'Tool call rejected by user.',
+          },
+        }
+        resultsByIndex[index] = rejectedResult
+        config.onToolComplete?.(rejectedResult)
+        continue
+      }
+    }
+
     config.onToolStart?.(executableToolCall)
   }
 
-  const executionPromises = executableCalls.map(async ({ index, toolCall: executableToolCall }) => {
+  const approvedExecutableCalls = executableCalls.filter(({ index }) => !resultsByIndex[index])
+
+  const executionPromises = approvedExecutableCalls.map(async ({ index, toolCall: executableToolCall }) => {
     try {
-      const result = await executeToolCalls([executableToolCall], { userContextText })
+      const executeOptions = config.requestToolApproval
+        ? { userContextText, bypassNativeApproval: true, sessionId: config.executionPolicy?.sessionId }
+        : { userContextText, sessionId: config.executionPolicy?.sessionId }
+      const result = await executeToolCalls([executableToolCall], executeOptions)
       resultsByIndex[index] = result[0]
       config.onToolComplete?.(result[0])
     } catch (execError: unknown) {
