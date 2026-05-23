@@ -145,14 +145,17 @@ describe('loadMemoryBlock', () => {
     }
   })
 
-  it('returns empty string when memory is disabled in settings', async () => {
-    const result = await loadMemoryBlock({ memoryEnabled: false })
+  const enabledSkills = { memory: { enabled: true } } as unknown as import('@/skills').SkillsSettings
+  const disabledSkills = { memory: { enabled: false } } as unknown as import('@/skills').SkillsSettings
+
+  it('returns empty string when the Memory skill is disabled', async () => {
+    const result = await loadMemoryBlock({ skills: disabledSkills })
     expect(result).toBe('')
   })
 
   it('returns empty string when window.memory bridge is missing', async () => {
     ;(globalThis as unknown as { window: Window }).window = {} as Window
-    const result = await loadMemoryBlock({ memoryEnabled: true })
+    const result = await loadMemoryBlock({ skills: enabledSkills })
     expect(result).toBe('')
   })
 
@@ -164,7 +167,7 @@ describe('loadMemoryBlock', () => {
       memory: { list },
     }
 
-    const result = await loadMemoryBlock({ memoryEnabled: true })
+    const result = await loadMemoryBlock({ skills: enabledSkills })
     expect(list).toHaveBeenCalledWith({ type: 'global' })
     expect(result).toContain('remember me')
   })
@@ -176,12 +179,12 @@ describe('loadMemoryBlock', () => {
     }
 
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
-    const result = await loadMemoryBlock({ memoryEnabled: true })
+    const result = await loadMemoryBlock({ skills: enabledSkills })
     expect(result).toBe('')
     warn.mockRestore()
   })
 
-  it('omits the save_memory instruction when autoMemoryEnabled is false', async () => {
+  it('always includes the save_memory instruction when the Memory skill is enabled', async () => {
     const list = vi.fn().mockResolvedValue([
       memory({ content: 'fact', updatedAt: 1 }),
     ])
@@ -189,12 +192,12 @@ describe('loadMemoryBlock', () => {
       memory: { list },
     }
 
-    const result = await loadMemoryBlock({ memoryEnabled: true, autoMemoryEnabled: false })
+    const result = await loadMemoryBlock({ skills: enabledSkills })
     expect(result).toContain('fact')
-    expect(result).not.toContain('save_memory')
+    expect(result).toContain('save_memory')
   })
 
-  it('includes the save_memory instruction when autoMemoryEnabled is true', async () => {
+  it('uses a custom memoryPrompt override when provided', async () => {
     const list = vi.fn().mockResolvedValue([
       memory({ content: 'fact', updatedAt: 1 }),
     ])
@@ -202,7 +205,11 @@ describe('loadMemoryBlock', () => {
       memory: { list },
     }
 
-    const result = await loadMemoryBlock({ memoryEnabled: true, autoMemoryEnabled: true })
-    expect(result).toContain('save_memory')
+    const result = await loadMemoryBlock({
+      skills: enabledSkills,
+      memoryPrompt: 'CUSTOM AUTOSAVE INSTRUCTION',
+    })
+    expect(result).toContain('CUSTOM AUTOSAVE INSTRUCTION')
+    expect(result).not.toContain('Memory tools are available')
   })
 })

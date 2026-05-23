@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Brain, ChevronDown, ChevronUp } from '@/components/icons'
+import { Brain } from '@/components/icons'
 import { isMemoryToolEvent, type MemoryToolEvent } from '@/tools/memoryTools'
 import type { ToolCallResult } from '@/tools/types'
 
@@ -68,9 +68,6 @@ export function MemoryUpdatePill({ events, onManageMemories }: MemoryUpdatePillP
           <Brain size={14} />
         </span>
         <span className="memory-pill__label">{summarize(events)}</span>
-        <span className="memory-pill__chevron" aria-hidden>
-          {expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-        </span>
       </button>
 
       {expanded && (

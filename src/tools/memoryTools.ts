@@ -8,7 +8,7 @@
  *   2. Return a structured `ToolResult.data` payload shaped as a
  *      MemoryToolEvent so the inline MemoryUpdatePill (Task 7) can group and
  *      render diffs without re-fetching from the store.
- *   3. Are gated by `settings.memoryEnabled && settings.autoMemoryEnabled` —
+ *   3. Are gated by the Memory skill (`skills.memory.enabled`) —
  *      see `src/hooks/useToolCalling.ts`.
  */
 
@@ -21,6 +21,61 @@ export type MemoryToolName = (typeof MEMORY_TOOL_NAMES)[number]
 
 export function isMemoryToolName(name: string): name is MemoryToolName {
   return (MEMORY_TOOL_NAMES as readonly string[]).includes(name)
+}
+
+/**
+ * Defensive parameter-name normalization for memory tool calls.
+ *
+ * Tool-calling models (Qwen, Llama variants, etc.) sometimes invent close-but-
+ * wrong parameter names (`text`, `fact`, `memory`, `value` instead of
+ * `content`; `q` instead of `query`). When that happens our schema-driven
+ * validator rejects the call with "Missing required parameter(s): content"
+ * even though the model's intent was perfectly valid. To stay forgiving
+ * without breaking the schema we coerce common aliases to the canonical key
+ * BEFORE validation runs. Only memory tools are normalized; other tools keep
+ * their strict schemas.
+ *
+ * Returns a new ToolCall with rewritten arguments. Does not throw.
+ */
+export function normalizeMemoryToolCall<T extends { name: string; arguments: Record<string, unknown> }>(
+  toolCall: T
+): T {
+  if (!isMemoryToolName(toolCall.name)) return toolCall
+
+  // Per-tool list of canonical keys that the schema actually expects. We only
+  // try to fill in canonicals from this list — that prevents `text` from being
+  // mapped to `content` when the model is calling `search_memories` (where
+  // `text` should resolve to `query`).
+  const canonicalKeysByTool: Record<MemoryToolName, readonly string[]> = {
+    save_memory: ['content'],
+    update_memory: ['id', 'content'],
+    delete_memory: ['id'],
+    search_memories: ['query'],
+  }
+
+  const aliasesByCanonical: Record<string, readonly string[]> = {
+    content: ['text', 'fact', 'memory', 'value', 'note', 'body', 'message'],
+    id: ['memory_id', 'memoryId', 'memoryID', 'mid'],
+    query: ['q', 'search', 'term', 'text'],
+  }
+
+  const isPresent = (value: unknown): boolean =>
+    value !== undefined && value !== null && value !== ''
+
+  const args: Record<string, unknown> = { ...toolCall.arguments }
+  const expected = canonicalKeysByTool[toolCall.name as MemoryToolName]
+
+  for (const canonical of expected) {
+    if (isPresent(args[canonical])) continue
+    const aliases = aliasesByCanonical[canonical] ?? []
+    for (const alias of aliases) {
+      if (isPresent(args[alias])) {
+        args[canonical] = args[alias]
+        break
+      }
+    }
+  }
+  return { ...toolCall, arguments: args }
 }
 
 /**
@@ -47,7 +102,7 @@ const SAVE_PARAMS: ToolInputSchema = {
     content: {
       type: 'string',
       description:
-        'The fact to remember about the user. Keep it short (one sentence). Examples: "User prefers dark mode", "User is building an Electron app called ZuraAI", "User\'s preferred name is Nikhil".',
+        'REQUIRED. The fact to remember about the user. Pass the fact as the `content` parameter (not `text`, `fact`, or `memory`). Keep it short — one sentence. Examples: "User prefers dark mode", "User is building an Electron app called ZuraAI", "User\'s preferred name is Nikhil".',
     },
   },
   required: ['content'],
@@ -60,11 +115,12 @@ const UPDATE_PARAMS: ToolInputSchema = {
     id: {
       type: 'string',
       description:
-        'The id of an existing memory. Get this from search_memories or from the saved-memories list embedded in the system prompt.',
+        'REQUIRED. The id of an existing memory. Pass it as the `id` parameter (not `memory_id`). Get this from search_memories or from the saved-memories list embedded in the system prompt.',
     },
     content: {
       type: 'string',
-      description: 'The new content for that memory. Replaces the previous text entirely.',
+      description:
+        'REQUIRED. The new content for that memory. Pass it as the `content` parameter (not `text`). Replaces the previous text entirely.',
     },
   },
   required: ['id', 'content'],
@@ -76,7 +132,7 @@ const DELETE_PARAMS: ToolInputSchema = {
   properties: {
     id: {
       type: 'string',
-      description: 'The id of the memory to delete.',
+      description: 'REQUIRED. The id of the memory to delete. Pass it as the `id` parameter.',
     },
   },
   required: ['id'],
@@ -88,7 +144,8 @@ const SEARCH_PARAMS: ToolInputSchema = {
   properties: {
     query: {
       type: 'string',
-      description: 'Substring to match against memory content (case-insensitive).',
+      description:
+        'REQUIRED. Substring to match against memory content (case-insensitive). Pass it as the `query` parameter (not `text` or `q`).',
     },
     limit: {
       type: 'number',
@@ -177,17 +234,32 @@ export async function executeMemoryTool(
     if (toolName === 'save_memory') {
       const content = typeof args.content === 'string' ? args.content : ''
       if (!content.trim()) return fail('save_memory requires a non-empty `content`.')
-      const memory = await window.memory.add({
-        content,
-        source: 'model',
-        sessionId: options.sessionId,
-      })
-      notifyChange('Memory saved')
+      // Optimistic write: the model's answer doesn't depend on the saved
+      // memory's id, and the disk write is local + serialized behind a write
+      // lock in the main-process memory store, so it's safe to fire-and-
+      // forget. We synthesize a success result immediately so the next
+      // provider round can start without waiting on IPC + disk. The real
+      // mutation runs in the background and toasts on success/failure; the
+      // memory-store:changed broadcast keeps the Settings UI live-synced
+      // with the canonical entry once it lands.
+      const optimisticId = `mem-opt-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+      const optimisticAt = Date.now()
+      void window.memory
+        .add({ content, source: 'model', sessionId: options.sessionId })
+        .then(() => notifyChange('Memory saved'))
+        .catch((error) => {
+          const message = error instanceof Error ? error.message : 'Failed to save memory'
+          try {
+            toast.error(`Memory not saved: ${message}`, { duration: 5000 })
+          } catch {
+            // Toaster may be unmounted in tests — ignore.
+          }
+        })
       return ok({
         kind: 'memory.added',
-        id: memory.id,
-        content: memory.content,
-        updatedAt: memory.updatedAt,
+        id: optimisticId,
+        content,
+        updatedAt: optimisticAt,
       })
     }
 

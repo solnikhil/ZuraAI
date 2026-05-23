@@ -15,13 +15,13 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import type { Memory } from '@/electron/types'
+import { isSkillEnabled, withSkillEnabled, type SkillsSettings } from '@/skills'
 
 const MAX_CONTENT_LENGTH = 1000
 
 export interface MemorySectionProps {
-  memoryEnabled: boolean
-  autoMemoryEnabled: boolean
-  onChange: (changes: { memoryEnabled?: boolean; autoMemoryEnabled?: boolean }) => void
+  skills: SkillsSettings
+  onChange: (changes: { skills?: SkillsSettings }) => void
 }
 
 interface DraftRow {
@@ -36,10 +36,10 @@ function formatTimestamp(ms: number): string {
 }
 
 export function MemorySection({
-  memoryEnabled,
-  autoMemoryEnabled,
+  skills,
   onChange,
 }: MemorySectionProps): React.ReactElement {
+  const memoryEnabled = isSkillEnabled(skills, 'memory')
   const [memories, setMemories] = useState<Memory[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -138,28 +138,16 @@ export function MemorySection({
           <div className="memory-toggle-row__text">
             <div className="memory-toggle-row__title">Enable memory</div>
             <div className="memory-toggle-row__description">
-              Inject saved memories into the system prompt of every conversation.
+              Inject saved memories into the system prompt and let the assistant manage them with
+              memory tools. This is the same skill toggle as Settings → Skills → Memory.
             </div>
           </div>
           <Switch
             checked={memoryEnabled}
-            onCheckedChange={(checked) => onChange({ memoryEnabled: Boolean(checked) })}
+            onCheckedChange={(checked) =>
+              onChange({ skills: withSkillEnabled(skills, 'memory', Boolean(checked)) })
+            }
             aria-label="Enable memory"
-          />
-        </div>
-
-        <div className="memory-toggle-row">
-          <div className="memory-toggle-row__text">
-            <div className="memory-toggle-row__title">Let AI manage memories automatically</div>
-            <div className="memory-toggle-row__description">
-              Allow the assistant to add, update, or delete memories during conversations using tool calls.
-            </div>
-          </div>
-          <Switch
-            checked={autoMemoryEnabled && memoryEnabled}
-            disabled={!memoryEnabled}
-            onCheckedChange={(checked) => onChange({ autoMemoryEnabled: Boolean(checked) })}
-            aria-label="Let AI manage memories"
           />
         </div>
       </section>

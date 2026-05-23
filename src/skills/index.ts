@@ -1,4 +1,4 @@
-export type SkillId = 'web_research' | 'code_execution' | 'computer_use' | 'chart_generation'
+export type SkillId = 'web_research' | 'code_execution' | 'computer_use' | 'chart_generation' | 'memory'
 
 export interface SkillState {
   enabled: boolean
@@ -13,11 +13,14 @@ export interface ComputerUseSkillState extends SkillState {}
 
 export interface ChartGenerationSkillState extends SkillState {}
 
+export interface MemorySkillState extends SkillState {}
+
 export type SkillsSettings = Record<string, SkillState> & {
   web_research: WebResearchSkillState
   code_execution: CodeExecutionSkillState
   computer_use: ComputerUseSkillState
   chart_generation: ChartGenerationSkillState
+  memory: MemorySkillState
 }
 
 export interface BuiltInSkill {
@@ -70,6 +73,17 @@ export const BUILT_IN_SKILLS: BuiltInSkill[] = [
       'Use pie for proportions, bar for comparisons, line for trends.',
     ],
   },
+  {
+    id: 'memory',
+    name: 'Memory',
+    description: 'Remember durable facts about the user (preferences, projects, name, etc.) and reuse them across chats. Stored locally only.',
+    note: 'Inject saved memories into the system prompt and let the assistant call save/update/delete/search memory tools.',
+    usageGuidance: [
+      'Save short, durable facts about the user the first time they mention them.',
+      'Update an existing entry instead of duplicating when a fact already exists.',
+      'Never save sensitive data (passwords, credentials, financial details).',
+    ],
+  },
 ]
 
 const DEFAULT_WEB_RESEARCH_SKILL: WebResearchSkillState = {
@@ -88,11 +102,16 @@ const DEFAULT_CHART_GENERATION_SKILL: ChartGenerationSkillState = {
   enabled: false,
 }
 
+const DEFAULT_MEMORY_SKILL: MemorySkillState = {
+  enabled: true,
+}
+
 export const defaultSkillsSettings: SkillsSettings = {
   web_research: DEFAULT_WEB_RESEARCH_SKILL,
   code_execution: DEFAULT_CODE_EXECUTION_SKILL,
   computer_use: DEFAULT_COMPUTER_USE_SKILL,
   chart_generation: DEFAULT_CHART_GENERATION_SKILL,
+  memory: DEFAULT_MEMORY_SKILL,
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -123,7 +142,7 @@ export function normalizeSkillsSettings(raw: unknown): SkillsSettings {
 
   if (isRecord(raw)) {
     for (const [skillId, value] of Object.entries(raw)) {
-      if (skillId === 'web_research' || skillId === 'code_execution' || skillId === 'testing' || skillId === 'computer_use' || skillId === 'chart_generation') continue
+      if (skillId === 'web_research' || skillId === 'code_execution' || skillId === 'testing' || skillId === 'computer_use' || skillId === 'chart_generation' || skillId === 'memory') continue
       const generic = normalizeGenericSkillState(value)
       if (generic) {
         normalized[skillId] = generic
@@ -148,6 +167,10 @@ export function normalizeSkillsSettings(raw: unknown): SkillsSettings {
     rawRecord?.chart_generation,
     defaultSkillsSettings.chart_generation
   )
+  normalized.memory = normalizeKnownSkill(
+    rawRecord?.memory,
+    defaultSkillsSettings.memory
+  )
 
   return normalized as SkillsSettings
 }
@@ -157,6 +180,8 @@ interface LegacySkillMigrationInput {
   webSearchEnabled: unknown
   structuredResearchEnabled: unknown
   deepResearchEnabled: unknown
+  memoryEnabled?: unknown
+  autoMemoryEnabled?: unknown
 }
 
 export function migrateSkillsFromLegacySettings({
@@ -164,27 +189,44 @@ export function migrateSkillsFromLegacySettings({
   webSearchEnabled,
   structuredResearchEnabled: _structuredResearchEnabled,
   deepResearchEnabled,
+  memoryEnabled,
+  autoMemoryEnabled,
 }: LegacySkillMigrationInput): SkillsSettings {
   const normalized = normalizeSkillsSettings(skills)
   const hasPersistedWebResearchSkill = isRecord(skills) && Object.prototype.hasOwnProperty.call(skills, 'web_research')
+  const hasPersistedMemorySkill = isRecord(skills) && Object.prototype.hasOwnProperty.call(skills, 'memory')
 
-  if (hasPersistedWebResearchSkill) {
-    return normalized
+  let result = normalized
+
+  if (!hasPersistedWebResearchSkill) {
+    const enabledFromLegacy =
+      typeof webSearchEnabled === 'boolean'
+        ? webSearchEnabled
+        : (typeof deepResearchEnabled === 'boolean'
+            ? deepResearchEnabled
+            : normalized.web_research.enabled)
+
+    result = {
+      ...result,
+      web_research: { enabled: enabledFromLegacy },
+    }
   }
 
-  const enabledFromLegacy =
-    typeof webSearchEnabled === 'boolean'
-      ? webSearchEnabled
-      : (typeof deepResearchEnabled === 'boolean'
-          ? deepResearchEnabled
-          : normalized.web_research.enabled)
+  if (!hasPersistedMemorySkill) {
+    // Legacy: memory was gated by both `memoryEnabled` AND `autoMemoryEnabled`
+    // (full feature requires both). Collapse into the single skill toggle:
+    // disabled if either legacy flag was explicitly off.
+    const memoryFlag = typeof memoryEnabled === 'boolean' ? memoryEnabled : true
+    const autoFlag = typeof autoMemoryEnabled === 'boolean' ? autoMemoryEnabled : true
+    const enabledFromLegacy = memoryFlag && autoFlag
 
-  return {
-    ...normalized,
-    web_research: {
-      enabled: enabledFromLegacy,
-    },
+    result = {
+      ...result,
+      memory: { enabled: enabledFromLegacy },
+    }
   }
+
+  return result
 }
 
 // Web Research

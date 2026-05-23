@@ -1,4 +1,5 @@
 import type { Memory, MemoryScope } from '@/electron/types'
+import { defaultMemoryPrompt } from './defaultMemoryPrompt'
 
 /**
  * Approximate token-budget cap for the injected memory block. Mirrors the
@@ -15,12 +16,7 @@ export const MEMORY_BLOCK_TOKEN_BUDGET = 2000
 const MEMORY_BLOCK_HEADER = `## Saved Memories (Model Set Context)
 The user has shared the following memories. Use them to personalize your replies, but do not parrot them back unless the user asks. Treat them as durable facts unless the user contradicts them in the current conversation.`
 
-const MEMORY_AUTOSAVE_INSTRUCTION = `Memory tools are available — you can manage the saved-memories list yourself.
-- When the user shares a durable fact about themselves that would help future conversations, call \`save_memory\` with a short one-sentence summary. Examples: "User studies at MIT", "User prefers TypeScript over JavaScript", "User is building an Electron app called ZuraAI", "User's preferred name is Nikhil".
-- Save things naturally as they come up; do not announce that you are saving (the UI already shows a "Memory updated" pill).
-- Save at most 1–2 memories per turn. Prefer one good summary over many small ones. If a fact already exists in the list above (or is a refinement of an existing entry), call \`update_memory\` instead of duplicating.
-- Do NOT save: the current task, one-off questions, transient state, anything sensitive (passwords, API keys, private credentials, financial details), or anything the user asks you not to remember.
-- If the user explicitly asks "remember X", save it. If the user asks you to forget something, call \`delete_memory\`.`
+const MEMORY_AUTOSAVE_INSTRUCTION_DEFAULT = defaultMemoryPrompt
 
 const EMPTY_LIST_PLACEHOLDER = '_(no saved memories yet)_'
 
@@ -38,6 +34,13 @@ interface BuildMemoryBlockOptions {
    * the saved-memories list is empty.
    */
   autoSaveEnabled?: boolean
+  /**
+   * Override the default memory autosave instruction text. Used by callers
+   * that surface a user-editable "Memory Prompt" in Settings → System Prompt.
+   * Empty/whitespace-only values fall back to the default instruction so the
+   * autosave nudge is never silently dropped.
+   */
+  instruction?: string
   /**
    * Custom logger for truncation warnings; defaults to `console.warn`. Tests
    * pass `() => undefined` to keep output quiet.
@@ -78,6 +81,8 @@ export function buildMemoryBlock(
   options: BuildMemoryBlockOptions = {}
 ): string {
   const autoSaveEnabled = options.autoSaveEnabled === true
+  const rawInstruction = typeof options.instruction === 'string' ? options.instruction.trim() : ''
+  const instruction = rawInstruction.length > 0 ? rawInstruction : MEMORY_AUTOSAVE_INSTRUCTION_DEFAULT
   const safeMemories = Array.isArray(memories) ? memories : []
 
   // Scope filter — mirrors filterMemoriesByScope in the main-process store.
@@ -99,7 +104,7 @@ export function buildMemoryBlock(
   // - autoSave off → emit nothing; an empty memory block adds zero value to the prompt.
   if (filtered.length === 0) {
     if (!autoSaveEnabled) return ''
-    return `${MEMORY_BLOCK_HEADER}\n${EMPTY_LIST_PLACEHOLDER}\n\n${MEMORY_AUTOSAVE_INSTRUCTION}`
+    return `${MEMORY_BLOCK_HEADER}\n${EMPTY_LIST_PLACEHOLDER}\n\n${instruction}`
   }
 
   // Sort oldest-first for stable bullet ordering, but enforce budget by
@@ -108,7 +113,7 @@ export function buildMemoryBlock(
 
   const budget = options.tokenBudget ?? MEMORY_BLOCK_TOKEN_BUDGET
   const headerTokens = estimateTokens(MEMORY_BLOCK_HEADER)
-  const autosaveTokens = autoSaveEnabled ? estimateTokens(MEMORY_AUTOSAVE_INSTRUCTION) : 0
+  const autosaveTokens = autoSaveEnabled ? estimateTokens(instruction) : 0
   let availableTokens = Math.max(budget - headerTokens - autosaveTokens, 0)
 
   // Walk newest-to-oldest collecting lines that fit the budget; drop oldest
@@ -132,11 +137,11 @@ export function buildMemoryBlock(
   }
   if (accepted.length === 0) {
     if (!autoSaveEnabled) return ''
-    return `${MEMORY_BLOCK_HEADER}\n${EMPTY_LIST_PLACEHOLDER}\n\n${MEMORY_AUTOSAVE_INSTRUCTION}`
+    return `${MEMORY_BLOCK_HEADER}\n${EMPTY_LIST_PLACEHOLDER}\n\n${instruction}`
   }
 
   const list = `${MEMORY_BLOCK_HEADER}\n${accepted.join('\n')}`
-  return autoSaveEnabled ? `${list}\n\n${MEMORY_AUTOSAVE_INSTRUCTION}` : list
+  return autoSaveEnabled ? `${list}\n\n${instruction}` : list
 }
 
 /**
@@ -152,15 +157,23 @@ export function buildMemoryBlock(
  * through this helper (e.g. `loadMemoryBlock(settings, { type: 'project', projectId })`).
  */
 export async function loadMemoryBlock(
-  settings: { memoryEnabled?: boolean; autoMemoryEnabled?: boolean },
+  settings: {
+    /** Skills map; memory is gated by `skills.memory.enabled`. */
+    skills?: import('@/skills').SkillsSettings
+    /** Optional user-edited autosave instruction text from System Prompt settings. */
+    memoryPrompt?: string
+  },
   scope: MemoryScope = { type: 'global' }
 ): Promise<string> {
-  if (!settings.memoryEnabled) return ''
+  const { isSkillEnabled } = await import('@/skills')
+  if (!isSkillEnabled(settings.skills, 'memory')) return ''
   if (typeof window === 'undefined' || !window.memory) return ''
-  const autoSaveEnabled = settings.autoMemoryEnabled !== false
   try {
     const memories = await window.memory.list(scope)
-    return buildMemoryBlock(memories, scope, { autoSaveEnabled })
+    return buildMemoryBlock(memories, scope, {
+      autoSaveEnabled: true,
+      instruction: settings.memoryPrompt,
+    })
   } catch (error) {
     console.warn('Failed to load memories for prompt injection:', error)
     return ''

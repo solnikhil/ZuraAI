@@ -431,10 +431,14 @@ export function normalizeStoredSettings(raw: string | null): Settings {
     webSearchEnabled: legacySettingsRecord.webSearchEnabled,
     structuredResearchEnabled: legacySettingsRecord.structuredResearchEnabled,
     deepResearchEnabled: legacySettingsRecord.deepResearchEnabled,
+    memoryEnabled: legacySettingsRecord.memoryEnabled,
+    autoMemoryEnabled: legacySettingsRecord.autoMemoryEnabled,
   })
   delete legacySettingsRecord.deepResearchEnabled
   delete legacySettingsRecord.webSearchEnabled
   delete legacySettingsRecord.structuredResearchEnabled
+  delete legacySettingsRecord.memoryEnabled
+  delete legacySettingsRecord.autoMemoryEnabled
 
   if (typeof parsed.codeExecutionAutoApprove !== 'boolean') {
     parsed.codeExecutionAutoApprove = defaultSettings.codeExecutionAutoApprove

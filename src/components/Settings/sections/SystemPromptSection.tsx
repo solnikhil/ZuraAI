@@ -13,6 +13,7 @@ import { defaultTitleGenerationPrompt } from '../../../prompts/defaultTitleGener
 import { defaultCodeExecutionPrompt } from '../../../prompts/defaultCodeExecutionPrompt'
 import { defaultComputerUsePrompt } from '../../../prompts/defaultComputerUsePrompt'
 import { defaultChartGenerationPrompt } from '../../../prompts/defaultChartGenerationPrompt'
+import { defaultMemoryPrompt } from '../../../prompts/defaultMemoryPrompt'
 import { estimateMessageTokens } from '../../../utils/tokenUtils'
 
 /**
@@ -31,6 +32,8 @@ export interface SystemPromptSectionProps {
   computerUsePrompt?: string
   /** Current chart generation prompt value */
   chartGenerationPrompt?: string
+  /** Current memory autosave prompt value */
+  memoryPrompt?: string
   /** Callback when system prompt changes */
   onChange: (changes: {
     systemPrompt?: string
@@ -39,6 +42,7 @@ export interface SystemPromptSectionProps {
     codeExecutionPrompt?: string
     computerUsePrompt?: string
     chartGenerationPrompt?: string
+    memoryPrompt?: string
   }) => void
 }
 
@@ -52,6 +56,7 @@ export function SystemPromptSection({
   codeExecutionPrompt,
   computerUsePrompt = defaultComputerUsePrompt,
   chartGenerationPrompt = defaultChartGenerationPrompt,
+  memoryPrompt = defaultMemoryPrompt,
   onChange,
 }: SystemPromptSectionProps): React.ReactElement {
   const [localValue, setLocalValue] = useState(systemPrompt)
@@ -74,6 +79,9 @@ export function SystemPromptSection({
   const [localChartGenerationValue, setLocalChartGenerationValue] = useState(chartGenerationPrompt)
   const [chartGenerationCharCount, setChartGenerationCharCount] = useState(chartGenerationPrompt.length)
   const [isChartGenerationEditorExpanded, setIsChartGenerationEditorExpanded] = useState(false)
+  const [localMemoryValue, setLocalMemoryValue] = useState(memoryPrompt)
+  const [memoryCharCount, setMemoryCharCount] = useState(memoryPrompt.length)
+  const [isMemoryEditorExpanded, setIsMemoryEditorExpanded] = useState(false)
 
   // Sync local state when props change (e.g. discard/reset from parent settings bar)
   useEffect(() => {
@@ -117,6 +125,13 @@ export function SystemPromptSection({
       setChartGenerationCharCount(chartGenerationPrompt.length)
     }
   }, [chartGenerationPrompt, localChartGenerationValue])
+
+  useEffect(() => {
+    if (memoryPrompt !== localMemoryValue) {
+      setLocalMemoryValue(memoryPrompt)
+      setMemoryCharCount(memoryPrompt.length)
+    }
+  }, [memoryPrompt, localMemoryValue])
 
   const handleChange = (value: string) => {
     setLocalValue(value)
@@ -190,6 +205,18 @@ export function SystemPromptSection({
     onChange({ chartGenerationPrompt: defaultChartGenerationPrompt })
   }
 
+  const handleMemoryChange = (value: string) => {
+    setLocalMemoryValue(value)
+    setMemoryCharCount(value.length)
+    onChange({ memoryPrompt: value })
+  }
+
+  const handleMemoryReset = () => {
+    setLocalMemoryValue(defaultMemoryPrompt)
+    setMemoryCharCount(defaultMemoryPrompt.length)
+    onChange({ memoryPrompt: defaultMemoryPrompt })
+  }
+
   const estTokensInput = useMemo(
     () => estimateMessageTokens({ role: 'system', content: localValue }),
     [localValue]
@@ -218,6 +245,11 @@ export function SystemPromptSection({
   const estChartGenerationTokensInput = useMemo(
     () => estimateMessageTokens({ role: 'system', content: localChartGenerationValue }),
     [localChartGenerationValue]
+  )
+
+  const estMemoryTokensInput = useMemo(
+    () => estimateMessageTokens({ role: 'system', content: localMemoryValue }),
+    [localMemoryValue]
   )
 
   const showLengthWarning = charCount > 10000
@@ -501,6 +533,62 @@ export function SystemPromptSection({
               onChange={(e) => handleChartGenerationChange(e.target.value)}
               className="settings-prompt-editor"
               placeholder="Enter your chart generation prompt here..."
+            />
+          </div>
+        )}
+      </Card>
+
+
+      <Card className="settings-list-card settings-prompt-card">
+        <div className="settings-prompt-header">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Memory Prompt</h3>
+            <div className="settings-list-row__description">
+              Instructions appended to the saved-memories block when the Memory skill is enabled.
+              Guides when the assistant should call <code>save_memory</code>,{' '}
+              <code>update_memory</code>, <code>delete_memory</code>, and{' '}
+              <code>search_memories</code>.
+            </div>
+            <div className="settings-prompt-note">
+              This only applies when the Memory skill is active.
+            </div>
+          </div>
+          <div className="settings-prompt-metrics" aria-live="polite">
+            <span className="settings-prompt-badge">
+              {memoryCharCount.toLocaleString()} chars
+            </span>
+            <span className="settings-prompt-badge">
+              ~{estMemoryTokensInput.toLocaleString()} tokens input
+            </span>
+          </div>
+        </div>
+
+        <div className="settings-prompt-controls">
+          <button
+            type="button"
+            className="settings-prompt-toggle"
+            onClick={() => setIsMemoryEditorExpanded((prev) => !prev)}
+            aria-expanded={isMemoryEditorExpanded}
+          >
+            <ChevronDown
+              size={14}
+              className={`settings-prompt-toggle__icon ${isMemoryEditorExpanded ? 'is-open' : ''}`}
+              aria-hidden="true"
+            />
+            {isMemoryEditorExpanded ? 'Hide Memory Prompt' : 'Show Memory Prompt'}
+          </button>
+          <button type="button" onClick={handleMemoryReset} className="settings-row-button">
+            Load Default Memory Prompt
+          </button>
+        </div>
+
+        {isMemoryEditorExpanded && (
+          <div className="settings-prompt-editor-wrap">
+            <textarea
+              value={localMemoryValue}
+              onChange={(e) => handleMemoryChange(e.target.value)}
+              className="settings-prompt-editor"
+              placeholder="Enter your memory prompt here..."
             />
           </div>
         )}

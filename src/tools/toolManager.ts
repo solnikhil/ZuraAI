@@ -14,6 +14,7 @@
 
 import { getAllToolDefinitions, getToolByName } from './definitions'
 import { convertToolsForProvider, providerSupportsTools, modelSupportsTools } from './adapters'
+import { normalizeMemoryToolCall } from './memoryTools'
 import type { ProviderId } from '../providers'
 import {
   parseOpenRouterToolCalls,
@@ -289,9 +290,11 @@ export async function processToolCalls(
   const userContextText = config.executionPolicy?.userContextText
 
   for (const [index, toolCall] of toolCalls.entries()) {
-    const coercedToolCall = normalizeWebSearchToolCall(
-      coerceToolArguments(toolCall, availableTools),
-      userContextText
+    const coercedToolCall = normalizeMemoryToolCall(
+      normalizeWebSearchToolCall(
+        coerceToolArguments(toolCall, availableTools),
+        userContextText
+      )
     )
     const validationError = validateRequiredParameters(coercedToolCall, availableTools)
 

@@ -384,8 +384,7 @@ if (!hasSettingsChanges && !hasMcpChanges) {
 
             {normalizedActiveSection === 'memory' && (
               <MemorySection
-                memoryEnabled={pendingSettings.memoryEnabled}
-                autoMemoryEnabled={pendingSettings.autoMemoryEnabled}
+                skills={pendingSettings.skills}
                 onChange={(changes) => handleChange(changes)}
               />
             )}
@@ -407,6 +406,7 @@ if (!hasSettingsChanges && !hasMcpChanges) {
                 codeExecutionPrompt={pendingSettings.codeExecutionPrompt}
                 computerUsePrompt={pendingSettings.computerUsePrompt}
                 chartGenerationPrompt={pendingSettings.chartGenerationPrompt}
+                memoryPrompt={pendingSettings.memoryPrompt}
                 onChange={(changes) => handleChange(changes)}
               />
             )}

@@ -263,14 +263,6 @@ function InlineWebSearchBlock({ block }: { block: ThinkingBlockType }) {
             {displayName}
             {query ? `: "${query}"` : ''}
           </span>
-          {hasDetails && (
-            <motion.div
-              animate={{ rotate: isExpanded ? 90 : 0 }}
-              transition={motionSpringTransition(animationsEnabled, motionSpring.bouncy)}
-            >
-              <ChevronRight size={14} className="thinking-chevron" />
-            </motion.div>
-          )}
         </div>
       </div>
       <AnimatePresence initial={false}>
@@ -401,14 +393,6 @@ function CompletedBlock({
               <span className={`thinking-tool-status thinking-tool-status-${status.tone}`}>
                 {status.label}
               </span>
-            )}
-            {hasDetails && (
-              <motion.div
-                animate={{ rotate: isExpanded ? 90 : 0 }}
-                transition={motionSpringTransition(animationsEnabled, motionSpring.bouncy)}
-              >
-                <ChevronRight size={14} className="thinking-chevron" />
-              </motion.div>
             )}
           </div>
         </div>

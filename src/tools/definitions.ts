@@ -17,8 +17,8 @@ export type ToolDefinition = ToolDescriptor
  *   the executor routes them based on `origin: 'builtin-renderer'`.
  *
  * Memory tools are gated at the request-shaping layer in
- * `src/hooks/useToolCalling.ts` by `settings.memoryEnabled` and
- * `settings.autoMemoryEnabled`; they are never exposed to the model when
+ * `src/hooks/useToolCalling.ts` by the Memory skill (`skills.memory.enabled`);
+ * they are never exposed to the model when
  * either toggle is off.
  */
 export const builtInToolDefinitions: ToolDefinition[] = [

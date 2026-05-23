@@ -24,6 +24,7 @@ import { shouldEnableTools } from '../utils/promptSelection'
 import { createMcpToolRegistry } from '../tools/mcpRegistry'
 import { getProviderModels, type ProviderId } from '../providers'
 import { isWindowsRuntime } from '../utils/platform'
+import { isSkillEnabled } from '../skills'
 
 const COMPUTER_USE_TOOLS = [
     'computer_screenshot',
@@ -88,6 +89,13 @@ export function useToolCalling() {
         const knownBuiltInTools = new Set(builtinToolNames)
         const runtimeMcpToolNames = runtimeMcpTools.map((tool) => tool.name)
 
+        // Memory tools are personalization, not research / agentic capability.
+        // They should be available in every assistant mode whenever the
+        // Memory skill is enabled, so the model can save things like
+        // "I study at SRM" even from a normal chat-mode conversation.
+        const memoryToolsEnabled = isSkillEnabled(settings.skills, 'memory')
+        const memoryToolsToInclude: readonly string[] = memoryToolsEnabled ? MEMORY_TOOL_NAMES : []
+
         let enabledTools: string[] = settings.assistantMode === 'chat'
             ? ['web_search']
             : settings.enabledTools.length > 0
@@ -99,17 +107,15 @@ export function useToolCalling() {
         }
 
         if (settings.assistantMode === 'chat') {
-            return enabledTools.filter((tool) => tool === 'web_search')
+            return [...new Set(['web_search', ...memoryToolsToInclude])]
         }
 
         if (!enabledTools.includes('code_execution')) {
             enabledTools.push('code_execution')
         }
 
-        // Memory tools are renderer-side and gated by both Memory toggles.
-        const memoryToolsEnabled = settings.memoryEnabled !== false && settings.autoMemoryEnabled !== false
         if (memoryToolsEnabled) {
-            for (const tool of MEMORY_TOOL_NAMES) {
+            for (const tool of memoryToolsToInclude) {
                 if (!enabledTools.includes(tool)) enabledTools.push(tool)
             }
         } else {

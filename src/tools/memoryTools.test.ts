@@ -51,8 +51,73 @@ describe('memoryTools registry', () => {
   })
 })
 
+describe('normalizeMemoryToolCall', () => {
+  it('passes through non-memory tools unchanged', async () => {
+    const { normalizeMemoryToolCall } = await import('./memoryTools')
+    const call = { name: 'web_search', arguments: { query: 'hi' } }
+    expect(normalizeMemoryToolCall(call)).toEqual(call)
+  })
+
+  it('renames `text` → `content` for save_memory', async () => {
+    const { normalizeMemoryToolCall } = await import('./memoryTools')
+    const result = normalizeMemoryToolCall({
+      name: 'save_memory',
+      arguments: { text: 'User studies at SRM IST' },
+    })
+    expect(result.arguments).toMatchObject({ content: 'User studies at SRM IST' })
+  })
+
+  it('renames `fact`, `memory`, `note` → `content`', async () => {
+    const { normalizeMemoryToolCall } = await import('./memoryTools')
+    expect(
+      normalizeMemoryToolCall({ name: 'save_memory', arguments: { fact: 'a' } }).arguments.content
+    ).toBe('a')
+    expect(
+      normalizeMemoryToolCall({ name: 'save_memory', arguments: { memory: 'b' } }).arguments.content
+    ).toBe('b')
+    expect(
+      normalizeMemoryToolCall({ name: 'save_memory', arguments: { note: 'c' } }).arguments.content
+    ).toBe('c')
+  })
+
+  it('renames `memory_id` / `memoryId` → `id` for update_memory', async () => {
+    const { normalizeMemoryToolCall } = await import('./memoryTools')
+    expect(
+      normalizeMemoryToolCall({
+        name: 'update_memory',
+        arguments: { memory_id: 'm1', text: 'new' },
+      }).arguments
+    ).toMatchObject({ id: 'm1', content: 'new' })
+  })
+
+  it('renames `q` → `query` for search_memories (and keeps `text` mapped to query, NOT content)', async () => {
+    const { normalizeMemoryToolCall } = await import('./memoryTools')
+    expect(
+      normalizeMemoryToolCall({ name: 'search_memories', arguments: { q: 'hello' } }).arguments.query
+    ).toBe('hello')
+    // The interesting case: search_memories does NOT have a `content` field —
+    // a stray `text` should resolve to `query`, not be left orphaned under
+    // `content`.
+    const fromText = normalizeMemoryToolCall({
+      name: 'search_memories',
+      arguments: { text: 'hello' },
+    }).arguments
+    expect(fromText.query).toBe('hello')
+    expect(fromText.content).toBeUndefined()
+  })
+
+  it('preserves canonical key when both alias and canonical are present', async () => {
+    const { normalizeMemoryToolCall } = await import('./memoryTools')
+    const result = normalizeMemoryToolCall({
+      name: 'save_memory',
+      arguments: { content: 'real', text: 'fake' },
+    })
+    expect(result.arguments.content).toBe('real')
+  })
+})
+
 describe('executeMemoryTool', () => {
-  it('save_memory persists with source=model and sessionId, returns memory.added event', async () => {
+  it('save_memory returns immediately with optimistic id and fires bridge in background', async () => {
     memoryAPI.add.mockResolvedValue({
       id: 'm1',
       content: 'I love TS',
@@ -68,21 +133,61 @@ describe('executeMemoryTool', () => {
       { sessionId: 'chat-42' }
     )
 
+    // Optimistic write: synthetic success returned without awaiting the bridge.
+    expect(result.success).toBe(true)
+    expect(isMemoryToolEvent(result.data)).toBe(true)
+    expect(result.data).toMatchObject({ kind: 'memory.added', content: 'I love TS' })
+    expect((result.data as { id: string }).id).toMatch(/^mem-opt-/)
+    expect(result.metadata).toEqual({ origin: 'builtin-renderer' })
+
+    // Bridge call still happens — just fire-and-forget.
     expect(memoryAPI.add).toHaveBeenCalledWith({
       content: 'I love TS',
       source: 'model',
       sessionId: 'chat-42',
     })
-    expect(result.success).toBe(true)
-    expect(isMemoryToolEvent(result.data)).toBe(true)
-    expect(result.data).toMatchObject({ kind: 'memory.added', id: 'm1', content: 'I love TS' })
-    expect(result.metadata).toEqual({ origin: 'builtin-renderer' })
+
+    // Flush the background promise so the toast/error handler resolves before
+    // the next test runs.
+    await Promise.resolve()
+    await Promise.resolve()
   })
 
   it('save_memory rejects empty content without hitting bridge', async () => {
     const result = await executeMemoryTool('save_memory', { content: '   ' })
     expect(result.success).toBe(false)
     expect(memoryAPI.add).not.toHaveBeenCalled()
+  })
+
+  it('save_memory does not await the bridge — returns before window.memory.add resolves', async () => {
+    let resolveAdd: ((memory: Memory) => void) | null = null
+    memoryAPI.add.mockImplementation(
+      () =>
+        new Promise<Memory>((resolve) => {
+          resolveAdd = resolve
+        })
+    )
+
+    const resultPromise = executeMemoryTool('save_memory', { content: 'durable fact' })
+    const result = await resultPromise
+
+    // Bridge is still pending, but the tool already returned a synthetic OK.
+    expect(result.success).toBe(true)
+    expect((result.data as { id: string }).id).toMatch(/^mem-opt-/)
+    expect(resolveAdd).not.toBeNull()
+
+    // Resolve the bridge after the fact — should not throw and should not
+    // change the already-returned tool result.
+    resolveAdd?.({
+      id: 'm-real',
+      content: 'durable fact',
+      createdAt: 1,
+      updatedAt: 1,
+      source: 'model',
+      scope: { type: 'global' },
+    })
+    await Promise.resolve()
+    await Promise.resolve()
   })
 
   it('update_memory captures previousContent from current store', async () => {

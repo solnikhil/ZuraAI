@@ -1,4 +1,5 @@
 import type { ThinkingBlock, ToolCallResult } from '../../../chat/types'
+import { MEMORY_TOOL_NAMES } from '../../../tools/memoryTools'
 
 function hasMcpMetadataShape(metadata: unknown): boolean {
   if (!metadata || typeof metadata !== 'object') {
@@ -25,6 +26,13 @@ export function shouldHideGenericToolResultCard(result: ToolCallResult): boolean
   }
 
   if (result.toolCall.name.startsWith('computer_')) {
+    return true
+  }
+
+  // Memory tools render through the inline MemoryUpdatePill on the assistant
+  // message. Suppress the generic tool card during streaming and after commit
+  // so we don't double-render save/update/delete/search results.
+  if ((MEMORY_TOOL_NAMES as readonly string[]).includes(result.toolCall.name)) {
     return true
   }
 

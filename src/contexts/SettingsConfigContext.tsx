@@ -28,6 +28,7 @@ import { defaultTitleGenerationPrompt } from '../prompts/defaultTitleGenerationP
 import { defaultCodeExecutionPrompt } from '../prompts/defaultCodeExecutionPrompt'
 import { defaultComputerUsePrompt } from '../prompts/defaultComputerUsePrompt'
 import { defaultChartGenerationPrompt } from '../prompts/defaultChartGenerationPrompt'
+import { defaultMemoryPrompt } from '../prompts/defaultMemoryPrompt'
 import { defaultSkillsSettings, type SkillsSettings } from '../skills'
 import type { AssistantMode } from '../chat/types'
 import { getProviderEnabledDefaults, getProviderSecretFields } from '../providers'
@@ -115,6 +116,8 @@ export interface SettingsConfig {
   computerUsePrompt: string
   /** Chart generation instructions appended when Chart Generation is enabled */
   chartGenerationPrompt: string
+  /** Memory autosave instructions appended when the Memory skill is enabled */
+  memoryPrompt: string
   streamResponses: boolean
 
   // Tool settings
@@ -146,17 +149,6 @@ export interface SettingsConfig {
   rememberLastSettingsSection: boolean
   rememberLastDashboardView: boolean
   overlay: OverlaySettings
-
-  /**
-   * Memory feature toggles. When `memoryEnabled` is false the system prompt
-   * does not include the memory block and memory tools are not exposed. When
-   * true, `autoMemoryEnabled` controls whether the model can manage memories
-   * via tool calls (`save_memory`, `update_memory`, `delete_memory`,
-   * `search_memories`); the user can still manage memories manually in
-   * Settings → Personalization → Memory.
-   */
-  memoryEnabled: boolean
-  autoMemoryEnabled: boolean
 }
 
 /**
@@ -275,6 +267,7 @@ export const defaultSettingsConfig: SettingsConfig = {
   codeExecutionPrompt: defaultCodeExecutionPrompt,
   computerUsePrompt: defaultComputerUsePrompt,
   chartGenerationPrompt: defaultChartGenerationPrompt,
+  memoryPrompt: defaultMemoryPrompt,
   streamResponses: true,
 
   // Tool settings
@@ -318,12 +311,6 @@ export const defaultSettingsConfig: SettingsConfig = {
     promptAutoHideEnabled: false,
     promptAutoHideTimeout: 120,
   },
-
-  // Memory feature (ChatGPT-style saved memories). Both default ON so the
-  // feature is discoverable; users can disable either or both in
-  // Settings → Personalization → Memory.
-  memoryEnabled: true,
-  autoMemoryEnabled: true,
 }
 
 interface SettingsConfigContextType {
