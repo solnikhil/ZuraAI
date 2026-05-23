@@ -20,7 +20,10 @@ import {
   accumulateDeltaToolCalls,
   appendCompletedThinkingBlock,
   buildFollowUpMessages,
+  buildPlainTextOnlySynthesisMessages,
+  buildRecoverySynthesisMessages,
   buildResponseWithFallback,
+  buildSearchSynthesisFailureMessage,
   buildThinkingBlocksFromResults,
   computeStreamMetrics,
   fillMissingUsage,
@@ -31,6 +34,7 @@ import {
   processInitialToolResults,
   publishStreamingToolResults,
   reconstructToolCallMessage,
+  shouldRetryUngroundedSearchSynthesis,
   stripStandaloneHorizontalRule,
   type DeltaToolCall,
 } from './streamingUtils'
@@ -116,12 +120,45 @@ function mergeUsage(existing: NormalizedUsage, incoming: NormalizedUsage): Norma
 
 const TOOL_MARKUP_PREVIEW_LIMIT = 240
 
+/**
+ * Opening markup signatures we cut the stream early on during a no-tools
+ * synthesis round. Once the model starts writing one of these, it has
+ * already given up on prose and will keep emitting markup; aborting now
+ * lets the retry pipeline kick in faster and avoids the user watching
+ * raw `<||DSML||tool_calls>` scroll past in chat.
+ */
+const MID_STREAM_MARKUP_PATTERNS: ReadonlyArray<{ format: 'dsml' | 'xml'; pattern: RegExp }> = [
+  { format: 'dsml', pattern: /<\s*\|\s*\|\s*DSML\s*\|\s*\|\s*(?:tool_calls|invoke)\b/i },
+  { format: 'xml', pattern: /<\s*invoke\s+name=["']/i },
+  { format: 'xml', pattern: /<\s*tool_call(?:s)?\s*>/i },
+]
+
+function detectMidStreamMarkup(content: string): 'dsml' | 'xml' | null {
+  if (!content) return null
+  for (const { format, pattern } of MID_STREAM_MARKUP_PATTERNS) {
+    if (pattern.test(content)) return format
+  }
+  return null
+}
+
+class MidStreamMarkupAbort extends Error {
+  readonly format: 'dsml' | 'xml'
+  readonly previewContent: string
+  constructor(format: 'dsml' | 'xml', previewContent: string) {
+    super('Mid-stream tool-call markup detected during no-tools synthesis')
+    this.name = 'MidStreamMarkupAbort'
+    this.format = format
+    this.previewContent = previewContent
+  }
+}
+
 function logToolMarkupLeak(
   event:
     | 'detected'
     | 'recovered'
     | 'suppressed-during-no-tools-pass'
-    | 'recovery-failed',
+    | 'recovery-failed'
+    | 'mid-stream-cut',
   details: Record<string, unknown>
 ): void {
   console.warn('[tool-markup-leak]', event, details)
@@ -502,6 +539,17 @@ export function useProviderStreaming({
                 accumulatedContent += event.delta
                 roundContent += event.delta
                 if (event.delta) {
+                  // Mid-stream guard: during a no-tools synthesis round, if the
+                  // model starts writing tool-call markup as plain text, cut
+                  // the stream now instead of letting the user watch it scroll
+                  // past. The catch block converts this into a soft "leaked"
+                  // round outcome so the retry pipeline can take over.
+                  if (!roundAllowsTools) {
+                    const detectedFormat = detectMidStreamMarkup(roundContent)
+                    if (detectedFormat) {
+                      throw new MidStreamMarkupAbort(detectedFormat, roundContent)
+                    }
+                  }
                   streamChunkCoalescer.recordTextDelta(event.delta, accumulatedContent.length)
                   updateStreamingState({
                     phase: 'answering',
@@ -582,14 +630,48 @@ export function useProviderStreaming({
             }
           }
         } catch (streamError: unknown) {
-          if (!(streamError instanceof DOMException && streamError.name === 'AbortError')) {
+          if (streamError instanceof MidStreamMarkupAbort) {
+            // Soft abort: keep what we have but signal the suppression flag so
+            // end-of-round logic strips the markup and the caller can classify
+            // this round as 'leaked'. We DO NOT rethrow — the rest of the
+            // round teardown still needs to run.
+            suppressedInlineToolMarkup = true
+            // Emit the same 'suppressed-during-no-tools-pass' signal
+            // end-of-round suppression would have, so existing diagnostics
+            // and tests see consistent behavior whether the markup was
+            // caught mid-stream or only at end-of-round.
+            logToolMarkupLeak('suppressed-during-no-tools-pass', {
+              provider,
+              model,
+              roundType,
+              format: streamError.format,
+              toolNames: [],
+              cleanedContentLength: 0,
+              rawPreview: streamError.previewContent.slice(0, TOOL_MARKUP_PREVIEW_LIMIT),
+            })
+            logToolMarkupLeak('mid-stream-cut', {
+              provider,
+              model,
+              roundType,
+              format: streamError.format,
+              rawPreview: streamError.previewContent.slice(0, TOOL_MARKUP_PREVIEW_LIMIT),
+            })
+            // Reset the visible content immediately so the user doesn't see the
+            // markup; cleaned content (likely empty) replaces accumulatedContent
+            // at end-of-round.
+            accumulatedContent = roundStartContent
+            roundContent = ''
+            updateStreamingState({ content: accumulatedContent })
+          } else if (!(streamError instanceof DOMException && streamError.name === 'AbortError')) {
             streamChunkCoalescer.flush()
             logDiagnostic({
               phase: 'provider-error',
               error: streamError instanceof Error ? streamError.message : String(streamError),
             })
+            throw streamError
+          } else {
+            throw streamError
           }
-          throw streamError
         }
 
         throwIfAborted()
@@ -731,6 +813,173 @@ export function useProviderStreaming({
         }
       }
 
+      /**
+       * Run a final no-tools synthesis pass with bounded retries. The model
+       * may emit:
+       *   - blank content (provider returned `finishReason: 'stop'` but no text),
+       *   - leaked tool-call markup (DSML / XML `<invoke>` / `<tool_call>`),
+       *   - "ungrounded" prose ("knowledge cutoff", "I can't browse" etc.).
+       * In any of those cases we retry up to 2 more times with stricter
+       * recovery prompts. If all 3 attempts fail, we commit a deterministic
+       * failure message that preserves the search results already in the
+       * timeline.
+       *
+       * @param baseRound diagnostic round number for the FIRST attempt
+       *   (subsequent attempts get +1 / +2).
+       * @param totalSearchCount how many searches were already executed (for
+       *   research-context messaging).
+       * @param lastAssistantMessage the assistant message containing the
+       *   tool_calls that produced `formattedResults`.
+       * @param formattedResults the role:'tool' formatted results to show
+       *   the model.
+       * @returns nothing — this mutates `accumulatedContent` and the
+       *   streaming state via the closure-captured helpers.
+       */
+      const runFinalSynthesis = async (
+        baseRound: number,
+        totalSearchCount: number,
+        lastAssistantMessage: ServiceAssistantMessage,
+        formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>
+      ): Promise<void> => {
+        type Outcome = 'good' | 'blank' | 'leaked-or-ungrounded'
+
+        const classify = (round: {
+          roundContent: string
+          suppressedInlineToolMarkup: boolean
+        }): Outcome => {
+          if (round.suppressedInlineToolMarkup) return 'leaked-or-ungrounded'
+          const trimmed = round.roundContent.trim()
+          if (!trimmed) return 'blank'
+          if (shouldRetryUngroundedSearchSynthesis(trimmed)) return 'leaked-or-ungrounded'
+          return 'good'
+        }
+
+        const researchContextMsg = toolCalling.getResearchContext(
+          totalSearchCount,
+          options.researchMaxRounds
+        )
+
+        // Snapshot accumulatedContent so we can roll back between failed
+        // attempts. Without this, a blank/leaked attempt would leak its
+        // partial state into the next attempt's content.
+        const baselineContent = accumulatedContent
+
+        // Attempt 1 — plain follow-up. No discouragement prompt; we want to
+        // see what the model does naturally with the gathered evidence.
+        const attempt1Messages = buildFollowUpMessages(
+          researchContextMsg,
+          baseRound,
+          totalSearchCount,
+          options.messages,
+          lastAssistantMessage,
+          formattedResults
+        )
+        updateStreamingState({
+          phase: 'answering',
+          researchStatus: buildResearchStatus(baseRound, options.researchMaxRounds, false),
+        })
+        throwIfAborted()
+        const attempt1 = await runRound(attempt1Messages, {
+          round: baseRound,
+          toolChoice: 'none',
+          tools: [],
+        })
+        throwIfAborted()
+        const outcome1 = classify(attempt1)
+        if (outcome1 === 'good') return
+
+        logResearchLoop('synthesis-retry', {
+          attempt: 1,
+          outcome: outcome1,
+          baseRound,
+        })
+        // Roll back to baseline before attempt 2.
+        accumulatedContent = baselineContent
+        updateStreamingState({ content: accumulatedContent })
+
+        // Attempt 2 — recovery prompt. Pick based on the failure shape:
+        //   - blank → "FINAL ANSWER REQUIRED, write at least one paragraph"
+        //   - leaked / ungrounded → "PLAIN TEXT ONLY, no markup, no tool_calls"
+        const attempt2Messages =
+          outcome1 === 'blank'
+            ? buildRecoverySynthesisMessages(
+                researchContextMsg,
+                baseRound + 1,
+                totalSearchCount,
+                options.messages,
+                lastAssistantMessage,
+                formattedResults
+              )
+            : buildPlainTextOnlySynthesisMessages(
+                researchContextMsg,
+                baseRound + 1,
+                totalSearchCount,
+                options.messages,
+                lastAssistantMessage,
+                formattedResults
+              )
+        const attempt2 = await runRound(attempt2Messages, {
+          round: baseRound + 1,
+          toolChoice: 'none',
+          tools: [],
+        })
+        throwIfAborted()
+        const outcome2 = classify(attempt2)
+        if (outcome2 === 'good') return
+
+        logResearchLoop('synthesis-retry', {
+          attempt: 2,
+          outcome: outcome2,
+          baseRound,
+        })
+        accumulatedContent = baselineContent
+        updateStreamingState({ content: accumulatedContent })
+
+        // Attempt 3 — strictest plain-text-only escalation.
+        const attempt3Messages = buildPlainTextOnlySynthesisMessages(
+          researchContextMsg,
+          baseRound + 2,
+          totalSearchCount,
+          options.messages,
+          lastAssistantMessage,
+          formattedResults
+        )
+        const attempt3 = await runRound(attempt3Messages, {
+          round: baseRound + 2,
+          toolChoice: 'none',
+          tools: [],
+        })
+        throwIfAborted()
+        const outcome3 = classify(attempt3)
+        if (outcome3 === 'good') return
+
+        logResearchLoop('synthesis-retry', {
+          attempt: 3,
+          outcome: outcome3,
+          baseRound,
+        })
+
+        // All 3 attempts failed. Commit the deterministic failure message so
+        // the user gets *something* and the search-result tool cards stay in
+        // the timeline as fallback context.
+        const failureMessage =
+          buildSearchSynthesisFailureMessage(savedToolResults) ??
+          'I gathered some search results but could not produce a final written answer.'
+        accumulatedContent = baselineContent + failureMessage
+        // Clear the carried finishReason so consumers see this as "we
+        // intentionally committed a failure message" rather than a clean
+        // provider 'stop'. The diagnostic 'finish' event still records the
+        // synthetic outcome via accumulatedContent.
+        finishReason = null
+        updateStreamingState({
+          content: accumulatedContent,
+          phase: 'answering',
+        })
+        updatePersistedStreamingMessage(options.sessionId, options.messageId, {
+          content: accumulatedContent,
+        })
+      }
+
       const initialToolChoice =
         options.forceWebSearch &&
         tools?.some((tool) => tool.function?.name === 'web_search')
@@ -862,35 +1111,17 @@ export function useProviderStreaming({
               totalSearchCount,
               researchRound,
             })
-            // Run one no-tools synthesis round so the model can write the
-            // actual answer from the tool results we just collected. Without
-            // this, the orchestrator would exit straight to `finish` with
-            // empty content (only the round-0 tool_call response in
-            // accumulatedContent), which is what produced the "model stopped
-            // after the web search" symptom.
-            throwIfAborted()
-            const synthesisMessages = buildFollowUpMessages(
-              toolCalling.getResearchContext(totalSearchCount, options.researchMaxRounds),
+            // Run a no-tools synthesis pass with bounded retries. Without
+            // this the orchestrator would exit straight to `finish` with
+            // empty content (only the round-0 tool_call response). The
+            // retry pipeline handles blank, leaked-markup, and ungrounded
+            // outputs and falls back to a deterministic failure message.
+            await runFinalSynthesis(
               researchRound,
               totalSearchCount,
-              options.messages,
               lastAssistantMessage,
               toolResult.formattedResults
             )
-            updateStreamingState({
-              phase: 'answering',
-              researchStatus: buildResearchStatus(
-                researchRound,
-                options.researchMaxRounds,
-                false
-              ),
-            })
-            await runRound(synthesisMessages, {
-              round: researchRound,
-              toolChoice: 'none',
-              tools: [],
-            })
-            throwIfAborted()
             toolResult = {
               ...toolResult,
               needsFollowUp: false,
@@ -923,6 +1154,7 @@ export function useProviderStreaming({
               ),
             })
 
+            const followUpRoundStart = accumulatedContent
             const followUpRound = await runRound(followUpMessages, { round: researchRound })
             throwIfAborted()
             const hasValidToolCalls =
@@ -935,12 +1167,39 @@ export function useProviderStreaming({
                 totalSearchCount,
                 hasAnswerText: Boolean(followUpRound.roundContent.trim()),
               })
-              if (!followUpRound.roundContent.trim() && toolResult.formattedResults.length > 0) {
+              const followUpClassifiable = {
+                roundContent: followUpRound.roundContent,
+                suppressedInlineToolMarkup: followUpRound.suppressedInlineToolMarkup,
+              }
+              const followUpIsBlank = !followUpRound.roundContent.trim()
+              const followUpLeakedMarkup = followUpRound.suppressedInlineToolMarkup
+              const followUpUngrounded = shouldRetryUngroundedSearchSynthesis(
+                followUpClassifiable.roundContent
+              )
+
+              if (
+                (followUpIsBlank || followUpLeakedMarkup || followUpUngrounded) &&
+                toolResult.formattedResults.length > 0
+              ) {
                 logResearchLoop('tool-loop-stopped', {
-                  reason: 'empty-follow-up-answer',
+                  reason: followUpIsBlank
+                    ? 'empty-follow-up-answer'
+                    : followUpLeakedMarkup
+                      ? 'leaked-markup-follow-up-answer'
+                      : 'ungrounded-follow-up-answer',
                   totalSearchCount,
                   researchRound,
                 })
+                // Roll back accumulatedContent before kicking the synthesis
+                // pipeline so attempts start from a clean slate.
+                accumulatedContent = followUpRoundStart
+                updateStreamingState({ content: accumulatedContent })
+                await runFinalSynthesis(
+                  researchRound,
+                  totalSearchCount,
+                  lastAssistantMessage,
+                  toolResult.formattedResults
+                )
               }
               break
             }
@@ -1038,33 +1297,14 @@ export function useProviderStreaming({
                 totalSearchCount,
                 researchRound,
               })
-              // Same gap as the post-initial-batch path: when we decide to
-              // stop researching mid-loop because results came back good,
-              // we still need a no-tools synthesis round to actually produce
-              // the answer, otherwise we'd finish with empty content.
-              throwIfAborted()
-              const synthesisMessages = buildFollowUpMessages(
-                toolCalling.getResearchContext(totalSearchCount, options.researchMaxRounds),
+              // Same gap as the post-initial-batch path — run a bounded
+              // synthesis pass before breaking so the user gets an answer.
+              await runFinalSynthesis(
                 researchRound,
                 totalSearchCount,
-                options.messages,
                 lastAssistantMessage,
                 nextToolResult.formattedResults
               )
-              updateStreamingState({
-                phase: 'answering',
-                researchStatus: buildResearchStatus(
-                  researchRound,
-                  options.researchMaxRounds,
-                  false
-                ),
-              })
-              await runRound(synthesisMessages, {
-                round: researchRound,
-                toolChoice: 'none',
-                tools: [],
-              })
-              throwIfAborted()
               toolResult = {
                 ...nextToolResult,
                 needsFollowUp: false,
