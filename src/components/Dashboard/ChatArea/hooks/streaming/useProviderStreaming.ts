@@ -862,6 +862,35 @@ export function useProviderStreaming({
               totalSearchCount,
               researchRound,
             })
+            // Run one no-tools synthesis round so the model can write the
+            // actual answer from the tool results we just collected. Without
+            // this, the orchestrator would exit straight to `finish` with
+            // empty content (only the round-0 tool_call response in
+            // accumulatedContent), which is what produced the "model stopped
+            // after the web search" symptom.
+            throwIfAborted()
+            const synthesisMessages = buildFollowUpMessages(
+              toolCalling.getResearchContext(totalSearchCount, options.researchMaxRounds),
+              researchRound,
+              totalSearchCount,
+              options.messages,
+              lastAssistantMessage,
+              toolResult.formattedResults
+            )
+            updateStreamingState({
+              phase: 'answering',
+              researchStatus: buildResearchStatus(
+                researchRound,
+                options.researchMaxRounds,
+                false
+              ),
+            })
+            await runRound(synthesisMessages, {
+              round: researchRound,
+              toolChoice: 'none',
+              tools: [],
+            })
+            throwIfAborted()
             toolResult = {
               ...toolResult,
               needsFollowUp: false,
@@ -1009,6 +1038,33 @@ export function useProviderStreaming({
                 totalSearchCount,
                 researchRound,
               })
+              // Same gap as the post-initial-batch path: when we decide to
+              // stop researching mid-loop because results came back good,
+              // we still need a no-tools synthesis round to actually produce
+              // the answer, otherwise we'd finish with empty content.
+              throwIfAborted()
+              const synthesisMessages = buildFollowUpMessages(
+                toolCalling.getResearchContext(totalSearchCount, options.researchMaxRounds),
+                researchRound,
+                totalSearchCount,
+                options.messages,
+                lastAssistantMessage,
+                nextToolResult.formattedResults
+              )
+              updateStreamingState({
+                phase: 'answering',
+                researchStatus: buildResearchStatus(
+                  researchRound,
+                  options.researchMaxRounds,
+                  false
+                ),
+              })
+              await runRound(synthesisMessages, {
+                round: researchRound,
+                toolChoice: 'none',
+                tools: [],
+              })
+              throwIfAborted()
               toolResult = {
                 ...nextToolResult,
                 needsFollowUp: false,
