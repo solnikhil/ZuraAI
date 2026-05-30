@@ -11,8 +11,8 @@ import {
   Square,
   Plus,
   Wrench,
-  MessageSquare,
   Brain,
+  X,
 } from 'lucide-react'
 import ModelSelector from '../ModelSelector/index'
 import { useSettings } from '../../../contexts/SettingsContext'
@@ -48,6 +48,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu'
+import { Switch } from '@/components/ui/switch'
 import { ComposerAttachments } from './ComposerAttachments'
 import McpLibraryDialog from '@/components/mcp/McpLibraryDialog'
 import type { AssistantMode } from '@/chat/types'
@@ -308,13 +309,6 @@ export function InputArea({
       ? 'bg-[color-mix(in_srgb,var(--theme-surface)_88%,var(--theme-accent-muted)_12%)] text-[var(--theme-text-primary)]'
       : 'cursor-default bg-transparent text-[var(--theme-text-muted)] opacity-60'
   )
-  const modeButtonClass = (mode: AssistantMode) =>
-    cn(
-      'inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-[11px] font-medium transition-colors',
-      assistantMode === mode
-        ? 'bg-[var(--theme-text-primary)] text-[var(--theme-background)]'
-        : 'text-[var(--theme-text-muted)] hover:bg-[var(--theme-surface-hover)] hover:text-[var(--theme-text-primary)]'
-    )
   const quickActionsMenu = (
     <DropdownMenu open={quickActionsOpen} onOpenChange={setQuickActionsOpen}>
       <Tooltip>
@@ -355,6 +349,25 @@ export function InputArea({
               Ctrl+U
             </DropdownMenuShortcut>
           </DropdownMenuItem>
+        </DropdownMenuGroup>
+
+        <DropdownMenuSeparator className="mx-0 my-px h-px" />
+
+        <DropdownMenuGroup>
+          <div
+            className="flex h-8 items-center justify-between rounded-[12px] px-1.5 text-[12px]"
+            role="menuitem"
+          >
+            <div className="flex items-center gap-2">
+              <Brain className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
+              <span>Agent mode</span>
+            </div>
+            <Switch
+              checked={assistantMode === 'agent'}
+              onCheckedChange={(checked) => setAssistantMode(checked ? 'agent' : 'chat')}
+              className="scale-75 [&_[data-slot=switch-thumb]]:!bg-white"
+            />
+          </div>
         </DropdownMenuGroup>
 
         <DropdownMenuSeparator className="mx-0 my-px h-px" />
@@ -502,21 +515,28 @@ export function InputArea({
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
                   <div className={controlClusterClass}>{quickActionsMenu}</div>
-                  <div
-                    className="flex items-center gap-1 rounded-full border border-[var(--theme-border-subtle)] bg-[color-mix(in_srgb,var(--theme-surface)_78%,transparent)] p-1"
-                    role="radiogroup"
-                    aria-label="Assistant mode"
-                  >
-                    <button type="button" className={modeButtonClass('chat')} onClick={() => setAssistantMode('chat')}>
-                      <MessageSquare className="h-3.5 w-3.5" />
-                      Chat
-                    </button>
-                    <button type="button" className={modeButtonClass('agent')} onClick={() => setAssistantMode('agent')}>
-                      <Brain className="h-3.5 w-3.5" />
-                      Agent
-                    </button>
-                  </div>
-
+                  {assistantMode === 'agent' && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setAssistantMode('chat')
+                          }}
+                          className="group inline-flex h-7 items-center gap-1.5 rounded-full border border-[var(--theme-border-subtle)] bg-[color-mix(in_srgb,var(--theme-accent)_14%,var(--theme-surface))] px-2.5 text-[11px] font-medium text-[var(--theme-text-primary)] transition-colors hover:bg-[color-mix(in_srgb,var(--theme-accent)_22%,var(--theme-surface))]"
+                          aria-label="Disable agent mode"
+                        >
+                          <Brain className="h-3.5 w-3.5 text-[var(--theme-accent)]" />
+                          <span>Agent</span>
+                          <X className="h-3 w-3 text-[var(--theme-text-muted)] group-hover:text-[var(--theme-text-primary)]" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="rounded-full">
+                        Click to disable agent mode
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
                 </div>
 
                 <div className="flex min-w-0 items-center justify-end gap-2">
