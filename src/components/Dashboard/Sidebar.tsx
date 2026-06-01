@@ -287,7 +287,6 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
         ? `${SIDEBAR_COLLAPSED_WIDTH_PX}px`
         : `${sidebarWidth}px`,
     background: 'var(--theme-sidebar-solid)',
-    borderRight: '0px solid transparent',
     boxShadow: 'none',
     pointerEvents: sidebarHidden ? 'none' : 'auto',
     transition: isResizing ? 'none' : undefined,

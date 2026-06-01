@@ -98,7 +98,7 @@ export default function DashboardLayout() {
           flex: 1,
           position: 'relative',
           overflow: 'hidden',
-          backgroundColor: 'var(--theme-content-solid)',
+          backgroundColor: 'transparent',
           zIndex: 1,
           contain: 'strict', // Isolate from sidebar resize reflow — content is absolutely positioned inside
         }}

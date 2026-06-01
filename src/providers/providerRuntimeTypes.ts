@@ -15,6 +15,9 @@ export interface NormalizedUsage {
   cachedOutputTokens?: number
   cacheMissInputTokens?: number
   cacheWriteInputTokens?: number
+  cost?: number
+  imageTokens?: number
+  audioTokens?: number
 }
 
 export interface NormalizedToolCallDelta {

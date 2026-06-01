@@ -79,6 +79,113 @@
   color: var(--theme-text-primary);
 }
 
+/* Agent Desktop (Agent View) presence surface (Req 11.4–11.9) */
+.agent-desktop-presence {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0 14px 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--theme-border-subtle);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--theme-surface-subtle) 70%, transparent);
+}
+
+.agent-desktop-presence-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: var(--theme-surface-subtle);
+  color: var(--theme-text-secondary);
+}
+
+.agent-desktop-presence-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.agent-desktop-presence-title {
+  color: var(--theme-text-primary);
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.agent-desktop-presence-detail {
+  color: var(--theme-text-muted);
+  font-size: 0.74rem;
+  line-height: 1.4;
+}
+
+.agent-desktop-presence-action {
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.agent-desktop-presence-background {
+  border-color: color-mix(in srgb, var(--theme-info) 28%, var(--theme-border));
+  background: color-mix(in srgb, var(--theme-info-bg) 60%, transparent);
+}
+
+.agent-desktop-presence-background .agent-desktop-presence-icon {
+  color: var(--theme-info);
+}
+
+.agent-desktop-presence-take-over {
+  border-color: color-mix(in srgb, var(--theme-success) 32%, var(--theme-border));
+  background: color-mix(in srgb, var(--theme-success-bg) 60%, transparent);
+}
+
+.agent-desktop-presence-take-over .agent-desktop-presence-icon {
+  color: var(--theme-success);
+}
+
+.agent-desktop-presence-unavailable {
+  border-color: color-mix(in srgb, var(--theme-warning, #f59e0b) 30%, var(--theme-border));
+  background: color-mix(in srgb, var(--theme-warning, #f59e0b) 12%, transparent);
+}
+
+.agent-desktop-presence-unavailable .agent-desktop-presence-icon {
+  color: var(--theme-warning, #f59e0b);
+}
+
+.agent-desktop-waiting {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  color: var(--theme-warning, #f59e0b);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.agent-desktop-spin {
+  animation: agent-desktop-spin 0.8s linear infinite;
+}
+
+@keyframes agent-desktop-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 640px) {
+  .agent-desktop-presence {
+    flex-wrap: wrap;
+  }
+
+  .agent-desktop-presence-action {
+    align-self: stretch;
+    width: 100%;
+  }
+}
+
 .agent-step-list {
   border-top: 1px solid var(--theme-border-subtle);
 }

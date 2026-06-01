@@ -140,6 +140,23 @@ describe('preload MCP bridge', () => {
     expect(preloadMocks.invoke).toHaveBeenCalledWith('native-dialog:confirm-delete-chat')
   })
 
+  it('exposes a dedicated app-menu bridge and keeps it out of generic IPC', async () => {
+    const appMenu = getExposedBridge<{
+      command: (command: string) => Promise<boolean>
+    }>('appMenu')
+    const ipcRenderer = getExposedBridge<{
+      invoke: (channel: string, ...args: unknown[]) => Promise<unknown>
+    }>('ipcRenderer')
+
+    preloadMocks.invoke.mockResolvedValueOnce(true)
+    await expect(appMenu.command('new-chat')).resolves.toBe(true)
+    expect(preloadMocks.invoke).toHaveBeenCalledWith('app-menu:command', 'new-chat')
+
+    expect(() => ipcRenderer.invoke('app-menu:command' as never, 'new-chat')).toThrow(
+      'Blocked IPC invoke channel: app-menu:command'
+    )
+  })
+
   it('keeps MCP tools blocked from the generic execute-tool bridge', async () => {
     const ipcRenderer = getExposedBridge<{
       send: (channel: string, ...args: unknown[]) => void

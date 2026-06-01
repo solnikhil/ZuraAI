@@ -1,4 +1,5 @@
 import type { ChatIndexData, ChatSession, ChatSessionMetadata, Folder } from '../chat/types'
+import type { AgentDesktopCapabilityState } from '../chat/types'
 import type { ChatDiagnosticEvent } from '../diagnostics/chatDiagnostics'
 import type {
   McpApprovalDecision,
@@ -57,6 +58,140 @@ export interface PendingComputerAction {
   screenshot?: string
   requestedAt: number
   expiresAt: number
+}
+
+// ---------------------------------------------------------------------------
+// Agent Desktop (Agent View) renderer-side mirrors
+//
+// These mirror the trusted main-process types in `electron/agentDesktop/*`
+// (`types.ts`, `settings.ts`, `approvalManager.ts`, `index.ts`). They are kept
+// in sync by convention, matching how `PendingComputerAction` mirrors the
+// Computer Use main type. Agent Desktop is Windows-only; on macOS the bridge is
+// still typed but every call rejects in main (Req 9.4).
+// ---------------------------------------------------------------------------
+
+/**
+ * The existing Computer Use action surface reused by Agent Desktop. Req 4.1, 12.6.
+ */
+export type AgentActionType =
+  | 'screenshot'
+  | 'click'
+  | 'type'
+  | 'key'
+  | 'scroll'
+  | 'cursor_position'
+  | 'list_windows'
+  | 'launch_app'
+  | 'close_app'
+  | 'find_app'
+
+/** Allowlist-driven approval classification for a single action. Req 5.1, 5.2. */
+export type AgentActionClassification = 'auto-approve' | 'approval-required'
+
+/**
+ * The agent's interaction state. Req 3.
+ * - `background`: staged/waiting, no input delivered to Agent_Windows.
+ * - `take-over`: foregrounded and actively driving input on the Agent_Desktop.
+ */
+export type AgentDesktopPresenceMode = 'background' | 'take-over'
+
+/** Outcome of loading the VirtualDesktopAccessor binding. Req 8.1. */
+export type VdaLoadOutcome = 'available' | 'unavailable'
+
+/**
+ * Agent Desktop capability state recorded in the Agent_Run capabilities.
+ * Req 11.1, 8.5, 9.2.
+ *
+ * Canonical definition lives in `src/chat/types.ts`; imported above and
+ * re-exported here so the renderer-facing electron types stay a single source
+ * of truth.
+ */
+export type { AgentDesktopCapabilityState }
+
+/**
+ * Persisted Agent Desktop preferences (sanitized; non-secret). Lives in the
+ * `zura-settings` blob under `settings.agentDesktop` (Req 10.1).
+ */
+export interface AgentDesktopSettings {
+  /** Skill toggle gating availability. Default: false (Req 10.2, 10.3). */
+  enabled: boolean
+  /** True only after the user acknowledges the not-a-sandbox disclosure (Req 12.2). */
+  disclosureAcknowledged: boolean
+  /**
+   * `persist` keeps the Agent_Desktop between sessions; `ephemeral` removes it
+   * when the last Agent_Window closes (Req 10.4).
+   */
+  persistence: 'persist' | 'ephemeral'
+  /** Per-action approval classification (Req 10.5). */
+  approvalPolicy: Record<AgentActionType, AgentActionClassification>
+  /** Approval timeout in ms, clamped [5000, 600000], default 60000 (Req 5.6). */
+  approvalTimeoutMs: number
+}
+
+/**
+ * Single broadcast payload for `agent-desktop:state-changed` and the return
+ * value of `get-state` / `apply-settings` / take-over calls (mirrors the main
+ * `AgentDesktopState`).
+ */
+export interface AgentDesktopState {
+  /** False on macOS / non-Windows platforms. Req 9. */
+  platformSupported: boolean
+  /** VDA binding load outcome. Req 8.1. */
+  vdaOutcome: VdaLoadOutcome
+  /** Resolved capability state. */
+  capability: AgentDesktopCapabilityState
+  /** Whether the Agent_Desktop_Skill is enabled. */
+  enabled: boolean
+  /** Whether the not-a-sandbox disclosure has been acknowledged. Req 12.1, 12.2. */
+  disclosureAcknowledged: boolean
+  /** Current presence, or null when no session is active. */
+  presence: AgentDesktopPresenceMode | null
+  /** Whether the Agent_Desktop is the currently displayed Virtual_Desktop. */
+  agentDesktopDisplayed: boolean
+  /** Shared Computer Use session action counter. Req 6.7. */
+  actionCount: number
+  /** MAX_ACTIONS_PER_SESSION. */
+  maxActions: number
+  /** Number of currently pending approvals. */
+  pendingApprovalCount: number
+  /** Last surfaced error, or null. */
+  lastError: string | null
+}
+
+/**
+ * Result of a Take_Over / end-Take_Over transition (mirrors the main
+ * `PresenceResult`). On failure the presence is left unchanged and an error is
+ * surfaced (Req 3.4).
+ */
+export type AgentDesktopPresenceResult =
+  | { ok: true; state: AgentDesktopState }
+  | { ok: false; error: string; state: AgentDesktopState }
+
+/**
+ * A pending Agent Desktop action awaiting user approval (mirrors
+ * `PendingAgentDesktopAction` from main). `classification` is always
+ * `approval-required` because auto-approved actions never reach the manager.
+ */
+export interface PendingAgentDesktopAction {
+  id: string
+  action: string
+  args: Record<string, unknown>
+  classification: 'approval-required'
+  screenshot?: string
+  requestedAt: number
+  expiresAt: number
+}
+
+/**
+ * Payload broadcast on `agent-desktop:killed` (Req 6.6). Identifies the aborted
+ * Agent_Run plus the state captured at abort time so the renderer timeline can
+ * reflect the aborted session immediately.
+ */
+export interface AgentDesktopKilledPayload {
+  agentRunId: string
+  reason: string
+  occurredAt: number
+  state: AgentDesktopState
 }
 
 
@@ -250,6 +385,21 @@ export interface ResourceSample {
   capturedAt: number
   processes: ProcessSample[]
 }
+
+export type AppMenuCommand =
+  | 'new-chat'
+  | 'open-settings'
+  | 'open-about'
+  | 'reload'
+  | 'toggle-devtools'
+  | 'reset-zoom'
+  | 'zoom-in'
+  | 'zoom-out'
+  | 'toggle-fullscreen'
+  | 'minimize'
+  | 'toggle-maximize'
+  | 'close-window'
+  | 'open-help'
 
 export type IpcSendChannel =
   | 'overlay:drag-start'
@@ -485,6 +635,10 @@ export interface NativeDialogAPI {
   confirmDeleteChat: () => Promise<boolean>
 }
 
+export interface AppMenuAPI {
+  command: (command: AppMenuCommand) => Promise<boolean>
+}
+
 export interface CodeExecutionAPI {
   resolveApproval: (requestId: string, approved: boolean) => Promise<ApprovalDecision>
   onPendingApproval: (callback: (pending: PendingCodeApproval[]) => void) => () => void
@@ -494,6 +648,43 @@ export interface ComputerUseAPI {
   resolveApproval: (requestId: string, approved: boolean) => Promise<ApprovalDecision>
   onPendingApproval: (callback: (pending: PendingComputerAction[]) => void) => () => void
   onKilled: (callback: () => void) => () => void
+}
+
+/**
+ * Renderer-facing bridge for the Windows-only Agent Desktop (Agent View)
+ * feature. Mirrors the `window.overlay` / `window.computerUse` precedent: a
+ * dedicated, allowlisted contextBridge surface with invoke methods plus
+ * broadcast subscriptions. Every channel is validated in main and rejects on
+ * macOS (Req 9.4). Req 9.3, 12.5.
+ */
+export interface AgentDesktopAPI {
+  /** Return the current Agent Desktop state (`agent-desktop:get-state`). */
+  getState: () => Promise<AgentDesktopState>
+  /**
+   * Mirror sanitized renderer preferences into the service
+   * (`agent-desktop:apply-settings`, Req 10.6). Returns the applied state.
+   */
+  applySettings: (settings: Partial<AgentDesktopSettings>) => Promise<AgentDesktopState>
+  /** Activate Take_Over (`agent-desktop:take-over`, Req 3.3). */
+  takeOver: () => Promise<AgentDesktopPresenceResult>
+  /** End Take_Over (`agent-desktop:end-take-over`, Req 3.9). */
+  endTakeOver: () => Promise<AgentDesktopPresenceResult>
+  /** Resolve a pending approval (`agent-desktop:resolve-approval`, Req 5.8). */
+  resolveApproval: (requestId: string, approved: boolean) => Promise<ApprovalDecision>
+  /**
+   * Record the not-a-sandbox disclosure acknowledgement that gates enabling the
+   * skill (`agent-desktop:acknowledge-disclosure`, Req 12.1, 12.2). Returns the
+   * resulting state.
+   */
+  acknowledgeDisclosure: () => Promise<AgentDesktopState>
+  /** Subscribe to state-change broadcasts (`agent-desktop:state-changed`). */
+  onStateChange: (callback: (state: AgentDesktopState) => void) => () => void
+  /** Subscribe to pending-approval broadcasts (`agent-desktop:pending-approval`). */
+  onPendingApproval: (
+    callback: (pending: PendingAgentDesktopAction[]) => void
+  ) => () => void
+  /** Subscribe to kill-switch abort broadcasts (`agent-desktop:killed`, Req 6.6). */
+  onKilled: (callback: (payload: AgentDesktopKilledPayload) => void) => () => void
 }
 
 

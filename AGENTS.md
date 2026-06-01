@@ -68,6 +68,18 @@ Core capabilities:
   - `electron/tools/web-search/` — built-in web-search intent classification, backend adapters (Tavily / DuckDuckGo), result normalization, and orchestration service
 - `electron/updater.ts` — auto-updater (production only)
   - `electron/tools/code-execution/` — built-in code execution skill: Piston API service, approval manager, IPC registration, types, and constants
+- `electron/agentDesktop/` — Windows-only **Agent Desktop (Agent View)** main-process module: provisions/reuses a dedicated Windows Virtual Desktop and parks agent windows there during agent mode. Thin orchestration layer over the existing Computer Use surface (no new model-callable tools).
+  - `electron/agentDesktop/vdaBinding.ts` — the **single isolation point** over `VirtualDesktopAccessor.dll`, loaded lazily via FFI (`koffi`) inside try/catch; load-time export/arity probing, per-call `VdaError` wrapping, and `dispose()` for app-quit release
+  - `electron/agentDesktop/service.ts` — top-level orchestrator (`AgentDesktopService`): provisioning/teardown lifecycle, window placement, presence transitions, the Computer Use action gate, kill switch, action cap, settings mirroring, and `AgentDesktopState` broadcast plumbing
+  - `electron/agentDesktop/approvalPolicy.ts` — pure allowlist-driven `auto-approve` vs `approval-required` classification
+  - `electron/agentDesktop/approvalManager.ts` — `AgentDesktopApprovalManager extends BaseApprovalManager` (mirrors Computer Use / Code Execution); configurable timeout, treats timeout as rejection
+  - `electron/agentDesktop/presence.ts` — pure `background` ↔ `take-over` presence state machine and per-mode action permission rules
+  - `electron/agentDesktop/windowRegistry.ts` — in-memory HWND → Agent_Window records keyed by the Agent_Run that launched them, with placement-attempt tracking
+  - `electron/agentDesktop/targeting.ts` — pure residence/targeting checks (Agent_Desktop vs User_Desktop vs ZuraAI-owned windows; `close_app` restricted to current-run windows)
+  - `electron/agentDesktop/heldInputQueue.ts` — 60s held-input queue (injectable clock) for input requested while the Agent_Desktop is not displayed
+  - `electron/agentDesktop/settings.ts` — preference validation/normalization; forces `launch_app`/`close_app` to `approval-required`, clamps approval timeout, falls back to the safe disabled default
+  - `electron/agentDesktop/index.ts` — narrow allowlisted IPC registration + renderer broadcasts; Windows-only (defense-in-depth macOS rejection)
+  - `electron/agentDesktop/constants.ts` / `electron/agentDesktop/types.ts` — timing constants/limits (re-exporting the shared Computer Use action cap + kill-switch window) and shared types
 
 
 - `src/` — React/Vite **renderer**
@@ -75,6 +87,9 @@ Core capabilities:
 - `src/App.tsx` — routes (`#/dashboard`, `#/settings`, `#/chat`) under `AppShellLayout`, plus wildcard `*` fallback to a dedicated 404 renderer view
 - `src/components/OverlayView.tsx` — compact overlay chat surface for the dedicated `#/overlay` route
 - `src/components/OverlaySync.tsx` — renderer-side bridge that syncs persisted overlay settings into the trusted main-process Overlay runtime
+- `src/components/AgentDesktopSync.tsx` — Windows-only renderer bridge that mirrors persisted `settings.agentDesktop` into the trusted Agent Desktop runtime via `window.agentDesktop.applySettings(...)`
+- `src/components/Settings/sections/AgentDesktopSection.tsx` — Windows-only Agent Desktop settings UI (disclosure-gated enable toggle, persistence mode, per-action approval-policy editor); hidden on macOS
+- `src/settings/agentDesktopSettings.ts` — renderer-side mirror of the main-process Agent Desktop preference normalization (lives in `zura-settings` under `settings.agentDesktop`)
 - `src/components/PromptPopupView.tsx` — lightweight prompt input surface for the dedicated `#/prompt-popup` route; auto-focuses, submits via prompt-popup IPC, dismisses on Escape
 - `src/contexts/` — app state (split settings contexts, chat history, app shell, quick-send)
 - `src/components/AppShellLayout.tsx` — shared renderer shell (title bar, command palette, resize handles, solid shell surfaces, global context menu via AppContextMenu)
@@ -231,6 +246,8 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - listens for: `window-controls:state`
 - `window.appInfo`
   - invokes: `app-info:get`, `app-info:get-memory-report` (development-only), `app-info:open-about-window`
+- `window.appMenu`
+  - invokes: `app-menu:command` for fixed custom-titlebar menu commands only (`new-chat`, settings/about/help, zoom/fullscreen, reload/devtools, and window controls)
 - `window.overlay`
   - invokes: `overlay:show`, `overlay:hide`, `overlay:toggle`, `overlay:expand`, `overlay:collapse`, `overlay:get-state`, `overlay:focus-main-window`, `overlay:apply-settings`
   - listens for: `overlay:pending-prompt`
@@ -257,6 +274,9 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - `window.codeExecution`
   - invokes: `code-execution:resolve-approval`
   - listens for: `code-execution:pending-approval`
+- `window.agentDesktop` (Windows-only; every channel validated + macOS-rejected in main)
+  - invokes: `agent-desktop:get-state`, `agent-desktop:apply-settings`, `agent-desktop:take-over`, `agent-desktop:end-take-over`, `agent-desktop:resolve-approval`, `agent-desktop:acknowledge-disclosure`
+  - listens for: `agent-desktop:state-changed`, `agent-desktop:pending-approval`, `agent-desktop:killed`
 - `window.chatDebug` (dev-only)
   - invokes: `chat-debug-window:open`
 - `window.resourceMonitor`
@@ -348,8 +368,8 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Fireworks model discovery now has a dedicated serverless catalog path in `src/services/fireworksModels.ts`, surfaced from `src/components/Settings/sections/FireworksModelSearchDialog.tsx` through Provider Hub in the same custom-model workflow style as OpenRouter.
 - Tool calling:
   - `src/hooks/useToolCalling.ts` → `src/tools/toolManager.ts` → `src/tools/executor.ts`
-  - Assistant mode (`settings.assistantMode`) controls request-time tool exposure: `chat` exposes `web_search` for normal source-backed research, and `agent` exposes web search, code execution, trusted MCP tools, and Windows-only Computer Use.
-  - Agent Workspace tool calls pass through a renderer-side manual approval gate before execution; approval and execution state are mirrored into the persisted `message.agentRun.steps` timeline.
+  - Assistant mode (`settings.assistantMode`) controls request-time tool exposure. Both `chat` and `agent` modes expose `web_search`, `code_execution`, memory tools, and trusted MCP tools based on their respective skill toggles. The only mode-gated surface is desktop control (`computer_*` tools): those are exposed only when `assistantMode === 'agent'` AND the corresponding Windows-only skill (`computer_use` or `agent_desktop`) is enabled.
+  - Agent mode (desktop control) tool calls pass through a renderer-side manual approval gate before execution; approval and execution state are mirrored into the persisted `message.agentRun.steps` timeline.
   - Built-in main-process tools still execute through `window.ipcRenderer.invoke('execute-tool', toolName, args)`.
   - Namespaced MCP tools now execute through `window.mcp.executeTool(toolName, args)` so built-ins and MCP stay on separate IPC paths.
 - Main tool registry: `electron/tools/index.ts` (restricted)
@@ -405,6 +425,24 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Renderer files: `src/components/CodeExecutionApprovalDialog.tsx`, skill gating in `src/hooks/useToolCalling.ts`.
 - Tool results render as expandable cards in chat via `ToolResultDisplay.tsx` (not hidden by `toolResultVisibility`).
 - Piston sandbox constraints: no filesystem, no network, 5s run timeout, 64MB memory limit.
+
+#### Agent Desktop / Agent View (`settings.agentDesktop`, `skills.agent_desktop`)
+- **Windows-only**, default disabled. Provisions or reuses a dedicated Windows Virtual Desktop and parks the agent's app windows there during agent mode, keeping agent activity off the user's working desktop. It is a **workspace-separation and supervision** feature, **not** an isolation boundary: all Virtual Desktops for one Windows user share the same filesystem, registry, clipboard, network identity, and Input_Session.
+- Built as a **mode of the existing Computer Use surface** — it introduces **no new model-callable tools**. The model keeps calling the existing `computer_*` tools through `execute-tool`; when `settings.agentDesktop.enabled` / `skills.agent_desktop.enabled` is active, `electron/tools/index.ts` provisions an Agent Desktop session if needed, routes those calls through `agentDesktopService.gateComputerAction(...)`, redirects screenshots to the Agent Desktop, then delegates to the existing Computer Use executors. Normal `computer_use` and `agent_desktop` are mutually exclusive UI modes in the composer plus-button and Skills catalog. The gate applies placement, presence, targeting, the approval policy, the shared kill switch, and the shared action cap before delegation. It reuses the existing `BaseApprovalManager` pattern, the double-Escape kill switch (`KILL_SWITCH_WINDOW_MS = 500`), the per-session action cap (`MAX_ACTIONS_PER_SESSION = 50`), the coordinate mapping (`electron/tools/computer-use/coordinates.ts`), and the `AgentRun` timeline.
+- Main-process module: `electron/agentDesktop/` (see Repo Map for the per-submodule responsibilities). `AgentDesktopService` (`service.ts`) is the single orchestration entry point; `getAgentDesktopService()` resolves a process-wide singleton so the IPC layer and the Computer Use gate share one VDA binding, one session, and one shared action counter / abort state.
+- **Presence model:** sessions start in `background` (non-input actions like screenshot/list/find allowed; launches staged; input actions **held** for up to 60s in `heldInputQueue.ts`). The user activates **Take_Over** to switch the displayed desktop to the Agent_Desktop, which transitions to `take-over` **only after the display switch succeeds**; input is then delivered subject to the approval policy. Ending Take_Over returns the display to the recorded User_Desktop and sets `background`.
+- **Approval policy** (`approvalPolicy.ts`, pure): per-action-type `auto-approve` vs `approval-required` classification driven by a configurable allowlist; an action is `auto-approve` only on an explicit allowlist match. `launch_app`, `close_app`, and file deletion are always forced to `approval-required` during normalization regardless of stored value.
+- **IPC channels** (dedicated `window.agentDesktop` bridge, registered in `electron/agentDesktop/index.ts`):
+  - invoke (renderer → main): `agent-desktop:get-state`, `agent-desktop:apply-settings`, `agent-desktop:take-over`, `agent-desktop:end-take-over`, `agent-desktop:resolve-approval`, `agent-desktop:acknowledge-disclosure`
+  - broadcast (main → renderer): `agent-desktop:state-changed` (full `AgentDesktopState` on any lifecycle/presence/pending-approval change), `agent-desktop:pending-approval` (pending approval list), `agent-desktop:killed` (kill-switch abort so the timeline reflects the aborted session)
+- **Windows-only gating (mirrors Computer Use — three gates):**
+  1. Handler registration is gated in `electron/main.ts` (`if (!IS_MACOS) registerAgentDesktopHandlers()` during `app.whenReady()`; `will-quit` returns the display to the recorded User_Desktop then calls `disposeAgentDesktopService()`).
+  2. Defense-in-depth: every IPC handler in `electron/agentDesktop/index.ts` rejects on `process.platform === 'darwin'` without performing any desktop operation, even though handlers are never registered on macOS.
+  3. Renderer tool exposure is gated by `isWindowsRuntime()` in `src/hooks/useToolCalling.ts`; on macOS no Agent Desktop controls render and the `computer_*` surface is filtered out.
+- **`VDA_Binding` dependency + graceful degradation:** `electron/agentDesktop/vdaBinding.ts` is the only module that touches `VirtualDesktopAccessor.dll` (via the `koffi` FFI library, both lazily `require()`-d inside try/catch). In development the DLL is resolved from a Windows-build-specific subfolder under `electron/agentDesktop/native/`; packaged builds copy those DLL subfolders through `build.extraResources` and resolve them from `resources/agentDesktop/native/`. Windows build `26100+` uses the 24H2 DLL, while older Windows 11 builds use the 23H2 DLL. Because the DLL's exported function set changes between Windows builds, `load()` probes required exports/arity within `VDA_LOAD_TIMEOUT_MS` and records an outcome of `available` | `unavailable`, and every call is wrapped to throw a structured `VdaError` (`load-failed` | `incompatible-api` | `call-failed`) rather than letting a native exception escape. When the binding is **unavailable** (missing FFI module/DLL, incompatible API, or a runtime call failure): the process never crashes; **only the Agent Desktop capability is disabled** while **all other application capabilities stay operational**; a user-visible error that names the VirtualDesktopAccessor integration is surfaced via `AgentDesktopState.lastError`; and the service **never falls back to performing agent actions on the User_Desktop**.
+- **Capability state:** `AgentRunCapabilities.agentDesktop` (`src/chat/types.ts`, resolved by `buildAgentCapabilities`) is `unavailable` on non-Windows / when VDA is unavailable / when the skill is disabled, `active` while a session is provisioned, otherwise `available`. The agent capability description (`AGENT_DESKTOP_CAPABILITY_DESCRIPTION` in `src/agent/agentRun.ts`) documents that input is delivered only while the Agent_Desktop is the displayed Virtual Desktop because all Virtual Desktops share one Input_Session.
+- **Settings + disclosure:** preferences live in the existing sanitized `zura-settings` blob under `settings.agentDesktop` (no new file, no secure storage) and are mirrored into the service by `AgentDesktopSync` via `agent-desktop:apply-settings` within `SETTINGS_MIRROR_TIMEOUT_MS`; on an unusable payload the service retains the last-applied settings and surfaces an error. Agent Desktop is also surfaced as a skill (`skills.agent_desktop.enabled`) following the same dual-source-of-truth pattern as Memory. Enabling the skill requires acknowledging an honest "not a sandbox" disclosure (`agent-desktop:acknowledge-disclosure`); without acknowledgement the skill stays disabled and no capability is enabled.
+
 
 
 - Startup theme apply: `src/main.tsx` reads `localStorage['zura-settings']` and applies theme with user customization (`themeAccent`, `themeBackground`, `themeForeground`, `themeContrast`).
@@ -473,7 +511,8 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
     - `titleModel` (dedicated model used for title generation; provider inferred from the selected model)
     - `titleGenerationPrompt` (prompt template for generating titles; supports `{{userMessage}}` token)
     - `titleGenerationDisplayMode` (`instant` or `typewriter` sidebar reveal)
-  - Skills map: `skills` (built-in IDs keyed by `skillId`, currently `web_research` (default enabled), `code_execution` (default disabled), `computer_use` (default disabled), `chart_generation` (default disabled), and `memory` (default enabled), each with `enabled`).
+  - Skills map: `skills` (built-in IDs keyed by `skillId`, currently `web_research` (default enabled), `code_execution` (default disabled), `computer_use` (default disabled), `chart_generation` (default disabled), `memory` (default enabled), and `agent_desktop` (Windows-only, default disabled), each with `enabled`).
+  - Agent Desktop preferences: `agentDesktop` (Windows-only Agent View; `enabled`, `disclosureAcknowledged`, `persistence` (`persist` | `ephemeral`), per-action `approvalPolicy`, and clamped `approvalTimeoutMs`). Lives in the sanitized settings blob — no new file, no secure storage. `skills.agent_desktop.enabled` mirrors `settings.agentDesktop.enabled` (dual source of truth, same pattern as Memory).
   - Legacy `webSearchEnabled` / `structuredResearchEnabled` are migrated into `skills.web_research.enabled`; `structuredResearchEnabled` is retained only as a migration input and is not used by runtime logic.
   - `themeContrast` (0-100, default 100): Numeric contrast intensity; lower values produce a softer look.
   - `themeAccent`, `themeBackground`, `themeForeground`: Optional hex color overrides for theme base colors; when set, they override the preset's base colors.
@@ -523,6 +562,7 @@ Tool execution is intentionally restricted.
 - Main process side:
   - Tool IPC: `electron/tools/index.ts` (restricted registry: `web_search`)
   - MCP tool IPC: `electron/mcp/index.ts` (`mcp:execute-tool`, `mcp:resolve-approval`) with approval gating handled by `electron/mcp/mcpApprovalManager.ts`
+  - Agent Desktop (Windows-only): no new model-callable tools. When the `agent_desktop` skill is enabled on Windows, `electron/tools/index.ts` routes the existing `computer_*` calls through `agentDesktopService.gateComputerAction(...)` (in `electron/agentDesktop/`) before delegating to the Computer Use executors; the gate enforces placement, presence, targeting, the allowlist approval policy, the shared kill switch, and the shared action cap, and redirects captures to the Agent_Desktop. See the "Agent Desktop / Agent View" runtime-flow section above.
   - Web search: `electron/tools/webSearch.ts`
     - `electron/tools/webSearch.ts` is a thin facade over the modular service in `electron/tools/web-search/`
     - `electron/tools/web-search/intent.ts` classifies query-vs-URL-vs-extract intents and reformulates weak search queries

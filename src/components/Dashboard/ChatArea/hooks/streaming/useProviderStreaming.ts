@@ -141,6 +141,24 @@ function detectMidStreamMarkup(content: string): 'dsml' | 'xml' | null {
   return null
 }
 
+/**
+ * Index where inline tool-call markup begins, or null if none is present.
+ * Used in tool-enabled rounds to freeze the visible content at the clean
+ * prefix so raw `<||DSML||tool_calls>` markup never streams to the user
+ * before it's parsed into tool calls at end-of-round.
+ */
+function findMidStreamMarkupStart(content: string): number | null {
+  if (!content) return null
+  let start: number | null = null
+  for (const { pattern } of MID_STREAM_MARKUP_PATTERNS) {
+    const match = content.match(pattern)
+    if (match?.index != null && (start === null || match.index < start)) {
+      start = match.index
+    }
+  }
+  return start
+}
+
 class MidStreamMarkupAbort extends Error {
   readonly format: 'dsml' | 'xml'
   readonly previewContent: string
@@ -374,6 +392,9 @@ export function useProviderStreaming({
       })
 
       let accumulatedContent = ''
+      // In tool-enabled rounds, frozen clean prefix once inline tool-call
+      // markup is detected mid-stream (prevents raw markup leaking to the UI).
+      let frozenDisplayContent: string | null = null
       let generatedFiles: FileAttachment[] = []
       let lastUpdateTime = Date.now()
       let finalVisibleAnswerRound: VisibleAnswerRound | null = null
@@ -417,7 +438,7 @@ export function useProviderStreaming({
         if (now - lastUpdateTime < updateInterval) return
 
         throttledUpdateStreamingMessage(options.sessionId, options.messageId, {
-          content: accumulatedContent,
+          content: frozenDisplayContent ?? accumulatedContent,
           thinking: activeThinking || undefined,
           thinkingDuration: activeThinkingStartTime !== null
             ? performance.now() - activeThinkingStartTime
@@ -478,6 +499,7 @@ export function useProviderStreaming({
         let roundFirstTokenTime: number | null = null
         let strippedToolPrelude = false
         let suppressedInlineToolMarkup = false
+        frozenDisplayContent = null
 
         throwIfAborted()
         logDiagnostic({
@@ -549,13 +571,23 @@ export function useProviderStreaming({
                     if (detectedFormat) {
                       throw new MidStreamMarkupAbort(detectedFormat, roundContent)
                     }
+                  } else if (frozenDisplayContent === null) {
+                    // Tool-enabled round: once inline tool-call markup starts,
+                    // freeze the visible content at the clean prefix so raw
+                    // markup never streams to the user. The tool calls are
+                    // recovered from accumulatedContent at end-of-round.
+                    const markupStart = findMidStreamMarkupStart(roundContent)
+                    if (markupStart !== null) {
+                      frozenDisplayContent =
+                        roundStartContent + roundContent.slice(0, markupStart).trimEnd()
+                    }
                   }
                   streamChunkCoalescer.recordTextDelta(event.delta, accumulatedContent.length)
                   updateStreamingState({
                     phase: 'answering',
                     // Keep the isolated active-message view in sync on every delta.
                     // Persisted chat-history writes stay throttled separately.
-                    content: accumulatedContent,
+                    content: frozenDisplayContent ?? accumulatedContent,
                   })
                 }
                 persistProgress()

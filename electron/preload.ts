@@ -20,10 +20,17 @@ import type {
   IpcSendArgsMap,
   IpcSendChannel,
   AddMemoryInput,
+  AgentDesktopKilledPayload,
+  AgentDesktopPresenceResult,
+  AgentDesktopSettings,
+  AgentDesktopState,
+  AppMenuCommand,
+  ApprovalDecision,
   Memory,
   MemoryScope,
   OverlaySettings,
   OverlayState,
+  PendingAgentDesktopAction,
   PendingCodeApproval,
   PendingComputerAction,
   ResourceSample,
@@ -150,6 +157,25 @@ const MEMORY_INVOKE_CHANNELS = new Set<string>([
 ])
 
 const MEMORY_ON_CHANNELS = new Set<string>(['memory-store:changed'])
+
+// Agent Desktop (Agent View) — dedicated, allowlisted bridge mirroring the
+// `window.overlay` / `window.computerUse` precedent. Windows-only in practice
+// (handlers are not registered on macOS), but the bridge is always exposed and
+// every channel is validated + macOS-rejected in main. Req 9.3, 12.5.
+const AGENT_DESKTOP_INVOKE_CHANNELS = new Set<string>([
+  'agent-desktop:get-state',
+  'agent-desktop:apply-settings',
+  'agent-desktop:take-over',
+  'agent-desktop:end-take-over',
+  'agent-desktop:resolve-approval',
+  'agent-desktop:acknowledge-disclosure',
+])
+
+const AGENT_DESKTOP_ON_CHANNELS = new Set<string>([
+  'agent-desktop:state-changed',
+  'agent-desktop:pending-approval',
+  'agent-desktop:killed',
+])
 
 function assertAllowed<TChannel extends string>(
   kind: 'send' | 'invoke' | 'on' | 'off',
@@ -331,6 +357,14 @@ contextBridge.exposeInMainWorld(
 )
 
 contextBridge.exposeInMainWorld(
+  'appMenu',
+  Object.freeze({
+    command: (command: AppMenuCommand) =>
+      ipcRenderer.invoke('app-menu:command', command) as Promise<boolean>,
+  })
+)
+
+contextBridge.exposeInMainWorld(
   'shell',
   Object.freeze({
     openExternal: (url: string) => ipcRenderer.invoke('shell:open-external', url),
@@ -411,6 +445,76 @@ contextBridge.exposeInMainWorld(
       const listener = () => callback()
       ipcRenderer.on('computer-use:killed', listener)
       return () => ipcRenderer.removeListener('computer-use:killed', listener)
+    },
+  })
+)
+
+// Agent Desktop (Agent View) — dedicated, allowlisted bridge mirroring
+// `window.overlay`. Every channel is gated by the Agent Desktop allowlists; main
+// validates all inputs and rejects on macOS (Req 9.3, 9.4, 12.5).
+contextBridge.exposeInMainWorld(
+  'agentDesktop',
+  Object.freeze({
+    getState: () => {
+      assertAllowed('invoke', 'agent-desktop:get-state', AGENT_DESKTOP_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('agent-desktop:get-state') as Promise<AgentDesktopState>
+    },
+    applySettings: (settings: Partial<AgentDesktopSettings>) => {
+      assertAllowed('invoke', 'agent-desktop:apply-settings', AGENT_DESKTOP_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('agent-desktop:apply-settings', settings) as Promise<AgentDesktopState>
+    },
+    takeOver: () => {
+      assertAllowed('invoke', 'agent-desktop:take-over', AGENT_DESKTOP_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('agent-desktop:take-over') as Promise<AgentDesktopPresenceResult>
+    },
+    endTakeOver: () => {
+      assertAllowed('invoke', 'agent-desktop:end-take-over', AGENT_DESKTOP_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('agent-desktop:end-take-over') as Promise<AgentDesktopPresenceResult>
+    },
+    resolveApproval: (requestId: string, approved: boolean) => {
+      assertAllowed('invoke', 'agent-desktop:resolve-approval', AGENT_DESKTOP_INVOKE_CHANNELS)
+      return ipcRenderer.invoke(
+        'agent-desktop:resolve-approval',
+        requestId,
+        approved
+      ) as Promise<ApprovalDecision>
+    },
+    acknowledgeDisclosure: () => {
+      assertAllowed(
+        'invoke',
+        'agent-desktop:acknowledge-disclosure',
+        AGENT_DESKTOP_INVOKE_CHANNELS
+      )
+      return ipcRenderer.invoke('agent-desktop:acknowledge-disclosure') as Promise<AgentDesktopState>
+    },
+    onStateChange: (callback: (state: AgentDesktopState) => void) => {
+      assertAllowed('on', 'agent-desktop:state-changed', AGENT_DESKTOP_ON_CHANNELS)
+      const listener = (_event: IpcRendererEvent, state: AgentDesktopState) => callback(state)
+      ipcRenderer.on('agent-desktop:state-changed', listener)
+      return () => {
+        assertAllowed('off', 'agent-desktop:state-changed', AGENT_DESKTOP_ON_CHANNELS)
+        ipcRenderer.removeListener('agent-desktop:state-changed', listener)
+      }
+    },
+    onPendingApproval: (callback: (pending: PendingAgentDesktopAction[]) => void) => {
+      assertAllowed('on', 'agent-desktop:pending-approval', AGENT_DESKTOP_ON_CHANNELS)
+      const listener = (_event: IpcRendererEvent, pending: PendingAgentDesktopAction[]) =>
+        callback(pending)
+      ipcRenderer.on('agent-desktop:pending-approval', listener)
+      return () => {
+        assertAllowed('off', 'agent-desktop:pending-approval', AGENT_DESKTOP_ON_CHANNELS)
+        ipcRenderer.removeListener('agent-desktop:pending-approval', listener)
+      }
+    },
+    onKilled: (callback: (payload: AgentDesktopKilledPayload) => void) => {
+      assertAllowed('on', 'agent-desktop:killed', AGENT_DESKTOP_ON_CHANNELS)
+      const listener = (_event: IpcRendererEvent, payload: AgentDesktopKilledPayload) =>
+        callback(payload)
+      ipcRenderer.on('agent-desktop:killed', listener)
+      return () => {
+        assertAllowed('off', 'agent-desktop:killed', AGENT_DESKTOP_ON_CHANNELS)
+        ipcRenderer.removeListener('agent-desktop:killed', listener)
+      }
     },
   })
 )

@@ -24,7 +24,7 @@ import { shouldEnableTools } from '../utils/promptSelection'
 import { createMcpToolRegistry } from '../tools/mcpRegistry'
 import { getProviderModels, type ProviderId } from '../providers'
 import { isWindowsRuntime } from '../utils/platform'
-import { isSkillEnabled } from '../skills'
+import { isSkillEnabled, isAgentDesktopEnabled } from '../skills'
 
 const COMPUTER_USE_TOOLS = [
     'computer_screenshot',
@@ -96,18 +96,12 @@ export function useToolCalling() {
         const memoryToolsEnabled = isSkillEnabled(settings.skills, 'memory')
         const memoryToolsToInclude: readonly string[] = memoryToolsEnabled ? MEMORY_TOOL_NAMES : []
 
-        let enabledTools: string[] = settings.assistantMode === 'chat'
-            ? ['web_search']
-            : settings.enabledTools.length > 0
+        let enabledTools: string[] = settings.enabledTools.length > 0
             ? settings.enabledTools.filter((tool) => knownBuiltInTools.has(tool))
             : builtinToolNames
 
         if (!enabledTools.includes('web_search')) {
             enabledTools.push('web_search')
-        }
-
-        if (settings.assistantMode === 'chat') {
-            return [...new Set(['web_search', ...memoryToolsToInclude])]
         }
 
         if (!enabledTools.includes('code_execution')) {
@@ -124,7 +118,20 @@ export function useToolCalling() {
             )
         }
 
-        if (!isWindowsRuntime()) {
+        // Computer Use action surface (reused by Agent Desktop / Agent View).
+        // Windows-only (mirrors the main-process + preload gates), and gated
+        // behind a skill: either the Agent Desktop skill (Agent View reuses the
+        // same computer_* surface) or the standalone Computer Use skill. When
+        // neither is enabled, or on macOS, the surface is not exposed at all
+        // (Req 9.3, 10.9).
+        // Additionally, Computer Use tools are only exposed in agent mode
+        // (desktop control), not in normal chat mode.
+        const computerUseSurfaceEnabled =
+            settings.assistantMode === 'agent' &&
+            isWindowsRuntime() &&
+            (isAgentDesktopEnabled(settings.skills) || isSkillEnabled(settings.skills, 'computer_use'))
+
+        if (!computerUseSurfaceEnabled) {
             enabledTools = enabledTools.filter((tool) => !COMPUTER_USE_TOOLS.includes(tool))
         } else {
             for (const tool of COMPUTER_USE_TOOLS) {

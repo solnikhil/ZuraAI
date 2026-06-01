@@ -1,8 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { Plus, Sparkles, Trash2, X } from 'lucide-react'
+import { Pencil, Plus, Sparkles, Trash2, User } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import {
   AlertDialog,
@@ -15,14 +14,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import type { Memory } from '@/electron/types'
-import { isSkillEnabled, withSkillEnabled, type SkillsSettings } from '@/skills'
 
 const MAX_CONTENT_LENGTH = 1000
-
-export interface MemorySectionProps {
-  skills: SkillsSettings
-  onChange: (changes: { skills?: SkillsSettings }) => void
-}
 
 interface DraftRow {
   /** Memory id when editing an existing entry, null when adding a new one. */
@@ -35,11 +28,7 @@ function formatTimestamp(ms: number): string {
   return new Date(ms).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
-export function MemorySection({
-  skills,
-  onChange,
-}: MemorySectionProps): React.ReactElement {
-  const memoryEnabled = isSkillEnabled(skills, 'memory')
+export function MemorySection(): React.ReactElement {
   const [memories, setMemories] = useState<Memory[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -133,25 +122,6 @@ export function MemorySection({
         </div>
       </div>
 
-      <section className="memory-toggles" aria-label="Memory feature toggles">
-        <div className="memory-toggle-row">
-          <div className="memory-toggle-row__text">
-            <div className="memory-toggle-row__title">Enable memory</div>
-            <div className="memory-toggle-row__description">
-              Inject saved memories into the system prompt and let the assistant manage them with
-              memory tools. This is the same skill toggle as Settings → Skills → Memory.
-            </div>
-          </div>
-          <Switch
-            checked={memoryEnabled}
-            onCheckedChange={(checked) =>
-              onChange({ skills: withSkillEnabled(skills, 'memory', Boolean(checked)) })
-            }
-            aria-label="Enable memory"
-          />
-        </div>
-      </section>
-
       <section className="memory-list-section" aria-label="Saved memories">
         <header className="memory-list-section__header">
           <div>
@@ -208,10 +178,10 @@ export function MemorySection({
             </p>
           </div>
         ) : (
-          <ul className="memory-list" role="list">
+          <ul className="memory-grid" role="list">
             {memories.map((memory) =>
               draft?.id === memory.id ? (
-                <li key={memory.id} className="memory-list__row memory-list__row--editing">
+                <li key={memory.id} className="memory-card memory-card--full">
                   <DraftEditor
                     value={draft.content}
                     placeholder="Update memory…"
@@ -225,36 +195,33 @@ export function MemorySection({
                   />
                 </li>
               ) : (
-                <li key={memory.id} className="memory-list__row">
-                  <div className="memory-list__source" aria-hidden>
-                    {memory.source === 'model' ? <Sparkles size={14} /> : <span className="memory-list__source-dot" />}
-                  </div>
-                  <div className="memory-list__body">
-                    <button
-                      type="button"
-                      className="memory-list__content"
-                      onClick={() => handleStartEdit(memory)}
-                      aria-label={`Edit memory: ${memory.content}`}
-                    >
-                      {memory.content}
-                    </button>
-                    <div className="memory-list__meta">
-                      <span className={`memory-list__badge memory-list__badge--${memory.source}`}>
-                        {memory.source === 'model' ? 'AI' : 'You'}
-                      </span>
-                      <span className="memory-list__timestamp">
-                        Updated {formatTimestamp(memory.updatedAt)}
-                      </span>
+                <li key={memory.id} className="memory-card">
+                  <div className="memory-card__top">
+                    <span className={`memory-card__chip memory-card__chip--${memory.source}`}>
+                      {memory.source === 'model' ? <Sparkles size={12} /> : <User size={12} />}
+                      {memory.source === 'model' ? 'AI' : 'You'}
+                    </span>
+                    <div className="memory-card__actions">
+                      <button
+                        type="button"
+                        className="memory-card__action"
+                        onClick={() => handleStartEdit(memory)}
+                        aria-label="Edit memory"
+                      >
+                        <Pencil size={13} />
+                      </button>
+                      <button
+                        type="button"
+                        className="memory-card__action memory-card__action--danger"
+                        onClick={() => handleDelete(memory.id)}
+                        aria-label="Delete memory"
+                      >
+                        <Trash2 size={13} />
+                      </button>
                     </div>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label="Delete memory"
-                    onClick={() => handleDelete(memory.id)}
-                  >
-                    <X size={14} />
-                  </Button>
+                  <p className="memory-card__content">{memory.content}</p>
+                  <div className="memory-card__footer">Updated {formatTimestamp(memory.updatedAt)}</div>
                 </li>
               )
             )}

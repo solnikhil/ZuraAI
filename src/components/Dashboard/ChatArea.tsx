@@ -171,12 +171,12 @@ export default function ChatArea() {
       const isUserScrollingUp = currentScrollTop < previousScrollTop
       lastScrollTopRef.current = currentScrollTop
 
-      if (isAutoScrollingRef.current) return
-
       if (isLoading && isUserScrollingUp) {
         userScrolledAwayRef.current = true
         return
       }
+
+      if (isAutoScrollingRef.current) return
 
       if (isLoading && !isNearBottom()) {
         userScrolledAwayRef.current = true
@@ -229,9 +229,13 @@ export default function ChatArea() {
     if (streamingState.sessionId !== currentSessionId) return
     if (!streamingState.content && !streamingState.thinking) return
     if (userScrolledAwayRef.current) return
+    if (!isNearBottom()) {
+      userScrolledAwayRef.current = true
+      return
+    }
 
     requestAnimationFrame(() => {
-      if (!userScrolledAwayRef.current) {
+      if (!userScrolledAwayRef.current && isNearBottom()) {
         scrollToNewMessage()
       }
     })

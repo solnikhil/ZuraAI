@@ -1,7 +1,38 @@
-import { app, ipcMain, BrowserWindow, Menu, clipboard, dialog, shell, type MenuItemConstructorOptions } from 'electron'
+import {
+  app,
+  ipcMain,
+  BrowserWindow,
+  Menu,
+  clipboard,
+  dialog,
+  shell,
+  type IpcMainInvokeEvent,
+  type MenuItemConstructorOptions,
+} from 'electron'
 import { getAppRuntimeInfo } from '../runtimeInfo'
 import { showAboutWindow } from '../windows'
-import type { NativeContextMenuAction, NativeContextMenuRequest } from '../../src/electron/types'
+import type {
+  AppMenuCommand,
+  NativeContextMenuAction,
+  NativeContextMenuRequest,
+} from '../../src/electron/types'
+
+const HELP_URL = 'https://github.com/solnikhil/ZuraAI'
+const APP_MENU_COMMANDS = new Set<AppMenuCommand>([
+  'new-chat',
+  'open-settings',
+  'open-about',
+  'reload',
+  'toggle-devtools',
+  'reset-zoom',
+  'zoom-in',
+  'zoom-out',
+  'toggle-fullscreen',
+  'minimize',
+  'toggle-maximize',
+  'close-window',
+  'open-help',
+])
 
 /**
  * Tracks which windows already have window-state listeners attached.
@@ -120,6 +151,71 @@ function maybeGetSafeHttpUrl(url: string): string | null {
   }
 }
 
+function isAppMenuCommand(value: unknown): value is AppMenuCommand {
+  return typeof value === 'string' && APP_MENU_COMMANDS.has(value as AppMenuCommand)
+}
+
+async function executeAppMenuCommand(
+  event: IpcMainInvokeEvent,
+  command: AppMenuCommand
+): Promise<boolean> {
+  const win = BrowserWindow.fromWebContents(event.sender)
+
+  switch (command) {
+    case 'new-chat':
+      event.sender.send('app:new-chat')
+      return true
+    case 'open-settings':
+      event.sender.send('settings:navigate', 'providers')
+      return true
+    case 'open-about':
+      showAboutWindow()
+      return true
+    case 'reload':
+      event.sender.reload()
+      return true
+    case 'toggle-devtools':
+      if (app.isPackaged) return false
+      event.sender.toggleDevTools()
+      return true
+    case 'reset-zoom':
+      event.sender.setZoomLevel(0)
+      return true
+    case 'zoom-in':
+      event.sender.setZoomLevel(event.sender.getZoomLevel() + 0.5)
+      return true
+    case 'zoom-out':
+      event.sender.setZoomLevel(event.sender.getZoomLevel() - 0.5)
+      return true
+    case 'toggle-fullscreen':
+      if (!win) return false
+      win.setFullScreen(!win.isFullScreen())
+      emitWindowState(win)
+      return true
+    case 'minimize':
+      if (!win) return false
+      ensureWindowStateListeners(win)
+      win.minimize()
+      return true
+    case 'toggle-maximize':
+      if (!win) return false
+      ensureWindowStateListeners(win)
+      if (win.isMaximized()) {
+        win.unmaximize()
+      } else {
+        win.maximize()
+      }
+      emitWindowState(win)
+      return true
+    case 'close-window':
+      win?.close()
+      return Boolean(win)
+    case 'open-help':
+      await shell.openExternal(HELP_URL)
+      return true
+  }
+}
+
 /**
  * Registers IPC channels that expose OS- and window-level capabilities to the
  * renderer through the preload allowlist.
@@ -183,6 +279,17 @@ export function registerSystemHandlers(): void {
     if (!win) return false
     ensureWindowStateListeners(win)
     return win.isMaximized()
+  })
+
+  /**
+   * Executes one fixed app-menu command from the custom Windows titlebar menu.
+   *
+   * Channel: `app-menu:command`
+   * Type: request/response
+   */
+  ipcMain.handle('app-menu:command', async (event, command: unknown) => {
+    if (!isAppMenuCommand(command)) return false
+    return executeAppMenuCommand(event, command)
   })
 
   /**
@@ -488,6 +595,7 @@ export function unregisterSystemHandlers(): void {
   ipcMain.removeHandler('window-controls:toggle-maximize')
   ipcMain.removeHandler('window-controls:close')
   ipcMain.removeHandler('window-controls:is-maximized')
+  ipcMain.removeHandler('app-menu:command')
   ipcMain.removeHandler('app-info:get')
   ipcMain.removeHandler('app-info:get-memory-report')
   ipcMain.removeHandler('app-info:open-about-window')

@@ -97,6 +97,7 @@ import { KeyboardIcon as KeyboardBase } from '@phosphor-icons/react/dist/csr/Key
 import { GearSixIcon as GearSixBase } from '@phosphor-icons/react/dist/csr/GearSix'
 import { TrendUpIcon as TrendUpBase } from '@phosphor-icons/react/dist/csr/TrendUp'
 import { TrashIcon as TrashBase } from '@phosphor-icons/react/dist/csr/Trash'
+import { UserIcon as UserBase } from '@phosphor-icons/react/dist/csr/User'
 import { VideoIcon as VideoBase } from '@phosphor-icons/react/dist/csr/Video'
 import { XCircleIcon as XCircleBase } from '@phosphor-icons/react/dist/csr/XCircle'
 import { XIcon as XBase } from '@phosphor-icons/react/dist/csr/X'
@@ -201,6 +202,7 @@ export const OctagonXIcon = withDefaultWeight(XCircleBase, 'duotone', 'OctagonXI
 export const Paintbrush = withDefaultWeight(PaintBrushBase, 'duotone', 'Paintbrush')
 export const PanelLeft = withDefaultWeight(SidebarSimpleBase, 'duotone', 'PanelLeft')
 export const Paperclip = withDefaultWeight(PaperclipBase, 'duotone', 'Paperclip')
+export const Pencil = withDefaultWeight(PencilLineBase, 'duotone', 'Pencil')
 export const PencilLine = withDefaultWeight(PencilLineBase, 'duotone', 'PencilLine')
 export const Pin = withDefaultWeight(PushPinBase, 'duotone', 'Pin')
 export const Play = withDefaultWeight(PlayBase, 'fill', 'Play')
@@ -226,6 +228,7 @@ export const Trash2 = withDefaultWeight(TrashBase, 'duotone', 'Trash2')
 export const TrendingUp = withDefaultWeight(TrendUpBase, 'duotone', 'TrendingUp')
 export const TriangleAlert = withDefaultWeight(WarningDiamondBase, 'duotone', 'TriangleAlert')
 export const TriangleAlertIcon = TriangleAlert
+export const User = withDefaultWeight(UserBase, 'duotone', 'User')
 export const Video = withDefaultWeight(VideoBase, 'duotone', 'Video')
 export const Wrench = withDefaultWeight(WrenchBase, 'duotone', 'Wrench')
 export const X = withDefaultWeight(XBase, 'duotone', 'X')

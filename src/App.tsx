@@ -3,6 +3,7 @@ import { MotionConfig } from 'framer-motion'
 import { HashRouter as Router, Routes, Route } from 'react-router-dom'
 import AboutWindow from './components/AboutWindow'
 import OverlaySync from './components/OverlaySync'
+import AgentDesktopSync from './components/AgentDesktopSync'
 import DashboardLayout from './components/Dashboard/Layout'
 import AppShellLayout from './components/AppShellLayout'
 import NotFound404 from './components/ui/demo'
@@ -104,6 +105,7 @@ function DashboardApp() {
                 <ModelSelectorProvider>
                   <ModelSelectorOpener />
                   {!macOS && <OverlaySync />}
+                  {!macOS && <AgentDesktopSync />}
                   <Router>
                     <Routes>
                       <Route element={<AppShellLayout />}>

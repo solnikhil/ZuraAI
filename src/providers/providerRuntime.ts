@@ -206,10 +206,11 @@ function normalizeUsage(
         cache_creation_input_tokens?: number
         cache_write_input_tokens?: number
         prompt_tokens_details?: { cached_tokens?: number }
-        completion_tokens_details?: { reasoning_tokens?: number }
+        completion_tokens_details?: { reasoning_tokens?: number; image_tokens?: number; audio_tokens?: number }
         reasoning_tokens?: number
         input_tokens?: number
         output_tokens?: number
+        cost?: number
       }
     | undefined
 ): NormalizedUsage {
@@ -234,6 +235,9 @@ function normalizeUsage(
     cachedOutputTokens: usage.completion_cache_tokens,
     cacheMissInputTokens: usage.prompt_cache_miss_tokens,
     cacheWriteInputTokens,
+    cost: usage.cost,
+    imageTokens: usage.completion_tokens_details?.image_tokens,
+    audioTokens: usage.completion_tokens_details?.audio_tokens,
   }
 }
 

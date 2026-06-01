@@ -34,9 +34,9 @@ import type { AssistantMode } from '../chat/types'
 import { getProviderEnabledDefaults, getProviderSecretFields } from '../providers'
 import type { ProviderId } from '../providers/providerTypes'
 import { warnOnceDuringHmr } from './hmrWarnings'
-import type { OverlaySettings } from '../electron/types'
+import type { AgentDesktopSettings, OverlaySettings } from '../electron/types'
 
-export type { OverlaySettings }
+export type { AgentDesktopSettings, OverlaySettings }
 
 // Todo item structure (shared with main Settings)
 export interface TodoItem {
@@ -149,6 +149,14 @@ export interface SettingsConfig {
   rememberLastSettingsSection: boolean
   rememberLastDashboardView: boolean
   overlay: OverlaySettings
+  /**
+   * Agent Desktop (Agent View) preferences. Optional and Windows-only; mirrored
+   * into the trusted main-process service by `AgentDesktopSync`. Lives in the
+   * existing sanitized `zura-settings` blob (Req 10.1). Undefined until the user
+   * interacts with Agent Desktop settings, in which case the service falls back
+   * to its safe disabled default.
+   */
+  agentDesktop?: AgentDesktopSettings
 }
 
 /**

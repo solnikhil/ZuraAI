@@ -8,6 +8,7 @@ import { checkOllamaStatus, listOllamaModels, enrichOllamaModelsWithContext } fr
 import { SECURE_API_KEY_NAMES, saveApiKeyToSecureStorage } from '../../utils/secureApiKeys'
 import { UsageSection } from './sections/UsageSection'
 import { OverlaySection } from './sections/OverlaySection'
+import { AgentDesktopSection } from './sections/AgentDesktopSection'
 import { McpSection } from './sections/McpSection'
 import { MemorySection } from './sections/MemorySection'
 import { ProviderHubSection } from './sections/ProviderHubSection'
@@ -51,7 +52,9 @@ export default function Settings({
 
   const normalizedActiveSection = useMemo(() => {
     const normalized = normalizeSettingsSection(activeSection) ?? 'providers'
-    return isMacOSRuntime() && normalized === 'overlay' ? 'providers' : normalized
+    return isMacOSRuntime() && (normalized === 'overlay' || normalized === 'agent-desktop')
+      ? 'providers'
+      : normalized
   }, [activeSection])
 
   const usageModelCatalog = useMemo(() => {
@@ -371,23 +374,27 @@ if (!hasSettingsChanges && !hasMcpChanges) {
               />
             )}
 
+            {!isMacOSRuntime() && normalizedActiveSection === 'agent-desktop' && (
+              <AgentDesktopSection
+                agentDesktop={pendingSettings.agentDesktop}
+                skills={pendingSettings.skills}
+                onChange={(changes) => handleChange(changes)}
+              />
+            )}
+
             {normalizedActiveSection === 'mcp' && <McpSection />}
 
             {normalizedActiveSection === 'skills' && (
               <SkillsSection
                 skills={pendingSettings.skills}
+                agentDesktop={pendingSettings.agentDesktop}
                 codeExecutionAutoApprove={pendingSettings.codeExecutionAutoApprove}
                 computerUseAutoApprove={pendingSettings.computerUseAutoApprove}
                 onChange={(changes) => handleChange(changes)}
               />
             )}
 
-            {normalizedActiveSection === 'memory' && (
-              <MemorySection
-                skills={pendingSettings.skills}
-                onChange={(changes) => handleChange(changes)}
-              />
-            )}
+            {normalizedActiveSection === 'memory' && <MemorySection />}
 
             {normalizedActiveSection === 'themes' && (
               <AppearanceSection

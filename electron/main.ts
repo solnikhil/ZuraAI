@@ -42,6 +42,8 @@ import {
   unregisterComputerUseHandlers,
   disposeComputerUseApprovalManager,
 } from './tools/computer-use'
+import { registerAgentDesktopHandlers, disposeAgentDesktopService } from './agentDesktop'
+import { getAgentDesktopService } from './agentDesktop/service'
 
 // Resolve packaged asset paths consistently in both development and production.
 const DIST_PATH = process.env.DIST || path.join(__dirname, '../dist')
@@ -100,6 +102,21 @@ app.on('will-quit', () => {
   unregisterCodeExecutionHandlers()
   disposeComputerUseApprovalManager()
   unregisterComputerUseHandlers()
+  if (!IS_MACOS) {
+    // Return the displayed Virtual_Desktop to the recorded User_Desktop before
+    // releasing the VDA binding (Req 1.10). The goToDesktop switch fires
+    // synchronously inside endTakeOver; endTakeOver resolves (never rejects)
+    // and is a no-op when no session is active. Best-effort: a failure here
+    // must never block app teardown.
+    void getAgentDesktopService()
+      .endTakeOver()
+      .catch(() => {
+        // Best-effort: never surface a return-to-User_Desktop failure on quit.
+      })
+    // Dispose the service: unregisters handlers and releases the VDA binding
+    // (Req 1.7).
+    disposeAgentDesktopService()
+  }
 
   cleanupAutoUpdater()
   destroyTray()
@@ -170,6 +187,7 @@ app.whenReady().then(async () => {
   registerCodeExecutionHandlers()
   if (!IS_MACOS) {
     registerComputerUseHandlers()
+    registerAgentDesktopHandlers()
   }
   startResourceMonitor()
 

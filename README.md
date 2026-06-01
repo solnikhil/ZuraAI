@@ -4,11 +4,12 @@
 
   <h1>ZuraAI</h1>
 
-  <p><strong>Desktop AI for people who want model choice, fast research, and local control.</strong></p>
+  <p><strong>Desktop AI for people who want model choice, agentic workflows, fast research, and local control.</strong></p>
 
   <p>
     ZuraAI is a desktop assistant built with Electron, React, Vite, and TypeScript.<br />
-    Chat across leading cloud providers and Ollama, stream answers, run built-in web research, and keep your data local.
+    Chat across leading cloud providers and Ollama, stream answers, run built-in web research,
+    use agent tools with approval gates, and keep your data local.
   </p>
 
   <p><sub>macOS and Windows supported. No ZuraAI account. No cloud sync. Bring your own providers.</sub></p>
@@ -38,6 +39,7 @@
 
 - [Why ZuraAI](#why-zuraai)
 - [At a glance](#at-a-glance)
+- [Agentic capabilities](#agentic-capabilities)
 - [Provider lineup](#provider-lineup)
 - [Quick start](#quick-start)
 - [Scripts](#scripts)
@@ -53,7 +55,8 @@
 Most desktop AI apps make you pick one provider, one workflow, or one trust model. ZuraAI is built for people who want all three under control.
 
 - Multi-provider by design: use `OpenRouter`, `Ollama`, `Perplexity`, `Groq`, `Alibaba Cloud`, `Fireworks`, and `DeepSeek` from one desktop app.
-- Research that stays in the flow: turn on built-in web search or use structured research mode with live progress and citations.
+- Research that stays in the flow: turn on built-in web search for current facts, follow-up searches, live progress, and citations.
+- Agent Workspace mode: let capable models plan and use gated tools for search, code, MCP actions, memory, and desktop assistance.
 - Local-first storage: chat history lives in the Electron main process and API keys are stored with Electron secure storage.
 - Better chat organization: pin sessions, sort them into folders, tag them, and generate titles automatically.
 - Desktop workflow polish: use the command palette, quick-send actions, image attachments, and per-model enable or disable controls.
@@ -64,12 +67,28 @@ Most desktop AI apps make you pick one provider, one workflow, or one trust mode
 | Area | What ZuraAI gives you |
 | --- | --- |
 | Models | One interface for cloud models and local Ollama models |
-| Research | Built-in web search, structured research planning, citations, and inline search results |
+| Agent Workspace | Tool-using assistant mode with visible step timelines, approval gates, and per-skill controls |
+| Research | Built-in web search, batched follow-up searches, citations, and inline search results |
+| Tools | Web research, approved code execution, trusted MCP tools, memory tools, and Windows-only computer use |
 | Media | Image attachments for vision-capable models |
 | Organization | Pinned chats, folders, tags, recency grouping, and title generation |
 | Platform | Desktop app support for macOS and Windows |
 | Privacy | Local chat history, secure API key storage, and no telemetry |
 | Workflow | Command palette quick-send, provider hub controls, and local usage analytics |
+
+## Agentic capabilities
+
+ZuraAI has two assistant modes: normal chat for direct conversations and Agent Workspace for tool-using workflows. Agent Workspace exposes capabilities only when the matching skill is enabled and the selected provider/model supports tool calls.
+
+| Capability | What it does | Safety and scope |
+| --- | --- | --- |
+| Web research | Calls `web_search` for current facts, source-backed answers, and multi-query research loops | Skill-gated, budgeted per response, and rendered with inline source results |
+| Code execution | Runs JavaScript or Python through the built-in `code_execution` tool for calculations, data transforms, and quick checks | Disabled by default; every execution requires explicit approval |
+| MCP tools | Connects trusted Model Context Protocol servers and exposes their namespaced tools to capable models | Servers must be enabled and trusted; optional per-call approval plus tool allow/block lists |
+| Memory | Saves, updates, deletes, and searches short durable user facts for personalization across chats | Stored locally under Electron `userData`; user-visible and manageable in Settings |
+| Computer use | Takes screenshots, clicks, types, scrolls, launches apps, and closes windows for desktop automation | Windows-only, disabled by default, approval-gated, with an emergency stop path |
+
+Agent runs are visible in the chat timeline: ZuraAI records planning, tool calls, approvals, running state, results, failures, and final synthesis on the assistant message. Tool-only turns and approval outcomes are persisted with the chat so the history reflects what actually happened.
 
 ## Provider lineup
 

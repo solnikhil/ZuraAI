@@ -49,11 +49,11 @@ async function gateApproval(action: ComputerActionType, args: object, autoApprov
   return { approved: true }
 }
 
-export async function executeScreenshot(args: ScreenshotArgs): Promise<ToolResult> {
+export async function executeScreenshot(args: ScreenshotArgs, agentDesktopIndex?: number): Promise<ToolResult> {
   resetAbortOnNewTask()
   registerKillSwitch(() => abortSession())
   try {
-    const result = await captureScreenshot(args.display_id)
+    const result = await captureScreenshot(args.display_id, agentDesktopIndex)
     latestCoordinateContext = result.coordinateContext
     return {
       success: true,
@@ -63,6 +63,9 @@ export async function executeScreenshot(args: ScreenshotArgs): Promise<ToolResul
         screenWidth: result.width,
         screenHeight: result.height,
         coordinateContext: serializeCoordinateContext(result.coordinateContext),
+        ...(result.agentDesktopIndex !== undefined
+          ? { agentDesktopIndex: result.agentDesktopIndex }
+          : {}),
       },
     }
   } catch (e) {

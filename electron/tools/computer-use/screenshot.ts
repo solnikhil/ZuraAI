@@ -9,6 +9,17 @@ export interface ScreenshotCaptureResult {
   actualWidth: number
   actualHeight: number
   coordinateContext: ScreenshotCoordinateContext
+  /**
+   * The Agent_Desktop Virtual_Desktop index this capture was redirected to, when
+   * the capture was requested for the Agent Desktop (Req 4.2). `undefined` for a
+   * normal User_Desktop capture. The Agent Desktop gate
+   * (`electron/tools/index.ts`) supplies this so a capture during an agent task
+   * targets the Agent_Desktop rather than the User_Desktop; the native
+   * per-desktop capture mechanism is owned by the VDA layer. This field makes the
+   * redirect target observable to the caller without changing User_Desktop
+   * capture behavior, and Agent Desktop never falls back to the User_Desktop.
+   */
+  agentDesktopIndex?: number
 }
 
 function getDisplayForSource(source: Electron.DesktopCapturerSource, requestedDisplayId?: string): Electron.Display {
@@ -21,7 +32,10 @@ function getDisplayForSource(source: Electron.DesktopCapturerSource, requestedDi
   return matchedDisplay ?? screen.getPrimaryDisplay()
 }
 
-export async function captureScreenshot(displayId?: string): Promise<ScreenshotCaptureResult> {
+export async function captureScreenshot(
+  displayId?: string,
+  agentDesktopIndex?: number,
+): Promise<ScreenshotCaptureResult> {
   const sources = await desktopCapturer.getSources({
     types: ['screen'],
     thumbnailSize: { width: 3840, height: 2160 },
@@ -74,6 +88,7 @@ export async function captureScreenshot(displayId?: string): Promise<ScreenshotC
       },
       scaleFactor: display.scaleFactor,
     },
+    agentDesktopIndex,
   }
 }
 

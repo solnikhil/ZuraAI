@@ -4,7 +4,6 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import { MemorySection } from './MemorySection'
 import type { Memory } from '@/electron/types'
-import { defaultSkillsSettings, withSkillEnabled, type SkillsSettings } from '@/skills'
 
 const memoryAPI = {
   list: vi.fn<(scope?: unknown) => Promise<Memory[]>>(),
@@ -15,9 +14,6 @@ const memoryAPI = {
   search: vi.fn(),
   onChanged: vi.fn(() => () => undefined),
 }
-
-const enabledSkills: SkillsSettings = withSkillEnabled(defaultSkillsSettings, 'memory', true)
-const disabledSkills: SkillsSettings = withSkillEnabled(defaultSkillsSettings, 'memory', false)
 
 beforeEach(() => {
   Object.values(memoryAPI).forEach((fn) => {
@@ -41,27 +37,11 @@ beforeEach(() => {
 })
 
 describe('MemorySection', () => {
-  it('renders header and the single skill-driven toggle', async () => {
-    render(<MemorySection skills={enabledSkills} onChange={vi.fn()} />)
+  it('renders header and saved memories section', async () => {
+    render(<MemorySection />)
     expect(screen.getByText('Memory')).toBeInTheDocument()
+    expect(screen.getByText('Saved memories')).toBeInTheDocument()
     await waitFor(() => expect(memoryAPI.list).toHaveBeenCalled())
-    expect(screen.getByText(/Enable memory/i)).toBeInTheDocument()
-    expect(screen.getByRole('switch', { name: /Enable memory/i })).toBeChecked()
-  })
-
-  it('reflects the disabled skill state on the toggle', () => {
-    render(<MemorySection skills={disabledSkills} onChange={vi.fn()} />)
-    const toggle = screen.getByRole('switch', { name: /Enable memory/i })
-    expect(toggle).not.toBeChecked()
-  })
-
-  it('toggling the switch dispatches a skills update', async () => {
-    const onChange = vi.fn()
-    render(<MemorySection skills={enabledSkills} onChange={onChange} />)
-    fireEvent.click(screen.getByRole('switch', { name: /Enable memory/i }))
-    await waitFor(() => expect(onChange).toHaveBeenCalled())
-    const update = onChange.mock.calls[0]?.[0] as { skills?: SkillsSettings }
-    expect(update.skills?.memory.enabled).toBe(false)
   })
 
   it('add flow calls window.memory.add and refreshes list', async () => {
@@ -78,7 +58,7 @@ describe('MemorySection', () => {
         } satisfies Memory,
       ])
 
-    render(<MemorySection skills={enabledSkills} onChange={vi.fn()} />)
+    render(<MemorySection />)
     await waitFor(() => expect(memoryAPI.list).toHaveBeenCalled())
 
     fireEvent.click(screen.getByRole('button', { name: /Add memory/i }))
@@ -93,7 +73,7 @@ describe('MemorySection', () => {
   })
 
   it('shows empty hint when there are no memories', async () => {
-    render(<MemorySection skills={enabledSkills} onChange={vi.fn()} />)
+    render(<MemorySection />)
     await waitFor(() => expect(memoryAPI.list).toHaveBeenCalled())
     expect(await screen.findByText(/Tip: in chat/)).toBeInTheDocument()
   })

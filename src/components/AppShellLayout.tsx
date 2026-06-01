@@ -48,7 +48,13 @@ function AppShellContent() {
 
   return (
     <AppContextMenu>
-      <div className="app-frame">
+      <div
+        className={[
+          'app-frame',
+          isWindows ? 'app-frame--windows' : null,
+          isMaximized ? 'app-frame--maximized' : null,
+        ].filter(Boolean).join(' ')}
+      >
         <TitleBar />
         <CommandPalette />
         <div className="app-content">

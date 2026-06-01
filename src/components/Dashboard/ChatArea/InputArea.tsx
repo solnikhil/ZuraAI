@@ -12,6 +12,7 @@ import {
   Plus,
   Wrench,
   Brain,
+  Monitor,
   X,
 } from 'lucide-react'
 import ModelSelector from '../ModelSelector/index'
@@ -51,7 +52,15 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { ComposerAttachments } from './ComposerAttachments'
 import McpLibraryDialog from '@/components/mcp/McpLibraryDialog'
-import type { AssistantMode } from '@/chat/types'
+import {
+  isAgentDesktopEnabled,
+  isSkillEnabled,
+  withAgentDesktopEnabled,
+  withComputerUseEnabled,
+} from '@/skills'
+import { normalizeAgentDesktopSettings } from '@/settings/agentDesktopSettings'
+import { isWindowsRuntime } from '@/utils/platform'
+import { AgentDesktopDisclosureDialog } from '@/components/Settings/sections/AgentDesktopDisclosureDialog'
 
 export interface InputAreaProps {
   input: string
@@ -114,6 +123,7 @@ export function InputArea({
   const [isDragging, setIsDragging] = React.useState(false)
   const [quickActionsOpen, setQuickActionsOpen] = React.useState(false)
   const [mcpDialogMode, setMcpDialogMode] = React.useState<'resources' | 'prompts' | null>(null)
+  const [agentDesktopDisclosureOpen, setAgentDesktopDisclosureOpen] = React.useState(false)
   const { textareaRef, adjustHeight } = useAutoResizeTextarea({
     minHeight: 36,
     maxHeight: 200,
@@ -123,6 +133,14 @@ export function InputArea({
   const { animationsEnabled } = useMotionPreferences()
   
   const assistantMode = settings.assistantMode || 'chat'
+  const computerUseEnabled = isSkillEnabled(settings.skills, 'computer_use')
+  const agentDesktopEnabled = isAgentDesktopEnabled(settings.skills)
+  const activeAgentPillLabel = agentDesktopEnabled
+    ? 'Separate desktop'
+    : computerUseEnabled
+      ? 'This desktop'
+      : 'Agent mode'
+  const agentDesktopSettings = normalizeAgentDesktopSettings(settings.agentDesktop)
   const fastTransition = {
     duration: motionDuration(animationsEnabled, motionDurations.fast),
     ease: motionEasing.standard,
@@ -204,12 +222,59 @@ export function InputArea({
     }
   }
 
-  const setAssistantMode = React.useCallback(
-    (mode: AssistantMode) => {
-      updateSettings({ assistantMode: mode })
+  const setComputerUseMode = React.useCallback(
+    (enabled: boolean) => {
+      updateSettings({
+        assistantMode: enabled ? 'agent' : assistantMode,
+        skills: withAgentDesktopEnabled(withComputerUseEnabled(settings.skills, enabled), false),
+        agentDesktop: enabled
+          ? { ...agentDesktopSettings, enabled: false }
+          : settings.agentDesktop,
+      })
     },
-    [updateSettings]
+    [agentDesktopSettings, assistantMode, settings.agentDesktop, settings.skills, updateSettings]
   )
+
+  const setAgentDesktopMode = React.useCallback(
+    (enabled: boolean, disclosureAcknowledged = false) => {
+      const nextAgentDesktop = {
+        ...agentDesktopSettings,
+        enabled,
+        disclosureAcknowledged:
+          agentDesktopSettings.disclosureAcknowledged || disclosureAcknowledged,
+      }
+
+      updateSettings({
+        assistantMode: enabled ? 'agent' : assistantMode,
+        agentDesktop: nextAgentDesktop,
+        skills: withComputerUseEnabled(withAgentDesktopEnabled(settings.skills, enabled), false),
+      })
+    },
+    [agentDesktopSettings, assistantMode, settings.skills, updateSettings]
+  )
+
+  const requestAgentDesktopMode = React.useCallback(
+    (enabled: boolean) => {
+      if (!enabled) {
+        setAgentDesktopMode(false)
+        return
+      }
+      if (!agentDesktopSettings.disclosureAcknowledged) {
+        setAgentDesktopDisclosureOpen(true)
+        return
+      }
+      setAgentDesktopMode(true)
+    },
+    [agentDesktopSettings.disclosureAcknowledged, setAgentDesktopMode]
+  )
+
+  const disableAgentWorkspace = React.useCallback(() => {
+    updateSettings({
+      assistantMode: 'chat',
+      skills: withComputerUseEnabled(withAgentDesktopEnabled(settings.skills, false), false),
+      agentDesktop: { ...agentDesktopSettings, enabled: false },
+    })
+  }, [agentDesktopSettings, settings.skills, updateSettings])
 
   React.useEffect(() => {
     const handleShortcut = (event: KeyboardEvent) => {
@@ -353,22 +418,54 @@ export function InputArea({
 
         <DropdownMenuSeparator className="mx-0 my-px h-px" />
 
-        <DropdownMenuGroup>
-          <div
-            className="flex h-8 items-center justify-between rounded-[12px] px-1.5 text-[12px]"
-            role="menuitem"
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger className="h-8 rounded-[12px] px-1.5 text-[12px]">
+            <Wrench className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
+            <span>Desktop control</span>
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent
+            sideOffset={8}
+            collisionPadding={12}
+            className="w-[220px] rounded-[14px] p-0.5"
           >
-            <div className="flex items-center gap-2">
-              <Brain className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
-              <span>Agent mode</span>
-            </div>
-            <Switch
-              checked={assistantMode === 'agent'}
-              onCheckedChange={(checked) => setAssistantMode(checked ? 'agent' : 'chat')}
-              className="scale-75 [&_[data-slot=switch-thumb]]:!bg-white"
-            />
-          </div>
-        </DropdownMenuGroup>
+            {isWindowsRuntime() && (
+              <DropdownMenuItem
+                onSelect={(event) => event.preventDefault()}
+                className="h-8 rounded-[12px] px-1.5 text-[12px]"
+              >
+                <Brain className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
+                <span className="flex-1">Control this desktop</span>
+                <Switch
+                  checked={computerUseEnabled}
+                  onCheckedChange={setComputerUseMode}
+                  className="scale-75 [&_[data-slot=switch-thumb]]:!bg-white"
+                  aria-label="Toggle control this desktop"
+                />
+              </DropdownMenuItem>
+            )}
+            {isWindowsRuntime() && (
+              <DropdownMenuItem
+                onSelect={(event) => event.preventDefault()}
+                className="h-8 rounded-[12px] px-1.5 text-[12px]"
+              >
+                <Monitor className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
+                <span className="flex-1">Control separate desktop</span>
+                <Switch
+                  checked={agentDesktopEnabled}
+                  onCheckedChange={requestAgentDesktopMode}
+                  className="scale-75 [&_[data-slot=switch-thumb]]:!bg-white"
+                  aria-label="Toggle control separate desktop"
+                />
+              </DropdownMenuItem>
+            )}
+            {!isWindowsRuntime() && (
+              <DropdownMenuItem disabled className="h-8 rounded-[12px] px-1.5 text-[12px]">
+                <Monitor className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
+                <span>Desktop control requires Windows</span>
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
 
         <DropdownMenuSeparator className="mx-0 my-px h-px" />
 
@@ -522,18 +619,22 @@ export function InputArea({
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation()
-                            setAssistantMode('chat')
+                            disableAgentWorkspace()
                           }}
                           className="group inline-flex h-7 items-center gap-1.5 rounded-full border border-[var(--theme-border-subtle)] bg-[color-mix(in_srgb,var(--theme-accent)_14%,var(--theme-surface))] px-2.5 text-[11px] font-medium text-[var(--theme-text-primary)] transition-colors hover:bg-[color-mix(in_srgb,var(--theme-accent)_22%,var(--theme-surface))]"
-                          aria-label="Disable agent mode"
+                          aria-label="Disable desktop control"
                         >
-                          <Brain className="h-3.5 w-3.5 text-[var(--theme-accent)]" />
-                          <span>Agent</span>
+                          {agentDesktopEnabled ? (
+                            <Monitor className="h-3.5 w-3.5 text-[var(--theme-accent)]" />
+                          ) : (
+                            <Brain className="h-3.5 w-3.5 text-[var(--theme-accent)]" />
+                          )}
+                          <span>{activeAgentPillLabel}</span>
                           <X className="h-3 w-3 text-[var(--theme-text-muted)] group-hover:text-[var(--theme-text-primary)]" />
                         </button>
                       </TooltipTrigger>
                       <TooltipContent side="top" className="rounded-full">
-                        Click to disable agent mode
+                        Click to disable desktop control
                       </TooltipContent>
                     </Tooltip>
                   )}
@@ -624,6 +725,14 @@ export function InputArea({
           onInsertText={insertMcpTextIntoComposer}
         />
       )}
+      <AgentDesktopDisclosureDialog
+        open={agentDesktopDisclosureOpen}
+        onAcknowledge={() => {
+          setAgentDesktopDisclosureOpen(false)
+          setAgentDesktopMode(true, true)
+        }}
+        onCancel={() => setAgentDesktopDisclosureOpen(false)}
+      />
     </TooltipProvider>
   )
 }

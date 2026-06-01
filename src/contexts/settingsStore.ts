@@ -619,5 +619,6 @@ export function getInitialConfigSettings(settings: Settings): Partial<SettingsCo
     rememberLastSettingsSection: settings.rememberLastSettingsSection,
     rememberLastDashboardView: settings.rememberLastDashboardView,
     overlay: settings.overlay,
+    agentDesktop: settings.agentDesktop,
   }
 }

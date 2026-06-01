@@ -484,7 +484,7 @@ const streamingSettings: StreamingSettings = useMemo(
           {
             skills: settings.skills,
             modelProvider: settings.modelProvider,
-            enabledTools: settings.assistantMode === 'chat' ? ['web_search'] : settings.enabledTools,
+            enabledTools: settings.enabledTools,
           },
           content
         )

@@ -114,7 +114,7 @@ function AgentToolApprovalDialog({
           <AlertDialogDescription>{description.title}: {description.summary}</AlertDialogDescription>
         </AlertDialogHeader>
 
-        <div className="space-y-4 text-sm">
+        <div className="min-w-0 space-y-4 text-sm">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary">{kind}</Badge>
             <Badge variant="outline">{request.toolCall.name}</Badge>
@@ -132,7 +132,7 @@ function AgentToolApprovalDialog({
 
           <div className="space-y-2">
             <div className="font-medium text-foreground">Arguments</div>
-            <pre className="max-h-72 overflow-auto rounded-xl border border-border/70 bg-background/80 p-4 text-xs text-foreground">
+            <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-xl border border-border/70 bg-background/80 p-4 text-xs text-foreground">
               {JSON.stringify(request.toolCall.arguments, null, 2)}
             </pre>
           </div>

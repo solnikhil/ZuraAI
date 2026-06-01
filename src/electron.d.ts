@@ -1,5 +1,7 @@
 import type {
   AppInfoAPI,
+  AppMenuAPI,
+  AgentDesktopAPI,
   ChatDebugAPI,
   ChatDiagnosticsAPI,
   CodeExecutionAPI,
@@ -32,10 +34,12 @@ declare global {
     devTools: DevToolsAPI
     contextMenu: ContextMenuAPI
     nativeDialog: NativeDialogAPI
+    appMenu: AppMenuAPI
     mcp: McpAPI
     memory: MemoryAPI
     codeExecution: CodeExecutionAPI
     computerUse: ComputerUseAPI
+    agentDesktop: AgentDesktopAPI
     chatDiagnostics?: ChatDiagnosticsAPI
     chatDebug?: ChatDebugAPI
     resourceMonitor: ResourceMonitorAPI

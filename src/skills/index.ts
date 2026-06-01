@@ -1,4 +1,4 @@
-export type SkillId = 'web_research' | 'code_execution' | 'computer_use' | 'chart_generation' | 'memory'
+export type SkillId = 'web_research' | 'code_execution' | 'computer_use' | 'chart_generation' | 'memory' | 'agent_desktop'
 
 export interface SkillState {
   enabled: boolean
@@ -15,12 +15,24 @@ export interface ChartGenerationSkillState extends SkillState {}
 
 export interface MemorySkillState extends SkillState {}
 
+/**
+ * Agent Desktop (Agent View) skill state. This is the mirrored, Skills-map side
+ * of Agent Desktop's dual source of truth: the richer policy/persistence fields
+ * live under `settings.agentDesktop`, while `skills.agent_desktop.enabled` keeps
+ * the skills map and tool-exposure gating consistent (same pattern as Memory).
+ * The user-facing enable toggle is disclosure-gated and owned by
+ * `AgentDesktopSection`, and quick surfaces that enable it must acknowledge
+ * the same not-a-sandbox disclosure before turning it on.
+ */
+export interface AgentDesktopSkillState extends SkillState {}
+
 export type SkillsSettings = Record<string, SkillState> & {
   web_research: WebResearchSkillState
   code_execution: CodeExecutionSkillState
   computer_use: ComputerUseSkillState
   chart_generation: ChartGenerationSkillState
   memory: MemorySkillState
+  agent_desktop: AgentDesktopSkillState
 }
 
 export interface BuiltInSkill {
@@ -54,13 +66,24 @@ export const BUILT_IN_SKILLS: BuiltInSkill[] = [
   },
   {
     id: 'computer_use',
-    name: 'Computer Use',
-    description: 'Control your computer with AI — take screenshots, click, type, scroll, and automate desktop tasks.',
+    name: 'Control This Desktop',
+    description: 'Let the assistant use screenshots, clicks, typing, scrolling, and app controls on the desktop you are currently using.',
     note: 'Requires approval before each action. Press Esc+Esc to emergency stop.',
     usageGuidance: [
       'Always take a screenshot first to see the current screen state.',
       'Analyze the screenshot carefully before performing any action.',
       'Verify results with a follow-up screenshot after each action.',
+    ],
+  },
+  {
+    id: 'agent_desktop',
+    name: 'Control Separate Desktop',
+    description: 'Let the assistant use the same desktop-control tools on a separate Windows virtual desktop instead of your current desktop.',
+    note: 'Windows only. Workspace separation, not a sandbox. Press Esc+Esc to emergency stop.',
+    usageGuidance: [
+      'Use the existing computer_* tools through the separate-desktop gate.',
+      'Launch and inspect work on the dedicated virtual desktop.',
+      'Use Take Over when input must be delivered to the displayed separate desktop.',
     ],
   },
   {
@@ -106,12 +129,17 @@ const DEFAULT_MEMORY_SKILL: MemorySkillState = {
   enabled: true,
 }
 
+const DEFAULT_AGENT_DESKTOP_SKILL: AgentDesktopSkillState = {
+  enabled: false,
+}
+
 export const defaultSkillsSettings: SkillsSettings = {
   web_research: DEFAULT_WEB_RESEARCH_SKILL,
   code_execution: DEFAULT_CODE_EXECUTION_SKILL,
   computer_use: DEFAULT_COMPUTER_USE_SKILL,
   chart_generation: DEFAULT_CHART_GENERATION_SKILL,
   memory: DEFAULT_MEMORY_SKILL,
+  agent_desktop: DEFAULT_AGENT_DESKTOP_SKILL,
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -142,7 +170,7 @@ export function normalizeSkillsSettings(raw: unknown): SkillsSettings {
 
   if (isRecord(raw)) {
     for (const [skillId, value] of Object.entries(raw)) {
-      if (skillId === 'web_research' || skillId === 'code_execution' || skillId === 'testing' || skillId === 'computer_use' || skillId === 'chart_generation' || skillId === 'memory') continue
+      if (skillId === 'web_research' || skillId === 'code_execution' || skillId === 'testing' || skillId === 'computer_use' || skillId === 'chart_generation' || skillId === 'memory' || skillId === 'agent_desktop') continue
       const generic = normalizeGenericSkillState(value)
       if (generic) {
         normalized[skillId] = generic
@@ -170,6 +198,10 @@ export function normalizeSkillsSettings(raw: unknown): SkillsSettings {
   normalized.memory = normalizeKnownSkill(
     rawRecord?.memory,
     defaultSkillsSettings.memory
+  )
+  normalized.agent_desktop = normalizeKnownSkill(
+    rawRecord?.agent_desktop,
+    defaultSkillsSettings.agent_desktop
   )
 
   return normalized as SkillsSettings
@@ -320,6 +352,23 @@ export function withChartGenerationEnabled(skills: SkillsSettings | undefined, e
   }
 }
 
+// Agent Desktop (Agent View)
+
+export function isAgentDesktopEnabled(skills: SkillsSettings | undefined): boolean {
+  return normalizeSkillsSettings(skills).agent_desktop.enabled
+}
+
+export function withAgentDesktopEnabled(skills: SkillsSettings | undefined, enabled: boolean): SkillsSettings {
+  const normalized = normalizeSkillsSettings(skills)
+  return {
+    ...normalized,
+    agent_desktop: {
+      ...normalized.agent_desktop,
+      enabled,
+    },
+  }
+}
+
 // Generic
 
 export function isSkillEnabled(skills: SkillsSettings | undefined, skillId: SkillId): boolean {
@@ -359,8 +408,11 @@ export function buildEnabledSkillsPrompt(
     skillLines.push('- Prefer Python for math/data tasks. Keep code concise and self-contained. The sandbox has no filesystem or network access.')
   }
 
-  if (normalized.computer_use.enabled) {
-    skillLines.push('- Computer Use (`computer_use`): take screenshots, click, type, scroll, and automate desktop tasks.')
+  if (normalized.agent_desktop.enabled) {
+    skillLines.push('- Control Separate Desktop (`agent_desktop`): use the desktop-control `computer_*` tools on a dedicated Windows virtual desktop instead of the user desktop.')
+    skillLines.push('- Treat it as workspace separation, not a sandbox. Screenshot first, inspect carefully, and use Take Over when input must be delivered.')
+  } else if (normalized.computer_use.enabled) {
+    skillLines.push('- Control This Desktop (`computer_use`): take screenshots, click, type, scroll, and automate tasks on the current desktop.')
     skillLines.push('- Always screenshot first, analyze before acting, verify results with follow-up screenshots.')
   }
 
@@ -377,7 +429,7 @@ export function buildEnabledSkillsPrompt(
     sections.push(options.codeExecutionPrompt)
   }
 
-  if (normalized.computer_use.enabled && options?.computerUsePrompt) {
+  if ((normalized.computer_use.enabled || normalized.agent_desktop.enabled) && options?.computerUsePrompt) {
     sections.push(options.computerUsePrompt)
   }
 

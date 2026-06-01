@@ -12,6 +12,8 @@ import {
 } from './computerUse'
 import type { ScreenshotArgs, TypeArgs, KeyArgs } from './computerUse'
 import { showSpotlight } from '../windows/spotlightOverlay'
+import { initializeAgentDesktopService } from '../agentDesktop'
+import { getAgentDesktopService } from '../agentDesktop/service'
 import { isBuiltinMainToolName, type BuiltinMainToolName } from '../../src/tools/builtinTools'
 import { normalizeClickArgs, normalizeCursorArgs, normalizeScrollArgs } from './computer-use/normalize'
 
@@ -20,6 +22,19 @@ export type { ToolResult, ToolHandler } from './types'
 
 function isComputerUseToolName(toolName: string): boolean {
   return toolName.startsWith('computer_')
+}
+
+const COMPUTER_ACTION_BY_TOOL: Partial<Record<BuiltinMainToolName, string>> = {
+  computer_screenshot: 'screenshot',
+  computer_click: 'click',
+  computer_type: 'type',
+  computer_key: 'key',
+  computer_scroll: 'scroll',
+  computer_cursor_position: 'cursor_position',
+  computer_list_windows: 'list_windows',
+  computer_launch_app: 'launch_app',
+  computer_find_app: 'find_app',
+  computer_close_app: 'close_app',
 }
 
 function normalizeWebSearchArgsInput(args: unknown): WebSearchArgs {
@@ -136,6 +151,89 @@ const toolHandlers: Record<BuiltinMainToolName, ToolHandler> = {
   computer_close_app: (args) => { const r = (typeof args === 'object' && args !== null) ? args as Record<string, unknown> : {}; return executeCloseApp({ title: typeof r.title === 'string' ? r.title : '' }) },
 }
 
+async function executeAgentDesktopComputerTool(
+  toolName: BuiltinMainToolName,
+  args: unknown
+): Promise<ToolResult | null> {
+  const action = COMPUTER_ACTION_BY_TOOL[toolName]
+  if (!action || process.platform === 'darwin') {
+    return null
+  }
+
+  const service = getAgentDesktopService()
+  await initializeAgentDesktopService()
+
+  let state = service.getState()
+  if (!state.enabled) {
+    return null
+  }
+
+  if (state.capability === 'available') {
+    const started = await service.startSession(`agent-desktop-tool-${Date.now()}`)
+    if (!started.provisioned) {
+      return { success: false, error: started.error }
+    }
+    state = started.state
+  }
+
+  if (state.capability !== 'active') {
+    return {
+      success: false,
+      error: state.lastError || 'Agent Desktop is enabled but no Agent Desktop session is active.',
+    }
+  }
+
+  const gate = await service.gateComputerAction({
+    action,
+    args: (typeof args === 'object' && args !== null ? args : {}) as Record<string, unknown>,
+  })
+
+  if (!gate.allow) {
+    return { success: false, error: gate.reason }
+  }
+
+  switch (toolName) {
+    case 'computer_screenshot':
+      return executeScreenshot(normalizeScreenshotArgs(args), gate.desktopOverride)
+    case 'computer_click': {
+      const n = normalizeClickArgs(args)
+      return executeClick(n.args, gate.autoApprove, spotlightFn)
+    }
+    case 'computer_type': {
+      const n = normalizeTypeArgs(args)
+      return executeType(n.args, gate.autoApprove)
+    }
+    case 'computer_key': {
+      const n = normalizeKeyArgs(args)
+      return executeKey(n.args, gate.autoApprove)
+    }
+    case 'computer_scroll': {
+      const n = normalizeScrollArgs(args)
+      return executeScroll(n.args, gate.autoApprove, spotlightFn)
+    }
+    case 'computer_cursor_position': {
+      const n = normalizeCursorArgs(args)
+      return executeCursorPosition(n.args, gate.autoApprove, spotlightFn)
+    }
+    case 'computer_list_windows':
+      return executeListWindows()
+    case 'computer_launch_app': {
+      const r = (typeof args === 'object' && args !== null) ? args as Record<string, unknown> : {}
+      return executeLaunchApp({ name: typeof r.name === 'string' ? r.name : '' })
+    }
+    case 'computer_find_app': {
+      const r = (typeof args === 'object' && args !== null) ? args as Record<string, unknown> : {}
+      return executeFindApp({ query: typeof r.query === 'string' ? r.query : '' })
+    }
+    case 'computer_close_app': {
+      const r = (typeof args === 'object' && args !== null) ? args as Record<string, unknown> : {}
+      return executeCloseApp({ title: typeof r.title === 'string' ? r.title : '' })
+    }
+    default:
+      return null
+  }
+}
+
 /**
  * Register tool IPC handlers
  * Call this from main.ts during app initialization
@@ -166,6 +264,13 @@ export function registerToolHandlers(): void {
     }
 
     try {
+      if (isComputerUseToolName(toolName)) {
+        const agentDesktopResult = await executeAgentDesktopComputerTool(toolName, args)
+        if (agentDesktopResult) {
+          return agentDesktopResult
+        }
+      }
+
       return await handler(args)
     } catch (error: unknown) {
       return {

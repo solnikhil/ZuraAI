@@ -23,7 +23,6 @@
   overflow: hidden;
   z-index: 1;
   background: var(--theme-sidebar-solid);
-  border-right: none;
   transition: opacity var(--motion-duration-fast) var(--motion-ease-standard), background var(--motion-duration-normal) var(--motion-ease-standard);
 }
 

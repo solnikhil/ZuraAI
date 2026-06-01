@@ -5,6 +5,7 @@ import { useAppShell } from '../contexts/AppShellContext'
 import { SIDEBAR_COLLAPSED_WIDTH_PX } from '../constants/sidebar'
 import TitleBarSidebarControls from './TitleBarSidebarControls'
 import TitleBarWindowActions from './TitleBarWindowActions'
+import TitleBarAppMenu from './TitleBarAppMenu'
 import './TitleBar.css'
 import { useShellRouteState } from './shell/useShellRouteState'
 import { useWindowMaximizeState } from './shell/useWindowMaximizeState'
@@ -41,6 +42,9 @@ export default function TitleBar() {
     const isMacOS = useMemo(() => {
         return navigator.platform.toLowerCase().includes('mac')
     }, [])
+    const isWindows = useMemo(() => {
+        return navigator.platform.toLowerCase().includes('win')
+    }, [])
     const { isMaximized, setIsMaximized } = useWindowMaximizeState()
 
     const handleTitleBarDoubleClick = useCallback((e: React.MouseEvent) => {
@@ -58,23 +62,15 @@ export default function TitleBar() {
                 density === 'compact' ? 'app-titlebar--compact' : null,
                 hasSidebar ? 'app-titlebar--with-sidebar' : null,
                 isMacOS ? 'app-titlebar--macos' : null,
+                isWindows ? 'app-titlebar--windows' : null,
+                isMaximized ? 'app-titlebar--maximized' : null,
                 !isMacOS ? 'app-titlebar--custom-controls' : null,
             ].filter(Boolean).join(' ')}
-            style={{}}
+            style={{
+                '--titlebar-stroke-left': hasSidebar ? `${sidebarWidthPx}px` : '0px',
+            } as React.CSSProperties}
             onDoubleClick={handleTitleBarDoubleClick}
         >
-            {/* Content-side titlebar background should always match the main content panel */}
-            {hasSidebar && (
-                <div
-                    className="app-titlebar__content-bg"
-                    style={{
-                        left: `${sidebarWidthPx}px`,
-                        willChange: isResizingSidebar ? 'left' : 'auto',
-                        transition: isResizingSidebar ? 'none' : undefined,
-                    }}
-                />
-            )}
-
             {hasSidebar && sidebarWidthPx > 0 && (
                 <div
                     className="app-titlebar__sidebar-solid"
@@ -99,6 +95,7 @@ export default function TitleBar() {
                     sidebarHidden={sidebarHidden}
                     toggleSidebarHidden={toggleSidebarHidden}
                 />
+                {isWindows && <TitleBarAppMenu />}
             </div>
 
             <div className="app-titlebar__middle">

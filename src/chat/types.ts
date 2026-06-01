@@ -6,6 +6,20 @@ export type AssistantMode = 'chat' | 'agent'
 
 export type AgentCapabilityState = 'enabled' | 'unavailable' | 'approval-required'
 
+/**
+ * Agent Desktop (Agent View) capability state recorded in the Agent_Run
+ * capabilities. Req 11.1, 8.5, 9.2.
+ * - `unavailable`: non-Windows platform, the VirtualDesktopAccessor binding is
+ *   unavailable, or the Agent_Desktop_Skill is disabled.
+ * - `available`: enabled + binding loaded, but no session is currently active.
+ * - `active`: an Agent_Desktop session is currently provisioned.
+ *
+ * This is the canonical renderer-side definition; `src/electron/types.ts`
+ * re-exports it and `electron/agentDesktop/types.ts` mirrors it for the main
+ * process.
+ */
+export type AgentDesktopCapabilityState = 'available' | 'active' | 'unavailable'
+
 export type AgentStepStatus =
   | 'pending'
   | 'awaiting-approval'
@@ -19,6 +33,15 @@ export interface AgentRunCapabilities {
   code: AgentCapabilityState
   mcp: AgentCapabilityState
   computer: AgentCapabilityState
+  /**
+   * Agent Desktop (Agent View) capability state. Input is delivered only while
+   * the Agent_Desktop is the displayed Virtual_Desktop because all Virtual
+   * Desktops for one Windows user share a single Input_Session (Req 3.10).
+   * Resolved by `buildAgentCapabilities`: `unavailable` on non-Windows / when
+   * the VDA binding is unavailable / when the skill is disabled, `active` when
+   * a session is provisioned, otherwise `available` (Req 11.1, 8.5, 9.2).
+   */
+  agentDesktop: AgentDesktopCapabilityState
 }
 
 export interface AgentStep {
