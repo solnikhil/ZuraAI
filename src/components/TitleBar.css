@@ -67,18 +67,6 @@
     border-bottom: none;
 }
 
-.app-titlebar--windows::after {
-    content: '';
-    position: absolute;
-    left: calc(var(--titlebar-stroke-left, 0) + 13px);
-    right: 0;
-    bottom: 0;
-    height: 1px;
-    background: color-mix(in srgb, var(--theme-border) 92%, transparent);
-    pointer-events: none;
-    z-index: 1;
-}
-
 .app-titlebar__left,
 .app-titlebar__middle,
 .app-titlebar__center,
