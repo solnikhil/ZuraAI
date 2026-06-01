@@ -178,15 +178,21 @@
     font-size: 0.78rem;
     line-height: 1;
     cursor: default;
-    transition: background-color var(--motion-duration-fast) var(--motion-ease-standard), border-color var(--motion-duration-fast) var(--motion-ease-standard), color var(--motion-duration-fast) var(--motion-ease-standard);
+    transition: background-color var(--motion-duration-fast) var(--motion-ease-standard), color var(--motion-duration-fast) var(--motion-ease-standard);
     -webkit-app-region: no-drag;
 }
 
 .app-titlebar__menu-trigger:hover,
 .app-titlebar__menu-trigger[data-state='open'] {
     background: var(--theme-surface-hover);
-    border-color: var(--theme-border);
     color: var(--theme-text-primary);
+    outline: none;
+}
+
+.app-titlebar__menu-trigger:focus:not(:focus-visible) {
+    background: transparent;
+    border-color: transparent;
+    color: var(--theme-text-secondary);
     outline: none;
 }
 

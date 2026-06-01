@@ -156,7 +156,6 @@
   display: flex;
   flex-direction: column;
   width: 100%;
-  transition: all var(--motion-duration-normal) var(--motion-ease-standard);
 }
 
 .sidebar-view--chat {
@@ -730,7 +729,7 @@
 }
 
 .sidebar-animate-item {
-  animation: sidebar-blur-in-up 0.25s cubic-bezier(0.25, 0.1, 0.25, 1) backwards;
+  animation: none;
 }
 
 @keyframes sidebar-pulse {

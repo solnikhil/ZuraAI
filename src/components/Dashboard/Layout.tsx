@@ -106,7 +106,6 @@ export default function DashboardLayout() {
         <div className="dashboard-main-canvas">
           {view === 'settings' ? (
             <div
-              className="theme-section-enter"
               style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}
             >
               <Suspense fallback={<SettingsLoadingFallback />}>
@@ -119,7 +118,6 @@ export default function DashboardLayout() {
             </div>
           ) : (
             <div
-              className="theme-section-enter"
               style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}
             >
               <ChatArea />

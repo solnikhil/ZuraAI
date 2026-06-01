@@ -81,7 +81,7 @@ export default function ModelSelector({ minimal, popoverAlign = 'start' }: Model
                     <Cpu size={14} />
                   ))}
                 <span
-                  className={cn('truncate font-medium', minimal ? 'text-[0.95rem]' : 'text-xs')}
+                  className={cn('truncate', minimal ? 'text-[0.95rem]' : 'text-xs font-medium')}
                   style={{
                     maxWidth: triggerLabelMaxWidth,
                     minWidth: minimal ? 0 : '80px',
