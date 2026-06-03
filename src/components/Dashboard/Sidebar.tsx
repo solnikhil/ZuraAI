@@ -52,6 +52,7 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
 
   // Sidebar state
   const [focusIndex, setFocusIndex] = useState(-1)
+  const [peeking, setPeeking] = useState(false)
   const [isResizing, setIsResizing] = useState(false)
   const resizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null)
   const resizeRafRef = useRef<number | null>(null)
@@ -269,10 +270,18 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
     }
   }, [])
 
+  const isPeeking = sidebarHidden && peeking
+
+  // Reset peek whenever the sidebar is no longer hidden
+  useEffect(() => {
+    if (!sidebarHidden && peeking) setPeeking(false)
+  }, [sidebarHidden, peeking])
+
   const containerClasses = [
     'sidebar-container',
     isMacOS ? 'sidebar-container--macos' : '',
-    sidebarHidden ? 'sidebar-container--hidden' : '',
+    sidebarHidden && !isPeeking ? 'sidebar-container--hidden' : '',
+    isPeeking ? 'sidebar-container--peek' : '',
     sidebarCollapsed ? 'sidebar-container--collapsed' : 'sidebar-container--expanded',
     isResizing ? 'sidebar-container--resizing' : '',
   ]
@@ -281,19 +290,32 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
 
   // Structural styles stay inline for testability (JSDOM doesn't load CSS files)
   const openWidthPx = sidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH_PX : sidebarWidth
+  const collapsedAway = sidebarHidden && !isPeeking
   const containerStyle: React.CSSProperties = {
-    width: sidebarHidden ? '0px' : `${openWidthPx}px`,
+    width: collapsedAway ? '0px' : `${openWidthPx}px`,
     // Pin the inner content to its open width so it slides out cleanly (clipped by
     // overflow:hidden) instead of reflowing/squishing while width animates to 0.
     ['--sidebar-inner-width' as string]: `${openWidthPx}px`,
     background: 'var(--theme-sidebar-solid)',
     boxShadow: 'none',
-    pointerEvents: sidebarHidden ? 'none' : 'auto',
+    pointerEvents: collapsedAway ? 'none' : 'auto',
     transition: isResizing ? 'none' : undefined,
   }
 
   return (
-    <div className={containerClasses} style={containerStyle}>
+    <>
+      {sidebarHidden && !isPeeking && (
+        <div
+          className="sidebar-peek-trigger"
+          aria-hidden="true"
+          onMouseEnter={() => setPeeking(true)}
+        />
+      )}
+      <div
+        className={containerClasses}
+        style={containerStyle}
+        onMouseLeave={isPeeking ? () => setPeeking(false) : undefined}
+      >
       <div className="sidebar__inner">
         <SidebarChatView
           active={view === 'chat'}
@@ -349,5 +371,6 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
         />
       )}
     </div>
+    </>
   )
 }

@@ -15,8 +15,8 @@
   --sidebar-item-gap: 2px;
   --sidebar-row-height: 32px;
   --sidebar-control-height: 38px;
-  --sidebar-show-duration: 260ms;
-  --sidebar-hide-duration: 210ms;
+  --sidebar-show-duration: 480ms;
+  --sidebar-hide-duration: 340ms;
   --sidebar-show-ease: cubic-bezier(0.32, 0.72, 0, 1);
   --sidebar-hide-ease: cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
@@ -59,6 +59,29 @@
   width: 60px;
 }
 
+/* ── Hover-to-peek (sidebar hidden) ────────────────────────── */
+
+/* Thin hover trigger pinned to the left edge while the sidebar is hidden. */
+.sidebar-peek-trigger {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 14px;
+  z-index: 6;
+  -webkit-app-region: no-drag;
+}
+
+/* Reveal the hidden sidebar as a floating flyout over the content. */
+.sidebar-container--peek {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  z-index: 40;
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.28);
+}
+
 .sidebar-container--expanded {
   width: 300px;
 }
@@ -90,12 +113,10 @@
   /* Hold a fixed width that matches the open width so the panel slides in/out
      (clipped by the container's overflow:hidden) instead of reflowing per frame. */
   width: var(--sidebar-inner-width, 100%);
-  transition: opacity 80ms linear;
 }
 
 .sidebar-container--hidden .sidebar__inner {
-  opacity: 0;
-  transition: opacity var(--sidebar-hide-duration) var(--sidebar-hide-ease);
+  opacity: 1;
 }
 
 .sidebar-resize-handle {
