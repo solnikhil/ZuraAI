@@ -280,12 +280,12 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
     .join(' ')
 
   // Structural styles stay inline for testability (JSDOM doesn't load CSS files)
+  const openWidthPx = sidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH_PX : sidebarWidth
   const containerStyle: React.CSSProperties = {
-    width: sidebarHidden
-      ? '0px'
-      : sidebarCollapsed
-        ? `${SIDEBAR_COLLAPSED_WIDTH_PX}px`
-        : `${sidebarWidth}px`,
+    width: sidebarHidden ? '0px' : `${openWidthPx}px`,
+    // Pin the inner content to its open width so it slides out cleanly (clipped by
+    // overflow:hidden) instead of reflowing/squishing while width animates to 0.
+    ['--sidebar-inner-width' as string]: `${openWidthPx}px`,
     background: 'var(--theme-sidebar-solid)',
     boxShadow: 'none',
     pointerEvents: sidebarHidden ? 'none' : 'auto',

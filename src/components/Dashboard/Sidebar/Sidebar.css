@@ -15,6 +15,10 @@
   --sidebar-item-gap: 2px;
   --sidebar-row-height: 32px;
   --sidebar-control-height: 38px;
+  --sidebar-show-duration: 260ms;
+  --sidebar-hide-duration: 210ms;
+  --sidebar-show-ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --sidebar-hide-ease: cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -23,7 +27,11 @@
   overflow: hidden;
   z-index: 1;
   background: var(--theme-sidebar-solid);
-  transition: opacity var(--motion-duration-fast) var(--motion-ease-standard), background var(--motion-duration-normal) var(--motion-ease-standard);
+  contain: layout paint;
+  transition:
+    width var(--sidebar-show-duration) var(--sidebar-show-ease),
+    opacity var(--motion-duration-fast) var(--motion-ease-standard),
+    background var(--motion-duration-normal) var(--motion-ease-standard);
 }
 
 .sidebar-container--macos {
@@ -42,6 +50,9 @@
   width: 0 !important;
   border-right: none;
   pointer-events: none;
+  transition:
+    width var(--sidebar-hide-duration) var(--sidebar-hide-ease),
+    opacity var(--motion-duration-fast) var(--motion-ease-exit);
 }
 
 .sidebar-container--collapsed {
@@ -76,6 +87,15 @@
   display: flex;
   flex-direction: column;
   height: 100%;
+  /* Hold a fixed width that matches the open width so the panel slides in/out
+     (clipped by the container's overflow:hidden) instead of reflowing per frame. */
+  width: var(--sidebar-inner-width, 100%);
+  transition: opacity 80ms linear;
+}
+
+.sidebar-container--hidden .sidebar__inner {
+  opacity: 0;
+  transition: opacity var(--sidebar-hide-duration) var(--sidebar-hide-ease);
 }
 
 .sidebar-resize-handle {

@@ -196,6 +196,11 @@
     outline: none;
 }
 
+.app-titlebar__menu-trigger[data-state='closed']:focus,
+.app-titlebar__menu-trigger[data-state='closed']:focus-visible {
+    outline: none;
+}
+
 .app-titlebar__menu-trigger:focus-visible {
     outline: 2px solid var(--theme-accent);
     outline-offset: 2px;
@@ -375,7 +380,6 @@
     position: relative;
     z-index: 7000;
     background: transparent;
-    border-left: 1px solid color-mix(in srgb, var(--theme-border) 85%, transparent);
     padding: 0;
     -webkit-app-region: no-drag;
     align-self: flex-start;
