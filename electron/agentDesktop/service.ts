@@ -141,6 +141,21 @@ export type SessionStartResult =
   | { provisioned: false; error: string; state: AgentDesktopState }
 
 /**
+ * Result of {@link AgentDesktopService.ensureReadyForTool}.
+ *
+ * This is the preflight the `computer_*` tool route calls before asking
+ * {@link gateComputerAction} for an action decision:
+ * - `{ ready: true; state }` — an Agent_Desktop session is active and its
+ *   recorded desktop index still resolves.
+ * - `{ ready: false; error; state }` — Agent Desktop is disabled/unavailable,
+ *   disclosure is missing, or provisioning/verification failed. The caller must
+ *   return the error without falling back to the User_Desktop.
+ */
+export type ToolReadinessResult =
+  | { ready: true; state: AgentDesktopState }
+  | { ready: false; error: string; state: AgentDesktopState }
+
+/**
  * Outcome of the ephemeral teardown decision performed by
  * {@link AgentDesktopService.completeSession}.
  *
@@ -786,6 +801,54 @@ export class AgentDesktopService {
 
     this.notifyStateChange()
     return { provisioned: true, state: this.getState() }
+  }
+
+  /**
+   * Ensure Agent Desktop is ready before a `computer_*` tool drives any work.
+   *
+   * The regular action gate intentionally assumes a valid active session. This
+   * preflight owns the repair step: it initializes/validates the VDA integration,
+   * provisions when no session is active, verifies that an active session's
+   * recorded Agent_Desktop still exists, and recreates the session when that
+   * recorded desktop is stale. It never permits a fallback to the User_Desktop.
+   */
+  async ensureReadyForTool(agentRunId: string): Promise<ToolReadinessResult> {
+    if (this.disposed) {
+      return this.failedReadiness('Agent Desktop has been shut down.')
+    }
+
+    await this.initialize()
+
+    const availability = this.checkAvailability()
+    if (availability) {
+      return this.failedReadiness(availability)
+    }
+
+    const session = this.session
+    if (!session) {
+      return this.startSessionForReadiness(agentRunId)
+    }
+
+    let desktopExists = false
+    try {
+      desktopExists = await withProvisionTimeout(
+        () => this.binding.desktopExists(session.agentDesktopIndex),
+        PROVISION_TIMEOUT_MS
+      )
+    } catch (error) {
+      return this.failedReadiness(
+        this.describeVdaFailure(error, 'verify the Agent Desktop')
+      )
+    }
+
+    if (desktopExists) {
+      this.lastError = null
+      this.notifyStateChange()
+      return { ready: true, state: this.getState() }
+    }
+
+    this.clearStaleSessionForReprovision()
+    return this.startSessionForReadiness(agentRunId)
   }
 
   /**
@@ -1766,6 +1829,43 @@ export class AgentDesktopService {
     this.lastError = message
     this.notifyStateChange()
     return { provisioned: false, error: message, state: this.getState() }
+  }
+
+  /** Map `startSession` onto the readiness contract. */
+  private async startSessionForReadiness(agentRunId: string): Promise<ToolReadinessResult> {
+    const started = await this.startSession(agentRunId)
+    return started.provisioned
+      ? { ready: true, state: started.state }
+      : { ready: false, error: started.error, state: started.state }
+  }
+
+  /**
+   * Clear a stale active session before reprovisioning. This resets state that
+   * must not leak from a missing Agent_Desktop into the replacement session.
+   */
+  private clearStaleSessionForReprovision(): void {
+    this.session = null
+    this.lastAgentDesktopIndex = null
+    this.agentDesktopDisplayed = false
+    this.stagingStopped = false
+    this.actionCount = 0
+    this.aborted = false
+    this.lastEscapeAt = 0
+    this.heldInputQueue.clear()
+    this.heldInputQueue = new HeldInputQueue({ now: this.now })
+    this.approvalManager.dispose()
+    this.pendingApprovalCount = 0
+    this.lastError = null
+  }
+
+  /**
+   * Build a readiness failure. The state is broadcast so settings UI and Agent
+   * Desktop status surfaces see the same failure the tool caller returns.
+   */
+  private failedReadiness(message: string): ToolReadinessResult {
+    this.lastError = message
+    this.notifyStateChange()
+    return { ready: false, error: message, state: this.getState() }
   }
 
   /**

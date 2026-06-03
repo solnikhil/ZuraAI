@@ -53,6 +53,8 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
   // Sidebar state
   const [focusIndex, setFocusIndex] = useState(-1)
   const [peeking, setPeeking] = useState(false)
+  const [peekClosing, setPeekClosing] = useState(false)
+  const peekCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [isResizing, setIsResizing] = useState(false)
   const resizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null)
   const resizeRafRef = useRef<number | null>(null)
@@ -267,21 +269,53 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
       if (resizeRafRef.current !== null) {
         cancelAnimationFrame(resizeRafRef.current)
       }
+      if (peekCloseTimer.current) {
+        clearTimeout(peekCloseTimer.current)
+      }
     }
   }, [])
 
   const isPeeking = sidebarHidden && peeking
+  // Keep the flyout positioned as an overlay while it slides back out so the
+  // main content layout never reflows when the peek closes.
+  const isPeekOverlay = sidebarHidden && (peeking || peekClosing)
+
+  const openPeek = useCallback(() => {
+    if (peekCloseTimer.current) {
+      clearTimeout(peekCloseTimer.current)
+      peekCloseTimer.current = null
+    }
+    setPeekClosing(false)
+    setPeeking(true)
+  }, [])
+
+  const closePeek = useCallback(() => {
+    setPeeking(false)
+    setPeekClosing(true)
+    if (peekCloseTimer.current) clearTimeout(peekCloseTimer.current)
+    peekCloseTimer.current = setTimeout(() => {
+      setPeekClosing(false)
+      peekCloseTimer.current = null
+    }, 360)
+  }, [])
 
   // Reset peek whenever the sidebar is no longer hidden
   useEffect(() => {
-    if (!sidebarHidden && peeking) setPeeking(false)
-  }, [sidebarHidden, peeking])
+    if (!sidebarHidden && (peeking || peekClosing)) {
+      setPeeking(false)
+      setPeekClosing(false)
+      if (peekCloseTimer.current) {
+        clearTimeout(peekCloseTimer.current)
+        peekCloseTimer.current = null
+      }
+    }
+  }, [sidebarHidden, peeking, peekClosing])
 
   const containerClasses = [
     'sidebar-container',
     isMacOS ? 'sidebar-container--macos' : '',
-    sidebarHidden && !isPeeking ? 'sidebar-container--hidden' : '',
-    isPeeking ? 'sidebar-container--peek' : '',
+    sidebarHidden && !isPeekOverlay ? 'sidebar-container--hidden' : '',
+    isPeekOverlay ? 'sidebar-container--peek' : '',
     sidebarCollapsed ? 'sidebar-container--collapsed' : 'sidebar-container--expanded',
     isResizing ? 'sidebar-container--resizing' : '',
   ]
@@ -308,13 +342,13 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
         <div
           className="sidebar-peek-trigger"
           aria-hidden="true"
-          onMouseEnter={() => setPeeking(true)}
+          onMouseEnter={openPeek}
         />
       )}
       <div
         className={containerClasses}
         style={containerStyle}
-        onMouseLeave={isPeeking ? () => setPeeking(false) : undefined}
+        onMouseLeave={isPeeking ? closePeek : undefined}
       >
       <div className="sidebar__inner">
         <SidebarChatView

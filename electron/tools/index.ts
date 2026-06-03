@@ -163,24 +163,31 @@ async function executeAgentDesktopComputerTool(
   const service = getAgentDesktopService()
   await initializeAgentDesktopService()
 
-  let state = service.getState()
+  const state = service.getState()
   if (!state.enabled) {
     return null
   }
 
-  if (state.capability === 'available') {
-    const started = await service.startSession(`agent-desktop-tool-${Date.now()}`)
-    if (!started.provisioned) {
-      return { success: false, error: started.error }
-    }
-    state = started.state
-  }
-
-  if (state.capability !== 'active') {
+  const readiness = await service.ensureReadyForTool(`agent-desktop-tool-${Date.now()}`)
+  if (!readiness.ready) {
     return {
       success: false,
-      error: state.lastError || 'Agent Desktop is enabled but no Agent Desktop session is active.',
+      error: readiness.error,
     }
+  }
+
+  let returnToUserDesktopAfterLaunch = false
+  if (toolName === 'computer_launch_app' && !readiness.state.agentDesktopDisplayed) {
+    const displayed = await service.activateTakeOver()
+    if (!displayed.ok) {
+      return {
+        success: false,
+        error:
+          displayed.error ||
+          'Agent Desktop could not be displayed, so the app launch was blocked to avoid launching on the current desktop.',
+      }
+    }
+    returnToUserDesktopAfterLaunch = true
   }
 
   const gate = await service.gateComputerAction({
@@ -189,6 +196,9 @@ async function executeAgentDesktopComputerTool(
   })
 
   if (!gate.allow) {
+    if (returnToUserDesktopAfterLaunch) {
+      await service.endTakeOver()
+    }
     return { success: false, error: gate.reason }
   }
 
@@ -219,7 +229,13 @@ async function executeAgentDesktopComputerTool(
       return executeListWindows()
     case 'computer_launch_app': {
       const r = (typeof args === 'object' && args !== null) ? args as Record<string, unknown> : {}
-      return executeLaunchApp({ name: typeof r.name === 'string' ? r.name : '' })
+      try {
+        return await executeLaunchApp({ name: typeof r.name === 'string' ? r.name : '' })
+      } finally {
+        if (returnToUserDesktopAfterLaunch) {
+          await service.endTakeOver()
+        }
+      }
     }
     case 'computer_find_app': {
       const r = (typeof args === 'object' && args !== null) ? args as Record<string, unknown> : {}

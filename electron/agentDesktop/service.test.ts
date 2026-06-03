@@ -24,7 +24,7 @@ import { describe, it, expect, vi } from 'vitest'
 
 import { createAgentDesktopService } from './service'
 import type { VdaBinding, VdaWindowInfo } from './vdaBinding'
-import type { VdaLoadOutcome } from './types'
+import type { AgentDesktopSession, VdaLoadOutcome } from './types'
 import { defaultAgentDesktopSettings, type AgentDesktopSettings } from './settings'
 
 /**
@@ -84,6 +84,87 @@ function enabledSettings(): AgentDesktopSettings {
     enabled: true,
     disclosureAcknowledged: true,
   }
+}
+
+class ReadyCheckBinding implements VdaBinding {
+  private available = false
+  existing = new Set<number>([0])
+  current = 0
+  nextIndex = 100
+  createDesktopCalls = 0
+  desktopExistsCalls: number[] = []
+  nativeCalls = 0
+
+  async load(): Promise<VdaLoadOutcome> {
+    this.available = true
+    return 'available'
+  }
+
+  isAvailable(): boolean {
+    return this.available
+  }
+
+  getLoadError(): string | null {
+    return null
+  }
+
+  getCurrentDesktopIndex(): number {
+    this.nativeCalls += 1
+    return this.current
+  }
+
+  getDesktopCount(): number {
+    this.nativeCalls += 1
+    return this.existing.size
+  }
+
+  createDesktop(): number {
+    this.nativeCalls += 1
+    this.createDesktopCalls += 1
+    const index = this.nextIndex++
+    this.existing.add(index)
+    return index
+  }
+
+  removeDesktop(index: number): void {
+    this.nativeCalls += 1
+    this.existing.delete(index)
+  }
+
+  goToDesktop(index: number): void {
+    this.nativeCalls += 1
+    this.current = index
+  }
+
+  desktopExists(index: number): boolean {
+    this.nativeCalls += 1
+    this.desktopExistsCalls.push(index)
+    return this.existing.has(index)
+  }
+
+  moveWindowToDesktop(): void {
+    this.nativeCalls += 1
+  }
+
+  isWindowOnDesktop(): boolean {
+    this.nativeCalls += 1
+    return true
+  }
+
+  enumerateWindows(): VdaWindowInfo[] {
+    this.nativeCalls += 1
+    return []
+  }
+
+  dispose(): void {
+    this.available = false
+  }
+}
+
+function readSession(
+  service: ReturnType<typeof createAgentDesktopService>
+): AgentDesktopSession | null {
+  return (service as unknown as { session: AgentDesktopSession | null }).session
 }
 
 describe('AgentDesktopService initialization and state reporting', () => {
@@ -261,6 +342,126 @@ describe('AgentDesktopService initialization and state reporting', () => {
 
       expect(binding.load).not.toHaveBeenCalled()
       expect(state.capability).toBe('unavailable')
+    })
+  })
+
+  describe('ensureReadyForTool', () => {
+    it('keeps an active session when the recorded Agent Desktop still exists', async () => {
+      const binding = new ReadyCheckBinding()
+      const service = createAgentDesktopService({
+        binding,
+        settings: enabledSettings(),
+        platformSupported: true,
+      })
+      await service.initialize()
+
+      const start = await service.startSession('run-1')
+      expect(start.provisioned).toBe(true)
+      const session = readSession(service)
+      expect(session).not.toBeNull()
+      const agentDesktopIndex = session?.agentDesktopIndex
+      expect(binding.createDesktopCalls).toBe(1)
+
+      const ready = await service.ensureReadyForTool('run-2')
+
+      expect(ready.ready).toBe(true)
+      expect(binding.createDesktopCalls).toBe(1)
+      expect(binding.desktopExistsCalls).toContain(agentDesktopIndex)
+      expect(readSession(service)?.agentRunId).toBe('run-1')
+    })
+
+    it('recreates a stale active session before tool work and resets per-session state', async () => {
+      const binding = new ReadyCheckBinding()
+      const service = createAgentDesktopService({
+        binding,
+        settings: enabledSettings(),
+        platformSupported: true,
+      })
+      await service.initialize()
+      const start = await service.startSession('run-1')
+      expect(start.provisioned).toBe(true)
+
+      const staleSession = readSession(service)
+      expect(staleSession).not.toBeNull()
+      const staleIndex = staleSession?.agentDesktopIndex
+      expect(typeof staleIndex).toBe('number')
+
+      const gate = await service.gateComputerAction({ action: 'screenshot', args: {} })
+      expect(gate.allow).toBe(true)
+      expect(service.getState().actionCount).toBe(1)
+
+      const takeover = await service.activateTakeOver()
+      expect(takeover.ok).toBe(true)
+      ;(service as unknown as { pendingApprovalCount: number }).pendingApprovalCount = 2
+      binding.existing.delete(staleIndex as number)
+      binding.current = 0
+
+      const ready = await service.ensureReadyForTool('run-2')
+
+      expect(ready.ready).toBe(true)
+      const replacement = readSession(service)
+      expect(replacement).not.toBeNull()
+      expect(replacement?.agentRunId).toBe('run-2')
+      expect(replacement?.agentDesktopIndex).not.toBe(staleIndex)
+      expect(binding.createDesktopCalls).toBe(2)
+      expect(service.getState()).toEqual(
+        expect.objectContaining({
+          capability: 'active',
+          actionCount: 0,
+          pendingApprovalCount: 0,
+          agentDesktopDisplayed: false,
+          presence: 'background',
+        })
+      )
+    })
+
+    it('fails closed without provisioning when VDA is unavailable, the skill is disabled, or disclosure is missing', async () => {
+      const unavailable = makeMockBinding({
+        loadOutcome: 'unavailable',
+        loadError: 'The VirtualDesktopAccessor virtual-desktop integration could not be loaded.',
+      })
+      const unavailableService = createAgentDesktopService({
+        binding: unavailable,
+        settings: enabledSettings(),
+        platformSupported: true,
+      })
+
+      const unavailableReady = await unavailableService.ensureReadyForTool('run-vda')
+      expect(unavailableReady.ready).toBe(false)
+      expect(unavailableReady.error).toContain('VirtualDesktopAccessor')
+      expect(unavailable.createDesktop).not.toHaveBeenCalled()
+
+      const disabledBinding = new ReadyCheckBinding()
+      const disabledService = createAgentDesktopService({
+        binding: disabledBinding,
+        settings: {
+          ...enabledSettings(),
+          enabled: false,
+        },
+        platformSupported: true,
+      })
+      await disabledService.initialize()
+
+      const disabledReady = await disabledService.ensureReadyForTool('run-disabled')
+      expect(disabledReady.ready).toBe(false)
+      expect(disabledReady.error).toContain('disabled')
+      expect(disabledBinding.createDesktopCalls).toBe(0)
+
+      const disclosureBinding = new ReadyCheckBinding()
+      const disclosureService = createAgentDesktopService({
+        binding: disclosureBinding,
+        settings: {
+          ...enabledSettings(),
+          disclosureAcknowledged: false,
+        },
+        platformSupported: true,
+      })
+      await disclosureService.initialize()
+
+      const disclosureReady = await disclosureService.ensureReadyForTool('run-disclosure')
+      expect(disclosureReady.ready).toBe(false)
+      expect(disclosureReady.error).toContain('disclosure')
+      expect(disclosureBinding.createDesktopCalls).toBe(0)
     })
   })
 })
