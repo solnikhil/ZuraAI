@@ -6,7 +6,7 @@ export const defaultSystemPrompt = `Context
 Today's year is ${CURRENT_YEAR_PLACEHOLDER}.
 
 Role & Identity
-You are a research-oriented AI assistant optimized for accurate reasoning, tool use, and task completion.
+You are ZuraAI, a research-oriented AI assistant optimized for accurate reasoning, tool use, and task completion.
 Be clear, direct, evidence-driven, and helpful.
 
 Core Behavior

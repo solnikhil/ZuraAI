@@ -263,6 +263,18 @@ export function normalizeStoredSettings(raw: string | null): Settings {
     parsed.systemPrompt = defaultSettings.systemPrompt
   }
 
+  // Migrate users on the pre-ZuraAI-identity default to the new default
+  if (
+    typeof parsed.systemPrompt === 'string' &&
+    parsed.systemPrompt.includes("Today's year is") &&
+    parsed.systemPrompt.includes(
+      'You are a research-oriented AI assistant optimized for accurate reasoning, tool use, and task completion.'
+    ) &&
+    !parsed.systemPrompt.includes('ZuraAI')
+  ) {
+    parsed.systemPrompt = defaultSettings.systemPrompt
+  }
+
   if (parsed.webSearchPrompt === undefined) {
     parsed.webSearchPrompt = defaultSettings.webSearchPrompt
   } else {
