@@ -38,7 +38,7 @@ Core capabilities:
   - **Sanitized non-secret settings + UI state** live in renderer `localStorage`.
   - **API keys and MCP secrets** live in main-process secure storage and are hydrated/resolved at runtime.
   - **Chat history, MCP server metadata, and secure storage** live in the main process under `app.getPath('userData')`.
-  - **Agent Workspace runs** live on assistant messages inside the existing per-session chat JSON files, not in a separate store.
+  - **Agent run metadata** lives on assistant messages inside the existing per-session chat JSON files, not in a separate store.
 - UI styling guardrail: keep settings cards, chat composer containers, and dropdown/menu surfaces flat. Do **not** reintroduce outer drop shadows on those surfaces unless the user explicitly asks for them.
 - Fallback behavior guardrail: do **not** add new fallback paths, silent substitutions, local heuristics, provider fallbacks, or “safe default” behavior unless it is explicitly required by the user or you ask and get confirmation first. Prefer surfacing the real failure and fixing the root cause; unnecessary fallbacks can hide bugs and change product behavior.
 
@@ -66,6 +66,12 @@ Core capabilities:
 - `electron/mcp/transports/` — MCP transport foundation primitives and concrete transport implementations
 - `electron/tools/` — main-process tool implementations (IPC registry is restricted)
   - `electron/tools/web-search/` — built-in web-search intent classification, backend adapters (Tavily / DuckDuckGo), result normalization, and orchestration service
+  - `electron/tools/windows-uia/` — Windows-only Microsoft UI Automation bridge for native desktop snapshots and supported control actions (`InvokePattern`, `ValuePattern`, selection/toggle patterns)
+  - `electron/tools/system-shell/` — bounded non-interactive PowerShell execution with timeout, output caps, and working-directory validation
+  - `electron/tools/files/` — structured main-process filesystem tools for read/write/search/move with path normalization and size/result limits
+  - `electron/tools/app-management/` — Windows app discovery/launch/install/uninstall via Start Menu scanning, Electron shell launch, and non-interactive `winget`
+  - `electron/tools/window-management/` — Windows native window listing/focus/move/close by HWND/title/process metadata, excluding ZuraAI-owned windows by default
+  - `electron/tools/native-common.ts` — shared Windows-native tool validation, PowerShell execution, timeout/output limits, unsupported-platform errors, and approval checks
 - `electron/updater.ts` — auto-updater (production only)
   - `electron/tools/code-execution/` — built-in code execution skill: Piston API service, approval manager, IPC registration, types, and constants
 - `electron/agentDesktop/` — Windows-only **Agent Desktop (Agent View)** main-process module: provisions/reuses a dedicated Windows Virtual Desktop and parks agent windows there during agent mode. Thin orchestration layer over the existing Computer Use surface (no new model-callable tools).
@@ -368,7 +374,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Fireworks model discovery now has a dedicated serverless catalog path in `src/services/fireworksModels.ts`, surfaced from `src/components/Settings/sections/FireworksModelSearchDialog.tsx` through Provider Hub in the same custom-model workflow style as OpenRouter.
 - Tool calling:
   - `src/hooks/useToolCalling.ts` → `src/tools/toolManager.ts` → `src/tools/executor.ts`
-  - Assistant mode (`settings.assistantMode`) controls request-time tool exposure. Both `chat` and `agent` modes expose `web_search`, `code_execution`, memory tools, and trusted MCP tools based on their respective skill toggles. The only mode-gated surface is desktop control (`computer_*` tools): those are exposed only when `assistantMode === 'agent'` AND the corresponding Windows-only skill (`computer_use` or `agent_desktop`) is enabled.
+  - Assistant mode (`settings.assistantMode`) controls request-time tool exposure. Both `chat` and `agent` modes expose `web_search`, `code_execution`, memory tools, and trusted MCP tools based on their respective skill toggles. Agent mode on Windows additionally exposes native Windows tools (`file_*`, `app_*`, `window_*`, `windows_uia_*`, `system_shell`) for direct OS operations. The desktop-control fallback surface (`computer_*` tools) is exposed only when `assistantMode === 'agent'` AND the corresponding Windows-only skill (`computer_use` or `agent_desktop`) is enabled.
   - Agent mode (desktop control) tool calls pass through a renderer-side manual approval gate before execution; approval and execution state are mirrored into the persisted `message.agentRun.steps` timeline.
   - Built-in main-process tools still execute through `window.ipcRenderer.invoke('execute-tool', toolName, args)`.
   - Namespaced MCP tools now execute through `window.mcp.executeTool(toolName, args)` so built-ins and MCP stay on separate IPC paths.
@@ -377,7 +383,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - The Overlay reuses this same renderer chat pipeline through `useStreamingChat`; it does not create a parallel provider/tool execution path or a separate conversation store.
 - The Overlay also listens for `overlay:pending-prompt` events from the main process (triggered when a prompt popup submission opens the overlay) and auto-sends the received prompt text.
 - Active-response renderer state is split between persisted chat history and ephemeral `StreamingContext` data in `src/contexts/StreamingContext.tsx`.
-  - `StreamingContext` can carry the active assistant `agentRun` so the Agent Workspace timeline updates live and is committed back to chat history with the final assistant message.
+  - `StreamingContext` can carry active assistant `agentRun` metadata for approval/execution bookkeeping and commits it back to chat history with the final assistant message; the dashboard no longer renders a dedicated agent timeline panel.
   - `StreamingContext` now tracks an explicit per-response `phase` (`reasoning`, `searching`, `tool`, `answering`) so the thinking/search UI stays stable across multi-search loops without persisting transient renderer-only state.
   - Reasoning is now segmented per round: in-flight `streamingState.thinking` represents only the current active thought, while completed reasoning rounds are appended to `thinkingBlocks` alongside search blocks so resumed research continues in a new block instead of extending the previous one.
   - Completed MCP tool executions are now appended into persisted `thinkingBlocks` as inline tool-history entries (alongside web search/search blocks) so the renderer can replay MCP activity inside the same thought timeline instead of only in the generic post-message tool card area.
@@ -549,19 +555,20 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 Tool execution is intentionally restricted.
 
 - Renderer side:
-- Built-in main-process tool manifest: `src/tools/builtinTools.ts` (shared `web_search` manifest and built-in tool names)
+- Built-in main-process tool manifest: `src/tools/builtinTools.ts` (shared `web_search`, Computer Use, and Windows-native tool manifests plus built-in tool names)
 - Built-in tool schemas: `src/tools/definitions.ts` (renderer-facing definitions derived from `builtinTools.ts`)
   - Runtime MCP tool adapter: `src/tools/mcpRegistry.ts` maps connected MCP tools into generic request-time descriptors
   - Skill gating + runtime merge: `src/hooks/useToolCalling.ts` + `src/skills/index.ts` decide which built-in tools are exposed and merge them with eligible MCP tools at request time
   - Provider adapters: `src/tools/adapters/*` (Perplexity is explicitly excluded)
-  - Execution: `src/tools/executor.ts` keeps built-in IPC execution for `web_search` and routes namespaced MCP tools through the dedicated `window.mcp.executeTool(...)` bridge
+  - Execution: `src/tools/executor.ts` keeps built-in IPC execution for built-in main-process tools and routes namespaced MCP tools through the dedicated `window.mcp.executeTool(...)` bridge
     - Before invoking built-in `web_search`, the renderer resolves omitted `search_depth` values from `settings.tavilySearchDepthPreference`; `auto` applies a lightweight query heuristic and manual modes inject the selected Tavily tier directly.
     - `src/tools/toolManager.ts` applies the renderer-side batch execution policy for `web_search`: duplicate/facet-deduping within the current assistant response, remaining-budget enforcement, synthetic skipped tool results for over-budget or duplicate calls, and parallel execution for the executable subset of the batch.
   - MCP resources and prompts are not merged into the model tool surface; the renderer only exposes them through user-driven browsing/preview flows in the MCP library UI.
 
 - Main process side:
-  - Tool IPC: `electron/tools/index.ts` (restricted registry: `web_search`)
+  - Tool IPC: `electron/tools/index.ts` (restricted registry for `web_search`, code execution, Computer Use, and Windows-native built-ins)
   - MCP tool IPC: `electron/mcp/index.ts` (`mcp:execute-tool`, `mcp:resolve-approval`) with approval gating handled by `electron/mcp/mcpApprovalManager.ts`
+  - Native Windows tools (normal Agent mode + Agent Desktop mode supplement): `windows_uia_snapshot`, `windows_uia_invoke`, `windows_uia_set_value`, `windows_uia_select`, `system_shell`, `file_read`, `file_write`, `file_search`, `file_move`, `app_find`, `app_launch`, `app_list`, `app_install`, `app_uninstall`, `window_list`, `window_focus`, `window_move`, and `window_close` are exposed through the existing `execute-tool` path and preload validation, with no new renderer IPC channel. Read-only tools auto-run. Mutating tools require explicit approval/`autoApprove` and fail closed when approval is absent or rejected. UIA/app/window tools return clear unsupported-platform errors off Windows. These tools are intended to reduce screenshot/click/type usage; `computer_*` remains the fallback for unsupported controls and genuinely visual tasks. Browser and Office automation are intentionally not included in this version.
   - Agent Desktop (Windows-only): no new model-callable tools. When the `agent_desktop` skill is enabled on Windows, `electron/tools/index.ts` routes the existing `computer_*` calls through `agentDesktopService.ensureReadyForTool(...)` and then `agentDesktopService.gateComputerAction(...)` (in `electron/agentDesktop/`) before delegating to the Computer Use executors; readiness can provision or recreate a missing/stale Agent_Desktop, while the gate enforces placement, presence, targeting, the allowlist approval policy, the shared kill switch, and the shared action cap, and redirects captures to the Agent_Desktop. See the "Agent Desktop / Agent View" runtime-flow section above.
   - Web search: `electron/tools/webSearch.ts`
     - `electron/tools/webSearch.ts` is a thin facade over the modular service in `electron/tools/web-search/`

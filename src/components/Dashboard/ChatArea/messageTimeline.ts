@@ -2,6 +2,7 @@ import type { ThinkingBlock } from '../../../chat/types'
 import type { StreamingPhase } from '../../../contexts/StreamingContext'
 
 export const TOOL_FOLLOW_UP_SPLIT_MARKER = '\n\n[[ZURA_TOOL_FOLLOW_UP_SPLIT]]\n\n'
+const TOOL_FOLLOW_UP_SPLIT_MARKER_PATTERN = /\s*\[\[ZURA_TOOL_FOLLOW_UP_SPLIT\]\]+\s*/g
 
 export interface FollowUpTimelineSnapshot {
   contentLength: number
@@ -52,10 +53,12 @@ export function splitMessageTimeline(
   beforeBlocks: ThinkingBlock[]
   afterBlocks: ThinkingBlock[]
 } {
-  const markerIndex = content.indexOf(TOOL_FOLLOW_UP_SPLIT_MARKER)
-  if (markerIndex >= 0) {
+  const markerMatch = TOOL_FOLLOW_UP_SPLIT_MARKER_PATTERN.exec(content)
+  TOOL_FOLLOW_UP_SPLIT_MARKER_PATTERN.lastIndex = 0
+  if (markerMatch) {
+    const markerIndex = markerMatch.index
     const beforeContent = content.slice(0, markerIndex)
-    const afterContent = content.slice(markerIndex + TOOL_FOLLOW_UP_SPLIT_MARKER.length)
+    const afterContent = content.slice(markerIndex + markerMatch[0].length)
     const lastThinkingIndex = completedBlocks.reduce(
       (latestIndex, block, index) => (block.type === 'thinking' ? index : latestIndex),
       -1
@@ -99,5 +102,5 @@ export function splitMessageTimeline(
 }
 
 export function removeToolFollowUpSplitMarker(content: string): string {
-  return content.split(TOOL_FOLLOW_UP_SPLIT_MARKER).join('')
+  return content.replace(TOOL_FOLLOW_UP_SPLIT_MARKER_PATTERN, '')
 }

@@ -140,7 +140,7 @@ describe('MessageRenderer follow-up timeline', () => {
     })
   })
 
-  it('renders follow-up thinking below the existing streamed content', async () => {
+  it('renders assistant text before the corresponding tool/thinking activity', async () => {
     const baseMessage = {
       id: 'message-1',
       role: 'assistant' as const,
@@ -193,14 +193,14 @@ describe('MessageRenderer follow-up timeline', () => {
       ).map((node) => node.textContent || '')
 
       expect(sequence).toHaveLength(4)
-      expect(sequence[0]).toContain('Initial reasoning')
-      expect(sequence[1]).toBe('Initial response.')
-      expect(sequence[2]).toContain('Follow-up reasoning')
-      expect(sequence[3]).toBe('Follow-up response.')
+      expect(sequence[0]).toBe('Initial response.')
+      expect(sequence[1]).toContain('Initial reasoning')
+      expect(sequence[2]).toBe('Follow-up response.')
+      expect(sequence[3]).toContain('Follow-up reasoning')
     })
   })
 
-  it('keeps the split follow-up thought below the tool card after streaming completes', async () => {
+  it('keeps the split follow-up activity below the related assistant text after streaming completes', async () => {
     const { container } = render(
       <MessageRenderer
         message={{
@@ -252,10 +252,10 @@ describe('MessageRenderer follow-up timeline', () => {
       ).map((node) => node.textContent)
 
       expect(sequence).toEqual([
-        'Initial reasoning',
         'Initial response.',
-        'Follow-up reasoningmcp__filesystem__read_file',
+        'Initial reasoning',
         'Follow-up response.',
+        'Follow-up reasoningmcp__filesystem__read_file',
       ])
     })
   })

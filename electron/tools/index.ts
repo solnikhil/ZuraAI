@@ -10,6 +10,27 @@ import type { CodeExecutionArgs } from './codeExecution'
 import {
   executeScreenshot, executeClick, executeType, executeKey, executeScroll, executeCursorPosition, executeListWindows, executeLaunchApp, executeCloseApp, executeFindApp,
 } from './computerUse'
+import {
+  executeWindowsUiaSnapshot,
+  executeWindowsUiaInvoke,
+  executeWindowsUiaSetValue,
+  executeWindowsUiaSelect,
+} from './windows-uia'
+import { executeSystemShell } from './system-shell'
+import { executeFileRead, executeFileWrite, executeFileSearch, executeFileMove } from './files'
+import {
+  executeAppFind,
+  executeAppLaunch,
+  executeAppList,
+  executeAppInstall,
+  executeAppUninstall,
+} from './app-management'
+import {
+  executeWindowList,
+  executeWindowFocus,
+  executeWindowMove,
+  executeWindowClose,
+} from './window-management'
 import type { ScreenshotArgs, TypeArgs, KeyArgs } from './computerUse'
 import { showSpotlight } from '../windows/spotlightOverlay'
 import { initializeAgentDesktopService } from '../agentDesktop'
@@ -149,6 +170,24 @@ const toolHandlers: Record<BuiltinMainToolName, ToolHandler> = {
   computer_launch_app: (args) => { const r = (typeof args === 'object' && args !== null) ? args as Record<string, unknown> : {}; return executeLaunchApp({ name: typeof r.name === 'string' ? r.name : '' }) },
   computer_find_app: (args) => { const r = (typeof args === 'object' && args !== null) ? args as Record<string, unknown> : {}; return executeFindApp({ query: typeof r.query === 'string' ? r.query : '' }) },
   computer_close_app: (args) => { const r = (typeof args === 'object' && args !== null) ? args as Record<string, unknown> : {}; return executeCloseApp({ title: typeof r.title === 'string' ? r.title : '' }) },
+  windows_uia_snapshot: executeWindowsUiaSnapshot,
+  windows_uia_invoke: executeWindowsUiaInvoke,
+  windows_uia_set_value: executeWindowsUiaSetValue,
+  windows_uia_select: executeWindowsUiaSelect,
+  system_shell: executeSystemShell,
+  file_read: executeFileRead,
+  file_write: executeFileWrite,
+  file_search: executeFileSearch,
+  file_move: executeFileMove,
+  app_find: executeAppFind,
+  app_launch: executeAppLaunch,
+  app_list: executeAppList,
+  app_install: executeAppInstall,
+  app_uninstall: executeAppUninstall,
+  window_list: executeWindowList,
+  window_focus: executeWindowFocus,
+  window_move: executeWindowMove,
+  window_close: executeWindowClose,
 }
 
 async function executeAgentDesktopComputerTool(

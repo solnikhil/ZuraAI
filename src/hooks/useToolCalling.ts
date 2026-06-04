@@ -39,6 +39,27 @@ const COMPUTER_USE_TOOLS = [
     'computer_close_app',
 ]
 
+const NATIVE_WINDOWS_AGENT_TOOLS = [
+    'file_search',
+    'file_read',
+    'file_write',
+    'file_move',
+    'app_find',
+    'app_list',
+    'app_launch',
+    'app_install',
+    'app_uninstall',
+    'window_list',
+    'window_focus',
+    'window_move',
+    'window_close',
+    'windows_uia_snapshot',
+    'windows_uia_invoke',
+    'windows_uia_set_value',
+    'windows_uia_select',
+    'system_shell',
+]
+
 export interface ToolCallState {
     activeToolCalls: ToolCall[]
     activeToolBatch: ToolCall[]
@@ -118,6 +139,22 @@ export function useToolCalling() {
             )
         }
 
+        // Native Windows Agent tools supplement desktop control and should be
+        // preferred before screenshot/click/type for filesystem, app, window,
+        // shell, and supported UI Automation tasks. Add them explicitly so
+        // older persisted enabledTools lists do not hide newly shipped tools.
+        const nativeWindowsAgentToolsEnabled =
+            settings.assistantMode === 'agent' &&
+            isWindowsRuntime()
+
+        if (!nativeWindowsAgentToolsEnabled) {
+            enabledTools = enabledTools.filter((tool) => !NATIVE_WINDOWS_AGENT_TOOLS.includes(tool))
+        } else {
+            for (const tool of NATIVE_WINDOWS_AGENT_TOOLS) {
+                if (!enabledTools.includes(tool)) enabledTools.push(tool)
+            }
+        }
+
         // Computer Use action surface (reused by Agent Desktop / Agent View).
         // Windows-only (mirrors the main-process + preload gates), and gated
         // behind a skill: either the Agent Desktop skill (Agent View reuses the
@@ -139,7 +176,17 @@ export function useToolCalling() {
             }
         }
 
-        return [...new Set([...enabledTools, ...runtimeMcpToolNames])]
+        const nativePriority = new Map(NATIVE_WINDOWS_AGENT_TOOLS.map((tool, index) => [tool, index]))
+        const computerPriorityOffset = NATIVE_WINDOWS_AGENT_TOOLS.length
+        const computerPriority = new Map(COMPUTER_USE_TOOLS.map((tool, index) => [tool, computerPriorityOffset + index]))
+        const prioritizedEnabledTools = [...new Set(enabledTools)].sort((a, b) => {
+            const aPriority = nativePriority.get(a) ?? computerPriority.get(a) ?? Number.MAX_SAFE_INTEGER
+            const bPriority = nativePriority.get(b) ?? computerPriority.get(b) ?? Number.MAX_SAFE_INTEGER
+            if (aPriority !== bPriority) return aPriority - bPriority
+            return enabledTools.indexOf(a) - enabledTools.indexOf(b)
+        })
+
+        return [...new Set([...prioritizedEnabledTools, ...runtimeMcpToolNames])]
     }
 
     const normalizeSelectedModelCode = (provider: ProviderId, modelCode: string): string => {

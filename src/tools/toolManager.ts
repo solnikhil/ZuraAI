@@ -211,7 +211,10 @@ export function getToolsForProvider(config: ToolManagerConfig) {
   // Filter tools if specific ones are enabled
   let tools = config.availableTools ?? getAllToolDefinitions()
   if (config.enabledTools && config.enabledTools.length > 0) {
-    tools = tools.filter((t) => config.enabledTools!.includes(t.name))
+    const order = new Map(config.enabledTools.map((name, index) => [name, index]))
+    tools = tools
+      .filter((t) => order.has(t.name))
+      .sort((a, b) => (order.get(a.name) ?? Number.MAX_SAFE_INTEGER) - (order.get(b.name) ?? Number.MAX_SAFE_INTEGER))
   }
 
   return convertToolsForProvider(tools, config.provider)

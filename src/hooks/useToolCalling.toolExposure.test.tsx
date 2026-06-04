@@ -86,6 +86,20 @@ const COMPUTER_USE_TOOL_NAMES = getBuiltinToolDefinitions()
   .filter((tool) => tool.category === 'computer-use')
   .map((tool) => tool.name)
 
+const NATIVE_WINDOWS_TOOL_NAMES = [
+  'file_search',
+  'file_read',
+  'file_write',
+  'file_move',
+  'app_find',
+  'app_list',
+  'app_launch',
+  'window_list',
+  'window_focus',
+  'windows_uia_snapshot',
+  'system_shell',
+]
+
 function getExposedToolNames(): string[] {
   const { result } = renderHook(() => useToolCalling())
   const tools = result.current.getToolsForRequest()
@@ -139,6 +153,33 @@ describe('useToolCalling — Agent Desktop tool exposure gating (Req 9.3, 10.9)'
     }
     // Non-Agent-Desktop tools remain available, so the agent still has a surface.
     expect(names).toContain('web_search')
+  })
+
+  it('exposes native Windows Agent tools in agent mode even when persisted enabledTools is stale', () => {
+    isWindows = true
+    mockSettings.settings = makeSettings({
+      enabledTools: ['web_search'],
+      skills: defaultSkillsSettings,
+    })
+
+    const names = getExposedToolNames()
+    for (const tool of NATIVE_WINDOWS_TOOL_NAMES) {
+      expect(names).toContain(tool)
+    }
+    expect(names).toContain('web_search')
+  })
+
+  it('orders native Windows Agent tools before Computer Use fallback tools', () => {
+    isWindows = true
+    mockSettings.settings = makeSettings({
+      enabledTools: ['web_search'],
+      skills: withComputerUseEnabled(defaultSkillsSettings, true),
+    })
+
+    const names = getExposedToolNames()
+    expect(names.indexOf('file_search')).toBeGreaterThanOrEqual(0)
+    expect(names.indexOf('computer_screenshot')).toBeGreaterThanOrEqual(0)
+    expect(names.indexOf('file_search')).toBeLessThan(names.indexOf('computer_screenshot'))
   })
 
   it('does NOT expose the Computer Use surface on macOS even when the Agent Desktop skill is enabled (Req 9.3)', () => {

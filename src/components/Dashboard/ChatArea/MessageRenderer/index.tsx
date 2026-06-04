@@ -11,12 +11,10 @@ import React, { useState, useRef, useEffect, useMemo, memo } from 'react'
 import LazyMarkdown from '@/components/LazyMarkdown'
 import ThinkingBlockComponent from '@/components/ThinkingBlock'
 import { useSettings } from '@/contexts/SettingsContext'
-import ToolResultDisplay from '@/tools/ui/ToolResultDisplay'
 import {
   MemoryUpdatePill,
   extractMemoryEvents,
 } from '@/components/chat/MemoryUpdatePill'
-import { isMemoryToolName } from '@/tools/memoryTools'
 import { writeTextToClipboard } from '@/utils/clipboard'
 import {
   removeToolFollowUpSplitMarker,
@@ -24,7 +22,6 @@ import {
   splitMessageTimeline,
   type FollowUpTimelineSnapshot,
 } from '../messageTimeline'
-import { shouldHideMessageToolResultCard } from '../toolResultVisibility'
 
 import type { MessageRendererProps } from './types'
 import { areMessagePropsEqual } from './messagePropsComparison'
@@ -33,7 +30,6 @@ import { WebSearchImageCarousel } from './WebSearchImageCarousel'
 import { AssistantMessageActions } from './AssistantMessageActions'
 import { RegenerateDialog } from './RegenerateDialog'
 import { useWebSources, useWebSearchImages } from './useWebSourceData'
-import { AgentActivityTimeline } from '../AgentActivityTimeline'
 
 export type { MessageRendererProps } from './types'
 
@@ -47,7 +43,6 @@ function MessageRendererComponent({
   message,
   isStreaming = false,
   streamPhase,
-  sessionId,
   activeToolCalls,
   onCopy,
   onRegenerate,
@@ -187,25 +182,11 @@ function MessageRendererComponent({
   )
   const hasTopDisplayContent = topProcessedContent.trim().length > 0
   const hasBottomDisplayContent = bottomProcessedContent.trim().length > 0
-  const visibleToolResults = useMemo(
-    () =>
-      (message.toolResults || []).filter(
-        (result) => !shouldHideMessageToolResultCard(result, message.thinkingBlocks)
-      ),
-    [message.toolResults, message.thinkingBlocks]
-  )
   const memoryEvents = useMemo(
     () => extractMemoryEvents(message.toolResults),
     [message.toolResults]
   )
-  const visibleNonMemoryToolResults = useMemo(
-    () => visibleToolResults.filter((result) => !isMemoryToolName(result.toolCall.name)),
-    [visibleToolResults]
-  )
-  const showAgentTimeline = Boolean(message.agentRun)
-  const showVisibleToolResults =
-    !showAgentTimeline && !isStreaming && visibleNonMemoryToolResults.length > 0
-  const showMemoryPill = !showAgentTimeline && !isStreaming && memoryEvents.length > 0
+  const showMemoryPill = !isStreaming && memoryEvents.length > 0
   const hasSplitFollowUpSection =
     Boolean(followUpSnapshot) || timeline.afterBlocks.length > 0 || hasBottomDisplayContent
   const activeTimelineOwner = hasSplitFollowUpSection ? 'lower' : 'upper'
@@ -288,8 +269,25 @@ function MessageRendererComponent({
     >
       {message.files && message.files.length > 0 && <RenderImageFiles files={message.files} />}
 
+      {/* Web Search/Extract image carousel - shown after thinking ends, before message content */}
+      {!isStreaming && webSearchImages.length > 0 && (
+        <WebSearchImageCarousel images={webSearchImages} mode={webImageMode} />
+      )}
+
+      {/* Message content - only show when not streaming or when content has arrived */}
+      {((!isStreaming || hasContentDuringStreaming || completedBlocks.length > 0 || message.researchStatus) &&
+        hasTopDisplayContent) && (
+        <div className="markdown-content">
+          <LazyMarkdown
+            content={topProcessedContent}
+            webSources={webSourceMap}
+            isStreaming={isStreaming}
+          />
+        </div>
+      )}
+
       {showUpperThinkingBlock && (
-        <div style={{ marginBottom: '8px' }}>
+        <div style={{ marginTop: hasTopDisplayContent ? '8px' : 0, marginBottom: '8px' }}>
           <ThinkingBlockComponent
             messageId={message.id}
             activeBlockKey={
@@ -323,25 +321,6 @@ function MessageRendererComponent({
         </div>
       )}
 
-      {/* Web Search/Extract image carousel - shown after thinking ends, before message content */}
-      {!isStreaming && webSearchImages.length > 0 && (
-        <WebSearchImageCarousel images={webSearchImages} mode={webImageMode} />
-      )}
-
-      {message.agentRun && <AgentActivityTimeline run={message.agentRun} />}
-
-      {/* Message content - only show when not streaming or when content has arrived */}
-      {((!isStreaming || hasContentDuringStreaming || completedBlocks.length > 0 || message.researchStatus) &&
-        hasTopDisplayContent) && (
-        <div className="markdown-content">
-          <LazyMarkdown
-            content={topProcessedContent}
-            webSources={webSourceMap}
-            isStreaming={isStreaming}
-          />
-        </div>
-      )}
-
       {showMemoryPill && (
         <div style={{ marginTop: '12px' }}>
           <MemoryUpdatePill
@@ -354,35 +333,20 @@ function MessageRendererComponent({
         </div>
       )}
 
-      {showVisibleToolResults && (
-        <div style={{ marginTop: '12px', marginBottom: shouldShowActionRow ? '12px' : 0 }}>
-          {visibleNonMemoryToolResults.map((result, index) => {
-            const toolResultIndex = (message.toolResults || []).findIndex(
-              (item) => item.toolCall.id === result.toolCall.id
-            )
-
-            return (
-              <ToolResultDisplay
-                key={`message-tool-${result.toolCall.id || index}`}
-                toolName={result.toolCall.name}
-                result={result.result?.success ? result.result.data : undefined}
-                error={result.result?.success ? undefined : result.result?.error}
-                metadata={result.result?.metadata}
-                toolArguments={result.toolCall.arguments}
-                executionTime={result.result?.executionTime}
-                sessionId={sessionId}
-                messageId={message.id}
-                toolResultIndex={toolResultIndex >= 0 ? toolResultIndex : index}
-              />
-            )
-          })}
+      {hasBottomDisplayContent && (
+        <div className="markdown-content">
+          <LazyMarkdown
+            content={bottomProcessedContent}
+            webSources={webSourceMap}
+            isStreaming={isStreaming}
+          />
         </div>
       )}
 
       {showLowerThinkingBlock && (
         <div
           style={{
-            marginTop: showVisibleToolResults || hasTopDisplayContent ? '12px' : 0,
+            marginTop: hasBottomDisplayContent || hasTopDisplayContent ? '12px' : 0,
             marginBottom: '8px',
           }}
         >
@@ -415,16 +379,6 @@ function MessageRendererComponent({
             }
             completedBlocks={timeline.afterBlocks}
             activeToolCalls={activeTimelineOwner === 'lower' ? activeToolCalls : []}
-          />
-        </div>
-      )}
-
-      {hasBottomDisplayContent && (
-        <div className="markdown-content">
-          <LazyMarkdown
-            content={bottomProcessedContent}
-            webSources={webSourceMap}
-            isStreaming={isStreaming}
           />
         </div>
       )}

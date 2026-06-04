@@ -48,6 +48,7 @@ import {
   evaluateResearchContinuation,
   getEffectiveSearchBudget,
 } from './researchLoopPolicy'
+import { TOOL_FOLLOW_UP_SPLIT_MARKER } from '../../messageTimeline'
 import type {
   HandleToolCallsOptions,
   NormalizedUsage,
@@ -486,6 +487,19 @@ export function useProviderStreaming({
           tools?: ReturnType<ToolCallingHook['getToolsForRequest']>
         }
       ) => {
+        if (
+          roundOptions?.round !== undefined &&
+          roundOptions.round > 0 &&
+          accumulatedContent.trim().length > 0 &&
+          !accumulatedContent.endsWith(TOOL_FOLLOW_UP_SPLIT_MARKER)
+        ) {
+          accumulatedContent = `${accumulatedContent.trimEnd()}${TOOL_FOLLOW_UP_SPLIT_MARKER}`
+          updateStreamingState({ content: accumulatedContent })
+          updatePersistedStreamingMessage(options.sessionId, options.messageId, {
+            content: accumulatedContent,
+          })
+        }
+
         const roundStartContent = accumulatedContent
         const roundTools = roundOptions?.tools === undefined ? tools : roundOptions.tools
         const roundAllowsTools =
@@ -497,7 +511,6 @@ export function useProviderStreaming({
         let roundFinishReason: string | null = null
         let roundUsage = emptyUsage()
         let roundFirstTokenTime: number | null = null
-        let strippedToolPrelude = false
         let suppressedInlineToolMarkup = false
         frozenDisplayContent = null
 
@@ -518,15 +531,6 @@ export function useProviderStreaming({
             roundOptions?.toolChoice
           ),
         })
-
-        const persistToolPreludeAsThinkingBlock = () => {
-          if (accumulatedContent === roundStartContent) return
-
-          const toolPrelude = accumulatedContent.slice(roundStartContent.length).trim()
-          if (!toolPrelude) return
-
-          localThinkingBlocks = appendCompletedThinkingBlock(localThinkingBlocks, toolPrelude)
-        }
 
         try {
           for await (const event of client.stream({
@@ -620,23 +624,6 @@ export function useProviderStreaming({
                   finalizeActiveThinking()
                   publishCompletedThinking()
                 }
-                if (!strippedToolPrelude && accumulatedContent !== roundStartContent) {
-                  strippedToolPrelude = true
-                  persistToolPreludeAsThinkingBlock()
-                  accumulatedContent = roundStartContent
-                  updateStreamingState({
-                    content: accumulatedContent,
-                    thinking: undefined,
-                    thinkingDuration: undefined,
-                    thinkingBlocks: localThinkingBlocks,
-                  })
-                  updatePersistedStreamingMessage(options.sessionId, options.messageId, {
-                    content: accumulatedContent,
-                    thinking: undefined,
-                    thinkingDuration: undefined,
-                    thinkingBlocks: localThinkingBlocks,
-                  })
-                }
                 accumulateDeltaToolCalls(roundToolCalls, event.delta)
                 streamChunkCoalescer.recordToolCallDelta(
                   Array.isArray(event.delta) ? event.delta.length : 1
@@ -715,9 +702,6 @@ export function useProviderStreaming({
         flushActiveThrottledUpdates()
         throwIfAborted()
         const hasValidRoundToolCalls = roundToolCalls.some((toolCall) => toolCall?.id)
-        if (roundFinishReason === 'tool_calls' && hasValidRoundToolCalls) {
-          accumulatedContent = roundStartContent
-        }
         let finalRoundContent = providerUsesNativeSearch(provider)
           ? cleanSonarResponse(accumulatedContent, citations)
           : accumulatedContent

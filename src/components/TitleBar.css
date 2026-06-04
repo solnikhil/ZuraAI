@@ -5,7 +5,7 @@
     display: flex;
     align-items: center;
     justify-content: flex-start;
-    height: 44px;
+    height: 38px;
     padding: 0 12px;
     background: var(--theme-surface);
     border-bottom: 1px solid var(--theme-border);
@@ -63,7 +63,7 @@
 }
 
 .app-titlebar--windows {
-    min-height: 44px;
+    min-height: 38px;
     border-bottom: none;
 }
 
@@ -81,7 +81,7 @@
     position: absolute;
     left: calc(env(titlebar-area-x, 0px) + 120px);
     top: 0;
-    height: 44px;
+    height: 38px;
     display: flex;
     align-items: center;
     justify-content: flex-start;
@@ -106,7 +106,7 @@
     position: absolute;
     left: 50%;
     top: 0;
-    height: 44px;
+    height: 38px;
     transform: translateX(-50%);
     display: flex;
     align-items: center;
@@ -149,7 +149,7 @@
 .app-titlebar__content-controls {
     position: absolute;
     top: 0;
-    height: 44px;
+    height: 38px;
     display: flex;
     align-items: center;
     gap: 8px;

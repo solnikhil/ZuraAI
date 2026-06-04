@@ -84,6 +84,31 @@ describe('tool routing through Agent Desktop readiness', () => {
     }
 
     vi.doMock('./computerUse', () => computerUse)
+    const nativeMocks = {
+      executeWindowsUiaSnapshot: vi.fn(async () => ({ success: true, data: { windows: [] } })),
+      executeWindowsUiaInvoke: vi.fn(async () => ({ success: false, error: 'approval required' })),
+      executeWindowsUiaSetValue: vi.fn(async () => ({ success: false, error: 'approval required' })),
+      executeWindowsUiaSelect: vi.fn(async () => ({ success: false, error: 'approval required' })),
+      executeSystemShell: vi.fn(async () => ({ success: false, error: 'approval required' })),
+      executeFileRead: vi.fn(async () => ({ success: true, data: { content: 'ok' } })),
+      executeFileWrite: vi.fn(async () => ({ success: false, error: 'approval required' })),
+      executeFileSearch: vi.fn(async () => ({ success: true, data: { results: [] } })),
+      executeFileMove: vi.fn(async () => ({ success: false, error: 'approval required' })),
+      executeAppFind: vi.fn(async () => ({ success: true, data: { matches: [] } })),
+      executeAppLaunch: vi.fn(async () => ({ success: false, error: 'approval required' })),
+      executeAppList: vi.fn(async () => ({ success: true, data: { apps: [] } })),
+      executeAppInstall: vi.fn(async () => ({ success: false, error: 'approval required' })),
+      executeAppUninstall: vi.fn(async () => ({ success: false, error: 'approval required' })),
+      executeWindowList: vi.fn(async () => ({ success: true, data: { windows: [] } })),
+      executeWindowFocus: vi.fn(async () => ({ success: false, error: 'approval required' })),
+      executeWindowMove: vi.fn(async () => ({ success: false, error: 'approval required' })),
+      executeWindowClose: vi.fn(async () => ({ success: false, error: 'approval required' })),
+    }
+    vi.doMock('./windows-uia', () => nativeMocks)
+    vi.doMock('./system-shell', () => nativeMocks)
+    vi.doMock('./files', () => nativeMocks)
+    vi.doMock('./app-management', () => nativeMocks)
+    vi.doMock('./window-management', () => nativeMocks)
     vi.doMock('./webSearch', () => ({
       executeWebSearch: vi.fn(async () => ({ success: true, data: [] })),
     }))
@@ -107,7 +132,7 @@ describe('tool routing through Agent Desktop readiness', () => {
     tools.registerToolHandlers()
 
     expect(handler).not.toBeNull()
-    return { handler: handler as NonNullable<typeof handler>, computerUse }
+    return { handler: handler as NonNullable<typeof handler>, computerUse: { ...computerUse, ...nativeMocks } }
   }
 
   it('runs Agent Desktop readiness before gating and executing a routed computer tool', async () => {
@@ -285,5 +310,37 @@ describe('tool routing through Agent Desktop readiness', () => {
     expect(service.gateComputerAction).toHaveBeenCalledTimes(1)
     expect(service.endTakeOver).toHaveBeenCalledTimes(1)
     expect(executeLaunchApp).not.toHaveBeenCalled()
+  })
+
+  it('routes native Windows tools through execute-tool', async () => {
+    const service = {
+      getState: vi.fn(() => ({ enabled: false })),
+      ensureReadyForTool: vi.fn(),
+      gateComputerAction: vi.fn(),
+    }
+    const { handler, computerUse } = await loadToolHandlerWithAgentDesktop(service)
+
+    const result = await handler({}, 'windows_uia_snapshot', {})
+
+    expect(result).toEqual({ success: true, data: { windows: [] } })
+    expect(computerUse.executeWindowsUiaSnapshot).toHaveBeenCalledTimes(1)
+    expect(service.ensureReadyForTool).not.toHaveBeenCalled()
+  })
+
+  it('routes mutating native tools to fail closed when approval is absent', async () => {
+    const service = {
+      getState: vi.fn(() => ({ enabled: false })),
+      ensureReadyForTool: vi.fn(),
+      gateComputerAction: vi.fn(),
+    }
+    const { handler, computerUse } = await loadToolHandlerWithAgentDesktop(service)
+
+    const result = await handler({}, 'system_shell', {
+      command: 'Get-Date',
+      description: 'Check date',
+    })
+
+    expect(result).toEqual({ success: false, error: 'approval required' })
+    expect(computerUse.executeSystemShell).toHaveBeenCalledTimes(1)
   })
 })

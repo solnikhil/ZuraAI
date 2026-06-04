@@ -217,7 +217,19 @@ contextBridge.exposeInMainWorld(
       // Extra validation for tool execution
       if (channel === 'execute-tool') {
         const toolName = args[0]
-        if (toolName !== 'web_search' && toolName !== 'code_execution' && !(typeof toolName === 'string' && toolName.startsWith('computer_'))) {
+        const isNativeWindowsTool =
+          typeof toolName === 'string' &&
+          (toolName.startsWith('windows_uia_') ||
+            toolName.startsWith('file_') ||
+            toolName.startsWith('app_') ||
+            toolName.startsWith('window_') ||
+            toolName === 'system_shell')
+        if (
+          toolName !== 'web_search' &&
+          toolName !== 'code_execution' &&
+          !(typeof toolName === 'string' && toolName.startsWith('computer_')) &&
+          !isNativeWindowsTool
+        ) {
           return Promise.resolve({
             success: false,
             error: `Tool "${String(toolName)}" is disabled.`,

@@ -409,11 +409,13 @@ export function buildEnabledSkillsPrompt(
   }
 
   if (normalized.agent_desktop.enabled) {
-    skillLines.push('- Control Separate Desktop (`agent_desktop`): use the desktop-control `computer_*` tools on a dedicated Windows virtual desktop instead of the user desktop.')
-    skillLines.push('- Treat it as workspace separation, not a sandbox. Screenshot first, inspect carefully, and use Take Over when input must be delivered.')
+    skillLines.push('- Control Separate Desktop (`agent_desktop`): prefer native Windows tools for filesystem/app/window/UIA work, and use `computer_*` only for visual fallback on the dedicated Windows virtual desktop.')
+    skillLines.push('- For Desktop/file organization tasks, first inspect directories with `file_search`/`file_read`, propose changes, then use `file_move` after approval. Do not open Run/Explorer or use screenshots for simple file moves.')
+    skillLines.push('- Treat the separate desktop as workspace separation, not a sandbox. Screenshot first only when a visual desktop task actually needs it.')
   } else if (normalized.computer_use.enabled) {
-    skillLines.push('- Control This Desktop (`computer_use`): take screenshots, click, type, scroll, and automate tasks on the current desktop.')
-    skillLines.push('- Always screenshot first, analyze before acting, verify results with follow-up screenshots.')
+    skillLines.push('- Control This Desktop (`computer_use`): prefer native Windows tools for filesystem/app/window/UIA work, and use screenshots/click/type/scroll only when native tools cannot handle the task.')
+    skillLines.push('- For Desktop/file organization tasks, first inspect directories with `file_search`/`file_read`, propose changes, then use `file_move` after approval. Do not open Run/Explorer or use screenshots for simple file moves.')
+    skillLines.push('- For visual desktop tasks, screenshot first, analyze before acting, and verify results with follow-up screenshots.')
   }
 
   if (normalized.chart_generation.enabled) {

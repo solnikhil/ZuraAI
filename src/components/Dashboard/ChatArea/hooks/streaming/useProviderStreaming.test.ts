@@ -637,7 +637,7 @@ describe('useProviderStreaming', () => {
     )
   })
 
-  it('preserves stripped pre-tool text as a thinking block for non-reasoning models', async () => {
+  it('preserves pre-tool assistant text as visible message content for non-reasoning models', async () => {
     mocks.createProviderStreamClient.mockReturnValue({
       stream: streamFrom([
         { type: 'text-delta', delta: 'Let me check the docs.' },
@@ -706,15 +706,12 @@ describe('useProviderStreaming', () => {
       enableTools: true,
     })
 
-    expect(streamResult.thinkingBlocks).toEqual(
+    expect(streamResult.content).toBe('Let me check the docs.')
+    expect(streamResult.thinkingBlocks).not.toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           type: 'thinking',
           content: 'Let me check the docs.',
-        }),
-        expect.objectContaining({
-          type: 'searching',
-          query: 'kimi k2.5 turbo thinking model',
         }),
       ])
     )
@@ -730,13 +727,7 @@ describe('useProviderStreaming', () => {
       'session-1',
       'message-prelude',
       expect.objectContaining({
-        content: '',
-        thinkingBlocks: expect.arrayContaining([
-          expect.objectContaining({
-            type: 'thinking',
-            content: 'Let me check the docs.',
-          }),
-        ]),
+        content: 'Let me check the docs.',
       })
     )
   })
@@ -1734,7 +1725,7 @@ describe('useProviderStreaming', () => {
     expect(streamResult.content).toBe('Answer after repeated search loop.')
   })
 
-  it('drops partial assistant text from tool-call rounds instead of persisting truncated preludes', async () => {
+  it('keeps assistant text from tool-call rounds and separates it from follow-up answers', async () => {
     let invocation = 0
 
     mocks.createProviderStreamClient.mockReturnValue({
@@ -1817,8 +1808,8 @@ describe('useProviderStreaming', () => {
       enableTools: true,
     })
 
-    expect(streamResult.content).toBe('Cursor is an AI-powered code editor created by Anysphere.')
-    expect(streamResult.content).not.toContain("I'll search for information")
+    expect(streamResult.content).toContain("I'll search for information about Cursor")
+    expect(streamResult.content).toContain('Cursor is an AI-powered code editor created by Anysphere.')
   })
 
   it('forces a final synthesis pass when the provider ends the research loop without an answer', async () => {

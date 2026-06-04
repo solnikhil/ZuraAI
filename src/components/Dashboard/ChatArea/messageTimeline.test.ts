@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { ThinkingBlock } from '../../../chat/types'
 import {
   TOOL_FOLLOW_UP_SPLIT_MARKER,
+  removeToolFollowUpSplitMarker,
   shouldCaptureFollowUpSnapshot,
   splitMessageTimeline,
 } from './messageTimeline'
@@ -79,6 +80,24 @@ describe('messageTimeline', () => {
       afterContent: 'Please review assumptions.',
       beforeBlocks: [initialThinkingBlock],
       afterBlocks: [followUpThinkingBlock],
+    })
+  })
+
+  it('removes leaked follow-up markers even when bracket/whitespace shape varies', () => {
+    expect(
+      removeToolFollowUpSplitMarker('Before\n\n[[ZURA_TOOL_FOLLOW_UP_SPLIT]]]\n\nAfter')
+    ).toBe('BeforeAfter')
+
+    expect(
+      splitMessageTimeline(
+        'Before\n\n[[ZURA_TOOL_FOLLOW_UP_SPLIT]]]\n\nAfter',
+        [initialThinkingBlock]
+      )
+    ).toEqual({
+      beforeContent: 'Before',
+      afterContent: 'After',
+      beforeBlocks: [initialThinkingBlock],
+      afterBlocks: [],
     })
   })
 })
