@@ -9,6 +9,10 @@ import type {
 } from '../chat/types'
 import { isMcpNamespacedToolName, type ToolCall } from '../tools/types'
 import { isWindowsRuntime } from '../utils/platform'
+import {
+  buildAgentPlanPrompt,
+  type AgentVerificationStrategy,
+} from './reliability'
 
 const COMPUTER_TOOL_PREFIX = 'computer_'
 
@@ -106,9 +110,11 @@ export function buildAgentCapabilities(
 
 export function createAgentRun(
   mode: 'agent',
-  agentDesktop?: AgentDesktopCapabilityInput
+  agentDesktop?: AgentDesktopCapabilityInput,
+  taskText?: string
 ): AgentRun {
   const now = Date.now()
+  const plan = buildAgentPlanPrompt(taskText)
   return {
     id: `agent-run-${now}-${Math.random().toString(36).slice(2, 8)}`,
     mode,
@@ -120,8 +126,14 @@ export function createAgentRun(
         id: `agent-step-plan-${now}`,
         kind: 'plan',
         status: 'completed',
-        title: 'Agent mode started',
-        summary: 'Read-only tools run automatically. Mutating tools require approval unless trusted.',
+        title: 'Plan agent task',
+        summary: `Goal: ${plan.goal}`,
+        arguments: {
+          goal: plan.goal,
+          intendedToolPath: plan.intendedToolPath,
+          expectedOutcome: plan.expectedOutcome,
+          verificationMethod: plan.verificationMethod,
+        },
         startedAt: now,
         completedAt: now,
         durationMs: 0,
@@ -129,6 +141,37 @@ export function createAgentRun(
       },
     ],
   }
+}
+
+export function upsertAgentVerificationStep(
+  run: AgentRun,
+  strategy: AgentVerificationStrategy,
+  update: Partial<AgentStep>
+): AgentRun {
+  const existing = [...run.steps].reverse().find((step) => step.kind === 'verify' && step.status !== 'completed' && step.status !== 'failed')
+  const now = Date.now()
+  const nextStep: AgentStep = {
+    id: existing?.id ?? `agent-step-verify-${now}`,
+    kind: 'verify',
+    status: existing?.status ?? 'pending',
+    title: 'Verify changes',
+    summary: strategy.reason,
+    arguments: {
+      category: strategy.category,
+      preferredTools: strategy.preferredTools,
+      mutatingToolNames: strategy.mutatingToolNames,
+    },
+    startedAt: existing?.startedAt,
+    approvalState: 'not-required',
+    ...existing,
+    ...update,
+  }
+
+  const steps = existing
+    ? run.steps.map((step) => (step.id === existing.id ? nextStep : step))
+    : [...run.steps, nextStep]
+
+  return { ...run, steps }
 }
 
 export function getToolStepKind(toolName: string): AgentStep['kind'] {

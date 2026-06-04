@@ -19,6 +19,7 @@ import {
   MAX_RESEARCH_ROUNDS,
   accumulateDeltaToolCalls,
   appendCompletedThinkingBlock,
+  buildAgentVerificationMessages,
   buildFollowUpMessages,
   buildPlainTextOnlySynthesisMessages,
   buildRecoverySynthesisMessages,
@@ -38,6 +39,7 @@ import {
   stripStandaloneHorizontalRule,
   type DeltaToolCall,
 } from './streamingUtils'
+import { selectVerificationStrategy, type AgentVerificationStrategy } from '../../../../../agent/reliability'
 import { createProviderStreamClient } from './providerStreamClient'
 import {
   appendChatDiagnosticEvent,
@@ -1095,6 +1097,12 @@ export function useProviderStreaming({
           const searchQueryHistory = [...initialExecutedSearchQueries]
           let lastAssistantMessage = reconstructedMessage
           let researchRound = 1
+          let pendingVerificationStrategy: AgentVerificationStrategy | null =
+            options.toolEventCallbacks
+              ? selectVerificationStrategy(toolResult.toolResults)
+              : null
+          let verificationStepStarted = false
+          let verificationRecoveryUsed = false
           const initialLoopDecision = evaluateResearchContinuation({
             searchCount: totalSearchCount,
             maxRounds: options.researchMaxRounds,
@@ -1152,14 +1160,34 @@ export function useProviderStreaming({
             })
 
             throwIfAborted()
-            const followUpMessages = buildFollowUpMessages(
-              toolCalling.getResearchContext(totalSearchCount, options.researchMaxRounds),
-              researchRound,
+            const activeVerificationStrategy = pendingVerificationStrategy
+            if (activeVerificationStrategy && !verificationStepStarted) {
+              verificationStepStarted = true
+              options.toolEventCallbacks?.onVerificationStart?.(activeVerificationStrategy)
+            }
+            const researchContextMsg = toolCalling.getResearchContext(
               totalSearchCount,
-              options.messages,
-              lastAssistantMessage,
-              toolResult.formattedResults
+              options.researchMaxRounds
             )
+            const followUpMessages = activeVerificationStrategy
+              ? buildAgentVerificationMessages(
+                  activeVerificationStrategy,
+                  researchContextMsg,
+                  researchRound,
+                  totalSearchCount,
+                  options.messages,
+                  lastAssistantMessage,
+                  toolResult.formattedResults,
+                  { recoveryAttempt: verificationRecoveryUsed }
+                )
+              : buildFollowUpMessages(
+                  researchContextMsg,
+                  researchRound,
+                  totalSearchCount,
+                  options.messages,
+                  lastAssistantMessage,
+                  toolResult.formattedResults
+                )
 
             updateStreamingState({
               phase: 'reasoning',
@@ -1183,6 +1211,28 @@ export function useProviderStreaming({
                 totalSearchCount,
                 hasAnswerText: Boolean(followUpRound.roundContent.trim()),
               })
+              if (activeVerificationStrategy) {
+                accumulatedContent = followUpRoundStart
+                updateStreamingState({ content: accumulatedContent })
+
+                if (!verificationRecoveryUsed) {
+                  verificationRecoveryUsed = true
+                  continue
+                }
+
+                options.toolEventCallbacks?.onVerificationComplete?.(
+                  activeVerificationStrategy,
+                  false
+                )
+                accumulatedContent =
+                  followUpRoundStart +
+                  'I made a change, but I could not verify the outcome after one recovery attempt, so I stopped instead of continuing blind.'
+                updateStreamingState({ content: accumulatedContent })
+                updatePersistedStreamingMessage(options.sessionId, options.messageId, {
+                  content: accumulatedContent,
+                })
+                break
+              }
               const followUpClassifiable = {
                 roundContent: followUpRound.roundContent,
                 suppressedInlineToolMarkup: followUpRound.suppressedInlineToolMarkup,
@@ -1244,6 +1294,10 @@ export function useProviderStreaming({
               }
             )
             throwIfAborted()
+            const wasVerificationRound = Boolean(activeVerificationStrategy)
+            const verificationSucceeded =
+              wasVerificationRound &&
+              nextToolResult.toolResults.some((result) => result.result?.success)
 
             const attemptedSearchQueries = extractWebSearchQueries(nextToolResult.toolResults)
             const hasNonWebTools = hasNonWebToolResults(nextToolResult.toolResults)
@@ -1289,6 +1343,40 @@ export function useProviderStreaming({
             })
 
             researchRound += 1
+            if (activeVerificationStrategy) {
+              if (verificationSucceeded) {
+                options.toolEventCallbacks?.onVerificationComplete?.(
+                  activeVerificationStrategy,
+                  true
+                )
+                pendingVerificationStrategy = null
+                verificationStepStarted = false
+                verificationRecoveryUsed = false
+              } else if (!verificationRecoveryUsed) {
+                verificationRecoveryUsed = true
+                pendingVerificationStrategy = activeVerificationStrategy
+              } else {
+                options.toolEventCallbacks?.onVerificationComplete?.(
+                  activeVerificationStrategy,
+                  false
+                )
+                accumulatedContent +=
+                  '\n\nI made a change, but verification did not succeed after one recovery attempt, so I stopped instead of continuing blind.'
+                updateStreamingState({ content: accumulatedContent })
+                updatePersistedStreamingMessage(options.sessionId, options.messageId, {
+                  content: accumulatedContent,
+                })
+                toolResult = {
+                  ...nextToolResult,
+                  needsFollowUp: false,
+                }
+                break
+              }
+            } else {
+              pendingVerificationStrategy = options.toolEventCallbacks
+                ? selectVerificationStrategy(nextToolResult.toolResults)
+                : null
+            }
             const continuationDecision = evaluateResearchContinuation({
               searchCount: totalSearchCount,
               maxRounds: options.researchMaxRounds,

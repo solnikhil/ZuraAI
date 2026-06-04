@@ -17,6 +17,7 @@ import {
   finishAgentRun,
   isAgentWorkspaceMode,
   upsertAgentToolStep,
+  upsertAgentVerificationStep,
 } from '../../../../agent/agentRun'
 import { useAgentToolApproval } from '../../../../agent/AgentToolApprovalContext'
 import { generateChatTitle } from '../../../../services/titleGenerator'
@@ -531,7 +532,7 @@ const streamingSettings: StreamingSettings = useMemo(
         }
 
         const initialAgentRun = isAgentWorkspaceMode(settings.assistantMode)
-          ? createAgentRun(settings.assistantMode)
+          ? createAgentRun(settings.assistantMode, undefined, content)
           : undefined
 
         const streamingMessageId = addMessageToSession(targetSessionId!, {
@@ -631,6 +632,30 @@ const streamingSettings: StreamingSettings = useMemo(
                     targetSessionId!,
                     streamingMessageId,
                     completeAgentToolStep(activeAgentRunRef.current, result)
+                  )
+                },
+                onVerificationStart: (strategy) => {
+                  if (!activeAgentRunRef.current) return
+                  publishAgentRun(
+                    targetSessionId!,
+                    streamingMessageId,
+                    upsertAgentVerificationStep(activeAgentRunRef.current, strategy, {
+                      status: 'running',
+                      startedAt: Date.now(),
+                    })
+                  )
+                },
+                onVerificationComplete: (strategy, verified) => {
+                  if (!activeAgentRunRef.current) return
+                  const now = Date.now()
+                  publishAgentRun(
+                    targetSessionId!,
+                    streamingMessageId,
+                    upsertAgentVerificationStep(activeAgentRunRef.current, strategy, {
+                      status: verified ? 'completed' : 'failed',
+                      completedAt: now,
+                      durationMs: Math.max(0, now - (activeAgentRunRef.current.steps.find((step) => step.kind === 'verify' && step.status === 'running')?.startedAt ?? now)),
+                    })
                   )
                 },
               }

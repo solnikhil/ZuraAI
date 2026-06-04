@@ -17,6 +17,8 @@ import type {
 } from '../../../../../services/types'
 import type { ToolCallingResponse } from '../../../../../tools/types'
 import { isSkippedBuiltinToolResult } from '../../../../../tools/types'
+import type { AgentVerificationStrategy } from '../../../../../agent/reliability'
+import { buildAgentVerificationPrompt } from '../../../../../agent/reliability'
 import type { UpdateStreamingCallback } from './types'
 import {
   STREAM_MAX_RESEARCH_ROUNDS,
@@ -396,6 +398,29 @@ export function buildFollowUpMessages(
   if (researchContextMsg) messages.push({ role: 'system', content: researchContextMsg })
   messages.push(...optimizedHistory, lastAssistantMessage, ...formattedResults)
   return messages
+}
+
+export function buildAgentVerificationMessages(
+  strategy: AgentVerificationStrategy,
+  researchContextMsg: string,
+  researchRound: number,
+  totalSearchCount: number,
+  optimizedHistory: Array<ServiceAssistantMessage>,
+  lastAssistantMessage: ServiceAssistantMessage,
+  formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>,
+  options?: { recoveryAttempt?: boolean }
+): Array<ServiceAssistantMessage> {
+  return [
+    { role: 'system', content: buildAgentVerificationPrompt(strategy, options) },
+    ...buildFollowUpMessages(
+      researchContextMsg,
+      researchRound,
+      totalSearchCount,
+      optimizedHistory,
+      lastAssistantMessage,
+      formattedResults
+    ),
+  ]
 }
 
 /** Build a final no-tools synthesis request after the research loop is capped. */

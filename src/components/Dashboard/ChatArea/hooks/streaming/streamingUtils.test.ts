@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import {
   appendCompletedThinkingBlock,
+  buildAgentVerificationMessages,
   buildSearchSynthesisFailureMessage,
   buildFollowUpMessages,
   buildThinkingBlocksFromResults,
@@ -265,6 +266,29 @@ describe('streamingUtils final synthesis helpers', () => {
       .map((message) => String(message.content))
 
     expect(systemMessages).toEqual(['Research context'])
+  })
+
+  it('prepends an agent verification prompt before regular follow-up context', () => {
+    const messages = buildAgentVerificationMessages(
+      {
+        category: 'file',
+        reason: 'File changes were made and need a read-only filesystem check.',
+        preferredTools: ['file_search', 'file_read'],
+        mutatingToolNames: ['file_move'],
+      },
+      'Research context',
+      1,
+      0,
+      [{ role: 'user', content: 'Sort my desktop' }],
+      { role: 'assistant', content: '', tool_calls: [] },
+      [{ role: 'tool', content: 'Moved file', tool_call_id: 'call_1' }]
+    )
+
+    expect(messages[0].role).toBe('system')
+    expect(String(messages[0].content)).toContain('AGENT VERIFICATION REQUIRED')
+    expect(String(messages[0].content)).toContain('file_search, file_read')
+    expect(messages.some((message) => message.content === 'Research context')).toBe(true)
+    expect(messages.some((message) => message.role === 'tool')).toBe(true)
   })
 
   it('flags knowledge-cutoff fallback text as a failed post-search synthesis', () => {

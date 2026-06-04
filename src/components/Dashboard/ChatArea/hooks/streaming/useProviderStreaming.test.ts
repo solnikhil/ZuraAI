@@ -535,6 +535,160 @@ describe('useProviderStreaming', () => {
     )
   })
 
+  it('adds a verification prompt after successful mutating agent tool results', async () => {
+    const streamCalls: Array<{ messages: Array<{ role: string; content?: unknown }> }> = []
+    let invocation = 0
+
+    mocks.createProviderStreamClient.mockReturnValue({
+      stream: async function* (request: { messages: Array<{ role: string; content?: unknown }> }) {
+        streamCalls.push({ messages: request.messages })
+        invocation += 1
+
+        if (invocation === 1) {
+          yield {
+            type: 'tool-call-delta',
+            delta: [{
+              index: 0,
+              id: 'move_1',
+              type: 'function',
+              function: {
+                name: 'file_move',
+                arguments: '{"source":"Desktop/a.png","destination":"Desktop/Images/a.png"}',
+              },
+            }],
+          }
+          yield { type: 'finish', finishReason: 'tool_calls' }
+          return
+        }
+
+        if (invocation === 2) {
+          yield {
+            type: 'tool-call-delta',
+            delta: [{
+              index: 0,
+              id: 'verify_1',
+              type: 'function',
+              function: {
+                name: 'file_search',
+                arguments: '{"root":"Desktop/Images","query":"a.png"}',
+              },
+            }],
+          }
+          yield { type: 'finish', finishReason: 'tool_calls' }
+          return
+        }
+
+        yield { type: 'text-delta', delta: 'Verified and done.' }
+        yield { type: 'finish', finishReason: 'stop' }
+      },
+    })
+
+    const movedResult = {
+      toolCall: {
+        id: 'move_1',
+        name: 'file_move',
+        arguments: { source: 'Desktop/a.png', destination: 'Desktop/Images/a.png' },
+      },
+      result: { success: true },
+    }
+    const verifiedResult = {
+      toolCall: {
+        id: 'verify_1',
+        name: 'file_search',
+        arguments: { root: 'Desktop/Images', query: 'a.png' },
+      },
+      result: { success: true, data: { results: ['Desktop/Images/a.png'] } },
+    }
+    const handleToolCalls = vi
+      .fn()
+      .mockResolvedValueOnce({
+        hasTools: true,
+        toolResults: [movedResult],
+        formattedResults: [{ role: 'tool', tool_call_id: 'move_1', content: 'Moved file' }],
+        needsFollowUp: true,
+        shouldContinueResearch: true,
+        executionSummary: buildExecutionSummary(),
+      })
+      .mockResolvedValueOnce({
+        hasTools: true,
+        toolResults: [verifiedResult],
+        formattedResults: [{ role: 'tool', tool_call_id: 'verify_1', content: 'Found file' }],
+        needsFollowUp: true,
+        shouldContinueResearch: true,
+        executionSummary: buildExecutionSummary(),
+      })
+    const onVerificationStart = vi.fn()
+    const onVerificationComplete = vi.fn()
+
+    const { result } = renderHook(() =>
+      useProviderStreaming({
+        settings: {
+          aiModel: 'openai/gpt-4.1',
+          modelProvider: 'openrouter',
+          temperature: 0.4,
+          maxTokens: 1024,
+          streamResponses: true,
+          openRouterApiKey: 'or-key',
+        },
+        toolCalling: {
+          canUseTools: true,
+          getToolsForRequest: () => [
+            {
+              type: 'function',
+              function: {
+                name: 'file_move',
+                description: 'Move a file',
+                parameters: { type: 'object', properties: {} },
+              },
+            },
+            {
+              type: 'function',
+              function: {
+                name: 'file_search',
+                description: 'Search files',
+                parameters: { type: 'object', properties: {} },
+              },
+            },
+          ],
+          handleToolCalls,
+          getResearchContext: () => '',
+        },
+        updateStreamingMessage: vi.fn(),
+        flushThrottledUpdates: vi.fn(),
+        throttledUpdateStreamingMessage: vi.fn(),
+      })
+    )
+
+    const streamResult = await result.current.runProviderStream({
+      provider: 'openrouter',
+      model: 'openai/gpt-4.1',
+      sessionId: 'session-1',
+      messageId: 'message-1',
+      messages: [{ role: 'user', content: 'move the file' }],
+      startTime: performance.now() - 25,
+      researchMaxRounds: 2,
+      syncToStreamingContext: false,
+      enableTools: true,
+      toolEventCallbacks: {
+        onVerificationStart,
+        onVerificationComplete,
+      },
+    })
+
+    expect(streamCalls).toHaveLength(3)
+    expect(String(streamCalls[1]?.messages[0]?.content)).toContain('AGENT VERIFICATION REQUIRED')
+    expect(String(streamCalls[1]?.messages[0]?.content)).toContain('file_search, file_read')
+    expect(onVerificationStart).toHaveBeenCalledWith(
+      expect.objectContaining({ category: 'file' })
+    )
+    expect(onVerificationComplete).toHaveBeenCalledWith(
+      expect.objectContaining({ category: 'file' }),
+      true
+    )
+    expect(streamResult.content).toBe('Verified and done.')
+    expect(streamResult.toolResults).toEqual([movedResult, verifiedResult])
+  })
+
   it('preserves OpenRouter reasoning_details on tool-call follow-up messages', async () => {
     let capturedResponse: ToolCallingResponse | undefined
 

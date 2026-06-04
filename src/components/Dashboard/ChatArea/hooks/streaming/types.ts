@@ -18,6 +18,7 @@ import type {
 } from '../../../../../providers/providerRuntimeTypes'
 import type { ToolCallingResponse } from '../../../../../tools/types'
 import type { ToolExecutionPolicy, ToolExecutionSummary } from '../../../../../tools/types'
+import type { AgentVerificationStrategy } from '../../../../../agent/reliability'
 import type {
   ServiceAssistantMessage,
   ToolDefinition,
@@ -127,6 +128,8 @@ export interface HandleToolCallsOptions {
     approved: boolean
   ) => void
   onToolComplete?: (result: ToolCallResult) => void
+  onVerificationStart?: (strategy: AgentVerificationStrategy) => void
+  onVerificationComplete?: (strategy: AgentVerificationStrategy, verified: boolean) => void
   requestToolApproval?: (
     toolCall: { id: string; name: string; arguments: Record<string, unknown> }
   ) => Promise<boolean>
