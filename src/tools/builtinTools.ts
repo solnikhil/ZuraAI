@@ -102,12 +102,15 @@ Best practices:
     origin: 'builtin-main',
   },
   computer_screenshot: {
-    description: 'Capture the desktop screen. Always call this first before performing any action to see the current screen state. Returns a base64 PNG image with screen dimensions and coordinate metadata used by follow-up actions.',
+    description: 'Capture visual context for Computer Use. Prefer targeting a specific app/window with window_id, window_title, or app_name when the task is about one app; use a full display capture only for desktop-wide or visual layout tasks. Returns a base64 PNG image with dimensions and coordinate metadata used by follow-up actions.',
     parameters: {
       type: 'object',
-      description: 'Arguments for capturing the screen.',
+      description: 'Arguments for capturing a display or a specific app/window.',
       properties: {
         display_id: { type: 'string', description: 'Optional display ID for multi-monitor setups. Defaults to primary display.' },
+        window_id: { type: 'string', description: 'Optional window source id from computer_list_windows, such as window:123:0.' },
+        window_title: { type: 'string', description: 'Optional case-insensitive substring of the target window title.' },
+        app_name: { type: 'string', description: 'Optional case-insensitive app/title substring to target a visible app window.' },
       },
       required: [],
     },
@@ -186,7 +189,7 @@ Best practices:
     origin: 'builtin-main',
   },
   computer_list_windows: {
-    description: 'List all currently open application windows on the system. Returns window titles only. This is metadata, not visual screen context, and does not provide valid coordinates. After using this, call computer_screenshot before clicking, scrolling, or moving the cursor.',
+    description: 'List currently open application windows. Returns window titles and source ids that can be passed to computer_screenshot.window_id for app-specific visual capture. This is metadata, not visual screen context, and does not provide valid coordinates by itself.',
     parameters: {
       type: 'object',
       description: 'No arguments required.',

@@ -15,6 +15,7 @@
 import { getAllToolDefinitions, getToolByName } from './definitions'
 import { convertToolsForProvider, providerSupportsTools, modelSupportsTools } from './adapters'
 import { normalizeMemoryToolCall } from './memoryTools'
+import { requiresManualToolApproval } from './approvalPolicy'
 import type { ProviderId } from '../providers'
 import {
   parseOpenRouterToolCalls,
@@ -346,7 +347,10 @@ export async function processToolCalls(
   }
 
   for (const { index, toolCall: executableToolCall } of executableCalls) {
-    if (config.requestToolApproval) {
+    if (
+      config.requestToolApproval &&
+      requiresManualToolApproval(executableToolCall, availableTools)
+    ) {
       config.onToolApprovalStart?.(executableToolCall)
       const approved = await config.requestToolApproval(executableToolCall)
       config.onToolApprovalResolved?.(executableToolCall, approved)

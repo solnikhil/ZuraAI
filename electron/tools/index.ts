@@ -142,7 +142,12 @@ function normalizeCodeExecutionArgsInput(args: unknown): CodeExecutionArgs {
 
 function normalizeScreenshotArgs(args: unknown): ScreenshotArgs {
   const r = (typeof args === 'object' && args !== null) ? args as Record<string, unknown> : {}
-  return { display_id: typeof r.display_id === 'string' ? r.display_id : undefined }
+  return {
+    display_id: typeof r.display_id === 'string' ? r.display_id : undefined,
+    window_id: typeof r.window_id === 'string' ? r.window_id : undefined,
+    window_title: typeof r.window_title === 'string' ? r.window_title : undefined,
+    app_name: typeof r.app_name === 'string' ? r.app_name : undefined,
+  }
 }
 
 function normalizeTypeArgs(args: unknown): { args: TypeArgs; autoApprove: boolean } {
