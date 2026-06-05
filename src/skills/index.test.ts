@@ -180,3 +180,33 @@ describe('chart_generation skill', () => {
     expect(prompt).not.toContain('Chart Generation')
   })
 })
+
+
+
+describe('memory auto-management sub-toggle', () => {
+  it('defaults to enabled when memory is enabled and no config present', async () => {
+    const { isMemoryAutoManageEnabled } = await import('./index')
+    expect(isMemoryAutoManageEnabled({ memory: { enabled: true } } as never)).toBe(true)
+  })
+
+  it('is false when memory is disabled', async () => {
+    const { isMemoryAutoManageEnabled } = await import('./index')
+    expect(isMemoryAutoManageEnabled({ memory: { enabled: false } } as never)).toBe(false)
+  })
+
+  it('is false when autoManage config is explicitly false', async () => {
+    const { isMemoryAutoManageEnabled, withMemoryAutoManage } = await import('./index')
+    const skills = withMemoryAutoManage({ memory: { enabled: true } } as never, false)
+    expect(isMemoryAutoManageEnabled(skills)).toBe(false)
+    // The feature itself stays enabled (manual-only), only auto-management is off.
+    expect(skills.memory.enabled).toBe(true)
+  })
+
+  it('round-trips autoManage through normalizeSkillsSettings', async () => {
+    const { normalizeSkillsSettings } = await import('./index')
+    const normalized = normalizeSkillsSettings({
+      memory: { enabled: true, config: { autoManage: false } },
+    })
+    expect(normalized.memory.config?.autoManage).toBe(false)
+  })
+})

@@ -1,5 +1,6 @@
 import { BrowserWindow, ipcMain } from 'electron'
 import * as memoryStore from '../memoryStore'
+import * as summaryStore from '../conversationSummaryStore'
 import type { AddMemoryInput, MemoryScope, UpdateMemoryPatch } from '../memoryStore'
 
 const MEMORY_CHANGED_CHANNEL = 'memory-store:changed'
@@ -81,6 +82,21 @@ export function registerMemoryStoreHandlers(): void {
     return memory
   })
 
+  ipcMain.handle('memory:add-deduped', async (_event, payload: unknown, rawOptions?: unknown) => {
+    const input = sanitizeAddInput(payload)
+    const options: memoryStore.DedupeAddOptions = {}
+    if (
+      isPlainObject(rawOptions) &&
+      typeof rawOptions.supersedesId === 'string' &&
+      rawOptions.supersedesId.length > 0
+    ) {
+      options.supersedesId = rawOptions.supersedesId
+    }
+    const result = await memoryStore.addMemoryWithDedupeAsync(input, options)
+    if (result.operation !== 'noop') broadcastMemoryStoreChanged()
+    return result
+  })
+
   ipcMain.handle('memory:update', async (_event, id: unknown, patch: unknown) => {
     if (typeof id !== 'string' || !id.trim()) {
       throw new Error('Invalid memory id')
@@ -117,14 +133,33 @@ export function registerMemoryStoreHandlers(): void {
       return memoryStore.searchMemoriesAsync(query, numericLimit, scope)
     }
   )
+
+  ipcMain.handle('memory:summaries-list', async () => {
+    return summaryStore.getAllSummariesAsync()
+  })
+
+  ipcMain.handle('memory:summaries-upsert', async (_event, sessionId: unknown, summary: unknown) => {
+    if (typeof sessionId !== 'string' || !sessionId.trim()) {
+      throw new Error('Invalid conversation summary sessionId')
+    }
+    if (typeof summary !== 'string') {
+      throw new Error('Conversation summary must be a string')
+    }
+    const result = await summaryStore.upsertSummaryAsync(sessionId, summary)
+    broadcastMemoryStoreChanged()
+    return result
+  })
 }
 
 /** Removes all memory store handlers. Symmetric with {@link registerMemoryStoreHandlers}. */
 export function unregisterMemoryStoreHandlers(): void {
   ipcMain.removeHandler('memory:list')
   ipcMain.removeHandler('memory:add')
+  ipcMain.removeHandler('memory:add-deduped')
   ipcMain.removeHandler('memory:update')
   ipcMain.removeHandler('memory:delete')
   ipcMain.removeHandler('memory:clear')
   ipcMain.removeHandler('memory:search')
+  ipcMain.removeHandler('memory:summaries-list')
+  ipcMain.removeHandler('memory:summaries-upsert')
 }

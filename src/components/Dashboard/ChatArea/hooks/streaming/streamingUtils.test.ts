@@ -161,22 +161,24 @@ describe('streamingUtils final synthesis helpers', () => {
     })
   })
 
-  it('builds a clean hard-failure message when search results exist but synthesis fails', () => {
-    expect(
-      buildSearchSynthesisFailureMessage([
-        {
-          toolCall: {
-            id: 'search-1',
-            name: 'web_search',
-            arguments: { query: 'qwen 3.6 plus thinking' },
-          },
-          result: {
-            success: true,
-            data: { results: [{ title: 'Result' }] },
-          },
+  it('builds a deterministic evidence answer when search results exist but synthesis fails', () => {
+    const message = buildSearchSynthesisFailureMessage([
+      {
+        toolCall: {
+          id: 'search-1',
+          name: 'web_search',
+          arguments: { query: 'qwen 3.6 plus thinking' },
         },
-      ])
-    ).toBe(SEARCH_SYNTHESIS_FAILURE_MESSAGE)
+        result: {
+          success: true,
+          data: { results: [{ title: 'Result' }] },
+        },
+      },
+    ])
+
+    expect(message).not.toBe(SEARCH_SYNTHESIS_FAILURE_MESSAGE)
+    expect(message).toContain('deterministic summary from the gathered evidence')
+    expect(message).toContain('qwen 3.6 plus thinking')
   })
 
   it('does not build a synthesis failure message without successful web results', () => {
@@ -313,6 +315,43 @@ describe('streamingUtils final synthesis helpers', () => {
         '<| | DSML | | tool_calls><| | DSML | | invoke name="web_search"><| | DSML | | parameter name="query" string="true">latest docs</| | DSML | | parameter></| | DSML | | invoke></| | DSML | | tool_calls>'
       )
     ).toBe(true)
+  })
+
+  it('flags fullwidth DSML tool markup as a failed post-search synthesis', () => {
+    expect(
+      shouldRetryUngroundedSearchSynthesis(
+        '<｜｜DSML｜｜tool_calls><｜｜DSML｜｜invoke name="web_search"><｜｜DSML｜｜parameter name="query" string="true">latest docs</｜｜DSML｜｜parameter></｜｜DSML｜｜invoke></｜｜DSML｜｜tool_calls>'
+      )
+    ).toBe(true)
+  })
+
+  it('builds a deterministic evidence answer from successful web results', () => {
+    const answer = buildSearchSynthesisFailureMessage([
+      {
+        toolCall: {
+          id: 'call_1',
+          name: 'web_search',
+          arguments: { query: 'Kiro brand ambassador program perks' },
+        },
+        result: {
+          success: true,
+          data: {
+            results: [
+              {
+                title: 'Brand Ambassador Welcome Kit',
+                url: 'https://example.com/kit',
+                snippet: 'Welcome kits can include branded swag, free products, and referral materials.',
+                source: 'example.com',
+              },
+            ],
+          },
+        },
+      },
+    ])
+
+    expect(answer).not.toBe(SEARCH_SYNTHESIS_FAILURE_MESSAGE)
+    expect(answer).toContain('specific official Kiro ambassador welcome kit')
+    expect(answer).toContain('[Brand Ambassador Welcome Kit](https://example.com/kit)')
   })
 
   it('does not flag grounded synthesized answers as failed post-search synthesis', () => {

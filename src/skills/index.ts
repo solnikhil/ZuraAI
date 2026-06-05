@@ -127,6 +127,7 @@ const DEFAULT_CHART_GENERATION_SKILL: ChartGenerationSkillState = {
 
 const DEFAULT_MEMORY_SKILL: MemorySkillState = {
   enabled: true,
+  config: { autoManage: true },
 }
 
 const DEFAULT_AGENT_DESKTOP_SKILL: AgentDesktopSkillState = {
@@ -165,6 +166,21 @@ function normalizeKnownSkill(raw: unknown, defaultState: SkillState): SkillState
   return { enabled: raw.enabled }
 }
 
+/**
+ * Memory has a sub-toggle beyond `enabled`: `config.autoManage`.
+ * - `enabled` gates the whole feature (inject memories at all).
+ * - `autoManage` (default true) gates whether the ASSISTANT can manage memory
+ *   (memory tools exposed + background "dreaming" extraction + autosave nudge).
+ *   When false, memory is "manual-only": saved memories still inject into the
+ *   prompt, but the model cannot write and extraction is paused.
+ */
+function normalizeMemorySkill(raw: unknown, defaultState: SkillState): MemorySkillState {
+  const enabled = isRecord(raw) && typeof raw.enabled === 'boolean' ? raw.enabled : defaultState.enabled
+  const autoManageRaw = isRecord(raw) && isRecord(raw.config) ? raw.config.autoManage : undefined
+  const autoManage = typeof autoManageRaw === 'boolean' ? autoManageRaw : true
+  return { enabled, config: { autoManage } }
+}
+
 export function normalizeSkillsSettings(raw: unknown): SkillsSettings {
   const normalized: Record<string, SkillState> = {}
 
@@ -195,7 +211,7 @@ export function normalizeSkillsSettings(raw: unknown): SkillsSettings {
     rawRecord?.chart_generation,
     defaultSkillsSettings.chart_generation
   )
-  normalized.memory = normalizeKnownSkill(
+  normalized.memory = normalizeMemorySkill(
     rawRecord?.memory,
     defaultSkillsSettings.memory
   )
@@ -254,7 +270,7 @@ export function migrateSkillsFromLegacySettings({
 
     result = {
       ...result,
-      memory: { enabled: enabledFromLegacy },
+      memory: { enabled: enabledFromLegacy, config: { autoManage: true } },
     }
   }
 
@@ -365,6 +381,32 @@ export function withAgentDesktopEnabled(skills: SkillsSettings | undefined, enab
     agent_desktop: {
       ...normalized.agent_desktop,
       enabled,
+    },
+  }
+}
+
+// Memory
+
+/**
+ * Whether the assistant may autonomously manage memory (write tools + dreaming
+ * extraction + autosave nudge). Independent of `memory.enabled`. Defaults true.
+ * When false, memory is "manual-only": saved memories still inject, but the
+ * model cannot write and background extraction is paused.
+ */
+export function isMemoryAutoManageEnabled(skills: SkillsSettings | undefined): boolean {
+  const normalized = normalizeSkillsSettings(skills)
+  if (!normalized.memory.enabled) return false
+  const autoManage = normalized.memory.config?.autoManage
+  return autoManage !== false
+}
+
+export function withMemoryAutoManage(skills: SkillsSettings | undefined, autoManage: boolean): SkillsSettings {
+  const normalized = normalizeSkillsSettings(skills)
+  return {
+    ...normalized,
+    memory: {
+      ...normalized.memory,
+      config: { ...normalized.memory.config, autoManage },
     },
   }
 }

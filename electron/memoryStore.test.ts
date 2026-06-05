@@ -114,6 +114,32 @@ describe('memoryStore', () => {
     expect(memories.find((memory) => memory.content === 'memory 0')).toBeUndefined()
   })
 
+  it('evicts by createdAt, not updatedAt (editing an old memory does not shield it)', async () => {
+    const store = await import('./memoryStore')
+
+    // Create the cap + 1 entries so exactly one will be evicted.
+    const created: Array<{ id: string; label: string }> = []
+    for (let i = 0; i < store.MEMORY_CAP + 1; i += 1) {
+      const memory = await store.addMemoryAsync({ content: `entry ${i}` })
+      created.push({ id: memory.id, label: `entry ${i}` })
+      // Guarantee strictly increasing createdAt across entries.
+      await new Promise((resolve) => setTimeout(resolve, 1))
+    }
+
+    // Touch the OLDEST-created entry so its updatedAt becomes the newest.
+    // Under updatedAt-based eviction this would shield it; under createdAt-based
+    // eviction it should still be the one dropped.
+    await new Promise((resolve) => setTimeout(resolve, 2))
+    await store.updateMemoryAsync(created[0].id, { content: 'entry 0 edited' })
+
+    const memories = await store.getAllMemoriesAsync()
+    expect(memories.length).toBe(store.MEMORY_CAP)
+    // The oldest-created entry was evicted despite being most recently edited.
+    expect(memories.find((memory) => memory.id === created[0].id)).toBeUndefined()
+    // The second-oldest survived.
+    expect(memories.find((memory) => memory.id === created[1].id)).toBeDefined()
+  })
+
   it('filters by scope (global only excludes project-scoped memories)', async () => {
     const store = await import('./memoryStore')
     await store.addMemoryAsync({ content: 'global one' })
@@ -209,5 +235,46 @@ describe('memoryStore', () => {
     await expect(
       store.updateMemoryAsync(memory.id, { scope: { type: 'project' } as never })
     ).rejects.toThrow(/scope/i)
+  })
+
+  it('addMemoryWithDedupeAsync adds when no duplicate exists', async () => {
+    const store = await import('./memoryStore')
+    const result = await store.addMemoryWithDedupeAsync({ content: 'I use Neovim' })
+    expect(result.operation).toBe('added')
+    expect(result.memory.status).toBe('active')
+    expect((await store.getAllMemoriesAsync())).toHaveLength(1)
+  })
+
+  it('addMemoryWithDedupeAsync NOOPs on a near-duplicate active memory', async () => {
+    const store = await import('./memoryStore')
+    const first = await store.addMemoryWithDedupeAsync({ content: 'User prefers dark mode' })
+    const dupe = await store.addMemoryWithDedupeAsync({ content: 'user prefers dark mode.' })
+
+    expect(dupe.operation).toBe('noop')
+    expect(dupe.memory.id).toBe(first.memory.id)
+    expect(await store.getAllMemoriesAsync()).toHaveLength(1)
+  })
+
+  it('addMemoryWithDedupeAsync supersedes: keeps both, links them, marks old superseded', async () => {
+    const store = await import('./memoryStore')
+    const old = await store.addMemoryWithDedupeAsync({ content: 'User lives in New York' })
+    const next = await store.addMemoryWithDedupeAsync(
+      { content: 'User lives in San Francisco' },
+      { supersedesId: old.memory.id }
+    )
+
+    expect(next.operation).toBe('superseded')
+    expect(next.memory.supersedes).toBe(old.memory.id)
+
+    const all = await store.getAllMemoriesAsync()
+    expect(all).toHaveLength(2)
+    const oldEntry = all.find((m) => m.id === old.memory.id)
+    expect(oldEntry?.status).toBe('superseded')
+    expect(oldEntry?.supersededBy).toBe(next.memory.id)
+
+    // excludeSuperseded keeps only the active (new) entry.
+    const active = store.excludeSuperseded(all)
+    expect(active).toHaveLength(1)
+    expect(active[0].id).toBe(next.memory.id)
   })
 })

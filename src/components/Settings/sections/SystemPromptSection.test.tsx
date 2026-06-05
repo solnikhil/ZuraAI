@@ -20,7 +20,7 @@ describe('SystemPromptSection', () => {
     expect(screen.queryByRole('button', { name: /show effective prompt/i })).toBeNull()
   })
 
-  it('still allows editing the base system prompt', () => {
+  it('renders prompts as read-only built-in defaults', () => {
     const onChange = vi.fn()
 
     render(
@@ -34,10 +34,10 @@ describe('SystemPromptSection', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: /show system prompt/i }))
-    fireEvent.change(screen.getByPlaceholderText(/enter your system prompt here/i), {
-      target: { value: 'Updated prompt' },
-    })
+    const editor = screen.getByDisplayValue(/ZuraAI/i)
 
-    expect(onChange).toHaveBeenCalledWith({ systemPrompt: 'Updated prompt' })
+    expect(editor).toHaveAttribute('readonly')
+    expect(screen.queryByRole('button', { name: /load default/i })).toBeNull()
+    expect(onChange).not.toHaveBeenCalled()
   })
 })

@@ -7,6 +7,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { migrateConfiguredModelCode } from './SettingsContext'
 import { normalizeStoredSettings, stripSecretSettings } from './settingsStore'
+import { defaultWebSearchPrompt } from '../prompts/defaultWebSearchPrompt'
 
 // Mock localStorage
 const localStorageMock = (() => {
@@ -212,7 +213,7 @@ Rules:
       expect(normalized.openRouterDebug).toBe(false)
     })
 
-    it('migrates saved default web-search strategy to allow explicit parallel range batches', () => {
+    it('replaces saved web-search prompt overrides with the current default', () => {
       const legacyPrompt = `Custom header
 
 CRITICAL REQUIREMENTS:
@@ -227,15 +228,8 @@ SEARCH STRATEGY:
 
       const normalized = normalizeStoredSettings(JSON.stringify({ webSearchPrompt: legacyPrompt }))
 
-      expect(normalized.webSearchPrompt).toContain('do NOT start with one broad search')
-      expect(normalized.webSearchPrompt).toContain('one focused web_search call per slice')
-      expect(normalized.webSearchPrompt).toContain('web results can be incomplete')
-      expect(normalized.webSearchPrompt).toContain('prioritize official or primary sources')
-      expect(normalized.webSearchPrompt).toContain('Custom header')
-      expect(normalized.webSearchPrompt).toContain('Let the first results guide follow-up searches')
-      expect(normalized.webSearchPrompt).not.toContain(
-        'For research or discovery tasks, begin with ONE broad exploratory search'
-      )
+      expect(normalized.webSearchPrompt).toBe(defaultWebSearchPrompt)
+      expect(normalized.webSearchPrompt).not.toContain('Custom header')
     })
 
     it('drops legacy titleModelProvider when normalizing stored settings', async () => {
@@ -262,28 +256,26 @@ SEARCH STRATEGY:
       ).toBe(false)
     })
 
-    it('adds the web-search limitation note to saved prompts without duplicating it', () => {
+    it('does not preserve custom web-search prompt fragments during normalization', () => {
       const savedPrompt = `CRITICAL REQUIREMENTS:
 - After using web_search, you MUST include a Sources: section at the end of the response
 - In Sources:, list the relevant URLs as markdown links in the format [Title](URL)
 - Do not claim certainty beyond what the sources support`
 
       const normalized = normalizeStoredSettings(JSON.stringify({ webSearchPrompt: savedPrompt }))
-      const matches = normalized.webSearchPrompt.match(/web results can be incomplete/g) || []
 
-      expect(matches).toHaveLength(1)
+      expect(normalized.webSearchPrompt).toBe(defaultWebSearchPrompt)
     })
 
-    it('adds the primary-source verification note to saved prompts without duplicating it', () => {
+    it('does not preserve legacy primary-source web-search prompt overrides', () => {
       const savedPrompt = `CRITICAL REQUIREMENTS:
 - In Sources:, list the relevant URLs as markdown links in the format [Title](URL)
 - Briefly note when the answer depends on web search results and that web results can be incomplete, outdated, or occasionally incorrect
 - Do not claim certainty beyond what the sources support`
 
       const normalized = normalizeStoredSettings(JSON.stringify({ webSearchPrompt: savedPrompt }))
-      const matches = normalized.webSearchPrompt.match(/prioritize official or primary sources/g) || []
 
-      expect(matches).toHaveLength(1)
+      expect(normalized.webSearchPrompt).toBe(defaultWebSearchPrompt)
     })
 
     it('preserves an explicitly emptied provider model list', () => {

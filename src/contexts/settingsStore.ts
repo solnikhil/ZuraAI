@@ -69,55 +69,6 @@ const LEGACY_FIREWORKS_SEEDED_MODEL_CODES = new Set([
   'accounts/fireworks/models/glm-4p7',
   'accounts/fireworks/models/nvidia-nemotron-3-super-120b-a12b-fp8',
 ])
-const LEGACY_WEB_SEARCH_STRATEGY_BLOCK =
-  `SEARCH STRATEGY:
-- For research or discovery tasks, begin with ONE broad exploratory search
-- Do not pre-plan several searches from memory before seeing results`
-const UPDATED_WEB_SEARCH_STRATEGY_BLOCK =
-  `SEARCH STRATEGY:
-- For research or discovery tasks with no obvious independent slices, begin with ONE broad exploratory search
-- If the user asks for an explicit range or independent slices (for example: past 5 years, 2021-2025, regions, providers, products, competitors, or categories), do NOT start with one broad search. Instead, issue one focused web_search call per slice in the same assistant turn so the app can execute the batch in parallel
-- Do not pre-plan several searches from memory before seeing results unless the user already gave a clear range or clear independent facets`
-const WEB_SEARCH_LIMITATION_NOTE =
-  '- Briefly note when the answer depends on web search results and that web results can be incomplete, outdated, or occasionally incorrect'
-const WEB_SEARCH_PRIMARY_SOURCE_NOTE =
-  '- When double-checking or verifying facts, prioritize official or primary sources over third-party summaries. Use third-party sources only when official sources are unavailable, incomplete, or useful for context, and label that limitation clearly'
-const WEB_SEARCH_SOURCES_REQUIREMENT =
-  '- In Sources:, list the relevant URLs as markdown links in the format [Title](URL)'
-const LEGACY_TITLE_GENERATION_PROMPT_PREFIX =
-  'Give this conversation a short descriptive title (2-6 words).'
-
-function migrateWebSearchPrompt(prompt: unknown): unknown {
-  if (typeof prompt !== 'string') return prompt
-
-  let migratedPrompt = prompt
-  if (migratedPrompt.includes(LEGACY_WEB_SEARCH_STRATEGY_BLOCK)) {
-    migratedPrompt = migratedPrompt.replace(LEGACY_WEB_SEARCH_STRATEGY_BLOCK, UPDATED_WEB_SEARCH_STRATEGY_BLOCK)
-  }
-
-  if (
-    !migratedPrompt.includes(WEB_SEARCH_LIMITATION_NOTE) &&
-    migratedPrompt.includes(WEB_SEARCH_SOURCES_REQUIREMENT)
-  ) {
-    migratedPrompt = migratedPrompt.replace(
-      WEB_SEARCH_SOURCES_REQUIREMENT,
-      `${WEB_SEARCH_SOURCES_REQUIREMENT}\n${WEB_SEARCH_LIMITATION_NOTE}`
-    )
-  }
-
-  if (
-    !migratedPrompt.includes(WEB_SEARCH_PRIMARY_SOURCE_NOTE) &&
-    migratedPrompt.includes(WEB_SEARCH_LIMITATION_NOTE)
-  ) {
-    migratedPrompt = migratedPrompt.replace(
-      WEB_SEARCH_LIMITATION_NOTE,
-      `${WEB_SEARCH_LIMITATION_NOTE}\n${WEB_SEARCH_PRIMARY_SOURCE_NOTE}`
-    )
-  }
-
-  return migratedPrompt
-}
-
 function shouldClearLegacyFireworksSeededModels(models: unknown): boolean {
   if (!Array.isArray(models) || models.length !== LEGACY_FIREWORKS_SEEDED_MODEL_CODES.size) {
     return false
@@ -275,23 +226,12 @@ export function normalizeStoredSettings(raw: string | null): Settings {
     parsed.systemPrompt = defaultSettings.systemPrompt
   }
 
-  if (parsed.webSearchPrompt === undefined) {
-    parsed.webSearchPrompt = defaultSettings.webSearchPrompt
-  } else {
-    parsed.webSearchPrompt = migrateWebSearchPrompt(parsed.webSearchPrompt) as Settings['webSearchPrompt']
-  }
-
-  if (parsed.codeExecutionPrompt === undefined) {
-    parsed.codeExecutionPrompt = defaultSettings.codeExecutionPrompt
-  }
-
-  if (parsed.computerUsePrompt === undefined) {
-    parsed.computerUsePrompt = defaultSettings.computerUsePrompt
-  }
-
-  if (parsed.chartGenerationPrompt === undefined) {
-    parsed.chartGenerationPrompt = defaultSettings.chartGenerationPrompt
-  }
+  parsed.systemPrompt = defaultSettings.systemPrompt
+  parsed.webSearchPrompt = defaultSettings.webSearchPrompt
+  parsed.codeExecutionPrompt = defaultSettings.codeExecutionPrompt
+  parsed.computerUsePrompt = defaultSettings.computerUsePrompt
+  parsed.chartGenerationPrompt = defaultSettings.chartGenerationPrompt
+  parsed.memoryPrompt = defaultSettings.memoryPrompt
 
   if (!parsed.modelProvider) parsed.modelProvider = defaultSettings.modelProvider
   if (!PROVIDER_IDS.includes(parsed.modelProvider as typeof PROVIDER_IDS[number])) {
@@ -366,11 +306,7 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   if (parsed.titleModel === 'google/gemini-2.0-flash-exp:free') {
     parsed.titleModel = ''
   }
-  if (typeof parsed.titleGenerationPrompt !== 'string') {
-    parsed.titleGenerationPrompt = defaultSettings.titleGenerationPrompt
-  } else if (parsed.titleGenerationPrompt.startsWith(LEGACY_TITLE_GENERATION_PROMPT_PREFIX)) {
-    parsed.titleGenerationPrompt = defaultSettings.titleGenerationPrompt
-  }
+  parsed.titleGenerationPrompt = defaultSettings.titleGenerationPrompt
   if (
     !parsed.titleGenerationDisplayMode ||
     !['instant', 'typewriter'].includes(parsed.titleGenerationDisplayMode)
@@ -614,6 +550,7 @@ export function getInitialConfigSettings(settings: Settings): Partial<SettingsCo
     codeExecutionPrompt: settings.codeExecutionPrompt,
     computerUsePrompt: settings.computerUsePrompt,
     chartGenerationPrompt: settings.chartGenerationPrompt,
+    memoryPrompt: settings.memoryPrompt,
     streamResponses: settings.streamResponses,
     assistantMode: settings.assistantMode,
     toolsEnabled: settings.toolsEnabled,

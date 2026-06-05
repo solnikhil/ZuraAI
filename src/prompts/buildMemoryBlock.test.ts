@@ -12,6 +12,7 @@ function memory(partial: Partial<Memory> & { content: string; updatedAt?: number
     updatedAt: partial.updatedAt ?? 1,
     source: partial.source ?? 'user',
     scope: partial.scope ?? { type: 'global' },
+    status: partial.status ?? 'active',
     sessionId: partial.sessionId,
   }
 }
@@ -211,5 +212,67 @@ describe('loadMemoryBlock', () => {
     })
     expect(result).toContain('CUSTOM AUTOSAVE INSTRUCTION')
     expect(result).not.toContain('Memory tools are available')
+  })
+
+  it('retrieves top-K via search when a user message is provided', async () => {
+    const search = vi
+      .fn()
+      .mockResolvedValue([memory({ content: 'uses Neovim', updatedAt: 5 })])
+    const list = vi.fn().mockResolvedValue([])
+    ;(globalThis as unknown as {
+      window: { memory: { search: typeof search; list: typeof list } }
+    }).window = { memory: { search, list } }
+
+    const result = await loadMemoryBlock(
+      { skills: enabledSkills },
+      { type: 'global' },
+      { userMessage: 'what editor do I use', limit: 8 }
+    )
+    expect(search).toHaveBeenCalledWith('what editor do I use', 8, { type: 'global' })
+    expect(result).toContain('uses Neovim')
+  })
+
+  it('does not inject unrelated recent memories when search returns no matches', async () => {
+    const search = vi.fn().mockResolvedValue([])
+    const list = vi.fn().mockResolvedValue([memory({ content: 'recent fact', updatedAt: 9 })])
+    ;(globalThis as unknown as {
+      window: { memory: { search: typeof search; list: typeof list } }
+    }).window = { memory: { search, list } }
+
+    const result = await loadMemoryBlock(
+      { skills: enabledSkills },
+      { type: 'global' },
+      { userMessage: 'unrelated query' }
+    )
+    expect(list).not.toHaveBeenCalled()
+    expect(result).not.toContain('recent fact')
+    expect(result).toContain('save_memory')
+  })
+
+  it('manual-only mode injects memories but omits the save_memory nudge', async () => {
+    const list = vi.fn().mockResolvedValue([memory({ content: 'lives in Bangalore', updatedAt: 3 })])
+    ;(globalThis as unknown as { window: { memory: { list: typeof list } } }).window = {
+      memory: { list },
+    }
+    const manualOnly = {
+      memory: { enabled: true, config: { autoManage: false } },
+    } as unknown as import('@/skills').SkillsSettings
+
+    const result = await loadMemoryBlock({ skills: manualOnly })
+    expect(result).toContain('lives in Bangalore')
+    expect(result).not.toContain('save_memory')
+  })
+
+  it('excludes superseded memories from the injected block', () => {
+    const block = buildMemoryBlock(
+      [
+        memory({ content: 'lives in New York', status: 'superseded' }),
+        memory({ content: 'lives in San Francisco' }),
+      ],
+      { type: 'global' },
+      { warn: noop }
+    )
+    expect(block).toContain('San Francisco')
+    expect(block).not.toContain('New York')
   })
 })

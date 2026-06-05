@@ -14,6 +14,11 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import type { Memory } from '@/electron/types'
+import {
+  isMemoryAutoManageEnabled,
+  withMemoryAutoManage,
+  type SkillsSettings,
+} from '@/skills'
 
 const MAX_CONTENT_LENGTH = 1000
 
@@ -23,13 +28,21 @@ interface DraftRow {
   content: string
 }
 
+export interface MemorySectionProps {
+  /** Skills map (for the auto-management sub-toggle). Optional in standalone use. */
+  skills?: SkillsSettings
+  /** Persist settings changes (auto-management toggle). */
+  onChange?: (changes: { skills?: SkillsSettings }) => void
+}
+
 function formatTimestamp(ms: number): string {
   if (!Number.isFinite(ms)) return ''
   return new Date(ms).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
-export function MemorySection(): React.ReactElement {
+export function MemorySection({ skills, onChange }: MemorySectionProps = {}): React.ReactElement {
   const [memories, setMemories] = useState<Memory[]>([])
+  const [summaries, setSummaries] = useState<import('@/electron/types').ConversationSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [draft, setDraft] = useState<DraftRow | null>(null)
@@ -45,6 +58,13 @@ export function MemorySection(): React.ReactElement {
     try {
       const next = await window.memory.list({ type: 'global' })
       setMemories(next)
+      if (window.memory.summaries) {
+        try {
+          setSummaries(await window.memory.summaries.list())
+        } catch {
+          // Summaries are best-effort; ignore failures here.
+        }
+      }
       setError(null)
     } catch (err) {
       console.error('Failed to load memories:', err)
@@ -121,6 +141,27 @@ export function MemorySection(): React.ReactElement {
           chats — similar to ChatGPT's saved memories. Memories are stored locally and never leave your device.
         </div>
       </div>
+
+      {onChange && (
+        <label className="memory-automanage-toggle" style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 16 }}>
+          <input
+            type="checkbox"
+            checked={isMemoryAutoManageEnabled(skills)}
+            onChange={(event) =>
+              onChange({ skills: withMemoryAutoManage(skills, event.target.checked) })
+            }
+            style={{ marginTop: 3 }}
+          />
+          <span>
+            <strong>Let the assistant manage memory automatically</strong>
+            <span style={{ display: 'block', opacity: 0.7, fontSize: 13 }}>
+              When on, the assistant can save, update, and search memories during chats and quietly
+              distill durable facts from finished conversations. When off, memories you add here still
+              personalize replies, but the assistant won&apos;t write or extract anything on its own.
+            </span>
+          </span>
+        </label>
+      )}
 
       <section className="memory-list-section" aria-label="Saved memories">
         <header className="memory-list-section__header">
@@ -225,6 +266,34 @@ export function MemorySection(): React.ReactElement {
                 </li>
               )
             )}
+          </ul>
+        )}
+      </section>
+
+      <section className="memory-list-section" aria-label="Recent activity">
+        <header className="memory-list-section__header">
+          <div>
+            <h3>Recent activity</h3>
+            <p>
+              {summaries.length === 0
+                ? 'Short summaries of your recent chats appear here as the assistant distills them.'
+                : 'Brief, dated summaries of your recent chats — used to keep continuity across conversations.'}
+            </p>
+          </div>
+        </header>
+
+        {summaries.length === 0 ? (
+          <div className="memory-empty">
+            <p>No recent activity yet.</p>
+          </div>
+        ) : (
+          <ul className="memory-grid" role="list">
+            {summaries.map((item) => (
+              <li key={item.sessionId} className="memory-card">
+                <p className="memory-card__content">{item.summary}</p>
+                <div className="memory-card__footer">{formatTimestamp(item.updatedAt)}</div>
+              </li>
+            ))}
           </ul>
         )}
       </section>

@@ -12,7 +12,10 @@ import {
   providerUsesNativeSearch,
   type ActiveProviderId,
 } from '../../../../../providers'
-import { extractInlineToolCallsFromContent } from '../../../../../tools/adapters/openrouterToolCalls'
+import {
+  extractInlineToolCallsFromContent,
+  normalizeInlineToolCallMarkup,
+} from '../../../../../tools/adapters/openrouterToolCalls'
 import { emptyUsage } from '../../../../../providers/providerRuntimeTypes'
 import {
   SAFETY_CAP,
@@ -138,8 +141,9 @@ const MID_STREAM_MARKUP_PATTERNS: ReadonlyArray<{ format: 'dsml' | 'xml'; patter
 
 function detectMidStreamMarkup(content: string): 'dsml' | 'xml' | null {
   if (!content) return null
+  const normalizedContent = normalizeInlineToolCallMarkup(content)
   for (const { format, pattern } of MID_STREAM_MARKUP_PATTERNS) {
-    if (pattern.test(content)) return format
+    if (pattern.test(normalizedContent)) return format
   }
   return null
 }
@@ -152,9 +156,10 @@ function detectMidStreamMarkup(content: string): 'dsml' | 'xml' | null {
  */
 function findMidStreamMarkupStart(content: string): number | null {
   if (!content) return null
+  const normalizedContent = normalizeInlineToolCallMarkup(content)
   let start: number | null = null
   for (const { pattern } of MID_STREAM_MARKUP_PATTERNS) {
-    const match = content.match(pattern)
+    const match = normalizedContent.match(pattern)
     if (match?.index != null && (start === null || match.index < start)) {
       start = match.index
     }
@@ -567,15 +572,20 @@ export function useProviderStreaming({
                 accumulatedContent += event.delta
                 roundContent += event.delta
                 if (event.delta) {
-                  // Mid-stream guard: during a no-tools synthesis round, if the
-                  // model starts writing tool-call markup as plain text, cut
-                  // the stream now instead of letting the user watch it scroll
-                  // past. The catch block converts this into a soft "leaked"
-                  // round outcome so the retry pipeline can take over.
                   if (!roundAllowsTools) {
                     const detectedFormat = detectMidStreamMarkup(roundContent)
-                    if (detectedFormat) {
-                      throw new MidStreamMarkupAbort(detectedFormat, roundContent)
+                    if (detectedFormat && !suppressedInlineToolMarkup) {
+                      suppressedInlineToolMarkup = true
+                      frozenDisplayContent = roundStartContent
+                      logToolMarkupLeak('suppressed-during-no-tools-pass', {
+                        provider,
+                        model,
+                        roundType,
+                        format: detectedFormat,
+                        toolNames: [],
+                        cleanedContentLength: 0,
+                        rawPreview: roundContent.slice(0, TOOL_MARKUP_PREVIEW_LIMIT),
+                      })
                     }
                   } else if (frozenDisplayContent === null) {
                     // Tool-enabled round: once inline tool-call markup starts,
@@ -756,6 +766,17 @@ export function useProviderStreaming({
               })
             } else if (!roundAllowsTools) {
               suppressedInlineToolMarkup = true
+              if (extracted.toolCalls.length > 0) {
+                roundToolCalls = extracted.toolCalls.map((toolCall, index) => ({
+                  index,
+                  id: toolCall.id,
+                  type: 'function',
+                  function: {
+                    name: toolCall.name,
+                    arguments: JSON.stringify(toolCall.arguments),
+                  },
+                }))
+              }
               logToolMarkupLeak('suppressed-during-no-tools-pass', {
                 provider,
                 model,
@@ -857,7 +878,8 @@ export function useProviderStreaming({
         baseRound: number,
         totalSearchCount: number,
         lastAssistantMessage: ServiceAssistantMessage,
-        formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>
+        formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>,
+        searchQueryHistory: string[]
       ): Promise<void> => {
         type Outcome = 'good' | 'blank' | 'leaked-or-ungrounded'
 
@@ -881,6 +903,125 @@ export function useProviderStreaming({
         // attempts. Without this, a blank/leaked attempt would leak its
         // partial state into the next attempt's content.
         const baselineContent = accumulatedContent
+        let activeSearchCount = totalSearchCount
+        let activeLastAssistantMessage = lastAssistantMessage
+        let activeFormattedResults = formattedResults
+        let recoveredSearchUsed = false
+
+        const commitDeterministicAnswer = () => {
+          const failureMessage =
+            buildSearchSynthesisFailureMessage(savedToolResults) ??
+            'I gathered some search results but could not produce a final written answer.'
+          accumulatedContent = baselineContent + failureMessage
+          finishReason = null
+          updateStreamingState({
+            content: accumulatedContent,
+            phase: 'answering',
+          })
+          updatePersistedStreamingMessage(options.sessionId, options.messageId, {
+            content: accumulatedContent,
+          })
+        }
+
+        const recoverLeakedSearches = async (
+          attempt: {
+            roundContent: string
+            roundToolCalls: DeltaToolCall[]
+            roundReasoningDetails: ReasoningDetail[]
+            suppressedInlineToolMarkup: boolean
+          },
+          attemptNumber: number
+        ): Promise<boolean> => {
+          if (recoveredSearchUsed || !attempt.suppressedInlineToolMarkup) return false
+          const recoveredToolCalls = attempt.roundToolCalls.filter(
+            (toolCall) => toolCall?.function?.name === 'web_search'
+          )
+          if (recoveredToolCalls.length === 0) return false
+
+          const remainingWebSearchBudget = Math.max(0, effectiveSearchBudget - activeSearchCount)
+          if (remainingWebSearchBudget <= 0) {
+            logResearchLoop('leaked-search-recovery-skipped', {
+              reason: 'budget',
+              attempt: attemptNumber,
+              activeSearchCount,
+            })
+            return false
+          }
+
+          const recoveredMessage = reconstructToolCallMessage(
+            attempt.roundContent,
+            recoveredToolCalls,
+            {
+              reasoning: getThinkingTranscript(localThinkingBlocks),
+              reasoningDetails: attempt.roundReasoningDetails,
+            }
+          )
+          const recoveredResult = await toolCalling.handleToolCalls(
+            buildResponseWithFallback(
+              recoveredMessage,
+              options.messages,
+              getThinkingTranscript(localThinkingBlocks)
+            ),
+            {
+              ...buildToolDiagnosticsCallbacks({
+                remainingWebSearchBudget,
+                priorWebSearchQueries: [...searchQueryHistory],
+                userContextText,
+              }),
+            }
+          )
+          throwIfAborted()
+
+          const executedQueries = recoveredResult.executionSummary.executedWebSearchQueries || []
+          const newWebSearches = recoveredResult.executionSummary.executedWebSearchCount || 0
+          if (newWebSearches <= 0 || executedQueries.length === 0) {
+            logResearchLoop('leaked-search-recovery-skipped', {
+              reason: 'no-new-searches',
+              attempt: attemptNumber,
+              attemptedQueries: extractWebSearchQueries(recoveredResult.toolResults),
+            })
+            return false
+          }
+
+          activeSearchCount += newWebSearches
+          searchQueryHistory.push(...executedQueries)
+          activeLastAssistantMessage = recoveredMessage
+          activeFormattedResults = recoveredResult.formattedResults
+          recoveredSearchUsed = true
+
+          localThinkingBlocks = buildThinkingBlocksFromResults(
+            recoveredResult.toolResults || [],
+            localThinkingBlocks
+          )
+          savedToolResults = mergeSavedToolResults(
+            savedToolResults,
+            recoveredResult.toolResults || []
+          )
+          publishStreamingToolResults(
+            updateStreamingState,
+            updatePersistedStreamingMessage,
+            options.sessionId,
+            options.messageId,
+            savedToolResults,
+            localThinkingBlocks
+          )
+          updateStreamingState({
+            phase: 'reasoning',
+            thinkingBlocks: localThinkingBlocks,
+            researchStatus: buildResearchStatus(
+              baseRound + attemptNumber,
+              options.researchMaxRounds,
+              false,
+              executedQueries
+            ),
+          })
+          logResearchLoop('leaked-search-recovered', {
+            attempt: attemptNumber,
+            executedQueries,
+            activeSearchCount,
+          })
+          return true
+        }
 
         // Attempt 1 — plain follow-up. No discouragement prompt; we want to
         // see what the model does naturally with the gathered evidence.
@@ -918,6 +1059,33 @@ export function useProviderStreaming({
         // Attempt 2 — recovery prompt. Pick based on the failure shape:
         //   - blank → "FINAL ANSWER REQUIRED, write at least one paragraph"
         //   - leaked / ungrounded → "PLAIN TEXT ONLY, no markup, no tool_calls"
+        if (await recoverLeakedSearches(attempt1, 1)) {
+          const recoveredSynthesisMessages = buildPlainTextOnlySynthesisMessages(
+            toolCalling.getResearchContext(activeSearchCount, options.researchMaxRounds),
+            baseRound + 1,
+            activeSearchCount,
+            options.messages,
+            activeLastAssistantMessage,
+            activeFormattedResults
+          )
+          const recoveredSynthesis = await runRound(recoveredSynthesisMessages, {
+            round: baseRound + 1,
+            toolChoice: 'none',
+            tools: [],
+          })
+          throwIfAborted()
+          if (classify(recoveredSynthesis) === 'good') return
+          accumulatedContent = baselineContent
+          updateStreamingState({ content: accumulatedContent })
+          commitDeterministicAnswer()
+          return
+        }
+
+        if (attempt1.suppressedInlineToolMarkup) {
+          commitDeterministicAnswer()
+          return
+        }
+
         const attempt2Messages =
           outcome1 === 'blank'
             ? buildRecoverySynthesisMessages(
@@ -954,6 +1122,33 @@ export function useProviderStreaming({
         updateStreamingState({ content: accumulatedContent })
 
         // Attempt 3 — strictest plain-text-only escalation.
+        if (await recoverLeakedSearches(attempt2, 2)) {
+          const recoveredSynthesisMessages = buildPlainTextOnlySynthesisMessages(
+            toolCalling.getResearchContext(activeSearchCount, options.researchMaxRounds),
+            baseRound + 2,
+            activeSearchCount,
+            options.messages,
+            activeLastAssistantMessage,
+            activeFormattedResults
+          )
+          const recoveredSynthesis = await runRound(recoveredSynthesisMessages, {
+            round: baseRound + 2,
+            toolChoice: 'none',
+            tools: [],
+          })
+          throwIfAborted()
+          if (classify(recoveredSynthesis) === 'good') return
+          accumulatedContent = baselineContent
+          updateStreamingState({ content: accumulatedContent })
+          commitDeterministicAnswer()
+          return
+        }
+
+        if (attempt2.suppressedInlineToolMarkup) {
+          commitDeterministicAnswer()
+          return
+        }
+
         const attempt3Messages = buildPlainTextOnlySynthesisMessages(
           researchContextMsg,
           baseRound + 2,
@@ -1144,7 +1339,8 @@ export function useProviderStreaming({
               researchRound,
               totalSearchCount,
               lastAssistantMessage,
-              toolResult.formattedResults
+              toolResult.formattedResults,
+              searchQueryHistory
             )
             toolResult = {
               ...toolResult,
@@ -1264,7 +1460,8 @@ export function useProviderStreaming({
                   researchRound,
                   totalSearchCount,
                   lastAssistantMessage,
-                  toolResult.formattedResults
+                  toolResult.formattedResults,
+                  searchQueryHistory
                 )
               }
               break
@@ -1407,7 +1604,8 @@ export function useProviderStreaming({
                 researchRound,
                 totalSearchCount,
                 lastAssistantMessage,
-                nextToolResult.formattedResults
+                nextToolResult.formattedResults,
+                searchQueryHistory
               )
               toolResult = {
                 ...nextToolResult,

@@ -150,10 +150,13 @@ const MCP_ON_CHANNELS = new Set<string>(['mcp:state-changed'])
 const MEMORY_INVOKE_CHANNELS = new Set<string>([
   'memory:list',
   'memory:add',
+  'memory:add-deduped',
   'memory:update',
   'memory:delete',
   'memory:clear',
   'memory:search',
+  'memory:summaries-list',
+  'memory:summaries-upsert',
 ])
 
 const MEMORY_ON_CHANNELS = new Set<string>(['memory-store:changed'])
@@ -543,6 +546,13 @@ contextBridge.exposeInMainWorld(
       assertAllowed('invoke', 'memory:add', MEMORY_INVOKE_CHANNELS)
       return ipcRenderer.invoke('memory:add', input) as Promise<Memory>
     },
+    addDeduped: (input: AddMemoryInput, options?: { supersedesId?: string }) => {
+      assertAllowed('invoke', 'memory:add-deduped', MEMORY_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('memory:add-deduped', input, options) as Promise<{
+        memory: Memory
+        operation: 'added' | 'noop' | 'superseded'
+      }>
+    },
     update: (id: string, patch: UpdateMemoryPatch) => {
       assertAllowed('invoke', 'memory:update', MEMORY_INVOKE_CHANNELS)
       return ipcRenderer.invoke('memory:update', id, patch) as Promise<Memory | null>
@@ -559,6 +569,20 @@ contextBridge.exposeInMainWorld(
       assertAllowed('invoke', 'memory:search', MEMORY_INVOKE_CHANNELS)
       return ipcRenderer.invoke('memory:search', query, limit, scope) as Promise<Memory[]>
     },
+    summaries: Object.freeze({
+      list: () => {
+        assertAllowed('invoke', 'memory:summaries-list', MEMORY_INVOKE_CHANNELS)
+        return ipcRenderer.invoke('memory:summaries-list') as Promise<
+          import('../src/electron/types').ConversationSummary[]
+        >
+      },
+      upsert: (sessionId: string, summary: string) => {
+        assertAllowed('invoke', 'memory:summaries-upsert', MEMORY_INVOKE_CHANNELS)
+        return ipcRenderer.invoke('memory:summaries-upsert', sessionId, summary) as Promise<
+          import('../src/electron/types').ConversationSummary
+        >
+      },
+    }),
     onChanged: (callback: () => void) => {
       assertAllowed('on', 'memory-store:changed', MEMORY_ON_CHANNELS)
       const listener = () => callback()

@@ -17,6 +17,14 @@ export interface InlineToolCallExtractionResult {
   rawPreview: string
 }
 
+export function normalizeInlineToolCallMarkup(content: string): string {
+  return content
+    .replace(/\uFF1C/g, '<')
+    .replace(/\uFF1E/g, '>')
+    .replace(/\uFF0F/g, '/')
+    .replace(/\uFF5C/g, '|')
+}
+
 function isJsonComplete(str: string): boolean {
   const trimmed = str.trim()
   if (trimmed.length === 0) return false
@@ -335,7 +343,7 @@ export function extractInlineToolCallsFromContent(
   content: string | null | undefined,
   fallbackContext?: ToolCallFallbackContext | null
 ): InlineToolCallExtractionResult {
-  const rawContent = typeof content === 'string' ? content : ''
+  const rawContent = normalizeInlineToolCallMarkup(typeof content === 'string' ? content : '')
   if (!rawContent.trim()) {
     return {
       toolCalls: [],

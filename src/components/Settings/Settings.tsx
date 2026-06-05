@@ -394,7 +394,12 @@ if (!hasSettingsChanges && !hasMcpChanges) {
               />
             )}
 
-            {normalizedActiveSection === 'memory' && <MemorySection />}
+            {normalizedActiveSection === 'memory' && (
+              <MemorySection
+                skills={pendingSettings.skills}
+                onChange={(changes) => handleChange(changes)}
+              />
+            )}
 
             {normalizedActiveSection === 'themes' && (
               <AppearanceSection

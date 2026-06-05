@@ -23,12 +23,21 @@ import * as fs from 'fs/promises'
 import * as fsSync from 'fs'
 import * as path from 'path'
 import { writeFileAtomic } from './utils/atomicFile'
+import { scoreMemories } from './memoryRetrieval'
 
 export type MemorySource = 'user' | 'model'
 
 export type MemoryScope =
   | { type: 'global' }
   | { type: 'project'; projectId: string }
+
+/**
+ * Lifecycle status of a memory under the ADD-only model.
+ * - `active`: current, retrieval-eligible.
+ * - `superseded`: replaced by a newer fact but retained (not deleted) so the
+ *   system can reason about how a fact evolved (Mem0 v3 ADD-only approach).
+ */
+export type MemoryStatus = 'active' | 'superseded'
 
 export interface Memory {
   id: string
@@ -37,6 +46,12 @@ export interface Memory {
   updatedAt: number
   source: MemorySource
   scope: MemoryScope
+  /** Lifecycle status; defaults to `active`. */
+  status: MemoryStatus
+  /** Id of an older memory this entry replaces (set on the newer entry). */
+  supersedes?: string
+  /** Id of a newer memory that replaced this one (set on the older entry). */
+  supersededBy?: string
   /** Chat session that produced this memory (only set when `source === 'model'`). */
   sessionId?: string
 }
@@ -51,6 +66,29 @@ export interface AddMemoryInput {
   source?: MemorySource
   scope?: MemoryScope
   sessionId?: string
+}
+
+/** Options for {@link addMemoryWithDedupeAsync}. */
+export interface DedupeAddOptions {
+  /**
+   * Id of an existing memory this new fact replaces. When provided (and the
+   * target exists), the store links new→old and marks the old entry
+   * `superseded` instead of deleting it (ADD-only). Typically supplied by the
+   * extraction pipeline, which decides semantic contradictions with an LLM.
+   */
+  supersedesId?: string
+}
+
+/** Outcome of {@link addMemoryWithDedupeAsync}. */
+export interface DedupeAddResult {
+  /** The resulting memory (the new entry, or the existing one on a NOOP). */
+  memory: Memory
+  /**
+   * - `added`: a new memory was written.
+   * - `noop`: an active near-duplicate already existed; nothing was written.
+   * - `superseded`: a new memory was written and linked to a superseded entry.
+   */
+  operation: 'added' | 'noop' | 'superseded'
 }
 
 export interface UpdateMemoryPatch {
@@ -99,6 +137,7 @@ function normalizeMemory(input: unknown): Memory | null {
   if (typeof raw.createdAt !== 'number' || typeof raw.updatedAt !== 'number') return null
   const source: MemorySource = raw.source === 'model' ? 'model' : 'user'
   const scope: MemoryScope = isMemoryScope(raw.scope) ? raw.scope : { type: 'global' }
+  const status: MemoryStatus = raw.status === 'superseded' ? 'superseded' : 'active'
   const memory: Memory = {
     id: raw.id,
     content: raw.content,
@@ -106,6 +145,13 @@ function normalizeMemory(input: unknown): Memory | null {
     updatedAt: raw.updatedAt,
     source,
     scope,
+    status,
+  }
+  if (typeof raw.supersedes === 'string' && raw.supersedes.length > 0) {
+    memory.supersedes = raw.supersedes
+  }
+  if (typeof raw.supersededBy === 'string' && raw.supersededBy.length > 0) {
+    memory.supersededBy = raw.supersededBy
   }
   if (typeof raw.sessionId === 'string' && raw.sessionId.length > 0) {
     memory.sessionId = raw.sessionId
@@ -158,14 +204,24 @@ export function filterMemoriesByScope(memories: Memory[], scope: MemoryScope): M
 }
 
 /**
- * Trim memories down to {@link MEMORY_CAP} by removing oldest entries first
- * (oldest by `updatedAt`). Returns the surviving memories sorted by `updatedAt`
- * descending so the newest entry sits at index 0.
+ * Trim memories down to {@link MEMORY_CAP} and return them in display order.
+ *
+ * Eviction is true FIFO by **`createdAt`** (oldest *created* dropped first).
+ * This deliberately differs from `updatedAt`: editing an old memory bumps its
+ * `updatedAt`, and evicting by `updatedAt` would let a stale-but-recently-
+ * edited entry survive while genuinely newer memories were dropped. Eviction
+ * by `createdAt` keeps the cap honest.
+ *
+ * Survivors are returned sorted by `updatedAt` descending so the most recently
+ * touched entry sits at index 0 (preserves the existing newest-first display
+ * contract for the Settings list and prompt fallback ordering).
  */
 function applyCapAndSort(memories: Memory[]): Memory[] {
-  const sorted = [...memories].sort((a, b) => b.updatedAt - a.updatedAt)
-  if (sorted.length <= MEMORY_CAP) return sorted
-  return sorted.slice(0, MEMORY_CAP)
+  let survivors = memories
+  if (memories.length > MEMORY_CAP) {
+    survivors = [...memories].sort((a, b) => b.createdAt - a.createdAt).slice(0, MEMORY_CAP)
+  }
+  return [...survivors].sort((a, b) => b.updatedAt - a.updatedAt)
 }
 
 async function readIndexAsync(): Promise<MemoryIndex> {
@@ -283,6 +339,7 @@ export async function addMemoryAsync(input: AddMemoryInput): Promise<Memory> {
       updatedAt: now,
       source,
       scope,
+      status: 'active',
       ...(sessionId ? { sessionId } : {}),
     }
     await persistIndex({
@@ -291,6 +348,136 @@ export async function addMemoryAsync(input: AddMemoryInput): Promise<Memory> {
     })
     return memory
   })
+}
+
+// ---------------------------------------------------------------------------
+// ADD-only dedupe + contradiction handling (Mem0 v3 style)
+// ---------------------------------------------------------------------------
+
+/** Normalize content for similarity comparison (lowercase, collapse ws, strip edge punctuation). */
+function normalizeForCompare(content: string): string {
+  return content
+    .toLowerCase()
+    .replace(/[\s]+/g, ' ')
+    .replace(/^[\s.,!?;:'"-]+|[\s.,!?;:'"-]+$/g, '')
+    .trim()
+}
+
+function tokenize(content: string): Set<string> {
+  return new Set(
+    normalizeForCompare(content)
+      .split(/[^a-z0-9]+/)
+      .filter((token) => token.length > 0)
+  )
+}
+
+/** Jaccard similarity over word tokens, in [0, 1]. */
+function jaccardSimilarity(a: string, b: string): number {
+  const tokensA = tokenize(a)
+  const tokensB = tokenize(b)
+  if (tokensA.size === 0 && tokensB.size === 0) return 1
+  if (tokensA.size === 0 || tokensB.size === 0) return 0
+  let intersection = 0
+  for (const token of tokensA) {
+    if (tokensB.has(token)) intersection += 1
+  }
+  const union = tokensA.size + tokensB.size - intersection
+  return union === 0 ? 0 : intersection / union
+}
+
+/**
+ * Two memories are near-duplicates when their normalized content is identical,
+ * one fully contains the other, or their token Jaccard similarity is high.
+ * Intentionally conservative — semantic contradiction detection (NY vs SF) is
+ * the extraction pipeline's job (it passes an explicit `supersedesId`).
+ */
+export function isNearDuplicate(a: string, b: string): boolean {
+  const normA = normalizeForCompare(a)
+  const normB = normalizeForCompare(b)
+  if (!normA || !normB) return false
+  if (normA === normB) return true
+  if (normA.includes(normB) || normB.includes(normA)) return true
+  return jaccardSimilarity(a, b) >= 0.9
+}
+
+/**
+ * ADD-only write with dedupe and optional supersession.
+ *
+ * - When `supersedesId` targets an existing memory: writes the new entry with
+ *   `supersedes` set, marks the old entry `superseded` + `supersededBy`, and
+ *   keeps both (no destructive overwrite). Returns `operation: 'superseded'`.
+ * - Otherwise, if an **active** near-duplicate already exists in the same
+ *   scope: writes nothing and returns that entry with `operation: 'noop'`.
+ * - Otherwise: writes a new entry and returns `operation: 'added'`.
+ */
+export async function addMemoryWithDedupeAsync(
+  input: AddMemoryInput,
+  options: DedupeAddOptions = {}
+): Promise<DedupeAddResult> {
+  const content = validateContent(input.content)
+  const scope: MemoryScope =
+    input.scope && isMemoryScope(input.scope) ? input.scope : { type: 'global' }
+  const source: MemorySource = input.source ?? 'user'
+  const sessionId =
+    typeof input.sessionId === 'string' && input.sessionId.length > 0 ? input.sessionId : undefined
+  const supersedesId =
+    typeof options.supersedesId === 'string' && options.supersedesId.length > 0
+      ? options.supersedesId
+      : undefined
+
+  return withWriteLock(async (current) => {
+    const now = Date.now()
+
+    if (supersedesId) {
+      const target = current.memories.find((memory) => memory.id === supersedesId)
+      if (target) {
+        const newMemory: Memory = {
+          id: randomUUID(),
+          content,
+          createdAt: now,
+          updatedAt: now,
+          source,
+          scope,
+          status: 'active',
+          supersedes: target.id,
+          ...(sessionId ? { sessionId } : {}),
+        }
+        const nextMemories = current.memories.map((memory) =>
+          memory.id === target.id
+            ? { ...memory, status: 'superseded' as const, supersededBy: newMemory.id, updatedAt: now }
+            : memory
+        )
+        await persistIndex({ memories: [newMemory, ...nextMemories], version: INDEX_VERSION })
+        return { memory: newMemory, operation: 'superseded' as const }
+      }
+      // Target vanished — fall through to a normal deduped add.
+    }
+
+    const duplicate = current.memories.find(
+      (memory) => memory.status === 'active' && isNearDuplicate(memory.content, content)
+    )
+    if (duplicate) {
+      return { memory: duplicate, operation: 'noop' as const }
+    }
+
+    const newMemory: Memory = {
+      id: randomUUID(),
+      content,
+      createdAt: now,
+      updatedAt: now,
+      source,
+      scope,
+      status: 'active',
+      ...(sessionId ? { sessionId } : {}),
+    }
+    await persistIndex({ memories: [newMemory, ...current.memories], version: INDEX_VERSION })
+    return { memory: newMemory, operation: 'added' as const }
+  })
+}
+
+/** Returns only active (non-superseded) memories. */
+export function excludeSuperseded(memories: Memory[]): Memory[] {
+  return memories.filter((memory) => memory.status !== 'superseded')
 }
 
 /**
@@ -340,8 +527,9 @@ export async function clearAllMemoriesAsync(): Promise<void> {
 }
 
 /**
- * Case-insensitive substring search across memory content. Returns up to
- * `limit` matches sorted by recency. v1 has no embeddings on purpose.
+ * Multi-signal memory search (keyword overlap + substring + recency fusion).
+ * Excludes superseded entries. v1 has no embeddings on purpose; see
+ * {@link scoreMemories} in `memoryRetrieval.ts`.
  */
 export async function searchMemoriesAsync(
   query: string,
@@ -349,11 +537,8 @@ export async function searchMemoriesAsync(
   scope?: MemoryScope
 ): Promise<Memory[]> {
   if (typeof query !== 'string' || !query.trim()) return []
-  const needle = query.trim().toLowerCase()
   const memories = await getAllMemoriesAsync(scope)
-  return memories
-    .filter((memory) => memory.content.toLowerCase().includes(needle))
-    .slice(0, limit)
+  return scoreMemories(query, memories, { limit })
 }
 
 export function getMemoryStoreFilePath(): string {

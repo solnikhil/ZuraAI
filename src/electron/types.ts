@@ -206,6 +206,8 @@ export type MemoryScope =
   | { type: 'global' }
   | { type: 'project'; projectId: string }
 
+export type MemoryStatus = 'active' | 'superseded'
+
 export interface Memory {
   id: string
   content: string
@@ -213,6 +215,9 @@ export interface Memory {
   updatedAt: number
   source: MemorySource
   scope: MemoryScope
+  status: MemoryStatus
+  supersedes?: string
+  supersededBy?: string
   sessionId?: string
 }
 
@@ -223,18 +228,41 @@ export interface AddMemoryInput {
   sessionId?: string
 }
 
+export interface DedupeAddOptions {
+  supersedesId?: string
+}
+
+export interface DedupeAddResult {
+  memory: Memory
+  operation: 'added' | 'noop' | 'superseded'
+}
+
 export interface UpdateMemoryPatch {
   content?: string
   scope?: MemoryScope
 }
 
+/** One rolling per-chat summary in the "Recent activity" (dreaming) layer. */
+export interface ConversationSummary {
+  sessionId: string
+  summary: string
+  updatedAt: number
+}
+
 export interface MemoryAPI {
   list: (scope?: MemoryScope) => Promise<Memory[]>
   add: (input: AddMemoryInput) => Promise<Memory>
+  /** ADD-only write with dedupe + optional supersession (extraction pipeline). */
+  addDeduped: (input: AddMemoryInput, options?: DedupeAddOptions) => Promise<DedupeAddResult>
   update: (id: string, patch: UpdateMemoryPatch) => Promise<Memory | null>
   delete: (id: string) => Promise<boolean>
   clear: () => Promise<boolean>
   search: (query: string, limit?: number, scope?: MemoryScope) => Promise<Memory[]>
+  /** Layer 2 — rolling conversation summaries ("Recent activity"). */
+  summaries: {
+    list: () => Promise<ConversationSummary[]>
+    upsert: (sessionId: string, summary: string) => Promise<ConversationSummary>
+  }
   /**
    * Subscribe to broadcast notifications when any window mutates the memory
    * store. Returns an unsubscribe function.

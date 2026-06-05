@@ -21,11 +21,13 @@ import {
 } from '../../../../agent/agentRun'
 import { useAgentToolApproval } from '../../../../agent/AgentToolApprovalContext'
 import { generateChatTitle } from '../../../../services/titleGenerator'
+import { runMemoryExtraction, type ExtractionMessage } from '../../../../services/memoryExtraction'
 import { inferOpenRouterSupportsDeepThinking } from '../../../../services/openrouterModels'
 import { inferAlibabaSupportsDeepThinking } from '../../../../services/alibabaModels'
 import { buildOptimizedContextWithTrace } from '../../../../utils/tokenUtils'
 import { getEffectiveSystemPrompt } from '../../../../utils/promptSelection'
 import { loadMemoryBlock } from '../../../../prompts/buildMemoryBlock'
+import { loadRecentActivityBlock } from '../../../../prompts/buildRecentActivityBlock'
 import { StreamingThrottler } from '../../../../utils/streamingThrottler'
 import { resolveProviderApiKeysForSettings } from '../../../../utils/secureApiKeys'
 import {
@@ -145,6 +147,29 @@ function toConversationMessages(
     content: message.content,
     files: message.files,
   }))
+}
+
+function buildMemoryExtractionMessages(
+  conversationHistory: ConversationMessage[],
+  userContent: string,
+  assistantContent: string
+): ExtractionMessage[] {
+  const priorMessages = conversationHistory
+    .filter(
+      (message): message is ConversationMessage & { role: 'user' | 'assistant' } =>
+        (message.role === 'user' || message.role === 'assistant') &&
+        typeof message.content === 'string' &&
+        message.content.trim().length > 0
+    )
+    .map((message) => ({ role: message.role, content: message.content }))
+
+  return [
+    ...priorMessages,
+    { role: 'user' as const, content: userContent },
+    ...(assistantContent.trim()
+      ? [{ role: 'assistant' as const, content: assistantContent }]
+      : []),
+  ]
 }
 
 export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStreamingChatReturn {
@@ -501,7 +526,11 @@ const streamingSettings: StreamingSettings = useMemo(
 
         const baseSystemPrompt = getEffectiveSystemPrompt(
           settings,
-          await loadMemoryBlock(settings)
+          await loadMemoryBlock(settings, { type: 'global' }, {
+            userMessage:
+              typeof outboundUserMessage.content === 'string' ? outboundUserMessage.content : '',
+          }),
+          await loadRecentActivityBlock(settings)
         )
         const dynamicResearchContext = getResearchContext(0, researchMaxRounds)
         const optimizedContext = buildOptimizedContextWithTrace(
@@ -665,6 +694,7 @@ const streamingSettings: StreamingSettings = useMemo(
         })
 
         // Commit streaming content to the session
+        let assistantTextForMemory = ''
         if (streamingMessageRef.current && activeAgentRunRef.current) {
           publishAgentRun(
             streamingMessageRef.current.sessionId,
@@ -681,6 +711,8 @@ const streamingSettings: StreamingSettings = useMemo(
               buildCommittedStreamingUpdates(finalState, streamResult)
             )
           }
+          assistantTextForMemory =
+            typeof finalState.content === 'string' ? finalState.content : ''
           streamingMessageRef.current = null
           activeAgentRunRef.current = undefined
         }
@@ -688,6 +720,21 @@ const streamingSettings: StreamingSettings = useMemo(
         setIsLoading(false)
         clearToolState()
         options.onStreamEnd?.()
+
+        // Dreaming: fire-and-forget background memory extraction for this turn.
+        // Gated by the Memory skill inside runMemoryExtraction; best-effort and
+        // silent on failure so it never disrupts the chat.
+        if (targetSessionId && typeof content === 'string' && content.trim()) {
+          void runMemoryExtraction({
+            settings,
+            sessionId: targetSessionId,
+            messages: buildMemoryExtractionMessages(
+              conversationHistory,
+              content,
+              assistantTextForMemory
+            ),
+          }).catch(() => undefined)
+        }
 
         if (isNewSession && targetSessionId) {
           generateChatTitle(content, settings)
@@ -863,7 +910,10 @@ const streamingSettings: StreamingSettings = useMemo(
 
         let systemPrompt = getEffectiveSystemPrompt(
           effectiveSettings,
-          await loadMemoryBlock(effectiveSettings)
+          await loadMemoryBlock(effectiveSettings, { type: 'global' }, {
+            userMessage: typeof userMessage.content === 'string' ? userMessage.content : '',
+          }),
+          await loadRecentActivityBlock(effectiveSettings)
         )
         let userContent = userMessage.content
 

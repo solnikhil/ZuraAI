@@ -89,6 +89,7 @@ export function buildMemoryBlock(
   // Project scope returns project + global; global scope returns only globals.
   const filtered = safeMemories.filter((memory) => {
     if (!memory || typeof memory.content !== 'string') return false
+    if (memory.status === 'superseded') return false
     const trimmed = memory.content.trim()
     if (!trimmed) return false
     if (scope.type === 'global') return memory.scope.type === 'global'
@@ -156,6 +157,28 @@ export function buildMemoryBlock(
  * Once projects/folders ship, callers should thread the active project id
  * through this helper (e.g. `loadMemoryBlock(settings, { type: 'project', projectId })`).
  */
+/**
+ * Default number of memories injected into the prompt. Token efficiency: we
+ * inject a small relevant subset instead of the entire store.
+ */
+export const MEMORY_INJECT_TOP_K = 8
+
+/**
+ * Convenience wrapper that selects a token-efficient subset of memories and
+ * builds the formatted block, gated by `settings.skills.memory`.
+ *
+ * Selection:
+ * - When `options.userMessage` is provided, retrieve the top-K most relevant
+ *   memories via the main-process multi-signal scorer (`window.memory.search`),
+ *   which already excludes superseded entries. This avoids injecting the whole
+ *   store on every turn.
+ * - Otherwise use the most-recent K memories from `window.memory.list`.
+ *
+ * Returns an empty string when memory is disabled, the bridge is missing, or
+ * the IPC call fails.
+ *
+ * Forward-compat: pass a project scope once projects/folders ship.
+ */
 export async function loadMemoryBlock(
   settings: {
     /** Skills map; memory is gated by `skills.memory.enabled`. */
@@ -163,15 +186,25 @@ export async function loadMemoryBlock(
     /** Optional user-edited autosave instruction text from System Prompt settings. */
     memoryPrompt?: string
   },
-  scope: MemoryScope = { type: 'global' }
+  scope: MemoryScope = { type: 'global' },
+  options: { userMessage?: string; limit?: number } = {}
 ): Promise<string> {
-  const { isSkillEnabled } = await import('@/skills')
+  const { isSkillEnabled, isMemoryAutoManageEnabled } = await import('@/skills')
   if (!isSkillEnabled(settings.skills, 'memory')) return ''
   if (typeof window === 'undefined' || !window.memory) return ''
+  const autoSaveEnabled = isMemoryAutoManageEnabled(settings.skills)
+  const limit = options.limit && options.limit > 0 ? options.limit : MEMORY_INJECT_TOP_K
+  const query = typeof options.userMessage === 'string' ? options.userMessage.trim() : ''
   try {
-    const memories = await window.memory.list(scope)
+    let memories: Memory[]
+    if (query && typeof window.memory.search === 'function') {
+      // Retrieve the top-K relevant memories (multi-signal scorer, main process).
+      memories = await window.memory.search(query, limit, scope)
+    } else {
+      memories = (await window.memory.list(scope)).slice(0, limit)
+    }
     return buildMemoryBlock(memories, scope, {
-      autoSaveEnabled: true,
+      autoSaveEnabled,
       instruction: settings.memoryPrompt,
     })
   } catch (error) {

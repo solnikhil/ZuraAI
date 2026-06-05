@@ -24,7 +24,7 @@ import { shouldEnableTools } from '../utils/promptSelection'
 import { createMcpToolRegistry } from '../tools/mcpRegistry'
 import { getProviderModels, type ProviderId } from '../providers'
 import { isWindowsRuntime } from '../utils/platform'
-import { isSkillEnabled, isAgentDesktopEnabled } from '../skills'
+import { isSkillEnabled, isAgentDesktopEnabled, isMemoryAutoManageEnabled } from '../skills'
 
 const COMPUTER_USE_TOOLS = [
     'computer_screenshot',
@@ -112,9 +112,11 @@ export function useToolCalling() {
 
         // Memory tools are personalization, not research / agentic capability.
         // They should be available in every assistant mode whenever the
-        // Memory skill is enabled, so the model can save things like
-        // "I study at SRM" even from a normal chat-mode conversation.
-        const memoryToolsEnabled = isSkillEnabled(settings.skills, 'memory')
+        // Memory skill is enabled AND auto-management is on, so the model can
+        // save things like "I study at SRM" even from a normal chat-mode
+        // conversation. When auto-management is off (manual-only), memories
+        // still inject into the prompt but the model cannot manage them.
+        const memoryToolsEnabled = isMemoryAutoManageEnabled(settings.skills)
         const memoryToolsToInclude: readonly string[] = memoryToolsEnabled ? MEMORY_TOOL_NAMES : []
 
         let enabledTools: string[] = settings.enabledTools.length > 0

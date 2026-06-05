@@ -18,7 +18,8 @@ export function resolveSystemPromptTemplate(systemPrompt: string): string {
  */
 export function getEffectiveSystemPrompt(
     settings: Pick<Settings, 'systemPrompt'> & Partial<Pick<Settings, 'skills' | 'codeExecutionPrompt' | 'computerUsePrompt' | 'chartGenerationPrompt'>>,
-    memoryBlock?: string
+    memoryBlock?: string,
+    recentActivityBlock?: string
 ): string {
     const resolvedSystemPrompt = resolveSystemPromptTemplate(settings.systemPrompt)
     const enabledSkillsSection = buildEnabledSkillsPrompt(settings.skills, {
@@ -28,6 +29,7 @@ export function getEffectiveSystemPrompt(
     })
     const sections = [resolvedSystemPrompt]
     if (enabledSkillsSection) sections.push(enabledSkillsSection)
+    if (recentActivityBlock && recentActivityBlock.trim()) sections.push(recentActivityBlock.trim())
     if (memoryBlock && memoryBlock.trim()) sections.push(memoryBlock.trim())
     return sections.join('\n\n')
 }

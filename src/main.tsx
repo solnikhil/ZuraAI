@@ -45,3 +45,37 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(<App 
 // Keep startup focused on first paint, then warm heavy optional chunks once
 // the renderer is interactive and idle.
 scheduleNonCriticalPreloads()
+
+// Electron/Chromium can leave :hover states stuck when the cursor exits the
+// window without crossing element boundaries (e.g. moving quickly to another
+// monitor). The previous pointer-events reflow hack did not reliably clear
+// internal hover state. Instead, we explicitly dispatch synthetic mouseout
+// events to every hovered element whenever the mouse leaves the window or the
+// window loses focus, forcing Chromium to recalculate and clear hover.
+function clearStuckHover() {
+  const hovered = Array.from(document.querySelectorAll(':hover'))
+  hovered.forEach((el) => {
+    el.dispatchEvent(
+      new MouseEvent('mouseout', {
+        bubbles: true,
+        cancelable: true,
+        relatedTarget: document.body,
+      })
+    )
+  })
+}
+
+// mouseleave on window is the most direct signal the cursor exited the app.
+window.addEventListener('mouseleave', clearStuckHover)
+
+// blur fires when the window loses focus (Alt-Tab, clicking another monitor,
+// etc.). We also clear hover here because Chromium often leaves hover intact.
+window.addEventListener('blur', clearStuckHover)
+
+// mouseout on document with no relatedTarget means the cursor left the
+// document entirely (another path Chromium sometimes takes).
+document.addEventListener('mouseout', (e) => {
+  if (!e.relatedTarget) {
+    clearStuckHover()
+  }
+})

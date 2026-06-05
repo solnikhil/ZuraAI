@@ -193,6 +193,12 @@ export const memoryToolDefinitions: ToolDescriptor[] = [
 interface ExecuteMemoryToolOptions {
   /** Active chat session id, attached to model-saved memories for traceability. */
   sessionId?: string
+  /**
+   * Active memory scope. v1 always passes global; threaded through so the
+   * projects/folders feature can scope model-driven memory ops without another
+   * code change. Defaults to `{ type: 'global' }`.
+   */
+  scope?: import('@/electron/types').MemoryScope
 }
 
 /**
@@ -222,6 +228,8 @@ export async function executeMemoryTool(
     return fail('Memory bridge unavailable — memory tools require Electron.')
   }
 
+  const scope = options.scope ?? { type: 'global' }
+
   const notifyChange = (message: string) => {
     try {
       toast.success(message, { duration: 3500 })
@@ -234,32 +242,25 @@ export async function executeMemoryTool(
     if (toolName === 'save_memory') {
       const content = typeof args.content === 'string' ? args.content : ''
       if (!content.trim()) return fail('save_memory requires a non-empty `content`.')
-      // Optimistic write: the model's answer doesn't depend on the saved
-      // memory's id, and the disk write is local + serialized behind a write
-      // lock in the main-process memory store, so it's safe to fire-and-
-      // forget. We synthesize a success result immediately so the next
-      // provider round can start without waiting on IPC + disk. The real
-      // mutation runs in the background and toasts on success/failure; the
-      // memory-store:changed broadcast keeps the Settings UI live-synced
-      // with the canonical entry once it lands.
-      const optimisticId = `mem-opt-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
-      const optimisticAt = Date.now()
-      void window.memory
-        .add({ content, source: 'model', sessionId: options.sessionId })
-        .then(() => notifyChange('Memory saved'))
-        .catch((error) => {
-          const message = error instanceof Error ? error.message : 'Failed to save memory'
-          try {
-            toast.error(`Memory not saved: ${message}`, { duration: 5000 })
-          } catch {
-            // Toaster may be unmounted in tests — ignore.
-          }
-        })
+      // Synchronous write: await the persisted entry so the returned event
+      // carries the REAL store-assigned UUID (not a synthetic optimistic id).
+      // This makes chained tool calls reliable — e.g. the model can call
+      // save_memory and then update_memory/delete_memory with the returned id
+      // in the same turn, and a follow-up search_memories sees the new entry.
+      // The disk write is local + serialized behind the main-process write
+      // lock, so the added latency is small and the correctness win is large.
+      const saved = await window.memory.add({
+        content,
+        source: 'model',
+        sessionId: options.sessionId,
+        scope,
+      })
+      notifyChange('Memory saved')
       return ok({
         kind: 'memory.added',
-        id: optimisticId,
-        content,
-        updatedAt: optimisticAt,
+        id: saved.id,
+        content: saved.content,
+        updatedAt: saved.updatedAt,
       })
     }
 
@@ -268,7 +269,7 @@ export async function executeMemoryTool(
       const content = typeof args.content === 'string' ? args.content : ''
       if (!id) return fail('update_memory requires `id`.')
       if (!content.trim()) return fail('update_memory requires non-empty `content`.')
-      const existing = (await window.memory.list({ type: 'global' })).find((memory) => memory.id === id)
+      const existing = (await window.memory.list(scope)).find((memory) => memory.id === id)
       if (!existing) return fail(`No memory with id "${id}".`)
       const updated = await window.memory.update(id, { content })
       if (!updated) return fail(`Failed to update memory "${id}".`)
@@ -285,7 +286,7 @@ export async function executeMemoryTool(
     if (toolName === 'delete_memory') {
       const id = typeof args.id === 'string' ? args.id : ''
       if (!id) return fail('delete_memory requires `id`.')
-      const existing = (await window.memory.list({ type: 'global' })).find((memory) => memory.id === id)
+      const existing = (await window.memory.list(scope)).find((memory) => memory.id === id)
       if (!existing) return fail(`No memory with id "${id}".`)
       const deleted = await window.memory.delete(id)
       if (!deleted) return fail(`Failed to delete memory "${id}".`)
@@ -302,7 +303,7 @@ export async function executeMemoryTool(
       const rawLimit = typeof args.limit === 'number' ? args.limit : 5
       const limit = Math.max(1, Math.min(20, Math.round(rawLimit)))
       if (!query.trim()) return fail('search_memories requires a non-empty `query`.')
-      const matches = await window.memory.search(query, limit, { type: 'global' })
+      const matches = await window.memory.search(query, limit, scope)
       return ok({
         kind: 'memory.searched',
         query,
