@@ -274,20 +274,9 @@ function MessageRendererComponent({
         <WebSearchImageCarousel images={webSearchImages} mode={webImageMode} />
       )}
 
-      {/* Message content - only show when not streaming or when content has arrived */}
-      {((!isStreaming || hasContentDuringStreaming || completedBlocks.length > 0 || message.researchStatus) &&
-        hasTopDisplayContent) && (
-        <div className="markdown-content">
-          <LazyMarkdown
-            content={topProcessedContent}
-            webSources={webSourceMap}
-            isStreaming={isStreaming}
-          />
-        </div>
-      )}
-
+      {/* Upper thinking/search activity - rendered ABOVE its related answer content */}
       {showUpperThinkingBlock && (
-        <div style={{ marginTop: hasTopDisplayContent ? '8px' : 0, marginBottom: '8px' }}>
+        <div style={{ marginTop: 0, marginBottom: hasTopDisplayContent ? '8px' : 0 }}>
           <ThinkingBlockComponent
             messageId={message.id}
             activeBlockKey={
@@ -321,33 +310,24 @@ function MessageRendererComponent({
         </div>
       )}
 
-      {showMemoryPill && (
-        <div style={{ marginTop: '12px' }}>
-          <MemoryUpdatePill
-            events={memoryEvents}
-            onManageMemories={() => {
-              window.location.hash = '#/settings'
-              window.dispatchEvent(new CustomEvent('zura:settings:navigate', { detail: 'memory' }))
-            }}
-          />
-        </div>
-      )}
-
-      {hasBottomDisplayContent && (
+      {/* Message content - only show when not streaming or when content has arrived */}
+      {((!isStreaming || hasContentDuringStreaming || completedBlocks.length > 0 || message.researchStatus) &&
+        hasTopDisplayContent) && (
         <div className="markdown-content">
           <LazyMarkdown
-            content={bottomProcessedContent}
+            content={topProcessedContent}
             webSources={webSourceMap}
             isStreaming={isStreaming}
           />
         </div>
       )}
 
+      {/* Lower thinking/search activity - rendered ABOVE its related follow-up content */}
       {showLowerThinkingBlock && (
         <div
           style={{
-            marginTop: hasBottomDisplayContent || hasTopDisplayContent ? '12px' : 0,
-            marginBottom: '8px',
+            marginTop: hasTopDisplayContent ? '12px' : 0,
+            marginBottom: hasBottomDisplayContent ? '8px' : 0,
           }}
         >
           <ThinkingBlockComponent
@@ -379,6 +359,28 @@ function MessageRendererComponent({
             }
             completedBlocks={timeline.afterBlocks}
             activeToolCalls={activeTimelineOwner === 'lower' ? activeToolCalls : []}
+          />
+        </div>
+      )}
+
+      {hasBottomDisplayContent && (
+        <div className="markdown-content">
+          <LazyMarkdown
+            content={bottomProcessedContent}
+            webSources={webSourceMap}
+            isStreaming={isStreaming}
+          />
+        </div>
+      )}
+
+      {showMemoryPill && (
+        <div style={{ marginTop: '12px' }}>
+          <MemoryUpdatePill
+            events={memoryEvents}
+            onManageMemories={() => {
+              window.location.hash = '#/settings'
+              window.dispatchEvent(new CustomEvent('zura:settings:navigate', { detail: 'memory' }))
+            }}
           />
         </div>
       )}

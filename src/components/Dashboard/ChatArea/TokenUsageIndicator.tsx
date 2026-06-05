@@ -12,6 +12,13 @@ import { useSettings } from '../../../contexts/SettingsContext'
 import { useModelSelector } from '../ModelSelector/useModelSelector'
 import { useModelSelectorContext } from '../../../contexts/ModelSelectorContext'
 import { estimateTokens, estimateMessageTokens } from '../../../utils/tokenUtils'
+import { getEffectiveSystemPrompt } from '../../../utils/promptSelection'
+import { loadMemoryBlock } from '../../../prompts/buildMemoryBlock'
+import { loadRecentActivityBlock } from '../../../prompts/buildRecentActivityBlock'
+import { defaultWebSearchPrompt } from '../../../prompts/defaultWebSearchPrompt'
+import { isWebResearchEnabled } from '../../../skills'
+import { useToolCalling } from '../../../hooks/useToolCalling'
+import { buildResearchProgressPrompt } from './hooks/streaming/researchLoopPolicy'
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
 import { maybeAnimate, motionSpring, useMotionPreferences } from '@/lib/motion'
 import { cn } from '@/lib/utils'
@@ -29,6 +36,10 @@ const CIRCUMFERENCE = 2 * Math.PI * RADIUS
 
 export interface TokenBreakdown {
   systemPrompt: number
+  toolInstructions: number
+  toolDefinitions: number
+  savedMemories: number
+  backgroundMemory: number
   chatMessages: number
   currentInput: number
   attachments: number
@@ -53,6 +64,10 @@ export type ContextRingStatus = 'normal' | 'caution' | 'critical' | 'over-limit'
 export interface ComputeTokenBreakdownParams {
   messages: Array<{ role: string; content: string }>
   systemPrompt: string
+  toolInstructions?: string
+  toolDefinitionsText?: string
+  memoryBlock?: string
+  recentActivityBlock?: string
   currentInput: string
   attachmentText?: string
   imageAttachments?: Array<Pick<AttachedFile, 'size'>>
@@ -85,6 +100,42 @@ function estimateImageAttachmentTokens(files: Array<Pick<AttachedFile, 'size'>> 
       sum + APPROX_TOKENS_PER_IMAGE + Math.ceil(Math.max(0, file.size) / APPROX_IMAGE_BYTES_PER_TOKEN),
     0
   )
+}
+
+function computeSystemPromptSectionTokens({
+  systemPrompt,
+  recentActivityBlock,
+  memoryBlock,
+}: {
+  systemPrompt: string
+  recentActivityBlock: string
+  memoryBlock: string
+}) {
+  let joinedPrompt = ''
+  let overheadAssigned = false
+
+  const appendSection = (content: string) => {
+    const trimmed = content.trim()
+    if (!trimmed) return 0
+
+    const nextPrompt = joinedPrompt ? `${joinedPrompt}\n\n${trimmed}` : trimmed
+    const contentDelta = estimateTokens(nextPrompt) - estimateTokens(joinedPrompt)
+    joinedPrompt = nextPrompt
+
+    if (overheadAssigned) return contentDelta
+    overheadAssigned = true
+    return estimateMessageTokens({ role: 'system', content: '' }) + contentDelta
+  }
+
+  const systemPromptTokens = appendSection(systemPrompt)
+  const backgroundMemoryTokens = appendSection(recentActivityBlock)
+  const savedMemoryTokens = appendSection(memoryBlock)
+
+  return {
+    systemPromptTokens,
+    backgroundMemoryTokens,
+    savedMemoryTokens,
+  }
 }
 
 function getStatusColor(status: ContextRingStatus) {
@@ -120,6 +171,10 @@ function getStatusLabel(status: ContextRingStatus) {
 export function computeTokenBreakdown({
   messages,
   systemPrompt,
+  toolInstructions = '',
+  toolDefinitionsText = '',
+  memoryBlock = '',
+  recentActivityBlock = '',
   currentInput,
   attachmentText = '',
   imageAttachments = [],
@@ -127,9 +182,16 @@ export function computeTokenBreakdown({
   maxContext: rawMaxContext,
   responseReserve = RESPONSE_RESERVE_DEFAULT,
 }: ComputeTokenBreakdownParams): TokenBreakdown {
-  const systemPromptTokens = systemPrompt
-    ? estimateMessageTokens({ role: 'system', content: systemPrompt })
+  const { systemPromptTokens, backgroundMemoryTokens, savedMemoryTokens } =
+    computeSystemPromptSectionTokens({
+      systemPrompt,
+      recentActivityBlock,
+      memoryBlock,
+    })
+  const toolInstructionTokens = toolInstructions
+    ? estimateMessageTokens({ role: 'system', content: toolInstructions })
     : 0
+  const toolDefinitionTokens = estimateTokens(toolDefinitionsText)
   const chatMessagesTokens = messages.reduce((sum, m) => sum + estimateMessageTokens(m), 0)
   const currentInputTokens = estimateTokens(currentInput)
   const attachmentTokens = estimateTokens(attachmentText)
@@ -139,6 +201,10 @@ export function computeTokenBreakdown({
 
   const totalUsed =
     systemPromptTokens +
+    toolInstructionTokens +
+    toolDefinitionTokens +
+    savedMemoryTokens +
+    backgroundMemoryTokens +
     chatMessagesTokens +
     currentInputTokens +
     attachmentTokens +
@@ -155,6 +221,10 @@ export function computeTokenBreakdown({
 
   return {
     systemPrompt: systemPromptTokens,
+    toolInstructions: toolInstructionTokens,
+    toolDefinitions: toolDefinitionTokens,
+    savedMemories: savedMemoryTokens,
+    backgroundMemory: backgroundMemoryTokens,
     chatMessages: chatMessagesTokens,
     currentInput: currentInputTokens,
     attachments: attachmentTokens,
@@ -224,7 +294,74 @@ export function TokenUsageIndicator({ input, attachedFiles = [], className }: To
   const { settings } = useSettings()
   const { currentModel, currentName, allModels } = useModelSelector()
   const { openSelector } = useModelSelectorContext()
+  const { canUseTools, getToolsForRequest } = useToolCalling()
   const summaryId = useId()
+  const memoryPromptSettings = useMemo(
+    () => ({
+      skills: settings.skills,
+      memoryPrompt: settings.memoryPrompt,
+    }),
+    [settings.skills, settings.memoryPrompt]
+  )
+  const [memoryContext, setMemoryContext] = useState({
+    memoryBlock: '',
+    recentActivityBlock: '',
+  })
+  const nonMemorySystemPrompt = useMemo(
+    () => getEffectiveSystemPrompt(settings),
+    [
+      settings.systemPrompt,
+      settings.skills,
+      settings.codeExecutionPrompt,
+      settings.computerUsePrompt,
+      settings.chartGenerationPrompt,
+    ]
+  )
+  const requestTools = canUseTools ? getToolsForRequest() : null
+  const toolDefinitionsText = useMemo(
+    () => (requestTools && requestTools.length > 0 ? JSON.stringify(requestTools) : ''),
+    [requestTools]
+  )
+  const toolInstructions = useMemo(() => {
+    const enabledTools = settings.enabledTools?.length ? settings.enabledTools : ['web_search']
+    const hasWebSearch = enabledTools.includes('web_search')
+    if (!canUseTools || !isWebResearchEnabled(settings.skills) || !hasWebSearch) {
+      return ''
+    }
+
+    return buildResearchProgressPrompt({
+      searchCount: 0,
+      maxRounds: 0,
+      forceWebSearch: false,
+      basePrompt: settings.webSearchPrompt ?? defaultWebSearchPrompt,
+    })
+  }, [canUseTools, settings.enabledTools, settings.skills, settings.webSearchPrompt])
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadMemoryContext() {
+      try {
+        const [memoryBlock, recentActivityBlock] = await Promise.all([
+          loadMemoryBlock(memoryPromptSettings, { type: 'global' }, { userMessage: input }),
+          loadRecentActivityBlock(memoryPromptSettings),
+        ])
+        if (!cancelled) {
+          setMemoryContext({ memoryBlock, recentActivityBlock })
+        }
+      } catch {
+        if (!cancelled) {
+          setMemoryContext({ memoryBlock: '', recentActivityBlock: '' })
+        }
+      }
+    }
+
+    void loadMemoryContext()
+
+    return () => {
+      cancelled = true
+    }
+  }, [input, memoryPromptSettings])
 
   const contextData = useMemo(() => {
     const sessionMessages = currentSessionId
@@ -252,7 +389,11 @@ export function TokenUsageIndicator({ input, attachedFiles = [], className }: To
     const mappedMessages = messages.map((m) => ({ role: m.role, content: m.content }))
     const breakdown = computeTokenBreakdown({
       messages: mappedMessages,
-      systemPrompt: settings.systemPrompt ?? '',
+      systemPrompt: nonMemorySystemPrompt,
+      toolInstructions,
+      toolDefinitionsText,
+      memoryBlock: memoryContext.memoryBlock,
+      recentActivityBlock: memoryContext.recentActivityBlock,
       currentInput: input,
       attachmentText: textAttachmentContext,
       imageAttachments,
@@ -269,7 +410,11 @@ export function TokenUsageIndicator({ input, attachedFiles = [], className }: To
     currentSessionId,
     sessions,
     settings.maxTokens,
-    settings.systemPrompt,
+    nonMemorySystemPrompt,
+    toolInstructions,
+    toolDefinitionsText,
+    memoryContext.memoryBlock,
+    memoryContext.recentActivityBlock,
     input,
     streamingState.isStreaming,
     streamingState.sessionId,
@@ -498,6 +643,38 @@ export function TokenUsageIndicator({ input, attachedFiles = [], className }: To
               dotColor="var(--theme-accent-secondary)"
               percent={getTokenPercent(breakdown.systemPrompt, breakdown.maxContext)}
             />
+            {breakdown.toolInstructions > 0 && (
+              <BreakdownRow
+                label="Tool Instructions"
+                count={breakdown.toolInstructions}
+                dotColor="var(--theme-warning)"
+                percent={getTokenPercent(breakdown.toolInstructions, breakdown.maxContext)}
+              />
+            )}
+            {breakdown.toolDefinitions > 0 && (
+              <BreakdownRow
+                label="Tool Definitions"
+                count={breakdown.toolDefinitions}
+                dotColor="var(--theme-text-muted)"
+                percent={getTokenPercent(breakdown.toolDefinitions, breakdown.maxContext)}
+              />
+            )}
+            {breakdown.savedMemories > 0 && (
+              <BreakdownRow
+                label="Saved Memories"
+                count={breakdown.savedMemories}
+                dotColor="var(--theme-success)"
+                percent={getTokenPercent(breakdown.savedMemories, breakdown.maxContext)}
+              />
+            )}
+            {breakdown.backgroundMemory > 0 && (
+              <BreakdownRow
+                label="Background Memory"
+                count={breakdown.backgroundMemory}
+                dotColor="var(--theme-info)"
+                percent={getTokenPercent(breakdown.backgroundMemory, breakdown.maxContext)}
+              />
+            )}
             <BreakdownRow
               label="Chat Messages"
               count={breakdown.chatMessages}

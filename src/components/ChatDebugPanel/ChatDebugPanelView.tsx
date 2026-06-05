@@ -55,6 +55,7 @@ const ALL_PHASES: ChatDiagnosticPhase[] = [
   'tool-start',
   'tool-complete',
   'stream-chunk',
+  'research-state',
   'provider-error',
   'finish',
 ]
@@ -69,6 +70,7 @@ const PHASE_TONE: Record<ChatDiagnosticPhase, string> = {
   'tool-start': 'phase--info',
   'tool-complete': 'phase--info',
   'stream-chunk': 'phase--muted',
+  'research-state': 'phase--info',
   'provider-error': 'phase--error',
   'finish': 'phase--success',
 }
@@ -106,6 +108,14 @@ function summarizeEvent(event: ChatDiagnosticEvent): string {
     }
     case 'provider-error':
       return event.error ? `error: ${event.error.slice(0, 120)}` : 'error'
+    case 'research-state': {
+      const parts = [event.researchState ?? 'research']
+      if (event.searchBudgetRemaining != null) parts.push(`${event.searchBudgetRemaining} search left`)
+      if (event.recoveredQueryCount != null) parts.push(`${event.recoveredQueryCount} recovered`)
+      if (event.skippedReason) parts.push(`skipped=${event.skippedReason}`)
+      if (event.deterministicAnswerUsed) parts.push('deterministic')
+      return parts.join(' | ')
+    }
     case 'finish':
       return `finish=${event.finishReason ?? 'unknown'}`
     case 'context-optimized': {

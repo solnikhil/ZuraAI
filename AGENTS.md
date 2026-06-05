@@ -87,7 +87,7 @@ Core capabilities:
   - `electron/agentDesktop/settings.ts` — preference validation/normalization; forces `launch_app`/`close_app` to `approval-required`, clamps approval timeout, falls back to the safe disabled default
   - `electron/agentDesktop/index.ts` — narrow allowlisted IPC registration + renderer broadcasts; Windows-only (defense-in-depth macOS rejection)
   - `electron/agentDesktop/constants.ts` / `electron/agentDesktop/types.ts` — timing constants/limits (re-exporting the shared Computer Use action cap + kill-switch window) and shared types
-
+- `electron/discordRpc/` — Discord Rich Presence main-process module: singleton client (`rpcClient.ts`), IPC registration (`index.ts`), and shared types (`types.ts`). Lazy-requires `discord-rpc` so a missing native dependency never crashes the app. Reconnects with backoff when Discord is not running.
 
 - `src/` — React/Vite **renderer**
   - `src/main.tsx` — renderer entrypoint; initializes performance tracking, lazy-image styles, applies saved theme, mounts `App`, and schedules non-critical preloads after first paint
@@ -95,6 +95,7 @@ Core capabilities:
 - `src/components/OverlayView.tsx` — compact overlay chat surface for the dedicated `#/overlay` route
 - `src/components/OverlaySync.tsx` — renderer-side bridge that syncs persisted overlay settings into the trusted main-process Overlay runtime
 - `src/components/AgentDesktopSync.tsx` — Windows-only renderer bridge that mirrors persisted `settings.agentDesktop` into the trusted Agent Desktop runtime via `window.agentDesktop.applySettings(...)`
+- `src/components/DiscordRpcSync.tsx` — (removed) Discord RPC is now always-on in main process; no renderer sync needed
 - `src/components/Settings/sections/AgentDesktopSection.tsx` — Windows-only Agent Desktop settings UI (disclosure-gated enable toggle, persistence mode, per-action approval-policy editor); hidden on macOS
 - `src/settings/agentDesktopSettings.ts` — renderer-side mirror of the main-process Agent Desktop preference normalization (lives in `zura-settings` under `settings.agentDesktop`)
 - `src/components/PromptPopupView.tsx` — lightweight prompt input surface for the dedicated `#/prompt-popup` route; auto-focuses, submits via prompt-popup IPC, dismisses on Escape
@@ -290,6 +291,9 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - invokes: `resource-monitor:get-now`
   - sends: `resource-monitor:subscribe`, `resource-monitor:unsubscribe`
   - listens for: `resource-monitor:sample` (broadcast every 2s while at least one renderer is subscribed)
+- `window.discordRpc`
+  - invokes: `discord-rpc:get-state`, `discord-rpc:set-activity`
+  - listens for: `discord-rpc:state-changed`
 
 
 **If you add/rename any IPC channel:**
@@ -316,6 +320,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Prompt Popup remains available as an optional path on non-macOS platforms; submitting from it opens the Overlay at the cursor position and sends the prompt text via `overlay:pending-prompt`.
 - `OverlaySync` runs inside the shared provider tree on non-macOS platforms and mirrors persisted `settings.overlay` values into the trusted overlay runtime through the dedicated preload bridge. If startup auto-open is enabled, the main window renderer triggers the initial overlay show after settings hydrate.
 - Overlay preferences are persisted in the existing sanitized renderer settings blob under `settings.overlay` with `enabled`, `launchOnStartup`, `hotkey`, `anchor`, `compactWidth`, `expandedWidth`, `promptAutoHideEnabled`, and `promptAutoHideTimeout`. No new secure-storage or Overlay-only settings file is introduced for Phase 1.
+- Discord RPC is **always-on** in the main process. The client connects automatically at app startup (constructor-driven, no renderer toggle). It lazily loads the `discord-rpc` module inside try/catch so a missing native dependency never crashes the app; it reconnects with backoff when Discord is not running and surfaces connection errors in `DiscordRpcState.lastError`.
 - Main-shell navigation history is now tracked entirely in the renderer through `AppShellProvider` + `src/contexts/appShellNavigation.ts`; both the titlebar arrows and side-mouse buttons call the same history controller instead of using raw `react-router` delta navigation.
 - Native macOS app-menu `New Chat` requests are routed back into the shared renderer shell through `app:new-chat`, so session creation still uses the existing `ChatHistoryContext` flow and unsaved-settings guard instead of a main-process shortcut.
 
@@ -529,6 +534,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
     - `titleGenerationDisplayMode` (`instant` or `typewriter` sidebar reveal)
   - Skills map: `skills` (built-in IDs keyed by `skillId`, currently `web_research` (default enabled), `code_execution` (default disabled), `computer_use` (default disabled), `chart_generation` (default disabled), `memory` (default enabled), and `agent_desktop` (Windows-only, default disabled), each with `enabled`).
   - Agent Desktop preferences: `agentDesktop` (Windows-only Agent View; `enabled`, `disclosureAcknowledged`, `persistence` (`persist` | `ephemeral`), per-action `approvalPolicy`, and clamped `approvalTimeoutMs`). Lives in the sanitized settings blob — no new file, no secure storage. `skills.agent_desktop.enabled` mirrors `settings.agentDesktop.enabled` (dual source of truth, same pattern as Memory).
+  - Discord RPC preferences: `discordRpc` (`appId`). Lives in the sanitized settings blob — no new file, no secure storage. `appId` defaults to the official ZuraAI Discord Application ID (`1512516130911162610`) so the feature works out of the box; users can override it with their own Client ID. Discord RPC is always-on; there is no enable/disable toggle.
   - Legacy `webSearchEnabled` / `structuredResearchEnabled` are migrated into `skills.web_research.enabled`; `structuredResearchEnabled` is retained only as a migration input and is not used by runtime logic.
   - `themeContrast` (0-100, default 100): Numeric contrast intensity; lower values produce a softer look.
   - `themeAccent`, `themeBackground`, `themeForeground`: Optional hex color overrides for theme base colors; when set, they override the preset's base colors.

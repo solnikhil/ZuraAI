@@ -340,6 +340,16 @@ export interface OverlaySettings {
   promptAutoHideTimeout: number
 }
 
+export interface DiscordRpcSettings {
+  appId: string
+}
+
+export interface DiscordRpcState {
+  connected: boolean
+  missingAppId: boolean
+  lastError?: string
+}
+
 export interface OverlayState extends OverlaySettings {
   visible: boolean
   mode: 'hidden' | 'compact' | 'expanded'
@@ -503,6 +513,8 @@ export interface IpcInvokeArgsMap {
   'updater:quit-and-install': []
   'updater:get-version': []
   'resource-monitor:get-now': []
+  'discord-rpc:get-state': []
+  'discord-rpc:set-activity': [activity: Record<string, unknown>]
 }
 
 export interface IpcInvokeReturnMap {
@@ -532,6 +544,8 @@ export interface IpcInvokeReturnMap {
   'updater:quit-and-install': boolean
   'updater:get-version': string
   'resource-monitor:get-now': ResourceSample
+  'discord-rpc:get-state': DiscordRpcState
+  'discord-rpc:set-activity': DiscordRpcState
 }
 
 export type IpcOnChannel =
@@ -548,6 +562,7 @@ export type IpcOnChannel =
   | 'context-menu:action'
   | 'chat-diagnostics:event'
   | 'resource-monitor:sample'
+  | 'discord-rpc:state-changed'
 
 export interface UpdaterDownloadProgress {
   percent: number
@@ -569,6 +584,7 @@ export interface IpcOnArgsMap {
   'context-menu:action': [action: NativeContextMenuAction]
   'chat-diagnostics:event': [event: ChatDiagnosticEvent]
   'resource-monitor:sample': [sample: ResourceSample]
+  'discord-rpc:state-changed': [state: DiscordRpcState]
 }
 
 export interface IElectronAPI {
@@ -775,4 +791,16 @@ export interface ChatDebugAPI {
 export interface ResourceMonitorAPI {
   subscribe: (callback: (sample: ResourceSample) => void) => () => void
   getNow: () => Promise<ResourceSample>
+}
+
+/**
+ * Renderer-facing bridge for Discord Rich Presence.
+ *
+ * Controls connection lifecycle, activity updates, and subscribes to
+ * connection-state broadcasts from the main-process client.
+ */
+export interface DiscordRpcAPI {
+  getState: () => Promise<DiscordRpcState>
+  setActivity: (activity: Record<string, unknown>) => Promise<DiscordRpcState>
+  onStateChange: (callback: (state: DiscordRpcState) => void) => () => void
 }

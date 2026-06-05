@@ -442,6 +442,17 @@ export function normalizeStoredSettings(raw: string | null): Settings {
     }
   }
 
+  if (!parsed.discordRpc || typeof parsed.discordRpc !== 'object') {
+    parsed.discordRpc = defaultSettings.discordRpc
+  } else {
+    // Legacy `enabled` field removed — Discord RPC is now always-on when appId is present.
+    delete (parsed.discordRpc as Record<string, unknown>).enabled
+    parsed.discordRpc = {
+      ...defaultSettings.discordRpc,
+      ...parsed.discordRpc,
+    }
+  }
+
   if (!parsed.commandBar) {
     parsed.commandBar = defaultSettings.commandBar
   } else {
@@ -569,5 +580,6 @@ export function getInitialConfigSettings(settings: Settings): Partial<SettingsCo
     rememberLastDashboardView: settings.rememberLastDashboardView,
     overlay: settings.overlay,
     agentDesktop: settings.agentDesktop,
+    discordRpc: settings.discordRpc,
   }
 }

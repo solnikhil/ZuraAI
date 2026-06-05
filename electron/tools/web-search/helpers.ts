@@ -166,6 +166,7 @@ export function parseTavilySearchResult(result: unknown): SearchResult | null {
 
   const url = getString(result.url)
   if (!url) return null
+  const rawScore = result.score
 
   return {
     title: getString(result.title),
@@ -175,6 +176,7 @@ export function parseTavilySearchResult(result: unknown): SearchResult | null {
     source: getSourceFromUrl(url),
     displayed_link: getDisplayedLink(url),
     date: getString(result.published_date) || getString(result.date) || undefined,
+    score: typeof rawScore === 'number' && Number.isFinite(rawScore) ? rawScore : undefined,
   }
 }
 

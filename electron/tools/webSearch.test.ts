@@ -84,6 +84,43 @@ describe('executeWebSearch', () => {
             globalThis.fetch = originalFetch
         })
 
+        it('passes valid topic, time_range, and include_images through to Tavily search', async () => {
+            vi.mocked(getSecureValueAsync).mockResolvedValue('tvly-test-key')
+
+            const originalFetch = globalThis.fetch
+            const fetchMock = vi.fn().mockResolvedValue({
+                ok: true,
+                json: () =>
+                    Promise.resolve({
+                        results: [
+                            {
+                                title: 'Market',
+                                url: 'https://t.com/market',
+                                content: 'Market update',
+                                score: 0.83,
+                            },
+                        ],
+                        images: []
+                    })
+            })
+            globalThis.fetch = fetchMock as any
+
+            const result = await executeWebSearch({
+                query: 'latest market news',
+                topic: 'finance',
+                time_range: 'week',
+                include_images: false,
+            })
+
+            const body = JSON.parse(fetchMock.mock.calls[0][1].body)
+            expect(body.topic).toBe('finance')
+            expect(body.time_range).toBe('week')
+            expect(body.include_images).toBe(false)
+            expect(result.data?.results?.[0].score).toBe(0.83)
+
+            globalThis.fetch = originalFetch
+        })
+
         it('coerces invalid search_depth values back to basic', async () => {
             vi.mocked(getSecureValueAsync).mockResolvedValue('tvly-test-key')
 

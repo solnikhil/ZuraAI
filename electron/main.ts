@@ -44,6 +44,11 @@ import {
 } from './tools/computer-use'
 import { registerAgentDesktopHandlers, disposeAgentDesktopService } from './agentDesktop'
 import { getAgentDesktopService } from './agentDesktop/service'
+import {
+  registerDiscordRpcHandlers,
+  unregisterDiscordRpcHandlers,
+  disposeDiscordRpcClient,
+} from './discordRpc'
 
 // Resolve packaged asset paths consistently in both development and production.
 const DIST_PATH = process.env.DIST || path.join(__dirname, '../dist')
@@ -100,6 +105,8 @@ app.on('will-quit', () => {
   unregisterMcpHandlers()
   disposeCodeExecutionApprovalManager()
   unregisterCodeExecutionHandlers()
+  unregisterDiscordRpcHandlers()
+  disposeDiscordRpcClient()
   disposeComputerUseApprovalManager()
   unregisterComputerUseHandlers()
   if (!IS_MACOS) {
@@ -185,6 +192,7 @@ app.whenReady().then(async () => {
   // before the platform installer takes over.
   setShutdownHook(() => shutdownMcpManager())
   registerCodeExecutionHandlers()
+  registerDiscordRpcHandlers(getMainWindow)
   if (!IS_MACOS) {
     registerComputerUseHandlers()
     registerAgentDesktopHandlers()

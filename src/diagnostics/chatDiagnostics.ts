@@ -1,4 +1,5 @@
 import type { NormalizedUsage } from '../providers/providerRuntimeTypes'
+import type { ResearchState } from '../research/types'
 
 export type ChatDiagnosticPhase =
   | 'context-optimized'
@@ -12,6 +13,7 @@ export type ChatDiagnosticPhase =
   | 'provider-error'
   | 'finish'
   | 'stream-chunk'
+  | 'research-state'
 
 /**
  * Coalesced provider streaming chunk summary captured by the dev-only chat debug panel.
@@ -90,6 +92,14 @@ export interface ChatDiagnosticEvent {
   finishReason?: string
   tool?: ChatDiagnosticToolSummary
   streamChunk?: ChatDiagnosticStreamChunk
+  researchState?: ResearchState
+  leakedMarkupFormat?: 'dsml' | 'xml'
+  recoveredQueryCount?: number
+  deterministicAnswerUsed?: boolean
+  searchBudgetRemaining?: number
+  attemptedQueries?: string[]
+  executedQueries?: string[]
+  skippedReason?: string
   error?: string
 }
 

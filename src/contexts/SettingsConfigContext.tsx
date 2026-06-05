@@ -157,6 +157,14 @@ export interface SettingsConfig {
    * to its safe disabled default.
    */
   agentDesktop?: AgentDesktopSettings
+  /**
+   * Discord Rich Presence preferences. Lives in the sanitized `zura-settings`
+   * blob. The `appId` field should be set to a valid Discord Application ID
+   * for the feature to work.
+   */
+  discordRpc?: {
+    appId: string
+  }
 }
 
 /**
@@ -318,6 +326,9 @@ export const defaultSettingsConfig: SettingsConfig = {
     expandedWidth: 460,
     promptAutoHideEnabled: false,
     promptAutoHideTimeout: 120,
+  },
+  discordRpc: {
+    appId: '1512516130911162610',
   },
 }
 

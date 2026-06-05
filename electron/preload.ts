@@ -26,6 +26,7 @@ import type {
   AgentDesktopState,
   AppMenuCommand,
   ApprovalDecision,
+  DiscordRpcState,
   Memory,
   MemoryScope,
   OverlaySettings,
@@ -179,6 +180,13 @@ const AGENT_DESKTOP_ON_CHANNELS = new Set<string>([
   'agent-desktop:pending-approval',
   'agent-desktop:killed',
 ])
+
+const DISCORD_RPC_INVOKE_CHANNELS = new Set<string>([
+  'discord-rpc:get-state',
+  'discord-rpc:set-activity',
+])
+
+const DISCORD_RPC_ON_CHANNELS = new Set<string>(['discord-rpc:state-changed'])
 
 function assertAllowed<TChannel extends string>(
   kind: 'send' | 'invoke' | 'on' | 'off',
@@ -590,6 +598,29 @@ contextBridge.exposeInMainWorld(
       return () => {
         assertAllowed('off', 'memory-store:changed', MEMORY_ON_CHANNELS)
         ipcRenderer.removeListener('memory-store:changed', listener)
+      }
+    },
+  })
+)
+
+contextBridge.exposeInMainWorld(
+  'discordRpc',
+  Object.freeze({
+    getState: () => {
+      assertAllowed('invoke', 'discord-rpc:get-state', DISCORD_RPC_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('discord-rpc:get-state') as Promise<DiscordRpcState>
+    },
+    setActivity: (activity: Record<string, unknown>) => {
+      assertAllowed('invoke', 'discord-rpc:set-activity', DISCORD_RPC_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('discord-rpc:set-activity', activity) as Promise<DiscordRpcState>
+    },
+    onStateChange: (callback: (state: DiscordRpcState) => void) => {
+      assertAllowed('on', 'discord-rpc:state-changed', DISCORD_RPC_ON_CHANNELS)
+      const listener = (_event: IpcRendererEvent, state: DiscordRpcState) => callback(state)
+      ipcRenderer.on('discord-rpc:state-changed', listener)
+      return () => {
+        assertAllowed('off', 'discord-rpc:state-changed', DISCORD_RPC_ON_CHANNELS)
+        ipcRenderer.removeListener('discord-rpc:state-changed', listener)
       }
     },
   })

@@ -17,6 +17,7 @@ export interface SearchResult {
   source?: string
   displayed_link?: string
   date?: string
+  score?: number
 }
 
 export interface ImageResult {

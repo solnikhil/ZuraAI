@@ -113,19 +113,10 @@
   /* Hold a fixed width that matches the open width so the panel slides in/out
      (clipped by the container's overflow:hidden) instead of reflowing per frame. */
   width: var(--sidebar-inner-width, 100%);
-  opacity: 1;
-  transform: translateX(0);
-  transition:
-    opacity var(--sidebar-show-duration) var(--sidebar-show-ease),
-    transform var(--sidebar-show-duration) var(--sidebar-show-ease);
 }
 
 .sidebar-container--hidden .sidebar__inner {
-  opacity: 0;
-  transform: translateX(-12px);
-  transition:
-    opacity var(--sidebar-hide-duration) var(--sidebar-hide-ease),
-    transform var(--sidebar-hide-duration) var(--sidebar-hide-ease);
+  opacity: 1;
 }
 
 .sidebar-resize-handle {

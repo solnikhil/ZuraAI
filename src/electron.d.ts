@@ -8,6 +8,7 @@ import type {
   ComputerUseAPI,
   ContextMenuAPI,
   DevToolsAPI,
+  DiscordRpcAPI,
   IElectronAPI,
   McpAPI,
   MemoryAPI,
@@ -43,6 +44,7 @@ declare global {
     chatDiagnostics?: ChatDiagnosticsAPI
     chatDebug?: ChatDebugAPI
     resourceMonitor: ResourceMonitorAPI
+    discordRpc: DiscordRpcAPI
   }
 }
 

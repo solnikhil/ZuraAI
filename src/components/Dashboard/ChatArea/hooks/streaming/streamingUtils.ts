@@ -21,6 +21,7 @@ import type { AgentVerificationStrategy } from '../../../../../agent/reliability
 import { buildAgentVerificationPrompt } from '../../../../../agent/reliability'
 import type { UpdateStreamingCallback } from './types'
 import { normalizeInlineToolCallMarkup } from '../../../../../tools/adapters/openrouterToolCalls'
+import type { SearchEvidenceItem } from '../../../../../research/types'
 import {
   STREAM_MAX_RESEARCH_ROUNDS,
   STREAM_RESEARCH_SAFETY_CAP,
@@ -59,13 +60,6 @@ const UNGROUNDED_SEARCH_SYNTHESIS_PATTERNS = [
   /\btool_calls\b/i,
   /invoke\s+name="web_search"/i,
 ]
-
-interface SearchResultSummary {
-  title: string
-  url: string
-  snippet: string
-  source: string
-}
 
 /** Compute per-chunk UI update cadence. */
 export function getStreamingUpdateInterval(): number {
@@ -517,48 +511,25 @@ export function stripStandaloneHorizontalRule(content: string): string {
 export function buildSearchSynthesisFailureMessage(
   toolResults: ToolCallResult[] | undefined
 ): string | null {
-  const executedResults = (toolResults || []).filter(
-    (result) => result.toolCall.name === 'web_search' && result.result?.success
-  )
-  if (executedResults.length === 0) return null
-
+  const evidence = extractSearchEvidenceItems(toolResults)
+  if (evidence.length === 0) {
+    const hasSuccessfulWebSearch = (toolResults || []).some(
+      (result) => result.toolCall.name === 'web_search' && result.result?.success
+    )
+    return hasSuccessfulWebSearch ? SEARCH_SYNTHESIS_FAILURE_MESSAGE : null
+  }
   const queries = [
     ...new Set(
-      executedResults
-        .map((result) => {
-          const args = result.toolCall.arguments
-          return String(typeof args === 'object' ? (args as Record<string, unknown>)?.query : args).trim()
-        })
-        .filter(Boolean)
+      evidence.map((item) => item.query).filter(Boolean)
     ),
   ]
-  const summaries: SearchResultSummary[] = []
 
-  for (const result of executedResults) {
-    const data = result.result?.data
-    const rawResults =
-      data && typeof data === 'object' && Array.isArray((data as { results?: unknown[] }).results)
-        ? (data as { results: unknown[] }).results
-        : []
-    for (const raw of rawResults) {
-      if (!raw || typeof raw !== 'object') continue
-      const item = raw as Record<string, unknown>
-      const title = typeof item.title === 'string' ? item.title.trim() : ''
-      const url = typeof item.url === 'string' ? item.url.trim() : ''
-      const snippet = typeof item.snippet === 'string' ? item.snippet.replace(/\s+/g, ' ').trim() : ''
-      const source = typeof item.source === 'string' ? item.source.trim() : ''
-      if (!title && !snippet) continue
-      summaries.push({ title: title || source || 'Search result', url, snippet, source })
-    }
-  }
-
-  if (summaries.length === 0) return SEARCH_SYNTHESIS_FAILURE_MESSAGE
-
-  const top = summaries.slice(0, 5)
+  const top = evidence.slice(0, 5)
   const evidenceLines = top.map((item) => {
     const linkedTitle = item.url ? `[${item.title}](${item.url})` : item.title
+    const date = item.date ? ` (${item.date})` : ''
     const snippet = item.snippet ? `: ${item.snippet.slice(0, 260)}` : ''
-    return `- ${linkedTitle}${snippet}`
+    return `- ${linkedTitle}${date}${snippet}`
   })
   const sourceLines = top
     .filter((item) => item.url)
@@ -582,6 +553,56 @@ export function buildSearchSynthesisFailureMessage(
     ...evidenceLines,
     ...(sourceLines.length > 0 ? ['', 'Sources:', ...sourceLines] : []),
   ].join('\n')
+}
+
+export function extractSearchEvidenceItems(
+  toolResults: ToolCallResult[] | undefined
+): SearchEvidenceItem[] {
+  const evidence: SearchEvidenceItem[] = []
+  const seen = new Set<string>()
+
+  for (const result of toolResults || []) {
+    if (result.toolCall.name !== 'web_search' || !result.result?.success) continue
+    const args = result.toolCall.arguments
+    const query = String(
+      typeof args === 'object' ? (args as Record<string, unknown>)?.query : args
+    ).trim()
+    const data = result.result?.data
+    const rawResults =
+      data && typeof data === 'object' && Array.isArray((data as { results?: unknown[] }).results)
+        ? (data as { results: unknown[] }).results
+        : []
+
+    for (const raw of rawResults) {
+      if (!raw || typeof raw !== 'object') continue
+      const item = raw as Record<string, unknown>
+      const title = typeof item.title === 'string' ? item.title.trim() : ''
+      const url = typeof item.url === 'string' ? item.url.trim() : ''
+      const snippet = typeof item.snippet === 'string'
+        ? item.snippet.replace(/\s+/g, ' ').trim()
+        : ''
+      const source = typeof item.source === 'string' ? item.source.trim() : ''
+      const date = typeof item.date === 'string' ? item.date.trim() : ''
+      const score = typeof item.score === 'number' && Number.isFinite(item.score)
+        ? item.score
+        : undefined
+      if (!title && !snippet) continue
+      const key = `${query}\n${url || title}\n${snippet.slice(0, 80)}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      evidence.push({
+        query,
+        title: title || source || 'Search result',
+        url,
+        source,
+        snippet,
+        ...(date ? { date } : {}),
+        ...(score !== undefined ? { score } : {}),
+      })
+    }
+  }
+
+  return evidence
 }
 
 export function shouldRetryUngroundedSearchSynthesis(content: string): boolean {

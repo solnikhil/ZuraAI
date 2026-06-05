@@ -64,6 +64,7 @@ import type {
 } from './types'
 import type { ChatDiagnosticRequestShape } from '../../../../../diagnostics/chatDiagnostics'
 import { createStreamChunkCoalescer } from '../../../../../diagnostics/streamChunkCoalescer'
+import type { ResearchState } from '../../../../../research/types'
 
 export interface ProviderStreamingRunOptions {
   provider: ActiveProviderId
@@ -346,6 +347,19 @@ export function useProviderStreaming({
           ...event,
         })
       }
+      const logResearchState = (
+        researchState: ResearchState,
+        details?: Omit<
+          Parameters<typeof appendChatDiagnosticEvent>[0],
+          'sessionId' | 'messageId' | 'timestamp' | 'provider' | 'model' | 'phase' | 'researchState'
+        >
+      ) => {
+        logDiagnostic({
+          phase: 'research-state',
+          researchState,
+          ...details,
+        })
+      }
 
       // Coalesce provider deltas into batched stream-chunk diagnostic events.
       // Disabled outside dev so production builds stay quiet.
@@ -512,6 +526,7 @@ export function useProviderStreaming({
         const roundAllowsTools =
           Array.isArray(roundTools) && roundTools.length > 0 && roundOptions?.toolChoice !== 'none'
         const roundType = roundAllowsTools ? 'tool-enabled' : 'no-tools'
+        const roundResearchState: ResearchState = roundAllowsTools ? 'search' : 'synthesize'
         let roundContent = ''
         let roundToolCalls: DeltaToolCall[] = []
         let roundReasoningDetails: ReasoningDetail[] = []
@@ -527,6 +542,14 @@ export function useProviderStreaming({
           round: roundOptions?.round,
           roundType,
           messageCount: roundMessages.length,
+          researchState: roundResearchState,
+          searchBudgetRemaining: effectiveSearchBudget,
+        })
+        logResearchState(roundResearchState, {
+          round: roundOptions?.round,
+          roundType,
+          messageCount: roundMessages.length,
+          searchBudgetRemaining: effectiveSearchBudget,
         })
         logDiagnostic({
           phase: 'request-shape',
@@ -585,6 +608,11 @@ export function useProviderStreaming({
                         toolNames: [],
                         cleanedContentLength: 0,
                         rawPreview: roundContent.slice(0, TOOL_MARKUP_PREVIEW_LIMIT),
+                      })
+                      logResearchState('synthesize', {
+                        round: roundOptions?.round,
+                        roundType,
+                        leakedMarkupFormat: detectedFormat,
                       })
                     }
                   } else if (frozenDisplayContent === null) {
@@ -731,6 +759,14 @@ export function useProviderStreaming({
               roundType,
               format: extracted.format,
               rawPreview: extracted.rawPreview.slice(0, TOOL_MARKUP_PREVIEW_LIMIT),
+            })
+            logResearchState(roundResearchState, {
+              round: roundOptions?.round,
+              roundType,
+              leakedMarkupFormat: extracted.format || undefined,
+              recoveredQueryCount: extracted.toolCalls.filter(
+                (toolCall) => toolCall.name === 'web_search'
+              ).length,
             })
 
             finalRoundContent = extracted.cleanedContent
@@ -912,6 +948,10 @@ export function useProviderStreaming({
           const failureMessage =
             buildSearchSynthesisFailureMessage(savedToolResults) ??
             'I gathered some search results but could not produce a final written answer.'
+          logResearchState('deterministic-answer', {
+            deterministicAnswerUsed: true,
+            searchBudgetRemaining: Math.max(0, effectiveSearchBudget - activeSearchCount),
+          })
           accumulatedContent = baselineContent + failureMessage
           finishReason = null
           updateStreamingState({
@@ -945,8 +985,31 @@ export function useProviderStreaming({
               attempt: attemptNumber,
               activeSearchCount,
             })
+            logResearchState('recover-leaked-tool-call', {
+              round: baseRound + attemptNumber,
+              recoveredQueryCount: recoveredToolCalls.length,
+              searchBudgetRemaining: 0,
+              skippedReason: 'budget',
+            })
             return false
           }
+
+          const attemptedQueries = recoveredToolCalls
+            .map((toolCall) => {
+              try {
+                const parsed = JSON.parse(toolCall.function?.arguments || '{}') as Record<string, unknown>
+                return String(parsed.query || '').trim()
+              } catch {
+                return ''
+              }
+            })
+            .filter(Boolean)
+          logResearchState('recover-leaked-tool-call', {
+            round: baseRound + attemptNumber,
+            recoveredQueryCount: recoveredToolCalls.length,
+            searchBudgetRemaining: remainingWebSearchBudget,
+            attemptedQueries,
+          })
 
           const recoveredMessage = reconstructToolCallMessage(
             attempt.roundContent,
@@ -979,6 +1042,13 @@ export function useProviderStreaming({
               reason: 'no-new-searches',
               attempt: attemptNumber,
               attemptedQueries: extractWebSearchQueries(recoveredResult.toolResults),
+            })
+            logResearchState('recover-leaked-tool-call', {
+              round: baseRound + attemptNumber,
+              recoveredQueryCount: recoveredToolCalls.length,
+              searchBudgetRemaining: remainingWebSearchBudget,
+              attemptedQueries: extractWebSearchQueries(recoveredResult.toolResults),
+              skippedReason: 'no-new-searches',
             })
             return false
           }
@@ -1019,6 +1089,13 @@ export function useProviderStreaming({
             attempt: attemptNumber,
             executedQueries,
             activeSearchCount,
+          })
+          logResearchState('recover-leaked-tool-call', {
+            round: baseRound + attemptNumber,
+            recoveredQueryCount: recoveredToolCalls.length,
+            searchBudgetRemaining: Math.max(0, effectiveSearchBudget - activeSearchCount),
+            attemptedQueries,
+            executedQueries,
           })
           return true
         }
@@ -1178,6 +1255,10 @@ export function useProviderStreaming({
         const failureMessage =
           buildSearchSynthesisFailureMessage(savedToolResults) ??
           'I gathered some search results but could not produce a final written answer.'
+        logResearchState('deterministic-answer', {
+          deterministicAnswerUsed: true,
+          searchBudgetRemaining: Math.max(0, effectiveSearchBudget - activeSearchCount),
+        })
         accumulatedContent = baselineContent + failureMessage
         // Clear the carried finishReason so consumers see this as "we
         // intentionally committed a failure message" rather than a clean

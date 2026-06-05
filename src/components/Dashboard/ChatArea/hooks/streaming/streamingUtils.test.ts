@@ -8,6 +8,7 @@ import {
   buildThinkingBlocksFromResults,
   buildFinalSynthesisMessages,
   buildRecoverySynthesisMessages,
+  extractSearchEvidenceItems,
   FINAL_SYNTHESIS_BUDGET_EXHAUSTED_PROMPT,
   FINAL_SYNTHESIS_EMPTY_BATCH_PROMPT,
   FINAL_SYNTHESIS_PROMPT,
@@ -352,6 +353,45 @@ describe('streamingUtils final synthesis helpers', () => {
     expect(answer).not.toBe(SEARCH_SYNTHESIS_FAILURE_MESSAGE)
     expect(answer).toContain('specific official Kiro ambassador welcome kit')
     expect(answer).toContain('[Brand Ambassador Welcome Kit](https://example.com/kit)')
+  })
+
+  it('normalizes successful web_search results into evidence items', () => {
+    const evidence = extractSearchEvidenceItems([
+      {
+        toolCall: {
+          id: 'call_1',
+          name: 'web_search',
+          arguments: { query: 'Kiro ambassador welcome kit' },
+        },
+        result: {
+          success: true,
+          data: {
+            results: [
+              {
+                title: 'Kiro Ambassador FAQ',
+                url: 'https://example.com/kiro',
+                snippet: 'Ambassadors receive onboarding guidance.',
+                source: 'example.com',
+                date: '2026-05-01',
+                score: 0.91,
+              },
+            ],
+          },
+        },
+      },
+    ])
+
+    expect(evidence).toEqual([
+      {
+        query: 'Kiro ambassador welcome kit',
+        title: 'Kiro Ambassador FAQ',
+        url: 'https://example.com/kiro',
+        source: 'example.com',
+        snippet: 'Ambassadors receive onboarding guidance.',
+        date: '2026-05-01',
+        score: 0.91,
+      },
+    ])
   })
 
   it('does not flag grounded synthesized answers as failed post-search synthesis', () => {
