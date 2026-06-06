@@ -27,7 +27,7 @@ import {
   buildPlainTextOnlySynthesisMessages,
   buildRecoverySynthesisMessages,
   buildResponseWithFallback,
-  buildSearchSynthesisFailureMessage,
+  SEARCH_SYNTHESIS_FAILURE_MESSAGE,
   buildThinkingBlocksFromResults,
   computeStreamMetrics,
   fillMissingUsage,
@@ -889,33 +889,16 @@ export function useProviderStreaming({
       }
 
       /**
-       * Run a final no-tools synthesis pass with bounded retries. The model
-       * may emit:
-       *   - blank content (provider returned `finishReason: 'stop'` but no text),
-       *   - leaked tool-call markup (DSML / XML `<invoke>` / `<tool_call>`),
-       *   - "ungrounded" prose ("knowledge cutoff", "I can't browse" etc.).
-       * In any of those cases we retry up to 2 more times with stricter
-       * recovery prompts. If all 3 attempts fail, we commit a deterministic
-       * failure message that preserves the search results already in the
-       * timeline.
-       *
-       * @param baseRound diagnostic round number for the FIRST attempt
-       *   (subsequent attempts get +1 / +2).
-       * @param totalSearchCount how many searches were already executed (for
-       *   research-context messaging).
-       * @param lastAssistantMessage the assistant message containing the
-       *   tool_calls that produced `formattedResults`.
-       * @param formattedResults the role:'tool' formatted results to show
-       *   the model.
-       * @returns nothing — this mutates `accumulatedContent` and the
-       *   streaming state via the closure-captured helpers.
+       * Run a final no-tools synthesis pass with bounded retries. DSML/XML
+       * tool markup is treated as leaked invalid output here: the search phase
+       * is over, so final synthesis must write plain text instead of recovering
+       * or executing additional searches.
        */
       const runFinalSynthesis = async (
         baseRound: number,
         totalSearchCount: number,
         lastAssistantMessage: ServiceAssistantMessage,
-        formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>,
-        searchQueryHistory: string[]
+        formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>
       ): Promise<void> => {
         type Outcome = 'good' | 'blank' | 'leaked-or-ungrounded'
 
@@ -930,29 +913,19 @@ export function useProviderStreaming({
           return 'good'
         }
 
-        const researchContextMsg = toolCalling.getResearchContext(
-          totalSearchCount,
-          options.researchMaxRounds
-        )
+        const noToolsResearchContext = ''
 
         // Snapshot accumulatedContent so we can roll back between failed
         // attempts. Without this, a blank/leaked attempt would leak its
         // partial state into the next attempt's content.
         const baselineContent = accumulatedContent
-        let activeSearchCount = totalSearchCount
-        let activeLastAssistantMessage = lastAssistantMessage
-        let activeFormattedResults = formattedResults
-        let recoveredSearchUsed = false
 
-        const commitDeterministicAnswer = () => {
-          const failureMessage =
-            buildSearchSynthesisFailureMessage(savedToolResults) ??
-            'I gathered some search results but could not produce a final written answer.'
-          logResearchState('deterministic-answer', {
-            deterministicAnswerUsed: true,
-            searchBudgetRemaining: Math.max(0, effectiveSearchBudget - activeSearchCount),
+        const commitSynthesisFailure = () => {
+          logResearchLoop('synthesis-failed', {
+            deterministicAnswerUsed: false,
+            searchBudgetRemaining: Math.max(0, effectiveSearchBudget - totalSearchCount),
           })
-          accumulatedContent = baselineContent + failureMessage
+          accumulatedContent = baselineContent + SEARCH_SYNTHESIS_FAILURE_MESSAGE
           finishReason = null
           updateStreamingState({
             content: accumulatedContent,
@@ -963,147 +936,10 @@ export function useProviderStreaming({
           })
         }
 
-        const recoverLeakedSearches = async (
-          attempt: {
-            roundContent: string
-            roundToolCalls: DeltaToolCall[]
-            roundReasoningDetails: ReasoningDetail[]
-            suppressedInlineToolMarkup: boolean
-          },
-          attemptNumber: number
-        ): Promise<boolean> => {
-          if (recoveredSearchUsed || !attempt.suppressedInlineToolMarkup) return false
-          const recoveredToolCalls = attempt.roundToolCalls.filter(
-            (toolCall) => toolCall?.function?.name === 'web_search'
-          )
-          if (recoveredToolCalls.length === 0) return false
-
-          const remainingWebSearchBudget = Math.max(0, effectiveSearchBudget - activeSearchCount)
-          if (remainingWebSearchBudget <= 0) {
-            logResearchLoop('leaked-search-recovery-skipped', {
-              reason: 'budget',
-              attempt: attemptNumber,
-              activeSearchCount,
-            })
-            logResearchState('recover-leaked-tool-call', {
-              round: baseRound + attemptNumber,
-              recoveredQueryCount: recoveredToolCalls.length,
-              searchBudgetRemaining: 0,
-              skippedReason: 'budget',
-            })
-            return false
-          }
-
-          const attemptedQueries = recoveredToolCalls
-            .map((toolCall) => {
-              try {
-                const parsed = JSON.parse(toolCall.function?.arguments || '{}') as Record<string, unknown>
-                return String(parsed.query || '').trim()
-              } catch {
-                return ''
-              }
-            })
-            .filter(Boolean)
-          logResearchState('recover-leaked-tool-call', {
-            round: baseRound + attemptNumber,
-            recoveredQueryCount: recoveredToolCalls.length,
-            searchBudgetRemaining: remainingWebSearchBudget,
-            attemptedQueries,
-          })
-
-          const recoveredMessage = reconstructToolCallMessage(
-            attempt.roundContent,
-            recoveredToolCalls,
-            {
-              reasoning: getThinkingTranscript(localThinkingBlocks),
-              reasoningDetails: attempt.roundReasoningDetails,
-            }
-          )
-          const recoveredResult = await toolCalling.handleToolCalls(
-            buildResponseWithFallback(
-              recoveredMessage,
-              options.messages,
-              getThinkingTranscript(localThinkingBlocks)
-            ),
-            {
-              ...buildToolDiagnosticsCallbacks({
-                remainingWebSearchBudget,
-                priorWebSearchQueries: [...searchQueryHistory],
-                userContextText,
-              }),
-            }
-          )
-          throwIfAborted()
-
-          const executedQueries = recoveredResult.executionSummary.executedWebSearchQueries || []
-          const newWebSearches = recoveredResult.executionSummary.executedWebSearchCount || 0
-          if (newWebSearches <= 0 || executedQueries.length === 0) {
-            logResearchLoop('leaked-search-recovery-skipped', {
-              reason: 'no-new-searches',
-              attempt: attemptNumber,
-              attemptedQueries: extractWebSearchQueries(recoveredResult.toolResults),
-            })
-            logResearchState('recover-leaked-tool-call', {
-              round: baseRound + attemptNumber,
-              recoveredQueryCount: recoveredToolCalls.length,
-              searchBudgetRemaining: remainingWebSearchBudget,
-              attemptedQueries: extractWebSearchQueries(recoveredResult.toolResults),
-              skippedReason: 'no-new-searches',
-            })
-            return false
-          }
-
-          activeSearchCount += newWebSearches
-          searchQueryHistory.push(...executedQueries)
-          activeLastAssistantMessage = recoveredMessage
-          activeFormattedResults = recoveredResult.formattedResults
-          recoveredSearchUsed = true
-
-          localThinkingBlocks = buildThinkingBlocksFromResults(
-            recoveredResult.toolResults || [],
-            localThinkingBlocks
-          )
-          savedToolResults = mergeSavedToolResults(
-            savedToolResults,
-            recoveredResult.toolResults || []
-          )
-          publishStreamingToolResults(
-            updateStreamingState,
-            updatePersistedStreamingMessage,
-            options.sessionId,
-            options.messageId,
-            savedToolResults,
-            localThinkingBlocks
-          )
-          updateStreamingState({
-            phase: 'reasoning',
-            thinkingBlocks: localThinkingBlocks,
-            researchStatus: buildResearchStatus(
-              baseRound + attemptNumber,
-              options.researchMaxRounds,
-              false,
-              executedQueries
-            ),
-          })
-          logResearchLoop('leaked-search-recovered', {
-            attempt: attemptNumber,
-            executedQueries,
-            activeSearchCount,
-          })
-          logResearchState('recover-leaked-tool-call', {
-            round: baseRound + attemptNumber,
-            recoveredQueryCount: recoveredToolCalls.length,
-            searchBudgetRemaining: Math.max(0, effectiveSearchBudget - activeSearchCount),
-            attemptedQueries,
-            executedQueries,
-          })
-          return true
-        }
-
-        // Attempt 1 — plain follow-up. No discouragement prompt; we want to
+        // Attempt 1: plain follow-up. No discouragement prompt; we want to
         // see what the model does naturally with the gathered evidence.
         const attempt1Messages = buildFollowUpMessages(
-          researchContextMsg,
+          noToolsResearchContext,
           baseRound,
           totalSearchCount,
           options.messages,
@@ -1133,40 +969,11 @@ export function useProviderStreaming({
         accumulatedContent = baselineContent
         updateStreamingState({ content: accumulatedContent })
 
-        // Attempt 2 — recovery prompt. Pick based on the failure shape:
-        //   - blank → "FINAL ANSWER REQUIRED, write at least one paragraph"
-        //   - leaked / ungrounded → "PLAIN TEXT ONLY, no markup, no tool_calls"
-        if (await recoverLeakedSearches(attempt1, 1)) {
-          const recoveredSynthesisMessages = buildPlainTextOnlySynthesisMessages(
-            toolCalling.getResearchContext(activeSearchCount, options.researchMaxRounds),
-            baseRound + 1,
-            activeSearchCount,
-            options.messages,
-            activeLastAssistantMessage,
-            activeFormattedResults
-          )
-          const recoveredSynthesis = await runRound(recoveredSynthesisMessages, {
-            round: baseRound + 1,
-            toolChoice: 'none',
-            tools: [],
-          })
-          throwIfAborted()
-          if (classify(recoveredSynthesis) === 'good') return
-          accumulatedContent = baselineContent
-          updateStreamingState({ content: accumulatedContent })
-          commitDeterministicAnswer()
-          return
-        }
-
-        if (attempt1.suppressedInlineToolMarkup) {
-          commitDeterministicAnswer()
-          return
-        }
-
+        // Attempt 2: use a recovery prompt based on the failure shape.
         const attempt2Messages =
           outcome1 === 'blank'
             ? buildRecoverySynthesisMessages(
-                researchContextMsg,
+                noToolsResearchContext,
                 baseRound + 1,
                 totalSearchCount,
                 options.messages,
@@ -1174,7 +981,7 @@ export function useProviderStreaming({
                 formattedResults
               )
             : buildPlainTextOnlySynthesisMessages(
-                researchContextMsg,
+                noToolsResearchContext,
                 baseRound + 1,
                 totalSearchCount,
                 options.messages,
@@ -1198,36 +1005,9 @@ export function useProviderStreaming({
         accumulatedContent = baselineContent
         updateStreamingState({ content: accumulatedContent })
 
-        // Attempt 3 — strictest plain-text-only escalation.
-        if (await recoverLeakedSearches(attempt2, 2)) {
-          const recoveredSynthesisMessages = buildPlainTextOnlySynthesisMessages(
-            toolCalling.getResearchContext(activeSearchCount, options.researchMaxRounds),
-            baseRound + 2,
-            activeSearchCount,
-            options.messages,
-            activeLastAssistantMessage,
-            activeFormattedResults
-          )
-          const recoveredSynthesis = await runRound(recoveredSynthesisMessages, {
-            round: baseRound + 2,
-            toolChoice: 'none',
-            tools: [],
-          })
-          throwIfAborted()
-          if (classify(recoveredSynthesis) === 'good') return
-          accumulatedContent = baselineContent
-          updateStreamingState({ content: accumulatedContent })
-          commitDeterministicAnswer()
-          return
-        }
-
-        if (attempt2.suppressedInlineToolMarkup) {
-          commitDeterministicAnswer()
-          return
-        }
-
+        // Attempt 3: strictest plain-text-only escalation.
         const attempt3Messages = buildPlainTextOnlySynthesisMessages(
-          researchContextMsg,
+          noToolsResearchContext,
           baseRound + 2,
           totalSearchCount,
           options.messages,
@@ -1249,29 +1029,9 @@ export function useProviderStreaming({
           baseRound,
         })
 
-        // All 3 attempts failed. Commit the deterministic failure message so
-        // the user gets *something* and the search-result tool cards stay in
-        // the timeline as fallback context.
-        const failureMessage =
-          buildSearchSynthesisFailureMessage(savedToolResults) ??
-          'I gathered some search results but could not produce a final written answer.'
-        logResearchState('deterministic-answer', {
-          deterministicAnswerUsed: true,
-          searchBudgetRemaining: Math.max(0, effectiveSearchBudget - activeSearchCount),
-        })
-        accumulatedContent = baselineContent + failureMessage
-        // Clear the carried finishReason so consumers see this as "we
-        // intentionally committed a failure message" rather than a clean
-        // provider 'stop'. The diagnostic 'finish' event still records the
-        // synthetic outcome via accumulatedContent.
-        finishReason = null
-        updateStreamingState({
-          content: accumulatedContent,
-          phase: 'answering',
-        })
-        updatePersistedStreamingMessage(options.sessionId, options.messageId, {
-          content: accumulatedContent,
-        })
+        // All synthesis attempts failed. Keep the tool-result cards in the
+        // timeline, but do not fabricate an answer-looking wall of evidence.
+        commitSynthesisFailure()
       }
 
       const initialToolChoice =
@@ -1415,13 +1175,12 @@ export function useProviderStreaming({
             // this the orchestrator would exit straight to `finish` with
             // empty content (only the round-0 tool_call response). The
             // retry pipeline handles blank, leaked-markup, and ungrounded
-            // outputs and falls back to a deterministic failure message.
+            // outputs and falls back to a short failure message.
             await runFinalSynthesis(
               researchRound,
               totalSearchCount,
               lastAssistantMessage,
-              toolResult.formattedResults,
-              searchQueryHistory
+              toolResult.formattedResults
             )
             toolResult = {
               ...toolResult,
@@ -1541,8 +1300,7 @@ export function useProviderStreaming({
                   researchRound,
                   totalSearchCount,
                   lastAssistantMessage,
-                  toolResult.formattedResults,
-                  searchQueryHistory
+                  toolResult.formattedResults
                 )
               }
               break
@@ -1679,14 +1437,13 @@ export function useProviderStreaming({
                 totalSearchCount,
                 researchRound,
               })
-              // Same gap as the post-initial-batch path — run a bounded
+              // Same gap as the post-initial-batch path: run a bounded
               // synthesis pass before breaking so the user gets an answer.
               await runFinalSynthesis(
                 researchRound,
                 totalSearchCount,
                 lastAssistantMessage,
-                nextToolResult.formattedResults,
-                searchQueryHistory
+                nextToolResult.formattedResults
               )
               toolResult = {
                 ...nextToolResult,

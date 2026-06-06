@@ -14,6 +14,9 @@ export type ChatDiagnosticPhase =
   | 'finish'
   | 'stream-chunk'
   | 'research-state'
+  | 'memory-extraction-start'
+  | 'memory-extraction-result'
+  | 'memory-extraction-error'
 
 /**
  * Coalesced provider streaming chunk summary captured by the dev-only chat debug panel.
@@ -101,6 +104,10 @@ export interface ChatDiagnosticEvent {
   executedQueries?: string[]
   skippedReason?: string
   error?: string
+  /** Background memory-extraction ("dreaming") — number of durable facts persisted this run. */
+  factCount?: number
+  /** Background memory-extraction — whether a non-empty Recent Activity summary was kept/upserted. */
+  summaryKept?: boolean
 }
 
 export const CHAT_DIAGNOSTIC_MAX_EVENTS = 500

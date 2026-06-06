@@ -1083,7 +1083,7 @@ describe('useProviderStreaming', () => {
     warnSpy.mockRestore()
   })
 
-  it('suppresses DSML-style tool markup during final no-tools synthesis and commits evidence when budget is exhausted', async () => {
+  it('suppresses DSML-style tool markup during final no-tools synthesis and recovers a normal answer', async () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     let invocation = 0
 
@@ -1178,8 +1178,7 @@ describe('useProviderStreaming', () => {
     })
 
     expect(handleToolCalls).toHaveBeenCalledTimes(1)
-    expect(streamResult.content).toContain('deterministic summary from the gathered evidence')
-    expect(streamResult.content).toContain('cursor pricing')
+    expect(streamResult.content.toLowerCase()).toContain('cursor pricing')
     expect(streamResult.content).not.toContain('DSML')
     expect(streamResult.content).not.toContain('tool_calls')
     expect(warnSpy).toHaveBeenCalledWith(
@@ -2339,13 +2338,25 @@ describe('useProviderStreaming', () => {
     expect(streamResult.finishReason).toBe('stop')
   })
 
-  it('recovers fullwidth DSML web_search markup leaked during no-tools synthesis', async () => {
-    const streamCalls: Array<{ toolChoice?: unknown }> = []
+  it('retries fullwidth DSML web_search markup leaked during no-tools synthesis without executing it', async () => {
+    const streamCalls: Array<{
+      toolChoice?: unknown
+      tools?: unknown
+      messages?: Array<{ role: string; content?: string }>
+    }> = []
     let invocation = 0
 
     mocks.createProviderStreamClient.mockReturnValue({
-      stream: async function* (request: { toolChoice?: unknown }) {
-        streamCalls.push({ toolChoice: request.toolChoice })
+      stream: async function* (request: {
+        toolChoice?: unknown
+        tools?: unknown
+        messages?: Array<{ role: string; content?: string }>
+      }) {
+        streamCalls.push({
+          toolChoice: request.toolChoice,
+          tools: request.tools,
+          messages: request.messages,
+        })
         invocation += 1
 
         if (invocation === 1) {
@@ -2392,15 +2403,6 @@ describe('useProviderStreaming', () => {
         shouldContinueResearch: false,
         executionSummary: buildExecutionSummary('Kiro ambassador welcome kit 2026'),
       })
-      .mockResolvedValueOnce({
-        hasTools: true,
-        toolResults: [
-          buildWebSearchToolResult('content-tool-call-1', 'Kiro brand ambassador program official welcome kit'),
-        ],
-        formattedResults: [{ role: 'tool', tool_call_id: 'content-tool-call-1', content: 'recovered search results' }],
-        needsFollowUp: true,
-        executionSummary: buildExecutionSummary('Kiro brand ambassador program official welcome kit'),
-      })
 
     const { result } = renderHook(() =>
       useProviderStreaming({
@@ -2443,16 +2445,20 @@ describe('useProviderStreaming', () => {
       enableTools: true,
     })
 
-    expect(handleToolCalls).toHaveBeenCalledTimes(2)
+    expect(handleToolCalls).toHaveBeenCalledTimes(1)
     expect(streamCalls).toHaveLength(3)
     expect(streamCalls[1]?.toolChoice).toBe('none')
     expect(streamCalls[2]?.toolChoice).toBe('none')
+    expect(streamCalls[1]?.tools).toEqual([])
+    expect(streamCalls[2]?.tools).toEqual([])
+    expect(streamCalls[1]?.messages?.some((message) => message.content === 'Research context')).toBe(false)
+    expect(streamCalls[2]?.messages?.some((message) => message.content === 'Research context')).toBe(false)
     expect(streamResult.content).toContain('related ambassador kits commonly include')
     expect(streamResult.content).not.toContain('DSML')
     expect(streamResult.content).not.toBe(SEARCH_SYNTHESIS_FAILURE_MESSAGE)
   })
 
-  it('commits a deterministic evidence answer when all synthesis attempts end blank', async () => {
+  it('commits a short synthesis failure when all synthesis attempts end blank', async () => {
     const streamCalls: Array<{ toolChoice?: unknown }> = []
     let invocation = 0
 
@@ -2550,9 +2556,8 @@ describe('useProviderStreaming', () => {
     expect(streamCalls[1]?.toolChoice).toBe('none')
     expect(streamCalls[2]?.toolChoice).toBe('none')
     expect(streamCalls[3]?.toolChoice).toBe('none')
-    expect(streamResult.content).not.toBe(SEARCH_SYNTHESIS_FAILURE_MESSAGE)
-    expect(streamResult.content).toContain('deterministic summary from the gathered evidence')
-    expect(streamResult.content).toContain('No verified evidence of a murder-for-hire plot')
+    expect(streamResult.content).toBe(SEARCH_SYNTHESIS_FAILURE_MESSAGE)
+    expect(streamResult.content).not.toContain('deterministic summary from the gathered evidence')
     expect(streamResult.finishReason).toBeUndefined()
     expect(streamResult.toolResults).toEqual(
       expect.arrayContaining([
@@ -2567,12 +2572,12 @@ describe('useProviderStreaming', () => {
       'session-1',
       'message-1',
       expect.objectContaining({
-        content: expect.stringContaining('No verified evidence of a murder-for-hire plot'),
+        content: SEARCH_SYNTHESIS_FAILURE_MESSAGE,
       })
     )
   })
 
-  it('commits a deterministic evidence answer when every synthesis retry stays ungrounded', async () => {
+  it('commits a short synthesis failure when every synthesis retry stays ungrounded', async () => {
     const streamCalls: Array<{ toolChoice?: unknown }> = []
     let invocation = 0
 
@@ -2658,9 +2663,8 @@ describe('useProviderStreaming', () => {
     expect(streamCalls[1]?.toolChoice).toBe('none')
     expect(streamCalls[2]?.toolChoice).toBe('none')
     expect(streamCalls[3]?.toolChoice).toBe('none')
-    expect(streamResult.content).not.toBe(SEARCH_SYNTHESIS_FAILURE_MESSAGE)
-    expect(streamResult.content).toContain('deterministic summary from the gathered evidence')
-    expect(streamResult.content).toContain('qwen 3.6 plus thinking mode')
+    expect(streamResult.content).toBe(SEARCH_SYNTHESIS_FAILURE_MESSAGE)
+    expect(streamResult.content).not.toContain('deterministic summary from the gathered evidence')
     expect(streamResult.finishReason).toBeUndefined()
     expect(streamResult.toolResults).toEqual(
       expect.arrayContaining([
@@ -2673,7 +2677,7 @@ describe('useProviderStreaming', () => {
     )
   })
 
-  it('commits a deterministic evidence answer when every synthesis retry returns tool calls', async () => {
+  it('commits a short synthesis failure when every synthesis retry returns tool calls', async () => {
     const streamCalls: Array<{ toolChoice?: unknown }> = []
     let invocation = 0
 
@@ -2752,9 +2756,8 @@ describe('useProviderStreaming', () => {
     expect(streamCalls[1]?.toolChoice).toBe('none')
     expect(streamCalls[2]?.toolChoice).toBe('none')
     expect(streamCalls[3]?.toolChoice).toBe('none')
-    expect(streamResult.content).not.toBe(SEARCH_SYNTHESIS_FAILURE_MESSAGE)
-    expect(streamResult.content).toContain('deterministic summary from the gathered evidence')
-    expect(streamResult.content).toContain('qwen plus model studio docs')
+    expect(streamResult.content).toBe(SEARCH_SYNTHESIS_FAILURE_MESSAGE)
+    expect(streamResult.content).not.toContain('deterministic summary from the gathered evidence')
     expect(streamResult.finishReason).toBeUndefined()
   })
 })

@@ -56,6 +56,9 @@ const ALL_PHASES: ChatDiagnosticPhase[] = [
   'tool-complete',
   'stream-chunk',
   'research-state',
+  'memory-extraction-start',
+  'memory-extraction-result',
+  'memory-extraction-error',
   'provider-error',
   'finish',
 ]
@@ -71,6 +74,9 @@ const PHASE_TONE: Record<ChatDiagnosticPhase, string> = {
   'tool-complete': 'phase--info',
   'stream-chunk': 'phase--muted',
   'research-state': 'phase--info',
+  'memory-extraction-start': 'phase--neutral',
+  'memory-extraction-result': 'phase--success',
+  'memory-extraction-error': 'phase--error',
   'provider-error': 'phase--error',
   'finish': 'phase--success',
 }
@@ -118,6 +124,15 @@ function summarizeEvent(event: ChatDiagnosticEvent): string {
     }
     case 'finish':
       return `finish=${event.finishReason ?? 'unknown'}`
+    case 'memory-extraction-start':
+      return `dreaming · ${event.model ?? 'no-model'} · ${event.messageCount ?? 0} msgs`
+    case 'memory-extraction-result': {
+      const facts = `${event.factCount ?? 0} fact${event.factCount === 1 ? '' : 's'}`
+      const summary = event.summaryKept ? 'summary kept' : 'summary empty'
+      return `${facts} · ${summary}`
+    }
+    case 'memory-extraction-error':
+      return event.error ? `memory error: ${event.error.slice(0, 120)}` : 'memory error'
     case 'context-optimized': {
       const ctx = event.context
       if (!ctx) return 'context-optimized'

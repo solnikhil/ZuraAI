@@ -508,53 +508,6 @@ export function stripStandaloneHorizontalRule(content: string): string {
     .trimEnd()
 }
 
-export function buildSearchSynthesisFailureMessage(
-  toolResults: ToolCallResult[] | undefined
-): string | null {
-  const evidence = extractSearchEvidenceItems(toolResults)
-  if (evidence.length === 0) {
-    const hasSuccessfulWebSearch = (toolResults || []).some(
-      (result) => result.toolCall.name === 'web_search' && result.result?.success
-    )
-    return hasSuccessfulWebSearch ? SEARCH_SYNTHESIS_FAILURE_MESSAGE : null
-  }
-  const queries = [
-    ...new Set(
-      evidence.map((item) => item.query).filter(Boolean)
-    ),
-  ]
-
-  const top = evidence.slice(0, 5)
-  const evidenceLines = top.map((item) => {
-    const linkedTitle = item.url ? `[${item.title}](${item.url})` : item.title
-    const date = item.date ? ` (${item.date})` : ''
-    const snippet = item.snippet ? `: ${item.snippet.slice(0, 260)}` : ''
-    return `- ${linkedTitle}${date}${snippet}`
-  })
-  const sourceLines = top
-    .filter((item) => item.url)
-    .map((item) => `- [${item.title}](${item.url})`)
-  const queryText = queries.join(' ').toLowerCase()
-  const answerLine =
-    queryText.includes('kiro') && queryText.includes('ambassador')
-      ? 'The results do not clearly verify a specific official Kiro ambassador welcome kit. Based on the related ambassador-program evidence, you should generally expect some mix of branded swag, product samples or free products, referral or promo materials, a welcome note, and content/posting guidance. Treat exact contents as unverified until Kiro gives you an official email, portal page, or shipment details.'
-      : 'The provider did not produce a reliable final synthesis, so use the evidence below as the grounded answer. If the results are incomplete or not from official sources, treat exact claims as unverified and prefer an official page, email, or support response for confirmation.'
-
-  return [
-    'I found web search results, but the provider kept trying to call web_search instead of writing the final answer. Here is a deterministic summary from the gathered evidence.',
-    '',
-    queries.length > 0
-      ? `Searches checked: ${queries.map((query) => `"${query}"`).join(', ')}.`
-      : 'Searches checked: web_search results already gathered in this response.',
-    '',
-    answerLine,
-    '',
-    'Evidence found:',
-    ...evidenceLines,
-    ...(sourceLines.length > 0 ? ['', 'Sources:', ...sourceLines] : []),
-  ].join('\n')
-}
-
 export function extractSearchEvidenceItems(
   toolResults: ToolCallResult[] | undefined
 ): SearchEvidenceItem[] {

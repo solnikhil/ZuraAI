@@ -22,6 +22,8 @@
 
 import { isMemoryAutoManageEnabled, type SkillsSettings } from '@/skills'
 import { generateTitleTextForModel } from '@/providers/providerRuntime'
+import { appendChatDiagnosticEvent } from '@/diagnostics/chatDiagnosticsClient'
+import type { ChatDiagnosticEvent } from '@/diagnostics/chatDiagnostics'
 import type { SettingsConfig } from '@/contexts/SettingsConfigContext'
 
 export interface ExtractionMessage {
@@ -68,17 +70,47 @@ const MAX_CHARS_PER_MESSAGE = 800
 const MAX_FACTS = 8
 const EXTRACTION_TIMEOUT_MS = 15_000
 
-const EXTRACTION_INSTRUCTION = `You are a memory extraction system. Read the conversation and extract durable, long-term facts about the USER that are worth remembering across future chats (preferences, goals, projects, background, stable context). Also write ONE short summary line describing what this chat was about.
+/**
+ * Synthetic messageId for diagnostics. Background extraction has no assistant
+ * messageId of its own; events are correlated by sessionId + timestamp instead.
+ */
+const MEMORY_DIAGNOSTIC_MESSAGE_ID = 'memory-extraction'
+
+/**
+ * Emit a dev-only chat-debug diagnostic for the background extraction pass.
+ * No-op in production / when the IPC bridge is unavailable (guarded inside
+ * {@link appendChatDiagnosticEvent}). Never throws.
+ */
+function emitMemoryDiagnostic(
+  sessionId: string,
+  phase: Extract<ChatDiagnosticEvent['phase'], `memory-extraction-${string}`>,
+  extra: Partial<ChatDiagnosticEvent> = {}
+): void {
+  try {
+    appendChatDiagnosticEvent({
+      sessionId,
+      messageId: MEMORY_DIAGNOSTIC_MESSAGE_ID,
+      timestamp: Date.now(),
+      phase,
+      ...extra,
+    })
+  } catch {
+    // Diagnostics are best-effort; never disrupt extraction.
+  }
+}
+
+const EXTRACTION_INSTRUCTION = `You are a memory extraction system. Read the conversation and extract durable, long-term facts about the USER that are worth remembering across future chats (preferences, goals, projects, background, stable context). Also write a short "Recent activity" summary line, but ONLY when the chat carries continuity worth surfacing in future conversations.
 
 Rules:
 - ADD-only: state facts as standalone sentences. Do not reference previous memories.
 - Only durable facts. Ignore one-off questions, ephemeral task details, and small talk.
 - NEVER extract secrets, passwords, API keys, tokens, financial account numbers, or other sensitive credentials.
 - If there are no durable facts, return an empty "facts" array.
-- Keep each fact to one short sentence. Keep "summary" under 120 characters.
+- Summary: write ONE short line ONLY if the chat reflects ongoing context worth carrying forward — an active project the user is working on, who the user is, their goals, or stable background. Keep it under 120 characters.
+- Set "summary" to an empty string ("") when the chat is a one-off factual lookup, trivia, a definition, a calculation, or general Q&A with no lasting relevance to the user. When in doubt, prefer an empty summary over a trivial one.
 
 Respond with ONLY a JSON object, no prose, in exactly this shape:
-{"facts": ["fact one", "fact two"], "summary": "one line about this chat"}`
+{"facts": ["fact one", "fact two"], "summary": "one line about this chat, or empty string"}`
 
 function buildConversationText(messages: ExtractionMessage[]): string {
   return messages
@@ -154,17 +186,30 @@ export async function runMemoryExtraction(
 
   const prompt = `${EXTRACTION_INSTRUCTION}\n\nConversation:\n${conversation}`
 
+  emitMemoryDiagnostic(sessionId, 'memory-extraction-start', {
+    model,
+    messageCount: messages.length,
+  })
+
   let raw: string
   try {
     raw = await withTimeout(generateTitleTextForModel(settings, model, prompt), EXTRACTION_TIMEOUT_MS)
   } catch (error) {
     console.warn('[memory-extraction] LLM call failed; skipping.', error)
+    emitMemoryDiagnostic(sessionId, 'memory-extraction-error', {
+      model,
+      error: error instanceof Error ? error.message : String(error),
+    })
     return null
   }
 
   const result = parseExtractionResponse(raw)
   if (!result) {
     console.warn('[memory-extraction] Could not parse extraction response; skipping.')
+    emitMemoryDiagnostic(sessionId, 'memory-extraction-error', {
+      model,
+      error: 'Could not parse extraction response',
+    })
     return null
   }
 
@@ -185,6 +230,12 @@ export async function runMemoryExtraction(
       console.warn('[memory-extraction] Failed to upsert conversation summary.', error)
     }
   }
+
+  emitMemoryDiagnostic(sessionId, 'memory-extraction-result', {
+    model,
+    factCount: result.facts.length,
+    summaryKept: Boolean(result.summary),
+  })
 
   return result
 }

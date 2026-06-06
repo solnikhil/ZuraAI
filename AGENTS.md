@@ -647,6 +647,7 @@ These are useful breadcrumbs for agents:
 - Don’t broaden the IPC surface “just to make it work”.
 - Don’t expose raw Node APIs to the renderer.
 - Don’t add new tools (or allow arbitrary tool names) without a clear security review.
+- Don’t hardcode model IDs/names anywhere in the codebase. Models are user-configured and resolved at runtime through `settings.*` and the shared provider registry (`src/providers/providerRegistry.ts`). Use the active selection (`settings.aiModel`, `settings.titleModel`, etc.) and the configured model arrays (`configuredModels`, `ollamaModels`, `perplexityModels`, `groqModels`, `alibabaModels`, `fireworksModels`, `deepseekModels`) instead of baking in a specific model. This applies to runtime code, tests should use clearly-fake placeholder IDs, and never add a hardcoded "default"/"fallback" model (see the fallback guardrail in Key Concepts).
 - Don’t commit secrets (API keys, tokens) or `.env` files.
 - Don’t edit generated output (`dist/`, `dist-electron/`).
 - Don’t add variant-specific hover/active styles for shared titlebar icon controls unless intentional and documented in the PR.

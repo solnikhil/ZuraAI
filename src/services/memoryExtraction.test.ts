@@ -90,6 +90,37 @@ describe('runMemoryExtraction', () => {
     expect(state.summaries).toEqual([{ sessionId: 's1', summary: 'Discussed coursework' }])
   })
 
+  it('skips the summary upsert when the model returns an empty summary', async () => {
+    const state = installBridge()
+    generateTitleTextForModel.mockResolvedValue(
+      '{"facts":["User likes tea"],"summary":""}'
+    )
+
+    const result = await runMemoryExtraction({
+      settings: baseSettings,
+      sessionId: 's1',
+      messages: [{ role: 'user', content: 'what was the 9/11 death toll?' }],
+    })
+
+    expect(result?.summary).toBe('')
+    expect(state.added).toEqual(['User likes tea'])
+    expect(state.summaries).toEqual([])
+  })
+
+  it('skips the summary upsert when the model omits the summary field', async () => {
+    const state = installBridge()
+    generateTitleTextForModel.mockResolvedValue('{"facts":[]}')
+
+    const result = await runMemoryExtraction({
+      settings: baseSettings,
+      sessionId: 's1',
+      messages: [{ role: 'user', content: 'define photosynthesis' }],
+    })
+
+    expect(result?.summary).toBe('')
+    expect(state.summaries).toEqual([])
+  })
+
   it('dedupes duplicate facts across runs via addDeduped NOOP', async () => {
     const state = installBridge()
     generateTitleTextForModel.mockResolvedValue('{"facts":["User likes tea"],"summary":"s"}')

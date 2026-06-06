@@ -6,7 +6,7 @@ import type {
   ChatDiagnosticPhase,
 } from '@/diagnostics/chatDiagnostics'
 
-export type ChatDebugCategoryId = 'request' | 'tools' | 'streaming' | 'usage' | 'errors'
+export type ChatDebugCategoryId = 'request' | 'tools' | 'streaming' | 'usage' | 'memory' | 'errors'
 
 export const CHAT_DEBUG_CATEGORIES: ReadonlyArray<{
   id: ChatDebugCategoryId
@@ -16,6 +16,7 @@ export const CHAT_DEBUG_CATEGORIES: ReadonlyArray<{
   { id: 'tools', label: 'Tool Calls' },
   { id: 'streaming', label: 'Streaming' },
   { id: 'usage', label: 'Usage' },
+  { id: 'memory', label: 'Memory' },
   { id: 'errors', label: 'Errors' },
 ] as const
 
@@ -30,6 +31,11 @@ const REQUEST_PHASES = new Set<ChatDiagnosticPhase>([
 const STREAMING_PHASES = new Set<ChatDiagnosticPhase>(['stream-chunk'])
 const USAGE_PHASES = new Set<ChatDiagnosticPhase>(['usage', 'finish'])
 const TOOL_PHASES = new Set<ChatDiagnosticPhase>(['tool-start', 'tool-complete'])
+const MEMORY_PHASES = new Set<ChatDiagnosticPhase>([
+  'memory-extraction-start',
+  'memory-extraction-result',
+  'memory-extraction-error',
+])
 
 function partitionEvents(events: ChatDiagnosticEvent[]) {
   const byCategory: Record<ChatDebugCategoryId, ChatDiagnosticEvent[]> = {
@@ -37,6 +43,7 @@ function partitionEvents(events: ChatDiagnosticEvent[]) {
     tools: [],
     streaming: [],
     usage: [],
+    memory: [],
     errors: [],
   }
 
@@ -45,7 +52,12 @@ function partitionEvents(events: ChatDiagnosticEvent[]) {
     if (TOOL_PHASES.has(event.phase)) byCategory.tools.push(event)
     if (STREAMING_PHASES.has(event.phase)) byCategory.streaming.push(event)
     if (USAGE_PHASES.has(event.phase)) byCategory.usage.push(event)
-    if (event.phase === 'provider-error' || (event.phase === 'tool-complete' && event.tool?.success === false)) {
+    if (MEMORY_PHASES.has(event.phase)) byCategory.memory.push(event)
+    if (
+      event.phase === 'provider-error' ||
+      event.phase === 'memory-extraction-error' ||
+      (event.phase === 'tool-complete' && event.tool?.success === false)
+    ) {
       byCategory.errors.push(event)
     }
   }
@@ -219,6 +231,38 @@ export function ChatDebugCategorized({ events, category }: ChatDebugCategorizedP
             </span>
           </div>
         ))}
+      </div>
+    )
+  }
+
+  if (category === 'memory') {
+    return (
+      <div className="chat-debug-cat">
+        {slice.map((event, index) => {
+          const failed = event.phase === 'memory-extraction-error'
+          let detail: string
+          if (event.phase === 'memory-extraction-start') {
+            detail = `${event.model ?? 'no-model'} · ${event.messageCount ?? 0} msgs`
+          } else if (event.phase === 'memory-extraction-result') {
+            const facts = `${event.factCount ?? 0} fact${event.factCount === 1 ? '' : 's'}`
+            detail = `${facts} · ${event.summaryKept ? 'summary kept' : 'summary empty'}`
+          } else {
+            detail = event.error ?? 'unknown error'
+          }
+          return (
+            <div
+              key={`${event.timestamp}-${index}`}
+              className={`chat-debug-cat__row chat-debug-cat__row--card ${failed ? 'chat-debug-cat__row--error' : ''}`}
+            >
+              <Badge variant="outline">{event.phase.replace('memory-extraction-', '')}</Badge>
+              {failed ? (
+                <span className="chat-debug-cat__row-error-msg">{detail}</span>
+              ) : (
+                <span className="chat-debug-cat__row-meta">{detail}</span>
+              )}
+            </div>
+          )
+        })}
       </div>
     )
   }

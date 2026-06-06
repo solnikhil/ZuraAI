@@ -25,6 +25,9 @@ const VALID_PHASES = new Set([
   'finish',
   'stream-chunk',
   'research-state',
+  'memory-extraction-start',
+  'memory-extraction-result',
+  'memory-extraction-error',
 ])
 const VALID_CONTENT_TYPES = new Set(['text', 'parts', 'empty'])
 const VALID_RESEARCH_STATES = new Set([
@@ -210,6 +213,10 @@ function sanitizeEvent(input: unknown): ChatDiagnosticEvent | null {
       ? truncateString(raw.skippedReason, 160)
       : undefined,
     error: typeof raw.error === 'string' ? truncateString(raw.error) : undefined,
+    factCount: typeof raw.factCount === 'number' && Number.isFinite(raw.factCount)
+      ? raw.factCount
+      : undefined,
+    summaryKept: typeof raw.summaryKept === 'boolean' ? raw.summaryKept : undefined,
   }
 }
 
