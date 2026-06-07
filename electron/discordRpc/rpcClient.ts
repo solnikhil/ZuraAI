@@ -129,8 +129,6 @@ class DiscordRpcClient {
         // Default idle presence
         client
           .setActivity({
-            details: 'ZuraAI',
-            state: 'Idle',
             startTimestamp: Date.now(),
             largeImageKey: 'zura_logo',
             largeImageText: 'ZuraAI',

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Pencil, Plus, Sparkles, Trash2, User } from 'lucide-react'
 
+import { ProviderLogo } from '@/components/shared'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -8,7 +9,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/components/ui/select'
 import {
   AlertDialog,
@@ -147,26 +147,28 @@ export function MemorySection({ skills, settings, onChange }: MemorySectionProps
   const tooLong = (draft?.content.length ?? 0) > MAX_CONTENT_LENGTH
 
   const memoryModelOptions = useMemo(() => {
-    if (!settings) return [] as Array<{ value: string; label: string }>
-    const options = getAvailableTitleModelOptions(settings).map((option) => ({
+    if (!settings) return [] as Array<{ value: string; label: string; provider: string }>
+    const options: Array<{ value: string; label: string; provider: string }> = getAvailableTitleModelOptions(settings).map((option) => ({
       value: option.id,
       label: `${getProviderDefinition(option.provider).label} - ${option.displayName}`,
+      provider: option.provider,
     }))
     // Preserve a previously-selected model even if it's no longer in the list.
     if (settings.memoryModel && !options.some((option) => option.value === settings.memoryModel)) {
-      options.push({ value: settings.memoryModel, label: settings.memoryModel })
+      options.push({ value: settings.memoryModel, label: settings.memoryModel, provider: '' as string })
     }
     return options
   }, [settings])
+
+  const selectedMemoryModel = memoryModelOptions.find(
+    (o) => o.value === settings?.memoryModel
+  )
 
   return (
     <div className="settings-section-layout">
       <div className="page-header">
         <h2 className="page-title">Memory</h2>
-        <div className="page-subtitle">
-          ZuraAI can remember short facts about you (preferences, projects, name, etc.) and apply them to future
-          chats — similar to ChatGPT's saved memories. Memories are stored locally and never leave your device.
-        </div>
+        <div className="page-subtitle">Manage saved facts the assistant uses to personalize chats.</div>
       </div>
 
       {onChange && (
@@ -212,13 +214,23 @@ export function MemorySection({ skills, settings, onChange }: MemorySectionProps
                   className="setting-input-scira min-w-[200px] justify-between gap-3"
                   aria-label="Background memory extraction model"
                 >
-                  <SelectValue />
+                  {selectedMemoryModel ? (
+                    <span className="inline-flex items-center gap-2">
+                      <ProviderLogo provider={selectedMemoryModel.provider} size={16} />
+                      <span className="truncate">{selectedMemoryModel.label}</span>
+                    </span>
+                  ) : (
+                    <span>Use current chat model</span>
+                  )}
                 </SelectTrigger>
                 <SelectContent align="end">
                   <SelectItem value={FOLLOW_ACTIVE_MODEL}>Use current chat model</SelectItem>
                   {memoryModelOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
+                    <SelectItem key={option.value} value={option.value} textValue={option.label}>
+                      <span className="inline-flex items-center gap-2">
+                        <ProviderLogo provider={option.provider} size={16} />
+                        <span>{option.label}</span>
+                      </span>
                     </SelectItem>
                   ))}
                 </SelectContent>
