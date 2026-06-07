@@ -306,6 +306,9 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   if (parsed.titleModel === 'google/gemini-2.0-flash-exp:free') {
     parsed.titleModel = ''
   }
+  if (typeof parsed.memoryModel !== 'string') {
+    parsed.memoryModel = defaultSettings.memoryModel
+  }
   parsed.titleGenerationPrompt = defaultSettings.titleGenerationPrompt
   if (
     !parsed.titleGenerationDisplayMode ||

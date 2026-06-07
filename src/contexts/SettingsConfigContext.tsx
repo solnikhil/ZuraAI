@@ -135,6 +135,9 @@ export interface SettingsConfig {
   titleGenerationPrompt: string
   titleGenerationDisplayMode: 'instant' | 'typewriter'
 
+  // Background memory extraction ("dreaming"). Empty string = follow the active chat model.
+  memoryModel: string
+
   // Favorites
   favoriteModels: string[]
 
@@ -298,6 +301,9 @@ export const defaultSettingsConfig: SettingsConfig = {
   titleModel: '',
   titleGenerationPrompt: defaultTitleGenerationPrompt,
   titleGenerationDisplayMode: 'instant',
+
+  // Background memory extraction — empty = follow the active chat model.
+  memoryModel: '',
 
   // Favorites
   favoriteModels: [],

@@ -397,6 +397,7 @@ if (!hasSettingsChanges && !hasMcpChanges) {
             {normalizedActiveSection === 'memory' && (
               <MemorySection
                 skills={pendingSettings.skills}
+                settings={pendingSettings}
                 onChange={(changes) => handleChange(changes)}
               />
             )}

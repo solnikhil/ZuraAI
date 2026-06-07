@@ -90,6 +90,35 @@ describe('runMemoryExtraction', () => {
     expect(state.summaries).toEqual([{ sessionId: 's1', summary: 'Discussed coursework' }])
   })
 
+  it('uses settings.memoryModel for the extraction call when set', async () => {
+    installBridge()
+    generateTitleTextForModel.mockResolvedValue('{"facts":[],"summary":""}')
+
+    await runMemoryExtraction({
+      settings: { ...(baseSettings as object), memoryModel: 'dedicated-memory-model' } as never,
+      sessionId: 's1',
+      messages: [{ role: 'user', content: 'hello' }],
+    })
+
+    expect(generateTitleTextForModel).toHaveBeenCalledTimes(1)
+    // call signature: (settings, model, prompt)
+    expect(generateTitleTextForModel.mock.calls[0][1]).toBe('dedicated-memory-model')
+  })
+
+  it('falls back to the active chat model when memoryModel is unset', async () => {
+    installBridge()
+    generateTitleTextForModel.mockResolvedValue('{"facts":[],"summary":""}')
+
+    await runMemoryExtraction({
+      settings: { ...(baseSettings as object), memoryModel: '' } as never,
+      sessionId: 's1',
+      messages: [{ role: 'user', content: 'hello' }],
+    })
+
+    expect(generateTitleTextForModel).toHaveBeenCalledTimes(1)
+    expect(generateTitleTextForModel.mock.calls[0][1]).toBe('test-model')
+  })
+
   it('skips the summary upsert when the model returns an empty summary', async () => {
     const state = installBridge()
     generateTitleTextForModel.mockResolvedValue(

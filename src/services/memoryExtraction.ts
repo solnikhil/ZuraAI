@@ -36,6 +36,7 @@ type ExtractionSettings = Partial<
     SettingsConfig,
     | 'aiModel'
     | 'titleModel'
+    | 'memoryModel'
     | 'alibabaApiKey'
     | 'deepseekApiKey'
     | 'fireworksApiKey'
@@ -178,7 +179,14 @@ export async function runMemoryExtraction(
   if (typeof window === 'undefined' || !window.memory) return null
   if (!sessionId || !Array.isArray(messages) || messages.length === 0) return null
 
-  const model = typeof settings.aiModel === 'string' ? settings.aiModel.trim() : ''
+  // Resolve the model: a dedicated `memoryModel` override wins; when unset we
+  // fall back to the active chat model (the documented default, same model the
+  // chat is already using). This is an explicit default, not an error-masking
+  // fallback — if the resolved model's call fails, extraction stays best-effort.
+  const configuredMemoryModel =
+    typeof settings.memoryModel === 'string' ? settings.memoryModel.trim() : ''
+  const activeModel = typeof settings.aiModel === 'string' ? settings.aiModel.trim() : ''
+  const model = configuredMemoryModel || activeModel
   if (!model) return null
 
   const conversation = buildConversationText(messages)

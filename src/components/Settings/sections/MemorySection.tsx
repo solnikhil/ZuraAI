@@ -4,6 +4,13 @@ import { Pencil, Plus, Sparkles, Trash2, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -14,6 +21,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import type { Memory } from '@/electron/types'
+import type { Settings } from '@/contexts/SettingsContext'
+import { getAvailableTitleModelOptions, getProviderDefinition } from '@/providers'
 import {
   isMemoryAutoManageEnabled,
   withMemoryAutoManage,
@@ -21,6 +30,9 @@ import {
 } from '@/skills'
 
 const MAX_CONTENT_LENGTH = 1000
+
+/** Sentinel Select value meaning "follow the active chat model" (persisted as ''). */
+const FOLLOW_ACTIVE_MODEL = '__follow_active_chat_model__'
 
 interface DraftRow {
   /** Memory id when editing an existing entry, null when adding a new one. */
@@ -31,8 +43,10 @@ interface DraftRow {
 export interface MemorySectionProps {
   /** Skills map (for the auto-management sub-toggle). Optional in standalone use. */
   skills?: SkillsSettings
-  /** Persist settings changes (auto-management toggle). */
-  onChange?: (changes: { skills?: SkillsSettings }) => void
+  /** Full settings (for the Memory model selector). Optional in standalone use. */
+  settings?: Settings
+  /** Persist settings changes (auto-management toggle, memory model). */
+  onChange?: (changes: { skills?: SkillsSettings; memoryModel?: string }) => void
 }
 
 function formatTimestamp(ms: number): string {
@@ -40,7 +54,7 @@ function formatTimestamp(ms: number): string {
   return new Date(ms).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
-export function MemorySection({ skills, onChange }: MemorySectionProps = {}): React.ReactElement {
+export function MemorySection({ skills, settings, onChange }: MemorySectionProps = {}): React.ReactElement {
   const [memories, setMemories] = useState<Memory[]>([])
   const [summaries, setSummaries] = useState<import('@/electron/types').ConversationSummary[]>([])
   const [loading, setLoading] = useState(true)
@@ -132,6 +146,19 @@ export function MemorySection({ skills, onChange }: MemorySectionProps = {}): Re
   const remainingChars = useMemo(() => MAX_CONTENT_LENGTH - (draft?.content.length ?? 0), [draft])
   const tooLong = (draft?.content.length ?? 0) > MAX_CONTENT_LENGTH
 
+  const memoryModelOptions = useMemo(() => {
+    if (!settings) return [] as Array<{ value: string; label: string }>
+    const options = getAvailableTitleModelOptions(settings).map((option) => ({
+      value: option.id,
+      label: `${getProviderDefinition(option.provider).label} - ${option.displayName}`,
+    }))
+    // Preserve a previously-selected model even if it's no longer in the list.
+    if (settings.memoryModel && !options.some((option) => option.value === settings.memoryModel)) {
+      options.push({ value: settings.memoryModel, label: settings.memoryModel })
+    }
+    return options
+  }, [settings])
+
   return (
     <div className="settings-section-layout">
       <div className="page-header">
@@ -161,6 +188,44 @@ export function MemorySection({ skills, onChange }: MemorySectionProps = {}): Re
             </span>
           </span>
         </label>
+      )}
+
+      {settings && onChange && (
+        <section className="memory-list-section" aria-label="Memory model" style={{ marginBottom: 16 }}>
+          <header className="memory-list-section__header">
+            <div>
+              <h3>Memory model</h3>
+              <p>
+                Model used for background memory extraction (distilling durable facts and recent-activity
+                summaries from finished chats). Choose a fast, inexpensive model — it runs after every turn.
+                Leave it on “current chat model” to use whichever model you’re chatting with.
+              </p>
+            </div>
+            <div className="memory-list-section__actions">
+              <Select
+                value={settings.memoryModel || FOLLOW_ACTIVE_MODEL}
+                onValueChange={(value) =>
+                  onChange({ memoryModel: value === FOLLOW_ACTIVE_MODEL ? '' : value })
+                }
+              >
+                <SelectTrigger
+                  className="setting-input-scira min-w-[200px] justify-between gap-3"
+                  aria-label="Background memory extraction model"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent align="end">
+                  <SelectItem value={FOLLOW_ACTIVE_MODEL}>Use current chat model</SelectItem>
+                  {memoryModelOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </header>
+        </section>
       )}
 
       <section className="memory-list-section" aria-label="Saved memories">
