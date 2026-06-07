@@ -3,13 +3,18 @@ import { Pencil, Plus, Sparkles, Trash2, User } from 'lucide-react'
 
 import { ProviderLogo } from '@/components/shared'
 import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
+import { Card } from '@/components/ui/card'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-} from '@/components/ui/select'
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,16 +28,9 @@ import {
 import type { Memory } from '@/electron/types'
 import type { Settings } from '@/contexts/SettingsContext'
 import { getAvailableTitleModelOptions, getProviderDefinition } from '@/providers'
-import {
-  isMemoryAutoManageEnabled,
-  withMemoryAutoManage,
-  type SkillsSettings,
-} from '@/skills'
+import { isMemoryAutoManageEnabled, withMemoryAutoManage, type SkillsSettings } from '@/skills'
 
 const MAX_CONTENT_LENGTH = 1000
-
-/** Sentinel Select value meaning "follow the active chat model" (persisted as ''). */
-const FOLLOW_ACTIVE_MODEL = '__follow_active_chat_model__'
 
 interface DraftRow {
   /** Memory id when editing an existing entry, null when adding a new one. */
@@ -51,10 +49,18 @@ export interface MemorySectionProps {
 
 function formatTimestamp(ms: number): string {
   if (!Number.isFinite(ms)) return ''
-  return new Date(ms).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+  return new Date(ms).toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  })
 }
 
-export function MemorySection({ skills, settings, onChange }: MemorySectionProps = {}): React.ReactElement {
+export function MemorySection({
+  skills,
+  settings,
+  onChange,
+}: MemorySectionProps = {}): React.ReactElement {
   const [memories, setMemories] = useState<Memory[]>([])
   const [summaries, setSummaries] = useState<import('@/electron/types').ConversationSummary[]>([])
   const [loading, setLoading] = useState(true)
@@ -148,109 +154,154 @@ export function MemorySection({ skills, settings, onChange }: MemorySectionProps
 
   const memoryModelOptions = useMemo(() => {
     if (!settings) return [] as Array<{ value: string; label: string; provider: string }>
-    const options: Array<{ value: string; label: string; provider: string }> = getAvailableTitleModelOptions(settings).map((option) => ({
-      value: option.id,
-      label: `${getProviderDefinition(option.provider).label} - ${option.displayName}`,
-      provider: option.provider,
-    }))
+    const options: Array<{ value: string; label: string; provider: string }> =
+      getAvailableTitleModelOptions(settings).map((option) => ({
+        value: option.id,
+        label: option.displayName,
+        provider: option.provider,
+      }))
     // Preserve a previously-selected model even if it's no longer in the list.
     if (settings.memoryModel && !options.some((option) => option.value === settings.memoryModel)) {
-      options.push({ value: settings.memoryModel, label: settings.memoryModel, provider: '' as string })
+      options.push({
+        value: settings.memoryModel,
+        label: settings.memoryModel,
+        provider: '' as string,
+      })
     }
     return options
   }, [settings])
 
-  const selectedMemoryModel = memoryModelOptions.find(
-    (o) => o.value === settings?.memoryModel
-  )
+  const selectedMemoryModel = memoryModelOptions.find((o) => o.value === settings?.memoryModel)
+
+  const memoryProviders = useMemo(() => {
+    const seen = new Set<string>()
+    const providers: Array<{ id: string; label: string }> = []
+    for (const option of memoryModelOptions) {
+      if (option.provider && !seen.has(option.provider)) {
+        seen.add(option.provider)
+        providers.push({ id: option.provider, label: getProviderDefinition(option.provider).label })
+      }
+    }
+    return providers
+  }, [memoryModelOptions])
+
+  const selectedProvider = selectedMemoryModel?.provider || memoryProviders[0]?.id || ''
 
   return (
     <div className="settings-section-layout">
       <div className="page-header">
         <h2 className="page-title">Memory</h2>
-        <div className="page-subtitle">Manage saved facts the assistant uses to personalize chats.</div>
+        <div className="page-subtitle">
+          Manage saved facts the assistant uses to personalize chats.
+        </div>
       </div>
 
       {onChange && (
-        <label className="memory-automanage-toggle" style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 16 }}>
-          <input
-            type="checkbox"
-            checked={isMemoryAutoManageEnabled(skills)}
-            onChange={(event) =>
-              onChange({ skills: withMemoryAutoManage(skills, event.target.checked) })
-            }
-            style={{ marginTop: 3 }}
-          />
-          <span>
-            <strong>Let the assistant manage memory automatically</strong>
-            <span style={{ display: 'block', opacity: 0.7, fontSize: 13 }}>
-              When on, the assistant can save, update, and search memories during chats and quietly
-              distill durable facts from finished conversations. When off, memories you add here still
-              personalize replies, but the assistant won&apos;t write or extract anything on its own.
-            </span>
-          </span>
-        </label>
+        <>
+          <h3 className="appearance-group-heading">Background Memory</h3>
+          <Card className="settings-list-card">
+            <div className="settings-list-row">
+              <div className="settings-list-row__meta">
+                <h3 className="settings-list-row__label">
+                  Background Active Memory
+                </h3>
+                <div className="settings-list-row__description">
+                  Automatically learns and recalls facts from your conversations to personalize future
+                  chats.
+                </div>
+              </div>
+              <div className="settings-list-row__control">
+                <Switch
+                  checked={isMemoryAutoManageEnabled(skills)}
+                  onCheckedChange={(checked) =>
+                    onChange({ skills: withMemoryAutoManage(skills, checked) })
+                  }
+                  aria-label="Let the assistant manage memory automatically"
+                />
+              </div>
+            </div>
+
+            {settings && (
+              <div className="settings-list-row">
+                <div className="settings-list-row__meta">
+                  <h3 className="settings-list-row__label">Memory model</h3>
+                  <div className="settings-list-row__description">
+                    Choose a fast, inexpensive model for background memory extraction.
+                  </div>
+                </div>
+                <div className="settings-list-row__control">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        className="setting-input-scira min-w-[200px] justify-between gap-3 inline-flex items-center"
+                        aria-label="Background memory model"
+                      >
+                        {selectedMemoryModel ? (
+                          <span className="inline-flex items-center gap-2">
+                            <ProviderLogo provider={selectedProvider} size={16} />
+                            <span className="truncate">{selectedMemoryModel.label}</span>
+                          </span>
+                        ) : (
+                          <span>Use current chat model</span>
+                        )}
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-56">
+                      <DropdownMenuItem
+                        onClick={() => onChange({ memoryModel: '' })}
+                        className="cursor-pointer"
+                      >
+                        <span className="inline-flex items-center gap-2">
+                          <span>Use current chat model</span>
+                        </span>
+                      </DropdownMenuItem>
+                      {memoryProviders.map((provider) => (
+                        <DropdownMenuSub key={provider.id}>
+                          <DropdownMenuSubTrigger className="cursor-pointer">
+                            <span className="inline-flex items-center gap-2">
+                              <ProviderLogo provider={provider.id} size={16} />
+                              <span>{provider.label}</span>
+                            </span>
+                          </DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent>
+                            {memoryModelOptions
+                              .filter((o) => o.provider === provider.id)
+                              .map((option) => (
+                                <DropdownMenuItem
+                                  key={option.value}
+                                  onClick={() => onChange({ memoryModel: option.value })}
+                                  className="cursor-pointer"
+                                >
+                                  <span className="inline-flex items-center gap-2">
+                                    <ProviderLogo provider={option.provider} size={16} />
+                                    <span>{option.label}</span>
+                                  </span>
+                                </DropdownMenuItem>
+                              ))}
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+            )}
+          </Card>
+        </>
       )}
 
-      {settings && onChange && (
-        <section className="memory-list-section" aria-label="Memory model" style={{ marginBottom: 16 }}>
-          <header className="memory-list-section__header">
-            <div>
-              <h3>Memory model</h3>
-              <p>
-                Model used for background memory extraction (distilling durable facts and recent-activity
-                summaries from finished chats). Choose a fast, inexpensive model — it runs after every turn.
-                Leave it on “current chat model” to use whichever model you’re chatting with.
-              </p>
-            </div>
-            <div className="memory-list-section__actions">
-              <Select
-                value={settings.memoryModel || FOLLOW_ACTIVE_MODEL}
-                onValueChange={(value) =>
-                  onChange({ memoryModel: value === FOLLOW_ACTIVE_MODEL ? '' : value })
-                }
-              >
-                <SelectTrigger
-                  className="setting-input-scira min-w-[200px] justify-between gap-3"
-                  aria-label="Background memory extraction model"
-                >
-                  {selectedMemoryModel ? (
-                    <span className="inline-flex items-center gap-2">
-                      <ProviderLogo provider={selectedMemoryModel.provider} size={16} />
-                      <span className="truncate">{selectedMemoryModel.label}</span>
-                    </span>
-                  ) : (
-                    <span>Use current chat model</span>
-                  )}
-                </SelectTrigger>
-                <SelectContent align="end">
-                  <SelectItem value={FOLLOW_ACTIVE_MODEL}>Use current chat model</SelectItem>
-                  {memoryModelOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value} textValue={option.label}>
-                      <span className="inline-flex items-center gap-2">
-                        <ProviderLogo provider={option.provider} size={16} />
-                        <span>{option.label}</span>
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </header>
-        </section>
-      )}
-
-      <section className="memory-list-section" aria-label="Saved memories">
-        <header className="memory-list-section__header">
-          <div>
-            <h3>Saved memories</h3>
-            <p>
+      <h3 className="appearance-group-heading">Saved Memories</h3>
+      <Card className="settings-list-card memory-settings-card" aria-label="Saved memories">
+        <div className="settings-list-row memory-settings-card__header">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Saved memories</h3>
+            <div className="settings-list-row__description">
               {totalCount === 0
-                ? 'No memories yet. Add one or let the assistant save things you mention in chat.'
+                ? 'Add durable facts here or let the assistant save things you mention in chat.'
                 : `${totalCount} ${totalCount === 1 ? 'memory' : 'memories'} stored locally.`}
-            </p>
+            </div>
           </div>
-          <div className="memory-list-section__actions">
+          <div className="settings-list-row__control memory-list-section__actions">
             <Button
               variant="outline"
               size="sm"
@@ -263,43 +314,54 @@ export function MemorySection({ skills, settings, onChange }: MemorySectionProps
               <Plus size={14} /> Add memory
             </Button>
           </div>
-        </header>
+        </div>
 
         {error && (
-          <div className="memory-error" role="alert">
-            {error}
+          <div className="settings-list-row settings-list-row--stacked">
+            <div className="memory-error" role="alert">
+              {error}
+            </div>
           </div>
         )}
 
         {draft && draft.id === null && (
-          <DraftEditor
-            value={draft.content}
-            placeholder="e.g. I prefer TypeScript and live in Bangalore."
-            disabled={submitting}
-            tooLong={tooLong}
-            remaining={remainingChars}
-            onChange={(content) => setDraft({ id: null, content })}
-            onSubmit={handleSubmitDraft}
-            onCancel={handleCancelDraft}
-            submitLabel="Save"
-          />
+          <div className="settings-list-row settings-list-row--stacked">
+            <DraftEditor
+              value={draft.content}
+              placeholder="e.g. I prefer TypeScript and live in Bangalore."
+              disabled={submitting}
+              tooLong={tooLong}
+              remaining={remainingChars}
+              onChange={(content) => setDraft({ id: null, content })}
+              onSubmit={handleSubmitDraft}
+              onCancel={handleCancelDraft}
+              submitLabel="Save"
+            />
+          </div>
         )}
 
         {loading ? (
-          <div className="memory-empty">Loading…</div>
+          <div className="settings-list-row settings-list-row--stacked">
+            <div className="memory-empty">Loading…</div>
+          </div>
         ) : memories.length === 0 && !draft ? (
-          <div className="memory-empty">
-            <p>No memories yet.</p>
-            <p className="memory-empty__hint">
-              Tip: in chat, say things like “remember that I prefer dark mode” and the assistant can save it
-              for you (when AI management is enabled).
-            </p>
+          <div className="settings-list-row settings-list-row--stacked">
+            <div className="memory-empty">
+              <p>No memories yet.</p>
+              <p className="memory-empty__hint">
+                Tip: in chat, say things like “remember that I prefer dark mode” and the assistant
+                can save it for you when AI management is enabled.
+              </p>
+            </div>
           </div>
         ) : (
-          <ul className="memory-grid" role="list">
+          <ul className="memory-list" role="list">
             {memories.map((memory) =>
               draft?.id === memory.id ? (
-                <li key={memory.id} className="memory-card memory-card--full">
+                <li
+                  key={memory.id}
+                  className="settings-list-row settings-list-row--stacked memory-card memory-card--editing"
+                >
                   <DraftEditor
                     value={draft.content}
                     placeholder="Update memory…"
@@ -313,12 +375,20 @@ export function MemorySection({ skills, settings, onChange }: MemorySectionProps
                   />
                 </li>
               ) : (
-                <li key={memory.id} className="memory-card">
-                  <div className="memory-card__top">
-                    <span className={`memory-card__chip memory-card__chip--${memory.source}`}>
-                      {memory.source === 'model' ? <Sparkles size={12} /> : <User size={12} />}
-                      {memory.source === 'model' ? 'AI' : 'You'}
-                    </span>
+                <li key={memory.id} className="settings-list-row memory-card">
+                  <div className="settings-list-row__meta memory-card__meta">
+                    <div className="memory-card__top">
+                      <span className={`memory-card__chip memory-card__chip--${memory.source}`}>
+                        {memory.source === 'model' ? <Sparkles size={12} /> : <User size={12} />}
+                        {memory.source === 'model' ? 'AI' : 'You'}
+                      </span>
+                      <span className="memory-card__footer">
+                        Updated {formatTimestamp(memory.updatedAt)}
+                      </span>
+                    </div>
+                    <p className="memory-card__content">{memory.content}</p>
+                  </div>
+                  <div className="settings-list-row__control">
                     <div className="memory-card__actions">
                       <button
                         type="button"
@@ -338,50 +408,53 @@ export function MemorySection({ skills, settings, onChange }: MemorySectionProps
                       </button>
                     </div>
                   </div>
-                  <p className="memory-card__content">{memory.content}</p>
-                  <div className="memory-card__footer">Updated {formatTimestamp(memory.updatedAt)}</div>
                 </li>
               )
             )}
           </ul>
         )}
-      </section>
+      </Card>
 
-      <section className="memory-list-section" aria-label="Recent activity">
-        <header className="memory-list-section__header">
-          <div>
-            <h3>Recent activity</h3>
-            <p>
+      <h3 className="appearance-group-heading">Recent Activity</h3>
+      <Card className="settings-list-card memory-settings-card" aria-label="Recent activity">
+        <div className="settings-list-row memory-settings-card__header">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Recent activity</h3>
+            <div className="settings-list-row__description">
               {summaries.length === 0
                 ? 'Short summaries of your recent chats appear here as the assistant distills them.'
-                : 'Brief, dated summaries of your recent chats — used to keep continuity across conversations.'}
-            </p>
+                : 'Brief, dated summaries of your recent chats, used to keep continuity across conversations.'}
+            </div>
           </div>
-        </header>
+        </div>
 
         {summaries.length === 0 ? (
-          <div className="memory-empty">
-            <p>No recent activity yet.</p>
+          <div className="settings-list-row settings-list-row--stacked">
+            <div className="memory-empty">
+              <p>No recent activity yet.</p>
+            </div>
           </div>
         ) : (
-          <ul className="memory-grid" role="list">
+          <ul className="memory-list" role="list">
             {summaries.map((item) => (
-              <li key={item.sessionId} className="memory-card">
-                <p className="memory-card__content">{item.summary}</p>
-                <div className="memory-card__footer">{formatTimestamp(item.updatedAt)}</div>
+              <li key={item.sessionId} className="settings-list-row memory-card">
+                <div className="settings-list-row__meta memory-card__meta">
+                  <p className="memory-card__content">{item.summary}</p>
+                  <div className="memory-card__footer">{formatTimestamp(item.updatedAt)}</div>
+                </div>
               </li>
             ))}
           </ul>
         )}
-      </section>
+      </Card>
 
       <AlertDialog open={confirmClear} onOpenChange={setConfirmClear}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Clear all memories?</AlertDialogTitle>
             <AlertDialogDescription>
-              This permanently deletes every saved memory. The assistant will not have access to anything you’ve
-              previously asked it to remember.
+              This permanently deletes every saved memory. The assistant will not have access to
+              anything you’ve previously asked it to remember.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
