@@ -27,6 +27,13 @@ import { scoreMemories } from './memoryRetrieval'
 
 export type MemorySource = 'user' | 'model'
 
+/**
+ * Origin distinguishes HOW a model-sourced memory was created:
+ * - `tool`: saved via the in-conversation `save_memory` tool call.
+ * - `background`: extracted by the background "dreaming" pipeline after a chat turn.
+ */
+export type MemoryOrigin = 'tool' | 'background'
+
 export type MemoryScope =
   | { type: 'global' }
   | { type: 'project'; projectId: string }
@@ -54,6 +61,8 @@ export interface Memory {
   supersededBy?: string
   /** Chat session that produced this memory (only set when `source === 'model'`). */
   sessionId?: string
+  /** How the memory was created when source is 'model'. */
+  origin?: MemoryOrigin
 }
 
 export interface MemoryIndex {
@@ -66,6 +75,7 @@ export interface AddMemoryInput {
   source?: MemorySource
   scope?: MemoryScope
   sessionId?: string
+  origin?: MemoryOrigin
 }
 
 /** Options for {@link addMemoryWithDedupeAsync}. */
@@ -329,6 +339,7 @@ export async function addMemoryAsync(input: AddMemoryInput): Promise<Memory> {
   const source: MemorySource = input.source ?? 'user'
   const sessionId =
     typeof input.sessionId === 'string' && input.sessionId.length > 0 ? input.sessionId : undefined
+  const origin: MemoryOrigin | undefined = input.origin ?? undefined
 
   return withWriteLock(async (current) => {
     const now = Date.now()
@@ -341,6 +352,7 @@ export async function addMemoryAsync(input: AddMemoryInput): Promise<Memory> {
       scope,
       status: 'active',
       ...(sessionId ? { sessionId } : {}),
+      ...(origin ? { origin } : {}),
     }
     await persistIndex({
       memories: [memory, ...current.memories],
@@ -420,6 +432,7 @@ export async function addMemoryWithDedupeAsync(
   const source: MemorySource = input.source ?? 'user'
   const sessionId =
     typeof input.sessionId === 'string' && input.sessionId.length > 0 ? input.sessionId : undefined
+  const origin: MemoryOrigin | undefined = input.origin ?? undefined
   const supersedesId =
     typeof options.supersedesId === 'string' && options.supersedesId.length > 0
       ? options.supersedesId
@@ -441,6 +454,7 @@ export async function addMemoryWithDedupeAsync(
           status: 'active',
           supersedes: target.id,
           ...(sessionId ? { sessionId } : {}),
+          ...(origin ? { origin } : {}),
         }
         const nextMemories = current.memories.map((memory) =>
           memory.id === target.id
@@ -469,6 +483,7 @@ export async function addMemoryWithDedupeAsync(
       scope,
       status: 'active',
       ...(sessionId ? { sessionId } : {}),
+      ...(origin ? { origin } : {}),
     }
     await persistIndex({ memories: [newMemory, ...current.memories], version: INDEX_VERSION })
     return { memory: newMemory, operation: 'added' as const }

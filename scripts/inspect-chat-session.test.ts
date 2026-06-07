@@ -179,6 +179,38 @@ describe('inspect-chat-session script', () => {
     expect(parsed.diagnostics).toHaveLength(5)
   })
 
+  it('prints request-shape reports when partTypes entries are strings', async () => {
+    await writeFile(
+      path.join(userDataDir, 'debug-sessions', 'session-1.jsonl'),
+      JSON.stringify({
+        sessionId: 'session-1',
+        messageId: 'm2',
+        timestamp: 3,
+        phase: 'request-shape',
+        provider: 'deepseek',
+        model: 'deepseek-v4-pro',
+        round: 0,
+        roundType: 'tool-enabled',
+        requestShape: {
+          roleOrder: ['system', 'user'],
+          textLengths: [10, 5],
+          contentTypes: ['text', 'text'],
+          partTypes: ['[array:0]', '[array:0]'],
+          hasReasoning: [false, false],
+          hasThinking: [false, false],
+          toolCount: 1,
+          toolChoice: 'auto',
+          cacheMarkerCount: 1,
+        },
+      }) + '\n'
+    )
+
+    const result = runInspector(['session-1'])
+
+    expect(result.status).toBe(0)
+    expect(result.stdout).toContain('- Part types: [array:0] [array:0]')
+  })
+
   it('resolves zura-chat debug references before environment overrides', () => {
     const reference = `zura-chat://session-1?userData=${encodeBase64Url(userDataDir)}`
     const result = runInspector([reference], { ZURA_USER_DATA_DIR: path.join(os.tmpdir(), 'wrong-zura-dir') })

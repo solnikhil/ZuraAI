@@ -160,9 +160,7 @@ export function SystemPromptSection(_props: SystemPromptSectionProps): React.Rea
         description={
           <>
             Instructions appended to the saved-memories block when the Memory skill is enabled.
-            Guides when the assistant should call <code>save_memory</code>,{' '}
-            <code>update_memory</code>, <code>delete_memory</code>, and{' '}
-            <code>search_memories</code>.
+            Guides how the assistant should use the injected memories to personalize replies.
           </>
         }
         note="This only applies when the Memory skill is active."

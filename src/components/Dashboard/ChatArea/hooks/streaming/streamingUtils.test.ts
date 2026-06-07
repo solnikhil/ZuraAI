@@ -3,10 +3,12 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   appendCompletedThinkingBlock,
   buildAgentVerificationMessages,
+  buildDeterministicSearchSynthesis,
   buildFollowUpMessages,
   buildThinkingBlocksFromResults,
   buildFinalSynthesisMessages,
   buildRecoverySynthesisMessages,
+  DETERMINISTIC_SEARCH_SYNTHESIS_PREFIX,
   extractSearchEvidenceItems,
   FINAL_SYNTHESIS_BUDGET_EXHAUSTED_PROMPT,
   FINAL_SYNTHESIS_EMPTY_BATCH_PROMPT,
@@ -337,6 +339,53 @@ describe('streamingUtils final synthesis helpers', () => {
         score: 0.91,
       },
     ])
+  })
+
+  it('builds a deterministic search synthesis from successful web_search evidence', () => {
+    const synthesis = buildDeterministicSearchSynthesis([
+      {
+        toolCall: {
+          id: 'call_1',
+          name: 'web_search',
+          arguments: { query: 'weekend getaways near Chennai' },
+        },
+        result: {
+          success: true,
+          data: {
+            results: [
+              {
+                title: 'Weekend Getaways from Chennai',
+                url: 'https://example.com/chennai',
+                snippet: 'Pondicherry, Mahabalipuram, and Yelagiri are common short-trip options.',
+                source: 'example.com',
+              },
+            ],
+          },
+        },
+      },
+    ])
+
+    expect(synthesis).toContain(DETERMINISTIC_SEARCH_SYNTHESIS_PREFIX)
+    expect(synthesis).toContain('[Weekend Getaways from Chennai](https://example.com/chennai)')
+    expect(synthesis).toContain('Pondicherry, Mahabalipuram, and Yelagiri')
+  })
+
+  it('does not build deterministic synthesis when no successful web_search evidence exists', () => {
+    expect(
+      buildDeterministicSearchSynthesis([
+        {
+          toolCall: {
+            id: 'call_1',
+            name: 'web_search',
+            arguments: { query: 'weekend getaways near Chennai' },
+          },
+          result: {
+            success: false,
+            error: 'network failed',
+          },
+        },
+      ])
+    ).toBeNull()
   })
 
   it('does not flag grounded synthesized answers as failed post-search synthesis', () => {

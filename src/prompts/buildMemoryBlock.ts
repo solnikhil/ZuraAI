@@ -16,9 +16,7 @@ export const MEMORY_BLOCK_TOKEN_BUDGET = 2000
 const MEMORY_BLOCK_HEADER = `## Saved Memories (Model Set Context)
 The user has shared the following memories. Use them to personalize your replies, but do not parrot them back unless the user asks. Treat them as durable facts unless the user contradicts them in the current conversation.`
 
-const MEMORY_AUTOSAVE_INSTRUCTION_DEFAULT = defaultMemoryPrompt
-
-const EMPTY_LIST_PLACEHOLDER = '_(no saved memories yet)_'
+const MEMORY_INSTRUCTION_DEFAULT = defaultMemoryPrompt
 
 interface BuildMemoryBlockOptions {
   /**
@@ -27,18 +25,9 @@ interface BuildMemoryBlockOptions {
    */
   tokenBudget?: number
   /**
-   * When true, includes the ChatGPT-style "save_memory when the user shares
-   * durable facts" instruction in the block header. Surface this whenever
-   * the four memory tools are exposed (i.e. `settings.autoMemoryEnabled`),
-   * so the model is reminded to save passively-mentioned facts even when
-   * the saved-memories list is empty.
-   */
-  autoSaveEnabled?: boolean
-  /**
-   * Override the default memory autosave instruction text. Used by callers
-   * that surface a user-editable "Memory Prompt" in Settings → System Prompt.
-   * Empty/whitespace-only values fall back to the default instruction so the
-   * autosave nudge is never silently dropped.
+   * Override the default memory instruction text. Used by callers that surface
+   * a user-editable "Memory Prompt" in Settings → System Prompt. Empty/
+   * whitespace-only values fall back to the default instruction.
    */
   instruction?: string
   /**
@@ -80,9 +69,8 @@ export function buildMemoryBlock(
   scope: MemoryScope = { type: 'global' },
   options: BuildMemoryBlockOptions = {}
 ): string {
-  const autoSaveEnabled = options.autoSaveEnabled === true
   const rawInstruction = typeof options.instruction === 'string' ? options.instruction.trim() : ''
-  const instruction = rawInstruction.length > 0 ? rawInstruction : MEMORY_AUTOSAVE_INSTRUCTION_DEFAULT
+  const instruction = rawInstruction.length > 0 ? rawInstruction : MEMORY_INSTRUCTION_DEFAULT
   const safeMemories = Array.isArray(memories) ? memories : []
 
   // Scope filter — mirrors filterMemoriesByScope in the main-process store.
@@ -99,13 +87,11 @@ export function buildMemoryBlock(
     )
   })
 
-  // Empty list:
-  // - autoSave on  → still emit the header + empty-list note + autosave instructions,
-  //                  so the model gets the nudge to save things from the very first turn.
-  // - autoSave off → emit nothing; an empty memory block adds zero value to the prompt.
+  // Empty list → emit nothing. With no saved memories there is no context to
+  // inject, and the assistant no longer manages the list, so an empty block
+  // adds zero value to the prompt.
   if (filtered.length === 0) {
-    if (!autoSaveEnabled) return ''
-    return `${MEMORY_BLOCK_HEADER}\n${EMPTY_LIST_PLACEHOLDER}\n\n${instruction}`
+    return ''
   }
 
   // Sort oldest-first for stable bullet ordering, but enforce budget by
@@ -114,8 +100,8 @@ export function buildMemoryBlock(
 
   const budget = options.tokenBudget ?? MEMORY_BLOCK_TOKEN_BUDGET
   const headerTokens = estimateTokens(MEMORY_BLOCK_HEADER)
-  const autosaveTokens = autoSaveEnabled ? estimateTokens(instruction) : 0
-  let availableTokens = Math.max(budget - headerTokens - autosaveTokens, 0)
+  const instructionTokens = estimateTokens(instruction)
+  let availableTokens = Math.max(budget - headerTokens - instructionTokens, 0)
 
   // Walk newest-to-oldest collecting lines that fit the budget; drop oldest
   // first when over budget.
@@ -137,12 +123,11 @@ export function buildMemoryBlock(
     log(`buildMemoryBlock: dropped ${droppedCount} oldest memor${droppedCount === 1 ? 'y' : 'ies'} to fit token budget (${budget})`)
   }
   if (accepted.length === 0) {
-    if (!autoSaveEnabled) return ''
-    return `${MEMORY_BLOCK_HEADER}\n${EMPTY_LIST_PLACEHOLDER}\n\n${instruction}`
+    return ''
   }
 
   const list = `${MEMORY_BLOCK_HEADER}\n${accepted.join('\n')}`
-  return autoSaveEnabled ? `${list}\n\n${instruction}` : list
+  return `${list}\n\n${instruction}`
 }
 
 /**
@@ -183,16 +168,15 @@ export async function loadMemoryBlock(
   settings: {
     /** Skills map; memory is gated by `skills.memory.enabled`. */
     skills?: import('@/skills').SkillsSettings
-    /** Optional user-edited autosave instruction text from System Prompt settings. */
+    /** Optional user-edited memory instruction text from System Prompt settings. */
     memoryPrompt?: string
   },
   scope: MemoryScope = { type: 'global' },
   options: { userMessage?: string; limit?: number } = {}
 ): Promise<string> {
-  const { isSkillEnabled, isMemoryAutoManageEnabled } = await import('@/skills')
+  const { isSkillEnabled } = await import('@/skills')
   if (!isSkillEnabled(settings.skills, 'memory')) return ''
   if (typeof window === 'undefined' || !window.memory) return ''
-  const autoSaveEnabled = isMemoryAutoManageEnabled(settings.skills)
   const limit = options.limit && options.limit > 0 ? options.limit : MEMORY_INJECT_TOP_K
   const query = typeof options.userMessage === 'string' ? options.userMessage.trim() : ''
   try {
@@ -204,7 +188,6 @@ export async function loadMemoryBlock(
       memories = (await window.memory.list(scope)).slice(0, limit)
     }
     return buildMemoryBlock(memories, scope, {
-      autoSaveEnabled,
       instruction: settings.memoryPrompt,
     })
   } catch (error) {

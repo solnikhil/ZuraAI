@@ -68,7 +68,7 @@ export interface ChatDiagnosticRequestShape {
   roleOrder: string[]
   textLengths: number[]
   contentTypes: Array<'text' | 'parts' | 'empty'>
-  partTypes: string[][]
+  partTypes: Array<string[] | string>
   hasReasoning: boolean[]
   hasThinking: boolean[]
   toolCount: number
@@ -96,7 +96,7 @@ export interface ChatDiagnosticEvent {
   tool?: ChatDiagnosticToolSummary
   streamChunk?: ChatDiagnosticStreamChunk
   researchState?: ResearchState
-  leakedMarkupFormat?: 'dsml' | 'xml'
+  leakedMarkupFormat?: 'dsml' | 'xml' | 'native-tool-call-delta'
   recoveredQueryCount?: number
   deterministicAnswerUsed?: boolean
   searchBudgetRemaining?: number

@@ -45,6 +45,8 @@ const FINAL_SYNTHESIS_PLAIN_TEXT_ONLY_PROMPT =
   '\n\n*** PLAIN TEXT ONLY FINAL ANSWER REQUIRED *** You must respond with plain assistant text only. Do not emit tool_calls, function calls, JSON, XML, markdown code fences, or any request for more searching. Do not call any tools or web_search. Write at least one concise paragraph using only the returned search results. If the evidence is inconclusive, say so directly and summarize the strongest relevant findings.\n\n'
 export const SEARCH_SYNTHESIS_FAILURE_MESSAGE =
   'I gathered web search results, but the provider failed to produce a final written answer. The search results are still available above.'
+export const DETERMINISTIC_SEARCH_SYNTHESIS_PREFIX =
+  'I could not get the model to write a clean final answer, so here is a deterministic summary from the gathered search results.'
 
 const UNGROUNDED_SEARCH_SYNTHESIS_PATTERNS = [
   /\bknowledge cutoff\b/i,
@@ -556,6 +558,61 @@ export function extractSearchEvidenceItems(
   }
 
   return evidence
+}
+
+function formatEvidenceSource(item: SearchEvidenceItem): string {
+  if (item.url) {
+    return `[${item.title}](${item.url})`
+  }
+
+  return item.title
+}
+
+export function buildDeterministicSearchSynthesis(
+  toolResults: ToolCallResult[] | undefined,
+  options?: {
+    maxQueries?: number
+    maxItemsPerQuery?: number
+  }
+): string | null {
+  const evidence = extractSearchEvidenceItems(toolResults)
+  if (evidence.length === 0) return null
+
+  const maxQueries = options?.maxQueries ?? 3
+  const maxItemsPerQuery = options?.maxItemsPerQuery ?? 3
+  const grouped = new Map<string, SearchEvidenceItem[]>()
+
+  for (const item of evidence) {
+    const query = item.query || 'Search results'
+    if (!grouped.has(query)) grouped.set(query, [])
+    const items = grouped.get(query)!
+    if (items.length < maxItemsPerQuery) {
+      items.push(item)
+    }
+  }
+
+  const lines = [
+    DETERMINISTIC_SEARCH_SYNTHESIS_PREFIX,
+    '',
+    evidence.length < 2
+      ? 'The evidence is thin, but the successful search returned this relevant result:'
+      : 'The strongest retrieved evidence is:',
+  ]
+
+  let queryCount = 0
+  for (const [query, items] of grouped) {
+    if (queryCount >= maxQueries) break
+    queryCount += 1
+    lines.push('', `For "${query}":`)
+
+    for (const item of items) {
+      const snippet = item.snippet || 'No snippet was returned.'
+      const source = item.source ? ` (${item.source})` : ''
+      lines.push(`- ${formatEvidenceSource(item)}${source}: ${snippet}`)
+    }
+  }
+
+  return lines.join('\n').trim()
 }
 
 export function shouldRetryUngroundedSearchSynthesis(content: string): boolean {

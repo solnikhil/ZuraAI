@@ -2,7 +2,6 @@
 
 import { ToolResult, ToolCall, ToolCallResult, isMcpNamespacedToolName } from './types'
 import { resolveWebSearchArgsForExecution } from './webSearchPreferences'
-import { executeMemoryTool, isMemoryToolName } from './memoryTools'
 
 // Re-export types for backward compatibility
 export type { ToolResult, ToolCall, ToolCallResult }
@@ -10,8 +9,6 @@ export type { ToolResult, ToolCall, ToolCallResult }
 export interface ExecuteToolOptions {
     userContextText?: string
     bypassNativeApproval?: boolean
-    /** Active chat session id (used when memory tools are invoked by the model). */
-    sessionId?: string
 }
 
 const DEFAULT_TIMEOUT_MS = 30_000
@@ -43,10 +40,6 @@ export async function executeTool(
     const TIMEOUT_MS = getTimeoutForTool(toolName)
     
     try {
-        if (isMemoryToolName(toolName)) {
-            return await executeMemoryTool(toolName, args, { sessionId: options.sessionId })
-        }
-
         if (isMcpNamespacedToolName(toolName)) {
             if (!window.mcp) {
                 return {

@@ -11,10 +11,6 @@ import React, { useState, useRef, useEffect, useMemo, memo } from 'react'
 import LazyMarkdown from '@/components/LazyMarkdown'
 import ThinkingBlockComponent from '@/components/ThinkingBlock'
 import { useSettings } from '@/contexts/SettingsContext'
-import {
-  MemoryUpdatePill,
-  extractMemoryEvents,
-} from '@/components/chat/MemoryUpdatePill'
 import { writeTextToClipboard } from '@/utils/clipboard'
 import {
   removeToolFollowUpSplitMarker,
@@ -182,11 +178,6 @@ function MessageRendererComponent({
   )
   const hasTopDisplayContent = topProcessedContent.trim().length > 0
   const hasBottomDisplayContent = bottomProcessedContent.trim().length > 0
-  const memoryEvents = useMemo(
-    () => extractMemoryEvents(message.toolResults),
-    [message.toolResults]
-  )
-  const showMemoryPill = !isStreaming && memoryEvents.length > 0
   const hasSplitFollowUpSection =
     Boolean(followUpSnapshot) || timeline.afterBlocks.length > 0 || hasBottomDisplayContent
   const activeTimelineOwner = hasSplitFollowUpSection ? 'lower' : 'upper'
@@ -369,18 +360,6 @@ function MessageRendererComponent({
             content={bottomProcessedContent}
             webSources={webSourceMap}
             isStreaming={isStreaming}
-          />
-        </div>
-      )}
-
-      {showMemoryPill && (
-        <div style={{ marginTop: '12px' }}>
-          <MemoryUpdatePill
-            events={memoryEvents}
-            onManageMemories={() => {
-              window.location.hash = '#/settings'
-              window.dispatchEvent(new CustomEvent('zura:settings:navigate', { detail: 'memory' }))
-            }}
           />
         </div>
       )}

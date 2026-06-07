@@ -95,6 +95,27 @@ describe('registerMemoryStoreHandlers', () => {
     expect(browserWindowMocks.send).toHaveBeenCalledWith('memory-store:changed')
   })
 
+  it('add preserves a valid background origin through sanitization', async () => {
+    memoryStoreMocks.addMemoryAsync.mockResolvedValue({ id: 'm2' })
+    const { registerMemoryStoreHandlers } = await import('./memoryStoreHandlers')
+    registerMemoryStoreHandlers()
+
+    const handler = ipcMainMocks.handlers.get('memory:add')!
+    await handler({}, {
+      content: 'extracted fact',
+      source: 'model',
+      sessionId: 'chat-1',
+      origin: 'background',
+    })
+
+    expect(memoryStoreMocks.addMemoryAsync).toHaveBeenCalledWith({
+      content: 'extracted fact',
+      source: 'model',
+      sessionId: 'chat-1',
+      origin: 'background',
+    })
+  })
+
   it('add rejects payloads without a string content', async () => {
     const { registerMemoryStoreHandlers } = await import('./memoryStoreHandlers')
     registerMemoryStoreHandlers()

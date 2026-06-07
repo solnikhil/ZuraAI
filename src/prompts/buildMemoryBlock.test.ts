@@ -33,7 +33,7 @@ describe('buildMemoryBlock', () => {
     )
 
     expect(block).toContain('Saved Memories (Model Set Context)')
-    const bulletLines = block.split('\n').filter((line) => line.startsWith('- '))
+    const bulletLines = block.split('\n').filter((line) => line.startsWith('- ['))
     expect(bulletLines).toEqual([
       '- [2026-05-20] I live in Bangalore',
       '- [2026-05-23] I prefer TypeScript',
@@ -100,37 +100,32 @@ describe('buildMemoryBlock', () => {
     expect(buildMemoryBlock([tiny], { type: 'global' }, { warn: noop })).toContain('small fact')
   })
 
-  describe('autoSaveEnabled instruction', () => {
-    it('appends the save_memory instruction when autoSaveEnabled is true', () => {
-      const block = buildMemoryBlock(
-        [memory({ content: 'I prefer dark mode' })],
-        { type: 'global' },
-        { warn: noop, autoSaveEnabled: true }
-      )
-      expect(block).toContain('I prefer dark mode')
-      expect(block).toContain('save_memory')
-      expect(block).toMatch(/durable fact/i)
-    })
-
-    it('omits the instruction when autoSaveEnabled is false (default)', () => {
+  describe('memory instruction', () => {
+    it('appends the passive memory instruction when memories exist', () => {
       const block = buildMemoryBlock(
         [memory({ content: 'I prefer dark mode' })],
         { type: 'global' },
         { warn: noop }
       )
-      expect(block).not.toContain('save_memory')
-    })
-
-    it('returns just the instruction block (no bullets) when list is empty + autoSaveEnabled', () => {
-      const block = buildMemoryBlock([], { type: 'global' }, { warn: noop, autoSaveEnabled: true })
+      expect(block).toContain('I prefer dark mode')
       expect(block).toContain('Saved Memories')
-      expect(block).toContain('no saved memories yet')
-      expect(block).toContain('save_memory')
+      // Passive guidance — never nudges the model to call removed memory tools.
+      expect(block).not.toContain('save_memory')
+      expect(block).toMatch(/personalize/i)
     })
 
-    it('returns empty string when list is empty + autoSaveEnabled is false', () => {
+    it('returns empty string when the list is empty', () => {
       const block = buildMemoryBlock([], { type: 'global' }, { warn: noop })
       expect(block).toBe('')
+    })
+
+    it('honours a custom instruction override', () => {
+      const block = buildMemoryBlock(
+        [memory({ content: 'fact' })],
+        { type: 'global' },
+        { warn: noop, instruction: 'CUSTOM INSTRUCTION' }
+      )
+      expect(block).toContain('CUSTOM INSTRUCTION')
     })
   })
 })
@@ -185,7 +180,7 @@ describe('loadMemoryBlock', () => {
     warn.mockRestore()
   })
 
-  it('always includes the save_memory instruction when the Memory skill is enabled', async () => {
+  it('always includes the passive memory instruction when the Memory skill is enabled', async () => {
     const list = vi.fn().mockResolvedValue([
       memory({ content: 'fact', updatedAt: 1 }),
     ])
@@ -195,7 +190,8 @@ describe('loadMemoryBlock', () => {
 
     const result = await loadMemoryBlock({ skills: enabledSkills })
     expect(result).toContain('fact')
-    expect(result).toContain('save_memory')
+    expect(result).toMatch(/personalize/i)
+    expect(result).not.toContain('save_memory')
   })
 
   it('uses a custom memoryPrompt override when provided', async () => {
@@ -208,10 +204,10 @@ describe('loadMemoryBlock', () => {
 
     const result = await loadMemoryBlock({
       skills: enabledSkills,
-      memoryPrompt: 'CUSTOM AUTOSAVE INSTRUCTION',
+      memoryPrompt: 'CUSTOM INSTRUCTION',
     })
-    expect(result).toContain('CUSTOM AUTOSAVE INSTRUCTION')
-    expect(result).not.toContain('Memory tools are available')
+    expect(result).toContain('CUSTOM INSTRUCTION')
+    expect(result).not.toContain('save_memory')
   })
 
   it('retrieves top-K via search when a user message is provided', async () => {
@@ -246,10 +242,11 @@ describe('loadMemoryBlock', () => {
     )
     expect(list).not.toHaveBeenCalled()
     expect(result).not.toContain('recent fact')
-    expect(result).toContain('save_memory')
+    // No matches → nothing to inject (no fallback to unrelated recent memories).
+    expect(result).toBe('')
   })
 
-  it('manual-only mode injects memories but omits the save_memory nudge', async () => {
+  it('injects memories regardless of the auto-manage sub-toggle', async () => {
     const list = vi.fn().mockResolvedValue([memory({ content: 'lives in Bangalore', updatedAt: 3 })])
     ;(globalThis as unknown as { window: { memory: { list: typeof list } } }).window = {
       memory: { list },

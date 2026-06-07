@@ -122,6 +122,18 @@ function formatObjectPreview(value, limit = 900) {
   return truncate(JSON.stringify(value, null, 2), limit)
 }
 
+function formatPartTypes(partTypes) {
+  if (!Array.isArray(partTypes) || partTypes.length === 0) return 'none'
+  return partTypes
+    .map((types) => {
+      if (Array.isArray(types)) return `[${types.join(',')}]`
+      if (typeof types === 'string') return types
+      if (types == null) return '[]'
+      return String(types)
+    })
+    .join(' ')
+}
+
 function latestEvent(diagnostics, phase) {
   for (let index = diagnostics.length - 1; index >= 0; index -= 1) {
     if (diagnostics[index]?.phase === phase) return diagnostics[index]
@@ -196,7 +208,7 @@ function renderMarkdown(report) {
     lines.push(`- Roles: ${(shape.roleOrder || []).join(' -> ')}`)
     lines.push(`- Text lengths: ${(shape.textLengths || []).join(', ')}`)
     lines.push(`- Content types: ${(shape.contentTypes || []).join(', ')}`)
-    lines.push(`- Part types: ${(shape.partTypes || []).map((types) => `[${types.join(',')}]`).join(' ') || 'none'}`)
+    lines.push(`- Part types: ${formatPartTypes(shape.partTypes)}`)
     lines.push(`- Reasoning fields: ${(shape.hasReasoning || []).filter(Boolean).length}`)
     lines.push(`- Thinking fields: ${(shape.hasThinking || []).filter(Boolean).length}`)
     lines.push(`- Tools: ${shape.toolCount ?? 0}; choice=${shape.toolChoice ?? 'default'}; cache markers=${shape.cacheMarkerCount ?? 0}`)

@@ -17,7 +17,10 @@ vi.mock('./providerStreamClient', () => ({
 }))
 
 import { useProviderStreaming } from './useProviderStreaming'
-import { SEARCH_SYNTHESIS_FAILURE_MESSAGE } from './streamingUtils'
+import {
+  DETERMINISTIC_SEARCH_SYNTHESIS_PREFIX,
+  SEARCH_SYNTHESIS_FAILURE_MESSAGE,
+} from './streamingUtils'
 import type { ToolCallingResponse } from '../../../../../tools/types'
 
 function streamFrom(events: Array<Record<string, unknown>>) {
@@ -2458,7 +2461,7 @@ describe('useProviderStreaming', () => {
     expect(streamResult.content).not.toBe(SEARCH_SYNTHESIS_FAILURE_MESSAGE)
   })
 
-  it('commits a short synthesis failure when all synthesis attempts end blank', async () => {
+  it('commits a deterministic search synthesis when all synthesis attempts end blank', async () => {
     const streamCalls: Array<{ toolChoice?: unknown }> = []
     let invocation = 0
 
@@ -2556,8 +2559,12 @@ describe('useProviderStreaming', () => {
     expect(streamCalls[1]?.toolChoice).toBe('none')
     expect(streamCalls[2]?.toolChoice).toBe('none')
     expect(streamCalls[3]?.toolChoice).toBe('none')
-    expect(streamResult.content).toBe(SEARCH_SYNTHESIS_FAILURE_MESSAGE)
-    expect(streamResult.content).not.toContain('deterministic summary from the gathered evidence')
+    expect(handleToolCalls).toHaveBeenCalledTimes(1)
+    expect(streamResult.content).toContain(DETERMINISTIC_SEARCH_SYNTHESIS_PREFIX)
+    expect(streamResult.content).toContain('No verified evidence of a murder-for-hire plot')
+    expect(streamResult.content).not.toContain('DSML')
+    expect(streamResult.content).not.toContain('tool_calls')
+    expect(streamResult.content).not.toContain('invoke name=')
     expect(streamResult.finishReason).toBeUndefined()
     expect(streamResult.toolResults).toEqual(
       expect.arrayContaining([
@@ -2572,12 +2579,12 @@ describe('useProviderStreaming', () => {
       'session-1',
       'message-1',
       expect.objectContaining({
-        content: SEARCH_SYNTHESIS_FAILURE_MESSAGE,
+        content: expect.stringContaining(DETERMINISTIC_SEARCH_SYNTHESIS_PREFIX),
       })
     )
   })
 
-  it('commits a short synthesis failure when every synthesis retry stays ungrounded', async () => {
+  it('commits a deterministic search synthesis when every synthesis retry stays ungrounded', async () => {
     const streamCalls: Array<{ toolChoice?: unknown }> = []
     let invocation = 0
 
@@ -2663,8 +2670,11 @@ describe('useProviderStreaming', () => {
     expect(streamCalls[1]?.toolChoice).toBe('none')
     expect(streamCalls[2]?.toolChoice).toBe('none')
     expect(streamCalls[3]?.toolChoice).toBe('none')
-    expect(streamResult.content).toBe(SEARCH_SYNTHESIS_FAILURE_MESSAGE)
-    expect(streamResult.content).not.toContain('deterministic summary from the gathered evidence')
+    expect(handleToolCalls).toHaveBeenCalledTimes(1)
+    expect(streamResult.content).toContain(DETERMINISTIC_SEARCH_SYNTHESIS_PREFIX)
+    expect(streamResult.content).toContain('qwen 3.6 plus thinking mode')
+    expect(streamResult.content).not.toContain('knowledge cutoff')
+    expect(streamResult.content).not.toContain('tool_calls')
     expect(streamResult.finishReason).toBeUndefined()
     expect(streamResult.toolResults).toEqual(
       expect.arrayContaining([
@@ -2677,7 +2687,7 @@ describe('useProviderStreaming', () => {
     )
   })
 
-  it('commits a short synthesis failure when every synthesis retry returns tool calls', async () => {
+  it('commits a deterministic search synthesis when every synthesis retry returns tool calls', async () => {
     const streamCalls: Array<{ toolChoice?: unknown }> = []
     let invocation = 0
 
@@ -2756,8 +2766,12 @@ describe('useProviderStreaming', () => {
     expect(streamCalls[1]?.toolChoice).toBe('none')
     expect(streamCalls[2]?.toolChoice).toBe('none')
     expect(streamCalls[3]?.toolChoice).toBe('none')
-    expect(streamResult.content).toBe(SEARCH_SYNTHESIS_FAILURE_MESSAGE)
-    expect(streamResult.content).not.toContain('deterministic summary from the gathered evidence')
+    expect(handleToolCalls).toHaveBeenCalledTimes(1)
+    expect(streamResult.content).toContain(DETERMINISTIC_SEARCH_SYNTHESIS_PREFIX)
+    expect(streamResult.content).toContain('qwen plus model studio docs')
+    expect(streamResult.content).not.toContain('DSML')
+    expect(streamResult.content).not.toContain('tool_calls')
+    expect(streamResult.content).not.toContain('invoke name=')
     expect(streamResult.finishReason).toBeUndefined()
   })
 })

@@ -24,7 +24,7 @@ import { shouldEnableTools } from '../utils/promptSelection'
 import { createMcpToolRegistry } from '../tools/mcpRegistry'
 import { getProviderModels, type ProviderId } from '../providers'
 import { isWindowsRuntime } from '../utils/platform'
-import { isSkillEnabled, isAgentDesktopEnabled, isMemoryAutoManageEnabled } from '../skills'
+import { isSkillEnabled, isAgentDesktopEnabled } from '../skills'
 
 const COMPUTER_USE_TOOLS = [
     'computer_screenshot',
@@ -110,15 +110,6 @@ export function useToolCalling() {
         const knownBuiltInTools = new Set(builtinToolNames)
         const runtimeMcpToolNames = runtimeMcpTools.map((tool) => tool.name)
 
-        // Memory tools are personalization, not research / agentic capability.
-        // They should be available in every assistant mode whenever the
-        // Memory skill is enabled AND auto-management is on, so the model can
-        // save things like "I study at SRM" even from a normal chat-mode
-        // conversation. When auto-management is off (manual-only), memories
-        // still inject into the prompt but the model cannot manage them.
-        const memoryToolsEnabled = isMemoryAutoManageEnabled(settings.skills)
-        const memoryToolsToInclude: readonly string[] = memoryToolsEnabled ? MEMORY_TOOL_NAMES : []
-
         let enabledTools: string[] = settings.enabledTools.length > 0
             ? settings.enabledTools.filter((tool) => knownBuiltInTools.has(tool))
             : builtinToolNames
@@ -131,15 +122,14 @@ export function useToolCalling() {
             enabledTools.push('code_execution')
         }
 
-        if (memoryToolsEnabled) {
-            for (const tool of memoryToolsToInclude) {
-                if (!enabledTools.includes(tool)) enabledTools.push(tool)
-            }
-        } else {
-            enabledTools = enabledTools.filter(
-                (tool) => !(MEMORY_TOOL_NAMES as readonly string[]).includes(tool)
-            )
-        }
+        // Memory is no longer a model-callable tool surface. Saved memories are
+        // injected into the prompt for context and durable facts are captured
+        // by the background extraction pipeline; the model cannot mutate the
+        // memory store mid-conversation. Defensively strip any memory tool
+        // names that may linger in a persisted enabledTools list.
+        enabledTools = enabledTools.filter(
+            (tool) => !(MEMORY_TOOL_NAMES as readonly string[]).includes(tool)
+        )
 
         // Native Windows Agent tools supplement desktop control and should be
         // preferred before screenshot/click/type for filesystem, app, window,

@@ -224,7 +224,7 @@ export async function runMemoryExtraction(
   // Persist facts (ADD-only, deduped) — each is best-effort.
   for (const fact of result.facts) {
     try {
-      await window.memory.addDeduped({ content: fact, source: 'model', sessionId })
+      await window.memory.addDeduped({ content: fact, source: 'model', sessionId, origin: 'background' })
     } catch (error) {
       console.warn('[memory-extraction] Failed to persist a fact; continuing.', error)
     }

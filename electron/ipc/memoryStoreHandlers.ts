@@ -43,6 +43,9 @@ function sanitizeAddInput(raw: unknown): AddMemoryInput {
   if (typeof raw.sessionId === 'string' && raw.sessionId.length > 0) {
     result.sessionId = raw.sessionId
   }
+  if (raw.origin === 'tool' || raw.origin === 'background') {
+    result.origin = raw.origin
+  }
   const scope = sanitizeScope(raw.scope)
   if (scope) {
     result.scope = scope

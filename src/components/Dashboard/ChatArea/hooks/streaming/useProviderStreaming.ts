@@ -23,6 +23,7 @@ import {
   accumulateDeltaToolCalls,
   appendCompletedThinkingBlock,
   buildAgentVerificationMessages,
+  buildDeterministicSearchSynthesis,
   buildFollowUpMessages,
   buildPlainTextOnlySynthesisMessages,
   buildRecoverySynthesisMessages,
@@ -664,6 +665,33 @@ export function useProviderStreaming({
                   finalizeActiveThinking()
                   publishCompletedThinking()
                 }
+                if (!roundAllowsTools) {
+                  suppressedInlineToolMarkup = true
+                  frozenDisplayContent = roundStartContent
+                  roundFinishReason = null
+                  accumulatedContent = roundStartContent
+                  roundContent = ''
+                  logToolMarkupLeak('suppressed-during-no-tools-pass', {
+                    provider,
+                    model,
+                    roundType,
+                    format: 'native-tool-call-delta',
+                    toolNames: event.delta
+                      .map((toolCall) => toolCall.function?.name)
+                      .filter(Boolean),
+                    cleanedContentLength: 0,
+                    rawPreview: JSON.stringify(event.delta).slice(0, TOOL_MARKUP_PREVIEW_LIMIT),
+                  })
+                  logResearchState('synthesize', {
+                    round: roundOptions?.round,
+                    roundType,
+                    leakedMarkupFormat: 'native-tool-call-delta',
+                    recoveredQueryCount: 0,
+                  })
+                  updateStreamingState({ content: accumulatedContent })
+                  persistProgress()
+                  break
+                }
                 accumulateDeltaToolCalls(roundToolCalls, event.delta)
                 streamChunkCoalescer.recordToolCallDelta(
                   Array.isArray(event.delta) ? event.delta.length : 1
@@ -679,7 +707,12 @@ export function useProviderStreaming({
                 logDiagnostic({ phase: 'usage', round: roundOptions?.round, roundType, usage: event.usage, rawUsage: event.rawUsage })
                 break
               case 'finish':
-                roundFinishReason = event.finishReason || null
+                if (!roundAllowsTools && event.finishReason === 'tool_calls') {
+                  suppressedInlineToolMarkup = true
+                  roundFinishReason = null
+                } else {
+                  roundFinishReason = event.finishReason || null
+                }
                 break
               case 'citation':
                 citations = [...new Set([...citations, ...event.citations])]
@@ -921,11 +954,13 @@ export function useProviderStreaming({
         const baselineContent = accumulatedContent
 
         const commitSynthesisFailure = () => {
+          const deterministicAnswer = buildDeterministicSearchSynthesis(savedToolResults)
           logResearchLoop('synthesis-failed', {
-            deterministicAnswerUsed: false,
+            deterministicAnswerUsed: Boolean(deterministicAnswer),
             searchBudgetRemaining: Math.max(0, effectiveSearchBudget - totalSearchCount),
           })
-          accumulatedContent = baselineContent + SEARCH_SYNTHESIS_FAILURE_MESSAGE
+          accumulatedContent =
+            baselineContent + (deterministicAnswer || SEARCH_SYNTHESIS_FAILURE_MESSAGE)
           finishReason = null
           updateStreamingState({
             content: accumulatedContent,

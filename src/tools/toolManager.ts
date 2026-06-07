@@ -14,7 +14,7 @@
 
 import { getAllToolDefinitions, getToolByName } from './definitions'
 import { convertToolsForProvider, providerSupportsTools, modelSupportsTools } from './adapters'
-import { normalizeMemoryToolCall } from './memoryTools'
+import { executeToolCalls } from './executor'
 import { requiresManualToolApproval } from './approvalPolicy'
 import type { ProviderId } from '../providers'
 import {
@@ -22,7 +22,6 @@ import {
   hasToolCalls,
   formatToolResultsForOpenRouter,
 } from './adapters/openrouter'
-import { executeToolCalls } from './executor'
 import type { ServiceToolCall } from '../services/types'
 import {
   ToolCall,
@@ -294,11 +293,9 @@ export async function processToolCalls(
   const userContextText = config.executionPolicy?.userContextText
 
   for (const [index, toolCall] of toolCalls.entries()) {
-    const coercedToolCall = normalizeMemoryToolCall(
-      normalizeWebSearchToolCall(
-        coerceToolArguments(toolCall, availableTools),
-        userContextText
-      )
+    const coercedToolCall = normalizeWebSearchToolCall(
+      coerceToolArguments(toolCall, availableTools),
+      userContextText
     )
     const validationError = validateRequiredParameters(coercedToolCall, availableTools)
 
@@ -387,8 +384,8 @@ export async function processToolCalls(
   const executionPromises = approvedExecutableCalls.map(async ({ index, toolCall: executableToolCall }) => {
     try {
       const executeOptions = config.requestToolApproval
-        ? { userContextText, bypassNativeApproval: true, sessionId: config.executionPolicy?.sessionId }
-        : { userContextText, sessionId: config.executionPolicy?.sessionId }
+        ? { userContextText, bypassNativeApproval: true }
+        : { userContextText }
       const result = await executeToolCalls([executableToolCall], executeOptions)
       resultsByIndex[index] = result[0]
       config.onToolComplete?.(result[0])

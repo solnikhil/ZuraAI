@@ -202,6 +202,8 @@ export interface AgentDesktopKilledPayload {
  */
 export type MemorySource = 'user' | 'model'
 
+export type MemoryOrigin = 'tool' | 'background'
+
 export type MemoryScope =
   | { type: 'global' }
   | { type: 'project'; projectId: string }
@@ -219,6 +221,7 @@ export interface Memory {
   supersedes?: string
   supersededBy?: string
   sessionId?: string
+  origin?: MemoryOrigin
 }
 
 export interface AddMemoryInput {
@@ -226,6 +229,7 @@ export interface AddMemoryInput {
   source?: MemorySource
   scope?: MemoryScope
   sessionId?: string
+  origin?: MemoryOrigin
 }
 
 export interface DedupeAddOptions {

@@ -29,9 +29,10 @@ export function shouldHideGenericToolResultCard(result: ToolCallResult): boolean
     return true
   }
 
-  // Memory tools render through the inline MemoryUpdatePill on the assistant
-  // message. Suppress the generic tool card during streaming and after commit
-  // so we don't double-render save/update/delete/search results.
+  // Legacy in-conversation memory tool results (from older chat sessions, when
+  // save/update/delete/search_memories were model-callable). The tools were
+  // removed; suppress their generic cards so old histories don't render a
+  // stray, unsupported tool entry.
   if ((MEMORY_TOOL_NAMES as readonly string[]).includes(result.toolCall.name)) {
     return true
   }

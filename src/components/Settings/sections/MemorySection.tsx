@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { Pencil, Plus, Settings as SettingsIcon, Sparkles, Trash2, User, Zap } from 'lucide-react'
+import { Settings as SettingsIcon, Sparkles, Zap } from 'lucide-react'
 
 import { ProviderLogo } from '@/components/shared'
 import { Button } from '@/components/ui/button'
@@ -15,17 +15,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Switch } from '@/components/ui/switch'
-import { Textarea } from '@/components/ui/textarea'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import {
   Dialog,
   DialogContent,
@@ -39,14 +28,6 @@ import type { Memory } from '@/electron/types'
 import type { Settings } from '@/contexts/SettingsContext'
 import { getAvailableTitleModelOptions, getProviderDefinition } from '@/providers'
 import { isMemoryAutoManageEnabled, withMemoryAutoManage, type SkillsSettings } from '@/skills'
-
-const MAX_CONTENT_LENGTH = 1000
-
-interface DraftRow {
-  /** Memory id when editing an existing entry, null when adding a new one. */
-  id: string | null
-  content: string
-}
 
 export interface MemorySectionProps {
   /** Skills map (for the auto-management sub-toggle). Optional in standalone use. */
@@ -73,17 +54,11 @@ export function MemorySection({
 }: MemorySectionProps = {}): React.ReactElement {
   const [memories, setMemories] = useState<Memory[]>([])
   const [summaries, setSummaries] = useState<import('@/electron/types').ConversationSummary[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [draft, setDraft] = useState<DraftRow | null>(null)
-  const [submitting, setSubmitting] = useState(false)
-  const [confirmClear, setConfirmClear] = useState(false)
   const [bgMemoriesOpen, setBgMemoriesOpen] = useState(false)
 
   const refresh = useCallback(async () => {
     if (typeof window === 'undefined' || !window.memory) {
       setMemories([])
-      setLoading(false)
       return
     }
     try {
@@ -96,12 +71,8 @@ export function MemorySection({
           // Summaries are best-effort; ignore failures here.
         }
       }
-      setError(null)
     } catch (err) {
       console.error('Failed to load memories:', err)
-      setError(err instanceof Error ? err.message : 'Failed to load memories.')
-    } finally {
-      setLoading(false)
     }
   }, [])
 
@@ -113,55 +84,8 @@ export function MemorySection({
     })
   }, [refresh])
 
-  const handleStartAdd = () => setDraft({ id: null, content: '' })
-  const handleStartEdit = (memory: Memory) => setDraft({ id: memory.id, content: memory.content })
-  const handleCancelDraft = () => setDraft(null)
-
-  const handleSubmitDraft = async () => {
-    if (!draft) return
-    const trimmed = draft.content.trim()
-    if (!trimmed) return
-    setSubmitting(true)
-    try {
-      if (draft.id) {
-        await window.memory.update(draft.id, { content: trimmed })
-      } else {
-        await window.memory.add({ content: trimmed, source: 'user' })
-      }
-      setDraft(null)
-      await refresh()
-    } catch (err) {
-      console.error('Failed to save memory:', err)
-      setError(err instanceof Error ? err.message : 'Failed to save memory.')
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  const handleDelete = async (id: string) => {
-    try {
-      await window.memory.delete(id)
-      await refresh()
-    } catch (err) {
-      console.error('Failed to delete memory:', err)
-      setError(err instanceof Error ? err.message : 'Failed to delete memory.')
-    }
-  }
-
-  const handleClearAll = async () => {
-    setConfirmClear(false)
-    try {
-      await window.memory.clear()
-      await refresh()
-    } catch (err) {
-      console.error('Failed to clear memories:', err)
-      setError(err instanceof Error ? err.message : 'Failed to clear memories.')
-    }
-  }
-
-  const totalCount = memories.length
-  const remainingChars = useMemo(() => MAX_CONTENT_LENGTH - (draft?.content.length ?? 0), [draft])
-  const tooLong = (draft?.content.length ?? 0) > MAX_CONTENT_LENGTH
+  const backgroundMemories = memories.filter((m) => m.origin === 'background')
+  const bgTotalCount = backgroundMemories.length
 
   const memoryModelOptions = useMemo(() => {
     if (!settings) return [] as Array<{ value: string; label: string; provider: string }>
@@ -288,7 +212,7 @@ export function MemorySection({
                               <DropdownMenuSubContent
                                 sideOffset={8}
                                 collisionPadding={12}
-                                className="w-[220px] rounded-[14px] p-0.5"
+                                className="w-[220px] max-h-[60vh] overflow-y-auto rounded-[14px] p-0.5"
                               >
                                 {memoryModelOptions
                                   .filter((o) => o.provider === provider.id)
@@ -312,199 +236,75 @@ export function MemorySection({
                 </div>
               </div>
             )}
+
+            <div className="settings-list-row">
+              <div className="settings-list-row__meta">
+                <h3 className="settings-list-row__label">Saved background memories</h3>
+                <div className="settings-list-row__description">
+                  {bgTotalCount === 0
+                    ? 'No background memories yet. Enable Background Active Memory to start extracting facts.'
+                    : `${bgTotalCount} ${bgTotalCount === 1 ? 'memory' : 'memories'} extracted from conversations.`}
+                </div>
+              </div>
+              <div className="settings-list-row__control">
+                <Dialog open={bgMemoriesOpen} onOpenChange={setBgMemoriesOpen}>
+                  <DialogTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={bgTotalCount === 0}
+                    >
+                      <Sparkles size={14} /> View all
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent
+                    className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto"
+                    overlayClassName="backdrop-blur-none"
+                  >
+                    <DialogHeader>
+                      <DialogTitle>Saved Background Memories</DialogTitle>
+                      <DialogDescription>
+                        Facts automatically extracted from your conversations to personalize future chats.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-3 py-4">
+                      {backgroundMemories.length === 0 && (
+                        <div className="text-center text-muted-foreground py-8">
+                          No background memories yet.
+                        </div>
+                      )}
+                      {backgroundMemories.map((memory) => (
+                        <div
+                          key={memory.id}
+                          className="flex items-start gap-3 p-3 rounded-xl border border-[var(--theme-border)] bg-[var(--theme-surface-subtle)]"
+                        >
+                          <span className="inline-flex items-center justify-center shrink-0 w-6 h-6 rounded-full bg-[var(--theme-accent-muted)] text-[var(--theme-accent)]">
+                            <Sparkles size={12} />
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-[var(--theme-text-primary)]">
+                              {memory.content}
+                            </p>
+                            <p className="text-xs text-[var(--theme-text-tertiary)] mt-1">
+                              Updated {formatTimestamp(memory.updatedAt)}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setBgMemoriesOpen(false)}>
+                        Close
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            </div>
+
           </Card>
         </>
       )}
-
-      <h3 className="appearance-group-heading">Saved Background Memories</h3>
-      <Card className="settings-list-card">
-        <div className="settings-list-row">
-          <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Background extracted memories</h3>
-            <div className="settings-list-row__description">
-              {totalCount === 0
-                ? 'No background memories yet. Enable Background Active Memory to start extracting facts.'
-                : `${totalCount} ${totalCount === 1 ? 'memory' : 'memories'} extracted from conversations.`}
-            </div>
-          </div>
-          <div className="settings-list-row__control">
-            <Dialog open={bgMemoriesOpen} onOpenChange={setBgMemoriesOpen}>
-              <DialogTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={totalCount === 0}
-                >
-                  <Sparkles size={14} /> View all
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Saved Background Memories</DialogTitle>
-                  <DialogDescription>
-                    Facts automatically extracted from your conversations to personalize future chats.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-3 py-4">
-                  {memories.length === 0 && (
-                    <div className="text-center text-muted-foreground py-8">
-                      No background memories yet.
-                    </div>
-                  )}
-                  {memories.map((memory) => (
-                    <div
-                      key={memory.id}
-                      className="flex items-start gap-3 p-3 rounded-xl border border-[var(--theme-border)] bg-[var(--theme-surface-subtle)]"
-                    >
-                      <span className="inline-flex items-center justify-center shrink-0 w-6 h-6 rounded-full bg-[var(--theme-accent-muted)] text-[var(--theme-accent)]">
-                        <Sparkles size={12} />
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-[var(--theme-text-primary)]">
-                          {memory.content}
-                        </p>
-                        <p className="text-xs text-[var(--theme-text-tertiary)] mt-1">
-                          Updated {formatTimestamp(memory.updatedAt)}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setBgMemoriesOpen(false)}>
-                    Close
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </div>
-        </div>
-      </Card>
-
-      <h3 className="appearance-group-heading">Saved Memories</h3>
-      <Card className="settings-list-card memory-settings-card" aria-label="Saved memories">
-        <div className="settings-list-row memory-settings-card__header">
-          <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Saved memories</h3>
-            <div className="settings-list-row__description">
-              {totalCount === 0
-                ? 'Add durable facts here or let the assistant save things you mention in chat.'
-                : `${totalCount} ${totalCount === 1 ? 'memory' : 'memories'} stored locally.`}
-            </div>
-          </div>
-          <div className="settings-list-row__control memory-list-section__actions">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setConfirmClear(true)}
-              disabled={totalCount === 0}
-            >
-              <Trash2 size={14} /> Clear all
-            </Button>
-            <Button size="sm" onClick={handleStartAdd} disabled={Boolean(draft)}>
-              <Plus size={14} /> Add memory
-            </Button>
-          </div>
-        </div>
-
-        {error && (
-          <div className="settings-list-row settings-list-row--stacked">
-            <div className="memory-error" role="alert">
-              {error}
-            </div>
-          </div>
-        )}
-
-        {draft && draft.id === null && (
-          <div className="settings-list-row settings-list-row--stacked">
-            <DraftEditor
-              value={draft.content}
-              placeholder="e.g. I prefer TypeScript and live in Bangalore."
-              disabled={submitting}
-              tooLong={tooLong}
-              remaining={remainingChars}
-              onChange={(content) => setDraft({ id: null, content })}
-              onSubmit={handleSubmitDraft}
-              onCancel={handleCancelDraft}
-              submitLabel="Save"
-            />
-          </div>
-        )}
-
-        {loading ? (
-          <div className="settings-list-row settings-list-row--stacked">
-            <div className="memory-empty">Loading…</div>
-          </div>
-        ) : memories.length === 0 && !draft ? (
-          <div className="settings-list-row settings-list-row--stacked">
-            <div className="memory-empty">
-              <p>No memories yet.</p>
-              <p className="memory-empty__hint">
-                Tip: in chat, say things like “remember that I prefer dark mode” and the assistant
-                can save it for you when AI management is enabled.
-              </p>
-            </div>
-          </div>
-        ) : (
-          <ul className="memory-list" role="list">
-            {memories.map((memory) =>
-              draft?.id === memory.id ? (
-                <li
-                  key={memory.id}
-                  className="settings-list-row settings-list-row--stacked memory-card memory-card--editing"
-                >
-                  <DraftEditor
-                    value={draft.content}
-                    placeholder="Update memory…"
-                    disabled={submitting}
-                    tooLong={tooLong}
-                    remaining={remainingChars}
-                    onChange={(content) => setDraft({ id: memory.id, content })}
-                    onSubmit={handleSubmitDraft}
-                    onCancel={handleCancelDraft}
-                    submitLabel="Update"
-                  />
-                </li>
-              ) : (
-                <li key={memory.id} className="settings-list-row memory-card">
-                  <div className="settings-list-row__meta memory-card__meta">
-                    <div className="memory-card__top">
-                      <span className={`memory-card__chip memory-card__chip--${memory.source}`}>
-                        {memory.source === 'model' ? <Sparkles size={12} /> : <User size={12} />}
-                        {memory.source === 'model' ? 'AI' : 'You'}
-                      </span>
-                      <span className="memory-card__footer">
-                        Updated {formatTimestamp(memory.updatedAt)}
-                      </span>
-                    </div>
-                    <p className="memory-card__content">{memory.content}</p>
-                  </div>
-                  <div className="settings-list-row__control">
-                    <div className="memory-card__actions">
-                      <button
-                        type="button"
-                        className="memory-card__action"
-                        onClick={() => handleStartEdit(memory)}
-                        aria-label="Edit memory"
-                      >
-                        <Pencil size={13} />
-                      </button>
-                      <button
-                        type="button"
-                        className="memory-card__action memory-card__action--danger"
-                        onClick={() => handleDelete(memory.id)}
-                        aria-label="Delete memory"
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  </div>
-                </li>
-              )
-            )}
-          </ul>
-        )}
-      </Card>
 
       <h3 className="appearance-group-heading">Recent Activity</h3>
       <Card className="settings-list-card memory-settings-card" aria-label="Recent activity">
@@ -538,75 +338,6 @@ export function MemorySection({
           </ul>
         )}
       </Card>
-
-      <AlertDialog open={confirmClear} onOpenChange={setConfirmClear}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Clear all memories?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This permanently deletes every saved memory. The assistant will not have access to
-              anything you’ve previously asked it to remember.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleClearAll}>Delete all</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
-  )
-}
-
-interface DraftEditorProps {
-  value: string
-  placeholder: string
-  disabled: boolean
-  tooLong: boolean
-  remaining: number
-  onChange: (value: string) => void
-  onSubmit: () => void
-  onCancel: () => void
-  submitLabel: string
-}
-
-function DraftEditor({
-  value,
-  placeholder,
-  disabled,
-  tooLong,
-  remaining,
-  onChange,
-  onSubmit,
-  onCancel,
-  submitLabel,
-}: DraftEditorProps): React.ReactElement {
-  return (
-    <div className="memory-draft">
-      <Textarea
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        rows={3}
-        disabled={disabled}
-        autoFocus
-      />
-      <div className="memory-draft__footer">
-        <span
-          className={`memory-draft__counter ${tooLong ? 'memory-draft__counter--invalid' : ''}`}
-          aria-live="polite"
-        >
-          {remaining} characters remaining
-        </span>
-        <div className="memory-draft__actions">
-          <Button variant="ghost" size="sm" onClick={onCancel} disabled={disabled}>
-            Cancel
-          </Button>
-          <Button size="sm" onClick={onSubmit} disabled={disabled || !value.trim() || tooLong}>
-            {submitLabel}
-          </Button>
-        </div>
-      </div>
     </div>
   )
 }
