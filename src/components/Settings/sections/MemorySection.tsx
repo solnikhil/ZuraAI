@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { Pencil, Plus, Sparkles, Trash2, User } from 'lucide-react'
+import { Pencil, Plus, Settings as SettingsIcon, Sparkles, Trash2, User, Zap } from 'lucide-react'
 
 import { ProviderLogo } from '@/components/shared'
 import { Button } from '@/components/ui/button'
@@ -8,6 +8,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
@@ -25,6 +26,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
 import type { Memory } from '@/electron/types'
 import type { Settings } from '@/contexts/SettingsContext'
 import { getAvailableTitleModelOptions, getProviderDefinition } from '@/providers'
@@ -68,6 +78,7 @@ export function MemorySection({
   const [draft, setDraft] = useState<DraftRow | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [confirmClear, setConfirmClear] = useState(false)
+  const [bgMemoriesOpen, setBgMemoriesOpen] = useState(false)
 
   const refresh = useCallback(async () => {
     if (typeof window === 'undefined' || !window.memory) {
@@ -233,12 +244,12 @@ export function MemorySection({
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <button
-                        className="setting-input-scira min-w-[200px] justify-between gap-3 inline-flex items-center"
+                        className="inline-flex items-center gap-2 rounded-[12px] border border-[var(--theme-border)] bg-[var(--theme-surface)] px-3 py-1.5 text-[13px] text-[var(--theme-text-primary)] transition-colors hover:bg-[var(--theme-surface-hover)]"
                         aria-label="Background memory model"
                       >
                         {selectedMemoryModel ? (
                           <span className="inline-flex items-center gap-2">
-                            <ProviderLogo provider={selectedProvider} size={16} />
+                            <ProviderLogo provider={selectedProvider} size={14} />
                             <span className="truncate">{selectedMemoryModel.label}</span>
                           </span>
                         ) : (
@@ -246,41 +257,56 @@ export function MemorySection({
                         )}
                       </button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuContent
+                      align="end"
+                      className="w-[205px] rounded-[14px] p-0.5"
+                    >
                       <DropdownMenuItem
                         onClick={() => onChange({ memoryModel: '' })}
-                        className="cursor-pointer"
+                        className="h-8 rounded-[12px] px-1.5 text-[12px]"
                       >
-                        <span className="inline-flex items-center gap-2">
-                          <span>Use current chat model</span>
-                        </span>
+                        <Zap className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
+                        <span>Use current chat model</span>
                       </DropdownMenuItem>
-                      {memoryProviders.map((provider) => (
-                        <DropdownMenuSub key={provider.id}>
-                          <DropdownMenuSubTrigger className="cursor-pointer">
-                            <span className="inline-flex items-center gap-2">
-                              <ProviderLogo provider={provider.id} size={16} />
-                              <span>{provider.label}</span>
-                            </span>
-                          </DropdownMenuSubTrigger>
-                          <DropdownMenuSubContent>
-                            {memoryModelOptions
-                              .filter((o) => o.provider === provider.id)
-                              .map((option) => (
-                                <DropdownMenuItem
-                                  key={option.value}
-                                  onClick={() => onChange({ memoryModel: option.value })}
-                                  className="cursor-pointer"
-                                >
-                                  <span className="inline-flex items-center gap-2">
-                                    <ProviderLogo provider={option.provider} size={16} />
-                                    <span>{option.label}</span>
-                                  </span>
-                                </DropdownMenuItem>
-                              ))}
-                          </DropdownMenuSubContent>
-                        </DropdownMenuSub>
-                      ))}
+                      <DropdownMenuSeparator className="mx-0 my-px h-px" />
+                      <DropdownMenuSub>
+                        <DropdownMenuSubTrigger className="h-8 rounded-[12px] px-1.5 text-[12px]">
+                          <SettingsIcon className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
+                          <span>Use separate model</span>
+                        </DropdownMenuSubTrigger>
+                        <DropdownMenuSubContent
+                          sideOffset={8}
+                          collisionPadding={12}
+                          className="w-[220px] rounded-[14px] p-0.5"
+                        >
+                          {memoryProviders.map((provider) => (
+                            <DropdownMenuSub key={provider.id}>
+                              <DropdownMenuSubTrigger className="h-8 rounded-[12px] px-1.5 text-[12px]">
+                                <ProviderLogo provider={provider.id} size={14} />
+                                <span>{provider.label}</span>
+                              </DropdownMenuSubTrigger>
+                              <DropdownMenuSubContent
+                                sideOffset={8}
+                                collisionPadding={12}
+                                className="w-[220px] rounded-[14px] p-0.5"
+                              >
+                                {memoryModelOptions
+                                  .filter((o) => o.provider === provider.id)
+                                  .map((option) => (
+                                    <DropdownMenuItem
+                                      key={option.value}
+                                      onClick={() => onChange({ memoryModel: option.value })}
+                                      className="h-8 rounded-[12px] px-1.5 text-[12px]"
+                                    >
+                                      <ProviderLogo provider={option.provider} size={14} />
+                                      <span>{option.label}</span>
+                                    </DropdownMenuItem>
+                                  ))}
+                              </DropdownMenuSubContent>
+                            </DropdownMenuSub>
+                          ))}
+                        </DropdownMenuSubContent>
+                      </DropdownMenuSub>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
@@ -289,6 +315,71 @@ export function MemorySection({
           </Card>
         </>
       )}
+
+      <h3 className="appearance-group-heading">Saved Background Memories</h3>
+      <Card className="settings-list-card">
+        <div className="settings-list-row">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Background extracted memories</h3>
+            <div className="settings-list-row__description">
+              {totalCount === 0
+                ? 'No background memories yet. Enable Background Active Memory to start extracting facts.'
+                : `${totalCount} ${totalCount === 1 ? 'memory' : 'memories'} extracted from conversations.`}
+            </div>
+          </div>
+          <div className="settings-list-row__control">
+            <Dialog open={bgMemoriesOpen} onOpenChange={setBgMemoriesOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={totalCount === 0}
+                >
+                  <Sparkles size={14} /> View all
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Saved Background Memories</DialogTitle>
+                  <DialogDescription>
+                    Facts automatically extracted from your conversations to personalize future chats.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-3 py-4">
+                  {memories.length === 0 && (
+                    <div className="text-center text-muted-foreground py-8">
+                      No background memories yet.
+                    </div>
+                  )}
+                  {memories.map((memory) => (
+                    <div
+                      key={memory.id}
+                      className="flex items-start gap-3 p-3 rounded-xl border border-[var(--theme-border)] bg-[var(--theme-surface-subtle)]"
+                    >
+                      <span className="inline-flex items-center justify-center shrink-0 w-6 h-6 rounded-full bg-[var(--theme-accent-muted)] text-[var(--theme-accent)]">
+                        <Sparkles size={12} />
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-[var(--theme-text-primary)]">
+                          {memory.content}
+                        </p>
+                        <p className="text-xs text-[var(--theme-text-tertiary)] mt-1">
+                          Updated {formatTimestamp(memory.updatedAt)}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setBgMemoriesOpen(false)}>
+                    Close
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+        </div>
+      </Card>
 
       <h3 className="appearance-group-heading">Saved Memories</h3>
       <Card className="settings-list-card memory-settings-card" aria-label="Saved memories">
