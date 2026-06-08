@@ -32,7 +32,9 @@ describe('AgentDesktopDisclosureDialog', () => {
     const onCancel = vi.fn()
     render(<AgentDesktopDisclosureDialog open onAcknowledge={onAcknowledge} onCancel={onCancel} />)
 
-    fireEvent.click(screen.getByRole('button', { name: /i understand, enable agent desktop/i }))
+    fireEvent.click(
+      screen.getByRole('button', { name: /i understand, enable separate desktop control/i })
+    )
 
     expect(onAcknowledge).toHaveBeenCalledTimes(1)
     expect(onCancel).not.toHaveBeenCalled()
@@ -54,7 +56,7 @@ describe('AgentDesktopDisclosureDialog', () => {
 
     expect(screen.queryByText(/not a sandbox/i)).toBeNull()
     expect(
-      screen.queryByRole('button', { name: /i understand, enable agent desktop/i })
+      screen.queryByRole('button', { name: /i understand, enable separate desktop control/i })
     ).toBeNull()
   })
 })

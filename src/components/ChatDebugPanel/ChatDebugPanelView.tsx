@@ -195,7 +195,9 @@ export function ChatDebugPanelView({ sessionId }: ChatDebugPanelViewProps) {
   const { showToast } = useToast()
 
   const [searchTerm, setSearchTerm] = useState('')
-  const [activePhases, setActivePhases] = useState<Set<ChatDiagnosticPhase>>(new Set(ALL_PHASES))
+  const [activePhases, setActivePhases] = useState<Set<ChatDiagnosticPhase>>(
+    () => new Set(ALL_PHASES.filter((p) => p !== 'stream-chunk'))
+  )
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set())
   const [autoScroll, setAutoScroll] = useState(true)
   const [viewMode, setViewMode] = useState<ViewMode>(() => readStoredViewMode())

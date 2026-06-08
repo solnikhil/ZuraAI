@@ -1,5 +1,6 @@
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import * as fc from 'fast-check'
 
 const mocks = vi.hoisted(() => ({
   updateStreaming: vi.fn(),
@@ -1585,13 +1586,13 @@ describe('useProviderStreaming', () => {
     expect(streamResult.content).toBe('Answer [[1]](https://example.com/source)')
   })
 
-  it('switches to no-tools synthesis after a successful search batch', async () => {
-    const streamCalls: Array<{ toolChoice?: unknown }> = []
+  it('grants a second tool-enabled round after a successful first batch with budget remaining', async () => {
+    const streamCalls: Array<{ toolChoice?: unknown; tools?: unknown }> = []
     let invocation = 0
 
     mocks.createProviderStreamClient.mockReturnValue({
-      stream: async function* (request: { toolChoice?: unknown }) {
-        streamCalls.push({ toolChoice: request.toolChoice })
+      stream: async function* (request: { toolChoice?: unknown; tools?: unknown }) {
+        streamCalls.push({ toolChoice: request.toolChoice, tools: request.tools })
         invocation += 1
 
         if (invocation === 1) {
@@ -1611,7 +1612,11 @@ describe('useProviderStreaming', () => {
           return
         }
 
-        if (request.toolChoice !== 'none') {
+        if (invocation === 2) {
+          // The fix grants this follow-up round as a tool-enabled round
+          // (budget remains, batch was non-empty, all searches succeeded), so
+          // the model can issue its next web_search batch instead of being
+          // forced straight into no-tools synthesis.
           yield {
             type: 'tool-call-delta',
             delta: [{
@@ -1628,20 +1633,32 @@ describe('useProviderStreaming', () => {
           return
         }
 
+        // The model stops requesting tools after the second batch and returns a
+        // final answer, which terminates the loop and produces the synthesis.
         yield { type: 'text-delta', delta: '2027 has not happened yet, but MrBeast is the current leading candidate.' }
         yield { type: 'finish', finishReason: 'stop' }
       },
     })
 
     const updateStreamingMessage = vi.fn()
-    const handleToolCalls = vi.fn().mockResolvedValueOnce({
-      hasTools: true,
-      toolResults: [buildWebSearchToolResult('call_1', 'MrBeast subscribers 2026')],
-      formattedResults: [{ role: 'tool', tool_call_id: 'call_1', content: 'search results' }],
-      needsFollowUp: true,
-      shouldContinueResearch: false,
-      executionSummary: buildExecutionSummary('MrBeast subscribers 2026'),
-    })
+    const handleToolCalls = vi
+      .fn()
+      .mockResolvedValueOnce({
+        hasTools: true,
+        toolResults: [buildWebSearchToolResult('call_1', 'MrBeast subscribers 2026')],
+        formattedResults: [{ role: 'tool', tool_call_id: 'call_1', content: 'first batch results' }],
+        needsFollowUp: true,
+        shouldContinueResearch: false,
+        executionSummary: buildExecutionSummary('MrBeast subscribers 2026'),
+      })
+      .mockResolvedValueOnce({
+        hasTools: true,
+        toolResults: [buildWebSearchToolResult('call_2', 'best YouTuber ranking 2026')],
+        formattedResults: [{ role: 'tool', tool_call_id: 'call_2', content: 'second batch results' }],
+        needsFollowUp: true,
+        shouldContinueResearch: false,
+        executionSummary: buildExecutionSummary('best YouTuber ranking 2026'),
+      })
 
     const { result } = renderHook(() =>
       useProviderStreaming({
@@ -1684,9 +1701,12 @@ describe('useProviderStreaming', () => {
       enableTools: true,
     })
 
-    expect(handleToolCalls).toHaveBeenCalledTimes(1)
-    expect(streamCalls).toHaveLength(2)
-    expect(streamCalls[1]?.toolChoice).toBe('none')
+    expect(handleToolCalls).toHaveBeenCalledTimes(2)
+    expect(streamCalls).toHaveLength(3)
+    // The granted follow-up round is tool-enabled: tools are passed with a
+    // non-`none` tool choice so the model can issue its next web_search batch.
+    expect(streamCalls[1]?.toolChoice).not.toBe('none')
+    expect(Array.isArray(streamCalls[1]?.tools) && (streamCalls[1]?.tools as unknown[]).length > 0).toBe(true)
     expect(streamResult.content).toBe('2027 has not happened yet, but MrBeast is the current leading candidate.')
   })
 
@@ -2443,7 +2463,10 @@ describe('useProviderStreaming', () => {
       messageId: 'message-1',
       messages: [{ role: 'user', content: 'what should I expect in the Kiro ambassador welcome kit?' }],
       startTime: performance.now() - 25,
-      researchMaxRounds: 4,
+      // Budget of 1 is reached by the single executed search, so the loop
+      // legitimately forces the no-tools synthesis pass (reason: 'budget')
+      // where the leaked fullwidth DSML markup is exercised and recovered.
+      researchMaxRounds: 1,
       syncToStreamingContext: false,
       enableTools: true,
     })
@@ -2773,5 +2796,900 @@ describe('useProviderStreaming', () => {
     expect(streamResult.content).not.toContain('tool_calls')
     expect(streamResult.content).not.toContain('invoke name=')
     expect(streamResult.finishReason).toBeUndefined()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Bugfix: research-followup-tool-calls
+//
+// Property 1 (Bug Condition / Expected Behavior): a follow-up tool-enabled round
+// is granted after a fully successful first `web_search` batch when budget
+// remains and the model has not signalled completion.
+//
+// Root cause under test: `shouldStopAfterInitialBatch` (and
+// `shouldStopAfterFollowUpBatch`) force the no-tools final synthesis solely
+// because `toolResult.shouldContinueResearch === false` (every search
+// succeeded), even though budget remains and the model returned `tool_calls`.
+//
+// EXPECTED OUTCOME ON UNFIXED CODE: this suite FAILS. The orchestrator jumps
+// from the round-0 `tool_calls` response straight into a `no-tools` synthesis
+// round (tools `[]`, choice `none`) instead of granting another tool-enabled
+// round. The failure confirms the bug exists. DO NOT fix the test or the code
+// here — the same test validates the fix once implemented.
+//
+// Tests use clearly-fake placeholder model IDs only.
+// ---------------------------------------------------------------------------
+
+describe('useProviderStreaming — research follow-up tool calls (bug condition)', () => {
+  // Clearly-fake placeholder model IDs (never real model names).
+  const PLACEHOLDER_MODEL = 'placeholder-model/research-pro-x'
+  const PLACEHOLDER_MODEL_ALT = 'placeholder-model/test-alpha'
+
+  // Documented hard cap of executed searches per response.
+  const EFFECTIVE_SEARCH_BUDGET = 8
+
+  beforeEach(() => {
+    mocks.updateStreaming.mockReset()
+    mocks.createProviderStreamClient.mockReset()
+  })
+
+  function sanitizeId(query: string, index: number) {
+    return `call_${index}_${query.replace(/[^a-z0-9]+/gi, '_')}`
+  }
+
+  // A provider stream chunk that requests one `web_search` tool call per query.
+  function toolCallDeltaEvent(queries: string[]) {
+    return {
+      type: 'tool-call-delta',
+      delta: queries.map((query, index) => ({
+        index,
+        id: sanitizeId(query, index),
+        type: 'function',
+        function: { name: 'web_search', arguments: JSON.stringify({ query }) },
+      })),
+    }
+  }
+
+  // A fully successful `web_search`-only batch: every result is `ok`, the
+  // result-quality heuristic reports `shouldContinueResearch: false` (nothing
+  // failed), and the model still wants a follow-up round (`needsFollowUp`).
+  function successfulWebSearchBatch(queries: string[]) {
+    const toolResults = queries.map((query, index) => ({
+      toolCall: {
+        id: sanitizeId(query, index),
+        name: 'web_search',
+        arguments: { query },
+      },
+      result: { success: true, data: { results: [{ title: query }] } },
+    }))
+    return {
+      hasTools: true,
+      toolResults,
+      formattedResults: queries.map((query, index) => ({
+        role: 'tool',
+        tool_call_id: sanitizeId(query, index),
+        content: `Results for ${query}`,
+      })),
+      needsFollowUp: true,
+      // Every search succeeded -> result-quality heuristic says "don't retry".
+      shouldContinueResearch: false,
+      executionSummary: {
+        attemptedWebSearchCount: queries.length,
+        executedWebSearchCount: queries.length,
+        executedWebSearchQueries: queries,
+      },
+    }
+  }
+
+  const isToolEnabledRound = (req?: { tools: unknown; toolChoice: unknown }) =>
+    Boolean(
+      req &&
+        Array.isArray(req.tools) &&
+        req.tools.length > 0 &&
+        req.toolChoice !== 'none'
+    )
+
+  /**
+   * Drives `runProviderStream` through a research turn where the model issues
+   * the provided successful `web_search` batches, one per tool-enabled round.
+   * The provider stream is request-shape-driven (it inspects whether the
+   * orchestrator passed tools with a non-`none` choice), so the same harness
+   * works against both the unfixed and fixed orchestrator.
+   */
+  async function runResearchTurn({
+    batches,
+    model = PLACEHOLDER_MODEL,
+    researchMaxRounds = EFFECTIVE_SEARCH_BUDGET,
+  }: {
+    batches: string[][]
+    model?: string
+    researchMaxRounds?: number
+  }) {
+    const capturedRequests: Array<{ tools: unknown; toolChoice: unknown }> = []
+    let toolEnabledRoundsWithBatch = 0
+
+    mocks.createProviderStreamClient.mockReset()
+    mocks.createProviderStreamClient.mockReturnValue({
+      stream: async function* (request: { tools?: unknown[]; toolChoice?: unknown }) {
+        capturedRequests.push({ tools: request.tools, toolChoice: request.toolChoice })
+
+        const toolsEnabled =
+          Array.isArray(request.tools) &&
+          request.tools.length > 0 &&
+          request.toolChoice !== 'none'
+
+        if (toolsEnabled && toolEnabledRoundsWithBatch < batches.length) {
+          const queries = batches[toolEnabledRoundsWithBatch]
+          toolEnabledRoundsWithBatch += 1
+          yield toolCallDeltaEvent(queries)
+          yield { type: 'finish', finishReason: 'tool_calls' }
+          return
+        }
+
+        // No batch left to issue (or a forced no-tools synthesis round): the
+        // model returns a grounded final answer that terminates the loop.
+        yield {
+          type: 'text-delta',
+          delta:
+            'Based on the gathered web search results, here is the grounded comparison of the providers and their documented pricing, limits, and official docs.',
+        }
+        yield { type: 'finish', finishReason: 'stop' }
+      },
+    })
+
+    const handleToolCalls = vi.fn()
+    for (const batch of batches) {
+      handleToolCalls.mockResolvedValueOnce(successfulWebSearchBatch(batch))
+    }
+
+    const { result } = renderHook(() =>
+      useProviderStreaming({
+        settings: {
+          aiModel: model,
+          modelProvider: 'openrouter',
+          temperature: 0.4,
+          maxTokens: 1024,
+          streamResponses: true,
+          openRouterApiKey: 'or-key',
+        },
+        toolCalling: {
+          canUseTools: true,
+          getToolsForRequest: () => [
+            {
+              type: 'function',
+              function: {
+                name: 'web_search',
+                description: 'Search the web',
+                parameters: { type: 'object', properties: {} },
+              },
+            },
+          ],
+          handleToolCalls,
+          getResearchContext: () => 'Research context',
+        },
+        updateStreamingMessage: vi.fn(),
+        flushThrottledUpdates: vi.fn(),
+        throttledUpdateStreamingMessage: vi.fn(),
+      })
+    )
+
+    await result.current.runProviderStream({
+      provider: 'openrouter',
+      model,
+      sessionId: 'session-research-followup',
+      messageId: 'message-research-followup',
+      messages: [{ role: 'user', content: 'compare provider pricing, limits, and docs' }],
+      startTime: performance.now() - 25,
+      researchMaxRounds,
+      syncToStreamingContext: false,
+      enableTools: true,
+    })
+
+    return { capturedRequests, handleToolCalls }
+  }
+
+  // Test cases (1), (2), (4): first-batch all-success with budget remaining.
+  // Scoped to concrete failing cases (web-only batch, all `ok`, executed count
+  // strictly below the budget, finishReason `tool_calls`) so failures are
+  // reproducible. Property 1 must hold for every executed count below budget.
+  it(
+    'grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)',
+    async () => {
+      await fc.assert(
+        fc.asyncProperty(
+          // Executed search count strictly below the effective budget of 8.
+          fc.integer({ min: 1, max: EFFECTIVE_SEARCH_BUDGET - 1 }),
+          async (searchCount) => {
+            const queries = Array.from(
+              { length: searchCount },
+              (_unused, index) => `placeholder facet ${index + 1} provider comparison`
+            )
+
+            const { capturedRequests } = await runResearchTurn({ batches: [queries] })
+
+            // The first round (round 0) is the initial tool-enabled request.
+            // After a fully successful first batch with budget remaining and
+            // the model still requesting tools, the orchestrator must grant a
+            // SECOND tool-enabled round rather than forcing no-tools synthesis.
+            const secondRound = capturedRequests[1]
+            const grantedAdditionalToolEnabledRound = isToolEnabledRound(secondRound)
+            const forcedNoToolsSynthesisImmediatelyAfterFirstBatch =
+              Boolean(secondRound) && !isToolEnabledRound(secondRound)
+
+            // Property 1 assertions (match the design's Expected Behavior).
+            expect(grantedAdditionalToolEnabledRound).toBe(true)
+            expect(forcedNoToolsSynthesisImmediatelyAfterFirstBatch).toBe(false)
+          }
+        ),
+        {
+          numRuns: 40,
+          // Design test cases: (1) 3 searches, (2) 6 searches, (4) boundary
+          // executed count = budget - 1 (7 searches).
+          examples: [[3], [6], [EFFECTIVE_SEARCH_BUDGET - 1]],
+        }
+      )
+    }
+  )
+
+  // Test case (2) made explicit: observed multi-facet comparison — 6 successful
+  // searches against a budget of 8, model wants more (debug session
+  // e9ea3715-8b5b-4e23-98c7-8e41d5e0d31d, paraphrased with placeholder IDs).
+  it('grants a follow-up tool-enabled round for the observed 6-of-8 multi-facet comparison', async () => {
+    const queries = [
+      'provider a pricing',
+      'provider a free tier limits',
+      'provider b pricing',
+      'provider b rate limits',
+      'provider c pricing',
+      'provider c supported models',
+    ]
+
+    const { capturedRequests, handleToolCalls } = await runResearchTurn({
+      batches: [queries],
+      model: PLACEHOLDER_MODEL_ALT,
+    })
+
+    expect(handleToolCalls).toHaveBeenCalledTimes(1)
+    // Round 0 is tool-enabled (initial request).
+    expect(isToolEnabledRound(capturedRequests[0])).toBe(true)
+    // A second tool-enabled round must be granted (only 6 of 8 searches used).
+    expect(isToolEnabledRound(capturedRequests[1])).toBe(true)
+    // And synthesis must NOT be forced immediately after the first batch.
+    expect(
+      Boolean(capturedRequests[1]) && !isToolEnabledRound(capturedRequests[1])
+    ).toBe(false)
+  })
+
+  // Test case (3): follow-up batch all-success with budget remaining — a THIRD
+  // tool-enabled round must be granted after a successful SECOND batch.
+  it('grants a third tool-enabled round after a successful follow-up batch (budget remaining)', async () => {
+    const firstBatch = ['placeholder overview a', 'placeholder overview b', 'placeholder overview c']
+    const secondBatch = ['placeholder docs a', 'placeholder docs b']
+
+    const { capturedRequests } = await runResearchTurn({
+      batches: [firstBatch, secondBatch],
+    })
+
+    // Round 0 (initial) and round 1 (first follow-up) are tool-enabled.
+    expect(isToolEnabledRound(capturedRequests[0])).toBe(true)
+    expect(isToolEnabledRound(capturedRequests[1])).toBe(true)
+    // After the successful second batch (5 of 8 searches used), a third
+    // tool-enabled round must be granted instead of forced synthesis.
+    expect(isToolEnabledRound(capturedRequests[2])).toBe(true)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Bugfix: research-followup-tool-calls
+//
+// Property 2 (Preservation): non-buggy research turns are unchanged.
+//
+// Observation-first methodology: these tests were written by running the
+// UNFIXED orchestrator for inputs where `isBugCondition` returns false, then
+// locking in the observed loop-control outcomes. They MUST PASS on the unfixed
+// code (they confirm the baseline behavior to preserve) and MUST STILL PASS
+// after the fix removes the `shouldContinueResearch === false` stop trigger
+// from `shouldStopAfterInitialBatch` / `shouldStopAfterFollowUpBatch`.
+//
+// The fix only changes the outcome for the bug condition (web-only batch, every
+// search succeeded, budget remaining, model returned `tool_calls`). Every other
+// turn — budget reached, empty batch, non-web/verification tool batch, failed
+// search with budget remaining, the model declining further tools, and the
+// de-duplication context the orchestrator forwards — must be untouched.
+//
+// Observable loop-control signal: the sequence of provider stream requests
+// (`capturedRequests`). A "tool-enabled round" passes a non-empty `tools` array
+// with a tool choice other than `none`; a forced no-tools synthesis round passes
+// `tools: []` and `toolChoice: 'none'`. The decision the fix touches is the
+// round issued immediately after the first tool batch (`capturedRequests[1]`).
+//
+// Tests use clearly-fake placeholder model IDs only.
+// ---------------------------------------------------------------------------
+
+describe('useProviderStreaming — research follow-up tool calls (preservation)', () => {
+  // Clearly-fake placeholder model IDs (never real model names).
+  const PLACEHOLDER_MODEL = 'placeholder-model/research-pro-x'
+
+  // Documented hard cap of executed searches per response.
+  const EFFECTIVE_SEARCH_BUDGET = 8
+
+  // A grounded final answer that terminates the loop without tripping the
+  // blank / leaked-markup / ungrounded synthesis-recovery retries.
+  const GROUNDED_FINAL_ANSWER =
+    'Based on the gathered web search results, here is the grounded comparison of ' +
+    'the providers and their documented pricing, limits, and official docs.'
+
+  beforeEach(() => {
+    mocks.updateStreaming.mockReset()
+    mocks.createProviderStreamClient.mockReset()
+  })
+
+  function sanitizeId(label: string, index: number) {
+    return `call_${index}_${label.replace(/[^a-z0-9]+/gi, '_')}`
+  }
+
+  const isToolEnabledRound = (req?: { tools: unknown; toolChoice: unknown }) =>
+    Boolean(
+      req &&
+        Array.isArray(req.tools) &&
+        req.tools.length > 0 &&
+        req.toolChoice !== 'none'
+    )
+
+  interface ToolCallSpec {
+    name: string
+    query?: string
+    success?: boolean
+  }
+
+  interface BatchSpec {
+    toolCalls: ToolCallSpec[]
+    needsFollowUp: boolean
+    shouldContinueResearch: boolean
+    executedWebSearchCount?: number
+    executedWebSearchQueries?: string[]
+  }
+
+  // Provider stream chunk that issues the batch's tool calls (one per spec).
+  function toolCallDeltaEvent(toolCalls: ToolCallSpec[]) {
+    return {
+      type: 'tool-call-delta',
+      delta: toolCalls.map((toolCall, index) => ({
+        index,
+        id: sanitizeId(toolCall.query || toolCall.name, index),
+        type: 'function',
+        function: {
+          name: toolCall.name,
+          arguments: JSON.stringify(
+            toolCall.name === 'web_search'
+              ? { query: toolCall.query }
+              : { path: toolCall.query || 'placeholder/path' }
+          ),
+        },
+      })),
+    }
+  }
+
+  // The `ToolCallingResponse`-shaped result a mocked `handleToolCalls` returns.
+  function makeToolResult(batch: BatchSpec) {
+    const toolResults = batch.toolCalls.map((toolCall, index) => ({
+      toolCall: {
+        id: sanitizeId(toolCall.query || toolCall.name, index),
+        name: toolCall.name,
+        arguments:
+          toolCall.name === 'web_search'
+            ? { query: toolCall.query }
+            : { path: toolCall.query || 'placeholder/path' },
+      },
+      result:
+        toolCall.success === false
+          ? { success: false, error: 'placeholder failure' }
+          : { success: true, data: { results: [{ title: toolCall.query || toolCall.name }] } },
+    }))
+
+    const webQueries = batch.toolCalls
+      .filter((toolCall) => toolCall.name === 'web_search')
+      .map((toolCall) => String(toolCall.query || '').trim())
+      .filter(Boolean)
+
+    return {
+      hasTools: true,
+      toolResults,
+      formattedResults: batch.toolCalls.map((toolCall, index) => ({
+        role: 'tool',
+        tool_call_id: toolResults[index].toolCall.id,
+        content: `Results for ${toolCall.query || toolCall.name}`,
+      })),
+      needsFollowUp: batch.needsFollowUp,
+      shouldContinueResearch: batch.shouldContinueResearch,
+      executionSummary: {
+        attemptedWebSearchCount: webQueries.length,
+        executedWebSearchCount: batch.executedWebSearchCount ?? webQueries.length,
+        executedWebSearchQueries: batch.executedWebSearchQueries ?? webQueries,
+      },
+    }
+  }
+
+  /**
+   * Drives `runProviderStream` through a research turn. The provider stream is
+   * request-shape-driven: on a tool-enabled round it issues the next pending
+   * batch's tool calls; otherwise (a forced no-tools synthesis round, or once
+   * the batches are exhausted) it returns a grounded final answer that ends the
+   * loop. Because the harness inspects the request shape rather than a fixed
+   * round counter, the SAME harness works against the unfixed and fixed
+   * orchestrator — that is what makes it a valid preservation oracle.
+   *
+   * When `modelDoneImmediately` is set, round 0 returns a final answer with no
+   * tool calls (the model signals completion up front and the tool loop is
+   * never entered).
+   */
+  async function observeTurn({
+    batches,
+    researchMaxRounds = EFFECTIVE_SEARCH_BUDGET,
+    model = PLACEHOLDER_MODEL,
+    modelDoneImmediately = false,
+  }: {
+    batches: BatchSpec[]
+    researchMaxRounds?: number
+    model?: string
+    modelDoneImmediately?: boolean
+  }) {
+    const capturedRequests: Array<{ tools: unknown; toolChoice: unknown }> = []
+    const handleToolCallsOptions: Array<Record<string, unknown>> = []
+    let toolEnabledRoundsWithBatch = 0
+
+    mocks.createProviderStreamClient.mockReset()
+    mocks.createProviderStreamClient.mockReturnValue({
+      stream: async function* (request: { tools?: unknown[]; toolChoice?: unknown }) {
+        capturedRequests.push({ tools: request.tools, toolChoice: request.toolChoice })
+
+        const toolsEnabled =
+          Array.isArray(request.tools) &&
+          request.tools.length > 0 &&
+          request.toolChoice !== 'none'
+
+        if (!modelDoneImmediately && toolsEnabled && toolEnabledRoundsWithBatch < batches.length) {
+          const batch = batches[toolEnabledRoundsWithBatch]
+          toolEnabledRoundsWithBatch += 1
+          yield toolCallDeltaEvent(batch.toolCalls)
+          yield { type: 'finish', finishReason: 'tool_calls' }
+          return
+        }
+
+        // No pending batch (or a forced no-tools synthesis round, or the model
+        // signalled completion): return a grounded answer that ends the loop.
+        yield { type: 'text-delta', delta: GROUNDED_FINAL_ANSWER }
+        yield { type: 'finish', finishReason: 'stop' }
+      },
+    })
+
+    let toolCallInvocation = 0
+    const handleToolCalls = vi.fn(async (_response: unknown, optionsArg: Record<string, unknown>) => {
+      handleToolCallsOptions.push(optionsArg)
+      const batch = batches[toolCallInvocation]
+      toolCallInvocation += 1
+      return makeToolResult(batch)
+    })
+
+    const { result } = renderHook(() =>
+      useProviderStreaming({
+        settings: {
+          aiModel: model,
+          modelProvider: 'openrouter',
+          temperature: 0.4,
+          maxTokens: 1024,
+          streamResponses: true,
+          openRouterApiKey: 'or-key',
+        },
+        toolCalling: {
+          canUseTools: true,
+          getToolsForRequest: () => [
+            {
+              type: 'function',
+              function: {
+                name: 'web_search',
+                description: 'Search the web',
+                parameters: { type: 'object', properties: {} },
+              },
+            },
+            {
+              type: 'function',
+              function: {
+                name: 'file_read',
+                description: 'Read a file',
+                parameters: { type: 'object', properties: {} },
+              },
+            },
+          ],
+          handleToolCalls,
+          getResearchContext: () => 'Research context',
+        },
+        updateStreamingMessage: vi.fn(),
+        flushThrottledUpdates: vi.fn(),
+        throttledUpdateStreamingMessage: vi.fn(),
+      })
+    )
+
+    const streamResult = await result.current.runProviderStream({
+      provider: 'openrouter',
+      model,
+      sessionId: 'session-preservation',
+      messageId: 'message-preservation',
+      messages: [{ role: 'user', content: 'compare provider pricing, limits, and docs' }],
+      startTime: performance.now() - 25,
+      researchMaxRounds,
+      syncToStreamingContext: false,
+      enableTools: true,
+    })
+
+    const grantedToolRoundAfterFirstBatch = isToolEnabledRound(capturedRequests[1])
+    const anyToolRoundAfterFirstBatch = capturedRequests
+      .slice(1)
+      .some((request) => isToolEnabledRound(request))
+
+    return {
+      capturedRequests,
+      handleToolCallsOptions,
+      handleToolCalls,
+      streamResult,
+      grantedToolRoundAfterFirstBatch,
+      anyToolRoundAfterFirstBatch,
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Named preservation cases (design Testing Strategy cases 1-6).
+  // -------------------------------------------------------------------------
+
+  // Case 1: Budget reached — executed count = budget (8), all successful.
+  // Observed on unfixed code: the orchestrator stops and forces the no-tools
+  // synthesis (reason: 'budget'). The fix leaves this unchanged because the
+  // budget decision forces synthesis regardless of the success heuristic.
+  it('preserves budget-reached: stops and forces no-tools synthesis when executed count equals budget', async () => {
+    const queries = Array.from(
+      { length: EFFECTIVE_SEARCH_BUDGET },
+      (_unused, index) => `placeholder budget facet ${index + 1}`
+    )
+
+    const { capturedRequests, grantedToolRoundAfterFirstBatch, anyToolRoundAfterFirstBatch } =
+      await observeTurn({
+        batches: [
+          {
+            toolCalls: queries.map((query) => ({ name: 'web_search', query, success: true })),
+            needsFollowUp: true,
+            // Every search succeeded -> result-quality heuristic says "don't retry".
+            shouldContinueResearch: false,
+            executedWebSearchCount: EFFECTIVE_SEARCH_BUDGET,
+          },
+        ],
+        researchMaxRounds: EFFECTIVE_SEARCH_BUDGET,
+      })
+
+    // Round 0 is the initial tool-enabled request.
+    expect(isToolEnabledRound(capturedRequests[0])).toBe(true)
+    // The round after the first batch is a forced no-tools synthesis round.
+    expect(grantedToolRoundAfterFirstBatch).toBe(false)
+    expect(isToolEnabledRound(capturedRequests[1])).toBe(false)
+    // No tool-enabled round is ever granted after the first batch.
+    expect(anyToolRoundAfterFirstBatch).toBe(false)
+  })
+
+  // Case 2: Empty next batch — the batch's web_search query normalizes to empty
+  // (no usable next queries). Observed on unfixed code: stop and force synthesis
+  // (reason: 'empty-batch'). Preserved because empty-batch forces synthesis
+  // independently of the success heuristic.
+  it('preserves empty-batch: stops and forces no-tools synthesis when the next batch has no usable queries', async () => {
+    const { capturedRequests, grantedToolRoundAfterFirstBatch, anyToolRoundAfterFirstBatch } =
+      await observeTurn({
+        batches: [
+          {
+            // "!!!" survives extractWebSearchQueries (non-empty after trim) but
+            // normalizes to empty, so evaluateResearchContinuation reports
+            // reason: 'empty-batch'.
+            toolCalls: [{ name: 'web_search', query: '!!!', success: true }],
+            needsFollowUp: true,
+            shouldContinueResearch: false,
+            executedWebSearchCount: 1,
+            executedWebSearchQueries: ['!!!'],
+          },
+        ],
+        researchMaxRounds: EFFECTIVE_SEARCH_BUDGET,
+      })
+
+    expect(isToolEnabledRound(capturedRequests[0])).toBe(true)
+    expect(grantedToolRoundAfterFirstBatch).toBe(false)
+    expect(isToolEnabledRound(capturedRequests[1])).toBe(false)
+    expect(anyToolRoundAfterFirstBatch).toBe(false)
+  })
+
+  // Case 3: Non-web tool batch — the batch includes a non-web (mutating/
+  // verification) tool, so the `!initialHasNonWebTools` guard keeps the
+  // verification-driven follow-up path active. Observed on unfixed code: the
+  // loop is NOT stopped by the success heuristic; a tool-enabled follow-up round
+  // is granted. This is exactly the case that WOULD be the bug if it were
+  // web-only (all-success, budget remaining), so it pins down the guard.
+  it('preserves non-web tool batch: grants a tool-enabled follow-up round via the verification path', async () => {
+    const { capturedRequests, grantedToolRoundAfterFirstBatch } = await observeTurn({
+      batches: [
+        {
+          toolCalls: [{ name: 'file_read', query: 'placeholder/report.txt', success: true }],
+          needsFollowUp: true,
+          // All-success would force synthesis for a web-only batch, but the
+          // non-web guard must keep the loop going here.
+          shouldContinueResearch: false,
+          executedWebSearchCount: 0,
+        },
+      ],
+      researchMaxRounds: EFFECTIVE_SEARCH_BUDGET,
+    })
+
+    expect(isToolEnabledRound(capturedRequests[0])).toBe(true)
+    // A tool-enabled follow-up round is granted (verification path), not a
+    // forced no-tools synthesis.
+    expect(grantedToolRoundAfterFirstBatch).toBe(true)
+    expect(isToolEnabledRound(capturedRequests[1])).toBe(true)
+  })
+
+  // Case 4: Model-completion — after a non-buggy first batch the orchestrator
+  // grants a tool-enabled follow-up round, the model returns no tool calls (a
+  // grounded final answer), and the loop ends as today.
+  it('preserves model-completion: ends the loop when the follow-up round returns no tool calls', async () => {
+    const { capturedRequests, streamResult, handleToolCalls } = await observeTurn({
+      batches: [
+        {
+          // A failed search keeps this turn out of the bug condition
+          // (shouldContinueResearch === true) and enters the loop.
+          toolCalls: [
+            { name: 'web_search', query: 'placeholder primary query', success: false },
+          ],
+          needsFollowUp: true,
+          shouldContinueResearch: true,
+          executedWebSearchCount: 1,
+        },
+      ],
+      researchMaxRounds: EFFECTIVE_SEARCH_BUDGET,
+    })
+
+    // Round 0 + one granted tool-enabled follow-up round.
+    expect(isToolEnabledRound(capturedRequests[0])).toBe(true)
+    expect(isToolEnabledRound(capturedRequests[1])).toBe(true)
+    // handleToolCalls ran exactly once (round 0); the follow-up returned no
+    // tool calls, so the loop ended without another tool execution.
+    expect(handleToolCalls).toHaveBeenCalledTimes(1)
+    // The grounded final answer from the follow-up round is the committed turn.
+    expect(streamResult.content).toBe(GROUNDED_FINAL_ANSWER)
+  })
+
+  // Case 5: Failed search with budget remaining — one search fails, so the
+  // result-quality heuristic already reports `shouldContinueResearch === true`.
+  // The fix removes the `=== false` disjunct, which does not change this case:
+  // the loop continues identically and a tool-enabled follow-up round is granted.
+  it('preserves failed-search with budget remaining: continues the loop with a tool-enabled follow-up round', async () => {
+    const { capturedRequests, grantedToolRoundAfterFirstBatch } = await observeTurn({
+      batches: [
+        {
+          toolCalls: [
+            { name: 'web_search', query: 'placeholder facet one', success: true },
+            { name: 'web_search', query: 'placeholder facet two', success: false },
+          ],
+          needsFollowUp: true,
+          shouldContinueResearch: true,
+          executedWebSearchCount: 2,
+        },
+      ],
+      researchMaxRounds: EFFECTIVE_SEARCH_BUDGET,
+    })
+
+    expect(isToolEnabledRound(capturedRequests[0])).toBe(true)
+    expect(grantedToolRoundAfterFirstBatch).toBe(true)
+    expect(isToolEnabledRound(capturedRequests[1])).toBe(true)
+  })
+
+  // Case 6: De-duplication — when the loop continues, the orchestrator forwards
+  // the accumulated prior-query history and the remaining budget to
+  // handleToolCalls so the (unchanged) toolManager de-duplication can skip
+  // repeated queries and protect the budget. A duplicate follow-up batch
+  // (executedWebSearchCount = 0) does not advance the budget.
+  it('preserves de-duplication context forwarded to the tool layer (prior queries + remaining budget)', async () => {
+    const { handleToolCallsOptions, handleToolCalls } = await observeTurn({
+      batches: [
+        {
+          // Round 0: a failed + a successful search (non-buggy; enters loop).
+          toolCalls: [
+            { name: 'web_search', query: 'alpha query', success: true },
+            { name: 'web_search', query: 'beta query', success: false },
+          ],
+          needsFollowUp: true,
+          shouldContinueResearch: true,
+          executedWebSearchCount: 2,
+          executedWebSearchQueries: ['alpha query', 'beta query'],
+        },
+        {
+          // Round 1 follow-up: repeats a prior query; toolManager would skip it,
+          // so the executed count for this batch is 0 (budget protected).
+          toolCalls: [{ name: 'web_search', query: 'alpha query', success: true }],
+          needsFollowUp: true,
+          shouldContinueResearch: true,
+          executedWebSearchCount: 0,
+          executedWebSearchQueries: [],
+        },
+      ],
+      researchMaxRounds: EFFECTIVE_SEARCH_BUDGET,
+    })
+
+    expect(handleToolCalls).toHaveBeenCalledTimes(2)
+
+    // First call: no prior queries, full budget remaining.
+    const firstPolicy = handleToolCallsOptions[0]?.executionPolicy as
+      | { priorWebSearchQueries?: string[]; remainingWebSearchBudget?: number }
+      | undefined
+    expect(firstPolicy?.priorWebSearchQueries).toEqual([])
+    expect(firstPolicy?.remainingWebSearchBudget).toBe(EFFECTIVE_SEARCH_BUDGET)
+
+    // Second call (follow-up): the prior executed queries are forwarded so the
+    // de-duplication layer can skip the repeat, and the remaining budget
+    // reflects the 2 searches executed in round 0.
+    const secondPolicy = handleToolCallsOptions[1]?.executionPolicy as
+      | { priorWebSearchQueries?: string[]; remainingWebSearchBudget?: number }
+      | undefined
+    expect(secondPolicy?.priorWebSearchQueries).toEqual(['alpha query', 'beta query'])
+    expect(secondPolicy?.remainingWebSearchBudget).toBe(EFFECTIVE_SEARCH_BUDGET - 2)
+  })
+
+  // Case 7 (immediate completion): the model returns a final answer with no tool
+  // calls in round 0. The tool loop is never entered. Unchanged by the fix.
+  it('preserves immediate model-completion: no tool loop when round 0 returns no tool calls', async () => {
+    const { capturedRequests, anyToolRoundAfterFirstBatch, streamResult, handleToolCalls } =
+      await observeTurn({
+        batches: [],
+        researchMaxRounds: EFFECTIVE_SEARCH_BUDGET,
+        modelDoneImmediately: true,
+      })
+
+    // Only the initial round was issued; no follow-up or synthesis round.
+    expect(capturedRequests).toHaveLength(1)
+    expect(anyToolRoundAfterFirstBatch).toBe(false)
+    expect(handleToolCalls).not.toHaveBeenCalled()
+    expect(streamResult.content).toBe(GROUNDED_FINAL_ANSWER)
+  })
+
+  // -------------------------------------------------------------------------
+  // Property 2: Preservation — random non-buggy turns match the locked-in
+  // baseline loop-control outcome. Generates varied turn shapes (executed count
+  // vs. budget, batch emptiness, non-web tool presence, success/failure mix,
+  // model-continues vs. model-done) and asserts the round-after-first-batch
+  // decision matches what the original (unfixed) orchestrator does.
+  //
+  // The generator only produces turns where isBugCondition is FALSE, so the
+  // outcome must be identical before and after the fix.
+  // **Validates: Requirements 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8**
+  // -------------------------------------------------------------------------
+  it('preserves the loop-control decision for randomly generated non-buggy turns', async () => {
+    type NonBuggyTurn =
+      | { kind: 'budget'; webCount: number }
+      | { kind: 'empty' }
+      | { kind: 'nonweb'; webCount: number }
+      | { kind: 'failed'; webCount: number }
+      | { kind: 'modeldone' }
+
+    const nonBuggyTurnArb: fc.Arbitrary<NonBuggyTurn> = fc.oneof(
+      fc
+        .integer({ min: 1, max: 5 })
+        .map((webCount) => ({ kind: 'budget', webCount }) as NonBuggyTurn),
+      fc.constant({ kind: 'empty' } as NonBuggyTurn),
+      fc
+        .integer({ min: 0, max: 3 })
+        .map((webCount) => ({ kind: 'nonweb', webCount }) as NonBuggyTurn),
+      fc
+        .integer({ min: 1, max: 6 })
+        .map((webCount) => ({ kind: 'failed', webCount }) as NonBuggyTurn),
+      fc.constant({ kind: 'modeldone' } as NonBuggyTurn)
+    )
+
+    await fc.assert(
+      fc.asyncProperty(nonBuggyTurnArb, async (turn) => {
+        if (turn.kind === 'modeldone') {
+          const { capturedRequests, anyToolRoundAfterFirstBatch } = await observeTurn({
+            batches: [],
+            modelDoneImmediately: true,
+          })
+          // No tool loop is entered; only the initial round is issued.
+          expect(capturedRequests).toHaveLength(1)
+          expect(anyToolRoundAfterFirstBatch).toBe(false)
+          return
+        }
+
+        if (turn.kind === 'budget') {
+          const queries = Array.from(
+            { length: turn.webCount },
+            (_unused, index) => `placeholder budget facet ${index + 1}`
+          )
+          const { anyToolRoundAfterFirstBatch } = await observeTurn({
+            batches: [
+              {
+                toolCalls: queries.map((query) => ({ name: 'web_search', query, success: true })),
+                needsFollowUp: true,
+                shouldContinueResearch: false,
+                // At/over the effective budget -> forced synthesis (budget).
+                executedWebSearchCount: EFFECTIVE_SEARCH_BUDGET,
+              },
+            ],
+            researchMaxRounds: EFFECTIVE_SEARCH_BUDGET,
+          })
+          // Budget reached -> no tool-enabled round after the first batch.
+          expect(anyToolRoundAfterFirstBatch).toBe(false)
+          return
+        }
+
+        if (turn.kind === 'empty') {
+          const { anyToolRoundAfterFirstBatch } = await observeTurn({
+            batches: [
+              {
+                toolCalls: [{ name: 'web_search', query: '!!!', success: true }],
+                needsFollowUp: true,
+                shouldContinueResearch: false,
+                executedWebSearchCount: 1,
+                executedWebSearchQueries: ['!!!'],
+              },
+            ],
+            researchMaxRounds: EFFECTIVE_SEARCH_BUDGET,
+          })
+          // Empty next batch -> no tool-enabled round after the first batch.
+          expect(anyToolRoundAfterFirstBatch).toBe(false)
+          return
+        }
+
+        if (turn.kind === 'nonweb') {
+          const webCalls = Array.from(
+            { length: turn.webCount },
+            (_unused, index) =>
+              ({ name: 'web_search', query: `placeholder facet ${index + 1}`, success: true }) as ToolCallSpec
+          )
+          const { grantedToolRoundAfterFirstBatch } = await observeTurn({
+            batches: [
+              {
+                toolCalls: [
+                  ...webCalls,
+                  { name: 'file_read', query: 'placeholder/report.txt', success: true },
+                ],
+                needsFollowUp: true,
+                // All-success: only the non-web guard keeps the loop alive.
+                shouldContinueResearch: false,
+                executedWebSearchCount: turn.webCount,
+              },
+            ],
+            researchMaxRounds: EFFECTIVE_SEARCH_BUDGET,
+          })
+          // Non-web guard intact -> tool-enabled follow-up round granted.
+          expect(grantedToolRoundAfterFirstBatch).toBe(true)
+          return
+        }
+
+        // turn.kind === 'failed'
+        const queries = Array.from(
+          { length: turn.webCount },
+          (_unused, index) => `placeholder failed facet ${index + 1}`
+        )
+        const { grantedToolRoundAfterFirstBatch } = await observeTurn({
+          batches: [
+            {
+              toolCalls: queries.map((query, index) => ({
+                name: 'web_search',
+                query,
+                // At least one search fails -> shouldContinueResearch === true.
+                success: index !== 0,
+              })),
+              needsFollowUp: true,
+              shouldContinueResearch: true,
+              executedWebSearchCount: turn.webCount,
+            },
+          ],
+          researchMaxRounds: EFFECTIVE_SEARCH_BUDGET,
+        })
+        // Failed search with budget remaining -> loop continues, tool round granted.
+        expect(grantedToolRoundAfterFirstBatch).toBe(true)
+      }),
+      { numRuns: 60 }
+    )
   })
 })

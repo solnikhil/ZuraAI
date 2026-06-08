@@ -117,27 +117,38 @@ describe('memoryStore', () => {
   it('evicts by createdAt, not updatedAt (editing an old memory does not shield it)', async () => {
     const store = await import('./memoryStore')
 
-    // Create the cap + 1 entries so exactly one will be evicted.
-    const created: Array<{ id: string; label: string }> = []
-    for (let i = 0; i < store.MEMORY_CAP + 1; i += 1) {
-      const memory = await store.addMemoryAsync({ content: `entry ${i}` })
-      created.push({ id: memory.id, label: `entry ${i}` })
-      // Guarantee strictly increasing createdAt across entries.
-      await new Promise((resolve) => setTimeout(resolve, 1))
+    // Drive timestamps from a deterministic monotonic clock instead of real
+    // `setTimeout` sleeps. On Windows the timer granularity is ~15.6ms, so the
+    // previous `await setTimeout(…, 1)` between each of the MEMORY_CAP + 1 adds
+    // actually waited ~15.6ms apiece (~3.1s total) and pushed this test past
+    // the 5s per-test timeout under load. A monotonic Date.now() keeps
+    // createdAt strictly increasing (the property under test) with zero
+    // wall-clock waiting.
+    let clock = 1_000
+    const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => (clock += 1))
+
+    try {
+      // Create the cap + 1 entries so exactly one will be evicted.
+      const created: Array<{ id: string; label: string }> = []
+      for (let i = 0; i < store.MEMORY_CAP + 1; i += 1) {
+        const memory = await store.addMemoryAsync({ content: `entry ${i}` })
+        created.push({ id: memory.id, label: `entry ${i}` })
+      }
+
+      // Touch the OLDEST-created entry so its updatedAt becomes the newest.
+      // Under updatedAt-based eviction this would shield it; under createdAt-based
+      // eviction it should still be the one dropped.
+      await store.updateMemoryAsync(created[0].id, { content: 'entry 0 edited' })
+
+      const memories = await store.getAllMemoriesAsync()
+      expect(memories.length).toBe(store.MEMORY_CAP)
+      // The oldest-created entry was evicted despite being most recently edited.
+      expect(memories.find((memory) => memory.id === created[0].id)).toBeUndefined()
+      // The second-oldest survived.
+      expect(memories.find((memory) => memory.id === created[1].id)).toBeDefined()
+    } finally {
+      nowSpy.mockRestore()
     }
-
-    // Touch the OLDEST-created entry so its updatedAt becomes the newest.
-    // Under updatedAt-based eviction this would shield it; under createdAt-based
-    // eviction it should still be the one dropped.
-    await new Promise((resolve) => setTimeout(resolve, 2))
-    await store.updateMemoryAsync(created[0].id, { content: 'entry 0 edited' })
-
-    const memories = await store.getAllMemoriesAsync()
-    expect(memories.length).toBe(store.MEMORY_CAP)
-    // The oldest-created entry was evicted despite being most recently edited.
-    expect(memories.find((memory) => memory.id === created[0].id)).toBeUndefined()
-    // The second-oldest survived.
-    expect(memories.find((memory) => memory.id === created[1].id)).toBeDefined()
   })
 
   it('filters by scope (global only excludes project-scoped memories)', async () => {

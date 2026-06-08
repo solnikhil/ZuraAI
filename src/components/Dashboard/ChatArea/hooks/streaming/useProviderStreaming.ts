@@ -1194,8 +1194,7 @@ export function useProviderStreaming({
 
           const shouldStopAfterInitialBatch =
             !initialHasNonWebTools &&
-            (initialLoopDecision.shouldForceFinalSynthesis ||
-              toolResult.shouldContinueResearch === false)
+            initialLoopDecision.shouldForceFinalSynthesis
 
           if (
             shouldStopAfterInitialBatch &&
@@ -1460,8 +1459,7 @@ export function useProviderStreaming({
 
             const shouldStopAfterFollowUpBatch =
               !hasNonWebTools &&
-              (continuationDecision.shouldForceFinalSynthesis ||
-                nextToolResult.shouldContinueResearch === false)
+              continuationDecision.shouldForceFinalSynthesis
 
             if (
               shouldStopAfterFollowUpBatch &&

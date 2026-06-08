@@ -5,10 +5,10 @@ import { useSettings } from '../../../contexts/SettingsContext'
 import { useModelSelectorContext } from '../../../contexts/ModelSelectorContext'
 import { useModelSelector } from './useModelSelector'
 import { useResponsiveModelSelector } from './useResponsiveModelSelector'
-import { ModelSelectorDropdown } from './ModelSelectorDropdown'
+import { ModelSelectorContent } from './ModelSelectorContent'
 import { ModelIcon } from './ModelIcon'
 import { getModelAttributes } from '../../../utils/modelUtils'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Popover, PopoverTrigger } from '@/components/ui/popover'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   maybeAnimate,
@@ -108,51 +108,28 @@ export default function ModelSelector({ minimal, popoverAlign = 'start' }: Model
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
-      <PopoverContent
-        className="theme-menu-surface model-selector-popover overflow-hidden p-0"
-        align={popoverAlign}
-        collisionPadding={12}
-        style={{
-          width: `min(${effectiveDropdownWidth}px, max(320px, calc(var(--radix-popover-content-available-width) - 8px)))`,
-          maxWidth: 'calc(100vw - 24px)',
-          height: `min(${effectiveDropdownHeight}px, max(160px, calc(var(--radix-popover-content-available-height) - 8px)))`,
-          maxHeight: 'calc(100vh - 24px)',
-        }}
-        onOpenAutoFocus={(e) => e.preventDefault()}
-        onFocusOutside={(e) => e.preventDefault()}
-      >
-        <motion.div
-          initial={{ opacity: 0, scale: 0.96, y: -4 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          transition={{
-            type: 'spring',
-            stiffness: 500,
-            damping: 32,
-            mass: 0.8,
-          }}
-          className="h-full"
-        >
-          <ModelSelectorDropdown
-            searchInputRef={searchInputRef}
-            searchQuery={state.searchQuery}
-            onSearchChange={setSearchQuery}
-            viewMode={state.viewMode}
-            onViewModeChange={setViewMode}
-            selectedProvider={state.selectedProvider}
-            onProviderSelect={setSelectedProvider}
-            currentModels={currentModels}
-            groupedModels={groupedModels}
-            focusedIndex={state.focusedIndex}
-            selectedModelCode={settings.aiModel}
-            selectedModelProvider={settings.modelProvider}
-            favoriteModels={settings.favoriteModels || []}
-            onModelSelect={handleSelect}
-            onToggleFavorite={toggleFavorite}
-            onFocusedIndexChange={setFocusedIndex}
-            compactMode={compactMode}
-          />
-        </motion.div>
-      </PopoverContent>
+      <ModelSelectorContent
+        popoverAlign={popoverAlign}
+        effectiveDropdownWidth={effectiveDropdownWidth}
+        effectiveDropdownHeight={effectiveDropdownHeight}
+        searchInputRef={searchInputRef}
+        searchQuery={state.searchQuery}
+        onSearchChange={setSearchQuery}
+        viewMode={state.viewMode}
+        onViewModeChange={setViewMode}
+        selectedProvider={state.selectedProvider}
+        onProviderSelect={setSelectedProvider}
+        currentModels={currentModels}
+        groupedModels={groupedModels}
+        focusedIndex={state.focusedIndex}
+        selectedModelCode={settings.aiModel}
+        selectedModelProvider={settings.modelProvider}
+        favoriteModels={settings.favoriteModels || []}
+        onModelSelect={handleSelect}
+        onToggleFavorite={toggleFavorite}
+        onFocusedIndexChange={setFocusedIndex}
+        compactMode={compactMode}
+      />
     </Popover>
   )
 }
