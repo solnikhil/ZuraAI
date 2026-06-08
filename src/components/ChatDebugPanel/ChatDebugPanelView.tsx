@@ -132,7 +132,9 @@ function summarizeEvent(event: ChatDiagnosticEvent): string {
       return `${facts} · ${summary}`
     }
     case 'memory-extraction-error':
-      return event.error ? `memory error: ${event.error.slice(0, 120)}` : 'memory error'
+      return event.error
+        ? `memory error${event.memoryErrorCode ? ` [${event.memoryErrorCode}]` : ''}: ${event.error.slice(0, 120)}`
+        : 'memory error'
     case 'context-optimized': {
       const ctx = event.context
       if (!ctx) return 'context-optimized'

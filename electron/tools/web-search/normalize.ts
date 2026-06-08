@@ -106,8 +106,8 @@ function inferTitleFromRawContent(rawContent: string, url: string): string {
 export function parseTavilyExtractResult(result: unknown): SearchResult | null {
   if (!isRecord(result)) return null
 
-  const url = getString(result.url)
-  if (!url) return null
+  const url = getString(result.url).trim()
+  if (url.length < 1) return null
 
   const rawContent = getString(result.raw_content)
 
@@ -124,13 +124,14 @@ export function parseTavilyExtractResult(result: unknown): SearchResult | null {
 
 export function parseTavilyImage(image: unknown, sourceUrl?: string): ImageResult | null {
   if (typeof image === 'string') {
-    return image ? { url: image, sourceUrl } : null
+    const trimmed = image.trim()
+    return trimmed.length >= 1 ? { url: trimmed, sourceUrl } : null
   }
 
   if (!isRecord(image)) return null
 
-  const imageUrl = getString(image.url)
-  if (!imageUrl) return null
+  const imageUrl = getString(image.url).trim()
+  if (imageUrl.length < 1) return null
 
   const description = getString(image.description) || getString(image.alt) || undefined
   return {
@@ -164,8 +165,8 @@ export function extractTavilyImages(results: readonly unknown[]): ImageResult[] 
 export function parseTavilySearchResult(result: unknown): SearchResult | null {
   if (!isRecord(result)) return null
 
-  const url = getString(result.url)
-  if (!url) return null
+  const url = getString(result.url).trim()
+  if (url.length < 1) return null
   const rawScore = result.score
 
   return {
@@ -177,21 +178,5 @@ export function parseTavilySearchResult(result: unknown): SearchResult | null {
     displayed_link: getDisplayedLink(url),
     date: getString(result.published_date) || getString(result.date) || undefined,
     score: typeof rawScore === 'number' && Number.isFinite(rawScore) ? rawScore : undefined,
-  }
-}
-
-export function parseDuckDuckScrapeResult(result: unknown): SearchResult | null {
-  if (!isRecord(result)) return null
-
-  const url = getString(result.url)
-  if (!url) return null
-
-  return {
-    title: getString(result.title) || url,
-    url,
-    snippet: getString(result.description) || getString(result.rawDescription),
-    favicon: getFaviconUrl(url),
-    source: getSourceFromUrl(url),
-    displayed_link: getDisplayedLink(url),
   }
 }

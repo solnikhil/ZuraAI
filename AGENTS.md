@@ -66,7 +66,7 @@ Core capabilities:
 - `electron/secureStorage.ts` — encrypted key storage via `safeStorage` (JSON under `userData`)
 - `electron/mcp/transports/` — MCP transport foundation primitives and concrete transport implementations
 - `electron/tools/` — main-process tool implementations (IPC registry is restricted)
-  - `electron/tools/web-search/` — built-in web-search intent classification, backend adapters (Tavily / DuckDuckGo), result normalization, and orchestration service
+  - `electron/tools/web-search/` — built-in **Tavily-only, no-fallback** web-search pipeline behind a pluggable `SearchProvider` seam: `service.ts` (thin orchestrator, single dispatch, no fallback branching), `request.ts` (untrusted-input validation/normalization), `intent.ts` (query-vs-URL intent classification + weak-query reformulation), `normalize.ts` (result/image/snippet/source shaping, renamed from `helpers.ts`), `credentials.ts` (secure-storage credential resolution), `logging.ts` (single secret-safe failure logger), `providers/registry.ts` + `providers/types.ts` (the `SearchProvider` abstraction), and `providers/tavily/*` (`transport.ts` + `mapper.ts` + `index.ts`). The DuckDuckGo backend and the `backends/` split were removed.
   - `electron/tools/windows-uia/` — Windows-only Microsoft UI Automation bridge for native desktop snapshots and supported control actions (`InvokePattern`, `ValuePattern`, selection/toggle patterns)
   - `electron/tools/system-shell/` — bounded non-interactive PowerShell execution with timeout, output caps, and working-directory validation
   - `electron/tools/files/` — structured main-process filesystem tools for read/write/search/move with path normalization and size/result limits
@@ -588,18 +588,16 @@ Tool execution is intentionally restricted.
   - Native Windows tools (normal Agent mode + Agent Desktop mode supplement): `windows_uia_snapshot`, `windows_uia_invoke`, `windows_uia_set_value`, `windows_uia_select`, `system_shell`, `file_read`, `file_write`, `file_search`, `file_move`, `app_find`, `app_launch`, `app_list`, `app_install`, `app_uninstall`, `window_list`, `window_focus`, `window_move`, and `window_close` are exposed through the existing `execute-tool` path and preload validation, with no new renderer IPC channel. Read-only tools auto-run. Mutating tools require explicit approval/`autoApprove` and fail closed when approval is absent or rejected. UIA/app/window tools return clear unsupported-platform errors off Windows. These tools are intended to reduce screenshot/click/type usage; `computer_*` remains the fallback for unsupported controls and genuinely visual tasks. Browser and Office automation are intentionally not included in this version.
   - Agent Desktop (Windows-only): no new model-callable tools. When the `agent_desktop` skill is enabled on Windows, `electron/tools/index.ts` routes the existing `computer_*` calls through `agentDesktopService.ensureReadyForTool(...)` and then `agentDesktopService.gateComputerAction(...)` (in `electron/agentDesktop/`) before delegating to the Computer Use executors; readiness can provision or recreate a missing/stale Agent_Desktop, while the gate enforces placement, presence, targeting, the allowlist approval policy, the shared kill switch, and the shared action cap, and redirects captures to the Agent_Desktop. See the "Agent Desktop / Agent View" runtime-flow section above.
   - Web search: `electron/tools/webSearch.ts`
-    - `electron/tools/webSearch.ts` is a thin facade over the modular service in `electron/tools/web-search/`
-    - `electron/tools/web-search/intent.ts` classifies query-vs-URL-vs-extract intents and reformulates weak search queries
-    - `electron/tools/web-search/backends/tavily.ts` owns Tavily search/extract transport calls
-    - `electron/tools/web-search/backends/duckduckgo.ts` owns the DuckDuckGo fallback path
-    - `electron/tools/web-search/helpers.ts` normalizes results, images, snippets, sources, and displayed links into the shared web-search result shape
-    - Tavily search depth now accepts `ultra-fast`, `fast`, `basic`, and `advanced`; invalid values are still normalized to `basic` in main as a defensive fallback.
-    - Input classification happens at the top of `executeWebSearch`:
-      - **URL-dominant input** (URL only) → Tavily **Extract** (`/extract`) with `format: markdown`, `extract_depth: basic`
-      - **Query + URL** → Tavily **Extract** (`/extract`) with attached `query`, `chunks_per_source`, `extract_depth: advanced`
-      - **Natural-language query (no URL)** → Tavily **Search** (`/search`)
-      - **Docs/site exploration wording + URL** currently follows the URL extract path (future `map`/`crawl` integration can be added separately)
-    - Tavily-first routing uses `tavilyApiKey` from secure storage; if extraction/search fails, fallback is duck-duck-scrape web search
+    - `electron/tools/webSearch.ts` is a thin facade that re-exports `executeWebSearch` + `WebSearchArgs` from the modular service in `electron/tools/web-search/`
+    - The pipeline is **Tavily-only with NO fallback**. When Tavily is unconfigured or fails, the tool surfaces the **real** failure (missing-credential message, provider error, or timeout) instead of substituting another backend.
+    - A pluggable `SearchProvider` abstraction (`providers/registry.ts`, `providers/types.ts`) lets future providers be added without touching the orchestrator; Tavily is the only registered provider.
+    - The orchestrator (`service.ts`) normalizes input → classifies intent → resolves the active provider + its credential → dispatches **exactly one** provider call (`search` XOR `extract`) → wraps the outcome in a `ToolResult`. No DuckDuckGo, no fallback chain.
+    - `electron/tools/web-search/intent.ts` classifies query-vs-URL-vs-extract intents and reformulates weak search queries; `electron/tools/web-search/normalize.ts` (renamed from `helpers.ts`) shapes results, images, snippets, sources, and displayed links into the shared web-search result shape.
+    - `electron/tools/web-search/providers/tavily/*` owns Tavily transport (`transport.ts`) and payload mapping (`mapper.ts`); `credentials.ts` resolves `tavilyApiKey` from secure storage.
+    - Intent routing: natural-language query (no URL) → Tavily **Search**; URL present → Tavily **Extract** (`url_extract` / `url_extract_with_query` / `site_exploration`).
+    - Tavily search depth accepts `ultra-fast`, `fast`, `basic`, and `advanced`; invalid values are normalized to `basic`.
+    - The single `logWebSearchFailure` helper (`logging.ts`) logs only stage, intent, key-presence boolean, truncated error, and truncated query — never the API key.
+    - No new IPC channel: the `execute-tool` `web_search` call site is unchanged.
 
 There is currently no built-in trusted browser-testing workflow; any replacement must be documented here when introduced.
 

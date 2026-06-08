@@ -213,6 +213,15 @@ function sanitizeEvent(input: unknown): ChatDiagnosticEvent | null {
       ? truncateString(raw.skippedReason, 160)
       : undefined,
     error: typeof raw.error === 'string' ? truncateString(raw.error) : undefined,
+    memoryErrorCode: typeof raw.memoryErrorCode === 'string'
+      ? truncateString(raw.memoryErrorCode, 120)
+      : undefined,
+    responseLength: typeof raw.responseLength === 'number' && Number.isFinite(raw.responseLength)
+      ? raw.responseLength
+      : undefined,
+    responsePreview: typeof raw.responsePreview === 'string'
+      ? truncateString(raw.responsePreview, 500)
+      : undefined,
     factCount: typeof raw.factCount === 'number' && Number.isFinite(raw.factCount)
       ? raw.factCount
       : undefined,

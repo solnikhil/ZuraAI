@@ -247,7 +247,9 @@ export function ChatDebugCategorized({ events, category }: ChatDebugCategorizedP
             const facts = `${event.factCount ?? 0} fact${event.factCount === 1 ? '' : 's'}`
             detail = `${facts} · ${event.summaryKept ? 'summary kept' : 'summary empty'}`
           } else {
-            detail = event.error ?? 'unknown error'
+            detail = event.memoryErrorCode
+              ? `[${event.memoryErrorCode}] ${event.error ?? 'unknown error'}`
+              : event.error ?? 'unknown error'
           }
           return (
             <div

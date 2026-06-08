@@ -1,335 +1,162 @@
-import { getSecureValueAsync } from '../../secureStorage'
+// ---------------------------------------------------------------------------
+// Web search orchestrator (web-search-backend-rebuild)
+//
+// THIN, no-fallback coordination module. Owns the single public entry point
+// `executeWebSearch` and dispatches EXACTLY ONE provider operation per
+// invocation (`search` XOR `extract`), decided purely by the classified intent.
+//
+// It contains NO fallback logic and NO provider-specific knowledge:
+//   normalize -> classify -> resolve provider -> resolve credential ->
+//   dispatch one call -> wrap the outcome in a `ToolResult`.
+//
+// The whole body is wrapped in try/catch so the function NEVER throws and
+// ALWAYS resolves to a `ToolResult` (Req 1.3). On any unexpected error it
+// resolves to `{ success: false, error }` (Req 1.4).
+// ---------------------------------------------------------------------------
+
 import type { ToolResult } from '../types'
-import {
-  SEARCH_MAX_QUERY_LENGTH,
-  SEARCH_MAX_RESULTS,
-} from './constants'
-import {
-  buildFallbackSearchQuery,
-  classifyWebInput,
-  reformulateQueryIfNeeded,
-} from './intent'
-import { searchWithDuckDuckGo } from './backends/duckduckgo'
-import { extractWithTavily, searchWithTavily } from './backends/tavily'
-import type { SearchExecutionOptions, WebSearchArgs } from './types'
+import { normalizeRequest } from './request'
+import { classifyWebInput, reformulateQuery } from './intent'
+import { resolveProvider } from './providers/registry'
+// Side-effect import: registering the Tavily provider at module load so
+// `resolveProvider()` can resolve it as the active provider (Req 4.1).
+import './providers/tavily'
+import { CredentialReadError, resolveProviderCredential } from './credentials'
+import { logWebSearchFailure } from './logging'
+import type {
+  ProviderContext,
+  ProviderExtractRequest,
+  ProviderResult,
+  ProviderSearchRequest,
+  WebSearchArgs,
+} from './types'
 
-function truncateForLog(value: string, maxLength: number = 200): string {
-  if (value.length <= maxLength) {
-    return value
-  }
-
-  return `${value.slice(0, maxLength - 3)}...`
+/** Extract a human-readable message from an unknown thrown value. */
+function messageOf(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message) return error.message
+  return fallback
 }
 
-function logWebSearchFailure(
-  stage: string,
-  details: {
-    query?: string
-    intent?: string
-    hasTavilyKey?: boolean
-    error: string
-  }
-): void {
-  console.error('[web_search] request failed', {
-    stage,
-    query: details.query ? truncateForLog(details.query) : undefined,
-    intent: details.intent,
-    hasTavilyKey: details.hasTavilyKey,
-    error: details.error,
-  })
-}
-
-function logWebSearchFallback(
-  stage: string,
-  details: {
-    query?: string
-    intent?: string
-    hasTavilyKey?: boolean
-    error: string
-  }
-): void {
-  console.warn('[web_search] backend failed, attempting fallback', {
-    stage,
-    query: details.query ? truncateForLog(details.query) : undefined,
-    intent: details.intent,
-    hasTavilyKey: details.hasTavilyKey,
-    error: details.error,
-  })
-}
-
-function coerceSearchDepth(value: unknown): 'ultra-fast' | 'fast' | 'basic' | 'advanced' {
-  if (value === 'ultra-fast' || value === 'fast' || value === 'basic' || value === 'advanced') {
-    return value
-  }
-
-  return 'basic'
-}
-
-function coerceTimeRange(value: unknown): 'day' | 'week' | 'month' | 'year' | undefined {
-  if (value === 'day' || value === 'week' || value === 'month' || value === 'year') return value
-  return undefined
-}
-
-function coerceTopic(value: unknown): 'general' | 'news' | 'finance' | undefined {
-  if (value === 'general' || value === 'news' || value === 'finance') return value
-  return undefined
-}
-
-function hasInvalidTimeRange(value: unknown): boolean {
-  return value !== undefined && coerceTimeRange(value) === undefined
-}
-
-function hasInvalidTopic(value: unknown): boolean {
-  return value !== undefined && coerceTopic(value) === undefined
-}
-
-function coerceIncludeImages(value: unknown): boolean {
-  return typeof value === 'boolean' ? value : true
-}
-
-function appendMessageToResult(result: ToolResult, message: string): ToolResult {
-  if (!result.success || !result.data || typeof result.data !== 'object' || Array.isArray(result.data)) {
-    return result
-  }
-
-  const existingMessage = typeof (result.data as Record<string, unknown>).message === 'string'
-    ? String((result.data as Record<string, unknown>).message)
-    : ''
-
-  return {
-    ...result,
-    data: {
-      ...(result.data as Record<string, unknown>),
-      message: existingMessage ? `${existingMessage} ${message}` : message,
-    },
-  }
-}
-
-function coerceNumResults(value: unknown): number {
-  let numResults: number | string = typeof value === 'number' || typeof value === 'string'
-    ? value
-    : SEARCH_MAX_RESULTS
-  if (typeof numResults === 'string') {
-    const parsed = Number(numResults)
-    numResults = Number.isNaN(parsed) ? SEARCH_MAX_RESULTS : parsed
-  }
-
-  if (typeof numResults !== 'number' || numResults < 1) {
-    numResults = SEARCH_MAX_RESULTS
-  }
-
-  const normalizedNumResults = numResults as number
-  return Math.min(Math.max(normalizedNumResults, 1), SEARCH_MAX_RESULTS)
-}
-
-function normalizeSearchRequest(args: WebSearchArgs): SearchExecutionOptions | ToolResult {
-  let query = args.query
-  if (!query || typeof query !== 'string') {
-    return {
-      success: false,
-      error: 'Search query is required',
-    }
-  }
-
-  query = query.trim()
-  if (!query) {
-    return {
-      success: false,
-      error: 'Search query cannot be empty',
-    }
-  }
-
-  if (query.length > SEARCH_MAX_QUERY_LENGTH) {
-    query = query.slice(0, SEARCH_MAX_QUERY_LENGTH)
-  }
-
-  if (hasInvalidTimeRange(args.time_range)) {
-    return {
-      success: false,
-      error: 'Invalid time_range. Expected one of: day, week, month, year.',
-    }
-  }
-
-  if (hasInvalidTopic(args.topic)) {
-    return {
-      success: false,
-      error: 'Invalid topic. Expected one of: general, news, finance.',
-    }
-  }
-
-  return {
-    query,
-    numResults: coerceNumResults(args.num_results),
-    searchDepth: coerceSearchDepth(args.search_depth ?? 'basic'),
-    includeImages: coerceIncludeImages(args.include_images),
-    timeRange: coerceTimeRange(args.time_range),
-    topic: coerceTopic(args.topic),
-  }
-}
-
+/**
+ * The single public entry point for the web-search tool.
+ *
+ * Always resolves to a `ToolResult`; never throws and never rejects (Req 1.3).
+ * Dispatches at most one provider transport call per invocation, with no
+ * fallback to any other backend, intent, query, or provider.
+ */
 export async function executeWebSearch(args: WebSearchArgs): Promise<ToolResult> {
-  const normalizedRequest = normalizeSearchRequest(args)
-  if ('success' in normalizedRequest) {
-    logWebSearchFailure('validation', {
-      query: typeof args?.query === 'string' ? args.query : undefined,
-      error: normalizedRequest.error || 'Validation failed',
-    })
-    return normalizedRequest
-  }
-
-  const classifiedInput = classifyWebInput(normalizedRequest.query, args.urls)
-  const isExtractIntent = classifiedInput.intent !== 'query_search'
-
-  const tavilyKey = await getSecureValueAsync('tavilyApiKey')
-  const hasTavilyKey = Boolean(tavilyKey && tavilyKey.trim())
-  const safeTavilyKey = tavilyKey?.trim() || ''
-
-  if (isExtractIntent) {
-    const extractQuery = classifiedInput.queryWithoutUrls || undefined
-
-    if (hasTavilyKey) {
-      const tavilyExtractResult = await extractWithTavily({
-        urls: classifiedInput.urls,
-        query: extractQuery,
-        apiKey: safeTavilyKey,
-        intent: classifiedInput.intent,
-        includeImages: normalizedRequest.includeImages,
+  try {
+    // 1. Validate + normalize untrusted input. A `ToolResult` here means a
+    //    validation failure (discriminated via `'success' in result`).
+    const normalized = normalizeRequest(args)
+    if ('success' in normalized) {
+      logWebSearchFailure({
+        stage: 'validation',
+        hasApiKey: false,
+        error: normalized.error || 'Validation failed',
+        query: typeof args?.query === 'string' ? args.query : undefined,
       })
+      return normalized
+    }
 
-      if (tavilyExtractResult.success) {
-        return tavilyExtractResult
+    // 2. Classify intent deterministically (pure, no I/O).
+    const classified = classifyWebInput(normalized.query, normalized.urls)
+
+    // 3. Resolve the active provider (Tavily). Defensive try/catch keeps the
+    //    function total even if the registry cannot resolve a provider.
+    const provider = resolveProvider()
+
+    // 4. Resolve the provider credential. Distinguish "absent" (null) from
+    //    "could not be read" (CredentialReadError).
+    let apiKey: string | null
+    try {
+      apiKey = await resolveProviderCredential(provider.credentialKey)
+    } catch (error: unknown) {
+      if (error instanceof CredentialReadError) {
+        const readError =
+          'The Tavily API key could not be read from secure storage. Please re-enter it in Settings > Search APIs.'
+        logWebSearchFailure({
+          stage: 'credential',
+          intent: classified.intent,
+          hasApiKey: false,
+          error: messageOf(error, readError),
+          query: normalized.query,
+        })
+        return { success: false, error: readError }
       }
+      // Unexpected error: rethrow into the outer catch so it is handled once.
+      throw error
+    }
 
-      logWebSearchFallback('tavily-extract', {
-        query: normalizedRequest.query,
-        intent: classifiedInput.intent,
-        hasTavilyKey,
-        error: tavilyExtractResult.error || 'Tavily extract failed',
-      })
-
-      const fallbackQuery = reformulateQueryIfNeeded(buildFallbackSearchQuery(classifiedInput))
-      const tavilySearchFallback = await searchWithTavily(safeTavilyKey, {
-        ...normalizedRequest,
-        query: fallbackQuery,
-      })
-      if (tavilySearchFallback.success) {
-        return appendMessageToResult(
-          tavilySearchFallback,
-          'Direct URL extraction failed, so fallback search results were returned.'
-        )
-      }
-
-      logWebSearchFallback('tavily-search-fallback', {
-        query: fallbackQuery,
-        intent: classifiedInput.intent,
-        hasTavilyKey,
-        error: tavilySearchFallback.error || 'Tavily search fallback failed',
-      })
-
-      const ddgFallback = await searchWithDuckDuckGo(fallbackQuery, normalizedRequest.numResults)
-      if (ddgFallback.success) {
-        return appendMessageToResult(
-          ddgFallback,
-          'Direct URL extraction failed, so fallback web results were returned.'
-        )
-      }
-
-      logWebSearchFallback('duckduckgo-fallback', {
-        query: fallbackQuery,
-        intent: classifiedInput.intent,
-        hasTavilyKey,
-        error: ddgFallback.error || 'DuckDuckGo fallback failed',
-      })
-
-      const result = {
+    // 5. Missing/empty/whitespace credential: surface the configuration error
+    //    and dispatch NO transport call. No silent substitution (Req 5.2/5.3).
+    if (!apiKey) {
+      return {
         success: false,
-        error: `Web extraction failed. ${tavilyExtractResult.error} Search fallback also failed. Please check your internet connection and try again.`,
+        error: 'Add a Tavily API key in Settings > Search APIs to use web search.',
       }
-      logWebSearchFailure('extract-with-tavily-and-fallbacks', {
-        query: normalizedRequest.query,
-        intent: classifiedInput.intent,
-        hasTavilyKey,
-        error: result.error,
-      })
-      return result
     }
 
-    const fallbackQuery = reformulateQueryIfNeeded(buildFallbackSearchQuery(classifiedInput))
-    const fallbackResult = await searchWithDuckDuckGo(fallbackQuery, normalizedRequest.numResults)
-    if (fallbackResult.success) {
-      return appendMessageToResult(
-        fallbackResult,
-        'URL-focused extraction is available with a Tavily API key (Settings > Search APIs). Returned search results instead.'
-      )
+    // 6. Build the runtime context. The orchestrator guarantees a non-empty key.
+    const ctx: ProviderContext = { apiKey }
+
+    // 7. Dispatch EXACTLY ONE provider call based on intent (search XOR extract).
+    let result: ProviderResult
+    if (classified.intent === 'query_search') {
+      if (!provider.capabilities.search) {
+        return { success: false, error: 'Active search provider does not support search.' }
+      }
+
+      const searchRequest: ProviderSearchRequest = {
+        query: reformulateQuery(classified.queryWithoutUrls || classified.originalQuery),
+        numResults: normalized.numResults,
+        searchDepth: normalized.searchDepth,
+        includeImages: normalized.includeImages,
+        timeRange: normalized.timeRange,
+        topic: normalized.topic,
+      }
+      result = await provider.search(searchRequest, ctx)
+    } else {
+      if (!provider.capabilities.extract) {
+        return {
+          success: false,
+          error: 'Active search provider does not support URL extraction.',
+        }
+      }
+
+      const extractRequest: ProviderExtractRequest = {
+        urls: classified.urls,
+        query: classified.queryWithoutUrls || undefined,
+        includeImages: normalized.includeImages,
+        intent: classified.intent,
+      }
+      result = await provider.extract(extractRequest, ctx)
     }
 
-    const result = {
-      success: false,
-      error: 'This request includes a specific URL. Add a Tavily API key in Settings > Search APIs to enable direct URL extraction.',
+    // 8/9. Surface the single dispatched outcome. No fallback on failure.
+    if (result.ok) {
+      return { success: true, data: result.data }
     }
-    logWebSearchFailure('extract-without-tavily-key', {
-      query: normalizedRequest.query,
-      intent: classifiedInput.intent,
-      hasTavilyKey,
+
+    logWebSearchFailure({
+      stage: 'provider',
+      intent: classified.intent,
+      hasApiKey: true,
       error: result.error,
+      query: normalized.query,
+      apiKey,
     })
-    return result
+    return { success: false, error: result.error }
+  } catch (error: unknown) {
+    // 10. The function must never throw. Any unexpected error becomes a
+    //     `success: false` ToolResult (Req 1.3, 1.4).
+    const errorMessage = messageOf(error, 'Web search failed unexpectedly.')
+    logWebSearchFailure({
+      stage: 'unexpected',
+      hasApiKey: false,
+      error: errorMessage,
+      query: typeof args?.query === 'string' ? args.query : undefined,
+    })
+    return { success: false, error: errorMessage }
   }
-
-  const searchQuery = reformulateQueryIfNeeded(
-    classifiedInput.queryWithoutUrls || classifiedInput.originalQuery
-  )
-
-  if (hasTavilyKey) {
-    const tavilyResult = await searchWithTavily(safeTavilyKey, {
-      ...normalizedRequest,
-      query: searchQuery,
-    })
-    if (tavilyResult.success) {
-      return tavilyResult
-    }
-
-    logWebSearchFallback('tavily-search', {
-      query: searchQuery,
-      intent: classifiedInput.intent,
-      hasTavilyKey,
-      error: tavilyResult.error || 'Tavily search failed',
-    })
-
-    const fallbackResult = await searchWithDuckDuckGo(searchQuery, normalizedRequest.numResults)
-    if (fallbackResult.success) {
-      return fallbackResult
-    }
-
-    logWebSearchFallback('duckduckgo-fallback', {
-      query: searchQuery,
-      intent: classifiedInput.intent,
-      hasTavilyKey,
-      error: fallbackResult.error || 'DuckDuckGo fallback failed',
-    })
-
-    const result = {
-      success: false,
-      error: `Web search failed. ${tavilyResult.error} Fallback also failed. Please check your internet connection and try again. For best results, add a valid Tavily API key in Settings > Search APIs.`,
-    }
-    logWebSearchFailure('search-with-tavily-and-fallback', {
-      query: searchQuery,
-      intent: classifiedInput.intent,
-      hasTavilyKey,
-      error: result.error,
-    })
-    return result
-  }
-
-  const fallbackResult = await searchWithDuckDuckGo(searchQuery, normalizedRequest.numResults)
-  if (!fallbackResult.success) {
-    logWebSearchFailure('search-with-duckduckgo', {
-      query: searchQuery,
-      intent: classifiedInput.intent,
-      hasTavilyKey,
-      error: fallbackResult.error || 'DuckDuckGo search failed',
-    })
-  }
-
-  return fallbackResult
 }

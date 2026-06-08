@@ -66,10 +66,29 @@ export interface ExtractionResult {
   summary: string
 }
 
+type ExtractionParseErrorCode =
+  | 'empty-response'
+  | 'missing-json-object'
+  | 'invalid-json'
+  | 'invalid-json-shape'
+
+interface ExtractionParseFailure {
+  errorCode: ExtractionParseErrorCode
+  error: string
+  responseLength: number
+  responsePreview: string
+}
+
+type ExtractionParseOutcome =
+  | { ok: true; result: ExtractionResult }
+  | ({ ok: false } & ExtractionParseFailure)
+
 const MAX_MESSAGES = 12
 const MAX_CHARS_PER_MESSAGE = 800
 const MAX_FACTS = 8
-const EXTRACTION_TIMEOUT_MS = 15_000
+const EXTRACTION_TIMEOUT_MS = 30_000
+const EXTRACTION_MAX_TOKENS = 512
+const RESPONSE_PREVIEW_CHARS = 500
 
 /**
  * Synthetic messageId for diagnostics. Background extraction has no assistant
@@ -113,6 +132,24 @@ Rules:
 Respond with ONLY a JSON object, no prose, in exactly this shape:
 {"facts": ["fact one", "fact two"], "summary": "one line about this chat, or empty string"}`
 
+function buildResponsePreview(raw: string): string {
+  return raw.replace(/\s+/g, ' ').trim().slice(0, RESPONSE_PREVIEW_CHARS)
+}
+
+function buildParseFailure(
+  raw: string,
+  errorCode: ExtractionParseErrorCode,
+  error: string
+): ExtractionParseOutcome {
+  return {
+    ok: false,
+    errorCode,
+    error,
+    responseLength: raw.length,
+    responsePreview: buildResponsePreview(raw),
+  }
+}
+
 function buildConversationText(messages: ExtractionMessage[]): string {
   return messages
     .filter((m) => (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
@@ -130,18 +167,33 @@ function buildConversationText(messages: ExtractionMessage[]): string {
  * surrounding prose / code fences by extracting the first balanced-ish JSON
  * object. Returns null when nothing usable is found.
  */
-export function parseExtractionResponse(raw: string): ExtractionResult | null {
-  if (typeof raw !== 'string' || !raw.trim()) return null
+function parseExtractionResponseDetailed(raw: string): ExtractionParseOutcome {
+  if (typeof raw !== 'string' || !raw.trim()) {
+    return buildParseFailure('', 'empty-response', 'Memory extraction model returned an empty response')
+  }
   const start = raw.indexOf('{')
   const end = raw.lastIndexOf('}')
-  if (start === -1 || end === -1 || end <= start) return null
+  if (start === -1 || end === -1 || end <= start) {
+    return buildParseFailure(
+      raw,
+      'missing-json-object',
+      'Memory extraction response did not contain a JSON object'
+    )
+  }
   let parsed: unknown
   try {
     parsed = JSON.parse(raw.slice(start, end + 1))
-  } catch {
-    return null
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error)
+    return buildParseFailure(raw, 'invalid-json', `Memory extraction response contained invalid JSON: ${detail}`)
   }
-  if (!parsed || typeof parsed !== 'object') return null
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return buildParseFailure(
+      raw,
+      'invalid-json-shape',
+      'Memory extraction JSON was not an object with facts/summary fields'
+    )
+  }
   const obj = parsed as { facts?: unknown; summary?: unknown }
   const facts = Array.isArray(obj.facts)
     ? obj.facts
@@ -151,17 +203,35 @@ export function parseExtractionResponse(raw: string): ExtractionResult | null {
         .slice(0, MAX_FACTS)
     : []
   const summary = typeof obj.summary === 'string' ? obj.summary.trim() : ''
-  return { facts, summary }
+  return { ok: true, result: { facts, summary } }
 }
 
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return Promise.race<T>([
-    promise,
-    new Promise<T>((_, reject) => {
-      const id = setTimeout(() => reject(new Error('Memory extraction timed out')), ms)
-      promise.finally(() => clearTimeout(id)).catch(() => undefined)
-    }),
-  ])
+export function parseExtractionResponse(raw: string): ExtractionResult | null {
+  const parsed = parseExtractionResponseDetailed(raw)
+  return parsed.ok ? parsed.result : null
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === 'AbortError'
+}
+
+async function withAbortTimeout<T>(
+  run: (signal: AbortSignal) => Promise<T>,
+  ms: number
+): Promise<T> {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), ms)
+
+  try {
+    return await run(controller.signal)
+  } catch (error) {
+    if (controller.signal.aborted && isAbortError(error)) {
+      throw new Error(`Memory extraction timed out after ${Math.round(ms / 1000)}s`)
+    }
+    throw error
+  } finally {
+    clearTimeout(timeoutId)
+  }
 }
 
 /**
@@ -201,7 +271,15 @@ export async function runMemoryExtraction(
 
   let raw: string
   try {
-    raw = await withTimeout(generateTitleTextForModel(settings, model, prompt), EXTRACTION_TIMEOUT_MS)
+    raw = await withAbortTimeout(
+      (signal) =>
+        generateTitleTextForModel(settings, model, prompt, {
+          signal,
+          maxTokens: EXTRACTION_MAX_TOKENS,
+          jsonMode: true,
+        }),
+      EXTRACTION_TIMEOUT_MS
+    )
   } catch (error) {
     console.warn('[memory-extraction] LLM call failed; skipping.', error)
     emitMemoryDiagnostic(sessionId, 'memory-extraction-error', {
@@ -211,15 +289,19 @@ export async function runMemoryExtraction(
     return null
   }
 
-  const result = parseExtractionResponse(raw)
-  if (!result) {
-    console.warn('[memory-extraction] Could not parse extraction response; skipping.')
+  const parsed = parseExtractionResponseDetailed(raw)
+  if (!parsed.ok) {
+    console.warn('[memory-extraction] Could not parse extraction response; skipping.', parsed)
     emitMemoryDiagnostic(sessionId, 'memory-extraction-error', {
       model,
-      error: 'Could not parse extraction response',
+      error: parsed.error,
+      memoryErrorCode: parsed.errorCode,
+      responseLength: parsed.responseLength,
+      responsePreview: parsed.responsePreview,
     })
     return null
   }
+  const { result } = parsed
 
   // Persist facts (ADD-only, deduped) — each is best-effort.
   for (const fact of result.facts) {

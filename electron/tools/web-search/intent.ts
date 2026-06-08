@@ -12,18 +12,15 @@ export function normalizeUrlCandidate(value: string): string | null {
   const trimmed = sanitizeUrlToken(value)
   if (!trimmed) return null
 
+  // A token is treated as a URL ONLY when it already carries an absolute
+  // http/https scheme (Requirement 3.2). Bare-domain tokens such as
+  // "example.com" are intentionally NOT treated as URLs — they remain part of
+  // the natural-language query so the input classifies as `query_search`.
+  if (!/^https?:\/\//i.test(trimmed)) return null
+
   try {
-    if (/^https?:\/\//i.test(trimmed)) {
-      const parsed = new URL(trimmed)
-      if (!parsed.hostname || parsed.hostname === 'localhost') return null
-      return parsed.toString()
-    }
-
-    if (/\s/.test(trimmed)) return null
-    if (!trimmed.includes('.')) return null
-    if (trimmed.startsWith('.') || trimmed.endsWith('.')) return null
-
-    const parsed = new URL(`https://${trimmed}`)
+    const parsed = new URL(trimmed)
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null
     if (!parsed.hostname || parsed.hostname === 'localhost') return null
     return parsed.toString()
   } catch {
@@ -37,7 +34,10 @@ function extractUrlsFromQuery(query: string, explicitUrls?: unknown): string[] {
   if (Array.isArray(explicitUrls)) {
     for (const value of explicitUrls) {
       if (typeof value === 'string') {
-        candidates.push(value)
+        const normalized = normalizeUrlCandidate(value)
+        if (normalized) {
+          candidates.push(normalized)
+        }
       }
     }
   }
@@ -50,12 +50,17 @@ function extractUrlsFromQuery(query: string, explicitUrls?: unknown): string[] {
     }
   }
 
-  const deduped = [...new Set(candidates.map((url) => url.toLowerCase()))]
-    .slice(0, SEARCH_MAX_EXTRACT_URLS)
-    .map((lower) => {
-      const match = candidates.find((candidate) => candidate.toLowerCase() === lower)
-      return match || lower
-    })
+  // De-duplicate by lowercased key while preserving first-occurrence order and
+  // the original (first-seen) form of each URL (Requirement 3.4).
+  const seen = new Set<string>()
+  const deduped: string[] = []
+  for (const url of candidates) {
+    const key = url.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    deduped.push(url)
+    if (deduped.length >= SEARCH_MAX_EXTRACT_URLS) break
+  }
 
   return deduped
 }
@@ -73,7 +78,15 @@ function isSiteExplorationIntent(text: string): boolean {
   if (!text) return false
 
   const patterns = [
-    /\b(go through|scan|explore|crawl|map)\b.*\b(site|docs|documentation)\b/i,
+    // Standalone site-exploration wording (Requirement 3.5).
+    /\bdocs?\b/i,
+    /\bdocumentation\b/i,
+    /\bsites?\b/i,
+    /\bbrowse\b/i,
+    /\bexplore\b/i,
+    /\bcrawl\b/i,
+    // Existing compound phrasings.
+    /\b(go through|scan|map)\b.*\b(site|docs|documentation)\b/i,
     /\b(find|locate|discover)\b.*\b(auth|api|reference|endpoint|documentation|docs)\b/i,
     /\b(site map|sitemap|api references?)\b/i,
   ]
@@ -87,7 +100,9 @@ export function classifyWebInput(query: string, explicitUrls?: unknown): Classif
   const queryWithoutUrls = removeUrlsFromQuery(originalQuery)
   const hasUrls = urls.length > 0
   const hasNonUrlQuery = queryWithoutUrls.length > 0
-  const siteExploration = isSiteExplorationIntent(originalQuery)
+  // Detect site-exploration wording from the natural-language (non-URL) portion
+  // so URL paths such as "/docs" do not spuriously trigger it (Requirement 3.5).
+  const siteExploration = isSiteExplorationIntent(queryWithoutUrls)
 
   if (hasUrls && siteExploration) {
     return {
@@ -124,26 +139,6 @@ export function classifyWebInput(query: string, explicitUrls?: unknown): Classif
   }
 }
 
-export function buildFallbackSearchQuery(classified: ClassifiedWebInput): string {
-  if (classified.intent === 'query_search') {
-    return classified.queryWithoutUrls || classified.originalQuery
-  }
-
-  const firstUrl = classified.urls[0] || ''
-  const query = classified.queryWithoutUrls || classified.originalQuery
-  if (!firstUrl) return query
-
-  try {
-    const hostname = new URL(firstUrl).hostname.replace(/^www\./, '')
-    if (!query || query === firstUrl) {
-      return firstUrl
-    }
-    return `${query} site:${hostname}`
-  } catch {
-    return query || firstUrl
-  }
-}
-
 export function reformulateQueryIfNeeded(query: string): string {
   const trimmed = query.trim()
   if (!trimmed) return trimmed
@@ -175,3 +170,10 @@ export function reformulateQueryIfNeeded(query: string): string {
 
   return result || trimmed
 }
+
+/**
+ * Canonical name for the query reformulation used by the rebuilt orchestrator.
+ * Aliased to {@link reformulateQueryIfNeeded} so both names point to the same
+ * implementation and existing/new callers stay in sync.
+ */
+export const reformulateQuery = reformulateQueryIfNeeded

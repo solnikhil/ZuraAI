@@ -416,6 +416,12 @@ function logTitleGenerationJson(direction: 'sent' | 'received', payload: Record<
   console.info(`[title-generator] ${direction} JSON`, JSON.stringify(payload, null, 2))
 }
 
+interface LightweightGenerationOptions {
+  signal?: AbortSignal
+  maxTokens?: number
+  jsonMode?: boolean
+}
+
 async function runLoggedTitleRequest<TResponse>(
   provider: ActiveProviderId,
   model: string,
@@ -448,7 +454,8 @@ export async function generateProviderTitleText(
   settings: TitleGenerationSettings,
   provider: ActiveProviderId,
   model: string,
-  prompt: string
+  prompt: string,
+  generationOptions: LightweightGenerationOptions = {}
 ): Promise<string> {
   const resolvedSettings = await resolveProviderApiKeysForSettings(settings, provider)
   const normalizedModel = normalizeProviderModel(provider, model)
@@ -456,7 +463,7 @@ export async function generateProviderTitleText(
 
   switch (provider) {
     case 'groq': {
-      const options = {}
+      const options = { signal: generationOptions.signal, max_tokens: generationOptions.maxTokens }
       return runLoggedTitleRequest(
         provider,
         normalizedModel,
@@ -473,7 +480,7 @@ export async function generateProviderTitleText(
       )
     }
     case 'perplexity': {
-      const options = {}
+      const options = { signal: generationOptions.signal, max_tokens: generationOptions.maxTokens }
       return runLoggedTitleRequest(
         provider,
         normalizedModel,
@@ -490,7 +497,7 @@ export async function generateProviderTitleText(
       )
     }
     case 'ollama': {
-      const options = { think: false }
+      const options = { think: false, signal: generationOptions.signal, max_tokens: generationOptions.maxTokens }
       return runLoggedTitleRequest(
         provider,
         normalizedModel,
@@ -507,7 +514,7 @@ export async function generateProviderTitleText(
       )
     }
     case 'alibaba': {
-      const options = { enableThinking: false }
+      const options = { enableThinking: false, signal: generationOptions.signal, max_tokens: generationOptions.maxTokens }
       return runLoggedTitleRequest(
         provider,
         normalizedModel,
@@ -524,7 +531,12 @@ export async function generateProviderTitleText(
       )
     }
     case 'deepseek': {
-      const options = { enableThinking: false }
+      const options = {
+        enableThinking: false,
+        signal: generationOptions.signal,
+        max_tokens: generationOptions.maxTokens,
+        jsonMode: generationOptions.jsonMode,
+      }
       return runLoggedTitleRequest(
         provider,
         normalizedModel,
@@ -541,7 +553,7 @@ export async function generateProviderTitleText(
       )
     }
     case 'fireworks': {
-      const options = {}
+      const options = { signal: generationOptions.signal, max_tokens: generationOptions.maxTokens }
       return runLoggedTitleRequest(
         provider,
         normalizedModel,
@@ -558,7 +570,11 @@ export async function generateProviderTitleText(
       )
     }
     case 'openrouter': {
-      const options = { reasoning: { exclude: true } }
+      const options = {
+        reasoning: { exclude: true },
+        signal: generationOptions.signal,
+        max_tokens: generationOptions.maxTokens,
+      }
       return runLoggedTitleRequest(
         provider,
         normalizedModel,
@@ -592,14 +608,15 @@ export async function generateTitleTextForModel(
       >
     >,
   model: string,
-  prompt: string
+  prompt: string,
+  generationOptions: LightweightGenerationOptions = {}
 ): Promise<string> {
   const resolvedModel = resolveProviderForModel(settings, model)
   if (!resolvedModel) {
     throw new Error('Title model not found')
   }
 
-  return generateProviderTitleText(settings, resolvedModel.provider, resolvedModel.id, prompt)
+  return generateProviderTitleText(settings, resolvedModel.provider, resolvedModel.id, prompt, generationOptions)
 }
 
 export async function* streamProviderEvents(

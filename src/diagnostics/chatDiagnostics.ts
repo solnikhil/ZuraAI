@@ -104,6 +104,12 @@ export interface ChatDiagnosticEvent {
   executedQueries?: string[]
   skippedReason?: string
   error?: string
+  /** Background memory-extraction parse/provider failure code for precise debug triage. */
+  memoryErrorCode?: string
+  /** Background memory-extraction raw model response length before parsing. */
+  responseLength?: number
+  /** Background memory-extraction sanitized raw model response preview. */
+  responsePreview?: string
   /** Background memory-extraction ("dreaming") — number of durable facts persisted this run. */
   factCount?: number
   /** Background memory-extraction — whether a non-empty Recent Activity summary was kept/upserted. */

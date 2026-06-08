@@ -4,11 +4,15 @@ import {
   parseExtractionResponse,
   runMemoryExtraction,
 } from './memoryExtraction'
+import { appendChatDiagnosticEvent } from '@/diagnostics/chatDiagnosticsClient'
 
 // Mock the provider call so no network happens.
 const generateTitleTextForModel = vi.fn()
 vi.mock('@/providers/providerRuntime', () => ({
   generateTitleTextForModel: (...args: unknown[]) => generateTitleTextForModel(...args),
+}))
+vi.mock('@/diagnostics/chatDiagnosticsClient', () => ({
+  appendChatDiagnosticEvent: vi.fn(),
 }))
 
 const enabledSkills = { memory: { enabled: true } } as unknown as import('@/skills').SkillsSettings
@@ -103,6 +107,11 @@ describe('runMemoryExtraction', () => {
     expect(generateTitleTextForModel).toHaveBeenCalledTimes(1)
     // call signature: (settings, model, prompt)
     expect(generateTitleTextForModel.mock.calls[0][1]).toBe('dedicated-memory-model')
+    expect(generateTitleTextForModel.mock.calls[0][3]).toMatchObject({
+      jsonMode: true,
+      maxTokens: 512,
+    })
+    expect(generateTitleTextForModel.mock.calls[0][3]?.signal).toBeInstanceOf(AbortSignal)
   })
 
   it('falls back to the active chat model when memoryModel is unset', async () => {
@@ -205,5 +214,28 @@ describe('runMemoryExtraction', () => {
     })
     expect(result).toBeNull()
     expect(state.added).toEqual([])
+  })
+
+  it('emits a pinpoint diagnostic when the extraction response is not JSON', async () => {
+    installBridge()
+    generateTitleTextForModel.mockResolvedValue('I could not find anything durable to remember.')
+
+    const result = await runMemoryExtraction({
+      settings: baseSettings,
+      sessionId: 's1',
+      messages: [{ role: 'user', content: 'hello' }],
+    })
+
+    expect(result).toBeNull()
+    expect(appendChatDiagnosticEvent).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        phase: 'memory-extraction-error',
+        memoryErrorCode: 'missing-json-object',
+        error: 'Memory extraction response did not contain a JSON object',
+        responseLength: 46,
+        responsePreview: 'I could not find anything durable to remember.',
+      })
+    )
   })
 })
