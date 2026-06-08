@@ -1210,7 +1210,7 @@ export function useProviderStreaming({
             // this the orchestrator would exit straight to `finish` with
             // empty content (only the round-0 tool_call response). The
             // retry pipeline handles blank, leaked-markup, and ungrounded
-            // outputs and falls back to a short failure message.
+            // outputs and falls back to deterministic evidence when possible.
             await runFinalSynthesis(
               researchRound,
               totalSearchCount,
