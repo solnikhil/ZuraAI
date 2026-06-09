@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
+import { render, screen } from '@testing-library/react'
+import React from 'react'
 
 import { findMatchingWebSource, normalizeHighlightLanguage } from './LazyMarkdown'
+import WebSourceCitation from './Dashboard/ChatArea/WebSourceCitation'
 
 describe('findMatchingWebSource', () => {
   it('matches exact URLs from the web source map', () => {
@@ -40,5 +43,23 @@ describe('normalizeHighlightLanguage', () => {
     expect(normalizeHighlightLanguage('Python')).toBe('python')
     expect(normalizeHighlightLanguage('javascript')).toBe('javascript')
     expect(normalizeHighlightLanguage('bash')).toBe('bash')
+  })
+})
+
+describe('WebSourceCitation', () => {
+  it('renders numeric citations without markdown brackets', () => {
+    render(
+      React.createElement(
+        WebSourceCitation,
+        {
+          href: 'https://example.com/source',
+          source: { title: 'Example Source', url: 'https://example.com/source' },
+        },
+        '[5]'
+      )
+    )
+
+    expect(screen.getByRole('link', { name: /source 5/i })).toHaveTextContent('5')
+    expect(screen.getByRole('link', { name: /source 5/i })).not.toHaveTextContent('[5]')
   })
 })

@@ -13,24 +13,19 @@ import {
 import {
   BUILT_IN_SKILLS,
   isSkillEnabled as checkSkillEnabled,
-  withAgentDesktopEnabled,
   withComputerUseEnabled,
   withSkillEnabled,
   type BuiltInSkill,
   type SkillId,
   type SkillsSettings,
 } from '@/skills'
-import { normalizeAgentDesktopSettings } from '@/settings/agentDesktopSettings'
 import { isMacOSRuntime } from '@/utils/platform'
-import type { AgentDesktopSettings } from '@/electron/types'
-import { AgentDesktopDisclosureDialog } from './AgentDesktopDisclosureDialog'
 
 export interface SkillsSectionProps {
   skills: SkillsSettings
-  agentDesktop?: AgentDesktopSettings
   codeExecutionAutoApprove: boolean
   computerUseAutoApprove: boolean
-  onChange: (changes: { skills?: SkillsSettings; agentDesktop?: AgentDesktopSettings; codeExecutionAutoApprove?: boolean; computerUseAutoApprove?: boolean }) => void
+  onChange: (changes: { skills?: SkillsSettings; codeExecutionAutoApprove?: boolean; computerUseAutoApprove?: boolean }) => void
 }
 
 interface SkillCatalogGroupProps {
@@ -46,12 +41,10 @@ interface SkillCatalogGroupProps {
 
 export function SkillsSection({
   skills,
-  agentDesktop,
   codeExecutionAutoApprove,
   computerUseAutoApprove,
   onChange,
 }: SkillsSectionProps): React.ReactElement {
-  const [agentDisclosureOpen, setAgentDisclosureOpen] = React.useState(false)
   const isEnabled = (skillId: SkillId): boolean => checkSkillEnabled(skills, skillId)
   const visibleSkills = isMacOSRuntime()
     ? BUILT_IN_SKILLS.filter((skill) => skill.id !== 'computer_use')
@@ -59,43 +52,11 @@ export function SkillsSection({
   const recommendedSkills = visibleSkills.filter((skill) => skill.id === 'web_research')
   const systemSkills = visibleSkills.filter((skill) => skill.id !== 'web_research')
 
-  const setAgentDesktopEnabled = (enabled: boolean, disclosureAcknowledged = false) => {
-    const normalizedAgentDesktop = normalizeAgentDesktopSettings(agentDesktop)
-    const nextAgentDesktop: AgentDesktopSettings = {
-      ...normalizedAgentDesktop,
-      enabled,
-      disclosureAcknowledged: normalizedAgentDesktop.disclosureAcknowledged || disclosureAcknowledged,
-    }
-
-    onChange({
-      agentDesktop: nextAgentDesktop,
-      skills: withComputerUseEnabled(withAgentDesktopEnabled(skills, enabled), false),
-    })
-  }
-
   const setEnabled = (skillId: SkillId, enabled: boolean) => {
     if (skillId === 'computer_use') {
-      const nextSkills = withAgentDesktopEnabled(withComputerUseEnabled(skills, enabled), false)
       onChange({
-        skills: nextSkills,
-        agentDesktop: enabled
-          ? { ...normalizeAgentDesktopSettings(agentDesktop), enabled: false }
-          : undefined,
+        skills: withComputerUseEnabled(skills, enabled),
       })
-      return
-    }
-
-    if (skillId === 'agent_desktop') {
-      const normalizedAgentDesktop = normalizeAgentDesktopSettings(agentDesktop)
-      if (!enabled) {
-        setAgentDesktopEnabled(false)
-        return
-      }
-      if (!normalizedAgentDesktop.disclosureAcknowledged) {
-        setAgentDisclosureOpen(true)
-        return
-      }
-      setAgentDesktopEnabled(true)
       return
     }
 
@@ -134,14 +95,6 @@ export function SkillsSection({
           onChange={onChange}
         />
       </div>
-      <AgentDesktopDisclosureDialog
-        open={agentDisclosureOpen}
-        onAcknowledge={() => {
-          setAgentDisclosureOpen(false)
-          setAgentDesktopEnabled(true, true)
-        }}
-        onCancel={() => setAgentDisclosureOpen(false)}
-      />
     </div>
   )
 }
@@ -166,8 +119,8 @@ function SkillCatalogGroup({
       <div className={`skills-catalog-group__grid ${featured ? 'skills-catalog-group__grid--featured' : ''}`}>
         {skills.map((skill) => {
           const enabled = isEnabled(skill.id)
-          const hasOptions = enabled && (skill.id === 'code_execution' || skill.id === 'computer_use' || skill.id === 'agent_desktop')
-          const logoSize = ['web_research', 'code_execution', 'computer_use', 'agent_desktop', 'chart_generation'].includes(skill.id)
+          const hasOptions = enabled && (skill.id === 'code_execution' || skill.id === 'computer_use')
+          const logoSize = ['web_research', 'code_execution', 'computer_use', 'chart_generation'].includes(skill.id)
             ? 40
             : featured ? 22 : 18
 
@@ -229,17 +182,6 @@ function SkillCatalogGroup({
                           <DropdownMenuItem onClick={() => onChange({ computerUseAutoApprove: !computerUseAutoApprove })}>
                             {computerUseAutoApprove ? '✓ ' : ''}Auto-approve actions
                           </DropdownMenuItem>
-                          <DropdownMenuLabel className="px-2 py-1 text-xs font-normal text-muted-foreground">
-                            Kill switch: Esc+Esc
-                          </DropdownMenuLabel>
-                        </>
-                      )}
-                      {skill.id === 'agent_desktop' && (
-                        <>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuLabel className="px-2 py-1 text-xs font-normal text-muted-foreground">
-                            Uses the same desktop-control tools on a separate Windows virtual desktop.
-                          </DropdownMenuLabel>
                           <DropdownMenuLabel className="px-2 py-1 text-xs font-normal text-muted-foreground">
                             Kill switch: Esc+Esc
                           </DropdownMenuLabel>

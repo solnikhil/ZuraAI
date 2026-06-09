@@ -19,6 +19,11 @@ import type { Settings } from '../../../contexts/SettingsContext'
 import type { ChatSelectedOverlayStyle } from '../../../contexts/SettingsUIContext'
 import { defaultSettingsUI } from '../../../contexts/SettingsUIContext'
 import {
+  ASSISTANT_PERSONALITIES,
+  normalizeAssistantPersonalityId,
+  type AssistantPersonalityId,
+} from '../../../prompts/assistantPersonalities'
+import {
   getThemeById,
   getDefaultTheme,
   getThemesByCategory,
@@ -903,6 +908,31 @@ export function AppearanceSection({
             ]}
             aria-label="Empty state placeholder style"
           />
+        </div>
+      </Card>
+
+      <h3 className="appearance-group-heading">Assistant</h3>
+      <Card className="settings-list-card">
+        <div className="settings-list-row">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Assistant personality</h3>
+            <div className="settings-list-row__description">
+              Controls the communication style added to the runtime system prompt
+            </div>
+          </div>
+          <div className="settings-list-row__control">
+            <SettingsSelect
+              value={normalizeAssistantPersonalityId(settings.assistantPersonality)}
+              onValueChange={(value) =>
+                updateSettings({ assistantPersonality: value as AssistantPersonalityId })
+              }
+              options={ASSISTANT_PERSONALITIES.map((personality) => ({
+                value: personality.id,
+                label: personality.label,
+              }))}
+              aria-label="Assistant personality"
+            />
+          </div>
         </div>
       </Card>
 

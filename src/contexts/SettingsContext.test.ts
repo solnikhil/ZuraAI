@@ -8,6 +8,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { migrateConfiguredModelCode } from './SettingsContext'
 import { normalizeStoredSettings, stripSecretSettings } from './settingsStore'
 import { defaultWebSearchPrompt } from '../prompts/defaultWebSearchPrompt'
+import { DEFAULT_ASSISTANT_PERSONALITY } from '../prompts/assistantPersonalities'
 
 // Mock localStorage
 const localStorageMock = (() => {
@@ -124,6 +125,27 @@ Rules:
     it('defaults streamResponses to true', async () => {
       const { defaultSettingsConfig } = await import('./SettingsConfigContext')
       expect(defaultSettingsConfig.streamResponses).toBe(true)
+    })
+
+    it('defaults assistant personality to Professional Engineer', async () => {
+      const { defaultSettingsConfig } = await import('./SettingsConfigContext')
+      expect(defaultSettingsConfig.assistantPersonality).toBe(DEFAULT_ASSISTANT_PERSONALITY)
+    })
+
+    it('normalizes invalid assistant personality to the default', () => {
+      const normalized = normalizeStoredSettings(
+        JSON.stringify({ assistantPersonality: 'not-a-personality' })
+      )
+
+      expect(normalized.assistantPersonality).toBe(DEFAULT_ASSISTANT_PERSONALITY)
+    })
+
+    it('preserves valid assistant personality settings', () => {
+      const normalized = normalizeStoredSettings(
+        JSON.stringify({ assistantPersonality: 'professional-engineer' })
+      )
+
+      expect(normalized.assistantPersonality).toBe('professional-engineer')
     })
 
     it('defaults OpenRouter debug logging to false', async () => {

@@ -9,13 +9,21 @@ import { normalizeSafeHttpUrl } from '@/utils/urlSafety'
  * Strip trailing "References" or "Sources" sections that the model may generate.
  * These are redundant because the app renders numbered citations as interactive links.
  * Matches a heading (e.g. "## References", "**References**", "References") followed by
- * numbered entries like "[1] ..." until the end of the content.
+ * generated source entries until the end of the content.
  */
 export function stripReferencesSection(content: string): string {
   if (!content) return content
   return content
     .replace(
       /\n+(?:#{1,4}\s*)?(?:\*{1,2})?(?:References|Sources)(?:\*{1,2})?:?\s*\n+(?:\s*\[?\d+\]?[\s.:\-–—].+(?:\n|$))+$/i,
+      ''
+    )
+    .replace(
+      /\n+(?:#{1,4}\s*)?(?:\*{1,2})?(?:References|Sources)(?:\*{1,2})?:?\s+(?:\[\[?\d+\]?\]\([^)]+\)|\[\d+\])[\s\S]*$/i,
+      ''
+    )
+    .replace(
+      /\n+(?:#{1,4}\s*)?(?:\*{1,2})?(?:References|Sources)(?:\*{1,2})?:?\s*\n+(?=[\s\S]*(?:https?:\/\/|\[\[?\d+\]?|(?:\s[-–—]\s)|\b(?:GitHub|Docs?|Documentation|Stack Overflow|Wikipedia)\b))[\s\S]*$/i,
       ''
     )
     .trimEnd()

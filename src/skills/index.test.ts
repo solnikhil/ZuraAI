@@ -3,13 +3,16 @@ import {
   buildEnabledSkillsPrompt,
   defaultSkillsSettings,
   getCodeExecutionToolExposure,
+  getComputerUseToolExposure,
   getWebResearchToolExposure,
   isCodeExecutionEnabled,
   isChartGenerationEnabled,
+  isSkillEnabled,
   migrateSkillsFromLegacySettings,
   normalizeSkillsSettings,
   withCodeExecutionEnabled,
   withChartGenerationEnabled,
+  withComputerUseEnabled,
 } from './index'
 
 describe('skills settings migration', () => {
@@ -130,6 +133,31 @@ describe('code_execution skill', () => {
   it('buildEnabledSkillsPrompt excludes code execution when disabled', () => {
     const prompt = buildEnabledSkillsPrompt(defaultSkillsSettings)
     expect(prompt).not.toContain('code_execution')
+  })
+})
+
+describe('computer_use skill', () => {
+  it('defaults to disabled and no longer recreates agent_desktop', () => {
+    expect(defaultSkillsSettings.computer_use.enabled).toBe(false)
+    expect(defaultSkillsSettings).not.toHaveProperty('agent_desktop')
+  })
+
+  it('ignores legacy agent_desktop settings while preserving computer_use', () => {
+    const normalized = normalizeSkillsSettings({
+      computer_use: { enabled: true },
+      agent_desktop: { enabled: true },
+    })
+
+    expect(normalized.computer_use.enabled).toBe(true)
+    expect(normalized).not.toHaveProperty('agent_desktop')
+  })
+
+  it('withComputerUseEnabled toggles the only desktop-control skill', () => {
+    const updated = withComputerUseEnabled(defaultSkillsSettings, true)
+    expect(isSkillEnabled(updated, 'computer_use')).toBe(true)
+    expect(getComputerUseToolExposure(updated)).toEqual({
+      exposeComputerUse: true,
+    })
   })
 })
 

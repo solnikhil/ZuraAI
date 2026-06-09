@@ -561,7 +561,7 @@ const streamingSettings: StreamingSettings = useMemo(
         }
 
         const initialAgentRun = isAgentWorkspaceMode(settings.assistantMode)
-          ? createAgentRun(settings.assistantMode, undefined, content)
+          ? createAgentRun(settings.assistantMode, content)
           : undefined
 
         const streamingMessageId = addMessageToSession(targetSessionId!, {

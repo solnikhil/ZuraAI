@@ -22,6 +22,7 @@ describe('agentRun helpers', () => {
 
   it('creates and completes tool steps', () => {
     const run = createAgentRun('agent')
+    expect(run.capabilities).not.toHaveProperty('agentDesktop')
     const toolCall = {
       id: 'call-1',
       name: 'web_search',
@@ -59,7 +60,7 @@ describe('agentRun helpers', () => {
   })
 
   it('stores a task-specific plan step on new agent runs', () => {
-    const run = createAgentRun('agent', undefined, 'Sort my desktop without touching shortcuts')
+    const run = createAgentRun('agent', 'Sort my desktop without touching shortcuts')
 
     expect(run.steps[0]).toEqual(
       expect.objectContaining({

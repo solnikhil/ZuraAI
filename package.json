@@ -56,7 +56,6 @@
     "duck-duck-scrape": "^2.2.7",
     "electron-updater": "^6.7.3",
     "framer-motion": "^12.35.1",
-    "koffi": "^3.0.2",
     "mermaid": "^11.12.2",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
@@ -159,17 +158,6 @@
       "!**/tests/**",
       "!**/__tests__/**"
     ],
-    "extraResources": [
-      {
-        "from": "electron/agentDesktop/native",
-        "to": "agentDesktop/native",
-        "filter": [
-          "**/VirtualDesktopAccessor.dll"
-        ]
-      }
-    ]
-  },
-  "trustedDependencies": [
-    "koffi"
-  ]
+    "extraResources": []
+  }
 }

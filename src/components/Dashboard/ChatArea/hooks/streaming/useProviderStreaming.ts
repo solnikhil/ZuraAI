@@ -54,7 +54,11 @@ import {
   evaluateResearchContinuation,
   getEffectiveSearchBudget,
 } from './researchLoopPolicy'
-import { TOOL_FOLLOW_UP_SPLIT_MARKER } from '../../messageTimeline'
+import {
+  TOOL_FOLLOW_UP_SPLIT_MARKER,
+  createToolFollowUpSplitMarker,
+  endsWithToolFollowUpSplitMarker,
+} from '../../messageTimeline'
 import type {
   HandleToolCallsOptions,
   NormalizedUsage,
@@ -423,6 +427,14 @@ export function useProviderStreaming({
       let finalVisibleAnswerRound: VisibleAnswerRound | null = null
       let savedToolResults: ToolCallResult[] | undefined
       let localThinkingBlocks: ThinkingBlock[] = []
+      // Number of completed thinking/tool blocks that existed at the moment the
+      // first visible (non-hidden) content delta started streaming. This is the
+      // block count that precedes the assistant's pre-tool preamble text, and it
+      // is what the tool follow-up split marker must record so the preamble stays
+      // ABOVE the tool/search activity it triggered. Using localThinkingBlocks.length
+      // at marker-creation time is wrong because that count already includes the
+      // tool block(s) appended AFTER the preamble was emitted.
+      let visibleContentBlockBaseline: number | null = null
       let finishReason: string | null = null
       let activeThinking = ''
       let activeThinkingStartTime: number | null = null
@@ -509,13 +521,24 @@ export function useProviderStreaming({
           tools?: ReturnType<ToolCallingHook['getToolsForRequest']>
         }
       ) => {
+        const roundTools = roundOptions?.tools === undefined ? tools : roundOptions.tools
+        const roundAllowsTools =
+          Array.isArray(roundTools) && roundTools.length > 0 && roundOptions?.toolChoice !== 'none'
+        const shouldHideToolRoundDraft =
+          roundAllowsTools && (roundOptions?.round ?? 0) > 0
+
         if (
           roundOptions?.round !== undefined &&
           roundOptions.round > 0 &&
           accumulatedContent.trim().length > 0 &&
-          !accumulatedContent.endsWith(TOOL_FOLLOW_UP_SPLIT_MARKER)
+          !endsWithToolFollowUpSplitMarker(accumulatedContent)
         ) {
-          accumulatedContent = `${accumulatedContent.trimEnd()}${TOOL_FOLLOW_UP_SPLIT_MARKER}`
+          const splitMarker = shouldHideToolRoundDraft
+            ? createToolFollowUpSplitMarker(
+                visibleContentBlockBaseline ?? localThinkingBlocks.length
+              )
+            : TOOL_FOLLOW_UP_SPLIT_MARKER
+          accumulatedContent = `${accumulatedContent.trimEnd()}${splitMarker}`
           updateStreamingState({ content: accumulatedContent })
           updatePersistedStreamingMessage(options.sessionId, options.messageId, {
             content: accumulatedContent,
@@ -523,9 +546,6 @@ export function useProviderStreaming({
         }
 
         const roundStartContent = accumulatedContent
-        const roundTools = roundOptions?.tools === undefined ? tools : roundOptions.tools
-        const roundAllowsTools =
-          Array.isArray(roundTools) && roundTools.length > 0 && roundOptions?.toolChoice !== 'none'
         const roundType = roundAllowsTools ? 'tool-enabled' : 'no-tools'
         const roundResearchState: ResearchState = roundAllowsTools ? 'search' : 'synthesize'
         let roundContent = ''
@@ -593,8 +613,18 @@ export function useProviderStreaming({
                   publishCompletedThinking()
                 }
 
-                accumulatedContent += event.delta
                 roundContent += event.delta
+                if (!shouldHideToolRoundDraft) {
+                  accumulatedContent += event.delta
+                  // Record the block count at the start of the first visible
+                  // content. The preamble text streams AFTER this round's
+                  // reasoning is finalized but BEFORE its tool block is appended,
+                  // so this baseline excludes the tool activity the preamble
+                  // triggers and keeps the preamble above it in the timeline.
+                  if (event.delta && visibleContentBlockBaseline === null) {
+                    visibleContentBlockBaseline = localThinkingBlocks.length
+                  }
+                }
                 if (event.delta) {
                   if (!roundAllowsTools) {
                     const detectedFormat = detectMidStreamMarkup(roundContent)
@@ -620,20 +650,25 @@ export function useProviderStreaming({
                     // Tool-enabled round: once inline tool-call markup starts,
                     // freeze the visible content at the clean prefix so raw
                     // markup never streams to the user. The tool calls are
-                    // recovered from accumulatedContent at end-of-round.
+                    // recovered from the round transcript at end-of-round.
                     const markupStart = findMidStreamMarkupStart(roundContent)
                     if (markupStart !== null) {
                       frozenDisplayContent =
                         roundStartContent + roundContent.slice(0, markupStart).trimEnd()
                     }
                   }
-                  streamChunkCoalescer.recordTextDelta(event.delta, accumulatedContent.length)
-                  updateStreamingState({
-                    phase: 'answering',
-                    // Keep the isolated active-message view in sync on every delta.
-                    // Persisted chat-history writes stay throttled separately.
-                    content: frozenDisplayContent ?? accumulatedContent,
-                  })
+                  streamChunkCoalescer.recordTextDelta(
+                    event.delta,
+                    roundStartContent.length + roundContent.length
+                  )
+                  if (!shouldHideToolRoundDraft) {
+                    updateStreamingState({
+                      phase: 'answering',
+                      // Keep the isolated active-message view in sync on every delta.
+                      // Persisted chat-history writes stay throttled separately.
+                      content: frozenDisplayContent ?? accumulatedContent,
+                    })
+                  }
                 }
                 persistProgress()
                 break
@@ -775,9 +810,12 @@ export function useProviderStreaming({
         flushActiveThrottledUpdates()
         throwIfAborted()
         const hasValidRoundToolCalls = roundToolCalls.some((toolCall) => toolCall?.id)
-        let finalRoundContent = providerUsesNativeSearch(provider)
-          ? cleanSonarResponse(accumulatedContent, citations)
+        const roundTranscriptContent = shouldHideToolRoundDraft
+          ? roundStartContent + roundContent
           : accumulatedContent
+        let finalRoundContent = providerUsesNativeSearch(provider)
+          ? cleanSonarResponse(roundTranscriptContent, citations)
+          : roundTranscriptContent
 
         if (!hasValidRoundToolCalls) {
           const extracted = extractInlineToolCallsFromContent(finalRoundContent, {
@@ -869,8 +907,13 @@ export function useProviderStreaming({
           }
         }
 
+        const committedVisibleContent =
+          shouldHideToolRoundDraft && roundFinishReason === 'tool_calls'
+            ? roundStartContent
+            : finalRoundContent
+
         updateStreamingState({
-          content: finalRoundContent,
+          content: committedVisibleContent,
           phase: 'answering',
           thinking: undefined,
           thinkingDuration: undefined,
@@ -878,7 +921,7 @@ export function useProviderStreaming({
           files: generatedFiles,
         })
         updatePersistedStreamingMessage(options.sessionId, options.messageId, {
-          content: finalRoundContent,
+          content: committedVisibleContent,
           thinking: undefined,
           thinkingDuration: undefined,
           thinkingBlocks: localThinkingBlocks,
@@ -886,7 +929,7 @@ export function useProviderStreaming({
           toolResults: savedToolResults,
         })
 
-        accumulatedContent = finalRoundContent
+        accumulatedContent = committedVisibleContent
         if (roundFinishReason) {
           finishReason = roundFinishReason
         }

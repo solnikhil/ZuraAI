@@ -1,7 +1,6 @@
 import type {
   AppInfoAPI,
   AppMenuAPI,
-  AgentDesktopAPI,
   ChatDebugAPI,
   ChatDiagnosticsAPI,
   CodeExecutionAPI,
@@ -40,7 +39,6 @@ declare global {
     memory: MemoryAPI
     codeExecution: CodeExecutionAPI
     computerUse: ComputerUseAPI
-    agentDesktop: AgentDesktopAPI
     chatDiagnostics?: ChatDiagnosticsAPI
     chatDebug?: ChatDebugAPI
     resourceMonitor: ResourceMonitorAPI

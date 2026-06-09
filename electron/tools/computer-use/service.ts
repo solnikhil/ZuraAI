@@ -50,7 +50,7 @@ async function gateApproval(action: ComputerActionType, args: object, autoApprov
   return { approved: true }
 }
 
-export async function executeScreenshot(args: ScreenshotArgs, agentDesktopIndex?: number): Promise<ToolResult> {
+export async function executeScreenshot(args: ScreenshotArgs): Promise<ToolResult> {
   resetAbortOnNewTask()
   registerKillSwitch(() => abortSession())
   try {
@@ -59,7 +59,7 @@ export async function executeScreenshot(args: ScreenshotArgs, agentDesktopIndex?
       windowId: args.window_id,
       windowTitle: args.window_title,
       appName: args.app_name,
-    }, agentDesktopIndex)
+    })
     latestCoordinateContext = result.coordinateContext
     latestScreenshotArgs = { ...args }
     return {
@@ -70,9 +70,6 @@ export async function executeScreenshot(args: ScreenshotArgs, agentDesktopIndex?
         screenWidth: result.width,
         screenHeight: result.height,
         coordinateContext: serializeCoordinateContext(result.coordinateContext),
-        ...(result.agentDesktopIndex !== undefined
-          ? { agentDesktopIndex: result.agentDesktopIndex }
-          : {}),
         ...(result.target ? { target: result.target } : {}),
       },
     }

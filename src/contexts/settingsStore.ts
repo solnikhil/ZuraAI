@@ -15,6 +15,7 @@ import {
   getProviderSecretFields,
   type ProviderModelListKey,
 } from '../providers'
+import { normalizeAssistantPersonalityId } from '../prompts/assistantPersonalities'
 
 export interface Settings extends SettingsUI, SettingsConfig {}
 
@@ -227,6 +228,7 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   }
 
   parsed.systemPrompt = defaultSettings.systemPrompt
+  parsed.assistantPersonality = normalizeAssistantPersonalityId(parsed.assistantPersonality)
   parsed.webSearchPrompt = defaultSettings.webSearchPrompt
   parsed.codeExecutionPrompt = defaultSettings.codeExecutionPrompt
   parsed.computerUsePrompt = defaultSettings.computerUsePrompt
@@ -560,6 +562,7 @@ export function getInitialConfigSettings(settings: Settings): Partial<SettingsCo
     temperature: settings.temperature,
     maxTokens: settings.maxTokens,
     systemPrompt: settings.systemPrompt,
+    assistantPersonality: settings.assistantPersonality,
     webSearchPrompt: settings.webSearchPrompt,
     codeExecutionPrompt: settings.codeExecutionPrompt,
     computerUsePrompt: settings.computerUsePrompt,
@@ -582,7 +585,6 @@ export function getInitialConfigSettings(settings: Settings): Partial<SettingsCo
     rememberLastSettingsSection: settings.rememberLastSettingsSection,
     rememberLastDashboardView: settings.rememberLastDashboardView,
     overlay: settings.overlay,
-    agentDesktop: settings.agentDesktop,
     discordRpc: settings.discordRpc,
   }
 }

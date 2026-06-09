@@ -2,7 +2,22 @@ import type { ThinkingBlock } from '../../../chat/types'
 import type { StreamingPhase } from '../../../contexts/StreamingContext'
 
 export const TOOL_FOLLOW_UP_SPLIT_MARKER = '\n\n[[ZURA_TOOL_FOLLOW_UP_SPLIT]]\n\n'
-const TOOL_FOLLOW_UP_SPLIT_MARKER_PATTERN = /\s*\[\[ZURA_TOOL_FOLLOW_UP_SPLIT\]\]+\s*/g
+const TOOL_FOLLOW_UP_SPLIT_MARKER_PATTERN =
+  /\s*\[\[ZURA_TOOL_FOLLOW_UP_SPLIT(?::blocks=(\d+))?\]\]+\s*/g
+const TOOL_FOLLOW_UP_SPLIT_MARKER_AT_END_PATTERN =
+  /\s*\[\[ZURA_TOOL_FOLLOW_UP_SPLIT(?::blocks=\d+)?\]\]+\s*$/
+
+export function createToolFollowUpSplitMarker(completedBlockCount?: number): string {
+  if (typeof completedBlockCount === 'number' && Number.isFinite(completedBlockCount)) {
+    return `\n\n[[ZURA_TOOL_FOLLOW_UP_SPLIT:blocks=${Math.max(0, Math.floor(completedBlockCount))}]]\n\n`
+  }
+
+  return TOOL_FOLLOW_UP_SPLIT_MARKER
+}
+
+export function endsWithToolFollowUpSplitMarker(content: string): boolean {
+  return TOOL_FOLLOW_UP_SPLIT_MARKER_AT_END_PATTERN.test(content)
+}
 
 export interface FollowUpTimelineSnapshot {
   contentLength: number
@@ -57,8 +72,25 @@ export function splitMessageTimeline(
   TOOL_FOLLOW_UP_SPLIT_MARKER_PATTERN.lastIndex = 0
   if (markerMatch) {
     const markerIndex = markerMatch.index
-    const beforeContent = content.slice(0, markerIndex)
-    const afterContent = content.slice(markerIndex + markerMatch[0].length)
+    const markerBlockCount =
+      markerMatch[1] !== undefined ? Number.parseInt(markerMatch[1], 10) : null
+    const beforeContent = removeToolFollowUpSplitMarker(content.slice(0, markerIndex))
+    // Strip any residual markers: with multiple tool follow-up rounds the
+    // content holds more than one marker, so everything after the first split
+    // still carries the remaining marker(s). They must never reach the renderer.
+    const afterContent = removeToolFollowUpSplitMarker(
+      content.slice(markerIndex + markerMatch[0].length)
+    )
+    if (markerBlockCount !== null && Number.isFinite(markerBlockCount)) {
+      const blockCount = Math.min(Math.max(markerBlockCount, 0), completedBlocks.length)
+      return {
+        beforeContent,
+        afterContent,
+        beforeBlocks: completedBlocks.slice(0, blockCount),
+        afterBlocks: completedBlocks.slice(blockCount),
+      }
+    }
+
     const lastThinkingIndex = completedBlocks.reduce(
       (latestIndex, block, index) => (block.type === 'thinking' ? index : latestIndex),
       -1

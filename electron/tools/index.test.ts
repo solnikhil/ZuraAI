@@ -33,24 +33,17 @@ describe('computer-use argument normalization', () => {
   })
 })
 
-describe('tool routing through Agent Desktop readiness', () => {
+describe('tool routing through current-desktop Computer Use', () => {
   beforeEach(() => {
     vi.resetModules()
     vi.clearAllMocks()
   })
 
-  async function loadToolHandlerWithAgentDesktop(
-    service: {
-      getState: ReturnType<typeof vi.fn>
-      ensureReadyForTool: ReturnType<typeof vi.fn>
-      gateComputerAction: ReturnType<typeof vi.fn>
-      activateTakeOver?: ReturnType<typeof vi.fn>
-      endTakeOver?: ReturnType<typeof vi.fn>
-    },
+  async function loadToolHandler(
     computerUseOverrides: Record<string, ReturnType<typeof vi.fn>> = {}
   ): Promise<{
     handler: (event: unknown, toolName: string, args: unknown) => Promise<unknown>
-    computerUse: Record<string, ReturnType<typeof vi.fn>>
+    handlers: Record<string, ReturnType<typeof vi.fn>>
   }> {
     let handler:
       | ((event: unknown, toolName: string, args: unknown) => Promise<unknown>)
@@ -83,7 +76,6 @@ describe('tool routing through Agent Desktop readiness', () => {
       ...computerUseOverrides,
     }
 
-    vi.doMock('./computerUse', () => computerUse)
     const nativeMocks = {
       executeWindowsUiaSnapshot: vi.fn(async () => ({ success: true, data: { windows: [] } })),
       executeWindowsUiaInvoke: vi.fn(async () => ({ success: false, error: 'approval required' })),
@@ -104,6 +96,8 @@ describe('tool routing through Agent Desktop readiness', () => {
       executeWindowMove: vi.fn(async () => ({ success: false, error: 'approval required' })),
       executeWindowClose: vi.fn(async () => ({ success: false, error: 'approval required' })),
     }
+
+    vi.doMock('./computerUse', () => computerUse)
     vi.doMock('./windows-uia', () => nativeMocks)
     vi.doMock('./system-shell', () => nativeMocks)
     vi.doMock('./files', () => nativeMocks)
@@ -118,222 +112,49 @@ describe('tool routing through Agent Desktop readiness', () => {
     vi.doMock('../windows/spotlightOverlay', () => ({
       showSpotlight: vi.fn(async () => undefined),
     }))
-    vi.doMock('../agentDesktop', () => ({
-      initializeAgentDesktopService: vi.fn(async () => ({
-        enabled: true,
-        capability: 'available',
-      })),
-    }))
-    vi.doMock('../agentDesktop/service', () => ({
-      getAgentDesktopService: vi.fn(() => service),
-    }))
 
     const tools = await import('./index')
     tools.registerToolHandlers()
 
     expect(handler).not.toBeNull()
-    return { handler: handler as NonNullable<typeof handler>, computerUse: { ...computerUse, ...nativeMocks } }
+    return { handler: handler as NonNullable<typeof handler>, handlers: { ...computerUse, ...nativeMocks } }
   }
 
-  it('runs Agent Desktop readiness before gating and executing a routed computer tool', async () => {
-    const calls: string[] = []
-    const service = {
-      getState: vi.fn(() => ({ enabled: true })),
-      ensureReadyForTool: vi.fn(async () => {
-        calls.push('ready')
-        return { ready: true, state: { capability: 'active' } }
-      }),
-      gateComputerAction: vi.fn(async () => {
-        calls.push('gate')
-        return { allow: true, autoApprove: true, desktopOverride: 123 }
-      }),
-      activateTakeOver: vi.fn(),
-    }
-    const { handler, computerUse } = await loadToolHandlerWithAgentDesktop(service)
+  it('routes computer_screenshot directly to the current-desktop handler', async () => {
+    const { handler, handlers } = await loadToolHandler()
 
-    const result = await handler({}, 'computer_screenshot', {})
+    const result = await handler({}, 'computer_screenshot', { window_title: 'Settings' })
 
     expect(result).toEqual({ success: true, data: { action: 'screenshot' } })
-    expect(service.ensureReadyForTool).toHaveBeenCalledTimes(1)
-    expect(service.gateComputerAction).toHaveBeenCalledTimes(1)
-    expect(computerUse.executeScreenshot).toHaveBeenCalledWith({}, 123)
-    expect(calls).toEqual(['ready', 'gate'])
-  })
-
-  it('uses readiness on later Agent Desktop-routed calls, allowing stale-session repair before gating', async () => {
-    const service = {
-      getState: vi.fn(() => ({ enabled: true })),
-      ensureReadyForTool: vi.fn(async () => ({ ready: true, state: { capability: 'active' } })),
-      gateComputerAction: vi.fn(async () => ({ allow: true, autoApprove: true })),
-      activateTakeOver: vi.fn(),
-    }
-    const { handler, computerUse } = await loadToolHandlerWithAgentDesktop(service)
-
-    await handler({}, 'computer_list_windows', {})
-    await handler({}, 'computer_list_windows', {})
-
-    expect(service.ensureReadyForTool).toHaveBeenCalledTimes(2)
-    expect(service.gateComputerAction).toHaveBeenCalledTimes(2)
-    expect(computerUse.executeListWindows).toHaveBeenCalledTimes(2)
-  })
-
-  it('returns readiness failure without falling back to the regular Computer Use handler', async () => {
-    const service = {
-      getState: vi.fn(() => ({ enabled: true })),
-      ensureReadyForTool: vi.fn(async () => ({
-        ready: false,
-        error: 'The Agent Desktop could not be provisioned.',
-        state: { capability: 'available' },
-      })),
-      gateComputerAction: vi.fn(),
-      activateTakeOver: vi.fn(),
-    }
-    const executeScreenshot = vi.fn(async () => ({
-      success: true,
-      data: { action: 'fallback-screenshot' },
-    }))
-    const { handler } = await loadToolHandlerWithAgentDesktop(service, { executeScreenshot })
-
-    const result = await handler({}, 'computer_screenshot', {})
-
-    expect(result).toEqual({
-      success: false,
-      error: 'The Agent Desktop could not be provisioned.',
+    expect(handlers.executeScreenshot).toHaveBeenCalledWith({
+      display_id: undefined,
+      window_id: undefined,
+      window_title: 'Settings',
+      app_name: undefined,
     })
-    expect(service.gateComputerAction).not.toHaveBeenCalled()
-    expect(executeScreenshot).not.toHaveBeenCalled()
   })
 
-  it('displays the Agent Desktop before launching an app so it cannot launch on the current desktop', async () => {
-    const calls: string[] = []
-    const service = {
-      getState: vi.fn(() => ({ enabled: true })),
-      ensureReadyForTool: vi.fn(async () => {
-        calls.push('ready')
-        return {
-          ready: true,
-          state: { capability: 'active', agentDesktopDisplayed: false },
-        }
-      }),
-      activateTakeOver: vi.fn(async () => {
-        calls.push('display')
-        return { ok: true, state: { agentDesktopDisplayed: true } }
-      }),
-      gateComputerAction: vi.fn(async () => {
-        calls.push('gate')
-        return { allow: true, autoApprove: true }
-      }),
-      endTakeOver: vi.fn(async () => {
-        calls.push('return')
-        return { ok: true, state: { agentDesktopDisplayed: false } }
-      }),
-    }
-    const executeLaunchApp = vi.fn(async () => ({
-      success: true,
-      data: { launched: 'notepad' },
-    }))
-    const { handler } = await loadToolHandlerWithAgentDesktop(service, { executeLaunchApp })
+  it('routes computer_launch_app directly without separate-desktop display switching', async () => {
+    const executeLaunchApp = vi.fn(async () => ({ success: true, data: { launched: 'notepad' } }))
+    const { handler } = await loadToolHandler({ executeLaunchApp })
 
-    const result = await handler({}, 'computer_launch_app', {
-      name: 'notepad',
-    })
+    const result = await handler({}, 'computer_launch_app', { name: 'notepad' })
 
     expect(result).toEqual({ success: true, data: { launched: 'notepad' } })
-    expect(service.ensureReadyForTool).toHaveBeenCalledTimes(1)
-    expect(service.activateTakeOver).toHaveBeenCalledTimes(1)
-    expect(service.gateComputerAction).toHaveBeenCalledTimes(1)
-    expect(service.endTakeOver).toHaveBeenCalledTimes(1)
     expect(executeLaunchApp).toHaveBeenCalledWith({ name: 'notepad' })
-    expect(calls).toEqual(['ready', 'display', 'gate', 'return'])
-  })
-
-  it('blocks app launch when the Agent Desktop cannot be displayed', async () => {
-    const service = {
-      getState: vi.fn(() => ({ enabled: true })),
-      ensureReadyForTool: vi.fn(async () => ({
-        ready: true,
-        state: { capability: 'active', agentDesktopDisplayed: false },
-      })),
-      activateTakeOver: vi.fn(async () => ({
-        ok: false,
-        error: 'Agent Desktop could not be displayed.',
-        state: { agentDesktopDisplayed: false },
-      })),
-      gateComputerAction: vi.fn(),
-      endTakeOver: vi.fn(),
-    }
-    const executeLaunchApp = vi.fn(async () => ({ success: true, data: { launched: 'notepad' } }))
-    const { handler } = await loadToolHandlerWithAgentDesktop(service, { executeLaunchApp })
-
-    const result = await handler({}, 'computer_launch_app', { name: 'notepad' })
-
-    expect(result).toEqual({
-      success: false,
-      error: 'Agent Desktop could not be displayed.',
-    })
-    expect(service.activateTakeOver).toHaveBeenCalledTimes(1)
-    expect(service.endTakeOver).not.toHaveBeenCalled()
-    expect(service.gateComputerAction).not.toHaveBeenCalled()
-    expect(executeLaunchApp).not.toHaveBeenCalled()
-  })
-
-  it('returns to the user desktop when launch gating fails after displaying Agent Desktop', async () => {
-    const service = {
-      getState: vi.fn(() => ({ enabled: true })),
-      ensureReadyForTool: vi.fn(async () => ({
-        ready: true,
-        state: { capability: 'active', agentDesktopDisplayed: false },
-      })),
-      activateTakeOver: vi.fn(async () => ({
-        ok: true,
-        state: { agentDesktopDisplayed: true },
-      })),
-      gateComputerAction: vi.fn(async () => ({
-        allow: false,
-        reason: 'Action limit reached (50). Start a new task.',
-      })),
-      endTakeOver: vi.fn(async () => ({
-        ok: true,
-        state: { agentDesktopDisplayed: false },
-      })),
-    }
-    const executeLaunchApp = vi.fn(async () => ({ success: true, data: { launched: 'notepad' } }))
-    const { handler } = await loadToolHandlerWithAgentDesktop(service, { executeLaunchApp })
-
-    const result = await handler({}, 'computer_launch_app', { name: 'notepad' })
-
-    expect(result).toEqual({
-      success: false,
-      error: 'Action limit reached (50). Start a new task.',
-    })
-    expect(service.activateTakeOver).toHaveBeenCalledTimes(1)
-    expect(service.gateComputerAction).toHaveBeenCalledTimes(1)
-    expect(service.endTakeOver).toHaveBeenCalledTimes(1)
-    expect(executeLaunchApp).not.toHaveBeenCalled()
   })
 
   it('routes native Windows tools through execute-tool', async () => {
-    const service = {
-      getState: vi.fn(() => ({ enabled: false })),
-      ensureReadyForTool: vi.fn(),
-      gateComputerAction: vi.fn(),
-    }
-    const { handler, computerUse } = await loadToolHandlerWithAgentDesktop(service)
+    const { handler, handlers } = await loadToolHandler()
 
     const result = await handler({}, 'windows_uia_snapshot', {})
 
     expect(result).toEqual({ success: true, data: { windows: [] } })
-    expect(computerUse.executeWindowsUiaSnapshot).toHaveBeenCalledTimes(1)
-    expect(service.ensureReadyForTool).not.toHaveBeenCalled()
+    expect(handlers.executeWindowsUiaSnapshot).toHaveBeenCalledTimes(1)
   })
 
   it('routes mutating native tools to fail closed when approval is absent', async () => {
-    const service = {
-      getState: vi.fn(() => ({ enabled: false })),
-      ensureReadyForTool: vi.fn(),
-      gateComputerAction: vi.fn(),
-    }
-    const { handler, computerUse } = await loadToolHandlerWithAgentDesktop(service)
+    const { handler, handlers } = await loadToolHandler()
 
     const result = await handler({}, 'system_shell', {
       command: 'Get-Date',
@@ -341,6 +162,6 @@ describe('tool routing through Agent Desktop readiness', () => {
     })
 
     expect(result).toEqual({ success: false, error: 'approval required' })
-    expect(computerUse.executeSystemShell).toHaveBeenCalledTimes(1)
+    expect(handlers.executeSystemShell).toHaveBeenCalledTimes(1)
   })
 })

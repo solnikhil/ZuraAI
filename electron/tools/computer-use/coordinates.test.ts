@@ -76,10 +76,10 @@ describe('computer-use coordinate mapping', () => {
 })
 
 /**
- * Property-based coverage for Agent Desktop coordinate mapping.
+ * Property-based coverage for Computer Use coordinate mapping.
  *
- * The mapping reused by Agent Desktop projects a screenshot pixel (in the
- * resized/rendered capture space) back onto the captured display's Electron
+ * The mapping projects a screenshot pixel (in the resized/rendered capture
+ * space) back onto the captured display's Electron
  * desktop coordinates (device-independent pixels). Requirement 4.4 demands that
  * the projected point resolves to the same physical screen location, accounting
  * for the display's DPI scale factor, to within 1 device pixel.
@@ -119,8 +119,6 @@ const coordinateScenarioArb = fc
   )
 
 describe('computer-use coordinate mapping — Property 15: coordinate mapping resolves to the same physical location', () => {
-  // Feature: agent-desktop, Property 15: Coordinate mapping resolves to the same physical location
-  // Validates: Requirements 4.4
   it('maps any in-bounds screenshot point to within 1 device pixel of its physical location', () => {
     fc.assert(
       fc.property(coordinateScenarioArb, ({ dims, px, py }) => {
@@ -166,8 +164,6 @@ describe('computer-use coordinate mapping — Property 15: coordinate mapping re
     )
   })
 
-  // Feature: agent-desktop, Property 15: Coordinate mapping resolves to the same physical location
-  // Validates: Requirements 4.4
   it('is deterministic: identical inputs resolve to the identical physical location', () => {
     fc.assert(
       fc.property(coordinateScenarioArb, ({ dims, px, py }) => {

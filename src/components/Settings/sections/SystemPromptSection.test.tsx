@@ -5,10 +5,11 @@ import { describe, expect, it, vi } from 'vitest'
 import { SystemPromptSection } from './SystemPromptSection'
 
 describe('SystemPromptSection', () => {
-  it('does not render the effective runtime prompt preview', () => {
+  it('renders the system prompt with the selected personality applied', () => {
     render(
       <SystemPromptSection
         systemPrompt="Base prompt"
+        assistantPersonality="professional-engineer"
         webSearchPrompt="Web prompt"
         titleGenerationPrompt="Title prompt"
         codeExecutionPrompt="Code prompt"
@@ -16,8 +17,10 @@ describe('SystemPromptSection', () => {
       />
     )
 
-    expect(screen.queryByText('Effective Runtime Prompt')).toBeNull()
-    expect(screen.queryByRole('button', { name: /show effective prompt/i })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /show system prompt/i }))
+
+    expect(screen.getByDisplayValue(/Selected Personality/i)).toBeInTheDocument()
+    expect(screen.getByDisplayValue(/Professional Engineer/i)).toBeInTheDocument()
   })
 
   it('renders prompts as read-only built-in defaults', () => {
@@ -26,6 +29,7 @@ describe('SystemPromptSection', () => {
     render(
       <SystemPromptSection
         systemPrompt="Base prompt"
+        assistantPersonality="professional-engineer"
         webSearchPrompt="Web prompt"
         titleGenerationPrompt="Title prompt"
         codeExecutionPrompt="Code prompt"

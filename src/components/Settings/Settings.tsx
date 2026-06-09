@@ -8,7 +8,7 @@ import { checkOllamaStatus, listOllamaModels, enrichOllamaModelsWithContext } fr
 import { SECURE_API_KEY_NAMES, saveApiKeyToSecureStorage } from '../../utils/secureApiKeys'
 import { UsageSection } from './sections/UsageSection'
 import { OverlaySection } from './sections/OverlaySection'
-import { AgentDesktopSection } from './sections/AgentDesktopSection'
+import { ComputerUseSection } from './sections/ComputerUseSection'
 import { McpSection } from './sections/McpSection'
 import { MemorySection } from './sections/MemorySection'
 import { ProviderHubSection } from './sections/ProviderHubSection'
@@ -52,7 +52,7 @@ export default function Settings({
 
   const normalizedActiveSection = useMemo(() => {
     const normalized = normalizeSettingsSection(activeSection) ?? 'providers'
-    return isMacOSRuntime() && (normalized === 'overlay' || normalized === 'agent-desktop')
+    return isMacOSRuntime() && (normalized === 'overlay' || normalized === 'computer-use')
       ? 'providers'
       : normalized
   }, [activeSection])
@@ -374,9 +374,8 @@ if (!hasSettingsChanges && !hasMcpChanges) {
               />
             )}
 
-            {!isMacOSRuntime() && normalizedActiveSection === 'agent-desktop' && (
-              <AgentDesktopSection
-                agentDesktop={pendingSettings.agentDesktop}
+            {!isMacOSRuntime() && normalizedActiveSection === 'computer-use' && (
+              <ComputerUseSection
                 skills={pendingSettings.skills}
                 onChange={(changes) => handleChange(changes)}
               />
@@ -387,7 +386,6 @@ if (!hasSettingsChanges && !hasMcpChanges) {
             {normalizedActiveSection === 'skills' && (
               <SkillsSection
                 skills={pendingSettings.skills}
-                agentDesktop={pendingSettings.agentDesktop}
                 codeExecutionAutoApprove={pendingSettings.codeExecutionAutoApprove}
                 computerUseAutoApprove={pendingSettings.computerUseAutoApprove}
                 onChange={(changes) => handleChange(changes)}
@@ -414,6 +412,7 @@ if (!hasSettingsChanges && !hasMcpChanges) {
             {normalizedActiveSection === 'systemprompt' && (
               <SystemPromptSection
                 systemPrompt={pendingSettings.systemPrompt}
+                assistantPersonality={pendingSettings.assistantPersonality}
                 webSearchPrompt={pendingSettings.webSearchPrompt}
                 titleGenerationPrompt={pendingSettings.titleGenerationPrompt}
                 codeExecutionPrompt={pendingSettings.codeExecutionPrompt}

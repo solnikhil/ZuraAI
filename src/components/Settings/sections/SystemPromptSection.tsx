@@ -12,10 +12,15 @@ import { defaultCodeExecutionPrompt } from '../../../prompts/defaultCodeExecutio
 import { defaultComputerUsePrompt } from '../../../prompts/defaultComputerUsePrompt'
 import { defaultChartGenerationPrompt } from '../../../prompts/defaultChartGenerationPrompt'
 import { defaultMemoryPrompt } from '../../../prompts/defaultMemoryPrompt'
+import {
+  buildSelectedPersonalityPrompt,
+  type AssistantPersonalityId,
+} from '../../../prompts/assistantPersonalities'
 import { estimateMessageTokens } from '../../../utils/tokenUtils'
 
 export interface SystemPromptSectionProps {
   systemPrompt: string
+  assistantPersonality?: AssistantPersonalityId
   webSearchPrompt: string
   titleGenerationPrompt: string
   codeExecutionPrompt: string
@@ -102,7 +107,12 @@ function PromptViewerCard({
   )
 }
 
-export function SystemPromptSection(_props: SystemPromptSectionProps): React.ReactElement {
+export function SystemPromptSection(props: SystemPromptSectionProps): React.ReactElement {
+  const systemPromptPreview = useMemo(
+    () => `${defaultSystemPrompt}\n\n${buildSelectedPersonalityPrompt(props.assistantPersonality)}`,
+    [props.assistantPersonality]
+  )
+
   return (
     <div className="settings-section-layout">
       <div className="page-header">
@@ -112,9 +122,9 @@ export function SystemPromptSection(_props: SystemPromptSectionProps): React.Rea
 
       <PromptViewerCard
         title="System prompt"
-        description="Built-in system prompt that shapes the assistant personality, capabilities, and response policy."
-        note="This prompt is managed in code and automatically reflects the current app default."
-        value={defaultSystemPrompt}
+        description="Built-in system prompt plus the selected assistant personality that shapes communication style."
+        note="This prompt is managed in code and reflects the current app default plus your selected personality."
+        value={systemPromptPreview}
         showLabel="Show System Prompt"
         hideLabel="Hide System Prompt"
       />

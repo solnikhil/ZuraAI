@@ -2,7 +2,7 @@ export type SettingsSectionId =
   | 'usage'
   | 'providers'
   | 'overlay'
-  | 'agent-desktop'
+  | 'computer-use'
   | 'mcp'
   | 'skills'
   | 'memory'
@@ -41,11 +41,11 @@ export const SETTINGS_SECTIONS: SettingsSectionMeta[] = [
     keywords: ['extensions', 'overlay', 'desktop overlay', 'shortcut', 'compact chat'],
   },
   {
-    id: 'agent-desktop',
+    id: 'computer-use',
     navLabel: 'Computer Use',
     title: 'Computer Use',
-    description: 'Choose whether desktop-control actions run on this desktop or a separate Windows virtual desktop.',
-    keywords: ['computer use', 'this desktop', 'separate desktop', 'agent desktop', 'agent view', 'virtual desktop', 'automation', 'approval'],
+    description: 'Control whether Agent mode can use screenshots, clicks, typing, scrolling, and app controls on this desktop.',
+    keywords: ['computer use', 'this desktop', 'agent mode', 'automation', 'approval'],
   },
   {
     id: 'mcp',
@@ -104,10 +104,10 @@ const SETTINGS_SECTION_ALIASES: Record<string, SettingsSectionId> = {
   servers: 'mcp',
 overlay: 'overlay',
   buddyoverlay: 'overlay',
-  agentdesktop: 'agent-desktop',
-  agentview: 'agent-desktop',
-  computeruse: 'agent-desktop',
-  separatedesktop: 'agent-desktop',
+  agentdesktop: 'computer-use',
+  agentview: 'computer-use',
+  computeruse: 'computer-use',
+  separatedesktop: 'computer-use',
   commandbar: 'themes',
   notifications: 'usage',
   personalization: 'memory',

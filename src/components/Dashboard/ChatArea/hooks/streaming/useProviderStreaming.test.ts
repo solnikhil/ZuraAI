@@ -539,6 +539,93 @@ describe('useProviderStreaming', () => {
     )
   })
 
+  it('records the tool follow-up split marker so pre-tool preamble text stays above the tool block', async () => {
+    // Round 0 streams reasoning, then a short preamble, then a tool call.
+    // The preamble is emitted BEFORE the tool runs, so the persisted split
+    // marker must record blocks=1 (only the preceding thinking block) — the
+    // tool block then renders below the preamble instead of above it.
+    let invocation = 0
+    mocks.createProviderStreamClient.mockReturnValue({
+      stream: async function* () {
+        invocation += 1
+        if (invocation === 1) {
+          yield { type: 'reasoning-delta', delta: 'Let me run some code.' }
+          yield { type: 'text-delta', delta: "let's run some fun python:" }
+          yield {
+            type: 'tool-call-delta',
+            delta: [{
+              index: 0,
+              id: 'call_1',
+              type: 'function',
+              function: { name: 'web_search', arguments: '{"query":"zura"}' },
+            }],
+          }
+          yield { type: 'finish', finishReason: 'tool_calls' }
+          return
+        }
+        yield { type: 'text-delta', delta: 'there you go.' }
+        yield { type: 'finish', finishReason: 'stop' }
+      },
+    })
+
+    const updateStreamingMessage = vi.fn()
+    const handleToolCalls = vi.fn().mockResolvedValueOnce({
+      hasTools: true,
+      toolResults: [buildWebSearchToolResult('call_1', 'zura')],
+      formattedResults: [{ role: 'tool', tool_call_id: 'call_1', content: 'Search results' }],
+      needsFollowUp: true,
+      executionSummary: buildExecutionSummary('zura'),
+    } as ToolCallingResponse)
+
+    const { result } = renderHook(() =>
+      useProviderStreaming({
+        settings: {
+          aiModel: 'openai/gpt-4.1',
+          modelProvider: 'openrouter',
+          temperature: 0.4,
+          maxTokens: 1024,
+          streamResponses: true,
+          openRouterApiKey: 'or-key',
+        },
+        toolCalling: {
+          canUseTools: true,
+          getToolsForRequest: () => [{
+            type: 'function',
+            function: {
+              name: 'web_search',
+              description: 'Search the web',
+              parameters: { type: 'object', properties: {} },
+            },
+          }],
+          handleToolCalls,
+          getResearchContext: () => 'Research context',
+        },
+        updateStreamingMessage,
+        flushThrottledUpdates: vi.fn(),
+        throttledUpdateStreamingMessage: vi.fn(),
+      })
+    )
+
+    const streamResult = await result.current.runProviderStream({
+      provider: 'openrouter',
+      model: 'openai/gpt-4.1',
+      sessionId: 'session-1',
+      messageId: 'message-preamble-split',
+      messages: [{ role: 'user', content: 'run code' }],
+      startTime: performance.now() - 25,
+      researchMaxRounds: 2,
+      syncToStreamingContext: false,
+      enableTools: true,
+    })
+
+    // The marker must report blocks=1: only the reasoning block precedes the
+    // preamble. The web_search block (block index 1) belongs after it.
+    expect(streamResult.content).toContain('[[ZURA_TOOL_FOLLOW_UP_SPLIT:blocks=1]]')
+    expect(streamResult.content).toMatch(
+      /let's run some fun python:[\s\S]*\[\[ZURA_TOOL_FOLLOW_UP_SPLIT:blocks=1\]\][\s\S]*there you go\./
+    )
+  })
+
   it('adds a verification prompt after successful mutating agent tool results', async () => {
     const streamCalls: Array<{ messages: Array<{ role: string; content?: unknown }> }> = []
     let invocation = 0
@@ -1987,6 +2074,142 @@ describe('useProviderStreaming', () => {
 
     expect(streamResult.content).toContain("I'll search for information about Cursor")
     expect(streamResult.content).toContain('Cursor is an AI-powered code editor created by Anysphere.')
+  })
+
+  it('keeps follow-up tool-call narration out of the visible answer while preserving tool transcripts', async () => {
+    let invocation = 0
+    const toolCallMessageContents: string[] = []
+
+    mocks.createProviderStreamClient.mockReturnValue({
+      stream: async function* () {
+        invocation += 1
+
+        if (invocation === 1) {
+          yield { type: 'text-delta', delta: "Yeah, I already mentioned that -- zero new hardware. I'll verify." }
+          yield {
+            type: 'tool-call-delta',
+            delta: [{
+              index: 0,
+              id: 'call_initial',
+              type: 'function',
+              function: { name: 'web_search', arguments: '{"query":"WWDC 2026 no new hardware"}' },
+            }],
+          }
+          yield { type: 'finish', finishReason: 'tool_calls' }
+          return
+        }
+
+        if (invocation === 2) {
+          yield { type: 'text-delta', delta: 'Let me grab a proper keynote recap to confirm:' }
+          yield {
+            type: 'tool-call-delta',
+            delta: [{
+              index: 0,
+              id: 'call_recap',
+              type: 'function',
+              function: { name: 'web_search', arguments: '{"query":"WWDC 2026 keynote recap no hardware"}' },
+            }],
+          }
+          yield { type: 'finish', finishReason: 'tool_calls' }
+          return
+        }
+
+        if (invocation === 3) {
+          yield { type: 'text-delta', delta: 'These are mostly pre-keynote articles. Let me grab a proper post-keynote recap to confirm:' }
+          yield {
+            type: 'tool-call-delta',
+            delta: [{
+              index: 0,
+              id: 'call_post_keynote',
+              type: 'function',
+              function: { name: 'web_search', arguments: '{"query":"WWDC 2026 post keynote recap no hardware"}' },
+            }],
+          }
+          yield { type: 'finish', finishReason: 'tool_calls' }
+          return
+        }
+
+        yield { type: 'text-delta', delta: 'Yeah, confirmed -- zero new hardware at WWDC 2026. It was a pure software show.' }
+        yield { type: 'usage', usage: { inputTokens: 8, outputTokens: 12, totalTokens: 20 } }
+        yield { type: 'finish', finishReason: 'stop' }
+      },
+    })
+
+    const updateStreamingMessage = vi.fn()
+    const handleToolCalls = vi
+      .fn((response: ToolCallingResponse) => {
+        toolCallMessageContents.push(String(response.choices[0].message.content || ''))
+        const toolCall = response.choices[0].message.tool_calls?.[0]
+        const query = toolCall?.function?.arguments
+          ? JSON.parse(toolCall.function.arguments).query
+          : 'unknown'
+
+        return Promise.resolve({
+          hasTools: true,
+          toolResults: [buildWebSearchToolResult(toolCall?.id || `call_${toolCallMessageContents.length}`, query)],
+          formattedResults: [{ role: 'tool', tool_call_id: toolCall?.id, content: `results for ${query}` }],
+          needsFollowUp: true,
+          executionSummary: buildExecutionSummary(query),
+        })
+      })
+
+    const { result } = renderHook(() =>
+      useProviderStreaming({
+        settings: {
+          aiModel: 'openai/gpt-4.1',
+          modelProvider: 'openrouter',
+          temperature: 0.4,
+          maxTokens: 1024,
+          streamResponses: true,
+          openRouterApiKey: 'or-key',
+        },
+        toolCalling: {
+          canUseTools: true,
+          getToolsForRequest: () => [{
+            type: 'function',
+            function: {
+              name: 'web_search',
+              description: 'Search the web',
+              parameters: { type: 'object', properties: {} },
+            },
+          }],
+          handleToolCalls,
+          getResearchContext: () => 'Research context',
+        },
+        updateStreamingMessage,
+        flushThrottledUpdates: vi.fn(),
+        throttledUpdateStreamingMessage: vi.fn(),
+      })
+    )
+
+    const streamResult = await result.current.runProviderStream({
+      provider: 'openrouter',
+      model: 'openai/gpt-4.1',
+      sessionId: 'session-1',
+      messageId: 'message-wwdc',
+      messages: [{ role: 'user', content: 'no new device?' }],
+      startTime: performance.now() - 25,
+      researchMaxRounds: 3,
+      syncToStreamingContext: false,
+      enableTools: true,
+    })
+
+    expect(handleToolCalls).toHaveBeenCalledTimes(3)
+    expect(toolCallMessageContents[1]).toBe('Let me grab a proper keynote recap to confirm:')
+    expect(toolCallMessageContents[2]).toBe(
+      'These are mostly pre-keynote articles. Let me grab a proper post-keynote recap to confirm:'
+    )
+    expect(streamResult.content).toContain('Yeah, I already mentioned that')
+    expect(streamResult.content).toContain('Yeah, confirmed -- zero new hardware at WWDC 2026.')
+    expect(streamResult.content).not.toContain('Let me grab a proper keynote recap')
+    expect(streamResult.content).not.toContain('These are mostly pre-keynote articles')
+    expect(updateStreamingMessage).toHaveBeenLastCalledWith(
+      'session-1',
+      'message-wwdc',
+      expect.objectContaining({
+        content: expect.not.stringContaining('These are mostly pre-keynote articles'),
+      })
+    )
   })
 
   it('forces a final synthesis pass when the provider ends the research loop without an answer', async () => {

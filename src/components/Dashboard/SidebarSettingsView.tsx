@@ -13,7 +13,7 @@ const settingsIcons: Record<SettingsSectionId, React.ReactNode> = {
   usage: <ChartNoAxesCombined size={18} />,
   providers: <Cloud size={18} />,
   overlay: <MessageCircle size={18} />,
-  'agent-desktop': <Monitor size={18} />,
+  'computer-use': <Monitor size={18} />,
   mcp: <Box size={18} />,
   skills: <Wrench size={18} />,
   memory: <Brain size={18} />,
@@ -23,7 +23,7 @@ const settingsIcons: Record<SettingsSectionId, React.ReactNode> = {
 }
 
 const navItems = SETTINGS_SECTIONS
-  .filter((section) => !(isMacOSRuntime() && (section.id === 'overlay' || section.id === 'agent-desktop')))
+  .filter((section) => !(isMacOSRuntime() && (section.id === 'overlay' || section.id === 'computer-use')))
   .map((section) => ({
     id: section.id,
     label: section.navLabel,

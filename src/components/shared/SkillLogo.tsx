@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react'
-import { Globe, Monitor } from 'lucide-react'
+import { Globe } from 'lucide-react'
 
 export type SkillLogoSize = 'sm' | 'md' | 'lg'
 
@@ -30,16 +30,13 @@ interface CustomSkillLogoProps {
 
 const SKILL_CUSTOM_LOGOS: Record<string, React.ComponentType<CustomSkillLogoProps>> = {}
 
-const SKILL_FALLBACK_ICONS: Record<string, React.ComponentType<{ size?: number | string; color?: string }>> = {
-  agent_desktop: Monitor,
-}
+const SKILL_FALLBACK_ICONS: Record<string, React.ComponentType<{ size?: number | string; color?: string }>> = {}
 
 const SKILL_FALLBACK_COLORS: Record<string, string> = {
   web_research: '#4dabf7',
   tavily: '#4dabf7',
   code_execution: '#a78bfa',
   computer_use: '#10b981',
-  agent_desktop: '#38bdf8',
   chart_generation: '#f59e0b',
 }
 

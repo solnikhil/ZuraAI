@@ -1,4 +1,4 @@
-export type SkillId = 'web_research' | 'code_execution' | 'computer_use' | 'chart_generation' | 'memory' | 'agent_desktop'
+export type SkillId = 'web_research' | 'code_execution' | 'computer_use' | 'chart_generation' | 'memory'
 
 export interface SkillState {
   enabled: boolean
@@ -15,24 +15,12 @@ export interface ChartGenerationSkillState extends SkillState {}
 
 export interface MemorySkillState extends SkillState {}
 
-/**
- * Agent Desktop (Agent View) skill state. This is the mirrored, Skills-map side
- * of Agent Desktop's dual source of truth: the richer policy/persistence fields
- * live under `settings.agentDesktop`, while `skills.agent_desktop.enabled` keeps
- * the skills map and tool-exposure gating consistent (same pattern as Memory).
- * The user-facing enable toggle is disclosure-gated and owned by
- * `AgentDesktopSection`, and quick surfaces that enable it must acknowledge
- * the same not-a-sandbox disclosure before turning it on.
- */
-export interface AgentDesktopSkillState extends SkillState {}
-
 export type SkillsSettings = Record<string, SkillState> & {
   web_research: WebResearchSkillState
   code_execution: CodeExecutionSkillState
   computer_use: ComputerUseSkillState
   chart_generation: ChartGenerationSkillState
   memory: MemorySkillState
-  agent_desktop: AgentDesktopSkillState
 }
 
 export interface BuiltInSkill {
@@ -73,17 +61,6 @@ export const BUILT_IN_SKILLS: BuiltInSkill[] = [
       'Always take a screenshot first to see the current screen state.',
       'Analyze the screenshot carefully before performing any action.',
       'Verify results with a follow-up screenshot after each action.',
-    ],
-  },
-  {
-    id: 'agent_desktop',
-    name: 'Control Separate Desktop',
-    description: 'Let the assistant use the same desktop-control tools on a separate Windows virtual desktop instead of your current desktop.',
-    note: 'Windows only. Workspace separation, not a sandbox. Press Esc+Esc to emergency stop.',
-    usageGuidance: [
-      'Use the existing computer_* tools through the separate-desktop gate.',
-      'Launch and inspect work on the dedicated virtual desktop.',
-      'Use Take Over when input must be delivered to the displayed separate desktop.',
     ],
   },
   {
@@ -130,17 +107,12 @@ const DEFAULT_MEMORY_SKILL: MemorySkillState = {
   config: { autoManage: true },
 }
 
-const DEFAULT_AGENT_DESKTOP_SKILL: AgentDesktopSkillState = {
-  enabled: false,
-}
-
 export const defaultSkillsSettings: SkillsSettings = {
   web_research: DEFAULT_WEB_RESEARCH_SKILL,
   code_execution: DEFAULT_CODE_EXECUTION_SKILL,
   computer_use: DEFAULT_COMPUTER_USE_SKILL,
   chart_generation: DEFAULT_CHART_GENERATION_SKILL,
   memory: DEFAULT_MEMORY_SKILL,
-  agent_desktop: DEFAULT_AGENT_DESKTOP_SKILL,
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -215,11 +187,6 @@ export function normalizeSkillsSettings(raw: unknown): SkillsSettings {
     rawRecord?.memory,
     defaultSkillsSettings.memory
   )
-  normalized.agent_desktop = normalizeKnownSkill(
-    rawRecord?.agent_desktop,
-    defaultSkillsSettings.agent_desktop
-  )
-
   return normalized as SkillsSettings
 }
 
@@ -368,23 +335,6 @@ export function withChartGenerationEnabled(skills: SkillsSettings | undefined, e
   }
 }
 
-// Agent Desktop (Agent View)
-
-export function isAgentDesktopEnabled(skills: SkillsSettings | undefined): boolean {
-  return normalizeSkillsSettings(skills).agent_desktop.enabled
-}
-
-export function withAgentDesktopEnabled(skills: SkillsSettings | undefined, enabled: boolean): SkillsSettings {
-  const normalized = normalizeSkillsSettings(skills)
-  return {
-    ...normalized,
-    agent_desktop: {
-      ...normalized.agent_desktop,
-      enabled,
-    },
-  }
-}
-
 // Memory
 
 /**
@@ -450,11 +400,7 @@ export function buildEnabledSkillsPrompt(
     skillLines.push('- Prefer Python for math/data tasks. Keep code concise and self-contained. The sandbox has no filesystem or network access.')
   }
 
-  if (normalized.agent_desktop.enabled) {
-    skillLines.push('- Control Separate Desktop (`agent_desktop`): prefer native Windows tools for filesystem/app/window/UIA work, and use `computer_*` only for visual fallback on the dedicated Windows virtual desktop.')
-    skillLines.push('- For Desktop/file organization tasks, first inspect directories with `file_search`/`file_read`, propose changes, then use `file_move` after approval. Do not open Run/Explorer or use screenshots for simple file moves.')
-    skillLines.push('- Treat the separate desktop as workspace separation, not a sandbox. Screenshot first only when a visual desktop task actually needs it.')
-  } else if (normalized.computer_use.enabled) {
+  if (normalized.computer_use.enabled) {
     skillLines.push('- Control This Desktop (`computer_use`): prefer native Windows tools for filesystem/app/window/UIA work, and use screenshots/click/type/scroll only when native tools cannot handle the task.')
     skillLines.push('- For Desktop/file organization tasks, first inspect directories with `file_search`/`file_read`, propose changes, then use `file_move` after approval. Do not open Run/Explorer or use screenshots for simple file moves.')
     skillLines.push('- For visual desktop tasks, screenshot first, analyze before acting, and verify results with follow-up screenshots.')
@@ -473,7 +419,7 @@ export function buildEnabledSkillsPrompt(
     sections.push(options.codeExecutionPrompt)
   }
 
-  if ((normalized.computer_use.enabled || normalized.agent_desktop.enabled) && options?.computerUsePrompt) {
+  if (normalized.computer_use.enabled && options?.computerUsePrompt) {
     sections.push(options.computerUsePrompt)
   }
 

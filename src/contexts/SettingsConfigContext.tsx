@@ -29,14 +29,18 @@ import { defaultCodeExecutionPrompt } from '../prompts/defaultCodeExecutionPromp
 import { defaultComputerUsePrompt } from '../prompts/defaultComputerUsePrompt'
 import { defaultChartGenerationPrompt } from '../prompts/defaultChartGenerationPrompt'
 import { defaultMemoryPrompt } from '../prompts/defaultMemoryPrompt'
+import {
+  DEFAULT_ASSISTANT_PERSONALITY,
+  type AssistantPersonalityId,
+} from '../prompts/assistantPersonalities'
 import { defaultSkillsSettings, type SkillsSettings } from '../skills'
 import type { AssistantMode } from '../chat/types'
 import { getProviderEnabledDefaults, getProviderSecretFields } from '../providers'
 import type { ProviderId } from '../providers/providerTypes'
 import { warnOnceDuringHmr } from './hmrWarnings'
-import type { AgentDesktopSettings, OverlaySettings } from '../electron/types'
+import type { OverlaySettings } from '../electron/types'
 
-export type { AgentDesktopSettings, OverlaySettings }
+export type { OverlaySettings }
 
 // Todo item structure (shared with main Settings)
 export interface TodoItem {
@@ -108,6 +112,7 @@ export interface SettingsConfig {
   temperature: number
   maxTokens: number
   systemPrompt: string
+  assistantPersonality: AssistantPersonalityId
   /** Web search instructions appended when Web Search is enabled */
   webSearchPrompt: string
   /** Code execution instructions appended when Code Execution is enabled */
@@ -152,14 +157,6 @@ export interface SettingsConfig {
   rememberLastSettingsSection: boolean
   rememberLastDashboardView: boolean
   overlay: OverlaySettings
-  /**
-   * Agent Desktop (Agent View) preferences. Optional and Windows-only; mirrored
-   * into the trusted main-process service by `AgentDesktopSync`. Lives in the
-   * existing sanitized `zura-settings` blob (Req 10.1). Undefined until the user
-   * interacts with Agent Desktop settings, in which case the service falls back
-   * to its safe disabled default.
-   */
-  agentDesktop?: AgentDesktopSettings
   /**
    * Discord Rich Presence preferences. Lives in the sanitized `zura-settings`
    * blob. The `appId` field should be set to a valid Discord Application ID
@@ -282,6 +279,7 @@ export const defaultSettingsConfig: SettingsConfig = {
   temperature: 0.7,
   maxTokens: 8000,
   systemPrompt: defaultSystemPrompt,
+  assistantPersonality: DEFAULT_ASSISTANT_PERSONALITY,
   webSearchPrompt: defaultWebSearchPrompt,
   codeExecutionPrompt: defaultCodeExecutionPrompt,
   computerUsePrompt: defaultComputerUsePrompt,

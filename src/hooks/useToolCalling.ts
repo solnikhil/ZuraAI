@@ -24,7 +24,7 @@ import { shouldEnableTools } from '../utils/promptSelection'
 import { createMcpToolRegistry } from '../tools/mcpRegistry'
 import { getProviderModels, type ProviderId } from '../providers'
 import { isWindowsRuntime } from '../utils/platform'
-import { isSkillEnabled, isAgentDesktopEnabled } from '../skills'
+import { isSkillEnabled } from '../skills'
 
 const COMPUTER_USE_TOOLS = [
     'computer_screenshot',
@@ -147,18 +147,13 @@ export function useToolCalling() {
             }
         }
 
-        // Computer Use action surface (reused by Agent Desktop / Agent View).
-        // Windows-only (mirrors the main-process + preload gates), and gated
-        // behind a skill: either the Agent Desktop skill (Agent View reuses the
-        // same computer_* surface) or the standalone Computer Use skill. When
-        // neither is enabled, or on macOS, the surface is not exposed at all
-        // (Req 9.3, 10.9).
-        // Additionally, Computer Use tools are only exposed in agent mode
-        // (desktop control), not in normal chat mode.
+        // Computer Use action surface. Windows-only (mirrors the main-process +
+        // preload gates), gated behind the Computer Use skill, and exposed only
+        // in agent mode.
         const computerUseSurfaceEnabled =
             settings.assistantMode === 'agent' &&
             isWindowsRuntime() &&
-            (isAgentDesktopEnabled(settings.skills) || isSkillEnabled(settings.skills, 'computer_use'))
+            isSkillEnabled(settings.skills, 'computer_use')
 
         if (!computerUseSurfaceEnabled) {
             enabledTools = enabledTools.filter((tool) => !COMPUTER_USE_TOOLS.includes(tool))

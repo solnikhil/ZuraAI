@@ -1,6 +1,7 @@
 import { Settings } from '../contexts/SettingsContext'
 import { buildEnabledSkillsPrompt } from '../skills'
 import { CURRENT_YEAR_PLACEHOLDER } from '../prompts/defaultSystemPrompt'
+import { buildSelectedPersonalityPrompt } from '../prompts/assistantPersonalities'
 
 export function resolveSystemPromptTemplate(systemPrompt: string): string {
     const currentYear = String(new Date().getFullYear())
@@ -17,17 +18,18 @@ export function resolveSystemPromptTemplate(systemPrompt: string): string {
  * @returns The effective system prompt to use for AI calls.
  */
 export function getEffectiveSystemPrompt(
-    settings: Pick<Settings, 'systemPrompt'> & Partial<Pick<Settings, 'skills' | 'codeExecutionPrompt' | 'computerUsePrompt' | 'chartGenerationPrompt'>>,
+    settings: Pick<Settings, 'systemPrompt'> & Partial<Pick<Settings, 'assistantPersonality' | 'skills' | 'codeExecutionPrompt' | 'computerUsePrompt' | 'chartGenerationPrompt'>>,
     memoryBlock?: string,
     recentActivityBlock?: string
 ): string {
     const resolvedSystemPrompt = resolveSystemPromptTemplate(settings.systemPrompt)
+    const selectedPersonalityPrompt = buildSelectedPersonalityPrompt(settings.assistantPersonality)
     const enabledSkillsSection = buildEnabledSkillsPrompt(settings.skills, {
         codeExecutionPrompt: settings.codeExecutionPrompt,
         computerUsePrompt: settings.computerUsePrompt,
         chartGenerationPrompt: settings.chartGenerationPrompt,
     })
-    const sections = [resolvedSystemPrompt]
+    const sections = [resolvedSystemPrompt, selectedPersonalityPrompt]
     if (enabledSkillsSection) sections.push(enabledSkillsSection)
     if (recentActivityBlock && recentActivityBlock.trim()) sections.push(recentActivityBlock.trim())
     if (memoryBlock && memoryBlock.trim()) sections.push(memoryBlock.trim())

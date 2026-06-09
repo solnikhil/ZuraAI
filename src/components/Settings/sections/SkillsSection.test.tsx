@@ -25,7 +25,14 @@ vi.mock('@/components/ui/dropdown-menu', () => ({
 
 describe('SkillsSection', () => {
   it('renders grouped skills catalog with actions', () => {
-    render(<SkillsSection skills={defaultSkillsSettings} onChange={vi.fn()} />)
+    render(
+      <SkillsSection
+        skills={defaultSkillsSettings}
+        codeExecutionAutoApprove={false}
+        computerUseAutoApprove={false}
+        onChange={vi.fn()}
+      />
+    )
 
     expect(screen.getByText('Skills')).toBeInTheDocument()
     expect(screen.getByText('Recommended')).toBeInTheDocument()
@@ -36,7 +43,14 @@ describe('SkillsSection', () => {
 
   it('toggles disable from skill action', () => {
     const onChange = vi.fn()
-    render(<SkillsSection skills={defaultSkillsSettings} onChange={onChange} />)
+    render(
+      <SkillsSection
+        skills={defaultSkillsSettings}
+        codeExecutionAutoApprove={false}
+        computerUseAutoApprove={false}
+        onChange={onChange}
+      />
+    )
 
     fireEvent.click(screen.getByRole('button', { name: /disable web research/i }))
 

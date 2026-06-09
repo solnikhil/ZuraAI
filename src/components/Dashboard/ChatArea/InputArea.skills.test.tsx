@@ -14,16 +14,16 @@ const mockSettings = {
       computer_use: {
         enabled: false,
       },
-      agent_desktop: {
+      chart_generation: {
         enabled: false,
       },
-    },
-    agentDesktop: {
-      enabled: false,
-      disclosureAcknowledged: true,
-      persistence: 'ephemeral',
-      approvalPolicy: {},
-      approvalTimeoutMs: 60000,
+      memory: {
+        enabled: true,
+        config: { autoManage: true },
+      },
+      code_execution: {
+        enabled: false,
+      },
     },
     modelProvider: 'openrouter',
     assistantMode: 'chat',
@@ -66,11 +66,6 @@ vi.mock('@/utils/platform', () => ({
   isMacOSRuntime: () => false,
 }))
 
-vi.mock('@/components/Settings/sections/AgentDesktopDisclosureDialog', () => ({
-  AgentDesktopDisclosureDialog: ({ open }: { open: boolean }) =>
-    open ? <div>Separate Desktop Disclosure</div> : null,
-}))
-
 vi.mock('@/components/ui/dropdown-menu', () => ({
   DropdownMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -110,13 +105,10 @@ describe('InputArea skills menu', () => {
     vi.clearAllMocks()
     mockSettings.settings.skills.web_research.enabled = true
     mockSettings.settings.skills.computer_use.enabled = false
-    mockSettings.settings.skills.agent_desktop.enabled = false
-    mockSettings.settings.agentDesktop.enabled = false
-    mockSettings.settings.agentDesktop.disclosureAcknowledged = true
     mockSettings.settings.assistantMode = 'chat'
   })
 
-  it('shows desktop control modes in the composer plus menu', () => {
+  it('shows only current-desktop control in the composer plus menu', () => {
     render(
       <InputArea
         input=""
@@ -130,10 +122,10 @@ describe('InputArea skills menu', () => {
 
     expect(screen.getByRole('button', { name: /desktop control/i })).toBeInTheDocument()
     expect(screen.getByRole('switch', { name: /control this desktop/i })).toBeInTheDocument()
-    expect(screen.getByRole('switch', { name: /control separate desktop/i })).toBeInTheDocument()
+    expect(screen.queryByRole('switch', { name: /control separate desktop/i })).not.toBeInTheDocument()
   })
 
-  it('enables separate desktop control as an agent-mode desktop-control mode', () => {
+  it('enables current-desktop control as the agent-mode desktop-control path', () => {
     render(
       <InputArea
         input=""
@@ -145,15 +137,13 @@ describe('InputArea skills menu', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('switch', { name: /control separate desktop/i }))
+    fireEvent.click(screen.getByRole('switch', { name: /control this desktop/i }))
 
     expect(updateSettings).toHaveBeenCalledWith(
       expect.objectContaining({
         assistantMode: 'agent',
-        agentDesktop: expect.objectContaining({ enabled: true }),
         skills: expect.objectContaining({
-          agent_desktop: expect.objectContaining({ enabled: true }),
-          computer_use: expect.objectContaining({ enabled: false }),
+          computer_use: expect.objectContaining({ enabled: true }),
         }),
       })
     )
