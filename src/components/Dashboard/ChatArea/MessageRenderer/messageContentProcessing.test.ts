@@ -43,4 +43,26 @@ describe('stripReferencesSection', () => {
       'These web results informed the architectural decisions.'
     )
   })
+
+  it('removes title-based source blocks that appear before final prose', () => {
+    const content = [
+      'Sources:',
+      '',
+      'GitHub - Z1Code/glass-refraction: Liquid Glass design system — SVG filter architecture, CSS custom properties, chromatic edge',
+      '',
+      'GitHub - deadcoder0904/electron-transparent-window-guide — Electron click-through overlay pattern with global shortcuts',
+      '',
+      'How I Made a Desktop App Invisible to Screen Sharing (Electron + OS-Level Tricks) — Production Electron overlay window configuration, alwaysOnTop levels, contentProtection',
+      '',
+      'These web results informed the architectural decisions, SVG filter pipeline, and Electron window configuration.',
+      'The specific code is my synthesis.',
+    ].join('\n')
+
+    expect(stripReferencesSection(content)).toBe(
+      [
+        'These web results informed the architectural decisions, SVG filter pipeline, and Electron window configuration.',
+        'The specific code is my synthesis.',
+      ].join('\n')
+    )
+  })
 })
