@@ -8,7 +8,6 @@ import { checkOllamaStatus, listOllamaModels, enrichOllamaModelsWithContext } fr
 import { SECURE_API_KEY_NAMES, saveApiKeyToSecureStorage } from '../../utils/secureApiKeys'
 import { UsageSection } from './sections/UsageSection'
 import { OverlaySection } from './sections/OverlaySection'
-import { ComputerUseSection } from './sections/ComputerUseSection'
 import { McpSection } from './sections/McpSection'
 import { MemorySection } from './sections/MemorySection'
 import { ProviderHubSection } from './sections/ProviderHubSection'
@@ -52,7 +51,7 @@ export default function Settings({
 
   const normalizedActiveSection = useMemo(() => {
     const normalized = normalizeSettingsSection(activeSection) ?? 'providers'
-    return isMacOSRuntime() && (normalized === 'overlay' || normalized === 'computer-use')
+    return isMacOSRuntime() && normalized === 'overlay'
       ? 'providers'
       : normalized
   }, [activeSection])
@@ -370,13 +369,6 @@ if (!hasSettingsChanges && !hasMcpChanges) {
             {!isMacOSRuntime() && normalizedActiveSection === 'overlay' && (
               <OverlaySection
                 overlay={pendingSettings.overlay}
-                onChange={(changes) => handleChange(changes)}
-              />
-            )}
-
-            {!isMacOSRuntime() && normalizedActiveSection === 'computer-use' && (
-              <ComputerUseSection
-                skills={pendingSettings.skills}
                 onChange={(changes) => handleChange(changes)}
               />
             )}

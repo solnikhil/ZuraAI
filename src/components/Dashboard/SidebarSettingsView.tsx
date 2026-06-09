@@ -1,6 +1,6 @@
 import React from 'react'
 import { SETTINGS_SECTIONS, type SettingsSectionId } from '../../constants/settingsSections'
-import { Activity, Box, Brain, ChartNoAxesCombined, Cloud, MessageCircle, Monitor, Paintbrush, FileText, Wrench } from '../icons'
+import { Activity, Box, Brain, ChartNoAxesCombined, Cloud, MessageCircle, Paintbrush, FileText, Wrench } from '../icons'
 import { isMacOSRuntime } from '../../utils/platform'
 
 interface SidebarSettingsViewProps {
@@ -13,7 +13,6 @@ const settingsIcons: Record<SettingsSectionId, React.ReactNode> = {
   usage: <ChartNoAxesCombined size={18} />,
   providers: <Cloud size={18} />,
   overlay: <MessageCircle size={18} />,
-  'computer-use': <Monitor size={18} />,
   mcp: <Box size={18} />,
   skills: <Wrench size={18} />,
   memory: <Brain size={18} />,
@@ -23,7 +22,7 @@ const settingsIcons: Record<SettingsSectionId, React.ReactNode> = {
 }
 
 const navItems = SETTINGS_SECTIONS
-  .filter((section) => !(isMacOSRuntime() && (section.id === 'overlay' || section.id === 'computer-use')))
+  .filter((section) => !(isMacOSRuntime() && section.id === 'overlay'))
   .map((section) => ({
     id: section.id,
     label: section.navLabel,
