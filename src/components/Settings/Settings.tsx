@@ -9,10 +9,12 @@ import { SECURE_API_KEY_NAMES, saveApiKeyToSecureStorage } from '../../utils/sec
 import { UsageSection } from './sections/UsageSection'
 import { OverlaySection } from './sections/OverlaySection'
 import { McpSection } from './sections/McpSection'
+import { MemorySection } from './sections/MemorySection'
 import { ProviderHubSection } from './sections/ProviderHubSection'
 import { SkillsSection } from './sections/SkillsSection'
 import { AppearanceSection } from './sections/AppearanceSection'
 import { SystemPromptSection } from './sections/SystemPromptSection'
+import { ResourceMonitorSection } from './sections/ResourceMonitorSection'
 
 import { computeUsageStats, mergeUsageSessionSnapshots } from './sections/usageMetrics'
 import type { ChatSession } from '@/chat/types'
@@ -49,7 +51,9 @@ export default function Settings({
 
   const normalizedActiveSection = useMemo(() => {
     const normalized = normalizeSettingsSection(activeSection) ?? 'providers'
-    return isMacOSRuntime() && normalized === 'overlay' ? 'providers' : normalized
+    return isMacOSRuntime() && normalized === 'overlay'
+      ? 'providers'
+      : normalized
   }, [activeSection])
 
   const usageModelCatalog = useMemo(() => {
@@ -380,6 +384,14 @@ if (!hasSettingsChanges && !hasMcpChanges) {
               />
             )}
 
+            {normalizedActiveSection === 'memory' && (
+              <MemorySection
+                skills={pendingSettings.skills}
+                settings={pendingSettings}
+                onChange={(changes) => handleChange(changes)}
+              />
+            )}
+
             {normalizedActiveSection === 'themes' && (
               <AppearanceSection
                 settings={pendingSettings}
@@ -392,14 +404,18 @@ if (!hasSettingsChanges && !hasMcpChanges) {
             {normalizedActiveSection === 'systemprompt' && (
               <SystemPromptSection
                 systemPrompt={pendingSettings.systemPrompt}
+                assistantPersonality={pendingSettings.assistantPersonality}
                 webSearchPrompt={pendingSettings.webSearchPrompt}
                 titleGenerationPrompt={pendingSettings.titleGenerationPrompt}
                 codeExecutionPrompt={pendingSettings.codeExecutionPrompt}
                 computerUsePrompt={pendingSettings.computerUsePrompt}
                 chartGenerationPrompt={pendingSettings.chartGenerationPrompt}
+                memoryPrompt={pendingSettings.memoryPrompt}
                 onChange={(changes) => handleChange(changes)}
               />
             )}
+
+            {normalizedActiveSection === 'resource-monitor' && <ResourceMonitorSection />}
 
             
           </div>

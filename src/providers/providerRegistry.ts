@@ -552,7 +552,7 @@ export function getAvailableTitleModelOptions(
   const models: ResolvedProviderModelOption[] = []
 
   for (const provider of getActiveProviderDefinitions()) {
-    if (!hasProviderAccess(settings, provider.id)) continue
+    if (!hasProviderManuallyEnabled(settings, provider.id as ProviderId)) continue
 
     const providerModels = getProviderModels(settings, provider.id).filter(
       (model): model is ConfiguredModel =>

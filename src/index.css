@@ -34,7 +34,7 @@
 }
 
 :root {
-    --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", sans-serif;
+    --font-sans: "Segoe UI Variable", -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", sans-serif;
     --font-mono: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
     --background: 0 0% 100%;
     --foreground: 240 10% 3.9%;
@@ -169,6 +169,10 @@ body {
     min-height: 0;
     overflow: hidden;
     border-top: none;
+    /* Corner gutter: the canvas's rounded top/bottom-left notches reveal this
+       surface, so match the sidebar/titlebar panel color (not theme-background)
+       to avoid a darker square wedge at the sidebar↔titlebar junction. */
+    background: var(--theme-sidebar-solid);
     /* Isolate layout reflow so sidebar resize doesn't reflow the entire chat message tree */
     contain: layout style;
 }
@@ -176,22 +180,23 @@ body {
 .dashboard-main-canvas {
     --dashboard-canvas-radius: 13px;
     --dashboard-canvas-radius-subtle: 7px;
+    --dashboard-canvas-stroke: color-mix(in srgb, var(--theme-border) 96%, transparent);
     position: absolute;
     inset: 0;
     overflow: hidden;
     background: var(--theme-content-solid);
     border-top-left-radius: var(--dashboard-canvas-radius);
     border-bottom-left-radius: var(--dashboard-canvas-radius-subtle);
+    border: 1px solid var(--dashboard-canvas-stroke);
+    box-sizing: border-box;
     background-clip: padding-box;
-    clip-path: inset(0 round var(--dashboard-canvas-radius) 0 0 var(--dashboard-canvas-radius-subtle));
+    /* Promote to its own GPU layer so Chromium anti-aliases the rounded-corner
+       clip + border. Without this, overflow:hidden + border-radius produces
+       jagged/stair-stepped corners. */
+    transform: translateZ(0);
+    will-change: transform;
 }
 
-@supports (corner-top-left-shape: superellipse(0.75)) {
-    .dashboard-main-canvas {
-        corner-top-left-shape: superellipse(0.84);
-        corner-bottom-left-shape: superellipse(0.78);
-    }
-}
 
 
 

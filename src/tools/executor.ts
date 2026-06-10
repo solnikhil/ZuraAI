@@ -8,6 +8,7 @@ export type { ToolResult, ToolCall, ToolCallResult }
 
 export interface ExecuteToolOptions {
     userContextText?: string
+    bypassNativeApproval?: boolean
 }
 
 const DEFAULT_TIMEOUT_MS = 30_000
@@ -15,6 +16,16 @@ const CODE_EXECUTION_TIMEOUT_MS = 100_000 // 60s approval + 30s OnlineCompiler +
 
 function getTimeoutForTool(toolName: string): number {
     return toolName === 'code_execution' ? CODE_EXECUTION_TIMEOUT_MS : DEFAULT_TIMEOUT_MS
+}
+
+function isNativeWindowsToolName(toolName: string): boolean {
+    return (
+        toolName === 'system_shell' ||
+        toolName.startsWith('windows_uia_') ||
+        toolName.startsWith('file_') ||
+        toolName.startsWith('app_') ||
+        toolName.startsWith('window_')
+    )
 }
 
 /**
@@ -76,11 +87,19 @@ export async function executeTool(
                 const raw = localStorage.getItem('zura-settings')
                 if (raw) {
                     const parsed = JSON.parse(raw)
-                    if (parsed?.codeExecutionAutoApprove === true) {
+                    if (options.bypassNativeApproval || parsed?.codeExecutionAutoApprove === true) {
                         resolvedArgs.autoApprove = true
                     }
                 }
             } catch { /* ignore */ }
+        }
+
+        if (toolName.startsWith('computer_') && options.bypassNativeApproval) {
+            resolvedArgs.autoApprove = true
+        }
+
+        if (isNativeWindowsToolName(toolName) && options.bypassNativeApproval) {
+            resolvedArgs.autoApprove = true
         }
         
         // Add timeout handling (and ensure the timer is cleared)

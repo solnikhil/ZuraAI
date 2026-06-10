@@ -6,6 +6,17 @@ const systemHandlerMocks = vi.hoisted(() => {
   const handlers = new Map<string, (...args: unknown[]) => unknown>()
   const inspectElement = vi.fn()
   const send = vi.fn()
+  const reload = vi.fn()
+  const toggleDevTools = vi.fn()
+  const setZoomLevel = vi.fn()
+  const getZoomLevel = vi.fn(() => 1)
+  const minimize = vi.fn()
+  const maximize = vi.fn()
+  const unmaximize = vi.fn()
+  const close = vi.fn()
+  const setFullScreen = vi.fn()
+  const isFullScreen = vi.fn(() => false)
+  const isMaximized = vi.fn(() => false)
   const popup = vi.fn()
   const showMessageBox = vi.fn()
   const buildFromTemplate = vi.fn((template: unknown[]) => ({
@@ -16,11 +27,20 @@ const systemHandlerMocks = vi.hoisted(() => {
   }))
   const fromWebContents = vi.fn(() => ({
     isDestroyed: () => false,
+    isMaximized,
+    isFullScreen,
+    minimize,
+    maximize,
+    unmaximize,
+    close,
+    setFullScreen,
+    on: vi.fn(),
     webContents: {
       send,
       inspectElement,
     },
   }))
+  let isPackaged = false
 
   return {
     handlers,
@@ -38,13 +58,32 @@ const systemHandlerMocks = vi.hoisted(() => {
     buildFromTemplate,
     fromWebContents,
     send,
+    reload,
+    toggleDevTools,
+    setZoomLevel,
+    getZoomLevel,
+    minimize,
+    maximize,
+    unmaximize,
+    close,
+    setFullScreen,
+    isFullScreen,
+    isMaximized,
     inspectElement,
+    get isPackaged() {
+      return isPackaged
+    },
+    setIsPackaged(value: boolean) {
+      isPackaged = value
+    },
   }
 })
 
 vi.mock('electron', () => ({
   app: {
-    isPackaged: false,
+    get isPackaged() {
+      return systemHandlerMocks.isPackaged
+    },
   },
   ipcMain: {
     handle: systemHandlerMocks.handle,
@@ -92,6 +131,20 @@ describe('registerSystemHandlers context menu', () => {
     systemHandlerMocks.buildFromTemplate.mockClear()
     systemHandlerMocks.fromWebContents.mockClear()
     systemHandlerMocks.send.mockClear()
+    systemHandlerMocks.reload.mockClear()
+    systemHandlerMocks.toggleDevTools.mockClear()
+    systemHandlerMocks.setZoomLevel.mockClear()
+    systemHandlerMocks.getZoomLevel.mockClear()
+    systemHandlerMocks.minimize.mockClear()
+    systemHandlerMocks.maximize.mockClear()
+    systemHandlerMocks.unmaximize.mockClear()
+    systemHandlerMocks.close.mockClear()
+    systemHandlerMocks.setFullScreen.mockClear()
+    systemHandlerMocks.isFullScreen.mockReset()
+    systemHandlerMocks.isFullScreen.mockReturnValue(false)
+    systemHandlerMocks.isMaximized.mockReset()
+    systemHandlerMocks.isMaximized.mockReturnValue(false)
+    systemHandlerMocks.setIsPackaged(false)
     systemHandlerMocks.inspectElement.mockClear()
   })
 
@@ -196,4 +249,63 @@ describe('registerSystemHandlers context menu', () => {
     await expect(handler?.({ sender: {} })).resolves.toBe(false)
     expect(systemHandlerMocks.showMessageBox).not.toHaveBeenCalled()
   })
+
+  it('rejects unknown app-menu commands', async () => {
+    const { registerSystemHandlers } = await import('./systemHandlers')
+    registerSystemHandlers()
+
+    const handler = systemHandlerMocks.handlers.get('app-menu:command')
+    await expect(handler?.({ sender: createSender() }, 'not-a-command')).resolves.toBe(false)
+
+    expect(systemHandlerMocks.send).not.toHaveBeenCalled()
+    expect(systemHandlerMocks.reload).not.toHaveBeenCalled()
+  })
+
+  it('executes only fixed app-menu commands', async () => {
+    const { registerSystemHandlers } = await import('./systemHandlers')
+    registerSystemHandlers()
+
+    const handler = systemHandlerMocks.handlers.get('app-menu:command')
+    const sender = createSender()
+
+    await expect(handler?.({ sender }, 'new-chat')).resolves.toBe(true)
+    expect(sender.send).toHaveBeenCalledWith('app:new-chat')
+
+    await expect(handler?.({ sender }, 'open-settings')).resolves.toBe(true)
+    expect(sender.send).toHaveBeenCalledWith('settings:navigate', 'providers')
+
+    await expect(handler?.({ sender }, 'reload')).resolves.toBe(true)
+    expect(systemHandlerMocks.reload).toHaveBeenCalledTimes(1)
+
+    await expect(handler?.({ sender }, 'zoom-in')).resolves.toBe(true)
+    expect(systemHandlerMocks.setZoomLevel).toHaveBeenCalledWith(1.5)
+
+    await expect(handler?.({ sender }, 'toggle-maximize')).resolves.toBe(true)
+    expect(systemHandlerMocks.maximize).toHaveBeenCalledTimes(1)
+
+    await expect(handler?.({ sender }, 'open-help')).resolves.toBe(true)
+    expect(systemHandlerMocks.shellOpenExternal).toHaveBeenCalledWith('https://github.com/solnikhil/ZuraAI')
+  })
+
+  it('disables app-menu DevTools command in packaged builds', async () => {
+    systemHandlerMocks.setIsPackaged(true)
+    const { registerSystemHandlers } = await import('./systemHandlers')
+    registerSystemHandlers()
+
+    const handler = systemHandlerMocks.handlers.get('app-menu:command')
+    await expect(handler?.({ sender: createSender() }, 'toggle-devtools')).resolves.toBe(false)
+
+    expect(systemHandlerMocks.toggleDevTools).not.toHaveBeenCalled()
+  })
 })
+
+function createSender() {
+  return {
+    send: systemHandlerMocks.send,
+    inspectElement: systemHandlerMocks.inspectElement,
+    reload: systemHandlerMocks.reload,
+    toggleDevTools: systemHandlerMocks.toggleDevTools,
+    setZoomLevel: systemHandlerMocks.setZoomLevel,
+    getZoomLevel: systemHandlerMocks.getZoomLevel,
+  }
+}

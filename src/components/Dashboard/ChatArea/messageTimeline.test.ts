@@ -3,6 +3,9 @@ import { describe, expect, it } from 'vitest'
 import type { ThinkingBlock } from '../../../chat/types'
 import {
   TOOL_FOLLOW_UP_SPLIT_MARKER,
+  createToolFollowUpSplitMarker,
+  endsWithToolFollowUpSplitMarker,
+  removeToolFollowUpSplitMarker,
   shouldCaptureFollowUpSnapshot,
   splitMessageTimeline,
 } from './messageTimeline'
@@ -80,5 +83,60 @@ describe('messageTimeline', () => {
       beforeBlocks: [initialThinkingBlock],
       afterBlocks: [followUpThinkingBlock],
     })
+  })
+
+  it('uses marker block metadata to keep early visible content above later tool activity', () => {
+    const searchBlock: ThinkingBlock = {
+      type: 'searching',
+      toolName: 'web_search',
+      query: 'follow-up search',
+      timestamp: 3,
+    }
+    const content = `Initial visible text.${createToolFollowUpSplitMarker(1)}Final answer.`
+
+    expect(splitMessageTimeline(content, [initialThinkingBlock, followUpThinkingBlock, searchBlock])).toEqual({
+      beforeContent: 'Initial visible text.',
+      afterContent: 'Final answer.',
+      beforeBlocks: [initialThinkingBlock],
+      afterBlocks: [followUpThinkingBlock, searchBlock],
+    })
+    expect(endsWithToolFollowUpSplitMarker(`Initial visible text.${createToolFollowUpSplitMarker(1)}`)).toBe(true)
+  })
+
+  it('removes leaked follow-up markers even when bracket/whitespace shape varies', () => {
+    expect(
+      removeToolFollowUpSplitMarker('Before\n\n[[ZURA_TOOL_FOLLOW_UP_SPLIT]]]\n\nAfter')
+    ).toBe('BeforeAfter')
+
+    expect(
+      splitMessageTimeline(
+        'Before\n\n[[ZURA_TOOL_FOLLOW_UP_SPLIT]]]\n\nAfter',
+        [initialThinkingBlock]
+      )
+    ).toEqual({
+      beforeContent: 'Before',
+      afterContent: 'After',
+      beforeBlocks: [initialThinkingBlock],
+      afterBlocks: [],
+    })
+  })
+
+  it('strips residual markers from afterContent when multiple tool follow-up rounds run', () => {
+    // Three tool-enabled rounds insert two markers. The split happens on the
+    // first marker; the second must not leak into the rendered afterContent.
+    const content = [
+      'First round answer.',
+      TOOL_FOLLOW_UP_SPLIT_MARKER.trim(),
+      'Second round answer.',
+      TOOL_FOLLOW_UP_SPLIT_MARKER.trim(),
+      'Final synthesized answer.',
+    ].join('\n\n')
+
+    const result = splitMessageTimeline(content, [initialThinkingBlock, followUpThinkingBlock])
+
+    expect(result.beforeContent).toBe('First round answer.')
+    expect(result.afterContent).not.toContain('ZURA_TOOL_FOLLOW_UP_SPLIT')
+    expect(result.afterContent).toContain('Second round answer.')
+    expect(result.afterContent).toContain('Final synthesized answer.')
   })
 })

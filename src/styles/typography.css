@@ -370,6 +370,42 @@
     text-decoration-color: currentColor;
 }
 
+.markdown-body a.web-source-citation,
+.markdown-content a.web-source-citation,
+.markdown-typography a.web-source-citation {
+    display: inline;
+    position: relative;
+    top: -0.32em;
+    margin: 0 0.01em;
+    padding: 0.02em 0.16em;
+    border-radius: 0.35em;
+    background: transparent;
+    color: color-mix(in srgb, var(--theme-text-muted) 82%, transparent);
+    font-size: 0.66em;
+    font-weight: 650;
+    line-height: 0;
+    text-decoration: none;
+    vertical-align: baseline;
+    opacity: 0.72;
+    transition: background-color 120ms ease, color 120ms ease, opacity 120ms ease;
+}
+
+.markdown-body a.web-source-citation:hover,
+.markdown-content a.web-source-citation:hover,
+.markdown-typography a.web-source-citation:hover {
+    background: color-mix(in srgb, var(--theme-accent-muted) 34%, transparent);
+    color: color-mix(in srgb, var(--theme-text-secondary) 72%, var(--theme-accent) 28%);
+    opacity: 1;
+}
+
+.markdown-body a.web-source-citation:focus-visible,
+.markdown-content a.web-source-citation:focus-visible,
+.markdown-typography a.web-source-citation:focus-visible {
+    outline: 1px solid color-mix(in srgb, var(--theme-accent) 48%, transparent);
+    outline-offset: 2px;
+    opacity: 1;
+}
+
 /* Lead text */
 .markdown-body .lead,
 .markdown-content .lead,

@@ -102,12 +102,15 @@ Best practices:
     origin: 'builtin-main',
   },
   computer_screenshot: {
-    description: 'Capture the desktop screen. Always call this first before performing any action to see the current screen state. Returns a base64 PNG image with screen dimensions and coordinate metadata used by follow-up actions.',
+    description: 'Capture visual context for Computer Use. Prefer targeting a specific app/window with window_id, window_title, or app_name when the task is about one app; use a full display capture only for desktop-wide or visual layout tasks. Returns a base64 PNG image with dimensions and coordinate metadata used by follow-up actions.',
     parameters: {
       type: 'object',
-      description: 'Arguments for capturing the screen.',
+      description: 'Arguments for capturing a display or a specific app/window.',
       properties: {
         display_id: { type: 'string', description: 'Optional display ID for multi-monitor setups. Defaults to primary display.' },
+        window_id: { type: 'string', description: 'Optional window source id from computer_list_windows, such as window:123:0.' },
+        window_title: { type: 'string', description: 'Optional case-insensitive substring of the target window title.' },
+        app_name: { type: 'string', description: 'Optional case-insensitive app/title substring to target a visible app window.' },
       },
       required: [],
     },
@@ -115,7 +118,7 @@ Best practices:
     origin: 'builtin-main',
   },
   computer_click: {
-    description: 'Click at specific pixel coordinates from the latest screen image returned by computer_screenshot. Use the screen dimensions exactly and click the center of the intended target. The app maps screen coordinates to the real desktop. Returns an updated screen image.',
+    description: 'Click at specific pixel coordinates from the latest screen image returned by computer_screenshot. Requires a prior computer_screenshot in the current action sequence; computer_list_windows is not enough. Use the screen dimensions exactly and click the center of the intended target. The app maps screen coordinates to the real desktop. Returns an updated screen image.',
     parameters: {
       type: 'object',
       description: 'Arguments for clicking.',
@@ -156,7 +159,7 @@ Best practices:
     origin: 'builtin-main',
   },
   computer_scroll: {
-    description: 'Scroll at specific coordinates from the latest screen image returned by computer_screenshot. Move the cursor to the screen position first, then scroll.',
+    description: 'Scroll at specific coordinates from the latest screen image returned by computer_screenshot. Requires a prior computer_screenshot in the current action sequence; computer_list_windows is not enough. Move the cursor to the screen position first, then scroll.',
     parameters: {
       type: 'object',
       description: 'Arguments for scrolling.',
@@ -172,7 +175,7 @@ Best practices:
     origin: 'builtin-main',
   },
   computer_cursor_position: {
-    description: 'Move the cursor to specific coordinates from the latest screen image returned by computer_screenshot without clicking. Use to hover over elements.',
+    description: 'Move the cursor to specific coordinates from the latest screen image returned by computer_screenshot without clicking. Requires a prior computer_screenshot in the current action sequence; computer_list_windows is not enough. Use to hover over elements.',
     parameters: {
       type: 'object',
       description: 'Arguments for moving the cursor.',
@@ -186,7 +189,7 @@ Best practices:
     origin: 'builtin-main',
   },
   computer_list_windows: {
-    description: 'List all currently open application windows on the system. Returns window titles. Use this to find which apps are running before interacting with them.',
+    description: 'List currently open application windows. Returns window titles and source ids that can be passed to computer_screenshot.window_id for app-specific visual capture. This is metadata, not visual screen context, and does not provide valid coordinates by itself.',
     parameters: {
       type: 'object',
       description: 'No arguments required.',
@@ -234,6 +237,264 @@ Best practices:
     },
     category: 'computer-use',
     origin: 'builtin-main',
+  },
+  windows_uia_snapshot: {
+    description: 'Inspect Windows desktop app controls through Microsoft UI Automation. Prefer this before computer_screenshot/click/type for native Windows apps because it returns controls, supported patterns, and stable elementRef values.',
+    parameters: {
+      type: 'object',
+      description: 'Optional window filters for UI Automation inspection.',
+      properties: {
+        windowTitle: { type: 'string', description: 'Optional substring of the target window title.' },
+        processName: { type: 'string', description: 'Optional process name filter, such as notepad or explorer.' },
+        hwnd: { type: 'number', description: 'Optional native window handle.' },
+      },
+      required: [],
+    },
+    category: 'system',
+    origin: 'builtin-main',
+  },
+  windows_uia_invoke: {
+    description: 'Invoke a Windows UI Automation element that supports InvokePattern. Prefer this over computer_click for buttons and menu items. Requires approval.',
+    parameters: {
+      type: 'object',
+      description: 'Arguments for invoking a UIA control.',
+      properties: {
+        elementRef: { type: 'string', description: 'elementRef returned by windows_uia_snapshot.' },
+      },
+      required: ['elementRef'],
+    },
+    category: 'system',
+    origin: 'builtin-main',
+    requiresApproval: true,
+  },
+  windows_uia_set_value: {
+    description: 'Set text/value on a Windows UI Automation element that supports ValuePattern. Prefer this over computer_type for supported text fields. Requires approval.',
+    parameters: {
+      type: 'object',
+      description: 'Arguments for setting a UIA value.',
+      properties: {
+        elementRef: { type: 'string', description: 'elementRef returned by windows_uia_snapshot.' },
+        value: { type: 'string', description: 'Text/value to set.' },
+      },
+      required: ['elementRef', 'value'],
+    },
+    category: 'system',
+    origin: 'builtin-main',
+    requiresApproval: true,
+  },
+  windows_uia_select: {
+    description: 'Select or toggle a Windows UI Automation element that supports SelectionItemPattern or TogglePattern. Requires approval.',
+    parameters: {
+      type: 'object',
+      description: 'Arguments for selecting/toggling a UIA control.',
+      properties: {
+        elementRef: { type: 'string', description: 'elementRef returned by windows_uia_snapshot.' },
+      },
+      required: ['elementRef'],
+    },
+    category: 'system',
+    origin: 'builtin-main',
+    requiresApproval: true,
+  },
+  system_shell: {
+    description: 'Run a bounded PowerShell command for system inspection or automation. Use native file/app/window tools first when possible. Requires approval.',
+    parameters: {
+      type: 'object',
+      description: 'Arguments for running PowerShell.',
+      properties: {
+        command: { type: 'string', description: 'PowerShell command to execute.' },
+        cwd: { type: 'string', description: 'Optional working directory.' },
+        timeoutMs: { type: 'number', description: 'Optional timeout in milliseconds, capped at 60000.' },
+        description: { type: 'string', description: 'One-line explanation of why this command is needed.' },
+      },
+      required: ['command', 'description'],
+    },
+    category: 'system',
+    origin: 'builtin-main',
+    requiresApproval: true,
+  },
+  file_read: {
+    description: 'Read a local text file directly without using the desktop UI.',
+    parameters: {
+      type: 'object',
+      description: 'Arguments for reading a file.',
+      properties: {
+        path: { type: 'string', description: 'File path to read.' },
+      },
+      required: ['path'],
+    },
+    category: 'system',
+    origin: 'builtin-main',
+  },
+  file_write: {
+    description: 'Write a local text file directly without using the desktop UI. Requires approval.',
+    parameters: {
+      type: 'object',
+      description: 'Arguments for writing a file.',
+      properties: {
+        path: { type: 'string', description: 'File path to write.' },
+        content: { type: 'string', description: 'Text content to write.' },
+      },
+      required: ['path', 'content'],
+    },
+    category: 'system',
+    origin: 'builtin-main',
+    requiresApproval: true,
+  },
+  file_search: {
+    description: 'Search local filenames under a root path without opening Explorer.',
+    parameters: {
+      type: 'object',
+      description: 'Arguments for filename search.',
+      properties: {
+        query: { type: 'string', description: 'Case-insensitive filename substring.' },
+        root: { type: 'string', description: 'Optional root directory. Defaults to app working directory.' },
+      },
+      required: ['query'],
+    },
+    category: 'system',
+    origin: 'builtin-main',
+  },
+  file_move: {
+    description: 'Move or rename a file/directory directly. Requires approval.',
+    parameters: {
+      type: 'object',
+      description: 'Arguments for moving a file or directory.',
+      properties: {
+        source: { type: 'string', description: 'Source path.' },
+        destination: { type: 'string', description: 'Destination path.' },
+      },
+      required: ['source', 'destination'],
+    },
+    category: 'system',
+    origin: 'builtin-main',
+    requiresApproval: true,
+  },
+  app_find: {
+    description: 'Find installed Windows apps by Start Menu shortcut name. Prefer this before app_launch.',
+    parameters: {
+      type: 'object',
+      description: 'Arguments for finding an app.',
+      properties: {
+        query: { type: 'string', description: 'App name substring.' },
+      },
+      required: ['query'],
+    },
+    category: 'system',
+    origin: 'builtin-main',
+  },
+  app_launch: {
+    description: 'Launch a Windows app by name or path using native app launching. Requires approval.',
+    parameters: {
+      type: 'object',
+      description: 'Arguments for launching an app.',
+      properties: {
+        nameOrPath: { type: 'string', description: 'App executable/name or .lnk path.' },
+      },
+      required: ['nameOrPath'],
+    },
+    category: 'system',
+    origin: 'builtin-main',
+    requiresApproval: true,
+  },
+  app_list: {
+    description: 'List installed Start Menu apps without opening the Start Menu.',
+    parameters: {
+      type: 'object',
+      description: 'No arguments required.',
+      properties: {},
+      required: [],
+    },
+    category: 'system',
+    origin: 'builtin-main',
+  },
+  app_install: {
+    description: 'Install a Windows package with winget. Requires approval.',
+    parameters: {
+      type: 'object',
+      description: 'Arguments for winget install.',
+      properties: {
+        packageId: { type: 'string', description: 'winget package id.' },
+      },
+      required: ['packageId'],
+    },
+    category: 'system',
+    origin: 'builtin-main',
+    requiresApproval: true,
+  },
+  app_uninstall: {
+    description: 'Uninstall a Windows package with winget. Requires approval.',
+    parameters: {
+      type: 'object',
+      description: 'Arguments for winget uninstall.',
+      properties: {
+        packageId: { type: 'string', description: 'winget package id.' },
+      },
+      required: ['packageId'],
+    },
+    category: 'system',
+    origin: 'builtin-main',
+    requiresApproval: true,
+  },
+  window_list: {
+    description: 'List top-level Windows app windows with hwnd, title, process name, and pid.',
+    parameters: {
+      type: 'object',
+      description: 'No arguments required.',
+      properties: {},
+      required: [],
+    },
+    category: 'system',
+    origin: 'builtin-main',
+  },
+  window_focus: {
+    description: 'Focus a Windows app window by hwnd or title. Requires approval.',
+    parameters: {
+      type: 'object',
+      description: 'Arguments for focusing a window.',
+      properties: {
+        hwnd: { type: 'number', description: 'Native window handle.' },
+        title: { type: 'string', description: 'Fallback title substring.' },
+      },
+      required: [],
+    },
+    category: 'system',
+    origin: 'builtin-main',
+    requiresApproval: true,
+  },
+  window_move: {
+    description: 'Move/resize a Windows app window by hwnd or title. Requires approval.',
+    parameters: {
+      type: 'object',
+      description: 'Arguments for moving a window.',
+      properties: {
+        hwnd: { type: 'number', description: 'Native window handle.' },
+        title: { type: 'string', description: 'Fallback title substring.' },
+        x: { type: 'number', description: 'Window x position.' },
+        y: { type: 'number', description: 'Window y position.' },
+        width: { type: 'number', description: 'Window width.' },
+        height: { type: 'number', description: 'Window height.' },
+      },
+      required: ['x', 'y', 'width', 'height'],
+    },
+    category: 'system',
+    origin: 'builtin-main',
+    requiresApproval: true,
+  },
+  window_close: {
+    description: 'Ask a Windows app window to close by hwnd or title. Requires approval.',
+    parameters: {
+      type: 'object',
+      description: 'Arguments for closing a window.',
+      properties: {
+        hwnd: { type: 'number', description: 'Native window handle.' },
+        title: { type: 'string', description: 'Fallback title substring.' },
+      },
+      required: [],
+    },
+    category: 'system',
+    origin: 'builtin-main',
+    requiresApproval: true,
   },
 } satisfies Record<string, BuiltinMainToolManifestEntry>
 

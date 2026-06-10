@@ -11,7 +11,6 @@ import React, { useState, useRef, useEffect, useMemo, memo } from 'react'
 import LazyMarkdown from '@/components/LazyMarkdown'
 import ThinkingBlockComponent from '@/components/ThinkingBlock'
 import { useSettings } from '@/contexts/SettingsContext'
-import ToolResultDisplay from '@/tools/ui/ToolResultDisplay'
 import { writeTextToClipboard } from '@/utils/clipboard'
 import {
   removeToolFollowUpSplitMarker,
@@ -19,7 +18,6 @@ import {
   splitMessageTimeline,
   type FollowUpTimelineSnapshot,
 } from '../messageTimeline'
-import { shouldHideMessageToolResultCard } from '../toolResultVisibility'
 
 import type { MessageRendererProps } from './types'
 import { areMessagePropsEqual } from './messagePropsComparison'
@@ -41,7 +39,6 @@ function MessageRendererComponent({
   message,
   isStreaming = false,
   streamPhase,
-  sessionId,
   activeToolCalls,
   onCopy,
   onRegenerate,
@@ -181,14 +178,6 @@ function MessageRendererComponent({
   )
   const hasTopDisplayContent = topProcessedContent.trim().length > 0
   const hasBottomDisplayContent = bottomProcessedContent.trim().length > 0
-  const visibleToolResults = useMemo(
-    () =>
-      (message.toolResults || []).filter(
-        (result) => !shouldHideMessageToolResultCard(result, message.thinkingBlocks)
-      ),
-    [message.toolResults, message.thinkingBlocks]
-  )
-  const showVisibleToolResults = !isStreaming && visibleToolResults.length > 0
   const hasSplitFollowUpSection =
     Boolean(followUpSnapshot) || timeline.afterBlocks.length > 0 || hasBottomDisplayContent
   const activeTimelineOwner = hasSplitFollowUpSection ? 'lower' : 'upper'
@@ -271,8 +260,14 @@ function MessageRendererComponent({
     >
       {message.files && message.files.length > 0 && <RenderImageFiles files={message.files} />}
 
+      {/* Web Search/Extract image carousel - shown after thinking ends, before message content */}
+      {!isStreaming && webSearchImages.length > 0 && (
+        <WebSearchImageCarousel images={webSearchImages} mode={webImageMode} />
+      )}
+
+      {/* Upper thinking/search activity - rendered ABOVE its related answer content */}
       {showUpperThinkingBlock && (
-        <div style={{ marginBottom: '8px' }}>
+        <div style={{ marginTop: 0, marginBottom: hasTopDisplayContent ? '8px' : 0 }}>
           <ThinkingBlockComponent
             messageId={message.id}
             activeBlockKey={
@@ -306,11 +301,6 @@ function MessageRendererComponent({
         </div>
       )}
 
-      {/* Web Search/Extract image carousel - shown after thinking ends, before message content */}
-      {!isStreaming && webSearchImages.length > 0 && (
-        <WebSearchImageCarousel images={webSearchImages} mode={webImageMode} />
-      )}
-
       {/* Message content - only show when not streaming or when content has arrived */}
       {((!isStreaming || hasContentDuringStreaming || completedBlocks.length > 0 || message.researchStatus) &&
         hasTopDisplayContent) && (
@@ -323,36 +313,12 @@ function MessageRendererComponent({
         </div>
       )}
 
-      {showVisibleToolResults && (
-        <div style={{ marginTop: '12px', marginBottom: shouldShowActionRow ? '12px' : 0 }}>
-          {visibleToolResults.map((result, index) => {
-            const toolResultIndex = (message.toolResults || []).findIndex(
-              (item) => item.toolCall.id === result.toolCall.id
-            )
-
-            return (
-              <ToolResultDisplay
-                key={`message-tool-${result.toolCall.id || index}`}
-                toolName={result.toolCall.name}
-                result={result.result?.success ? result.result.data : undefined}
-                error={result.result?.success ? undefined : result.result?.error}
-                metadata={result.result?.metadata}
-                toolArguments={result.toolCall.arguments}
-                executionTime={result.result?.executionTime}
-                sessionId={sessionId}
-                messageId={message.id}
-                toolResultIndex={toolResultIndex >= 0 ? toolResultIndex : index}
-              />
-            )
-          })}
-        </div>
-      )}
-
+      {/* Lower thinking/search activity - rendered ABOVE its related follow-up content */}
       {showLowerThinkingBlock && (
         <div
           style={{
-            marginTop: showVisibleToolResults || hasTopDisplayContent ? '12px' : 0,
-            marginBottom: '8px',
+            marginTop: hasTopDisplayContent ? '12px' : 0,
+            marginBottom: hasBottomDisplayContent ? '8px' : 0,
           }}
         >
           <ThinkingBlockComponent

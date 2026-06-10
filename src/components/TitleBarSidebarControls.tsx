@@ -10,6 +10,7 @@ interface TitleBarSidebarControlsProps {
   hasSidebar: boolean
   hasUnsavedSettings: boolean
   isSettingsView: boolean
+  showNavigation?: boolean
   sidebarHidden: boolean
   toggleSidebarHidden: () => void
 }
@@ -23,6 +24,7 @@ export default function TitleBarSidebarControls({
   hasSidebar,
   hasUnsavedSettings,
   isSettingsView,
+  showNavigation = true,
   sidebarHidden,
   toggleSidebarHidden,
 }: TitleBarSidebarControlsProps) {
@@ -51,14 +53,16 @@ export default function TitleBarSidebarControls({
         </div>
       )}
 
-      <TitleBarNavigation
-        canGoBack={canGoBack}
-        canGoForward={canGoForward}
-        onBack={onBack}
-        onForward={onForward}
-      />
+      {showNavigation && (
+        <TitleBarNavigation
+          canGoBack={canGoBack}
+          canGoForward={canGoForward}
+          onBack={onBack}
+          onForward={onForward}
+        />
+      )}
 
-      {hasUnsavedSettings && isSettingsView && (
+      {showNavigation && hasUnsavedSettings && isSettingsView && (
         <span className="app-titlebar__unsaved" title="Unsaved changes" />
       )}
     </>

@@ -11,8 +11,22 @@ const mockSettings = {
       web_research: {
         enabled: true,
       },
+      computer_use: {
+        enabled: false,
+      },
+      chart_generation: {
+        enabled: false,
+      },
+      memory: {
+        enabled: true,
+        config: { autoManage: true },
+      },
+      code_execution: {
+        enabled: false,
+      },
     },
     modelProvider: 'openrouter',
+    assistantMode: 'chat',
   },
   updateSettings,
 }
@@ -45,6 +59,11 @@ vi.mock('./TokenUsageIndicator', () => ({
 
 vi.mock('./ComposerAttachments', () => ({
   ComposerAttachments: () => <div>Composer Attachments</div>,
+}))
+
+vi.mock('@/utils/platform', () => ({
+  isWindowsRuntime: () => true,
+  isMacOSRuntime: () => false,
 }))
 
 vi.mock('@/components/ui/dropdown-menu', () => ({
@@ -85,9 +104,11 @@ describe('InputArea skills menu', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockSettings.settings.skills.web_research.enabled = true
+    mockSettings.settings.skills.computer_use.enabled = false
+    mockSettings.settings.assistantMode = 'chat'
   })
 
-  it('shows Tavily in the chat skills menu', async () => {
+  it('shows only current-desktop control in the composer plus menu', () => {
     render(
       <InputArea
         input=""
@@ -99,14 +120,12 @@ describe('InputArea skills menu', () => {
       />
     )
 
-    const quickActions = screen.getByRole('button', { name: /open quick actions/i })
-    fireEvent.pointerDown(quickActions, { button: 0, ctrlKey: false })
-    fireEvent.click(await screen.findByText('Skills'))
-
-    expect(await screen.findByText('Tavily')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /desktop control/i })).toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: /control this desktop/i })).toBeInTheDocument()
+    expect(screen.queryByRole('switch', { name: /control separate desktop/i })).not.toBeInTheDocument()
   })
 
-  it('toggles the Tavily skill from the chat skills menu', async () => {
+  it('enables current-desktop control as the agent-mode desktop-control path', () => {
     render(
       <InputArea
         input=""
@@ -118,15 +137,13 @@ describe('InputArea skills menu', () => {
       />
     )
 
-    const quickActions = screen.getByRole('button', { name: /open quick actions/i })
-    fireEvent.pointerDown(quickActions, { button: 0, ctrlKey: false })
-    fireEvent.click(await screen.findByText('Skills'))
-    fireEvent.click(await screen.findByText('Tavily'))
+    fireEvent.click(screen.getByRole('switch', { name: /control this desktop/i }))
 
     expect(updateSettings).toHaveBeenCalledWith(
       expect.objectContaining({
+        assistantMode: 'agent',
         skills: expect.objectContaining({
-          web_research: expect.objectContaining({ enabled: false }),
+          computer_use: expect.objectContaining({ enabled: true }),
         }),
       })
     )

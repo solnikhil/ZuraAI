@@ -4,8 +4,10 @@ export type SettingsSectionId =
   | 'overlay'
   | 'mcp'
   | 'skills'
+  | 'memory'
   | 'themes'
   | 'systemprompt'
+  | 'resource-monitor'
 
 export interface SettingsSectionMeta {
   id: SettingsSectionId
@@ -52,6 +54,13 @@ export const SETTINGS_SECTIONS: SettingsSectionMeta[] = [
     keywords: ['tools', 'research', 'capabilities', 'web search', 'tavily'],
   },
   {
+    id: 'memory',
+    navLabel: 'Memory',
+    title: 'Memory & Personalization',
+    description: 'Manage what ZuraAI remembers about you across chats.',
+    keywords: ['memory', 'memories', 'personalization', 'remember', 'profile', 'preferences'],
+  },
+  {
     id: 'themes',
     navLabel: 'Appearance',
     title: 'Appearance & Personalization',
@@ -64,6 +73,13 @@ export const SETTINGS_SECTIONS: SettingsSectionMeta[] = [
     title: 'System Prompt',
     description: 'Define default assistant behavior and response guidelines.',
     keywords: ['instruction', 'persona', 'behavior', 'prompt'],
+  },
+  {
+    id: 'resource-monitor',
+    navLabel: 'Resources',
+    title: 'Resource Monitor',
+    description: 'Live per-process memory and CPU usage for the ZuraAI desktop app.',
+    keywords: ['memory', 'ram', 'cpu', 'processes', 'monitor', 'diagnostics', 'performance'],
   },
   ]
 
@@ -82,6 +98,8 @@ overlay: 'overlay',
   buddyoverlay: 'overlay',
   commandbar: 'themes',
   notifications: 'usage',
+  personalization: 'memory',
+  memories: 'memory',
 }
 
 export function normalizeSettingsSection(section: string | null | undefined): SettingsSectionId | null {

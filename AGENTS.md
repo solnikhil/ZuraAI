@@ -37,7 +37,9 @@ Core capabilities:
 - Persistence is split:
   - **Sanitized non-secret settings + UI state** live in renderer `localStorage`.
   - **API keys and MCP secrets** live in main-process secure storage and are hydrated/resolved at runtime.
-  - **Chat history, MCP server metadata, and secure storage** live in the main process under `app.getPath('userData')`.
+  - **Chat history, conversation summaries, MCP server metadata, and secure storage** live in the main process under `app.getPath('userData')`.
+  - **Agent run metadata** lives on assistant messages inside the existing per-session chat JSON files, not in a separate store.
+  - Built-in prompt templates (`systemPrompt`, `webSearchPrompt`, tool prompts, memory prompt, and title-generation prompt) are code-owned runtime defaults. `normalizeStoredSettings(...)` replaces stale persisted prompt overrides with the current defaults, and Settings renders them as read-only viewers instead of editable fields.
 - UI styling guardrail: keep settings cards, chat composer containers, and dropdown/menu surfaces flat. Do **not** reintroduce outer drop shadows on those surfaces unless the user explicitly asks for them.
 - Fallback behavior guardrail: do **not** add new fallback paths, silent substitutions, local heuristics, provider fallbacks, or “safe default” behavior unless it is explicitly required by the user or you ask and get confirmation first. Prefer surfacing the real failure and fixing the root cause; unnecessary fallbacks can hide bugs and change product behavior.
 
@@ -53,6 +55,7 @@ Core capabilities:
 - `electron/windows/overlayWindow.ts` — Overlay window creation/reuse, compact/expanded state, display-aware positioning, and shortcut-backed lifecycle
 - `electron/windows/promptPopup.ts` — optional lightweight cursor-position prompt popup route/bridge that can submit to the overlay and dismisses on blur/Escape
 - `electron/chatStore.ts` — chat history persistence (JSON under `app.getPath('userData')`)
+- `electron/memoryStore.ts` — ChatGPT-style saved-memories persistence (JSON under `app.getPath('userData')`); single `memory-index.json`; atomic whole-file writes; in-memory TTL cache; serialized read-modify-write so concurrent model + user mutations cannot clobber each other; FIFO cap at `MEMORY_CAP=200`; per-entry `MAX_MEMORY_CONTENT_LENGTH=1000`
 - `electron/mcp/mcpConnection.ts` — MCP initialize/tool-discovery connection orchestration
 - `electron/mcp/mcpManager.ts` — MCP server registry, runtime state aggregation, connection lifecycle coordination, and cache/persistence orchestration across the extracted MCP manager helper modules
 - `electron/mcp/mcpManagerState.ts` — MCP manager clone/state helpers plus persisted runtime-metadata diffing
@@ -63,16 +66,24 @@ Core capabilities:
 - `electron/secureStorage.ts` — encrypted key storage via `safeStorage` (JSON under `userData`)
 - `electron/mcp/transports/` — MCP transport foundation primitives and concrete transport implementations
 - `electron/tools/` — main-process tool implementations (IPC registry is restricted)
-  - `electron/tools/web-search/` — built-in web-search intent classification, backend adapters (Tavily / DuckDuckGo), result normalization, and orchestration service
+  - `electron/tools/web-search/` — built-in **Tavily-only, no-fallback** web-search pipeline behind a pluggable `SearchProvider` seam: `service.ts` (thin orchestrator, single dispatch, no fallback branching), `request.ts` (untrusted-input validation/normalization), `intent.ts` (query-vs-URL intent classification + weak-query reformulation), `normalize.ts` (result/image/snippet/source shaping, renamed from `helpers.ts`), `credentials.ts` (secure-storage credential resolution), `logging.ts` (single secret-safe failure logger), `providers/registry.ts` + `providers/types.ts` (the `SearchProvider` abstraction), and `providers/tavily/*` (`transport.ts` + `mapper.ts` + `index.ts`). The DuckDuckGo backend and the `backends/` split were removed.
+  - `electron/tools/windows-uia/` — Windows-only Microsoft UI Automation bridge for native desktop snapshots and supported control actions (`InvokePattern`, `ValuePattern`, selection/toggle patterns)
+  - `electron/tools/system-shell/` — bounded non-interactive PowerShell execution with timeout, output caps, and working-directory validation
+  - `electron/tools/files/` — structured main-process filesystem tools for read/write/search/move with path normalization and size/result limits
+  - `electron/tools/app-management/` — Windows app discovery/launch/install/uninstall via Start Menu scanning, Electron shell launch, and non-interactive `winget`
+  - `electron/tools/window-management/` — Windows native window listing/focus/move/close by HWND/title/process metadata, excluding ZuraAI-owned windows by default
+  - `electron/tools/native-common.ts` — shared Windows-native tool validation, PowerShell execution, timeout/output limits, unsupported-platform errors, and approval checks
 - `electron/updater.ts` — auto-updater (production only)
   - `electron/tools/code-execution/` — built-in code execution skill: Piston API service, approval manager, IPC registration, types, and constants
-
+- `electron/discordRpc/` — Discord Rich Presence main-process module: singleton client (`rpcClient.ts`), IPC registration (`index.ts`), and shared types (`types.ts`). Lazy-requires `discord-rpc` so a missing native dependency never crashes the app. Reconnects with backoff when Discord is not running.
 
 - `src/` — React/Vite **renderer**
   - `src/main.tsx` — renderer entrypoint; initializes performance tracking, lazy-image styles, applies saved theme, mounts `App`, and schedules non-critical preloads after first paint
 - `src/App.tsx` — routes (`#/dashboard`, `#/settings`, `#/chat`) under `AppShellLayout`, plus wildcard `*` fallback to a dedicated 404 renderer view
 - `src/components/OverlayView.tsx` — compact overlay chat surface for the dedicated `#/overlay` route
 - `src/components/OverlaySync.tsx` — renderer-side bridge that syncs persisted overlay settings into the trusted main-process Overlay runtime
+- `src/components/DiscordRpcSync.tsx` — (removed) Discord RPC is now always-on in main process; no renderer sync needed
+- `src/components/Settings/sections/ComputerUseSection.tsx` — Windows-only Computer Use settings UI with a single current-desktop enable toggle; hidden on macOS
 - `src/components/PromptPopupView.tsx` — lightweight prompt input surface for the dedicated `#/prompt-popup` route; auto-focuses, submits via prompt-popup IPC, dismisses on Escape
 - `src/contexts/` — app state (split settings contexts, chat history, app shell, quick-send)
 - `src/components/AppShellLayout.tsx` — shared renderer shell (title bar, command palette, resize handles, solid shell surfaces, global context menu via AppContextMenu)
@@ -229,6 +240,8 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - listens for: `window-controls:state`
 - `window.appInfo`
   - invokes: `app-info:get`, `app-info:get-memory-report` (development-only), `app-info:open-about-window`
+- `window.appMenu`
+  - invokes: `app-menu:command` for fixed custom-titlebar menu commands only (`new-chat`, settings/about/help, zoom/fullscreen, reload/devtools, and window controls)
 - `window.overlay`
   - invokes: `overlay:show`, `overlay:hide`, `overlay:toggle`, `overlay:expand`, `overlay:collapse`, `overlay:get-state`, `overlay:focus-main-window`, `overlay:apply-settings`
   - listens for: `overlay:pending-prompt`
@@ -247,6 +260,9 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - `window.mcp`
   - invokes: `mcp:list-servers`, `mcp:add-server`, `mcp:update-server`, `mcp:remove-server`, `mcp:connect-server`, `mcp:disconnect-server`, `mcp:get-state`, `mcp:list-tools`, `mcp:list-resources`, `mcp:read-resource`, `mcp:list-prompts`, `mcp:get-prompt`, `mcp:execute-tool`, `mcp:resolve-approval`
   - listens for: `mcp:state-changed`
+- `window.memory`
+  - invokes: `memory:list`, `memory:add`, `memory:update`, `memory:delete`, `memory:clear`, `memory:search`
+  - listens for: `memory-store:changed` (broadcast on any mutation so the settings UI and other windows stay in sync)
 
 **Important:** IPC handlers may exist in `electron/ipc/*` but are not reachable unless they’re also wired through preload allowlists or a dedicated preload bridge.
 - `window.codeExecution`
@@ -254,6 +270,13 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - listens for: `code-execution:pending-approval`
 - `window.chatDebug` (dev-only)
   - invokes: `chat-debug-window:open`
+- `window.resourceMonitor`
+  - invokes: `resource-monitor:get-now`
+  - sends: `resource-monitor:subscribe`, `resource-monitor:unsubscribe`
+  - listens for: `resource-monitor:sample` (broadcast every 2s while at least one renderer is subscribed)
+- `window.discordRpc`
+  - invokes: `discord-rpc:get-state`, `discord-rpc:set-activity`
+  - listens for: `discord-rpc:state-changed`
 
 
 **If you add/rename any IPC channel:**
@@ -280,6 +303,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Prompt Popup remains available as an optional path on non-macOS platforms; submitting from it opens the Overlay at the cursor position and sends the prompt text via `overlay:pending-prompt`.
 - `OverlaySync` runs inside the shared provider tree on non-macOS platforms and mirrors persisted `settings.overlay` values into the trusted overlay runtime through the dedicated preload bridge. If startup auto-open is enabled, the main window renderer triggers the initial overlay show after settings hydrate.
 - Overlay preferences are persisted in the existing sanitized renderer settings blob under `settings.overlay` with `enabled`, `launchOnStartup`, `hotkey`, `anchor`, `compactWidth`, `expandedWidth`, `promptAutoHideEnabled`, and `promptAutoHideTimeout`. No new secure-storage or Overlay-only settings file is introduced for Phase 1.
+- Discord RPC is **always-on** in the main process. The client connects automatically at app startup (constructor-driven, no renderer toggle). It lazily loads the `discord-rpc` module inside try/catch so a missing native dependency never crashes the app; it reconnects with backoff when Discord is not running and surfaces connection errors in `DiscordRpcState.lastError`.
 - Main-shell navigation history is now tracked entirely in the renderer through `AppShellProvider` + `src/contexts/appShellNavigation.ts`; both the titlebar arrows and side-mouse buttons call the same history controller instead of using raw `react-router` delta navigation.
 - Native macOS app-menu `New Chat` requests are routed back into the shared renderer shell through `app:new-chat`, so session creation still uses the existing `ChatHistoryContext` flow and unsaved-settings guard instead of a main-process shortcut.
 
@@ -338,7 +362,10 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Fireworks is a first-class active provider again. It participates in provider selection, chat dispatch, title generation, model enablement, tool-capability checks, usage metrics, and the shared streaming pipeline through the provider registry.
 - Fireworks model discovery now has a dedicated serverless catalog path in `src/services/fireworksModels.ts`, surfaced from `src/components/Settings/sections/FireworksModelSearchDialog.tsx` through Provider Hub in the same custom-model workflow style as OpenRouter.
 - Tool calling:
+  - Agent mode is plan-aware and verification-driven. `createAgentRun(...)` records a short task-specific `kind: 'plan'` step in `message.agentRun.steps`; the streaming orchestrator then prefers native structured tools before visual Computer Use. After any successful mutating/high-risk tool batch, `src/agent/reliability.ts` selects a read-only verification strategy (`file_search`/`file_read`, `window_list`/`windows_uia_snapshot`, or targeted `computer_screenshot`) and `useProviderStreaming.ts` injects an internal verification prompt before final synthesis. Verification is stored as a `kind: 'verify'` step and is bounded to one recovery attempt before the agent reports the failure instead of continuing blind. No new model-callable planning tool, IPC channel, or renderer bridge is introduced.
   - `src/hooks/useToolCalling.ts` → `src/tools/toolManager.ts` → `src/tools/executor.ts`
+  - Assistant mode (`settings.assistantMode`) controls request-time tool exposure. Both `chat` and `agent` modes expose `web_search`, `code_execution`, and trusted MCP tools based on their respective skill toggles. Agent mode on Windows additionally exposes native Windows tools (`file_*`, `app_*`, `window_*`, `windows_uia_*`, `system_shell`) for direct OS operations. The desktop-control fallback surface (`computer_*` tools) controls the current desktop only and is exposed only when `assistantMode === 'agent'` AND the Windows-only `computer_use` skill is enabled.
+  - Agent mode tool approval uses renderer-side risk gating before execution: read-only tools (for example `web_search`, `file_read`, `file_search`, `app_find`, `app_list`, `window_list`, `windows_uia_snapshot`, `computer_screenshot`, and `computer_list_windows`) auto-run, while mutating/high-risk tools (for example shell/code execution, file writes/moves, app launch/install/uninstall, window mutation, UIA actions, MCP tools, and Computer Use input actions) require approval. The approval dialog supports reject, approve once, or trust the exact tool-name + argument signature; trusted signatures are stored in renderer `localStorage` under `zura-agent:trusted-tool-signatures`. Approval and execution state are mirrored into persisted `message.agentRun.steps` metadata.
   - Built-in main-process tools still execute through `window.ipcRenderer.invoke('execute-tool', toolName, args)`.
   - Namespaced MCP tools now execute through `window.mcp.executeTool(toolName, args)` so built-ins and MCP stay on separate IPC paths.
 - Main tool registry: `electron/tools/index.ts` (restricted)
@@ -346,6 +373,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - The Overlay reuses this same renderer chat pipeline through `useStreamingChat`; it does not create a parallel provider/tool execution path or a separate conversation store.
 - The Overlay also listens for `overlay:pending-prompt` events from the main process (triggered when a prompt popup submission opens the overlay) and auto-sends the received prompt text.
 - Active-response renderer state is split between persisted chat history and ephemeral `StreamingContext` data in `src/contexts/StreamingContext.tsx`.
+  - `StreamingContext` can carry active assistant `agentRun` metadata for approval/execution bookkeeping and commits it back to chat history with the final assistant message; the dashboard no longer renders a dedicated agent timeline panel.
   - `StreamingContext` now tracks an explicit per-response `phase` (`reasoning`, `searching`, `tool`, `answering`) so the thinking/search UI stays stable across multi-search loops without persisting transient renderer-only state.
   - Reasoning is now segmented per round: in-flight `streamingState.thinking` represents only the current active thought, while completed reasoning rounds are appended to `thinkingBlocks` alongside search blocks so resumed research continues in a new block instead of extending the previous one.
   - Completed MCP tool executions are now appended into persisted `thinkingBlocks` as inline tool-history entries (alongside web search/search blocks) so the renderer can replay MCP activity inside the same thought timeline instead of only in the generic post-message tool card area.
@@ -355,6 +383,27 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Research-mode finalization now runs bounded no-tools synthesis retries inside `src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.ts`: after tool rounds finish, the orchestrator first requests a normal final synthesis, then escalates to stricter recovery prompts including a plain-text-only pass if the provider still returns blank output or `tool_calls` despite tools being disabled. If every no-tools pass still fails, the renderer commits a concise failure message while preserving the gathered `web_search` results in the timeline/tool UI.
   - OpenRouter image-generation models now flow through the same chat pipeline: renderer model metadata persists `inputModalities` / `outputModalities`, `src/services/openrouter.ts` sends `modalities` to `/api/v1/chat/completions` for image-capable models, the streaming hook captures `delta.images` payloads, and generated images are persisted back into chat history `files` so assistant image outputs render inline in the dashboard.
 - Computer Use is disabled on macOS for now: main does not register the approval IPC handlers, built-in `computer_*` tool execution is rejected in the main process, and renderer tool exposure/UI hides Computer Use. On supported platforms, screen captures record a main-process coordinate context for the captured display (`electron/tools/computer-use/coordinates.ts`), including rendered screen image size, native capture size, display bounds, and DPI scale factor.
+- `computer_screenshot` can capture either a full display or a specific visible app/window. Window-targeted capture accepts `window_id` from `computer_list_windows`, `window_title`, or `app_name`; it uses Electron `desktopCapturer` window sources and stores coordinate context against the captured window bounds when available, so follow-up click/scroll/cursor actions map coordinates to the same app-specific capture instead of the whole display. Post-action screenshots reuse the latest screenshot target.
+- The default Computer Use prompt no longer instructs agents to always screenshot first. Agent mode should inspect through native `file_*` / `app_*` / `window_*` / `windows_uia_snapshot` tools first, use app/window-targeted screenshots second, and use full-screen screenshots only as the fallback for truly visual tasks.
+
+#### Memory & Personalization (`settings.skills.memory`)
+- ChatGPT-style "saved memories" — short, user-visible facts that the model and the user can both manage. Persisted locally only.
+- Storage: `electron/memoryStore.ts` writes a single `memory-index.json` under `app.getPath('userData')`. Atomic whole-file writes; in-memory TTL cache; `withWriteLock` serializes the read-modify-write cycle so concurrent model + user mutations cannot clobber each other. FIFO cap at `MEMORY_CAP=200` (oldest by `createdAt` evicted), per-entry max length `MAX_MEMORY_CONTENT_LENGTH=1000`.
+- Memory writes support an ADD-only lifecycle: entries are `active` or `superseded`, and `addMemoryWithDedupeAsync(...)` can NOOP near-duplicates or link a new memory to an older superseded one through `supersedes` / `supersededBy`. Superseded entries remain stored for history but are excluded from normal retrieval and prompt injection.
+- Conversation summaries live in `electron/conversationSummaryStore.ts` as `conversation-summaries.json` under `app.getPath('userData')`. The store keeps one rolling summary per chat session, capped at `SUMMARY_CAP=15`, using the same atomic-write, TTL-cache, serialized-write pattern as saved memories.
+- Data shape includes a forward-compatible `scope: { type: 'global' } | { type: 'project'; projectId: string }`. v1 only writes global memories. When the projects/folders feature ships, callers thread `projectId` through `buildMemoryBlock` and `loadMemoryBlock`; no schema migration required.
+- Current renderer bridge: `window.memory.{list, add, addDeduped, update, delete, clear, search, summaries, onChanged}` (see `electron/preload.ts` and `src/electron/types.ts`). Summary APIs expose `window.memory.summaries.list()` and `window.memory.summaries.upsert(sessionId, summary)`. All channels are private to that bridge; they are not part of the generic `window.ipcRenderer` allowlist.
+- Current prompt injection: `loadMemoryBlock(settings, scope, { userMessage })` uses main-process memory search to inject only the top relevant memories for the current user message; when no user message is supplied, it injects the most-recent K memories. It does not silently fall back from a no-match search to unrelated recent memories. Superseded memories are excluded. When memories are present, the block appends the built-in **passive** memory instruction from `src/prompts/defaultMemoryPrompt.ts` (guidance on how to *use* the injected memories — it does **not** instruct the model to save/update/delete anything). When no memories survive filtering, the block is empty.
+- Recent-activity prompt injection: `src/prompts/buildRecentActivityBlock.ts` builds a compact "## Recent Activity" block from conversation summaries and `getEffectiveSystemPrompt(...)` inserts it before saved memories. This gives new conversations continuity without embedding/vector retrieval.
+- Current skill gating: `skills.memory.enabled` gates memory injection and background extraction as a whole. `skills.memory.config.autoManage` (default true, surfaced in the UI as the "Background Active Memory" toggle) gates the background extraction ("dreaming") pipeline; when false, no facts are extracted in the background. Memory is **not** model-callable: there are no in-conversation memory tools.
+- Background extraction ("dreaming") runs after a completed chat turn in `src/services/memoryExtraction.ts`, called from `useStreamingChat`. It sends the recent conversation tail plus the just-finished turn to the resolved memory model, asks for durable user facts and one short session summary, writes facts through `window.memory.addDeduped(...)`, and upserts the session summary. The model is resolved from `settings.memoryModel` when set, otherwise it defaults to the active chat model (`settings.aiModel`); this is a documented default, not an error-masking fallback. The flow is best-effort and silent on failure, but it is a meaningful model-call data flow and is gated by `skills.memory.config.autoManage`.
+- Built-in prompt templates are code-owned runtime defaults. Settings -> System Prompt renders the system, web search, tool, memory, chart, and title prompts as read-only viewers. `normalizeStoredSettings(...)` replaces persisted prompt overrides with the current defaults instead of preserving user edits.
+- Assistant personality selection is persisted in the existing sanitized renderer settings blob as `settings.assistantPersonality` (default `professional-engineer`) and is selected from Settings -> Appearance. Runtime prompt composition in `src/utils/promptSelection.ts` appends the selected personality guidance after the base system prompt and before enabled skills, recent activity, and memory blocks. This adds no IPC channel, storage file, provider, model-callable tool, or main-process secret handling.
+- Memory is shipped as a built-in skill (`skills.memory`, default enabled). Current enablement and auto-management semantics are described above.
+- Memory is **not** a model-callable tool surface. The in-conversation memory tools (`save_memory`, `update_memory`, `delete_memory`, `search_memories`) were removed: the model can no longer mutate the memory store mid-conversation. Durable facts are captured only by the background extraction pipeline (`origin: 'background'`), and saved memories are injected into the prompt for read-only context. `src/tools/memoryTools.ts` now retains only the historical `MEMORY_TOOL_NAMES` constant, used by `src/components/Dashboard/ChatArea/toolResultVisibility.ts` to keep suppressing any `origin:'tool'` tool-result cards persisted in older chat sessions.
+- Settings UI: Settings -> Personalization -> Memory (`src/components/Settings/sections/MemorySection.tsx`). Surfaces the "Background Active Memory" toggle (`skills.memory.config.autoManage`), the background memory-extraction model selector (`settings.memoryModel`, with a "use current chat model" default option), a "Saved background memories" viewer (filtered to `origin: 'background'`), and recent-activity conversation summaries. Writes through `window.memory.*` directly and live-syncs via `memory-store:changed`.
+- The built-in default memory prompt is passive guidance on how to *use* injected memories (no save/update/delete instructions). Settings -> System Prompt renders it read-only alongside the other built-in prompt templates.
+- Out of scope for v1 (deliberately): embeddings / vector search, dense AI-generated profile summary (ChatGPT's "User Knowledge Memories"), per-provider memory.
 
 #### Skills-Based Research (`settings.skills`)
 - Research capability is now controlled by built-in skills, not direct tool toggles.
@@ -380,6 +429,12 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Renderer files: `src/components/CodeExecutionApprovalDialog.tsx`, skill gating in `src/hooks/useToolCalling.ts`.
 - Tool results render as expandable cards in chat via `ToolResultDisplay.tsx` (not hidden by `toolResultVisibility`).
 - Piston sandbox constraints: no filesystem, no network, 5s run timeout, 64MB memory limit.
+
+#### Computer Use (`skills.computer_use`)
+- **Windows-only**, default disabled. In Agent mode, the existing `computer_*` tools control the desktop the user is currently using. There is no separate Windows Virtual Desktop mode, no `agent_desktop` skill, no `settings.agentDesktop` payload, no `window.agentDesktop` bridge, and no `agent-desktop:*` IPC surface.
+- The renderer exposes `computer_*` only when `settings.assistantMode === 'agent'`, `isWindowsRuntime()` is true, and `skills.computer_use.enabled` is true. macOS hides the Computer Use settings section and the main process rejects `computer_*` calls on macOS.
+- Computer Use execution is direct: `electron/tools/index.ts` routes `computer_*` calls to `electron/tools/computer-use/*` without provisioning or switching desktops. The existing Computer Use approval dialog, `computerUseAutoApprove`, double-Escape kill switch, action cap, and coordinate mapping remain the safeguards.
+
 
 
 - Startup theme apply: `src/main.tsx` reads `localStorage['zura-settings']` and applies theme with user customization (`themeAccent`, `themeBackground`, `themeForeground`, `themeContrast`).
@@ -448,7 +503,10 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
     - `titleModel` (dedicated model used for title generation; provider inferred from the selected model)
     - `titleGenerationPrompt` (prompt template for generating titles; supports `{{userMessage}}` token)
     - `titleGenerationDisplayMode` (`instant` or `typewriter` sidebar reveal)
-  - Skills map: `skills` (built-in IDs keyed by `skillId`, currently `web_research` (default enabled) and `code_execution` (default disabled), each with `enabled`).
+  - Background memory extraction model: `memoryModel` (dedicated model for background "dreaming"/extraction; provider inferred from the selected model). Empty string = follow the active chat model (`settings.aiModel`). Selected in Settings → Personalization → Memory.
+  - Skills map: `skills` (built-in IDs keyed by `skillId`, currently `web_research` (default enabled), `code_execution` (default disabled), `computer_use` (default disabled), `chart_generation` (default disabled), and `memory` (default enabled), each with `enabled`).
+  - Computer Use preferences are limited to `skills.computer_use.enabled` plus the existing `computerUseAutoApprove` setting. Legacy persisted `settings.agentDesktop` / `skills.agent_desktop` values are ignored and not rewritten into normalized settings.
+  - Discord RPC preferences: `discordRpc` (`appId`). Lives in the sanitized settings blob — no new file, no secure storage. `appId` defaults to the official ZuraAI Discord Application ID (`1512516130911162610`) so the feature works out of the box; users can override it with their own Client ID. Discord RPC is always-on; there is no enable/disable toggle.
   - Legacy `webSearchEnabled` / `structuredResearchEnabled` are migrated into `skills.web_research.enabled`; `structuredResearchEnabled` is retained only as a migration input and is not used by runtime logic.
   - `themeContrast` (0-100, default 100): Numeric contrast intensity; lower values produce a softer look.
   - `themeAccent`, `themeBackground`, `themeForeground`: Optional hex color overrides for theme base colors; when set, they override the preset's base colors.
@@ -456,6 +514,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Chat history fallback (non-Electron): `zura-chat-history`
 - Secure-key migration flag: `zura-api-keys-migrated`
 - Last active chat session: `zura-ui:lastChatSessionId`
+- Agent-mode trusted tool approvals: `zura-agent:trusted-tool-signatures` (exact tool-name + argument signatures for user-trusted mutating tool calls; used only by the renderer approval gate).
 - App shell UI state:
   - `zura-ui:dashboardView`
   - `zura-ui:settingsSection`
@@ -485,32 +544,31 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 Tool execution is intentionally restricted.
 
 - Renderer side:
-- Built-in main-process tool manifest: `src/tools/builtinTools.ts` (shared `web_search` manifest and built-in tool names)
+- Built-in main-process tool manifest: `src/tools/builtinTools.ts` (shared `web_search`, Computer Use, and Windows-native tool manifests plus built-in tool names)
 - Built-in tool schemas: `src/tools/definitions.ts` (renderer-facing definitions derived from `builtinTools.ts`)
   - Runtime MCP tool adapter: `src/tools/mcpRegistry.ts` maps connected MCP tools into generic request-time descriptors
   - Skill gating + runtime merge: `src/hooks/useToolCalling.ts` + `src/skills/index.ts` decide which built-in tools are exposed and merge them with eligible MCP tools at request time
   - Provider adapters: `src/tools/adapters/*` (Perplexity is explicitly excluded)
-  - Execution: `src/tools/executor.ts` keeps built-in IPC execution for `web_search` and routes namespaced MCP tools through the dedicated `window.mcp.executeTool(...)` bridge
+  - Execution: `src/tools/executor.ts` keeps built-in IPC execution for built-in main-process tools and routes namespaced MCP tools through the dedicated `window.mcp.executeTool(...)` bridge
     - Before invoking built-in `web_search`, the renderer resolves omitted `search_depth` values from `settings.tavilySearchDepthPreference`; `auto` applies a lightweight query heuristic and manual modes inject the selected Tavily tier directly.
     - `src/tools/toolManager.ts` applies the renderer-side batch execution policy for `web_search`: duplicate/facet-deduping within the current assistant response, remaining-budget enforcement, synthetic skipped tool results for over-budget or duplicate calls, and parallel execution for the executable subset of the batch.
   - MCP resources and prompts are not merged into the model tool surface; the renderer only exposes them through user-driven browsing/preview flows in the MCP library UI.
 
 - Main process side:
-  - Tool IPC: `electron/tools/index.ts` (restricted registry: `web_search`)
+  - Tool IPC: `electron/tools/index.ts` (restricted registry for `web_search`, code execution, Computer Use, and Windows-native built-ins)
   - MCP tool IPC: `electron/mcp/index.ts` (`mcp:execute-tool`, `mcp:resolve-approval`) with approval gating handled by `electron/mcp/mcpApprovalManager.ts`
+  - Native Windows tools: `windows_uia_snapshot`, `windows_uia_invoke`, `windows_uia_set_value`, `windows_uia_select`, `system_shell`, `file_read`, `file_write`, `file_search`, `file_move`, `app_find`, `app_launch`, `app_list`, `app_install`, `app_uninstall`, `window_list`, `window_focus`, `window_move`, and `window_close` are exposed through the existing `execute-tool` path and preload validation, with no new renderer IPC channel. Read-only tools auto-run. Mutating tools require explicit approval/`autoApprove` and fail closed when approval is absent or rejected. UIA/app/window tools return clear unsupported-platform errors off Windows. These tools are intended to reduce screenshot/click/type usage; `computer_*` remains the current-desktop fallback for unsupported controls and genuinely visual tasks. Browser and Office automation are intentionally not included in this version.
   - Web search: `electron/tools/webSearch.ts`
-    - `electron/tools/webSearch.ts` is a thin facade over the modular service in `electron/tools/web-search/`
-    - `electron/tools/web-search/intent.ts` classifies query-vs-URL-vs-extract intents and reformulates weak search queries
-    - `electron/tools/web-search/backends/tavily.ts` owns Tavily search/extract transport calls
-    - `electron/tools/web-search/backends/duckduckgo.ts` owns the DuckDuckGo fallback path
-    - `electron/tools/web-search/helpers.ts` normalizes results, images, snippets, sources, and displayed links into the shared web-search result shape
-    - Tavily search depth now accepts `ultra-fast`, `fast`, `basic`, and `advanced`; invalid values are still normalized to `basic` in main as a defensive fallback.
-    - Input classification happens at the top of `executeWebSearch`:
-      - **URL-dominant input** (URL only) → Tavily **Extract** (`/extract`) with `format: markdown`, `extract_depth: basic`
-      - **Query + URL** → Tavily **Extract** (`/extract`) with attached `query`, `chunks_per_source`, `extract_depth: advanced`
-      - **Natural-language query (no URL)** → Tavily **Search** (`/search`)
-      - **Docs/site exploration wording + URL** currently follows the URL extract path (future `map`/`crawl` integration can be added separately)
-    - Tavily-first routing uses `tavilyApiKey` from secure storage; if extraction/search fails, fallback is duck-duck-scrape web search
+    - `electron/tools/webSearch.ts` is a thin facade that re-exports `executeWebSearch` + `WebSearchArgs` from the modular service in `electron/tools/web-search/`
+    - The pipeline is **Tavily-only with NO fallback**. When Tavily is unconfigured or fails, the tool surfaces the **real** failure (missing-credential message, provider error, or timeout) instead of substituting another backend.
+    - A pluggable `SearchProvider` abstraction (`providers/registry.ts`, `providers/types.ts`) lets future providers be added without touching the orchestrator; Tavily is the only registered provider.
+    - The orchestrator (`service.ts`) normalizes input → classifies intent → resolves the active provider + its credential → dispatches **exactly one** provider call (`search` XOR `extract`) → wraps the outcome in a `ToolResult`. No DuckDuckGo, no fallback chain.
+    - `electron/tools/web-search/intent.ts` classifies query-vs-URL-vs-extract intents and reformulates weak search queries; `electron/tools/web-search/normalize.ts` (renamed from `helpers.ts`) shapes results, images, snippets, sources, and displayed links into the shared web-search result shape.
+    - `electron/tools/web-search/providers/tavily/*` owns Tavily transport (`transport.ts`) and payload mapping (`mapper.ts`); `credentials.ts` resolves `tavilyApiKey` from secure storage.
+    - Intent routing: natural-language query (no URL) → Tavily **Search**; URL present → Tavily **Extract** (`url_extract` / `url_extract_with_query` / `site_exploration`).
+    - Tavily search depth accepts `ultra-fast`, `fast`, `basic`, and `advanced`; invalid values are normalized to `basic`.
+    - The single `logWebSearchFailure` helper (`logging.ts`) logs only stage, intent, key-presence boolean, truncated error, and truncated query — never the API key.
+    - No new IPC channel: the `execute-tool` `web_search` call site is unchanged.
 
 There is currently no built-in trusted browser-testing workflow; any replacement must be documented here when introduced.
 
@@ -558,6 +616,7 @@ These are useful breadcrumbs for agents:
 - Don’t broaden the IPC surface “just to make it work”.
 - Don’t expose raw Node APIs to the renderer.
 - Don’t add new tools (or allow arbitrary tool names) without a clear security review.
+- Don’t hardcode model IDs/names anywhere in the codebase. Models are user-configured and resolved at runtime through `settings.*` and the shared provider registry (`src/providers/providerRegistry.ts`). Use the active selection (`settings.aiModel`, `settings.titleModel`, etc.) and the configured model arrays (`configuredModels`, `ollamaModels`, `perplexityModels`, `groqModels`, `alibabaModels`, `fireworksModels`, `deepseekModels`) instead of baking in a specific model. This applies to runtime code, tests should use clearly-fake placeholder IDs, and never add a hardcoded "default"/"fallback" model (see the fallback guardrail in Key Concepts).
 - Don’t commit secrets (API keys, tokens) or `.env` files.
 - Don’t edit generated output (`dist/`, `dist-electron/`).
 - Don’t add variant-specific hover/active styles for shared titlebar icon controls unless intentional and documented in the PR.

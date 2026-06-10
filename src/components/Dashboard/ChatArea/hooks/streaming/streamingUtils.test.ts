@@ -2,14 +2,18 @@ import { describe, expect, it, vi } from 'vitest'
 
 import {
   appendCompletedThinkingBlock,
-  buildSearchSynthesisFailureMessage,
+  buildAgentVerificationMessages,
+  buildDeterministicSearchSynthesis,
   buildFollowUpMessages,
   buildThinkingBlocksFromResults,
   buildFinalSynthesisMessages,
   buildRecoverySynthesisMessages,
+  DETERMINISTIC_SEARCH_SYNTHESIS_PREFIX,
+  extractSearchEvidenceItems,
+  FINAL_SYNTHESIS_BUDGET_EXHAUSTED_PROMPT,
+  FINAL_SYNTHESIS_EMPTY_BATCH_PROMPT,
   FINAL_SYNTHESIS_PROMPT,
   FINAL_SYNTHESIS_RECOVERY_PROMPT,
-  SEARCH_SYNTHESIS_FAILURE_MESSAGE,
   getThinkingTranscript,
   publishStreamingToolResults,
   shouldRetryUngroundedSearchSynthesis,
@@ -29,6 +33,38 @@ describe('streamingUtils final synthesis helpers', () => {
     expect(messages[0]).toEqual({ role: 'system', content: FINAL_SYNTHESIS_PROMPT })
     expect(messages.some((message) => message.role === 'tool')).toBe(true)
     expect(messages.some((message) => message.content === 'research context')).toBe(true)
+  })
+
+  it('tells the model when final synthesis is required because the web search budget is exhausted', () => {
+    const messages = buildFinalSynthesisMessages(
+      'research context',
+      6,
+      8,
+      [{ role: 'user', content: 'Find recent benchmark sources' }],
+      { role: 'assistant', content: 'I will search more.', tool_calls: [] },
+      [{ role: 'tool', content: 'search result' }],
+      'budget'
+    )
+
+    expect(messages[0]).toEqual({ role: 'system', content: FINAL_SYNTHESIS_BUDGET_EXHAUSTED_PROMPT })
+    expect(String(messages[0].content)).toContain('WEB SEARCH BUDGET EXHAUSTED')
+    expect(String(messages[0].content)).toContain('using only the results already returned')
+  })
+
+  it('tells the model when final synthesis is required because no executable search query remained', () => {
+    const messages = buildFinalSynthesisMessages(
+      'research context',
+      3,
+      2,
+      [{ role: 'user', content: 'Find recent product details' }],
+      { role: 'assistant', content: 'I will search more.', tool_calls: [] },
+      [{ role: 'tool', content: 'search result' }],
+      'empty-batch'
+    )
+
+    expect(messages[0]).toEqual({ role: 'system', content: FINAL_SYNTHESIS_EMPTY_BATCH_PROMPT })
+    expect(String(messages[0].content)).toContain('NO EXECUTABLE WEB SEARCH REMAINED')
+    expect(String(messages[0].content)).toContain('using only the results already returned')
   })
 
   it('builds a recovery synthesis instruction when the first synthesis returns empty', () => {
@@ -126,28 +162,6 @@ describe('streamingUtils final synthesis helpers', () => {
     })
   })
 
-  it('builds a clean hard-failure message when search results exist but synthesis fails', () => {
-    expect(
-      buildSearchSynthesisFailureMessage([
-        {
-          toolCall: {
-            id: 'search-1',
-            name: 'web_search',
-            arguments: { query: 'qwen 3.6 plus thinking' },
-          },
-          result: {
-            success: true,
-            data: { results: [{ title: 'Result' }] },
-          },
-        },
-      ])
-    ).toBe(SEARCH_SYNTHESIS_FAILURE_MESSAGE)
-  })
-
-  it('does not build a synthesis failure message without successful web results', () => {
-    expect(buildSearchSynthesisFailureMessage([])).toBeNull()
-  })
-
   it('builds inline tool timeline blocks for completed MCP executions', () => {
     const blocks = buildThinkingBlocksFromResults(
       [
@@ -233,6 +247,29 @@ describe('streamingUtils final synthesis helpers', () => {
     expect(systemMessages).toEqual(['Research context'])
   })
 
+  it('prepends an agent verification prompt before regular follow-up context', () => {
+    const messages = buildAgentVerificationMessages(
+      {
+        category: 'file',
+        reason: 'File changes were made and need a read-only filesystem check.',
+        preferredTools: ['file_search', 'file_read'],
+        mutatingToolNames: ['file_move'],
+      },
+      'Research context',
+      1,
+      0,
+      [{ role: 'user', content: 'Sort my desktop' }],
+      { role: 'assistant', content: '', tool_calls: [] },
+      [{ role: 'tool', content: 'Moved file', tool_call_id: 'call_1' }]
+    )
+
+    expect(messages[0].role).toBe('system')
+    expect(String(messages[0].content)).toContain('AGENT VERIFICATION REQUIRED')
+    expect(String(messages[0].content)).toContain('file_search, file_read')
+    expect(messages.some((message) => message.content === 'Research context')).toBe(true)
+    expect(messages.some((message) => message.role === 'tool')).toBe(true)
+  })
+
   it('flags knowledge-cutoff fallback text as a failed post-search synthesis', () => {
     expect(
       shouldRetryUngroundedSearchSynthesis(
@@ -255,6 +292,100 @@ describe('streamingUtils final synthesis helpers', () => {
         '<| | DSML | | tool_calls><| | DSML | | invoke name="web_search"><| | DSML | | parameter name="query" string="true">latest docs</| | DSML | | parameter></| | DSML | | invoke></| | DSML | | tool_calls>'
       )
     ).toBe(true)
+  })
+
+  it('flags fullwidth DSML tool markup as a failed post-search synthesis', () => {
+    expect(
+      shouldRetryUngroundedSearchSynthesis(
+        '<｜｜DSML｜｜tool_calls><｜｜DSML｜｜invoke name="web_search"><｜｜DSML｜｜parameter name="query" string="true">latest docs</｜｜DSML｜｜parameter></｜｜DSML｜｜invoke></｜｜DSML｜｜tool_calls>'
+      )
+    ).toBe(true)
+  })
+
+  it('normalizes successful web_search results into evidence items', () => {
+    const evidence = extractSearchEvidenceItems([
+      {
+        toolCall: {
+          id: 'call_1',
+          name: 'web_search',
+          arguments: { query: 'Kiro ambassador welcome kit' },
+        },
+        result: {
+          success: true,
+          data: {
+            results: [
+              {
+                title: 'Kiro Ambassador FAQ',
+                url: 'https://example.com/kiro',
+                snippet: 'Ambassadors receive onboarding guidance.',
+                source: 'example.com',
+                date: '2026-05-01',
+                score: 0.91,
+              },
+            ],
+          },
+        },
+      },
+    ])
+
+    expect(evidence).toEqual([
+      {
+        query: 'Kiro ambassador welcome kit',
+        title: 'Kiro Ambassador FAQ',
+        url: 'https://example.com/kiro',
+        source: 'example.com',
+        snippet: 'Ambassadors receive onboarding guidance.',
+        date: '2026-05-01',
+        score: 0.91,
+      },
+    ])
+  })
+
+  it('builds a deterministic search synthesis from successful web_search evidence', () => {
+    const synthesis = buildDeterministicSearchSynthesis([
+      {
+        toolCall: {
+          id: 'call_1',
+          name: 'web_search',
+          arguments: { query: 'weekend getaways near Chennai' },
+        },
+        result: {
+          success: true,
+          data: {
+            results: [
+              {
+                title: 'Weekend Getaways from Chennai',
+                url: 'https://example.com/chennai',
+                snippet: 'Pondicherry, Mahabalipuram, and Yelagiri are common short-trip options.',
+                source: 'example.com',
+              },
+            ],
+          },
+        },
+      },
+    ])
+
+    expect(synthesis).toContain(DETERMINISTIC_SEARCH_SYNTHESIS_PREFIX)
+    expect(synthesis).toContain('[Weekend Getaways from Chennai](https://example.com/chennai)')
+    expect(synthesis).toContain('Pondicherry, Mahabalipuram, and Yelagiri')
+  })
+
+  it('does not build deterministic synthesis when no successful web_search evidence exists', () => {
+    expect(
+      buildDeterministicSearchSynthesis([
+        {
+          toolCall: {
+            id: 'call_1',
+            name: 'web_search',
+            arguments: { query: 'weekend getaways near Chennai' },
+          },
+          result: {
+            success: false,
+            error: 'network failed',
+          },
+        },
+      ])
+    ).toBeNull()
   })
 
   it('does not flag grounded synthesized answers as failed post-search synthesis', () => {

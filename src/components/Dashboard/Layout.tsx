@@ -98,7 +98,7 @@ export default function DashboardLayout() {
           flex: 1,
           position: 'relative',
           overflow: 'hidden',
-          backgroundColor: 'var(--theme-content-solid)',
+          backgroundColor: 'transparent',
           zIndex: 1,
           contain: 'strict', // Isolate from sidebar resize reflow — content is absolutely positioned inside
         }}
@@ -106,7 +106,6 @@ export default function DashboardLayout() {
         <div className="dashboard-main-canvas">
           {view === 'settings' ? (
             <div
-              className="theme-section-enter"
               style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}
             >
               <Suspense fallback={<SettingsLoadingFallback />}>
@@ -119,7 +118,6 @@ export default function DashboardLayout() {
             </div>
           ) : (
             <div
-              className="theme-section-enter"
               style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}
             >
               <ChatArea />

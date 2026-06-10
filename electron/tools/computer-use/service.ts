@@ -17,6 +17,7 @@ let actionCount = 0
 let aborted = false
 let maxActions = MAX_ACTIONS_PER_SESSION
 let latestCoordinateContext: ScreenshotCoordinateContext | null = null
+let latestScreenshotArgs: ScreenshotArgs = {}
 
 export function setApprovalManager(manager: ComputerUseApprovalManager): void {
   approvalManager = manager
@@ -53,8 +54,14 @@ export async function executeScreenshot(args: ScreenshotArgs): Promise<ToolResul
   resetAbortOnNewTask()
   registerKillSwitch(() => abortSession())
   try {
-    const result = await captureScreenshot(args.display_id)
+    const result = await captureScreenshot({
+      displayId: args.display_id,
+      windowId: args.window_id,
+      windowTitle: args.window_title,
+      appName: args.app_name,
+    })
     latestCoordinateContext = result.coordinateContext
+    latestScreenshotArgs = { ...args }
     return {
       success: true,
       data: {
@@ -63,6 +70,7 @@ export async function executeScreenshot(args: ScreenshotArgs): Promise<ToolResul
         screenWidth: result.width,
         screenHeight: result.height,
         coordinateContext: serializeCoordinateContext(result.coordinateContext),
+        ...(result.target ? { target: result.target } : {}),
       },
     }
   } catch (e) {
@@ -103,7 +111,12 @@ async function executeAction(
     await delay(ACTION_DELAY_MS)
 
     // Post-action screen capture
-    const screenshot = await captureScreenshot(latestCoordinateContext?.displayId)
+    const screenshot = await captureScreenshot({
+      displayId: latestScreenshotArgs.display_id ?? latestCoordinateContext?.displayId,
+      windowId: latestScreenshotArgs.window_id,
+      windowTitle: latestScreenshotArgs.window_title,
+      appName: latestScreenshotArgs.app_name,
+    })
     latestCoordinateContext = screenshot.coordinateContext
     return {
       success: true,
@@ -113,6 +126,7 @@ async function executeAction(
         screenWidth: screenshot.width,
         screenHeight: screenshot.height,
         coordinateContext: serializeCoordinateContext(screenshot.coordinateContext),
+        ...(screenshot.target ? { target: screenshot.target } : {}),
       },
     }
   } catch (e) {

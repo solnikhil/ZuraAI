@@ -18,12 +18,47 @@ import {
     type ToolExecutionSummary,
 } from '../tools/types'
 import { getAllToolDefinitions, getBuiltinToolDefinitions } from '../tools/definitions'
+import { MEMORY_TOOL_NAMES } from '../tools/memoryTools'
 import { shouldContinueToolResearch, shouldRequestToolFollowUp } from '../tools/followUpPolicy'
 import { shouldEnableTools } from '../utils/promptSelection'
-import { getWebResearchToolExposure, getCodeExecutionToolExposure, getComputerUseToolExposure } from '../skills'
 import { createMcpToolRegistry } from '../tools/mcpRegistry'
 import { getProviderModels, type ProviderId } from '../providers'
-import { isMacOSRuntime } from '../utils/platform'
+import { isWindowsRuntime } from '../utils/platform'
+import { isSkillEnabled } from '../skills'
+
+const COMPUTER_USE_TOOLS = [
+    'computer_screenshot',
+    'computer_click',
+    'computer_type',
+    'computer_key',
+    'computer_scroll',
+    'computer_cursor_position',
+    'computer_list_windows',
+    'computer_launch_app',
+    'computer_find_app',
+    'computer_close_app',
+]
+
+const NATIVE_WINDOWS_AGENT_TOOLS = [
+    'file_search',
+    'file_read',
+    'file_write',
+    'file_move',
+    'app_find',
+    'app_list',
+    'app_launch',
+    'app_install',
+    'app_uninstall',
+    'window_list',
+    'window_focus',
+    'window_move',
+    'window_close',
+    'windows_uia_snapshot',
+    'windows_uia_invoke',
+    'windows_uia_set_value',
+    'windows_uia_select',
+    'system_shell',
+]
 
 export interface ToolCallState {
     activeToolCalls: ToolCall[]
@@ -79,35 +114,66 @@ export function useToolCalling() {
             ? settings.enabledTools.filter((tool) => knownBuiltInTools.has(tool))
             : builtinToolNames
 
-        const webResearchToolExposure = getWebResearchToolExposure(settings.skills)
-        if (!webResearchToolExposure.exposeWebSearch) {
-            enabledTools = enabledTools.filter((tool) => tool !== 'web_search')
-        } else {
-            if (!enabledTools.includes('web_search')) {
-                enabledTools.push('web_search')
-            }
+        if (!enabledTools.includes('web_search')) {
+            enabledTools.push('web_search')
         }
 
-        const codeExecutionToolExposure = getCodeExecutionToolExposure(settings.skills)
-        if (!codeExecutionToolExposure.exposeCodeExecution) {
-            enabledTools = enabledTools.filter((tool) => tool !== 'code_execution')
-        } else {
-            if (!enabledTools.includes('code_execution')) {
-                enabledTools.push('code_execution')
-            }
+        if (!enabledTools.includes('code_execution')) {
+            enabledTools.push('code_execution')
         }
 
-        const computerUseToolExposure = getComputerUseToolExposure(settings.skills)
-        const computerUseTools = ['computer_screenshot', 'computer_click', 'computer_type', 'computer_key', 'computer_scroll', 'computer_cursor_position', 'computer_list_windows', 'computer_launch_app', 'computer_find_app', 'computer_close_app']
-        if (isMacOSRuntime() || !computerUseToolExposure.exposeComputerUse) {
-            enabledTools = enabledTools.filter((tool) => !computerUseTools.includes(tool))
+        // Memory is no longer a model-callable tool surface. Saved memories are
+        // injected into the prompt for context and durable facts are captured
+        // by the background extraction pipeline; the model cannot mutate the
+        // memory store mid-conversation. Defensively strip any memory tool
+        // names that may linger in a persisted enabledTools list.
+        enabledTools = enabledTools.filter(
+            (tool) => !(MEMORY_TOOL_NAMES as readonly string[]).includes(tool)
+        )
+
+        // Native Windows Agent tools supplement desktop control and should be
+        // preferred before screenshot/click/type for filesystem, app, window,
+        // shell, and supported UI Automation tasks. Add them explicitly so
+        // older persisted enabledTools lists do not hide newly shipped tools.
+        const nativeWindowsAgentToolsEnabled =
+            settings.assistantMode === 'agent' &&
+            isWindowsRuntime()
+
+        if (!nativeWindowsAgentToolsEnabled) {
+            enabledTools = enabledTools.filter((tool) => !NATIVE_WINDOWS_AGENT_TOOLS.includes(tool))
         } else {
-            for (const tool of computerUseTools) {
+            for (const tool of NATIVE_WINDOWS_AGENT_TOOLS) {
                 if (!enabledTools.includes(tool)) enabledTools.push(tool)
             }
         }
 
-        return [...new Set([...enabledTools, ...runtimeMcpToolNames])]
+        // Computer Use action surface. Windows-only (mirrors the main-process +
+        // preload gates), gated behind the Computer Use skill, and exposed only
+        // in agent mode.
+        const computerUseSurfaceEnabled =
+            settings.assistantMode === 'agent' &&
+            isWindowsRuntime() &&
+            isSkillEnabled(settings.skills, 'computer_use')
+
+        if (!computerUseSurfaceEnabled) {
+            enabledTools = enabledTools.filter((tool) => !COMPUTER_USE_TOOLS.includes(tool))
+        } else {
+            for (const tool of COMPUTER_USE_TOOLS) {
+                if (!enabledTools.includes(tool)) enabledTools.push(tool)
+            }
+        }
+
+        const nativePriority = new Map(NATIVE_WINDOWS_AGENT_TOOLS.map((tool, index) => [tool, index]))
+        const computerPriorityOffset = NATIVE_WINDOWS_AGENT_TOOLS.length
+        const computerPriority = new Map(COMPUTER_USE_TOOLS.map((tool, index) => [tool, computerPriorityOffset + index]))
+        const prioritizedEnabledTools = [...new Set(enabledTools)].sort((a, b) => {
+            const aPriority = nativePriority.get(a) ?? computerPriority.get(a) ?? Number.MAX_SAFE_INTEGER
+            const bPriority = nativePriority.get(b) ?? computerPriority.get(b) ?? Number.MAX_SAFE_INTEGER
+            if (aPriority !== bPriority) return aPriority - bPriority
+            return enabledTools.indexOf(a) - enabledTools.indexOf(b)
+        })
+
+        return [...new Set([...prioritizedEnabledTools, ...runtimeMcpToolNames])]
     }
 
     const normalizeSelectedModelCode = (provider: ProviderId, modelCode: string): string => {
@@ -174,7 +240,12 @@ export function useToolCalling() {
         response: ToolCallingResponse,
         onToolStart?: (toolCall: ToolCall) => void,
         onToolComplete?: (result: ToolCallResult) => void,
-        executionPolicy?: ToolExecutionPolicy
+        executionPolicy?: ToolExecutionPolicy,
+        approvalCallbacks?: {
+            onToolApprovalStart?: (toolCall: ToolCall) => void
+            onToolApprovalResolved?: (toolCall: ToolCall, approved: boolean) => void
+            requestToolApproval?: (toolCall: ToolCall) => Promise<boolean>
+        }
     ): Promise<{
         hasTools: boolean
         toolResults: ToolCallResult[]
@@ -208,6 +279,11 @@ export function useToolCalling() {
                 enabledTools: enabledToolsForProcessing,
                 availableTools,
                 executionPolicy,
+                onToolApprovalStart: approvalCallbacks?.onToolApprovalStart,
+                onToolApprovalResolved: approvalCallbacks?.onToolApprovalResolved,
+                requestToolApproval: settings.assistantMode === 'agent'
+                    ? approvalCallbacks?.requestToolApproval
+                    : undefined,
                 onToolBatchStart: (toolCalls) => {
                     setToolState((prev) => ({
                         ...prev,

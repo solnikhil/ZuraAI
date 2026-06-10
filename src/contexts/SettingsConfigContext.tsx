@@ -28,7 +28,13 @@ import { defaultTitleGenerationPrompt } from '../prompts/defaultTitleGenerationP
 import { defaultCodeExecutionPrompt } from '../prompts/defaultCodeExecutionPrompt'
 import { defaultComputerUsePrompt } from '../prompts/defaultComputerUsePrompt'
 import { defaultChartGenerationPrompt } from '../prompts/defaultChartGenerationPrompt'
+import { defaultMemoryPrompt } from '../prompts/defaultMemoryPrompt'
+import {
+  DEFAULT_ASSISTANT_PERSONALITY,
+  type AssistantPersonalityId,
+} from '../prompts/assistantPersonalities'
 import { defaultSkillsSettings, type SkillsSettings } from '../skills'
+import type { AssistantMode } from '../chat/types'
 import { getProviderEnabledDefaults, getProviderSecretFields } from '../providers'
 import type { ProviderId } from '../providers/providerTypes'
 import { warnOnceDuringHmr } from './hmrWarnings'
@@ -106,6 +112,7 @@ export interface SettingsConfig {
   temperature: number
   maxTokens: number
   systemPrompt: string
+  assistantPersonality: AssistantPersonalityId
   /** Web search instructions appended when Web Search is enabled */
   webSearchPrompt: string
   /** Code execution instructions appended when Code Execution is enabled */
@@ -114,9 +121,12 @@ export interface SettingsConfig {
   computerUsePrompt: string
   /** Chart generation instructions appended when Chart Generation is enabled */
   chartGenerationPrompt: string
+  /** Memory autosave instructions appended when the Memory skill is enabled */
+  memoryPrompt: string
   streamResponses: boolean
 
   // Tool settings
+  assistantMode: AssistantMode
   toolsEnabled: boolean
   enabledTools: string[]
   skills: SkillsSettings
@@ -129,6 +139,9 @@ export interface SettingsConfig {
   titleModel: string
   titleGenerationPrompt: string
   titleGenerationDisplayMode: 'instant' | 'typewriter'
+
+  // Background memory extraction ("dreaming"). Empty string = follow the active chat model.
+  memoryModel: string
 
   // Favorites
   favoriteModels: string[]
@@ -144,6 +157,14 @@ export interface SettingsConfig {
   rememberLastSettingsSection: boolean
   rememberLastDashboardView: boolean
   overlay: OverlaySettings
+  /**
+   * Discord Rich Presence preferences. Lives in the sanitized `zura-settings`
+   * blob. The `appId` field should be set to a valid Discord Application ID
+   * for the feature to work.
+   */
+  discordRpc?: {
+    appId: string
+  }
 }
 
 /**
@@ -258,13 +279,16 @@ export const defaultSettingsConfig: SettingsConfig = {
   temperature: 0.7,
   maxTokens: 8000,
   systemPrompt: defaultSystemPrompt,
+  assistantPersonality: DEFAULT_ASSISTANT_PERSONALITY,
   webSearchPrompt: defaultWebSearchPrompt,
   codeExecutionPrompt: defaultCodeExecutionPrompt,
   computerUsePrompt: defaultComputerUsePrompt,
   chartGenerationPrompt: defaultChartGenerationPrompt,
+  memoryPrompt: defaultMemoryPrompt,
   streamResponses: true,
 
   // Tool settings
+  assistantMode: 'chat',
   toolsEnabled: true,
   enabledTools: ['web_search'],
   skills: defaultSkillsSettings,
@@ -275,6 +299,9 @@ export const defaultSettingsConfig: SettingsConfig = {
   titleModel: '',
   titleGenerationPrompt: defaultTitleGenerationPrompt,
   titleGenerationDisplayMode: 'instant',
+
+  // Background memory extraction — empty = follow the active chat model.
+  memoryModel: '',
 
   // Favorites
   favoriteModels: [],
@@ -303,6 +330,9 @@ export const defaultSettingsConfig: SettingsConfig = {
     expandedWidth: 460,
     promptAutoHideEnabled: false,
     promptAutoHideTimeout: 120,
+  },
+  discordRpc: {
+    appId: '1512516130911162610',
   },
 }
 

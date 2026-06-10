@@ -1,4 +1,5 @@
 import type { NormalizedUsage } from '../providers/providerRuntimeTypes'
+import type { ResearchState } from '../research/types'
 
 export type ChatDiagnosticPhase =
   | 'context-optimized'
@@ -12,6 +13,10 @@ export type ChatDiagnosticPhase =
   | 'provider-error'
   | 'finish'
   | 'stream-chunk'
+  | 'research-state'
+  | 'memory-extraction-start'
+  | 'memory-extraction-result'
+  | 'memory-extraction-error'
 
 /**
  * Coalesced provider streaming chunk summary captured by the dev-only chat debug panel.
@@ -63,7 +68,7 @@ export interface ChatDiagnosticRequestShape {
   roleOrder: string[]
   textLengths: number[]
   contentTypes: Array<'text' | 'parts' | 'empty'>
-  partTypes: string[][]
+  partTypes: Array<string[] | string>
   hasReasoning: boolean[]
   hasThinking: boolean[]
   toolCount: number
@@ -90,7 +95,25 @@ export interface ChatDiagnosticEvent {
   finishReason?: string
   tool?: ChatDiagnosticToolSummary
   streamChunk?: ChatDiagnosticStreamChunk
+  researchState?: ResearchState
+  leakedMarkupFormat?: 'dsml' | 'xml' | 'native-tool-call-delta'
+  recoveredQueryCount?: number
+  deterministicAnswerUsed?: boolean
+  searchBudgetRemaining?: number
+  attemptedQueries?: string[]
+  executedQueries?: string[]
+  skippedReason?: string
   error?: string
+  /** Background memory-extraction parse/provider failure code for precise debug triage. */
+  memoryErrorCode?: string
+  /** Background memory-extraction raw model response length before parsing. */
+  responseLength?: number
+  /** Background memory-extraction sanitized raw model response preview. */
+  responsePreview?: string
+  /** Background memory-extraction ("dreaming") — number of durable facts persisted this run. */
+  factCount?: number
+  /** Background memory-extraction — whether a non-empty Recent Activity summary was kept/upserted. */
+  summaryKept?: boolean
 }
 
 export const CHAT_DIAGNOSTIC_MAX_EVENTS = 500

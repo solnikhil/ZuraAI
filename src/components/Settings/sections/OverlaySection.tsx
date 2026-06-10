@@ -4,7 +4,7 @@ import { Card } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 
 import type { OverlaySettings } from '../../../contexts/SettingsConfigContext'
-import { ChevronLeft, PanelLeft } from '../../icons'
+import { ChevronLeft, PanelLeft, Activity } from '../../icons'
 
 export interface OverlaySectionProps {
   overlay: OverlaySettings
@@ -21,7 +21,8 @@ export function OverlaySection({
   onChange,
 }: OverlaySectionProps): React.ReactElement {
   const [overlayState, setOverlayState] = useState<string>('Checking overlay runtime...')
-  const [extensionView, setExtensionView] = useState<'catalog' | 'detail'>('catalog')
+  const [discordRpcStateText, setDiscordRpcStateText] = useState<string>('Checking Discord RPC...')
+  const [extensionView, setExtensionView] = useState<'catalog' | 'overlay'>('catalog')
 
   useEffect(() => {
     if (!window.overlay?.getState) {
@@ -42,6 +43,38 @@ export function OverlaySection({
         setOverlayState('Unable to read Overlay runtime state.')
       })
   }, [overlay.hotkey, overlay.enabled])
+
+  useEffect(() => {
+    if (!window.discordRpc?.getState) {
+      setDiscordRpcStateText('Discord RPC bridge unavailable.')
+      return
+    }
+
+    void window.discordRpc
+      .getState()
+      .then((state) => {
+        if (state.connected) {
+          setDiscordRpcStateText('Connected to Discord.')
+        } else {
+          setDiscordRpcStateText(state.lastError ?? 'Connecting...')
+        }
+      })
+      .catch(() => {
+        setDiscordRpcStateText('Unable to read Discord RPC state.')
+      })
+  }, [])
+
+  // Subscribe to live Discord RPC state changes
+  useEffect(() => {
+    if (!window.discordRpc?.onStateChange) return
+    return window.discordRpc.onStateChange((state) => {
+      if (state.connected) {
+        setDiscordRpcStateText('Connected to Discord.')
+      } else {
+        setDiscordRpcStateText(state.lastError ?? 'Connecting...')
+      }
+    })
+  }, [])
 
   const updateOverlay = (changes: Partial<OverlaySettings>) => {
     onChange({
@@ -66,16 +99,16 @@ export function OverlaySection({
           <div className="mt-3 first:mt-0">
           <div className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-foreground">
               <span>Extensions</span>
-              <span className="rounded bg-secondary px-2 py-0.5 text-xs text-muted-foreground">1</span>
+              <span className="rounded bg-secondary px-2 py-0.5 text-xs text-muted-foreground">2</span>
             </div>
 
             <div className="flex flex-col gap-3">
               <div
-                onClick={() => setExtensionView('detail')}
+                onClick={() => setExtensionView('overlay')}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' || event.key === ' ') {
                     event.preventDefault()
-                    setExtensionView('detail')
+                    setExtensionView('overlay')
                   }
                 }}
                 role="button"
@@ -127,12 +160,47 @@ export function OverlaySection({
                   </div>
                 </div>
               </div>
+
+              <div
+                className="w-full rounded-xl border border-white/15 p-5 text-left"
+                style={{ background: '#2c2c2c' }}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span
+                      className="skills-row__logo skills-row__logo--enabled"
+                      style={{ width: 36, height: 36, borderRadius: 10 }}
+                    >
+                      <Activity size={16} />
+                    </span>
+                    <span className="truncate text-[15px] font-semibold text-foreground">
+                      Discord RPC
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="max-w-[70ch] text-sm leading-6 text-muted-foreground">
+                      Shows your ZuraAI activity in Discord via Rich Presence. Requires the Discord desktop app to be running.
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                      <span className="rounded border border-white/10 px-2 py-1">
+                        Always on
+                      </span>
+                      <span className="rounded border border-white/10 px-2 py-1">
+                        {discordRpcStateText}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </Card>
       )}
 
-      {extensionView === 'detail' && (
+      {extensionView === 'overlay' && (
         <Card className="settings-section-card provider-hub-base-card mt-4" style={{ background: '#212121' }}>
           <div className="space-y-6">
             <div className="flex items-center justify-between gap-2">

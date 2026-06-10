@@ -1,11 +1,17 @@
 // Computer use action execution via @nut-tree-fork/nut-js
 // NOTE: requires `bun add @nut-tree-fork/nut-js` before use
 
-import { screen } from 'electron'
+import { screen, clipboard } from 'electron'
 import { ACTION_DELAY_MS, DEFAULT_SCROLL_AMOUNT } from './constants'
 import type { ClickArgs, TypeArgs, KeyArgs, ScrollArgs, CursorPositionArgs } from './types'
 
 let nut: typeof import('@nut-tree-fork/nut-js') | null = null
+
+// Test-only seam: allows unit tests to inject a fake nut module, since the
+// require() below is a native module that vitest's vi.mock cannot intercept.
+export function __setNutForTesting(mock: typeof import('@nut-tree-fork/nut-js') | null): void {
+  nut = mock
+}
 
 async function getNut() {
   if (!nut) {
@@ -44,8 +50,22 @@ export async function performClick(args: ClickArgs): Promise<void> {
 export async function performType(args: TypeArgs): Promise<void> {
   const { text } = args
   if (!text) throw new Error('Text is required')
-  const { keyboard } = await getNut()
-  await keyboard.type(text)
+  const { keyboard, Key } = await getNut()
+
+  const previousClipboard = clipboard.readText()
+  try {
+    clipboard.writeText(text)
+    const modifier = process.platform === 'darwin' ? Key.LeftSuper : Key.LeftControl
+    await keyboard.pressKey(modifier, Key.V)
+    await delay(ACTION_DELAY_MS)
+    await keyboard.releaseKey(modifier, Key.V)
+    await delay(ACTION_DELAY_MS)
+  } catch {
+    // Paste failed (e.g. target rejects paste) — fall back to keystroke typing.
+    await keyboard.type(text)
+  } finally {
+    clipboard.writeText(previousClipboard)
+  }
 }
 
 export async function performKeyPress(args: KeyArgs): Promise<void> {

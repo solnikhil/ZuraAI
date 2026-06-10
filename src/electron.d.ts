@@ -1,16 +1,20 @@
 import type {
   AppInfoAPI,
+  AppMenuAPI,
   ChatDebugAPI,
   ChatDiagnosticsAPI,
   CodeExecutionAPI,
   ComputerUseAPI,
   ContextMenuAPI,
   DevToolsAPI,
+  DiscordRpcAPI,
   IElectronAPI,
   McpAPI,
+  MemoryAPI,
   NativeDialogAPI,
   OverlayAPI,
   PromptPopupAPI,
+  ResourceMonitorAPI,
   SecureStorageAPI,
   ShellAPI,
   UpdaterAPI,
@@ -30,11 +34,15 @@ declare global {
     devTools: DevToolsAPI
     contextMenu: ContextMenuAPI
     nativeDialog: NativeDialogAPI
+    appMenu: AppMenuAPI
     mcp: McpAPI
+    memory: MemoryAPI
     codeExecution: CodeExecutionAPI
     computerUse: ComputerUseAPI
     chatDiagnostics?: ChatDiagnosticsAPI
     chatDebug?: ChatDebugAPI
+    resourceMonitor: ResourceMonitorAPI
+    discordRpc: DiscordRpcAPI
   }
 }
 

@@ -19,6 +19,11 @@ import type { Settings } from '../../../contexts/SettingsContext'
 import type { ChatSelectedOverlayStyle } from '../../../contexts/SettingsUIContext'
 import { defaultSettingsUI } from '../../../contexts/SettingsUIContext'
 import {
+  ASSISTANT_PERSONALITIES,
+  normalizeAssistantPersonalityId,
+  type AssistantPersonalityId,
+} from '../../../prompts/assistantPersonalities'
+import {
   getThemeById,
   getDefaultTheme,
   getThemesByCategory,
@@ -27,6 +32,19 @@ import {
   getAvailableTitleModelOptions,
   getProviderDefinition,
 } from '../../../providers'
+
+import { ProviderLogo } from '@/components/shared'
+import { Zap, Settings as SettingsIcon } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 function clampNumber(value: number, min: number, max: number): number {
   if (Number.isNaN(value)) return min
@@ -224,17 +242,35 @@ export function AppearanceSection({
   const promptAutoHide = settings.promptAutoHide
   const promptTimeout = clampNumber(promptAutoHide.timeout, 30, 600)
 
-  const titleModelOptions = getAvailableTitleModelOptions(settings).map((option) => ({
-    value: option.id,
-    label: `${getProviderDefinition(option.provider).label} - ${option.displayName}`,
-  }))
+  const titleModelOptions: Array<{ value: string; label: string; provider: string }> =
+    getAvailableTitleModelOptions(settings).map((option) => ({
+      value: option.id,
+      label: option.displayName,
+      provider: option.provider,
+    }))
 
   if (
     settings.titleModel &&
     !titleModelOptions.some((model) => model.value === settings.titleModel)
   ) {
-    titleModelOptions.push({ value: settings.titleModel, label: settings.titleModel })
+    titleModelOptions.push({ value: settings.titleModel, label: settings.titleModel, provider: '' })
   }
+
+  const selectedTitleModel = titleModelOptions.find((o) => o.value === settings.titleModel)
+
+  const titleProviders = (() => {
+    const seen = new Set<string>()
+    const providers: Array<{ id: string; label: string }> = []
+    for (const option of titleModelOptions) {
+      if (option.provider && !seen.has(option.provider)) {
+        seen.add(option.provider)
+        providers.push({ id: option.provider, label: getProviderDefinition(option.provider).label })
+      }
+    }
+    return providers
+  })()
+
+  const selectedProvider = selectedTitleModel?.provider || titleProviders[0]?.id || ''
 
   const updateCommandBar = (changes: Partial<typeof settings.commandBar>) => {
     updateSettings({
@@ -875,6 +911,31 @@ export function AppearanceSection({
         </div>
       </Card>
 
+      <h3 className="appearance-group-heading">Assistant</h3>
+      <Card className="settings-list-card">
+        <div className="settings-list-row">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Assistant personality</h3>
+            <div className="settings-list-row__description">
+              Controls the communication style added to the runtime system prompt
+            </div>
+          </div>
+          <div className="settings-list-row__control">
+            <SettingsSelect
+              value={normalizeAssistantPersonalityId(settings.assistantPersonality)}
+              onValueChange={(value) =>
+                updateSettings({ assistantPersonality: value as AssistantPersonalityId })
+              }
+              options={ASSISTANT_PERSONALITIES.map((personality) => ({
+                value: personality.id,
+                label: personality.label,
+              }))}
+              aria-label="Assistant personality"
+            />
+          </div>
+        </div>
+      </Card>
+
       <h3 className="appearance-group-heading">Chat Title Generation</h3>
       <Card className="settings-list-card">
         <div className="settings-list-row">
@@ -885,14 +946,74 @@ export function AppearanceSection({
             </div>
           </div>
           <div className="settings-list-row__control">
-            <SettingsSelect
-              value={settings.titleModel || undefined}
-              onValueChange={(value) => updateSettings({ titleModel: value })}
-              options={titleModelOptions}
-              placeholder="No models available"
-              disabled={titleModelOptions.length === 0}
-              aria-label="Title generation model"
-            />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="inline-flex items-center gap-2 rounded-[12px] border border-[var(--theme-border)] bg-[var(--theme-surface)] px-3 py-1.5 text-[13px] text-[var(--theme-text-primary)] transition-colors hover:bg-[var(--theme-surface-hover)]"
+                  aria-label="Title generation model"
+                >
+                  {selectedTitleModel ? (
+                    <span className="inline-flex items-center gap-2">
+                      <ProviderLogo provider={selectedProvider} size={14} />
+                      <span className="truncate">{selectedTitleModel.label}</span>
+                    </span>
+                  ) : (
+                    <span>Use current chat model</span>
+                  )}
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                className="w-[205px] rounded-[14px] p-0.5"
+              >
+                <DropdownMenuItem
+                  onClick={() => updateSettings({ titleModel: '' })}
+                  className="h-8 rounded-[12px] px-1.5 text-[12px]"
+                >
+                  <Zap className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
+                  <span>Use current chat model</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator className="mx-0 my-px h-px" />
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger className="h-8 rounded-[12px] px-1.5 text-[12px]">
+                    <SettingsIcon className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
+                    <span>Use separate model</span>
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent
+                    sideOffset={8}
+                    collisionPadding={12}
+                    className="w-[220px] rounded-[14px] p-0.5"
+                  >
+                    {titleProviders.map((provider) => (
+                      <DropdownMenuSub key={provider.id}>
+                        <DropdownMenuSubTrigger className="h-8 rounded-[12px] px-1.5 text-[12px]">
+                          <ProviderLogo provider={provider.id} size={14} />
+                          <span>{provider.label}</span>
+                        </DropdownMenuSubTrigger>
+                        <DropdownMenuSubContent
+                          sideOffset={8}
+                          collisionPadding={12}
+                          className="w-[220px] max-h-[60vh] overflow-y-auto rounded-[14px] p-0.5"
+                        >
+                          {titleModelOptions
+                            .filter((o) => o.provider === provider.id)
+                            .map((option) => (
+                              <DropdownMenuItem
+                                key={option.value}
+                                onClick={() => updateSettings({ titleModel: option.value })}
+                                className="h-8 rounded-[12px] px-1.5 text-[12px]"
+                              >
+                                <ProviderLogo provider={option.provider} size={14} />
+                                <span>{option.label}</span>
+                              </DropdownMenuItem>
+                            ))}
+                        </DropdownMenuSubContent>
+                      </DropdownMenuSub>
+                    ))}
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 

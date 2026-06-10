@@ -17,8 +17,16 @@ export interface Message {
   role: 'user' | 'assistant' | 'system'
   content: string
   image?: string
+  files?: unknown[]
   timestamp: number
   tokenCount?: number
+  agentRun?: unknown
+  toolResults?: unknown[]
+  thinkingBlocks?: unknown[]
+  researchStatus?: unknown
+  model?: string
+  latency?: number
+  usage?: unknown
 }
 
 export interface ChatSession {

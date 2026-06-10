@@ -55,6 +55,8 @@ export {
   ShieldCheck,
   Monitor,
   MousePointer,
+  Activity,
+  Brain,
 } from 'lucide-react'
 
 // Animated icons

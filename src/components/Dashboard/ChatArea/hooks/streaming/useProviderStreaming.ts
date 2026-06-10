@@ -12,21 +12,24 @@ import {
   providerUsesNativeSearch,
   type ActiveProviderId,
 } from '../../../../../providers'
-import { extractInlineToolCallsFromContent } from '../../../../../tools/adapters/openrouterToolCalls'
+import {
+  extractInlineToolCallsFromContent,
+  normalizeInlineToolCallMarkup,
+} from '../../../../../tools/adapters/openrouterToolCalls'
 import { emptyUsage } from '../../../../../providers/providerRuntimeTypes'
 import {
   SAFETY_CAP,
   MAX_RESEARCH_ROUNDS,
   accumulateDeltaToolCalls,
   appendCompletedThinkingBlock,
-  buildFinalSynthesisMessages,
+  buildAgentVerificationMessages,
+  buildDeterministicSearchSynthesis,
   buildFollowUpMessages,
   buildPlainTextOnlySynthesisMessages,
   buildRecoverySynthesisMessages,
-  buildSearchSynthesisFailureMessage,
   buildResponseWithFallback,
+  SEARCH_SYNTHESIS_FAILURE_MESSAGE,
   buildThinkingBlocksFromResults,
-  shouldRetryUngroundedSearchSynthesis,
   computeStreamMetrics,
   fillMissingUsage,
   getStreamingUpdateInterval,
@@ -36,9 +39,11 @@ import {
   processInitialToolResults,
   publishStreamingToolResults,
   reconstructToolCallMessage,
+  shouldRetryUngroundedSearchSynthesis,
   stripStandaloneHorizontalRule,
   type DeltaToolCall,
 } from './streamingUtils'
+import { selectVerificationStrategy, type AgentVerificationStrategy } from '../../../../../agent/reliability'
 import { createProviderStreamClient } from './providerStreamClient'
 import {
   appendChatDiagnosticEvent,
@@ -49,6 +54,11 @@ import {
   evaluateResearchContinuation,
   getEffectiveSearchBudget,
 } from './researchLoopPolicy'
+import {
+  TOOL_FOLLOW_UP_SPLIT_MARKER,
+  createToolFollowUpSplitMarker,
+  endsWithToolFollowUpSplitMarker,
+} from '../../messageTimeline'
 import type {
   HandleToolCallsOptions,
   NormalizedUsage,
@@ -59,6 +69,7 @@ import type {
 } from './types'
 import type { ChatDiagnosticRequestShape } from '../../../../../diagnostics/chatDiagnostics'
 import { createStreamChunkCoalescer } from '../../../../../diagnostics/streamChunkCoalescer'
+import type { ResearchState } from '../../../../../research/types'
 
 export interface ProviderStreamingRunOptions {
   provider: ActiveProviderId
@@ -121,12 +132,65 @@ function mergeUsage(existing: NormalizedUsage, incoming: NormalizedUsage): Norma
 
 const TOOL_MARKUP_PREVIEW_LIMIT = 240
 
+/**
+ * Opening markup signatures we cut the stream early on during a no-tools
+ * synthesis round. Once the model starts writing one of these, it has
+ * already given up on prose and will keep emitting markup; aborting now
+ * lets the retry pipeline kick in faster and avoids the user watching
+ * raw `<||DSML||tool_calls>` scroll past in chat.
+ */
+const MID_STREAM_MARKUP_PATTERNS: ReadonlyArray<{ format: 'dsml' | 'xml'; pattern: RegExp }> = [
+  { format: 'dsml', pattern: /<\s*\|\s*\|\s*DSML\s*\|\s*\|\s*(?:tool_calls|invoke)\b/i },
+  { format: 'xml', pattern: /<\s*invoke\s+name=["']/i },
+  { format: 'xml', pattern: /<\s*tool_call(?:s)?\s*>/i },
+]
+
+function detectMidStreamMarkup(content: string): 'dsml' | 'xml' | null {
+  if (!content) return null
+  const normalizedContent = normalizeInlineToolCallMarkup(content)
+  for (const { format, pattern } of MID_STREAM_MARKUP_PATTERNS) {
+    if (pattern.test(normalizedContent)) return format
+  }
+  return null
+}
+
+/**
+ * Index where inline tool-call markup begins, or null if none is present.
+ * Used in tool-enabled rounds to freeze the visible content at the clean
+ * prefix so raw `<||DSML||tool_calls>` markup never streams to the user
+ * before it's parsed into tool calls at end-of-round.
+ */
+function findMidStreamMarkupStart(content: string): number | null {
+  if (!content) return null
+  const normalizedContent = normalizeInlineToolCallMarkup(content)
+  let start: number | null = null
+  for (const { pattern } of MID_STREAM_MARKUP_PATTERNS) {
+    const match = normalizedContent.match(pattern)
+    if (match?.index != null && (start === null || match.index < start)) {
+      start = match.index
+    }
+  }
+  return start
+}
+
+class MidStreamMarkupAbort extends Error {
+  readonly format: 'dsml' | 'xml'
+  readonly previewContent: string
+  constructor(format: 'dsml' | 'xml', previewContent: string) {
+    super('Mid-stream tool-call markup detected during no-tools synthesis')
+    this.name = 'MidStreamMarkupAbort'
+    this.format = format
+    this.previewContent = previewContent
+  }
+}
+
 function logToolMarkupLeak(
   event:
     | 'detected'
     | 'recovered'
     | 'suppressed-during-no-tools-pass'
-    | 'recovery-failed',
+    | 'recovery-failed'
+    | 'mid-stream-cut',
   details: Record<string, unknown>
 ): void {
   console.warn('[tool-markup-leak]', event, details)
@@ -151,6 +215,10 @@ function extractWebSearchQueries(toolResults: ToolCallResult[] | undefined): str
     .filter((result) => result.toolCall.name === 'web_search')
     .map((result) => String(result.toolCall.arguments?.query || '').trim())
     .filter(Boolean)
+}
+
+function hasNonWebToolResults(toolResults: ToolCallResult[] | undefined): boolean {
+  return (toolResults || []).some((result) => result.toolCall.name !== 'web_search')
 }
 
 function getUserContextText(
@@ -235,13 +303,6 @@ interface VisibleAnswerRound {
   firstTokenTime: number | null
 }
 
-interface SynthesisContext {
-  lastAssistantMessage: ServiceAssistantMessage
-  formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>
-  totalSearchCount: number
-  researchRound: number
-}
-
 export function useProviderStreaming({
   settings,
   toolCalling,
@@ -291,6 +352,19 @@ export function useProviderStreaming({
           ...event,
         })
       }
+      const logResearchState = (
+        researchState: ResearchState,
+        details?: Omit<
+          Parameters<typeof appendChatDiagnosticEvent>[0],
+          'sessionId' | 'messageId' | 'timestamp' | 'provider' | 'model' | 'phase' | 'researchState'
+        >
+      ) => {
+        logDiagnostic({
+          phase: 'research-state',
+          researchState,
+          ...details,
+        })
+      }
 
       // Coalesce provider deltas into batched stream-chunk diagnostic events.
       // Disabled outside dev so production builds stay quiet.
@@ -309,6 +383,21 @@ export function useProviderStreaming({
       ): HandleToolCallsOptions => ({
         ...options.toolEventCallbacks,
         executionPolicy,
+        requestToolApproval: options.toolEventCallbacks?.requestToolApproval,
+        onToolApprovalStart: (toolCall) => {
+          logDiagnostic({
+            phase: 'tool-start',
+            tool: {
+              id: toolCall.id,
+              name: toolCall.name,
+              arguments: toolCall.arguments,
+            },
+          })
+          options.toolEventCallbacks?.onToolApprovalStart?.(toolCall)
+        },
+        onToolApprovalResolved: (toolCall, approved) => {
+          options.toolEventCallbacks?.onToolApprovalResolved?.(toolCall, approved)
+        },
         onToolStart: (toolCall) => {
           logDiagnostic({
             phase: 'tool-start',
@@ -330,13 +419,23 @@ export function useProviderStreaming({
       })
 
       let accumulatedContent = ''
+      // In tool-enabled rounds, frozen clean prefix once inline tool-call
+      // markup is detected mid-stream (prevents raw markup leaking to the UI).
+      let frozenDisplayContent: string | null = null
       let generatedFiles: FileAttachment[] = []
       let lastUpdateTime = Date.now()
       let finalVisibleAnswerRound: VisibleAnswerRound | null = null
       let savedToolResults: ToolCallResult[] | undefined
       let localThinkingBlocks: ThinkingBlock[] = []
+      // Number of completed thinking/tool blocks that existed at the moment the
+      // first visible (non-hidden) content delta started streaming. This is the
+      // block count that precedes the assistant's pre-tool preamble text, and it
+      // is what the tool follow-up split marker must record so the preamble stays
+      // ABOVE the tool/search activity it triggered. Using localThinkingBlocks.length
+      // at marker-creation time is wrong because that count already includes the
+      // tool block(s) appended AFTER the preamble was emitted.
+      let visibleContentBlockBaseline: number | null = null
       let finishReason: string | null = null
-      let finalAnswerForcedFailure = false
       let activeThinking = ''
       let activeThinkingStartTime: number | null = null
       let citations: string[] = []
@@ -346,9 +445,6 @@ export function useProviderStreaming({
           throw new DOMException('Streaming aborted', 'AbortError')
         }
       }
-
-      const shouldRecoverSearchSynthesis = (content: string) =>
-        !content.trim() || shouldRetryUngroundedSearchSynthesis(content)
 
       const updateStreamingState = (updates: Record<string, unknown>) => {
         if (options.signal?.aborted) return
@@ -377,7 +473,7 @@ export function useProviderStreaming({
         if (now - lastUpdateTime < updateInterval) return
 
         throttledUpdateStreamingMessage(options.sessionId, options.messageId, {
-          content: accumulatedContent,
+          content: frozenDisplayContent ?? accumulatedContent,
           thinking: activeThinking || undefined,
           thinkingDuration: activeThinkingStartTime !== null
             ? performance.now() - activeThinkingStartTime
@@ -417,18 +513,6 @@ export function useProviderStreaming({
         updatePersistedStreamingMessage(options.sessionId, options.messageId, completedThinkingUpdate)
       }
 
-      const resetAccumulatedAnswerForRetry = () => {
-        accumulatedContent = ''
-        finalVisibleAnswerRound = null
-        updateStreamingState({
-          content: '',
-          phase: 'reasoning',
-        })
-        updatePersistedStreamingMessage(options.sessionId, options.messageId, {
-          content: '',
-        })
-      }
-
       const runRound = async (
         roundMessages: ProviderStreamingRunOptions['messages'],
         roundOptions?: {
@@ -437,19 +521,41 @@ export function useProviderStreaming({
           tools?: ReturnType<ToolCallingHook['getToolsForRequest']>
         }
       ) => {
-        const roundStartContent = accumulatedContent
         const roundTools = roundOptions?.tools === undefined ? tools : roundOptions.tools
         const roundAllowsTools =
           Array.isArray(roundTools) && roundTools.length > 0 && roundOptions?.toolChoice !== 'none'
+        const shouldHideToolRoundDraft =
+          roundAllowsTools && (roundOptions?.round ?? 0) > 0
+
+        if (
+          roundOptions?.round !== undefined &&
+          roundOptions.round > 0 &&
+          accumulatedContent.trim().length > 0 &&
+          !endsWithToolFollowUpSplitMarker(accumulatedContent)
+        ) {
+          const splitMarker = shouldHideToolRoundDraft
+            ? createToolFollowUpSplitMarker(
+                visibleContentBlockBaseline ?? localThinkingBlocks.length
+              )
+            : TOOL_FOLLOW_UP_SPLIT_MARKER
+          accumulatedContent = `${accumulatedContent.trimEnd()}${splitMarker}`
+          updateStreamingState({ content: accumulatedContent })
+          updatePersistedStreamingMessage(options.sessionId, options.messageId, {
+            content: accumulatedContent,
+          })
+        }
+
+        const roundStartContent = accumulatedContent
         const roundType = roundAllowsTools ? 'tool-enabled' : 'no-tools'
+        const roundResearchState: ResearchState = roundAllowsTools ? 'search' : 'synthesize'
         let roundContent = ''
         let roundToolCalls: DeltaToolCall[] = []
         let roundReasoningDetails: ReasoningDetail[] = []
         let roundFinishReason: string | null = null
         let roundUsage = emptyUsage()
         let roundFirstTokenTime: number | null = null
-        let strippedToolPrelude = false
         let suppressedInlineToolMarkup = false
+        frozenDisplayContent = null
 
         throwIfAborted()
         logDiagnostic({
@@ -457,6 +563,14 @@ export function useProviderStreaming({
           round: roundOptions?.round,
           roundType,
           messageCount: roundMessages.length,
+          researchState: roundResearchState,
+          searchBudgetRemaining: effectiveSearchBudget,
+        })
+        logResearchState(roundResearchState, {
+          round: roundOptions?.round,
+          roundType,
+          messageCount: roundMessages.length,
+          searchBudgetRemaining: effectiveSearchBudget,
         })
         logDiagnostic({
           phase: 'request-shape',
@@ -468,15 +582,6 @@ export function useProviderStreaming({
             roundOptions?.toolChoice
           ),
         })
-
-        const persistToolPreludeAsThinkingBlock = () => {
-          if (accumulatedContent === roundStartContent) return
-
-          const toolPrelude = accumulatedContent.slice(roundStartContent.length).trim()
-          if (!toolPrelude) return
-
-          localThinkingBlocks = appendCompletedThinkingBlock(localThinkingBlocks, toolPrelude)
-        }
 
         try {
           for await (const event of client.stream({
@@ -508,16 +613,62 @@ export function useProviderStreaming({
                   publishCompletedThinking()
                 }
 
-                accumulatedContent += event.delta
                 roundContent += event.delta
+                if (!shouldHideToolRoundDraft) {
+                  accumulatedContent += event.delta
+                  // Record the block count at the start of the first visible
+                  // content. The preamble text streams AFTER this round's
+                  // reasoning is finalized but BEFORE its tool block is appended,
+                  // so this baseline excludes the tool activity the preamble
+                  // triggers and keeps the preamble above it in the timeline.
+                  if (event.delta && visibleContentBlockBaseline === null) {
+                    visibleContentBlockBaseline = localThinkingBlocks.length
+                  }
+                }
                 if (event.delta) {
-                  streamChunkCoalescer.recordTextDelta(event.delta, accumulatedContent.length)
-                  updateStreamingState({
-                    phase: 'answering',
-                    // Keep the isolated active-message view in sync on every delta.
-                    // Persisted chat-history writes stay throttled separately.
-                    content: accumulatedContent,
-                  })
+                  if (!roundAllowsTools) {
+                    const detectedFormat = detectMidStreamMarkup(roundContent)
+                    if (detectedFormat && !suppressedInlineToolMarkup) {
+                      suppressedInlineToolMarkup = true
+                      frozenDisplayContent = roundStartContent
+                      logToolMarkupLeak('suppressed-during-no-tools-pass', {
+                        provider,
+                        model,
+                        roundType,
+                        format: detectedFormat,
+                        toolNames: [],
+                        cleanedContentLength: 0,
+                        rawPreview: roundContent.slice(0, TOOL_MARKUP_PREVIEW_LIMIT),
+                      })
+                      logResearchState('synthesize', {
+                        round: roundOptions?.round,
+                        roundType,
+                        leakedMarkupFormat: detectedFormat,
+                      })
+                    }
+                  } else if (frozenDisplayContent === null) {
+                    // Tool-enabled round: once inline tool-call markup starts,
+                    // freeze the visible content at the clean prefix so raw
+                    // markup never streams to the user. The tool calls are
+                    // recovered from the round transcript at end-of-round.
+                    const markupStart = findMidStreamMarkupStart(roundContent)
+                    if (markupStart !== null) {
+                      frozenDisplayContent =
+                        roundStartContent + roundContent.slice(0, markupStart).trimEnd()
+                    }
+                  }
+                  streamChunkCoalescer.recordTextDelta(
+                    event.delta,
+                    roundStartContent.length + roundContent.length
+                  )
+                  if (!shouldHideToolRoundDraft) {
+                    updateStreamingState({
+                      phase: 'answering',
+                      // Keep the isolated active-message view in sync on every delta.
+                      // Persisted chat-history writes stay throttled separately.
+                      content: frozenDisplayContent ?? accumulatedContent,
+                    })
+                  }
                 }
                 persistProgress()
                 break
@@ -549,22 +700,32 @@ export function useProviderStreaming({
                   finalizeActiveThinking()
                   publishCompletedThinking()
                 }
-                if (!strippedToolPrelude && accumulatedContent !== roundStartContent) {
-                  strippedToolPrelude = true
-                  persistToolPreludeAsThinkingBlock()
+                if (!roundAllowsTools) {
+                  suppressedInlineToolMarkup = true
+                  frozenDisplayContent = roundStartContent
+                  roundFinishReason = null
                   accumulatedContent = roundStartContent
-                  updateStreamingState({
-                    content: accumulatedContent,
-                    thinking: undefined,
-                    thinkingDuration: undefined,
-                    thinkingBlocks: localThinkingBlocks,
+                  roundContent = ''
+                  logToolMarkupLeak('suppressed-during-no-tools-pass', {
+                    provider,
+                    model,
+                    roundType,
+                    format: 'native-tool-call-delta',
+                    toolNames: event.delta
+                      .map((toolCall) => toolCall.function?.name)
+                      .filter(Boolean),
+                    cleanedContentLength: 0,
+                    rawPreview: JSON.stringify(event.delta).slice(0, TOOL_MARKUP_PREVIEW_LIMIT),
                   })
-                  updatePersistedStreamingMessage(options.sessionId, options.messageId, {
-                    content: accumulatedContent,
-                    thinking: undefined,
-                    thinkingDuration: undefined,
-                    thinkingBlocks: localThinkingBlocks,
+                  logResearchState('synthesize', {
+                    round: roundOptions?.round,
+                    roundType,
+                    leakedMarkupFormat: 'native-tool-call-delta',
+                    recoveredQueryCount: 0,
                   })
+                  updateStreamingState({ content: accumulatedContent })
+                  persistProgress()
+                  break
                 }
                 accumulateDeltaToolCalls(roundToolCalls, event.delta)
                 streamChunkCoalescer.recordToolCallDelta(
@@ -581,7 +742,12 @@ export function useProviderStreaming({
                 logDiagnostic({ phase: 'usage', round: roundOptions?.round, roundType, usage: event.usage, rawUsage: event.rawUsage })
                 break
               case 'finish':
-                roundFinishReason = event.finishReason || null
+                if (!roundAllowsTools && event.finishReason === 'tool_calls') {
+                  suppressedInlineToolMarkup = true
+                  roundFinishReason = null
+                } else {
+                  roundFinishReason = event.finishReason || null
+                }
                 break
               case 'citation':
                 citations = [...new Set([...citations, ...event.citations])]
@@ -591,14 +757,48 @@ export function useProviderStreaming({
             }
           }
         } catch (streamError: unknown) {
-          if (!(streamError instanceof DOMException && streamError.name === 'AbortError')) {
+          if (streamError instanceof MidStreamMarkupAbort) {
+            // Soft abort: keep what we have but signal the suppression flag so
+            // end-of-round logic strips the markup and the caller can classify
+            // this round as 'leaked'. We DO NOT rethrow — the rest of the
+            // round teardown still needs to run.
+            suppressedInlineToolMarkup = true
+            // Emit the same 'suppressed-during-no-tools-pass' signal
+            // end-of-round suppression would have, so existing diagnostics
+            // and tests see consistent behavior whether the markup was
+            // caught mid-stream or only at end-of-round.
+            logToolMarkupLeak('suppressed-during-no-tools-pass', {
+              provider,
+              model,
+              roundType,
+              format: streamError.format,
+              toolNames: [],
+              cleanedContentLength: 0,
+              rawPreview: streamError.previewContent.slice(0, TOOL_MARKUP_PREVIEW_LIMIT),
+            })
+            logToolMarkupLeak('mid-stream-cut', {
+              provider,
+              model,
+              roundType,
+              format: streamError.format,
+              rawPreview: streamError.previewContent.slice(0, TOOL_MARKUP_PREVIEW_LIMIT),
+            })
+            // Reset the visible content immediately so the user doesn't see the
+            // markup; cleaned content (likely empty) replaces accumulatedContent
+            // at end-of-round.
+            accumulatedContent = roundStartContent
+            roundContent = ''
+            updateStreamingState({ content: accumulatedContent })
+          } else if (!(streamError instanceof DOMException && streamError.name === 'AbortError')) {
             streamChunkCoalescer.flush()
             logDiagnostic({
               phase: 'provider-error',
               error: streamError instanceof Error ? streamError.message : String(streamError),
             })
+            throw streamError
+          } else {
+            throw streamError
           }
-          throw streamError
         }
 
         throwIfAborted()
@@ -610,12 +810,12 @@ export function useProviderStreaming({
         flushActiveThrottledUpdates()
         throwIfAborted()
         const hasValidRoundToolCalls = roundToolCalls.some((toolCall) => toolCall?.id)
-        if (roundFinishReason === 'tool_calls' && hasValidRoundToolCalls) {
-          accumulatedContent = roundStartContent
-        }
-        let finalRoundContent = providerUsesNativeSearch(provider)
-          ? cleanSonarResponse(accumulatedContent, citations)
+        const roundTranscriptContent = shouldHideToolRoundDraft
+          ? roundStartContent + roundContent
           : accumulatedContent
+        let finalRoundContent = providerUsesNativeSearch(provider)
+          ? cleanSonarResponse(roundTranscriptContent, citations)
+          : roundTranscriptContent
 
         if (!hasValidRoundToolCalls) {
           const extracted = extractInlineToolCallsFromContent(finalRoundContent, {
@@ -630,6 +830,14 @@ export function useProviderStreaming({
               roundType,
               format: extracted.format,
               rawPreview: extracted.rawPreview.slice(0, TOOL_MARKUP_PREVIEW_LIMIT),
+            })
+            logResearchState(roundResearchState, {
+              round: roundOptions?.round,
+              roundType,
+              leakedMarkupFormat: extracted.format || undefined,
+              recoveredQueryCount: extracted.toolCalls.filter(
+                (toolCall) => toolCall.name === 'web_search'
+              ).length,
             })
 
             finalRoundContent = extracted.cleanedContent
@@ -665,6 +873,17 @@ export function useProviderStreaming({
               })
             } else if (!roundAllowsTools) {
               suppressedInlineToolMarkup = true
+              if (extracted.toolCalls.length > 0) {
+                roundToolCalls = extracted.toolCalls.map((toolCall, index) => ({
+                  index,
+                  id: toolCall.id,
+                  type: 'function',
+                  function: {
+                    name: toolCall.name,
+                    arguments: JSON.stringify(toolCall.arguments),
+                  },
+                }))
+              }
               logToolMarkupLeak('suppressed-during-no-tools-pass', {
                 provider,
                 model,
@@ -688,8 +907,13 @@ export function useProviderStreaming({
           }
         }
 
+        const committedVisibleContent =
+          shouldHideToolRoundDraft && roundFinishReason === 'tool_calls'
+            ? roundStartContent
+            : finalRoundContent
+
         updateStreamingState({
-          content: finalRoundContent,
+          content: committedVisibleContent,
           phase: 'answering',
           thinking: undefined,
           thinkingDuration: undefined,
@@ -697,7 +921,7 @@ export function useProviderStreaming({
           files: generatedFiles,
         })
         updatePersistedStreamingMessage(options.sessionId, options.messageId, {
-          content: finalRoundContent,
+          content: committedVisibleContent,
           thinking: undefined,
           thinkingDuration: undefined,
           thinkingBlocks: localThinkingBlocks,
@@ -705,7 +929,7 @@ export function useProviderStreaming({
           toolResults: savedToolResults,
         })
 
-        accumulatedContent = finalRoundContent
+        accumulatedContent = committedVisibleContent
         if (roundFinishReason) {
           finishReason = roundFinishReason
         }
@@ -740,57 +964,152 @@ export function useProviderStreaming({
         }
       }
 
-      const runNoToolsSynthesisAttempt = async (
-        synthesisContext: SynthesisContext,
-        mode: 'final' | 'recovery' | 'plain-text-only'
-      ) => {
-        throwIfAborted()
-        const researchContext = toolCalling.getResearchContext(
-          synthesisContext.totalSearchCount,
-          options.researchMaxRounds
+      /**
+       * Run a final no-tools synthesis pass with bounded retries. DSML/XML
+       * tool markup is treated as leaked invalid output here: the search phase
+       * is over, so final synthesis must write plain text instead of recovering
+       * or executing additional searches.
+       */
+      const runFinalSynthesis = async (
+        baseRound: number,
+        totalSearchCount: number,
+        lastAssistantMessage: ServiceAssistantMessage,
+        formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>
+      ): Promise<void> => {
+        type Outcome = 'good' | 'blank' | 'leaked-or-ungrounded'
+
+        const classify = (round: {
+          roundContent: string
+          suppressedInlineToolMarkup: boolean
+        }): Outcome => {
+          if (round.suppressedInlineToolMarkup) return 'leaked-or-ungrounded'
+          const trimmed = round.roundContent.trim()
+          if (!trimmed) return 'blank'
+          if (shouldRetryUngroundedSearchSynthesis(trimmed)) return 'leaked-or-ungrounded'
+          return 'good'
+        }
+
+        const noToolsResearchContext = ''
+
+        // Snapshot accumulatedContent so we can roll back between failed
+        // attempts. Without this, a blank/leaked attempt would leak its
+        // partial state into the next attempt's content.
+        const baselineContent = accumulatedContent
+
+        const commitSynthesisFailure = () => {
+          const deterministicAnswer = buildDeterministicSearchSynthesis(savedToolResults)
+          logResearchLoop('synthesis-failed', {
+            deterministicAnswerUsed: Boolean(deterministicAnswer),
+            searchBudgetRemaining: Math.max(0, effectiveSearchBudget - totalSearchCount),
+          })
+          accumulatedContent =
+            baselineContent + (deterministicAnswer || SEARCH_SYNTHESIS_FAILURE_MESSAGE)
+          finishReason = null
+          updateStreamingState({
+            content: accumulatedContent,
+            phase: 'answering',
+          })
+          updatePersistedStreamingMessage(options.sessionId, options.messageId, {
+            content: accumulatedContent,
+          })
+        }
+
+        // Attempt 1: plain follow-up. No discouragement prompt; we want to
+        // see what the model does naturally with the gathered evidence.
+        const attempt1Messages = buildFollowUpMessages(
+          noToolsResearchContext,
+          baseRound,
+          totalSearchCount,
+          options.messages,
+          lastAssistantMessage,
+          formattedResults
         )
-
-        const synthesisMessages =
-          mode === 'final'
-            ? buildFinalSynthesisMessages(
-                researchContext,
-                synthesisContext.researchRound,
-                synthesisContext.totalSearchCount,
-                options.messages,
-                synthesisContext.lastAssistantMessage,
-                synthesisContext.formattedResults
-              )
-            : mode === 'recovery'
-              ? buildRecoverySynthesisMessages(
-                  researchContext,
-                  synthesisContext.researchRound,
-                  synthesisContext.totalSearchCount,
-                  options.messages,
-                  synthesisContext.lastAssistantMessage,
-                  synthesisContext.formattedResults
-                )
-              : buildPlainTextOnlySynthesisMessages(
-                  researchContext,
-                  synthesisContext.researchRound,
-                  synthesisContext.totalSearchCount,
-                  options.messages,
-                  synthesisContext.lastAssistantMessage,
-                  synthesisContext.formattedResults
-                )
-
         updateStreamingState({
-          phase: 'reasoning',
-          researchStatus: buildResearchStatus(
-            synthesisContext.researchRound,
-            options.researchMaxRounds,
-            false
-          ),
+          phase: 'answering',
+          researchStatus: buildResearchStatus(baseRound, options.researchMaxRounds, false),
         })
-        return await runRound(synthesisMessages, {
-          round: synthesisContext.researchRound,
-          tools: null,
+        throwIfAborted()
+        const attempt1 = await runRound(attempt1Messages, {
+          round: baseRound,
           toolChoice: 'none',
+          tools: [],
         })
+        throwIfAborted()
+        const outcome1 = classify(attempt1)
+        if (outcome1 === 'good') return
+
+        logResearchLoop('synthesis-retry', {
+          attempt: 1,
+          outcome: outcome1,
+          baseRound,
+        })
+        // Roll back to baseline before attempt 2.
+        accumulatedContent = baselineContent
+        updateStreamingState({ content: accumulatedContent })
+
+        // Attempt 2: use a recovery prompt based on the failure shape.
+        const attempt2Messages =
+          outcome1 === 'blank'
+            ? buildRecoverySynthesisMessages(
+                noToolsResearchContext,
+                baseRound + 1,
+                totalSearchCount,
+                options.messages,
+                lastAssistantMessage,
+                formattedResults
+              )
+            : buildPlainTextOnlySynthesisMessages(
+                noToolsResearchContext,
+                baseRound + 1,
+                totalSearchCount,
+                options.messages,
+                lastAssistantMessage,
+                formattedResults
+              )
+        const attempt2 = await runRound(attempt2Messages, {
+          round: baseRound + 1,
+          toolChoice: 'none',
+          tools: [],
+        })
+        throwIfAborted()
+        const outcome2 = classify(attempt2)
+        if (outcome2 === 'good') return
+
+        logResearchLoop('synthesis-retry', {
+          attempt: 2,
+          outcome: outcome2,
+          baseRound,
+        })
+        accumulatedContent = baselineContent
+        updateStreamingState({ content: accumulatedContent })
+
+        // Attempt 3: strictest plain-text-only escalation.
+        const attempt3Messages = buildPlainTextOnlySynthesisMessages(
+          noToolsResearchContext,
+          baseRound + 2,
+          totalSearchCount,
+          options.messages,
+          lastAssistantMessage,
+          formattedResults
+        )
+        const attempt3 = await runRound(attempt3Messages, {
+          round: baseRound + 2,
+          toolChoice: 'none',
+          tools: [],
+        })
+        throwIfAborted()
+        const outcome3 = classify(attempt3)
+        if (outcome3 === 'good') return
+
+        logResearchLoop('synthesis-retry', {
+          attempt: 3,
+          outcome: outcome3,
+          baseRound,
+        })
+
+        // All synthesis attempts failed. Keep the tool-result cards in the
+        // timeline, but do not fabricate an answer-looking wall of evidence.
+        commitSynthesisFailure()
       }
 
       const initialToolChoice =
@@ -848,6 +1167,7 @@ export function useProviderStreaming({
         )
         throwIfAborted()
         const initialAttemptedSearchQueries = extractWebSearchQueries(toolResult.toolResults)
+        const initialHasNonWebTools = hasNonWebToolResults(toolResult.toolResults)
         const initialExecutedSearchQueries =
           toolResult.executionSummary.executedWebSearchQueries || []
 
@@ -891,14 +1211,12 @@ export function useProviderStreaming({
           const searchQueryHistory = [...initialExecutedSearchQueries]
           let lastAssistantMessage = reconstructedMessage
           let researchRound = 1
-          let didRunFinalSynthesis = false
-          let pendingFinalSynthesis: SynthesisContext | null = null
-          let lastSynthesisContext: SynthesisContext = {
-            lastAssistantMessage: reconstructedMessage,
-            formattedResults: toolResult.formattedResults,
-            totalSearchCount,
-            researchRound,
-          }
+          let pendingVerificationStrategy: AgentVerificationStrategy | null =
+            options.toolEventCallbacks
+              ? selectVerificationStrategy(toolResult.toolResults)
+              : null
+          let verificationStepStarted = false
+          let verificationRecoveryUsed = false
           const initialLoopDecision = evaluateResearchContinuation({
             searchCount: totalSearchCount,
             maxRounds: options.researchMaxRounds,
@@ -917,26 +1235,30 @@ export function useProviderStreaming({
             initialDecision: initialLoopDecision.reason || 'continue',
           })
 
-          const shouldSynthesizeAfterInitialBatch =
-            initialLoopDecision.shouldForceFinalSynthesis ||
-            toolResult.shouldContinueResearch === false
+          const shouldStopAfterInitialBatch =
+            !initialHasNonWebTools &&
+            initialLoopDecision.shouldForceFinalSynthesis
 
           if (
-            shouldSynthesizeAfterInitialBatch &&
-            toolResult.needsFollowUp &&
-            toolResult.formattedResults.length > 0
+            shouldStopAfterInitialBatch &&
+            toolResult.needsFollowUp
           ) {
-            pendingFinalSynthesis = {
-              lastAssistantMessage: reconstructedMessage,
-              formattedResults: toolResult.formattedResults,
-              totalSearchCount,
-              researchRound,
-            }
-            logResearchLoop('final-synthesis-scheduled', {
-              reason: initialLoopDecision.reason || 'sufficient-tool-results',
+            logResearchLoop('tool-loop-stopped', {
+              reason: initialLoopDecision.reason || 'tool-result-complete',
               totalSearchCount,
               researchRound,
             })
+            // Run a no-tools synthesis pass with bounded retries. Without
+            // this the orchestrator would exit straight to `finish` with
+            // empty content (only the round-0 tool_call response). The
+            // retry pipeline handles blank, leaked-markup, and ungrounded
+            // outputs and falls back to deterministic evidence when possible.
+            await runFinalSynthesis(
+              researchRound,
+              totalSearchCount,
+              lastAssistantMessage,
+              toolResult.formattedResults
+            )
             toolResult = {
               ...toolResult,
               needsFollowUp: false,
@@ -951,14 +1273,34 @@ export function useProviderStreaming({
             })
 
             throwIfAborted()
-            const followUpMessages = buildFollowUpMessages(
-              toolCalling.getResearchContext(totalSearchCount, options.researchMaxRounds),
-              researchRound,
+            const activeVerificationStrategy = pendingVerificationStrategy
+            if (activeVerificationStrategy && !verificationStepStarted) {
+              verificationStepStarted = true
+              options.toolEventCallbacks?.onVerificationStart?.(activeVerificationStrategy)
+            }
+            const researchContextMsg = toolCalling.getResearchContext(
               totalSearchCount,
-              options.messages,
-              lastAssistantMessage,
-              toolResult.formattedResults
+              options.researchMaxRounds
             )
+            const followUpMessages = activeVerificationStrategy
+              ? buildAgentVerificationMessages(
+                  activeVerificationStrategy,
+                  researchContextMsg,
+                  researchRound,
+                  totalSearchCount,
+                  options.messages,
+                  lastAssistantMessage,
+                  toolResult.formattedResults,
+                  { recoveryAttempt: verificationRecoveryUsed }
+                )
+              : buildFollowUpMessages(
+                  researchContextMsg,
+                  researchRound,
+                  totalSearchCount,
+                  options.messages,
+                  lastAssistantMessage,
+                  toolResult.formattedResults
+                )
 
             updateStreamingState({
               phase: 'reasoning',
@@ -969,6 +1311,7 @@ export function useProviderStreaming({
               ),
             })
 
+            const followUpRoundStart = accumulatedContent
             const followUpRound = await runRound(followUpMessages, { round: researchRound })
             throwIfAborted()
             const hasValidToolCalls =
@@ -981,18 +1324,61 @@ export function useProviderStreaming({
                 totalSearchCount,
                 hasAnswerText: Boolean(followUpRound.roundContent.trim()),
               })
-              if (!followUpRound.roundContent.trim() && toolResult.formattedResults.length > 0) {
-                pendingFinalSynthesis = {
-                  lastAssistantMessage,
-                  formattedResults: toolResult.formattedResults,
-                  totalSearchCount,
-                  researchRound,
+              if (activeVerificationStrategy) {
+                accumulatedContent = followUpRoundStart
+                updateStreamingState({ content: accumulatedContent })
+
+                if (!verificationRecoveryUsed) {
+                  verificationRecoveryUsed = true
+                  continue
                 }
-                logResearchLoop('final-synthesis-scheduled', {
-                  reason: 'empty-follow-up-answer',
+
+                options.toolEventCallbacks?.onVerificationComplete?.(
+                  activeVerificationStrategy,
+                  false
+                )
+                accumulatedContent =
+                  followUpRoundStart +
+                  'I made a change, but I could not verify the outcome after one recovery attempt, so I stopped instead of continuing blind.'
+                updateStreamingState({ content: accumulatedContent })
+                updatePersistedStreamingMessage(options.sessionId, options.messageId, {
+                  content: accumulatedContent,
+                })
+                break
+              }
+              const followUpClassifiable = {
+                roundContent: followUpRound.roundContent,
+                suppressedInlineToolMarkup: followUpRound.suppressedInlineToolMarkup,
+              }
+              const followUpIsBlank = !followUpRound.roundContent.trim()
+              const followUpLeakedMarkup = followUpRound.suppressedInlineToolMarkup
+              const followUpUngrounded = shouldRetryUngroundedSearchSynthesis(
+                followUpClassifiable.roundContent
+              )
+
+              if (
+                (followUpIsBlank || followUpLeakedMarkup || followUpUngrounded) &&
+                toolResult.formattedResults.length > 0
+              ) {
+                logResearchLoop('tool-loop-stopped', {
+                  reason: followUpIsBlank
+                    ? 'empty-follow-up-answer'
+                    : followUpLeakedMarkup
+                      ? 'leaked-markup-follow-up-answer'
+                      : 'ungrounded-follow-up-answer',
                   totalSearchCount,
                   researchRound,
                 })
+                // Roll back accumulatedContent before kicking the synthesis
+                // pipeline so attempts start from a clean slate.
+                accumulatedContent = followUpRoundStart
+                updateStreamingState({ content: accumulatedContent })
+                await runFinalSynthesis(
+                  researchRound,
+                  totalSearchCount,
+                  lastAssistantMessage,
+                  toolResult.formattedResults
+                )
               }
               break
             }
@@ -1021,18 +1407,17 @@ export function useProviderStreaming({
               }
             )
             throwIfAborted()
+            const wasVerificationRound = Boolean(activeVerificationStrategy)
+            const verificationSucceeded =
+              wasVerificationRound &&
+              nextToolResult.toolResults.some((result) => result.result?.success)
 
             const attemptedSearchQueries = extractWebSearchQueries(nextToolResult.toolResults)
+            const hasNonWebTools = hasNonWebToolResults(nextToolResult.toolResults)
             const executedSearchQueries =
               nextToolResult.executionSummary.executedWebSearchQueries || []
             const newWebSearches = nextToolResult.executionSummary.executedWebSearchCount || 0
             totalSearchCount += newWebSearches
-            lastSynthesisContext = {
-              lastAssistantMessage: reconstructedFollowUp,
-              formattedResults: nextToolResult.formattedResults,
-              totalSearchCount,
-              researchRound,
-            }
 
             logResearchLoop('follow-up-tool-result', {
               researchRound,
@@ -1071,6 +1456,40 @@ export function useProviderStreaming({
             })
 
             researchRound += 1
+            if (activeVerificationStrategy) {
+              if (verificationSucceeded) {
+                options.toolEventCallbacks?.onVerificationComplete?.(
+                  activeVerificationStrategy,
+                  true
+                )
+                pendingVerificationStrategy = null
+                verificationStepStarted = false
+                verificationRecoveryUsed = false
+              } else if (!verificationRecoveryUsed) {
+                verificationRecoveryUsed = true
+                pendingVerificationStrategy = activeVerificationStrategy
+              } else {
+                options.toolEventCallbacks?.onVerificationComplete?.(
+                  activeVerificationStrategy,
+                  false
+                )
+                accumulatedContent +=
+                  '\n\nI made a change, but verification did not succeed after one recovery attempt, so I stopped instead of continuing blind.'
+                updateStreamingState({ content: accumulatedContent })
+                updatePersistedStreamingMessage(options.sessionId, options.messageId, {
+                  content: accumulatedContent,
+                })
+                toolResult = {
+                  ...nextToolResult,
+                  needsFollowUp: false,
+                }
+                break
+              }
+            } else {
+              pendingVerificationStrategy = options.toolEventCallbacks
+                ? selectVerificationStrategy(nextToolResult.toolResults)
+                : null
+            }
             const continuationDecision = evaluateResearchContinuation({
               searchCount: totalSearchCount,
               maxRounds: options.researchMaxRounds,
@@ -1081,26 +1500,27 @@ export function useProviderStreaming({
             })
             searchQueryHistory.push(...executedSearchQueries)
 
-            const shouldSynthesizeAfterFollowUpBatch =
-              continuationDecision.shouldForceFinalSynthesis ||
-              nextToolResult.shouldContinueResearch === false
+            const shouldStopAfterFollowUpBatch =
+              !hasNonWebTools &&
+              continuationDecision.shouldForceFinalSynthesis
 
             if (
-              shouldSynthesizeAfterFollowUpBatch &&
-              nextToolResult.needsFollowUp &&
-              nextToolResult.formattedResults.length > 0
+              shouldStopAfterFollowUpBatch &&
+              nextToolResult.needsFollowUp
             ) {
-              pendingFinalSynthesis = {
-                lastAssistantMessage: reconstructedFollowUp,
-                formattedResults: nextToolResult.formattedResults,
-                totalSearchCount,
-                researchRound,
-              }
-              logResearchLoop('final-synthesis-scheduled', {
-                reason: continuationDecision.reason || 'sufficient-tool-results',
+              logResearchLoop('tool-loop-stopped', {
+                reason: continuationDecision.reason || 'tool-result-complete',
                 totalSearchCount,
                 researchRound,
               })
+              // Same gap as the post-initial-batch path: run a bounded
+              // synthesis pass before breaking so the user gets an answer.
+              await runFinalSynthesis(
+                researchRound,
+                totalSearchCount,
+                lastAssistantMessage,
+                nextToolResult.formattedResults
+              )
               toolResult = {
                 ...nextToolResult,
                 needsFollowUp: false,
@@ -1109,119 +1529,6 @@ export function useProviderStreaming({
             }
 
             toolResult = nextToolResult
-          }
-
-          if (pendingFinalSynthesis) {
-            didRunFinalSynthesis = true
-            logResearchLoop('final-synthesis-start', {
-              totalSearchCount: pendingFinalSynthesis.totalSearchCount,
-              researchRound: pendingFinalSynthesis.researchRound,
-            })
-            const finalSynthesisRound = await runNoToolsSynthesisAttempt(pendingFinalSynthesis, 'final')
-            throwIfAborted()
-            logResearchLoop('final-synthesis-complete', {
-              totalSearchCount: pendingFinalSynthesis.totalSearchCount,
-              researchRound: pendingFinalSynthesis.researchRound,
-            })
-
-            updateStreamingState({
-              phase: 'answering',
-              researchStatus: buildResearchStatus(
-                pendingFinalSynthesis.researchRound,
-                options.researchMaxRounds,
-                false
-              ),
-            })
-            updatePersistedStreamingMessage(options.sessionId, options.messageId, {
-              researchStatus: buildResearchStatus(
-                pendingFinalSynthesis.researchRound,
-                options.researchMaxRounds,
-                false
-              ),
-            })
-
-            if (finalSynthesisRound.suppressedInlineToolMarkup) {
-              resetAccumulatedAnswerForRetry()
-            }
-          }
-
-          if (
-            hasSearchResults(savedToolResults) &&
-            shouldRecoverSearchSynthesis(accumulatedContent) &&
-            lastSynthesisContext.formattedResults.length > 0
-          ) {
-            const recoveryReason = !accumulatedContent.trim() ? 'blank-answer' : 'ungrounded-answer'
-            logResearchLoop('final-synthesis-recovery', {
-              totalSearchCount: lastSynthesisContext.totalSearchCount,
-              researchRound: lastSynthesisContext.researchRound,
-              afterPriorSynthesis: didRunFinalSynthesis,
-              reason: recoveryReason,
-            })
-
-            const recoveryModes: Array<'final' | 'recovery' | 'plain-text-only'> = didRunFinalSynthesis
-              ? ['recovery', 'plain-text-only']
-              : ['final', 'recovery', 'plain-text-only']
-
-            if (accumulatedContent.trim()) {
-              resetAccumulatedAnswerForRetry()
-            }
-
-            for (const mode of recoveryModes) {
-              const recoveryRound = await runNoToolsSynthesisAttempt(lastSynthesisContext, mode)
-              throwIfAborted()
-              const needsRetry =
-                recoveryRound.roundFinishReason === 'tool_calls' ||
-                recoveryRound.suppressedInlineToolMarkup ||
-                shouldRecoverSearchSynthesis(accumulatedContent)
-
-              if (!needsRetry) {
-                break
-              }
-
-              logResearchLoop('final-synthesis-retry-needed', {
-                mode,
-                totalSearchCount: lastSynthesisContext.totalSearchCount,
-                researchRound: lastSynthesisContext.researchRound,
-                finishReason: recoveryRound.roundFinishReason,
-                hasContent: Boolean(accumulatedContent.trim()),
-                stillUngrounded: shouldRetryUngroundedSearchSynthesis(accumulatedContent),
-              })
-
-              if (shouldRecoverSearchSynthesis(accumulatedContent)) {
-                resetAccumulatedAnswerForRetry()
-              }
-            }
-
-            if (shouldRecoverSearchSynthesis(accumulatedContent)) {
-              const failureContent = buildSearchSynthesisFailureMessage(savedToolResults)
-              if (failureContent) {
-                accumulatedContent = failureContent
-                finalAnswerForcedFailure = true
-                updateStreamingState({
-                  content: accumulatedContent,
-                  phase: 'answering',
-                })
-                updatePersistedStreamingMessage(options.sessionId, options.messageId, {
-                  content: accumulatedContent,
-                })
-              }
-            }
-
-            updateStreamingState({
-              phase: 'answering',
-              researchStatus: buildResearchStatus(
-                lastSynthesisContext.researchRound,
-                options.researchMaxRounds,
-                false
-              ),
-            })
-            updatePersistedStreamingMessage(options.sessionId, options.messageId, {
-              researchStatus: buildResearchStatus(
-                lastSynthesisContext.researchRound,
-                options.researchMaxRounds,
-                false
-              ),
-            })
           }
         }
       }
@@ -1249,7 +1556,7 @@ export function useProviderStreaming({
       const finalContent = hasSearchResults(savedToolResults)
         ? stripStandaloneHorizontalRule(accumulatedContent)
         : accumulatedContent
-      const finalFinishReason = finalAnswerForcedFailure ? undefined : finishReason || undefined
+      const finalFinishReason = finishReason || undefined
       const finalUsage = {
         ...basicUsage,
         thinkingTokens: visibleAnswerUsage?.thinkingTokens,

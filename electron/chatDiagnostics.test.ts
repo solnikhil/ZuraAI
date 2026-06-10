@@ -227,6 +227,42 @@ describe('chat diagnostics persistence', () => {
     expect(event.streamChunk).toEqual({ chunkIndex: 1, cumulativeTextLength: 4 })
   })
 
+  it('persists memory-extraction events and their durable-fact metadata', async () => {
+    const diagnostics = await import('./chatDiagnostics')
+
+    const startAppended = await diagnostics.appendChatDiagnosticEvent({
+      sessionId: 'session-memory',
+      messageId: 'memory-extraction',
+      phase: 'memory-extraction-start',
+      model: 'fake-model',
+      messageCount: 6,
+    })
+    const resultAppended = await diagnostics.appendChatDiagnosticEvent({
+      sessionId: 'session-memory',
+      messageId: 'memory-extraction',
+      phase: 'memory-extraction-result',
+      model: 'fake-model',
+      factCount: 2,
+      summaryKept: false,
+    })
+
+    expect(startAppended).toBe(true)
+    expect(resultAppended).toBe(true)
+
+    const events = await diagnostics.readChatDiagnosticEvents('session-memory')
+    expect(events).toHaveLength(2)
+    expect(events[0]).toMatchObject({
+      phase: 'memory-extraction-start',
+      model: 'fake-model',
+      messageCount: 6,
+    })
+    expect(events[1]).toMatchObject({
+      phase: 'memory-extraction-result',
+      factCount: 2,
+      summaryKept: false,
+    })
+  })
+
   it('rejects events with an unknown phase', async () => {
     const diagnostics = await import('./chatDiagnostics')
 

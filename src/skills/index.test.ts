@@ -3,13 +3,16 @@ import {
   buildEnabledSkillsPrompt,
   defaultSkillsSettings,
   getCodeExecutionToolExposure,
+  getComputerUseToolExposure,
   getWebResearchToolExposure,
   isCodeExecutionEnabled,
   isChartGenerationEnabled,
+  isSkillEnabled,
   migrateSkillsFromLegacySettings,
   normalizeSkillsSettings,
   withCodeExecutionEnabled,
   withChartGenerationEnabled,
+  withComputerUseEnabled,
 } from './index'
 
 describe('skills settings migration', () => {
@@ -133,6 +136,31 @@ describe('code_execution skill', () => {
   })
 })
 
+describe('computer_use skill', () => {
+  it('defaults to disabled and no longer recreates agent_desktop', () => {
+    expect(defaultSkillsSettings.computer_use.enabled).toBe(false)
+    expect(defaultSkillsSettings).not.toHaveProperty('agent_desktop')
+  })
+
+  it('ignores legacy agent_desktop settings while preserving computer_use', () => {
+    const normalized = normalizeSkillsSettings({
+      computer_use: { enabled: true },
+      agent_desktop: { enabled: true },
+    })
+
+    expect(normalized.computer_use.enabled).toBe(true)
+    expect(normalized).not.toHaveProperty('agent_desktop')
+  })
+
+  it('withComputerUseEnabled toggles the only desktop-control skill', () => {
+    const updated = withComputerUseEnabled(defaultSkillsSettings, true)
+    expect(isSkillEnabled(updated, 'computer_use')).toBe(true)
+    expect(getComputerUseToolExposure(updated)).toEqual({
+      exposeComputerUse: true,
+    })
+  })
+})
+
 
 describe('chart_generation skill', () => {
   it('defaults to disabled', () => {
@@ -178,5 +206,35 @@ describe('chart_generation skill', () => {
     const prompt = buildEnabledSkillsPrompt(defaultSkillsSettings)
     expect(prompt).not.toContain('chart_generation')
     expect(prompt).not.toContain('Chart Generation')
+  })
+})
+
+
+
+describe('memory auto-management sub-toggle', () => {
+  it('defaults to enabled when memory is enabled and no config present', async () => {
+    const { isMemoryAutoManageEnabled } = await import('./index')
+    expect(isMemoryAutoManageEnabled({ memory: { enabled: true } } as never)).toBe(true)
+  })
+
+  it('is false when memory is disabled', async () => {
+    const { isMemoryAutoManageEnabled } = await import('./index')
+    expect(isMemoryAutoManageEnabled({ memory: { enabled: false } } as never)).toBe(false)
+  })
+
+  it('is false when autoManage config is explicitly false', async () => {
+    const { isMemoryAutoManageEnabled, withMemoryAutoManage } = await import('./index')
+    const skills = withMemoryAutoManage({ memory: { enabled: true } } as never, false)
+    expect(isMemoryAutoManageEnabled(skills)).toBe(false)
+    // The feature itself stays enabled (manual-only), only auto-management is off.
+    expect(skills.memory.enabled).toBe(true)
+  })
+
+  it('round-trips autoManage through normalizeSkillsSettings', async () => {
+    const { normalizeSkillsSettings } = await import('./index')
+    const normalized = normalizeSkillsSettings({
+      memory: { enabled: true, config: { autoManage: false } },
+    })
+    expect(normalized.memory.config?.autoManage).toBe(false)
   })
 })

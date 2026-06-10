@@ -2,6 +2,9 @@ export type ComputerActionType = 'screenshot' | 'click' | 'type' | 'key' | 'scro
 
 export interface ScreenshotArgs {
   display_id?: string
+  window_id?: string
+  window_title?: string
+  app_name?: string
 }
 
 export interface ClickArgs {

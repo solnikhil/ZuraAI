@@ -1,7 +1,6 @@
 import React from 'react'
-import { Info, MoreHorizontal } from 'lucide-react'
+import { Check, MoreHorizontal, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
 import { SkillLogo } from '@/components/shared'
 import {
   DropdownMenu,
@@ -14,7 +13,9 @@ import {
 import {
   BUILT_IN_SKILLS,
   isSkillEnabled as checkSkillEnabled,
+  withComputerUseEnabled,
   withSkillEnabled,
+  type BuiltInSkill,
   type SkillId,
   type SkillsSettings,
 } from '@/skills'
@@ -27,13 +28,38 @@ export interface SkillsSectionProps {
   onChange: (changes: { skills?: SkillsSettings; codeExecutionAutoApprove?: boolean; computerUseAutoApprove?: boolean }) => void
 }
 
-export function SkillsSection({ skills, codeExecutionAutoApprove, computerUseAutoApprove, onChange }: SkillsSectionProps): React.ReactElement {
+interface SkillCatalogGroupProps {
+  title: string
+  skills: BuiltInSkill[]
+  isEnabled: (skillId: SkillId) => boolean
+  setEnabled: (skillId: SkillId, enabled: boolean) => void
+  codeExecutionAutoApprove: boolean
+  computerUseAutoApprove: boolean
+  onChange: SkillsSectionProps['onChange']
+  featured?: boolean
+}
+
+export function SkillsSection({
+  skills,
+  codeExecutionAutoApprove,
+  computerUseAutoApprove,
+  onChange,
+}: SkillsSectionProps): React.ReactElement {
   const isEnabled = (skillId: SkillId): boolean => checkSkillEnabled(skills, skillId)
   const visibleSkills = isMacOSRuntime()
     ? BUILT_IN_SKILLS.filter((skill) => skill.id !== 'computer_use')
     : BUILT_IN_SKILLS
+  const recommendedSkills = visibleSkills.filter((skill) => skill.id === 'web_research')
+  const systemSkills = visibleSkills.filter((skill) => skill.id !== 'web_research')
 
   const setEnabled = (skillId: SkillId, enabled: boolean) => {
+    if (skillId === 'computer_use') {
+      onChange({
+        skills: withComputerUseEnabled(skills, enabled),
+      })
+      return
+    }
+
     onChange({
       skills: withSkillEnabled(skills, skillId, enabled),
     })
@@ -48,47 +74,101 @@ export function SkillsSection({ skills, codeExecutionAutoApprove, computerUseAut
         </div>
       </div>
 
-      <Card className="settings-list-card settings-skills-card p-0">
-        <div className="skills-list">
-          {visibleSkills.map((skill) => {
-            const enabled = isEnabled(skill.id)
+      <div className="skills-catalog" aria-label="Built-in skills">
+        <SkillCatalogGroup
+          title="Recommended"
+          skills={recommendedSkills}
+          isEnabled={isEnabled}
+          setEnabled={setEnabled}
+          codeExecutionAutoApprove={codeExecutionAutoApprove}
+          computerUseAutoApprove={computerUseAutoApprove}
+          onChange={onChange}
+          featured
+        />
+        <SkillCatalogGroup
+          title="System"
+          skills={systemSkills}
+          isEnabled={isEnabled}
+          setEnabled={setEnabled}
+          codeExecutionAutoApprove={codeExecutionAutoApprove}
+          computerUseAutoApprove={computerUseAutoApprove}
+          onChange={onChange}
+        />
+      </div>
+    </div>
+  )
+}
 
-            return (
-              <div key={skill.id} className="skills-row">
-                <div className="skills-row__main">
-                  <div className={`skills-row__logo ${enabled ? 'skills-row__logo--enabled' : ''}`}>
-                    <SkillLogo skill={skill.id} size={18} />
-                  </div>
-                  <div className="skills-row__content">
-                    <h3 className="skills-row__title">{skill.name}</h3>
-                    <div className="skills-row__description">{skill.description}</div>
-                    {skill.note && <div className="skills-row__note">{skill.note}</div>}
-                  </div>
-                </div>
+function SkillCatalogGroup({
+  title,
+  skills,
+  isEnabled,
+  setEnabled,
+  codeExecutionAutoApprove,
+  computerUseAutoApprove,
+  onChange,
+  featured = false,
+}: SkillCatalogGroupProps): React.ReactElement | null {
+  if (skills.length === 0) return null
 
-                <div className="skills-row__actions">
-                  <span
-                    className={`skills-row__status ${enabled ? 'skills-row__status--enabled' : 'skills-row__status--disabled'}`}
-                  >
-                    {enabled ? 'Active' : 'Disabled'}
-                  </span>
+  return (
+    <section className="skills-catalog-group">
+      <div className="skills-catalog-group__header">
+        <h3>{title}</h3>
+      </div>
+      <div className={`skills-catalog-group__grid ${featured ? 'skills-catalog-group__grid--featured' : ''}`}>
+        {skills.map((skill) => {
+          const enabled = isEnabled(skill.id)
+          const hasOptions = enabled && (skill.id === 'code_execution' || skill.id === 'computer_use')
+          const logoSize = ['web_research', 'code_execution', 'computer_use', 'chart_generation'].includes(skill.id)
+            ? 40
+            : featured ? 22 : 18
 
+          return (
+            <div key={skill.id} className="skills-catalog-row">
+              <button
+                type="button"
+                className="skills-catalog-row__main"
+                onClick={() => setEnabled(skill.id, !enabled)}
+                aria-pressed={enabled}
+              >
+                <span className={`skills-catalog-row__logo ${enabled ? 'skills-catalog-row__logo--enabled' : ''}`}>
+                  <SkillLogo skill={skill.id} size={logoSize} />
+                </span>
+                <span className="skills-catalog-row__content">
+                  <span className="skills-catalog-row__title">{skill.name}</span>
+                  <span className="skills-catalog-row__description">{skill.description}</span>
+                </span>
+              </button>
+
+              <div className="skills-catalog-row__actions">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={`skills-catalog-row__toggle ${enabled ? 'skills-catalog-row__toggle--enabled' : ''}`}
+                  aria-label={`${enabled ? 'Disable' : 'Enable'} ${skill.name}`}
+                  onClick={() => setEnabled(skill.id, !enabled)}
+                >
+                  {enabled ? <Check size={15} /> : <Plus size={16} />}
+                </Button>
+
+                {hasOptions && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="skills-row__menu"
+                        className="skills-catalog-row__menu"
                         aria-label={`More actions for ${skill.name}`}
                       >
-                        <MoreHorizontal size={16} />
+                        <MoreHorizontal size={15} />
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => setEnabled(skill.id, !enabled)}>
-                        {enabled ? 'Disable' : 'Enable'}
+                      <DropdownMenuItem onClick={() => setEnabled(skill.id, false)}>
+                        Disable
                       </DropdownMenuItem>
-                      {skill.id === 'code_execution' && enabled && (
+                      {skill.id === 'code_execution' && (
                         <>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem onClick={() => onChange({ codeExecutionAutoApprove: !codeExecutionAutoApprove })}>
@@ -96,35 +176,26 @@ export function SkillsSection({ skills, codeExecutionAutoApprove, computerUseAut
                           </DropdownMenuItem>
                         </>
                       )}
-                      {skill.id === 'computer_use' && enabled && (
+                      {skill.id === 'computer_use' && (
                         <>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem onClick={() => onChange({ computerUseAutoApprove: !computerUseAutoApprove })}>
                             {computerUseAutoApprove ? '✓ ' : ''}Auto-approve actions
                           </DropdownMenuItem>
-                          <DropdownMenuLabel className="text-xs text-muted-foreground font-normal px-2 py-1">
+                          <DropdownMenuLabel className="px-2 py-1 text-xs font-normal text-muted-foreground">
                             Kill switch: Esc+Esc
                           </DropdownMenuLabel>
                         </>
                       )}
                     </DropdownMenuContent>
                   </DropdownMenu>
-                </div>
+                )}
               </div>
-            )
-          })}
-        </div>
-      </Card>
-
-      <Card className="settings-section-card skills-marketplace-note">
-        <div className="skills-marketplace-note__inner">
-          <Info size={15} className="skills-marketplace-note__icon" />
-          <div className="skills-marketplace-note__text">
-            Toggle a skill on to make it available during conversations. The assistant will use it automatically when needed.
-          </div>
-        </div>
-      </Card>
-    </div>
+            </div>
+          )
+        })}
+      </div>
+    </section>
   )
 }
 

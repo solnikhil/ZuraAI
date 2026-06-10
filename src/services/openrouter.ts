@@ -62,6 +62,7 @@ export interface OpenRouterStreamChunk {
             }>
         }
         finish_reason?: string | null
+        native_finish_reason?: string | null
     }>
     usage?: {
         prompt_tokens: number
@@ -73,13 +74,28 @@ export interface OpenRouterStreamChunk {
         cache_write_input_tokens?: number
         prompt_tokens_details?: {
             cached_tokens?: number
+            cache_write_tokens?: number
+            audio_tokens?: number
+            video_tokens?: number
         }
         completion_tokens_details?: {
             reasoning_tokens?: number
             accepted_prediction_tokens?: number
             rejected_prediction_tokens?: number
+            image_tokens?: number
+            audio_tokens?: number
         }
         reasoning_tokens?: number // Some providers return this directly
+        cost?: number
+        is_byok?: boolean
+        cost_details?: {
+            upstream_inference_cost?: number
+            upstream_inference_prompt_cost?: number
+            upstream_inference_completions_cost?: number
+        }
+        server_tool_use?: {
+            web_search_requests?: number
+        }
     }
 }
 
@@ -108,6 +124,7 @@ export interface OpenRouterResponse {
             }>
         }
         finish_reason: string | null
+        native_finish_reason?: string | null
     }>
     usage?: {
         prompt_tokens: number
@@ -121,13 +138,28 @@ export interface OpenRouterResponse {
         cache_write_input_tokens?: number
         prompt_tokens_details?: {
             cached_tokens?: number
+            cache_write_tokens?: number
+            audio_tokens?: number
+            video_tokens?: number
         }
         completion_tokens_details?: {
             reasoning_tokens?: number
             accepted_prediction_tokens?: number
             rejected_prediction_tokens?: number
+            image_tokens?: number
+            audio_tokens?: number
         }
         reasoning_tokens?: number // Some providers return this directly
+        cost?: number
+        is_byok?: boolean
+        cost_details?: {
+            upstream_inference_cost?: number
+            upstream_inference_prompt_cost?: number
+            upstream_inference_completions_cost?: number
+        }
+        server_tool_use?: {
+            web_search_requests?: number
+        }
     }
 }
 
@@ -289,7 +321,8 @@ export async function* streamOpenRouterCompletion(
                 "Authorization": `Bearer ${apiKey}`,
                 "Content-Type": "application/json",
                 "HTTP-Referer": "https://zuraai.in",
-                "X-Title": "ZuraAI"
+                "X-OpenRouter-Title": "ZuraAI",
+                "X-OpenRouter-Categories": "general-chat"
             },
             body: JSON.stringify(requestBody),
             signal: options?.signal
@@ -346,6 +379,7 @@ export async function* streamOpenRouterCompletion(
                 id: chunk?.id,
                 model: chunk?.model,
                 finishReason: chunk?.choices?.[0]?.finish_reason || null,
+                nativeFinishReason: chunk?.choices?.[0]?.native_finish_reason ?? null,
                 contentLength: chunk?.choices?.[0]?.delta?.content?.length || 0,
                 contentPreview: (chunk?.choices?.[0]?.delta?.content || '').slice(0, 120),
                 reasoningLength:
@@ -409,7 +443,8 @@ export async function generateOpenRouterCompletion(
             "Authorization": `Bearer ${apiKey}`,
             "Content-Type": "application/json",
             "HTTP-Referer": "https://zuraai.in",
-            "X-Title": "ZuraAI"
+            "X-OpenRouter-Title": "ZuraAI",
+            "X-OpenRouter-Categories": "general-chat"
         },
         body: JSON.stringify(requestBody),
         signal: options?.signal

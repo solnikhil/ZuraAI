@@ -15,6 +15,7 @@ import { McpProvider } from './mcp/McpContext'
 import { ToastProvider, ErrorBoundary } from './components/shared'
 import { McpApprovalDialog } from './components/mcp/McpApprovalDialog'
 import { ComputerUseApprovalDialog } from './components/ComputerUseApprovalDialog'
+import { AgentToolApprovalProvider } from './agent/AgentToolApprovalContext'
 import { isMacOSRuntime } from './utils/platform'
 import type { PendingCodeApproval } from './electron/types'
 
@@ -99,39 +100,41 @@ function DashboardApp() {
         <ChatHistoryProvider>
           <StreamingProvider>
             <QuickSendProvider>
-              <ModelSelectorProvider>
-                <ModelSelectorOpener />
-                {!macOS && <OverlaySync />}
-                <Router>
-                  <Routes>
-                    <Route element={<AppShellLayout />}>
-                      <Route path="/" element={<DashboardLayout />} />
-                      <Route path="/dashboard" element={<DashboardLayout />} />
-                      <Route
-                        path="/settings"
-                        element={
-                          <Suspense fallback={<SettingsLoadingFallback />}>
-                            <Settings />
-                          </Suspense>
-                        }
-                      />
-                      <Route path="/chat" element={<DashboardLayout />} />
-                    </Route>
-                    {!macOS && (
-                      <Route
-                        path="/overlay"
-                        element={
-                          <Suspense fallback={null}>
-                            <OverlayView />
-                          </Suspense>
-                        }
-                      />
-                    )}
-                    <Route path="*" element={<NotFound404 />} />
-                  </Routes>
-                </Router>
-                <McpApprovalDialog />
-              </ModelSelectorProvider>
+              <AgentToolApprovalProvider>
+                <ModelSelectorProvider>
+                  <ModelSelectorOpener />
+                  {!macOS && <OverlaySync />}
+                  <Router>
+                    <Routes>
+                      <Route element={<AppShellLayout />}>
+                        <Route path="/" element={<DashboardLayout />} />
+                        <Route path="/dashboard" element={<DashboardLayout />} />
+                        <Route
+                          path="/settings"
+                          element={
+                            <Suspense fallback={<SettingsLoadingFallback />}>
+                              <Settings />
+                            </Suspense>
+                          }
+                        />
+                        <Route path="/chat" element={<DashboardLayout />} />
+                      </Route>
+                      {!macOS && (
+                        <Route
+                          path="/overlay"
+                          element={
+                            <Suspense fallback={null}>
+                              <OverlayView />
+                            </Suspense>
+                          }
+                        />
+                      )}
+                      <Route path="*" element={<NotFound404 />} />
+                    </Routes>
+                  </Router>
+                  <McpApprovalDialog />
+                </ModelSelectorProvider>
+              </AgentToolApprovalProvider>
               <CodeExecutionApprovalHost />
               {!macOS && <ComputerUseApprovalDialog />}
             </QuickSendProvider>

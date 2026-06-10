@@ -5,17 +5,76 @@
 
 import { normalizeSafeHttpUrl } from '@/utils/urlSafety'
 
+function isReferenceHeading(block: string): boolean {
+  return /^(?:#{1,4}\s*)?(?:\*{1,2})?(?:References|Sources)(?:\*{1,2})?:?\s*$/i.test(
+    block.trim()
+  )
+}
+
+function isGeneratedSourceBlock(block: string): boolean {
+  const text = block.trim()
+  if (!text) return false
+
+  return (
+    /https?:\/\//i.test(text) ||
+    /\[\[?\d+\]?\](?:\([^)]+\))?/.test(text) ||
+    /\b(?:GitHub|Docs?|Documentation|Stack Overflow|Wikipedia)\b/i.test(text) ||
+    /^.{8,}?\s[-–—]\s.{8,}$/s.test(text)
+  )
+}
+
+function stripGeneratedReferenceBlocks(content: string): string {
+  const parts = content.split(/(\n{2,})/)
+  const kept: string[] = []
+
+  for (let index = 0; index < parts.length; index += 1) {
+    const part = parts[index]
+
+    if (!isReferenceHeading(part)) {
+      kept.push(part)
+      continue
+    }
+
+    if (kept.length > 0 && /^\n{2,}$/.test(kept[kept.length - 1])) {
+      kept.pop()
+    }
+    let cursor = index + 1
+    if (/^\n{2,}$/.test(parts[cursor] ?? '')) {
+      cursor += 1
+    }
+
+    while (cursor < parts.length && isGeneratedSourceBlock(parts[cursor] ?? '')) {
+      cursor += 1
+      if (/^\n{2,}$/.test(parts[cursor] ?? '')) {
+        cursor += 1
+      }
+    }
+
+    index = cursor - 1
+  }
+
+  return kept.join('').trimEnd()
+}
+
 /**
  * Strip trailing "References" or "Sources" sections that the model may generate.
  * These are redundant because the app renders numbered citations as interactive links.
  * Matches a heading (e.g. "## References", "**References**", "References") followed by
- * numbered entries like "[1] ..." until the end of the content.
+ * generated source entries until the end of the content.
  */
 export function stripReferencesSection(content: string): string {
   if (!content) return content
-  return content
+  return stripGeneratedReferenceBlocks(content)
     .replace(
       /\n+(?:#{1,4}\s*)?(?:\*{1,2})?(?:References|Sources)(?:\*{1,2})?:?\s*\n+(?:\s*\[?\d+\]?[\s.:\-–—].+(?:\n|$))+$/i,
+      ''
+    )
+    .replace(
+      /\n+(?:#{1,4}\s*)?(?:\*{1,2})?(?:References|Sources)(?:\*{1,2})?:?\s+(?:\[\[?\d+\]?\]\([^)]+\)|\[\d+\])[\s\S]*$/i,
+      ''
+    )
+    .replace(
+      /\n+(?:#{1,4}\s*)?(?:\*{1,2})?(?:References|Sources)(?:\*{1,2})?:?\s*\n+(?=[\s\S]*(?:https?:\/\/|\[\[?\d+\]?|(?:\s[-–—]\s)|\b(?:GitHub|Docs?|Documentation|Stack Overflow|Wikipedia)\b))[\s\S]*$/i,
       ''
     )
     .trimEnd()

@@ -376,82 +376,82 @@ export default function AppContextMenu({ children }: { children: React.ReactNode
           {children}
         </div>
       </ContextMenuTrigger>
-      <ContextMenuContent className="w-56">
+      <ContextMenuContent className="w-[205px] rounded-[14px] p-0.5">
         {showLinkActions && (
           <>
-            <ContextMenuItem onSelect={handleOpenLink}>
-              <ExternalLink className="w-4 h-4 mr-2" />
-              Open Link in Browser
+            <ContextMenuItem onSelect={handleOpenLink} className="group/menu-item h-8 rounded-[9px] px-1.5 text-[12px]">
+              <ExternalLink className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
+              <span>Open Link in Browser</span>
             </ContextMenuItem>
-            <ContextMenuItem onSelect={handleCopyLink}>
-              <Link2 className="w-4 h-4 mr-2" />
-              Copy Link Address
+            <ContextMenuItem onSelect={handleCopyLink} className="group/menu-item h-8 rounded-[9px] px-1.5 text-[12px]">
+              <Link2 className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
+              <span>Copy Link Address</span>
             </ContextMenuItem>
-            <ContextMenuSeparator />
+            <ContextMenuSeparator className="mx-0 my-px h-px" />
           </>
         )}
 
         {showEditActions ? (
           <>
-            <ContextMenuItem onSelect={handleUndo}>
-              <RotateCcw className="w-4 h-4 mr-2" />
-              Undo
-              <span className="ml-auto text-xs text-muted-foreground">Ctrl+Z</span>
+            <ContextMenuItem onSelect={handleUndo} className="group/menu-item h-8 rounded-[9px] px-1.5 text-[12px]">
+              <RotateCcw className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
+              <span>Undo</span>
+              <span className="ml-auto text-[10px] text-muted-foreground">Ctrl+Z</span>
             </ContextMenuItem>
-            <ContextMenuItem onSelect={handleRedo}>
-              <RotateCw className="w-4 h-4 mr-2" />
-              Redo
-              <span className="ml-auto text-xs text-muted-foreground">Ctrl+Y</span>
+            <ContextMenuItem onSelect={handleRedo} className="group/menu-item h-8 rounded-[9px] px-1.5 text-[12px]">
+              <RotateCw className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
+              <span>Redo</span>
+              <span className="ml-auto text-[10px] text-muted-foreground">Ctrl+Y</span>
             </ContextMenuItem>
-            <ContextMenuSeparator />
-            <ContextMenuItem onSelect={handleCut} disabled={!showSelectionActions}>
-              <Scissors className="w-4 h-4 mr-2" />
-              Cut
-              <span className="ml-auto text-xs text-muted-foreground">Ctrl+X</span>
+            <ContextMenuSeparator className="mx-0 my-px h-px" />
+            <ContextMenuItem onSelect={handleCut} disabled={!showSelectionActions} className="group/menu-item h-8 rounded-[9px] px-1.5 text-[12px]">
+              <Scissors className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
+              <span>Cut</span>
+              <span className="ml-auto text-[10px] text-muted-foreground">Ctrl+X</span>
             </ContextMenuItem>
-            <ContextMenuItem onSelect={handleCopy} disabled={!showSelectionActions}>
-              <Copy className="w-4 h-4 mr-2" />
-              Copy
-              <span className="ml-auto text-xs text-muted-foreground">Ctrl+C</span>
+            <ContextMenuItem onSelect={handleCopy} disabled={!showSelectionActions} className="group/menu-item h-8 rounded-[9px] px-1.5 text-[12px]">
+              <Copy className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
+              <span>Copy</span>
+              <span className="ml-auto text-[10px] text-muted-foreground">Ctrl+C</span>
             </ContextMenuItem>
-            <ContextMenuItem onSelect={handlePaste}>
-              <Clipboard className="w-4 h-4 mr-2" />
-              Paste
-              <span className="ml-auto text-xs text-muted-foreground">Ctrl+V</span>
+            <ContextMenuItem onSelect={handlePaste} className="group/menu-item h-8 rounded-[9px] px-1.5 text-[12px]">
+              <Clipboard className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
+              <span>Paste</span>
+              <span className="ml-auto text-[10px] text-muted-foreground">Ctrl+V</span>
             </ContextMenuItem>
-            <ContextMenuSeparator />
-            <ContextMenuItem onSelect={handleSelectAll}>
-              <CheckSquare className="w-4 h-4 mr-2" />
-              Select All
-              <span className="ml-auto text-xs text-muted-foreground">Ctrl+A</span>
+            <ContextMenuSeparator className="mx-0 my-px h-px" />
+            <ContextMenuItem onSelect={handleSelectAll} className="group/menu-item h-8 rounded-[9px] px-1.5 text-[12px]">
+              <CheckSquare className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
+              <span>Select All</span>
+              <span className="ml-auto text-[10px] text-muted-foreground">Ctrl+A</span>
             </ContextMenuItem>
           </>
         ) : showSelectionActions ? (
           <>
-            <ContextMenuItem onSelect={handleCopy}>
-              <Copy className="w-4 h-4 mr-2" />
-              Copy
-              <span className="ml-auto text-xs text-muted-foreground">Ctrl+C</span>
+            <ContextMenuItem onSelect={handleCopy} className="group/menu-item h-8 rounded-[9px] px-1.5 text-[12px]">
+              <Copy className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
+              <span>Copy</span>
+              <span className="ml-auto text-[10px] text-muted-foreground">Ctrl+C</span>
             </ContextMenuItem>
-            <ContextMenuSeparator />
-            <ContextMenuItem onSelect={handleSelectAll}>
-              <CheckSquare className="w-4 h-4 mr-2" />
-              Select All
+            <ContextMenuSeparator className="mx-0 my-px h-px" />
+            <ContextMenuItem onSelect={handleSelectAll} className="group/menu-item h-8 rounded-[9px] px-1.5 text-[12px]">
+              <CheckSquare className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
+              <span>Select All</span>
             </ContextMenuItem>
           </>
         ) : (
-          <ContextMenuItem onSelect={handleSelectAll}>
-            <CheckSquare className="w-4 h-4 mr-2" />
-            Select All
+          <ContextMenuItem onSelect={handleSelectAll} className="group/menu-item h-8 rounded-[9px] px-1.5 text-[12px]">
+            <CheckSquare className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
+            <span>Select All</span>
           </ContextMenuItem>
         )}
 
         {isDev && (
           <>
-            <ContextMenuSeparator />
-            <ContextMenuItem onSelect={handleInspectElement}>
-              <Code className="w-4 h-4 mr-2" />
-              Inspect Element
+            <ContextMenuSeparator className="mx-0 my-px h-px" />
+            <ContextMenuItem onSelect={handleInspectElement} className="group/menu-item h-8 rounded-[9px] px-1.5 text-[12px]">
+              <Code className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
+              <span>Inspect Element</span>
             </ContextMenuItem>
           </>
         )}

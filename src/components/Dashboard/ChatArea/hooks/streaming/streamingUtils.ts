@@ -17,7 +17,11 @@ import type {
 } from '../../../../../services/types'
 import type { ToolCallingResponse } from '../../../../../tools/types'
 import { isSkippedBuiltinToolResult } from '../../../../../tools/types'
+import type { AgentVerificationStrategy } from '../../../../../agent/reliability'
+import { buildAgentVerificationPrompt } from '../../../../../agent/reliability'
 import type { UpdateStreamingCallback } from './types'
+import { normalizeInlineToolCallMarkup } from '../../../../../tools/adapters/openrouterToolCalls'
+import type { SearchEvidenceItem } from '../../../../../research/types'
 import {
   STREAM_MAX_RESEARCH_ROUNDS,
   STREAM_RESEARCH_SAFETY_CAP,
@@ -31,12 +35,18 @@ export const SAFETY_CAP = STREAM_RESEARCH_SAFETY_CAP
 export const MAX_RESEARCH_ROUNDS = STREAM_MAX_RESEARCH_ROUNDS
 export const FINAL_SYNTHESIS_PROMPT =
   '\n\n*** FINAL SYNTHESIS REQUIRED *** You have enough search results. Do not call any more tools or web_search. Provide your final synthesized answer now using only the results already returned. If the results are inconclusive, say that clearly, summarize the strongest relevant evidence, and state what could not be verified. Never return an empty response.\n\n'
+export const FINAL_SYNTHESIS_BUDGET_EXHAUSTED_PROMPT =
+  '\n\n*** FINAL SYNTHESIS REQUIRED: WEB SEARCH BUDGET EXHAUSTED *** The available web_search budget for this response has been used. Do not call any more tools or web_search. Provide your final synthesized answer now using only the results already returned. If the gathered evidence is incomplete or conflicting, say so clearly, summarize the strongest relevant evidence, and state what could not be verified. Never return an empty response.\n\n'
+export const FINAL_SYNTHESIS_EMPTY_BATCH_PROMPT =
+  '\n\n*** FINAL SYNTHESIS REQUIRED: NO EXECUTABLE WEB SEARCH REMAINED *** The last attempted web_search batch did not contain an executable query. Do not call any more tools or web_search. Provide your final synthesized answer now using only the results already returned. If the gathered evidence is incomplete or conflicting, say so clearly, summarize the strongest relevant evidence, and state what could not be verified. Never return an empty response.\n\n'
 export const FINAL_SYNTHESIS_RECOVERY_PROMPT =
   '\n\n*** FINAL ANSWER REQUIRED *** Your previous synthesis attempt returned no answer. Do not call any tools or web_search. Respond with at least one concise paragraph using only the results already returned. If the evidence is inconclusive, say so directly and summarize what was checked.\n\n'
 const FINAL_SYNTHESIS_PLAIN_TEXT_ONLY_PROMPT =
   '\n\n*** PLAIN TEXT ONLY FINAL ANSWER REQUIRED *** You must respond with plain assistant text only. Do not emit tool_calls, function calls, JSON, XML, markdown code fences, or any request for more searching. Do not call any tools or web_search. Write at least one concise paragraph using only the returned search results. If the evidence is inconclusive, say so directly and summarize the strongest relevant findings.\n\n'
 export const SEARCH_SYNTHESIS_FAILURE_MESSAGE =
   'I gathered web search results, but the provider failed to produce a final written answer. The search results are still available above.'
+export const DETERMINISTIC_SEARCH_SYNTHESIS_PREFIX =
+  'I could not get the model to write a clean final answer, so here is a deterministic summary from the gathered search results.'
 
 const UNGROUNDED_SEARCH_SYNTHESIS_PATTERNS = [
   /\bknowledge cutoff\b/i,
@@ -394,6 +404,29 @@ export function buildFollowUpMessages(
   return messages
 }
 
+export function buildAgentVerificationMessages(
+  strategy: AgentVerificationStrategy,
+  researchContextMsg: string,
+  researchRound: number,
+  totalSearchCount: number,
+  optimizedHistory: Array<ServiceAssistantMessage>,
+  lastAssistantMessage: ServiceAssistantMessage,
+  formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>,
+  options?: { recoveryAttempt?: boolean }
+): Array<ServiceAssistantMessage> {
+  return [
+    { role: 'system', content: buildAgentVerificationPrompt(strategy, options) },
+    ...buildFollowUpMessages(
+      researchContextMsg,
+      researchRound,
+      totalSearchCount,
+      optimizedHistory,
+      lastAssistantMessage,
+      formattedResults
+    ),
+  ]
+}
+
 /** Build a final no-tools synthesis request after the research loop is capped. */
 export function buildFinalSynthesisMessages(
   researchContextMsg: string,
@@ -401,10 +434,18 @@ export function buildFinalSynthesisMessages(
   totalSearchCount: number,
   optimizedHistory: Array<ServiceAssistantMessage>,
   lastAssistantMessage: ServiceAssistantMessage,
-  formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>
+  formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>,
+  stopReason?: 'budget' | 'empty-batch' | 'sufficient-results'
 ): Array<ServiceAssistantMessage> {
+  const prompt =
+    stopReason === 'budget'
+      ? FINAL_SYNTHESIS_BUDGET_EXHAUSTED_PROMPT
+      : stopReason === 'empty-batch'
+        ? FINAL_SYNTHESIS_EMPTY_BATCH_PROMPT
+        : FINAL_SYNTHESIS_PROMPT
+
   return [
-    { role: 'system', content: FINAL_SYNTHESIS_PROMPT },
+    { role: 'system', content: prompt },
     ...buildFollowUpMessages(
       researchContextMsg,
       researchRound,
@@ -469,18 +510,113 @@ export function stripStandaloneHorizontalRule(content: string): string {
     .trimEnd()
 }
 
-export function buildSearchSynthesisFailureMessage(
+export function extractSearchEvidenceItems(
   toolResults: ToolCallResult[] | undefined
-): string | null {
-  const hasSuccessfulWebSearch = (toolResults || []).some(
-    (result) => result.toolCall.name === 'web_search' && result.result?.success
-  )
+): SearchEvidenceItem[] {
+  const evidence: SearchEvidenceItem[] = []
+  const seen = new Set<string>()
 
-  return hasSuccessfulWebSearch ? SEARCH_SYNTHESIS_FAILURE_MESSAGE : null
+  for (const result of toolResults || []) {
+    if (result.toolCall.name !== 'web_search' || !result.result?.success) continue
+    const args = result.toolCall.arguments
+    const query = String(
+      typeof args === 'object' ? (args as Record<string, unknown>)?.query : args
+    ).trim()
+    const data = result.result?.data
+    const rawResults =
+      data && typeof data === 'object' && Array.isArray((data as { results?: unknown[] }).results)
+        ? (data as { results: unknown[] }).results
+        : []
+
+    for (const raw of rawResults) {
+      if (!raw || typeof raw !== 'object') continue
+      const item = raw as Record<string, unknown>
+      const title = typeof item.title === 'string' ? item.title.trim() : ''
+      const url = typeof item.url === 'string' ? item.url.trim() : ''
+      const snippet = typeof item.snippet === 'string'
+        ? item.snippet.replace(/\s+/g, ' ').trim()
+        : ''
+      const source = typeof item.source === 'string' ? item.source.trim() : ''
+      const date = typeof item.date === 'string' ? item.date.trim() : ''
+      const score = typeof item.score === 'number' && Number.isFinite(item.score)
+        ? item.score
+        : undefined
+      if (!title && !snippet) continue
+      const key = `${query}\n${url || title}\n${snippet.slice(0, 80)}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      evidence.push({
+        query,
+        title: title || source || 'Search result',
+        url,
+        source,
+        snippet,
+        ...(date ? { date } : {}),
+        ...(score !== undefined ? { score } : {}),
+      })
+    }
+  }
+
+  return evidence
+}
+
+function formatEvidenceSource(item: SearchEvidenceItem): string {
+  if (item.url) {
+    return `[${item.title}](${item.url})`
+  }
+
+  return item.title
+}
+
+export function buildDeterministicSearchSynthesis(
+  toolResults: ToolCallResult[] | undefined,
+  options?: {
+    maxQueries?: number
+    maxItemsPerQuery?: number
+  }
+): string | null {
+  const evidence = extractSearchEvidenceItems(toolResults)
+  if (evidence.length === 0) return null
+
+  const maxQueries = options?.maxQueries ?? 3
+  const maxItemsPerQuery = options?.maxItemsPerQuery ?? 3
+  const grouped = new Map<string, SearchEvidenceItem[]>()
+
+  for (const item of evidence) {
+    const query = item.query || 'Search results'
+    if (!grouped.has(query)) grouped.set(query, [])
+    const items = grouped.get(query)!
+    if (items.length < maxItemsPerQuery) {
+      items.push(item)
+    }
+  }
+
+  const lines = [
+    DETERMINISTIC_SEARCH_SYNTHESIS_PREFIX,
+    '',
+    evidence.length < 2
+      ? 'The evidence is thin, but the successful search returned this relevant result:'
+      : 'The strongest retrieved evidence is:',
+  ]
+
+  let queryCount = 0
+  for (const [query, items] of grouped) {
+    if (queryCount >= maxQueries) break
+    queryCount += 1
+    lines.push('', `For "${query}":`)
+
+    for (const item of items) {
+      const snippet = item.snippet || 'No snippet was returned.'
+      const source = item.source ? ` (${item.source})` : ''
+      lines.push(`- ${formatEvidenceSource(item)}${source}: ${snippet}`)
+    }
+  }
+
+  return lines.join('\n').trim()
 }
 
 export function shouldRetryUngroundedSearchSynthesis(content: string): boolean {
-  const normalized = content.replace(/\s+/g, ' ').trim()
+  const normalized = normalizeInlineToolCallMarkup(content).replace(/\s+/g, ' ').trim()
   if (!normalized) return false
 
   return UNGROUNDED_SEARCH_SYNTHESIS_PATTERNS.some((pattern) => pattern.test(normalized))

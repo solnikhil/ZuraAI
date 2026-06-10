@@ -1,6 +1,6 @@
 import React from 'react'
 import { SETTINGS_SECTIONS, type SettingsSectionId } from '../../constants/settingsSections'
-import { Box, ChartNoAxesCombined, Cloud, MessageCircle, Paintbrush, FileText, Wrench } from '../icons'
+import { Activity, Box, Brain, ChartNoAxesCombined, Cloud, MessageCircle, Paintbrush, FileText, Wrench } from '../icons'
 import { isMacOSRuntime } from '../../utils/platform'
 
 interface SidebarSettingsViewProps {
@@ -15,8 +15,10 @@ const settingsIcons: Record<SettingsSectionId, React.ReactNode> = {
   overlay: <MessageCircle size={18} />,
   mcp: <Box size={18} />,
   skills: <Wrench size={18} />,
+  memory: <Brain size={18} />,
   themes: <Paintbrush size={18} />,
   systemprompt: <FileText size={18} />,
+  'resource-monitor': <Activity size={18} />,
 }
 
 const navItems = SETTINGS_SECTIONS

@@ -14,6 +14,7 @@ import type {
   ThinkingBlock,
   ResponseVersion,
 } from '../../../contexts/ChatHistoryContext'
+import type { AgentRun } from '../../../chat/types'
 
 interface StreamingMessageProps {
   /** The base message from the session (may have stale content during streaming) */
@@ -36,6 +37,7 @@ interface StreamingMessageProps {
     responseVersions?: ResponseVersion[]
     currentVersionIndex?: number
     toolResults?: ToolCallResult[]
+    agentRun?: AgentRun
   }
   /** Session ID for checking streaming state */
   sessionId: string
@@ -104,6 +106,7 @@ function StreamingMessageComponent({
       toolResults: hasStreamingField('toolResults')
         ? streamingState.toolResults
         : message.toolResults,
+      agentRun: hasStreamingField('agentRun') ? streamingState.agentRun : message.agentRun,
       model: hasStreamingField('model') ? streamingState.model : message.model,
       latency: hasStreamingField('latency') ? streamingState.latency : message.latency,
       usage: hasStreamingField('usage') ? streamingState.usage : message.usage,

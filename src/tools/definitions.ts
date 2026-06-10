@@ -7,10 +7,19 @@ import { builtInMainToolDefinitions, builtInMainToolManifest } from './builtinTo
 export type ToolDefinition = ToolDescriptor
 
 /**
- * Active tools in ZuraAI
- * web_search is a main-process IPC tool.
+ * Active built-in tools in ZuraAI.
+ *
+ * - Main-process tools (web_search, code_execution, computer_*) execute via
+ *   the `execute-tool` IPC.
+ *
+ * Memory is no longer a model-callable tool surface: saved memories are
+ * injected into the prompt for context, and durable facts are captured by the
+ * background extraction pipeline (`src/services/memoryExtraction.ts`) rather
+ * than mid-conversation tool calls.
  */
-export const builtInToolDefinitions: ToolDefinition[] = builtInMainToolDefinitions
+export const builtInToolDefinitions: ToolDefinition[] = [
+  ...builtInMainToolDefinitions,
+]
 
 export const toolDefinitions = builtInToolDefinitions
 export { builtInMainToolManifest }

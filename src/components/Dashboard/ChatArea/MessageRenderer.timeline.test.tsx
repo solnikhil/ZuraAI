@@ -140,7 +140,7 @@ describe('MessageRenderer follow-up timeline', () => {
     })
   })
 
-  it('renders follow-up thinking below the existing streamed content', async () => {
+  it('renders the thinking/tool activity above its corresponding assistant text', async () => {
     const baseMessage = {
       id: 'message-1',
       role: 'assistant' as const,
@@ -200,7 +200,7 @@ describe('MessageRenderer follow-up timeline', () => {
     })
   })
 
-  it('keeps the split follow-up thought below the tool card after streaming completes', async () => {
+  it('keeps the split follow-up activity above the related assistant text after streaming completes', async () => {
     const { container } = render(
       <MessageRenderer
         message={{

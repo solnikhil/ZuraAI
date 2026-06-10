@@ -24,8 +24,19 @@ const VALID_PHASES = new Set([
   'provider-error',
   'finish',
   'stream-chunk',
+  'research-state',
+  'memory-extraction-start',
+  'memory-extraction-result',
+  'memory-extraction-error',
 ])
 const VALID_CONTENT_TYPES = new Set(['text', 'parts', 'empty'])
+const VALID_RESEARCH_STATES = new Set([
+  'search',
+  'synthesize',
+  'recover-leaked-tool-call',
+  'deterministic-answer',
+])
+const VALID_LEAKED_MARKUP_FORMATS = new Set(['dsml', 'xml'])
 
 /**
  * Optional broadcaster used to push freshly-persisted diagnostic events to subscribers
@@ -177,7 +188,44 @@ function sanitizeEvent(input: unknown): ChatDiagnosticEvent | null {
         }
       : undefined,
     streamChunk: raw.phase === 'stream-chunk' ? sanitizeStreamChunk(raw.streamChunk) : undefined,
+    researchState: typeof raw.researchState === 'string' && VALID_RESEARCH_STATES.has(raw.researchState)
+      ? raw.researchState as ChatDiagnosticEvent['researchState']
+      : undefined,
+    leakedMarkupFormat: typeof raw.leakedMarkupFormat === 'string' && VALID_LEAKED_MARKUP_FORMATS.has(raw.leakedMarkupFormat)
+      ? raw.leakedMarkupFormat as ChatDiagnosticEvent['leakedMarkupFormat']
+      : undefined,
+    recoveredQueryCount: typeof raw.recoveredQueryCount === 'number' && Number.isFinite(raw.recoveredQueryCount)
+      ? raw.recoveredQueryCount
+      : undefined,
+    deterministicAnswerUsed: typeof raw.deterministicAnswerUsed === 'boolean'
+      ? raw.deterministicAnswerUsed
+      : undefined,
+    searchBudgetRemaining: typeof raw.searchBudgetRemaining === 'number' && Number.isFinite(raw.searchBudgetRemaining)
+      ? raw.searchBudgetRemaining
+      : undefined,
+    attemptedQueries: Array.isArray(raw.attemptedQueries)
+      ? raw.attemptedQueries.slice(0, 16).map((query) => truncateString(String(query), 240))
+      : undefined,
+    executedQueries: Array.isArray(raw.executedQueries)
+      ? raw.executedQueries.slice(0, 16).map((query) => truncateString(String(query), 240))
+      : undefined,
+    skippedReason: typeof raw.skippedReason === 'string'
+      ? truncateString(raw.skippedReason, 160)
+      : undefined,
     error: typeof raw.error === 'string' ? truncateString(raw.error) : undefined,
+    memoryErrorCode: typeof raw.memoryErrorCode === 'string'
+      ? truncateString(raw.memoryErrorCode, 120)
+      : undefined,
+    responseLength: typeof raw.responseLength === 'number' && Number.isFinite(raw.responseLength)
+      ? raw.responseLength
+      : undefined,
+    responsePreview: typeof raw.responsePreview === 'string'
+      ? truncateString(raw.responsePreview, 500)
+      : undefined,
+    factCount: typeof raw.factCount === 'number' && Number.isFinite(raw.factCount)
+      ? raw.factCount
+      : undefined,
+    summaryKept: typeof raw.summaryKept === 'boolean' ? raw.summaryKept : undefined,
   }
 }
 

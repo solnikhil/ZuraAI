@@ -23,12 +23,6 @@ vi.mock('../ResponseInfo', () => ({
   default: () => null,
 }))
 
-vi.mock('../../tools/ui/ToolResultDisplay', () => ({
-  default: ({ toolName }: { toolName: string }) => (
-    <div data-testid="tool-result-display">{toolName}</div>
-  ),
-}))
-
 vi.mock('@/components/shared/Toast', () => ({
   useToast: () => ({ showToast: vi.fn() }),
 }))
@@ -39,8 +33,8 @@ vi.mock('./ChatArea/attachmentUtils', () => ({
 
 import { MessageRenderer } from './ChatArea/MessageRenderer'
 
-describe('MessageRenderer tool result ordering', () => {
-  it('renders tool cards before the action row', () => {
+describe('MessageRenderer tool result surface', () => {
+  it('does not render post-message tool result cards', () => {
     const { container } = render(
       <MessageRenderer
         message={{
@@ -73,11 +67,8 @@ describe('MessageRenderer tool result ordering', () => {
     const actionRowButton = container.querySelector('button[title="Regenerate with custom instructions"]')
 
     expect(markdown).not.toBeNull()
-    expect(toolResult).not.toBeNull()
+    expect(toolResult).toBeNull()
     expect(actionRowButton).not.toBeNull()
-    expect(markdown?.compareDocumentPosition(toolResult as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(toolResult?.compareDocumentPosition(actionRowButton as Node)).toBe(
-      Node.DOCUMENT_POSITION_FOLLOWING
-    )
+    expect(markdown?.compareDocumentPosition(actionRowButton as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
   })
 })

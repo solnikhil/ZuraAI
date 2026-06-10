@@ -86,7 +86,7 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
     height: options?.height ?? 800,
     minWidth: 820,
     minHeight: 600,
-    title: 'ZuraAI - Dashboard',
+    title: 'ZuraAI',
     icon: resolveAppIconPath(),
     ...(isWindows
       ? {
@@ -110,7 +110,7 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
       devTools: options?.devTools ?? !app.isPackaged,
       backgroundThrottling: false,
       spellcheck: isMacOS,
-      additionalArguments: ['--process-name=ZuraAI-Dashboard'],
+      additionalArguments: ['--process-name=ZuraAI'],
     },
     autoHideMenuBar: isWindows,
     // Keep the main window on a solid background to avoid transparent border artifacts

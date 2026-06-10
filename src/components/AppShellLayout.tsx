@@ -14,7 +14,7 @@ import { useWindowMaximizeState } from './shell/useWindowMaximizeState'
 function AppShellContent() {
   const navigate = useNavigate()
   const { dashboardView, hasUnsavedSettings, setDashboardView } = useAppShell()
-  const { createSession } = useChatHistory()
+  const { clearCurrentSession } = useChatHistory()
   const { showToast } = useToast()
   const isDev = import.meta.env.DEV
 
@@ -37,18 +37,24 @@ function AppShellContent() {
 
       navigate('/dashboard')
       setDashboardView('chat')
-      createSession()
+      clearCurrentSession()
     }
 
     window.ipcRenderer.on('app:new-chat', listener)
     return () => {
       window.ipcRenderer.off('app:new-chat', listener)
     }
-  }, [createSession, dashboardView, hasUnsavedSettings, navigate, setDashboardView, showToast])
+  }, [clearCurrentSession, dashboardView, hasUnsavedSettings, navigate, setDashboardView, showToast])
 
   return (
     <AppContextMenu>
-      <div className="app-frame">
+      <div
+        className={[
+          'app-frame',
+          isWindows ? 'app-frame--windows' : null,
+          isMaximized ? 'app-frame--maximized' : null,
+        ].filter(Boolean).join(' ')}
+      >
         <TitleBar />
         <CommandPalette />
         <div className="app-content">

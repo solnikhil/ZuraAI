@@ -52,6 +52,9 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
 
   // Sidebar state
   const [focusIndex, setFocusIndex] = useState(-1)
+  const [peeking, setPeeking] = useState(false)
+  const [peekClosing, setPeekClosing] = useState(false)
+  const peekCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [isResizing, setIsResizing] = useState(false)
   const resizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null)
   const resizeRafRef = useRef<number | null>(null)
@@ -266,13 +269,53 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
       if (resizeRafRef.current !== null) {
         cancelAnimationFrame(resizeRafRef.current)
       }
+      if (peekCloseTimer.current) {
+        clearTimeout(peekCloseTimer.current)
+      }
     }
   }, [])
+
+  const isPeeking = sidebarHidden && peeking
+  // Keep the flyout positioned as an overlay while it slides back out so the
+  // main content layout never reflows when the peek closes.
+  const isPeekOverlay = sidebarHidden && (peeking || peekClosing)
+
+  const openPeek = useCallback(() => {
+    if (peekCloseTimer.current) {
+      clearTimeout(peekCloseTimer.current)
+      peekCloseTimer.current = null
+    }
+    setPeekClosing(false)
+    setPeeking(true)
+  }, [])
+
+  const closePeek = useCallback(() => {
+    setPeeking(false)
+    setPeekClosing(true)
+    if (peekCloseTimer.current) clearTimeout(peekCloseTimer.current)
+    peekCloseTimer.current = setTimeout(() => {
+      setPeekClosing(false)
+      peekCloseTimer.current = null
+    }, 360)
+  }, [])
+
+  // Reset peek whenever the sidebar is no longer hidden
+  useEffect(() => {
+    if (!sidebarHidden && (peeking || peekClosing)) {
+      setPeeking(false)
+      setPeekClosing(false)
+      if (peekCloseTimer.current) {
+        clearTimeout(peekCloseTimer.current)
+        peekCloseTimer.current = null
+      }
+    }
+  }, [sidebarHidden, peeking, peekClosing])
 
   const containerClasses = [
     'sidebar-container',
     isMacOS ? 'sidebar-container--macos' : '',
-    sidebarHidden ? 'sidebar-container--hidden' : '',
+    sidebarHidden && !isPeekOverlay ? 'sidebar-container--hidden' : '',
+    isPeekOverlay ? 'sidebar-container--peek' : '',
     sidebarCollapsed ? 'sidebar-container--collapsed' : 'sidebar-container--expanded',
     isResizing ? 'sidebar-container--resizing' : '',
   ]
@@ -280,21 +323,33 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
     .join(' ')
 
   // Structural styles stay inline for testability (JSDOM doesn't load CSS files)
+  const openWidthPx = sidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH_PX : sidebarWidth
+  const collapsedAway = sidebarHidden && !isPeeking
   const containerStyle: React.CSSProperties = {
-    width: sidebarHidden
-      ? '0px'
-      : sidebarCollapsed
-        ? `${SIDEBAR_COLLAPSED_WIDTH_PX}px`
-        : `${sidebarWidth}px`,
+    width: collapsedAway ? '0px' : `${openWidthPx}px`,
+    // Pin the inner content to its open width so it slides out cleanly (clipped by
+    // overflow:hidden) instead of reflowing/squishing while width animates to 0.
+    ['--sidebar-inner-width' as string]: `${openWidthPx}px`,
     background: 'var(--theme-sidebar-solid)',
-    borderRight: '0px solid transparent',
     boxShadow: 'none',
-    pointerEvents: sidebarHidden ? 'none' : 'auto',
+    pointerEvents: collapsedAway ? 'none' : 'auto',
     transition: isResizing ? 'none' : undefined,
   }
 
   return (
-    <div className={containerClasses} style={containerStyle}>
+    <>
+      {sidebarHidden && !isPeeking && (
+        <div
+          className="sidebar-peek-trigger"
+          aria-hidden="true"
+          onMouseEnter={openPeek}
+        />
+      )}
+      <div
+        className={containerClasses}
+        style={containerStyle}
+        onMouseLeave={isPeeking ? closePeek : undefined}
+      >
       <div className="sidebar__inner">
         <SidebarChatView
           active={view === 'chat'}
@@ -350,5 +405,6 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
         />
       )}
     </div>
+    </>
   )
 }

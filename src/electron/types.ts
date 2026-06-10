@@ -59,6 +59,85 @@ export interface PendingComputerAction {
   expiresAt: number
 }
 
+/**
+ * Renderer-side Memory entry shape (mirrors the main-process Memory type in
+ * electron/memoryStore.ts). v1 only writes `{ type: 'global' }` scopes; the
+ * project variant is reserved for a future projects/folders feature.
+ */
+export type MemorySource = 'user' | 'model'
+
+export type MemoryOrigin = 'tool' | 'background'
+
+export type MemoryScope =
+  | { type: 'global' }
+  | { type: 'project'; projectId: string }
+
+export type MemoryStatus = 'active' | 'superseded'
+
+export interface Memory {
+  id: string
+  content: string
+  createdAt: number
+  updatedAt: number
+  source: MemorySource
+  scope: MemoryScope
+  status: MemoryStatus
+  supersedes?: string
+  supersededBy?: string
+  sessionId?: string
+  origin?: MemoryOrigin
+}
+
+export interface AddMemoryInput {
+  content: string
+  source?: MemorySource
+  scope?: MemoryScope
+  sessionId?: string
+  origin?: MemoryOrigin
+}
+
+export interface DedupeAddOptions {
+  supersedesId?: string
+}
+
+export interface DedupeAddResult {
+  memory: Memory
+  operation: 'added' | 'noop' | 'superseded'
+}
+
+export interface UpdateMemoryPatch {
+  content?: string
+  scope?: MemoryScope
+}
+
+/** One rolling per-chat summary in the "Recent activity" (dreaming) layer. */
+export interface ConversationSummary {
+  sessionId: string
+  summary: string
+  updatedAt: number
+}
+
+export interface MemoryAPI {
+  list: (scope?: MemoryScope) => Promise<Memory[]>
+  add: (input: AddMemoryInput) => Promise<Memory>
+  /** ADD-only write with dedupe + optional supersession (extraction pipeline). */
+  addDeduped: (input: AddMemoryInput, options?: DedupeAddOptions) => Promise<DedupeAddResult>
+  update: (id: string, patch: UpdateMemoryPatch) => Promise<Memory | null>
+  delete: (id: string) => Promise<boolean>
+  clear: () => Promise<boolean>
+  search: (query: string, limit?: number, scope?: MemoryScope) => Promise<Memory[]>
+  /** Layer 2 — rolling conversation summaries ("Recent activity"). */
+  summaries: {
+    list: () => Promise<ConversationSummary[]>
+    upsert: (sessionId: string, summary: string) => Promise<ConversationSummary>
+  }
+  /**
+   * Subscribe to broadcast notifications when any window mutates the memory
+   * store. Returns an unsubscribe function.
+   */
+  onChanged: (callback: () => void) => () => void
+}
+
 
 export type SecureStorageKey =
   | 'openRouterApiKey'
@@ -129,6 +208,16 @@ export interface OverlaySettings {
   promptAutoHideTimeout: number
 }
 
+export interface DiscordRpcSettings {
+  appId: string
+}
+
+export interface DiscordRpcState {
+  connected: boolean
+  missingAppId: boolean
+  lastError?: string
+}
+
 export interface OverlayState extends OverlaySettings {
   visible: boolean
   mode: 'hidden' | 'compact' | 'expanded'
@@ -170,12 +259,62 @@ export interface NativeContextMenuRequest {
   isPinnedChatRow?: boolean
 }
 
+/**
+ * Renderer-safe shape describing one sampled OS process belonging to the app.
+ *
+ * Values are normalized away from Electron's raw `ProcessMetric` units:
+ * memory is reported in MB (rounded to 1 decimal) and CPU as a percent.
+ */
+export type ProcessSampleType =
+  | 'Browser'
+  | 'Tab'
+  | 'GPU'
+  | 'Utility'
+  | 'Zygote'
+  | 'Sandbox helper'
+  | 'Unknown'
+
+export interface ProcessSample {
+  pid: number
+  type: ProcessSampleType
+  /** Raw type string from Electron in case main reported something we don't model yet. */
+  rawType: string
+  name: string
+  memoryMB: number
+  peakMemoryMB: number
+  cpuPercent: number
+  /** Title of the BrowserWindow that owns this Tab process, when known. */
+  windowTitle?: string
+}
+
+export interface ResourceSample {
+  capturedAt: number
+  processes: ProcessSample[]
+}
+
+export type AppMenuCommand =
+  | 'new-chat'
+  | 'open-settings'
+  | 'open-about'
+  | 'reload'
+  | 'toggle-devtools'
+  | 'reset-zoom'
+  | 'zoom-in'
+  | 'zoom-out'
+  | 'toggle-fullscreen'
+  | 'minimize'
+  | 'toggle-maximize'
+  | 'close-window'
+  | 'open-help'
+
 export type IpcSendChannel =
   | 'overlay:drag-start'
   | 'overlay:drag-move'
   | 'overlay:drag-end'
   | 'open-model-selector'
   | 'overlay:navigate-settings'
+  | 'resource-monitor:subscribe'
+  | 'resource-monitor:unsubscribe'
 
 export interface IpcSendArgsMap {
   'overlay:drag-start': [cursorX: number, cursorY: number]
@@ -183,6 +322,8 @@ export interface IpcSendArgsMap {
   'overlay:drag-end': []
   'open-model-selector': []
   'overlay:navigate-settings': [section: string]
+  'resource-monitor:subscribe': []
+  'resource-monitor:unsubscribe': []
 }
 
 export type IpcInvokeChannel =
@@ -211,6 +352,7 @@ export type IpcInvokeChannel =
   | 'updater:check-for-updates'
   | 'updater:quit-and-install'
   | 'updater:get-version'
+  | 'resource-monitor:get-now'
 
 export interface IpcInvokeArgsMap {
   'chat-store:get-metadata': []
@@ -238,6 +380,9 @@ export interface IpcInvokeArgsMap {
   'updater:check-for-updates': []
   'updater:quit-and-install': []
   'updater:get-version': []
+  'resource-monitor:get-now': []
+  'discord-rpc:get-state': []
+  'discord-rpc:set-activity': [activity: Record<string, unknown>]
 }
 
 export interface IpcInvokeReturnMap {
@@ -266,6 +411,9 @@ export interface IpcInvokeReturnMap {
   'updater:check-for-updates': UpdateCheckInfo | null
   'updater:quit-and-install': boolean
   'updater:get-version': string
+  'resource-monitor:get-now': ResourceSample
+  'discord-rpc:get-state': DiscordRpcState
+  'discord-rpc:set-activity': DiscordRpcState
 }
 
 export type IpcOnChannel =
@@ -281,6 +429,8 @@ export type IpcOnChannel =
   | 'chat-store:changed'
   | 'context-menu:action'
   | 'chat-diagnostics:event'
+  | 'resource-monitor:sample'
+  | 'discord-rpc:state-changed'
 
 export interface UpdaterDownloadProgress {
   percent: number
@@ -301,6 +451,8 @@ export interface IpcOnArgsMap {
   'chat-store:changed': []
   'context-menu:action': [action: NativeContextMenuAction]
   'chat-diagnostics:event': [event: ChatDiagnosticEvent]
+  'resource-monitor:sample': [sample: ResourceSample]
+  'discord-rpc:state-changed': [state: DiscordRpcState]
 }
 
 export interface IElectronAPI {
@@ -395,6 +547,10 @@ export interface NativeDialogAPI {
   confirmDeleteChat: () => Promise<boolean>
 }
 
+export interface AppMenuAPI {
+  command: (command: AppMenuCommand) => Promise<boolean>
+}
+
 export interface CodeExecutionAPI {
   resolveApproval: (requestId: string, approved: boolean) => Promise<ApprovalDecision>
   onPendingApproval: (callback: (pending: PendingCodeApproval[]) => void) => () => void
@@ -405,7 +561,6 @@ export interface ComputerUseAPI {
   onPendingApproval: (callback: (pending: PendingComputerAction[]) => void) => () => void
   onKilled: (callback: () => void) => () => void
 }
-
 
 export interface McpAPI {
   listServers: () => Promise<McpServerConfig[]>
@@ -454,4 +609,28 @@ export interface ChatDiagnosticsAPI {
  */
 export interface ChatDebugAPI {
   open: (sessionId: string) => Promise<boolean>
+}
+
+/**
+ * Renderer-facing bridge for the live Resource Monitor sampler.
+ *
+ * `subscribe` opens a stream of per-process samples; the returned function
+ * unsubscribes and tears down the underlying main-process interval if no
+ * other window is listening.
+ */
+export interface ResourceMonitorAPI {
+  subscribe: (callback: (sample: ResourceSample) => void) => () => void
+  getNow: () => Promise<ResourceSample>
+}
+
+/**
+ * Renderer-facing bridge for Discord Rich Presence.
+ *
+ * Controls connection lifecycle, activity updates, and subscribes to
+ * connection-state broadcasts from the main-process client.
+ */
+export interface DiscordRpcAPI {
+  getState: () => Promise<DiscordRpcState>
+  setActivity: (activity: Record<string, unknown>) => Promise<DiscordRpcState>
+  onStateChange: (callback: (state: DiscordRpcState) => void) => () => void
 }

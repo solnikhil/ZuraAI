@@ -110,7 +110,8 @@ describe('createProviderStreamClient', () => {
           prompt_cache_tokens: 6,
           completion_cache_tokens: 1,
           cache_creation_input_tokens: 3,
-          completion_tokens_details: { reasoning_tokens: 2 },
+          completion_tokens_details: { reasoning_tokens: 2, image_tokens: 5 },
+          cost: 0.00014,
         },
       }
     })
@@ -185,6 +186,8 @@ describe('createProviderStreamClient', () => {
           cachedInputTokens: 6,
           cachedOutputTokens: 1,
           cacheWriteInputTokens: 3,
+          cost: 0.00014,
+          imageTokens: 5,
         },
         rawUsage: expect.objectContaining({
           prompt_tokens: 10,

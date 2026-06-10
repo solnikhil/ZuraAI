@@ -55,6 +55,10 @@ const ALL_PHASES: ChatDiagnosticPhase[] = [
   'tool-start',
   'tool-complete',
   'stream-chunk',
+  'research-state',
+  'memory-extraction-start',
+  'memory-extraction-result',
+  'memory-extraction-error',
   'provider-error',
   'finish',
 ]
@@ -69,6 +73,10 @@ const PHASE_TONE: Record<ChatDiagnosticPhase, string> = {
   'tool-start': 'phase--info',
   'tool-complete': 'phase--info',
   'stream-chunk': 'phase--muted',
+  'research-state': 'phase--info',
+  'memory-extraction-start': 'phase--neutral',
+  'memory-extraction-result': 'phase--success',
+  'memory-extraction-error': 'phase--error',
   'provider-error': 'phase--error',
   'finish': 'phase--success',
 }
@@ -106,8 +114,27 @@ function summarizeEvent(event: ChatDiagnosticEvent): string {
     }
     case 'provider-error':
       return event.error ? `error: ${event.error.slice(0, 120)}` : 'error'
+    case 'research-state': {
+      const parts = [event.researchState ?? 'research']
+      if (event.searchBudgetRemaining != null) parts.push(`${event.searchBudgetRemaining} search left`)
+      if (event.recoveredQueryCount != null) parts.push(`${event.recoveredQueryCount} recovered`)
+      if (event.skippedReason) parts.push(`skipped=${event.skippedReason}`)
+      if (event.deterministicAnswerUsed) parts.push('deterministic')
+      return parts.join(' | ')
+    }
     case 'finish':
       return `finish=${event.finishReason ?? 'unknown'}`
+    case 'memory-extraction-start':
+      return `dreaming · ${event.model ?? 'no-model'} · ${event.messageCount ?? 0} msgs`
+    case 'memory-extraction-result': {
+      const facts = `${event.factCount ?? 0} fact${event.factCount === 1 ? '' : 's'}`
+      const summary = event.summaryKept ? 'summary kept' : 'summary empty'
+      return `${facts} · ${summary}`
+    }
+    case 'memory-extraction-error':
+      return event.error
+        ? `memory error${event.memoryErrorCode ? ` [${event.memoryErrorCode}]` : ''}: ${event.error.slice(0, 120)}`
+        : 'memory error'
     case 'context-optimized': {
       const ctx = event.context
       if (!ctx) return 'context-optimized'
@@ -168,7 +195,9 @@ export function ChatDebugPanelView({ sessionId }: ChatDebugPanelViewProps) {
   const { showToast } = useToast()
 
   const [searchTerm, setSearchTerm] = useState('')
-  const [activePhases, setActivePhases] = useState<Set<ChatDiagnosticPhase>>(new Set(ALL_PHASES))
+  const [activePhases, setActivePhases] = useState<Set<ChatDiagnosticPhase>>(
+    () => new Set(ALL_PHASES.filter((p) => p !== 'stream-chunk'))
+  )
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set())
   const [autoScroll, setAutoScroll] = useState(true)
   const [viewMode, setViewMode] = useState<ViewMode>(() => readStoredViewMode())

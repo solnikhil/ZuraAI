@@ -1,13 +1,11 @@
 import React, { useCallback, useEffect, useMemo } from 'react'
 import { useLocation } from 'react-router-dom'
-import { useChatHistory } from '../contexts/ChatHistoryContext'
 import { useSettings } from '../contexts/SettingsContext'
 import { useAppShell } from '../contexts/AppShellContext'
-import { SETTINGS_SECTION_MAP, type SettingsSectionId } from '../constants/settingsSections'
 import { SIDEBAR_COLLAPSED_WIDTH_PX } from '../constants/sidebar'
-import { getModelDisplayName } from '../providers'
 import TitleBarSidebarControls from './TitleBarSidebarControls'
 import TitleBarWindowActions from './TitleBarWindowActions'
+import TitleBarAppMenu from './TitleBarAppMenu'
 import './TitleBar.css'
 import { useShellRouteState } from './shell/useShellRouteState'
 import { useWindowMaximizeState } from './shell/useWindowMaximizeState'
@@ -15,10 +13,8 @@ import { useWindowMaximizeState } from './shell/useWindowMaximizeState'
 export default function TitleBar() {
     const location = useLocation()
     const { settings } = useSettings()
-    const { sessions, currentSessionId } = useChatHistory()
     const {
         dashboardView,
-        activeSettingsSection,
         hasUnsavedSettings,
         sidebarCollapsed,
         sidebarWidth,
@@ -30,39 +26,11 @@ export default function TitleBar() {
         goBack,
         goForward,
     } = useAppShell()
-    const { isDashboardRoute, isSettingsRoute, isLegacyChatRoute, hasSidebar } = useShellRouteState(location.pathname)
-
-    const currentSession = useMemo(() => {
-        return sessions.find(s => s.id === currentSessionId)
-    }, [sessions, currentSessionId])
-
-    const modelDisplayName = useMemo(() => getModelDisplayName(settings), [settings])
-
-    const centerTitle = useMemo(() => {
-        if (isLegacyChatRoute) return 'ZuraAI Chat'
-
-        if (isSettingsRoute) {
-            return 'Settings'
-        }
-
-        if (isDashboardRoute) {
-            if (dashboardView === 'settings') {
-                const label = SETTINGS_SECTION_MAP[activeSettingsSection as SettingsSectionId]?.navLabel || 'Settings'
-                return `Settings — ${label}`
-            }
-            return currentSession?.title || 'New Conversation'
-        }
-
-        return ''
-    }, [activeSettingsSection, currentSession?.title, dashboardView, isDashboardRoute, isLegacyChatRoute, isSettingsRoute])
+    const { hasSidebar } = useShellRouteState(location.pathname)
 
     useEffect(() => {
-        const titleParts = [centerTitle]
-        if (settings.titleBarShowModel !== false) {
-            titleParts.push(modelDisplayName)
-        }
-        document.title = titleParts.filter(Boolean).join(' — ')
-    }, [centerTitle, modelDisplayName, settings.titleBarShowModel])
+        document.title = 'ZuraAI'
+    }, [])
 
     const density = settings.titleBarDensity || 'comfortable'
     const isSettingsView = dashboardView === 'settings'
@@ -73,6 +41,9 @@ export default function TitleBar() {
     // Detect macOS platform
     const isMacOS = useMemo(() => {
         return navigator.platform.toLowerCase().includes('mac')
+    }, [])
+    const isWindows = useMemo(() => {
+        return navigator.platform.toLowerCase().includes('win')
     }, [])
     const { isMaximized, setIsMaximized } = useWindowMaximizeState()
 
@@ -91,23 +62,15 @@ export default function TitleBar() {
                 density === 'compact' ? 'app-titlebar--compact' : null,
                 hasSidebar ? 'app-titlebar--with-sidebar' : null,
                 isMacOS ? 'app-titlebar--macos' : null,
+                isWindows ? 'app-titlebar--windows' : null,
+                isMaximized ? 'app-titlebar--maximized' : null,
                 !isMacOS ? 'app-titlebar--custom-controls' : null,
             ].filter(Boolean).join(' ')}
-            style={{}}
+            style={{
+                '--titlebar-stroke-left': hasSidebar ? `${sidebarWidthPx}px` : '0px',
+            } as React.CSSProperties}
             onDoubleClick={handleTitleBarDoubleClick}
         >
-            {/* Content-side titlebar background should always match the main content panel */}
-            {hasSidebar && (
-                <div
-                    className="app-titlebar__content-bg"
-                    style={{
-                        left: `${sidebarWidthPx}px`,
-                        willChange: isResizingSidebar ? 'left' : 'auto',
-                        transition: isResizingSidebar ? 'none' : undefined,
-                    }}
-                />
-            )}
-
             {hasSidebar && sidebarWidthPx > 0 && (
                 <div
                     className="app-titlebar__sidebar-solid"
@@ -132,6 +95,7 @@ export default function TitleBar() {
                     sidebarHidden={sidebarHidden}
                     toggleSidebarHidden={toggleSidebarHidden}
                 />
+                {isWindows && <TitleBarAppMenu />}
             </div>
 
             <div className="app-titlebar__middle">

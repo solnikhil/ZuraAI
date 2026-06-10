@@ -1,0 +1,69 @@
+import { describe, expect, it } from 'vitest'
+
+import {
+  buildAgentVerificationPrompt,
+  selectVerificationStrategy,
+} from './reliability'
+
+describe('agent reliability helpers', () => {
+  it('selects file verification for successful file mutations', () => {
+    const strategy = selectVerificationStrategy([
+      {
+        toolCall: { id: 'move-1', name: 'file_move', arguments: { source: 'a', destination: 'b' } },
+        result: { success: true },
+      },
+    ])
+
+    expect(strategy).toEqual(
+      expect.objectContaining({
+        category: 'file',
+        preferredTools: ['file_search', 'file_read'],
+        mutatingToolNames: ['file_move'],
+      })
+    )
+  })
+
+  it('selects targeted visual verification for Computer Use input actions', () => {
+    const strategy = selectVerificationStrategy([
+      {
+        toolCall: { id: 'click-1', name: 'computer_click', arguments: { x: 10, y: 20 } },
+        result: { success: true },
+      },
+    ])
+
+    expect(strategy).toEqual(
+      expect.objectContaining({
+        category: 'visual',
+        preferredTools: ['computer_screenshot'],
+      })
+    )
+  })
+
+  it('does not force verification for read-only inspection tools', () => {
+    expect(
+      selectVerificationStrategy([
+        {
+          toolCall: { id: 'search-1', name: 'file_search', arguments: { query: '*.png' } },
+          result: { success: true },
+        },
+      ])
+    ).toBeNull()
+  })
+
+  it('builds a bounded recovery verification instruction', () => {
+    const prompt = buildAgentVerificationPrompt(
+      {
+        category: 'file',
+        reason: 'File changes were made and need a read-only filesystem check.',
+        preferredTools: ['file_search', 'file_read'],
+        mutatingToolNames: ['file_move'],
+      },
+      { recoveryAttempt: true }
+    )
+
+    expect(prompt).toContain('AGENT VERIFICATION RECOVERY REQUIRED')
+    expect(prompt).toContain('Make exactly one more verification attempt')
+    expect(prompt).toContain('file_search, file_read')
+    expect(prompt).toContain('continuing blind')
+  })
+})

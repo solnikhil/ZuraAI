@@ -174,4 +174,30 @@ describe('convertToOpenRouterFormat', () => {
     expect(extracted.cleanedContent).toBe('Before\n\nAfter')
     expect(extracted.format).toBe('dsml')
   })
+
+  it('extracts fullwidth DSML-style tool calls from assistant content', () => {
+    const extracted = extractInlineToolCallsFromContent(
+      [
+        'Before',
+        '<｜｜DSML｜｜tool_calls>',
+        '<｜｜DSML｜｜invoke name="web_search">',
+        '<｜｜DSML｜｜parameter name="query" string="true">Kiro brand ambassador welcome kit</｜｜DSML｜｜parameter>',
+        '</｜｜DSML｜｜invoke>',
+        '</｜｜DSML｜｜tool_calls>',
+        'After',
+      ].join('\n')
+    )
+
+    expect(extracted.toolCalls).toEqual([
+      {
+        id: 'content-tool-call-1',
+        name: 'web_search',
+        arguments: {
+          query: 'Kiro brand ambassador welcome kit',
+        },
+      },
+    ])
+    expect(extracted.cleanedContent).toBe('Before\n\nAfter')
+    expect(extracted.format).toBe('dsml')
+  })
 })

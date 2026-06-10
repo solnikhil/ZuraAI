@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { normalizeClickArgs, normalizeCursorArgs, normalizeScrollArgs } from './computer-use/normalize'
 
 describe('computer-use argument normalization', () => {
@@ -30,5 +30,138 @@ describe('computer-use argument normalization', () => {
     })
     expect(normalizeCursorArgs({ x: '30', y: '40' }).args).toEqual({ x: 30, y: 40 })
     expect(() => normalizeScrollArgs({ x: 10, y: Number.NaN, direction: 'down' })).toThrow('Invalid y coordinate')
+  })
+})
+
+describe('tool routing through current-desktop Computer Use', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    vi.clearAllMocks()
+  })
+
+  async function loadToolHandler(
+    computerUseOverrides: Record<string, ReturnType<typeof vi.fn>> = {}
+  ): Promise<{
+    handler: (event: unknown, toolName: string, args: unknown) => Promise<unknown>
+    handlers: Record<string, ReturnType<typeof vi.fn>>
+  }> {
+    let handler:
+      | ((event: unknown, toolName: string, args: unknown) => Promise<unknown>)
+      | null = null
+
+    vi.doMock('electron', () => ({
+      ipcMain: {
+        handle: vi.fn((channel: string, callback: typeof handler) => {
+          if (channel === 'execute-tool') {
+            handler = callback
+          }
+        }),
+      },
+    }))
+
+    const computerUse = {
+      executeScreenshot: vi.fn(async () => ({ success: true, data: { action: 'screenshot' } })),
+      executeClick: vi.fn(async () => ({ success: true, data: { action: 'click' } })),
+      executeType: vi.fn(async () => ({ success: true, data: { action: 'type' } })),
+      executeKey: vi.fn(async () => ({ success: true, data: { action: 'key' } })),
+      executeScroll: vi.fn(async () => ({ success: true, data: { action: 'scroll' } })),
+      executeCursorPosition: vi.fn(async () => ({
+        success: true,
+        data: { action: 'cursor_position' },
+      })),
+      executeListWindows: vi.fn(async () => ({ success: true, data: { windows: [] } })),
+      executeLaunchApp: vi.fn(async () => ({ success: true, data: { action: 'launch_app' } })),
+      executeFindApp: vi.fn(async () => ({ success: true, data: { action: 'find_app' } })),
+      executeCloseApp: vi.fn(async () => ({ success: true, data: { action: 'close_app' } })),
+      ...computerUseOverrides,
+    }
+
+    const nativeMocks = {
+      executeWindowsUiaSnapshot: vi.fn(async () => ({ success: true, data: { windows: [] } })),
+      executeWindowsUiaInvoke: vi.fn(async () => ({ success: false, error: 'approval required' })),
+      executeWindowsUiaSetValue: vi.fn(async () => ({ success: false, error: 'approval required' })),
+      executeWindowsUiaSelect: vi.fn(async () => ({ success: false, error: 'approval required' })),
+      executeSystemShell: vi.fn(async () => ({ success: false, error: 'approval required' })),
+      executeFileRead: vi.fn(async () => ({ success: true, data: { content: 'ok' } })),
+      executeFileWrite: vi.fn(async () => ({ success: false, error: 'approval required' })),
+      executeFileSearch: vi.fn(async () => ({ success: true, data: { results: [] } })),
+      executeFileMove: vi.fn(async () => ({ success: false, error: 'approval required' })),
+      executeAppFind: vi.fn(async () => ({ success: true, data: { matches: [] } })),
+      executeAppLaunch: vi.fn(async () => ({ success: false, error: 'approval required' })),
+      executeAppList: vi.fn(async () => ({ success: true, data: { apps: [] } })),
+      executeAppInstall: vi.fn(async () => ({ success: false, error: 'approval required' })),
+      executeAppUninstall: vi.fn(async () => ({ success: false, error: 'approval required' })),
+      executeWindowList: vi.fn(async () => ({ success: true, data: { windows: [] } })),
+      executeWindowFocus: vi.fn(async () => ({ success: false, error: 'approval required' })),
+      executeWindowMove: vi.fn(async () => ({ success: false, error: 'approval required' })),
+      executeWindowClose: vi.fn(async () => ({ success: false, error: 'approval required' })),
+    }
+
+    vi.doMock('./computerUse', () => computerUse)
+    vi.doMock('./windows-uia', () => nativeMocks)
+    vi.doMock('./system-shell', () => nativeMocks)
+    vi.doMock('./files', () => nativeMocks)
+    vi.doMock('./app-management', () => nativeMocks)
+    vi.doMock('./window-management', () => nativeMocks)
+    vi.doMock('./webSearch', () => ({
+      executeWebSearch: vi.fn(async () => ({ success: true, data: [] })),
+    }))
+    vi.doMock('./codeExecution', () => ({
+      executeCode: vi.fn(async () => ({ success: true, data: {} })),
+    }))
+    vi.doMock('../windows/spotlightOverlay', () => ({
+      showSpotlight: vi.fn(async () => undefined),
+    }))
+
+    const tools = await import('./index')
+    tools.registerToolHandlers()
+
+    expect(handler).not.toBeNull()
+    return { handler: handler as NonNullable<typeof handler>, handlers: { ...computerUse, ...nativeMocks } }
+  }
+
+  it('routes computer_screenshot directly to the current-desktop handler', async () => {
+    const { handler, handlers } = await loadToolHandler()
+
+    const result = await handler({}, 'computer_screenshot', { window_title: 'Settings' })
+
+    expect(result).toEqual({ success: true, data: { action: 'screenshot' } })
+    expect(handlers.executeScreenshot).toHaveBeenCalledWith({
+      display_id: undefined,
+      window_id: undefined,
+      window_title: 'Settings',
+      app_name: undefined,
+    })
+  })
+
+  it('routes computer_launch_app directly without separate-desktop display switching', async () => {
+    const executeLaunchApp = vi.fn(async () => ({ success: true, data: { launched: 'notepad' } }))
+    const { handler } = await loadToolHandler({ executeLaunchApp })
+
+    const result = await handler({}, 'computer_launch_app', { name: 'notepad' })
+
+    expect(result).toEqual({ success: true, data: { launched: 'notepad' } })
+    expect(executeLaunchApp).toHaveBeenCalledWith({ name: 'notepad' })
+  })
+
+  it('routes native Windows tools through execute-tool', async () => {
+    const { handler, handlers } = await loadToolHandler()
+
+    const result = await handler({}, 'windows_uia_snapshot', {})
+
+    expect(result).toEqual({ success: true, data: { windows: [] } })
+    expect(handlers.executeWindowsUiaSnapshot).toHaveBeenCalledTimes(1)
+  })
+
+  it('routes mutating native tools to fail closed when approval is absent', async () => {
+    const { handler, handlers } = await loadToolHandler()
+
+    const result = await handler({}, 'system_shell', {
+      command: 'Get-Date',
+      description: 'Check date',
+    })
+
+    expect(result).toEqual({ success: false, error: 'approval required' })
+    expect(handlers.executeSystemShell).toHaveBeenCalledTimes(1)
   })
 })

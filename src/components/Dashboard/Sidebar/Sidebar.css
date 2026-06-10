@@ -7,12 +7,18 @@
 /* ── Container ─────────────────────────────────────────────── */
 
 .sidebar-container {
+  --sidebar-chat-text-color: color-mix(in srgb, var(--theme-text-primary) 58%, var(--theme-text-muted) 42%);
+  --sidebar-header-action-color: var(--sidebar-chat-text-color);
   --sidebar-font-size-xs: 0.74rem;
   --sidebar-font-size-sm: 0.9rem;
   --sidebar-font-size-md: 0.95rem;
   --sidebar-item-gap: 2px;
-  --sidebar-row-height: 38px;
+  --sidebar-row-height: 32px;
   --sidebar-control-height: 38px;
+  --sidebar-show-duration: 340ms;
+  --sidebar-hide-duration: 240ms;
+  --sidebar-show-ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --sidebar-hide-ease: cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -21,15 +27,18 @@
   overflow: hidden;
   z-index: 1;
   background: var(--theme-sidebar-solid);
-  border-right: none;
-  transition: opacity var(--motion-duration-fast) var(--motion-ease-standard), background var(--motion-duration-normal) var(--motion-ease-standard);
+  contain: layout paint;
+  transition:
+    width var(--sidebar-show-duration) var(--sidebar-show-ease),
+    opacity var(--motion-duration-fast) var(--motion-ease-standard),
+    background var(--motion-duration-normal) var(--motion-ease-standard);
 }
 
 .sidebar-container--macos {
   --sidebar-font-size-xs: 0.7rem;
   --sidebar-font-size-sm: 0.84rem;
   --sidebar-font-size-md: 0.9rem;
-  --sidebar-row-height: 34px;
+  --sidebar-row-height: 32px;
   --sidebar-control-height: 34px;
 }
 
@@ -41,10 +50,36 @@
   width: 0 !important;
   border-right: none;
   pointer-events: none;
+  transition:
+    width var(--sidebar-hide-duration) var(--sidebar-hide-ease),
+    opacity var(--motion-duration-fast) var(--motion-ease-exit);
 }
 
 .sidebar-container--collapsed {
   width: 60px;
+}
+
+/* ── Hover-to-peek (sidebar hidden) ────────────────────────── */
+
+/* Thin hover trigger pinned to the left edge while the sidebar is hidden. */
+.sidebar-peek-trigger {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 14px;
+  z-index: 6;
+  -webkit-app-region: no-drag;
+}
+
+/* Reveal the hidden sidebar as a floating flyout over the content. */
+.sidebar-container--peek {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  z-index: 40;
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.28);
 }
 
 .sidebar-container--expanded {
@@ -75,6 +110,13 @@
   display: flex;
   flex-direction: column;
   height: 100%;
+  /* Hold a fixed width that matches the open width so the panel slides in/out
+     (clipped by the container's overflow:hidden) instead of reflowing per frame. */
+  width: var(--sidebar-inner-width, 100%);
+}
+
+.sidebar-container--hidden .sidebar__inner {
+  opacity: 1;
 }
 
 .sidebar-resize-handle {
@@ -155,7 +197,6 @@
   display: flex;
   flex-direction: column;
   width: 100%;
-  transition: all var(--motion-duration-normal) var(--motion-ease-standard);
 }
 
 .sidebar-view--chat {
@@ -196,8 +237,7 @@
 /* ── Header ────────────────────────────────────────────────── */
 
 .sidebar-header {
-  --sidebar-header-action-color: var(--theme-text-secondary);
-  padding: 8px 8px 4px;
+  padding: 8px 8px 4px 4px;
   display: flex;
   flex-direction: column;
   gap: 1px;
@@ -205,7 +245,7 @@
 }
 
 .sidebar-container--macos .sidebar-header {
-  padding: 6px 8px 2px;
+  padding: 6px 8px 2px 4px;
   gap: 0;
 }
 
@@ -215,7 +255,7 @@
 
 .sidebar-header__btn {
   width: 100%;
-  height: var(--sidebar-control-height);
+  height: 32px;
   border: 1px solid transparent;
   border-radius: 10px;
   appearance: none;
@@ -225,10 +265,10 @@
   display: grid;
   grid-template-columns: 18px minmax(0, 1fr);
   align-items: center;
-  column-gap: 10px;
-  padding: 0 10px;
-  font-size: var(--sidebar-font-size-sm);
-  font-weight: 500;
+  column-gap: 8px;
+  padding: 0 12px;
+  font-size: 13.5px;
+  font-weight: 400;
   cursor: pointer;
   transition: background var(--motion-duration-micro) var(--motion-ease-standard), border-color var(--motion-duration-micro) var(--motion-ease-standard), color var(--motion-duration-micro) var(--motion-ease-standard);
   box-sizing: border-box;
@@ -236,10 +276,11 @@
 }
 
 .sidebar-container--macos .sidebar-header__btn {
+  height: 32px;
   border-radius: 9px;
   grid-template-columns: 16px minmax(0, 1fr);
   column-gap: 8px;
-  padding: 0 11px;
+  padding: 0 12px;
   font-weight: 500;
 }
 
@@ -380,12 +421,12 @@
 .sidebar-chatlist__viewport {
   display: flex;
   flex-direction: column;
-  padding-left: 8px;
+  padding-left: 4px;
   padding-right: 14px;
 }
 
 .sidebar-container--macos .sidebar-chatlist__viewport {
-  padding-left: 8px;
+  padding-left: 4px;
   padding-right: 12px;
 }
 
@@ -452,7 +493,7 @@
   text-overflow: ellipsis;
   font-size: var(--sidebar-font-size-sm);
   font-weight: 400;
-  color: var(--theme-text-primary);
+  color: var(--sidebar-chat-text-color);
   min-width: 0;
 }
 
@@ -565,7 +606,7 @@
   bottom: 0;
   z-index: 3;
   pointer-events: auto;
-  padding: 0 8px 8px;
+  padding: 0 8px 8px 4px;
   background: var(--theme-sidebar-solid);
 }
 
@@ -649,7 +690,7 @@
   align-items: stretch;
   gap: 4px;
   min-height: 0;
-  padding: 10px 10px 0;
+  padding: 10px 10px 0 6px;
   overflow: hidden;
 }
 
@@ -659,7 +700,7 @@
   gap: 10px;
   padding: 9px 10px;
   border-radius: 8px;
-  color: var(--theme-text-primary);
+  color: var(--sidebar-chat-text-color);
   background: transparent;
   border: 1px solid transparent;
   cursor: pointer;
@@ -679,7 +720,7 @@
   background: color-mix(in srgb, var(--theme-accent) 18%, var(--theme-surface-hover));
   border-color: transparent;
   box-shadow: none;
-  color: var(--theme-text-primary);
+  color: var(--sidebar-chat-text-color);
 }
 
 .sidebar-container.frosted .sidebar-nav-item.active {
@@ -729,7 +770,7 @@
 }
 
 .sidebar-animate-item {
-  animation: sidebar-blur-in-up 0.25s cubic-bezier(0.25, 0.1, 0.25, 1) backwards;
+  animation: none;
 }
 
 @keyframes sidebar-pulse {

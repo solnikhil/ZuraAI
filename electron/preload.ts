@@ -19,10 +19,17 @@ import type {
   IpcOnChannel,
   IpcSendArgsMap,
   IpcSendChannel,
+  AddMemoryInput,
+  AppMenuCommand,
+  DiscordRpcState,
+  Memory,
+  MemoryScope,
   OverlaySettings,
   OverlayState,
   PendingCodeApproval,
   PendingComputerAction,
+  ResourceSample,
+  UpdateMemoryPatch,
 } from '../src/electron/types'
 
 const preloadLog = (message: string) => {
@@ -56,6 +63,8 @@ const SEND_CHANNELS = new Set<IpcSendChannel>([
   'overlay:drag-end',
   'open-model-selector',
   'overlay:navigate-settings',
+  'resource-monitor:subscribe',
+  'resource-monitor:unsubscribe',
 ])
 
 const INVOKE_CHANNELS = new Set<IpcInvokeChannel>([
@@ -93,6 +102,9 @@ const INVOKE_CHANNELS = new Set<IpcInvokeChannel>([
   'updater:check-for-updates',
   'updater:quit-and-install',
   'updater:get-version',
+
+  // Resource monitor
+  'resource-monitor:get-now',
 ])
 
 const ON_CHANNELS = new Set<IpcOnChannel>([
@@ -108,6 +120,7 @@ const ON_CHANNELS = new Set<IpcOnChannel>([
   'chat-store:changed',
   'context-menu:action',
   'chat-diagnostics:event',
+  'resource-monitor:sample',
 ])
 
 const MCP_INVOKE_CHANNELS = new Set<string>([
@@ -128,6 +141,27 @@ const MCP_INVOKE_CHANNELS = new Set<string>([
 ])
 
 const MCP_ON_CHANNELS = new Set<string>(['mcp:state-changed'])
+
+const MEMORY_INVOKE_CHANNELS = new Set<string>([
+  'memory:list',
+  'memory:add',
+  'memory:add-deduped',
+  'memory:update',
+  'memory:delete',
+  'memory:clear',
+  'memory:search',
+  'memory:summaries-list',
+  'memory:summaries-upsert',
+])
+
+const MEMORY_ON_CHANNELS = new Set<string>(['memory-store:changed'])
+
+const DISCORD_RPC_INVOKE_CHANNELS = new Set<string>([
+  'discord-rpc:get-state',
+  'discord-rpc:set-activity',
+])
+
+const DISCORD_RPC_ON_CHANNELS = new Set<string>(['discord-rpc:state-changed'])
 
 function assertAllowed<TChannel extends string>(
   kind: 'send' | 'invoke' | 'on' | 'off',
@@ -169,7 +203,19 @@ contextBridge.exposeInMainWorld(
       // Extra validation for tool execution
       if (channel === 'execute-tool') {
         const toolName = args[0]
-        if (toolName !== 'web_search' && toolName !== 'code_execution' && !(typeof toolName === 'string' && toolName.startsWith('computer_'))) {
+        const isNativeWindowsTool =
+          typeof toolName === 'string' &&
+          (toolName.startsWith('windows_uia_') ||
+            toolName.startsWith('file_') ||
+            toolName.startsWith('app_') ||
+            toolName.startsWith('window_') ||
+            toolName === 'system_shell')
+        if (
+          toolName !== 'web_search' &&
+          toolName !== 'code_execution' &&
+          !(typeof toolName === 'string' && toolName.startsWith('computer_')) &&
+          !isNativeWindowsTool
+        ) {
           return Promise.resolve({
             success: false,
             error: `Tool "${String(toolName)}" is disabled.`,
@@ -309,6 +355,14 @@ contextBridge.exposeInMainWorld(
 )
 
 contextBridge.exposeInMainWorld(
+  'appMenu',
+  Object.freeze({
+    command: (command: AppMenuCommand) =>
+      ipcRenderer.invoke('app-menu:command', command) as Promise<boolean>,
+  })
+)
+
+contextBridge.exposeInMainWorld(
   'shell',
   Object.freeze({
     openExternal: (url: string) => ipcRenderer.invoke('shell:open-external', url),
@@ -358,6 +412,22 @@ contextBridge.exposeInMainWorld(
   })
 )
 
+contextBridge.exposeInMainWorld(
+  'resourceMonitor',
+  Object.freeze({
+    getNow: () => ipcRenderer.invoke('resource-monitor:get-now') as Promise<ResourceSample>,
+    subscribe: (callback: (sample: ResourceSample) => void) => {
+      const listener = (_event: IpcRendererEvent, sample: ResourceSample) => callback(sample)
+      ipcRenderer.on('resource-monitor:sample', listener)
+      ipcRenderer.send('resource-monitor:subscribe')
+      return () => {
+        ipcRenderer.removeListener('resource-monitor:sample', listener)
+        ipcRenderer.send('resource-monitor:unsubscribe')
+      }
+    },
+  })
+)
+
 
 contextBridge.exposeInMainWorld(
   'computerUse',
@@ -377,6 +447,88 @@ contextBridge.exposeInMainWorld(
   })
 )
 
+contextBridge.exposeInMainWorld(
+  'memory',
+  Object.freeze({
+    list: (scope?: MemoryScope) => {
+      assertAllowed('invoke', 'memory:list', MEMORY_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('memory:list', scope) as Promise<Memory[]>
+    },
+    add: (input: AddMemoryInput) => {
+      assertAllowed('invoke', 'memory:add', MEMORY_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('memory:add', input) as Promise<Memory>
+    },
+    addDeduped: (input: AddMemoryInput, options?: { supersedesId?: string }) => {
+      assertAllowed('invoke', 'memory:add-deduped', MEMORY_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('memory:add-deduped', input, options) as Promise<{
+        memory: Memory
+        operation: 'added' | 'noop' | 'superseded'
+      }>
+    },
+    update: (id: string, patch: UpdateMemoryPatch) => {
+      assertAllowed('invoke', 'memory:update', MEMORY_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('memory:update', id, patch) as Promise<Memory | null>
+    },
+    delete: (id: string) => {
+      assertAllowed('invoke', 'memory:delete', MEMORY_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('memory:delete', id) as Promise<boolean>
+    },
+    clear: () => {
+      assertAllowed('invoke', 'memory:clear', MEMORY_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('memory:clear') as Promise<boolean>
+    },
+    search: (query: string, limit?: number, scope?: MemoryScope) => {
+      assertAllowed('invoke', 'memory:search', MEMORY_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('memory:search', query, limit, scope) as Promise<Memory[]>
+    },
+    summaries: Object.freeze({
+      list: () => {
+        assertAllowed('invoke', 'memory:summaries-list', MEMORY_INVOKE_CHANNELS)
+        return ipcRenderer.invoke('memory:summaries-list') as Promise<
+          import('../src/electron/types').ConversationSummary[]
+        >
+      },
+      upsert: (sessionId: string, summary: string) => {
+        assertAllowed('invoke', 'memory:summaries-upsert', MEMORY_INVOKE_CHANNELS)
+        return ipcRenderer.invoke('memory:summaries-upsert', sessionId, summary) as Promise<
+          import('../src/electron/types').ConversationSummary
+        >
+      },
+    }),
+    onChanged: (callback: () => void) => {
+      assertAllowed('on', 'memory-store:changed', MEMORY_ON_CHANNELS)
+      const listener = () => callback()
+      ipcRenderer.on('memory-store:changed', listener)
+      return () => {
+        assertAllowed('off', 'memory-store:changed', MEMORY_ON_CHANNELS)
+        ipcRenderer.removeListener('memory-store:changed', listener)
+      }
+    },
+  })
+)
+
+contextBridge.exposeInMainWorld(
+  'discordRpc',
+  Object.freeze({
+    getState: () => {
+      assertAllowed('invoke', 'discord-rpc:get-state', DISCORD_RPC_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('discord-rpc:get-state') as Promise<DiscordRpcState>
+    },
+    setActivity: (activity: Record<string, unknown>) => {
+      assertAllowed('invoke', 'discord-rpc:set-activity', DISCORD_RPC_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('discord-rpc:set-activity', activity) as Promise<DiscordRpcState>
+    },
+    onStateChange: (callback: (state: DiscordRpcState) => void) => {
+      assertAllowed('on', 'discord-rpc:state-changed', DISCORD_RPC_ON_CHANNELS)
+      const listener = (_event: IpcRendererEvent, state: DiscordRpcState) => callback(state)
+      ipcRenderer.on('discord-rpc:state-changed', listener)
+      return () => {
+        assertAllowed('off', 'discord-rpc:state-changed', DISCORD_RPC_ON_CHANNELS)
+        ipcRenderer.removeListener('discord-rpc:state-changed', listener)
+      }
+    },
+  })
+)
 
 contextBridge.exposeInMainWorld(
   'mcp',

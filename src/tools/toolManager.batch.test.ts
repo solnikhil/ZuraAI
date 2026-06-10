@@ -36,6 +36,63 @@ describe('toolManager web search batch policy', () => {
     mocks.executeToolCalls.mockReset()
   })
 
+  it('auto-runs read-only tools without manual approval', async () => {
+    mocks.executeToolCalls.mockImplementation(async ([toolCall]) => [
+      {
+        toolCall,
+        result: {
+          success: true,
+          data: { results: [] },
+          metadata: { origin: 'builtin-main' as const },
+        },
+      },
+    ])
+
+    const response = buildToolResponse([
+      { id: 'file-search-1', name: 'file_search', arguments: { query: 'desktop', root: 'C:\\Users\\Nikhil\\Desktop' } },
+    ])
+    const requestToolApproval = vi.fn(async () => false)
+    const onToolApprovalStart = vi.fn()
+
+    const result = await processToolCalls(response, {
+      provider: 'openrouter',
+      model: 'openai/gpt-4.1',
+      requestToolApproval,
+      onToolApprovalStart,
+    })
+
+    expect(requestToolApproval).not.toHaveBeenCalled()
+    expect(onToolApprovalStart).not.toHaveBeenCalled()
+    expect(mocks.executeToolCalls).toHaveBeenCalledTimes(1)
+    expect(result.results[0]?.result.success).toBe(true)
+  })
+
+  it('blocks execution when manual approval for a mutating tool is rejected', async () => {
+    const response = buildToolResponse([
+      {
+        id: 'shell-1',
+        name: 'system_shell',
+        arguments: { command: 'Remove-Item C:\\tmp\\demo.txt', description: 'delete demo file' },
+      },
+    ])
+
+    const result = await processToolCalls(response, {
+      provider: 'openrouter',
+      model: 'openai/gpt-4.1',
+      requestToolApproval: async () => false,
+    })
+
+    expect(mocks.executeToolCalls).not.toHaveBeenCalled()
+    expect(result.results[0]).toEqual(
+      expect.objectContaining({
+        result: expect.objectContaining({
+          success: false,
+          error: 'Tool call rejected by user.',
+        }),
+      })
+    )
+  })
+
   it('executes five independent year-sliced web_search calls as one parallel batch and preserves order', async () => {
     const startedQueries: string[] = []
     const batchQueries: string[][] = []

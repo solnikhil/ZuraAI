@@ -31,6 +31,7 @@ import {
   setShutdownHook,
 } from './updater'
 import { deferredInitializer } from './startup/deferredInit'
+import { startResourceMonitor, stopResourceMonitor } from './diagnostics/resourceMonitor'
 import {
   registerCodeExecutionHandlers,
   unregisterCodeExecutionHandlers,
@@ -41,6 +42,11 @@ import {
   unregisterComputerUseHandlers,
   disposeComputerUseApprovalManager,
 } from './tools/computer-use'
+import {
+  registerDiscordRpcHandlers,
+  unregisterDiscordRpcHandlers,
+  disposeDiscordRpcClient,
+} from './discordRpc'
 
 // Resolve packaged asset paths consistently in both development and production.
 const DIST_PATH = process.env.DIST || path.join(__dirname, '../dist')
@@ -68,14 +74,14 @@ function registerSessionSecurityHandlers(): void {
   defaultSession.setPermissionCheckHandler(() => false)
 }
 
-app.commandLine.appendSwitch('process-name', 'ZuraAI-Main')
+app.commandLine.appendSwitch('process-name', APP_NAME)
 
 if (process.platform === 'win32') {
   app.setAppUserModelId(WINDOWS_APP_ID)
 }
 app.setName(APP_NAME)
 
-process.title = 'ZuraAI - Main'
+process.title = APP_NAME
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
@@ -97,11 +103,14 @@ app.on('will-quit', () => {
   unregisterMcpHandlers()
   disposeCodeExecutionApprovalManager()
   unregisterCodeExecutionHandlers()
+  unregisterDiscordRpcHandlers()
+  disposeDiscordRpcClient()
   disposeComputerUseApprovalManager()
   unregisterComputerUseHandlers()
 
   cleanupAutoUpdater()
   destroyTray()
+  stopResourceMonitor()
 })
 
 app.on('before-quit', (event) => {
@@ -166,9 +175,11 @@ app.whenReady().then(async () => {
   // before the platform installer takes over.
   setShutdownHook(() => shutdownMcpManager())
   registerCodeExecutionHandlers()
+  registerDiscordRpcHandlers(getMainWindow)
   if (!IS_MACOS) {
     registerComputerUseHandlers()
   }
+  startResourceMonitor()
 
   registerSessionSecurityHandlers()
   await initializeMcpManager({

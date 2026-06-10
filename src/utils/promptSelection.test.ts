@@ -3,12 +3,18 @@ import * as fc from 'fast-check'
 import { getEffectiveSystemPrompt, resolveSystemPromptTemplate, shouldEnableTools } from './promptSelection'
 import { defaultSkillsSettings } from '../skills'
 import { CURRENT_YEAR_PLACEHOLDER } from '../prompts/defaultSystemPrompt'
+import { ASSISTANT_PERSONALITIES } from '../prompts/assistantPersonalities'
+import { defaultSystemPrompt } from '../prompts/defaultSystemPrompt'
 
 // Arbitrary for generating random system prompts
 const systemPromptArb = fc.string({ minLength: 1, maxLength: 500 })
 
 describe('System Prompt Selection', () => {
-    it('Returns the base system prompt', () => {
+    it('instructs the assistant not to use em dashes', () => {
+        expect(defaultSystemPrompt).toContain('Do not use em dashes in prose.')
+    })
+
+    it('returns the base system prompt plus the default personality section', () => {
         fc.assert(
             fc.property(
                 systemPromptArb,
@@ -17,13 +23,28 @@ describe('System Prompt Selection', () => {
                     
                     const effectivePrompt = getEffectiveSystemPrompt(settings)
                     
-                    // Should return the base prompt
-                    expect(effectivePrompt).toBe(basePrompt)
+                    expect(effectivePrompt).toContain(basePrompt)
+                    expect(effectivePrompt).toContain('Selected Personality')
+                    expect(effectivePrompt).toContain('Professional Engineer')
                 }
             ),
             { numRuns: 100 }
         )
     })
+
+    it.each(ASSISTANT_PERSONALITIES)(
+        'adds the selected $label personality section',
+        (personality) => {
+            const effectivePrompt = getEffectiveSystemPrompt({
+                systemPrompt: 'Base prompt',
+                assistantPersonality: personality.id,
+            })
+
+            expect(effectivePrompt).toContain('Selected Personality')
+            expect(effectivePrompt).toContain(personality.label)
+            expect(effectivePrompt).toContain(personality.prompt)
+        }
+    )
 
     it('resolves the current year placeholder dynamically', () => {
         const prompt = `Context\nToday's year is ${CURRENT_YEAR_PLACEHOLDER}.`

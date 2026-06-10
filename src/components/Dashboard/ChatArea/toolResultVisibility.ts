@@ -1,4 +1,5 @@
 import type { ThinkingBlock, ToolCallResult } from '../../../chat/types'
+import { MEMORY_TOOL_NAMES } from '../../../tools/memoryTools'
 
 function hasMcpMetadataShape(metadata: unknown): boolean {
   if (!metadata || typeof metadata !== 'object') {
@@ -25,6 +26,14 @@ export function shouldHideGenericToolResultCard(result: ToolCallResult): boolean
   }
 
   if (result.toolCall.name.startsWith('computer_')) {
+    return true
+  }
+
+  // Legacy in-conversation memory tool results (from older chat sessions, when
+  // save/update/delete/search_memories were model-callable). The tools were
+  // removed; suppress their generic cards so old histories don't render a
+  // stray, unsupported tool entry.
+  if ((MEMORY_TOOL_NAMES as readonly string[]).includes(result.toolCall.name)) {
     return true
   }
 

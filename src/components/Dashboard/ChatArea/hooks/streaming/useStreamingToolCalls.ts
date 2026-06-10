@@ -58,7 +58,12 @@ export function useStreamingToolCalls({ settings }: UseStreamingToolCallsOptions
         response,
         options?.onToolStart,
         options?.onToolComplete,
-        options?.executionPolicy
+        options?.executionPolicy,
+        {
+          onToolApprovalStart: options?.onToolApprovalStart,
+          onToolApprovalResolved: options?.onToolApprovalResolved,
+          requestToolApproval: options?.requestToolApproval,
+        }
       )
     } catch (toolError: unknown) {
       const message = toolError instanceof Error ? toolError.message : 'Unknown error'

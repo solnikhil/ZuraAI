@@ -11,11 +11,23 @@ import {
 import { useSettings } from '../../../../contexts/SettingsContext'
 import { useToast } from '../../../shared/Toast'
 import type { ToolCallState } from '../../../../hooks/useToolCalling'
+import {
+  completeAgentToolStep,
+  createAgentRun,
+  finishAgentRun,
+  isAgentWorkspaceMode,
+  upsertAgentToolStep,
+  upsertAgentVerificationStep,
+} from '../../../../agent/agentRun'
+import { useAgentToolApproval } from '../../../../agent/AgentToolApprovalContext'
 import { generateChatTitle } from '../../../../services/titleGenerator'
+import { runMemoryExtraction, type ExtractionMessage } from '../../../../services/memoryExtraction'
 import { inferOpenRouterSupportsDeepThinking } from '../../../../services/openrouterModels'
 import { inferAlibabaSupportsDeepThinking } from '../../../../services/alibabaModels'
 import { buildOptimizedContextWithTrace } from '../../../../utils/tokenUtils'
 import { getEffectiveSystemPrompt } from '../../../../utils/promptSelection'
+import { loadMemoryBlock } from '../../../../prompts/buildMemoryBlock'
+import { loadRecentActivityBlock } from '../../../../prompts/buildRecentActivityBlock'
 import { StreamingThrottler } from '../../../../utils/streamingThrottler'
 import { resolveProviderApiKeysForSettings } from '../../../../utils/secureApiKeys'
 import {
@@ -107,6 +119,7 @@ export function buildCommittedStreamingUpdates(
     updates.toolResults =
       streamResult?.toolResults === null ? undefined : streamResult?.toolResults ?? finalState.toolResults
   }
+  if (hasField('agentRun')) updates.agentRun = finalState.agentRun
   if (streamResult?.files !== undefined || hasField('files')) updates.files = streamResult?.files ?? finalState.files
   if (streamResult?.model !== undefined || hasField('model')) updates.model = streamResult?.model ?? finalState.model
   if (streamResult?.latency !== undefined || hasField('latency')) updates.latency = streamResult?.latency ?? finalState.latency
@@ -134,6 +147,29 @@ function toConversationMessages(
     content: message.content,
     files: message.files,
   }))
+}
+
+function buildMemoryExtractionMessages(
+  conversationHistory: ConversationMessage[],
+  userContent: string,
+  assistantContent: string
+): ExtractionMessage[] {
+  const priorMessages = conversationHistory
+    .filter(
+      (message): message is ConversationMessage & { role: 'user' | 'assistant' } =>
+        (message.role === 'user' || message.role === 'assistant') &&
+        typeof message.content === 'string' &&
+        message.content.trim().length > 0
+    )
+    .map((message) => ({ role: message.role, content: message.content }))
+
+  return [
+    ...priorMessages,
+    { role: 'user' as const, content: userContent },
+    ...(assistantContent.trim()
+      ? [{ role: 'assistant' as const, content: assistantContent }]
+      : []),
+  ]
 }
 
 export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStreamingChatReturn {
@@ -180,6 +216,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       if (hasField('researchProgress'))
         updates.researchProgress = finalState.researchProgress
       if (hasField('toolResults')) updates.toolResults = finalState.toolResults
+      if (hasField('agentRun')) updates.agentRun = finalState.agentRun
       if (hasField('files')) updates.files = finalState.files
       if (hasField('model')) updates.model = finalState.model
       if (hasField('latency')) updates.latency = finalState.latency
@@ -196,6 +233,18 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
 
   const { settings, updateSettings } = useSettings()
   const { showToast } = useToast()
+  const { requestApproval } = useAgentToolApproval()
+  const activeAgentRunRef = useRef<Message['agentRun'] | undefined>(undefined)
+
+  const publishAgentRun = useCallback(
+    (sessionId: string, messageId: string, agentRun: Message['agentRun']) => {
+      if (!agentRun) return
+      activeAgentRunRef.current = agentRun
+      updateStreaming({ agentRun })
+      updateStreamingMessage(sessionId, messageId, { agentRun })
+    },
+    [updateStreaming, updateStreamingMessage]
+  )
 
   const clearTitleRevealInterval = useCallback((sessionId: string) => {
     const timerId = titleRevealIntervalRef.current.get(sessionId)
@@ -362,6 +411,13 @@ const streamingSettings: StreamingSettings = useMemo(
 
     // Commit any pending streaming content to the session
     if (streamingMessageRef.current) {
+      if (activeAgentRunRef.current) {
+        publishAgentRun(
+          streamingMessageRef.current.sessionId,
+          streamingMessageRef.current.messageId,
+          finishAgentRun(activeAgentRunRef.current, 'cancelled')
+        )
+      }
       const finalState = completeStreaming()
       if (finalState.sessionId && finalState.messageId) {
         // Commit final content to the session
@@ -372,6 +428,7 @@ const streamingSettings: StreamingSettings = useMemo(
         )
       }
       streamingMessageRef.current = null
+      activeAgentRunRef.current = undefined
     }
 
     if (abortControllerRef.current) {
@@ -458,7 +515,8 @@ const streamingSettings: StreamingSettings = useMemo(
           content
         )
 
-        let researchMaxRounds = researchConfig.maxRounds
+        let researchMaxRounds =
+          researchConfig.maxRounds
         const forceWebSearch = researchConfig.forceWebSearch
 
         // Start research mode when web search is enabled (maxRounds >= 0)
@@ -466,7 +524,14 @@ const streamingSettings: StreamingSettings = useMemo(
           startResearchMode(researchMaxRounds, forceWebSearch)
         }
 
-        const baseSystemPrompt = getEffectiveSystemPrompt(settings)
+        const baseSystemPrompt = getEffectiveSystemPrompt(
+          settings,
+          await loadMemoryBlock(settings, { type: 'global' }, {
+            userMessage:
+              typeof outboundUserMessage.content === 'string' ? outboundUserMessage.content : '',
+          }),
+          await loadRecentActivityBlock(settings)
+        )
         const dynamicResearchContext = getResearchContext(0, researchMaxRounds)
         const optimizedContext = buildOptimizedContextWithTrace(
           conversationHistory,
@@ -495,15 +560,24 @@ const streamingSettings: StreamingSettings = useMemo(
           return
         }
 
+        const initialAgentRun = isAgentWorkspaceMode(settings.assistantMode)
+          ? createAgentRun(settings.assistantMode, content)
+          : undefined
+
         const streamingMessageId = addMessageToSession(targetSessionId!, {
           role: 'assistant',
           content: '',
           model: `${settings.modelProvider}/${settings.aiModel}`,
+          agentRun: initialAgentRun,
         })
 
         // Keep partial assistant output out of persisted chat history until completion.
         streamingMessageRef.current = { sessionId: targetSessionId!, messageId: streamingMessageId }
         startStreaming(targetSessionId!, streamingMessageId)
+        activeAgentRunRef.current = initialAgentRun
+        if (activeAgentRunRef.current) {
+          publishAgentRun(targetSessionId!, streamingMessageId, activeAgentRunRef.current)
+        }
 
 // Use composed provider-specific streaming hooks
         const currentModel =
@@ -540,13 +614,94 @@ const streamingSettings: StreamingSettings = useMemo(
           researchMaxRounds,
           forceWebSearch,
           signal: abortControllerRef.current?.signal,
-enableTools: true,
+          enableTools: true,
           syncToStreamingContext: true,
+          toolEventCallbacks: activeAgentRunRef.current
+            ? {
+                requestToolApproval: requestApproval,
+                onToolApprovalStart: (toolCall) => {
+                  if (!activeAgentRunRef.current) return
+                  publishAgentRun(
+                    targetSessionId!,
+                    streamingMessageId,
+                    upsertAgentToolStep(activeAgentRunRef.current, toolCall, {
+                      status: 'awaiting-approval',
+                      approvalState: 'pending',
+                      startedAt: Date.now(),
+                    })
+                  )
+                },
+                onToolApprovalResolved: (toolCall, approved) => {
+                  if (!activeAgentRunRef.current) return
+                  publishAgentRun(
+                    targetSessionId!,
+                    streamingMessageId,
+                    upsertAgentToolStep(activeAgentRunRef.current, toolCall, {
+                      status: approved ? 'pending' : 'rejected',
+                      approvalState: approved ? 'approved' : 'rejected',
+                      completedAt: approved ? undefined : Date.now(),
+                    })
+                  )
+                },
+                onToolStart: (toolCall) => {
+                  if (!activeAgentRunRef.current) return
+                  publishAgentRun(
+                    targetSessionId!,
+                    streamingMessageId,
+                    upsertAgentToolStep(activeAgentRunRef.current, toolCall, {
+                      status: 'running',
+                      approvalState: 'approved',
+                      startedAt: Date.now(),
+                    })
+                  )
+                },
+                onToolComplete: (result) => {
+                  if (!activeAgentRunRef.current) return
+                  publishAgentRun(
+                    targetSessionId!,
+                    streamingMessageId,
+                    completeAgentToolStep(activeAgentRunRef.current, result)
+                  )
+                },
+                onVerificationStart: (strategy) => {
+                  if (!activeAgentRunRef.current) return
+                  publishAgentRun(
+                    targetSessionId!,
+                    streamingMessageId,
+                    upsertAgentVerificationStep(activeAgentRunRef.current, strategy, {
+                      status: 'running',
+                      startedAt: Date.now(),
+                    })
+                  )
+                },
+                onVerificationComplete: (strategy, verified) => {
+                  if (!activeAgentRunRef.current) return
+                  const now = Date.now()
+                  publishAgentRun(
+                    targetSessionId!,
+                    streamingMessageId,
+                    upsertAgentVerificationStep(activeAgentRunRef.current, strategy, {
+                      status: verified ? 'completed' : 'failed',
+                      completedAt: now,
+                      durationMs: Math.max(0, now - (activeAgentRunRef.current.steps.find((step) => step.kind === 'verify' && step.status === 'running')?.startedAt ?? now)),
+                    })
+                  )
+                },
+              }
+            : undefined,
           reasoning: openRouterReasoning,
           enableThinking: alibabaEnableThinking,
         })
 
         // Commit streaming content to the session
+        let assistantTextForMemory = ''
+        if (streamingMessageRef.current && activeAgentRunRef.current) {
+          publishAgentRun(
+            streamingMessageRef.current.sessionId,
+            streamingMessageRef.current.messageId,
+            finishAgentRun(activeAgentRunRef.current, 'completed')
+          )
+        }
         if (streamingMessageRef.current) {
           const finalState = completeStreaming()
           if (finalState.sessionId && finalState.messageId) {
@@ -556,12 +711,30 @@ enableTools: true,
               buildCommittedStreamingUpdates(finalState, streamResult)
             )
           }
+          assistantTextForMemory =
+            typeof finalState.content === 'string' ? finalState.content : ''
           streamingMessageRef.current = null
+          activeAgentRunRef.current = undefined
         }
 
         setIsLoading(false)
         clearToolState()
         options.onStreamEnd?.()
+
+        // Dreaming: fire-and-forget background memory extraction for this turn.
+        // Gated by the Memory skill inside runMemoryExtraction; best-effort and
+        // silent on failure so it never disrupts the chat.
+        if (targetSessionId && typeof content === 'string' && content.trim()) {
+          void runMemoryExtraction({
+            settings,
+            sessionId: targetSessionId,
+            messages: buildMemoryExtractionMessages(
+              conversationHistory,
+              content,
+              assistantTextForMemory
+            ),
+          }).catch(() => undefined)
+        }
 
         if (isNewSession && targetSessionId) {
           generateChatTitle(content, settings)
@@ -579,6 +752,7 @@ enableTools: true,
 
         // Cancel isolated streaming on error
         if (streamingMessageRef.current) {
+          activeAgentRunRef.current = undefined
           deleteMessageFromSession(
             streamingMessageRef.current.sessionId,
             streamingMessageRef.current.messageId
@@ -624,6 +798,8 @@ enableTools: true,
       cancelStreaming,
       runProviderStream,
       buildFinalStreamingUpdates,
+      publishAgentRun,
+      requestApproval,
     ]
   )
 
@@ -732,7 +908,13 @@ enableTools: true,
           return
         }
 
-        let systemPrompt = getEffectiveSystemPrompt(effectiveSettings)
+        let systemPrompt = getEffectiveSystemPrompt(
+          effectiveSettings,
+          await loadMemoryBlock(effectiveSettings, { type: 'global' }, {
+            userMessage: typeof userMessage.content === 'string' ? userMessage.content : '',
+          }),
+          await loadRecentActivityBlock(effectiveSettings)
+        )
         let userContent = userMessage.content
 
         if (instruction === 'concise') {
@@ -812,7 +994,7 @@ const openRouterReasoning =
             researchMaxRounds: 0,
             forceWebSearch: false,
             signal: abortControllerRef.current?.signal,
-enableTools: false,
+            enableTools: false,
             syncToStreamingContext: false,
             modalities: openRouterModalities,
             reasoning: openRouterReasoning,

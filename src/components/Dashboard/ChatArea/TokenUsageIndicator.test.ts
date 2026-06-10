@@ -28,6 +28,10 @@ describe('computeTokenBreakdown', () => {
     it('returns all zeros when there is no input, no messages, no streaming', () => {
       const result = computeTokenBreakdown(makeParams())
       expect(result.systemPrompt).toBe(0)
+      expect(result.toolInstructions).toBe(0)
+      expect(result.toolDefinitions).toBe(0)
+      expect(result.savedMemories).toBe(0)
+      expect(result.backgroundMemory).toBe(0)
       expect(result.chatMessages).toBe(0)
       expect(result.currentInput).toBe(0)
       expect(result.attachments).toBe(0)
@@ -76,6 +80,34 @@ describe('computeTokenBreakdown', () => {
   })
 
   describe('chat messages tokens', () => {
+    it('counts dynamic tool prompt text and tool definitions', () => {
+      const result = computeTokenBreakdown(
+        makeParams({
+          systemPrompt: 'base', // 5
+          toolInstructions: 'tool instructions', // ceil(17/4)=5 + 4 = 9
+          toolDefinitionsText: 'schema text', // ceil(11/4)=3
+        })
+      )
+      expect(result.systemPrompt).toBe(5)
+      expect(result.toolInstructions).toBe(9)
+      expect(result.toolDefinitions).toBe(3)
+      expect(result.totalUsed).toBe(17)
+    })
+
+    it('counts memory prompt blocks separately from the base system prompt', () => {
+      const result = computeTokenBreakdown(
+        makeParams({
+          systemPrompt: 'base', // ceil(4/4)=1 + 4 = 5
+          recentActivityBlock: 'recent activity context',
+          memoryBlock: 'saved memory context',
+        })
+      )
+      expect(result.systemPrompt).toBe(5)
+      expect(result.backgroundMemory).toBe(7)
+      expect(result.savedMemories).toBe(5)
+      expect(result.totalUsed).toBe(17)
+    })
+
     it('sums tokens for each message with role overhead', () => {
       const messages = [
         { role: 'user', content: 'Hello there' },       // ceil(11/4)=3 + 4 = 7

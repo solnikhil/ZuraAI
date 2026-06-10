@@ -21,6 +21,7 @@ import { shouldHideGenericToolResultCard } from './ChatArea/toolResultVisibility
 import { useStreamingChat, usePromptAutoHide } from './ChatArea/hooks'
 import type { AttachedFile } from './ChatArea/attachmentUtils'
 import { NORMAL_PLACEHOLDERS, GENZ_PLACEHOLDERS } from './ChatArea/placeholders'
+import { CHAT_AREA_STYLES } from './ChatArea/chatAreaStyles'
 
 /**
  * Virtualization threshold - activate virtual scrolling for lists > 50 messages
@@ -171,12 +172,12 @@ export default function ChatArea() {
       const isUserScrollingUp = currentScrollTop < previousScrollTop
       lastScrollTopRef.current = currentScrollTop
 
-      if (isAutoScrollingRef.current) return
-
       if (isLoading && isUserScrollingUp) {
         userScrolledAwayRef.current = true
         return
       }
+
+      if (isAutoScrollingRef.current) return
 
       if (isLoading && !isNearBottom()) {
         userScrolledAwayRef.current = true
@@ -229,9 +230,13 @@ export default function ChatArea() {
     if (streamingState.sessionId !== currentSessionId) return
     if (!streamingState.content && !streamingState.thinking) return
     if (userScrolledAwayRef.current) return
+    if (!isNearBottom()) {
+      userScrolledAwayRef.current = true
+      return
+    }
 
     requestAnimationFrame(() => {
-      if (!userScrolledAwayRef.current) {
+      if (!userScrolledAwayRef.current && isNearBottom()) {
         scrollToNewMessage()
       }
     })
@@ -290,7 +295,7 @@ export default function ChatArea() {
             />
           )}
 
-          {isLastAssistant && visibleLiveToolResults.length > 0 && (
+          {isLastAssistant && !msg.agentRun && visibleLiveToolResults.length > 0 && (
             <div style={{ marginTop: '8px', marginBottom: '24px' }}>
               {visibleLiveToolResults.map((result, i) => (
                 <ToolResultDisplay
@@ -580,64 +585,7 @@ export default function ChatArea() {
         )}
       </AnimatePresence>
 
-      <style>{`
-        .typing-indicator {
-          display: flex;
-          gap: 4px;
-        }
-        .typing-indicator span {
-          width: 8px;
-          height: 8px;
-          background: #555;
-          border-radius: 50%;
-          animation: bounce 1.4s infinite ease-in-out both;
-        }
-        .typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
-        .typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
-        @keyframes bounce {
-          0%, 80%, 100% { transform: scale(0.6); opacity: 0.5; }
-          40% { transform: scale(1); opacity: 1; }
-        }
-        .empty-state-title {
-          font-size: 2rem;
-          font-weight: 600;
-          color: var(--theme-text-primary);
-          margin-bottom: 8px;
-        }
-        .chat-input-overlay {
-          --chat-input-split-start: 44px;
-          position: absolute;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          padding: 0 20px 6px;
-          pointer-events: none;
-          background: transparent;
-          isolation: isolate;
-        }
-        .chat-input-overlay::before {
-          content: "";
-          position: absolute;
-          left: 0;
-          right: 0;
-          top: var(--chat-input-split-start);
-          bottom: 0;
-          z-index: 0;
-          pointer-events: none;
-          background: var(--theme-content-solid);
-        }
-        .chat-input-overlay__inner {
-          position: relative;
-          z-index: 1;
-          width: 100%;
-          max-width: min(735px, 100%);
-          margin: 0 auto;
-          pointer-events: auto;
-        }
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
+      <style>{CHAT_AREA_STYLES}</style>
     </div>
   )
 }
