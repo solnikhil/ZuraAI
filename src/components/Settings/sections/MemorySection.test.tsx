@@ -53,12 +53,11 @@ beforeEach(() => {
 })
 
 describe('MemorySection', () => {
-  it('renders header and recent activity, and loads global memories on mount', async () => {
+  it('renders header and loads global memories on mount', async () => {
     render(<MemorySection />)
 
     expect(screen.getByText('Memory')).toBeInTheDocument()
-    // Recent activity is always rendered; with no summaries it shows the empty state.
-    expect(screen.getByText('No recent activity yet.')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Recent activity')).not.toBeInTheDocument()
 
     await waitFor(() => expect(memoryAPI.list).toHaveBeenCalled())
     expect(memoryAPI.list).toHaveBeenCalledWith({ type: 'global' })
@@ -78,14 +77,35 @@ describe('MemorySection', () => {
     ).toBeInTheDocument()
 
     // The count reflects the one extracted background memory.
-    await screen.findByText('1 memory extracted from conversations.')
+    await screen.findByText('1 item extracted from conversations, including recent activity.')
 
     // Opening "View all" reveals the extracted memory content.
     fireEvent.click(screen.getByRole('button', { name: /View all/i }))
     expect(await screen.findByText('I prefer dark mode')).toBeInTheDocument()
   })
 
-  it('shows empty hints when there are no background memories or summaries', async () => {
+  it('shows recent activity inside the saved background memories viewer', async () => {
+    memoryAPI.summaries.list.mockResolvedValue([
+      {
+        sessionId: 'session-1',
+        summary: 'User prefers to be called Unc.',
+        updatedAt: Date.UTC(2026, 5, 10),
+      },
+    ])
+
+    const onChange = vi.fn()
+    render(<MemorySection onChange={onChange} />)
+
+    await waitFor(() => expect(memoryAPI.summaries.list).toHaveBeenCalled())
+
+    await screen.findByText('1 item extracted from conversations, including recent activity.')
+
+    fireEvent.click(screen.getByRole('button', { name: /View all/i }))
+    expect(await screen.findByText('Recent activity')).toBeInTheDocument()
+    expect(screen.getByText('User prefers to be called Unc.')).toBeInTheDocument()
+  })
+
+  it('shows empty hints when there are no background memories', async () => {
     const onChange = vi.fn()
     render(<MemorySection onChange={onChange} />)
 
@@ -96,6 +116,6 @@ describe('MemorySection', () => {
         'No background memories yet. Enable Background Active Memory to start extracting facts.'
       )
     ).toBeInTheDocument()
-    expect(screen.getByText('No recent activity yet.')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Recent activity')).not.toBeInTheDocument()
   })
 })

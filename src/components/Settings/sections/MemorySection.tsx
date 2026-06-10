@@ -24,7 +24,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import type { Memory } from '@/electron/types'
+import type { ConversationSummary, Memory } from '@/electron/types'
 import type { Settings } from '@/contexts/SettingsContext'
 import { getAvailableTitleModelOptions, getProviderDefinition } from '@/providers'
 import { isMemoryAutoManageEnabled, withMemoryAutoManage, type SkillsSettings } from '@/skills'
@@ -47,13 +47,17 @@ function formatTimestamp(ms: number): string {
   })
 }
 
+type BackgroundViewerItem =
+  | { kind: 'memory'; id: string; content: string; updatedAt: number }
+  | { kind: 'summary'; id: string; content: string; updatedAt: number }
+
 export function MemorySection({
   skills,
   settings,
   onChange,
 }: MemorySectionProps = {}): React.ReactElement {
   const [memories, setMemories] = useState<Memory[]>([])
-  const [summaries, setSummaries] = useState<import('@/electron/types').ConversationSummary[]>([])
+  const [summaries, setSummaries] = useState<ConversationSummary[]>([])
   const [bgMemoriesOpen, setBgMemoriesOpen] = useState(false)
 
   const refresh = useCallback(async () => {
@@ -84,8 +88,29 @@ export function MemorySection({
     })
   }, [refresh])
 
-  const backgroundMemories = memories.filter((m) => m.origin === 'background')
-  const bgTotalCount = backgroundMemories.length
+  const backgroundMemories = useMemo(
+    () => memories.filter((memory) => memory.origin === 'background'),
+    [memories]
+  )
+  const backgroundViewerItems = useMemo<BackgroundViewerItem[]>(
+    () =>
+      [
+        ...backgroundMemories.map((memory) => ({
+          kind: 'memory' as const,
+          id: memory.id,
+          content: memory.content,
+          updatedAt: memory.updatedAt,
+        })),
+        ...summaries.map((summary) => ({
+          kind: 'summary' as const,
+          id: `summary:${summary.sessionId}`,
+          content: summary.summary,
+          updatedAt: summary.updatedAt,
+        })),
+      ].sort((a, b) => b.updatedAt - a.updatedAt),
+    [backgroundMemories, summaries]
+  )
+  const bgTotalCount = backgroundViewerItems.length
 
   const memoryModelOptions = useMemo(() => {
     if (!settings) return [] as Array<{ value: string; label: string; provider: string }>
@@ -243,7 +268,7 @@ export function MemorySection({
                 <div className="settings-list-row__description">
                   {bgTotalCount === 0
                     ? 'No background memories yet. Enable Background Active Memory to start extracting facts.'
-                    : `${bgTotalCount} ${bgTotalCount === 1 ? 'memory' : 'memories'} extracted from conversations.`}
+                    : `${bgTotalCount} ${bgTotalCount === 1 ? 'item' : 'items'} extracted from conversations, including recent activity.`}
                 </div>
               </div>
               <div className="settings-list-row__control">
@@ -264,29 +289,32 @@ export function MemorySection({
                     <DialogHeader>
                       <DialogTitle>Saved Background Memories</DialogTitle>
                       <DialogDescription>
-                        Facts automatically extracted from your conversations to personalize future chats.
+                        Facts and recent activity automatically extracted from your conversations to personalize future chats.
                       </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-3 py-4">
-                      {backgroundMemories.length === 0 && (
+                      {backgroundViewerItems.length === 0 && (
                         <div className="text-center text-muted-foreground py-8">
                           No background memories yet.
                         </div>
                       )}
-                      {backgroundMemories.map((memory) => (
+                      {backgroundViewerItems.map((item) => (
                         <div
-                          key={memory.id}
+                          key={item.id}
                           className="flex items-start gap-3 p-3 rounded-xl border border-[var(--theme-border)] bg-[var(--theme-surface-subtle)]"
                         >
                           <span className="inline-flex items-center justify-center shrink-0 w-6 h-6 rounded-full bg-[var(--theme-accent-muted)] text-[var(--theme-accent)]">
                             <Sparkles size={12} />
                           </span>
                           <div className="flex-1 min-w-0">
+                            <div className="text-[11px] font-medium uppercase tracking-wide text-[var(--theme-text-tertiary)] mb-1">
+                              {item.kind === 'summary' ? 'Recent activity' : 'Background memory'}
+                            </div>
                             <p className="text-sm text-[var(--theme-text-primary)]">
-                              {memory.content}
+                              {item.content}
                             </p>
                             <p className="text-xs text-[var(--theme-text-tertiary)] mt-1">
-                              Updated {formatTimestamp(memory.updatedAt)}
+                              Updated {formatTimestamp(item.updatedAt)}
                             </p>
                           </div>
                         </div>
@@ -305,39 +333,6 @@ export function MemorySection({
           </Card>
         </>
       )}
-
-      <h3 className="appearance-group-heading">Recent Activity</h3>
-      <Card className="settings-list-card memory-settings-card" aria-label="Recent activity">
-        <div className="settings-list-row memory-settings-card__header">
-          <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Recent activity</h3>
-            <div className="settings-list-row__description">
-              {summaries.length === 0
-                ? 'Short summaries of your recent chats appear here as the assistant distills them.'
-                : 'Brief, dated summaries of your recent chats, used to keep continuity across conversations.'}
-            </div>
-          </div>
-        </div>
-
-        {summaries.length === 0 ? (
-          <div className="settings-list-row settings-list-row--stacked">
-            <div className="memory-empty">
-              <p>No recent activity yet.</p>
-            </div>
-          </div>
-        ) : (
-          <ul className="memory-list" role="list">
-            {summaries.map((item) => (
-              <li key={item.sessionId} className="settings-list-row memory-card">
-                <div className="settings-list-row__meta memory-card__meta">
-                  <p className="memory-card__content">{item.summary}</p>
-                  <div className="memory-card__footer">{formatTimestamp(item.updatedAt)}</div>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
     </div>
   )
 }
