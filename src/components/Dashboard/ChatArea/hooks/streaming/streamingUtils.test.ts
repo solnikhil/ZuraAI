@@ -370,6 +370,72 @@ describe('streamingUtils final synthesis helpers', () => {
     expect(synthesis).toContain('Pondicherry, Mahabalipuram, and Yelagiri')
   })
 
+  it('marks provider/model claims as unverified when no official vendor source was retrieved', () => {
+    const synthesis = buildDeterministicSearchSynthesis([
+      {
+        toolCall: {
+          id: 'call_1',
+          name: 'web_search',
+          arguments: { query: 'Anthropic Claude Fable 5 pricing 2026' },
+        },
+        result: {
+          success: true,
+          data: {
+            results: [
+              {
+                title: 'Claude Fable 5 pricing rumor',
+                url: 'https://example-news.test/claude-fable-pricing',
+                snippet:
+                  'A third-party page claims a new Claude Fable 5 model has pricing, but does not link to official Anthropic pricing documentation.',
+                source: 'example-news.test',
+              },
+            ],
+          },
+        },
+      },
+    ])
+
+    expect(synthesis).toContain('no official vendor source was retrieved')
+    expect(synthesis).toContain('third-party search evidence rather than confirmed')
+    expect(synthesis).toContain('[Claude Fable 5 pricing rumor](https://example-news.test/claude-fable-pricing)')
+  })
+
+  it('prioritizes official vendor evidence in deterministic search synthesis', () => {
+    const synthesis = buildDeterministicSearchSynthesis([
+      {
+        toolCall: {
+          id: 'call_1',
+          name: 'web_search',
+          arguments: { query: 'Anthropic Claude pricing 2026' },
+        },
+        result: {
+          success: true,
+          data: {
+            results: [
+              {
+                title: 'Third-party pricing roundup',
+                url: 'https://example-news.test/anthropic-pricing',
+                snippet: 'A third-party summary of Claude pricing.',
+                source: 'example-news.test',
+              },
+              {
+                title: 'Anthropic pricing',
+                url: 'https://www.anthropic.com/pricing',
+                snippet: 'Official Anthropic pricing page.',
+                source: 'anthropic.com',
+              },
+            ],
+          },
+        },
+      },
+    ])
+
+    expect(synthesis).not.toContain('no official vendor source was retrieved')
+    expect(synthesis?.indexOf('Anthropic pricing')).toBeLessThan(
+      synthesis?.indexOf('Third-party pricing roundup') ?? Number.MAX_SAFE_INTEGER
+    )
+  })
+
   it('does not build deterministic synthesis when no successful web_search evidence exists', () => {
     expect(
       buildDeterministicSearchSynthesis([

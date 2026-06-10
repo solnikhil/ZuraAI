@@ -34,15 +34,15 @@ const UPDATE_INTERVAL = STREAM_UPDATE_INTERVAL_MS
 export const SAFETY_CAP = STREAM_RESEARCH_SAFETY_CAP
 export const MAX_RESEARCH_ROUNDS = STREAM_MAX_RESEARCH_ROUNDS
 export const FINAL_SYNTHESIS_PROMPT =
-  '\n\n*** FINAL SYNTHESIS REQUIRED *** You have enough search results. Do not call any more tools or web_search. Provide your final synthesized answer now using only the results already returned. If the results are inconclusive, say that clearly, summarize the strongest relevant evidence, and state what could not be verified. Never return an empty response.\n\n'
+  '\n\n*** FINAL SYNTHESIS REQUIRED *** You have enough search results. Do not call any more tools or web_search. Provide your final synthesized answer now using only the results already returned. If the results are inconclusive, say that clearly, summarize the strongest relevant evidence, and state what could not be verified. For model/provider release, availability, capability, and pricing claims, require official vendor docs, blog posts, pricing pages, or release notes before presenting the claim as verified. Never return an empty response.\n\n'
 export const FINAL_SYNTHESIS_BUDGET_EXHAUSTED_PROMPT =
-  '\n\n*** FINAL SYNTHESIS REQUIRED: WEB SEARCH BUDGET EXHAUSTED *** The available web_search budget for this response has been used. Do not call any more tools or web_search. Provide your final synthesized answer now using only the results already returned. If the gathered evidence is incomplete or conflicting, say so clearly, summarize the strongest relevant evidence, and state what could not be verified. Never return an empty response.\n\n'
+  '\n\n*** FINAL SYNTHESIS REQUIRED: WEB SEARCH BUDGET EXHAUSTED *** The available web_search budget for this response has been used. Do not call any more tools or web_search. Provide your final synthesized answer now using only the results already returned. If the gathered evidence is incomplete or conflicting, say so clearly, summarize the strongest relevant evidence, and state what could not be verified. For model/provider release, availability, capability, and pricing claims, require official vendor docs, blog posts, pricing pages, or release notes before presenting the claim as verified. Never return an empty response.\n\n'
 export const FINAL_SYNTHESIS_EMPTY_BATCH_PROMPT =
-  '\n\n*** FINAL SYNTHESIS REQUIRED: NO EXECUTABLE WEB SEARCH REMAINED *** The last attempted web_search batch did not contain an executable query. Do not call any more tools or web_search. Provide your final synthesized answer now using only the results already returned. If the gathered evidence is incomplete or conflicting, say so clearly, summarize the strongest relevant evidence, and state what could not be verified. Never return an empty response.\n\n'
+  '\n\n*** FINAL SYNTHESIS REQUIRED: NO EXECUTABLE WEB SEARCH REMAINED *** The last attempted web_search batch did not contain an executable query. Do not call any more tools or web_search. Provide your final synthesized answer now using only the results already returned. If the gathered evidence is incomplete or conflicting, say so clearly, summarize the strongest relevant evidence, and state what could not be verified. For model/provider release, availability, capability, and pricing claims, require official vendor docs, blog posts, pricing pages, or release notes before presenting the claim as verified. Never return an empty response.\n\n'
 export const FINAL_SYNTHESIS_RECOVERY_PROMPT =
-  '\n\n*** FINAL ANSWER REQUIRED *** Your previous synthesis attempt returned no answer. Do not call any tools or web_search. Respond with at least one concise paragraph using only the results already returned. If the evidence is inconclusive, say so directly and summarize what was checked.\n\n'
+  '\n\n*** FINAL ANSWER REQUIRED *** Your previous synthesis attempt returned no answer. Do not call any tools or web_search. Respond with at least one concise paragraph using only the results already returned. If the evidence is inconclusive, say so directly and summarize what was checked. For model/provider release, availability, capability, and pricing claims, require official vendor evidence before presenting the claim as verified.\n\n'
 const FINAL_SYNTHESIS_PLAIN_TEXT_ONLY_PROMPT =
-  '\n\n*** PLAIN TEXT ONLY FINAL ANSWER REQUIRED *** You must respond with plain assistant text only. Do not emit tool_calls, function calls, JSON, XML, markdown code fences, or any request for more searching. Do not call any tools or web_search. Write at least one concise paragraph using only the returned search results. If the evidence is inconclusive, say so directly and summarize the strongest relevant findings.\n\n'
+  '\n\n*** PLAIN TEXT ONLY FINAL ANSWER REQUIRED *** You must respond with plain assistant text only. Do not emit tool_calls, function calls, JSON, XML, markdown code fences, or any request for more searching. Do not call any tools or web_search. Write at least one concise paragraph using only the returned search results. If the evidence is inconclusive, say so directly and summarize the strongest relevant findings. For model/provider release, availability, capability, and pricing claims, require official vendor evidence before presenting the claim as verified.\n\n'
 export const SEARCH_SYNTHESIS_FAILURE_MESSAGE =
   'I gathered web search results, but the provider failed to produce a final written answer. The search results are still available above.'
 export const DETERMINISTIC_SEARCH_SYNTHESIS_PREFIX =
@@ -568,6 +568,45 @@ function formatEvidenceSource(item: SearchEvidenceItem): string {
   return item.title
 }
 
+function hostnameFromEvidence(item: SearchEvidenceItem): string {
+  if (item.url) {
+    try {
+      return new URL(item.url).hostname.replace(/^www\./, '').toLowerCase()
+    } catch {
+      // Fall through to source.
+    }
+  }
+
+  return item.source.replace(/^www\./, '').toLowerCase()
+}
+
+function getOfficialSourceHints(query: string): string[] {
+  const normalized = query.toLowerCase()
+  const hints: string[] = []
+
+  if (/\b(anthropic|claude)\b/.test(normalized)) hints.push('anthropic.com', 'claude.com')
+  if (/\b(openai|gpt)\b/.test(normalized)) hints.push('openai.com', 'platform.openai.com')
+  if (/\b(google|gemini)\b/.test(normalized)) hints.push('google.com', 'ai.google.dev', 'deepmind.google')
+  if (/\b(deepseek)\b/.test(normalized)) hints.push('deepseek.com', 'api-docs.deepseek.com')
+  if (/\b(meta|llama)\b/.test(normalized)) hints.push('meta.com', 'ai.meta.com', 'llama.com')
+  if (/\b(mistral)\b/.test(normalized)) hints.push('mistral.ai', 'docs.mistral.ai')
+  if (/\b(qwen|alibaba)\b/.test(normalized)) hints.push('alibaba.com', 'aliyun.com', 'qwenlm.github.io')
+
+  return [...new Set(hints)]
+}
+
+function isOfficialEvidence(item: SearchEvidenceItem, officialHints: string[]): boolean {
+  if (officialHints.length === 0) return false
+  const hostname = hostnameFromEvidence(item)
+  return officialHints.some((hint) => hostname === hint || hostname.endsWith(`.${hint}`))
+}
+
+function truncateEvidenceSnippet(snippet: string, maxChars: number = 480): string {
+  const normalized = snippet.replace(/\s+/g, ' ').trim()
+  if (normalized.length <= maxChars) return normalized
+  return `${normalized.slice(0, maxChars - 3).trimEnd()}...`
+}
+
 export function buildDeterministicSearchSynthesis(
   toolResults: ToolCallResult[] | undefined,
   options?: {
@@ -596,17 +635,28 @@ export function buildDeterministicSearchSynthesis(
     '',
     evidence.length < 2
       ? 'The evidence is thin, but the successful search returned this relevant result:'
-      : 'The strongest retrieved evidence is:',
+      : 'Retrieved evidence, with official or primary sources prioritized when available:',
   ]
 
   let queryCount = 0
   for (const [query, items] of grouped) {
     if (queryCount >= maxQueries) break
     queryCount += 1
+    const officialHints = getOfficialSourceHints(query)
+    const officialItems = items.filter((item) => isOfficialEvidence(item, officialHints))
+    const displayItems = officialItems.length > 0
+      ? [...officialItems, ...items.filter((item) => !isOfficialEvidence(item, officialHints))]
+      : items
     lines.push('', `For "${query}":`)
 
-    for (const item of items) {
-      const snippet = item.snippet || 'No snippet was returned.'
+    if (officialHints.length > 0 && officialItems.length === 0) {
+      lines.push(
+        '- Verification note: no official vendor source was retrieved for this query, so treat the following as third-party search evidence rather than confirmed release, capability, or pricing facts.'
+      )
+    }
+
+    for (const item of displayItems) {
+      const snippet = item.snippet ? truncateEvidenceSnippet(item.snippet) : 'No snippet was returned.'
       const source = item.source ? ` (${item.source})` : ''
       lines.push(`- ${formatEvidenceSource(item)}${source}: ${snippet}`)
     }
