@@ -124,7 +124,11 @@ const EXTRACTION_INSTRUCTION = `You are a memory extraction system. Read the con
 Rules:
 - ADD-only: state facts as standalone sentences. Do not reference previous memories.
 - Only durable facts. Ignore one-off questions, ephemeral task details, and small talk.
-- NEVER extract secrets, passwords, API keys, tokens, financial account numbers, or other sensitive credentials.
+- Prefer stable user preferences, durable project context, recurring workflows, and explicit self-descriptions.
+- Rewrite facts as concise standalone memories about the user. Do not preserve chat transcript wording.
+- Avoid memories about the assistant, the model, tool behavior, or one-time task outcomes unless they describe an ongoing user project.
+- NEVER extract secrets, passwords, API keys, tokens, financial account numbers, government IDs, precise home/work addresses, private health details, biometric data, or other sensitive credentials.
+- Do not extract sensitive personal attributes such as religion, politics, sexuality, race, medical status, or financial hardship unless the user explicitly asks the assistant to remember it and it is clearly useful for future help.
 - If there are no durable facts, return an empty "facts" array.
 - Summary: write ONE short line ONLY if the chat reflects ongoing context worth carrying forward — an active project the user is working on, who the user is, their goals, or stable background. Keep it under 120 characters.
 - Set "summary" to an empty string ("") when the chat is a one-off factual lookup, trivia, a definition, a calculation, or general Q&A with no lasting relevance to the user. When in doubt, prefer an empty summary over a trivial one.

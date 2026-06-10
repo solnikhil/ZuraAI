@@ -10,7 +10,11 @@ describe('builtInMainToolManifest', () => {
     expect(webSearch.description).toContain('emit multiple focused web_search calls')
     expect(webSearch.description).toContain('execute them in parallel')
     expect(webSearch.description).toContain('once per year in one batch')
+    expect(webSearch.description).toContain('Search when information is current')
+    expect(webSearch.description).toContain('Stop once the returned evidence is sufficient')
+    expect(webSearch.description).toContain('official source')
     expect(webSearch.parameters.properties.query.description).toContain('past 5 years')
+    expect(webSearch.parameters.properties.query.description).toContain("claim's unique names")
     expect(numResultsDescription).toContain('emit multiple web_search calls in the same turn')
   })
 

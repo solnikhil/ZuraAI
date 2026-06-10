@@ -14,7 +14,7 @@ import type { ConversationSummary } from '@/electron/types'
 export const RECENT_ACTIVITY_MAX_ITEMS = 10
 
 const HEADER = `## Recent Activity
-A brief, dated list of what the user has been working on across recent chats. Use it for continuity and context; do not bring it up unless relevant.`
+A brief, dated list of what the user has been working on across recent chats. Use it only when it directly helps with continuity. Treat it as lower-confidence context than saved memories and the current conversation.`
 
 function formatDate(ms: number): string {
   if (!Number.isFinite(ms)) return ''

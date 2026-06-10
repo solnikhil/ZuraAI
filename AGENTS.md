@@ -103,6 +103,7 @@ Core capabilities:
 - `src/components/Settings/sections/McpSection.tsx` — MCP Settings UI for server CRUD, secret-masked forms, and connect/disconnect controls
 - `src/components/Settings/sections/OverlaySection.tsx` — Overlay settings UI for enablement, startup behavior, sizing, and global shortcut configuration
 - `src/tools/` — shared built-in tool manifest (`builtinTools.ts`), tool schema + adapters + runtime tool registry/execution coordinator
+  - `src/tools/adapters/openrouter.ts` — OpenRouter-compatible tool request/response formatting. Web-search tool results are shaped into model-facing JSON with result indexes, source/date/score fields, partial-extract messages, and grounding/citation guidance while UI-only fields stay stripped.
   - `src/tools/adapters/openrouterToolCalls.ts` — provider-agnostic OpenRouter tool-call parsing, JSON repair, and fallback query inference shared by OpenRouter-compatible adapters
 
 - `dist/` — renderer build output (generated)
@@ -549,6 +550,7 @@ Tool execution is intentionally restricted.
   - Runtime MCP tool adapter: `src/tools/mcpRegistry.ts` maps connected MCP tools into generic request-time descriptors
   - Skill gating + runtime merge: `src/hooks/useToolCalling.ts` + `src/skills/index.ts` decide which built-in tools are exposed and merge them with eligible MCP tools at request time
   - Provider adapters: `src/tools/adapters/*` (Perplexity is explicitly excluded)
+    - `src/tools/adapters/openrouter.ts` formats successful `web_search` results for model follow-up with `guidance`, `result_index`, source/date/score metadata, search/extract depth, intent, and partial-extract messages so the assistant can cite numbered results and detect insufficient or stale evidence without seeing UI-only favicon/display-link fields.
   - Execution: `src/tools/executor.ts` keeps built-in IPC execution for built-in main-process tools and routes namespaced MCP tools through the dedicated `window.mcp.executeTool(...)` bridge
     - Before invoking built-in `web_search`, the renderer resolves omitted `search_depth` values from `settings.tavilySearchDepthPreference`; `auto` applies a lightweight query heuristic and manual modes inject the selected Tavily tier directly.
     - `src/tools/toolManager.ts` applies the renderer-side batch execution policy for `web_search`: duplicate/facet-deduping within the current assistant response, remaining-budget enforcement, synthetic skipped tool results for over-budget or duplicate calls, and parallel execution for the executable subset of the batch.

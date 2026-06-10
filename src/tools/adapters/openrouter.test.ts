@@ -23,14 +23,45 @@ describe('convertToOpenRouterFormat', () => {
         {
           success: true,
           data: {
-            results: [{ title: 'Result A', url: 'https://example.com', snippet: 'Snippet' }],
+            query: 'example query',
+            source: 'tavily',
+            searchDepth: 'basic',
+            results: [
+              {
+                title: 'Result A',
+                url: 'https://example.com',
+                snippet: 'Snippet',
+                date: '2026-06-01',
+                source: 'example.com',
+                displayed_link: 'example.com',
+                favicon: 'https://favicon.example',
+                score: 0.9,
+              },
+            ],
+            resultCount: 1,
           },
         },
       ]
     )
 
-    expect(formatted[0]?.content).toContain('results')
-    expect(formatted[0]?.content).toContain('Result A')
+    const parsed = JSON.parse(formatted[0]?.content ?? '{}')
+    expect(parsed.guidance).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('Use only these returned results'),
+        expect.stringContaining('Cite important claims'),
+      ])
+    )
+    expect(parsed.results[0]).toMatchObject({
+      result_index: 1,
+      title: 'Result A',
+      url: 'https://example.com',
+      snippet: 'Snippet',
+      date: '2026-06-01',
+      source: 'example.com',
+      score: 0.9,
+    })
+    expect(parsed.results[0].favicon).toBeUndefined()
+    expect(parsed.results[0].displayed_link).toBeUndefined()
   })
 
   it('formats skipped web search results without exposing budget policy details', () => {

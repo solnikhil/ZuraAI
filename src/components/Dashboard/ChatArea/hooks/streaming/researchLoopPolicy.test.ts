@@ -28,6 +28,8 @@ describe('researchLoopPolicy', () => {
 
     expect(prompt).toContain('You have completed 3 of 8 targeted search(es)')
     expect(prompt).toContain('what is already answered by evidence')
+    expect(prompt).toContain('Filter the returned results mentally')
+    expect(prompt).toContain('Stop searching once the evidence is sufficient')
     expect(prompt).toContain('same assistant turn so they run as one parallel batch')
     expect(prompt).toContain('one query per requested year for multi-year data')
     expect(prompt).not.toContain('Provide your synthesized answer NOW')
@@ -44,6 +46,7 @@ describe('researchLoopPolicy', () => {
     })
 
     expect(prompt).toContain('issue those distinct web_search calls together')
+    expect(prompt).toContain('official, primary, current, and directly relevant sources')
     expect(prompt).toContain('one query per requested year for multi-year data')
     expect(prompt).toContain('one query per competitor or provider for comparisons')
     expect(prompt).toContain('within the remaining search budget')

@@ -17,10 +17,15 @@ URL-aware behavior:
 Query formulation best practices:
 - Keep queries concise (under 400 chars). Use search keywords, not full sentences.
 - Use keyword-focused phrasing: "OpenAI GPT-5 release date ${new Date().getFullYear()}" not "Can you tell me when OpenAI will release GPT-5?"
+- Search when information is current, changing, outside reliable model knowledge, or explicitly requested by the user. Do not search for stable facts, math, coding concepts, creative writing, greetings, or analysis of content already provided.
 - If you need a year and the user did not specify one or ask for a relative range, use only ${new Date().getFullYear()}. Do not add older years or multi-year ranges unless the user explicitly asks for them.
+- For technical documentation, include the exact product/library, feature/API/error, and version when known.
+- For verification, search unique entities and claim-specific terms rather than a broad paraphrase.
 - When the user explicitly asks for independent slices such as years, regions, providers, products, competitors, or categories, emit multiple focused web_search calls in the same assistant turn so the app can execute them in parallel. Example: for "data across 5 years", call web_search once per year in one batch.
 - Break complex topics into separate focused searches (overview, recent developments, specifics, verification), batching the independent searches together when those facets are clear up front.
-- For current events or news, use topic="news" and time_range when relevant.`,
+- For current events or news, use topic="news" and time_range when relevant.
+- Use "ultra-fast" or "fast" for latency-sensitive lookups, "basic" for normal grounding, and "advanced" only when the user needs deeper research or the first results are too weak.
+- Stop once the returned evidence is sufficient. Additional searches should target a specific missing fact, conflict, official source, or independent facet.`,
     parameters: {
       type: 'object',
       description: 'Arguments for the web search tool.',
@@ -28,7 +33,7 @@ Query formulation best practices:
         query: {
           type: 'string',
           description:
-            `Search query. For URL tasks, include the URL directly (with optional instruction). Examples: "https://foo.com/article" or "summarize this https://foo.com/article". For general search, use concise keywords (e.g. "X market size ${new Date().getFullYear()}", "latest AI developments"). If you include a year without user guidance, use only ${new Date().getFullYear()}. If the user asks for a relative range such as "past 5 years", emit one focused query per year in the same turn.`,
+            `Search query. For URL tasks, include the URL directly (with optional instruction). Examples: "https://foo.com/article" or "summarize this https://foo.com/article". For general search, use concise keywords (e.g. "X market size ${new Date().getFullYear()}", "latest AI developments"). If you include a year without user guidance, use only ${new Date().getFullYear()}. If the user asks for a relative range such as "past 5 years", emit one focused query per year in the same turn. For verification, include the claim's unique names, terms, source type, and timeframe.`,
         },
         num_results: {
           type: 'number',

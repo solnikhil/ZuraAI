@@ -32,8 +32,9 @@ const FORCE_WEB_SEARCH_PREFIX =
 const FOLLOW_UP_DECISION_GUIDANCE =
   `\n\n*** FOLLOW-UP SEARCH DECISION ***\n` +
   `After each search batch, briefly decide what is already answered by evidence, what important gap or conflict remains, and whether another search is actually needed.\n` +
+  `Filter the returned results mentally before continuing: keep official, primary, current, and directly relevant sources; ignore stale, duplicate, off-topic, or weak summaries unless they are useful context.\n` +
   `If the missing evidence can be split into obvious independent facets, issue those distinct web_search calls together in the same assistant turn so they run as one parallel batch. Good batch cases include one query per requested year for multi-year data, one query per competitor or provider for comparisons, one query per region/category/product when the user asks for those slices, and one official/source-verification query when needed.\n` +
-  `Keep each batch compact and within the remaining search budget. Avoid speculative batches where the facets are not clear yet; change the angle when needed: overview, recent updates, source verification, official docs/specs, pricing, comparisons, examples, implementation details, or edge cases.`
+  `Keep each batch compact and within the remaining search budget. Stop searching once the evidence is sufficient for the user's requested depth. Avoid speculative batches where the facets are not clear yet; change the angle when needed: overview, recent updates, source verification, official docs/specs, pricing, comparisons, examples, implementation details, or edge cases.`
 
 export function getEffectiveSearchBudget(
   maxRounds: number,

@@ -55,19 +55,39 @@ export function convertToOpenRouterFormat(tools: ToolDescriptor[]): OpenAITool[]
 const MAX_TOOL_RESULT_CHARS = 32000
 
 /**
- * Strip UI-only fields from web search data before sending to the model.
- * Removes favicon, source, displayed_link from results and images array
- * to reduce token usage and prevent models from echoing raw metadata.
+ * Shape web search data for the model.
+ *
+ * UI-only fields are removed, but source/date/citation guidance is preserved so
+ * the follow-up synthesis can behave like a grounded search assistant instead
+ * of treating the results as generic JSON.
  */
 function stripUiFieldsFromToolData(data: unknown): unknown {
   if (!data || typeof data !== 'object') return data
   const obj = data as Record<string, unknown>
 
   if (Array.isArray(obj.results)) {
-    const cleaned: Record<string, unknown> = { query: obj.query }
-    cleaned.results = (obj.results as Array<Record<string, unknown>>).map((result) => {
-      const { favicon, source, displayed_link, ...rest } = result
-      return rest
+    const cleaned: Record<string, unknown> = {
+      query: obj.query,
+      source: obj.source,
+      searchDepth: obj.searchDepth,
+      extractDepth: obj.extractDepth,
+      intent: obj.intent,
+      message: obj.message,
+      guidance: [
+        'Use only these returned results for web-grounded claims; do not fill missing facts from memory.',
+        'Cite important claims with bracket numbers matching the result_index values below.',
+        'Prefer official, primary, current, and directly relevant sources; check date/page age signals when recency matters.',
+        'If results are insufficient, conflicting, stale, or off-topic, say so clearly instead of overstating certainty.',
+      ],
+    }
+    cleaned.results = (obj.results as Array<Record<string, unknown>>).map((result, index) => {
+      const { favicon, source, displayed_link, score, ...rest } = result
+      return {
+        result_index: index + 1,
+        source,
+        score,
+        ...rest,
+      }
     })
     cleaned.resultCount = obj.resultCount
     return cleaned
