@@ -11,7 +11,6 @@ import { getModelAttributes } from '../../../utils/modelUtils'
 import { Popover, PopoverTrigger } from '@/components/ui/popover'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
-  maybeAnimate,
   motionDuration,
   motionDurations,
   motionEasing,
@@ -59,12 +58,6 @@ export default function ModelSelector({ minimal, popoverAlign = 'start' }: Model
                 aria-haspopup="dialog"
                 aria-expanded={state.isOpen}
                 aria-label={`Select model: ${triggerTitle}`}
-                whileHover={!minimal ? maybeAnimate(animationsEnabled, { scale: 1.008 }) : undefined}
-                whileTap={maybeAnimate(animationsEnabled, minimal ? { scale: 0.998 } : { scale: 0.992 })}
-                transition={{
-                  duration: motionDuration(animationsEnabled, motionDurations.micro),
-                  ease: motionEasing.standard,
-                }}
                 className={cn(
                   'flex cursor-pointer items-center gap-1.5 rounded-xl px-3 py-1.5 transition-[background-color,border-color,color] duration-150',
                   minimal

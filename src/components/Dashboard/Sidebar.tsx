@@ -327,6 +327,7 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
   const collapsedAway = sidebarHidden && !isPeeking
   const containerStyle: React.CSSProperties = {
     width: collapsedAway ? '0px' : `${openWidthPx}px`,
+    opacity: sidebarHidden && !isPeeking ? 0 : 1,
     // Pin the inner content to its open width so it slides out cleanly (clipped by
     // overflow:hidden) instead of reflowing/squishing while width animates to 0.
     ['--sidebar-inner-width' as string]: `${openWidthPx}px`,

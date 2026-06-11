@@ -39,10 +39,8 @@ export function ModelSelectorContent({
         initial={{ opacity: 0, scale: 0.96, y: -4 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{
-          type: 'spring',
-          stiffness: 500,
-          damping: 32,
-          mass: 0.8,
+          duration: 0.2,
+          ease: [0.25, 0.46, 0.45, 0.94],
         }}
         className="h-full"
       >
