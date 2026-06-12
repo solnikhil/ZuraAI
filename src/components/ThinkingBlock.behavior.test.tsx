@@ -341,4 +341,45 @@ describe('ThinkingBlock behavior', () => {
     expect(await screen.findByText('Tool: Filesystem - read_file: /tmp/demo.txt')).toBeInTheDocument()
     expect(screen.getByText('Completed')).toBeInTheDocument()
   })
+
+  it('renders system_shell tool output as a Codex-style terminal panel', async () => {
+    const { container } = render(
+      <ThinkingBlock
+        messageId="message-shell"
+        activeBlockKey="message-shell:0:answering"
+        thinking=""
+        completedBlocks={[
+          {
+            type: 'tool',
+            toolName: 'system_shell',
+            timestamp: 1,
+            toolInput: { command: 'Get-Date', description: 'Get the current date' },
+            toolOutput: {
+              success: true,
+              data: {
+                command: 'Get-Date',
+                cwd: 'C:/work',
+                stdout: '\u001b[32mSaturday\u001b[0m',
+                stderr: '',
+                exitCode: 0,
+              },
+              executionTime: 12,
+            },
+          },
+        ]}
+      />
+    )
+
+    const header = container.querySelector('.thinking-header.tool-call') as HTMLElement
+    expect(header).toBeTruthy()
+    fireEvent.click(header)
+
+    // Terminal panel chrome + command + ANSI-stripped output + success badge.
+    expect(await screen.findByText('Shell')).toBeInTheDocument()
+    expect(screen.getByText('Get-Date')).toBeInTheDocument()
+    expect(screen.getByText('Saturday')).toBeInTheDocument()
+    expect(screen.getByText('✓ Success')).toBeInTheDocument()
+    // It must NOT render the raw JSON Input/Output labels for this tool.
+    expect(screen.queryByText('Input')).not.toBeInTheDocument()
+  })
 })

@@ -68,13 +68,14 @@ Core capabilities:
 - `electron/tools/` — main-process tool implementations (IPC registry is restricted)
   - `electron/tools/web-search/` — built-in **Tavily-only, no-fallback** web-search pipeline behind a pluggable `SearchProvider` seam: `service.ts` (thin orchestrator, single dispatch, no fallback branching), `request.ts` (untrusted-input validation/normalization), `intent.ts` (query-vs-URL intent classification + weak-query reformulation), `normalize.ts` (result/image/snippet/source shaping, renamed from `helpers.ts`), `credentials.ts` (secure-storage credential resolution), `logging.ts` (single secret-safe failure logger), `providers/registry.ts` + `providers/types.ts` (the `SearchProvider` abstraction), and `providers/tavily/*` (`transport.ts` + `mapper.ts` + `index.ts`). The DuckDuckGo backend and the `backends/` split were removed.
   - `electron/tools/windows-uia/` — Windows-only Microsoft UI Automation bridge for native desktop snapshots and supported control actions (`InvokePattern`, `ValuePattern`, selection/toggle patterns)
-  - `electron/tools/system-shell/` — bounded non-interactive PowerShell execution with timeout, output caps, and working-directory validation
+  - `electron/tools/system-shell/` — bounded non-interactive PowerShell execution with per-command approval gate (via the Terminal skill's `TerminalApprovalManager`), terminal-specific timeout cap, output caps, working-directory validation, and exit-code-aware results
   - `electron/tools/files/` — structured main-process filesystem tools for read/write/search/move with path normalization and size/result limits
   - `electron/tools/app-management/` — Windows app discovery/launch/install/uninstall via Start Menu scanning, Electron shell launch, and non-interactive `winget`
   - `electron/tools/window-management/` — Windows native window listing/focus/move/close by HWND/title/process metadata, excluding ZuraAI-owned windows by default
   - `electron/tools/native-common.ts` — shared Windows-native tool validation, PowerShell execution, timeout/output limits, unsupported-platform errors, and approval checks
 - `electron/updater.ts` — auto-updater (production only)
   - `electron/tools/code-execution/` — built-in code execution skill: Piston API service, approval manager, IPC registration, types, and constants
+  - `electron/tools/terminal/` — Terminal skill (`system_shell`) support: `TerminalApprovalManager`, approval-timeout/exec-timeout constants, and IPC registration (`terminal:resolve-approval` / `terminal:pending-approval`); execution itself lives in `electron/tools/system-shell/`
 - `electron/discordRpc/` — Discord Rich Presence main-process module: singleton client (`rpcClient.ts`), IPC registration (`index.ts`), and shared types (`types.ts`). Lazy-requires `discord-rpc` so a missing native dependency never crashes the app. Reconnects with backoff when Discord is not running.
 
 - `src/` — React/Vite **renderer**
@@ -269,6 +270,9 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - `window.codeExecution`
   - invokes: `code-execution:resolve-approval`
   - listens for: `code-execution:pending-approval`
+- `window.terminal`
+  - invokes: `terminal:resolve-approval`
+  - listens for: `terminal:pending-approval`
 - `window.chatDebug` (dev-only)
   - invokes: `chat-debug-window:open`
 - `window.resourceMonitor`
@@ -365,7 +369,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Tool calling:
   - Agent mode is plan-aware and verification-driven. `createAgentRun(...)` records a short task-specific `kind: 'plan'` step in `message.agentRun.steps`; the streaming orchestrator then prefers native structured tools before visual Computer Use. After any successful mutating/high-risk tool batch, `src/agent/reliability.ts` selects a read-only verification strategy (`file_search`/`file_read`, `window_list`/`windows_uia_snapshot`, or targeted `computer_screenshot`) and `useProviderStreaming.ts` injects an internal verification prompt before final synthesis. Verification is stored as a `kind: 'verify'` step and is bounded to one recovery attempt before the agent reports the failure instead of continuing blind. No new model-callable planning tool, IPC channel, or renderer bridge is introduced.
   - `src/hooks/useToolCalling.ts` → `src/tools/toolManager.ts` → `src/tools/executor.ts`
-  - Assistant mode (`settings.assistantMode`) controls request-time tool exposure. Both `chat` and `agent` modes expose `web_search`, `code_execution`, and trusted MCP tools based on their respective skill toggles. Agent mode on Windows additionally exposes native Windows tools (`file_*`, `app_*`, `window_*`, `windows_uia_*`, `system_shell`) for direct OS operations. The desktop-control fallback surface (`computer_*` tools) controls the current desktop only and is exposed only when `assistantMode === 'agent'` AND the Windows-only `computer_use` skill is enabled.
+  - Assistant mode (`settings.assistantMode`) controls request-time tool exposure. Both `chat` and `agent` modes expose `web_search`, `code_execution`, and trusted MCP tools based on their respective skill toggles. The `system_shell` terminal tool is exposed in both modes on Windows when the `terminal` skill is enabled (see Terminal Skill below). Agent mode on Windows additionally exposes the other native Windows tools (`file_*`, `app_*`, `window_*`, `windows_uia_*`) for direct OS operations. The desktop-control fallback surface (`computer_*` tools) controls the current desktop only and is exposed only when `assistantMode === 'agent'` AND the Windows-only `computer_use` skill is enabled.
   - Agent mode tool approval uses renderer-side risk gating before execution: read-only tools (for example `web_search`, `file_read`, `file_search`, `app_find`, `app_list`, `window_list`, `windows_uia_snapshot`, `computer_screenshot`, and `computer_list_windows`) auto-run, while mutating/high-risk tools (for example shell/code execution, file writes/moves, app launch/install/uninstall, window mutation, UIA actions, MCP tools, and Computer Use input actions) require approval. The approval dialog supports reject, approve once, or trust the exact tool-name + argument signature; trusted signatures are stored in renderer `localStorage` under `zura-agent:trusted-tool-signatures`. Approval and execution state are mirrored into persisted `message.agentRun.steps` metadata.
   - Built-in main-process tools still execute through `window.ipcRenderer.invoke('execute-tool', toolName, args)`.
   - Namespaced MCP tools now execute through `window.mcp.executeTool(toolName, args)` so built-ins and MCP stay on separate IPC paths.
@@ -430,6 +434,23 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Renderer files: `src/components/CodeExecutionApprovalDialog.tsx`, skill gating in `src/hooks/useToolCalling.ts`.
 - Tool results render as expandable cards in chat via `ToolResultDisplay.tsx` (not hidden by `toolResultVisibility`).
 - Piston sandbox constraints: no filesystem, no network, 5s run timeout, 64MB memory limit.
+
+#### Terminal Skill (`settings.skills.terminal`)
+- Built-in skill: `terminal` (`settings.skills.terminal`), **Windows-only**, default **disabled**.
+- When enabled, the model can call `system_shell` to run bounded, non-interactive PowerShell commands for system inspection and automation. The tool name stays `system_shell`; the skill is the toggle that governs its exposure.
+- **Intentional behavior change:** `system_shell` is now skill-gated, not auto-bundled into the Windows agent-mode native tool list. It was removed from `NATIVE_WINDOWS_AGENT_TOOLS` in `src/hooks/useToolCalling.ts`. It is exposed only when `isWindowsRuntime()` AND `isSkillEnabled(settings.skills, 'terminal')`, in **both** chat and agent modes (parity with `code_execution`).
+- Per-command approval is mandatory in all modes:
+  - **Chat mode**: `electron/tools/system-shell/index.ts` blocks on the main-process `TerminalApprovalManager` (`electron/tools/terminal/approvalManager.ts`) until the user approves, rejects, or it times out, surfacing `TerminalApprovalDialog`.
+  - **Agent mode**: the renderer agent approval gate approves, then `bypassNativeApproval` sets `autoApprove` so the main-process gate is skipped (no double prompt).
+- `terminalAutoApprove` (sanitized settings, default false) lets the user opt out of the prompt; injected in `src/tools/executor.ts` parallel to `codeExecutionAutoApprove`. Surfaced in the Skills UI "Auto-approve execution" menu item for the Terminal skill.
+- Approval timeout: 60 seconds (`TERMINAL_APPROVAL_TIMEOUT_MS`). Command execution timeout is clamped to a terminal-specific cap of 300s (`TERMINAL_MAX_TIMEOUT_MS`, default 15s) — higher than the shared `MAX_NATIVE_TIMEOUT_MS` (60s) used by other native tools, since builds/installs need more time. Output is still truncated by `truncateOutput`.
+- Exit-code-aware result shape: `executeSystemShell` returns `{ command, cwd, stdout, stderr, exitCode }`. A non-zero exit code resolves successfully with the captured `exitCode` (it does not throw away output) so the model can read the failure and self-correct; a timeout returns `success: false` with `exitCode: null`. Commands run with `-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass` and `windowsHide`.
+- IPC channels: `terminal:resolve-approval` (invoke), `terminal:pending-approval` (main→renderer broadcast).
+- Preload bridge: `window.terminal` with `resolveApproval(requestId, approved)` and `onPendingApproval(callback)`.
+- Main-process files: `electron/tools/terminal/` (approvalManager, constants, index) plus the rewritten `electron/tools/system-shell/index.ts` (now holds the `setApprovalManager` seam and exit-code-aware runner). Registered/disposed in `electron/main.ts` alongside the code-execution handlers.
+- Renderer files: `src/components/TerminalApprovalDialog.tsx` (mounted via `TerminalApprovalHost` in `src/App.tsx`), skill gating in `src/hooks/useToolCalling.ts`, skill metadata/icon in `src/skills/index.ts` + `src/components/shared/SkillLogo.tsx`.
+- Prompt: the built-in `terminalPrompt` (`src/prompts/defaultTerminalPrompt.ts`) is appended by `buildEnabledSkillsPrompt(...)` when the Terminal skill is enabled, and is rendered read-only in Settings → System Prompt (alongside the other built-in tool prompts). Like the other prompt templates, `normalizeStoredSettings(...)` replaces any persisted override with the current default.
+- ⚠️ Security: this runs arbitrary PowerShell with no OS sandbox. Guarantees: default OFF, mandatory per-command approval with full command preview, bounded timeout + output truncation, non-interactive shell, `autoApprove` only via explicit user opt-in.
 
 #### Computer Use (`skills.computer_use`)
 - **Windows-only**, default disabled. In Agent mode, the existing `computer_*` tools control the desktop the user is currently using. There is no separate Windows Virtual Desktop mode, no `agent_desktop` skill, no `settings.agentDesktop` payload, no `window.agentDesktop` bridge, and no `agent-desktop:*` IPC surface.
@@ -505,7 +526,8 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
     - `titleGenerationPrompt` (prompt template for generating titles; supports `{{userMessage}}` token)
     - `titleGenerationDisplayMode` (`instant` or `typewriter` sidebar reveal)
   - Background memory extraction model: `memoryModel` (dedicated model for background "dreaming"/extraction; provider inferred from the selected model). Empty string = follow the active chat model (`settings.aiModel`). Selected in Settings → Personalization → Memory.
-  - Skills map: `skills` (built-in IDs keyed by `skillId`, currently `web_research` (default enabled), `code_execution` (default disabled), `computer_use` (default disabled), `chart_generation` (default disabled), and `memory` (default enabled), each with `enabled`).
+  - Skills map: `skills` (built-in IDs keyed by `skillId`, currently `web_research` (default enabled), `code_execution` (default disabled), `terminal` (default disabled, Windows-only), `computer_use` (default disabled), `chart_generation` (default disabled), and `memory` (default enabled), each with `enabled`).
+  - Skill auto-approve opt-outs: `codeExecutionAutoApprove` and `terminalAutoApprove` (both default false) skip the per-command approval dialog for their respective skills.
   - Computer Use preferences are limited to `skills.computer_use.enabled` plus the existing `computerUseAutoApprove` setting. Legacy persisted `settings.agentDesktop` / `skills.agent_desktop` values are ignored and not rewritten into normalized settings.
   - Discord RPC preferences: `discordRpc` (`appId`). Lives in the sanitized settings blob — no new file, no secure storage. `appId` defaults to the official ZuraAI Discord Application ID (`1512516130911162610`) so the feature works out of the box; users can override it with their own Client ID. Discord RPC is always-on; there is no enable/disable toggle.
   - Legacy `webSearchEnabled` / `structuredResearchEnabled` are migrated into `skills.web_research.enabled`; `structuredResearchEnabled` is retained only as a migration input and is not used by runtime logic.

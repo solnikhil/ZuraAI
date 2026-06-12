@@ -182,8 +182,14 @@ describe('preload MCP bridge', () => {
     expect(preloadMocks.invoke).toHaveBeenCalledWith('execute-tool', 'web_search', { query: 'mcp' })
   })
 
-  it('does not expose the deprecated terminal bridge', () => {
-    expect(preloadMocks.exposed.has('terminal')).toBe(false)
+  it('exposes the terminal approval bridge', () => {
+    expect(preloadMocks.exposed.has('terminal')).toBe(true)
+    const bridge = preloadMocks.exposed.get('terminal') as {
+      resolveApproval?: unknown
+      onPendingApproval?: unknown
+    }
+    expect(typeof bridge.resolveApproval).toBe('function')
+    expect(typeof bridge.onPendingApproval).toBe('function')
   })
 })
 

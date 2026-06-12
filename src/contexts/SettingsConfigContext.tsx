@@ -26,6 +26,7 @@ import { defaultSystemPrompt } from '../prompts/defaultSystemPrompt'
 import { defaultWebSearchPrompt } from '../prompts/defaultWebSearchPrompt'
 import { defaultTitleGenerationPrompt } from '../prompts/defaultTitleGenerationPrompt'
 import { defaultCodeExecutionPrompt } from '../prompts/defaultCodeExecutionPrompt'
+import { defaultTerminalPrompt } from '../prompts/defaultTerminalPrompt'
 import { defaultComputerUsePrompt } from '../prompts/defaultComputerUsePrompt'
 import { defaultChartGenerationPrompt } from '../prompts/defaultChartGenerationPrompt'
 import { defaultMemoryPrompt } from '../prompts/defaultMemoryPrompt'
@@ -117,6 +118,8 @@ export interface SettingsConfig {
   webSearchPrompt: string
   /** Code execution instructions appended when Code Execution is enabled */
   codeExecutionPrompt: string
+  /** Terminal instructions appended when the Terminal skill is enabled */
+  terminalPrompt: string
   /** Computer use instructions appended when Computer Use is enabled */
   computerUsePrompt: string
   /** Chart generation instructions appended when Chart Generation is enabled */
@@ -132,6 +135,8 @@ export interface SettingsConfig {
   skills: SkillsSettings
   /** When true, code execution runs without the approval dialog */
   codeExecutionAutoApprove: boolean
+  /** When true, terminal (system_shell) commands run without the approval dialog */
+  terminalAutoApprove: boolean
   /** When true, computer use actions run without the approval dialog */
   computerUseAutoApprove: boolean
 
@@ -282,6 +287,7 @@ export const defaultSettingsConfig: SettingsConfig = {
   assistantPersonality: DEFAULT_ASSISTANT_PERSONALITY,
   webSearchPrompt: defaultWebSearchPrompt,
   codeExecutionPrompt: defaultCodeExecutionPrompt,
+  terminalPrompt: defaultTerminalPrompt,
   computerUsePrompt: defaultComputerUsePrompt,
   chartGenerationPrompt: defaultChartGenerationPrompt,
   memoryPrompt: defaultMemoryPrompt,
@@ -294,6 +300,7 @@ export const defaultSettingsConfig: SettingsConfig = {
   skills: defaultSkillsSettings,
 
   codeExecutionAutoApprove: false,
+  terminalAutoApprove: false,
   computerUseAutoApprove: false,
   // Title generation
   titleModel: '',

@@ -379,6 +379,7 @@ if (!hasSettingsChanges && !hasMcpChanges) {
               <SkillsSection
                 skills={pendingSettings.skills}
                 codeExecutionAutoApprove={pendingSettings.codeExecutionAutoApprove}
+                terminalAutoApprove={pendingSettings.terminalAutoApprove}
                 computerUseAutoApprove={pendingSettings.computerUseAutoApprove}
                 onChange={(changes) => handleChange(changes)}
               />
@@ -408,6 +409,7 @@ if (!hasSettingsChanges && !hasMcpChanges) {
                 webSearchPrompt={pendingSettings.webSearchPrompt}
                 titleGenerationPrompt={pendingSettings.titleGenerationPrompt}
                 codeExecutionPrompt={pendingSettings.codeExecutionPrompt}
+                terminalPrompt={pendingSettings.terminalPrompt}
                 computerUsePrompt={pendingSettings.computerUsePrompt}
                 chartGenerationPrompt={pendingSettings.chartGenerationPrompt}
                 memoryPrompt={pendingSettings.memoryPrompt}

@@ -48,6 +48,18 @@ export interface PendingCodeApproval {
 }
 
 /**
+ * Pending terminal (system_shell) approval request shape (mirrors PendingTerminalApproval from main).
+ */
+export interface PendingTerminalApproval {
+  id: string
+  command: string
+  cwd: string
+  description: string
+  requestedAt: number
+  expiresAt: number
+}
+
+/**
  * Pending computer use approval request shape (mirrors PendingComputerAction from main).
  */
 export interface PendingComputerAction {
@@ -554,6 +566,11 @@ export interface AppMenuAPI {
 export interface CodeExecutionAPI {
   resolveApproval: (requestId: string, approved: boolean) => Promise<ApprovalDecision>
   onPendingApproval: (callback: (pending: PendingCodeApproval[]) => void) => () => void
+}
+
+export interface TerminalAPI {
+  resolveApproval: (requestId: string, approved: boolean) => Promise<ApprovalDecision>
+  onPendingApproval: (callback: (pending: PendingTerminalApproval[]) => void) => () => void
 }
 
 export interface ComputerUseAPI {

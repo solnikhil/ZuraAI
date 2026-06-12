@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronRight, Loader2, Search, Globe, Wrench } from './icons'
+import { ChevronRight, Loader2, Search, Globe, Wrench, Terminal, Check } from './icons'
 import './ThinkingBlock.css'
 import { ThinkingBlock as ThinkingBlockType } from '../contexts/ChatHistoryContext'
 import AITextLoading from './AITextLoading'
@@ -272,7 +272,7 @@ function InlineWebSearchBlock({ block }: { block: ThinkingBlockType }) {
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{
-              height: motionSpringTransition(animationsEnabled, motionSpring.bouncy),
+              height: motionSpringTransition(animationsEnabled, motionSpring.settle),
               opacity: {
                 duration: motionDuration(animationsEnabled, motionDurations.fast),
                 ease: motionEasing.standard,
@@ -343,6 +343,62 @@ function renderThinkingWithToolCalls(
   return <>{nodes}</>
 }
 
+// Strip ANSI color/style escape sequences so terminal output renders cleanly.
+function stripAnsiEscapes(input: string): string {
+  // eslint-disable-next-line no-control-regex
+  return input.replace(/\u001b\[[0-9;]*[A-Za-z]/g, '')
+}
+
+/** Codex-style terminal panel for system_shell tool output. */
+function TerminalToolView({ block }: { block: ThinkingBlockType }) {
+  const data = (block.toolOutput?.data ?? {}) as Record<string, unknown>
+  const command =
+    typeof data.command === 'string'
+      ? data.command
+      : typeof block.toolInput?.command === 'string'
+        ? String(block.toolInput.command)
+        : ''
+  const cwd =
+    typeof data.cwd === 'string'
+      ? data.cwd
+      : typeof block.toolInput?.cwd === 'string'
+        ? String(block.toolInput.cwd)
+        : ''
+  const stdout = typeof data.stdout === 'string' ? stripAnsiEscapes(data.stdout).replace(/\s+$/, '') : ''
+  const stderr = typeof data.stderr === 'string' ? stripAnsiEscapes(data.stderr).replace(/\s+$/, '') : ''
+  const exitCode = typeof data.exitCode === 'number' ? data.exitCode : null
+  const error = block.toolOutput?.error ? stripAnsiEscapes(block.toolOutput.error) : ''
+  const isSuccess = Boolean(block.toolOutput?.success) && !error && (exitCode === null || exitCode === 0)
+  const hasOutput = Boolean(stdout || stderr || error)
+  const statusLabel = isSuccess
+    ? '✓ Success'
+    : exitCode != null
+      ? `✗ Exit ${exitCode}`
+      : '✗ Failed'
+
+  return (
+    <div className={`terminal-tool ${isSuccess ? 'is-success' : 'is-error'}`}>
+      <div className="terminal-tool-bar">Shell</div>
+      <div className="terminal-tool-body">
+        {command && (
+          <div className="terminal-tool-command">
+            <span className="terminal-tool-prompt">$</span>
+            <span>{command}</span>
+          </div>
+        )}
+        {stdout && <pre className="terminal-tool-stream">{stdout}</pre>}
+        {stderr && <pre className="terminal-tool-stream terminal-tool-stream-err">{stderr}</pre>}
+        {error && <pre className="terminal-tool-stream terminal-tool-stream-err">{error}</pre>}
+        {!hasOutput && <div className="terminal-tool-empty">No output</div>}
+      </div>
+      <div className="terminal-tool-status">
+        {cwd && <span className="terminal-tool-cwd">{cwd}</span>}
+        <span className="terminal-tool-status-badge">{statusLabel}</span>
+      </div>
+    </div>
+  )
+}
+
 // Component for a single completed block (collapsed by default)
 function CompletedBlock({
   block,
@@ -382,6 +438,8 @@ function CompletedBlock({
             <span className="thinking-tool-calling-icon">
               {toolName === 'web_search' ? (
                 mode === 'extract' ? <Globe size={14} /> : <Search size={14} />
+              ) : toolName === 'system_shell' ? (
+                <Terminal size={14} />
               ) : (
                 <Wrench size={14} />
               )}
@@ -390,9 +448,15 @@ function CompletedBlock({
               {getCompletedToolBlockText(block)}
             </span>
             {status && (
-              <span className={`thinking-tool-status thinking-tool-status-${status.tone}`}>
-                {status.label}
-              </span>
+              toolName === 'system_shell' && status.tone === 'success' ? (
+                <span className="thinking-tool-check" title={status.label} aria-label={status.label}>
+                  <Check size={13} />
+                </span>
+              ) : (
+                <span className={`thinking-tool-status thinking-tool-status-${status.tone}`}>
+                  {status.label}
+                </span>
+              )
             )}
           </div>
         </div>
@@ -403,7 +467,7 @@ function CompletedBlock({
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
               transition={{
-                height: motionSpringTransition(animationsEnabled, motionSpring.bouncy),
+                height: motionSpringTransition(animationsEnabled, motionSpring.settle),
                 opacity: {
                   duration: motionDuration(animationsEnabled, motionDurations.fast),
                   ease: motionEasing.standard,
@@ -412,6 +476,10 @@ function CompletedBlock({
               style={{ overflow: 'hidden' }}
             >
               <div className="thinking-content thinking-tool-details">
+                {toolName === 'system_shell' ? (
+                  <TerminalToolView block={block} />
+                ) : (
+                  <>
                 {block.toolInput && Object.keys(block.toolInput).length > 0 && (
                   <div className="thinking-tool-json">
                     <div className="thinking-tool-json-label">Input</div>
@@ -442,6 +510,8 @@ function CompletedBlock({
                     </pre>
                     {auditLine && <div className="thinking-tool-audit-line">{auditLine}</div>}
                   </div>
+                )}
+                  </>
                 )}
               </div>
             </motion.div>
@@ -477,7 +547,7 @@ function CompletedBlock({
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{
-              height: motionSpringTransition(animationsEnabled, motionSpring.bouncy),
+              height: motionSpringTransition(animationsEnabled, motionSpring.settle),
               opacity: {
                 duration: motionDuration(animationsEnabled, motionDurations.fast),
                 ease: motionEasing.standard,
@@ -693,7 +763,7 @@ export default function ThinkingBlock({
                 animate={{ height: 'auto', opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
                 transition={{
-                  height: motionSpringTransition(animationsEnabled, motionSpring.bouncy),
+                  height: motionSpringTransition(animationsEnabled, motionSpring.settle),
                   opacity: {
                     duration: motionDuration(animationsEnabled, motionDurations.fast),
                     ease: motionEasing.standard,
@@ -716,7 +786,7 @@ export default function ThinkingBlock({
                 animate={{ height: 'auto', opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
                 transition={{
-                  height: motionSpringTransition(animationsEnabled, motionSpring.bouncy),
+                  height: motionSpringTransition(animationsEnabled, motionSpring.settle),
                   opacity: {
                     duration: motionDuration(animationsEnabled, motionDurations.fast),
                     ease: motionEasing.standard,
@@ -745,7 +815,7 @@ export default function ThinkingBlock({
                 animate={{ height: 'auto', opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
                 transition={{
-                  height: motionSpringTransition(animationsEnabled, motionSpring.bouncy),
+                  height: motionSpringTransition(animationsEnabled, motionSpring.settle),
                   opacity: {
                     duration: motionDuration(animationsEnabled, motionDurations.fast),
                     ease: motionEasing.standard,

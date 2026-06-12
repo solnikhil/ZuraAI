@@ -276,6 +276,7 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
   }, [])
 
   const isPeeking = sidebarHidden && peeking
+  const isPeekClosing = sidebarHidden && peekClosing && !peeking
   // Keep the flyout positioned as an overlay while it slides back out so the
   // main content layout never reflows when the peek closes.
   const isPeekOverlay = sidebarHidden && (peeking || peekClosing)
@@ -296,7 +297,7 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
     peekCloseTimer.current = setTimeout(() => {
       setPeekClosing(false)
       peekCloseTimer.current = null
-    }, 360)
+    }, 240)
   }, [])
 
   // Reset peek whenever the sidebar is no longer hidden
@@ -316,6 +317,7 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
     isMacOS ? 'sidebar-container--macos' : '',
     sidebarHidden && !isPeekOverlay ? 'sidebar-container--hidden' : '',
     isPeekOverlay ? 'sidebar-container--peek' : '',
+    isPeekClosing ? 'sidebar-container--peek-closing' : '',
     sidebarCollapsed ? 'sidebar-container--collapsed' : 'sidebar-container--expanded',
     isResizing ? 'sidebar-container--resizing' : '',
   ]
@@ -324,14 +326,18 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
 
   // Structural styles stay inline for testability (JSDOM doesn't load CSS files)
   const openWidthPx = sidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH_PX : sidebarWidth
-  const collapsedAway = sidebarHidden && !isPeeking
+  const collapsedAway = sidebarHidden && !isPeekOverlay
+  const layoutWidthPx = sidebarHidden ? 0 : openWidthPx
   const containerStyle: React.CSSProperties = {
-    width: collapsedAway ? '0px' : `${openWidthPx}px`,
+    width: `${layoutWidthPx}px`,
+    flexGrow: 0,
+    flexShrink: 0,
+    flexBasis: `${layoutWidthPx}px`,
     // Pin the inner content to its open width so it slides out cleanly (clipped by
     // overflow:hidden) instead of reflowing/squishing while width animates to 0.
     ['--sidebar-inner-width' as string]: `${openWidthPx}px`,
     background: 'var(--theme-sidebar-solid)',
-    boxShadow: 'none',
+    boxShadow: isPeekOverlay ? undefined : 'none',
     pointerEvents: collapsedAway ? 'none' : 'auto',
     transition: isResizing ? 'none' : undefined,
   }

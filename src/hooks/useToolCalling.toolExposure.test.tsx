@@ -5,6 +5,7 @@ import { cleanup, renderHook } from '@testing-library/react'
 import {
   defaultSkillsSettings,
   withComputerUseEnabled,
+  withTerminalEnabled,
   type SkillsSettings,
 } from '../skills'
 import { getBuiltinToolDefinitions } from '../tools/definitions'
@@ -68,7 +69,6 @@ const NATIVE_WINDOWS_TOOL_NAMES = [
   'window_list',
   'window_focus',
   'windows_uia_snapshot',
-  'system_shell',
 ]
 
 function getExposedToolNames(): string[] {
@@ -205,6 +205,67 @@ describe('useToolCalling - Computer Use tool exposure gating', () => {
           cleanup()
 
           const expected = windows && computerUseEnabled
+          expect(exposed).toBe(expected)
+          return exposed === expected
+        }
+      ),
+      { numRuns: 100 }
+    )
+  })
+})
+
+describe('useToolCalling - Terminal skill (system_shell) exposure gating', () => {
+  it('does not expose system_shell when the Terminal skill is disabled (even in agent mode)', () => {
+    isWindows = true
+    mockSettings.settings = makeSettings({
+      assistantMode: 'agent',
+      skills: defaultSkillsSettings,
+    })
+    expect(getExposedToolNames()).not.toContain('system_shell')
+  })
+
+  it('exposes system_shell on Windows when the Terminal skill is enabled in agent mode', () => {
+    isWindows = true
+    mockSettings.settings = makeSettings({
+      assistantMode: 'agent',
+      skills: withTerminalEnabled(defaultSkillsSettings, true),
+    })
+    expect(getExposedToolNames()).toContain('system_shell')
+  })
+
+  it('exposes system_shell on Windows when the Terminal skill is enabled in chat mode', () => {
+    isWindows = true
+    mockSettings.settings = makeSettings({
+      assistantMode: 'chat',
+      skills: withTerminalEnabled(defaultSkillsSettings, true),
+    })
+    expect(getExposedToolNames()).toContain('system_shell')
+  })
+
+  it('does not expose system_shell on macOS even when the Terminal skill is enabled', () => {
+    isWindows = false
+    mockSettings.settings = makeSettings({
+      assistantMode: 'agent',
+      skills: withTerminalEnabled(defaultSkillsSettings, true),
+    })
+    expect(getExposedToolNames()).not.toContain('system_shell')
+  })
+
+  it('Property: system_shell exposure iff Windows AND terminal skill enabled', () => {
+    fc.assert(
+      fc.property(
+        fc.boolean(),
+        fc.boolean(),
+        fc.constantFrom('chat' as const, 'agent' as const),
+        (windows, terminalEnabled, mode) => {
+          isWindows = windows
+          const skills = withTerminalEnabled(defaultSkillsSettings, terminalEnabled)
+          mockSettings.settings = makeSettings({ assistantMode: mode, skills })
+
+          const exposed = getExposedToolNames().includes('system_shell')
+          cleanup()
+
+          const expected = windows && terminalEnabled
           expect(exposed).toBe(expected)
           return exposed === expected
         }

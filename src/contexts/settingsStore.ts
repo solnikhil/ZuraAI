@@ -231,6 +231,7 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   parsed.assistantPersonality = normalizeAssistantPersonalityId(parsed.assistantPersonality)
   parsed.webSearchPrompt = defaultSettings.webSearchPrompt
   parsed.codeExecutionPrompt = defaultSettings.codeExecutionPrompt
+  parsed.terminalPrompt = defaultSettings.terminalPrompt
   parsed.computerUsePrompt = defaultSettings.computerUsePrompt
   parsed.chartGenerationPrompt = defaultSettings.chartGenerationPrompt
   parsed.memoryPrompt = defaultSettings.memoryPrompt
@@ -395,6 +396,10 @@ export function normalizeStoredSettings(raw: string | null): Settings {
 
   if (typeof parsed.codeExecutionAutoApprove !== 'boolean') {
     parsed.codeExecutionAutoApprove = defaultSettings.codeExecutionAutoApprove
+  }
+
+  if (typeof parsed.terminalAutoApprove !== 'boolean') {
+    parsed.terminalAutoApprove = defaultSettings.terminalAutoApprove
   }
 
   if (typeof parsed.computerUseAutoApprove !== 'boolean') {
@@ -565,6 +570,7 @@ export function getInitialConfigSettings(settings: Settings): Partial<SettingsCo
     assistantPersonality: settings.assistantPersonality,
     webSearchPrompt: settings.webSearchPrompt,
     codeExecutionPrompt: settings.codeExecutionPrompt,
+    terminalPrompt: settings.terminalPrompt,
     computerUsePrompt: settings.computerUsePrompt,
     chartGenerationPrompt: settings.chartGenerationPrompt,
     memoryPrompt: settings.memoryPrompt,
@@ -575,6 +581,7 @@ export function getInitialConfigSettings(settings: Settings): Partial<SettingsCo
     skills: settings.skills,
     titleModel: settings.titleModel,
     codeExecutionAutoApprove: settings.codeExecutionAutoApprove,
+    terminalAutoApprove: settings.terminalAutoApprove,
     computerUseAutoApprove: settings.computerUseAutoApprove,
     titleGenerationPrompt: settings.titleGenerationPrompt,
     titleGenerationDisplayMode: settings.titleGenerationDisplayMode,

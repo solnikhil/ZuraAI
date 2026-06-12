@@ -17,6 +17,7 @@ import type {
   ResourceMonitorAPI,
   SecureStorageAPI,
   ShellAPI,
+  TerminalAPI,
   UpdaterAPI,
   WindowControlsAPI,
 } from './electron/types'
@@ -38,6 +39,7 @@ declare global {
     mcp: McpAPI
     memory: MemoryAPI
     codeExecution: CodeExecutionAPI
+    terminal: TerminalAPI
     computerUse: ComputerUseAPI
     chatDiagnostics?: ChatDiagnosticsAPI
     chatDebug?: ChatDebugAPI

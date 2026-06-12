@@ -394,3 +394,109 @@
         transition: none;
     }
 }
+
+/* Codex-style terminal panel for system_shell tool output */
+.terminal-tool {
+    margin-top: 4px;
+    border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.1));
+    border-radius: 10px;
+    overflow: hidden;
+    background: #0d1117;
+    font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace);
+    font-size: 12px;
+    line-height: 1.55;
+}
+
+.terminal-tool-bar {
+    padding: 6px 12px;
+    background: rgba(255, 255, 255, 0.04);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 11px;
+    letter-spacing: 0.03em;
+    text-transform: none;
+}
+
+.terminal-tool-body {
+    padding: 10px 12px;
+    max-height: 360px;
+    overflow: auto;
+}
+
+.terminal-tool-command {
+    display: flex;
+    gap: 8px;
+    color: #e6edf3;
+    margin-bottom: 8px;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.terminal-tool-prompt {
+    color: #5ec27e;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.terminal-tool-stream {
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: #c9d1d9;
+    font-family: inherit;
+    font-size: inherit;
+    line-height: 1.55;
+}
+
+.terminal-tool-stream + .terminal-tool-stream {
+    margin-top: 8px;
+}
+
+.terminal-tool-stream-err {
+    color: var(--theme-warning, #f0883e);
+}
+
+.terminal-tool-empty {
+    color: rgba(255, 255, 255, 0.4);
+    font-style: italic;
+}
+
+.terminal-tool-status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.terminal-tool-cwd {
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.terminal-tool-status-badge {
+    margin-left: auto;
+    flex-shrink: 0;
+    font-size: 11px;
+    font-weight: 600;
+    color: #5ec27e;
+}
+
+.terminal-tool.is-error .terminal-tool-status-badge {
+    color: var(--theme-warning, #f0883e);
+}
+
+
+/* Subtle completed-check for system_shell (replaces the loud green pill) */
+.thinking-tool-check {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 6px;
+    color: var(--theme-success, #22c55e);
+    opacity: 0.85;
+}

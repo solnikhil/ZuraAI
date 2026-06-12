@@ -24,8 +24,9 @@ import { isMacOSRuntime } from '@/utils/platform'
 export interface SkillsSectionProps {
   skills: SkillsSettings
   codeExecutionAutoApprove: boolean
+  terminalAutoApprove: boolean
   computerUseAutoApprove: boolean
-  onChange: (changes: { skills?: SkillsSettings; codeExecutionAutoApprove?: boolean; computerUseAutoApprove?: boolean }) => void
+  onChange: (changes: { skills?: SkillsSettings; codeExecutionAutoApprove?: boolean; terminalAutoApprove?: boolean; computerUseAutoApprove?: boolean }) => void
 }
 
 interface SkillCatalogGroupProps {
@@ -34,6 +35,7 @@ interface SkillCatalogGroupProps {
   isEnabled: (skillId: SkillId) => boolean
   setEnabled: (skillId: SkillId, enabled: boolean) => void
   codeExecutionAutoApprove: boolean
+  terminalAutoApprove: boolean
   computerUseAutoApprove: boolean
   onChange: SkillsSectionProps['onChange']
   featured?: boolean
@@ -42,12 +44,13 @@ interface SkillCatalogGroupProps {
 export function SkillsSection({
   skills,
   codeExecutionAutoApprove,
+  terminalAutoApprove,
   computerUseAutoApprove,
   onChange,
 }: SkillsSectionProps): React.ReactElement {
   const isEnabled = (skillId: SkillId): boolean => checkSkillEnabled(skills, skillId)
   const visibleSkills = isMacOSRuntime()
-    ? BUILT_IN_SKILLS.filter((skill) => skill.id !== 'computer_use')
+    ? BUILT_IN_SKILLS.filter((skill) => skill.id !== 'computer_use' && skill.id !== 'terminal')
     : BUILT_IN_SKILLS
   const recommendedSkills = visibleSkills.filter((skill) => skill.id === 'web_research')
   const systemSkills = visibleSkills.filter((skill) => skill.id !== 'web_research')
@@ -81,6 +84,7 @@ export function SkillsSection({
           isEnabled={isEnabled}
           setEnabled={setEnabled}
           codeExecutionAutoApprove={codeExecutionAutoApprove}
+          terminalAutoApprove={terminalAutoApprove}
           computerUseAutoApprove={computerUseAutoApprove}
           onChange={onChange}
           featured
@@ -91,6 +95,7 @@ export function SkillsSection({
           isEnabled={isEnabled}
           setEnabled={setEnabled}
           codeExecutionAutoApprove={codeExecutionAutoApprove}
+          terminalAutoApprove={terminalAutoApprove}
           computerUseAutoApprove={computerUseAutoApprove}
           onChange={onChange}
         />
@@ -105,6 +110,7 @@ function SkillCatalogGroup({
   isEnabled,
   setEnabled,
   codeExecutionAutoApprove,
+  terminalAutoApprove,
   computerUseAutoApprove,
   onChange,
   featured = false,
@@ -119,8 +125,8 @@ function SkillCatalogGroup({
       <div className={`skills-catalog-group__grid ${featured ? 'skills-catalog-group__grid--featured' : ''}`}>
         {skills.map((skill) => {
           const enabled = isEnabled(skill.id)
-          const hasOptions = enabled && (skill.id === 'code_execution' || skill.id === 'computer_use')
-          const logoSize = ['web_research', 'code_execution', 'computer_use', 'chart_generation'].includes(skill.id)
+          const hasOptions = enabled && (skill.id === 'code_execution' || skill.id === 'terminal' || skill.id === 'computer_use')
+          const logoSize = ['web_research', 'code_execution', 'terminal', 'computer_use', 'chart_generation'].includes(skill.id)
             ? 40
             : featured ? 22 : 18
 
@@ -173,6 +179,14 @@ function SkillCatalogGroup({
                           <DropdownMenuSeparator />
                           <DropdownMenuItem onClick={() => onChange({ codeExecutionAutoApprove: !codeExecutionAutoApprove })}>
                             {codeExecutionAutoApprove ? '✓ ' : ''}Auto-approve execution
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                      {skill.id === 'terminal' && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => onChange({ terminalAutoApprove: !terminalAutoApprove })}>
+                            {terminalAutoApprove ? '✓ ' : ''}Auto-approve execution
                           </DropdownMenuItem>
                         </>
                       )}

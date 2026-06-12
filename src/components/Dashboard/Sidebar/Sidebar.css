@@ -30,6 +30,7 @@
   contain: layout paint;
   transition:
     width var(--sidebar-show-duration) var(--sidebar-show-ease),
+    flex-basis var(--sidebar-show-duration) var(--sidebar-show-ease),
     opacity var(--motion-duration-fast) var(--motion-ease-standard),
     background var(--motion-duration-normal) var(--motion-ease-standard);
 }
@@ -49,9 +50,11 @@
 .sidebar-container--hidden {
   width: 0 !important;
   border-right: none;
+  opacity: 0;
   pointer-events: none;
   transition:
     width var(--sidebar-hide-duration) var(--sidebar-hide-ease),
+    flex-basis var(--sidebar-hide-duration) var(--sidebar-hide-ease),
     opacity var(--motion-duration-fast) var(--motion-ease-exit);
 }
 
@@ -78,12 +81,51 @@
   top: 0;
   left: 0;
   height: 100%;
+  width: var(--sidebar-inner-width, 300px) !important;
+  flex-basis: 0 !important;
   z-index: 40;
-  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.28);
+  opacity: 1;
+  transform: translateX(0);
+  box-shadow: none;
+  border-right: 1px solid var(--theme-border);
+  animation: sidebar-peek-slide-in var(--sidebar-show-duration) var(--sidebar-show-ease) both;
+  transition: background var(--motion-duration-normal) var(--motion-ease-standard);
+  will-change: transform;
+}
+
+.sidebar-container--peek-closing {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-100%);
+  box-shadow: none;
+  border-right: 1px solid var(--theme-border);
+  animation: sidebar-peek-slide-out var(--sidebar-hide-duration) var(--sidebar-hide-ease) both;
 }
 
 .sidebar-container--expanded {
   width: 300px;
+}
+
+@keyframes sidebar-peek-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes sidebar-peek-slide-out {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
 }
 
 .sidebar-container.frosted {
@@ -453,7 +495,10 @@
   height: var(--sidebar-row-height);
   box-sizing: border-box;
   position: relative;
-  transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+  transition:
+    background 140ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 140ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 140ms cubic-bezier(0.22, 1, 0.36, 1);
   background: transparent;
   border: 1px solid transparent;
   box-shadow: none;
@@ -495,6 +540,12 @@
   font-weight: 400;
   color: var(--sidebar-chat-text-color);
   min-width: 0;
+  transition: color 140ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.sidebar-chat-row:hover .sidebar-chat-row__title,
+.sidebar-chat-row--active .sidebar-chat-row__title {
+  color: color-mix(in srgb, var(--theme-text-primary) 78%, var(--theme-text-muted) 22%);
 }
 
 .sidebar-container--macos .sidebar-chat-row__title {

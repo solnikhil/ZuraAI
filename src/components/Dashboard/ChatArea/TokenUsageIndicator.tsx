@@ -313,6 +313,7 @@ export function TokenUsageIndicator({ input, attachedFiles = [], className }: To
       settings.systemPrompt,
       settings.skills,
       settings.codeExecutionPrompt,
+      settings.terminalPrompt,
       settings.computerUsePrompt,
       settings.chartGenerationPrompt,
     ]

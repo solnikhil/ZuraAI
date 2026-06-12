@@ -38,6 +38,11 @@ import {
   disposeCodeExecutionApprovalManager,
 } from './tools/code-execution'
 import {
+  registerTerminalHandlers,
+  unregisterTerminalHandlers,
+  disposeTerminalApprovalManager,
+} from './tools/terminal'
+import {
   registerComputerUseHandlers,
   unregisterComputerUseHandlers,
   disposeComputerUseApprovalManager,
@@ -103,6 +108,8 @@ app.on('will-quit', () => {
   unregisterMcpHandlers()
   disposeCodeExecutionApprovalManager()
   unregisterCodeExecutionHandlers()
+  disposeTerminalApprovalManager()
+  unregisterTerminalHandlers()
   unregisterDiscordRpcHandlers()
   disposeDiscordRpcClient()
   disposeComputerUseApprovalManager()
@@ -175,6 +182,7 @@ app.whenReady().then(async () => {
   // before the platform installer takes over.
   setShutdownHook(() => shutdownMcpManager())
   registerCodeExecutionHandlers()
+  registerTerminalHandlers()
   registerDiscordRpcHandlers(getMainWindow)
   if (!IS_MACOS) {
     registerComputerUseHandlers()

@@ -8,6 +8,9 @@ import {
   isCodeExecutionEnabled,
   isChartGenerationEnabled,
   isSkillEnabled,
+  isTerminalEnabled,
+  getTerminalToolExposure,
+  withTerminalEnabled,
   migrateSkillsFromLegacySettings,
   normalizeSkillsSettings,
   withCodeExecutionEnabled,
@@ -133,6 +136,84 @@ describe('code_execution skill', () => {
   it('buildEnabledSkillsPrompt excludes code execution when disabled', () => {
     const prompt = buildEnabledSkillsPrompt(defaultSkillsSettings)
     expect(prompt).not.toContain('code_execution')
+  })
+})
+
+describe('terminal skill', () => {
+  it('defaults to disabled', () => {
+    expect(defaultSkillsSettings.terminal.enabled).toBe(false)
+  })
+
+  it('normalizes missing terminal to default', () => {
+    const normalized = normalizeSkillsSettings({ web_research: { enabled: true } })
+    expect(normalized.terminal.enabled).toBe(false)
+  })
+
+  it('preserves persisted terminal state', () => {
+    const normalized = normalizeSkillsSettings({
+      web_research: { enabled: true },
+      terminal: { enabled: true },
+    })
+    expect(normalized.terminal.enabled).toBe(true)
+  })
+
+  it('isTerminalEnabled returns correct state', () => {
+    expect(isTerminalEnabled(defaultSkillsSettings)).toBe(false)
+    expect(isTerminalEnabled({
+      ...defaultSkillsSettings,
+      terminal: { enabled: true },
+    })).toBe(true)
+  })
+
+  it('withTerminalEnabled toggles the skill', () => {
+    const updated = withTerminalEnabled(defaultSkillsSettings, true)
+    expect(updated.terminal.enabled).toBe(true)
+    expect(updated.web_research.enabled).toBe(true)
+  })
+
+  it('getTerminalToolExposure reflects skill state', () => {
+    expect(getTerminalToolExposure(defaultSkillsSettings)).toEqual({
+      exposeTerminal: false,
+    })
+    expect(getTerminalToolExposure({
+      ...defaultSkillsSettings,
+      terminal: { enabled: true },
+    })).toEqual({
+      exposeTerminal: true,
+    })
+  })
+
+  it('buildEnabledSkillsPrompt includes terminal when enabled', () => {
+    const skills = { ...defaultSkillsSettings, terminal: { enabled: true } }
+    const prompt = buildEnabledSkillsPrompt(skills)
+    expect(prompt).toContain('Terminal')
+    expect(prompt).toContain('system_shell')
+  })
+
+  it('buildEnabledSkillsPrompt excludes terminal when disabled', () => {
+    const prompt = buildEnabledSkillsPrompt(defaultSkillsSettings)
+    expect(prompt).not.toContain('system_shell')
+  })
+
+  it('buildEnabledSkillsPrompt injects the terminalPrompt option when enabled', () => {
+    const skills = { ...defaultSkillsSettings, terminal: { enabled: true } }
+    const prompt = buildEnabledSkillsPrompt(skills, { terminalPrompt: 'TERMINAL_PROMPT_CONTENT' })
+    expect(prompt).toContain('TERMINAL_PROMPT_CONTENT')
+  })
+
+  it('buildEnabledSkillsPrompt omits the terminalPrompt option when disabled', () => {
+    const prompt = buildEnabledSkillsPrompt(defaultSkillsSettings, { terminalPrompt: 'TERMINAL_PROMPT_CONTENT' })
+    expect(prompt).not.toContain('TERMINAL_PROMPT_CONTENT')
+  })
+
+  it('legacy settings without terminal default to disabled', () => {
+    const migrated = migrateSkillsFromLegacySettings({
+      skills: { web_research: { enabled: true } },
+      webSearchEnabled: true,
+      structuredResearchEnabled: false,
+      deepResearchEnabled: false,
+    })
+    expect(migrated.terminal.enabled).toBe(false)
   })
 })
 

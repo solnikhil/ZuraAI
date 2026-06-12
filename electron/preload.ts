@@ -28,6 +28,7 @@ import type {
   OverlayState,
   PendingCodeApproval,
   PendingComputerAction,
+  PendingTerminalApproval,
   ResourceSample,
   UpdateMemoryPatch,
 } from '../src/electron/types'
@@ -386,6 +387,19 @@ contextBridge.exposeInMainWorld(
       const listener = (_event: IpcRendererEvent, pending: PendingCodeApproval[]) => callback(pending)
       ipcRenderer.on('code-execution:pending-approval', listener)
       return () => ipcRenderer.removeListener('code-execution:pending-approval', listener)
+    },
+  })
+)
+
+contextBridge.exposeInMainWorld(
+  'terminal',
+  Object.freeze({
+    resolveApproval: (requestId: string, approved: boolean) =>
+      ipcRenderer.invoke('terminal:resolve-approval', requestId, approved),
+    onPendingApproval: (callback: (pending: PendingTerminalApproval[]) => void) => {
+      const listener = (_event: IpcRendererEvent, pending: PendingTerminalApproval[]) => callback(pending)
+      ipcRenderer.on('terminal:pending-approval', listener)
+      return () => ipcRenderer.removeListener('terminal:pending-approval', listener)
     },
   })
 )

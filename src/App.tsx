@@ -17,7 +17,7 @@ import { McpApprovalDialog } from './components/mcp/McpApprovalDialog'
 import { ComputerUseApprovalDialog } from './components/ComputerUseApprovalDialog'
 import { AgentToolApprovalProvider } from './agent/AgentToolApprovalContext'
 import { isMacOSRuntime } from './utils/platform'
-import type { PendingCodeApproval } from './electron/types'
+import type { PendingCodeApproval, PendingTerminalApproval } from './electron/types'
 
 import { loadSettingsModule } from './components/Settings/settingsLoader'
 
@@ -27,6 +27,11 @@ const PromptPopupView = lazy(() => import('./components/PromptPopupView'))
 const CodeExecutionApprovalDialog = lazy(() =>
   import('./components/CodeExecutionApprovalDialog').then((module) => ({
     default: module.CodeExecutionApprovalDialog,
+  }))
+)
+const TerminalApprovalDialog = lazy(() =>
+  import('./components/TerminalApprovalDialog').then((module) => ({
+    default: module.TerminalApprovalDialog,
   }))
 )
 // Loaded only inside the dev-only `#/chat-debug` BrowserWindow. Wrapped in
@@ -91,6 +96,25 @@ function CodeExecutionApprovalHost() {
   )
 }
 
+function TerminalApprovalHost() {
+  const [pendingApprovals, setPendingApprovals] = useState<PendingTerminalApproval[] | null>(null)
+
+  useEffect(() => {
+    if (!window.terminal?.onPendingApproval) return
+    return window.terminal.onPendingApproval((pending) => {
+      setPendingApprovals(pending.length > 0 ? pending : null)
+    })
+  }, [])
+
+  if (!pendingApprovals) return null
+
+  return (
+    <Suspense fallback={null}>
+      <TerminalApprovalDialog initialPending={pendingApprovals} />
+    </Suspense>
+  )
+}
+
 function DashboardApp() {
   const macOS = isMacOSRuntime()
 
@@ -136,6 +160,7 @@ function DashboardApp() {
                 </ModelSelectorProvider>
               </AgentToolApprovalProvider>
               <CodeExecutionApprovalHost />
+              <TerminalApprovalHost />
               {!macOS && <ComputerUseApprovalDialog />}
             </QuickSendProvider>
           </StreamingProvider>

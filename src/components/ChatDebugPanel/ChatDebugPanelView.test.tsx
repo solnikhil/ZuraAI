@@ -174,6 +174,23 @@ describe('ChatDebugPanelView (standalone window)', () => {
     expect(screen.getByText('rate limited')).toBeInTheDocument()
   })
 
+  it('groups the memory-extraction phases under a single "dreaming" chip', () => {
+    window.localStorage.setItem('zura.chatDebugPanel.view', 'timeline')
+    render(<ChatDebugPanelView sessionId="session-test" />)
+
+    const chipsContainer = screen.getByRole('button', { name: 'Select all' }).parentElement!
+    expect(within(chipsContainer).getByRole('button', { name: 'dreaming' })).toBeInTheDocument()
+    expect(
+      within(chipsContainer).queryByRole('button', { name: 'memory-extraction-start' })
+    ).not.toBeInTheDocument()
+    expect(
+      within(chipsContainer).queryByRole('button', { name: 'memory-extraction-result' })
+    ).not.toBeInTheDocument()
+    expect(
+      within(chipsContainer).queryByRole('button', { name: 'memory-extraction-error' })
+    ).not.toBeInTheDocument()
+  })
+
   it('renders Streaming aggregate stats from stream-chunk events', () => {
     window.localStorage.setItem('zura.chatDebugPanel.view', 'categories')
     window.localStorage.setItem('zura.chatDebugPanel.category', 'streaming')
