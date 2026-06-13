@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { Check, Search } from 'lucide-react'
+import React from 'react'
+import { Check } from 'lucide-react'
 import { ProviderLogo } from '@/components/shared'
 import {
   DropdownMenuContent,
@@ -13,7 +13,6 @@ import {
   DropdownMenuSubTrigger,
 } from '@/components/ui/dropdown-menu'
 import { getPickerVisibleProviders, getProviderDefinition } from '@/providers'
-import { filterModels } from '../../../utils/modelUtils'
 import { removeEmojis } from '../../../utils/textUtils'
 import type { DeepSeekReasoningEffort } from '../../../contexts/SettingsConfigContext'
 import type { GroupedModels, ModelWithProvider } from './types'
@@ -64,170 +63,102 @@ export function ModelSelectorDropdown({
   reasoningEfforts,
   onReasoningEffortChange,
 }: ModelSelectorDropdownProps): React.ReactElement {
-  const [query, setQuery] = useState('')
-  const inputRef = useRef<HTMLInputElement>(null)
-
   const providers = getPickerVisibleProviders()
     .filter((provider) => (groupedModels[provider.id]?.length || 0) > 0)
     .map((provider) => ({ id: provider.id, label: getProviderDefinition(provider.id).label }))
-
-  // Flat list (provider order) backing the search results.
-  const allModels = getPickerVisibleProviders().flatMap(
-    (provider) => groupedModels[provider.id] || []
-  )
-
-  const searching = query.trim().length > 0
-  const results = useMemo(() => filterModels(allModels, query), [allModels, query])
-
-  useEffect(() => {
-    const timer = setTimeout(() => inputRef.current?.focus(), 0)
-    return () => clearTimeout(timer)
-  }, [])
 
   return (
     <DropdownMenuContent
       align={align}
       sideOffset={8}
       collisionPadding={12}
-      className="theme-menu-surface w-[260px] rounded-[14px] p-0.5 shadow-none"
-      onCloseAutoFocus={() => setQuery('')}
+      className="theme-menu-surface w-[248px] rounded-[16px] p-1.5 shadow-none"
     >
-      {searching ? (
-        <div className="flex max-h-[50vh] flex-col gap-0.5 overflow-y-auto p-0.5">
-          {results.length === 0 ? (
-            <div className="px-1.5 py-2 text-[12px] text-[var(--theme-text-muted)]">
-              No models found
-            </div>
-          ) : (
-            results.map((model) => {
-              const isActive =
-                model.code === selectedModelCode && model.provider === selectedModelProvider
-              return (
-                <button
-                  key={`${model.provider}-${model.code}`}
-                  type="button"
-                  onClick={() => onModelSelect(model)}
-                  className="flex h-8 items-center gap-2 rounded-[12px] px-1.5 text-[12px] text-[var(--theme-text-primary)] transition-colors hover:bg-[var(--theme-surface-hover)]"
-                >
-                  <ProviderLogo provider={model.provider} size={14} />
-                  <span className="flex-1 truncate text-left">{removeEmojis(model.displayName)}</span>
-                  {isActive && (
-                    <Check className="h-3.5 w-3.5 text-[var(--theme-primary)]" aria-label="Active model" />
-                  )}
-                </button>
-              )
-            })
-          )}
-        </div>
-      ) : (
+      {showReasoning && (
         <>
-          {showReasoning && (
-            <>
-              <DropdownMenuLabel
-                className={cn(
-                  'px-1.5 pb-1 pt-1.5 text-[12px] font-medium text-[var(--theme-text-tertiary)]',
-                  !reasoningEnabled && 'opacity-50'
-                )}
+          <DropdownMenuLabel
+            className={cn(
+              'px-2 pb-1.5 pt-2 font-[var(--font-sans)] text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--theme-text-tertiary)]',
+              !reasoningEnabled && 'opacity-50'
+            )}
+          >
+            Reasoning effort
+          </DropdownMenuLabel>
+          <DropdownMenuRadioGroup
+            value={reasoningEffort}
+            onValueChange={
+              reasoningEnabled
+                ? (value) => onReasoningEffortChange(value as DeepSeekReasoningEffort)
+                : undefined
+            }
+          >
+            {reasoningEfforts.map((effort) => (
+              <DropdownMenuRadioItem
+                key={effort}
+                value={effort}
+                disabled={!reasoningEnabled}
+                className="h-10 rounded-[13px] py-0 pl-3 pr-2 font-[var(--font-sans)] text-[13px] font-medium capitalize tracking-[0.01em] transition-colors data-[state=checked]:bg-[var(--theme-surface-active)] data-[state=checked]:text-[var(--theme-text-primary)] data-[state=checked]:shadow-[inset_0_0_0_1px_var(--theme-border-subtle)] focus:bg-[var(--theme-surface-hover)] [&>span:first-child]:hidden"
               >
-                Reasoning effort
-              </DropdownMenuLabel>
-              <DropdownMenuRadioGroup
-                value={reasoningEffort}
-                onValueChange={
-                  reasoningEnabled
-                    ? (value) => onReasoningEffortChange(value as DeepSeekReasoningEffort)
-                    : undefined
-                }
-              >
-                {reasoningEfforts.map((effort) => (
-                  <DropdownMenuRadioItem
-                    key={effort}
-                    value={effort}
-                    disabled={!reasoningEnabled}
-                    className="h-8 rounded-[12px] pr-1.5 text-[12px] capitalize"
-                  >
-                    {effort}
-                  </DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuRadioGroup>
-              <DropdownMenuSeparator className="mx-0 my-px h-px" />
-            </>
-          )}
-
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger className="h-8 rounded-[12px] px-1.5 text-[12px]">
-              {currentModel && <ProviderLogo provider={currentModel.provider} size={14} />}
-              <span className="truncate">{currentName}</span>
-            </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent
-              sideOffset={8}
-              collisionPadding={12}
-              className="theme-menu-surface w-[220px] rounded-[14px] p-0.5 shadow-none"
-            >
-              {providers.length === 0 ? (
-                <DropdownMenuItem disabled className="h-8 rounded-[12px] px-1.5 text-[12px]">
-                  No models available
-                </DropdownMenuItem>
-              ) : (
-                providers.map((provider) => (
-                  <DropdownMenuSub key={provider.id}>
-                    <DropdownMenuSubTrigger className="h-8 rounded-[12px] px-1.5 text-[12px]">
-                      <ProviderLogo provider={provider.id} size={14} />
-                      <span>{provider.label}</span>
-                    </DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent
-                      sideOffset={8}
-                      collisionPadding={12}
-                      className="theme-menu-surface w-[240px] max-h-[60vh] overflow-y-auto rounded-[14px] p-0.5 shadow-none"
-                    >
-                      {(groupedModels[provider.id] || []).map((model) => {
-                        const isActive =
-                          model.code === selectedModelCode &&
-                          model.provider === selectedModelProvider
-                        return (
-                          <DropdownMenuItem
-                            key={`${model.provider}-${model.code}`}
-                            onSelect={() => onModelSelect(model)}
-                            className="h-8 rounded-[12px] px-1.5 text-[12px]"
-                          >
-                            <ProviderLogo provider={model.provider} size={14} />
-                            <span className="flex-1 truncate">{removeEmojis(model.displayName)}</span>
-                            {isActive && (
-                              <Check
-                                className="h-3.5 w-3.5 text-[var(--theme-primary)]"
-                                aria-label="Active model"
-                              />
-                            )}
-                          </DropdownMenuItem>
-                        )
-                      })}
-                    </DropdownMenuSubContent>
-                  </DropdownMenuSub>
-                ))
-              )}
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
+                {effort}
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+          <DropdownMenuSeparator className="mx-1 my-1.5 h-px" />
         </>
       )}
 
-      <DropdownMenuSeparator className="mx-0 my-px h-px" />
-      <div className="p-0.5">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--theme-text-muted)]" />
-          <input
-            ref={inputRef}
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            onKeyDown={(event) => {
-              // Let Escape bubble to close the menu; keep typing/arrows local.
-              if (event.key !== 'Escape') event.stopPropagation()
-            }}
-            placeholder="Type a command or search..."
-            aria-label="Search models"
-            className="h-9 w-full rounded-[10px] border-0 bg-transparent pl-8 pr-2 text-[12px] text-[var(--theme-text-primary)] outline-none placeholder:text-[var(--theme-text-muted)]"
-          />
-        </div>
-      </div>
+      <DropdownMenuSub>
+        <DropdownMenuSubTrigger className="h-10 rounded-[13px] px-2 text-[13px]">
+          {currentModel && <ProviderLogo provider={currentModel.provider} size={16} />}
+          <span className="truncate">{currentName}</span>
+        </DropdownMenuSubTrigger>
+        <DropdownMenuSubContent
+          sideOffset={6}
+          collisionPadding={12}
+          className="theme-menu-surface w-[210px] rounded-[16px] p-1.5 shadow-none"
+        >
+          {providers.length === 0 ? (
+            <DropdownMenuItem disabled className="h-10 rounded-[13px] px-2 text-[13px]">
+              No models available
+            </DropdownMenuItem>
+          ) : (
+            providers.map((provider) => (
+              <DropdownMenuSub key={provider.id}>
+                <DropdownMenuSubTrigger className="h-10 rounded-[13px] px-2 text-[13px]">
+                  <ProviderLogo provider={provider.id} size={16} />
+                  <span>{provider.label}</span>
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent
+                  sideOffset={6}
+                  collisionPadding={12}
+                  className="theme-menu-surface w-[230px] max-h-[60vh] overflow-y-auto rounded-[16px] p-1.5 shadow-none"
+                >
+                  {(groupedModels[provider.id] || []).map((model) => {
+                    const isActive =
+                      model.code === selectedModelCode && model.provider === selectedModelProvider
+                    return (
+                      <DropdownMenuItem
+                        key={`${model.provider}-${model.code}`}
+                        onSelect={() => onModelSelect(model)}
+                        className="h-10 rounded-[13px] px-2 text-[13px]"
+                      >
+                        <ProviderLogo provider={model.provider} size={16} />
+                        <span className="flex-1 truncate">{removeEmojis(model.displayName)}</span>
+                        {isActive && (
+                          <Check
+                            className="h-3.5 w-3.5 text-[var(--theme-primary)]"
+                            aria-label="Active model"
+                          />
+                        )}
+                      </DropdownMenuItem>
+                    )
+                  })}
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            ))
+          )}
+        </DropdownMenuSubContent>
+      </DropdownMenuSub>
     </DropdownMenuContent>
   )
 }

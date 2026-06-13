@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import SidebarHeader from './Sidebar/SidebarHeader'
 import SidebarChatList from './Sidebar/SidebarChatList'
 import type { ChatRowAction } from './Sidebar/ChatRow'
@@ -24,7 +25,7 @@ interface SidebarChatViewProps {
   onKeyDown: (event: React.KeyboardEvent) => void
 }
 
-export default function SidebarChatView({
+function SidebarChatView({
   active,
   groupedSessions,
   folders,
@@ -66,3 +67,5 @@ export default function SidebarChatView({
     </div>
   )
 }
+
+export default memo(SidebarChatView)

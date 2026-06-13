@@ -29,7 +29,7 @@ const navItems = SETTINGS_SECTIONS
     icon: settingsIcons[section.id],
   }))
 
-export default function SidebarSettingsView({
+function SidebarSettingsView({
   active,
   activeSettingsSection,
   onNavigateSettings,
@@ -59,3 +59,5 @@ export default function SidebarSettingsView({
     </div>
   )
 }
+
+export default React.memo(SidebarSettingsView)

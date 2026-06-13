@@ -264,8 +264,11 @@ export function AppShellProvider({
       localStorage.removeItem(STORAGE_KEYS.sidebarWidth)
       return
     }
+    // Avoid synchronous localStorage writes on every drag frame; the value is
+    // persisted once when the resize gesture ends (isResizingSidebar flips back).
+    if (isResizingSidebar) return
     localStorage.setItem(STORAGE_KEYS.sidebarWidth, String(clampSidebarWidth(sidebarWidth)))
-  }, [sidebarWidth, settings.rememberLastDashboardView])
+  }, [sidebarWidth, settings.rememberLastDashboardView, isResizingSidebar])
 
   useEffect(() => {
     if (!settings.rememberLastDashboardView) {
