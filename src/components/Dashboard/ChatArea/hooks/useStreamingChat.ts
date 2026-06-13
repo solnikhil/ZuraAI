@@ -24,6 +24,7 @@ import { generateChatTitle } from '../../../../services/titleGenerator'
 import { runMemoryExtraction, type ExtractionMessage } from '../../../../services/memoryExtraction'
 import { inferOpenRouterSupportsDeepThinking } from '../../../../services/openrouterModels'
 import { inferAlibabaSupportsDeepThinking } from '../../../../services/alibabaModels'
+import { getDeepseekReasoning } from '../../../../utils/deepseekReasoning'
 import { buildOptimizedContextWithTrace } from '../../../../utils/tokenUtils'
 import { getEffectiveSystemPrompt } from '../../../../utils/promptSelection'
 import { loadMemoryBlock } from '../../../../prompts/buildMemoryBlock'
@@ -602,6 +603,11 @@ const streamingSettings: StreamingSettings = useMemo(
             ? true
             : undefined
 
+        const deepseekReasoning =
+          provider === 'deepseek'
+            ? getDeepseekReasoning(settings, settings.aiModel)
+            : undefined
+
         const streamResult = await runProviderStream({
           provider,
           model: settings.aiModel,
@@ -690,7 +696,8 @@ const streamingSettings: StreamingSettings = useMemo(
               }
             : undefined,
           reasoning: openRouterReasoning,
-          enableThinking: alibabaEnableThinking,
+          enableThinking: deepseekReasoning ? deepseekReasoning.enabled : alibabaEnableThinking,
+          reasoningEffort: deepseekReasoning?.enabled ? deepseekReasoning.effort : undefined,
         })
 
         // Commit streaming content to the session
@@ -970,6 +977,11 @@ const openRouterReasoning =
             ? true
             : undefined
 
+        const deepseekReasoningForRegen =
+          effectiveSettings.modelProvider === 'deepseek'
+            ? getDeepseekReasoning(effectiveSettings, effectiveSettings.aiModel)
+            : undefined
+
         const optimizedContext = buildOptimizedContextWithTrace(
           conversationHistory,
           { ...outboundUserMessage, id: userMessage.id },
@@ -998,7 +1010,12 @@ const openRouterReasoning =
             syncToStreamingContext: false,
             modalities: openRouterModalities,
             reasoning: openRouterReasoning,
-            enableThinking: alibabaEnableThinkingForRegen,
+            enableThinking: deepseekReasoningForRegen
+              ? deepseekReasoningForRegen.enabled
+              : alibabaEnableThinkingForRegen,
+            reasoningEffort: deepseekReasoningForRegen?.enabled
+              ? deepseekReasoningForRegen.effort
+              : undefined,
           })
 
           updateStreamingMessage(currentSessionId, streamingMessageId, {

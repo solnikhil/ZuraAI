@@ -93,6 +93,8 @@ export interface ProviderStreamingRunOptions {
     enabled?: boolean
   }
   enableThinking?: boolean
+  /** DeepSeek reasoning effort; only applied when enableThinking is true. */
+  reasoningEffort?: 'high' | 'max'
   imageConfig?: {
     aspect_ratio?: string
     image_size?: string
@@ -596,6 +598,7 @@ export function useProviderStreaming({
             modalities: options.modalities,
             reasoning: options.reasoning,
             enableThinking: options.enableThinking,
+            reasoningEffort: options.reasoningEffort,
             imageConfig: options.imageConfig,
             sessionId: options.sessionId,
             signal: options.signal,

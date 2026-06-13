@@ -68,7 +68,6 @@ describe('ProviderHubSection', () => {
 
   const baseProps = {
     openRouterApiKey: '',
-    openRouterDebug: false,
     perplexityApiKey: '',
     groqApiKey: '',
     alibabaApiKey: '',
@@ -550,18 +549,6 @@ describe('ProviderHubSection', () => {
     )
   })
 
-  it('updates OpenRouter debug preference from provider settings', () => {
-    const onChange = vi.fn()
-    render(<ProviderHubSection {...baseProps} onChange={onChange} />)
-
-    fireEvent.click(
-      screen.getByText('OpenRouter provides access to many frontier models through one API.')
-    )
-    fireEvent.click(screen.getByRole('switch', { name: 'Enable OpenRouter debug logging' }))
-
-    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ openRouterDebug: true }))
-  })
-
   it('shows Add from Catalog for Alibaba provider', () => {
     render(<ProviderHubSection {...baseProps} />)
 
@@ -654,5 +641,36 @@ describe('ProviderHubSection', () => {
         ]),
       })
     )
+  })
+
+  it('shows a per-model reasoning toggle for DeepSeek and persists enablement', () => {
+    const onChange = vi.fn()
+    render(<ProviderHubSection {...baseProps} onChange={onChange} />)
+
+    fireEvent.click(
+      screen.getByText('DeepSeek V4 Flash and V4 Pro with tool calling and optional thinking mode.')
+    )
+
+    const reasoningToggle = screen.getByLabelText('Toggle reasoning for DeepSeek V4 Flash')
+    expect(reasoningToggle).toBeInTheDocument()
+    fireEvent.click(reasoningToggle)
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        deepseekReasoning: expect.objectContaining({
+          'deepseek-v4-flash': { enabled: true, effort: 'high' },
+        }),
+      })
+    )
+  })
+
+  it('does not show a reasoning toggle for non-DeepSeek providers', () => {
+    render(<ProviderHubSection {...baseProps} />)
+
+    fireEvent.click(
+      screen.getByText('OpenRouter provides access to many frontier models through one API.')
+    )
+
+    expect(screen.queryByLabelText(/Toggle reasoning for/i)).not.toBeInTheDocument()
   })
 })

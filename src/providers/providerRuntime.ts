@@ -117,7 +117,7 @@ type TitleGenerationSettings = Pick<
 >
 
 
-function extractTitleTextFromMessage(message: unknown): string {
+export function extractTitleTextFromMessage(message: unknown): string {
   if (!message || typeof message !== 'object') return ''
   const record = message as Record<string, unknown>
 
@@ -137,6 +137,15 @@ function extractTitleTextFromMessage(message: unknown): string {
       .join('')
       .trim()
     if (joined) return joined
+  }
+
+  // Last-resort net: a reasoning model (e.g. DeepSeek reasoner) can return an
+  // empty `content` while its answer/JSON sits in `reasoning_content` — for
+  // example when the token budget is consumed by reasoning. We only read it
+  // when `content` produced nothing, so this never overrides a real answer.
+  const reasoningContent = record.reasoning_content
+  if (typeof reasoningContent === 'string' && reasoningContent.trim()) {
+    return reasoningContent
   }
 
   return ''
@@ -778,6 +787,8 @@ export async function* streamProviderEvents(
     }
     case 'deepseek': {
       const apiKey = getProviderCredential(settings, 'deepseek')
+      // Note: DeepSeek thinking mode silently ignores temperature/top_p/penalties,
+      // so passing temperature here is harmless when reasoning is enabled.
       if (request.streamResponses === false) {
         const response = await generateDeepSeekCompletion(apiKey, normalizedModel, request.messages, {
           temperature: request.temperature,
@@ -786,6 +797,7 @@ export async function* streamProviderEvents(
           toolChoice: request.toolChoice,
           signal: request.signal,
           enableThinking: request.enableThinking,
+          reasoningEffort: request.reasoningEffort,
         })
         yield* emitOpenAiCompatibleResponse(response, { includeReasoning: true, reasoningContentField: 'reasoning_content' })
         return
@@ -798,6 +810,7 @@ export async function* streamProviderEvents(
         toolChoice: request.toolChoice,
         signal: request.signal,
         enableThinking: request.enableThinking,
+        reasoningEffort: request.reasoningEffort,
       })) {
         const reasoningDelta = chunk.choices?.[0]?.delta?.reasoning_content
         if (reasoningDelta) {

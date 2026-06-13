@@ -491,12 +491,98 @@
 }
 
 
-/* Subtle completed-check for system_shell (replaces the loud green pill) */
-.thinking-tool-check {
+/* Codex-style status blob for system_shell ("Ran command") entries */
+.thinking-cmd-blob {
+    display: inline-block;
+    flex-shrink: 0;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 2px;
+    background: var(--theme-success, #22c55e);
+}
+
+.thinking-cmd-blob--success {
+    background: var(--theme-success, #22c55e);
+    box-shadow: 0 0 6px color-mix(in srgb, var(--theme-success, #22c55e) 55%, transparent);
+}
+
+.thinking-cmd-blob--error {
+    background: var(--theme-error, #ef4444);
+    box-shadow: 0 0 6px color-mix(in srgb, var(--theme-error, #ef4444) 55%, transparent);
+}
+
+.thinking-cmd-blob--running {
+    background: var(--theme-warning, #f59e0b);
+    box-shadow: 0 0 6px color-mix(in srgb, var(--theme-warning, #f59e0b) 55%, transparent);
+    animation: thinking-cmd-blob-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes thinking-cmd-blob-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.8); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .thinking-cmd-blob--running {
+        animation: none;
+    }
+}
+
+/* "Ran N commands" group: use the muted thinking-block text color, not the
+   blue tool-call color, and keep the blob + chevron aligned with the label. */
+.thinking-command-group .thinking-header.tool-call .thinking-text.thinking-cmd-text {
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.thinking-command-group .thinking-label {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    margin-left: 6px;
-    color: var(--theme-success, #22c55e);
-    opacity: 0.85;
+    gap: 6px;
+}
+
+.thinking-command-group .thinking-chevron {
+    flex-shrink: 0;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+/* Stack multiple terminal panels inside an expanded command group. */
+.thinking-command-group-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* Per-command rows: name first, expand to reveal that command's terminal. */
+.thinking-command-row {
+    display: flex;
+    flex-direction: column;
+}
+
+.thinking-command-row__head {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 0;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.15s ease;
+}
+
+.thinking-command-row__head:hover {
+    opacity: 1;
+}
+
+.thinking-command-row__name {
+    font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace);
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.6);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+.thinking-command-row__body {
+    padding: 4px 0 6px 0;
 }

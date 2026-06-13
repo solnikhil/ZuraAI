@@ -29,6 +29,7 @@ interface ResponseInfoData {
   }
   finishReason?: string
   requestedMaxTokens?: number
+  reasoningEffort?: 'high' | 'max'
 }
 
 interface AssistantMessageActionsProps {
@@ -223,6 +224,7 @@ export function AssistantMessageActions({
               usage={responseInfoData.usage}
               finishReason={responseInfoData.finishReason}
               requestedMaxTokens={responseInfoData.requestedMaxTokens}
+              reasoningEffort={responseInfoData.reasoningEffort}
             />
           </div>,
           document.body

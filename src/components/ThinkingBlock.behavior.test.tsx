@@ -372,6 +372,9 @@ describe('ThinkingBlock behavior', () => {
 
     const header = container.querySelector('.thinking-header.tool-call') as HTMLElement
     expect(header).toBeTruthy()
+    // Codex-style "Ran a command" header with a green success blob.
+    expect(screen.getByText('Ran a command')).toBeInTheDocument()
+    expect(container.querySelector('.thinking-cmd-blob--success')).toBeTruthy()
     fireEvent.click(header)
 
     // Terminal panel chrome + command + ANSI-stripped output + success badge.
@@ -381,5 +384,48 @@ describe('ThinkingBlock behavior', () => {
     expect(screen.getByText('✓ Success')).toBeInTheDocument()
     // It must NOT render the raw JSON Input/Output labels for this tool.
     expect(screen.queryByText('Input')).not.toBeInTheDocument()
+  })
+
+  it('groups consecutive system_shell calls into a single "Ran N commands" entry', async () => {
+    const makeShell = (ts: number, cmd: string, exitCode = 0) => ({
+      type: 'tool' as const,
+      toolName: 'system_shell',
+      timestamp: ts,
+      toolInput: { command: cmd },
+      toolOutput: {
+        success: exitCode === 0,
+        data: { command: cmd, cwd: 'C:/work', stdout: `out-${cmd}`, stderr: '', exitCode },
+        executionTime: 10,
+      },
+    })
+
+    const { container } = render(
+      <ThinkingBlock
+        messageId="message-batch"
+        activeBlockKey="message-batch:0:answering"
+        thinking=""
+        completedBlocks={[
+          makeShell(1, 'cmd-a'),
+          makeShell(2, 'cmd-b'),
+          makeShell(3, 'cmd-c', 1),
+        ]}
+      />
+    )
+
+    // One grouped header, pluralized, with an error blob (one command failed).
+    expect(screen.getByText('Ran 3 commands')).toBeInTheDocument()
+    expect(screen.queryByText('Ran a command')).not.toBeInTheDocument()
+    expect(container.querySelector('.thinking-cmd-blob--error')).toBeTruthy()
+
+    // Expanding the group reveals the command-name rows — not the panels yet.
+    fireEvent.click(container.querySelector('.thinking-header.tool-call') as HTMLElement)
+    expect(await screen.findByText('cmd-a')).toBeInTheDocument()
+    expect(screen.getByText('cmd-b')).toBeInTheDocument()
+    expect(screen.getByText('cmd-c')).toBeInTheDocument()
+    expect(screen.queryByText('Shell')).not.toBeInTheDocument()
+
+    // Expanding a single command row reveals just that command's terminal.
+    fireEvent.click(screen.getByText('cmd-a'))
+    expect((await screen.findAllByText('Shell')).length).toBe(1)
   })
 })

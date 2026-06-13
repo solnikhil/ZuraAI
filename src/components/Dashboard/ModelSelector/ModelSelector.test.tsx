@@ -3,6 +3,13 @@ import { describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import ModelSelector from './ModelSelector'
 
+class ResizeObserverMock {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+vi.stubGlobal('ResizeObserver', ResizeObserverMock)
+
 vi.mock('../../../contexts/ModelSelectorContext', () => ({
   useModelSelectorContext: () => ({
     consumeRequest: () => false,
@@ -14,10 +21,9 @@ vi.mock('../../../contexts/SettingsContext', () => ({
     settings: {
       modelProvider: 'fireworks',
       aiModel: 'accounts/fireworks/models/deepseek-v3p2',
-      modelSelector: {
-        dropdownWidth: 'default',
-      },
+      modelSelector: {},
     },
+    updateSettings: vi.fn(),
   }),
 }))
 
@@ -31,8 +37,6 @@ vi.mock('./useModelSelector', () => ({
       collapsedGroups: {},
       focusedIndex: -1,
     },
-    searchInputRef: { current: null },
-    currentModels: [],
     groupedModels: {
       alibaba: [],
       deepseek: [],
@@ -48,37 +52,9 @@ vi.mock('./useModelSelector', () => ({
       provider: 'fireworks',
     },
     currentName: 'DeepSeek V3.2',
-    setSearchQuery: vi.fn(),
-    setViewMode: vi.fn(),
-    setSelectedProvider: vi.fn(),
-    setFocusedIndex: vi.fn(),
     setIsOpen: vi.fn(),
-    toggleFavorite: vi.fn(),
     handleSelect: vi.fn(),
   }),
-}))
-
-vi.mock('./useResponsiveModelSelector', () => ({
-  useResponsiveModelSelector: () => ({
-    compactMode: 'none',
-    effectiveDropdownWidth: 520,
-    effectiveDropdownHeight: 484,
-    triggerLabelMaxWidth: '220px',
-  }),
-}))
-
-vi.mock('@/components/ui/popover', () => ({
-  Popover: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  PopoverTrigger: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  PopoverContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-}))
-
-vi.mock('@/lib/motion', () => ({
-  maybeAnimate: (_enabled: boolean, value: unknown) => value,
-  motionDuration: () => 0,
-  motionDurations: { micro: 0, fast: 0 },
-  motionEasing: { standard: 'easeOut' },
-  useMotionPreferences: () => ({ animationsEnabled: false }),
 }))
 
 describe('ModelSelector', () => {
@@ -87,5 +63,11 @@ describe('ModelSelector', () => {
 
     expect(screen.getByRole('button', { name: /deepseek v3\.2/i })).toBeInTheDocument()
     expect(container.querySelector('img[alt*="logo"]')).toBeNull()
+  })
+
+  it('shows the reasoning effort suffix when the active DeepSeek model has reasoning enabled', () => {
+    // Default mock model is fireworks (no reasoning) — suffix should be absent.
+    render(<ModelSelector minimal={true} />)
+    expect(screen.queryByText(/· (high|max)/i)).not.toBeInTheDocument()
   })
 })

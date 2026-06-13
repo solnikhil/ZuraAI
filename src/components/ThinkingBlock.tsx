@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronRight, Loader2, Search, Globe, Wrench, Terminal, Check } from './icons'
+import { ChevronRight, Loader2, Search, Globe, Wrench } from './icons'
 import './ThinkingBlock.css'
 import { ThinkingBlock as ThinkingBlockType } from '../contexts/ChatHistoryContext'
 import AITextLoading from './AITextLoading'
@@ -399,6 +399,151 @@ function TerminalToolView({ block }: { block: ThinkingBlockType }) {
   )
 }
 
+function isShellToolBlock(block: ThinkingBlockType): boolean {
+  return block.type === 'tool' && block.toolName === 'system_shell'
+}
+
+function isShellBlockFailed(block: ThinkingBlockType): boolean {
+  const out = block.toolOutput
+  if (!out) return false
+  if (out.error) return true
+  const data = out.data as Record<string, unknown> | undefined
+  const exitCode = typeof data?.exitCode === 'number' ? data.exitCode : null
+  return out.success === false || (exitCode !== null && exitCode !== 0)
+}
+
+/** A single command inside a group: shows the command name; expands to its terminal output. */
+function CommandRow({ block }: { block: ThinkingBlockType }) {
+  const [isExpanded, setIsExpanded] = useState(false)
+  const { animationsEnabled } = useMotionPreferences()
+  const failed = isShellBlockFailed(block)
+  const data = block.toolOutput?.data as Record<string, unknown> | undefined
+  const command =
+    typeof data?.command === 'string'
+      ? data.command
+      : typeof block.toolInput?.command === 'string'
+        ? String(block.toolInput.command)
+        : 'command'
+
+  return (
+    <div className="thinking-command-row">
+      <div
+        className="thinking-command-row__head clickable"
+        onClick={() => setIsExpanded((prev) => !prev)}
+      >
+        <span
+          className={`thinking-cmd-blob thinking-cmd-blob--${failed ? 'error' : 'success'}`}
+          title={failed ? 'Failed' : 'Success'}
+          aria-label={failed ? 'Failed' : 'Success'}
+        />
+        <motion.div
+          animate={{ rotate: isExpanded ? 90 : 0 }}
+          transition={motionSpringTransition(animationsEnabled, motionSpring.bouncy)}
+        >
+          <ChevronRight size={13} className="thinking-chevron" />
+        </motion.div>
+        <span className="thinking-command-row__name" title={command}>
+          {command}
+        </span>
+      </div>
+      <AnimatePresence initial={false}>
+        {isExpanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{
+              height: motionSpringTransition(animationsEnabled, motionSpring.settle),
+              opacity: {
+                duration: motionDuration(animationsEnabled, motionDurations.fast),
+                ease: motionEasing.standard,
+              },
+            }}
+            style={{ overflow: 'hidden' }}
+          >
+            <div className="thinking-command-row__body">
+              <TerminalToolView block={block} />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+/** Codex-style grouped "Ran N commands" entry for one or more system_shell calls. */
+function CommandGroupBlock({
+  blocks,
+  defaultExpanded,
+}: {
+  blocks: ThinkingBlockType[]
+  defaultExpanded?: boolean
+}) {
+  const shouldExpand = defaultExpanded ?? false
+  const [isExpanded, setIsExpanded] = useState(shouldExpand)
+  const { animationsEnabled } = useMotionPreferences()
+  const groupKey = blocks.map((b) => b.timestamp).join(',')
+
+  useEffect(() => {
+    setIsExpanded(shouldExpand)
+  }, [groupKey, shouldExpand])
+
+  const count = blocks.length
+  const failed = blocks.some(isShellBlockFailed)
+  const label = count <= 1 ? 'Ran a command' : `Ran ${count} commands`
+
+  return (
+    <div className="thinking-block completed thinking-tool-call thinking-command-group">
+      <div
+        className="thinking-header completed tool-call clickable"
+        onClick={() => setIsExpanded((prev) => !prev)}
+      >
+        <div className="thinking-label">
+          <span
+            className={`thinking-cmd-blob thinking-cmd-blob--${failed ? 'error' : 'success'}`}
+            title={failed ? 'Failed' : 'Success'}
+            aria-label={failed ? 'Failed' : 'Success'}
+          />
+          <motion.div
+            animate={{ rotate: isExpanded ? 90 : 0 }}
+            transition={motionSpringTransition(animationsEnabled, motionSpring.bouncy)}
+          >
+            <ChevronRight size={14} className="thinking-chevron" />
+          </motion.div>
+          <span className="thinking-text thinking-cmd-text">{label}</span>
+        </div>
+      </div>
+      <AnimatePresence initial={false}>
+        {isExpanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{
+              height: motionSpringTransition(animationsEnabled, motionSpring.settle),
+              opacity: {
+                duration: motionDuration(animationsEnabled, motionDurations.fast),
+                ease: motionEasing.standard,
+              },
+            }}
+            style={{ overflow: 'hidden' }}
+          >
+            <div className="thinking-content thinking-tool-details thinking-command-group-body">
+              {count <= 1 ? (
+                <TerminalToolView block={blocks[0]!} />
+              ) : (
+                blocks.map((block, index) => (
+                  <CommandRow key={`${block.timestamp}-${index}`} block={block} />
+                ))
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
 // Component for a single completed block (collapsed by default)
 function CompletedBlock({
   block,
@@ -438,8 +583,6 @@ function CompletedBlock({
             <span className="thinking-tool-calling-icon">
               {toolName === 'web_search' ? (
                 mode === 'extract' ? <Globe size={14} /> : <Search size={14} />
-              ) : toolName === 'system_shell' ? (
-                <Terminal size={14} />
               ) : (
                 <Wrench size={14} />
               )}
@@ -448,15 +591,9 @@ function CompletedBlock({
               {getCompletedToolBlockText(block)}
             </span>
             {status && (
-              toolName === 'system_shell' && status.tone === 'success' ? (
-                <span className="thinking-tool-check" title={status.label} aria-label={status.label}>
-                  <Check size={13} />
-                </span>
-              ) : (
-                <span className={`thinking-tool-status thinking-tool-status-${status.tone}`}>
-                  {status.label}
-                </span>
-              )
+              <span className={`thinking-tool-status thinking-tool-status-${status.tone}`}>
+                {status.label}
+              </span>
             )}
           </div>
         </div>
@@ -476,10 +613,6 @@ function CompletedBlock({
               style={{ overflow: 'hidden' }}
             >
               <div className="thinking-content thinking-tool-details">
-                {toolName === 'system_shell' ? (
-                  <TerminalToolView block={block} />
-                ) : (
-                  <>
                 {block.toolInput && Object.keys(block.toolInput).length > 0 && (
                   <div className="thinking-tool-json">
                     <div className="thinking-tool-json-label">Input</div>
@@ -510,8 +643,6 @@ function CompletedBlock({
                     </pre>
                     {auditLine && <div className="thinking-tool-audit-line">{auditLine}</div>}
                   </div>
-                )}
-                  </>
                 )}
               </div>
             </motion.div>
@@ -674,14 +805,41 @@ export default function ThinkingBlock({
 
   return (
     <div className="thinking-blocks-container">
-      {/* Render completed blocks first - exclude search when shown inline in thinking */}
-      {blocksToRender.map((block, index) => (
-        <CompletedBlock
-          key={`completed-${index}-${block.timestamp}`}
-          block={block}
-          defaultExpanded={false}
-        />
-      ))}
+      {/* Render completed blocks first - exclude search when shown inline in thinking.
+          Consecutive system_shell calls are grouped into one "Ran N commands" entry. */}
+      {(() => {
+        type RenderItem =
+          | { kind: 'single'; block: typeof blocksToRender[number]; index: number }
+          | { kind: 'shell'; blocks: typeof blocksToRender; index: number }
+        const items: RenderItem[] = []
+        blocksToRender.forEach((block, index) => {
+          if (isShellToolBlock(block)) {
+            const last = items[items.length - 1]
+            if (last && last.kind === 'shell') {
+              last.blocks.push(block)
+              return
+            }
+            items.push({ kind: 'shell', blocks: [block], index })
+            return
+          }
+          items.push({ kind: 'single', block, index })
+        })
+        return items.map((item) =>
+          item.kind === 'shell' ? (
+            <CommandGroupBlock
+              key={`cmd-group-${item.index}-${item.blocks[0]?.timestamp}`}
+              blocks={item.blocks}
+              defaultExpanded={false}
+            />
+          ) : (
+            <CompletedBlock
+              key={`completed-${item.index}-${item.block.timestamp}`}
+              block={item.block}
+              defaultExpanded={false}
+            />
+          )
+        )
+      })()}
 
       {showActiveBlock && (
         <div className="thinking-block">
@@ -695,15 +853,26 @@ export default function ThinkingBlock({
                   <span className="thinking-tool-calling-icon">
                     {activeToolCalls[0]?.name === 'web_search' ? (
                       <Loader2 size={14} className="tool-call-spinner" />
+                    ) : activeToolCalls[0]?.name === 'system_shell' ? (
+                      <span className="thinking-cmd-blob thinking-cmd-blob--running" />
                     ) : (
                       <Wrench size={14} />
                     )}
                   </span>
                   <AITextLoading
                     text={
-                      isActiveSearchBatch
-                        ? searchingText
-                        : getToolCallHeaderText(activeToolCalls)
+                      activeToolCalls[0]?.name === 'system_shell'
+                        ? (() => {
+                            const shellCount = activeToolCalls.filter(
+                              (toolCall) => toolCall.name === 'system_shell'
+                            ).length
+                            return shellCount <= 1
+                              ? 'Running a command…'
+                              : `Running ${shellCount} commands…`
+                          })()
+                        : isActiveSearchBatch
+                          ? searchingText
+                          : getToolCallHeaderText(activeToolCalls)
                     }
                     animationKey="tool-calling"
                   />

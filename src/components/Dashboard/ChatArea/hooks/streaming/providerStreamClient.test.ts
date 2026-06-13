@@ -687,6 +687,40 @@ describe('createProviderStreamClient', () => {
     ])
   })
 
+  it('forwards DeepSeek enableThinking and reasoningEffort to the streaming call', async () => {
+    mocks.streamDeepSeekCompletion.mockImplementation(async function* () {
+      yield { choices: [{ delta: { content: 'hi' }, finish_reason: 'stop' }] }
+    })
+
+    const client = createProviderStreamClient(
+      {
+        aiModel: 'deepseek-v4-pro',
+        modelProvider: 'deepseek',
+        temperature: 0.4,
+        maxTokens: 2048,
+        streamResponses: true,
+        deepseekApiKey: 'deepseek-key',
+      },
+      'deepseek'
+    )
+
+    await collect(client.stream({
+      provider: 'deepseek',
+      model: 'deepseek-v4-pro',
+      messages: [{ role: 'user', content: 'hello' }],
+      streamResponses: true,
+      enableThinking: true,
+      reasoningEffort: 'max',
+    }))
+
+    expect(mocks.streamDeepSeekCompletion).toHaveBeenCalledWith(
+      'deepseek-key',
+      'deepseek-v4-pro',
+      [{ role: 'user', content: 'hello' }],
+      expect.objectContaining({ enableThinking: true, reasoningEffort: 'max' })
+    )
+  })
+
   it('emits citation events for Perplexity non-streaming responses', async () => {
     mocks.generatePerplexityCompletion.mockResolvedValue({
       id: 'resp_1',

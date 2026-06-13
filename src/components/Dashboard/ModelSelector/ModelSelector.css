@@ -139,3 +139,32 @@
 .model-selector-popover [data-slot='command-item'][data-selected='true'] {
   will-change: background-color;
 }
+
+/* SaaS-style active accents (flat surfaces — no outer drop shadows). */
+.model-selector-row {
+  isolation: isolate;
+}
+
+.model-selector-row.is-active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 60%;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--theme-primary);
+}
+
+.model-selector-rail-item.is-active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 56%;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--theme-primary);
+}

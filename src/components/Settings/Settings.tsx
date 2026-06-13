@@ -344,7 +344,6 @@ if (!hasSettingsChanges && !hasMcpChanges) {
                 fireworksApiKey={pendingSettings.fireworksApiKey}
                 groqApiKey={pendingSettings.groqApiKey}
                 openRouterApiKey={pendingSettings.openRouterApiKey}
-                openRouterDebug={pendingSettings.openRouterDebug}
                 perplexityApiKey={pendingSettings.perplexityApiKey}
                 tavilyApiKey={pendingSettings.tavilyApiKey}
                 onlineCompilerApiKey={pendingSettings.onlineCompilerApiKey}
@@ -362,6 +361,8 @@ if (!hasSettingsChanges && !hasMcpChanges) {
                 ollamaModels={pendingSettings.ollamaModels}
                 perplexityModels={pendingSettings.perplexityModels}
                 maxTokens={pendingSettings.maxTokens}
+                deepseekReasoning={pendingSettings.deepseekReasoning}
+                deepseekLastEffort={pendingSettings.deepseekLastEffort}
                 onChange={handleChange}
               />
             )}

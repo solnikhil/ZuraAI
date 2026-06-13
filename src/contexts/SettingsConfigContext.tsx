@@ -73,6 +73,8 @@ type ProviderKey = ProviderId
 type ProviderEnabledMap = Partial<Record<ProviderKey, boolean>>
 export type TavilySearchDepth = 'ultra-fast' | 'fast' | 'basic' | 'advanced'
 export type TavilySearchDepthPreference = 'auto' | TavilySearchDepth
+/** DeepSeek reasoning effort levels (documented fixed contract). */
+export type DeepSeekReasoningEffort = 'high' | 'max'
 const SECURE_SETTINGS_KEY_NAMES = [
   ...getProviderSecretFields(),
   'tavilyApiKey',
@@ -108,6 +110,20 @@ export interface SettingsConfig {
   alibabaModels: ConfiguredModel[]
   fireworksModels: ConfiguredModel[]
   deepseekModels: ConfiguredModel[]
+
+  /**
+   * Per-model DeepSeek reasoning ("thinking mode") preferences, keyed by model
+   * `code`. The user's explicit toggle is the source of truth — we do not infer
+   * thinking capability for DeepSeek. When an entry is missing or `enabled` is
+   * false, reasoning is disabled for that model. `effort` maps to DeepSeek's
+   * documented `reasoning_effort` enum.
+   */
+  deepseekReasoning?: Record<string, { enabled: boolean; effort: DeepSeekReasoningEffort }>
+  /**
+   * The last reasoning effort the user picked anywhere, used as the default
+   * effort when a model's reasoning is newly enabled.
+   */
+  deepseekLastEffort?: DeepSeekReasoningEffort
 
   // AI parameters
   temperature: number
@@ -341,6 +357,8 @@ export const defaultSettingsConfig: SettingsConfig = {
   discordRpc: {
     appId: '1512516130911162610',
   },
+  deepseekReasoning: {},
+  deepseekLastEffort: 'high',
 }
 
 interface SettingsConfigContextType {

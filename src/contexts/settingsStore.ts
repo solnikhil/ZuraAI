@@ -16,6 +16,7 @@ import {
   type ProviderModelListKey,
 } from '../providers'
 import { normalizeAssistantPersonalityId } from '../prompts/assistantPersonalities'
+import { normalizeDeepseekReasoning, isDeepSeekReasoningEffort } from '../utils/deepseekReasoning'
 
 export interface Settings extends SettingsUI, SettingsConfig {}
 
@@ -516,6 +517,11 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   }
 
   delete (parsed as Record<string, unknown>).responseTransitionMode
+
+  parsed.deepseekReasoning = normalizeDeepseekReasoning(parsed.deepseekReasoning)
+  parsed.deepseekLastEffort = isDeepSeekReasoningEffort(parsed.deepseekLastEffort)
+    ? parsed.deepseekLastEffort
+    : defaultSettings.deepseekLastEffort
 
   return parsed
 }

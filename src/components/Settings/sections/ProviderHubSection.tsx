@@ -43,7 +43,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { ProviderLogo, SkillLogo } from '@/components/shared'
-import type { ConfiguredModel, TavilySearchDepthPreference } from '@/contexts/SettingsConfigContext'
+import type { ConfiguredModel, TavilySearchDepthPreference, DeepSeekReasoningEffort } from '@/contexts/SettingsConfigContext'
+import { getDeepseekReasoning, setDeepseekReasoningEnabled } from '@/utils/deepseekReasoning'
 import { isSecureApiKeyPlaceholder, resolveApiKeyFromSecureStorage } from '@/utils/secureApiKeys'
 import { CreateCustomModelDialog } from './CreateCustomModelDialog'
 import { AlibabaModelSearchDialog } from './AlibabaModelSearchDialog'
@@ -175,7 +176,6 @@ export interface ProviderHubSectionProps {
   fireworksApiKey: string
   groqApiKey: string
   openRouterApiKey: string
-  openRouterDebug: boolean
   perplexityApiKey: string
   tavilyApiKey: string
   onlineCompilerApiKey: string
@@ -193,6 +193,8 @@ export interface ProviderHubSectionProps {
   ollamaModels: ModelBasic[]
   perplexityModels: ModelBasic[]
   maxTokens: number
+  deepseekReasoning?: Record<string, { enabled: boolean; effort: DeepSeekReasoningEffort }>
+  deepseekLastEffort?: DeepSeekReasoningEffort
   initialProvider?: ProviderKey
   initialManageMode?: ManageMode
   onParamsConsumed?: () => void
@@ -203,7 +205,7 @@ export interface ProviderHubSectionProps {
       fireworksApiKey: string
       groqApiKey: string
       openRouterApiKey: string
-      openRouterDebug: boolean
+
       perplexityApiKey: string
       tavilyApiKey: string
       onlineCompilerApiKey: string
@@ -221,6 +223,8 @@ export interface ProviderHubSectionProps {
       aiModel: string
       modelProvider: ProviderKey
       providerEnabled: ProviderEnabledMap
+      deepseekReasoning: Record<string, { enabled: boolean; effort: DeepSeekReasoningEffort }>
+      deepseekLastEffort: DeepSeekReasoningEffort
     }>
   ) => void
 }
@@ -241,7 +245,6 @@ type ProviderSettingsUpdate = Partial<Pick<
 
 export function ProviderHubSection({
   openRouterApiKey,
-  openRouterDebug,
   perplexityApiKey,
   groqApiKey,
   alibabaApiKey,
@@ -262,6 +265,8 @@ export function ProviderHubSection({
   deepseekModels,
   fireworksModels,
   ollamaModels,
+  deepseekReasoning,
+  deepseekLastEffort,
   initialProvider,
   initialManageMode,
   onParamsConsumed,
@@ -609,6 +614,11 @@ export function ProviderHubSection({
     onChange(updates)
   }
 
+  const toggleModelReasoning = (modelCode: string, checked: boolean) => {
+    // DeepSeek-only: the user's explicit per-model toggle is the source of truth.
+    onChange(setDeepseekReasoningEnabled({ deepseekReasoning, deepseekLastEffort }, modelCode, checked))
+  }
+
   const updateModel = (provider: ProviderKey, modelCode: string, updatedModel: ConfiguredModel) => {
     const currentModels = providerModelMap[provider] as ConfiguredModel[]
     const updatedModels = currentModels.map((model) => {
@@ -947,19 +957,7 @@ export function ProviderHubSection({
                     }
                   />
 
-                  <DetailField
-                    label="Debug Logging"
-                    description=""
-                    control={
-                      <div className="flex justify-end">
-                        <Switch
-                          checked={openRouterDebug}
-                          onCheckedChange={(checked) => onChange({ openRouterDebug: checked })}
-                          aria-label="Enable OpenRouter debug logging"
-                        />
-                      </div>
-                    }
-                  />
+
 
                   <DetailField
                     label="API Proxy URL"
@@ -1222,6 +1220,15 @@ export function ProviderHubSection({
                   selectedProvider={selectedProviderDef.key}
                   onToggleModel={(code, checked) =>
                     toggleModelEnabled(selectedProviderDef.key, code, checked)
+                  }
+                  reasoningEnabledFor={
+                    selectedProviderDef.key === 'deepseek'
+                      ? (code) =>
+                          getDeepseekReasoning({ deepseekReasoning, deepseekLastEffort }, code).enabled
+                      : undefined
+                  }
+                  onToggleReasoning={
+                    selectedProviderDef.key === 'deepseek' ? toggleModelReasoning : undefined
                   }
                   onEditModel={handleEditModel}
                   onDeleteModel={handleDeleteModelClick}
@@ -1539,6 +1546,8 @@ function ModelGroup({
   models,
   selectedProvider,
   onToggleModel,
+  reasoningEnabledFor,
+  onToggleReasoning,
   onEditModel,
   onDeleteModel,
 }: {
@@ -1546,6 +1555,8 @@ function ModelGroup({
   models: ModelBasic[]
   selectedProvider: ProviderKey
   onToggleModel: (code: string, checked: boolean) => void
+  reasoningEnabledFor?: (code: string) => boolean
+  onToggleReasoning?: (code: string, checked: boolean) => void
   onEditModel: (model: ModelBasic) => void
   onDeleteModel: (model: ModelBasic) => void
 }): React.ReactElement {
@@ -1563,6 +1574,8 @@ function ModelGroup({
       {models.map((model) => {
         const enabled = model.enabled !== false
         const handleToggle = () => onToggleModel(model.code, !enabled)
+        const showReasoning = Boolean(reasoningEnabledFor && onToggleReasoning)
+        const reasoningEnabled = showReasoning ? reasoningEnabledFor!(model.code) : false
         return (
           <motion.div
             key={`${selectedProvider}-${model.code}`}
@@ -1587,6 +1600,21 @@ function ModelGroup({
               </div>
             </button>
             <div className="flex items-center gap-1 shrink-0">
+              {showReasoning && (
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  role="presentation"
+                  className="mr-1 flex items-center gap-1.5"
+                >
+                  <span className="text-xs text-muted-foreground">Reasoning</span>
+                  <Switch
+                    className="provider-hub-toggle"
+                    checked={reasoningEnabled}
+                    onCheckedChange={(checked) => onToggleReasoning!(model.code, checked)}
+                    aria-label={`Toggle reasoning for ${model.displayName}`}
+                  />
+                </div>
+              )}
               <Button
                 variant="ghost"
                 size="icon-sm"

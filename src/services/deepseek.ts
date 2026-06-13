@@ -200,11 +200,17 @@ export async function* streamDeepSeekCompletion(
         requestBody.tool_choice = normalizeDeepSeekToolChoice(options.toolChoice)
     }
 
-    if (options?.enableThinking) {
+    // Thinking toggle: DeepSeek defaults to `enabled`, so we must send an
+    // explicit `disabled` to turn reasoning off (e.g. memory extraction / title
+    // generation). A strict `=== false` check means an omitted/undefined value
+    // preserves DeepSeek's default behavior and never affects normal chat.
+    if (options?.enableThinking === true) {
         requestBody.thinking = {
             type: 'enabled',
             ...(options.reasoningEffort ? { reasoning_effort: options.reasoningEffort } : {}),
         }
+    } else if (options?.enableThinking === false) {
+        requestBody.thinking = { type: 'disabled' }
     }
 
     if (options?.jsonMode) {
@@ -278,11 +284,17 @@ export const generateDeepSeekCompletion = async (
         requestBody.tools = options.tools
         requestBody.tool_choice = normalizeDeepSeekToolChoice(options.toolChoice)
     }
-    if (options?.enableThinking) {
+    // Thinking toggle: DeepSeek defaults to `enabled`, so we must send an
+    // explicit `disabled` to turn reasoning off (e.g. memory extraction / title
+    // generation). A strict `=== false` check means an omitted/undefined value
+    // preserves DeepSeek's default behavior and never affects normal chat.
+    if (options?.enableThinking === true) {
         requestBody.thinking = {
             type: 'enabled',
             ...(options.reasoningEffort ? { reasoning_effort: options.reasoningEffort } : {}),
         }
+    } else if (options?.enableThinking === false) {
+        requestBody.thinking = { type: 'disabled' }
     }
     if (options?.jsonMode) {
         requestBody.response_format = { type: 'json_object' }

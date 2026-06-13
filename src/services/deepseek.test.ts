@@ -151,4 +151,52 @@ describe('deepseek service helpers', () => {
     const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))
     expect(body.tool_choice).toBe('auto')
   })
+
+  describe('thinking toggle in request body', () => {
+    function mockOkCompletion() {
+      return vi.spyOn(global, 'fetch').mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          id: 'chatcmpl-1',
+          object: 'chat.completion',
+          created: 1,
+          model: 'deepseek-v4-pro',
+          choices: [{ index: 0, message: { role: 'assistant', content: '{}' }, finish_reason: 'stop' }],
+        }),
+      } as Response)
+    }
+
+    async function bodyForEnableThinking(enableThinking: boolean | undefined) {
+      const fetchMock = mockOkCompletion()
+      await generateDeepSeekCompletion(
+        'deepseek-key',
+        'deepseek-v4-pro',
+        [{ role: 'user', content: 'extract json' }],
+        enableThinking === undefined ? {} : { enableThinking }
+      )
+      return JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))
+    }
+
+    it('sends thinking:{type:disabled} when enableThinking is false', async () => {
+      const body = await bodyForEnableThinking(false)
+      expect(body.thinking).toEqual({ type: 'disabled' })
+    })
+
+    it('sends thinking:{type:enabled} when enableThinking is true', async () => {
+      const fetchMock = mockOkCompletion()
+      await generateDeepSeekCompletion(
+        'deepseek-key',
+        'deepseek-v4-pro',
+        [{ role: 'user', content: 'think hard' }],
+        { enableThinking: true, reasoningEffort: 'high' }
+      )
+      const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))
+      expect(body.thinking).toEqual({ type: 'enabled', reasoning_effort: 'high' })
+    })
+
+    it('omits thinking when enableThinking is undefined (preserves default)', async () => {
+      const body = await bodyForEnableThinking(undefined)
+      expect(body).not.toHaveProperty('thinking')
+    })
+  })
 })
