@@ -37,6 +37,6 @@ ZuraAI does not collect prompts, AI responses, conversation content, conversatio
 
 Anonymous analytics can be disabled at any time from Settings > Usage Intelligence > Anonymous analytics.
 
-Official builds send events to PostHog Cloud only when a PostHog project key is configured. Forks and local development builds can omit `ZURA_POSTHOG_PROJECT_KEY` to keep analytics transport disabled.
+Official builds send events to PostHog Cloud US ingestion (`https://us.i.posthog.com`) using ZuraAI's public PostHog project token, and only after the user opts in. `ZURA_POSTHOG_PROJECT_KEY` and `ZURA_POSTHOG_HOST` can override the built-in analytics target for forks, testing, or self-managed builds. Setting `ZURA_POSTHOG_PROJECT_KEY` to an empty value disables analytics transport even if the user opts in.
 
 Download counts are tracked outside the app through GitHub Release asset download counts.

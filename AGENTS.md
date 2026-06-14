@@ -38,7 +38,7 @@ Core capabilities:
   - **Sanitized non-secret settings + UI state** live in renderer `localStorage`.
   - **API keys and MCP secrets** live in main-process secure storage and are hydrated/resolved at runtime.
   - **Chat history, conversation summaries, MCP server metadata, and secure storage** live in the main process under `app.getPath('userData')`.
-  - **Analytics consent and anonymous install metadata** live in the main process under `app.getPath('userData')` in `analytics-state.json`; analytics is opt-in only and disabled when no PostHog project key is configured.
+  - **Analytics consent and anonymous install metadata** live in the main process under `app.getPath('userData')` in `analytics-state.json`; analytics is opt-in only and sends to the configured PostHog Cloud target after consent. The default public PostHog project token and US ingestion host live in `electron/analytics/config.ts`, while `ZURA_POSTHOG_PROJECT_KEY` / `ZURA_POSTHOG_HOST` can override or disable transport for forks and tests.
   - **Agent run metadata** lives on assistant messages inside the existing per-session chat JSON files, not in a separate store.
   - **OpenRouter per-model reasoning detection** (`supportsDeepThinking` plus `openRouterReasoningDetected`) lives on configured model entries inside the existing sanitized renderer settings blob. Catalog import/detection marks reasoning-capable models from OpenRouter `supported_parameters`; reasoning effort selection is controlled from the dashboard model picker via `openRouterReasoningEffort`, not from the Provider Hub model list.
   - Built-in prompt templates (`systemPrompt`, `webSearchPrompt`, tool prompts, memory prompt, and title-generation prompt) are code-owned runtime defaults. `normalizeStoredSettings(...)` replaces stale persisted prompt overrides with the current defaults, and Settings renders them as read-only viewers instead of editable fields.
@@ -48,7 +48,7 @@ Core capabilities:
 ---
 
 ## Repo Map
-- `electron/analytics/` - opt-in anonymous analytics service, event allowlist/sanitization, PostHog capture transport, consent-state persistence under `app.getPath('userData')`, and IPC registration
+- `electron/analytics/` - opt-in anonymous analytics service, default public PostHog Cloud config, event allowlist/sanitization, PostHog capture transport, consent-state persistence under `app.getPath('userData')`, and IPC registration
 - `electron/` — Electron **main process** + preload + IPC handlers
   - `electron/main.ts` — app lifecycle, IPC registration, tray, windows, updater, tool handlers
   - `electron/preload.ts` — **contextBridge** API + IPC allowlists (security boundary)
@@ -304,7 +304,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Discord RPC is **always-on** in the main process. The client connects automatically at app startup (constructor-driven, no renderer toggle). It lazily loads the `discord-rpc` module inside try/catch so a missing native dependency never crashes the app; it reconnects with backoff when Discord is not running and surfaces connection errors in `DiscordRpcState.lastError`.
 - Main-shell navigation history is now tracked entirely in the renderer through `AppShellProvider` + `src/contexts/appShellNavigation.ts`; both the titlebar arrows and side-mouse buttons call the same history controller instead of using raw `react-router` delta navigation.
 - Native macOS app-menu `New Chat` requests are routed back into the shared renderer shell through `app:new-chat`, so session creation still uses the existing `ChatHistoryContext` flow and unsaved-settings guard instead of a main-process shortcut.
-- Opt-in analytics initializes in the main process after the primary window is created. `electron/analytics/service.ts` records first launch/start/update-installed/crash/error events only when consent is accepted and a PostHog key is configured; renderer usage events flow through the dedicated `window.analytics` bridge and are sanitized in main before transport.
+- Opt-in analytics initializes in the main process after the primary window is created. `electron/analytics/service.ts` records first launch/start/update-installed/crash/error events only when consent is accepted and PostHog transport is configured through the built-in public config or env overrides; renderer usage events flow through the dedicated `window.analytics` bridge and are sanitized in main before transport.
 
 #### MCP Runtime Foundation
 - Shared MCP contracts and naming helpers live in `src/mcp/types.ts`.

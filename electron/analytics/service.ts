@@ -11,6 +11,7 @@ import {
   type AnalyticsProperties,
   type AnalyticsState,
 } from './events'
+import { DEFAULT_POSTHOG_HOST, DEFAULT_POSTHOG_PROJECT_KEY } from './config'
 
 interface PersistedAnalyticsState {
   analyticsEnabled?: boolean
@@ -21,18 +22,21 @@ interface PersistedAnalyticsState {
 }
 
 const STORAGE_FILE = 'analytics-state.json'
-const DEFAULT_POSTHOG_HOST = 'https://us.i.posthog.com'
 const MAX_ERROR_CODE_LENGTH = 80
 
 let state: AnalyticsState | null = null
 let storagePath: string | null = null
 
 function getProjectKey(): string {
-  return (
-    process.env.ZURA_POSTHOG_PROJECT_KEY ||
-    process.env.POSTHOG_PROJECT_KEY ||
-    ''
-  ).trim()
+  if (Object.prototype.hasOwnProperty.call(process.env, 'ZURA_POSTHOG_PROJECT_KEY')) {
+    return (process.env.ZURA_POSTHOG_PROJECT_KEY || '').trim()
+  }
+
+  if (Object.prototype.hasOwnProperty.call(process.env, 'POSTHOG_PROJECT_KEY')) {
+    return (process.env.POSTHOG_PROJECT_KEY || '').trim()
+  }
+
+  return DEFAULT_POSTHOG_PROJECT_KEY.trim()
 }
 
 function getPostHogHost(): string {
