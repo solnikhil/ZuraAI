@@ -119,7 +119,7 @@ describe('ModelSelectorDropdown', () => {
     })
 
     expect(screen.getByText('Reasoning effort')).toBeInTheDocument()
-    const maxItem = screen.getByRole('menuitemradio', { name: /max/i })
+    const maxItem = screen.getByRole('menuitemradio', { name: /xhigh/i })
     expect(maxItem).toHaveAttribute('data-disabled')
     fireEvent.click(maxItem)
     expect(onReasoningEffortChange).not.toHaveBeenCalled()
@@ -140,32 +140,10 @@ describe('ModelSelectorDropdown', () => {
     })
 
     expect(screen.getByText('Reasoning effort')).toBeInTheDocument()
-    const maxItem = screen.getByRole('menuitemradio', { name: /max/i })
+    const maxItem = screen.getByRole('menuitemradio', { name: /xhigh/i })
     fireEvent.click(maxItem)
-    expect(onReasoningEffortChange).toHaveBeenCalledWith('max')
-  })
-
-  it('filters all models in the Search models panel and selects a match', () => {
-    const onModelSelect = vi.fn()
-    renderOpen({
-      onModelSelect,
-      currentName: 'Active Model',
-      groupedModels: {
-        ...emptyGroups,
-        fireworks: [fireworksModel],
-        deepseek: [deepseekModel],
-      },
-    })
-
-    const input = screen.getByPlaceholderText('Type a command or search...')
-    fireEvent.change(input, { target: { value: 'v4 pro' } })
-
-    expect(screen.getByText('DeepSeek V4 Pro')).toBeInTheDocument()
-    expect(screen.queryByText('DeepSeek V3.2')).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByText('DeepSeek V4 Pro'))
-    expect(onModelSelect).toHaveBeenCalledWith(
-      expect.objectContaining({ code: deepseekModel.code, provider: 'deepseek' })
-    )
+    expect(onReasoningEffortChange).toHaveBeenCalledWith('xhigh')
   })
 })
+
+

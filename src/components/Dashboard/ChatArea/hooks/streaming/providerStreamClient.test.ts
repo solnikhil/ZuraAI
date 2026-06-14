@@ -710,14 +710,14 @@ describe('createProviderStreamClient', () => {
       messages: [{ role: 'user', content: 'hello' }],
       streamResponses: true,
       enableThinking: true,
-      reasoningEffort: 'max',
+      reasoningEffort: 'xhigh',
     }))
 
     expect(mocks.streamDeepSeekCompletion).toHaveBeenCalledWith(
       'deepseek-key',
       'deepseek-v4-pro',
       [{ role: 'user', content: 'hello' }],
-      expect.objectContaining({ enableThinking: true, reasoningEffort: 'max' })
+      expect.objectContaining({ enableThinking: true, reasoningEffort: 'xhigh' })
     )
   })
 

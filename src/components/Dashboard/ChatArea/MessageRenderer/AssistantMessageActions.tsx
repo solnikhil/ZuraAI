@@ -29,7 +29,7 @@ interface ResponseInfoData {
   }
   finishReason?: string
   requestedMaxTokens?: number
-  reasoningEffort?: 'high' | 'max'
+  reasoningEffort?: 'low' | 'medium' | 'high' | 'xhigh'
 }
 
 interface AssistantMessageActionsProps {

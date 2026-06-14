@@ -94,7 +94,7 @@ export interface ProviderStreamingRunOptions {
   }
   enableThinking?: boolean
   /** DeepSeek reasoning effort; only applied when enableThinking is true. */
-  reasoningEffort?: 'high' | 'max'
+  reasoningEffort?: 'low' | 'medium' | 'high' | 'xhigh'
   imageConfig?: {
     aspect_ratio?: string
     image_size?: string

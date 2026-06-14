@@ -26,7 +26,7 @@ interface ResponseInfoProps {
     usage?: UsageData
     finishReason?: string
     requestedMaxTokens?: number
-    reasoningEffort?: 'high' | 'max'
+    reasoningEffort?: 'low' | 'medium' | 'high' | 'xhigh'
 }
 
 export default function ResponseInfo({ model, latency, usage, finishReason, requestedMaxTokens, reasoningEffort }: ResponseInfoProps) {

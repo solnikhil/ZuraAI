@@ -2,15 +2,45 @@
  * Pure helpers for per-model DeepSeek reasoning ("thinking mode") preferences.
  *
  * The user's explicit per-model toggle (set in Provider Hub) is the source of
- * truth — we do NOT infer thinking capability for DeepSeek. Effort is a fixed,
- * documented DeepSeek contract (`high` | `max`).
+ * truth — we do NOT infer thinking capability for DeepSeek. Effort is the
+ * documented DeepSeek scale: `low` | `medium` | `high` | `xhigh`. Server-side
+ * DeepSeek maps `low`/`medium` → `high` and `xhigh` → `max`; the legacy stored
+ * value `max` is migrated to its equivalent `xhigh`.
  */
 import type { DeepSeekReasoningEffort } from '../contexts/SettingsConfigContext'
 
-export const DEEPSEEK_REASONING_EFFORTS: readonly DeepSeekReasoningEffort[] = ['high', 'max']
+export const DEEPSEEK_REASONING_EFFORTS: readonly DeepSeekReasoningEffort[] = [
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+]
+
+/** Human-friendly labels for each effort level (the raw `xhigh` reads poorly). */
+export const DEEPSEEK_REASONING_EFFORT_LABELS: Record<DeepSeekReasoningEffort, string> = {
+  low: 'Low',
+  medium: 'Medium',
+  high: 'High',
+  xhigh: 'Xhigh',
+}
+
+/** Resolve the display label for an effort value (falls back to the raw value). */
+export function getReasoningEffortLabel(effort: DeepSeekReasoningEffort): string {
+  return DEEPSEEK_REASONING_EFFORT_LABELS[effort] ?? effort
+}
 
 export function isDeepSeekReasoningEffort(value: unknown): value is DeepSeekReasoningEffort {
-  return value === 'high' || value === 'max'
+  return value === 'low' || value === 'medium' || value === 'high' || value === 'xhigh'
+}
+
+/**
+ * Coerce a stored/legacy effort value into the current effort scale. The legacy
+ * `max` value (used before the low→xhigh scale) maps to `xhigh`. Returns `null`
+ * for unrecognized values so callers can fall back.
+ */
+export function coerceReasoningEffort(value: unknown): DeepSeekReasoningEffort | null {
+  if (value === 'max') return 'xhigh'
+  return isDeepSeekReasoningEffort(value) ? value : null
 }
 
 export interface DeepSeekReasoningState {
@@ -32,9 +62,8 @@ export function getDeepseekReasoning(
   settings: DeepseekReasoningSettings,
   modelCode: string
 ): DeepSeekReasoningState {
-  const fallbackEffort: DeepSeekReasoningEffort = isDeepSeekReasoningEffort(settings.deepseekLastEffort)
-    ? settings.deepseekLastEffort
-    : 'high'
+  const fallbackEffort: DeepSeekReasoningEffort =
+    coerceReasoningEffort(settings.deepseekLastEffort) ?? 'high'
 
   const entry = settings.deepseekReasoning?.[modelCode]
   if (!entry) {
@@ -43,7 +72,7 @@ export function getDeepseekReasoning(
 
   return {
     enabled: entry.enabled === true,
-    effort: isDeepSeekReasoningEffort(entry.effort) ? entry.effort : fallbackEffort,
+    effort: coerceReasoningEffort(entry.effort) ?? fallbackEffort,
   }
 }
 
@@ -98,8 +127,9 @@ export function normalizeDeepseekReasoning(
     if (typeof entry !== 'object' || entry === null) continue
     const { enabled, effort } = entry as { enabled?: unknown; effort?: unknown }
     if (typeof enabled !== 'boolean') continue
-    if (!isDeepSeekReasoningEffort(effort)) continue
-    result[code] = { enabled, effort }
+    const coerced = coerceReasoningEffort(effort)
+    if (!coerced) continue
+    result[code] = { enabled, effort: coerced }
   }
   return result
 }

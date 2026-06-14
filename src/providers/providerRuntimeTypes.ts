@@ -69,7 +69,7 @@ export interface ProviderRuntimeStreamRequest {
   }
   enableThinking?: boolean
   /** DeepSeek reasoning effort; only applied when enableThinking is true. */
-  reasoningEffort?: 'high' | 'max'
+  reasoningEffort?: 'low' | 'medium' | 'high' | 'xhigh'
   sessionId?: string
   signal?: AbortSignal
 }

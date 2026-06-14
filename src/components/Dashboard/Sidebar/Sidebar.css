@@ -7,6 +7,7 @@
 /* ── Container ─────────────────────────────────────────────── */
 
 .sidebar-container {
+  --sidebar-resize-gutter: 10px;
   --sidebar-chat-text-color: color-mix(in srgb, var(--theme-text-primary) 58%, var(--theme-text-muted) 42%);
   --sidebar-header-action-color: var(--sidebar-chat-text-color);
   --sidebar-font-size-xs: 0.74rem;
@@ -152,6 +153,7 @@
   display: flex;
   flex-direction: column;
   height: 100%;
+  min-height: 0;
   /* Hold a fixed width that matches the open width so the panel slides in/out
      (clipped by the container's overflow:hidden) instead of reflowing per frame. */
   width: var(--sidebar-inner-width, 100%);
@@ -192,44 +194,37 @@
 /* ── Scrollbar (scoped to sidebar chat list) ───────────────── */
 
 .sidebar-chatlist__scroller {
-  overflow-x: hidden !important;
-  scrollbar-width: none;
-}
-
-.sidebar-chatlist__virtuoso {
+  height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-left: 8px;
   padding-right: 8px;
-  transition: padding-right 0.12s ease;
+  box-sizing: border-box;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--theme-border) transparent;
 }
 
 .sidebar-chatlist__scroller::-webkit-scrollbar {
-  width: 0;
+  width: 4px;
 }
+
 .sidebar-chatlist__scroller::-webkit-scrollbar-track {
   background: transparent;
 }
+
 .sidebar-chatlist__scroller::-webkit-scrollbar-thumb {
   background: var(--theme-border);
   border-radius: 2px;
   transition: background 0.12s ease;
 }
-.sidebar-container:hover .sidebar-chatlist__scroller,
-.sidebar-container:focus-within .sidebar-chatlist__scroller {
-  scrollbar-width: thin;
-}
-.sidebar-container:hover .sidebar-chatlist__virtuoso,
-.sidebar-container:focus-within .sidebar-chatlist__virtuoso {
-  padding-right: 14px;
-}
-.sidebar-container:hover .sidebar-chatlist__scroller::-webkit-scrollbar,
-.sidebar-container:focus-within .sidebar-chatlist__scroller::-webkit-scrollbar {
-  width: 4px;
-}
-.sidebar-container:hover .sidebar-chatlist__scroller::-webkit-scrollbar-thumb:hover,
-.sidebar-container:focus-within .sidebar-chatlist__scroller::-webkit-scrollbar-thumb:hover {
+
+.sidebar-chatlist__scroller::-webkit-scrollbar-thumb:hover {
   background: var(--theme-border-hover);
 }
-.sidebar-container:hover .sidebar-chatlist__scroller::-webkit-scrollbar-thumb:active,
-.sidebar-container:focus-within .sidebar-chatlist__scroller::-webkit-scrollbar-thumb:active {
+
+.sidebar-chatlist__scroller::-webkit-scrollbar-thumb:active {
   background: var(--theme-border-active);
 }
 
@@ -239,6 +234,7 @@
   display: flex;
   flex-direction: column;
   width: 100%;
+  min-height: 0;
 }
 
 .sidebar-view--chat {
@@ -451,9 +447,12 @@
   flex: 1;
   min-height: 0;
   min-width: 0;
-  padding-bottom: 54px;
   box-sizing: border-box;
   background: var(--theme-sidebar-solid);
+}
+
+.sidebar-container--expanded .sidebar-chatlist {
+  padding-right: var(--sidebar-resize-gutter);
 }
 
 .sidebar-container.frosted .sidebar-chatlist {
@@ -481,6 +480,7 @@
   gap: var(--sidebar-item-gap);
   outline: none;
   padding-top: 2px;
+  box-sizing: border-box;
 }
 
 /* ── Chat row ──────────────────────────────────────────────── */

@@ -48,7 +48,7 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
   } = useChatHistory()
   const { settingsUI } = useSettingsUI()
   const { chatSelectedOverlayStyle = 'linear' } = settingsUI
-  const userStripPadding = 8
+  const sidebarFooterScrollPadding = 72
 
   // Sidebar state
   const [focusIndex, setFocusIndex] = useState(-1)
@@ -366,7 +366,7 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
           focusIndex={focusIndex}
           flatVisibleSessions={flatVisibleSessions}
           sessionIndexMap={sessionIndexMap}
-          bottomPadding={userStripPadding}
+          bottomPadding={sidebarFooterScrollPadding}
           onNewChat={clearCurrentSession}
           onOpenSearch={openSearchOverlay}
           onSelectSession={switchSession}

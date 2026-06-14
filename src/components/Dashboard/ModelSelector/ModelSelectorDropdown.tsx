@@ -13,6 +13,7 @@ import {
   DropdownMenuSubTrigger,
 } from '@/components/ui/dropdown-menu'
 import { getPickerVisibleProviders, getProviderDefinition } from '@/providers'
+import { getReasoningEffortLabel } from '../../../utils/deepseekReasoning'
 import { removeEmojis } from '../../../utils/textUtils'
 import type { DeepSeekReasoningEffort } from '../../../contexts/SettingsConfigContext'
 import type { GroupedModels, ModelWithProvider } from './types'
@@ -85,6 +86,7 @@ export function ModelSelectorDropdown({
             Reasoning effort
           </DropdownMenuLabel>
           <DropdownMenuRadioGroup
+            className="flex flex-col gap-0.5"
             value={reasoningEffort}
             onValueChange={
               reasoningEnabled
@@ -97,9 +99,9 @@ export function ModelSelectorDropdown({
                 key={effort}
                 value={effort}
                 disabled={!reasoningEnabled}
-                className="h-10 rounded-[13px] py-0 pl-3 pr-2 font-[var(--font-sans)] text-[13px] font-medium capitalize tracking-[0.01em] transition-colors data-[state=checked]:bg-[var(--theme-surface-active)] data-[state=checked]:text-[var(--theme-text-primary)] data-[state=checked]:shadow-[inset_0_0_0_1px_var(--theme-border-subtle)] focus:bg-[var(--theme-surface-hover)] [&>span:first-child]:hidden"
+                className="min-h-9 rounded-[10px] py-2 pl-3 pr-2 font-[var(--font-sans)] text-[13px] font-medium leading-none tracking-[0.01em] transition-colors data-[state=checked]:bg-[var(--theme-surface-active)] data-[state=checked]:text-[var(--theme-text-primary)] data-[state=checked]:shadow-[inset_0_0_0_1px_var(--theme-border-subtle)] focus:bg-[var(--theme-surface-hover)] [&>span:first-child]:hidden"
               >
-                {effort}
+                {getReasoningEffortLabel(effort)}
               </DropdownMenuRadioItem>
             ))}
           </DropdownMenuRadioGroup>

@@ -82,12 +82,12 @@ describe('ResponseInfo', () => {
       <ResponseInfo
         model="deepseek-v4-pro"
         usage={{ inputTokens: 10, outputTokens: 4, totalTokens: 14 }}
-        reasoningEffort="max"
+        reasoningEffort="xhigh"
       />
     )
 
     expect(screen.getByText('Reasoning Effort')).toBeInTheDocument()
-    expect(screen.getByText('max')).toBeInTheDocument()
+    expect(screen.getByText('xhigh')).toBeInTheDocument()
   })
 
   it('hides the reasoning effort row when not provided', () => {

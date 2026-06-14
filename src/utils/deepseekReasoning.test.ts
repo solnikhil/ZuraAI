@@ -5,6 +5,8 @@ import {
   setDeepseekReasoningEffort,
   normalizeDeepseekReasoning,
   isDeepSeekReasoningEffort,
+  coerceReasoningEffort,
+  DEEPSEEK_REASONING_EFFORTS,
 } from './deepseekReasoning'
 
 describe('deepseekReasoning helpers', () => {
@@ -17,36 +19,48 @@ describe('deepseekReasoning helpers', () => {
     })
 
     it('uses deepseekLastEffort as the default effort', () => {
-      expect(getDeepseekReasoning({ deepseekLastEffort: 'max' }, 'm')).toEqual({
+      expect(getDeepseekReasoning({ deepseekLastEffort: 'low' }, 'm')).toEqual({
         enabled: false,
-        effort: 'max',
+        effort: 'low',
+      })
+    })
+
+    it('migrates a legacy "max" lastEffort to "xhigh"', () => {
+      expect(getDeepseekReasoning({ deepseekLastEffort: 'max' as never }, 'm')).toEqual({
+        enabled: false,
+        effort: 'xhigh',
       })
     })
 
     it('returns the stored entry when present', () => {
-      const settings = { deepseekReasoning: { m: { enabled: true, effort: 'max' as const } } }
-      expect(getDeepseekReasoning(settings, 'm')).toEqual({ enabled: true, effort: 'max' })
+      const settings = { deepseekReasoning: { m: { enabled: true, effort: 'medium' as const } } }
+      expect(getDeepseekReasoning(settings, 'm')).toEqual({ enabled: true, effort: 'medium' })
+    })
+
+    it('migrates a legacy "max" stored effort to "xhigh"', () => {
+      const settings = { deepseekReasoning: { m: { enabled: true, effort: 'max' as never } } }
+      expect(getDeepseekReasoning(settings, 'm')).toEqual({ enabled: true, effort: 'xhigh' })
     })
 
     it('falls back to default effort when stored effort is invalid', () => {
       const settings = {
         deepseekReasoning: { m: { enabled: true, effort: 'bogus' as never } },
-        deepseekLastEffort: 'max' as const,
+        deepseekLastEffort: 'low' as const,
       }
-      expect(getDeepseekReasoning(settings, 'm')).toEqual({ enabled: true, effort: 'max' })
+      expect(getDeepseekReasoning(settings, 'm')).toEqual({ enabled: true, effort: 'low' })
     })
   })
 
   describe('setDeepseekReasoningEnabled', () => {
     it('toggles enablement while preserving existing effort', () => {
-      const settings = { deepseekReasoning: { m: { enabled: false, effort: 'max' as const } } }
+      const settings = { deepseekReasoning: { m: { enabled: false, effort: 'xhigh' as const } } }
       const patch = setDeepseekReasoningEnabled(settings, 'm', true)
-      expect(patch.deepseekReasoning?.m).toEqual({ enabled: true, effort: 'max' })
+      expect(patch.deepseekReasoning?.m).toEqual({ enabled: true, effort: 'xhigh' })
     })
 
     it('defaults effort from lastEffort when first enabling', () => {
-      const patch = setDeepseekReasoningEnabled({ deepseekLastEffort: 'max' }, 'm', true)
-      expect(patch.deepseekReasoning?.m).toEqual({ enabled: true, effort: 'max' })
+      const patch = setDeepseekReasoningEnabled({ deepseekLastEffort: 'medium' }, 'm', true)
+      expect(patch.deepseekReasoning?.m).toEqual({ enabled: true, effort: 'medium' })
     })
 
     it('does not clobber other models', () => {
@@ -60,9 +74,9 @@ describe('deepseekReasoning helpers', () => {
 
   describe('setDeepseekReasoningEffort', () => {
     it('sets effort, enables, and records lastEffort', () => {
-      const patch = setDeepseekReasoningEffort({}, 'm', 'max')
-      expect(patch.deepseekReasoning.m).toEqual({ enabled: true, effort: 'max' })
-      expect(patch.deepseekLastEffort).toBe('max')
+      const patch = setDeepseekReasoningEffort({}, 'm', 'xhigh')
+      expect(patch.deepseekReasoning.m).toEqual({ enabled: true, effort: 'xhigh' })
+      expect(patch.deepseekLastEffort).toBe('xhigh')
     })
   })
 
@@ -74,25 +88,45 @@ describe('deepseekReasoning helpers', () => {
       expect(normalizeDeepseekReasoning('x')).toEqual({})
     })
 
-    it('keeps valid entries and drops malformed ones', () => {
+    it('keeps valid entries, migrates legacy max, and drops malformed ones', () => {
       const input = {
-        good: { enabled: true, effort: 'max' },
-        badEffort: { enabled: true, effort: 'low' },
+        good: { enabled: true, effort: 'low' },
+        legacy: { enabled: true, effort: 'max' },
+        badEffort: { enabled: true, effort: 'turbo' },
         badEnabled: { enabled: 'yes', effort: 'high' },
         notObject: 5,
       }
       expect(normalizeDeepseekReasoning(input)).toEqual({
-        good: { enabled: true, effort: 'max' },
+        good: { enabled: true, effort: 'low' },
+        legacy: { enabled: true, effort: 'xhigh' },
       })
     })
   })
 
   describe('isDeepSeekReasoningEffort', () => {
-    it('accepts only high and max', () => {
+    it('accepts the low→xhigh scale and rejects others', () => {
+      expect(isDeepSeekReasoningEffort('low')).toBe(true)
+      expect(isDeepSeekReasoningEffort('medium')).toBe(true)
       expect(isDeepSeekReasoningEffort('high')).toBe(true)
-      expect(isDeepSeekReasoningEffort('max')).toBe(true)
-      expect(isDeepSeekReasoningEffort('low')).toBe(false)
+      expect(isDeepSeekReasoningEffort('xhigh')).toBe(true)
+      // 'max' is a legacy value, not part of the canonical scale.
+      expect(isDeepSeekReasoningEffort('max')).toBe(false)
       expect(isDeepSeekReasoningEffort(undefined)).toBe(false)
+    })
+  })
+
+  describe('coerceReasoningEffort', () => {
+    it('maps legacy max to xhigh and passes valid values through', () => {
+      expect(coerceReasoningEffort('max')).toBe('xhigh')
+      expect(coerceReasoningEffort('high')).toBe('high')
+      expect(coerceReasoningEffort('low')).toBe('low')
+      expect(coerceReasoningEffort('nope')).toBeNull()
+    })
+  })
+
+  describe('DEEPSEEK_REASONING_EFFORTS', () => {
+    it('exposes the ordered low→xhigh scale', () => {
+      expect(DEEPSEEK_REASONING_EFFORTS).toEqual(['low', 'medium', 'high', 'xhigh'])
     })
   })
 })
