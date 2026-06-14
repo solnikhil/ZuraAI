@@ -46,6 +46,7 @@ import { ProviderLogo, SkillLogo } from '@/components/shared'
 import type { ConfiguredModel, TavilySearchDepthPreference, DeepSeekReasoningEffort } from '@/contexts/SettingsConfigContext'
 import { getDeepseekReasoning, setDeepseekReasoningEnabled } from '@/utils/deepseekReasoning'
 import { isSecureApiKeyPlaceholder, resolveApiKeyFromSecureStorage } from '@/utils/secureApiKeys'
+import { fetchOpenRouterModels, mapOpenRouterModelToConfiguredModel } from '@/services/openrouterModels'
 import { CreateCustomModelDialog } from './CreateCustomModelDialog'
 import { AlibabaModelSearchDialog } from './AlibabaModelSearchDialog'
 import { DeepseekModelSearchDialog } from './DeepseekModelSearchDialog'
@@ -304,6 +305,7 @@ export function ProviderHubSection({
   } | null>(null)
   const [clearModelsConfirmOpen, setClearModelsConfirmOpen] = useState(false)
   const [openRouterSearchDialogOpen, setOpenRouterSearchDialogOpen] = useState(false)
+  const [detectingReasoningModel, setDetectingReasoningModel] = useState<string | null>(null)
   const [connectivityModel, setConnectivityModel] = useState('')
   const [modelListFilter, setModelListFilter] = useState<'all' | 'chat'>('all')
   const [providerProxyUrls, setProviderProxyUrls] =
@@ -617,6 +619,34 @@ export function ProviderHubSection({
   const toggleModelReasoning = (modelCode: string, checked: boolean) => {
     // DeepSeek-only: the user's explicit per-model toggle is the source of truth.
     onChange(setDeepseekReasoningEnabled({ deepseekReasoning, deepseekLastEffort }, modelCode, checked))
+  }
+
+  const detectOpenRouterReasoning = async (modelCode: string) => {
+    setDetectingReasoningModel(modelCode)
+    try {
+      const openRouterProvider =
+        PROVIDERS.find((provider) => provider.key === 'openrouter') ?? selectedProviderDef
+      const resolvedApiKey = await resolveProviderApiKey(openRouterProvider)
+      const catalogModels = await fetchOpenRouterModels(resolvedApiKey)
+      const catalogModel = catalogModels.find((model) => model.id === modelCode)
+      if (!catalogModel) return
+
+      const mappedModel = mapOpenRouterModelToConfiguredModel(catalogModel)
+      const supportsReasoning = mappedModel.supportsDeepThinking === true
+      const updatedModels = configuredModels.map((model) => {
+        if (model.code !== modelCode) return model
+        return {
+          ...model,
+          supportsDeepThinking: supportsReasoning,
+          modelType: supportsReasoning ? 'reasoning' : model.modelType,
+          openRouterReasoningDetected: true,
+        }
+      })
+
+      onChange({ configuredModels: updatedModels })
+    } finally {
+      setDetectingReasoningModel(null)
+    }
   }
 
   const updateModel = (provider: ProviderKey, modelCode: string, updatedModel: ConfiguredModel) => {
@@ -1230,6 +1260,12 @@ export function ProviderHubSection({
                   onToggleReasoning={
                     selectedProviderDef.key === 'deepseek' ? toggleModelReasoning : undefined
                   }
+                  onDetectOpenRouterReasoning={
+                    selectedProviderDef.key === 'openrouter' ? detectOpenRouterReasoning : undefined
+                  }
+                  detectingOpenRouterReasoningCode={
+                    selectedProviderDef.key === 'openrouter' ? detectingReasoningModel : null
+                  }
                   onEditModel={handleEditModel}
                   onDeleteModel={handleDeleteModelClick}
                 />
@@ -1548,6 +1584,8 @@ function ModelGroup({
   onToggleModel,
   reasoningEnabledFor,
   onToggleReasoning,
+  onDetectOpenRouterReasoning,
+  detectingOpenRouterReasoningCode,
   onEditModel,
   onDeleteModel,
 }: {
@@ -1557,6 +1595,8 @@ function ModelGroup({
   onToggleModel: (code: string, checked: boolean) => void
   reasoningEnabledFor?: (code: string) => boolean
   onToggleReasoning?: (code: string, checked: boolean) => void
+  onDetectOpenRouterReasoning?: (code: string) => void
+  detectingOpenRouterReasoningCode?: string | null
   onEditModel: (model: ModelBasic) => void
   onDeleteModel: (model: ModelBasic) => void
 }): React.ReactElement {
@@ -1576,6 +1616,21 @@ function ModelGroup({
         const handleToggle = () => onToggleModel(model.code, !enabled)
         const showReasoning = Boolean(reasoningEnabledFor && onToggleReasoning)
         const reasoningEnabled = showReasoning ? reasoningEnabledFor!(model.code) : false
+        const configuredModel = model as ConfiguredModel
+        const canDetectOpenRouterReasoning = Boolean(
+          onDetectOpenRouterReasoning && !configuredModel.openRouterReasoningDetected
+        )
+        const showOpenRouterReasoningDetected = Boolean(
+          onDetectOpenRouterReasoning &&
+            configuredModel.openRouterReasoningDetected &&
+            configuredModel.supportsDeepThinking
+        )
+        const showOpenRouterNoReasoning = Boolean(
+          onDetectOpenRouterReasoning &&
+            configuredModel.openRouterReasoningDetected &&
+            !configuredModel.supportsDeepThinking
+        )
+        const isDetectingReasoning = detectingOpenRouterReasoningCode === model.code
         return (
           <motion.div
             key={`${selectedProvider}-${model.code}`}
@@ -1614,6 +1669,35 @@ function ModelGroup({
                     aria-label={`Toggle reasoning for ${model.displayName}`}
                   />
                 </div>
+              )}
+              {canDetectOpenRouterReasoning && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="mr-1 h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
+                  disabled={isDetectingReasoning}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onDetectOpenRouterReasoning!(model.code)
+                  }}
+                >
+                  {isDetectingReasoning ? (
+                    <Loader2 size={12} className="animate-spin" />
+                  ) : (
+                    <CircleHelp size={12} />
+                  )}
+                  Detect reasoning
+                </Button>
+              )}
+              {showOpenRouterReasoningDetected && (
+                <span className="mr-1 rounded bg-secondary px-2 py-1 text-xs text-muted-foreground">
+                  Reasoning detected
+                </span>
+              )}
+              {showOpenRouterNoReasoning && (
+                <span className="mr-1 rounded bg-secondary px-2 py-1 text-xs text-muted-foreground">
+                  No reasoning
+                </span>
               )}
               <Button
                 variant="ghost"

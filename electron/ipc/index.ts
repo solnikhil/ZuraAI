@@ -9,14 +9,11 @@ import {
 } from './memoryStoreHandlers'
 import { registerOverlayHandlers, unregisterOverlayHandlers } from './overlayHandlers'
 import {
-  registerPromptPopupHandlers,
-  unregisterPromptPopupHandlers,
-} from './promptPopupHandlers'
-import {
   registerSecureStorageHandlers,
   unregisterSecureStorageHandlers,
 } from './secureStorageHandlers'
 import { registerSystemHandlers, unregisterSystemHandlers } from './systemHandlers'
+import { registerAnalyticsHandlers, unregisterAnalyticsHandlers } from '../analytics'
 
 interface IpcDomainHandlers {
   register: () => void
@@ -45,12 +42,12 @@ const IPC_DOMAIN_HANDLERS: readonly IpcDomainHandlers[] = [
     unregister: unregisterOverlayHandlers,
   },
   {
-    register: registerPromptPopupHandlers,
-    unregister: unregisterPromptPopupHandlers,
-  },
-  {
     register: registerSystemHandlers,
     unregister: unregisterSystemHandlers,
+  },
+  {
+    register: registerAnalyticsHandlers,
+    unregister: unregisterAnalyticsHandlers,
   },
 ] as const
 
@@ -95,7 +92,4 @@ export {
   unregisterOverlayHandlers,
 } from './overlayHandlers'
 export { registerSystemHandlers, unregisterSystemHandlers } from './systemHandlers'
-export {
-  registerPromptPopupHandlers,
-  unregisterPromptPopupHandlers,
-} from './promptPopupHandlers'
+export { registerAnalyticsHandlers, unregisterAnalyticsHandlers } from '../analytics'

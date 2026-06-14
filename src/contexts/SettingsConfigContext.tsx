@@ -67,6 +67,7 @@ export interface ConfiguredModel {
   supportsWebSearch?: boolean
   supportsImageGeneration?: boolean
   supportsVideoRecognition?: boolean
+  openRouterReasoningDetected?: boolean
 }
 
 type ProviderKey = ProviderId
@@ -124,6 +125,12 @@ export interface SettingsConfig {
    * effort when a model's reasoning is newly enabled.
    */
   deepseekLastEffort?: DeepSeekReasoningEffort
+  /**
+   * Per-model OpenRouter reasoning effort preferences, keyed by configured
+   * OpenRouter model `code`. Provider Hub only detects capability; the dashboard
+   * model picker owns effort selection after detection.
+   */
+  openRouterReasoningEffort?: Record<string, DeepSeekReasoningEffort>
 
   // AI parameters
   temperature: number
@@ -359,6 +366,7 @@ export const defaultSettingsConfig: SettingsConfig = {
   },
   deepseekReasoning: {},
   deepseekLastEffort: 'high',
+  openRouterReasoningEffort: {},
 }
 
 interface SettingsConfigContextType {

@@ -1,5 +1,6 @@
 import { app, ipcMain, BrowserWindow } from 'electron'
 import { autoUpdater, type UpdateInfo } from 'electron-updater'
+import { trackAppError } from './analytics'
 
 const isProduction = app.isPackaged
 
@@ -79,6 +80,12 @@ async function checkOnce(): Promise<UpdateInfo | null> {
     return result?.updateInfo ?? null
   } catch (err) {
     console.error('[UPDATER] Check failed:', err)
+    trackAppError({
+      category: 'updater',
+      code: err instanceof Error ? err.name : 'check_failed',
+      processType: 'main',
+      fatal: false,
+    })
     return null
   }
 }
@@ -104,6 +111,12 @@ export function initializeAutoUpdater(getMainWindow: () => BrowserWindow | null)
     // Start the download now that we know an update exists
     autoUpdater.downloadUpdate().catch((err: Error) => {
       console.error('[UPDATER] Download failed:', err)
+      trackAppError({
+        category: 'updater',
+        code: err.name || 'download_failed',
+        processType: 'main',
+        fatal: false,
+      })
       sendToMainWindow(getMainWindow, 'update-error', err.message || 'Download failed')
     })
   })
@@ -133,6 +146,12 @@ export function initializeAutoUpdater(getMainWindow: () => BrowserWindow | null)
 
   autoUpdater.on('error', (err: Error) => {
     console.error('[UPDATER] Error:', err.message)
+    trackAppError({
+      category: 'updater',
+      code: err.name || 'updater_error',
+      processType: 'main',
+      fatal: false,
+    })
     sendToMainWindow(getMainWindow, 'update-error', err.message || 'Updater error')
   })
 
@@ -185,6 +204,12 @@ export function registerUpdaterHandlers(getMainWindow: () => BrowserWindow | nul
       installingUpdate = false
       const message = err instanceof Error ? err.message : 'Install failed'
       console.error('[UPDATER] quitAndInstall failed:', err)
+      trackAppError({
+        category: 'updater',
+        code: err instanceof Error ? err.name : 'install_failed',
+        processType: 'main',
+        fatal: false,
+      })
       sendToMainWindow(getMainWindow, 'update-error', message)
       return false
     }

@@ -140,7 +140,7 @@ export function OverlaySection({
                 <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                   <div className="min-w-0">
                     <p className="max-w-[70ch] text-sm leading-6 text-muted-foreground">
-                      Compact desktop chat window that lives outside the main dashboard. Open it from the titlebar, command palette, or the global shortcut.
+                      A Siri/Spotlight-style desktop chat surface that docks to the top-right corner. Opens as a compact search pill and springs open into a conversation card. Launch it from the titlebar, command palette, or the global shortcut.
                     </p>
                     <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
                       <span className="rounded border border-white/10 px-2 py-1">
@@ -353,8 +353,8 @@ export function OverlaySection({
 
               <DetailField
                 label="Overlay Anchor"
-                description="Phase 1 locks overlay docking to the right side of the active display work area."
-                control={<div className="settings-inline-note"><code>{overlay.anchor}</code></div>}
+                description="The overlay docks to the top-right corner of the active display work area and grows downward from a compact pill into a conversation card."
+                control={<div className="settings-inline-note"><code>top-right</code></div>}
               />
             </div>
           </div>

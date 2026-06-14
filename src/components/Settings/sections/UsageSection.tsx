@@ -1,9 +1,11 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { MessageSquare, Clock, Zap, TrendingUp, Cpu, BarChart, Calendar, Shield, Download, FileDown } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Switch } from '@/components/ui/switch'
 import { ActivityGraph } from '../ActivityGraph'
 import type { UsageStats, UsageProvider } from './usageMetrics'
+import type { AnalyticsState } from '@/electron/types'
 
 /**
  * Props for UsageSection component
@@ -19,6 +21,28 @@ export function UsageSection({
   onExportSnapshot,
   onExportWebSearchCsv,
 }: UsageSectionProps): React.ReactElement {
+  const [analyticsState, setAnalyticsState] = useState<AnalyticsState | null>(null)
+  const [analyticsUpdating, setAnalyticsUpdating] = useState(false)
+
+  useEffect(() => {
+    if (!window.analytics?.getState) return
+    void window.analytics
+      .getState()
+      .then(setAnalyticsState)
+      .catch(() => undefined)
+  }, [])
+
+  const updateAnalyticsEnabled = async (enabled: boolean) => {
+    if (!window.analytics?.setEnabled || analyticsUpdating) return
+    setAnalyticsUpdating(true)
+    try {
+      const nextState = await window.analytics.setEnabled(enabled)
+      setAnalyticsState(nextState)
+    } finally {
+      setAnalyticsUpdating(false)
+    }
+  }
+
   const delayStyle = (index: number): React.CSSProperties => ({
     ['--usage-delay' as string]: `${index * 40}ms`
   })
@@ -48,6 +72,29 @@ export function UsageSection({
       <div className="page-header">
         <h2 className="page-title">Usage Intelligence</h2>
         <div className="page-subtitle">Monitor activity, response trends, model mix, and web search effectiveness</div>
+      </div>
+
+      <div className="settings-section-card provider-hub-base-card mt-4">
+        <div className="settings-list-row">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Anonymous analytics</h3>
+            <div className="settings-list-row__description">
+              Share basic app usage and reliability events with ZuraAI. Prompt text, AI responses,
+              files, API keys, clipboard data, and conversation content are never sent.
+              {analyticsState && !analyticsState.hasProjectKey
+                ? ' Analytics is configured off in this build because no PostHog project key is present.'
+                : ''}
+            </div>
+          </div>
+          <div className="settings-list-row__control">
+            <Switch
+              checked={analyticsState?.analyticsEnabled ?? false}
+              onCheckedChange={(enabled) => void updateAnalyticsEnabled(enabled)}
+              disabled={!analyticsState || analyticsUpdating}
+              aria-label="Enable anonymous analytics"
+            />
+          </div>
+        </div>
       </div>
 
       <div className="usage-stats-grid" style={{ marginTop: 24 }}>

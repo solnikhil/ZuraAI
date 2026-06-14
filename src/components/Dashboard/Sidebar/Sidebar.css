@@ -771,7 +771,6 @@
   background: color-mix(in srgb, var(--theme-accent) 18%, var(--theme-surface-hover));
   border-color: transparent;
   box-shadow: none;
-  color: var(--sidebar-chat-text-color);
 }
 
 .sidebar-container.frosted .sidebar-nav-item.active {

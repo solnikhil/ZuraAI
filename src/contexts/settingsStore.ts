@@ -571,6 +571,7 @@ export function getInitialConfigSettings(settings: Settings): Partial<SettingsCo
     deepseekModels: settings.deepseekModels,
     deepseekReasoning: settings.deepseekReasoning,
     deepseekLastEffort: settings.deepseekLastEffort,
+    openRouterReasoningEffort: settings.openRouterReasoningEffort,
     temperature: settings.temperature,
     maxTokens: settings.maxTokens,
     systemPrompt: settings.systemPrompt,

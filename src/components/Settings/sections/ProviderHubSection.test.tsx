@@ -673,4 +673,66 @@ describe('ProviderHubSection', () => {
 
     expect(screen.queryByLabelText(/Toggle reasoning for/i)).not.toBeInTheDocument()
   })
+
+  it('shows OpenRouter reasoning detection status without manual controls', () => {
+    render(
+      <ProviderHubSection
+        {...baseProps}
+        configuredModels={[
+          {
+            code: 'moonshotai/kimi-k2-thinking',
+            displayName: 'Kimi K2 Thinking',
+            supportsDeepThinking: true,
+            openRouterReasoningDetected: true,
+          },
+        ]}
+      />
+    )
+
+    fireEvent.click(
+      screen.getByText('OpenRouter provides access to many frontier models through one API.')
+    )
+
+    expect(screen.getByText('Reasoning detected')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Toggle OpenRouter reasoning for Kimi K2 Thinking')).not.toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: /reasoning/i })).not.toBeInTheDocument()
+  })
+
+  it('detects OpenRouter reasoning support from the catalog for existing rows', async () => {
+    const onChange = vi.fn()
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        data: [
+          {
+            id: 'x-ai/grok-4.1-fast',
+            name: 'Grok 4.1 Fast',
+            supported_parameters: ['reasoning', 'tools'],
+          },
+        ],
+      }),
+    })
+
+    render(<ProviderHubSection {...baseProps} onChange={onChange} />)
+
+    fireEvent.click(
+      screen.getByText('OpenRouter provides access to many frontier models through one API.')
+    )
+    fireEvent.click(screen.getAllByRole('button', { name: /detect reasoning/i })[0])
+
+    await waitFor(() => {
+      expect(onChange).toHaveBeenCalledWith(
+        expect.objectContaining({
+          configuredModels: expect.arrayContaining([
+            expect.objectContaining({
+              code: 'x-ai/grok-4.1-fast',
+              supportsDeepThinking: true,
+              modelType: 'reasoning',
+              openRouterReasoningDetected: true,
+            }),
+          ]),
+        })
+      )
+    })
+  })
 })

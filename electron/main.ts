@@ -11,7 +11,6 @@ import {
   destroyTray,
   getMainWindow,
   initializeOverlay,
-  destroyPromptPopup,
   destroyChatDebugWindow,
 } from './windows'
 import { applyDevelopmentAppIcon } from './windowIcon'
@@ -52,6 +51,7 @@ import {
   unregisterDiscordRpcHandlers,
   disposeDiscordRpcClient,
 } from './discordRpc'
+import { trackAppCrash, trackStartupAnalytics } from './analytics'
 
 // Resolve packaged asset paths consistently in both development and production.
 const DIST_PATH = process.env.DIST || path.join(__dirname, '../dist')
@@ -68,6 +68,27 @@ const STARTUP_LOG_PREFIX = '[startup]'
 const IS_MACOS = process.platform === 'darwin'
 let isAwaitingMcpShutdown = false
 let hasCompletedMcpShutdown = false
+
+process.on('uncaughtException', (error) => {
+  trackAppCrash({
+    category: 'uncaught_exception',
+    code: error.name,
+    processType: 'main',
+    fatal: true,
+  })
+  console.error(`${STARTUP_LOG_PREFIX} uncaught exception`, error)
+})
+
+process.on('unhandledRejection', (reason) => {
+  const code = reason instanceof Error ? reason.name : typeof reason
+  trackAppCrash({
+    category: 'unhandled_rejection',
+    code,
+    processType: 'main',
+    fatal: false,
+  })
+  console.error(`${STARTUP_LOG_PREFIX} unhandled rejection`, reason)
+})
 
 function registerSessionSecurityHandlers(): void {
   const defaultSession = session.defaultSession
@@ -103,7 +124,6 @@ app.on('activate', () => {
 app.on('will-quit', () => {
   globalShortcut.unregisterAll()
   cleanupOverlay()
-  destroyPromptPopup()
   destroyChatDebugWindow()
   unregisterMcpHandlers()
   disposeCodeExecutionApprovalManager()
@@ -218,4 +238,5 @@ app.whenReady().then(async () => {
   createTray()
 
   createMainWindow()
+  void trackStartupAnalytics()
 })

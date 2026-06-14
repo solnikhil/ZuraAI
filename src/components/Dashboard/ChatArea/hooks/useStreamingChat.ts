@@ -54,6 +54,7 @@ import {
   type StreamingSettings,
   type ToolCallingHook,
 } from './streaming'
+import { trackAnalytics, trackRendererError } from '../../../../analytics/track'
 
 export interface UseStreamingChatOptions {
   onStreamStart?: () => void
@@ -558,8 +559,21 @@ const streamingSettings: StreamingSettings = useMemo(
         if (credentialError) {
           setIsLoading(false)
           showToast(credentialError, 'error')
+          trackRendererError('provider', 'credential_error')
           return
         }
+
+        trackAnalytics('chat_message_sent', {
+          provider,
+          model: settings.aiModel,
+          assistantMode: settings.assistantMode,
+          hasAttachments: fileAttachments.length > 0,
+        })
+        trackAnalytics('provider_used', { provider })
+        trackAnalytics('model_used', {
+          provider,
+          model: settings.aiModel,
+        })
 
         const initialAgentRun = isAgentWorkspaceMode(settings.assistantMode)
           ? createAgentRun(settings.assistantMode, content)
@@ -590,7 +604,7 @@ const streamingSettings: StreamingSettings = useMemo(
           inferOpenRouterSupportsDeepThinking(
             currentModel || { code: settings.aiModel, displayName: settings.aiModel }
           )
-            ? { enabled: true }
+            ? { enabled: true, effort: settings.openRouterReasoningEffort?.[settings.aiModel] }
             : undefined
 
         const alibabaModel = provider === 'alibaba'
@@ -774,6 +788,7 @@ const streamingSettings: StreamingSettings = useMemo(
           normalizeActiveProviderId(settings.modelProvider),
           settings
         )
+        trackRendererError('provider', formattedError.tone)
         const errorMsg = formattedError.message
         showToast(errorMsg, formattedError.tone)
 
@@ -964,7 +979,10 @@ const openRouterReasoning =
           inferOpenRouterSupportsDeepThinking(
             openRouterModel || { code: effectiveSettings.aiModel, displayName: effectiveSettings.aiModel }
           )
-            ? { enabled: true }
+            ? {
+                enabled: true,
+                effort: effectiveSettings.openRouterReasoningEffort?.[effectiveSettings.aiModel],
+              }
             : undefined
 
         const alibabaModelForRegen = effectiveSettings.modelProvider === 'alibaba'
@@ -1049,6 +1067,7 @@ const openRouterReasoning =
             effectiveProvider,
             effectiveSettings
           )
+          trackRendererError('provider', formattedError.tone)
           showToast(formattedError.message, formattedError.tone)
           setIsLoading(false)
         }
@@ -1059,6 +1078,7 @@ const openRouterReasoning =
           }
         const effectiveProvider = normalizeActiveProviderId(settings.modelProvider)
         const formattedError = formatProviderStreamError(error, effectiveProvider, settings)
+        trackRendererError('provider', formattedError.tone)
         showToast(formattedError.message, formattedError.tone)
         setIsLoading(false)
       }

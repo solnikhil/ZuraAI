@@ -1,8 +1,10 @@
+import os from 'os'
 import { app, BrowserWindow, globalShortcut, screen } from 'electron'
 import path from 'path'
 
 import { getMainWindow, resolveDistPath, showMainWindow } from './mainWindow'
 import { resolveAppIconPath } from '../windowIcon'
+import { trackAnalyticsEvent } from '../analytics'
 
 export type OverlayMode = 'hidden' | 'compact' | 'expanded'
 
@@ -42,32 +44,68 @@ const DEFAULT_SETTINGS: OverlaySettings = {
   promptAutoHideTimeout: 120,
 }
 
-const WINDOW_HEIGHTS = {
-  compact: 380,
-  expanded: 680,
-} as const
-
+// The redesigned overlay is a single-width Siri/Spotlight surface whose height is
+// content-driven: it opens as a short "pill" and grows into a taller "card" as the
+// renderer measures its content and reports the target height via IPC.
+const PILL_HEIGHT = 72
+const MAX_CONTENT_HEIGHT = 680
 const MIN_WIDTH = 320
 const MAX_WIDTH = 640
 const WINDOW_MARGIN = 20
 const OVERLAY_SUPPORTED =
   process.platform !== 'darwin' || process.env.ZURA_ENABLE_MACOS_FLOATING_WINDOWS === 'true'
 
+export type OverlayMaterialKind = 'vibrancy' | 'acrylic' | 'css'
+
+// Windows 11 22H2 is the first build where `backgroundMaterial: 'acrylic'` is supported.
+const WINDOWS_11_22H2_BUILD = 22621
+
 let overlayWindow: BrowserWindow | null = null
 let overlaySettings: OverlaySettings = { ...DEFAULT_SETTINGS }
-let overlayMode: Exclude<OverlayMode, 'hidden'> = 'expanded'
 let registeredShortcut: string | null = null
 let shortcutRegistered = false
 let initialized = false
 let destroyOnClose = false
 let isDragging = false
-let dragOffset = { x: 0, y: 0 }
+const dragOffset = { x: 0, y: 0 }
 
-interface OverlayAnchorBounds {
-  x: number
-  y: number
-  width: number
-  height: number
+/**
+ * Pure platform/material decision so it can be unit-tested without Electron.
+ * - macOS  → native `vibrancy` (true desktop blur + native animation)
+ * - Win11 22H2+ → native `acrylic` background material
+ * - everything else (Win10, Linux) → CSS-approximated dark glass fallback
+ */
+export function selectOverlayMaterial(
+  platform: NodeJS.Platform,
+  windowsBuild: number
+): OverlayMaterialKind {
+  if (platform === 'darwin') return 'vibrancy'
+  if (platform === 'win32' && windowsBuild >= WINDOWS_11_22H2_BUILD) return 'acrylic'
+  return 'css'
+}
+
+function getWindowsBuildNumber(): number {
+  // os.release() looks like '10.0.22631' on Windows; the third segment is the build.
+  const parts = os.release().split('.')
+  const build = Number(parts[2])
+  return Number.isFinite(build) ? build : 0
+}
+
+function resolveOverlayMaterial(): OverlayMaterialKind {
+  return selectOverlayMaterial(process.platform, getWindowsBuildNumber())
+}
+
+function applyOverlayMaterial(win: BrowserWindow, kind: OverlayMaterialKind): void {
+  try {
+    if (kind === 'vibrancy') {
+      win.setVibrancy('hud')
+    } else if (kind === 'acrylic') {
+      win.setBackgroundMaterial?.('acrylic')
+    }
+    // 'css' relies on the renderer's translucent glass fallback; nothing to do here.
+  } catch (error) {
+    console.warn('[OVERLAY] Failed to apply window material:', error)
+  }
 }
 
 function clampWidth(width: number, fallback: number): number {
@@ -114,11 +152,10 @@ function sanitizeSettings(input: Partial<OverlaySettings>): OverlaySettings {
   }
 }
 
-function getModeDimensions(mode: Exclude<OverlayMode, 'hidden'>) {
-  return {
-    width: mode === 'expanded' ? overlaySettings.expandedWidth : overlaySettings.compactWidth,
-    height: mode === 'expanded' ? WINDOW_HEIGHTS.expanded : WINDOW_HEIGHTS.compact,
-  }
+// The pill and the card share a single width (Siri-style); we use the configured
+// expanded width as the canonical overlay width.
+function getOverlayWidth(): number {
+  return clampWidth(overlaySettings.expandedWidth, DEFAULT_SETTINGS.expandedWidth)
 }
 
 function getActiveDisplayWorkArea() {
@@ -130,21 +167,36 @@ function getActiveDisplayWorkArea() {
   return screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea
 }
 
-function getOverlayBounds(mode: Exclude<OverlayMode, 'hidden'>) {
+function clampHeight(
+  height: number,
+  workArea: { y: number; height: number },
+  top: number
+): number {
+  const available = workArea.y + workArea.height - top - WINDOW_MARGIN
+  const max = Math.max(PILL_HEIGHT, Math.min(MAX_CONTENT_HEIGHT, available))
+  if (!Number.isFinite(height)) return PILL_HEIGHT
+  return Math.min(max, Math.max(PILL_HEIGHT, Math.round(height)))
+}
+
+// Top-right anchored bounds against the active display work area.
+function getOverlayBounds(height: number = PILL_HEIGHT) {
   const workArea = getActiveDisplayWorkArea()
-  const { width, height } = getModeDimensions(mode)
+  const width = getOverlayWidth()
+  const top = workArea.y + WINDOW_MARGIN
 
   return {
     x: workArea.x + workArea.width - width - WINDOW_MARGIN,
-    y: workArea.y + workArea.height - height - WINDOW_MARGIN,
+    y: top,
     width,
-    height,
+    height: clampHeight(height, workArea, top),
   }
 }
 
-function applyWindowBounds(mode: Exclude<OverlayMode, 'hidden'>) {
+// Re-pin the overlay to the top-right corner while preserving its current height.
+function repositionOverlay() {
   if (!overlayWindow || overlayWindow.isDestroyed()) return
-  overlayWindow.setBounds(getOverlayBounds(mode), false)
+  const bounds = overlayWindow.getBounds()
+  overlayWindow.setBounds(getOverlayBounds(bounds.height), false)
 }
 
 function createOverlayWindow(): BrowserWindow {
@@ -157,15 +209,19 @@ function createOverlayWindow(): BrowserWindow {
   }
 
   const distPath = resolveDistPath(__dirname)
-  const initialBounds = getOverlayBounds(overlayMode)
+  const initialBounds = getOverlayBounds(PILL_HEIGHT)
   const isMacOS = process.platform === 'darwin'
+  const materialKind = resolveOverlayMaterial()
+  // Acrylic fills the entire window and cannot combine with `transparent: true`;
+  // every other path keeps a transparent window and lets the renderer draw glass.
+  const useAcrylic = materialKind === 'acrylic'
 
   overlayWindow = new BrowserWindow({
     ...initialBounds,
     minWidth: MIN_WIDTH,
-    minHeight: WINDOW_HEIGHTS.compact,
+    minHeight: PILL_HEIGHT,
     maxWidth: MAX_WIDTH,
-    maxHeight: WINDOW_HEIGHTS.expanded,
+    maxHeight: MAX_CONTENT_HEIGHT,
     title: 'ZuraAI Overlay',
     icon: resolveAppIconPath(),
     frame: false,
@@ -176,11 +232,11 @@ function createOverlayWindow(): BrowserWindow {
     show: false,
     skipTaskbar: true,
     alwaysOnTop: true,
-    transparent: true,
-    backgroundColor: '#00000000',
+    transparent: !useAcrylic,
+    backgroundColor: useAcrylic ? '#1c1c1ecc' : '#00000000',
     hasShadow: isMacOS,
     autoHideMenuBar: true,
-    backgroundMaterial: 'none',
+    backgroundMaterial: useAcrylic ? 'acrylic' : 'none',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -197,6 +253,8 @@ function createOverlayWindow(): BrowserWindow {
   if (isMacOS) {
     overlayWindow.setVisibleOnAllWorkspaces?.(true, { visibleOnFullScreen: true })
   }
+
+  applyOverlayMaterial(overlayWindow, materialKind)
 
   const loadPromise = process.env.VITE_DEV_SERVER_URL
     ? overlayWindow.loadURL(`${process.env.VITE_DEV_SERVER_URL}#/overlay`)
@@ -238,8 +296,7 @@ function registerShortcut() {
   }
 
   const success = globalShortcut.register(overlaySettings.hotkey, () => {
-    const { x, y } = screen.getCursorScreenPoint()
-    void showOverlayAtPosition(x, y, undefined, 'expanded')
+    void showOverlay('shortcut')
   })
 
   if (!success) {
@@ -253,8 +310,7 @@ function registerShortcut() {
 }
 
 function handleDisplayMetricsChanged() {
-  if (!overlayWindow || overlayWindow.isDestroyed()) return
-  applyWindowBounds(overlayMode)
+  repositionOverlay()
 }
 
 export function initializeOverlay(): void {
@@ -286,7 +342,7 @@ export function getOverlayState(): OverlayState {
   const visible = Boolean(overlayWindow && !overlayWindow.isDestroyed() && overlayWindow.isVisible())
   return {
     visible,
-    mode: visible ? overlayMode : 'hidden',
+    mode: visible ? 'expanded' : 'hidden',
     enabled: OVERLAY_SUPPORTED && overlaySettings.enabled,
     shortcutRegistered,
     hotkey: overlaySettings.hotkey,
@@ -304,24 +360,25 @@ export function applyOverlaySettings(input: Partial<OverlaySettings>): OverlaySt
   registerShortcut()
 
   if (!overlaySettings.enabled) {
-    hideOverlay()
+    void hideOverlay()
   } else if (overlayWindow && !overlayWindow.isDestroyed() && !overlayWindow.isVisible()) {
-    applyWindowBounds(overlayMode)
+    repositionOverlay()
   }
 
   return getOverlayState()
 }
 
-export async function showOverlay(): Promise<OverlayState> {
+export async function showOverlay(source: string = 'unknown'): Promise<OverlayState> {
   if (!OVERLAY_SUPPORTED || !overlaySettings.enabled) {
     return getOverlayState()
   }
 
-  overlayMode = 'expanded'
   const win = createOverlayWindow()
-  applyWindowBounds(overlayMode)
+  repositionOverlay()
   win.show()
   win.focus()
+
+  void trackAnalyticsEvent('overlay_opened', { source })
 
   return getOverlayState()
 }
@@ -335,25 +392,11 @@ export async function hideOverlay(): Promise<OverlayState> {
 }
 
 export async function expandOverlay(): Promise<OverlayState> {
-  if (!OVERLAY_SUPPORTED || !overlaySettings.enabled) {
-    return getOverlayState()
-  }
-
-  overlayMode = 'expanded'
-  const win = createOverlayWindow()
-  applyWindowBounds(overlayMode)
-  win.show()
-  win.focus()
-
-  return getOverlayState()
+  return showOverlay('command_palette')
 }
 
 export async function collapseOverlay(): Promise<OverlayState> {
-  if (!OVERLAY_SUPPORTED || !overlaySettings.enabled) {
-    return getOverlayState()
-  }
-
-  return expandOverlay()
+  return showOverlay('command_palette')
 }
 
 export async function toggleOverlay(): Promise<OverlayState> {
@@ -365,13 +408,38 @@ export async function toggleOverlay(): Promise<OverlayState> {
     return hideOverlay()
   }
 
-  return expandOverlay()
+  return showOverlay('toggle')
 }
 
 export async function focusMainWindow(): Promise<void> {
   showMainWindow()
 }
 
+/**
+ * Content-driven sizing for the pill→card animation. The renderer measures its
+ * content and reports a target height; the window grows/shrinks downward while the
+ * top-right corner stays pinned. macOS gets a native animated resize; Windows snaps
+ * to the target in a single step to avoid the confirmed acrylic-resize flicker bug
+ * (electron/electron#46753).
+ */
+export function setOverlayContentHeight(height: number): OverlayState {
+  if (!overlayWindow || overlayWindow.isDestroyed()) return getOverlayState()
+  if (!Number.isFinite(height)) return getOverlayState()
+
+  const bounds = overlayWindow.getBounds()
+  const workArea = getActiveDisplayWorkArea()
+  const target = clampHeight(height, workArea, bounds.y)
+
+  if (target === bounds.height) return getOverlayState()
+
+  const animate = process.platform === 'darwin'
+  overlayWindow.setBounds(
+    { x: bounds.x, y: bounds.y, width: bounds.width, height: target },
+    animate
+  )
+
+  return getOverlayState()
+}
 
 export function startOverlayDrag(cursorX: number, cursorY: number): void {
   if (!overlayWindow || overlayWindow.isDestroyed()) return
@@ -394,36 +462,4 @@ export function moveOverlayDrag(cursorX: number, cursorY: number): void {
 
 export function endOverlayDrag(): void {
   isDragging = false
-}
-
-export async function showOverlayAtPosition(
-  cursorX: number,
-  cursorY: number,
-  anchorBounds?: OverlayAnchorBounds,
-  mode: Exclude<OverlayMode, 'hidden'> = 'expanded'
-): Promise<BrowserWindow | null> {
-  if (!OVERLAY_SUPPORTED || !overlaySettings.enabled) {
-    return null
-  }
-
-  overlayMode = mode
-
-  const win = createOverlayWindow()
-  const display = screen.getDisplayNearestPoint({ x: cursorX, y: cursorY })
-  const workArea = display.workArea
-  const { width: defaultWidth, height } = getModeDimensions(overlayMode)
-  const width = anchorBounds?.width ?? defaultWidth
-
-  const x = anchorBounds
-    ? Math.max(workArea.x, Math.min(anchorBounds.x, workArea.x + workArea.width - width))
-    : Math.max(workArea.x, Math.min(cursorX - width / 2, workArea.x + workArea.width - width - WINDOW_MARGIN))
-  const y = anchorBounds
-    ? Math.max(workArea.y, Math.min(anchorBounds.y, workArea.y + workArea.height - height))
-    : Math.max(workArea.y, Math.min(cursorY - height / 2, workArea.y + workArea.height - height - WINDOW_MARGIN))
-
-  win.setBounds({ x, y, width, height }, false)
-  win.show()
-  win.focus()
-
-  return win
 }

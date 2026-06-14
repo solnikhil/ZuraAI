@@ -2,6 +2,7 @@ import { app, BrowserWindow, shell } from 'electron'
 import path from 'path'
 import { deferredInitializer } from '../startup/deferredInit'
 import { resolveAppIconPath } from '../windowIcon'
+import { trackAppCrash, trackAppError } from '../analytics'
 
 export function resolveDistPath(dirname: string, envDist = process.env.DIST): string {
   return envDist || path.join(dirname, '../dist')
@@ -163,6 +164,12 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
 
   void loadPromise.catch((error) => {
     console.error('[MAIN] Failed to load main window:', error)
+    trackAppError({
+      category: 'window_load',
+      code: error instanceof Error ? error.name : 'load_failed',
+      processType: 'main',
+      fatal: false,
+    })
     showFallbackError(mainWindow!, String(error?.message || error))
   })
 
@@ -174,6 +181,12 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
       )
       // -3 is ERR_ABORTED which fires on normal navigation, ignore it
       if (errorCode === -3) return
+      trackAppError({
+        category: 'window_load',
+        code: String(errorCode),
+        processType: 'renderer',
+        fatal: false,
+      })
       showFallbackError(
         mainWindow!,
         `Failed to load: ${errorDescription} (code ${errorCode})\nURL: ${validatedURL}`
@@ -183,6 +196,12 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
 
   mainWindow.webContents.on('render-process-gone', (_event, details) => {
     console.error('[MAIN] Renderer process gone:', details.reason, details.exitCode)
+    trackAppCrash({
+      category: details.reason,
+      code: details.exitCode != null ? String(details.exitCode) : details.reason,
+      processType: 'renderer',
+      fatal: true,
+    })
     showFallbackError(
       mainWindow!,
       `Renderer process ${details.reason}${details.exitCode != null ? ` (exit code ${details.exitCode})` : ''}`

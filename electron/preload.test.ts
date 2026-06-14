@@ -191,6 +191,41 @@ describe('preload MCP bridge', () => {
     expect(typeof bridge.resolveApproval).toBe('function')
     expect(typeof bridge.onPendingApproval).toBe('function')
   })
+
+  it('exposes a dedicated analytics bridge and keeps it out of generic IPC', async () => {
+    const analytics = getExposedBridge<{
+      getState: () => Promise<unknown>
+      setEnabled: (enabled: boolean) => Promise<unknown>
+      track: (eventName: string, properties?: Record<string, unknown>) => Promise<boolean>
+    }>('analytics')
+    const ipcRenderer = getExposedBridge<{
+      invoke: (channel: string, ...args: unknown[]) => Promise<unknown>
+    }>('ipcRenderer')
+
+    preloadMocks.invoke
+      .mockResolvedValueOnce({ analyticsEnabled: false, consentState: 'undecided' })
+      .mockResolvedValueOnce({ analyticsEnabled: true, consentState: 'accepted' })
+      .mockResolvedValueOnce(true)
+
+    await expect(analytics.getState()).resolves.toEqual({
+      analyticsEnabled: false,
+      consentState: 'undecided',
+    })
+    await expect(analytics.setEnabled(true)).resolves.toEqual({
+      analyticsEnabled: true,
+      consentState: 'accepted',
+    })
+    await expect(analytics.track('chat_message_sent', { provider: 'openrouter' })).resolves.toBe(true)
+
+    expect(preloadMocks.invoke).toHaveBeenNthCalledWith(1, 'analytics:get-state')
+    expect(preloadMocks.invoke).toHaveBeenNthCalledWith(2, 'analytics:set-enabled', true)
+    expect(preloadMocks.invoke).toHaveBeenNthCalledWith(3, 'analytics:track', 'chat_message_sent', {
+      provider: 'openrouter',
+    })
+    expect(() => ipcRenderer.invoke('analytics:track' as never, 'app_start')).toThrow(
+      'Blocked IPC invoke channel: analytics:track'
+    )
+  })
 })
 
 describe('preload updater bridge', () => {

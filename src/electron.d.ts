@@ -1,6 +1,7 @@
 import type {
   AppInfoAPI,
   AppMenuAPI,
+  AnalyticsAPI,
   ChatDebugAPI,
   ChatDiagnosticsAPI,
   CodeExecutionAPI,
@@ -13,7 +14,6 @@ import type {
   MemoryAPI,
   NativeDialogAPI,
   OverlayAPI,
-  PromptPopupAPI,
   ResourceMonitorAPI,
   SecureStorageAPI,
   ShellAPI,
@@ -28,7 +28,6 @@ declare global {
     secureStorage: SecureStorageAPI
     updater: UpdaterAPI
     overlay: OverlayAPI
-    promptPopup: PromptPopupAPI
     appInfo: AppInfoAPI
     windowControls: WindowControlsAPI
     shell: ShellAPI
@@ -36,6 +35,7 @@ declare global {
     contextMenu: ContextMenuAPI
     nativeDialog: NativeDialogAPI
     appMenu: AppMenuAPI
+    analytics: AnalyticsAPI
     mcp: McpAPI
     memory: MemoryAPI
     codeExecution: CodeExecutionAPI

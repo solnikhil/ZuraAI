@@ -8,6 +8,7 @@ import {
   getOverlayState,
   hideOverlay,
   showOverlay,
+  setOverlayContentHeight,
   startOverlayDrag,
   moveOverlayDrag,
   endOverlayDrag,
@@ -43,7 +44,7 @@ function sanitizeOverlaySettings(input: unknown): Partial<OverlaySettings> {
 }
 
 export function registerOverlayHandlers(): void {
-  ipcMain.handle('overlay:show', () => showOverlay())
+  ipcMain.handle('overlay:show', () => showOverlay('titlebar'))
   ipcMain.handle('overlay:hide', () => hideOverlay())
   ipcMain.handle('overlay:toggle', () => toggleOverlay())
   ipcMain.handle('overlay:expand', () => expandOverlay())
@@ -53,6 +54,12 @@ export function registerOverlayHandlers(): void {
   ipcMain.handle('overlay:apply-settings', (_event, settings: unknown) =>
     applyOverlaySettings(sanitizeOverlaySettings(settings))
   )
+  ipcMain.handle('overlay:set-content-height', (_event, height: unknown) => {
+    if (typeof height !== 'number' || !Number.isFinite(height)) {
+      return getOverlayState()
+    }
+    return setOverlayContentHeight(height)
+  })
   ipcMain.on('overlay:drag-start', (_event, cursorX: number, cursorY: number) => {
     startOverlayDrag(cursorX, cursorY)
   })
@@ -77,6 +84,7 @@ export function unregisterOverlayHandlers(): void {
   ipcMain.removeHandler('overlay:get-state')
   ipcMain.removeHandler('overlay:focus-main-window')
   ipcMain.removeHandler('overlay:apply-settings')
+  ipcMain.removeHandler('overlay:set-content-height')
   ipcMain.removeAllListeners('overlay:drag-start')
   ipcMain.removeAllListeners('overlay:drag-move')
   ipcMain.removeAllListeners('overlay:drag-end')

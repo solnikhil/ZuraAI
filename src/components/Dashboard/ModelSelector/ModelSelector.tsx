@@ -9,9 +9,9 @@ import { getModelAttributes } from '../../../utils/modelUtils'
 import {
   DEEPSEEK_REASONING_EFFORTS,
   getDeepseekReasoning,
-  getReasoningEffortLabel,
   setDeepseekReasoningEffort,
 } from '../../../utils/deepseekReasoning'
+import type { DeepSeekReasoningEffort } from '../../../contexts/SettingsConfigContext'
 import { DropdownMenu, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
@@ -38,9 +38,19 @@ export default function ModelSelector({ minimal, popoverAlign = 'start' }: Model
   // Reasoning effort is shown for the active DeepSeek model. It stays visible
   // (greyed) when reasoning is disabled so the control is discoverable; the
   // enable/disable toggle itself lives in Provider Hub. Levels: low → xhigh.
-  const reasoning = getDeepseekReasoning(settings, settings.aiModel)
+  const deepseekReasoning = getDeepseekReasoning(settings, settings.aiModel)
   const isDeepseekModel = settings.modelProvider === 'deepseek'
-  const showEffort = isDeepseekModel && reasoning.enabled
+  const isOpenRouterReasoningModel =
+    settings.modelProvider === 'openrouter' &&
+    currentModel?.openRouterReasoningDetected === true &&
+    currentModel?.supportsDeepThinking === true
+  const showReasoning = (isDeepseekModel && deepseekReasoning.enabled) || isOpenRouterReasoningModel
+  const reasoningEffort =
+    isOpenRouterReasoningModel
+      ? settings.openRouterReasoningEffort?.[settings.aiModel] || 'high'
+      : deepseekReasoning.effort
+  const compactReasoningEffortLabel =
+    reasoningEffort === 'xhigh' ? 'XH' : reasoningEffort.charAt(0).toUpperCase()
   const showLeadingIcon = !minimal
 
   return (
@@ -76,9 +86,9 @@ export default function ModelSelector({ minimal, popoverAlign = 'start' }: Model
                 >
                   {currentName}
                 </span>
-                {showEffort && (
-                  <span className="shrink-0 text-[0.7rem] font-medium text-[var(--theme-text-tertiary)]">
-                    · {getReasoningEffortLabel(reasoning.effort)}
+                {showReasoning && (
+                  <span className="inline-flex shrink-0 items-center border-l border-[var(--theme-border-subtle)] pl-1.5 text-[0.68rem] font-semibold leading-none text-[var(--theme-text-tertiary)]">
+                    {compactReasoningEffortLabel}
                   </span>
                 )}
                 <ChevronDown
@@ -105,13 +115,23 @@ export default function ModelSelector({ minimal, popoverAlign = 'start' }: Model
         selectedModelCode={settings.aiModel}
         selectedModelProvider={settings.modelProvider}
         onModelSelect={handleSelect}
-        showReasoning={true}
-        reasoningEnabled={reasoning.enabled}
-        reasoningEffort={reasoning.effort}
+        showReasoning={showReasoning}
+        reasoningEnabled={showReasoning}
+        reasoningEffort={reasoningEffort}
         reasoningEfforts={DEEPSEEK_REASONING_EFFORTS}
-        onReasoningEffortChange={(effort) =>
+        onReasoningEffortChange={(effort: DeepSeekReasoningEffort) => {
+          if (isOpenRouterReasoningModel) {
+            updateSettings({
+              openRouterReasoningEffort: {
+                ...(settings.openRouterReasoningEffort ?? {}),
+                [settings.aiModel]: effort,
+              },
+            })
+            return
+          }
+
           updateSettings(setDeepseekReasoningEffort(settings, settings.aiModel, effort))
-        }
+        }}
       />
     </DropdownMenu>
   )

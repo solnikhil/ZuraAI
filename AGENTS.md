@@ -38,7 +38,9 @@ Core capabilities:
   - **Sanitized non-secret settings + UI state** live in renderer `localStorage`.
   - **API keys and MCP secrets** live in main-process secure storage and are hydrated/resolved at runtime.
   - **Chat history, conversation summaries, MCP server metadata, and secure storage** live in the main process under `app.getPath('userData')`.
+  - **Analytics consent and anonymous install metadata** live in the main process under `app.getPath('userData')` in `analytics-state.json`; analytics is opt-in only and disabled when no PostHog project key is configured.
   - **Agent run metadata** lives on assistant messages inside the existing per-session chat JSON files, not in a separate store.
+  - **OpenRouter per-model reasoning detection** (`supportsDeepThinking` plus `openRouterReasoningDetected`) lives on configured model entries inside the existing sanitized renderer settings blob. Catalog import/detection marks reasoning-capable models from OpenRouter `supported_parameters`; reasoning effort selection is controlled from the dashboard model picker via `openRouterReasoningEffort`, not from the Provider Hub model list.
   - Built-in prompt templates (`systemPrompt`, `webSearchPrompt`, tool prompts, memory prompt, and title-generation prompt) are code-owned runtime defaults. `normalizeStoredSettings(...)` replaces stale persisted prompt overrides with the current defaults, and Settings renders them as read-only viewers instead of editable fields.
 - UI styling guardrail: keep settings cards, chat composer containers, and dropdown/menu surfaces flat. Do **not** reintroduce outer drop shadows on those surfaces unless the user explicitly asks for them.
 - Fallback behavior guardrail: do **not** add new fallback paths, silent substitutions, local heuristics, provider fallbacks, or “safe default” behavior unless it is explicitly required by the user or you ask and get confirmation first. Prefer surfacing the real failure and fixing the root cause; unnecessary fallbacks can hide bugs and change product behavior.
@@ -46,14 +48,14 @@ Core capabilities:
 ---
 
 ## Repo Map
+- `electron/analytics/` - opt-in anonymous analytics service, event allowlist/sanitization, PostHog capture transport, consent-state persistence under `app.getPath('userData')`, and IPC registration
 - `electron/` — Electron **main process** + preload + IPC handlers
   - `electron/main.ts` — app lifecycle, IPC registration, tray, windows, updater, tool handlers
   - `electron/preload.ts` — **contextBridge** API + IPC allowlists (security boundary)
   - `electron/ipc/` — `ipcMain` handlers (chat store, secure storage, system actions)
 - `electron/startup/` — deferred startup orchestration and startup metrics
 - `electron/windows/` — main window, tray
-- `electron/windows/overlayWindow.ts` — Overlay window creation/reuse, compact/expanded state, display-aware positioning, and shortcut-backed lifecycle
-- `electron/windows/promptPopup.ts` — optional lightweight cursor-position prompt popup route/bridge that can submit to the overlay and dismisses on blur/Escape
+- `electron/windows/overlayWindow.ts` — Overlay window creation/reuse, top-right anchoring, platform-adaptive material (vibrancy/acrylic/CSS fallback), content-driven height sizing, and shortcut-backed lifecycle
 - `electron/chatStore.ts` — chat history persistence (JSON under `app.getPath('userData')`)
 - `electron/memoryStore.ts` — ChatGPT-style saved-memories persistence (JSON under `app.getPath('userData')`); single `memory-index.json`; atomic whole-file writes; in-memory TTL cache; serialized read-modify-write so concurrent model + user mutations cannot clobber each other; automatic cleanup coalesces exact duplicates, prunes old superseded entries after `SUPERSEDED_MEMORY_RETENTION_MS`, repairs dangling lifecycle links, and then applies the `MEMORY_CAP=200` FIFO cap; per-entry `MAX_MEMORY_CONTENT_LENGTH=1000`
 - `electron/mcp/mcpConnection.ts` — MCP initialize/tool-discovery connection orchestration
@@ -81,11 +83,11 @@ Core capabilities:
 - `src/` — React/Vite **renderer**
   - `src/main.tsx` — renderer entrypoint; initializes performance tracking, lazy-image styles, applies saved theme, mounts `App`, and schedules non-critical preloads after first paint
 - `src/App.tsx` — routes (`#/dashboard`, `#/settings`, `#/chat`) under `AppShellLayout`, plus wildcard `*` fallback to a dedicated 404 renderer view
-- `src/components/OverlayView.tsx` — compact overlay chat surface for the dedicated `#/overlay` route
+- `src/components/OverlayView.tsx` — composes the Siri/Spotlight overlay (`OverlayShell` + `OverlayPill` + `OverlayCard`) for the dedicated `#/overlay` route, reusing the standard chat pipeline
 - `src/components/OverlaySync.tsx` — renderer-side bridge that syncs persisted overlay settings into the trusted main-process Overlay runtime
 - `src/components/DiscordRpcSync.tsx` — (removed) Discord RPC is now always-on in main process; no renderer sync needed
 - `src/components/Settings/sections/ComputerUseSection.tsx` — Windows-only Computer Use settings UI with a single current-desktop enable toggle; hidden on macOS
-- `src/components/PromptPopupView.tsx` — lightweight prompt input surface for the dedicated `#/prompt-popup` route; auto-focuses, submits via prompt-popup IPC, dismisses on Escape
+- `src/components/overlay/` — redesigned Siri/Spotlight overlay UI: `OverlayShell` (vibrant-glass container), `OverlayPill` (idle search bar with mic→spinner swap), `OverlayCard` (conversation card reusing the standard chat renderers), `useOverlayAutoHeight` (measures content and drives `overlay:set-content-height`), and `overlay.css`
 - `src/contexts/` — app state (split settings contexts, chat history, app shell, quick-send)
 - `src/components/AppShellLayout.tsx` — shared renderer shell (title bar, command palette, resize handles, solid shell surfaces, global context menu via AppContextMenu)
 - `src/contexts/appShellNavigation.ts` — pure renderer-side app-shell history model for titlebar back/forward navigation, mouse-button navigation, and shell-state snapshot deduping
@@ -168,21 +170,13 @@ Core capabilities:
 
 - **Overlay Window** (`electron/windows/overlayWindow.ts`)
   - Loads `#/overlay` in its own dedicated `BrowserWindow`
-  - Disabled on macOS for now; main-process overlay APIs report disabled state and do not create floating windows or register shortcuts
-  - Platform-polished overlay surface on supported platforms: frameless, `alwaysOnTop`, `skipTaskbar`, non-click-through, and positioned against the active display `workArea`
+  - Disabled on macOS for now (gated behind `ZURA_ENABLE_MACOS_FLOATING_WINDOWS`); main-process overlay APIs report disabled state and do not create floating windows or register shortcuts
+  - Siri/Spotlight-style surface: frameless, `alwaysOnTop`, `skipTaskbar`, non-click-through, **anchored to the top-right** of the active display `workArea`
+  - Platform-adaptive material: native `vibrancy` on macOS, native `backgroundMaterial: 'acrylic'` on Windows 11 22H2+, and a transparent window + CSS dark-glass fallback elsewhere (Windows 10, Linux). Material selection is a pure, unit-tested helper (`selectOverlayMaterial`)
+  - Content-driven height: the window opens as a compact "pill" and grows into a conversation "card". The renderer measures its content and reports a target height via `overlay:set-content-height`; main animates the resize natively on macOS (`setBounds(..., true)`) and snaps in a single step on Windows to avoid the confirmed acrylic-resize flicker bug (electron/electron#46753). Width is a single value (the configured expanded width); the pill→card growth animation itself is driven by CSS
   - Reuses the shared preload bundle plus a dedicated `window.overlay` bridge for lifecycle actions
-  - Supports compact and expanded bounds, hide/show/toggle behavior, and display-metrics repositioning
-  - Opens from explicit UI entry points plus the global Overlay shortcut; the shortcut now opens the Overlay directly at the cursor position in expanded mode (single-step flow)
+  - Opens from explicit UI entry points plus the global Overlay shortcut; the shortcut opens the Overlay directly at the top-right anchor (single-step flow)
   - Close/hide behavior is controlled in main rather than the untrusted renderer
-
-- **Prompt Popup** (`electron/windows/promptPopup.ts`)
-  - Loads `#/prompt-popup` in its own dedicated frameless `BrowserWindow`
-  - Disabled on macOS while the Overlay floating-window surface is disabled
-  - Lightweight cursor-position prompt input surface for optional prompt-only entry flows
-  - Appears at cursor position, auto-focuses the text input, and submits the prompt to the overlay via main-process relay
-  - On submit, hides the popup, opens/creates the overlay window at the cursor position, and sends the prompt text to the overlay renderer via `overlay:pending-prompt`
-  - Dismisses on Escape key or window blur (click outside); the popup is never truly closed by the user — only hidden or destroyed on app quit
-  - Reuses the shared preload bundle plus a dedicated `window.promptPopup` bridge
 
 - **Dev vs prod loading**
 - In dev, windows load `${process.env.VITE_DEV_SERVER_URL}#/...`
@@ -190,7 +184,7 @@ Core capabilities:
 
 - **Renderer route fallback**
 - `src/App.tsx` defines `Route path="*"` to render the `NotFound404` component (`src/components/ui/demo.tsx`) for unknown hash routes.
- - Standalone utility routes outside `AppShellLayout` currently include `#/about` and the dev-only `#/chat-debug` window, plus `#/overlay` and `#/prompt-popup` on non-macOS platforms.
+ - Standalone utility routes outside `AppShellLayout` currently include `#/about` and the dev-only `#/chat-debug` window, plus `#/overlay` on non-macOS platforms.
 
 - **Shared shell layout**
   - `src/App.tsx` wraps `/`, `/dashboard`, `/settings`, and `/chat` in `AppShellLayout`
@@ -244,12 +238,12 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - invokes: `app-info:get`, `app-info:get-memory-report` (development-only), `app-info:open-about-window`
 - `window.appMenu`
   - invokes: `app-menu:command` for fixed custom-titlebar menu commands only (`new-chat`, settings/about/help, zoom/fullscreen, reload/devtools, and window controls)
+- `window.analytics`
+  - invokes: `analytics:get-state`, `analytics:set-enabled`, `analytics:track`
+  - only accepts the fixed analytics event allowlist; main sanitizes event properties and never accepts prompts, responses, file paths, clipboard data, API keys, MCP payloads, or conversation content
 - `window.overlay`
-  - invokes: `overlay:show`, `overlay:hide`, `overlay:toggle`, `overlay:expand`, `overlay:collapse`, `overlay:get-state`, `overlay:focus-main-window`, `overlay:apply-settings`
+  - invokes: `overlay:show`, `overlay:hide`, `overlay:toggle`, `overlay:expand`, `overlay:collapse`, `overlay:get-state`, `overlay:focus-main-window`, `overlay:apply-settings`, `overlay:set-content-height`
   - listens for: `overlay:pending-prompt`
-- `window.promptPopup`
-  - invokes: `prompt-popup:show`, `prompt-popup:hide`, `prompt-popup:submit`
-  - listens for: `prompt-popup:focus`
 - `window.shell`
   - invokes: `shell:open-external` (opens URLs in default browser; only http/https allowed), `clipboard:read-text` (reads plain text clipboard content from trusted main process)
 - `window.devTools`
@@ -304,13 +298,13 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - MCP startup integration now registers `electron/mcp/index.ts` handlers during `app.whenReady()`, initializes the singleton MCP manager with renderer-facing client info, and auto-connects only servers where both `enabled` and `autoConnect` are true.
 - App shutdown now performs an MCP disconnect pass before quit completes so managed transports can exit cleanly.
 - Overlay startup initializes the dedicated overlay runtime only on non-macOS platforms, keeps shortcut registration and display listeners on the trusted side, and relies on renderer-synced `settings.overlay` values instead of a new storage file.
-- The global Overlay hotkey opens the Overlay window directly at the cursor position in expanded mode on supported platforms (single-step flow).
-- Prompt Popup remains available as an optional path on non-macOS platforms; submitting from it opens the Overlay at the cursor position and sends the prompt text via `overlay:pending-prompt`.
+- The global Overlay hotkey opens the Overlay window directly at the top-right anchor of the active display on supported platforms (single-step flow); the renderer then reports its measured content height so the window fits the pill/card.
 - `OverlaySync` runs inside the shared provider tree on non-macOS platforms and mirrors persisted `settings.overlay` values into the trusted overlay runtime through the dedicated preload bridge. If startup auto-open is enabled, the main window renderer triggers the initial overlay show after settings hydrate.
 - Overlay preferences are persisted in the existing sanitized renderer settings blob under `settings.overlay` with `enabled`, `launchOnStartup`, `hotkey`, `anchor`, `compactWidth`, `expandedWidth`, `promptAutoHideEnabled`, and `promptAutoHideTimeout`. No new secure-storage or Overlay-only settings file is introduced for Phase 1.
 - Discord RPC is **always-on** in the main process. The client connects automatically at app startup (constructor-driven, no renderer toggle). It lazily loads the `discord-rpc` module inside try/catch so a missing native dependency never crashes the app; it reconnects with backoff when Discord is not running and surfaces connection errors in `DiscordRpcState.lastError`.
 - Main-shell navigation history is now tracked entirely in the renderer through `AppShellProvider` + `src/contexts/appShellNavigation.ts`; both the titlebar arrows and side-mouse buttons call the same history controller instead of using raw `react-router` delta navigation.
 - Native macOS app-menu `New Chat` requests are routed back into the shared renderer shell through `app:new-chat`, so session creation still uses the existing `ChatHistoryContext` flow and unsaved-settings guard instead of a main-process shortcut.
+- Opt-in analytics initializes in the main process after the primary window is created. `electron/analytics/service.ts` records first launch/start/update-installed/crash/error events only when consent is accepted and a PostHog key is configured; renderer usage events flow through the dedicated `window.analytics` bridge and are sanitized in main before transport.
 
 #### MCP Runtime Foundation
 - Shared MCP contracts and naming helpers live in `src/mcp/types.ts`.
@@ -376,7 +370,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Main tool registry: `electron/tools/index.ts` (restricted)
   - OpenRouter-compatible tool-call parsing/recovery now lives in `src/tools/adapters/openrouterToolCalls.ts`, keeping `src/tools/adapters/openrouter.ts` focused on request/response formatting.
 - The Overlay reuses this same renderer chat pipeline through `useStreamingChat`; it does not create a parallel provider/tool execution path or a separate conversation store.
-- The Overlay also listens for `overlay:pending-prompt` events from the main process (triggered when a prompt popup submission opens the overlay) and auto-sends the received prompt text.
+- The Overlay also listens for `overlay:pending-prompt` events from the main process and auto-sends the received prompt text (used when another surface relays a prompt into the overlay).
 - Active-response renderer state is split between persisted chat history and ephemeral `StreamingContext` data in `src/contexts/StreamingContext.tsx`.
   - `StreamingContext` can carry active assistant `agentRun` metadata for approval/execution bookkeeping and commits it back to chat history with the final assistant message; the dashboard no longer renders a dedicated agent timeline panel.
   - `StreamingContext` now tracks an explicit per-response `phase` (`reasoning`, `searching`, `tool`, `answering`) so the thinking/search UI stays stable across multi-search loops without persisting transient renderer-only state.

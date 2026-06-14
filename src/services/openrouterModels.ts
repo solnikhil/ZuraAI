@@ -127,6 +127,7 @@ export function mapOpenRouterModelToConfiguredModel(apiModel: OpenRouterModel): 
     supportsWebSearch,
     supportsImageGeneration,
     supportsVideoRecognition,
+    openRouterReasoningDetected: true,
     extendedParameters: supportedParams.filter(
       (param) =>
         param !== 'tools' &&
