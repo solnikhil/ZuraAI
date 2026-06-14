@@ -9,6 +9,7 @@ import { defaultSystemPrompt } from '../../../prompts/defaultSystemPrompt'
 import { defaultWebSearchPrompt } from '../../../prompts/defaultWebSearchPrompt'
 import { defaultTitleGenerationPrompt } from '../../../prompts/defaultTitleGenerationPrompt'
 import { defaultCodeExecutionPrompt } from '../../../prompts/defaultCodeExecutionPrompt'
+import { defaultTerminalPrompt } from '../../../prompts/defaultTerminalPrompt'
 import { defaultComputerUsePrompt } from '../../../prompts/defaultComputerUsePrompt'
 import { defaultChartGenerationPrompt } from '../../../prompts/defaultChartGenerationPrompt'
 import { defaultMemoryPrompt } from '../../../prompts/defaultMemoryPrompt'
@@ -24,6 +25,7 @@ export interface SystemPromptSectionProps {
   webSearchPrompt: string
   titleGenerationPrompt: string
   codeExecutionPrompt: string
+  terminalPrompt?: string
   computerUsePrompt?: string
   chartGenerationPrompt?: string
   memoryPrompt?: string
@@ -32,6 +34,7 @@ export interface SystemPromptSectionProps {
     webSearchPrompt?: string
     titleGenerationPrompt?: string
     codeExecutionPrompt?: string
+    terminalPrompt?: string
     computerUsePrompt?: string
     chartGenerationPrompt?: string
     memoryPrompt?: string
@@ -145,6 +148,15 @@ export function SystemPromptSection(props: SystemPromptSectionProps): React.Reac
         value={defaultCodeExecutionPrompt}
         showLabel="Show Code Execution Prompt"
         hideLabel="Hide Code Execution Prompt"
+      />
+
+      <PromptViewerCard
+        title="Terminal Prompt"
+        description="Instructions appended when the Terminal skill is enabled. Guides how the assistant runs bounded, non-interactive PowerShell commands."
+        note="Windows-only. This only applies when the Terminal skill is active."
+        value={defaultTerminalPrompt}
+        showLabel="Show Terminal Prompt"
+        hideLabel="Hide Terminal Prompt"
       />
 
       <PromptViewerCard

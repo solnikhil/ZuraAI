@@ -18,6 +18,7 @@
     <a href="https://github.com/solnikhil/ZuraAI/releases">Releases</a> |
     <a href="https://github.com/solnikhil/ZuraAI/issues">Issues</a> |
     <a href="CONTRIBUTING.md">Contributing</a> |
+    <a href="TELEMETRY.md">Telemetry</a> |
     <a href="AGENTS.md">Architecture</a> |
     <a href="https://github.com/solnikhil/ZuraAI/security/advisories/new">Report Security Issue</a>
   </p>
@@ -60,7 +61,7 @@ Most desktop AI apps make you pick one provider, one workflow, or one trust mode
 - Local-first storage: chat history lives in the Electron main process and API keys are stored with Electron secure storage.
 - Better chat organization: pin sessions, sort them into folders, tag them, and generate titles automatically.
 - Desktop workflow polish: use the command palette, quick-send actions, image attachments, and per-model enable or disable controls.
-- Useful insight without telemetry: review local usage analytics, latency, provider mix, and tool activity from inside the app.
+- Useful insight with privacy controls: review local usage analytics, latency, provider mix, and tool activity from inside the app. Anonymous product analytics is opt-in only.
 
 ## At a glance
 
@@ -73,7 +74,7 @@ Most desktop AI apps make you pick one provider, one workflow, or one trust mode
 | Media | Image attachments for vision-capable models |
 | Organization | Pinned chats, folders, tags, recency grouping, and title generation |
 | Platform | Desktop app support for macOS and Windows |
-| Privacy | Local chat history, secure API key storage, and no telemetry |
+| Privacy | Local chat history, secure API key storage, and opt-in anonymous analytics |
 | Workflow | Command palette quick-send, provider hub controls, and local usage analytics |
 
 ## Agentic capabilities
@@ -154,6 +155,7 @@ ZuraAI is built around a narrow desktop security boundary.
 - Preload exposes a small, allowlisted IPC surface.
 - Chat history is stored locally under Electron `userData`.
 - API keys are stored locally with Electron `safeStorage` when available.
+- Anonymous analytics is opt-in only and documented in [`TELEMETRY.md`](TELEMETRY.md).
 
 For the full architecture and security notes, see `AGENTS.md`.
 

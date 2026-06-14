@@ -183,7 +183,7 @@ describe('Feature: floating-command-palette, Property 2: Open state invariant', 
         expect(searchInput.value).toBe('')
 
         // Placeholder should be present
-        expect(searchInput.placeholder).toBe('Search commands\u2026')
+        expect(searchInput.placeholder).toBe('Type a command or search...')
 
         // Search field should have focus
         expect(document.activeElement).toBe(searchInput)

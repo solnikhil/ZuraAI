@@ -21,15 +21,7 @@ export {
     toggleOverlay,
     getOverlayState,
     applyOverlaySettings,
-    showOverlayAtPosition,
 } from './overlayWindow'
-
-export {
-    showPromptPopup,
-    hidePromptPopup,
-    destroyPromptPopup,
-    submitPrompt,
-} from './promptPopup'
 
 export {
     createTray,

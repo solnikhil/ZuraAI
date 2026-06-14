@@ -64,8 +64,11 @@ const searchWrapStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: 10,
+  margin: '12px 16px',
   padding: '10px 14px',
-  borderBottom: '1px solid var(--theme-border)',
+  borderRadius: 999,
+  background: 'rgba(255, 255, 255, 0.06)',
+  border: '1px solid rgba(255, 255, 255, 0.08)',
   flexShrink: 0,
 }
 
@@ -592,8 +595,8 @@ export default function CommandPalette() {
               aria-controls="command-palette-listbox"
               aria-activedescendant={activeDescendantId}
               aria-autocomplete="list"
-              aria-label="Search commands"
-              placeholder="Search commands…"
+              aria-label="Type a command or search"
+              placeholder="Type a command or search..."
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={handleInputKeyDown}

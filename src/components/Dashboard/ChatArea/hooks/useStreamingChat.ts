@@ -24,6 +24,7 @@ import { generateChatTitle } from '../../../../services/titleGenerator'
 import { runMemoryExtraction, type ExtractionMessage } from '../../../../services/memoryExtraction'
 import { inferOpenRouterSupportsDeepThinking } from '../../../../services/openrouterModels'
 import { inferAlibabaSupportsDeepThinking } from '../../../../services/alibabaModels'
+import { getDeepseekReasoning } from '../../../../utils/deepseekReasoning'
 import { buildOptimizedContextWithTrace } from '../../../../utils/tokenUtils'
 import { getEffectiveSystemPrompt } from '../../../../utils/promptSelection'
 import { loadMemoryBlock } from '../../../../prompts/buildMemoryBlock'
@@ -53,6 +54,7 @@ import {
   type StreamingSettings,
   type ToolCallingHook,
 } from './streaming'
+import { trackAnalytics, trackRendererError } from '../../../../analytics/track'
 
 export interface UseStreamingChatOptions {
   onStreamStart?: () => void
@@ -557,8 +559,21 @@ const streamingSettings: StreamingSettings = useMemo(
         if (credentialError) {
           setIsLoading(false)
           showToast(credentialError, 'error')
+          trackRendererError('provider', 'credential_error')
           return
         }
+
+        trackAnalytics('chat_message_sent', {
+          provider,
+          model: settings.aiModel,
+          assistantMode: settings.assistantMode,
+          hasAttachments: fileAttachments.length > 0,
+        })
+        trackAnalytics('provider_used', { provider })
+        trackAnalytics('model_used', {
+          provider,
+          model: settings.aiModel,
+        })
 
         const initialAgentRun = isAgentWorkspaceMode(settings.assistantMode)
           ? createAgentRun(settings.assistantMode, content)
@@ -589,7 +604,7 @@ const streamingSettings: StreamingSettings = useMemo(
           inferOpenRouterSupportsDeepThinking(
             currentModel || { code: settings.aiModel, displayName: settings.aiModel }
           )
-            ? { enabled: true }
+            ? { enabled: true, effort: settings.openRouterReasoningEffort?.[settings.aiModel] }
             : undefined
 
         const alibabaModel = provider === 'alibaba'
@@ -600,6 +615,11 @@ const streamingSettings: StreamingSettings = useMemo(
             alibabaModel || { code: settings.aiModel, displayName: settings.aiModel }
           )
             ? true
+            : undefined
+
+        const deepseekReasoning =
+          provider === 'deepseek'
+            ? getDeepseekReasoning(settings, settings.aiModel)
             : undefined
 
         const streamResult = await runProviderStream({
@@ -690,7 +710,8 @@ const streamingSettings: StreamingSettings = useMemo(
               }
             : undefined,
           reasoning: openRouterReasoning,
-          enableThinking: alibabaEnableThinking,
+          enableThinking: deepseekReasoning ? deepseekReasoning.enabled : alibabaEnableThinking,
+          reasoningEffort: deepseekReasoning?.enabled ? deepseekReasoning.effort : undefined,
         })
 
         // Commit streaming content to the session
@@ -767,6 +788,7 @@ const streamingSettings: StreamingSettings = useMemo(
           normalizeActiveProviderId(settings.modelProvider),
           settings
         )
+        trackRendererError('provider', formattedError.tone)
         const errorMsg = formattedError.message
         showToast(errorMsg, formattedError.tone)
 
@@ -957,7 +979,10 @@ const openRouterReasoning =
           inferOpenRouterSupportsDeepThinking(
             openRouterModel || { code: effectiveSettings.aiModel, displayName: effectiveSettings.aiModel }
           )
-            ? { enabled: true }
+            ? {
+                enabled: true,
+                effort: effectiveSettings.openRouterReasoningEffort?.[effectiveSettings.aiModel],
+              }
             : undefined
 
         const alibabaModelForRegen = effectiveSettings.modelProvider === 'alibaba'
@@ -968,6 +993,11 @@ const openRouterReasoning =
             alibabaModelForRegen || { code: effectiveSettings.aiModel, displayName: effectiveSettings.aiModel }
           )
             ? true
+            : undefined
+
+        const deepseekReasoningForRegen =
+          effectiveSettings.modelProvider === 'deepseek'
+            ? getDeepseekReasoning(effectiveSettings, effectiveSettings.aiModel)
             : undefined
 
         const optimizedContext = buildOptimizedContextWithTrace(
@@ -998,7 +1028,12 @@ const openRouterReasoning =
             syncToStreamingContext: false,
             modalities: openRouterModalities,
             reasoning: openRouterReasoning,
-            enableThinking: alibabaEnableThinkingForRegen,
+            enableThinking: deepseekReasoningForRegen
+              ? deepseekReasoningForRegen.enabled
+              : alibabaEnableThinkingForRegen,
+            reasoningEffort: deepseekReasoningForRegen?.enabled
+              ? deepseekReasoningForRegen.effort
+              : undefined,
           })
 
           updateStreamingMessage(currentSessionId, streamingMessageId, {
@@ -1032,6 +1067,7 @@ const openRouterReasoning =
             effectiveProvider,
             effectiveSettings
           )
+          trackRendererError('provider', formattedError.tone)
           showToast(formattedError.message, formattedError.tone)
           setIsLoading(false)
         }
@@ -1042,6 +1078,7 @@ const openRouterReasoning =
           }
         const effectiveProvider = normalizeActiveProviderId(settings.modelProvider)
         const formattedError = formatProviderStreamError(error, effectiveProvider, settings)
+        trackRendererError('provider', formattedError.tone)
         showToast(formattedError.message, formattedError.tone)
         setIsLoading(false)
       }

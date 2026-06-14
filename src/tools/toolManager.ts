@@ -34,6 +34,7 @@ import {
   type ToolExecutionSummary,
 } from './types'
 import { normalizeWebSearchQueryYear } from './webSearchPreferences'
+import { trackAnalytics } from '../analytics/track'
 
 type ProviderResponse = OpenRouterResponse
 
@@ -192,6 +193,38 @@ function createSyntheticToolResult(
   }
 }
 
+function trackToolResult(result: ToolCallResult): void {
+  const metadata = result.result?.metadata as Record<string, unknown> | undefined
+  const durationMs =
+    typeof metadata?.durationMs === 'number' && Number.isFinite(metadata.durationMs)
+      ? metadata.durationMs
+      : undefined
+  const success = result.result?.success === true
+  const errorText = success
+    ? undefined
+    : typeof result.result?.error === 'string'
+      ? result.result.error
+      : typeof metadata?.outcome === 'string'
+        ? metadata.outcome
+        : 'tool_error'
+
+  trackAnalytics('tool_used', {
+    toolName: result.toolCall.name,
+    success,
+    durationMs,
+    errorCategory: errorText,
+  })
+
+  if (result.toolCall.name === 'web_search') {
+    trackAnalytics('web_search_used', {
+      toolName: 'web_search',
+      success,
+      durationMs,
+      errorCategory: errorText,
+    })
+  }
+}
+
 /**
  * Get tools formatted for the current provider
  */
@@ -308,6 +341,7 @@ export async function processToolCalls(
       }
       resultsByIndex[index] = errorResult
       config.onToolComplete?.(errorResult)
+      trackToolResult(errorResult)
       continue
     }
 
@@ -324,6 +358,7 @@ export async function processToolCalls(
         config.onToolStart?.(coercedToolCall)
         resultsByIndex[index] = budgetResult
         config.onToolComplete?.(budgetResult)
+        trackToolResult(budgetResult)
         continue
       }
 
@@ -372,6 +407,7 @@ export async function processToolCalls(
         }
         resultsByIndex[index] = rejectedResult
         config.onToolComplete?.(rejectedResult)
+        trackToolResult(rejectedResult)
         continue
       }
     }
@@ -389,6 +425,7 @@ export async function processToolCalls(
       const result = await executeToolCalls([executableToolCall], executeOptions)
       resultsByIndex[index] = result[0]
       config.onToolComplete?.(result[0])
+      trackToolResult(result[0])
     } catch (execError: unknown) {
       const errorMessage =
         execError instanceof Error ? execError.message : `Failed to execute ${executableToolCall.name}`
@@ -399,6 +436,7 @@ export async function processToolCalls(
       }
       resultsByIndex[index] = errorResult
       config.onToolComplete?.(errorResult)
+      trackToolResult(errorResult)
     }
   })
 

@@ -1,4 +1,4 @@
-export type SkillId = 'web_research' | 'code_execution' | 'computer_use' | 'chart_generation' | 'memory'
+export type SkillId = 'web_research' | 'code_execution' | 'terminal' | 'computer_use' | 'chart_generation' | 'memory'
 
 export interface SkillState {
   enabled: boolean
@@ -9,6 +9,8 @@ export interface WebResearchSkillState extends SkillState {}
 
 export interface CodeExecutionSkillState extends SkillState {}
 
+export interface TerminalSkillState extends SkillState {}
+
 export interface ComputerUseSkillState extends SkillState {}
 
 export interface ChartGenerationSkillState extends SkillState {}
@@ -18,6 +20,7 @@ export interface MemorySkillState extends SkillState {}
 export type SkillsSettings = Record<string, SkillState> & {
   web_research: WebResearchSkillState
   code_execution: CodeExecutionSkillState
+  terminal: TerminalSkillState
   computer_use: ComputerUseSkillState
   chart_generation: ChartGenerationSkillState
   memory: MemorySkillState
@@ -50,6 +53,17 @@ export const BUILT_IN_SKILLS: BuiltInSkill[] = [
     usageGuidance: [
       'Use code_execution for calculations, data transforms, and logic the model cannot do reliably in-context.',
       'Prefer Python for math/data tasks and JavaScript for string/JSON manipulation.',
+    ],
+  },
+  {
+    id: 'terminal',
+    name: 'Terminal',
+    description: 'Run bounded PowerShell commands for system inspection and automation. Windows-only.',
+    note: 'Windows-only. Requires user approval before each command. Commands are non-interactive and bounded by a timeout and output cap.',
+    usageGuidance: [
+      'Prefer native file/app/window tools before shell commands when they can do the job.',
+      'Use PowerShell for system inspection and automation tasks the native tools cannot cover.',
+      'Keep commands non-interactive and self-contained. Read the returned exit code, stdout, and stderr to verify success and self-correct.',
     ],
   },
   {
@@ -94,6 +108,10 @@ const DEFAULT_CODE_EXECUTION_SKILL: CodeExecutionSkillState = {
   enabled: false,
 }
 
+const DEFAULT_TERMINAL_SKILL: TerminalSkillState = {
+  enabled: false,
+}
+
 const DEFAULT_COMPUTER_USE_SKILL: ComputerUseSkillState = {
   enabled: false,
 }
@@ -110,6 +128,7 @@ const DEFAULT_MEMORY_SKILL: MemorySkillState = {
 export const defaultSkillsSettings: SkillsSettings = {
   web_research: DEFAULT_WEB_RESEARCH_SKILL,
   code_execution: DEFAULT_CODE_EXECUTION_SKILL,
+  terminal: DEFAULT_TERMINAL_SKILL,
   computer_use: DEFAULT_COMPUTER_USE_SKILL,
   chart_generation: DEFAULT_CHART_GENERATION_SKILL,
   memory: DEFAULT_MEMORY_SKILL,
@@ -158,7 +177,7 @@ export function normalizeSkillsSettings(raw: unknown): SkillsSettings {
 
   if (isRecord(raw)) {
     for (const [skillId, value] of Object.entries(raw)) {
-      if (skillId === 'web_research' || skillId === 'code_execution' || skillId === 'testing' || skillId === 'computer_use' || skillId === 'chart_generation' || skillId === 'memory' || skillId === 'agent_desktop') continue
+      if (skillId === 'web_research' || skillId === 'code_execution' || skillId === 'terminal' || skillId === 'testing' || skillId === 'computer_use' || skillId === 'chart_generation' || skillId === 'memory' || skillId === 'agent_desktop') continue
       const generic = normalizeGenericSkillState(value)
       if (generic) {
         normalized[skillId] = generic
@@ -174,6 +193,10 @@ export function normalizeSkillsSettings(raw: unknown): SkillsSettings {
   normalized.code_execution = normalizeKnownSkill(
     rawRecord?.code_execution,
     defaultSkillsSettings.code_execution
+  )
+  normalized.terminal = normalizeKnownSkill(
+    rawRecord?.terminal,
+    defaultSkillsSettings.terminal
   )
   normalized.computer_use = normalizeKnownSkill(
     rawRecord?.computer_use,
@@ -297,6 +320,31 @@ export function getCodeExecutionToolExposure(skills: SkillsSettings | undefined)
   }
 }
 
+// Terminal
+
+export function isTerminalEnabled(skills: SkillsSettings | undefined): boolean {
+  return normalizeSkillsSettings(skills).terminal.enabled
+}
+
+export function withTerminalEnabled(skills: SkillsSettings | undefined, enabled: boolean): SkillsSettings {
+  const normalized = normalizeSkillsSettings(skills)
+  return {
+    ...normalized,
+    terminal: {
+      ...normalized.terminal,
+      enabled,
+    },
+  }
+}
+
+export function getTerminalToolExposure(skills: SkillsSettings | undefined): {
+  exposeTerminal: boolean
+} {
+  return {
+    exposeTerminal: normalizeSkillsSettings(skills).terminal.enabled,
+  }
+}
+
 // Computer Use
 
 export function withComputerUseEnabled(skills: SkillsSettings | undefined, enabled: boolean): SkillsSettings {
@@ -381,7 +429,7 @@ export function withSkillEnabled(skills: SkillsSettings | undefined, skillId: Sk
 
 export function buildEnabledSkillsPrompt(
   skills: SkillsSettings | undefined,
-  options?: { codeExecutionPrompt?: string; computerUsePrompt?: string; chartGenerationPrompt?: string },
+  options?: { codeExecutionPrompt?: string; terminalPrompt?: string; computerUsePrompt?: string; chartGenerationPrompt?: string },
 ): string {
   if (!skills) return ''
 
@@ -398,6 +446,11 @@ export function buildEnabledSkillsPrompt(
   if (normalized.code_execution.enabled) {
     skillLines.push('- Code Execution (`code_execution`): use `code_execution` to run JavaScript or Python code for calculations, data analysis, and logic.')
     skillLines.push('- Prefer Python for math/data tasks. Keep code concise and self-contained. The sandbox has no filesystem or network access.')
+  }
+
+  if (normalized.terminal.enabled) {
+    skillLines.push('- Terminal (`system_shell`): run bounded, non-interactive PowerShell commands for system inspection and automation on Windows.')
+    skillLines.push('- Prefer native file/app/window tools first. Each command requires user approval, is bounded by a timeout and output cap, and returns exit code/stdout/stderr — read them to verify success and self-correct.')
   }
 
   if (normalized.computer_use.enabled) {
@@ -417,6 +470,10 @@ export function buildEnabledSkillsPrompt(
 
   if (normalized.code_execution.enabled && options?.codeExecutionPrompt) {
     sections.push(options.codeExecutionPrompt)
+  }
+
+  if (normalized.terminal.enabled && options?.terminalPrompt) {
+    sections.push(options.terminalPrompt)
   }
 
   if (normalized.computer_use.enabled && options?.computerUsePrompt) {

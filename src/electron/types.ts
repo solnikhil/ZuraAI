@@ -48,6 +48,18 @@ export interface PendingCodeApproval {
 }
 
 /**
+ * Pending terminal (system_shell) approval request shape (mirrors PendingTerminalApproval from main).
+ */
+export interface PendingTerminalApproval {
+  id: string
+  command: string
+  cwd: string
+  description: string
+  requestedAt: number
+  expiresAt: number
+}
+
+/**
  * Pending computer use approval request shape (mirrors PendingComputerAction from main).
  */
 export interface PendingComputerAction {
@@ -218,6 +230,33 @@ export interface DiscordRpcState {
   lastError?: string
 }
 
+export type AnalyticsEventName =
+  | 'app_first_launch'
+  | 'app_start'
+  | 'app_update_installed'
+  | 'chat_message_sent'
+  | 'provider_used'
+  | 'model_used'
+  | 'tool_used'
+  | 'web_search_used'
+  | 'mcp_server_connected'
+  | 'overlay_opened'
+  | 'app_error'
+  | 'app_crash'
+
+export type AnalyticsConsentState = 'undecided' | 'accepted' | 'declined'
+
+export interface AnalyticsState {
+  analyticsEnabled: boolean
+  anonymousInstallId: string
+  firstLaunchSent: boolean
+  lastSeenVersion: string
+  consentState: AnalyticsConsentState
+  hasProjectKey: boolean
+}
+
+export type AnalyticsProperties = Record<string, string | number | boolean | undefined>
+
 export interface OverlayState extends OverlaySettings {
   visible: boolean
   mode: 'hidden' | 'compact' | 'expanded'
@@ -311,7 +350,6 @@ export type IpcSendChannel =
   | 'overlay:drag-start'
   | 'overlay:drag-move'
   | 'overlay:drag-end'
-  | 'open-model-selector'
   | 'overlay:navigate-settings'
   | 'resource-monitor:subscribe'
   | 'resource-monitor:unsubscribe'
@@ -320,7 +358,6 @@ export interface IpcSendArgsMap {
   'overlay:drag-start': [cursorX: number, cursorY: number]
   'overlay:drag-move': [cursorX: number, cursorY: number]
   'overlay:drag-end': []
-  'open-model-selector': []
   'overlay:navigate-settings': [section: string]
   'resource-monitor:subscribe': []
   'resource-monitor:unsubscribe': []
@@ -421,9 +458,7 @@ export type IpcOnChannel =
   | 'update-downloaded'
   | 'update-error'
   | 'update-download-progress'
-  | 'prompt-popup:focus'
   | 'overlay:pending-prompt'
-  | 'model-selector:open'
   | 'app:new-chat'
   | 'settings:navigate'
   | 'chat-store:changed'
@@ -443,9 +478,7 @@ export interface IpcOnArgsMap {
   'update-downloaded': [version: string]
   'update-error': [message: string]
   'update-download-progress': [progress: UpdaterDownloadProgress]
-  'prompt-popup:focus': []
   'overlay:pending-prompt': [prompt: string]
-  'model-selector:open': []
   'app:new-chat': []
   'settings:navigate': [section: string]
   'chat-store:changed': []
@@ -500,19 +533,12 @@ export interface OverlayAPI {
   getState: () => Promise<OverlayState>
   focusMainWindow: () => Promise<void>
   applySettings: (settings: Partial<OverlaySettings>) => Promise<OverlayState>
+  setContentHeight: (height: number) => Promise<OverlayState>
   onPendingPrompt: (callback: (prompt: string) => void) => () => void
   dragStart: (cursorX: number, cursorY: number) => void
   dragMove: (cursorX: number, cursorY: number) => void
   dragEnd: () => void
   navigateSettings: (section: string) => void
-}
-
-export interface PromptPopupAPI {
-  show: () => Promise<void>
-  hide: () => Promise<void>
-  submit: (prompt: string) => Promise<void>
-  openModelSelector: () => void
-  onFocus: (callback: () => void) => () => void
 }
 
 export interface AppInfoAPI {
@@ -554,6 +580,11 @@ export interface AppMenuAPI {
 export interface CodeExecutionAPI {
   resolveApproval: (requestId: string, approved: boolean) => Promise<ApprovalDecision>
   onPendingApproval: (callback: (pending: PendingCodeApproval[]) => void) => () => void
+}
+
+export interface TerminalAPI {
+  resolveApproval: (requestId: string, approved: boolean) => Promise<ApprovalDecision>
+  onPendingApproval: (callback: (pending: PendingTerminalApproval[]) => void) => () => void
 }
 
 export interface ComputerUseAPI {
@@ -633,4 +664,10 @@ export interface DiscordRpcAPI {
   getState: () => Promise<DiscordRpcState>
   setActivity: (activity: Record<string, unknown>) => Promise<DiscordRpcState>
   onStateChange: (callback: (state: DiscordRpcState) => void) => () => void
+}
+
+export interface AnalyticsAPI {
+  getState: () => Promise<AnalyticsState>
+  setEnabled: (enabled: boolean) => Promise<AnalyticsState>
+  track: (eventName: AnalyticsEventName, properties?: AnalyticsProperties) => Promise<boolean>
 }

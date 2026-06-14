@@ -26,6 +26,7 @@ import { defaultSystemPrompt } from '../prompts/defaultSystemPrompt'
 import { defaultWebSearchPrompt } from '../prompts/defaultWebSearchPrompt'
 import { defaultTitleGenerationPrompt } from '../prompts/defaultTitleGenerationPrompt'
 import { defaultCodeExecutionPrompt } from '../prompts/defaultCodeExecutionPrompt'
+import { defaultTerminalPrompt } from '../prompts/defaultTerminalPrompt'
 import { defaultComputerUsePrompt } from '../prompts/defaultComputerUsePrompt'
 import { defaultChartGenerationPrompt } from '../prompts/defaultChartGenerationPrompt'
 import { defaultMemoryPrompt } from '../prompts/defaultMemoryPrompt'
@@ -66,12 +67,15 @@ export interface ConfiguredModel {
   supportsWebSearch?: boolean
   supportsImageGeneration?: boolean
   supportsVideoRecognition?: boolean
+  openRouterReasoningDetected?: boolean
 }
 
 type ProviderKey = ProviderId
 type ProviderEnabledMap = Partial<Record<ProviderKey, boolean>>
 export type TavilySearchDepth = 'ultra-fast' | 'fast' | 'basic' | 'advanced'
 export type TavilySearchDepthPreference = 'auto' | TavilySearchDepth
+/** DeepSeek reasoning effort levels (documented fixed contract). */
+export type DeepSeekReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh'
 const SECURE_SETTINGS_KEY_NAMES = [
   ...getProviderSecretFields(),
   'tavilyApiKey',
@@ -108,6 +112,26 @@ export interface SettingsConfig {
   fireworksModels: ConfiguredModel[]
   deepseekModels: ConfiguredModel[]
 
+  /**
+   * Per-model DeepSeek reasoning ("thinking mode") preferences, keyed by model
+   * `code`. The user's explicit toggle is the source of truth — we do not infer
+   * thinking capability for DeepSeek. When an entry is missing or `enabled` is
+   * false, reasoning is disabled for that model. `effort` maps to DeepSeek's
+   * documented `reasoning_effort` enum.
+   */
+  deepseekReasoning?: Record<string, { enabled: boolean; effort: DeepSeekReasoningEffort }>
+  /**
+   * The last reasoning effort the user picked anywhere, used as the default
+   * effort when a model's reasoning is newly enabled.
+   */
+  deepseekLastEffort?: DeepSeekReasoningEffort
+  /**
+   * Per-model OpenRouter reasoning effort preferences, keyed by configured
+   * OpenRouter model `code`. Provider Hub only detects capability; the dashboard
+   * model picker owns effort selection after detection.
+   */
+  openRouterReasoningEffort?: Record<string, DeepSeekReasoningEffort>
+
   // AI parameters
   temperature: number
   maxTokens: number
@@ -117,6 +141,8 @@ export interface SettingsConfig {
   webSearchPrompt: string
   /** Code execution instructions appended when Code Execution is enabled */
   codeExecutionPrompt: string
+  /** Terminal instructions appended when the Terminal skill is enabled */
+  terminalPrompt: string
   /** Computer use instructions appended when Computer Use is enabled */
   computerUsePrompt: string
   /** Chart generation instructions appended when Chart Generation is enabled */
@@ -132,6 +158,8 @@ export interface SettingsConfig {
   skills: SkillsSettings
   /** When true, code execution runs without the approval dialog */
   codeExecutionAutoApprove: boolean
+  /** When true, terminal (system_shell) commands run without the approval dialog */
+  terminalAutoApprove: boolean
   /** When true, computer use actions run without the approval dialog */
   computerUseAutoApprove: boolean
 
@@ -282,6 +310,7 @@ export const defaultSettingsConfig: SettingsConfig = {
   assistantPersonality: DEFAULT_ASSISTANT_PERSONALITY,
   webSearchPrompt: defaultWebSearchPrompt,
   codeExecutionPrompt: defaultCodeExecutionPrompt,
+  terminalPrompt: defaultTerminalPrompt,
   computerUsePrompt: defaultComputerUsePrompt,
   chartGenerationPrompt: defaultChartGenerationPrompt,
   memoryPrompt: defaultMemoryPrompt,
@@ -294,6 +323,7 @@ export const defaultSettingsConfig: SettingsConfig = {
   skills: defaultSkillsSettings,
 
   codeExecutionAutoApprove: false,
+  terminalAutoApprove: false,
   computerUseAutoApprove: false,
   // Title generation
   titleModel: '',
@@ -334,6 +364,9 @@ export const defaultSettingsConfig: SettingsConfig = {
   discordRpc: {
     appId: '1512516130911162610',
   },
+  deepseekReasoning: {},
+  deepseekLastEffort: 'high',
+  openRouterReasoningEffort: {},
 }
 
 interface SettingsConfigContextType {

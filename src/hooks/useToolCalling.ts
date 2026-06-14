@@ -57,7 +57,6 @@ const NATIVE_WINDOWS_AGENT_TOOLS = [
     'windows_uia_invoke',
     'windows_uia_set_value',
     'windows_uia_select',
-    'system_shell',
 ]
 
 export interface ToolCallState {
@@ -161,6 +160,21 @@ export function useToolCalling() {
             for (const tool of COMPUTER_USE_TOOLS) {
                 if (!enabledTools.includes(tool)) enabledTools.push(tool)
             }
+        }
+
+        // Terminal skill (`system_shell`). Windows-only and gated behind the
+        // Terminal skill toggle, but exposed in BOTH chat and agent modes
+        // (parity with code_execution). Per-command approval is enforced by the
+        // main-process TerminalApprovalManager in chat mode and by the renderer
+        // agent approval gate in agent mode.
+        const terminalSurfaceEnabled =
+            isWindowsRuntime() &&
+            isSkillEnabled(settings.skills, 'terminal')
+
+        if (!terminalSurfaceEnabled) {
+            enabledTools = enabledTools.filter((tool) => tool !== 'system_shell')
+        } else if (!enabledTools.includes('system_shell')) {
+            enabledTools.push('system_shell')
         }
 
         const nativePriority = new Map(NATIVE_WINDOWS_AGENT_TOOLS.map((tool, index) => [tool, index]))

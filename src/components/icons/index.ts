@@ -57,6 +57,7 @@ export {
   MousePointer,
   Activity,
   Brain,
+  Sparkles,
 } from 'lucide-react'
 
 // Animated icons

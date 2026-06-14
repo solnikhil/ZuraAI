@@ -1,187 +1,167 @@
-import React, { useEffect } from 'react'
-import { Command } from '@/components/ui/command'
-import { useSettings } from '../../../contexts/SettingsContext'
-import { useAppShell } from '../../../contexts/AppShellContext'
+import React from 'react'
+import { Check } from 'lucide-react'
+import { ProviderLogo } from '@/components/shared'
+import {
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+} from '@/components/ui/dropdown-menu'
+import { getPickerVisibleProviders, getProviderDefinition } from '@/providers'
+import { getReasoningEffortLabel } from '../../../utils/deepseekReasoning'
+import { removeEmojis } from '../../../utils/textUtils'
+import type { DeepSeekReasoningEffort } from '../../../contexts/SettingsConfigContext'
+import type { GroupedModels, ModelWithProvider } from './types'
 import { cn } from '@/lib/utils'
-import type { ModelSelectorCompactMode, ModelWithProvider, ViewMode, GroupedModels } from './types'
-import { DEFAULT_MODEL_SELECTOR_SETTINGS } from './modelSelectorDefaults'
-import { ModelSelectorSearchBar } from './ModelSelectorSearchBar'
-import { ModelSelectorProviderRail } from './ModelSelectorProviderRail'
-import { ModelSelectorResultsPane } from './ModelSelectorResultsPane'
 
 export interface ModelSelectorDropdownProps {
-  searchInputRef: React.RefObject<HTMLInputElement | null>
-  searchQuery: string
-  onSearchChange: (query: string) => void
-  viewMode: ViewMode
-  onViewModeChange: (mode: ViewMode) => void
-  selectedProvider: string
-  onProviderSelect: (provider: string) => void
-  currentModels: ModelWithProvider[]
+  /** Popover/menu alignment relative to the trigger. */
+  align?: 'start' | 'center' | 'end'
+  /** Models grouped by provider id (already filtered to enabled + configured). */
   groupedModels: GroupedModels
-  focusedIndex: number
+  /** Display name of the active model (shown on the current-model row). */
+  currentName: string
+  /** Active model record, used for the current-model row logo. */
+  currentModel?: ModelWithProvider
+  /** Active model code + provider for the ✓ active marker. */
   selectedModelCode: string
   selectedModelProvider: string
-  favoriteModels: string[]
-  onModelSelect: (model: ModelWithProvider, e?: React.MouseEvent) => void
-  onToggleFavorite: (modelCode: string, e: React.MouseEvent) => void
-  onFocusedIndexChange: (index: number) => void
-  compactMode?: ModelSelectorCompactMode
+  /** Selection handler (closes the menu via useModelSelector). */
+  onModelSelect: (model: ModelWithProvider) => void
+  /** Whether to render the reasoning-effort section at all (DeepSeek models). */
+  showReasoning: boolean
+  /** Whether reasoning is enabled (interactive). When false, the section is greyed/disabled. */
+  reasoningEnabled: boolean
+  reasoningEffort: DeepSeekReasoningEffort
+  reasoningEfforts: readonly DeepSeekReasoningEffort[]
+  onReasoningEffortChange: (effort: DeepSeekReasoningEffort) => void
 }
 
-function getDensityClasses(density: 'compact' | 'comfortable' | 'spacious'): string {
-  switch (density) {
-    case 'compact':
-      return 'py-1.5'
-    case 'spacious':
-      return 'py-3.5'
-    default:
-      return 'py-2.5'
-  }
-}
-
-function getResponsiveDensity(
-  density: 'compact' | 'comfortable' | 'spacious',
-  compactMode: ModelSelectorCompactMode
-): 'compact' | 'comfortable' | 'spacious' {
-  if (compactMode === 'tight') return 'compact'
-  if (compactMode === 'compact' && density === 'spacious') return 'comfortable'
-  return density
-}
-
+/**
+ * Cascading model picker content (Codex / memory-selector style).
+ *
+ * Structure: an optional top "Reasoning effort" group (only for the active
+ * DeepSeek model with reasoning enabled), then a single current-model row that
+ * opens a provider submenu, each provider opening its own models submenu.
+ * Provider → models mirrors the cascade in Settings → Memory.
+ */
 export function ModelSelectorDropdown({
-  searchInputRef,
-  searchQuery,
-  onSearchChange,
-  viewMode,
-  onViewModeChange,
-  selectedProvider,
-  onProviderSelect,
-  currentModels,
+  align = 'start',
   groupedModels,
-  focusedIndex,
+  currentName,
+  currentModel,
   selectedModelCode,
   selectedModelProvider,
-  favoriteModels,
   onModelSelect,
-  onToggleFavorite,
-  onFocusedIndexChange,
-  compactMode = 'none',
+  showReasoning,
+  reasoningEnabled,
+  reasoningEffort,
+  reasoningEfforts,
+  onReasoningEffortChange,
 }: ModelSelectorDropdownProps): React.ReactElement {
-  const { settings } = useSettings()
-  const { setDashboardView, setActiveSettingsSection } = useAppShell()
-  const modelSelector = settings.modelSelector || DEFAULT_MODEL_SELECTOR_SETTINGS
-
-  useEffect(() => {
-    if (!modelSelector.showSearch) return
-    const timer = setTimeout(() => {
-      const input = document.querySelector('[data-slot="command-input"]') as HTMLInputElement
-      if (input) {
-        input.focus()
-        if (searchInputRef && 'current' in searchInputRef) {
-          ;(searchInputRef as React.MutableRefObject<HTMLInputElement | null>).current = input
-        }
-      }
-    }, 0)
-    return () => clearTimeout(timer)
-  }, [modelSelector.showSearch, searchInputRef])
-
-  useEffect(() => {
-    if (focusedIndex < 0) return
-    const focusedItem = document.querySelector(
-      `[data-model-index="${focusedIndex}"]`
-    ) as HTMLElement | null
-    focusedItem?.scrollIntoView({ block: 'nearest' })
-  }, [focusedIndex])
-
-  const activeTabKey = searchQuery.trim()
-    ? ''
-    : viewMode === 'favorites'
-      ? 'favorites'
-      : selectedProvider
-
-  const responsiveDensity = getResponsiveDensity(modelSelector.itemDensity, compactMode)
-  const densityClasses = getDensityClasses(responsiveDensity)
-  const isCompact = compactMode !== 'none'
-  const isTight = compactMode === 'tight'
-  const showDescriptions = modelSelector.showDescriptions && !isTight
-  const showCapabilityBadges = modelSelector.showCapabilityBadges && !isTight
-  const emptyStateHeading =
-    viewMode === 'favorites' ? 'No favorite models yet' : 'No models configured'
-
-  const handleOpenProviders = () => {
-    setActiveSettingsSection('providers')
-    setDashboardView('settings')
-  }
-
-  const sidebarWidthClass = isTight ? 'w-[44px]' : isCompact ? 'w-[48px]' : 'w-[52px]'
-  const sidebarBorderSide = modelSelector.sidebarPosition === 'right' ? 'border-l' : 'border-r'
+  const providers = getPickerVisibleProviders()
+    .filter((provider) => (groupedModels[provider.id]?.length || 0) > 0)
+    .map((provider) => ({ id: provider.id, label: getProviderDefinition(provider.id).label }))
 
   return (
-    <Command shouldFilter={false} loop className="flex h-full flex-col rounded-none border-0 bg-transparent">
-      {modelSelector.showSearch && (
-        <ModelSelectorSearchBar
-          compact={isCompact}
-          tight={isTight}
-          searchQuery={searchQuery}
-          onSearchChange={onSearchChange}
-        />
+    <DropdownMenuContent
+      align={align}
+      sideOffset={8}
+      collisionPadding={12}
+      className="theme-menu-surface w-[248px] rounded-[16px] p-1.5 shadow-none"
+    >
+      {showReasoning && (
+        <>
+          <DropdownMenuLabel
+            className={cn(
+              'px-2 pb-1.5 pt-2 font-[var(--font-sans)] text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--theme-text-tertiary)]',
+              !reasoningEnabled && 'opacity-50'
+            )}
+          >
+            Reasoning effort
+          </DropdownMenuLabel>
+          <DropdownMenuRadioGroup
+            className="flex flex-col gap-0.5"
+            value={reasoningEffort}
+            onValueChange={
+              reasoningEnabled
+                ? (value) => onReasoningEffortChange(value as DeepSeekReasoningEffort)
+                : undefined
+            }
+          >
+            {reasoningEfforts.map((effort) => (
+              <DropdownMenuRadioItem
+                key={effort}
+                value={effort}
+                disabled={!reasoningEnabled}
+                className="min-h-9 rounded-[10px] py-2 pl-3 pr-2 font-[var(--font-sans)] text-[13px] font-medium leading-none tracking-[0.01em] transition-colors data-[state=checked]:bg-[var(--theme-surface-active)] data-[state=checked]:text-[var(--theme-text-primary)] data-[state=checked]:shadow-[inset_0_0_0_1px_var(--theme-border-subtle)] focus:bg-[var(--theme-surface-hover)] [&>span:first-child]:hidden"
+              >
+                {getReasoningEffortLabel(effort)}
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+          <DropdownMenuSeparator className="mx-1 my-1.5 h-px" />
+        </>
       )}
 
-      <div
-        className={cn(
-          'flex min-h-0 flex-1 overflow-hidden',
-          modelSelector.sidebarPosition === 'right' && 'flex-row-reverse'
-        )}
-      >
-        <div
-          className={cn(
-            sidebarWidthClass,
-            sidebarBorderSide,
-            'min-h-0 shrink-0 overflow-hidden bg-transparent'
-          )}
+      <DropdownMenuSub>
+        <DropdownMenuSubTrigger className="h-10 rounded-[13px] px-2 text-[13px]">
+          {currentModel && <ProviderLogo provider={currentModel.provider} size={16} />}
+          <span className="truncate">{currentName}</span>
+        </DropdownMenuSubTrigger>
+        <DropdownMenuSubContent
+          sideOffset={6}
+          collisionPadding={12}
+          className="theme-menu-surface w-[210px] rounded-[16px] p-1.5 shadow-none"
         >
-          <ModelSelectorProviderRail
-            activeTabKey={activeTabKey}
-            groupedModels={groupedModels}
-            onTabSelect={(key) => {
-              if (key === 'favorites') {
-                onViewModeChange('favorites')
-              } else {
-                onProviderSelect(key)
-                onViewModeChange('all')
-              }
-            }}
-          />
-        </div>
-
-        <div
-          className={cn(
-            'relative flex h-full min-h-0 flex-1 flex-col overflow-hidden',
-            modelSelector.sidebarPosition === 'right' ? 'border-r' : 'border-l',
-            'border-border/50'
+          {providers.length === 0 ? (
+            <DropdownMenuItem disabled className="h-10 rounded-[13px] px-2 text-[13px]">
+              No models available
+            </DropdownMenuItem>
+          ) : (
+            providers.map((provider) => (
+              <DropdownMenuSub key={provider.id}>
+                <DropdownMenuSubTrigger className="h-10 rounded-[13px] px-2 text-[13px]">
+                  <ProviderLogo provider={provider.id} size={16} />
+                  <span>{provider.label}</span>
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent
+                  sideOffset={6}
+                  collisionPadding={12}
+                  className="theme-menu-surface w-[230px] max-h-[60vh] overflow-y-auto rounded-[16px] p-1.5 shadow-none"
+                >
+                  {(groupedModels[provider.id] || []).map((model) => {
+                    const isActive =
+                      model.code === selectedModelCode && model.provider === selectedModelProvider
+                    return (
+                      <DropdownMenuItem
+                        key={`${model.provider}-${model.code}`}
+                        onSelect={() => onModelSelect(model)}
+                        className="h-10 rounded-[13px] px-2 text-[13px]"
+                      >
+                        <ProviderLogo provider={model.provider} size={16} />
+                        <span className="flex-1 truncate">{removeEmojis(model.displayName)}</span>
+                        {isActive && (
+                          <Check
+                            className="h-3.5 w-3.5 text-[var(--theme-primary)]"
+                            aria-label="Active model"
+                          />
+                        )}
+                      </DropdownMenuItem>
+                    )
+                  })}
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            ))
           )}
-        >
-          <ModelSelectorResultsPane
-            compactMode={compactMode}
-            currentModels={currentModels}
-            densityClasses={densityClasses}
-            emptyStateHeading={emptyStateHeading}
-            favoriteModels={favoriteModels}
-            focusedIndex={focusedIndex}
-            modelSelector={modelSelector}
-            selectedModelCode={selectedModelCode}
-            selectedModelProvider={selectedModelProvider}
-            showCapabilityBadges={showCapabilityBadges}
-            showDescriptions={showDescriptions}
-            onFocusedIndexChange={onFocusedIndexChange}
-            onModelSelect={onModelSelect}
-            onOpenProviders={handleOpenProviders}
-            onToggleFavorite={onToggleFavorite}
-          />
-        </div>
-      </div>
-    </Command>
+        </DropdownMenuSubContent>
+      </DropdownMenuSub>
+    </DropdownMenuContent>
   )
 }
 

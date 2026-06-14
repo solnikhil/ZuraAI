@@ -38,7 +38,9 @@ Core capabilities:
   - **Sanitized non-secret settings + UI state** live in renderer `localStorage`.
   - **API keys and MCP secrets** live in main-process secure storage and are hydrated/resolved at runtime.
   - **Chat history, conversation summaries, MCP server metadata, and secure storage** live in the main process under `app.getPath('userData')`.
+  - **Analytics consent and anonymous install metadata** live in the main process under `app.getPath('userData')` in `analytics-state.json`; analytics is opt-in only and sends to the configured PostHog Cloud target after consent. The default public PostHog project token and US ingestion host live in `electron/analytics/config.ts`, while `ZURA_POSTHOG_PROJECT_KEY` / `ZURA_POSTHOG_HOST` can override or disable transport for forks and tests.
   - **Agent run metadata** lives on assistant messages inside the existing per-session chat JSON files, not in a separate store.
+  - **OpenRouter per-model reasoning detection** (`supportsDeepThinking` plus `openRouterReasoningDetected`) lives on configured model entries inside the existing sanitized renderer settings blob. Catalog import/detection marks reasoning-capable models from OpenRouter `supported_parameters`; reasoning effort selection is controlled from the dashboard model picker via `openRouterReasoningEffort`, not from the Provider Hub model list.
   - Built-in prompt templates (`systemPrompt`, `webSearchPrompt`, tool prompts, memory prompt, and title-generation prompt) are code-owned runtime defaults. `normalizeStoredSettings(...)` replaces stale persisted prompt overrides with the current defaults, and Settings renders them as read-only viewers instead of editable fields.
 - UI styling guardrail: keep settings cards, chat composer containers, and dropdown/menu surfaces flat. Do **not** reintroduce outer drop shadows on those surfaces unless the user explicitly asks for them.
 - Fallback behavior guardrail: do **not** add new fallback paths, silent substitutions, local heuristics, provider fallbacks, or “safe default” behavior unless it is explicitly required by the user or you ask and get confirmation first. Prefer surfacing the real failure and fixing the root cause; unnecessary fallbacks can hide bugs and change product behavior.
@@ -46,16 +48,16 @@ Core capabilities:
 ---
 
 ## Repo Map
+- `electron/analytics/` - opt-in anonymous analytics service, default public PostHog Cloud config, event allowlist/sanitization, PostHog capture transport, consent-state persistence under `app.getPath('userData')`, and IPC registration
 - `electron/` — Electron **main process** + preload + IPC handlers
   - `electron/main.ts` — app lifecycle, IPC registration, tray, windows, updater, tool handlers
   - `electron/preload.ts` — **contextBridge** API + IPC allowlists (security boundary)
   - `electron/ipc/` — `ipcMain` handlers (chat store, secure storage, system actions)
 - `electron/startup/` — deferred startup orchestration and startup metrics
 - `electron/windows/` — main window, tray
-- `electron/windows/overlayWindow.ts` — Overlay window creation/reuse, compact/expanded state, display-aware positioning, and shortcut-backed lifecycle
-- `electron/windows/promptPopup.ts` — optional lightweight cursor-position prompt popup route/bridge that can submit to the overlay and dismisses on blur/Escape
+- `electron/windows/overlayWindow.ts` — Overlay window creation/reuse, top-right anchoring, platform-adaptive material (vibrancy/acrylic/CSS fallback), content-driven height sizing, and shortcut-backed lifecycle
 - `electron/chatStore.ts` — chat history persistence (JSON under `app.getPath('userData')`)
-- `electron/memoryStore.ts` — ChatGPT-style saved-memories persistence (JSON under `app.getPath('userData')`); single `memory-index.json`; atomic whole-file writes; in-memory TTL cache; serialized read-modify-write so concurrent model + user mutations cannot clobber each other; FIFO cap at `MEMORY_CAP=200`; per-entry `MAX_MEMORY_CONTENT_LENGTH=1000`
+- `electron/memoryStore.ts` — ChatGPT-style saved-memories persistence (JSON under `app.getPath('userData')`); single `memory-index.json`; atomic whole-file writes; in-memory TTL cache; serialized read-modify-write so concurrent model + user mutations cannot clobber each other; automatic cleanup coalesces exact duplicates, prunes old superseded entries after `SUPERSEDED_MEMORY_RETENTION_MS`, repairs dangling lifecycle links, and then applies the `MEMORY_CAP=200` FIFO cap; per-entry `MAX_MEMORY_CONTENT_LENGTH=1000`
 - `electron/mcp/mcpConnection.ts` — MCP initialize/tool-discovery connection orchestration
 - `electron/mcp/mcpManager.ts` — MCP server registry, runtime state aggregation, connection lifecycle coordination, and cache/persistence orchestration across the extracted MCP manager helper modules
 - `electron/mcp/mcpManagerState.ts` — MCP manager clone/state helpers plus persisted runtime-metadata diffing
@@ -68,23 +70,24 @@ Core capabilities:
 - `electron/tools/` — main-process tool implementations (IPC registry is restricted)
   - `electron/tools/web-search/` — built-in **Tavily-only, no-fallback** web-search pipeline behind a pluggable `SearchProvider` seam: `service.ts` (thin orchestrator, single dispatch, no fallback branching), `request.ts` (untrusted-input validation/normalization), `intent.ts` (query-vs-URL intent classification + weak-query reformulation), `normalize.ts` (result/image/snippet/source shaping, renamed from `helpers.ts`), `credentials.ts` (secure-storage credential resolution), `logging.ts` (single secret-safe failure logger), `providers/registry.ts` + `providers/types.ts` (the `SearchProvider` abstraction), and `providers/tavily/*` (`transport.ts` + `mapper.ts` + `index.ts`). The DuckDuckGo backend and the `backends/` split were removed.
   - `electron/tools/windows-uia/` — Windows-only Microsoft UI Automation bridge for native desktop snapshots and supported control actions (`InvokePattern`, `ValuePattern`, selection/toggle patterns)
-  - `electron/tools/system-shell/` — bounded non-interactive PowerShell execution with timeout, output caps, and working-directory validation
+  - `electron/tools/system-shell/` — bounded non-interactive PowerShell execution with per-command approval gate (via the Terminal skill's `TerminalApprovalManager`), terminal-specific timeout cap, output caps, working-directory validation, and exit-code-aware results
   - `electron/tools/files/` — structured main-process filesystem tools for read/write/search/move with path normalization and size/result limits
   - `electron/tools/app-management/` — Windows app discovery/launch/install/uninstall via Start Menu scanning, Electron shell launch, and non-interactive `winget`
   - `electron/tools/window-management/` — Windows native window listing/focus/move/close by HWND/title/process metadata, excluding ZuraAI-owned windows by default
   - `electron/tools/native-common.ts` — shared Windows-native tool validation, PowerShell execution, timeout/output limits, unsupported-platform errors, and approval checks
 - `electron/updater.ts` — auto-updater (production only)
   - `electron/tools/code-execution/` — built-in code execution skill: Piston API service, approval manager, IPC registration, types, and constants
+  - `electron/tools/terminal/` — Terminal skill (`system_shell`) support: `TerminalApprovalManager`, approval-timeout/exec-timeout constants, and IPC registration (`terminal:resolve-approval` / `terminal:pending-approval`); execution itself lives in `electron/tools/system-shell/`
 - `electron/discordRpc/` — Discord Rich Presence main-process module: singleton client (`rpcClient.ts`), IPC registration (`index.ts`), and shared types (`types.ts`). Lazy-requires `discord-rpc` so a missing native dependency never crashes the app. Reconnects with backoff when Discord is not running.
 
 - `src/` — React/Vite **renderer**
   - `src/main.tsx` — renderer entrypoint; initializes performance tracking, lazy-image styles, applies saved theme, mounts `App`, and schedules non-critical preloads after first paint
 - `src/App.tsx` — routes (`#/dashboard`, `#/settings`, `#/chat`) under `AppShellLayout`, plus wildcard `*` fallback to a dedicated 404 renderer view
-- `src/components/OverlayView.tsx` — compact overlay chat surface for the dedicated `#/overlay` route
+- `src/components/OverlayView.tsx` — composes the Siri/Spotlight overlay (`OverlayShell` + `OverlayPill` + `OverlayCard`) for the dedicated `#/overlay` route, reusing the standard chat pipeline
 - `src/components/OverlaySync.tsx` — renderer-side bridge that syncs persisted overlay settings into the trusted main-process Overlay runtime
 - `src/components/DiscordRpcSync.tsx` — (removed) Discord RPC is now always-on in main process; no renderer sync needed
 - `src/components/Settings/sections/ComputerUseSection.tsx` — Windows-only Computer Use settings UI with a single current-desktop enable toggle; hidden on macOS
-- `src/components/PromptPopupView.tsx` — lightweight prompt input surface for the dedicated `#/prompt-popup` route; auto-focuses, submits via prompt-popup IPC, dismisses on Escape
+- `src/components/overlay/` — redesigned Siri/Spotlight overlay UI: `OverlayShell` (vibrant-glass container), `OverlayPill` (idle search bar with mic→spinner swap), `OverlayCard` (conversation card reusing the standard chat renderers), `useOverlayAutoHeight` (measures content and drives `overlay:set-content-height`), and `overlay.css`
 - `src/contexts/` — app state (split settings contexts, chat history, app shell, quick-send)
 - `src/components/AppShellLayout.tsx` — shared renderer shell (title bar, command palette, resize handles, solid shell surfaces, global context menu via AppContextMenu)
 - `src/contexts/appShellNavigation.ts` — pure renderer-side app-shell history model for titlebar back/forward navigation, mouse-button navigation, and shell-state snapshot deduping
@@ -167,21 +170,13 @@ Core capabilities:
 
 - **Overlay Window** (`electron/windows/overlayWindow.ts`)
   - Loads `#/overlay` in its own dedicated `BrowserWindow`
-  - Disabled on macOS for now; main-process overlay APIs report disabled state and do not create floating windows or register shortcuts
-  - Platform-polished overlay surface on supported platforms: frameless, `alwaysOnTop`, `skipTaskbar`, non-click-through, and positioned against the active display `workArea`
+  - Disabled on macOS for now (gated behind `ZURA_ENABLE_MACOS_FLOATING_WINDOWS`); main-process overlay APIs report disabled state and do not create floating windows or register shortcuts
+  - Siri/Spotlight-style surface: frameless, `alwaysOnTop`, `skipTaskbar`, non-click-through, **anchored to the top-right** of the active display `workArea`
+  - Platform-adaptive material: native `vibrancy` on macOS, native `backgroundMaterial: 'acrylic'` on Windows 11 22H2+, and a transparent window + CSS dark-glass fallback elsewhere (Windows 10, Linux). Material selection is a pure, unit-tested helper (`selectOverlayMaterial`)
+  - Content-driven height: the window opens as a compact "pill" and grows into a conversation "card". The renderer measures its content and reports a target height via `overlay:set-content-height`; main animates the resize natively on macOS (`setBounds(..., true)`) and snaps in a single step on Windows to avoid the confirmed acrylic-resize flicker bug (electron/electron#46753). Width is a single value (the configured expanded width); the pill→card growth animation itself is driven by CSS
   - Reuses the shared preload bundle plus a dedicated `window.overlay` bridge for lifecycle actions
-  - Supports compact and expanded bounds, hide/show/toggle behavior, and display-metrics repositioning
-  - Opens from explicit UI entry points plus the global Overlay shortcut; the shortcut now opens the Overlay directly at the cursor position in expanded mode (single-step flow)
+  - Opens from explicit UI entry points plus the global Overlay shortcut; the shortcut opens the Overlay directly at the top-right anchor (single-step flow)
   - Close/hide behavior is controlled in main rather than the untrusted renderer
-
-- **Prompt Popup** (`electron/windows/promptPopup.ts`)
-  - Loads `#/prompt-popup` in its own dedicated frameless `BrowserWindow`
-  - Disabled on macOS while the Overlay floating-window surface is disabled
-  - Lightweight cursor-position prompt input surface for optional prompt-only entry flows
-  - Appears at cursor position, auto-focuses the text input, and submits the prompt to the overlay via main-process relay
-  - On submit, hides the popup, opens/creates the overlay window at the cursor position, and sends the prompt text to the overlay renderer via `overlay:pending-prompt`
-  - Dismisses on Escape key or window blur (click outside); the popup is never truly closed by the user — only hidden or destroyed on app quit
-  - Reuses the shared preload bundle plus a dedicated `window.promptPopup` bridge
 
 - **Dev vs prod loading**
 - In dev, windows load `${process.env.VITE_DEV_SERVER_URL}#/...`
@@ -189,7 +184,7 @@ Core capabilities:
 
 - **Renderer route fallback**
 - `src/App.tsx` defines `Route path="*"` to render the `NotFound404` component (`src/components/ui/demo.tsx`) for unknown hash routes.
- - Standalone utility routes outside `AppShellLayout` currently include `#/about` and the dev-only `#/chat-debug` window, plus `#/overlay` and `#/prompt-popup` on non-macOS platforms.
+ - Standalone utility routes outside `AppShellLayout` currently include `#/about` and the dev-only `#/chat-debug` window, plus `#/overlay` on non-macOS platforms.
 
 - **Shared shell layout**
   - `src/App.tsx` wraps `/`, `/dashboard`, `/settings`, and `/chat` in `AppShellLayout`
@@ -243,12 +238,12 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - invokes: `app-info:get`, `app-info:get-memory-report` (development-only), `app-info:open-about-window`
 - `window.appMenu`
   - invokes: `app-menu:command` for fixed custom-titlebar menu commands only (`new-chat`, settings/about/help, zoom/fullscreen, reload/devtools, and window controls)
+- `window.analytics`
+  - invokes: `analytics:get-state`, `analytics:set-enabled`, `analytics:track`
+  - only accepts the fixed analytics event allowlist; main sanitizes event properties and never accepts prompts, responses, file paths, clipboard data, API keys, MCP payloads, or conversation content
 - `window.overlay`
-  - invokes: `overlay:show`, `overlay:hide`, `overlay:toggle`, `overlay:expand`, `overlay:collapse`, `overlay:get-state`, `overlay:focus-main-window`, `overlay:apply-settings`
+  - invokes: `overlay:show`, `overlay:hide`, `overlay:toggle`, `overlay:expand`, `overlay:collapse`, `overlay:get-state`, `overlay:focus-main-window`, `overlay:apply-settings`, `overlay:set-content-height`
   - listens for: `overlay:pending-prompt`
-- `window.promptPopup`
-  - invokes: `prompt-popup:show`, `prompt-popup:hide`, `prompt-popup:submit`
-  - listens for: `prompt-popup:focus`
 - `window.shell`
   - invokes: `shell:open-external` (opens URLs in default browser; only http/https allowed), `clipboard:read-text` (reads plain text clipboard content from trusted main process)
 - `window.devTools`
@@ -269,6 +264,9 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - `window.codeExecution`
   - invokes: `code-execution:resolve-approval`
   - listens for: `code-execution:pending-approval`
+- `window.terminal`
+  - invokes: `terminal:resolve-approval`
+  - listens for: `terminal:pending-approval`
 - `window.chatDebug` (dev-only)
   - invokes: `chat-debug-window:open`
 - `window.resourceMonitor`
@@ -300,13 +298,13 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - MCP startup integration now registers `electron/mcp/index.ts` handlers during `app.whenReady()`, initializes the singleton MCP manager with renderer-facing client info, and auto-connects only servers where both `enabled` and `autoConnect` are true.
 - App shutdown now performs an MCP disconnect pass before quit completes so managed transports can exit cleanly.
 - Overlay startup initializes the dedicated overlay runtime only on non-macOS platforms, keeps shortcut registration and display listeners on the trusted side, and relies on renderer-synced `settings.overlay` values instead of a new storage file.
-- The global Overlay hotkey opens the Overlay window directly at the cursor position in expanded mode on supported platforms (single-step flow).
-- Prompt Popup remains available as an optional path on non-macOS platforms; submitting from it opens the Overlay at the cursor position and sends the prompt text via `overlay:pending-prompt`.
+- The global Overlay hotkey opens the Overlay window directly at the top-right anchor of the active display on supported platforms (single-step flow); the renderer then reports its measured content height so the window fits the pill/card.
 - `OverlaySync` runs inside the shared provider tree on non-macOS platforms and mirrors persisted `settings.overlay` values into the trusted overlay runtime through the dedicated preload bridge. If startup auto-open is enabled, the main window renderer triggers the initial overlay show after settings hydrate.
 - Overlay preferences are persisted in the existing sanitized renderer settings blob under `settings.overlay` with `enabled`, `launchOnStartup`, `hotkey`, `anchor`, `compactWidth`, `expandedWidth`, `promptAutoHideEnabled`, and `promptAutoHideTimeout`. No new secure-storage or Overlay-only settings file is introduced for Phase 1.
 - Discord RPC is **always-on** in the main process. The client connects automatically at app startup (constructor-driven, no renderer toggle). It lazily loads the `discord-rpc` module inside try/catch so a missing native dependency never crashes the app; it reconnects with backoff when Discord is not running and surfaces connection errors in `DiscordRpcState.lastError`.
 - Main-shell navigation history is now tracked entirely in the renderer through `AppShellProvider` + `src/contexts/appShellNavigation.ts`; both the titlebar arrows and side-mouse buttons call the same history controller instead of using raw `react-router` delta navigation.
 - Native macOS app-menu `New Chat` requests are routed back into the shared renderer shell through `app:new-chat`, so session creation still uses the existing `ChatHistoryContext` flow and unsaved-settings guard instead of a main-process shortcut.
+- Opt-in analytics initializes in the main process after the primary window is created. `electron/analytics/service.ts` records first launch/start/update-installed/crash/error events only when consent is accepted and PostHog transport is configured through the built-in public config or env overrides; renderer usage events flow through the dedicated `window.analytics` bridge and are sanitized in main before transport.
 
 #### MCP Runtime Foundation
 - Shared MCP contracts and naming helpers live in `src/mcp/types.ts`.
@@ -365,14 +363,14 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Tool calling:
   - Agent mode is plan-aware and verification-driven. `createAgentRun(...)` records a short task-specific `kind: 'plan'` step in `message.agentRun.steps`; the streaming orchestrator then prefers native structured tools before visual Computer Use. After any successful mutating/high-risk tool batch, `src/agent/reliability.ts` selects a read-only verification strategy (`file_search`/`file_read`, `window_list`/`windows_uia_snapshot`, or targeted `computer_screenshot`) and `useProviderStreaming.ts` injects an internal verification prompt before final synthesis. Verification is stored as a `kind: 'verify'` step and is bounded to one recovery attempt before the agent reports the failure instead of continuing blind. No new model-callable planning tool, IPC channel, or renderer bridge is introduced.
   - `src/hooks/useToolCalling.ts` → `src/tools/toolManager.ts` → `src/tools/executor.ts`
-  - Assistant mode (`settings.assistantMode`) controls request-time tool exposure. Both `chat` and `agent` modes expose `web_search`, `code_execution`, and trusted MCP tools based on their respective skill toggles. Agent mode on Windows additionally exposes native Windows tools (`file_*`, `app_*`, `window_*`, `windows_uia_*`, `system_shell`) for direct OS operations. The desktop-control fallback surface (`computer_*` tools) controls the current desktop only and is exposed only when `assistantMode === 'agent'` AND the Windows-only `computer_use` skill is enabled.
+  - Assistant mode (`settings.assistantMode`) controls request-time tool exposure. Both `chat` and `agent` modes expose `web_search`, `code_execution`, and trusted MCP tools based on their respective skill toggles. The `system_shell` terminal tool is exposed in both modes on Windows when the `terminal` skill is enabled (see Terminal Skill below). Agent mode on Windows additionally exposes the other native Windows tools (`file_*`, `app_*`, `window_*`, `windows_uia_*`) for direct OS operations. The desktop-control fallback surface (`computer_*` tools) controls the current desktop only and is exposed only when `assistantMode === 'agent'` AND the Windows-only `computer_use` skill is enabled.
   - Agent mode tool approval uses renderer-side risk gating before execution: read-only tools (for example `web_search`, `file_read`, `file_search`, `app_find`, `app_list`, `window_list`, `windows_uia_snapshot`, `computer_screenshot`, and `computer_list_windows`) auto-run, while mutating/high-risk tools (for example shell/code execution, file writes/moves, app launch/install/uninstall, window mutation, UIA actions, MCP tools, and Computer Use input actions) require approval. The approval dialog supports reject, approve once, or trust the exact tool-name + argument signature; trusted signatures are stored in renderer `localStorage` under `zura-agent:trusted-tool-signatures`. Approval and execution state are mirrored into persisted `message.agentRun.steps` metadata.
   - Built-in main-process tools still execute through `window.ipcRenderer.invoke('execute-tool', toolName, args)`.
   - Namespaced MCP tools now execute through `window.mcp.executeTool(toolName, args)` so built-ins and MCP stay on separate IPC paths.
 - Main tool registry: `electron/tools/index.ts` (restricted)
   - OpenRouter-compatible tool-call parsing/recovery now lives in `src/tools/adapters/openrouterToolCalls.ts`, keeping `src/tools/adapters/openrouter.ts` focused on request/response formatting.
 - The Overlay reuses this same renderer chat pipeline through `useStreamingChat`; it does not create a parallel provider/tool execution path or a separate conversation store.
-- The Overlay also listens for `overlay:pending-prompt` events from the main process (triggered when a prompt popup submission opens the overlay) and auto-sends the received prompt text.
+- The Overlay also listens for `overlay:pending-prompt` events from the main process and auto-sends the received prompt text (used when another surface relays a prompt into the overlay).
 - Active-response renderer state is split between persisted chat history and ephemeral `StreamingContext` data in `src/contexts/StreamingContext.tsx`.
   - `StreamingContext` can carry active assistant `agentRun` metadata for approval/execution bookkeeping and commits it back to chat history with the final assistant message; the dashboard no longer renders a dedicated agent timeline panel.
   - `StreamingContext` now tracks an explicit per-response `phase` (`reasoning`, `searching`, `tool`, `answering`) so the thinking/search UI stays stable across multi-search loops without persisting transient renderer-only state.
@@ -389,12 +387,12 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 
 #### Memory & Personalization (`settings.skills.memory`)
 - ChatGPT-style "saved memories" — short, user-visible facts that the model and the user can both manage. Persisted locally only.
-- Storage: `electron/memoryStore.ts` writes a single `memory-index.json` under `app.getPath('userData')`. Atomic whole-file writes; in-memory TTL cache; `withWriteLock` serializes the read-modify-write cycle so concurrent model + user mutations cannot clobber each other. FIFO cap at `MEMORY_CAP=200` (oldest by `createdAt` evicted), per-entry max length `MAX_MEMORY_CONTENT_LENGTH=1000`.
+- Storage: `electron/memoryStore.ts` writes a single `memory-index.json` under `app.getPath('userData')`. Atomic whole-file writes; in-memory TTL cache; `withWriteLock` serializes the read-modify-write cycle so concurrent model + user mutations cannot clobber each other. Every write runs automatic cleanup before sorting/persisting: exact duplicate content in the same scope is coalesced (newest active wins), superseded memories older than `SUPERSEDED_MEMORY_RETENTION_MS` are pruned, dangling `supersedes` / `supersededBy` links are repaired, and then the FIFO cap at `MEMORY_CAP=200` is applied (oldest by `createdAt` evicted). Per-entry max length is `MAX_MEMORY_CONTENT_LENGTH=1000`.
 - Memory writes support an ADD-only lifecycle: entries are `active` or `superseded`, and `addMemoryWithDedupeAsync(...)` can NOOP near-duplicates or link a new memory to an older superseded one through `supersedes` / `supersededBy`. Superseded entries remain stored for history but are excluded from normal retrieval and prompt injection.
 - Conversation summaries live in `electron/conversationSummaryStore.ts` as `conversation-summaries.json` under `app.getPath('userData')`. The store keeps one rolling summary per chat session, capped at `SUMMARY_CAP=15`, using the same atomic-write, TTL-cache, serialized-write pattern as saved memories.
 - Data shape includes a forward-compatible `scope: { type: 'global' } | { type: 'project'; projectId: string }`. v1 only writes global memories. When the projects/folders feature ships, callers thread `projectId` through `buildMemoryBlock` and `loadMemoryBlock`; no schema migration required.
 - Current renderer bridge: `window.memory.{list, add, addDeduped, update, delete, clear, search, summaries, onChanged}` (see `electron/preload.ts` and `src/electron/types.ts`). Summary APIs expose `window.memory.summaries.list()` and `window.memory.summaries.upsert(sessionId, summary)`. All channels are private to that bridge; they are not part of the generic `window.ipcRenderer` allowlist.
-- Current prompt injection: `loadMemoryBlock(settings, scope, { userMessage })` uses main-process memory search to inject only the top relevant memories for the current user message; when no user message is supplied, it injects the most-recent K memories. It does not silently fall back from a no-match search to unrelated recent memories. Superseded memories are excluded. When memories are present, the block appends the built-in **passive** memory instruction from `src/prompts/defaultMemoryPrompt.ts` (guidance on how to *use* the injected memories — it does **not** instruct the model to save/update/delete anything). When no memories survive filtering, the block is empty.
+- Current prompt injection: `loadMemoryBlock(settings, scope, { userMessage })` uses main-process memory search to inject only the top relevant memories for the current user message; when no user message is supplied, it injects the most-recent K memories. Search ranking lives in `electron/memoryRetrieval.ts` and fuses normalized keyword/alias overlap, exact-phrase containment, proximity, recency, and a small user-authored source boost. It does not silently fall back from a no-match search to unrelated recent memories. Superseded memories are excluded. When memories are present, the block appends the built-in **passive** memory instruction from `src/prompts/defaultMemoryPrompt.ts` (guidance on how to *use* the injected memories — it does **not** instruct the model to save/update/delete anything). When no memories survive filtering, the block is empty.
 - Recent-activity prompt injection: `src/prompts/buildRecentActivityBlock.ts` builds a compact "## Recent Activity" block from conversation summaries and `getEffectiveSystemPrompt(...)` inserts it before saved memories. This gives new conversations continuity without embedding/vector retrieval.
 - Current skill gating: `skills.memory.enabled` gates memory injection and background extraction as a whole. `skills.memory.config.autoManage` (default true, surfaced in the UI as the "Background Active Memory" toggle) gates the background extraction ("dreaming") pipeline; when false, no facts are extracted in the background. Memory is **not** model-callable: there are no in-conversation memory tools.
 - Background extraction ("dreaming") runs after a completed chat turn in `src/services/memoryExtraction.ts`, called from `useStreamingChat`. It sends the recent conversation tail plus the just-finished turn to the resolved memory model, asks for durable user facts and one short session summary, writes facts through `window.memory.addDeduped(...)`, and upserts the session summary. The model is resolved from `settings.memoryModel` when set, otherwise it defaults to the active chat model (`settings.aiModel`); this is a documented default, not an error-masking fallback. The flow is best-effort and silent on failure, but it is a meaningful model-call data flow and is gated by `skills.memory.config.autoManage`.
@@ -431,6 +429,23 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Tool results render as expandable cards in chat via `ToolResultDisplay.tsx` (not hidden by `toolResultVisibility`).
 - Piston sandbox constraints: no filesystem, no network, 5s run timeout, 64MB memory limit.
 
+#### Terminal Skill (`settings.skills.terminal`)
+- Built-in skill: `terminal` (`settings.skills.terminal`), **Windows-only**, default **disabled**.
+- When enabled, the model can call `system_shell` to run bounded, non-interactive PowerShell commands for system inspection and automation. The tool name stays `system_shell`; the skill is the toggle that governs its exposure.
+- **Intentional behavior change:** `system_shell` is now skill-gated, not auto-bundled into the Windows agent-mode native tool list. It was removed from `NATIVE_WINDOWS_AGENT_TOOLS` in `src/hooks/useToolCalling.ts`. It is exposed only when `isWindowsRuntime()` AND `isSkillEnabled(settings.skills, 'terminal')`, in **both** chat and agent modes (parity with `code_execution`).
+- Per-command approval is mandatory in all modes:
+  - **Chat mode**: `electron/tools/system-shell/index.ts` blocks on the main-process `TerminalApprovalManager` (`electron/tools/terminal/approvalManager.ts`) until the user approves, rejects, or it times out, surfacing `TerminalApprovalDialog`.
+  - **Agent mode**: the renderer agent approval gate approves, then `bypassNativeApproval` sets `autoApprove` so the main-process gate is skipped (no double prompt).
+- `terminalAutoApprove` (sanitized settings, default false) lets the user opt out of the prompt; injected in `src/tools/executor.ts` parallel to `codeExecutionAutoApprove`. Surfaced in the Skills UI "Auto-approve execution" menu item for the Terminal skill.
+- Approval timeout: 60 seconds (`TERMINAL_APPROVAL_TIMEOUT_MS`). Command execution timeout is clamped to a terminal-specific cap of 300s (`TERMINAL_MAX_TIMEOUT_MS`, default 15s) — higher than the shared `MAX_NATIVE_TIMEOUT_MS` (60s) used by other native tools, since builds/installs need more time. Output is still truncated by `truncateOutput`.
+- Exit-code-aware result shape: `executeSystemShell` returns `{ command, cwd, stdout, stderr, exitCode }`. A non-zero exit code resolves successfully with the captured `exitCode` (it does not throw away output) so the model can read the failure and self-correct; a timeout returns `success: false` with `exitCode: null`. Commands run with `-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass` and `windowsHide`.
+- IPC channels: `terminal:resolve-approval` (invoke), `terminal:pending-approval` (main→renderer broadcast).
+- Preload bridge: `window.terminal` with `resolveApproval(requestId, approved)` and `onPendingApproval(callback)`.
+- Main-process files: `electron/tools/terminal/` (approvalManager, constants, index) plus the rewritten `electron/tools/system-shell/index.ts` (now holds the `setApprovalManager` seam and exit-code-aware runner). Registered/disposed in `electron/main.ts` alongside the code-execution handlers.
+- Renderer files: `src/components/TerminalApprovalDialog.tsx` (mounted via `TerminalApprovalHost` in `src/App.tsx`), skill gating in `src/hooks/useToolCalling.ts`, skill metadata/icon in `src/skills/index.ts` + `src/components/shared/SkillLogo.tsx`.
+- Prompt: the built-in `terminalPrompt` (`src/prompts/defaultTerminalPrompt.ts`) is appended by `buildEnabledSkillsPrompt(...)` when the Terminal skill is enabled, and is rendered read-only in Settings → System Prompt (alongside the other built-in tool prompts). Like the other prompt templates, `normalizeStoredSettings(...)` replaces any persisted override with the current default.
+- ⚠️ Security: this runs arbitrary PowerShell with no OS sandbox. Guarantees: default OFF, mandatory per-command approval with full command preview, bounded timeout + output truncation, non-interactive shell, `autoApprove` only via explicit user opt-in.
+
 #### Computer Use (`skills.computer_use`)
 - **Windows-only**, default disabled. In Agent mode, the existing `computer_*` tools control the desktop the user is currently using. There is no separate Windows Virtual Desktop mode, no `agent_desktop` skill, no `settings.agentDesktop` payload, no `window.agentDesktop` bridge, and no `agent-desktop:*` IPC surface.
 - The renderer exposes `computer_*` only when `settings.assistantMode === 'agent'`, `isWindowsRuntime()` is true, and `skills.computer_use.enabled` is true. macOS hides the Computer Use settings section and the main process rejects `computer_*` calls on macOS.
@@ -459,6 +474,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Model records in active settings arrays (`configuredModels`, `ollamaModels`, `perplexityModels`, `groqModels`, `alibabaModels`, `fireworksModels`) support optional `enabled?: boolean`.
 - Provider-level toggles are persisted in `settings.providerEnabled` for the active provider surface (`alibaba`, `fireworks`, `groq`, `ollama`, `openrouter`, `perplexity`) and are independent from whether API keys/endpoints are filled.
 - Dashboard model selector (`src/components/Dashboard/ModelSelector/useModelSelector.ts`) only lists models where `enabled !== false`, from providers that are both manually enabled (`settings.providerEnabled[provider] !== false`) and configured (key/endpoint present).
+- The dashboard model selector UI is a compact, flat **cascading `DropdownMenu`** (shadcn) modeled on the Settings → Memory model picker: a trigger pill (`src/components/Dashboard/ModelSelector/ModelSelector.tsx`) shows the active model's provider logo + name + a reasoning-effort suffix (only for the active DeepSeek model with reasoning enabled) + chevron. The menu body (`ModelSelectorDropdown.tsx`) renders an optional top **Reasoning effort** radio group (Low/Medium/High/Xhigh, shown only when the active DeepSeek model has reasoning enabled) followed by a **current-model row** that opens a provider submenu (`getPickerVisibleProviders` filtered to providers with available models), each provider opening its own models submenu (✓ marks the active model). There is no search, provider rail, favorites, density, or capability-badge UI on this surface; the old two-pane layout and its `modelSelector` layout settings no longer drive it. Selecting a model goes through `useModelSelector().handleSelect` (updates `settings.aiModel`/`modelProvider`). `ModelList.tsx` is retained as a standalone component but is not part of this cascade.
 
 #### Command Palette Quick-Send
 - The command palette (`Ctrl+Space`) supports sending a chat message directly via **Shift+Enter**.
@@ -498,6 +514,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - Persisted settings are sanitized before write; secret API key fields are stripped and sourced from secure storage instead.
   - MCP server drafts are not persisted here; Phase 2 MCP edits live only in renderer memory until the user saves or discards them.
   - Model arrays may include optional `enabled` flags per model entry to control selector visibility.
+  - Per-model DeepSeek reasoning preferences: `deepseekReasoning` (a `Record<modelCode, { enabled: boolean; effort: 'low' | 'medium' | 'high' | 'xhigh' }>`, default `{}`) plus `deepseekLastEffort` (`'low' | 'medium' | 'high' | 'xhigh'`, default `'high'`). The per-model "Enable reasoning" toggle lives in Provider Hub for DeepSeek model rows; the Low/Medium/High/Xhigh effort picker lives in the dashboard model selector for the active enabled DeepSeek model. `deepseekLastEffort` records the last-picked effort and is used as the default when a model's reasoning is newly enabled. Legacy persisted `max` values are migrated to `xhigh`. There is NO capability inference for this feature — the user's explicit toggle is the source of truth. `src/services/deepseek.ts` maps app-facing efforts to the provider wire contract before sending: `low`/`medium`/`high` → `high`, `xhigh` → `max`.
 - Provider-level enablement map: `providerEnabled` (per-provider manual on/off state, independent from API key presence).
   - Search API preference: `tavilySearchDepthPreference` (`auto`, `ultra-fast`, `fast`, `basic`, `advanced`) controls the default Tavily `search_depth` used when the model omits it.
   - Title generation settings:
@@ -505,7 +522,8 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
     - `titleGenerationPrompt` (prompt template for generating titles; supports `{{userMessage}}` token)
     - `titleGenerationDisplayMode` (`instant` or `typewriter` sidebar reveal)
   - Background memory extraction model: `memoryModel` (dedicated model for background "dreaming"/extraction; provider inferred from the selected model). Empty string = follow the active chat model (`settings.aiModel`). Selected in Settings → Personalization → Memory.
-  - Skills map: `skills` (built-in IDs keyed by `skillId`, currently `web_research` (default enabled), `code_execution` (default disabled), `computer_use` (default disabled), `chart_generation` (default disabled), and `memory` (default enabled), each with `enabled`).
+  - Skills map: `skills` (built-in IDs keyed by `skillId`, currently `web_research` (default enabled), `code_execution` (default disabled), `terminal` (default disabled, Windows-only), `computer_use` (default disabled), `chart_generation` (default disabled), and `memory` (default enabled), each with `enabled`).
+  - Skill auto-approve opt-outs: `codeExecutionAutoApprove` and `terminalAutoApprove` (both default false) skip the per-command approval dialog for their respective skills.
   - Computer Use preferences are limited to `skills.computer_use.enabled` plus the existing `computerUseAutoApprove` setting. Legacy persisted `settings.agentDesktop` / `skills.agent_desktop` values are ignored and not rewritten into normalized settings.
   - Discord RPC preferences: `discordRpc` (`appId`). Lives in the sanitized settings blob — no new file, no secure storage. `appId` defaults to the official ZuraAI Discord Application ID (`1512516130911162610`) so the feature works out of the box; users can override it with their own Client ID. Discord RPC is always-on; there is no enable/disable toggle.
   - Legacy `webSearchEnabled` / `structuredResearchEnabled` are migrated into `skills.web_research.enabled`; `structuredResearchEnabled` is retained only as a migration input and is not used by runtime logic.
@@ -581,6 +599,7 @@ There is currently no built-in trusted browser-testing workflow; any replacement
 - Groq: `src/services/groq.ts` (OpenAI-compatible)
 - Alibaba Cloud: `src/services/alibaba.ts` (DashScope/Tongyi Qwen; OpenAI-compatible at dashscope-intl.aliyuncs.com/compatible-mode/v1; thinking models stream `reasoning_content` deltas with `enable_thinking: true` request param)
 - DeepSeek: `src/services/deepseek.ts` (OpenAI-compatible at api.deepseek.com; supports streaming, tool calling, thinking mode via `reasoning_content`, JSON output, and model catalog via `/models`; balance check via `/user/balance`)
+  - Per-model reasoning control: the user toggles thinking per DeepSeek model in Provider Hub and picks effort (Low/Medium/High/Xhigh) in the model selector. These persist to `settings.deepseekReasoning` / `settings.deepseekLastEffort` (see Data Persistence). `useStreamingChat` resolves the active model's reasoning via `getDeepseekReasoning(settings, settings.aiModel)` (`src/utils/deepseekReasoning.ts`) at both the send and regenerate `runProviderStream` call sites, threading `enableThinking` + app-facing `reasoningEffort` through `useProviderStreaming` → `providerRuntime` (deepseek streaming + non-streaming branches) → `deepseek.ts`, which maps to provider wire values in `thinking: { type, reasoning_effort }` (`low`/`medium`/`high` → `high`, `xhigh` → `max`). DeepSeek thinking mode silently ignores `temperature`/`top_p`/penalties.
 - Fireworks: `src/services/fireworks.ts` (OpenAI-compatible inference) plus `src/services/fireworksModels.ts` for the serverless model catalog
 - Ollama: `src/services/ollama.ts` (local server; tools supported for compatible models)
 - Perplexity: `src/services/perplexity.ts` (native web/research; excluded from external tools)

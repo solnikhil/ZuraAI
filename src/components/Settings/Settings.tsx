@@ -344,7 +344,6 @@ if (!hasSettingsChanges && !hasMcpChanges) {
                 fireworksApiKey={pendingSettings.fireworksApiKey}
                 groqApiKey={pendingSettings.groqApiKey}
                 openRouterApiKey={pendingSettings.openRouterApiKey}
-                openRouterDebug={pendingSettings.openRouterDebug}
                 perplexityApiKey={pendingSettings.perplexityApiKey}
                 tavilyApiKey={pendingSettings.tavilyApiKey}
                 onlineCompilerApiKey={pendingSettings.onlineCompilerApiKey}
@@ -362,6 +361,8 @@ if (!hasSettingsChanges && !hasMcpChanges) {
                 ollamaModels={pendingSettings.ollamaModels}
                 perplexityModels={pendingSettings.perplexityModels}
                 maxTokens={pendingSettings.maxTokens}
+                deepseekReasoning={pendingSettings.deepseekReasoning}
+                deepseekLastEffort={pendingSettings.deepseekLastEffort}
                 onChange={handleChange}
               />
             )}
@@ -379,6 +380,7 @@ if (!hasSettingsChanges && !hasMcpChanges) {
               <SkillsSection
                 skills={pendingSettings.skills}
                 codeExecutionAutoApprove={pendingSettings.codeExecutionAutoApprove}
+                terminalAutoApprove={pendingSettings.terminalAutoApprove}
                 computerUseAutoApprove={pendingSettings.computerUseAutoApprove}
                 onChange={(changes) => handleChange(changes)}
               />
@@ -408,6 +410,7 @@ if (!hasSettingsChanges && !hasMcpChanges) {
                 webSearchPrompt={pendingSettings.webSearchPrompt}
                 titleGenerationPrompt={pendingSettings.titleGenerationPrompt}
                 codeExecutionPrompt={pendingSettings.codeExecutionPrompt}
+                terminalPrompt={pendingSettings.terminalPrompt}
                 computerUsePrompt={pendingSettings.computerUsePrompt}
                 chartGenerationPrompt={pendingSettings.chartGenerationPrompt}
                 memoryPrompt={pendingSettings.memoryPrompt}

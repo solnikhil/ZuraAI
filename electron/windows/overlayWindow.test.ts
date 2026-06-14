@@ -9,11 +9,18 @@ const browserWindowInstances: any[] = []
 vi.mock('electron', () => {
   const BrowserWindow = vi.fn(function MockBrowserWindow() {
     let visible = false
+    let bounds = { x: 0, y: 0, width: 0, height: 0 }
     const instance = {
       isDestroyed: vi.fn(() => false),
       isVisible: vi.fn(() => visible),
-      setBounds: vi.fn(),
+      getBounds: vi.fn(() => bounds),
+      setBounds: vi.fn((next: Partial<typeof bounds>) => {
+        bounds = { ...bounds, ...next }
+      }),
       setAlwaysOnTop: vi.fn(),
+      setVibrancy: vi.fn(),
+      setBackgroundMaterial: vi.fn(),
+      setVisibleOnAllWorkspaces: vi.fn(),
       show: vi.fn(() => {
         visible = true
       }),
@@ -54,9 +61,33 @@ import {
   applyOverlaySettings,
   cleanupOverlay,
   getOverlayState,
-  showOverlayAtPosition,
+  selectOverlayMaterial,
+  setOverlayContentHeight,
   showOverlay,
 } from './overlayWindow'
+
+const WINDOW_MARGIN = 20
+const PILL_HEIGHT = 72
+const WORK_AREA_WIDTH = 1440
+
+describe('selectOverlayMaterial', () => {
+  it('uses vibrancy on macOS', () => {
+    expect(selectOverlayMaterial('darwin', 0)).toBe('vibrancy')
+  })
+
+  it('uses acrylic on Windows 11 22H2+ (build >= 22621)', () => {
+    expect(selectOverlayMaterial('win32', 22631)).toBe('acrylic')
+    expect(selectOverlayMaterial('win32', 22621)).toBe('acrylic')
+  })
+
+  it('falls back to css on older Windows builds', () => {
+    expect(selectOverlayMaterial('win32', 19045)).toBe('css')
+  })
+
+  it('falls back to css on Linux', () => {
+    expect(selectOverlayMaterial('linux', 0)).toBe('css')
+  })
+})
 
 describe('overlayWindow', () => {
   beforeEach(() => {
@@ -83,7 +114,7 @@ describe('overlayWindow', () => {
     })
   })
 
-  it('opens overlay directly when the global shortcut fires', async () => {
+  it('opens the overlay anchored to the top-right at pill height when the shortcut fires', async () => {
     applyOverlaySettings({ enabled: true, compactWidth: 380, expandedWidth: 480 })
 
     const shortcutHandler = (globalShortcut.register as any).mock.calls[0]?.[1]
@@ -94,10 +125,10 @@ describe('overlayWindow', () => {
     expect(browserWindowInstances).toHaveLength(1)
     expect(browserWindowInstances[0].setBounds).toHaveBeenCalledWith(
       {
-        x: 0,
-        y: 0,
+        x: WORK_AREA_WIDTH - 480 - WINDOW_MARGIN,
+        y: WINDOW_MARGIN,
         width: 480,
-        height: 680,
+        height: PILL_HEIGHT,
       },
       false
     )
@@ -116,7 +147,7 @@ describe('overlayWindow', () => {
     expect(state.mode).toBe('hidden')
   })
 
-  it('creates and shows the overlay window in compact mode when enabled', async () => {
+  it('creates and shows the overlay window top-right when enabled', async () => {
     applyOverlaySettings({ enabled: true, compactWidth: 380, expandedWidth: 480 })
 
     const state = await showOverlay()
@@ -130,39 +161,44 @@ describe('overlayWindow', () => {
     expect(state.expandedWidth).toBe(480)
   })
 
-  it('opens anchored overlay at the prompt popup origin', async () => {
+  it('grows the window to a clamped content height', async () => {
     applyOverlaySettings({ enabled: true, compactWidth: 380, expandedWidth: 480 })
+    await showOverlay()
+    browserWindowInstances[0].setBounds.mockClear()
 
-    await showOverlayAtPosition(500, 500, {
-      x: 420,
-      y: 210,
-      width: 500,
-      height: 236,
-    })
-
-    expect(browserWindowInstances).toHaveLength(1)
+    setOverlayContentHeight(300)
     expect(browserWindowInstances[0].setBounds).toHaveBeenCalledWith(
-      {
-        x: 420,
-        y: 210,
-        width: 500,
-        height: 680,
-      },
-      false
+      expect.objectContaining({ width: 480, height: 300 }),
+      expect.any(Boolean)
     )
-    expect(browserWindowInstances[0].show).toHaveBeenCalled()
-    expect(browserWindowInstances[0].focus).toHaveBeenCalled()
+
+    browserWindowInstances[0].setBounds.mockClear()
+    setOverlayContentHeight(99999)
+    expect(browserWindowInstances[0].setBounds).toHaveBeenCalledWith(
+      expect.objectContaining({ height: 680 }),
+      expect.any(Boolean)
+    )
+
+    browserWindowInstances[0].setBounds.mockClear()
+    setOverlayContentHeight(10)
+    expect(browserWindowInstances[0].setBounds).toHaveBeenCalledWith(
+      expect.objectContaining({ height: PILL_HEIGHT }),
+      expect.any(Boolean)
+    )
   })
 
-  it('does not recenter a visible overlay during settings sync', async () => {
-    applyOverlaySettings({ enabled: true, compactWidth: 380, expandedWidth: 480 })
+  it('ignores non-finite content heights', async () => {
+    applyOverlaySettings({ enabled: true, expandedWidth: 480 })
+    await showOverlay()
+    browserWindowInstances[0].setBounds.mockClear()
 
-    await showOverlayAtPosition(500, 500, {
-      x: 420,
-      y: 210,
-      width: 500,
-      height: 236,
-    })
+    setOverlayContentHeight(Number.NaN)
+    expect(browserWindowInstances[0].setBounds).not.toHaveBeenCalled()
+  })
+
+  it('does not reposition a visible overlay during settings sync', async () => {
+    applyOverlaySettings({ enabled: true, compactWidth: 380, expandedWidth: 480 })
+    await showOverlay()
 
     browserWindowInstances[0].setBounds.mockClear()
     applyOverlaySettings({ enabled: true, compactWidth: 360, expandedWidth: 460 })

@@ -76,4 +76,28 @@ describe('ResponseInfo', () => {
     expect(screen.getByText('70')).toBeInTheDocument()
     expect(screen.getByText('30')).toBeInTheDocument()
   })
+
+  it('shows the reasoning effort row when provided', () => {
+    render(
+      <ResponseInfo
+        model="deepseek-v4-pro"
+        usage={{ inputTokens: 10, outputTokens: 4, totalTokens: 14 }}
+        reasoningEffort="xhigh"
+      />
+    )
+
+    expect(screen.getByText('Reasoning Effort')).toBeInTheDocument()
+    expect(screen.getByText('xhigh')).toBeInTheDocument()
+  })
+
+  it('hides the reasoning effort row when not provided', () => {
+    render(
+      <ResponseInfo
+        model="gpt-4.1"
+        usage={{ inputTokens: 10, outputTokens: 4, totalTokens: 14 }}
+      />
+    )
+
+    expect(screen.queryByText('Reasoning Effort')).not.toBeInTheDocument()
+  })
 })

@@ -10,23 +10,28 @@ import { SettingsProvider } from './contexts/SettingsContext'
 import { ChatHistoryProvider } from './contexts/ChatHistoryContext'
 import { StreamingProvider } from './contexts/StreamingContext'
 import { QuickSendProvider } from './contexts/QuickSendContext'
-import { ModelSelectorProvider, useModelSelectorContext } from './contexts/ModelSelectorContext'
+import { ModelSelectorProvider } from './contexts/ModelSelectorContext'
 import { McpProvider } from './mcp/McpContext'
 import { ToastProvider, ErrorBoundary } from './components/shared'
 import { McpApprovalDialog } from './components/mcp/McpApprovalDialog'
 import { ComputerUseApprovalDialog } from './components/ComputerUseApprovalDialog'
+import { AnalyticsConsentPrompt } from './components/AnalyticsConsentPrompt'
 import { AgentToolApprovalProvider } from './agent/AgentToolApprovalContext'
 import { isMacOSRuntime } from './utils/platform'
-import type { PendingCodeApproval } from './electron/types'
+import type { PendingCodeApproval, PendingTerminalApproval } from './electron/types'
 
 import { loadSettingsModule } from './components/Settings/settingsLoader'
 
 const Settings = lazy(loadSettingsModule)
 const OverlayView = lazy(() => import('./components/OverlayView'))
-const PromptPopupView = lazy(() => import('./components/PromptPopupView'))
 const CodeExecutionApprovalDialog = lazy(() =>
   import('./components/CodeExecutionApprovalDialog').then((module) => ({
     default: module.CodeExecutionApprovalDialog,
+  }))
+)
+const TerminalApprovalDialog = lazy(() =>
+  import('./components/TerminalApprovalDialog').then((module) => ({
+    default: module.TerminalApprovalDialog,
   }))
 )
 // Loaded only inside the dev-only `#/chat-debug` BrowserWindow. Wrapped in
@@ -38,21 +43,6 @@ const ChatDebugApp = import.meta.env.DEV
       }))
     )
   : null
-
-function ModelSelectorOpener() {
-  const { openSelector } = useModelSelectorContext()
-
-  useEffect(() => {
-    if (!window.ipcRenderer?.on) return
-    const listener = (_event: unknown) => openSelector()
-    window.ipcRenderer.on('model-selector:open', listener)
-    return () => {
-      window.ipcRenderer.off('model-selector:open', listener)
-    }
-  }, [openSelector])
-
-  return null
-}
 
 function SettingsLoadingFallback() {
   return (
@@ -91,6 +81,25 @@ function CodeExecutionApprovalHost() {
   )
 }
 
+function TerminalApprovalHost() {
+  const [pendingApprovals, setPendingApprovals] = useState<PendingTerminalApproval[] | null>(null)
+
+  useEffect(() => {
+    if (!window.terminal?.onPendingApproval) return
+    return window.terminal.onPendingApproval((pending) => {
+      setPendingApprovals(pending.length > 0 ? pending : null)
+    })
+  }, [])
+
+  if (!pendingApprovals) return null
+
+  return (
+    <Suspense fallback={null}>
+      <TerminalApprovalDialog initialPending={pendingApprovals} />
+    </Suspense>
+  )
+}
+
 function DashboardApp() {
   const macOS = isMacOSRuntime()
 
@@ -102,7 +111,6 @@ function DashboardApp() {
             <QuickSendProvider>
               <AgentToolApprovalProvider>
                 <ModelSelectorProvider>
-                  <ModelSelectorOpener />
                   {!macOS && <OverlaySync />}
                   <Router>
                     <Routes>
@@ -133,24 +141,16 @@ function DashboardApp() {
                     </Routes>
                   </Router>
                   <McpApprovalDialog />
+                  <AnalyticsConsentPrompt />
                 </ModelSelectorProvider>
               </AgentToolApprovalProvider>
               <CodeExecutionApprovalHost />
+              <TerminalApprovalHost />
               {!macOS && <ComputerUseApprovalDialog />}
             </QuickSendProvider>
           </StreamingProvider>
         </ChatHistoryProvider>
       </McpProvider>
-    </SettingsProvider>
-  )
-}
-
-function PromptPopupApp() {
-  return (
-    <SettingsProvider>
-      <Suspense fallback={null}>
-        <PromptPopupView />
-      </Suspense>
     </SettingsProvider>
   )
 }
@@ -161,8 +161,6 @@ function App() {
   let content: ReactNode
   if (hashPath.startsWith('#/about')) {
     content = <AboutWindow />
-  } else if (hashPath.startsWith('#/prompt-popup')) {
-    content = <PromptPopupApp />
   } else if (hashPath.startsWith('#/chat-debug') && ChatDebugApp) {
     content = (
       <Suspense fallback={null}>

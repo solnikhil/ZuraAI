@@ -33,6 +33,15 @@ export const motionSpring = {
     damping: 22,
     mass: 0.8,
   },
+  // Spring physics with no overshoot — for height/layout transitions so
+  // expanding a block does not push the content below past its final spot
+  // and bounce back. Overdamped (damping > critical) = smooth settle, no jitter.
+  settle: {
+    type: 'spring' as const,
+    stiffness: 340,
+    damping: 38,
+    mass: 0.85,
+  },
 } as const
 
 function getPrefersReducedMotion() {

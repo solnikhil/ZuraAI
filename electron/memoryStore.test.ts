@@ -216,7 +216,14 @@ describe('memoryStore', () => {
       JSON.stringify({
         version: 1,
         memories: [
-          { id: 'good', content: 'kept', createdAt: 1, updatedAt: 1, source: 'user', scope: { type: 'global' } },
+          {
+            id: 'good',
+            content: 'kept',
+            createdAt: 1,
+            updatedAt: 1,
+            source: 'user',
+            scope: { type: 'global' },
+          },
           { id: 'bad' }, // missing required fields → dropped
           null,
         ],
@@ -235,9 +242,14 @@ describe('memoryStore', () => {
       content: 'AI saved this',
       source: 'model',
       sessionId: 'chat-42',
+      origin: 'background',
     })
     expect(memory.source).toBe('model')
     expect(memory.sessionId).toBe('chat-42')
+
+    store._resetMemoryStoreCache()
+    const persisted = await store.getMemoryAsync(memory.id)
+    expect(persisted?.origin).toBe('background')
   })
 
   it('rejects invalid scope on update', async () => {
@@ -253,7 +265,7 @@ describe('memoryStore', () => {
     const result = await store.addMemoryWithDedupeAsync({ content: 'I use Neovim' })
     expect(result.operation).toBe('added')
     expect(result.memory.status).toBe('active')
-    expect((await store.getAllMemoriesAsync())).toHaveLength(1)
+    expect(await store.getAllMemoriesAsync()).toHaveLength(1)
   })
 
   it('addMemoryWithDedupeAsync NOOPs on a near-duplicate active memory', async () => {
@@ -287,5 +299,90 @@ describe('memoryStore', () => {
     const active = store.excludeSuperseded(all)
     expect(active).toHaveLength(1)
     expect(active[0].id).toBe(next.memory.id)
+  })
+
+  it('auto-cleans exact duplicate memories on the next write', async () => {
+    const indexFile = path.join(electronMock.userDataPath, 'memory-index.json')
+    await writeFile(
+      indexFile,
+      JSON.stringify({
+        version: 1,
+        memories: [
+          {
+            id: 'older',
+            content: 'User prefers concise answers.',
+            createdAt: 1,
+            updatedAt: 10,
+            source: 'user',
+            scope: { type: 'global' },
+            status: 'active',
+          },
+          {
+            id: 'newer',
+            content: 'user prefers concise answers',
+            createdAt: 2,
+            updatedAt: 20,
+            source: 'user',
+            scope: { type: 'global' },
+            status: 'active',
+          },
+        ],
+      })
+    )
+
+    const store = await import('./memoryStore')
+    await store.addMemoryAsync({ content: 'User uses TypeScript' })
+
+    const memories = await store.getAllMemoriesAsync()
+    expect(memories.find((memory) => memory.id === 'newer')).toBeDefined()
+    expect(memories.find((memory) => memory.id === 'older')).toBeUndefined()
+  })
+
+  it('auto-prunes superseded memories after the retention window', async () => {
+    const store = await import('./memoryStore')
+    const now = 10_000_000_000
+    const oldSupersededUpdatedAt = now - store.SUPERSEDED_MEMORY_RETENTION_MS - 1
+    await writeFile(
+      path.join(electronMock.userDataPath, 'memory-index.json'),
+      JSON.stringify({
+        version: 1,
+        memories: [
+          {
+            id: 'old',
+            content: 'User lives in New York',
+            createdAt: 1,
+            updatedAt: oldSupersededUpdatedAt,
+            source: 'model',
+            scope: { type: 'global' },
+            status: 'superseded',
+            supersededBy: 'new',
+          },
+          {
+            id: 'new',
+            content: 'User lives in Bangalore',
+            createdAt: 2,
+            updatedAt: now - 1,
+            source: 'model',
+            scope: { type: 'global' },
+            status: 'active',
+            supersedes: 'old',
+          },
+        ],
+      })
+    )
+
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(now)
+    try {
+      store._resetMemoryStoreCache()
+      await store.addMemoryAsync({ content: 'User prefers dark mode' })
+
+      const memories = await store.getAllMemoriesAsync()
+      const activeReplacement = memories.find((memory) => memory.id === 'new')
+      expect(memories.find((memory) => memory.id === 'old')).toBeUndefined()
+      expect(activeReplacement).toBeDefined()
+      expect(activeReplacement?.supersedes).toBeUndefined()
+    } finally {
+      nowSpy.mockRestore()
+    }
   })
 })

@@ -1,5 +1,4 @@
 import React from 'react'
-import { Virtuoso } from 'react-virtuoso'
 import ChatRow from './ChatRow'
 import type { ChatRowAction } from './ChatRow'
 import ChatRowContextMenu from './ChatRowContextMenu'
@@ -9,8 +8,6 @@ import { ChevronDown, FolderOpen, Pin } from '../../icons'
 import type { GroupedSessions } from './utils/groupSessions'
 import type { ChatSession, Folder } from '../../../chat/types'
 import type { ChatSelectedOverlayStyle } from '../../../contexts/SettingsUIContext'
-
-const CHAT_LIST_BASE_HORIZONTAL_PADDING = 8
 
 interface SidebarChatListProps {
   groupedSessions: GroupedSessions
@@ -59,6 +56,7 @@ export default function SidebarChatList({
   onKeyDown,
 }: SidebarChatListProps) {
   const [deleteConfirmSessionId, setDeleteConfirmSessionId] = React.useState<string | null>(null)
+
   const [renameSessionId, setRenameSessionId] = React.useState<string | null>(null)
   const [isPinnedOpen, setIsPinnedOpen] = React.useState(true)
   const [isYourChatsOpen, setIsYourChatsOpen] = React.useState(true)
@@ -283,48 +281,21 @@ export default function SidebarChatList({
   return (
     <>
       <div className="sidebar-chatlist">
-        <Virtuoso
-          className="sidebar-chatlist__virtuoso"
-          data={sidebarItems}
-          itemContent={renderItem}
-          components={{
-            Scroller: React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-              function SidebarChatScroller(props, ref) {
-                return (
-                  <div
-                    {...props}
-                    ref={ref}
-                    className={[props.className, 'sidebar-chatlist__scroller'].filter(Boolean).join(' ')}
-                  />
-                )
-              }
-            ),
-            List: React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-              function SidebarChatListbox(props, ref) {
-                return (
-                  <div
-                    {...props}
-                    ref={ref}
-                    role="listbox"
-                    tabIndex={0}
-                    onKeyDown={onKeyDown}
-                    className="sidebar-chatlist__listbox"
-                    style={{
-                      ...(props.style || {}),
-                      paddingTop: 2,
-                      paddingBottom: bottomPadding,
-                    }}
-                  />
-                )
-              }
-            ),
-          }}
-          style={{
-            height: '100%',
-            paddingLeft: CHAT_LIST_BASE_HORIZONTAL_PADDING,
-            paddingRight: CHAT_LIST_BASE_HORIZONTAL_PADDING,
-          }}
-        />
+        <div
+          className="sidebar-chatlist__scroller"
+          role="listbox"
+          tabIndex={0}
+          onKeyDown={onKeyDown}
+        >
+          <div
+            className="sidebar-chatlist__listbox"
+            style={{ paddingBottom: bottomPadding }}
+          >
+            {sidebarItems.map((item, index) => (
+              <React.Fragment key={item.key}>{renderItem(index, item)}</React.Fragment>
+            ))}
+          </div>
+        </div>
       </div>
 
       <DeleteChatAlertDialog

@@ -16,6 +16,7 @@ import {
   type ProviderModelListKey,
 } from '../providers'
 import { normalizeAssistantPersonalityId } from '../prompts/assistantPersonalities'
+import { normalizeDeepseekReasoning, coerceReasoningEffort } from '../utils/deepseekReasoning'
 
 export interface Settings extends SettingsUI, SettingsConfig {}
 
@@ -231,6 +232,7 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   parsed.assistantPersonality = normalizeAssistantPersonalityId(parsed.assistantPersonality)
   parsed.webSearchPrompt = defaultSettings.webSearchPrompt
   parsed.codeExecutionPrompt = defaultSettings.codeExecutionPrompt
+  parsed.terminalPrompt = defaultSettings.terminalPrompt
   parsed.computerUsePrompt = defaultSettings.computerUsePrompt
   parsed.chartGenerationPrompt = defaultSettings.chartGenerationPrompt
   parsed.memoryPrompt = defaultSettings.memoryPrompt
@@ -397,6 +399,10 @@ export function normalizeStoredSettings(raw: string | null): Settings {
     parsed.codeExecutionAutoApprove = defaultSettings.codeExecutionAutoApprove
   }
 
+  if (typeof parsed.terminalAutoApprove !== 'boolean') {
+    parsed.terminalAutoApprove = defaultSettings.terminalAutoApprove
+  }
+
   if (typeof parsed.computerUseAutoApprove !== 'boolean') {
     parsed.computerUseAutoApprove = defaultSettings.computerUseAutoApprove
   }
@@ -512,6 +518,10 @@ export function normalizeStoredSettings(raw: string | null): Settings {
 
   delete (parsed as Record<string, unknown>).responseTransitionMode
 
+  parsed.deepseekReasoning = normalizeDeepseekReasoning(parsed.deepseekReasoning)
+  parsed.deepseekLastEffort =
+    coerceReasoningEffort(parsed.deepseekLastEffort) ?? defaultSettings.deepseekLastEffort
+
   return parsed
 }
 
@@ -559,12 +569,16 @@ export function getInitialConfigSettings(settings: Settings): Partial<SettingsCo
     alibabaModels: settings.alibabaModels,
     fireworksModels: settings.fireworksModels,
     deepseekModels: settings.deepseekModels,
+    deepseekReasoning: settings.deepseekReasoning,
+    deepseekLastEffort: settings.deepseekLastEffort,
+    openRouterReasoningEffort: settings.openRouterReasoningEffort,
     temperature: settings.temperature,
     maxTokens: settings.maxTokens,
     systemPrompt: settings.systemPrompt,
     assistantPersonality: settings.assistantPersonality,
     webSearchPrompt: settings.webSearchPrompt,
     codeExecutionPrompt: settings.codeExecutionPrompt,
+    terminalPrompt: settings.terminalPrompt,
     computerUsePrompt: settings.computerUsePrompt,
     chartGenerationPrompt: settings.chartGenerationPrompt,
     memoryPrompt: settings.memoryPrompt,
@@ -575,6 +589,7 @@ export function getInitialConfigSettings(settings: Settings): Partial<SettingsCo
     skills: settings.skills,
     titleModel: settings.titleModel,
     codeExecutionAutoApprove: settings.codeExecutionAutoApprove,
+    terminalAutoApprove: settings.terminalAutoApprove,
     computerUseAutoApprove: settings.computerUseAutoApprove,
     titleGenerationPrompt: settings.titleGenerationPrompt,
     titleGenerationDisplayMode: settings.titleGenerationDisplayMode,

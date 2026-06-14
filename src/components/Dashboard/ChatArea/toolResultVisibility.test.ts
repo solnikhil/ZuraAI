@@ -34,6 +34,16 @@ describe('shouldHideGenericToolResultCard', () => {
     ).toBe(true)
   })
 
+  it('hides system_shell results', () => {
+    expect(
+      shouldHideGenericToolResultCard(
+        buildToolResult({
+          toolCall: { name: 'system_shell' },
+        })
+      )
+    ).toBe(true)
+  })
+
   it('hides namespaced MCP results', () => {
     expect(
       shouldHideGenericToolResultCard(

@@ -81,6 +81,38 @@ const PHASE_TONE: Record<ChatDiagnosticPhase, string> = {
   'finish': 'phase--success',
 }
 
+// The three memory-extraction phases are the background "dreaming" pipeline.
+// They're grouped under a single "dreaming" filter chip instead of three chips.
+const DREAMING_PHASES: ChatDiagnosticPhase[] = [
+  'memory-extraction-start',
+  'memory-extraction-result',
+  'memory-extraction-error',
+]
+
+interface PhaseChip {
+  id: string
+  label: string
+  phases: ChatDiagnosticPhase[]
+}
+
+// Chip descriptors: one chip per phase, except the dreaming phases which collapse
+// into a single grouped chip (rendered in place of the first memory phase).
+const PHASE_CHIPS: PhaseChip[] = (() => {
+  const chips: PhaseChip[] = []
+  let dreamingAdded = false
+  for (const phase of ALL_PHASES) {
+    if (DREAMING_PHASES.includes(phase)) {
+      if (!dreamingAdded) {
+        chips.push({ id: 'dreaming', label: 'dreaming', phases: DREAMING_PHASES })
+        dreamingAdded = true
+      }
+      continue
+    }
+    chips.push({ id: phase, label: phase, phases: [phase] })
+  }
+  return chips
+})()
+
 function isFailedToolComplete(event: ChatDiagnosticEvent): boolean {
   return event.phase === 'tool-complete' && event.tool?.success === false
 }
@@ -215,13 +247,18 @@ export function ChatDebugPanelView({ sessionId }: ChatDebugPanelViewProps) {
 
   const virtuosoRef = useRef<VirtuosoHandle>(null)
 
-  const togglePhase = useCallback((phase: ChatDiagnosticPhase) => {
+  // Toggle a chip that may map to one or more phases (e.g. the grouped
+  // "dreaming" chip). On when every mapped phase is active; click flips all.
+  const toggleChip = useCallback((phases: ChatDiagnosticPhase[]) => {
     setActivePhases((current) => {
       const next = new Set(current)
-      if (next.has(phase)) {
-        next.delete(phase)
-      } else {
-        next.add(phase)
+      const allOn = phases.every((phase) => next.has(phase))
+      for (const phase of phases) {
+        if (allOn) {
+          next.delete(phase)
+        } else {
+          next.add(phase)
+        }
       }
       return next
     })
@@ -326,16 +363,16 @@ export function ChatDebugPanelView({ sessionId }: ChatDebugPanelViewProps) {
             >
               {activePhases.size === ALL_PHASES.length ? 'Clear all' : 'Select all'}
             </button>
-            {ALL_PHASES.map((phase) => {
-              const enabled = activePhases.has(phase)
+            {PHASE_CHIPS.map((chip) => {
+              const enabled = chip.phases.every((phase) => activePhases.has(phase))
               return (
                 <button
-                  key={phase}
+                  key={chip.id}
                   type="button"
                   className={`chat-debug-panel__chip ${enabled ? 'chat-debug-panel__chip--on' : ''}`}
-                  onClick={() => togglePhase(phase)}
+                  onClick={() => toggleChip(chip.phases)}
                 >
-                  {phase}
+                  {chip.label}
                 </button>
               )
             })}

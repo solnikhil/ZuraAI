@@ -26,9 +26,10 @@ interface ResponseInfoProps {
     usage?: UsageData
     finishReason?: string
     requestedMaxTokens?: number
+    reasoningEffort?: 'low' | 'medium' | 'high' | 'xhigh'
 }
 
-export default function ResponseInfo({ model, latency, usage, finishReason, requestedMaxTokens }: ResponseInfoProps) {
+export default function ResponseInfo({ model, latency, usage, finishReason, requestedMaxTokens, reasoningEffort }: ResponseInfoProps) {
     const formattedDuration = latency ? `${(latency / 1000).toFixed(1)}s` : '-'
     const fmt = (n?: number) => n?.toLocaleString() || '0'
     const fmtTps = (n?: number) => n ? n.toFixed(1) : '-'
@@ -185,6 +186,28 @@ export default function ResponseInfo({ model, latency, usage, finishReason, requ
                         <span style={{ fontSize: '11px', color: 'var(--theme-text-muted)' }}>Max Tokens</span>
                         <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--theme-text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
                             {fmt(requestedMaxTokens)}
+                        </span>
+                    </div>
+                )}
+
+                {reasoningEffort && (
+                    <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '0 2px',
+                    }}>
+                        <span style={{ fontSize: '11px', color: 'var(--theme-text-muted)' }}>Reasoning Effort</span>
+                        <span style={{
+                            background: 'var(--theme-accent-muted)',
+                            color: 'var(--theme-accent)',
+                            padding: '2px 8px',
+                            borderRadius: '7px',
+                            fontSize: '10.5px',
+                            fontWeight: 600,
+                            textTransform: 'capitalize',
+                        }}>
+                            {reasoningEffort}
                         </span>
                     </div>
                 )}

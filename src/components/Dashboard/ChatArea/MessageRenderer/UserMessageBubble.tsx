@@ -11,13 +11,13 @@ const bubbleStyleByPreset: Record<
   solid: {
     background: 'var(--theme-user-message-bg)',
     border: '1px solid var(--theme-border-subtle)',
-    boxShadow: 'var(--theme-shadow-sm)',
+    boxShadow: 'none',
     color: 'var(--theme-user-message-text)',
   },
   glass: {
     background: 'rgba(148, 163, 184, 0.18)',
     border: '1px solid rgba(255, 255, 255, 0.22)',
-    boxShadow: 'var(--theme-shadow-sm)',
+    boxShadow: 'none',
     color: 'var(--theme-text-primary)',
     backdropFilter: 'blur(16px)',
     WebkitBackdropFilter: 'blur(16px)',
@@ -32,13 +32,13 @@ const bubbleStyleByPreset: Record<
     background:
       'linear-gradient(135deg, color-mix(in srgb, var(--theme-accent) 82%, transparent) 0%, color-mix(in srgb, var(--theme-accent-secondary) 78%, transparent) 100%)',
     border: '1px solid color-mix(in srgb, var(--theme-accent) 45%, transparent)',
-    boxShadow: 'var(--theme-shadow-sm)',
+    boxShadow: 'none',
     color: 'var(--theme-text-inverse)',
   },
   elevated: {
     background: 'var(--theme-surface)',
     border: '1px solid var(--theme-border)',
-    boxShadow: 'var(--theme-shadow-md)',
+    boxShadow: 'none',
     color: 'var(--theme-text-primary)',
   },
   terminal: {

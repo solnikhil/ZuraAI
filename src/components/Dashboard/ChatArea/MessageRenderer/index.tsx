@@ -12,6 +12,8 @@ import LazyMarkdown from '@/components/LazyMarkdown'
 import ThinkingBlockComponent from '@/components/ThinkingBlock'
 import { useSettings } from '@/contexts/SettingsContext'
 import { writeTextToClipboard } from '@/utils/clipboard'
+import { getDeepseekReasoning } from '@/utils/deepseekReasoning'
+import { serializeDomToMarkdown } from '@/utils/domToMarkdown'
 import {
   removeToolFollowUpSplitMarker,
   shouldCaptureFollowUpSnapshot,
@@ -216,6 +218,32 @@ function MessageRendererComponent({
     })
   }
 
+  // When the user selects rendered assistant content and copies it, replace the
+  // clipboard payload with best-effort Markdown source (## headings, **bold**,
+  // list markers, fenced code) instead of the flattened rendered text.
+  const handleCopyEvent = (e: React.ClipboardEvent<HTMLDivElement>) => {
+    const selection = window.getSelection()
+    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+      return
+    }
+
+    const container = e.currentTarget
+    const range = selection.getRangeAt(0)
+    // Only intervene when the selection is contained within this rendered block.
+    if (!container.contains(range.commonAncestorContainer)) {
+      return
+    }
+
+    const fragment = range.cloneContents()
+    const markdown = serializeDomToMarkdown(fragment)
+    if (!markdown) {
+      return
+    }
+
+    e.clipboardData.setData('text/plain', markdown)
+    e.preventDefault()
+  }
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
       e.preventDefault()
@@ -256,6 +284,7 @@ function MessageRendererComponent({
       style={{ marginBottom: '24px' }}
       tabIndex={0}
       onKeyDown={handleKeyDown}
+      onCopy={handleCopyEvent}
       ref={messageRef}
     >
       {message.files && message.files.length > 0 && <RenderImageFiles files={message.files} />}
@@ -382,6 +411,15 @@ function MessageRendererComponent({
             usage: message.usage,
             finishReason: message.finishReason,
             requestedMaxTokens: message.requestedMaxTokens,
+            reasoningEffort: (() => {
+              // DeepSeek-only: surface the per-model reasoning effort when that
+              // model has reasoning enabled. Keyed by model code (the user's
+              // explicit setting is the source of truth).
+              const reasoning = message.model
+                ? getDeepseekReasoning(settings, message.model)
+                : null
+              return reasoning?.enabled ? reasoning.effort : undefined
+            })(),
           }}
           messageActionButtonClassName={messageActionButtonClassName}
         />

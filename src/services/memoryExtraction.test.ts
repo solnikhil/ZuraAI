@@ -109,7 +109,7 @@ describe('runMemoryExtraction', () => {
     expect(generateTitleTextForModel.mock.calls[0][1]).toBe('dedicated-memory-model')
     expect(generateTitleTextForModel.mock.calls[0][3]).toMatchObject({
       jsonMode: true,
-      maxTokens: 512,
+      maxTokens: 1024,
     })
     expect(generateTitleTextForModel.mock.calls[0][3]?.signal).toBeInstanceOf(AbortSignal)
   })
@@ -237,5 +237,39 @@ describe('runMemoryExtraction', () => {
         responsePreview: 'I could not find anything durable to remember.',
       })
     )
+  })
+
+  // Regression: a DeepSeek reasoner (e.g. deepseek-v4-pro) previously returned
+  // empty content (reasoning consumed the token budget), surfacing as an
+  // `empty-response` error. With thinking explicitly disabled + the larger
+  // budget, the provider returns parseable JSON and extraction succeeds.
+  it('parses facts/summary for a DeepSeek reasoner instead of empty-response', async () => {
+    const state = installBridge()
+    generateTitleTextForModel.mockResolvedValue(
+      '{"facts":["User prefers dark mode"],"summary":"Set up the app theme"}'
+    )
+
+    const reasonerSettings = {
+      ...(baseSettings as object),
+      memoryModel: 'deepseek-v4-pro',
+      deepseekModels: [{ id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro', provider: 'deepseek' }],
+    } as never
+
+    const result = await runMemoryExtraction({
+      settings: reasonerSettings,
+      sessionId: 's-reasoner',
+      messages: [{ role: 'user', content: 'please use dark mode going forward' }],
+    })
+
+    expect(result?.facts).toEqual(['User prefers dark mode'])
+    expect(state.added).toEqual(['User prefers dark mode'])
+    expect(state.summaries).toEqual([{ sessionId: 's-reasoner', summary: 'Set up the app theme' }])
+    // No error diagnostic should be emitted on the success path.
+    const errorCalls = (appendChatDiagnosticEvent as unknown as { mock: { calls: unknown[][] } }).mock.calls.filter(
+      (call) => (call[0] as { phase?: string })?.phase === 'memory-extraction-error'
+    )
+    expect(errorCalls).toEqual([])
+    // Budget hardening: extraction requests the larger token budget.
+    expect(generateTitleTextForModel.mock.calls[0][3]).toMatchObject({ maxTokens: 1024 })
   })
 })

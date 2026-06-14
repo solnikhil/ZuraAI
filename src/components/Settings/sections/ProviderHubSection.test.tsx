@@ -68,7 +68,6 @@ describe('ProviderHubSection', () => {
 
   const baseProps = {
     openRouterApiKey: '',
-    openRouterDebug: false,
     perplexityApiKey: '',
     groqApiKey: '',
     alibabaApiKey: '',
@@ -550,18 +549,6 @@ describe('ProviderHubSection', () => {
     )
   })
 
-  it('updates OpenRouter debug preference from provider settings', () => {
-    const onChange = vi.fn()
-    render(<ProviderHubSection {...baseProps} onChange={onChange} />)
-
-    fireEvent.click(
-      screen.getByText('OpenRouter provides access to many frontier models through one API.')
-    )
-    fireEvent.click(screen.getByRole('switch', { name: 'Enable OpenRouter debug logging' }))
-
-    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ openRouterDebug: true }))
-  })
-
   it('shows Add from Catalog for Alibaba provider', () => {
     render(<ProviderHubSection {...baseProps} />)
 
@@ -654,5 +641,98 @@ describe('ProviderHubSection', () => {
         ]),
       })
     )
+  })
+
+  it('shows a per-model reasoning toggle for DeepSeek and persists enablement', () => {
+    const onChange = vi.fn()
+    render(<ProviderHubSection {...baseProps} onChange={onChange} />)
+
+    fireEvent.click(
+      screen.getByText('DeepSeek V4 Flash and V4 Pro with tool calling and optional thinking mode.')
+    )
+
+    const reasoningToggle = screen.getByLabelText('Toggle reasoning for DeepSeek V4 Flash')
+    expect(reasoningToggle).toBeInTheDocument()
+    fireEvent.click(reasoningToggle)
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        deepseekReasoning: expect.objectContaining({
+          'deepseek-v4-flash': { enabled: true, effort: 'high' },
+        }),
+      })
+    )
+  })
+
+  it('does not show a reasoning toggle for non-DeepSeek providers', () => {
+    render(<ProviderHubSection {...baseProps} />)
+
+    fireEvent.click(
+      screen.getByText('OpenRouter provides access to many frontier models through one API.')
+    )
+
+    expect(screen.queryByLabelText(/Toggle reasoning for/i)).not.toBeInTheDocument()
+  })
+
+  it('shows OpenRouter reasoning detection status without manual controls', () => {
+    render(
+      <ProviderHubSection
+        {...baseProps}
+        configuredModels={[
+          {
+            code: 'moonshotai/kimi-k2-thinking',
+            displayName: 'Kimi K2 Thinking',
+            supportsDeepThinking: true,
+            openRouterReasoningDetected: true,
+          },
+        ]}
+      />
+    )
+
+    fireEvent.click(
+      screen.getByText('OpenRouter provides access to many frontier models through one API.')
+    )
+
+    expect(screen.getByText('Reasoning detected')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Toggle OpenRouter reasoning for Kimi K2 Thinking')).not.toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: /reasoning/i })).not.toBeInTheDocument()
+  })
+
+  it('detects OpenRouter reasoning support from the catalog for existing rows', async () => {
+    const onChange = vi.fn()
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        data: [
+          {
+            id: 'x-ai/grok-4.1-fast',
+            name: 'Grok 4.1 Fast',
+            supported_parameters: ['reasoning', 'tools'],
+          },
+        ],
+      }),
+    })
+
+    render(<ProviderHubSection {...baseProps} onChange={onChange} />)
+
+    fireEvent.click(
+      screen.getByText('OpenRouter provides access to many frontier models through one API.')
+    )
+    fireEvent.click(screen.getAllByRole('button', { name: /detect reasoning/i })[0])
+
+    await waitFor(() => {
+      expect(onChange).toHaveBeenCalledWith(
+        expect.objectContaining({
+          configuredModels: expect.arrayContaining([
+            expect.objectContaining({
+              code: 'x-ai/grok-4.1-fast',
+              supportsDeepThinking: true,
+              modelType: 'reasoning',
+              openRouterReasoningDetected: true,
+            }),
+          ]),
+        })
+      )
+    })
   })
 })

@@ -1,46 +1,32 @@
-import { motion } from 'framer-motion'
 import { ChevronDown, Cpu } from 'lucide-react'
 import { useEffect } from 'react'
 import { useSettings } from '../../../contexts/SettingsContext'
 import { useModelSelectorContext } from '../../../contexts/ModelSelectorContext'
 import { useModelSelector } from './useModelSelector'
-import { useResponsiveModelSelector } from './useResponsiveModelSelector'
-import { ModelSelectorContent } from './ModelSelectorContent'
+import { ModelSelectorDropdown } from './ModelSelectorDropdown'
 import { ModelIcon } from './ModelIcon'
 import { getModelAttributes } from '../../../utils/modelUtils'
-import { Popover, PopoverTrigger } from '@/components/ui/popover'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
-  motionDuration,
-  motionDurations,
-  motionEasing,
-  useMotionPreferences,
-} from '@/lib/motion'
+  DEEPSEEK_REASONING_EFFORTS,
+  getDeepseekReasoning,
+  setDeepseekReasoningEffort,
+} from '../../../utils/deepseekReasoning'
+import type { DeepSeekReasoningEffort } from '../../../contexts/SettingsConfigContext'
+import { DropdownMenu, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import './ModelSelector.css'
-export interface ModelSelectorProps { minimal?: boolean; popoverAlign?: 'start' | 'center' | 'end' }
+
+export interface ModelSelectorProps {
+  minimal?: boolean
+  popoverAlign?: 'start' | 'center' | 'end'
+}
+
 export default function ModelSelector({ minimal, popoverAlign = 'start' }: ModelSelectorProps) {
   const { consumeRequest } = useModelSelectorContext()
-  const { settings } = useSettings()
-  const {
-    state,
-    searchInputRef,
-    currentModels,
-    groupedModels,
-    currentModel,
-    currentName,
-    setSearchQuery,
-    setViewMode,
-    setSelectedProvider,
-    setFocusedIndex,
-    setIsOpen,
-    toggleFavorite,
-    handleSelect,
-  } = useModelSelector()
-  const { compactMode, effectiveDropdownWidth, effectiveDropdownHeight, triggerLabelMaxWidth } = useResponsiveModelSelector(settings.modelSelector?.dropdownWidth || 'default', minimal)
-  const { animationsEnabled } = useMotionPreferences()
-  const triggerTitle = `${currentName} - ${settings.modelProvider || 'auto'}`
-  const showLeadingIcon = !minimal
+  const { settings, updateSettings } = useSettings()
+  const { state, groupedModels, currentModel, currentName, setIsOpen, handleSelect } =
+    useModelSelector()
 
   useEffect(() => {
     const requested = consumeRequest()
@@ -48,81 +34,105 @@ export default function ModelSelector({ minimal, popoverAlign = 'start' }: Model
       setIsOpen(true)
     }
   })
+
+  // Reasoning effort is shown for the active DeepSeek model. It stays visible
+  // (greyed) when reasoning is disabled so the control is discoverable; the
+  // enable/disable toggle itself lives in Provider Hub. Levels: low → xhigh.
+  const deepseekReasoning = getDeepseekReasoning(settings, settings.aiModel)
+  const isDeepseekModel = settings.modelProvider === 'deepseek'
+  const isOpenRouterReasoningModel =
+    settings.modelProvider === 'openrouter' &&
+    currentModel?.openRouterReasoningDetected === true &&
+    currentModel?.supportsDeepThinking === true
+  const showReasoning = (isDeepseekModel && deepseekReasoning.enabled) || isOpenRouterReasoningModel
+  const reasoningEffort =
+    isOpenRouterReasoningModel
+      ? settings.openRouterReasoningEffort?.[settings.aiModel] || 'high'
+      : deepseekReasoning.effort
+  const compactReasoningEffortLabel =
+    reasoningEffort === 'xhigh' ? 'XH' : reasoningEffort.charAt(0).toUpperCase()
+  const showLeadingIcon = !minimal
+
   return (
-    <Popover open={state.isOpen} onOpenChange={setIsOpen} modal={false}>
+    <DropdownMenu open={state.isOpen} onOpenChange={setIsOpen} modal={false}>
       <TooltipProvider delayDuration={350}>
         <Tooltip>
           <TooltipTrigger asChild>
-            <PopoverTrigger asChild>
-              <motion.button
-                aria-haspopup="dialog"
-                aria-expanded={state.isOpen}
-                aria-label={`Select model: ${triggerTitle}`}
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                aria-label={`Select model: ${currentName}`}
                 className={cn(
                   'flex cursor-pointer items-center gap-1.5 rounded-xl px-3 py-1.5 transition-[background-color,border-color,color] duration-150',
                   minimal
-                    ? 'min-h-9 rounded-full border border-transparent bg-transparent px-2 py-1.5 text-[var(--theme-text-secondary)] hover:bg-[color-mix(in_srgb,var(--theme-surface)_72%,transparent)] hover:text-[var(--theme-text-primary)]'
-                    : 'border border-[var(--theme-border)] bg-[var(--theme-surface-subtle)] text-[var(--theme-text-secondary)] hover:border-[var(--theme-border-hover)] hover:bg-[var(--theme-surface-hover)] hover:text-[var(--theme-text-primary)]',
-                  minimal && state.isOpen && 'is-active',
-                  minimal && compactMode !== 'none' && 'px-2.5 py-2'
+                    ? 'min-h-9 rounded-full border border-transparent bg-transparent px-2 py-1.5 text-[var(--theme-text-secondary)] hover:bg-[color-mix(in_srgb,var(--theme-surface)_72%,transparent)] hover:text-[var(--theme-text-primary)] data-[state=open]:bg-[color-mix(in_srgb,var(--theme-surface)_72%,transparent)] data-[state=open]:text-[var(--theme-text-primary)]'
+                    : 'border border-[var(--theme-border)] bg-[var(--theme-surface-subtle)] text-[var(--theme-text-secondary)] hover:border-[var(--theme-border-hover)] hover:bg-[var(--theme-surface-hover)] hover:text-[var(--theme-text-primary)] data-[state=open]:border-[var(--theme-border-hover)] data-[state=open]:bg-[var(--theme-surface-hover)] data-[state=open]:text-[var(--theme-text-primary)]'
                 )}
               >
                 {showLeadingIcon &&
                   (currentModel ? (
-                    <ModelIcon model={currentModel} icon={getModelAttributes(currentModel).icon} color={getModelAttributes(currentModel).color} size={16} />
+                    <ModelIcon
+                      model={currentModel}
+                      icon={getModelAttributes(currentModel).icon}
+                      color={getModelAttributes(currentModel).color}
+                      size={16}
+                    />
                   ) : (
                     <Cpu size={14} />
                   ))}
                 <span
                   className={cn('truncate', minimal ? 'text-[0.95rem]' : 'text-xs font-medium')}
-                  style={{
-                    maxWidth: triggerLabelMaxWidth,
-                    minWidth: minimal ? 0 : '80px',
-                  }}
+                  style={{ maxWidth: minimal ? '220px' : '140px', minWidth: minimal ? 0 : '80px' }}
                 >
                   {currentName}
                 </span>
-                {!(minimal && compactMode === 'tight') && (
-                  <motion.div
-                    animate={{ rotate: state.isOpen ? 180 : 0 }}
-                    transition={{
-                      duration: motionDuration(animationsEnabled, motionDurations.fast),
-                      ease: motionEasing.standard,
-                    }}
-                  >
-                    <ChevronDown size={12} className={cn('opacity-50', minimal && 'opacity-40')} />
-                  </motion.div>
+                {showReasoning && (
+                  <span className="inline-flex shrink-0 items-center border-l border-[var(--theme-border-subtle)] pl-1.5 text-[0.68rem] font-semibold leading-none text-[var(--theme-text-tertiary)]">
+                    {compactReasoningEffortLabel}
+                  </span>
                 )}
-              </motion.button>
-            </PopoverTrigger>
+                <ChevronDown
+                  size={12}
+                  className={cn(
+                    'shrink-0 opacity-50 transition-transform duration-150',
+                    minimal && 'opacity-40',
+                    state.isOpen && 'rotate-180'
+                  )}
+                />
+              </button>
+            </DropdownMenuTrigger>
           </TooltipTrigger>
           <TooltipContent side="top" align="end" className="rounded-full">
             Model Selector
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
-      <ModelSelectorContent
-        popoverAlign={popoverAlign}
-        effectiveDropdownWidth={effectiveDropdownWidth}
-        effectiveDropdownHeight={effectiveDropdownHeight}
-        searchInputRef={searchInputRef}
-        searchQuery={state.searchQuery}
-        onSearchChange={setSearchQuery}
-        viewMode={state.viewMode}
-        onViewModeChange={setViewMode}
-        selectedProvider={state.selectedProvider}
-        onProviderSelect={setSelectedProvider}
-        currentModels={currentModels}
+      <ModelSelectorDropdown
+        align={popoverAlign}
         groupedModels={groupedModels}
-        focusedIndex={state.focusedIndex}
+        currentName={currentName}
+        currentModel={currentModel}
         selectedModelCode={settings.aiModel}
         selectedModelProvider={settings.modelProvider}
-        favoriteModels={settings.favoriteModels || []}
         onModelSelect={handleSelect}
-        onToggleFavorite={toggleFavorite}
-        onFocusedIndexChange={setFocusedIndex}
-        compactMode={compactMode}
+        showReasoning={showReasoning}
+        reasoningEnabled={showReasoning}
+        reasoningEffort={reasoningEffort}
+        reasoningEfforts={DEEPSEEK_REASONING_EFFORTS}
+        onReasoningEffortChange={(effort: DeepSeekReasoningEffort) => {
+          if (isOpenRouterReasoningModel) {
+            updateSettings({
+              openRouterReasoningEffort: {
+                ...(settings.openRouterReasoningEffort ?? {}),
+                [settings.aiModel]: effort,
+              },
+            })
+            return
+          }
+
+          updateSettings(setDeepseekReasoningEffort(settings, settings.aiModel, effort))
+        }}
       />
-    </Popover>
+    </DropdownMenu>
   )
 }

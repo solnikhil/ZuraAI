@@ -394,3 +394,195 @@
         transition: none;
     }
 }
+
+/* Codex-style terminal panel for system_shell tool output */
+.terminal-tool {
+    margin-top: 4px;
+    border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.1));
+    border-radius: 10px;
+    overflow: hidden;
+    background: #0d1117;
+    font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace);
+    font-size: 12px;
+    line-height: 1.55;
+}
+
+.terminal-tool-bar {
+    padding: 6px 12px;
+    background: rgba(255, 255, 255, 0.04);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 11px;
+    letter-spacing: 0.03em;
+    text-transform: none;
+}
+
+.terminal-tool-body {
+    padding: 10px 12px;
+    max-height: 360px;
+    overflow: auto;
+}
+
+.terminal-tool-command {
+    display: flex;
+    gap: 8px;
+    color: #e6edf3;
+    margin-bottom: 8px;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.terminal-tool-prompt {
+    color: #5ec27e;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.terminal-tool-stream {
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: #c9d1d9;
+    font-family: inherit;
+    font-size: inherit;
+    line-height: 1.55;
+}
+
+.terminal-tool-stream + .terminal-tool-stream {
+    margin-top: 8px;
+}
+
+.terminal-tool-stream-err {
+    color: var(--theme-warning, #f0883e);
+}
+
+.terminal-tool-empty {
+    color: rgba(255, 255, 255, 0.4);
+    font-style: italic;
+}
+
+.terminal-tool-status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.terminal-tool-cwd {
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.terminal-tool-status-badge {
+    margin-left: auto;
+    flex-shrink: 0;
+    font-size: 11px;
+    font-weight: 600;
+    color: #5ec27e;
+}
+
+.terminal-tool.is-error .terminal-tool-status-badge {
+    color: var(--theme-warning, #f0883e);
+}
+
+
+/* Codex-style status blob for system_shell ("Ran command") entries */
+.thinking-cmd-blob {
+    display: inline-block;
+    flex-shrink: 0;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 2px;
+    background: var(--theme-success, #22c55e);
+}
+
+.thinking-cmd-blob--success {
+    background: var(--theme-success, #22c55e);
+    box-shadow: 0 0 6px color-mix(in srgb, var(--theme-success, #22c55e) 55%, transparent);
+}
+
+.thinking-cmd-blob--error {
+    background: var(--theme-error, #ef4444);
+    box-shadow: 0 0 6px color-mix(in srgb, var(--theme-error, #ef4444) 55%, transparent);
+}
+
+.thinking-cmd-blob--running {
+    background: var(--theme-warning, #f59e0b);
+    box-shadow: 0 0 6px color-mix(in srgb, var(--theme-warning, #f59e0b) 55%, transparent);
+    animation: thinking-cmd-blob-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes thinking-cmd-blob-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.8); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .thinking-cmd-blob--running {
+        animation: none;
+    }
+}
+
+/* "Ran N commands" group: use the muted thinking-block text color, not the
+   blue tool-call color, and keep the blob + chevron aligned with the label. */
+.thinking-command-group .thinking-header.tool-call .thinking-text.thinking-cmd-text {
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.thinking-command-group .thinking-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.thinking-command-group .thinking-chevron {
+    flex-shrink: 0;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+/* Stack multiple terminal panels inside an expanded command group. */
+.thinking-command-group-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* Per-command rows: name first, expand to reveal that command's terminal. */
+.thinking-command-row {
+    display: flex;
+    flex-direction: column;
+}
+
+.thinking-command-row__head {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 0;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.15s ease;
+}
+
+.thinking-command-row__head:hover {
+    opacity: 1;
+}
+
+.thinking-command-row__name {
+    font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace);
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.6);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+.thinking-command-row__body {
+    padding: 4px 0 6px 0;
+}

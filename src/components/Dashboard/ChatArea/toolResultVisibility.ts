@@ -25,6 +25,10 @@ export function shouldHideGenericToolResultCard(result: ToolCallResult): boolean
     return true
   }
 
+  if (result.toolCall.name === 'system_shell') {
+    return true
+  }
+
   if (result.toolCall.name.startsWith('computer_')) {
     return true
   }

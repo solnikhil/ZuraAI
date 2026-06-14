@@ -22,6 +22,7 @@ export interface ModelWithProvider {
   supportsWebSearch?: boolean
   supportsImageGeneration?: boolean
   supportsVideoRecognition?: boolean
+  openRouterReasoningDetected?: boolean
 }
 
 /**

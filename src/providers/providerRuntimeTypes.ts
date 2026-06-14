@@ -68,6 +68,8 @@ export interface ProviderRuntimeStreamRequest {
     image_size?: string
   }
   enableThinking?: boolean
+  /** DeepSeek reasoning effort; only applied when enableThinking is true. */
+  reasoningEffort?: 'low' | 'medium' | 'high' | 'xhigh'
   sessionId?: string
   signal?: AbortSignal
 }

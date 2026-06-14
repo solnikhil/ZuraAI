@@ -14,6 +14,7 @@ describe('openrouterModels', () => {
     })
 
     expect(mapped.supportsDeepThinking).toBe(true)
+    expect(mapped.openRouterReasoningDetected).toBe(true)
   })
 
   it('infers deep thinking support from model names when metadata is missing', () => {

@@ -11,6 +11,7 @@ import type {
 import { McpApprovalManager } from './mcpApprovalManager'
 import { McpManager } from './mcpManager'
 import { clearMcpServerSecrets, prepareRendererMcpServerInput } from './rendererPayload'
+import { trackAnalyticsEvent } from '../analytics'
 
 const MCP_STATE_CHANGED_CHANNEL = 'mcp:state-changed'
 
@@ -112,7 +113,14 @@ export function registerMcpHandlers(): void {
 
   ipcMain.handle('mcp:connect-server', async (_event, serverId: string) => {
     await manager.initialize()
-    return manager.connectServer(assertMcpServerId(serverId))
+    const normalizedServerId = assertMcpServerId(serverId)
+    const state = await manager.connectServer(normalizedServerId)
+    const server = manager.getSnapshot().servers.find((entry) => entry.id === normalizedServerId)
+    void trackAnalyticsEvent('mcp_server_connected', {
+      transport: server?.transport,
+      serverTrustState: server?.trustState,
+    })
+    return state
   })
 
   ipcMain.handle('mcp:disconnect-server', async (_event, serverId: string) => {

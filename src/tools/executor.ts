@@ -94,6 +94,21 @@ export async function executeTool(
             } catch { /* ignore */ }
         }
 
+        // Inject auto-approve preference for the terminal skill (system_shell).
+        // In agent mode bypassNativeApproval already handles this below; this
+        // path covers chat mode where the user opted into terminalAutoApprove.
+        if (toolName === 'system_shell') {
+            try {
+                const raw = localStorage.getItem('zura-settings')
+                if (raw) {
+                    const parsed = JSON.parse(raw)
+                    if (options.bypassNativeApproval || parsed?.terminalAutoApprove === true) {
+                        resolvedArgs.autoApprove = true
+                    }
+                }
+            } catch { /* ignore */ }
+        }
+
         if (toolName.startsWith('computer_') && options.bypassNativeApproval) {
             resolvedArgs.autoApprove = true
         }

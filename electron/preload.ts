@@ -20,6 +20,9 @@ import type {
   IpcSendArgsMap,
   IpcSendChannel,
   AddMemoryInput,
+  AnalyticsEventName,
+  AnalyticsProperties,
+  AnalyticsState,
   AppMenuCommand,
   DiscordRpcState,
   Memory,
@@ -28,6 +31,7 @@ import type {
   OverlayState,
   PendingCodeApproval,
   PendingComputerAction,
+  PendingTerminalApproval,
   ResourceSample,
   UpdateMemoryPatch,
 } from '../src/electron/types'
@@ -61,7 +65,6 @@ const SEND_CHANNELS = new Set<IpcSendChannel>([
   'overlay:drag-start',
   'overlay:drag-move',
   'overlay:drag-end',
-  'open-model-selector',
   'overlay:navigate-settings',
   'resource-monitor:subscribe',
   'resource-monitor:unsubscribe',
@@ -112,9 +115,7 @@ const ON_CHANNELS = new Set<IpcOnChannel>([
   'update-downloaded',
   'update-error',
   'update-download-progress',
-  'prompt-popup:focus',
   'overlay:pending-prompt',
-  'model-selector:open',
   'app:new-chat',
   'settings:navigate',
   'chat-store:changed',
@@ -162,6 +163,12 @@ const DISCORD_RPC_INVOKE_CHANNELS = new Set<string>([
 ])
 
 const DISCORD_RPC_ON_CHANNELS = new Set<string>(['discord-rpc:state-changed'])
+
+const ANALYTICS_INVOKE_CHANNELS = new Set<string>([
+  'analytics:get-state',
+  'analytics:set-enabled',
+  'analytics:track',
+])
 
 function assertAllowed<TChannel extends string>(
   kind: 'send' | 'invoke' | 'on' | 'off',
@@ -286,6 +293,8 @@ contextBridge.exposeInMainWorld(
     focusMainWindow: () => ipcRenderer.invoke('overlay:focus-main-window') as Promise<void>,
     applySettings: (settings: Partial<OverlaySettings>) =>
       ipcRenderer.invoke('overlay:apply-settings', settings) as Promise<OverlayState>,
+    setContentHeight: (height: number) =>
+      ipcRenderer.invoke('overlay:set-content-height', height) as Promise<OverlayState>,
     onPendingPrompt: (callback: (prompt: string) => void) => {
       const listener = (_event: IpcRendererEvent, prompt: string) => callback(prompt)
       ipcRenderer.on('overlay:pending-prompt', listener)
@@ -312,23 +321,6 @@ contextBridge.exposeInMainWorld(
     get: () => ipcRenderer.invoke('app-info:get'),
     getMemoryReport: () => ipcRenderer.invoke('app-info:get-memory-report'),
     openAboutWindow: () => ipcRenderer.invoke('app-info:open-about-window'),
-  })
-)
-
-contextBridge.exposeInMainWorld(
-  'promptPopup',
-  Object.freeze({
-    show: () => ipcRenderer.invoke('prompt-popup:show') as Promise<void>,
-    hide: () => ipcRenderer.invoke('prompt-popup:hide') as Promise<void>,
-    submit: (prompt: string) => ipcRenderer.invoke('prompt-popup:submit', prompt) as Promise<void>,
-    openModelSelector: () => {
-      ipcRenderer.send('open-model-selector')
-    },
-    onFocus: (callback: () => void) => {
-      const listener = () => callback()
-      ipcRenderer.on('prompt-popup:focus', listener)
-      return () => ipcRenderer.removeListener('prompt-popup:focus', listener)
-    },
   })
 )
 
@@ -363,6 +355,24 @@ contextBridge.exposeInMainWorld(
 )
 
 contextBridge.exposeInMainWorld(
+  'analytics',
+  Object.freeze({
+    getState: () => {
+      assertAllowed('invoke', 'analytics:get-state', ANALYTICS_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('analytics:get-state') as Promise<AnalyticsState>
+    },
+    setEnabled: (enabled: boolean) => {
+      assertAllowed('invoke', 'analytics:set-enabled', ANALYTICS_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('analytics:set-enabled', enabled === true) as Promise<AnalyticsState>
+    },
+    track: (eventName: AnalyticsEventName, properties?: AnalyticsProperties) => {
+      assertAllowed('invoke', 'analytics:track', ANALYTICS_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('analytics:track', eventName, properties) as Promise<boolean>
+    },
+  })
+)
+
+contextBridge.exposeInMainWorld(
   'shell',
   Object.freeze({
     openExternal: (url: string) => ipcRenderer.invoke('shell:open-external', url),
@@ -386,6 +396,19 @@ contextBridge.exposeInMainWorld(
       const listener = (_event: IpcRendererEvent, pending: PendingCodeApproval[]) => callback(pending)
       ipcRenderer.on('code-execution:pending-approval', listener)
       return () => ipcRenderer.removeListener('code-execution:pending-approval', listener)
+    },
+  })
+)
+
+contextBridge.exposeInMainWorld(
+  'terminal',
+  Object.freeze({
+    resolveApproval: (requestId: string, approved: boolean) =>
+      ipcRenderer.invoke('terminal:resolve-approval', requestId, approved),
+    onPendingApproval: (callback: (pending: PendingTerminalApproval[]) => void) => {
+      const listener = (_event: IpcRendererEvent, pending: PendingTerminalApproval[]) => callback(pending)
+      ipcRenderer.on('terminal:pending-approval', listener)
+      return () => ipcRenderer.removeListener('terminal:pending-approval', listener)
     },
   })
 )

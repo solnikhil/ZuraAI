@@ -34,9 +34,7 @@ export type MemorySource = 'user' | 'model'
  */
 export type MemoryOrigin = 'tool' | 'background'
 
-export type MemoryScope =
-  | { type: 'global' }
-  | { type: 'project'; projectId: string }
+export type MemoryScope = { type: 'global' } | { type: 'project'; projectId: string }
 
 /**
  * Lifecycle status of a memory under the ADD-only model.
@@ -111,6 +109,8 @@ const INDEX_VERSION = 1
 export const MEMORY_CAP = 200
 /** Maximum length of a single memory entry in characters. */
 export const MAX_MEMORY_CONTENT_LENGTH = 1000
+/** Superseded memories are retained briefly for audit/history, then compacted. */
+export const SUPERSEDED_MEMORY_RETENTION_MS = 90 * 24 * 60 * 60 * 1000
 const CACHE_TTL_MS = 1000
 
 let cachedIndex: MemoryIndex | null = null
@@ -133,7 +133,11 @@ function isMemoryScope(value: unknown): value is MemoryScope {
   if (!value || typeof value !== 'object') return false
   const scope = value as { type?: unknown; projectId?: unknown }
   if (scope.type === 'global') return true
-  if (scope.type === 'project' && typeof scope.projectId === 'string' && scope.projectId.length > 0) {
+  if (
+    scope.type === 'project' &&
+    typeof scope.projectId === 'string' &&
+    scope.projectId.length > 0
+  ) {
     return true
   }
   return false
@@ -166,6 +170,9 @@ function normalizeMemory(input: unknown): Memory | null {
   if (typeof raw.sessionId === 'string' && raw.sessionId.length > 0) {
     memory.sessionId = raw.sessionId
   }
+  if (raw.origin === 'tool' || raw.origin === 'background') {
+    memory.origin = raw.origin
+  }
   return memory
 }
 
@@ -191,9 +198,66 @@ function validateContent(content: unknown): string {
     throw new Error('Memory content cannot be empty')
   }
   if (trimmed.length > MAX_MEMORY_CONTENT_LENGTH) {
-    throw new Error(`Memory content exceeds maximum length of ${MAX_MEMORY_CONTENT_LENGTH} characters`)
+    throw new Error(
+      `Memory content exceeds maximum length of ${MAX_MEMORY_CONTENT_LENGTH} characters`
+    )
   }
   return trimmed
+}
+
+function scopeKey(scope: MemoryScope): string {
+  return scope.type === 'global' ? 'global' : `project:${scope.projectId}`
+}
+
+function normalizeForCleanup(content: string): string {
+  return content
+    .toLowerCase()
+    .replace(/[\s]+/g, ' ')
+    .replace(/^[\s.,!?;:'"-]+|[\s.,!?;:'"-]+$/g, '')
+    .trim()
+}
+
+/**
+ * Automatic memory cleanup keeps the ADD-only store bounded without surfacing
+ * stale facts in retrieval:
+ * - exact duplicate content in the same scope is coalesced, newest active wins;
+ * - superseded memories are retained for a fixed audit window, then pruned;
+ * - lifecycle links pointing at pruned/evicted rows are removed.
+ */
+function cleanupMemories(memories: Memory[], now = Date.now()): Memory[] {
+  const seenExact = new Set<string>()
+  const sortedForCleanup = [...memories].sort((a, b) => {
+    if (a.status !== b.status) return a.status === 'active' ? -1 : 1
+    return b.updatedAt - a.updatedAt
+  })
+
+  const kept: Memory[] = []
+  for (const memory of sortedForCleanup) {
+    if (
+      memory.status === 'superseded' &&
+      Number.isFinite(memory.updatedAt) &&
+      now - memory.updatedAt > SUPERSEDED_MEMORY_RETENTION_MS
+    ) {
+      continue
+    }
+
+    const exactKey = `${scopeKey(memory.scope)}:${normalizeForCleanup(memory.content)}`
+    if (seenExact.has(exactKey)) continue
+    seenExact.add(exactKey)
+    kept.push(memory)
+  }
+
+  const keptIds = new Set(kept.map((memory) => memory.id))
+  return kept.map((memory) => {
+    const repaired: Memory = { ...memory }
+    if (repaired.supersedes && !keptIds.has(repaired.supersedes)) {
+      delete repaired.supersedes
+    }
+    if (repaired.supersededBy && !keptIds.has(repaired.supersededBy)) {
+      delete repaired.supersededBy
+    }
+    return repaired
+  })
 }
 
 /**
@@ -227,9 +291,11 @@ export function filterMemoriesByScope(memories: Memory[], scope: MemoryScope): M
  * contract for the Settings list and prompt fallback ordering).
  */
 function applyCapAndSort(memories: Memory[]): Memory[] {
-  let survivors = memories
-  if (memories.length > MEMORY_CAP) {
-    survivors = [...memories].sort((a, b) => b.createdAt - a.createdAt).slice(0, MEMORY_CAP)
+  const cleaned = cleanupMemories(memories)
+  let survivors = cleaned
+  if (cleaned.length > MEMORY_CAP) {
+    survivors = [...cleaned].sort((a, b) => b.createdAt - a.createdAt).slice(0, MEMORY_CAP)
+    survivors = cleanupMemories(survivors)
   }
   return [...survivors].sort((a, b) => b.updatedAt - a.updatedAt)
 }
@@ -282,7 +348,9 @@ function readIndexSync(): MemoryIndex {
  * settings panel) cannot clobber each other. Each mutation re-reads the
  * latest persisted index inside the lock before computing its update.
  */
-async function withWriteLock<T>(operation: (currentIndex: MemoryIndex) => Promise<T> | T): Promise<T> {
+async function withWriteLock<T>(
+  operation: (currentIndex: MemoryIndex) => Promise<T> | T
+): Promise<T> {
   const run = async (): Promise<T> => {
     // Bypass the TTL cache for the authoritative read inside the lock.
     cachedIndex = null
@@ -458,7 +526,12 @@ export async function addMemoryWithDedupeAsync(
         }
         const nextMemories = current.memories.map((memory) =>
           memory.id === target.id
-            ? { ...memory, status: 'superseded' as const, supersededBy: newMemory.id, updatedAt: now }
+            ? {
+                ...memory,
+                status: 'superseded' as const,
+                supersededBy: newMemory.id,
+                updatedAt: now,
+              }
             : memory
         )
         await persistIndex({ memories: [newMemory, ...nextMemories], version: INDEX_VERSION })
@@ -499,7 +572,10 @@ export function excludeSuperseded(memories: Memory[]): Memory[] {
  * Updates an existing memory's content and/or scope. Returns the updated entry,
  * or null if the id wasn't found.
  */
-export async function updateMemoryAsync(id: string, patch: UpdateMemoryPatch): Promise<Memory | null> {
+export async function updateMemoryAsync(
+  id: string,
+  patch: UpdateMemoryPatch
+): Promise<Memory | null> {
   if (typeof id !== 'string' || !id) return null
 
   // Validate patch contents up-front so we throw before acquiring the lock.
