@@ -36,8 +36,10 @@ import type {
   UpdateMemoryPatch,
 } from '../src/electron/types'
 
+const isDebug = process.env.ZURA_DEBUG === '1'
 const preloadLog = (message: string) => {
-  console.log(`[PRELOAD] ${message}`)
+  if (!isDebug) return
+  console.log(`\x1b[90m→\x1b[0m \x1b[2m\x1b[1m[preload]\x1b[0m ${message}`)
 }
 
 preloadLog('Preload script STARTED')

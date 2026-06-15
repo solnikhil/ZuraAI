@@ -628,8 +628,13 @@ const streamingSettings: StreamingSettings = useMemo(
         const nvidiaModel = provider === 'nvidia'
           ? (settings.nvidiaModels || []).find((m) => m.code === settings.aiModel)
           : undefined
+        const nvidiaReasoningEffort =
+          provider === 'nvidia'
+            ? (settings.nvidiaReasoningEffort?.[settings.aiModel] ?? 'high')
+            : undefined
         const nvidiaEnableThinking =
           provider === 'nvidia' &&
+          nvidiaReasoningEffort !== 'none' &&
           (nvidiaModel?.supportsDeepThinking || /(?:reason|thinking|m3|nemotron)/i.test(settings.aiModel))
             ? true
             : undefined
@@ -723,9 +728,11 @@ const streamingSettings: StreamingSettings = useMemo(
             : undefined,
           reasoning: openRouterReasoning,
           enableThinking: deepseekReasoning
-            ? deepseekReasoning.enabled
+            ? deepseekReasoning.enabled && deepseekReasoning.effort !== 'none'
             : nvidiaEnableThinking ?? alibabaEnableThinking,
-          reasoningEffort: deepseekReasoning?.enabled ? deepseekReasoning.effort : undefined,
+          reasoningEffort: deepseekReasoning?.enabled && deepseekReasoning.effort !== 'none'
+            ? deepseekReasoning.effort
+            : undefined,
         })
 
         // Commit streaming content to the session
@@ -1019,8 +1026,13 @@ const openRouterReasoning =
         const nvidiaModelForRegen = effectiveSettings.modelProvider === 'nvidia'
           ? (effectiveSettings.nvidiaModels || []).find((m) => m.code === effectiveSettings.aiModel)
           : undefined
+        const nvidiaReasoningEffortForRegen =
+          effectiveSettings.modelProvider === 'nvidia'
+            ? (effectiveSettings.nvidiaReasoningEffort?.[effectiveSettings.aiModel] ?? 'high')
+            : undefined
         const nvidiaEnableThinkingForRegen =
           effectiveSettings.modelProvider === 'nvidia' &&
+          nvidiaReasoningEffortForRegen !== 'none' &&
           (nvidiaModelForRegen?.supportsDeepThinking ||
             /(?:reason|thinking|m3|nemotron)/i.test(effectiveSettings.aiModel))
             ? true
@@ -1055,9 +1067,9 @@ const openRouterReasoning =
             modalities: openRouterModalities,
             reasoning: openRouterReasoning,
             enableThinking: deepseekReasoningForRegen
-              ? deepseekReasoningForRegen.enabled
+              ? deepseekReasoningForRegen.enabled && deepseekReasoningForRegen.effort !== 'none'
               : nvidiaEnableThinkingForRegen ?? alibabaEnableThinkingForRegen,
-            reasoningEffort: deepseekReasoningForRegen?.enabled
+            reasoningEffort: deepseekReasoningForRegen?.enabled && deepseekReasoningForRegen.effort !== 'none'
               ? deepseekReasoningForRegen.effort
               : undefined,
           })

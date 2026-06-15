@@ -1,6 +1,9 @@
 import { app, ipcMain, BrowserWindow } from 'electron'
 import { autoUpdater, type UpdateInfo } from 'electron-updater'
 import { trackAppError } from './analytics'
+import { log } from './startup/logger'
+
+const updaterLog = log.withTag('updater')
 
 const isProduction = app.isPackaged
 
@@ -64,10 +67,10 @@ function configureAutoUpdater(): void {
 
   // Use the standard electron-updater logger routed through console
   autoUpdater.logger = {
-    info: (msg: unknown) => console.log('[UPDATER]', msg),
-    warn: (msg: unknown) => console.warn('[UPDATER]', msg),
-    error: (msg: unknown) => console.error('[UPDATER]', msg),
-    debug: (msg: unknown) => console.log('[UPDATER:DEBUG]', msg),
+    info: (msg: unknown) => updaterLog.debug(String(msg)),
+    warn: (msg: unknown) => updaterLog.warn(String(msg)),
+    error: (msg: unknown) => updaterLog.error(String(msg)),
+    debug: (msg: unknown) => updaterLog.debug(String(msg)),
   }
 }
 
@@ -79,7 +82,7 @@ async function checkOnce(): Promise<UpdateInfo | null> {
     const result = await autoUpdater.checkForUpdates()
     return result?.updateInfo ?? null
   } catch (err) {
-    console.error('[UPDATER] Check failed:', err)
+    updaterLog.error(`check failed: ${err instanceof Error ? err.message : String(err)}`)
     trackAppError({
       category: 'updater',
       code: err instanceof Error ? err.name : 'check_failed',
@@ -95,22 +98,22 @@ async function checkOnce(): Promise<UpdateInfo | null> {
  */
 export function initializeAutoUpdater(getMainWindow: () => BrowserWindow | null): void {
   if (!isProduction) {
-    console.log('[UPDATER] Skipping initialization in development mode')
+    updaterLog.debug('skipping initialization in development mode')
     return
   }
 
   configureAutoUpdater()
 
   autoUpdater.on('checking-for-update', () => {
-    console.log('[UPDATER] Checking for update...')
+    updaterLog.info('checking for update...')
   })
 
   autoUpdater.on('update-available', (info: UpdateInfo) => {
-    console.log(`[UPDATER] Update available: v${info.version}`)
+    updaterLog.success(`update available: v${info.version}`)
     sendToMainWindow(getMainWindow, 'update-available', info.version)
     // Start the download now that we know an update exists
     autoUpdater.downloadUpdate().catch((err: Error) => {
-      console.error('[UPDATER] Download failed:', err)
+      updaterLog.error(`download failed: ${err instanceof Error ? err.message : String(err)}`)
       trackAppError({
         category: 'updater',
         code: err.name || 'download_failed',
@@ -122,16 +125,14 @@ export function initializeAutoUpdater(getMainWindow: () => BrowserWindow | null)
   })
 
   autoUpdater.on('update-not-available', () => {
-    console.log('[UPDATER] Already up to date')
+    updaterLog.info('already up to date')
   })
 
   autoUpdater.on('download-progress', (progress) => {
     const percent = typeof progress.percent === 'number' ? progress.percent : 0
     const transferred = typeof progress.transferred === 'number' ? progress.transferred : 0
     const total = typeof progress.total === 'number' ? progress.total : 0
-    console.log(
-      `[UPDATER] Download progress: ${percent.toFixed(1)}% (${(transferred / 1_048_576).toFixed(1)}/${(total / 1_048_576).toFixed(1)} MB)`
-    )
+    updaterLog.debug(`download progress: ${percent.toFixed(1)}% (${(transferred / 1_048_576).toFixed(1)}/${(total / 1_048_576).toFixed(1)} MB)`)
     sendToMainWindow(getMainWindow, 'update-download-progress', {
       percent,
       transferred,
@@ -140,12 +141,12 @@ export function initializeAutoUpdater(getMainWindow: () => BrowserWindow | null)
   })
 
   autoUpdater.on('update-downloaded', (info: UpdateInfo) => {
-    console.log(`[UPDATER] Update downloaded: v${info.version}`)
+    updaterLog.success(`update downloaded: v${info.version}`)
     sendToMainWindow(getMainWindow, 'update-downloaded', info.version)
   })
 
   autoUpdater.on('error', (err: Error) => {
-    console.error('[UPDATER] Error:', err.message)
+    updaterLog.error(`error: ${err.message}`)
     trackAppError({
       category: 'updater',
       code: err.name || 'updater_error',
@@ -189,7 +190,7 @@ export function registerUpdaterHandlers(getMainWindow: () => BrowserWindow | nul
       try {
         await shutdownHook()
       } catch (err) {
-        console.error('[UPDATER] Shutdown hook failed before install:', err)
+        updaterLog.error(`shutdown hook failed before install: ${err instanceof Error ? err.message : String(err)}`)
         // Continue with install anyway — a failed shutdown is recoverable on
         // restart, but a failed install would leave the user stuck on an old
         // version.
@@ -203,7 +204,7 @@ export function registerUpdaterHandlers(getMainWindow: () => BrowserWindow | nul
     } catch (err) {
       installingUpdate = false
       const message = err instanceof Error ? err.message : 'Install failed'
-      console.error('[UPDATER] quitAndInstall failed:', err)
+      updaterLog.error(`quitAndInstall failed: ${message}`)
       trackAppError({
         category: 'updater',
         code: err instanceof Error ? err.name : 'install_failed',

@@ -57,6 +57,7 @@
     "electron-updater": "^6.7.3",
     "framer-motion": "^12.35.1",
     "mermaid": "^11.12.2",
+    "picocolors": "^1.1.1",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "react-markdown": "^10.1.0",

@@ -413,21 +413,22 @@ function MessageRendererComponent({
             requestedMaxTokens: message.requestedMaxTokens,
             reasoningEffort: (() => {
               // DeepSeek: surface the per-model reasoning effort when that model
-              // has reasoning enabled. Keyed by model code.
+              // has reasoning enabled and effort is not 'none'. Keyed by model code.
               const reasoning = message.model
                 ? getDeepseekReasoning(settings, message.model)
                 : null
-              if (reasoning?.enabled) {
+              if (reasoning?.enabled && reasoning?.effort !== 'none') {
                 return reasoning.effort
               }
               // NVIDIA: surface the per-model reasoning effort when the model
-              // supports deep thinking.
+              // supports deep thinking and effort is not 'none'.
               if (message.model) {
                 const nvidiaModel = (settings.nvidiaModels || []).find(
                   (m) => m.code === message.model
                 )
                 if (nvidiaModel?.supportsDeepThinking) {
-                  return settings.nvidiaReasoningEffort?.[message.model] || 'high'
+                  const effort = settings.nvidiaReasoningEffort?.[message.model] || 'high'
+                  return effort !== 'none' ? effort : undefined
                 }
               }
               return undefined

@@ -52,6 +52,7 @@ import {
   disposeDiscordRpcClient,
 } from './discordRpc'
 import { trackAppCrash, trackStartupAnalytics } from './analytics'
+import { log } from './startup/logger'
 
 // Resolve packaged asset paths consistently in both development and production.
 const DIST_PATH = process.env.DIST || path.join(__dirname, '../dist')
@@ -64,7 +65,6 @@ app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion')
 
 const WINDOWS_APP_ID = 'in.zuraai.desktop'
 const APP_NAME = 'ZuraAI'
-const STARTUP_LOG_PREFIX = '[startup]'
 const IS_MACOS = process.platform === 'darwin'
 let isAwaitingMcpShutdown = false
 let hasCompletedMcpShutdown = false
@@ -76,7 +76,8 @@ process.on('uncaughtException', (error) => {
     processType: 'main',
     fatal: true,
   })
-  console.error(`${STARTUP_LOG_PREFIX} uncaught exception`, error)
+  log.error(`uncaught exception: ${error.message}`)
+  if (error.stack) log.error(error.stack)
 })
 
 process.on('unhandledRejection', (reason) => {
@@ -87,7 +88,8 @@ process.on('unhandledRejection', (reason) => {
     processType: 'main',
     fatal: false,
   })
-  console.error(`${STARTUP_LOG_PREFIX} unhandled rejection`, reason)
+  const message = reason instanceof Error ? reason.message : String(reason)
+  log.error(`unhandled rejection: ${message}`)
 })
 
 function registerSessionSecurityHandlers(): void {
@@ -177,7 +179,7 @@ app.on('before-quit', (event) => {
   isAwaitingMcpShutdown = true
   void shutdownMcpManager()
     .catch((error) => {
-      console.error(`${STARTUP_LOG_PREFIX} MCP shutdown failed`, error)
+      log.error(`MCP shutdown failed: ${error instanceof Error ? error.message : String(error)}`)
     })
     .finally(() => {
       hasCompletedMcpShutdown = true
@@ -187,7 +189,10 @@ app.on('before-quit', (event) => {
 })
 
 app.whenReady().then(async () => {
+  log.banner(app.getVersion())
+  log.startPhase('app-ready')
   deferredInitializer.markAppReady()
+  log.endPhase('app-ready')
 
   // Defer DevTools installation in development mode (2000ms after window visible)
   // Skip entirely in production builds
@@ -199,21 +204,20 @@ app.whenReady().then(async () => {
       execute: async () => {
         try {
           const name = await installExtension(REACT_DEVELOPER_TOOLS)
-          console.log(`${STARTUP_LOG_PREFIX} devtools installed: ${name}`)
+          log.success(`devtools installed: ${name}`)
         } catch (err) {
-          console.warn(`${STARTUP_LOG_PREFIX} devtools install skipped`, err)
+          log.warn(`devtools install skipped: ${err instanceof Error ? err.message : String(err)}`)
         }
       },
     })
   }
 
   // Register every preload-exposed IPC surface before the window is created.
+  log.startPhase('ipc-handlers')
   registerAllHandlers()
   registerMcpHandlers()
   registerToolHandlers()
   registerUpdaterHandlers(getMainWindow)
-  // Hook up MCP shutdown so the install path can drain managed MCP servers
-  // before the platform installer takes over.
   setShutdownHook(() => shutdownMcpManager())
   registerCodeExecutionHandlers()
   registerTerminalHandlers()
@@ -222,8 +226,10 @@ app.whenReady().then(async () => {
     registerComputerUseHandlers()
   }
   startResourceMonitor()
-
   registerSessionSecurityHandlers()
+  log.endPhase('ipc-handlers')
+
+  log.startPhase('mcp-init')
   await initializeMcpManager({
     autoConnect: true,
     clientInfo: {
@@ -231,11 +237,16 @@ app.whenReady().then(async () => {
       version: app.getVersion(),
     },
   })
+  log.endPhase('mcp-init')
   deferredInitializer.markIPCReady()
+
   createApplicationMenu()
   applyDevelopmentAppIcon()
+
+  log.startPhase('overlay')
   initializeOverlay()
   applyOverlaySettings({})
+  log.endPhase('overlay')
 
   // Defer auto-updater initialization (only in production)
   // The updater itself adds an additional 10-second delay before checking
@@ -245,12 +256,17 @@ app.whenReady().then(async () => {
     delayMs: 0, // Start immediately after window visible, updater adds its own 10s delay
     execute: async () => {
       initializeAutoUpdater(getMainWindow)
-      console.log(`${STARTUP_LOG_PREFIX} auto-updater initialized`)
+      log.success('auto-updater initialized')
     },
   })
 
+  log.startPhase('tray')
   createTray()
+  log.endPhase('tray')
 
+  log.startPhase('main-window')
   createMainWindow()
+  log.endPhase('main-window')
+
   void trackStartupAnalytics()
 })

@@ -17,7 +17,6 @@ import { getReasoningEffortLabel } from '../../../utils/deepseekReasoning'
 import { removeEmojis } from '../../../utils/textUtils'
 import type { DeepSeekReasoningEffort } from '../../../contexts/SettingsConfigContext'
 import type { GroupedModels, ModelWithProvider } from './types'
-import { cn } from '@/lib/utils'
 
 export interface ModelSelectorDropdownProps {
   /** Popover/menu alignment relative to the trigger. */
@@ -33,9 +32,9 @@ export interface ModelSelectorDropdownProps {
   selectedModelProvider: string
   /** Selection handler (closes the menu via useModelSelector). */
   onModelSelect: (model: ModelWithProvider) => void
-  /** Whether to render the reasoning-effort section at all (DeepSeek models). */
+  /** Whether to render the reasoning-effort section at all (reasoning-capable models). */
   showReasoning: boolean
-  /** Whether reasoning is enabled (interactive). When false, the section is greyed/disabled. */
+  /** Whether reasoning is currently active (not 'none'). Controls badge visibility. */
   reasoningEnabled: boolean
   reasoningEffort: DeepSeekReasoningEffort
   reasoningEfforts: readonly DeepSeekReasoningEffort[]
@@ -59,7 +58,6 @@ export function ModelSelectorDropdown({
   selectedModelProvider,
   onModelSelect,
   showReasoning,
-  reasoningEnabled,
   reasoningEffort,
   reasoningEfforts,
   onReasoningEffortChange,
@@ -77,28 +75,18 @@ export function ModelSelectorDropdown({
     >
       {showReasoning && (
         <>
-          <DropdownMenuLabel
-            className={cn(
-              'px-2 pb-1.5 pt-2 font-[var(--font-sans)] text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--theme-text-tertiary)]',
-              !reasoningEnabled && 'opacity-50'
-            )}
-          >
+          <DropdownMenuLabel className="px-2 pb-1.5 pt-2 font-[var(--font-sans)] text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--theme-text-tertiary)]">
             Reasoning effort
           </DropdownMenuLabel>
           <DropdownMenuRadioGroup
             className="flex flex-col gap-0.5"
             value={reasoningEffort}
-            onValueChange={
-              reasoningEnabled
-                ? (value) => onReasoningEffortChange(value as DeepSeekReasoningEffort)
-                : undefined
-            }
+            onValueChange={(value) => onReasoningEffortChange(value as DeepSeekReasoningEffort)}
           >
             {reasoningEfforts.map((effort) => (
               <DropdownMenuRadioItem
                 key={effort}
                 value={effort}
-                disabled={!reasoningEnabled}
                 className="min-h-9 rounded-[10px] py-2 pl-3 pr-2 font-[var(--font-sans)] text-[13px] font-medium leading-none tracking-[0.01em] transition-colors data-[state=checked]:bg-[var(--theme-surface-active)] data-[state=checked]:text-[var(--theme-text-primary)] data-[state=checked]:shadow-[inset_0_0_0_1px_var(--theme-border-subtle)] focus:bg-[var(--theme-surface-hover)] [&>span:first-child]:hidden"
               >
                 {getReasoningEffortLabel(effort)}

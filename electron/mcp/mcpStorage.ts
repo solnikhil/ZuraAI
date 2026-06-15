@@ -4,6 +4,9 @@ import * as fsSync from 'fs'
 import * as path from 'path'
 
 import { getSecureValueAsync } from '../secureStorage'
+import { log } from '../startup/logger'
+
+const mcpLog = log.withTag('mcp')
 
 import type {
   McpConfigValue,
@@ -350,7 +353,7 @@ async function readMcpStoreInternal(): Promise<McpServerStoreFile> {
     return migrated
   } catch (error) {
     await quarantineCorruptMcpStore(filePath)
-    console.error('[MCP Storage] Failed to read MCP server config:', error)
+    mcpLog.error(`failed to read MCP server config: ${error instanceof Error ? error.message : String(error)}`)
     const emptyStore = getDefaultStore()
     cachedStore = emptyStore
     cachedStoreFilePath = filePath
@@ -367,9 +370,9 @@ async function quarantineCorruptMcpStore(filePath: string): Promise<void> {
 
     const quarantinePath = `${filePath}.corrupt-${Date.now()}`
     await fs.rename(filePath, quarantinePath)
-    console.warn(`[MCP Storage] Quarantined unreadable MCP store to ${quarantinePath}`)
+    mcpLog.warn(`quarantined unreadable MCP store to ${quarantinePath}`)
   } catch (quarantineError) {
-    console.error('[MCP Storage] Failed to quarantine unreadable MCP store:', quarantineError)
+    mcpLog.error(`failed to quarantine unreadable MCP store: ${quarantineError instanceof Error ? quarantineError.message : String(quarantineError)}`)
   }
 }
 

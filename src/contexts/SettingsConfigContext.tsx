@@ -75,7 +75,7 @@ type ProviderEnabledMap = Partial<Record<ProviderKey, boolean>>
 export type TavilySearchDepth = 'ultra-fast' | 'fast' | 'basic' | 'advanced'
 export type TavilySearchDepthPreference = 'auto' | TavilySearchDepth
 /** DeepSeek reasoning effort levels (documented fixed contract). */
-export type DeepSeekReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh'
+export type DeepSeekReasoningEffort = 'none' | 'low' | 'medium' | 'high' | 'xhigh'
 const SECURE_SETTINGS_KEY_NAMES = [
   ...getProviderSecretFields(),
   'tavilyApiKey',

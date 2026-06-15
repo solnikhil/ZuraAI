@@ -8,6 +8,9 @@
 
 import type { Client } from 'discord-rpc'
 import type { DiscordRpcActivity, DiscordRpcState } from './types'
+import { log } from '../startup/logger'
+
+const discordLog = log.withTag('discord')
 
 const RECONNECT_INTERVAL_MS = 15000
 const CONNECT_TIMEOUT_MS = 10000
@@ -102,6 +105,7 @@ class DiscordRpcClient {
       ClientCtor = mod.Client
     } catch (err) {
       console.error('[DiscordRpcClient] Failed to load discord-rpc module:', err)
+      discordLog.error('module unavailable; skipping connection')
       this.setErrorState('Discord RPC module unavailable')
       return
     }
@@ -110,20 +114,20 @@ class DiscordRpcClient {
       this.disconnect('reconnecting')
     }
 
-    console.log('[DiscordRpcClient] Creating IPC client...')
+    discordLog.debug('creating IPC client')
     const client = new ClientCtor({ transport: 'ipc' })
     this.client = client
 
     const onReady = (): void => {
       if (this.isDisposed || this.client !== client) return
-      console.log('[DiscordRpcClient] Connected to Discord')
+      discordLog.success('connected to Discord')
       this.state.connected = true
       this.state.lastError = undefined
       this.emitState()
 
       if (this.currentActivity) {
-        client.setActivity(this.normalizeActivity(this.currentActivity)).catch((err: unknown) => {
-          console.warn('[DiscordRpcClient] setActivity failed:', err)
+client.setActivity(this.normalizeActivity(this.currentActivity)).catch(() => {
+          discordLog.warn('setActivity failed')
         })
       } else {
         // Default idle presence
@@ -133,15 +137,15 @@ class DiscordRpcClient {
             largeImageKey: 'zura_logo',
             largeImageText: 'ZuraAI',
           })
-          .catch((err: unknown) => {
-            console.warn('[DiscordRpcClient] Default setActivity failed:', err)
+          .catch(() => {
+            discordLog.warn('default setActivity failed')
           })
       }
     }
 
     const onDisconnected = (): void => {
       if (this.client !== client) return
-      console.log('[DiscordRpcClient] Disconnected from Discord')
+      discordLog.debug('disconnected from Discord')
       this.disconnect('Discord client disconnected')
       this.emitState()
       this.scheduleReconnect()
@@ -149,7 +153,7 @@ class DiscordRpcClient {
 
     const onError = (err: Error): void => {
       if (this.client !== client) return
-      console.error('[DiscordRpcClient] Discord RPC error:', err.message)
+      discordLog.error(`Discord RPC error: ${err.message}`)
       this.disconnect(err.message || 'Discord RPC error')
       this.state.lastError = err.message || 'Discord RPC error'
       this.emitState()
@@ -177,7 +181,7 @@ class DiscordRpcClient {
         this.client = null
       }
       const message = error instanceof Error ? error.message : String(error)
-      console.error('[DiscordRpcClient] Connection failed:', message)
+      discordLog.warn(`connection failed: ${message}; reconnecting in ${(RECONNECT_INTERVAL_MS / 1000).toFixed(0)}s`)
       this.setErrorState(message)
       this.scheduleReconnect()
     }
@@ -204,7 +208,7 @@ class DiscordRpcClient {
 
   private scheduleReconnect(): void {
     if (this.isDisposed || this.reconnectTimer) return
-    console.log('[DiscordRpcClient] Scheduling reconnect in', RECONNECT_INTERVAL_MS, 'ms')
+    discordLog.debug(`scheduling reconnect in ${(RECONNECT_INTERVAL_MS / 1000).toFixed(0)}s`)
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null
       void this.connect()

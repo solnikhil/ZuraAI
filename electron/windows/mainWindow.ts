@@ -1,8 +1,11 @@
 import { app, BrowserWindow, shell } from 'electron'
 import path from 'path'
 import { deferredInitializer } from '../startup/deferredInit'
+import { log } from '../startup/logger'
 import { resolveAppIconPath } from '../windowIcon'
 import { trackAppCrash, trackAppError } from '../analytics'
+
+const windowLog = log.withTag('window')
 
 export function resolveDistPath(dirname: string, envDist = process.env.DIST): string {
   return envDist || path.join(dirname, '../dist')
@@ -51,8 +54,8 @@ function showFallbackError(win: BrowserWindow, message: string): void {
 <div style="font-size:14px;">${safe}</div>
 <div style="font-size:12px;color:#57534e;margin-top:16px;">Try restarting the app.</div>
 </body></html>`)}`
-      win.loadURL(html).catch((error) => {
-        console.warn('[MAIN] Failed to load fallback inline error page:', error)
+      win.loadURL(html).catch(() => {
+        windowLog.warn('failed to load fallback inline error page')
       })
     })
 
@@ -163,7 +166,7 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
     : mainWindow.loadFile(path.join(distPath, 'index.html'), { hash: 'dashboard' })
 
   void loadPromise.catch((error) => {
-    console.error('[MAIN] Failed to load main window:', error)
+    windowLog.error('failed to load main window')
     trackAppError({
       category: 'window_load',
       code: error instanceof Error ? error.name : 'load_failed',
@@ -176,9 +179,7 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
   mainWindow.webContents.on(
     'did-fail-load',
     (_event, errorCode, errorDescription, validatedURL) => {
-      console.error(
-        `[MAIN] did-fail-load: code=${errorCode} desc="${errorDescription}" url="${validatedURL}"`
-      )
+      windowLog.error(`did-fail-load: code=${errorCode} desc="${errorDescription}" url="${validatedURL}"`)
       // -3 is ERR_ABORTED which fires on normal navigation, ignore it
       if (errorCode === -3) return
       trackAppError({
@@ -195,7 +196,7 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
   )
 
   mainWindow.webContents.on('render-process-gone', (_event, details) => {
-    console.error('[MAIN] Renderer process gone:', details.reason, details.exitCode)
+    windowLog.error(`renderer process gone: ${details.reason} (exitCode=${details.exitCode})`)
     trackAppCrash({
       category: details.reason,
       code: details.exitCode != null ? String(details.exitCode) : details.reason,

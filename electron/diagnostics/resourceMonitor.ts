@@ -1,8 +1,9 @@
 import { app, BrowserWindow, ipcMain, type IpcMain, type WebContents } from 'electron'
 
 import type { ProcessSample, ProcessSampleType, ResourceSample } from '../../src/electron/types'
+import { log } from '../startup/logger'
 
-const LOG_PREFIX = '[resource-monitor]'
+const monitorLog = log.withTag('monitor')
 const SAMPLE_INTERVAL_MS = 2000
 
 /**
@@ -126,7 +127,7 @@ function buildResourceMonitor(deps: ResourceMonitorDeps = {}): ResourceMonitorRu
     try {
       metrics = getMetrics() ?? []
     } catch (error) {
-      console.warn(`${LOG_PREFIX} getAppMetrics failed`, error)
+      monitorLog.warn(`getAppMetrics failed: ${error instanceof Error ? error.message : String(error)}`)
       metrics = []
     }
 
@@ -141,7 +142,7 @@ function buildResourceMonitor(deps: ResourceMonitorDeps = {}): ResourceMonitorRu
           if (title) titleByWcId.set(win.webContents.id, title)
         }
       } catch (error) {
-        console.warn(`${LOG_PREFIX} listWindows failed`, error)
+        monitorLog.warn(`listWindows failed: ${error instanceof Error ? error.message : String(error)}`)
       }
       return titleByWcId
     }
@@ -180,7 +181,7 @@ function buildResourceMonitor(deps: ResourceMonitorDeps = {}): ResourceMonitorRu
       try {
         subscriber.send('resource-monitor:sample', sample)
       } catch (error) {
-        console.warn(`${LOG_PREFIX} send failed for wc ${subscriber.id}`, error)
+        monitorLog.debug(`send failed for wc ${subscriber.id}`)
       }
     }
     if (subscribers.size === 0) {
@@ -194,7 +195,7 @@ function buildResourceMonitor(deps: ResourceMonitorDeps = {}): ResourceMonitorRu
     // Intentional info-level log: surfaces sampler lifecycle in dev / packaged logs
     // alongside other diagnostics modules.
     // eslint-disable-next-line no-console
-    console.log(`${LOG_PREFIX} sampler started (interval=${intervalMs}ms)`)
+    monitorLog.debug(`sampler started (interval=${intervalMs}ms)`)
   }
 
   const stop = () => {
@@ -202,7 +203,7 @@ function buildResourceMonitor(deps: ResourceMonitorDeps = {}): ResourceMonitorRu
     clearIntervalFn(timer)
     timer = null
     // eslint-disable-next-line no-console
-    console.log(`${LOG_PREFIX} sampler stopped`)
+    monitorLog.debug('sampler stopped')
   }
 
   const addSubscriber = (subscriber: WebContents) => {

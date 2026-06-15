@@ -78,6 +78,12 @@ describe('deepseekReasoning helpers', () => {
       expect(patch.deepseekReasoning.m).toEqual({ enabled: true, effort: 'xhigh' })
       expect(patch.deepseekLastEffort).toBe('xhigh')
     })
+
+    it('allows setting effort to none', () => {
+      const patch = setDeepseekReasoningEffort({}, 'm', 'none')
+      expect(patch.deepseekReasoning.m).toEqual({ enabled: true, effort: 'none' })
+      expect(patch.deepseekLastEffort).toBe('none')
+    })
   })
 
   describe('normalizeDeepseekReasoning', () => {
@@ -104,7 +110,8 @@ describe('deepseekReasoning helpers', () => {
   })
 
   describe('isDeepSeekReasoningEffort', () => {
-    it('accepts the low→xhigh scale and rejects others', () => {
+    it('accepts the none→xhigh scale and rejects others', () => {
+      expect(isDeepSeekReasoningEffort('none')).toBe(true)
       expect(isDeepSeekReasoningEffort('low')).toBe(true)
       expect(isDeepSeekReasoningEffort('medium')).toBe(true)
       expect(isDeepSeekReasoningEffort('high')).toBe(true)
@@ -125,8 +132,8 @@ describe('deepseekReasoning helpers', () => {
   })
 
   describe('DEEPSEEK_REASONING_EFFORTS', () => {
-    it('exposes the ordered low→xhigh scale', () => {
-      expect(DEEPSEEK_REASONING_EFFORTS).toEqual(['low', 'medium', 'high', 'xhigh'])
+    it('exposes the ordered none→xhigh scale', () => {
+      expect(DEEPSEEK_REASONING_EFFORTS).toEqual(['none', 'low', 'medium', 'high', 'xhigh'])
     })
   })
 })

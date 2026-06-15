@@ -54,7 +54,7 @@ Core capabilities:
   - `electron/main.ts` — app lifecycle, IPC registration, tray, windows, updater, tool handlers
   - `electron/preload.ts` — **contextBridge** API + IPC allowlists (security boundary)
   - `electron/ipc/` — `ipcMain` handlers (chat store, secure storage, system actions)
-- `electron/startup/` — deferred startup orchestration and startup metrics
+- `electron/startup/` — deferred startup orchestration, startup metrics, and structured ANSI-colored logging (`logger.ts` using `picocolors`)
 - `electron/windows/` — main window, tray
 - `electron/windows/overlayWindow.ts` — Overlay window creation/reuse, top-right anchoring, platform-adaptive material (vibrancy/acrylic/CSS fallback), content-driven height sizing, and shortcut-backed lifecycle
 - `electron/chatStore.ts` — chat history persistence (JSON under `app.getPath('userData')`)

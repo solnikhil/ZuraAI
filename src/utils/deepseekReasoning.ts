@@ -10,6 +10,7 @@
 import type { DeepSeekReasoningEffort } from '../contexts/SettingsConfigContext'
 
 export const DEEPSEEK_REASONING_EFFORTS: readonly DeepSeekReasoningEffort[] = [
+  'none',
   'low',
   'medium',
   'high',
@@ -18,6 +19,7 @@ export const DEEPSEEK_REASONING_EFFORTS: readonly DeepSeekReasoningEffort[] = [
 
 /** Human-friendly labels for each effort level (the raw `xhigh` reads poorly). */
 export const DEEPSEEK_REASONING_EFFORT_LABELS: Record<DeepSeekReasoningEffort, string> = {
+  none: 'None',
   low: 'Low',
   medium: 'Medium',
   high: 'High',
@@ -30,7 +32,7 @@ export function getReasoningEffortLabel(effort: DeepSeekReasoningEffort): string
 }
 
 export function isDeepSeekReasoningEffort(value: unknown): value is DeepSeekReasoningEffort {
-  return value === 'low' || value === 'medium' || value === 'high' || value === 'xhigh'
+  return value === 'none' || value === 'low' || value === 'medium' || value === 'high' || value === 'xhigh'
 }
 
 /**

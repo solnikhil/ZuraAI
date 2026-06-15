@@ -3,6 +3,10 @@ import fs from 'fs'
 import path from 'path'
 import { app } from 'electron'
 
+import { log } from '../startup/logger'
+
+const analyticsLog = log.withTag('analytics')
+
 import {
   isAnalyticsEventName,
   sanitizeAnalyticsProperties,
@@ -74,7 +78,7 @@ function writePersistedState(nextState: AnalyticsState): void {
     }
     fs.writeFileSync(getStoragePath(), JSON.stringify(persisted, null, 2), 'utf8')
   } catch (error) {
-    console.warn('[analytics] Failed to persist analytics state:', error)
+    analyticsLog.warn(`failed to persist analytics state: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
 
@@ -178,7 +182,7 @@ async function sendToPostHog(eventName: AnalyticsEventName, properties: Analytic
 
     return response.ok
   } catch (error) {
-    console.warn('[analytics] Failed to send analytics event:', error)
+    analyticsLog.warn(`failed to send analytics event: ${error instanceof Error ? error.message : String(error)}`)
     return false
   }
 }

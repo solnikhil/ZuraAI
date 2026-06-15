@@ -37,7 +37,7 @@ export default function ModelSelector({ minimal, popoverAlign = 'start' }: Model
 
   // Reasoning effort is shown for the active DeepSeek model. It stays visible
   // (greyed) when reasoning is disabled so the control is discoverable; the
-  // enable/disable toggle itself lives in Provider Hub. Levels: low → xhigh.
+  // enable/disable toggle itself lives in Provider Hub. Levels: none → xhigh.
   const deepseekReasoning = getDeepseekReasoning(settings, settings.aiModel)
   const isDeepseekModel = settings.modelProvider === 'deepseek'
   const isOpenRouterReasoningModel =
@@ -47,17 +47,22 @@ export default function ModelSelector({ minimal, popoverAlign = 'start' }: Model
   const isNvidiaReasoningModel =
     settings.modelProvider === 'nvidia' &&
     currentModel?.supportsDeepThinking === true
-  const showReasoning =
+  // Show reasoning section for reasoning-capable models (DeepSeek only when enabled)
+  const showReasoningSection =
     (isDeepseekModel && deepseekReasoning.enabled) ||
     isOpenRouterReasoningModel ||
     isNvidiaReasoningModel
+  // Reasoning is active when a level other than 'none' is selected
   const reasoningEffort = isOpenRouterReasoningModel
     ? settings.openRouterReasoningEffort?.[settings.aiModel] || 'high'
     : isNvidiaReasoningModel
       ? settings.nvidiaReasoningEffort?.[settings.aiModel] || 'high'
       : deepseekReasoning.effort
+  const reasoningEnabled = reasoningEffort !== 'none'
+  // Show badge on trigger only when reasoning is actually enabled
+  const showReasoningBadge = showReasoningSection && reasoningEnabled
   const compactReasoningEffortLabel =
-    reasoningEffort === 'xhigh' ? 'XH' : reasoningEffort.charAt(0).toUpperCase()
+    reasoningEffort === 'xhigh' ? 'XH' : reasoningEffort === 'none' ? 'N' : reasoningEffort.charAt(0).toUpperCase()
   const showLeadingIcon = !minimal
 
   return (
@@ -93,7 +98,7 @@ export default function ModelSelector({ minimal, popoverAlign = 'start' }: Model
                 >
                   {currentName}
                 </span>
-                {showReasoning && (
+                {showReasoningBadge && (
                   <span className="inline-flex shrink-0 items-center border-l border-[var(--theme-border-subtle)] pl-1.5 text-[0.68rem] font-semibold leading-none text-[var(--theme-text-tertiary)]">
                     {compactReasoningEffortLabel}
                   </span>
@@ -122,8 +127,8 @@ export default function ModelSelector({ minimal, popoverAlign = 'start' }: Model
         selectedModelCode={settings.aiModel}
         selectedModelProvider={settings.modelProvider}
         onModelSelect={handleSelect}
-        showReasoning={showReasoning}
-        reasoningEnabled={showReasoning}
+        showReasoning={showReasoningSection}
+        reasoningEnabled={reasoningEnabled}
         reasoningEffort={reasoningEffort}
         reasoningEfforts={DEEPSEEK_REASONING_EFFORTS}
         onReasoningEffortChange={(effort: DeepSeekReasoningEffort) => {

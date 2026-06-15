@@ -105,7 +105,7 @@ describe('ModelSelectorDropdown', () => {
     expect(screen.queryByText('Reasoning effort')).not.toBeInTheDocument()
   })
 
-  it('shows the reasoning effort section greyed/disabled when reasoning is off', () => {
+  it('shows the reasoning effort section and allows selecting None when reasoning is off', () => {
     const onReasoningEffortChange = vi.fn()
     renderOpen({
       showReasoning: true,
@@ -119,10 +119,10 @@ describe('ModelSelectorDropdown', () => {
     })
 
     expect(screen.getByText('Reasoning effort')).toBeInTheDocument()
-    const maxItem = screen.getByRole('menuitemradio', { name: /xhigh/i })
-    expect(maxItem).toHaveAttribute('data-disabled')
-    fireEvent.click(maxItem)
-    expect(onReasoningEffortChange).not.toHaveBeenCalled()
+    const noneItem = screen.getByRole('menuitemradio', { name: /none/i })
+    expect(noneItem).toBeInTheDocument()
+    fireEvent.click(noneItem)
+    expect(onReasoningEffortChange).toHaveBeenCalledWith('none')
   })
 
   it('shows the reasoning effort section and switches effort when enabled', () => {

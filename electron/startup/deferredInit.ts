@@ -21,6 +21,8 @@
  *
  */
 
+import { log, type TimingMetrics } from './logger'
+
 export type TaskPriority = 'critical' | 'high' | 'low'
 
 /**
@@ -45,7 +47,7 @@ export interface DeferredTask {
  * regression detection. Times are stored as epoch-millisecond values generated
  * with `Date.now()`.
  */
-export interface StartupMetrics {
+export interface StartupMetrics extends TimingMetrics {
   processStartAt: number
   appReadyAt: number
   windowCreatedAt: number
@@ -84,7 +86,6 @@ export class DeferredInitializer {
   private isExecuting = false
   private windowVisiblePromise: Promise<void> | null = null
   private windowVisibleResolve: (() => void) | null = null
-  private readonly logPrefix = '[startup]'
 
   constructor() {
     this.metrics = {
@@ -207,7 +208,6 @@ export class DeferredInitializer {
    */
   async executeAfterWindowVisible(): Promise<void> {
     if (this.isExecuting) {
-      this.logWarn('deferred execution already in progress')
       return
     }
 
@@ -216,7 +216,7 @@ export class DeferredInitializer {
     // Do not begin deferred work until the user can already see the window.
     await this.waitForWindowVisible()
 
-    this.logInfo(`window visible; running ${this.tasks.length} deferred task(s)`)
+    log.info(`window visible; running ${this.tasks.length} deferred task(s)`)
 
     for (const task of this.tasks) {
       try {
@@ -232,14 +232,13 @@ export class DeferredInitializer {
 
         this.recordPhase(`deferred:${task.name}`, 'end')
         const duration = this.metrics.phases[`deferred:${task.name}`]?.durationMs ?? 0
-        this.logInfo(
-          `task complete: ${task.name} | priority=${task.priority} | delay=${task.delayMs}ms | duration=${duration}ms`
-        )
+        const label = task.name.padEnd(26)
+        log.info(`${label} ${duration}ms (priority=${task.priority} delay=${task.delayMs}ms)`)
       } catch (error) {
         // Failures are logged but do not abort the remaining task queue. That
         // keeps one non-critical startup task from preventing later tasks from
         // running.
-        this.logError(`task failed: ${task.name}`, error)
+        log.error(`task failed: ${task.name}`)
         this.recordPhase(`deferred:${task.name}`, 'end')
       }
     }
@@ -247,8 +246,7 @@ export class DeferredInitializer {
     this.markFullyLoaded()
     this.isExecuting = false
 
-    this.logInfo('deferred startup complete')
-    this.logMetrics()
+    log.timingSummary(this.metrics)
   }
 
   /**
@@ -260,69 +258,6 @@ export class DeferredInitializer {
    */
   getMetrics(): StartupMetrics {
     return { ...this.metrics }
-  }
-
-  /**
-   * Logs a human-readable startup timing summary to the console.
-   */
-  logMetrics(): void {
-    const m = this.metrics
-    const duration = (start: number, end: number): number | 'n/a' =>
-      start > 0 && end > 0 ? end - start : 'n/a'
-
-    const timeToVisible = duration(m.processStartAt, m.windowVisibleAt)
-    const timeToFullyLoaded = duration(m.processStartAt, m.fullyLoadedAt)
-
-    this.logInfo('startup timing summary')
-    console.table([
-      {
-        phase: 'process -> app ready',
-        durationMs: duration(m.processStartAt, m.appReadyAt),
-      },
-      {
-        phase: 'app ready -> window created',
-        durationMs: duration(m.appReadyAt, m.windowCreatedAt),
-      },
-      {
-        phase: 'window created -> visible',
-        durationMs: duration(m.windowCreatedAt, m.windowVisibleAt),
-      },
-      {
-        phase: 'process -> IPC ready',
-        durationMs: duration(m.processStartAt, m.ipcReadyAt),
-      },
-      {
-        phase: 'time to window visible',
-        durationMs: timeToVisible,
-      },
-      {
-        phase: 'time to fully loaded',
-        durationMs: timeToFullyLoaded,
-      },
-    ])
-
-    const deferredTaskRows = Object.entries(m.phases)
-      .filter(([name]) => name.startsWith('deferred:'))
-      .map(([name, phase]) => ({
-        task: name.replace('deferred:', ''),
-        durationMs: phase.durationMs,
-      }))
-
-    if (deferredTaskRows.length > 0) {
-      console.table(deferredTaskRows)
-    }
-  }
-
-  private logInfo(message: string): void {
-    console.log(`${this.logPrefix} ${message}`)
-  }
-
-  private logWarn(message: string): void {
-    console.warn(`${this.logPrefix} ${message}`)
-  }
-
-  private logError(message: string, error: unknown): void {
-    console.error(`${this.logPrefix} ${message}`, error)
   }
 
   /**

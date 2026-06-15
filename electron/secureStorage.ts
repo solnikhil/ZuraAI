@@ -1,12 +1,14 @@
 // Secure storage for sensitive data like API keys
 // Uses Electron's safeStorage API which encrypts data using OS keychain
 
-import { safeStorage } from 'electron'
+import { safeStorage, app } from 'electron'
 import * as fs from 'fs/promises'
 import * as fsSync from 'fs'
 import * as path from 'path'
-import { app } from 'electron'
 import { writeFileAtomic } from './utils/atomicFile'
+import { log } from './startup/logger'
+
+const storageLog = log.withTag('storage')
 
 const STORAGE_FILE = path.join(app.getPath('userData'), 'secure-storage.json')
 
@@ -31,7 +33,7 @@ function isEncryptionAvailable(): boolean {
   try {
     return safeStorage.isEncryptionAvailable()
   } catch (error) {
-    console.warn('Unable to determine safeStorage encryption availability.', error)
+    storageLog.warn('unable to determine safeStorage encryption availability')
     return false
   }
 }
@@ -63,7 +65,7 @@ async function readSecureDataAsync(): Promise<SecureData> {
     const encryptionAvailable = isEncryptionAvailable()
 
     if (!encryptionAvailable) {
-      console.error('Secure storage unavailable: OS-backed encryption is required.')
+      storageLog.error('secure storage unavailable: OS-backed encryption is required')
       return {}
     }
 
@@ -78,7 +80,7 @@ async function readSecureDataAsync(): Promise<SecureData> {
             decrypted[key as keyof SecureData] = value
             migratedLegacyPlaintext = true
           } else {
-            console.warn(`Failed to decrypt secure storage entry for key "${key}".`, error)
+            storageLog.warn(`failed to decrypt secure storage entry for key "${key}"`)
           }
         }
       }
@@ -87,7 +89,7 @@ async function readSecureDataAsync(): Promise<SecureData> {
     if (migratedLegacyPlaintext) {
       const migrated = await writeSecureDataAsync(decrypted)
       if (!migrated) {
-        console.error('Failed to migrate legacy plaintext secure storage entries.')
+        storageLog.error('failed to migrate legacy plaintext secure storage entries')
       }
     }
 
@@ -95,7 +97,7 @@ async function readSecureDataAsync(): Promise<SecureData> {
     cacheTimestamp = Date.now()
     return decrypted
   } catch (error) {
-    console.error('Failed to read secure storage data.', error)
+    storageLog.error('failed to read secure storage data')
     return {}
   }
 }
@@ -120,7 +122,7 @@ export async function getSecureValuePresenceAsync(keys: readonly string[]): Prom
 
     return presence
   } catch (error) {
-    console.error('Failed to read secure storage key presence.', error)
+    storageLog.error('failed to read secure storage key presence')
     return presence
   }
 }
@@ -128,7 +130,7 @@ export async function getSecureValuePresenceAsync(keys: readonly string[]): Prom
 async function writeSecureDataAsync(data: SecureData): Promise<boolean> {
   try {
     if (!isEncryptionAvailable()) {
-      console.error('Secure storage unavailable: refusing to persist secrets without encryption.')
+      storageLog.error('secure storage unavailable: refusing to persist secrets without encryption')
       return false
     }
 
@@ -145,7 +147,7 @@ async function writeSecureDataAsync(data: SecureData): Promise<boolean> {
     cacheTimestamp = Date.now()
     return true
   } catch (error) {
-    console.error('Failed to write secure storage data.', error)
+    storageLog.error('failed to write secure storage data')
     return false
   }
 }

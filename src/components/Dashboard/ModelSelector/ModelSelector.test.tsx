@@ -100,8 +100,49 @@ describe('ModelSelector', () => {
 
   it('does not show reasoning effort for non-reasoning active models', () => {
     render(<ModelSelector minimal={true} />)
-    expect(screen.queryByText(/· (high|xhigh|medium|low)/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/· (high|xhigh|medium|low|none)/i)).not.toBeInTheDocument()
     expect(screen.queryByText('Reasoning effort')).not.toBeInTheDocument()
+  })
+
+  it('shows reasoning effort section with None option for OpenRouter reasoning models', async () => {
+    mockSettings = {
+      modelProvider: 'openrouter',
+      aiModel: 'nex-agi/nex-n2-pro:free',
+      modelSelector: {},
+      openRouterReasoningEffort: { 'nex-agi/nex-n2-pro:free': 'medium' },
+    }
+    mockCurrentModel = openRouterReasoningModel
+    mockCurrentName = 'Nex-N2-Pro'
+
+    render(<ModelSelector minimal={true} />)
+
+    expect(screen.getByText('M')).toBeInTheDocument()
+    expect(await screen.findByText('Reasoning effort')).toBeInTheDocument()
+    expect(screen.getByRole('menuitemradio', { name: /none/i })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('menuitemradio', { name: /none/i }))
+
+    expect(updateSettings).toHaveBeenCalledWith({
+      openRouterReasoningEffort: {
+        'nex-agi/nex-n2-pro:free': 'none',
+      },
+    })
+  })
+
+  it('hides reasoning badge when effort is none', async () => {
+    mockSettings = {
+      modelProvider: 'openrouter',
+      aiModel: 'nex-agi/nex-n2-pro:free',
+      modelSelector: {},
+      openRouterReasoningEffort: { 'nex-agi/nex-n2-pro:free': 'none' },
+    }
+    mockCurrentModel = openRouterReasoningModel
+    mockCurrentName = 'Nex-N2-Pro'
+
+    render(<ModelSelector minimal={true} />)
+
+    expect(screen.queryByText('N')).not.toBeInTheDocument()
+    expect(await screen.findByText('Reasoning effort')).toBeInTheDocument()
   })
 
   it('enables the reasoning effort area for detected OpenRouter reasoning models', async () => {
