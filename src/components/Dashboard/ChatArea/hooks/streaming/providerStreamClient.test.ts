@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
   generateDeepSeekCompletion: vi.fn(),
   streamFireworksCompletion: vi.fn(),
   generateFireworksCompletion: vi.fn(),
+  streamNvidiaCompletion: vi.fn(),
+  generateNvidiaCompletion: vi.fn(),
   streamOllamaCompletion: vi.fn(),
   generateOllamaCompletion: vi.fn(),
   streamPerplexityCompletion: vi.fn(),
@@ -40,6 +42,11 @@ vi.mock('../../../../../services/deepseek', () => ({
 vi.mock('../../../../../services/fireworks', () => ({
   streamFireworksCompletion: mocks.streamFireworksCompletion,
   generateFireworksCompletion: mocks.generateFireworksCompletion,
+}))
+
+vi.mock('../../../../../services/nvidia', () => ({
+  streamNvidiaCompletion: mocks.streamNvidiaCompletion,
+  generateNvidiaCompletion: mocks.generateNvidiaCompletion,
 }))
 
 vi.mock('../../../../../services/ollama', () => ({
@@ -424,6 +431,44 @@ describe('createProviderStreamClient', () => {
       [{ role: 'user', content: 'hello' }],
       expect.objectContaining({
         extraHeaders: { 'x-session-affinity': 'session-123' },
+      })
+    )
+  })
+
+  it('dispatches NVIDIA streaming requests with adaptive thinking enabled', async () => {
+    mocks.streamNvidiaCompletion.mockImplementation(async function* () {
+      yield {
+        choices: [{ delta: { content: 'hello' }, finish_reason: 'stop' }],
+      }
+    })
+
+    const client = createProviderStreamClient(
+      {
+        aiModel: 'minimaxai/minimax-m3',
+        modelProvider: 'nvidia',
+        temperature: 0.5,
+        maxTokens: 1024,
+        streamResponses: true,
+        nvidiaApiKey: 'nvapi-key',
+      },
+      'nvidia'
+    )
+
+    const events = await collect(client.stream({
+      provider: 'nvidia',
+      model: 'minimaxai/minimax-m3',
+      messages: [{ role: 'user', content: 'hello' }],
+      streamResponses: true,
+      enableThinking: true,
+    }))
+
+    expect(events).toContainEqual({ type: 'text-delta', delta: 'hello' })
+    expect(mocks.streamNvidiaCompletion).toHaveBeenCalledWith(
+      'nvapi-key',
+      'minimaxai/minimax-m3',
+      [{ role: 'user', content: 'hello' }],
+      expect.objectContaining({
+        enableThinking: true,
       })
     )
   })

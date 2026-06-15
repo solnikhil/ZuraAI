@@ -96,6 +96,7 @@ export interface SettingsConfig {
   webSearchIncludeImages: boolean
   alibabaApiKey: string
   fireworksApiKey: string
+  nvidiaApiKey: string
   deepseekApiKey: string
   onlineCompilerApiKey: string
 
@@ -110,6 +111,7 @@ export interface SettingsConfig {
   groqModels: ConfiguredModel[]
   alibabaModels: ConfiguredModel[]
   fireworksModels: ConfiguredModel[]
+  nvidiaModels: ConfiguredModel[]
   deepseekModels: ConfiguredModel[]
 
   /**
@@ -131,6 +133,13 @@ export interface SettingsConfig {
    * model picker owns effort selection after detection.
    */
   openRouterReasoningEffort?: Record<string, DeepSeekReasoningEffort>
+  /**
+   * Per-model NVIDIA reasoning effort preferences, keyed by configured
+   * NVIDIA model `code`. The dashboard model picker controls this; NVIDIA NIM
+   * does not expose native reasoning effort levels, but the UI keeps the
+   * control consistent with other reasoning-capable providers.
+   */
+  nvidiaReasoningEffort?: Record<string, DeepSeekReasoningEffort>
 
   // AI parameters
   temperature: number
@@ -209,6 +218,7 @@ export const defaultSettingsConfig: SettingsConfig = {
   webSearchIncludeImages: true,
   alibabaApiKey: '',
   fireworksApiKey: '',
+  nvidiaApiKey: '',
   deepseekApiKey: '',
 
   onlineCompilerApiKey: '',
@@ -298,6 +308,21 @@ export const defaultSettingsConfig: SettingsConfig = {
   ],
   alibabaModels: [],
   fireworksModels: [],
+  nvidiaModels: [
+    {
+      code: 'minimaxai/minimax-m3',
+      displayName: 'MiniMax M3',
+      enabled: true,
+      maxContext: 1048576,
+      inputModalities: ['text', 'image', 'video'],
+      outputModalities: ['text'],
+      supportsToolCall: true,
+      supportsVision: true,
+      supportsDeepThinking: true,
+      supportsVideoRecognition: true,
+      modelType: 'reasoning',
+    },
+  ],
   deepseekModels: [
     { code: 'deepseek-v4-flash', displayName: 'DeepSeek V4 Flash', enabled: true, maxContext: 1048576, supportsToolCall: true, modelType: 'chat' },
     { code: 'deepseek-v4-pro', displayName: 'DeepSeek V4 Pro', enabled: true, maxContext: 1048576, supportsToolCall: true, supportsDeepThinking: true, modelType: 'reasoning' },
@@ -367,6 +392,7 @@ export const defaultSettingsConfig: SettingsConfig = {
   deepseekReasoning: {},
   deepseekLastEffort: 'high',
   openRouterReasoningEffort: {},
+  nvidiaReasoningEffort: {},
 }
 
 interface SettingsConfigContextType {

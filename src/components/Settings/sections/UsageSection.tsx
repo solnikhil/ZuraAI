@@ -61,6 +61,7 @@ export function UsageSection({
     deepseek: 'DeepSeek',
     fireworks: 'Fireworks',
     groq: 'Groq',
+    nvidia: 'NVIDIA NIM',
     ollama: 'Ollama',
     openrouter: 'OpenRouter',
     perplexity: 'Perplexity',

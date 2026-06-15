@@ -51,6 +51,7 @@ import { CreateCustomModelDialog } from './CreateCustomModelDialog'
 import { AlibabaModelSearchDialog } from './AlibabaModelSearchDialog'
 import { DeepseekModelSearchDialog } from './DeepseekModelSearchDialog'
 import { FireworksModelSearchDialog } from './FireworksModelSearchDialog'
+import { NvidiaModelSearchDialog } from './NvidiaModelSearchDialog'
 import { OpenRouterModelSearchDialog } from './OpenRouterModelSearchDialog'
 import { PerplexityModelSearchDialog } from './PerplexityModelSearchDialog'
 import {
@@ -89,6 +90,7 @@ const PROVIDER_ENDPOINTS: Record<ProviderKey, string> = {
   deepseek: getProviderEndpoint('deepseek', 'baseUrl') || '',
   fireworks: getProviderEndpoint('fireworks', 'baseUrl') || '',
   groq: getProviderEndpoint('groq', 'baseUrl') || '',
+  nvidia: getProviderEndpoint('nvidia', 'baseUrl') || '',
   ollama: getProviderEndpoint('ollama', 'baseUrl') || DEFAULT_OLLAMA_URL,
   openrouter: getProviderEndpoint('openrouter', 'baseUrl') || '',
   perplexity: getProviderEndpoint('perplexity', 'baseUrl') || '',
@@ -175,6 +177,7 @@ export interface ProviderHubSectionProps {
   alibabaApiKey: string
   deepseekApiKey: string
   fireworksApiKey: string
+  nvidiaApiKey: string
   groqApiKey: string
   openRouterApiKey: string
   perplexityApiKey: string
@@ -190,6 +193,7 @@ export interface ProviderHubSectionProps {
   alibabaModels: ModelBasic[]
   deepseekModels: ModelBasic[]
   fireworksModels: ModelBasic[]
+  nvidiaModels: ModelBasic[]
   groqModels: ModelBasic[]
   ollamaModels: ModelBasic[]
   perplexityModels: ModelBasic[]
@@ -204,6 +208,7 @@ export interface ProviderHubSectionProps {
       alibabaApiKey: string
       deepseekApiKey: string
       fireworksApiKey: string
+      nvidiaApiKey: string
       groqApiKey: string
       openRouterApiKey: string
 
@@ -217,6 +222,7 @@ export interface ProviderHubSectionProps {
       alibabaModels: ConfiguredModel[]
       deepseekModels: ConfiguredModel[]
       fireworksModels: ConfiguredModel[]
+      nvidiaModels: ConfiguredModel[]
       groqModels: ConfiguredModel[]
       ollamaModels: ConfiguredModel[]
       perplexityModels: ConfiguredModel[]
@@ -238,6 +244,7 @@ type ProviderSettingsUpdate = Partial<Pick<
   | 'alibabaModels'
   | 'deepseekModels'
   | 'fireworksModels'
+  | 'nvidiaModels'
   | 'ollamaModels'
   | 'aiModel'
   | 'modelProvider'
@@ -251,6 +258,7 @@ export function ProviderHubSection({
   alibabaApiKey,
   deepseekApiKey,
   fireworksApiKey,
+  nvidiaApiKey,
   tavilyApiKey,
   onlineCompilerApiKey,
   tavilySearchDepthPreference,
@@ -265,6 +273,7 @@ export function ProviderHubSection({
   alibabaModels,
   deepseekModels,
   fireworksModels,
+  nvidiaModels,
   ollamaModels,
   deepseekReasoning,
   deepseekLastEffort,
@@ -292,6 +301,7 @@ export function ProviderHubSection({
   const [alibabaSearchDialogOpen, setAlibabaSearchDialogOpen] = useState(false)
   const [deepseekSearchDialogOpen, setDeepseekSearchDialogOpen] = useState(false)
   const [fireworksSearchDialogOpen, setFireworksSearchDialogOpen] = useState(false)
+  const [nvidiaSearchDialogOpen, setNvidiaSearchDialogOpen] = useState(false)
   const [perplexitySearchDialogOpen, setPerplexitySearchDialogOpen] = useState(false)
   const [modelToEdit, setModelToEdit] = useState<{
     provider: ProviderKey
@@ -351,6 +361,7 @@ export function ProviderHubSection({
     alibaba: alibabaModels,
     deepseek: deepseekModels,
     fireworks: fireworksModels,
+    nvidia: nvidiaModels,
     ollama: ollamaModels,
   }
 
@@ -498,6 +509,7 @@ export function ProviderHubSection({
       alibabaApiKey: alibabaApiKey ?? '',
       deepseekApiKey: deepseekApiKey ?? '',
       fireworksApiKey: fireworksApiKey ?? '',
+      nvidiaApiKey: nvidiaApiKey ?? '',
       groqApiKey: groqApiKey ?? '',
       openRouterApiKey: openRouterApiKey ?? '',
       perplexityApiKey: perplexityApiKey ?? '',
@@ -514,6 +526,7 @@ export function ProviderHubSection({
       alibaba: providerEnabled?.alibaba !== false,
       deepseek: providerEnabled?.deepseek !== false,
       fireworks: providerEnabled?.fireworks !== false,
+      nvidia: providerEnabled?.nvidia !== false,
     }
   }, [
     providerEnabled?.openrouter,
@@ -523,6 +536,7 @@ export function ProviderHubSection({
     providerEnabled?.alibaba,
     providerEnabled?.deepseek,
     providerEnabled?.fireworks,
+    providerEnabled?.nvidia,
   ])
 
   const isProviderEnabled = (provider: ProviderDefinition): boolean =>
@@ -721,6 +735,10 @@ export function ProviderHubSection({
     }
     if (provider === 'deepseek') {
       setDeepseekSearchDialogOpen(true)
+      return
+    }
+    if (provider === 'nvidia') {
+      setNvidiaSearchDialogOpen(true)
     }
   }
 
@@ -805,6 +823,14 @@ export function ProviderHubSection({
           selectedKey,
           connectivityModel,
           'DeepSeek check failed',
+          controller.signal
+        )
+      } else if (selectedProviderDef.key === 'nvidia') {
+        await runChatCompletionsConnectivityCheck(
+          endpoint,
+          selectedKey,
+          connectivityModel,
+          'NVIDIA NIM check failed',
           controller.signal
         )
       } else {
@@ -1213,6 +1239,7 @@ export function ProviderHubSection({
                   selectedProviderDef.key === 'fireworks' ||
                   selectedProviderDef.key === 'alibaba' ||
                   selectedProviderDef.key === 'deepseek' ||
+                  selectedProviderDef.key === 'nvidia' ||
                   selectedProviderDef.key === 'perplexity') && (
                   <Button
                     variant="outline"
@@ -1450,6 +1477,16 @@ export function ProviderHubSection({
           onAddModel={(model) => addCustomModel(model, 'deepseek')}
           apiKey={getProviderApiKey(selectedProviderDef)}
           existingModelCodes={deepseekModels.map((m) => m.code)}
+        />
+      )}
+
+      {selectedProviderDef.key === 'nvidia' && (
+        <NvidiaModelSearchDialog
+          open={nvidiaSearchDialogOpen}
+          onOpenChange={setNvidiaSearchDialogOpen}
+          onAddModel={(model) => addCustomModel(model, 'nvidia')}
+          apiKey={getProviderApiKey(selectedProviderDef)}
+          existingModelCodes={nvidiaModels.map((m) => m.code)}
         />
       )}
     </div>

@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import ThinkingBlock from './ThinkingBlock'
+import ThinkingBlock, { normalizeThinkingContentForDisplay } from './ThinkingBlock'
 
 describe('ThinkingBlock behavior', () => {
   beforeEach(() => {
@@ -178,6 +178,50 @@ describe('ThinkingBlock behavior', () => {
     expect(screen.queryByText('Follow-up reasoning')).not.toBeInTheDocument()
     expect(screen.getByText('Thought for <1s')).toBeInTheDocument()
     expect(container.querySelector('.thinking-block.completed .thinking-content')).toBeNull()
+  })
+
+  it('normalizes provider reasoning that streams one short token per line', () => {
+    expect(normalizeThinkingContentForDisplay('Need\n search\n variants\n.')).toBe(
+      'Need search variants.'
+    )
+  })
+
+  it('normalizes subword-tokenized provider reasoning without adding spaces inside words', () => {
+    const normalized = normalizeThinkingContentForDisplay(
+      'We\n have\n official\n H\nF\n and\n Open\nRouter\n.\n Need\n maybe\n answer\n with\n caveat\n "\nyes\n,\n if\n using\n Open\nRouter\n,\n it\n supports\n reasoning\n and\n you\n can\n enable\n via\n `\nreason\ning\n`\n parameter\n.\n"\n Could\n mention\n "\nN\n2\n Pro\n is\n an\n ag\nentic\n model\n,\n supports\n reasoning\n.\n"'
+    )
+
+    expect(normalized).toContain('We have official HF and Open Router.')
+    expect(normalized).toContain('via `reasoning` parameter')
+    expect(normalized).toContain('N2 Pro is an agentic model')
+  })
+
+  it('preserves structured multiline reasoning while normalizing display text', () => {
+    expect(normalizeThinkingContentForDisplay('- Search docs\n- Check provider\n- Answer')).toBe(
+      '- Search docs\n- Check provider\n- Answer'
+    )
+  })
+
+  it('renders short token-per-line completed reasoning as a sentence when expanded', async () => {
+    const { container } = render(
+      <ThinkingBlock
+        messageId="message-token-lines"
+        activeBlockKey="message-token-lines:1:answering"
+        thinking=""
+        completedBlocks={[
+          {
+            type: 'thinking',
+            content: 'Need\n search\n variants\n.',
+            duration: 300,
+            timestamp: 1,
+          },
+        ]}
+      />
+    )
+
+    fireEvent.click(container.querySelector('.thinking-header.completed') as HTMLElement)
+    expect(await screen.findByText('Need search variants.')).toBeInTheDocument()
+    expect(screen.queryByText('Need search variants .')).not.toBeInTheDocument()
   })
 
   it('shows generic MCP tool activity copy for non-search tool calls', async () => {

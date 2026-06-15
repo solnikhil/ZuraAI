@@ -11,6 +11,7 @@ type TitleGenerationSettings = Partial<
     | 'alibabaApiKey'
     | 'deepseekApiKey'
     | 'fireworksApiKey'
+    | 'nvidiaApiKey'
     | 'groqApiKey'
     | 'ollamaUrl'
     | 'openRouterApiKey'
@@ -21,6 +22,7 @@ type TitleGenerationSettings = Partial<
     | 'groqModels'
     | 'alibabaModels'
     | 'fireworksModels'
+    | 'nvidiaModels'
     | 'deepseekModels'
   >
 >

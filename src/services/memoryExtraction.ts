@@ -40,6 +40,7 @@ type ExtractionSettings = Partial<
     | 'alibabaApiKey'
     | 'deepseekApiKey'
     | 'fireworksApiKey'
+    | 'nvidiaApiKey'
     | 'groqApiKey'
     | 'ollamaUrl'
     | 'openRouterApiKey'
@@ -50,6 +51,7 @@ type ExtractionSettings = Partial<
     | 'groqModels'
     | 'alibabaModels'
     | 'fireworksModels'
+    | 'nvidiaModels'
     | 'deepseekModels'
   >
 > & { skills?: SkillsSettings }

@@ -167,4 +167,5 @@ export interface StreamingSettings extends ProviderRuntimeSettings {
   configuredModels?: import('../../../../../contexts/SettingsConfigContext').ConfiguredModel[]
   alibabaModels?: import('../../../../../contexts/SettingsConfigContext').ConfiguredModel[]
   deepseekModels?: import('../../../../../contexts/SettingsConfigContext').ConfiguredModel[]
+  nvidiaModels?: import('../../../../../contexts/SettingsConfigContext').ConfiguredModel[]
 }

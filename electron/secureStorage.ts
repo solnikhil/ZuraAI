@@ -18,6 +18,7 @@ interface SecureData {
   alibabaApiKey?: string
   deepseekApiKey?: string
   fireworksApiKey?: string
+  nvidiaApiKey?: string
   [key: string]: string | undefined
 }
 
@@ -42,6 +43,7 @@ function isLikelyLegacyPlaintextSecret(value: string): boolean {
     value.startsWith('tvly-') ||
     value.startsWith('dashscope-') ||
     value.startsWith('fw-') ||
+    value.startsWith('nvapi-') ||
     value.length < 100
   )
 }

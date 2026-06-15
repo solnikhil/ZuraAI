@@ -10,6 +10,7 @@ export interface ModelDisplaySettingsLike {
   groqModels?: ModelOption[]
   alibabaModels?: ModelOption[]
   fireworksModels?: ModelOption[]
+  nvidiaModels?: ModelOption[]
   deepseekModels?: ModelOption[]
 }
 

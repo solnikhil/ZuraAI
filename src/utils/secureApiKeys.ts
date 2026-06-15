@@ -17,6 +17,7 @@ type SecureApiKeyValues = {
     deepseekApiKey: string
     fireworksApiKey: string
     groqApiKey: string
+    nvidiaApiKey: string
     openRouterApiKey: string
     perplexityApiKey: string
     tavilyApiKey: string
@@ -29,6 +30,7 @@ function defaultSecureApiKeys(): SecureApiKeyValues {
         deepseekApiKey: '',
         fireworksApiKey: '',
         groqApiKey: '',
+        nvidiaApiKey: '',
         openRouterApiKey: '',
         perplexityApiKey: '',
         tavilyApiKey: '',
@@ -105,17 +107,19 @@ export async function resolveProviderApiKeysForSettings<TSettings extends {
     deepseekApiKey?: string
     fireworksApiKey?: string
     groqApiKey?: string
+    nvidiaApiKey?: string
     openRouterApiKey?: string
     perplexityApiKey?: string
 }>(
     settings: TSettings,
-    provider: 'alibaba' | 'deepseek' | 'fireworks' | 'groq' | 'openrouter' | 'perplexity' | 'ollama'
+    provider: 'alibaba' | 'deepseek' | 'fireworks' | 'groq' | 'nvidia' | 'openrouter' | 'perplexity' | 'ollama'
 ): Promise<TSettings> {
     const providerKeyMap = {
         alibaba: 'alibabaApiKey',
         deepseek: 'deepseekApiKey',
         fireworks: 'fireworksApiKey',
         groq: 'groqApiKey',
+        nvidia: 'nvidiaApiKey',
         openrouter: 'openRouterApiKey',
         perplexity: 'perplexityApiKey',
         ollama: null,

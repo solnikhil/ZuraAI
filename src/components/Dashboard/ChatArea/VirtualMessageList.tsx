@@ -206,10 +206,6 @@ export function VirtualMessageList({
         itemContent={renderItemContent}
         followOutput={followOutput}
         increaseViewportBy={{ top: preRenderBuffer, bottom: preRenderBuffer }}
-        scrollSeekConfiguration={{
-          enter: (velocity) => Math.abs(velocity) > 700,
-          exit: (velocity) => Math.abs(velocity) < 110,
-        }}
         initialTopMostItemIndex={messages.length - 1}
         atBottomStateChange={(nextAtBottom) => {
           setAtBottom(nextAtBottom)
@@ -221,25 +217,6 @@ export function VirtualMessageList({
         style={{ flex: 1 }}
         components={{
           Header: header ? () => <>{header}</> : undefined,
-          ScrollSeekPlaceholder: () => (
-            <div
-              style={{
-                width: '100%',
-                maxWidth: 'min(735px, 100%)',
-                margin: '0 auto',
-                padding: '10px 20px',
-              }}
-            >
-              <div
-                style={{
-                  height: 72,
-                  borderRadius: 14,
-                  background: 'color-mix(in srgb, var(--theme-surface) 86%, transparent)',
-                  border: '1px solid color-mix(in srgb, var(--theme-border) 86%, transparent)',
-                }}
-              />
-            </div>
-          ),
           Footer: footer
             ? () => <div style={{ paddingBottom: '180px' }}>{footer}</div>
             : () => <div style={{ paddingBottom: '180px' }} />,

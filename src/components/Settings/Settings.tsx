@@ -342,6 +342,7 @@ if (!hasSettingsChanges && !hasMcpChanges) {
                 alibabaApiKey={pendingSettings.alibabaApiKey}
                 deepseekApiKey={pendingSettings.deepseekApiKey}
                 fireworksApiKey={pendingSettings.fireworksApiKey}
+                nvidiaApiKey={pendingSettings.nvidiaApiKey}
                 groqApiKey={pendingSettings.groqApiKey}
                 openRouterApiKey={pendingSettings.openRouterApiKey}
                 perplexityApiKey={pendingSettings.perplexityApiKey}
@@ -357,6 +358,7 @@ if (!hasSettingsChanges && !hasMcpChanges) {
                 alibabaModels={pendingSettings.alibabaModels}
                 deepseekModels={pendingSettings.deepseekModels}
                 fireworksModels={pendingSettings.fireworksModels}
+                nvidiaModels={pendingSettings.nvidiaModels}
                 groqModels={pendingSettings.groqModels}
                 ollamaModels={pendingSettings.ollamaModels}
                 perplexityModels={pendingSettings.perplexityModels}

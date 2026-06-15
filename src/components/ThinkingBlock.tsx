@@ -210,6 +210,107 @@ function formatDuration(ms: number): string {
   return `${remainingSeconds}s`
 }
 
+function looksLikeStructuredThinkingLine(line: string): boolean {
+  return /^(\s*[-*+]\s+|\s*\d+[.)]\s+|\s*#{1,6}\s+|\s*>\s+|\s*```|\s*\|)/.test(line)
+}
+
+function normalizeThinkingParagraphForDisplay(paragraph: string): string {
+  const lines = paragraph.split('\n')
+  const nonEmptyLines = lines.map((line) => line.trim()).filter(Boolean)
+
+  if (nonEmptyLines.length < 3) {
+    return paragraph
+  }
+
+  if (nonEmptyLines.some(looksLikeStructuredThinkingLine)) {
+    return paragraph
+  }
+
+  const totalChars = nonEmptyLines.reduce((sum, line) => sum + line.length, 0)
+  const averageLineLength = totalChars / nonEmptyLines.length
+  const shortLineRatio =
+    nonEmptyLines.filter((line) => line.length <= 24).length / nonEmptyLines.length
+
+  if (averageLineLength > 28 || shortLineRatio < 0.75) {
+    return paragraph
+  }
+
+  return joinTokenizedThinkingLines(nonEmptyLines)
+    .replace(/\s+([.,!?;:])/g, '$1')
+    .replace(/([([{`])\s+/g, '$1')
+    .replace(/\s+([)\]}`])/g, '$1')
+    .replace(/(\S)`([^`]+)`(\S)/g, '$1 `$2` $3')
+    .replace(/\s*-\s*/g, '-')
+    .replace(/\s*\/\s*/g, '/')
+}
+
+function joinTokenizedThinkingLines(lines: string[]): string {
+  const shortWordStoplist = new Set([
+    'a',
+    'an',
+    'and',
+    'are',
+    'as',
+    'be',
+    'but',
+    'by',
+    'can',
+    'for',
+    'from',
+    'have',
+    'if',
+    'in',
+    'is',
+    'it',
+    'its',
+    "it's",
+    'need',
+    'not',
+    'of',
+    'on',
+    'or',
+    'the',
+    'to',
+    'using',
+    'via',
+    'we',
+    'with',
+    'you',
+  ])
+
+  return lines.reduce((joined, line, index) => {
+    if (!joined) return line
+
+    const previousLine = lines[index - 1] || ''
+    const previousLower = previousLine.toLowerCase()
+    const currentLower = line.toLowerCase()
+    const shouldJoin =
+      /^[.,!?;:)\]}]$/.test(line) ||
+      /^[-/'’]$/.test(line) ||
+      /^[-/'’]$/.test(previousLine) ||
+      /^[([{`"]$/.test(previousLine) ||
+      /^[)\]}]$/.test(line) ||
+      (/^[A-Z]$/.test(previousLine) &&
+        previousLine !== 'I' &&
+        (/^[A-Z0-9]$/.test(line) || (previousLine === 'Q' && /^[a-z]+$/.test(line)))) ||
+      (/^[a-z]+$/.test(previousLine) &&
+        /^[a-z]+$/.test(line) &&
+        (line.length <= 3 || previousLine.length <= 2) &&
+        !shortWordStoplist.has(previousLower) &&
+        !shortWordStoplist.has(currentLower))
+
+    return shouldJoin ? `${joined}${line}` : `${joined} ${line}`
+  }, '')
+}
+
+export function normalizeThinkingContentForDisplay(content: string): string {
+  return content
+    .replace(/\r\n?/g, '\n')
+    .split(/\n{2,}/)
+    .map(normalizeThinkingParagraphForDisplay)
+    .join('\n\n')
+}
+
 /**
  * Strip UI-only fields from web search tool output for cleaner display.
  * Removes favicon, source, displayed_link from results and images array
@@ -332,7 +433,7 @@ function renderThinkingWithToolCalls(
     if (seg != null && seg.length > 0) {
       nodes.push(
         <span key={`seg-${i}`} className="thinking-segment">
-          {seg}
+          {normalizeThinkingContentForDisplay(seg)}
         </span>
       )
     }
@@ -686,7 +787,9 @@ function CompletedBlock({
             }}
             style={{ overflow: 'hidden' }}
           >
-            <div className="thinking-content">{block.content}</div>
+              <div className="thinking-content">
+                {normalizeThinkingContentForDisplay(block.content || '')}
+              </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -943,7 +1046,7 @@ export default function ThinkingBlock({
                 <div className="thinking-content">
                   {hasLegacyInlineThinkingWithToolCalls
                     ? renderThinkingWithToolCalls(thinking, completedBlocks)
-                    : thinking}
+                    : normalizeThinkingContentForDisplay(thinking)}
                 </div>
               </motion.div>
             )}

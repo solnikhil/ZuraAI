@@ -15,7 +15,8 @@ export function getSuggestionIcon(suggestion: CommandBarSuggestion): { Icon: Rea
   if (suggestion.id === 'go-settings-usage') return { Icon: ChartNoAxesCombined, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
   if (suggestion.id === 'go-settings-providers' || suggestion.id === 'go-settings-models' || suggestion.id === 'go-settings-preferences' ||
       suggestion.id === 'go-settings-openrouter' || suggestion.id === 'go-settings-groq' ||
-      suggestion.id === 'go-settings-perplexity' || suggestion.id === 'go-settings-ollama') {
+      suggestion.id === 'go-settings-perplexity' || suggestion.id === 'go-settings-ollama' ||
+      suggestion.id === 'go-settings-nvidia') {
     return { Icon: Cloud, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
   }
   if (suggestion.id === 'go-settings-skills') return { Icon: Wrench, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }

@@ -17,7 +17,7 @@ import {
 } from './providerRegistry'
 
 describe('providerRegistry', () => {
-  it('includes Fireworks in the active provider surface', () => {
+  it('includes Fireworks and NVIDIA in the active provider surface', () => {
     expect(getActiveProviderIds()).toEqual([
       'openrouter',
       'groq',
@@ -26,8 +26,10 @@ describe('providerRegistry', () => {
       'perplexity',
       'ollama',
       'fireworks',
+      'nvidia',
     ])
     expect(normalizeActiveProviderId('fireworks')).toBe('fireworks')
+    expect(normalizeActiveProviderId('nvidia')).toBe('nvidia')
   })
 
   it('resolves endpoints and retry policy from the registry', () => {
@@ -36,6 +38,9 @@ describe('providerRegistry', () => {
       '/api-reference/sonar-post'
     )
     expect(getProviderEndpoint('ollama', 'defaultLocalUrl')).toBe(DEFAULT_OLLAMA_URL)
+    expect(getProviderEndpoint('nvidia', 'chatCompletionsUrl')).toBe(
+      'https://integrate.api.nvidia.com/v1/chat/completions'
+    )
     expect(getProviderRetryPolicy('openrouter')).toMatchObject({
       maxRetries: 3,
       retryableStatusCodes: [429, 502, 503, 529],
@@ -52,28 +57,33 @@ describe('providerRegistry', () => {
         deepseek: true,
         perplexity: true,
         ollama: true,
+        nvidia: true,
       },
       openRouterApiKey: 'or-key',
       groqApiKey: '',
       alibabaApiKey: 'ali-key',
       deepseekApiKey: 'deepseek-key',
       perplexityApiKey: 'px-key',
+      nvidiaApiKey: 'nvapi-key',
       ollamaUrl: DEFAULT_OLLAMA_URL,
       configuredModels: [{ code: 'openai/gpt-4.1', displayName: 'GPT-4.1', enabled: true }],
       groqModels: [{ code: 'llama-3.1-8b-instant', displayName: 'Llama Instant', enabled: true }],
       alibabaModels: [{ code: 'qwen-max', displayName: 'Qwen Max', enabled: true }],
       deepseekModels: [{ code: 'deepseek-v4-flash', displayName: 'DeepSeek V4 Flash', enabled: true }],
       perplexityModels: [{ code: 'sonar', displayName: 'Sonar', enabled: true }],
+      nvidiaModels: [{ code: 'minimaxai/minimax-m3', displayName: 'MiniMax M3', enabled: true }],
       ollamaModels: [{ code: 'llama3.2', displayName: 'Llama 3.2', enabled: true }],
     }
 
     expect(hasProviderAccess(settings, 'openrouter')).toBe(true)
     expect(hasProviderAccess(settings, 'groq')).toBe(false)
     expect(hasProviderAccess(settings, 'deepseek')).toBe(true)
+    expect(hasProviderAccess(settings, 'nvidia')).toBe(true)
     expect(getProviderCredentialError(settings, 'groq')).toContain('Groq API key is required')
     expect(providerSupportsTools('perplexity')).toBe(false)
     expect(providerUsesNativeSearch('perplexity')).toBe(true)
     expect(modelSupportsTools('alibaba', 'qwen-max')).toBe(true)
+    expect(modelSupportsTools('nvidia', 'minimaxai/minimax-m3')).toBe(true)
     expect(modelSupportsTools('perplexity', 'sonar')).toBe(false)
 
     expect(getAvailableModelOptions(settings)).toEqual([
@@ -82,6 +92,7 @@ describe('providerRegistry', () => {
       { id: 'deepseek-v4-flash', provider: 'deepseek', displayName: 'DeepSeek V4 Flash' },
       { id: 'sonar', provider: 'perplexity', displayName: 'Sonar' },
       { id: 'llama3.2', provider: 'ollama', displayName: 'Llama 3.2' },
+      { id: 'minimaxai/minimax-m3', provider: 'nvidia', displayName: 'MiniMax M3' },
     ])
   })
 

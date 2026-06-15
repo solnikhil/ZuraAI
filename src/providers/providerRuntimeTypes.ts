@@ -82,6 +82,7 @@ export interface ProviderRuntimeSettings {
   deepseekApiKey?: string
   fireworksApiKey?: string
   groqApiKey?: string
+  nvidiaApiKey?: string
   ollamaUrl?: string
   openRouterDebug?: boolean
   openRouterApiKey?: string

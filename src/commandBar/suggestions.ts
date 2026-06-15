@@ -254,6 +254,13 @@ function buildBaseSuggestions(
       action: { type: 'open_settings_section', section: 'providers', provider: 'fireworks' },
     },
     {
+      id: 'go-settings-nvidia',
+      title: 'NVIDIA NIM Settings',
+      subtitle: 'NVIDIA-hosted NIM models',
+      keywords: ['nvidia', 'nim', 'minimax', 'm3'],
+      action: { type: 'open_settings_section', section: 'providers', provider: 'nvidia' },
+    },
+    {
       id: 'go-settings-search-apis',
       title: 'Search APIs Settings',
       subtitle: 'Tavily & web search',

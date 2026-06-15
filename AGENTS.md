@@ -11,7 +11,7 @@ This file is the single source of truth for how an automated coding agent should
 
 Core capabilities:
 - Dashboard UI (chat history, settings, model selection)
-- Multi-provider AI calls (Alibaba Cloud, Fireworks, Groq, Ollama, OpenRouter, Perplexity)
+- Multi-provider AI calls (Alibaba Cloud, Fireworks, Groq, NVIDIA NIM, Ollama, OpenRouter, Perplexity)
 - Hardened IPC boundary (renderer ↔ preload ↔ main)
 - Tool calling system (restricted; built-in `web_search` in main process, plus renderer-managed MCP tool exposure)
 
@@ -41,6 +41,7 @@ Core capabilities:
   - **Analytics consent and anonymous install metadata** live in the main process under `app.getPath('userData')` in `analytics-state.json`; analytics is opt-in only and sends to the configured PostHog Cloud target after consent. The default public PostHog project token and US ingestion host live in `electron/analytics/config.ts`, while `ZURA_POSTHOG_PROJECT_KEY` / `ZURA_POSTHOG_HOST` can override or disable transport for forks and tests.
   - **Agent run metadata** lives on assistant messages inside the existing per-session chat JSON files, not in a separate store.
   - **OpenRouter per-model reasoning detection** (`supportsDeepThinking` plus `openRouterReasoningDetected`) lives on configured model entries inside the existing sanitized renderer settings blob. Catalog import/detection marks reasoning-capable models from OpenRouter `supported_parameters`; reasoning effort selection is controlled from the dashboard model picker via `openRouterReasoningEffort`, not from the Provider Hub model list.
+  - **NVIDIA NIM provider state** stores `nvidiaModels` in the sanitized renderer settings blob and `nvidiaApiKey` in main-process secure storage. NVIDIA uses the OpenAI-compatible NIM endpoint at `https://integrate.api.nvidia.com/v1`; catalog import reads `/models`, chat streams through `/chat/completions`, and MiniMax M3/reasoning-tagged NVIDIA models use adaptive `chat_template_kwargs.thinking_mode` without a separate reasoning settings UI.
   - Built-in prompt templates (`systemPrompt`, `webSearchPrompt`, tool prompts, memory prompt, and title-generation prompt) are code-owned runtime defaults. `normalizeStoredSettings(...)` replaces stale persisted prompt overrides with the current defaults, and Settings renders them as read-only viewers instead of editable fields.
 - UI styling guardrail: keep settings cards, chat composer containers, and dropdown/menu surfaces flat. Do **not** reintroduce outer drop shadows on those surfaces unless the user explicitly asks for them.
 - Fallback behavior guardrail: do **not** add new fallback paths, silent substitutions, local heuristics, provider fallbacks, or “safe default” behavior unless it is explicitly required by the user or you ask and get confirmation first. Prefer surfacing the real failure and fixing the root cause; unnecessary fallbacks can hide bugs and change product behavior.
@@ -305,6 +306,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Main-shell navigation history is now tracked entirely in the renderer through `AppShellProvider` + `src/contexts/appShellNavigation.ts`; both the titlebar arrows and side-mouse buttons call the same history controller instead of using raw `react-router` delta navigation.
 - Native macOS app-menu `New Chat` requests are routed back into the shared renderer shell through `app:new-chat`, so session creation still uses the existing `ChatHistoryContext` flow and unsaved-settings guard instead of a main-process shortcut.
 - Opt-in analytics initializes in the main process after the primary window is created. `electron/analytics/service.ts` records first launch/start/update-installed/crash/error events only when consent is accepted and PostHog transport is configured through the built-in public config or env overrides; renderer usage events flow through the dedicated `window.analytics` bridge and are sanitized in main before transport.
+- NVIDIA NIM is a renderer-side OpenAI-compatible provider like Groq/Fireworks/DeepSeek: `nvidiaApiKey` is hydrated from main-process secure storage, `nvidiaModels` lives in sanitized renderer settings, catalog import calls `https://integrate.api.nvidia.com/v1/models`, and chat/title/memory requests dispatch through the shared provider runtime to `https://integrate.api.nvidia.com/v1/chat/completions` with no main-process IPC channel added.
 
 #### MCP Runtime Foundation
 - Shared MCP contracts and naming helpers live in `src/mcp/types.ts`.

@@ -29,6 +29,8 @@ export function getProviderCredentialError(
     | 'groqApiKey'
     | 'alibabaApiKey'
     | 'fireworksApiKey'
+    | 'nvidiaApiKey'
+    | 'deepseekApiKey'
     | 'ollamaUrl'
   >
 ): string | null {

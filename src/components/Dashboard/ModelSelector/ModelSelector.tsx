@@ -44,10 +44,17 @@ export default function ModelSelector({ minimal, popoverAlign = 'start' }: Model
     settings.modelProvider === 'openrouter' &&
     currentModel?.openRouterReasoningDetected === true &&
     currentModel?.supportsDeepThinking === true
-  const showReasoning = (isDeepseekModel && deepseekReasoning.enabled) || isOpenRouterReasoningModel
-  const reasoningEffort =
-    isOpenRouterReasoningModel
-      ? settings.openRouterReasoningEffort?.[settings.aiModel] || 'high'
+  const isNvidiaReasoningModel =
+    settings.modelProvider === 'nvidia' &&
+    currentModel?.supportsDeepThinking === true
+  const showReasoning =
+    (isDeepseekModel && deepseekReasoning.enabled) ||
+    isOpenRouterReasoningModel ||
+    isNvidiaReasoningModel
+  const reasoningEffort = isOpenRouterReasoningModel
+    ? settings.openRouterReasoningEffort?.[settings.aiModel] || 'high'
+    : isNvidiaReasoningModel
+      ? settings.nvidiaReasoningEffort?.[settings.aiModel] || 'high'
       : deepseekReasoning.effort
   const compactReasoningEffortLabel =
     reasoningEffort === 'xhigh' ? 'XH' : reasoningEffort.charAt(0).toUpperCase()
@@ -124,6 +131,16 @@ export default function ModelSelector({ minimal, popoverAlign = 'start' }: Model
             updateSettings({
               openRouterReasoningEffort: {
                 ...(settings.openRouterReasoningEffort ?? {}),
+                [settings.aiModel]: effort,
+              },
+            })
+            return
+          }
+
+          if (isNvidiaReasoningModel) {
+            updateSettings({
+              nvidiaReasoningEffort: {
+                ...(settings.nvidiaReasoningEffort ?? {}),
                 [settings.aiModel]: effort,
               },
             })

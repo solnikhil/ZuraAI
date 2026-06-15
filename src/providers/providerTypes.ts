@@ -3,6 +3,7 @@ export type ProviderId =
   | 'deepseek'
   | 'fireworks'
   | 'groq'
+  | 'nvidia'
   | 'ollama'
   | 'openrouter'
   | 'perplexity'

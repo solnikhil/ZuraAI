@@ -73,6 +73,7 @@ describe('ProviderHubSection', () => {
     alibabaApiKey: '',
     deepseekApiKey: '',
     fireworksApiKey: '',
+    nvidiaApiKey: '',
     tavilyApiKey: '',
     onlineCompilerApiKey: '',
     tavilySearchDepthPreference: 'auto' as const,
@@ -92,6 +93,7 @@ describe('ProviderHubSection', () => {
     fireworksModels: [
       { code: 'accounts/fireworks/models/deepseek-v3p2', displayName: 'DeepSeek V3.2' },
     ],
+    nvidiaModels: [{ code: 'minimaxai/minimax-m3', displayName: 'MiniMax M3' }],
     ollamaModels: [{ code: 'qwen3:8b', displayName: 'qwen3:8b' }],
     maxTokens: 8000,
     onChange: vi.fn(),
@@ -637,6 +639,43 @@ describe('ProviderHubSection', () => {
             displayName: 'Sonar Deep Research',
             supportsWebSearch: true,
             supportsDeepThinking: true,
+          }),
+        ]),
+      })
+    )
+  })
+
+  it('adds an NVIDIA catalog model to nvidiaModels', async () => {
+    const onChange = vi.fn()
+    vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        object: 'list',
+        data: [
+          { id: 'minimaxai/minimax-m3', object: 'model', owned_by: 'minimaxai' },
+          { id: 'nvidia/llama-chat', object: 'model', owned_by: 'nvidia' },
+        ],
+      }),
+    } as Response)
+
+    render(<ProviderHubSection {...baseProps} nvidiaApiKey="nvapi-key" onChange={onChange} />)
+
+    fireEvent.click(
+      screen.getByText('OpenAI-compatible NVIDIA NIM models hosted through build.nvidia.com.')
+    )
+    fireEvent.click(screen.getByRole('button', { name: /add from catalog/i }))
+
+    expect(await screen.findByText('Llama Chat')).toBeInTheDocument()
+    const addButtons = screen.getAllByRole('button', { name: /^add$/i })
+    fireEvent.click(addButtons[addButtons.length - 1])
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        nvidiaModels: expect.arrayContaining([
+          expect.objectContaining({
+            code: 'nvidia/llama-chat',
+            displayName: 'Llama Chat',
+            supportsToolCall: true,
           }),
         ]),
       })

@@ -534,6 +534,10 @@ const PROVIDER_CONFIG = {
     title: getProviderDefinition('fireworks').label,
     color: getProviderAccentColor('fireworks'),
   },
+  nvidia: {
+    title: getProviderDefinition('nvidia').label,
+    color: getProviderAccentColor('nvidia'),
+  },
   deepseek: {
     title: getProviderDefinition('deepseek').label,
     color: getProviderAccentColor('deepseek'),
@@ -604,6 +608,11 @@ export function getModelDescription(model: {
 
   if (model.provider === 'fireworks') {
     return 'Serverless inference via Fireworks'
+  }
+
+  if (model.provider === 'nvidia') {
+    if (code.includes('minimax-m3')) return 'MiniMax M3 via NVIDIA NIM'
+    return 'OpenAI-compatible NVIDIA NIM model'
   }
 
   if (model.provider === 'deepseek') {

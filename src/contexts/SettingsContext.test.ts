@@ -191,6 +191,7 @@ Rules:
         deepseek: true,
         fireworks: true,
         groq: true,
+        nvidia: true,
         ollama: true,
         openrouter: true,
         perplexity: true,
@@ -202,6 +203,7 @@ Rules:
         stripSecretSettings({
           openRouterApiKey: 'or-key',
           deepseekApiKey: 'deepseek-key',
+          nvidiaApiKey: 'nvidia-key',
           tavilyApiKey: 'tavily-key',
           onlineCompilerApiKey: 'compiler-key',
           aiModel: 'deepseek-v4-flash',

@@ -60,6 +60,7 @@ export type ProviderModelListKey =
   | 'ollamaModels'
   | 'perplexityModels'
   | 'groqModels'
+  | 'nvidiaModels'
   | 'alibabaModels'
   | 'fireworksModels'
   | 'deepseekModels'
@@ -71,6 +72,7 @@ export type ProviderSettingsLike = Partial<
     | 'openRouterApiKey'
     | 'perplexityApiKey'
     | 'groqApiKey'
+    | 'nvidiaApiKey'
     | 'alibabaApiKey'
     | 'fireworksApiKey'
     | 'deepseekApiKey'
@@ -79,6 +81,7 @@ export type ProviderSettingsLike = Partial<
     | 'ollamaModels'
     | 'perplexityModels'
     | 'groqModels'
+    | 'nvidiaModels'
     | 'alibabaModels'
     | 'fireworksModels'
     | 'deepseekModels'
@@ -112,6 +115,7 @@ const OPENROUTER_RETRY_POLICY: ProviderRetryPolicy = {
 const PROVIDER_TOOL_MODEL_PREFIXES: Record<ProviderId, string[]> = {
   openrouter: [],
   fireworks: [],
+  nvidia: [],
   groq: [
     'openai/gpt-oss-120b',
     'openai/gpt-oss-20b',
@@ -163,7 +167,10 @@ export const STREAM_MAX_RESEARCH_ROUNDS = 8
 export const TITLE_REVEAL_INTERVAL_MS = 24
 
 const allowAllToolModels = (provider: ProviderId) =>
-  provider === 'openrouter' || provider === 'fireworks' || provider === 'deepseek'
+  provider === 'openrouter' ||
+  provider === 'fireworks' ||
+  provider === 'deepseek' ||
+  provider === 'nvidia'
 
 const supportsModelTools = (provider: ProviderId, model: string): boolean => {
   if (allowAllToolModels(provider)) return true
@@ -433,6 +440,41 @@ const PROVIDERS: Record<ProviderId, ProviderDefinition> = {
     models: {
       settingsModelKey: 'fireworksModels',
       supportsTools: (model) => supportsModelTools('fireworks', model),
+    },
+  },
+  nvidia: {
+    id: 'nvidia',
+    label: 'NVIDIA NIM',
+    description: 'OpenAI-compatible NVIDIA NIM models hosted through build.nvidia.com.',
+    accentColor: '#76b900',
+    capabilities: {
+      supportsStreaming: true,
+      supportsTools: true,
+      supportsVisionUploads: true,
+      supportsReasoning: true,
+      supportsImageGeneration: false,
+      supportsNativeSearch: false,
+    },
+    promptCaching: {
+      promptCaching: 'automatic',
+      sessionAffinity: 'none',
+    },
+    endpoints: {
+      baseUrl: 'https://integrate.api.nvidia.com/v1',
+      chatCompletionsUrl: 'https://integrate.api.nvidia.com/v1/chat/completions',
+      modelCatalogUrl: 'https://integrate.api.nvidia.com/v1/models',
+    },
+    retryPolicy: OPENAI_COMPATIBLE_RETRY_POLICY,
+    auth: {
+      hasAccess: (settings) => hasConfiguredApiKey(settings.nvidiaApiKey),
+      getCredentialError: (settings) =>
+        hasConfiguredApiKey(settings.nvidiaApiKey)
+          ? null
+          : 'NVIDIA API key is required. Add it in Settings > Providers and save.',
+    },
+    models: {
+      settingsModelKey: 'nvidiaModels',
+      supportsTools: (model) => supportsModelTools('nvidia', model),
     },
   },
 }

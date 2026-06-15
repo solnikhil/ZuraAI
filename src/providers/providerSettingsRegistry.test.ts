@@ -18,10 +18,12 @@ describe('providerSettingsRegistry', () => {
       'deepseekApiKey',
       'perplexityApiKey',
       'fireworksApiKey',
+      'nvidiaApiKey',
     ])
 
     expect(getProviderModelListField('openrouter')).toBe('configuredModels')
     expect(getProviderModelListField('deepseek')).toBe('deepseekModels')
+    expect(getProviderModelListField('nvidia')).toBe('nvidiaModels')
     expect(getProviderModelListField('ollama')).toBe('ollamaModels')
   })
 
@@ -32,6 +34,7 @@ describe('providerSettingsRegistry', () => {
       deepseek: true,
       fireworks: true,
       groq: true,
+      nvidia: true,
       ollama: true,
       openrouter: true,
       perplexity: true,
@@ -47,6 +50,7 @@ describe('providerSettingsRegistry', () => {
       'perplexity',
       'ollama',
       'fireworks',
+      'nvidia',
     ])
 
     expect(getPickerVisibleProviders().map((provider) => provider.id)).toEqual([
@@ -57,6 +61,7 @@ describe('providerSettingsRegistry', () => {
       'fireworks',
       'alibaba',
       'ollama',
+      'nvidia',
     ])
 
     expect(getLogoVisibleProviderIds()).toEqual([
@@ -67,6 +72,7 @@ describe('providerSettingsRegistry', () => {
       'perplexity',
       'ollama',
       'fireworks',
+      'nvidia',
     ])
   })
 })

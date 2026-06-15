@@ -356,6 +356,8 @@ const streamingSettings: StreamingSettings = useMemo(
       alibabaApiKey: settings.alibabaApiKey,
       deepseekApiKey: settings.deepseekApiKey,
       fireworksApiKey: settings.fireworksApiKey,
+      nvidiaApiKey: settings.nvidiaApiKey,
+      nvidiaModels: settings.nvidiaModels,
     }),
     [
       settings.aiModel,
@@ -374,6 +376,8 @@ const streamingSettings: StreamingSettings = useMemo(
       settings.alibabaApiKey,
       settings.deepseekApiKey,
       settings.fireworksApiKey,
+      settings.nvidiaApiKey,
+      settings.nvidiaModels,
     ]
   )
 
@@ -621,6 +625,14 @@ const streamingSettings: StreamingSettings = useMemo(
           provider === 'deepseek'
             ? getDeepseekReasoning(settings, settings.aiModel)
             : undefined
+        const nvidiaModel = provider === 'nvidia'
+          ? (settings.nvidiaModels || []).find((m) => m.code === settings.aiModel)
+          : undefined
+        const nvidiaEnableThinking =
+          provider === 'nvidia' &&
+          (nvidiaModel?.supportsDeepThinking || /(?:reason|thinking|m3|nemotron)/i.test(settings.aiModel))
+            ? true
+            : undefined
 
         const streamResult = await runProviderStream({
           provider,
@@ -710,7 +722,9 @@ const streamingSettings: StreamingSettings = useMemo(
               }
             : undefined,
           reasoning: openRouterReasoning,
-          enableThinking: deepseekReasoning ? deepseekReasoning.enabled : alibabaEnableThinking,
+          enableThinking: deepseekReasoning
+            ? deepseekReasoning.enabled
+            : nvidiaEnableThinking ?? alibabaEnableThinking,
           reasoningEffort: deepseekReasoning?.enabled ? deepseekReasoning.effort : undefined,
         })
 
@@ -919,7 +933,10 @@ const streamingSettings: StreamingSettings = useMemo(
             perplexityApiKey: effectiveSettings.perplexityApiKey,
             groqApiKey: effectiveSettings.groqApiKey,
             alibabaApiKey: effectiveSettings.alibabaApiKey,
+            deepseekApiKey: effectiveSettings.deepseekApiKey,
             fireworksApiKey: effectiveSettings.fireworksApiKey,
+            nvidiaApiKey: effectiveSettings.nvidiaApiKey,
+            nvidiaModels: effectiveSettings.nvidiaModels,
           },
           effectiveProvider
         )
@@ -999,6 +1016,15 @@ const openRouterReasoning =
           effectiveSettings.modelProvider === 'deepseek'
             ? getDeepseekReasoning(effectiveSettings, effectiveSettings.aiModel)
             : undefined
+        const nvidiaModelForRegen = effectiveSettings.modelProvider === 'nvidia'
+          ? (effectiveSettings.nvidiaModels || []).find((m) => m.code === effectiveSettings.aiModel)
+          : undefined
+        const nvidiaEnableThinkingForRegen =
+          effectiveSettings.modelProvider === 'nvidia' &&
+          (nvidiaModelForRegen?.supportsDeepThinking ||
+            /(?:reason|thinking|m3|nemotron)/i.test(effectiveSettings.aiModel))
+            ? true
+            : undefined
 
         const optimizedContext = buildOptimizedContextWithTrace(
           conversationHistory,
@@ -1030,7 +1056,7 @@ const openRouterReasoning =
             reasoning: openRouterReasoning,
             enableThinking: deepseekReasoningForRegen
               ? deepseekReasoningForRegen.enabled
-              : alibabaEnableThinkingForRegen,
+              : nvidiaEnableThinkingForRegen ?? alibabaEnableThinkingForRegen,
             reasoningEffort: deepseekReasoningForRegen?.enabled
               ? deepseekReasoningForRegen.effort
               : undefined,

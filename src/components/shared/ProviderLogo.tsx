@@ -56,11 +56,13 @@ const PROVIDER_FALLBACK_ICONS: Record<string, React.ComponentType<{ size?: numbe
   alibaba: Cloud,
   deepseek: Brain,
   fireworks: Sparkles,
+  nvidia: Zap,
 }
 
 const PROVIDER_COLORS: Record<string, string> = {
   gemini: '#4dabf7',
   minimax: '#6366f1',
+  nvidia: '#76b900',
 }
 
 const PROVIDER_LOGO_EXTENSIONS: Record<string, 'png' | 'svg'> = {
@@ -76,6 +78,7 @@ const PROVIDER_LOGO_ADJUSTMENTS: Record<
   perplexity: { scale: 0.9 },
   groq: { scale: 1.22 },
   fireworks: { scale: 0.94, translateY: 0.25 },
+  nvidia: { scale: 1.04 },
   alibaba: { scale: 1.08 },
   deepseek: { scale: 0.92 },
   ollama: { scale: 1.04, translateY: 0.25 },

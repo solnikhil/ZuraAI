@@ -7,12 +7,14 @@ export type ProviderSecretField =
   | 'groqApiKey'
   | 'alibabaApiKey'
   | 'fireworksApiKey'
+  | 'nvidiaApiKey'
   | 'deepseekApiKey'
 
 export type ProviderCatalogDialogKind =
   | 'openrouter'
   | 'alibaba'
   | 'fireworks'
+  | 'nvidia'
   | 'perplexity'
   | 'deepseek'
 
@@ -133,6 +135,20 @@ const PROVIDER_SETTINGS_EXTRAS: Record<
     catalogDialogKind: 'fireworks',
     settingsOrder: 6,
     pickerOrder: 4,
+  },
+  nvidia: {
+    id: 'nvidia',
+    secretKeyField: 'nvidiaApiKey',
+    modelListField: 'nvidiaModels',
+    enabledByDefault: true,
+    dashboardUrl: 'https://build.nvidia.com/settings/api-keys',
+    settingsVisible: true,
+    pickerVisible: true,
+    logoVisible: true,
+    supportsCatalogDialog: true,
+    catalogDialogKind: 'nvidia',
+    settingsOrder: 7,
+    pickerOrder: 7,
   },
 }
 

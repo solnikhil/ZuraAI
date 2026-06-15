@@ -19,6 +19,11 @@ import {
   type GroqResponse,
 } from '../services/groq'
 import {
+  generateNvidiaCompletion,
+  streamNvidiaCompletion,
+  type NvidiaResponse,
+} from '../services/nvidia'
+import {
   generateOllamaCompletion,
   streamOllamaCompletion,
   type OllamaResponse,
@@ -103,6 +108,7 @@ type OpenAiCompatibleResponse =
   | AlibabaResponse
   | PerplexityResponse
   | FireworksResponse
+  | NvidiaResponse
   | DeepSeekResponse
 
 type TitleGenerationSettings = Pick<
@@ -111,6 +117,7 @@ type TitleGenerationSettings = Pick<
   | 'deepseekApiKey'
   | 'fireworksApiKey'
   | 'groqApiKey'
+  | 'nvidiaApiKey'
   | 'ollamaUrl'
   | 'openRouterApiKey'
   | 'perplexityApiKey'
@@ -396,6 +403,9 @@ function getProviderCredential(
     case 'groq':
       if (!settings.groqApiKey) throw new Error('Groq API Key is missing')
       return settings.groqApiKey
+    case 'nvidia':
+      if (!settings.nvidiaApiKey) throw new Error('NVIDIA API Key is missing')
+      return settings.nvidiaApiKey
     case 'alibaba':
       if (!settings.alibabaApiKey) throw new Error('Alibaba API Key is missing')
       return settings.alibabaApiKey
@@ -578,6 +588,27 @@ export async function generateProviderTitleText(
         (result) => extractTitleTextFromMessage(result.choices?.[0]?.message)
       )
     }
+    case 'nvidia': {
+      const options = {
+        signal: generationOptions.signal,
+        max_tokens: generationOptions.maxTokens,
+        enableThinking: false,
+      }
+      return runLoggedTitleRequest(
+        provider,
+        normalizedModel,
+        messages,
+        options,
+        () =>
+          generateNvidiaCompletion(
+            getProviderCredential(resolvedSettings, provider),
+            normalizedModel,
+            messages,
+            options
+          ),
+        (result) => extractTitleTextFromMessage(result.choices?.[0]?.message)
+      )
+    }
     case 'openrouter': {
       const options = {
         reasoning: { exclude: true },
@@ -611,6 +642,7 @@ export async function generateTitleTextForModel(
         | 'ollamaModels'
         | 'perplexityModels'
         | 'groqModels'
+        | 'nvidiaModels'
         | 'alibabaModels'
         | 'fireworksModels'
         | 'deepseekModels'
@@ -726,6 +758,47 @@ export async function* streamProviderEvents(
         toolChoice: request.toolChoice,
         signal: request.signal,
       })) {
+        const delta = chunk.choices?.[0]?.delta?.content || ''
+        if (delta) yield { type: 'text-delta', delta }
+        if (chunk.choices?.[0]?.delta?.tool_calls?.length) {
+          yield { type: 'tool-call-delta', delta: chunk.choices[0].delta.tool_calls }
+        }
+        if (chunk.usage) yield { type: 'usage', usage: normalizeUsage(chunk.usage), rawUsage: chunk.usage }
+        if (chunk.choices?.[0]?.finish_reason) {
+          yield { type: 'finish', finishReason: chunk.choices[0].finish_reason }
+        }
+      }
+      return
+    }
+    case 'nvidia': {
+      const apiKey = getProviderCredential(settings, 'nvidia')
+      if (request.streamResponses === false) {
+        const response = await generateNvidiaCompletion(apiKey, normalizedModel, request.messages, {
+          temperature: request.temperature,
+          max_tokens: request.maxTokens,
+          tools: request.tools || undefined,
+          toolChoice: request.toolChoice,
+          signal: request.signal,
+          enableThinking: request.enableThinking,
+        })
+        yield* emitOpenAiCompatibleResponse(response, { includeReasoning: true, reasoningContentField: 'reasoning_content' })
+        return
+      }
+
+      for await (const chunk of streamNvidiaCompletion(apiKey, normalizedModel, request.messages, {
+        temperature: request.temperature,
+        max_tokens: request.maxTokens,
+        tools: request.tools || undefined,
+        toolChoice: request.toolChoice,
+        signal: request.signal,
+        enableThinking: request.enableThinking,
+      })) {
+        const reasoningDelta =
+          chunk.choices?.[0]?.delta?.reasoning_content || chunk.choices?.[0]?.delta?.reasoning || ''
+        if (reasoningDelta) {
+          yield { type: 'reasoning-delta', delta: reasoningDelta }
+        }
+
         const delta = chunk.choices?.[0]?.delta?.content || ''
         if (delta) yield { type: 'text-delta', delta }
         if (chunk.choices?.[0]?.delta?.tool_calls?.length) {

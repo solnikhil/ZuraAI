@@ -45,6 +45,7 @@ interface AttachmentSettingsLike {
   deepseekModels?: ModelLike[]
   fireworksModels?: ModelLike[]
   groqModels?: ModelLike[]
+  nvidiaModels?: ModelLike[]
   ollamaModels?: ModelLike[]
   perplexityModels?: ModelLike[]
 }

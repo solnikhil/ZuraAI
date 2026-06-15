@@ -46,6 +46,7 @@ describe('registerSecureStorageHandlers', () => {
       tavilyApiKey: 'tavily-key',
       alibabaApiKey: 'alibaba-key',
       fireworksApiKey: 'fireworks-key',
+      nvidiaApiKey: 'nvidia-key',
       deepseekApiKey: 'deepseek-key',
       onlineCompilerApiKey: 'oc-key',
     }
@@ -67,11 +68,12 @@ describe('registerSecureStorageHandlers', () => {
       tavilyApiKey: 'tavily-key',
       alibabaApiKey: 'alibaba-key',
       fireworksApiKey: 'fireworks-key',
+      nvidiaApiKey: 'nvidia-key',
       deepseekApiKey: 'deepseek-key',
       onlineCompilerApiKey: 'oc-key',
     })
 
-    expect(secureStorageMocks.getSecureValueAsync).toHaveBeenCalledTimes(8)
+    expect(secureStorageMocks.getSecureValueAsync).toHaveBeenCalledTimes(9)
     expect(secureStorageMocks.getSecureValueAsync).not.toHaveBeenCalledWith('mcp.server.demo.token')
   })
 
@@ -83,6 +85,7 @@ describe('registerSecureStorageHandlers', () => {
       tavilyApiKey: true,
       alibabaApiKey: false,
       fireworksApiKey: false,
+      nvidiaApiKey: false,
       onlineCompilerApiKey: false,
     })
 
@@ -99,6 +102,7 @@ describe('registerSecureStorageHandlers', () => {
       tavilyApiKey: true,
       alibabaApiKey: false,
       fireworksApiKey: false,
+      nvidiaApiKey: false,
       onlineCompilerApiKey: false,
     })
 

@@ -412,13 +412,25 @@ function MessageRendererComponent({
             finishReason: message.finishReason,
             requestedMaxTokens: message.requestedMaxTokens,
             reasoningEffort: (() => {
-              // DeepSeek-only: surface the per-model reasoning effort when that
-              // model has reasoning enabled. Keyed by model code (the user's
-              // explicit setting is the source of truth).
+              // DeepSeek: surface the per-model reasoning effort when that model
+              // has reasoning enabled. Keyed by model code.
               const reasoning = message.model
                 ? getDeepseekReasoning(settings, message.model)
                 : null
-              return reasoning?.enabled ? reasoning.effort : undefined
+              if (reasoning?.enabled) {
+                return reasoning.effort
+              }
+              // NVIDIA: surface the per-model reasoning effort when the model
+              // supports deep thinking.
+              if (message.model) {
+                const nvidiaModel = (settings.nvidiaModels || []).find(
+                  (m) => m.code === message.model
+                )
+                if (nvidiaModel?.supportsDeepThinking) {
+                  return settings.nvidiaReasoningEffort?.[message.model] || 'high'
+                }
+              }
+              return undefined
             })(),
           }}
           messageActionButtonClassName={messageActionButtonClassName}

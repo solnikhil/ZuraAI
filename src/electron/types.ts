@@ -159,6 +159,7 @@ export type SecureStorageKey =
   | 'alibabaApiKey'
   | 'deepseekApiKey'
   | 'fireworksApiKey'
+  | 'nvidiaApiKey'
   | 'onlineCompilerApiKey'
 
 export interface StorageStatus {

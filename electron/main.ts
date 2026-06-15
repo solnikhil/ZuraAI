@@ -98,6 +98,20 @@ function registerSessionSecurityHandlers(): void {
   })
 
   defaultSession.setPermissionCheckHandler(() => false)
+
+  // CORS bypass for NVIDIA NIM API: integrate.api.nvidia.com does not send
+  // Access-Control-Allow-Origin headers, so renderer fetch() is blocked.
+  defaultSession.webRequest.onHeadersReceived(
+    { urls: ['https://integrate.api.nvidia.com/*'] },
+    (details, callback) => {
+      const responseHeaders = details.responseHeaders || {}
+      responseHeaders['Access-Control-Allow-Origin'] = ['*']
+      responseHeaders['Access-Control-Allow-Headers'] = ['*']
+      responseHeaders['Access-Control-Allow-Methods'] = ['GET, POST, OPTIONS']
+      responseHeaders['Access-Control-Max-Age'] = ['86400']
+      callback({ responseHeaders, cancel: false })
+    }
+  )
 }
 
 app.commandLine.appendSwitch('process-name', APP_NAME)
