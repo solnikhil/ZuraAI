@@ -105,10 +105,10 @@ export const BUILT_IN_SKILLS: BuiltInSkill[] = [
     id: 'reminders',
     name: 'Reminders & Lookouts',
     description: 'Let the assistant create local reminders and scheduled web lookouts that appear in the Reminders sidebar.',
-    note: 'Runs only while ZuraAI is open. Web lookouts support public pages only; no OS notifications in v1.',
+    note: 'Runs only while ZuraAI is open. Web lookouts support public pages and local loopback URLs; OS notifications fire for due reminders and changed lookouts.',
     usageGuidance: [
       'Use scheduled_task_create when the user asks to remind them, check something later, or watch a page for changes.',
-      'Use reminder tasks for no-URL follow-ups and web_lookout tasks for public URLs.',
+      'Use reminder tasks for no-URL follow-ups and web_lookout tasks for public URLs or local loopback URLs.',
       'After creating a task, tell the user it can be viewed in the Reminders sidebar.',
     ],
   },
@@ -488,8 +488,8 @@ export function buildEnabledSkillsPrompt(
   }
 
   if (normalized.reminders.enabled) {
-    skillLines.push('- Reminders & Lookouts (`reminders`): use `scheduled_task_*` tools to create, update, delete, list, and inspect local reminders and public web lookouts.')
-    skillLines.push('- Use `reminder` tasks for recurring notes/checklists and `web_lookout` tasks for public URL change monitoring. Confirm created tasks and mention the Reminders sidebar.')
+    skillLines.push('- Reminders & Lookouts (`reminders`): use `scheduled_task_*` tools to create, update, delete, list, and inspect local reminders and web lookouts for public or local loopback URLs.')
+    skillLines.push('- Use `reminder` tasks for recurring notes/checklists and `web_lookout` tasks for public or local loopback URL change monitoring. Confirm created tasks and mention the Reminders sidebar.')
   }
 
   if (skillLines.length > 0) {

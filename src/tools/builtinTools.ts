@@ -450,7 +450,7 @@ Best practices:
         type: { type: 'string', description: 'Task type.', enum: ['reminder', 'web_lookout'] },
         title: { type: 'string', description: 'Short user-visible title.' },
         reminderText: { type: 'string', description: 'Reminder/checklist text. Required for reminder tasks.' },
-        urls: { type: 'array', description: 'Public http/https URLs to watch. Required for web_lookout tasks.', items: { type: 'string' } },
+        urls: { type: 'array', description: 'http/https URLs to watch. Public URLs and local loopback URLs are supported. Required for web_lookout tasks.', items: { type: 'string' } },
         instructions: { type: 'string', description: 'What matters for this reminder/lookout and what to ignore.' },
         intervalPreset: { type: 'string', description: 'How often to run.', enum: ['30m', '1h', '6h', '12h', 'daily', 'weekly'] },
         dueAt: { type: 'number', description: 'Optional first run time as Unix epoch milliseconds. Future runs use intervalPreset.' },

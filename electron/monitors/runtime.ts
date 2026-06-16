@@ -1,4 +1,11 @@
-import { BrowserWindow, ipcMain, type IpcMain, type WebContents } from 'electron'
+import {
+  BrowserWindow,
+  Notification,
+  ipcMain,
+  type IpcMain,
+  type NotificationConstructorOptions,
+  type WebContents,
+} from 'electron'
 import { randomUUID } from 'crypto'
 import { fetchMonitorPage, buildChangedExcerpt } from './content'
 import { getMonitorIntervalMs } from './schedule'
@@ -18,6 +25,7 @@ import type {
 } from './types'
 
 const SUMMARY_TIMEOUT_MS = 45_000
+const NOTIFICATION_BODY_LIMIT = 240
 
 function logMonitorWarning(message: string): void {
   console.warn(`[scheduled-tasks] ${message}`)
@@ -34,6 +42,13 @@ interface MonitorRuntimeDeps {
   setTimeoutImpl?: typeof setTimeout
   clearTimeoutImpl?: typeof clearTimeout
   now?: () => number
+  notificationsSupported?: () => boolean
+  notificationFactory?: (options: NotificationConstructorOptions) => ScheduledTaskNotification
+}
+
+interface ScheduledTaskNotification {
+  show: () => void
+  on: (event: 'click', listener: () => void) => ScheduledTaskNotification
 }
 
 interface MonitorRuntime {
@@ -78,11 +93,53 @@ function findSummaryTarget(): WebContents | null {
   return null
 }
 
+function compactNotificationBody(value: string | undefined): string {
+  return (value || '').replace(/\s+/g, ' ').trim().slice(0, NOTIFICATION_BODY_LIMIT)
+}
+
+function buildNotificationOptions(
+  task: ScheduledTaskDefinition,
+  run: ScheduledTaskRun
+): NotificationConstructorOptions | null {
+  if (task.type === 'reminder') {
+    const body = compactNotificationBody(task.reminderText || task.instructions || run.logs[0]?.message || task.title)
+    return {
+      title: `Reminder: ${task.title}`,
+      body: body || 'Scheduled reminder is due.',
+    }
+  }
+
+  if (task.type === 'web_lookout' && run.status === 'changed') {
+    const changedUrls = run.logs
+      .filter((log) => log.status === 'changed' && log.url)
+      .map((log) => log.url)
+    const body =
+      compactNotificationBody(run.aiSummary || run.diffSummary || changedUrls.join(', ')) ||
+      `${changedUrls.length || 1} watched page changed.`
+    return {
+      title: `Lookout changed: ${task.title}`,
+      body,
+    }
+  }
+
+  return null
+}
+
+function focusAppWindow(): void {
+  const target = BrowserWindow.getAllWindows().find((window) => !window.isDestroyed())
+  if (!target) return
+  if (target.isMinimized()) target.restore()
+  target.show()
+  target.focus()
+}
+
 function createRuntime(deps: MonitorRuntimeDeps = {}): MonitorRuntime {
   const fetchImpl = deps.fetchImpl ?? fetch
   const setTimeoutFn = deps.setTimeoutImpl ?? setTimeout
   const clearTimeoutFn = deps.clearTimeoutImpl ?? clearTimeout
   const now = deps.now ?? Date.now
+  const notificationsSupported = deps.notificationsSupported ?? (() => Notification.isSupported())
+  const notificationFactory = deps.notificationFactory ?? ((options) => new Notification(options))
   const timers = new Map<string, ReturnType<typeof setTimeout>>()
   const running = new Set<string>()
   const pendingSummaries = new Map<string, PendingSummary>()
@@ -190,9 +247,24 @@ function createRuntime(deps: MonitorRuntimeDeps = {}): MonitorRuntime {
       await saveScheduledTaskRun(task, run, nextSnapshots)
       void reschedule()
       broadcastChanged()
+      showRunNotification(task, run)
       return run
     } finally {
       running.delete(task.id)
+    }
+  }
+
+  const showRunNotification = (task: ScheduledTaskDefinition, run: ScheduledTaskRun): void => {
+    const options = buildNotificationOptions(task, run)
+    if (!options) return
+
+    try {
+      if (!notificationsSupported()) return
+      const notification = notificationFactory(options)
+      notification.on('click', focusAppWindow)
+      notification.show()
+    } catch (error) {
+      logMonitorWarning(`notification failed: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
 
@@ -299,4 +371,5 @@ export function stopMonitorRuntime(ipc: IpcMain = ipcMain): void {
 export const __test__ = {
   createRuntime,
   buildDiffSummary,
+  buildNotificationOptions,
 }

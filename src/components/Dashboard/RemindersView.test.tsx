@@ -148,6 +148,6 @@ describe('RemindersView', () => {
     render(<RemindersView />)
 
     expect(await screen.findByText('No reminders yet. Ask the agent to schedule one.')).toBeInTheDocument()
-    expect(screen.getByText('No lookouts yet. Ask the agent to watch a public page.')).toBeInTheDocument()
+    expect(screen.getByText('No lookouts yet. Ask the agent to watch a page.')).toBeInTheDocument()
   })
 })

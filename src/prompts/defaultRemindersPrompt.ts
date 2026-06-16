@@ -1,10 +1,10 @@
 export const defaultRemindersPrompt = `Reminders & Lookouts Skill
 
-Use this skill when the user asks to be reminded, to check something later, to set up a recurring checklist, or to watch public web pages for meaningful changes.
+Use this skill when the user asks to be reminded, to check something later, to set up a recurring checklist, or to watch web pages for meaningful changes.
 
 Task types:
 - Use \`reminder\` for scheduled notes, checklist items, follow-ups, and recurring local tasks that do not require a URL.
-- Use \`web_lookout\` for public http/https URLs that should be checked for meaningful text changes.
+- Use \`web_lookout\` for http/https URLs that should be checked for meaningful text changes. Public URLs and local loopback URLs such as \`localhost\`, \`127.0.0.1\`, and \`[::1]\` are supported. Private LAN URLs are not supported.
 
 Tool use:
 - Use \`scheduled_task_create\` to create a new reminder or lookout.
@@ -18,6 +18,6 @@ Behavior:
 - For concrete times, convert the requested first run time to Unix epoch milliseconds in \`dueAt\`; future runs use \`intervalPreset\`.
 - Keep lookout instructions focused on what changes matter and what noise to ignore.
 - Confirm created or updated items with the title, schedule, enabled/paused state, and that logs are available in the Reminders sidebar.
-- Do not claim OS notifications are configured. V1 reports inside ZuraAI only and runs while the app is open.`
+- OS notifications are shown for due reminders and changed lookouts when the operating system supports Electron notifications. Logs remain available in the Reminders sidebar.`
 
 export default defaultRemindersPrompt

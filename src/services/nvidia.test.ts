@@ -87,6 +87,69 @@ describe('nvidia service', () => {
     expect(chunks[1].choices[0].finish_reason).toBe('stop')
   })
 
+  it('sends thinking_mode disabled when enableThinking is false', async () => {
+    const fetchMock = vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        id: 'chatcmpl-nv',
+        object: 'chat.completion',
+        created: 1,
+        model: 'meta/llama-3.1-8b-instruct',
+        choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
+      }),
+    } as Response)
+
+    await generateNvidiaCompletion(
+      'nvapi-key',
+      'meta/llama-3.1-8b-instruct',
+      [{ role: 'user', content: 'hello' }],
+      {
+        temperature: 0.5,
+        max_tokens: 512,
+        enableThinking: false,
+      }
+    )
+
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({
+      model: 'meta/llama-3.1-8b-instruct',
+      messages: [{ role: 'user', content: 'hello' }],
+      temperature: 0.5,
+      max_tokens: 512,
+      chat_template_kwargs: { thinking_mode: 'disabled' },
+    })
+  })
+
+  it('sends thinking_mode disabled by default when enableThinking is undefined', async () => {
+    const fetchMock = vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        id: 'chatcmpl-nv',
+        object: 'chat.completion',
+        created: 1,
+        model: 'meta/llama-3.1-8b-instruct',
+        choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
+      }),
+    } as Response)
+
+    await generateNvidiaCompletion(
+      'nvapi-key',
+      'meta/llama-3.1-8b-instruct',
+      [{ role: 'user', content: 'hello' }],
+      {
+        temperature: 0.5,
+        max_tokens: 512,
+      }
+    )
+
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({
+      model: 'meta/llama-3.1-8b-instruct',
+      messages: [{ role: 'user', content: 'hello' }],
+      temperature: 0.5,
+      max_tokens: 512,
+      chat_template_kwargs: { thinking_mode: 'disabled' },
+    })
+  })
+
   it('surfaces provider errors without fallback', async () => {
     vi.spyOn(global, 'fetch').mockResolvedValue({
       ok: false,

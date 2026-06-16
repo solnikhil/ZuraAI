@@ -10,11 +10,20 @@ import {
 } from './content'
 
 describe('monitor content helpers', () => {
-  it('rejects non-public monitor URLs', () => {
-    expect(() => validateMonitorUrl('file:///tmp/x')).toThrow(/http/)
-    expect(() => validateMonitorUrl('http://localhost:3000')).toThrow(/local/)
-    expect(() => validateMonitorUrl('http://127.0.0.1')).toThrow(/private/)
+  it('accepts public and loopback monitor URLs', () => {
+    expect(validateMonitorUrl('http://localhost:3000')).toBe('http://localhost:3000/')
+    expect(validateMonitorUrl('http://127.0.0.1:8000/index.html#section')).toBe(
+      'http://127.0.0.1:8000/index.html'
+    )
+    expect(validateMonitorUrl('http://[::1]:8000/index.html')).toBe('http://[::1]:8000/index.html')
     expect(validateMonitorUrl('https://example.com/docs#section')).toBe('https://example.com/docs')
+  })
+
+  it('rejects unsupported and private-network monitor URLs', () => {
+    expect(() => validateMonitorUrl('file:///tmp/x')).toThrow(/http/)
+    expect(() => validateMonitorUrl('http://0.0.0.0:3000')).toThrow(/local/)
+    expect(() => validateMonitorUrl('http://192.168.1.10')).toThrow(/private/)
+    expect(() => validateMonitorUrl('http://printer.local')).toThrow(/local/)
   })
 
   it('normalizes HTML into stable monitor text', () => {

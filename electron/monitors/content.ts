@@ -3,7 +3,17 @@ import * as net from 'net'
 
 const MAX_RESPONSE_BYTES = 2_000_000
 const MAX_NORMALIZED_TEXT_LENGTH = 60_000
-const PRIVATE_HOSTS = new Set(['localhost', '0.0.0.0'])
+const LOOPBACK_HOSTS = new Set(['localhost'])
+const BLOCKED_LOCAL_HOSTS = new Set(['0.0.0.0'])
+
+function isLoopbackIpv4(hostname: string): boolean {
+  const parts = hostname.split('.').map((part) => Number(part))
+  return parts.length === 4 && parts.every((part) => Number.isInteger(part) && part >= 0 && part <= 255) && parts[0] === 127
+}
+
+function isLoopbackIpv6(hostname: string): boolean {
+  return hostname.toLowerCase() === '::1'
+}
 
 function isPrivateIpv4(hostname: string): boolean {
   const parts = hostname.split('.').map((part) => Number(part))
@@ -13,7 +23,6 @@ function isPrivateIpv4(hostname: string): boolean {
   const [a, b] = parts
   return (
     a === 10 ||
-    a === 127 ||
     (a === 172 && b >= 16 && b <= 31) ||
     (a === 192 && b === 168) ||
     (a === 169 && b === 254)
@@ -22,7 +31,7 @@ function isPrivateIpv4(hostname: string): boolean {
 
 function isPrivateIpv6(hostname: string): boolean {
   const normalized = hostname.toLowerCase()
-  return normalized === '::1' || normalized.startsWith('fc') || normalized.startsWith('fd') || normalized.startsWith('fe80')
+  return normalized.startsWith('fc') || normalized.startsWith('fd') || normalized.startsWith('fe80')
 }
 
 export function validateMonitorUrl(rawUrl: unknown): string {
@@ -40,8 +49,12 @@ export function validateMonitorUrl(rawUrl: unknown): string {
     throw new Error('Monitor URL must use http or https')
   }
   const hostname = parsed.hostname.replace(/^\[|\]$/g, '').toLowerCase()
-  if (PRIVATE_HOSTS.has(hostname) || hostname.endsWith('.local')) {
+  if (BLOCKED_LOCAL_HOSTS.has(hostname) || hostname.endsWith('.local')) {
     throw new Error('Monitor URL cannot target local hosts')
+  }
+  if (LOOPBACK_HOSTS.has(hostname) || isLoopbackIpv4(hostname) || isLoopbackIpv6(hostname)) {
+    parsed.hash = ''
+    return parsed.toString()
   }
   const ipVersion = net.isIP(hostname)
   if ((ipVersion === 4 && isPrivateIpv4(hostname)) || (ipVersion === 6 && isPrivateIpv6(hostname))) {

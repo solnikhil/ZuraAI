@@ -196,7 +196,7 @@ export function SystemPromptSection(props: SystemPromptSectionProps): React.Reac
 
       <PromptViewerCard
         title="Reminders & Lookouts Prompt"
-        description="Instructions appended when the Reminders & Lookouts skill is enabled. Guides local reminders, recurring checks, and public web lookouts."
+        description="Instructions appended when the Reminders & Lookouts skill is enabled. Guides local reminders, recurring checks, and web lookouts."
         note="This only applies when the Reminders & Lookouts skill is active."
         value={defaultRemindersPrompt}
         showLabel="Show Reminders Prompt"

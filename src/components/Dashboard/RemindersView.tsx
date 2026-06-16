@@ -201,7 +201,7 @@ export default function RemindersView(): React.ReactElement {
           ) : (
             <div className="reminders-view__content">
               {renderTaskGroup('Reminders', <Bell size={15} />, reminders, 'No reminders yet. Ask the agent to schedule one.')}
-              {renderTaskGroup('Lookouts', <Globe size={15} />, lookouts, 'No lookouts yet. Ask the agent to watch a public page.')}
+              {renderTaskGroup('Lookouts', <Globe size={15} />, lookouts, 'No lookouts yet. Ask the agent to watch a page.')}
             </div>
           )}
         </main>
