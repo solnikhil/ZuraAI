@@ -490,6 +490,7 @@ export function buildEnabledSkillsPrompt(
   if (normalized.reminders.enabled) {
     skillLines.push('- Reminders & Lookouts (`reminders`): use `scheduled_task_*` tools to create, update, delete, list, and inspect local reminders and web lookouts for public or local loopback URLs.')
     skillLines.push('- Use `reminder` tasks for recurring notes/checklists and `web_lookout` tasks for public or local loopback URL change monitoring. Confirm created tasks and mention the Reminders sidebar.')
+    skillLines.push('- For reminder requests like "in 1 minute" or "tomorrow at 9", set `dueAt` to the first run time; do not use `intervalPreset` as the first due time.')
   }
 
   if (skillLines.length > 0) {

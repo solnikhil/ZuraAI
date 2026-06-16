@@ -21,6 +21,7 @@ const MAX_URLS_PER_MONITOR = 10
 const MAX_RUNS = 500
 const MAX_NAME_LENGTH = 120
 const MAX_INSTRUCTIONS_LENGTH = 2000
+const DEFAULT_INTERVAL_PRESET = '30m'
 let cachedIndex: ScheduledTaskIndex | null = null
 let cacheTimestamp = 0
 let pendingWrite: Promise<unknown> = Promise.resolve()
@@ -210,12 +211,15 @@ export function sanitizeScheduledTaskInput(raw: unknown, partial = false): Sched
   } else if (!partial) {
     input.instructions = ''
   }
-  if (!partial || record.intervalPreset !== undefined) {
+  if (record.intervalPreset !== undefined) {
     if (!isMonitorIntervalPreset(record.intervalPreset)) throw new Error('Invalid monitor interval')
     input.intervalPreset = record.intervalPreset
+  } else if (!partial) {
+    input.intervalPreset = DEFAULT_INTERVAL_PRESET
   }
   if (record.dueAt !== undefined) {
-    const dueAt = typeof record.dueAt === 'number' ? record.dueAt : Date.parse(String(record.dueAt))
+    const rawDueAt = typeof record.dueAt === 'number' ? record.dueAt : Date.parse(String(record.dueAt))
+    const dueAt = typeof record.dueAt === 'number' && rawDueAt < 10_000_000_000 ? rawDueAt * 1000 : rawDueAt
     if (!Number.isFinite(dueAt) || dueAt < Date.now() - 60_000) throw new Error('Invalid scheduled task due time')
     input.dueAt = dueAt
   }
@@ -249,6 +253,7 @@ export async function createScheduledTask(input: ScheduledTaskInput): Promise<Sc
   return withWriteLock(async (index) => {
     if (index.tasks.length >= MAX_TASKS) throw new Error(`At most ${MAX_TASKS} scheduled tasks are supported`)
     const now = Date.now()
+    const intervalPreset = input.intervalPreset ?? DEFAULT_INTERVAL_PRESET
     const task: ScheduledTaskDefinition = {
       id: randomUUID(),
       type: input.type,
@@ -257,10 +262,10 @@ export async function createScheduledTask(input: ScheduledTaskInput): Promise<Sc
       urls: input.urls ?? [],
       ...(input.reminderText ? { reminderText: input.reminderText } : {}),
       instructions: input.instructions || '',
-      intervalPreset: input.intervalPreset,
+      intervalPreset,
       createdAt: now,
       updatedAt: now,
-      nextRunAt: input.dueAt ?? calculateNextRunAt(now, input.intervalPreset),
+      nextRunAt: input.dueAt ?? calculateNextRunAt(now, intervalPreset),
     }
     await persistIndex({ ...index, tasks: [task, ...index.tasks] })
     return task

@@ -11,6 +11,7 @@ import { SettingsProvider } from './contexts/SettingsContext'
 import { ChatHistoryProvider } from './contexts/ChatHistoryContext'
 import { StreamingProvider } from './contexts/StreamingContext'
 import { QuickSendProvider } from './contexts/QuickSendContext'
+import { ComposerDraftProvider } from './contexts/ComposerDraftContext'
 import { ModelSelectorProvider } from './contexts/ModelSelectorContext'
 import { McpProvider } from './mcp/McpContext'
 import { ToastProvider, ErrorBoundary } from './components/shared'
@@ -110,7 +111,8 @@ function DashboardApp() {
         <ChatHistoryProvider>
           <StreamingProvider>
             <QuickSendProvider>
-              <AgentToolApprovalProvider>
+              <ComposerDraftProvider>
+                <AgentToolApprovalProvider>
                 <ModelSelectorProvider>
                   {!macOS && <OverlaySync />}
                   <MonitorSummarySync />
@@ -149,6 +151,7 @@ function DashboardApp() {
               <CodeExecutionApprovalHost />
               <TerminalApprovalHost />
               {!macOS && <ComputerUseApprovalDialog />}
+              </ComposerDraftProvider>
             </QuickSendProvider>
           </StreamingProvider>
         </ChatHistoryProvider>

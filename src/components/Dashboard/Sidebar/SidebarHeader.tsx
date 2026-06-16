@@ -4,7 +4,6 @@ interface SidebarHeaderProps {
   onNewChat: () => void
   onOpenSearch: () => void
   onOpenReminders?: () => void
-  remindersActive?: boolean
   remindersEnabled?: boolean
 }
 
@@ -12,7 +11,6 @@ export default function SidebarHeader({
   onNewChat,
   onOpenSearch,
   onOpenReminders,
-  remindersActive = false,
   remindersEnabled = false,
 }: SidebarHeaderProps) {
   return (
@@ -64,7 +62,7 @@ export default function SidebarHeader({
               onOpenReminders()
             }
           }}
-          className={`sidebar-header__btn ${remindersActive ? 'sidebar-header__btn--active' : ''}`}
+          className="sidebar-header__btn"
         >
           <span className="sidebar-header__icon-slot" aria-hidden="true">
             <Bell size={16} className="sidebar-header__icon" />

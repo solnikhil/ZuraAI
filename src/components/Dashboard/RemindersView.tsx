@@ -7,9 +7,10 @@ import type {
   ScheduledTaskType,
 } from '@/electron/types'
 import { useAppShell } from '@/contexts/AppShellContext'
-import { useQuickSend } from '@/contexts/QuickSendContext'
+import { useComposerDraft } from '@/contexts/ComposerDraftContext'
 import { AlertCircle, Bell, Globe, Loader2, X } from '../icons'
 import { Badge } from '../ui/badge'
+import { Button } from '@/components/ui/button'
 import './RemindersView.css'
 
 type DrawerMode = 'logs' | 'details'
@@ -23,6 +24,23 @@ const STATUS_LABELS: Record<ScheduledTaskStatus, string> = {
 function formatDate(value?: number): string {
   if (!value) return 'Not run yet'
   return new Date(value).toLocaleString()
+}
+
+function formatIntervalPreset(value: ScheduledTaskDefinition['intervalPreset']): string {
+  switch (value) {
+    case '30m':
+      return '30 min'
+    case '1h':
+      return '1 hour'
+    case '6h':
+      return '6 hours'
+    case '12h':
+      return '12 hours'
+    case 'daily':
+      return 'daily'
+    case 'weekly':
+      return 'weekly'
+  }
 }
 
 function latestRunForTask(runs: ScheduledTaskRun[], taskId: string): ScheduledTaskRun | undefined {
@@ -45,7 +63,7 @@ function buildEditPrompt(task: ScheduledTaskDefinition): string {
     `Title: ${task.title}`,
     `Type: ${task.type}`,
     `Enabled: ${task.enabled ? 'yes' : 'no'}`,
-    `Schedule preset: ${task.intervalPreset}`,
+    `Repeat preset: ${task.intervalPreset}`,
     `Next run: ${formatDate(task.nextRunAt)}`,
     `URLs: ${urls}`,
     `Reminder text: ${reminderText}`,
@@ -62,7 +80,7 @@ export default function RemindersView(): React.ReactElement {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const { setDashboardView } = useAppShell()
-  const { queueMessage } = useQuickSend()
+  const { setDraftText } = useComposerDraft()
 
   const load = useCallback(async () => {
     if (!window.scheduledTasks) {
@@ -103,9 +121,9 @@ export default function RemindersView(): React.ReactElement {
   )
 
   const askAgent = useCallback((message: string) => {
-    queueMessage(message)
+    setDraftText(message)
     setDashboardView('chat')
-  }, [queueMessage, setDashboardView])
+  }, [setDraftText, setDashboardView])
 
   const toggleEnabled = async (task: ScheduledTaskDefinition) => {
     await window.scheduledTasks.update(task.id, { enabled: !task.enabled })
@@ -128,8 +146,8 @@ export default function RemindersView(): React.ReactElement {
           <div>
             <h4>{task.title}</h4>
             <p>
-              {task.enabled ? 'Enabled' : 'Paused'} · next {formatDate(task.nextRunAt)} · last{' '}
-              {latestRun ? STATUS_LABELS[latestRun.status] : 'not run'}
+              {task.enabled ? 'Enabled' : 'Paused'} - next {formatDate(task.nextRunAt)} - repeats{' '}
+              {formatIntervalPreset(task.intervalPreset)} - last {latestRun ? STATUS_LABELS[latestRun.status] : 'not run'}
             </p>
           </div>
         </div>
@@ -183,14 +201,15 @@ export default function RemindersView(): React.ReactElement {
               <h2 id="reminders-title">Reminders & Lookouts</h2>
               <p>Scheduled work, local logs, and AI-managed edits in one place.</p>
             </div>
-            <button
-              type="button"
-              className="reminders-view__ask-agent"
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={() => askAgent('Help me create a reminder or lookout.')}
             >
               Ask agent
-            </button>
+            </Button>
           </header>
+          <div className="reminders-view__divider" />
 
           {error && <div className="reminders-view__error"><AlertCircle size={15} /> {error}</div>}
 
@@ -223,7 +242,7 @@ export default function RemindersView(): React.ReactElement {
                 <dl>
                   <div><dt>Type</dt><dd>{taskTypeLabel(drawerTask.type)}</dd></div>
                   <div><dt>Status</dt><dd>{drawerTask.enabled ? 'Enabled' : 'Paused'}</dd></div>
-                  <div><dt>Schedule</dt><dd>{drawerTask.intervalPreset}</dd></div>
+                  <div><dt>Repeats</dt><dd>{formatIntervalPreset(drawerTask.intervalPreset)}</dd></div>
                   <div><dt>Next run</dt><dd>{formatDate(drawerTask.nextRunAt)}</dd></div>
                   <div><dt>{drawerTask.type === 'web_lookout' ? 'URLs' : 'Reminder text'}</dt><dd>{drawerTask.type === 'web_lookout' ? drawerTask.urls.join(', ') || 'None' : drawerTask.reminderText || 'None'}</dd></div>
                   <div><dt>Instructions</dt><dd>{drawerTask.instructions || 'None'}</dd></div>

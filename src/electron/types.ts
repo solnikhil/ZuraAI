@@ -365,7 +365,7 @@ export interface ScheduledTaskInput {
   urls?: string[]
   reminderText?: string
   instructions?: string
-  intervalPreset: ScheduledTaskIntervalPreset
+  intervalPreset?: ScheduledTaskIntervalPreset
   dueAt?: number
 }
 

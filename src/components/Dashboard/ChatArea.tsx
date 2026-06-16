@@ -9,6 +9,7 @@ import { useToast } from '../shared/Toast'
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
 import { useStreamingState } from '../../contexts/StreamingContext'
 import { useQuickSend } from '../../contexts/QuickSendContext'
+import { useComposerDraft } from '../../contexts/ComposerDraftContext'
 import { useSettings } from '../../contexts/SettingsContext'
 import { ToolCallIndicator, ToolResultDisplay } from '../../tools/ui'
 import { writeTextToClipboard } from '../../utils/clipboard'
@@ -35,7 +36,7 @@ export default function ChatArea() {
 
   const streamingState = useStreamingState()
 
-  const [input, setInput] = useState('')
+  const { draftText: input, setDraftText: setInput } = useComposerDraft()
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
   const [promptFocused, setPromptFocused] = useState(false)
 

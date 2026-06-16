@@ -5,11 +5,11 @@ import '@testing-library/jest-dom'
 import type { ScheduledTaskDefinition, ScheduledTaskRun } from '@/electron/types'
 import RemindersView from './RemindersView'
 
-const mockQueueMessage = vi.fn()
+const mockSetDraftText = vi.fn()
 const mockSetDashboardView = vi.fn()
 
-vi.mock('@/contexts/QuickSendContext', () => ({
-  useQuickSend: () => ({ queueMessage: mockQueueMessage }),
+vi.mock('@/contexts/ComposerDraftContext', () => ({
+  useComposerDraft: () => ({ setDraftText: mockSetDraftText }),
 }))
 
 vi.mock('@/contexts/AppShellContext', () => ({
@@ -63,6 +63,7 @@ const run: ScheduledTaskRun = {
 describe('RemindersView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockSetDraftText.mockClear()
     window.scheduledTasks = {
       list: vi.fn().mockResolvedValue([lookoutTask, reminderTask]),
       create: vi.fn(),
@@ -88,12 +89,12 @@ describe('RemindersView', () => {
     expect(within(lookouts).getByText('Watch changelog')).toBeInTheDocument()
   })
 
-  it('queues a setup prompt when Ask agent is clicked', async () => {
+  it('sets draft text when Ask agent is clicked', async () => {
     render(<RemindersView />)
 
     fireEvent.click(await screen.findByRole('button', { name: 'Ask agent' }))
 
-    expect(mockQueueMessage).toHaveBeenCalledWith('Help me create a reminder or lookout.')
+    expect(mockSetDraftText).toHaveBeenCalledWith('Help me create a reminder or lookout.')
     expect(mockSetDashboardView).toHaveBeenCalledWith('chat')
   })
 
@@ -108,7 +109,7 @@ describe('RemindersView', () => {
     expect(screen.getByText('New API release notes')).toBeInTheDocument()
   })
 
-  it('opens task details and queues an agent edit prompt', async () => {
+  it('opens task details and sets draft text for agent edit prompt', async () => {
     render(<RemindersView />)
 
     const reminders = await screen.findByRole('region', { name: 'Reminders' })
@@ -119,8 +120,8 @@ describe('RemindersView', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit this with agent' }))
 
-    expect(mockQueueMessage).toHaveBeenCalledWith(expect.stringContaining('Task id: task-2'))
-    expect(mockQueueMessage).toHaveBeenCalledWith(expect.stringContaining('scheduled_task_update'))
+    expect(mockSetDraftText).toHaveBeenCalledWith(expect.stringContaining('Task id: task-2'))
+    expect(mockSetDraftText).toHaveBeenCalledWith(expect.stringContaining('scheduled_task_update'))
     expect(mockSetDashboardView).toHaveBeenCalledWith('chat')
   })
 

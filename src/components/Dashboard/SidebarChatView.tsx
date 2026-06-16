@@ -16,7 +16,6 @@ interface SidebarChatViewProps {
   flatVisibleSessions: ChatSession[]
   sessionIndexMap: Map<string, number>
   bottomPadding: number
-  remindersActive: boolean
   remindersEnabled: boolean
   onNewChat: () => void
   onOpenSearch: () => void
@@ -38,7 +37,6 @@ function SidebarChatView({
   flatVisibleSessions,
   sessionIndexMap,
   bottomPadding,
-  remindersActive,
   remindersEnabled,
   onNewChat,
   onOpenSearch,
@@ -55,7 +53,6 @@ function SidebarChatView({
         onNewChat={onNewChat}
         onOpenSearch={onOpenSearch}
         onOpenReminders={onOpenReminders}
-        remindersActive={remindersActive}
         remindersEnabled={remindersEnabled}
       />
 

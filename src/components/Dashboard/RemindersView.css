@@ -47,7 +47,20 @@
 
 .reminders-view__panel-header {
   padding-bottom: 20px;
-  border-bottom: 1px solid color-mix(in srgb, var(--theme-border-primary) 80%, transparent);
+}
+
+.reminders-view__divider {
+  margin: 20px 0 0;
+  height: 1px;
+  border: none;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--theme-border) 60%, transparent) 15%,
+    color-mix(in srgb, var(--theme-border) 85%, transparent) 50%,
+    color-mix(in srgb, var(--theme-border) 60%, transparent) 85%,
+    transparent 100%
+  );
 }
 
 .reminders-view__panel-header h2 {
@@ -64,7 +77,6 @@
   line-height: 1.5;
 }
 
-.reminders-view__ask-agent,
 .reminders-view__row-actions button,
 .reminders-view__agent-edit,
 .reminders-view__icon-button {
@@ -76,14 +88,6 @@
   transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
 }
 
-.reminders-view__ask-agent {
-  flex: 0 0 auto;
-  padding: 7px 12px;
-  font-size: 12px;
-  font-weight: 650;
-}
-
-.reminders-view__ask-agent:hover,
 .reminders-view__row-actions button:hover,
 .reminders-view__agent-edit:hover,
 .reminders-view__icon-button:hover {
