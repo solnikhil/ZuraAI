@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 
 import type { AppRuntimeInfo } from '../electron/types'
+import type { DashboardView } from '../contexts/AppShellContext'
 import { ArrowLeft, ChevronRight, Clock, Info, List, MessageCircle, SettingsIcon } from './icons'
 import { useToast } from './shared/Toast'
 import { isMacOSRuntime } from '@/utils/platform'
@@ -42,7 +43,7 @@ export function getUpdateMenuLabel(state: UpdateState, percent: number | null): 
 interface TitleBarInfoMenuProps {
   hasUnsavedSettings: boolean
   isSettingsView: boolean
-  setDashboardView: (view: 'chat' | 'settings') => void
+  setDashboardView: (view: DashboardView) => void
   triggerVariant?: 'titlebar' | 'sidebar'
   sidebarCollapsed?: boolean
 }

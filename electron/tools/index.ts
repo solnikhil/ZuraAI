@@ -31,6 +31,16 @@ import {
   executeWindowMove,
   executeWindowClose,
 } from './window-management'
+import {
+  createScheduledTask,
+  deleteScheduledTask,
+  listRuns as listScheduledTaskRuns,
+  listScheduledTasks,
+  sanitizeScheduledTaskInput,
+  updateScheduledTask,
+  getMonitorRuntime,
+} from '../monitors'
+import type { ScheduledTaskInput, ScheduledTaskUpdateInput } from '../monitors'
 import type { ScreenshotArgs, TypeArgs, KeyArgs } from './computerUse'
 import { showSpotlight } from '../windows/spotlightOverlay'
 import { isBuiltinMainToolName, type BuiltinMainToolName } from '../../src/tools/builtinTools'
@@ -174,6 +184,43 @@ const toolHandlers: Record<BuiltinMainToolName, ToolHandler> = {
   app_list: executeAppList,
   app_install: executeAppInstall,
   app_uninstall: executeAppUninstall,
+  scheduled_task_create: async (args) => {
+    const task = await createScheduledTask(sanitizeScheduledTaskInput(args) as ScheduledTaskInput)
+    await getMonitorRuntime()?.reschedule()
+    return { success: true, data: task }
+  },
+  scheduled_task_update: async (args) => {
+    const r = (typeof args === 'object' && args !== null) ? args as Record<string, unknown> : {}
+    const id = typeof r.id === 'string' ? r.id.trim() : ''
+    if (!id) return { success: false, error: 'Scheduled task id is required.' }
+    const patch = { ...r }
+    delete patch.id
+    const task = await updateScheduledTask(id, sanitizeScheduledTaskInput(patch, true) as ScheduledTaskUpdateInput)
+    await getMonitorRuntime()?.reschedule()
+    return task ? { success: true, data: task } : { success: false, error: 'Scheduled task not found.' }
+  },
+  scheduled_task_delete: async (args) => {
+    const r = (typeof args === 'object' && args !== null) ? args as Record<string, unknown> : {}
+    const id = typeof r.id === 'string' ? r.id.trim() : ''
+    if (!id) return { success: false, error: 'Scheduled task id is required.' }
+    const deleted = await deleteScheduledTask(id)
+    await getMonitorRuntime()?.reschedule()
+    return deleted ? { success: true, data: { deleted: true, id } } : { success: false, error: 'Scheduled task not found.' }
+  },
+  scheduled_task_list: async (args) => {
+    const r = (typeof args === 'object' && args !== null) ? args as Record<string, unknown> : {}
+    const type = r.type === 'reminder' || r.type === 'web_lookout' ? r.type : undefined
+    const tasks = await listScheduledTasks()
+    return { success: true, data: type ? tasks.filter((task) => task.type === type) : tasks }
+  },
+  scheduled_task_get_logs: async (args) => {
+    const r = (typeof args === 'object' && args !== null) ? args as Record<string, unknown> : {}
+    const id = typeof r.id === 'string' ? r.id.trim() : ''
+    if (!id) return { success: false, error: 'Scheduled task id is required.' }
+    const limit = typeof r.limit === 'number' && Number.isFinite(r.limit) ? Math.min(Math.max(1, Math.floor(r.limit)), 50) : 20
+    const runs = (await listScheduledTaskRuns(id)).slice(0, limit)
+    return { success: true, data: runs }
+  },
   window_list: executeWindowList,
   window_focus: executeWindowFocus,
   window_move: executeWindowMove,

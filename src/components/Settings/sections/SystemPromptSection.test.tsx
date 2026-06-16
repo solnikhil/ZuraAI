@@ -44,4 +44,22 @@ describe('SystemPromptSection', () => {
     expect(screen.queryByRole('button', { name: /load default/i })).toBeNull()
     expect(onChange).not.toHaveBeenCalled()
   })
+
+  it('renders the Reminders & Lookouts prompt viewer', () => {
+    render(
+      <SystemPromptSection
+        systemPrompt="Base prompt"
+        assistantPersonality="professional-engineer"
+        webSearchPrompt="Web prompt"
+        titleGenerationPrompt="Title prompt"
+        codeExecutionPrompt="Code prompt"
+        onChange={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /show reminders prompt/i }))
+
+    expect(screen.getByDisplayValue(/Reminders & Lookouts Skill/i)).toBeInTheDocument()
+    expect(screen.getByDisplayValue(/scheduled_task_create/i)).toHaveAttribute('readonly')
+  })
 })

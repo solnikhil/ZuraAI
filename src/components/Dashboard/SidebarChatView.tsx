@@ -16,8 +16,11 @@ interface SidebarChatViewProps {
   flatVisibleSessions: ChatSession[]
   sessionIndexMap: Map<string, number>
   bottomPadding: number
+  remindersActive: boolean
+  remindersEnabled: boolean
   onNewChat: () => void
   onOpenSearch: () => void
+  onOpenReminders: () => void
   onSelectSession: (sessionId: string) => void
   onContextAction: (action: ChatRowAction, sessionId: string) => void
   onRenameConfirm: (id: string, newTitle: string) => void
@@ -35,8 +38,11 @@ function SidebarChatView({
   flatVisibleSessions,
   sessionIndexMap,
   bottomPadding,
+  remindersActive,
+  remindersEnabled,
   onNewChat,
   onOpenSearch,
+  onOpenReminders,
   onSelectSession,
   onContextAction,
   onRenameConfirm,
@@ -45,7 +51,13 @@ function SidebarChatView({
 }: SidebarChatViewProps) {
   return (
     <div className={`sidebar-view sidebar-view--chat ${active ? 'active' : 'inactive'}`}>
-      <SidebarHeader onNewChat={onNewChat} onOpenSearch={onOpenSearch} />
+      <SidebarHeader
+        onNewChat={onNewChat}
+        onOpenSearch={onOpenSearch}
+        onOpenReminders={onOpenReminders}
+        remindersActive={remindersActive}
+        remindersEnabled={remindersEnabled}
+      />
 
       <SidebarChatList
         groupedSessions={groupedSessions}

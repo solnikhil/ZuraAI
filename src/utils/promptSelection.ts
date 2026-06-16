@@ -18,7 +18,7 @@ export function resolveSystemPromptTemplate(systemPrompt: string): string {
  * @returns The effective system prompt to use for AI calls.
  */
 export function getEffectiveSystemPrompt(
-    settings: Pick<Settings, 'systemPrompt'> & Partial<Pick<Settings, 'assistantPersonality' | 'skills' | 'codeExecutionPrompt' | 'terminalPrompt' | 'computerUsePrompt' | 'chartGenerationPrompt'>>,
+    settings: Pick<Settings, 'systemPrompt'> & Partial<Pick<Settings, 'assistantPersonality' | 'skills' | 'codeExecutionPrompt' | 'terminalPrompt' | 'computerUsePrompt' | 'chartGenerationPrompt' | 'remindersPrompt'>>,
     memoryBlock?: string,
     recentActivityBlock?: string
 ): string {
@@ -29,6 +29,7 @@ export function getEffectiveSystemPrompt(
         terminalPrompt: settings.terminalPrompt,
         computerUsePrompt: settings.computerUsePrompt,
         chartGenerationPrompt: settings.chartGenerationPrompt,
+        remindersPrompt: settings.remindersPrompt,
     })
     const sections = [resolvedSystemPrompt, selectedPersonalityPrompt]
     if (enabledSkillsSection) sections.push(enabledSkillsSection)

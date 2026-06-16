@@ -203,6 +203,11 @@
   box-sizing: border-box;
   scrollbar-gutter: stable;
   scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color 0.2s ease;
+}
+
+.sidebar-chatlist__scroller:hover {
   scrollbar-color: var(--theme-border) transparent;
 }
 
@@ -215,9 +220,13 @@
 }
 
 .sidebar-chatlist__scroller::-webkit-scrollbar-thumb {
-  background: var(--theme-border);
+  background: transparent;
   border-radius: 2px;
-  transition: background 0.12s ease;
+  transition: background 0.2s ease;
+}
+
+.sidebar-chatlist__scroller:hover::-webkit-scrollbar-thumb {
+  background: var(--theme-border);
 }
 
 .sidebar-chatlist__scroller::-webkit-scrollbar-thumb:hover {
@@ -324,6 +333,11 @@
 
 .sidebar-header__btn:hover {
   background: var(--theme-surface-hover);
+}
+
+.sidebar-header__btn--active {
+  background: var(--theme-surface-active);
+  color: var(--theme-text-primary);
 }
 
 .sidebar-container.frosted .sidebar-header__btn:hover {

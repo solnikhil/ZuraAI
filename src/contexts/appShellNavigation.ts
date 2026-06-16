@@ -1,6 +1,6 @@
 export interface AppShellNavigationSnapshot {
   pathname: string
-  dashboardView: 'chat' | 'settings'
+  dashboardView: 'chat' | 'settings' | 'reminders'
   activeSettingsSection: string
 }
 

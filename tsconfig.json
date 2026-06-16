@@ -3,6 +3,7 @@
         "baseUrl": ".",
         "paths": {
             "@/*": ["./src/*"],
+            "remotion": ["./node_modules/remotion/dist/cjs/index.d.ts"],
             "lucide-react": ["./src/lib/lucide-react"]
         },
         "target": "ES2022",
@@ -35,6 +36,7 @@
     "include": [
         "src",
         "electron",
+        "remotion",
         "vite.config.ts"
     ],
     "exclude": [

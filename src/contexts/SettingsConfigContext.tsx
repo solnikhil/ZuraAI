@@ -30,6 +30,7 @@ import { defaultTerminalPrompt } from '../prompts/defaultTerminalPrompt'
 import { defaultComputerUsePrompt } from '../prompts/defaultComputerUsePrompt'
 import { defaultChartGenerationPrompt } from '../prompts/defaultChartGenerationPrompt'
 import { defaultMemoryPrompt } from '../prompts/defaultMemoryPrompt'
+import { defaultRemindersPrompt } from '../prompts/defaultRemindersPrompt'
 import {
   DEFAULT_ASSISTANT_PERSONALITY,
   type AssistantPersonalityId,
@@ -158,6 +159,8 @@ export interface SettingsConfig {
   chartGenerationPrompt: string
   /** Memory autosave instructions appended when the Memory skill is enabled */
   memoryPrompt: string
+  /** Reminders & Lookouts instructions appended when the Reminders skill is enabled */
+  remindersPrompt: string
   streamResponses: boolean
 
   // Tool settings
@@ -339,6 +342,7 @@ export const defaultSettingsConfig: SettingsConfig = {
   computerUsePrompt: defaultComputerUsePrompt,
   chartGenerationPrompt: defaultChartGenerationPrompt,
   memoryPrompt: defaultMemoryPrompt,
+  remindersPrompt: defaultRemindersPrompt,
   streamResponses: true,
 
   // Tool settings

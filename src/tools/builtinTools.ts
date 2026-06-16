@@ -441,6 +441,86 @@ Best practices:
     origin: 'builtin-main',
     requiresApproval: true,
   },
+  scheduled_task_create: {
+    description: 'Create a local reminder or web lookout. Use this when the user asks to remind them, check something later, watch a page, monitor a URL, or set up a recurring lookout. After creating, tell the user it is visible in the Reminders sidebar.',
+    parameters: {
+      type: 'object',
+      description: 'Arguments for creating a scheduled task.',
+      properties: {
+        type: { type: 'string', description: 'Task type.', enum: ['reminder', 'web_lookout'] },
+        title: { type: 'string', description: 'Short user-visible title.' },
+        reminderText: { type: 'string', description: 'Reminder/checklist text. Required for reminder tasks.' },
+        urls: { type: 'array', description: 'Public http/https URLs to watch. Required for web_lookout tasks.', items: { type: 'string' } },
+        instructions: { type: 'string', description: 'What matters for this reminder/lookout and what to ignore.' },
+        intervalPreset: { type: 'string', description: 'How often to run.', enum: ['30m', '1h', '6h', '12h', 'daily', 'weekly'] },
+        dueAt: { type: 'number', description: 'Optional first run time as Unix epoch milliseconds. Future runs use intervalPreset.' },
+        enabled: { type: 'boolean', description: 'Whether the task should start enabled.', default: true },
+      },
+      required: ['type', 'title', 'intervalPreset'],
+    },
+    category: 'utility',
+    origin: 'builtin-main',
+  },
+  scheduled_task_update: {
+    description: 'Update or pause/resume an existing local reminder/lookout by id.',
+    parameters: {
+      type: 'object',
+      description: 'Arguments for updating a scheduled task.',
+      properties: {
+        id: { type: 'string', description: 'Scheduled task id.' },
+        title: { type: 'string', description: 'New title.' },
+        reminderText: { type: 'string', description: 'New reminder text.' },
+        urls: { type: 'array', description: 'Replacement URLs for a web lookout.', items: { type: 'string' } },
+        instructions: { type: 'string', description: 'New instructions.' },
+        intervalPreset: { type: 'string', description: 'New interval.', enum: ['30m', '1h', '6h', '12h', 'daily', 'weekly'] },
+        dueAt: { type: 'number', description: 'Optional next run time as Unix epoch milliseconds.' },
+        enabled: { type: 'boolean', description: 'Set false to pause, true to resume.' },
+      },
+      required: ['id'],
+    },
+    category: 'utility',
+    origin: 'builtin-main',
+  },
+  scheduled_task_delete: {
+    description: 'Delete an existing local reminder/lookout by id.',
+    parameters: {
+      type: 'object',
+      description: 'Arguments for deleting a scheduled task.',
+      properties: {
+        id: { type: 'string', description: 'Scheduled task id.' },
+      },
+      required: ['id'],
+    },
+    category: 'utility',
+    origin: 'builtin-main',
+  },
+  scheduled_task_list: {
+    description: 'List local reminders and web lookouts with ids, titles, schedules, and status.',
+    parameters: {
+      type: 'object',
+      description: 'Optional filters for scheduled tasks.',
+      properties: {
+        type: { type: 'string', description: 'Optional task type filter.', enum: ['reminder', 'web_lookout'] },
+      },
+      required: [],
+    },
+    category: 'utility',
+    origin: 'builtin-main',
+  },
+  scheduled_task_get_logs: {
+    description: 'Get run logs/history for a local reminder or web lookout.',
+    parameters: {
+      type: 'object',
+      description: 'Arguments for reading scheduled task logs.',
+      properties: {
+        id: { type: 'string', description: 'Scheduled task id.' },
+        limit: { type: 'number', description: 'Maximum runs to return. Default 20, max 50.' },
+      },
+      required: ['id'],
+    },
+    category: 'utility',
+    origin: 'builtin-main',
+  },
   window_list: {
     description: 'List top-level Windows app windows with hwnd, title, process name, and pid.',
     parameters: {

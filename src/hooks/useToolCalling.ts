@@ -59,6 +59,14 @@ const NATIVE_WINDOWS_AGENT_TOOLS = [
     'windows_uia_select',
 ]
 
+const SCHEDULED_TASK_TOOLS = [
+    'scheduled_task_create',
+    'scheduled_task_update',
+    'scheduled_task_delete',
+    'scheduled_task_list',
+    'scheduled_task_get_logs',
+]
+
 export interface ToolCallState {
     activeToolCalls: ToolCall[]
     activeToolBatch: ToolCall[]
@@ -175,6 +183,15 @@ export function useToolCalling() {
             enabledTools = enabledTools.filter((tool) => tool !== 'system_shell')
         } else if (!enabledTools.includes('system_shell')) {
             enabledTools.push('system_shell')
+        }
+
+        const remindersSurfaceEnabled = isSkillEnabled(settings.skills, 'reminders')
+        if (!remindersSurfaceEnabled) {
+            enabledTools = enabledTools.filter((tool) => !SCHEDULED_TASK_TOOLS.includes(tool))
+        } else {
+            for (const tool of SCHEDULED_TASK_TOOLS) {
+                if (!enabledTools.includes(tool)) enabledTools.push(tool)
+            }
         }
 
         const nativePriority = new Map(NATIVE_WINDOWS_AGENT_TOOLS.map((tool, index) => [tool, index]))

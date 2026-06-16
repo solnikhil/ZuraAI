@@ -12,6 +12,7 @@ import type {
   IElectronAPI,
   McpAPI,
   MemoryAPI,
+  ScheduledTasksAPI,
   NativeDialogAPI,
   OverlayAPI,
   ResourceMonitorAPI,
@@ -38,6 +39,7 @@ declare global {
     analytics: AnalyticsAPI
     mcp: McpAPI
     memory: MemoryAPI
+    scheduledTasks: ScheduledTasksAPI
     codeExecution: CodeExecutionAPI
     terminal: TerminalAPI
     computerUse: ComputerUseAPI

@@ -71,6 +71,14 @@ const NATIVE_WINDOWS_TOOL_NAMES = [
   'windows_uia_snapshot',
 ]
 
+const SCHEDULED_TASK_TOOL_NAMES = [
+  'scheduled_task_create',
+  'scheduled_task_update',
+  'scheduled_task_delete',
+  'scheduled_task_list',
+  'scheduled_task_get_logs',
+]
+
 function getExposedToolNames(): string[] {
   const { result } = renderHook(() => useToolCalling())
   const tools = result.current.getToolsForRequest()
@@ -272,5 +280,30 @@ describe('useToolCalling - Terminal skill (system_shell) exposure gating', () =>
       ),
       { numRuns: 100 }
     )
+  })
+})
+
+describe('useToolCalling - Reminders skill scheduled task tool exposure gating', () => {
+  it('does not expose scheduled task tools when the Reminders skill is disabled', () => {
+    mockSettings.settings = makeSettings({ skills: defaultSkillsSettings })
+
+    const names = getExposedToolNames()
+    for (const tool of SCHEDULED_TASK_TOOL_NAMES) {
+      expect(names).not.toContain(tool)
+    }
+  })
+
+  it('exposes scheduled task tools when the Reminders skill is enabled', () => {
+    mockSettings.settings = makeSettings({
+      skills: {
+        ...defaultSkillsSettings,
+        reminders: { enabled: true },
+      },
+    })
+
+    const names = getExposedToolNames()
+    for (const tool of SCHEDULED_TASK_TOOL_NAMES) {
+      expect(names).toContain(tool)
+    }
   })
 })

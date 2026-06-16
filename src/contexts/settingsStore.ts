@@ -236,6 +236,7 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   parsed.computerUsePrompt = defaultSettings.computerUsePrompt
   parsed.chartGenerationPrompt = defaultSettings.chartGenerationPrompt
   parsed.memoryPrompt = defaultSettings.memoryPrompt
+  parsed.remindersPrompt = defaultSettings.remindersPrompt
 
   if (!parsed.modelProvider) parsed.modelProvider = defaultSettings.modelProvider
   if (!PROVIDER_IDS.includes(parsed.modelProvider as typeof PROVIDER_IDS[number])) {
@@ -585,6 +586,7 @@ export function getInitialConfigSettings(settings: Settings): Partial<SettingsCo
     computerUsePrompt: settings.computerUsePrompt,
     chartGenerationPrompt: settings.chartGenerationPrompt,
     memoryPrompt: settings.memoryPrompt,
+    remindersPrompt: settings.remindersPrompt,
     streamResponses: settings.streamResponses,
     assistantMode: settings.assistantMode,
     toolsEnabled: settings.toolsEnabled,

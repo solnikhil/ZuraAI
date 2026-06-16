@@ -27,6 +27,10 @@ import type {
   DiscordRpcState,
   Memory,
   MemoryScope,
+  ScheduledTaskInput,
+  ScheduledTaskSummaryRequest,
+  ScheduledTaskSummaryResponse,
+  ScheduledTaskUpdateInput,
   OverlaySettings,
   OverlayState,
   PendingCodeApproval,
@@ -166,6 +170,19 @@ const DISCORD_RPC_INVOKE_CHANNELS = new Set<string>([
 
 const DISCORD_RPC_ON_CHANNELS = new Set<string>(['discord-rpc:state-changed'])
 
+const SCHEDULED_TASKS_INVOKE_CHANNELS = new Set<string>([
+  'scheduled-tasks:list',
+  'scheduled-tasks:create',
+  'scheduled-tasks:update',
+  'scheduled-tasks:delete',
+  'scheduled-tasks:run-now',
+  'scheduled-tasks:list-runs',
+  'scheduled-tasks:get-run',
+  'scheduled-tasks:resolve-summary',
+])
+
+const SCHEDULED_TASKS_ON_CHANNELS = new Set<string>(['scheduled-tasks:changed', 'scheduled-tasks:summary-request'])
+
 const ANALYTICS_INVOKE_CHANNELS = new Set<string>([
   'analytics:get-state',
   'analytics:set-enabled',
@@ -218,6 +235,7 @@ contextBridge.exposeInMainWorld(
             toolName.startsWith('file_') ||
             toolName.startsWith('app_') ||
             toolName.startsWith('window_') ||
+            toolName.startsWith('scheduled_task_') ||
             toolName === 'system_shell')
         if (
           toolName !== 'web_search' &&
@@ -353,6 +371,56 @@ contextBridge.exposeInMainWorld(
   Object.freeze({
     command: (command: AppMenuCommand) =>
       ipcRenderer.invoke('app-menu:command', command) as Promise<boolean>,
+  })
+)
+
+contextBridge.exposeInMainWorld(
+  'scheduledTasks',
+  Object.freeze({
+    list: () => {
+      assertAllowed('invoke', 'scheduled-tasks:list', SCHEDULED_TASKS_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('scheduled-tasks:list')
+    },
+    create: (input: ScheduledTaskInput) => {
+      assertAllowed('invoke', 'scheduled-tasks:create', SCHEDULED_TASKS_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('scheduled-tasks:create', input)
+    },
+    update: (id: string, patch: ScheduledTaskUpdateInput) => {
+      assertAllowed('invoke', 'scheduled-tasks:update', SCHEDULED_TASKS_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('scheduled-tasks:update', id, patch)
+    },
+    delete: (id: string) => {
+      assertAllowed('invoke', 'scheduled-tasks:delete', SCHEDULED_TASKS_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('scheduled-tasks:delete', id)
+    },
+    runNow: (id: string) => {
+      assertAllowed('invoke', 'scheduled-tasks:run-now', SCHEDULED_TASKS_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('scheduled-tasks:run-now', id)
+    },
+    listRuns: (taskId?: string) => {
+      assertAllowed('invoke', 'scheduled-tasks:list-runs', SCHEDULED_TASKS_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('scheduled-tasks:list-runs', taskId)
+    },
+    getRun: (runId: string) => {
+      assertAllowed('invoke', 'scheduled-tasks:get-run', SCHEDULED_TASKS_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('scheduled-tasks:get-run', runId)
+    },
+    resolveSummary: (response: ScheduledTaskSummaryResponse) => {
+      assertAllowed('invoke', 'scheduled-tasks:resolve-summary', SCHEDULED_TASKS_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('scheduled-tasks:resolve-summary', response)
+    },
+    onChanged: (callback: () => void) => {
+      assertAllowed('on', 'scheduled-tasks:changed', SCHEDULED_TASKS_ON_CHANNELS)
+      const listener = () => callback()
+      ipcRenderer.on('scheduled-tasks:changed', listener)
+      return () => ipcRenderer.removeListener('scheduled-tasks:changed', listener)
+    },
+    onSummaryRequest: (callback: (request: ScheduledTaskSummaryRequest) => void) => {
+      assertAllowed('on', 'scheduled-tasks:summary-request', SCHEDULED_TASKS_ON_CHANNELS)
+      const listener = (_event: IpcRendererEvent, request: ScheduledTaskSummaryRequest) => callback(request)
+      ipcRenderer.on('scheduled-tasks:summary-request', listener)
+      return () => ipcRenderer.removeListener('scheduled-tasks:summary-request', listener)
+    },
   })
 )
 

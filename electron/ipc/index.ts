@@ -14,6 +14,7 @@ import {
 } from './secureStorageHandlers'
 import { registerSystemHandlers, unregisterSystemHandlers } from './systemHandlers'
 import { registerAnalyticsHandlers, unregisterAnalyticsHandlers } from '../analytics'
+import { registerMonitorHandlers, unregisterMonitorHandlers } from './monitorHandlers'
 
 interface IpcDomainHandlers {
   register: () => void
@@ -48,6 +49,10 @@ const IPC_DOMAIN_HANDLERS: readonly IpcDomainHandlers[] = [
   {
     register: registerAnalyticsHandlers,
     unregister: unregisterAnalyticsHandlers,
+  },
+  {
+    register: registerMonitorHandlers,
+    unregister: unregisterMonitorHandlers,
   },
 ] as const
 
@@ -93,3 +98,4 @@ export {
 } from './overlayHandlers'
 export { registerSystemHandlers, unregisterSystemHandlers } from './systemHandlers'
 export { registerAnalyticsHandlers, unregisterAnalyticsHandlers } from '../analytics'
+export { registerMonitorHandlers, unregisterMonitorHandlers } from './monitorHandlers'

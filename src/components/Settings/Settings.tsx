@@ -416,12 +416,12 @@ if (!hasSettingsChanges && !hasMcpChanges) {
                 computerUsePrompt={pendingSettings.computerUsePrompt}
                 chartGenerationPrompt={pendingSettings.chartGenerationPrompt}
                 memoryPrompt={pendingSettings.memoryPrompt}
+                remindersPrompt={pendingSettings.remindersPrompt}
                 onChange={(changes) => handleChange(changes)}
               />
             )}
 
             {normalizedActiveSection === 'resource-monitor' && <ResourceMonitorSection />}
-
             
           </div>
         </div>

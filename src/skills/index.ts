@@ -1,4 +1,4 @@
-export type SkillId = 'web_research' | 'code_execution' | 'terminal' | 'computer_use' | 'chart_generation' | 'memory'
+export type SkillId = 'web_research' | 'code_execution' | 'terminal' | 'computer_use' | 'chart_generation' | 'memory' | 'reminders'
 
 export interface SkillState {
   enabled: boolean
@@ -17,6 +17,8 @@ export interface ChartGenerationSkillState extends SkillState {}
 
 export interface MemorySkillState extends SkillState {}
 
+export interface RemindersSkillState extends SkillState {}
+
 export type SkillsSettings = Record<string, SkillState> & {
   web_research: WebResearchSkillState
   code_execution: CodeExecutionSkillState
@@ -24,6 +26,7 @@ export type SkillsSettings = Record<string, SkillState> & {
   computer_use: ComputerUseSkillState
   chart_generation: ChartGenerationSkillState
   memory: MemorySkillState
+  reminders: RemindersSkillState
 }
 
 export interface BuiltInSkill {
@@ -98,6 +101,17 @@ export const BUILT_IN_SKILLS: BuiltInSkill[] = [
       'Never save sensitive data (passwords, credentials, financial details).',
     ],
   },
+  {
+    id: 'reminders',
+    name: 'Reminders & Lookouts',
+    description: 'Let the assistant create local reminders and scheduled web lookouts that appear in the Reminders sidebar.',
+    note: 'Runs only while ZuraAI is open. Web lookouts support public pages only; no OS notifications in v1.',
+    usageGuidance: [
+      'Use scheduled_task_create when the user asks to remind them, check something later, or watch a page for changes.',
+      'Use reminder tasks for no-URL follow-ups and web_lookout tasks for public URLs.',
+      'After creating a task, tell the user it can be viewed in the Reminders sidebar.',
+    ],
+  },
 ]
 
 const DEFAULT_WEB_RESEARCH_SKILL: WebResearchSkillState = {
@@ -125,6 +139,10 @@ const DEFAULT_MEMORY_SKILL: MemorySkillState = {
   config: { autoManage: true },
 }
 
+const DEFAULT_REMINDERS_SKILL: RemindersSkillState = {
+  enabled: false,
+}
+
 export const defaultSkillsSettings: SkillsSettings = {
   web_research: DEFAULT_WEB_RESEARCH_SKILL,
   code_execution: DEFAULT_CODE_EXECUTION_SKILL,
@@ -132,6 +150,7 @@ export const defaultSkillsSettings: SkillsSettings = {
   computer_use: DEFAULT_COMPUTER_USE_SKILL,
   chart_generation: DEFAULT_CHART_GENERATION_SKILL,
   memory: DEFAULT_MEMORY_SKILL,
+  reminders: DEFAULT_REMINDERS_SKILL,
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -177,7 +196,7 @@ export function normalizeSkillsSettings(raw: unknown): SkillsSettings {
 
   if (isRecord(raw)) {
     for (const [skillId, value] of Object.entries(raw)) {
-      if (skillId === 'web_research' || skillId === 'code_execution' || skillId === 'terminal' || skillId === 'testing' || skillId === 'computer_use' || skillId === 'chart_generation' || skillId === 'memory' || skillId === 'agent_desktop') continue
+      if (skillId === 'web_research' || skillId === 'code_execution' || skillId === 'terminal' || skillId === 'testing' || skillId === 'computer_use' || skillId === 'chart_generation' || skillId === 'memory' || skillId === 'reminders' || skillId === 'agent_desktop') continue
       const generic = normalizeGenericSkillState(value)
       if (generic) {
         normalized[skillId] = generic
@@ -209,6 +228,10 @@ export function normalizeSkillsSettings(raw: unknown): SkillsSettings {
   normalized.memory = normalizeMemorySkill(
     rawRecord?.memory,
     defaultSkillsSettings.memory
+  )
+  normalized.reminders = normalizeKnownSkill(
+    rawRecord?.reminders,
+    defaultSkillsSettings.reminders
   )
   return normalized as SkillsSettings
 }
@@ -429,7 +452,7 @@ export function withSkillEnabled(skills: SkillsSettings | undefined, skillId: Sk
 
 export function buildEnabledSkillsPrompt(
   skills: SkillsSettings | undefined,
-  options?: { codeExecutionPrompt?: string; terminalPrompt?: string; computerUsePrompt?: string; chartGenerationPrompt?: string },
+  options?: { codeExecutionPrompt?: string; terminalPrompt?: string; computerUsePrompt?: string; chartGenerationPrompt?: string; remindersPrompt?: string },
 ): string {
   if (!skills) return ''
 
@@ -464,6 +487,11 @@ export function buildEnabledSkillsPrompt(
     skillLines.push('- Use pie for proportions, bar for comparisons, line for trends. Generate charts proactively.')
   }
 
+  if (normalized.reminders.enabled) {
+    skillLines.push('- Reminders & Lookouts (`reminders`): use `scheduled_task_*` tools to create, update, delete, list, and inspect local reminders and public web lookouts.')
+    skillLines.push('- Use `reminder` tasks for recurring notes/checklists and `web_lookout` tasks for public URL change monitoring. Confirm created tasks and mention the Reminders sidebar.')
+  }
+
   if (skillLines.length > 0) {
     sections.push(`Enabled Skills:\n${skillLines.join('\n')}`)
   }
@@ -482,6 +510,10 @@ export function buildEnabledSkillsPrompt(
 
   if (normalized.chart_generation.enabled && options?.chartGenerationPrompt) {
     sections.push(options.chartGenerationPrompt)
+  }
+
+  if (normalized.reminders.enabled && options?.remindersPrompt) {
+    sections.push(options.remindersPrompt)
   }
 
   return sections.join('\n\n')

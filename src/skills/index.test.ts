@@ -82,6 +82,44 @@ describe('skills tool exposure', () => {
   })
 })
 
+describe('reminders skill', () => {
+  it('defaults to disabled', () => {
+    expect(defaultSkillsSettings.reminders.enabled).toBe(false)
+  })
+
+  it('normalizes missing reminders to disabled', () => {
+    const normalized = normalizeSkillsSettings({ web_research: { enabled: true } })
+    expect(normalized.reminders.enabled).toBe(false)
+  })
+
+  it('buildEnabledSkillsPrompt includes scheduler guidance when enabled', () => {
+    const prompt = buildEnabledSkillsPrompt({
+      ...defaultSkillsSettings,
+      reminders: { enabled: true },
+    })
+
+    expect(prompt).toContain('Reminders & Lookouts')
+    expect(prompt).toContain('scheduled_task_*')
+  })
+
+  it('buildEnabledSkillsPrompt excludes scheduler guidance when disabled', () => {
+    const prompt = buildEnabledSkillsPrompt(defaultSkillsSettings)
+    expect(prompt).not.toContain('scheduled_task_*')
+  })
+
+  it('buildEnabledSkillsPrompt injects the remindersPrompt option when enabled', () => {
+    const prompt = buildEnabledSkillsPrompt(
+      {
+        ...defaultSkillsSettings,
+        reminders: { enabled: true },
+      },
+      { remindersPrompt: 'REMINDERS_PROMPT_CONTENT' }
+    )
+
+    expect(prompt).toContain('REMINDERS_PROMPT_CONTENT')
+  })
+})
+
 describe('code_execution skill', () => {
   it('defaults to disabled', () => {
     expect(defaultSkillsSettings.code_execution.enabled).toBe(false)

@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
-import { useAppShell } from '../../contexts/AppShellContext'
+import { type DashboardView, useAppShell } from '../../contexts/AppShellContext'
 import { useSettingsUI } from '../../contexts/SettingsUIContext'
+import { useSettings } from '../../contexts/SettingsContext'
+import { isSkillEnabled } from '../../skills'
 import TitleBarInfoMenu from '../TitleBarInfoMenu'
 import SidebarSearchOverlay from './Sidebar/SidebarSearchOverlay'
 import { groupSessions } from './Sidebar/utils/groupSessions'
@@ -14,7 +16,7 @@ import SidebarSettingsView from './SidebarSettingsView'
 import { isMacOSRuntime } from '../../utils/platform'
 
 interface SidebarProps {
-  view: 'chat' | 'settings'
+  view: DashboardView
   activeSettingsSection: string
   onNavigateSettings: (section: string) => void
 }
@@ -47,7 +49,9 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
     assignFolder,
   } = useChatHistory()
   const { settingsUI } = useSettingsUI()
+  const { settings } = useSettings()
   const { chatSelectedOverlayStyle = 'linear' } = settingsUI
+  const remindersEnabled = isSkillEnabled(settings.skills, 'reminders')
   const sidebarFooterScrollPadding = 72
 
   // Sidebar state
@@ -121,12 +125,26 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
     setSearchQuery('')
   }, [])
 
-  const handleSelectSessionFromSearch = useCallback(
+  const openReminders = useCallback(() => {
+    setDashboardView('reminders')
+  }, [setDashboardView])
+
+  const handleSelectSession = useCallback(
     (sessionId: string) => {
       switchSession(sessionId)
+      if (dashboardView === 'reminders') {
+        setDashboardView('chat')
+      }
     },
-    [switchSession]
+    [switchSession, dashboardView, setDashboardView]
   )
+
+  const handleNewChat = useCallback(() => {
+    clearCurrentSession()
+    if (dashboardView === 'reminders') {
+      setDashboardView('chat')
+    }
+  }, [clearCurrentSession, dashboardView, setDashboardView])
 
   // Keyboard navigation handler (Requirements 4.4, 4.5, 4.6, 4.7)
   const handleKeyDown = useCallback(
@@ -145,7 +163,7 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
           break
         case 'Enter':
           if (focusIndex >= 0 && focusIndex < listLength) {
-            switchSession(flatVisibleSessions[focusIndex].id)
+            handleSelectSession(flatVisibleSessions[focusIndex].id)
           }
           break
         case 'Escape': {
@@ -155,7 +173,7 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
         }
       }
     },
-    [flatVisibleSessions, focusIndex, switchSession]
+    [flatVisibleSessions, focusIndex, handleSelectSession]
   )
 
   // Context menu action handler
@@ -358,7 +376,7 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
       >
       <div className="sidebar__inner">
         <SidebarChatView
-          active={view === 'chat'}
+          active={view === 'chat' || view === 'reminders'}
           groupedSessions={groupedSessions}
           folders={folders}
           chatSelectedOverlayStyle={chatSelectedOverlayStyle}
@@ -367,9 +385,12 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
           flatVisibleSessions={flatVisibleSessions}
           sessionIndexMap={sessionIndexMap}
           bottomPadding={sidebarFooterScrollPadding}
-          onNewChat={clearCurrentSession}
+          remindersActive={view === 'reminders'}
+          remindersEnabled={remindersEnabled}
+          onNewChat={handleNewChat}
           onOpenSearch={openSearchOverlay}
-          onSelectSession={switchSession}
+          onOpenReminders={openReminders}
+          onSelectSession={handleSelectSession}
           onContextAction={handleContextAction}
           onRenameConfirm={handleRenameConfirm}
           onDropSessionToFolder={handleDropSessionToFolder}
@@ -398,7 +419,7 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
         sessions={sessions}
         currentSessionId={currentSessionId}
         onQueryChange={setSearchQuery}
-        onSelectSession={handleSelectSessionFromSearch}
+        onSelectSession={handleSelectSession}
         onClose={closeSearchOverlay}
       />
 

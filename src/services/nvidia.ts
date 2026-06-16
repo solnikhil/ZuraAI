@@ -113,10 +113,8 @@ function buildNvidiaRequestBody(
     requestBody.tools = options.tools
     requestBody.tool_choice = options.toolChoice ?? 'auto'
   }
-  if (options?.enableThinking === true) {
-    requestBody.chat_template_kwargs = { thinking_mode: 'adaptive' }
-  } else if (options?.enableThinking === false) {
-    requestBody.chat_template_kwargs = { thinking_mode: 'disabled' }
+  requestBody.chat_template_kwargs = {
+    thinking_mode: options?.enableThinking === true ? 'adaptive' : 'disabled',
   }
 
   return requestBody

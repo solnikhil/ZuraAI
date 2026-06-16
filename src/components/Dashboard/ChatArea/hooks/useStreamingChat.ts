@@ -633,10 +633,11 @@ const streamingSettings: StreamingSettings = useMemo(
             ? (settings.nvidiaReasoningEffort?.[settings.aiModel] ?? 'high')
             : undefined
         const nvidiaEnableThinking =
-          provider === 'nvidia' &&
-          nvidiaReasoningEffort !== 'none' &&
-          (nvidiaModel?.supportsDeepThinking || /(?:reason|thinking|m3|nemotron)/i.test(settings.aiModel))
-            ? true
+          provider === 'nvidia'
+            ? nvidiaReasoningEffort !== 'none' &&
+              (nvidiaModel?.supportsDeepThinking || /(?:reason|thinking|m3|nemotron)/i.test(settings.aiModel))
+              ? true
+              : false
             : undefined
 
         const streamResult = await runProviderStream({
@@ -1031,11 +1032,12 @@ const openRouterReasoning =
             ? (effectiveSettings.nvidiaReasoningEffort?.[effectiveSettings.aiModel] ?? 'high')
             : undefined
         const nvidiaEnableThinkingForRegen =
-          effectiveSettings.modelProvider === 'nvidia' &&
-          nvidiaReasoningEffortForRegen !== 'none' &&
-          (nvidiaModelForRegen?.supportsDeepThinking ||
-            /(?:reason|thinking|m3|nemotron)/i.test(effectiveSettings.aiModel))
-            ? true
+          effectiveSettings.modelProvider === 'nvidia'
+            ? nvidiaReasoningEffortForRegen !== 'none' &&
+              (nvidiaModelForRegen?.supportsDeepThinking ||
+                /(?:reason|thinking|m3|nemotron)/i.test(effectiveSettings.aiModel))
+              ? true
+              : false
             : undefined
 
         const optimizedContext = buildOptimizedContextWithTrace(

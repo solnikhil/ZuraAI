@@ -332,6 +332,82 @@ export interface ResourceSample {
   processes: ProcessSample[]
 }
 
+export type MonitorIntervalPreset = '30m' | '1h' | '6h' | '12h' | 'daily' | 'weekly'
+export type ScheduledTaskIntervalPreset = MonitorIntervalPreset
+
+export type MonitorRunStatus = 'changed' | 'unchanged' | 'error'
+export type ScheduledTaskStatus = MonitorRunStatus
+
+export type MonitorUrlResultStatus = 'changed' | 'unchanged' | 'baseline' | 'error'
+export type ScheduledTaskLogStatus = MonitorUrlResultStatus | 'completed'
+
+export type ScheduledTaskType = 'web_lookout' | 'reminder'
+
+export interface ScheduledTaskDefinition {
+  id: string
+  type: ScheduledTaskType
+  title: string
+  enabled: boolean
+  urls: string[]
+  reminderText?: string
+  instructions: string
+  intervalPreset: ScheduledTaskIntervalPreset
+  createdAt: number
+  updatedAt: number
+  lastRunAt?: number
+  nextRunAt: number
+}
+
+export interface ScheduledTaskInput {
+  type: ScheduledTaskType
+  title: string
+  enabled?: boolean
+  urls?: string[]
+  reminderText?: string
+  instructions?: string
+  intervalPreset: ScheduledTaskIntervalPreset
+  dueAt?: number
+}
+
+export type ScheduledTaskUpdateInput = Partial<ScheduledTaskInput>
+
+export interface ScheduledTaskLog {
+  url: string
+  status: ScheduledTaskLogStatus
+  contentHash?: string
+  previousHash?: string
+  changedExcerpt?: string
+  message?: string
+  error?: string
+}
+
+export interface ScheduledTaskRun {
+  id: string
+  taskId: string
+  startedAt: number
+  finishedAt: number
+  status: ScheduledTaskStatus
+  logs: ScheduledTaskLog[]
+  diffSummary?: string
+  aiSummary?: string
+  error?: string
+}
+
+export interface ScheduledTaskSummaryRequest {
+  requestId: string
+  taskId: string
+  taskTitle: string
+  instructions: string
+  diffSummary: string
+  changes: Array<{ url: string; excerpt: string }>
+}
+
+export interface ScheduledTaskSummaryResponse {
+  requestId: string
+  summary?: string
+  error?: string
+}
+
 export type AppMenuCommand =
   | 'new-chat'
   | 'open-settings'
@@ -665,6 +741,19 @@ export interface DiscordRpcAPI {
   getState: () => Promise<DiscordRpcState>
   setActivity: (activity: Record<string, unknown>) => Promise<DiscordRpcState>
   onStateChange: (callback: (state: DiscordRpcState) => void) => () => void
+}
+
+export interface ScheduledTasksAPI {
+  list: () => Promise<ScheduledTaskDefinition[]>
+  create: (input: ScheduledTaskInput) => Promise<ScheduledTaskDefinition>
+  update: (id: string, patch: ScheduledTaskUpdateInput) => Promise<ScheduledTaskDefinition | null>
+  delete: (id: string) => Promise<boolean>
+  runNow: (id: string) => Promise<ScheduledTaskRun>
+  listRuns: (taskId?: string) => Promise<ScheduledTaskRun[]>
+  getRun: (runId: string) => Promise<ScheduledTaskRun | null>
+  resolveSummary: (response: ScheduledTaskSummaryResponse) => Promise<boolean>
+  onChanged: (callback: () => void) => () => void
+  onSummaryRequest: (callback: (request: ScheduledTaskSummaryRequest) => void) => () => void
 }
 
 export interface AnalyticsAPI {

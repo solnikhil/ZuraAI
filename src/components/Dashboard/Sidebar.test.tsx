@@ -68,8 +68,20 @@ const mockChatHistory = {
   assignFolder: vi.fn(),
 }
 
+const mockSettings = {
+  settings: {
+    skills: {
+      reminders: { enabled: false },
+    },
+  },
+}
+
 vi.mock('../../contexts/SettingsUIContext', () => ({
   useSettingsUI: () => mockSettingsUI,
+}))
+
+vi.mock('../../contexts/SettingsContext', () => ({
+  useSettings: () => mockSettings,
 }))
 
 vi.mock('../../contexts/AppShellContext', () => ({
@@ -96,6 +108,7 @@ describe('Sidebar', () => {
     mockAppShell.sidebarCollapsed = false
     mockAppShell.sidebarHidden = false
     mockAppShell.sidebarWidth = 300
+    mockSettings.settings.skills.reminders.enabled = false
   })
 
   it('uses the solid sidebar surface when visible', () => {
@@ -139,5 +152,17 @@ describe('Sidebar', () => {
     render(<Sidebar {...defaultProps} />)
 
     expect(screen.getByTestId('mock-app-menu')).toBeInTheDocument()
+  })
+
+  it('shows the Reminders entry only when the skill is enabled', () => {
+    const hidden = render(<Sidebar {...defaultProps} />)
+    expect(screen.queryByRole('button', { name: 'Reminders' })).not.toBeInTheDocument()
+    hidden.unmount()
+
+    mockSettings.settings.skills.reminders.enabled = true
+    render(<Sidebar {...defaultProps} />)
+
+    screen.getByRole('button', { name: 'Reminders' }).click()
+    expect(mockAppShell.setDashboardView).toHaveBeenCalledWith('reminders')
   })
 })

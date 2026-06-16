@@ -52,6 +52,7 @@ import {
   disposeDiscordRpcClient,
 } from './discordRpc'
 import { trackAppCrash, trackStartupAnalytics } from './analytics'
+import { startMonitorRuntime, stopMonitorRuntime } from './monitors'
 import { log } from './startup/logger'
 
 // Resolve packaged asset paths consistently in both development and production.
@@ -154,6 +155,7 @@ app.on('will-quit', () => {
   cleanupAutoUpdater()
   destroyTray()
   stopResourceMonitor()
+  stopMonitorRuntime()
 })
 
 app.on('before-quit', (event) => {
@@ -247,6 +249,16 @@ app.whenReady().then(async () => {
   initializeOverlay()
   applyOverlaySettings({})
   log.endPhase('overlay')
+
+  deferredInitializer.registerTask({
+    name: 'scheduled-tasks',
+    priority: 'high',
+    delayMs: 1000,
+    execute: async () => {
+      await startMonitorRuntime()
+      log.success('scheduled tasks initialized')
+    },
+  })
 
   // Defer auto-updater initialization (only in production)
   // The updater itself adds an additional 10-second delay before checking

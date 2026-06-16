@@ -13,6 +13,7 @@ import { defaultTerminalPrompt } from '../../../prompts/defaultTerminalPrompt'
 import { defaultComputerUsePrompt } from '../../../prompts/defaultComputerUsePrompt'
 import { defaultChartGenerationPrompt } from '../../../prompts/defaultChartGenerationPrompt'
 import { defaultMemoryPrompt } from '../../../prompts/defaultMemoryPrompt'
+import { defaultRemindersPrompt } from '../../../prompts/defaultRemindersPrompt'
 import {
   buildSelectedPersonalityPrompt,
   type AssistantPersonalityId,
@@ -29,6 +30,7 @@ export interface SystemPromptSectionProps {
   computerUsePrompt?: string
   chartGenerationPrompt?: string
   memoryPrompt?: string
+  remindersPrompt?: string
   onChange: (changes: {
     systemPrompt?: string
     webSearchPrompt?: string
@@ -38,6 +40,7 @@ export interface SystemPromptSectionProps {
     computerUsePrompt?: string
     chartGenerationPrompt?: string
     memoryPrompt?: string
+    remindersPrompt?: string
   }) => void
 }
 
@@ -189,6 +192,15 @@ export function SystemPromptSection(props: SystemPromptSectionProps): React.Reac
         value={defaultMemoryPrompt}
         showLabel="Show Memory Prompt"
         hideLabel="Hide Memory Prompt"
+      />
+
+      <PromptViewerCard
+        title="Reminders & Lookouts Prompt"
+        description="Instructions appended when the Reminders & Lookouts skill is enabled. Guides local reminders, recurring checks, and public web lookouts."
+        note="This only applies when the Reminders & Lookouts skill is active."
+        value={defaultRemindersPrompt}
+        showLabel="Show Reminders Prompt"
+        hideLabel="Hide Reminders Prompt"
       />
 
       <PromptViewerCard

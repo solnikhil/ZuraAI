@@ -1,7 +1,10 @@
 import { useState, useCallback, useEffect, lazy, Suspense } from 'react'
 import Sidebar from './Sidebar'
 import ChatArea from './ChatArea'
+import RemindersView from './RemindersView'
 import { useAppShell } from '../../contexts/AppShellContext'
+import { useSettings } from '../../contexts/SettingsContext'
+import { isSkillEnabled } from '../../skills'
 import { loadSettingsModule } from '../Settings/settingsLoader'
 import { normalizeSettingsSection } from '../../constants/settingsSections'
 
@@ -34,7 +37,15 @@ export default function DashboardLayout() {
     hasUnsavedSettings,
     setHasUnsavedSettings,
   } = useAppShell()
+  const { settings } = useSettings()
+  const remindersEnabled = isSkillEnabled(settings.skills, 'reminders')
   const [showUnsavedWarning, setShowUnsavedWarning] = useState(false)
+
+  useEffect(() => {
+    if (view === 'reminders' && !remindersEnabled) {
+      setDashboardView('chat')
+    }
+  }, [remindersEnabled, setDashboardView, view])
 
   useEffect(() => {
     if (!window.ipcRenderer?.on) return
@@ -115,6 +126,12 @@ export default function DashboardLayout() {
                   showWarning={showUnsavedWarning}
                 />
               </Suspense>
+            </div>
+          ) : view === 'reminders' && remindersEnabled ? (
+            <div
+              style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}
+            >
+              <RemindersView />
             </div>
           ) : (
             <div
