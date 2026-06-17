@@ -82,10 +82,13 @@ describe('RemindersView', () => {
     render(<RemindersView />)
 
     expect(await screen.findByRole('heading', { name: 'Reminders & Lookouts' })).toBeInTheDocument()
-    const allTasks = screen.getByRole('region', { name: 'All Tasks' })
+    expect(screen.getByRole('tab', { name: 'All 2' })).toHaveAttribute('aria-selected', 'true')
+    const allTasks = screen.getByRole('region', { name: 'All tasks' })
 
     expect(within(allTasks).getByText('Review weekly launches')).toBeInTheDocument()
     expect(within(allTasks).getByText('Watch changelog')).toBeInTheDocument()
+    expect(within(allTasks).getByText('Reminder')).toBeInTheDocument()
+    expect(within(allTasks).getByText('Lookout')).toBeInTheDocument()
   })
 
   it('sets draft text when Ask agent is clicked', async () => {
@@ -100,10 +103,10 @@ describe('RemindersView', () => {
   it('opens logs in the side drawer', async () => {
     render(<RemindersView />)
 
-    const allTasks = await screen.findByRole('region', { name: 'All Tasks' })
-    const rows = within(allTasks).getAllByRole('article')
-    // Click Logs on the second row (Watch changelog - lookout)
-    fireEvent.click(within(rows[1]).getByRole('button', { name: 'Logs' }))
+    const allTasks = await screen.findByRole('region', { name: 'All tasks' })
+    const row = within(allTasks).getByText('Watch changelog').closest('article')
+    expect(row).not.toBeNull()
+    fireEvent.click(within(row as HTMLElement).getByRole('button', { name: 'Logs' }))
 
     expect(screen.getByRole('complementary', { name: /logs for watch changelog/i })).toBeInTheDocument()
     expect(document.querySelector('.reminders-view__drawer-divider')).toBeInTheDocument()
@@ -114,19 +117,37 @@ describe('RemindersView', () => {
   it('opens task details and sets draft text for agent edit prompt', async () => {
     render(<RemindersView />)
 
-    const allTasks = await screen.findByRole('region', { name: 'All Tasks' })
-    const rows = within(allTasks).getAllByRole('article')
-    fireEvent.click(within(rows[0]).getByRole('button', { name: 'Logs' }))
+    const allTasks = await screen.findByRole('region', { name: 'All tasks' })
+    const row = within(allTasks).getByText('Review weekly launches').closest('article')
+    expect(row).not.toBeNull()
+    const menuTrigger = within(row as HTMLElement).getByRole('button', { name: 'More actions' })
+    menuTrigger.focus()
+    fireEvent.keyDown(menuTrigger, { key: 'ArrowDown' })
+    fireEvent.click(await screen.findByRole('menuitem', { name: /edit/i }))
 
-    expect(screen.getByRole('complementary', { name: /logs for review weekly launches/i })).toBeInTheDocument()
+    const detailsDrawer = screen.getByRole('complementary', { name: /details for review weekly launches/i })
+    expect(within(detailsDrawer).getByText('Task details')).toBeInTheDocument()
+    expect(within(detailsDrawer).getByRole('heading', { name: 'Review weekly launches' })).toBeInTheDocument()
+    expect(within(detailsDrawer).getByText('Type')).toBeInTheDocument()
+    expect(within(detailsDrawer).getByText('Status')).toBeInTheDocument()
+    expect(within(detailsDrawer).getByText('Repeats')).toBeInTheDocument()
+    expect(within(detailsDrawer).getByText('Next run')).toBeInTheDocument()
+    expect(within(detailsDrawer).getByText('Reminder text')).toBeInTheDocument()
+    expect(within(detailsDrawer).getByText('Review launch notes')).toBeInTheDocument()
+
+    fireEvent.click(within(detailsDrawer).getByRole('button', { name: 'Edit this with agent' }))
+
+    expect(mockSetDraftText).toHaveBeenCalledWith(expect.stringContaining('Task id: task-2'))
+    expect(mockSetDashboardView).toHaveBeenCalledWith('chat')
   })
 
   it('uses shadcn dropdown triggers for row actions', async () => {
     render(<RemindersView />)
 
-    const allTasks = await screen.findByRole('region', { name: 'All Tasks' })
-    const rows = within(allTasks).getAllByRole('article')
-    const trigger = within(rows[1]).getByRole('button', { name: 'More actions' })
+    const allTasks = await screen.findByRole('region', { name: 'All tasks' })
+    const row = within(allTasks).getByText('Watch changelog').closest('article')
+    expect(row).not.toBeNull()
+    const trigger = within(row as HTMLElement).getByRole('button', { name: 'More actions' })
 
     expect(trigger).toHaveAttribute('data-slot', 'dropdown-menu-trigger')
     expect(trigger).toHaveAttribute('data-variant', 'ghost')
@@ -138,6 +159,8 @@ describe('RemindersView', () => {
 
     render(<RemindersView />)
 
-    expect(await screen.findByText('No tasks yet. Ask the agent to schedule one.')).toBeInTheDocument()
+    expect(await screen.findByText('No matching tasks')).toBeInTheDocument()
+    expect(screen.getByText('Ask the agent to create a reminder or monitor a page.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Remind me tomorrow at 9 AM' })).toBeInTheDocument()
   })
 })

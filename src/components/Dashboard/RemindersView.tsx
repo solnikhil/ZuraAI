@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 
 import type {
   ScheduledTaskDefinition,
@@ -8,19 +8,22 @@ import type {
 } from '@/electron/types'
 import { useAppShell } from '@/contexts/AppShellContext'
 import { useComposerDraft } from '@/contexts/ComposerDraftContext'
-import { AlertCircle, Loader2, X } from '../icons'
+import { AlertCircle, Brain, Loader2, X } from '../icons'
 import { Badge } from '../ui/badge'
 import { Button } from '@/components/ui/button'
+import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { MoreVertical, Pause, Pencil, Play, Trash2 } from 'lucide-react'
 import './RemindersView.css'
 
 type DrawerMode = 'logs' | 'details'
+type TaskFilter = 'all' | 'reminder' | 'web_lookout' | 'paused' | 'logs'
 
 const STATUS_LABELS: Record<ScheduledTaskStatus, string> = {
   changed: 'Changed',
@@ -31,6 +34,31 @@ const STATUS_LABELS: Record<ScheduledTaskStatus, string> = {
 function formatDate(value?: number): string {
   if (!value) return 'Not run yet'
   return new Date(value).toLocaleString()
+}
+
+function formatRelativeNextRun(value?: number): string {
+  if (!value) return 'not scheduled'
+  const deltaMs = value - Date.now()
+  const absMs = Math.abs(deltaMs)
+  const tense = deltaMs >= 0 ? 'in' : 'overdue'
+
+  if (absMs < 60_000) {
+    const seconds = Math.max(1, Math.round(absMs / 1000))
+    return deltaMs >= 0 ? `${tense} ${seconds} sec` : `${seconds} sec overdue`
+  }
+
+  if (absMs < 60 * 60_000) {
+    const minutes = Math.round(absMs / 60_000)
+    return deltaMs >= 0 ? `${tense} ${minutes} min` : `${minutes} min overdue`
+  }
+
+  if (absMs < 24 * 60 * 60_000) {
+    const hours = Math.round(absMs / (60 * 60_000))
+    return deltaMs >= 0 ? `${tense} ${hours} hr` : `${hours} hr overdue`
+  }
+
+  const days = Math.round(absMs / (24 * 60 * 60_000))
+  return deltaMs >= 0 ? `${tense} ${days} day${days === 1 ? '' : 's'}` : `${days} day${days === 1 ? '' : 's'} overdue`
 }
 
 function formatIntervalPreset(value: ScheduledTaskDefinition['intervalPreset']): string {
@@ -84,6 +112,7 @@ export default function RemindersView(): React.ReactElement {
   const [tasks, setTasks] = useState<ScheduledTaskDefinition[]>([])
   const [runs, setRuns] = useState<ScheduledTaskRun[]>([])
   const [drawer, setDrawer] = useState<{ taskId: string; mode: DrawerMode } | null>(null)
+  const [activeFilter, setActiveFilter] = useState<TaskFilter>('all')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const { setDashboardView } = useAppShell()
@@ -120,6 +149,26 @@ export default function RemindersView(): React.ReactElement {
 
   const reminders = useMemo(() => tasks.filter((task) => task.type === 'reminder'), [tasks])
   const lookouts = useMemo(() => tasks.filter((task) => task.type === 'web_lookout'), [tasks])
+  const pausedTasks = useMemo(() => tasks.filter((task) => !task.enabled), [tasks])
+  const tasksWithLogs = useMemo(
+    () => tasks.filter((task) => runs.some((run) => run.taskId === task.id)),
+    [tasks, runs]
+  )
+  const filteredTasks = useMemo(() => {
+    switch (activeFilter) {
+      case 'reminder':
+        return reminders
+      case 'web_lookout':
+        return lookouts
+      case 'paused':
+        return pausedTasks
+      case 'logs':
+        return tasksWithLogs
+      case 'all':
+      default:
+        return tasks
+    }
+  }, [activeFilter, lookouts, pausedTasks, reminders, tasks, tasksWithLogs])
   const drawerTask = drawer ? tasks.find((task) => task.id === drawer.taskId) ?? null : null
   const drawerMode = drawer?.mode ?? 'logs'
   const drawerRuns = useMemo(
@@ -137,69 +186,116 @@ export default function RemindersView(): React.ReactElement {
     await load()
   }
 
+  const runTaskNow = async (taskId: string) => {
+    await window.scheduledTasks.runNow(taskId)
+    await load()
+  }
+
   const deleteTask = async (taskId: string) => {
     await window.scheduledTasks.delete(taskId)
     if (drawer?.taskId === taskId) setDrawer(null)
     await load()
   }
 
-  const renderTaskRow = (task: ScheduledTaskDefinition) => {
-    const latestRun = latestRunForTask(runs, task.id)
+  const renderDetailField = (label: string, value: ReactNode) => (
+    <Field orientation="horizontal" className="reminders-view__detail-field">
+      <FieldLabel className="reminders-view__detail-label">{label}</FieldLabel>
+      <div className="reminders-view__detail-value">{value}</div>
+    </Field>
+  )
+
+  const renderTaskRow = (task: ScheduledTaskDefinition, index: number) => {
+    const rowTone = !task.enabled
+      ? 'paused'
+      : latestRunForTask(runs, task.id)?.status === 'error'
+        ? 'error'
+        : task.type === 'web_lookout'
+          ? 'lookout'
+          : 'active'
 
     return (
-      <article key={task.id} className="reminders-view__row">
+      <article key={task.id} className={`reminders-view__row reminders-view__row--${rowTone}`}>
+        <span className="reminders-view__row-number" aria-hidden="true">
+          {index + 1}
+        </span>
         <div className="reminders-view__row-main">
-          <span
-            className={`reminders-view__bullet ${task.enabled ? '' : 'reminders-view__bullet--paused'}`}
-            aria-hidden="true"
-            title={task.enabled ? 'Enabled' : 'Paused'}
-          />
           <div className="reminders-view__row-content">
             <h4>{task.title}</h4>
-            <div className="reminders-view__row-meta">
-              <span>{formatDate(task.nextRunAt)}</span>
-              <span className="reminders-view__meta-divider">-</span>
-              <span>repeats {formatIntervalPreset(task.intervalPreset)}</span>
-              <span className="reminders-view__meta-divider">-</span>
-              <span>{latestRun ? STATUS_LABELS[latestRun.status] : 'Not run yet'}</span>
+            <div className="reminders-view__badge-row">
+              <Badge variant="outline" className="reminders-view__type-badge">
+                {taskTypeLabel(task.type)}
+              </Badge>
+              <Badge
+                variant="outline"
+                className={`reminders-view__status-badge ${task.enabled ? 'reminders-view__status-badge--active' : 'reminders-view__status-badge--paused'}`}
+              >
+                {task.enabled ? 'Active' : 'Paused'}
+              </Badge>
+              <Badge variant="outline" className="reminders-view__type-badge">
+                Every {formatIntervalPreset(task.intervalPreset)}
+              </Badge>
+              <Badge variant="outline" className="reminders-view__date-badge">
+                {formatRelativeNextRun(task.nextRunAt)}
+              </Badge>
             </div>
           </div>
         </div>
 
         <div className="reminders-view__row-actions">
-          <button
+          <Button
             type="button"
+            variant="secondary"
+            size="sm"
             className="reminders-view__logs-btn"
             onClick={() => setDrawer({ taskId: task.id, mode: 'logs' })}
           >
             Logs
-          </button>
+          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 type="button"
                 variant="ghost"
-                size="icon-xs"
+                size="icon-sm"
                 className="reminders-view__menu-trigger"
                 aria-label="More actions"
               >
-                <MoreVertical size={16} />
+                <MoreVertical size={18} strokeWidth={2.25} />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onSelect={() => setDrawer({ taskId: task.id, mode: 'details' })}>
-                <Pencil size={14} />
+            <DropdownMenuContent align="end" sideOffset={6} className="w-[155px] rounded-[14px] p-0.5">
+              <DropdownMenuItem
+                onSelect={() => void runTaskNow(task.id)}
+                className="h-8 rounded-[12px] px-1.5 text-[12px]"
+              >
+                <Play className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
+                Run now
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => setDrawer({ taskId: task.id, mode: 'details' })}
+                className="h-8 rounded-[12px] px-1.5 text-[12px]"
+              >
+                <Pencil className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
                 Edit
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => void toggleEnabled(task)}>
-                {task.enabled ? <Pause size={14} /> : <Play size={14} />}
+              <DropdownMenuItem
+                onSelect={() => void toggleEnabled(task)}
+                className="h-8 rounded-[12px] px-1.5 text-[12px]"
+              >
+                {task.enabled ? (
+                  <Pause className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
+                ) : (
+                  <Play className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
+                )}
                 {task.enabled ? 'Pause' : 'Resume'}
               </DropdownMenuItem>
+              <DropdownMenuSeparator className="mx-0 my-px h-px" />
               <DropdownMenuItem
                 variant="destructive"
                 onSelect={() => void deleteTask(task.id)}
+                className="h-8 rounded-[12px] px-1.5 text-[12px]"
               >
-                <Trash2 size={14} />
+                <Trash2 className="h-3.5 w-3.5" />
                 Delete
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -210,18 +306,53 @@ export default function RemindersView(): React.ReactElement {
   }
 
   const renderCombinedGroup = () => {
-    const allTasks = [...reminders, ...lookouts]
+    const filterLabels: Array<{ id: TaskFilter; label: string; count: number }> = [
+      { id: 'all', label: 'All', count: tasks.length },
+      { id: 'reminder', label: 'Reminders', count: reminders.length },
+      { id: 'web_lookout', label: 'Lookouts', count: lookouts.length },
+      { id: 'paused', label: 'Paused', count: pausedTasks.length },
+      { id: 'logs', label: 'Logs', count: tasksWithLogs.length },
+    ]
+
     return (
       <section className="reminders-view__group" aria-labelledby="reminders-all">
-        <div className="reminders-view__group-title">
-          <h3 id="reminders-all">All Tasks</h3>
-          <Badge variant="outline">{allTasks.length}</Badge>
+        <div className="reminders-view__filters" role="tablist" aria-label="Task filters">
+          {filterLabels.map((filter) => (
+            <button
+              key={filter.id}
+              type="button"
+              role="tab"
+              aria-selected={activeFilter === filter.id}
+              className={`reminders-view__filter ${activeFilter === filter.id ? 'reminders-view__filter--active' : ''}`}
+              onClick={() => setActiveFilter(filter.id)}
+            >
+              <span>{filter.label}</span>
+              <span>{filter.count}</span>
+            </button>
+          ))}
         </div>
+        <h3 id="reminders-all" className="reminders-view__sr-heading">
+          {filterLabels.find((filter) => filter.id === activeFilter)?.label ?? 'All'} tasks
+        </h3>
         <div className="reminders-view__rows">
-          {allTasks.length === 0 ? (
-            <div className="reminders-view__empty-row">No tasks yet. Ask the agent to schedule one.</div>
+          {filteredTasks.length === 0 ? (
+            <div className="reminders-view__empty-state">
+              <strong>No matching tasks</strong>
+              <span>Ask the agent to create a reminder or monitor a page.</span>
+              <div className="reminders-view__prompt-chips">
+                {[
+                  'Remind me tomorrow at 9 AM',
+                  'Watch a changelog every hour',
+                  'Check this page daily',
+                ].map((prompt) => (
+                  <button key={prompt} type="button" onClick={() => askAgent(prompt)}>
+                    {prompt}
+                  </button>
+                ))}
+              </div>
+            </div>
           ) : (
-            allTasks.map(renderTaskRow)
+            filteredTasks.map((task, index) => renderTaskRow(task, index))
           )}
         </div>
       </section>
@@ -235,18 +366,18 @@ export default function RemindersView(): React.ReactElement {
           <header className="reminders-view__panel-header">
             <div>
               <h2 id="reminders-title">Reminders & Lookouts</h2>
-              <p>Scheduled work, local logs, and AI-managed edits in one place.</p>
+              <p>Scheduled work, monitored pages, local logs, and agent-managed updates.</p>
             </div>
             <Button
-              variant="outline"
+              variant="default"
               size="sm"
               className="reminders-view__ask-agent"
               onClick={() => askAgent('Help me create a reminder or lookout.')}
             >
+              <Brain size={15} data-icon="inline-start" />
               Ask agent
             </Button>
           </header>
-          <div className="reminders-view__divider" />
 
           {error && <div className="reminders-view__error"><AlertCircle size={15} /> {error}</div>}
 
@@ -279,21 +410,41 @@ export default function RemindersView(): React.ReactElement {
 
             {drawerMode === 'details' ? (
               <div className="reminders-view__details">
-                <dl>
-                  <div><dt>Type</dt><dd>{taskTypeLabel(drawerTask.type)}</dd></div>
-                  <div><dt>Status</dt><dd>{drawerTask.enabled ? 'Enabled' : 'Paused'}</dd></div>
-                  <div><dt>Repeats</dt><dd>{formatIntervalPreset(drawerTask.intervalPreset)}</dd></div>
-                  <div><dt>Next run</dt><dd>{formatDate(drawerTask.nextRunAt)}</dd></div>
-                  <div><dt>{drawerTask.type === 'web_lookout' ? 'URLs' : 'Reminder text'}</dt><dd>{drawerTask.type === 'web_lookout' ? drawerTask.urls.join(', ') || 'None' : drawerTask.reminderText || 'None'}</dd></div>
-                  <div><dt>Instructions</dt><dd>{drawerTask.instructions || 'None'}</dd></div>
-                </dl>
-                <button
+                <FieldGroup className="reminders-view__detail-group">
+                  {renderDetailField(
+                    'Type',
+                    <Badge variant="outline" className="reminders-view__type-badge">
+                      {taskTypeLabel(drawerTask.type)}
+                    </Badge>
+                  )}
+                  {renderDetailField(
+                    'Status',
+                    <Badge
+                      variant="outline"
+                      className={`reminders-view__status-badge ${drawerTask.enabled ? 'reminders-view__status-badge--active' : 'reminders-view__status-badge--paused'}`}
+                    >
+                      {drawerTask.enabled ? 'Enabled' : 'Paused'}
+                    </Badge>
+                  )}
+                  {renderDetailField('Repeats', formatIntervalPreset(drawerTask.intervalPreset))}
+                  {renderDetailField('Next run', formatDate(drawerTask.nextRunAt))}
+                  {renderDetailField(
+                    drawerTask.type === 'web_lookout' ? 'URLs' : 'Reminder text',
+                    drawerTask.type === 'web_lookout'
+                      ? drawerTask.urls.join(', ') || 'None'
+                      : drawerTask.reminderText || 'None'
+                  )}
+                  {renderDetailField('Instructions', drawerTask.instructions || 'None')}
+                </FieldGroup>
+                <Button
                   type="button"
+                  variant="default"
+                  size="sm"
                   className="reminders-view__agent-edit"
                   onClick={() => askAgent(buildEditPrompt(drawerTask))}
                 >
                   Edit this with agent
-                </button>
+                </Button>
               </div>
             ) : (
               <div className="reminders-view__runs">
