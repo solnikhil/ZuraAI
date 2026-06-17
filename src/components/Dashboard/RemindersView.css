@@ -407,7 +407,7 @@
   width: 32px !important;
   height: 32px !important;
   border-radius: 9px !important;
-  border-color: #565656 !important;
+  border: 1px solid #565656 !important;
   background: #3a3a3a !important;
   color: #f2f2f2 !important;
   transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
@@ -551,18 +551,71 @@
 }
 
 .reminders-view__run {
+  position: relative;
   display: grid;
-  gap: 9px;
-  padding: 12px;
-  border: 1px solid color-mix(in srgb, var(--theme-border-primary) 74%, transparent);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--theme-bg-primary) 62%, transparent);
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 12px;
+  padding: 0 0 18px;
+}
+
+.reminders-view__run:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  top: 18px;
+  bottom: 0;
+  left: 6px;
+  width: 1px;
+  background: color-mix(in srgb, var(--theme-border-primary) 64%, transparent);
+}
+
+.reminders-view__run-marker {
+  position: relative;
+  z-index: 1;
+  width: 13px;
+  height: 13px;
+  margin-top: 4px;
+  border: 1px solid #4a4a4a;
+  border-radius: 999px;
+  background: #242424;
+  box-shadow: inset 0 0 0 3px #1f1f1f;
+}
+
+.reminders-view__run-body {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid color-mix(in srgb, var(--theme-border-primary) 48%, transparent);
+}
+
+.reminders-view__run:last-child,
+.reminders-view__run:last-child .reminders-view__run-body {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.reminders-view__run-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .reminders-view__run-top span,
+.reminders-view__run-top time,
 .reminders-view__log-row {
   color: var(--theme-text-secondary);
   font-size: 11.5px;
+}
+
+.reminders-view__run-status {
+  height: 23px;
+  padding: 0 9px;
+  border-color: #3a3a3a;
+  background: #242424;
+  color: var(--theme-text-secondary);
+  font-size: 11px;
+  font-weight: 720;
 }
 
 .reminders-view__summary,
@@ -578,12 +631,25 @@
   color: var(--theme-error, #ef4444);
 }
 
+.reminders-view__log-list {
+  display: grid;
+  gap: 7px;
+}
+
 .reminders-view__log-row {
   display: grid;
-  gap: 3px;
-  padding-top: 8px;
-  border-top: 1px solid color-mix(in srgb, var(--theme-border-primary) 58%, transparent);
+  gap: 4px;
+  padding: 9px 10px;
+  border: 1px solid color-mix(in srgb, var(--theme-border-primary) 54%, transparent);
+  border-radius: 9px;
+  background: #1a1a1a;
   overflow-wrap: anywhere;
+}
+
+.reminders-view__log-row strong {
+  color: var(--theme-text-primary);
+  font-size: 11.5px;
+  text-transform: capitalize;
 }
 
 .reminders-view__spin {

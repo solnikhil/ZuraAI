@@ -453,21 +453,33 @@ export default function RemindersView(): React.ReactElement {
                 ) : (
                   drawerRuns.map((run) => (
                     <article key={run.id} className="reminders-view__run">
-                      <div className="reminders-view__run-top">
-                        <Badge variant={run.status === 'error' ? 'destructive' : 'outline'}>{STATUS_LABELS[run.status]}</Badge>
-                        <span>{formatDate(run.startedAt)}</span>
-                      </div>
-                      {run.aiSummary && <p className="reminders-view__summary">{run.aiSummary}</p>}
-                      {!run.aiSummary && run.diffSummary && <p className="reminders-view__summary">{run.diffSummary}</p>}
-                      {run.error && <p className="reminders-view__run-error">{run.error}</p>}
-                      {run.logs.map((log, index) => (
-                        <div key={`${run.id}-${index}`} className="reminders-view__log-row">
-                          <strong>{log.status}</strong>
-                          {log.url && <span>{log.url}</span>}
-                          {log.message && <span>{log.message}</span>}
-                          {log.changedExcerpt && <span>{log.changedExcerpt}</span>}
+                      <div className="reminders-view__run-marker" aria-hidden="true" />
+                      <div className="reminders-view__run-body">
+                        <div className="reminders-view__run-top">
+                          <Badge
+                            variant={run.status === 'error' ? 'destructive' : 'outline'}
+                            className="reminders-view__run-status"
+                          >
+                            {STATUS_LABELS[run.status]}
+                          </Badge>
+                          <time dateTime={new Date(run.startedAt).toISOString()}>{formatDate(run.startedAt)}</time>
                         </div>
-                      ))}
+                        {run.aiSummary && <p className="reminders-view__summary">{run.aiSummary}</p>}
+                        {!run.aiSummary && run.diffSummary && <p className="reminders-view__summary">{run.diffSummary}</p>}
+                        {run.error && <p className="reminders-view__run-error">{run.error}</p>}
+                        {run.logs.length > 0 && (
+                          <div className="reminders-view__log-list">
+                            {run.logs.map((log, index) => (
+                              <div key={`${run.id}-${index}`} className="reminders-view__log-row">
+                                <strong>{log.status}</strong>
+                                {log.url && <span>{log.url}</span>}
+                                {log.message && <span>{log.message}</span>}
+                                {log.changedExcerpt && <span>{log.changedExcerpt}</span>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </article>
                   ))
                 )}
