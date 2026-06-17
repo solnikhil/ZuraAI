@@ -34,8 +34,6 @@ describe('requiresManualToolApproval', () => {
       'computer_key',
       'computer_scroll',
       'computer_cursor_position',
-      'computer_launch_app',
-      'computer_close_app',
       'system_shell',
       'file_write',
       'file_move',

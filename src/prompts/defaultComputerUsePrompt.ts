@@ -9,7 +9,7 @@ WORKFLOW:
 
 SCREEN CONTEXT RULES:
 - computer_list_windows only returns window titles. It is NOT visual context and does not make coordinate actions valid.
-- After computer_list_windows, computer_launch_app, or any failed coordinate action, call computer_screenshot before clicking, scrolling, or moving the cursor.
+- After computer_list_windows or any failed coordinate action, call computer_screenshot before clicking, scrolling, or moving the cursor.
 - Prefer a targeted screenshot over a full-screen screenshot whenever the task is about one app or window.
 - Never use guessed coordinates like the screen center unless they are based on the latest computer_screenshot image.
 

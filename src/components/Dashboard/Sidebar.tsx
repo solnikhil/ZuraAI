@@ -14,7 +14,6 @@ import './Sidebar/Sidebar.css'
 import SidebarChatView from './SidebarChatView'
 import SidebarSettingsView from './SidebarSettingsView'
 import { isMacOSRuntime } from '../../utils/platform'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 interface SidebarProps {
   view: DashboardView
@@ -35,7 +34,6 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
     sidebarWidth,
     setSidebarWidth,
     setIsResizingSidebar,
-    toggleSidebarCollapsed,
   } = useAppShell()
   const {
     sessions,
@@ -404,22 +402,6 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
         />
 
         <div className="sidebar-footer-wrapper">
-          <button
-            type="button"
-            className="sidebar-header__btn sidebar-footer-row"
-            aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            onClick={toggleSidebarCollapsed}
-          >
-            <span className="sidebar-header__icon-slot" aria-hidden="true">
-              {sidebarCollapsed ? (
-                <ChevronRight size={16} className="sidebar-header__icon" />
-              ) : (
-                <ChevronLeft size={16} className="sidebar-header__icon" />
-              )}
-            </span>
-            {!sidebarCollapsed ? <span className="sidebar-header__label">Collapse</span> : null}
-          </button>
           <TitleBarInfoMenu
             hasUnsavedSettings={hasUnsavedSettings}
             isSettingsView={dashboardView === 'settings'}

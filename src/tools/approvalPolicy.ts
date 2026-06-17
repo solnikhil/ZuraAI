@@ -11,8 +11,6 @@ const COMPUTER_TOOLS_REQUIRING_APPROVAL = new Set([
   'computer_key',
   'computer_scroll',
   'computer_cursor_position',
-  'computer_launch_app',
-  'computer_close_app',
 ])
 
 export function requiresManualToolApproval(

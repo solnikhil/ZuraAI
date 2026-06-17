@@ -126,7 +126,6 @@ export default function ChatRow({
               background: selectedOverlay.background,
               border: selectedOverlay.border,
               boxShadow: selectedOverlay.boxShadow,
-              marginRight: 6,
             }
           : undefined
       }

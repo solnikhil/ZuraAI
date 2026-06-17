@@ -34,9 +34,6 @@ const COMPUTER_USE_TOOLS = [
     'computer_scroll',
     'computer_cursor_position',
     'computer_list_windows',
-    'computer_launch_app',
-    'computer_find_app',
-    'computer_close_app',
 ]
 
 const NATIVE_WINDOWS_AGENT_TOOLS = [

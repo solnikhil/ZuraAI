@@ -174,7 +174,6 @@ export default function SidebarChatList({
           }}
           style={{
             paddingLeft: indented ? 8 : 0,
-            paddingRight: 6,
           }}
         >
           <ChatRow

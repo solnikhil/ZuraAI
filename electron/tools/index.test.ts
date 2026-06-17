@@ -70,9 +70,6 @@ describe('tool routing through current-desktop Computer Use', () => {
         data: { action: 'cursor_position' },
       })),
       executeListWindows: vi.fn(async () => ({ success: true, data: { windows: [] } })),
-      executeLaunchApp: vi.fn(async () => ({ success: true, data: { action: 'launch_app' } })),
-      executeFindApp: vi.fn(async () => ({ success: true, data: { action: 'find_app' } })),
-      executeCloseApp: vi.fn(async () => ({ success: true, data: { action: 'close_app' } })),
       ...computerUseOverrides,
     }
 
@@ -134,16 +131,6 @@ describe('tool routing through current-desktop Computer Use', () => {
     })
   })
 
-  it('routes computer_launch_app directly without separate-desktop display switching', async () => {
-    const executeLaunchApp = vi.fn(async () => ({ success: true, data: { launched: 'notepad' } }))
-    const { handler } = await loadToolHandler({ executeLaunchApp })
-
-    const result = await handler({}, 'computer_launch_app', { name: 'notepad' })
-
-    expect(result).toEqual({ success: true, data: { launched: 'notepad' } })
-    expect(executeLaunchApp).toHaveBeenCalledWith({ name: 'notepad' })
-  })
-
   it('routes native Windows tools through execute-tool', async () => {
     const { handler, handlers } = await loadToolHandler()
 
@@ -151,6 +138,17 @@ describe('tool routing through current-desktop Computer Use', () => {
 
     expect(result).toEqual({ success: true, data: { windows: [] } })
     expect(handlers.executeWindowsUiaSnapshot).toHaveBeenCalledTimes(1)
+  })
+
+  it('fails closed for removed duplicate Computer Use app tools', async () => {
+    const { handler } = await loadToolHandler()
+
+    for (const toolName of ['computer_launch_app', 'computer_find_app', 'computer_close_app']) {
+      await expect(handler({}, toolName, {})).resolves.toEqual({
+        success: false,
+        error: `Tool "${toolName}" is disabled.`,
+      })
+    }
   })
 
   it('routes mutating native tools to fail closed when approval is absent', async () => {

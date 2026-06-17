@@ -79,6 +79,7 @@ import { CommandIcon as CommandBase } from '@phosphor-icons/react/dist/csr/Comma
 import { SidebarSimpleIcon as SidebarSimpleBase } from '@phosphor-icons/react/dist/csr/SidebarSimple'
 import { LayoutIcon as LayoutBase } from '@phosphor-icons/react/dist/csr/Layout'
 import { PushPinIcon as PushPinBase } from '@phosphor-icons/react/dist/csr/PushPin'
+import { PauseIcon as PauseBase } from '@phosphor-icons/react/dist/csr/Pause'
 import { PlayIcon as PlayBase } from '@phosphor-icons/react/dist/csr/Play'
 import { BellSimpleIcon as BellSimpleBase } from '@phosphor-icons/react/dist/csr/BellSimple'
 import { ScissorsIcon as ScissorsBase } from '@phosphor-icons/react/dist/csr/Scissors'
@@ -202,6 +203,7 @@ export const OctagonXIcon = withDefaultWeight(XCircleBase, 'duotone', 'OctagonXI
 export const Paintbrush = withDefaultWeight(PaintBrushBase, 'duotone', 'Paintbrush')
 export const PanelLeft = withDefaultWeight(SidebarSimpleBase, 'duotone', 'PanelLeft')
 export const Paperclip = withDefaultWeight(PaperclipBase, 'duotone', 'Paperclip')
+export const Pause = withDefaultWeight(PauseBase, 'fill', 'Pause')
 export const Pencil = withDefaultWeight(PencilLineBase, 'duotone', 'Pencil')
 export const PencilLine = withDefaultWeight(PencilLineBase, 'duotone', 'PencilLine')
 export const Pin = withDefaultWeight(PushPinBase, 'duotone', 'Pin')

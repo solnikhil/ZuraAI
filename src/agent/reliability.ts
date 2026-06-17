@@ -35,8 +35,6 @@ const VISUAL_MUTATION_TOOLS = new Set([
   'computer_key',
   'computer_scroll',
   'computer_cursor_position',
-  'computer_launch_app',
-  'computer_close_app',
 ])
 
 function compactTaskText(taskText: string | undefined): string {

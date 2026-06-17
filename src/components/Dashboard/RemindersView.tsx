@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import type {
   ScheduledTaskDefinition,
@@ -8,9 +8,16 @@ import type {
 } from '@/electron/types'
 import { useAppShell } from '@/contexts/AppShellContext'
 import { useComposerDraft } from '@/contexts/ComposerDraftContext'
-import { AlertCircle, Bell, Globe, Loader2, X } from '../icons'
+import { AlertCircle, Loader2, X } from '../icons'
 import { Badge } from '../ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { MoreVertical, Pause, Pencil, Play, Trash2 } from 'lucide-react'
 import './RemindersView.css'
 
 type DrawerMode = 'logs' | 'details'
@@ -142,55 +149,84 @@ export default function RemindersView(): React.ReactElement {
     return (
       <article key={task.id} className="reminders-view__row">
         <div className="reminders-view__row-main">
-          <span className="reminders-view__bullet" aria-hidden="true" />
-          <div>
+          <span
+            className={`reminders-view__bullet ${task.enabled ? '' : 'reminders-view__bullet--paused'}`}
+            aria-hidden="true"
+            title={task.enabled ? 'Enabled' : 'Paused'}
+          />
+          <div className="reminders-view__row-content">
             <h4>{task.title}</h4>
-            <p>
-              {task.enabled ? 'Enabled' : 'Paused'} - next {formatDate(task.nextRunAt)} - repeats{' '}
-              {formatIntervalPreset(task.intervalPreset)} - last {latestRun ? STATUS_LABELS[latestRun.status] : 'not run'}
-            </p>
+            <div className="reminders-view__row-meta">
+              <span>{formatDate(task.nextRunAt)}</span>
+              <span className="reminders-view__meta-divider">-</span>
+              <span>repeats {formatIntervalPreset(task.intervalPreset)}</span>
+              <span className="reminders-view__meta-divider">-</span>
+              <span>{latestRun ? STATUS_LABELS[latestRun.status] : 'Not run yet'}</span>
+            </div>
           </div>
         </div>
 
         <div className="reminders-view__row-actions">
-          <button type="button" onClick={() => setDrawer({ taskId: task.id, mode: 'logs' })}>
+          <button
+            type="button"
+            className="reminders-view__logs-btn"
+            onClick={() => setDrawer({ taskId: task.id, mode: 'logs' })}
+          >
             Logs
           </button>
-          <button type="button" onClick={() => setDrawer({ taskId: task.id, mode: 'details' })}>
-            Edit
-          </button>
-          <button type="button" onClick={() => void toggleEnabled(task)}>
-            {task.enabled ? 'Pause' : 'Resume'}
-          </button>
-          <button type="button" className="reminders-view__danger-action" onClick={() => void deleteTask(task.id)}>
-            Delete
-          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                className="reminders-view__menu-trigger"
+                aria-label="More actions"
+              >
+                <MoreVertical size={16} />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={() => setDrawer({ taskId: task.id, mode: 'details' })}>
+                <Pencil size={14} />
+                Edit
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => void toggleEnabled(task)}>
+                {task.enabled ? <Pause size={14} /> : <Play size={14} />}
+                {task.enabled ? 'Pause' : 'Resume'}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                variant="destructive"
+                onSelect={() => void deleteTask(task.id)}
+              >
+                <Trash2 size={14} />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </article>
     )
   }
 
-  const renderTaskGroup = (
-    title: string,
-    icon: ReactNode,
-    items: ScheduledTaskDefinition[],
-    emptyCopy: string
-  ) => (
-    <section className="reminders-view__group" aria-labelledby={`reminders-${title.toLowerCase()}`}>
-      <div className="reminders-view__group-title">
-        <span aria-hidden="true">{icon}</span>
-        <h3 id={`reminders-${title.toLowerCase()}`}>{title}</h3>
-        <Badge variant="outline">{items.length}</Badge>
-      </div>
-      <div className="reminders-view__rows">
-        {items.length === 0 ? (
-          <div className="reminders-view__empty-row">{emptyCopy}</div>
-        ) : (
-          items.map(renderTaskRow)
-        )}
-      </div>
-    </section>
-  )
+  const renderCombinedGroup = () => {
+    const allTasks = [...reminders, ...lookouts]
+    return (
+      <section className="reminders-view__group" aria-labelledby="reminders-all">
+        <div className="reminders-view__group-title">
+          <h3 id="reminders-all">All Tasks</h3>
+          <Badge variant="outline">{allTasks.length}</Badge>
+        </div>
+        <div className="reminders-view__rows">
+          {allTasks.length === 0 ? (
+            <div className="reminders-view__empty-row">No tasks yet. Ask the agent to schedule one.</div>
+          ) : (
+            allTasks.map(renderTaskRow)
+          )}
+        </div>
+      </section>
+    )
+  }
 
   return (
     <section className="reminders-view" aria-labelledby="reminders-title">
@@ -202,8 +238,9 @@ export default function RemindersView(): React.ReactElement {
               <p>Scheduled work, local logs, and AI-managed edits in one place.</p>
             </div>
             <Button
-              variant="secondary"
+              variant="outline"
               size="sm"
+              className="reminders-view__ask-agent"
               onClick={() => askAgent('Help me create a reminder or lookout.')}
             >
               Ask agent
@@ -219,11 +256,14 @@ export default function RemindersView(): React.ReactElement {
             </div>
           ) : (
             <div className="reminders-view__content">
-              {renderTaskGroup('Reminders', <Bell size={15} />, reminders, 'No reminders yet. Ask the agent to schedule one.')}
-              {renderTaskGroup('Lookouts', <Globe size={15} />, lookouts, 'No lookouts yet. Ask the agent to watch a page.')}
+              {renderCombinedGroup()}
             </div>
           )}
         </main>
+
+        {drawerTask && (
+          <div className="reminders-view__drawer-divider" aria-hidden="true" />
+        )}
 
         {drawerTask && (
           <aside className="reminders-view__drawer" aria-label={`${drawerMode === 'logs' ? 'Logs' : 'Details'} for ${drawerTask.title}`}>

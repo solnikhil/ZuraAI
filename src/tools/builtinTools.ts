@@ -204,45 +204,6 @@ Best practices:
     category: 'computer-use',
     origin: 'builtin-main',
   },
-  computer_launch_app: {
-    description: 'Launch an application by name or path. On Windows use the app name (e.g. "notepad", "chrome", "code") or full path. On macOS use the app name (e.g. "Safari", "Terminal").',
-    parameters: {
-      type: 'object',
-      description: 'Arguments for launching an app.',
-      properties: {
-        name: { type: 'string', description: 'Application name or executable path (e.g. "notepad", "chrome", "code", "C:\\\\Program Files\\\\app.exe").' },
-      },
-      required: ['name'],
-    },
-    category: 'computer-use',
-    origin: 'builtin-main',
-  },
-  computer_find_app: {
-    description: 'Search for installed applications by a fuzzy query. Returns matching app names and their launch paths. Use this when you are unsure of the exact app name — e.g. searching "discord canary" will find "Discord Canary" and its executable path. Then use computer_launch_app with the returned path.',
-    parameters: {
-      type: 'object',
-      description: 'Arguments for finding an app.',
-      properties: {
-        query: { type: 'string', description: 'Fuzzy search query (e.g. "discord canary", "vs code", "firefox").' },
-      },
-      required: ['query'],
-    },
-    category: 'computer-use',
-    origin: 'builtin-main',
-  },
-  computer_close_app: {
-    description: 'Close an application window by its title. Use computer_list_windows first to find the exact window title.',
-    parameters: {
-      type: 'object',
-      description: 'Arguments for closing an app.',
-      properties: {
-        title: { type: 'string', description: 'Window title (or substring) to close.' },
-      },
-      required: ['title'],
-    },
-    category: 'computer-use',
-    origin: 'builtin-main',
-  },
   windows_uia_snapshot: {
     description: 'Inspect Windows desktop app controls through Microsoft UI Automation. Prefer this before computer_screenshot/click/type for native Windows apps because it returns controls, supported patterns, and stable elementRef values.',
     parameters: {
