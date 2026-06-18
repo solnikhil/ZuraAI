@@ -15,6 +15,10 @@ import {
 import { registerSystemHandlers, unregisterSystemHandlers } from './systemHandlers'
 import { registerAnalyticsHandlers, unregisterAnalyticsHandlers } from '../analytics'
 import { registerMonitorHandlers, unregisterMonitorHandlers } from './monitorHandlers'
+import {
+  registerEmailNotificationHandlers,
+  unregisterEmailNotificationHandlers,
+} from './emailNotificationHandlers'
 
 interface IpcDomainHandlers {
   register: () => void
@@ -49,6 +53,10 @@ const IPC_DOMAIN_HANDLERS: readonly IpcDomainHandlers[] = [
   {
     register: registerAnalyticsHandlers,
     unregister: unregisterAnalyticsHandlers,
+  },
+  {
+    register: registerEmailNotificationHandlers,
+    unregister: unregisterEmailNotificationHandlers,
   },
   {
     register: registerMonitorHandlers,
@@ -98,4 +106,8 @@ export {
 } from './overlayHandlers'
 export { registerSystemHandlers, unregisterSystemHandlers } from './systemHandlers'
 export { registerAnalyticsHandlers, unregisterAnalyticsHandlers } from '../analytics'
+export {
+  registerEmailNotificationHandlers,
+  unregisterEmailNotificationHandlers,
+} from './emailNotificationHandlers'
 export { registerMonitorHandlers, unregisterMonitorHandlers } from './monitorHandlers'

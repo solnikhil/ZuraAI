@@ -91,34 +91,45 @@ describe('themeUtils', () => {
       expect(defaultTheme.id).toBe('zuraai')
     })
 
-    it('includes sentry theme preset', () => {
-      const sentryTheme = getThemeById('sentry')
-      expect(sentryTheme).toBeDefined()
-      expect(sentryTheme?.baseColors.accent).toBe('#8e8cff')
-    })
-
-    it('includes ayu theme preset', () => {
-      const ayuTheme = getThemeById('ayu')
-      expect(ayuTheme).toBeDefined()
-      expect(ayuTheme?.baseColors.accent).toBe('#e6b450')
-    })
-
     it('includes codex theme preset', () => {
       const codexTheme = getThemeById('codex')
       expect(codexTheme).toBeDefined()
       expect(codexTheme?.baseColors.accent).toBe('#0a84ff')
     })
 
-    it('includes gruvbox theme preset', () => {
-      const gruvboxTheme = getThemeById('gruvbox')
-      expect(gruvboxTheme).toBeDefined()
-      expect(gruvboxTheme?.baseColors.accent).toBe('#458588')
+    it('includes warm-ledger soothing preset', () => {
+      const theme = getThemeById('warm-ledger')
+      expect(theme).toBeDefined()
+      expect(theme?.baseColors.accent).toBe('#a88c6f')
+      expect(theme?.baseColors.background).toBe('#1e1c19')
     })
 
-    it('includes vscode-plus theme preset', () => {
-      const vscodeTheme = getThemeById('vscode-plus')
-      expect(vscodeTheme).toBeDefined()
-      expect(vscodeTheme?.baseColors.accent).toBe('#007acc')
+    it('includes quiet-sage soothing preset', () => {
+      const theme = getThemeById('quiet-sage')
+      expect(theme).toBeDefined()
+      expect(theme?.baseColors.accent).toBe('#6d8b78')
+      expect(theme?.baseColors.background).toBe('#181b18')
+    })
+
+    it('includes stone-linen soothing preset', () => {
+      const theme = getThemeById('stone-linen')
+      expect(theme).toBeDefined()
+      expect(theme?.baseColors.accent).toBe('#7a8c9a')
+      expect(theme?.baseColors.background).toBe('#1a1d22')
+    })
+
+    it('includes void black preset', () => {
+      const theme = getThemeById('void')
+      expect(theme).toBeDefined()
+      expect(theme?.baseColors.accent).toBe('#5b5f68')
+      expect(theme?.baseColors.background).toBe('#0a0a0a')
+    })
+
+    it('includes charcoal grey preset', () => {
+      const theme = getThemeById('charcoal')
+      expect(theme).toBeDefined()
+      expect(theme?.baseColors.accent).toBe('#6b6f78')
+      expect(theme?.baseColors.background).toBe('#16171a')
     })
   })
 })

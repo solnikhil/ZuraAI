@@ -21,6 +21,7 @@ interface SecureData {
   deepseekApiKey?: string
   fireworksApiKey?: string
   nvidiaApiKey?: string
+  brevoApiKey?: string
   [key: string]: string | undefined
 }
 
@@ -46,6 +47,7 @@ function isLikelyLegacyPlaintextSecret(value: string): boolean {
     value.startsWith('dashscope-') ||
     value.startsWith('fw-') ||
     value.startsWith('nvapi-') ||
+    value.startsWith('xkeysib-') ||
     value.length < 100
   )
 }

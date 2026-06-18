@@ -49,6 +49,7 @@ describe('registerSecureStorageHandlers', () => {
       nvidiaApiKey: 'nvidia-key',
       deepseekApiKey: 'deepseek-key',
       onlineCompilerApiKey: 'oc-key',
+      brevoApiKey: 'brevo-key',
     }
 
     secureStorageMocks.getSecureValueAsync.mockImplementation((key: string) =>
@@ -71,9 +72,10 @@ describe('registerSecureStorageHandlers', () => {
       nvidiaApiKey: 'nvidia-key',
       deepseekApiKey: 'deepseek-key',
       onlineCompilerApiKey: 'oc-key',
+      brevoApiKey: 'brevo-key',
     })
 
-    expect(secureStorageMocks.getSecureValueAsync).toHaveBeenCalledTimes(9)
+    expect(secureStorageMocks.getSecureValueAsync).toHaveBeenCalledTimes(10)
     expect(secureStorageMocks.getSecureValueAsync).not.toHaveBeenCalledWith('mcp.server.demo.token')
   })
 
@@ -87,6 +89,7 @@ describe('registerSecureStorageHandlers', () => {
       fireworksApiKey: false,
       nvidiaApiKey: false,
       onlineCompilerApiKey: false,
+      brevoApiKey: true,
     })
 
     const { registerSecureStorageHandlers } = await import('./secureStorageHandlers')
@@ -104,6 +107,7 @@ describe('registerSecureStorageHandlers', () => {
       fireworksApiKey: false,
       nvidiaApiKey: false,
       onlineCompilerApiKey: false,
+      brevoApiKey: true,
     })
 
     expect(secureStorageMocks.getSecureValuePresenceAsync).toHaveBeenCalledTimes(1)

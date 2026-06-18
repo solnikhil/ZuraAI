@@ -4,6 +4,7 @@ export type SettingsSectionId =
   | 'overlay'
   | 'mcp'
   | 'skills'
+  | 'notifications'
   | 'memory'
   | 'themes'
   | 'systemprompt'
@@ -54,6 +55,13 @@ export const SETTINGS_SECTIONS: SettingsSectionMeta[] = [
     keywords: ['tools', 'research', 'capabilities', 'web search', 'tavily'],
   },
   {
+    id: 'notifications',
+    navLabel: 'Notifications',
+    title: 'Notifications',
+    description: 'Configure reminder and lookout email delivery.',
+    keywords: ['email', 'brevo', 'notifications', 'reminders', 'lookouts'],
+  },
+  {
     id: 'memory',
     navLabel: 'Memory',
     title: 'Memory & Personalization',
@@ -97,7 +105,9 @@ const SETTINGS_SECTION_ALIASES: Record<string, SettingsSectionId> = {
 overlay: 'overlay',
   buddyoverlay: 'overlay',
   commandbar: 'themes',
-  notifications: 'usage',
+  notifications: 'notifications',
+  email: 'notifications',
+  brevo: 'notifications',
   personalization: 'memory',
   memories: 'memory',
 }

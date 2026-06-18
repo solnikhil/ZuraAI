@@ -9,6 +9,7 @@ import type {
   ContextMenuAPI,
   DevToolsAPI,
   DiscordRpcAPI,
+  EmailNotificationsAPI,
   IElectronAPI,
   McpAPI,
   MemoryAPI,
@@ -47,6 +48,7 @@ declare global {
     chatDebug?: ChatDebugAPI
     resourceMonitor: ResourceMonitorAPI
     discordRpc: DiscordRpcAPI
+    emailNotifications: EmailNotificationsAPI
   }
 }
 

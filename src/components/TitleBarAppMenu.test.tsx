@@ -48,7 +48,7 @@ function setNavigatorPlatform(value: string): void {
 }
 
 function openMenu(label: string): void {
-  const trigger = screen.getByRole('button', { name: label })
+  const trigger = screen.getByRole('menuitem', { name: label })
   trigger.focus()
   fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false, pointerType: 'mouse' })
   fireEvent.keyDown(trigger, { key: 'Enter' })
@@ -97,9 +97,9 @@ describe('TitleBarAppMenu', () => {
 
     render(<TitleBar />)
 
-    expect(screen.getByRole('navigation', { name: 'Application menu' })).toBeInTheDocument()
+    expect(screen.getByRole('menubar', { name: 'Application menu' })).toBeInTheDocument()
     for (const label of ['File', 'Edit', 'View', 'Window', 'Help']) {
-      expect(screen.getByRole('button', { name: label })).toBeInTheDocument()
+      expect(screen.getByRole('menuitem', { name: label })).toBeInTheDocument()
     }
   })
 
@@ -108,7 +108,7 @@ describe('TitleBarAppMenu', () => {
 
     render(<TitleBar />)
 
-    expect(screen.queryByRole('navigation', { name: 'Application menu' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('menubar', { name: 'Application menu' })).not.toBeInTheDocument()
   })
 
   it('selecting app menu items calls the app-menu bridge', async () => {

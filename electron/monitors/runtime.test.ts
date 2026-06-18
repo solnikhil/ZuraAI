@@ -66,6 +66,10 @@ vi.mock('./content', () => ({
   buildChangedExcerpt: contentMock.buildChangedExcerpt,
 }))
 
+vi.mock('../notifications/email', () => ({
+  sendScheduledTaskEmail: vi.fn(async () => ({ ok: true, skipped: true })),
+}))
+
 describe('scheduled task runtime notifications', () => {
   beforeEach(() => {
     vi.resetModules()
@@ -164,6 +168,90 @@ describe('scheduled task runtime notifications', () => {
 
     expect(notificationFactory).not.toHaveBeenCalled()
     expect(storageMock.savedRuns[0]?.logs[0]?.status).toBe('baseline')
+  })
+
+  it('sends an email notification when a reminder runs', async () => {
+    const { __test__ } = await import('./runtime')
+    const emailSender = vi.fn(async () => ({ ok: true }))
+    storageMock.task = createTask({
+      type: 'reminder',
+      reminderText: 'Review weekly launches',
+    })
+
+    const runtime = __test__.createRuntime({
+      emailSender,
+      notificationsSupported: () => false,
+      setTimeoutImpl: vi.fn(() => 1 as unknown as ReturnType<typeof setTimeout>),
+      clearTimeoutImpl: vi.fn(),
+      now: () => 1_000,
+    })
+
+    await runtime.runNow('task-1')
+    runtime.stop()
+
+    expect(emailSender).toHaveBeenCalledWith(storageMock.task, expect.objectContaining({
+      taskId: 'task-1',
+      status: 'unchanged',
+    }))
+    expect(storageMock.savedRuns[0]?.logs).toContainEqual({
+      url: '',
+      status: 'completed',
+      message: 'Email notification sent.',
+    })
+  })
+
+  it('records email failures without blocking a scheduled task run', async () => {
+    const { __test__ } = await import('./runtime')
+    const emailSender = vi.fn(async () => ({ ok: false, error: 'Brevo email request failed (401)' }))
+    storageMock.task = createTask({
+      type: 'reminder',
+      reminderText: 'Review weekly launches',
+    })
+
+    const runtime = __test__.createRuntime({
+      emailSender,
+      notificationsSupported: () => false,
+      setTimeoutImpl: vi.fn(() => 1 as unknown as ReturnType<typeof setTimeout>),
+      clearTimeoutImpl: vi.fn(),
+      now: () => 1_000,
+    })
+
+    await expect(runtime.runNow('task-1')).resolves.toEqual(expect.objectContaining({
+      taskId: 'task-1',
+    }))
+    runtime.stop()
+
+    expect(storageMock.saveScheduledTaskRun).toHaveBeenCalledTimes(1)
+    expect(storageMock.savedRuns[0]?.logs).toContainEqual({
+      url: '',
+      status: 'error',
+      error: 'Brevo email request failed (401)',
+    })
+  })
+
+  it('does not send email when the email sender reports the run was skipped', async () => {
+    const { __test__ } = await import('./runtime')
+    const emailSender = vi.fn(async () => ({ ok: true, skipped: true }))
+    storageMock.task = createTask({
+      type: 'web_lookout',
+      urls: ['https://example.com/pricing'],
+    })
+
+    const runtime = __test__.createRuntime({
+      emailSender,
+      notificationsSupported: () => false,
+      setTimeoutImpl: vi.fn(() => 1 as unknown as ReturnType<typeof setTimeout>),
+      clearTimeoutImpl: vi.fn(),
+      now: () => 1_000,
+    })
+
+    await runtime.runNow('task-1')
+    runtime.stop()
+
+    expect(emailSender).toHaveBeenCalledTimes(1)
+    expect(storageMock.savedRuns[0]?.logs).not.toContainEqual(
+      expect.objectContaining({ message: 'Email notification sent.' })
+    )
   })
 })
 

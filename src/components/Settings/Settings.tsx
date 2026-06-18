@@ -12,6 +12,7 @@ import { McpSection } from './sections/McpSection'
 import { MemorySection } from './sections/MemorySection'
 import { ProviderHubSection } from './sections/ProviderHubSection'
 import { SkillsSection } from './sections/SkillsSection'
+import { NotificationsSection } from './sections/NotificationsSection'
 import { AppearanceSection } from './sections/AppearanceSection'
 import { SystemPromptSection } from './sections/SystemPromptSection'
 import { ResourceMonitorSection } from './sections/ResourceMonitorSection'
@@ -384,6 +385,15 @@ if (!hasSettingsChanges && !hasMcpChanges) {
                 codeExecutionAutoApprove={pendingSettings.codeExecutionAutoApprove}
                 terminalAutoApprove={pendingSettings.terminalAutoApprove}
                 computerUseAutoApprove={pendingSettings.computerUseAutoApprove}
+                onChange={(changes) => handleChange(changes)}
+              />
+            )}
+
+            {normalizedActiveSection === 'notifications' && (
+              <NotificationsSection
+                brevoApiKey={pendingSettings.brevoApiKey}
+                emailNotifications={pendingSettings.emailNotifications}
+                hasUnsavedChanges={hasSettingsChanges}
                 onChange={(changes) => handleChange(changes)}
               />
             )}

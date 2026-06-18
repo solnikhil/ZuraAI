@@ -161,55 +161,35 @@ const themes: Record<string, Theme> = {
     '#1a1a1a',
     '#ffffff'
   ),
-  sentry: createTheme(
-    'sentry',
-    'Ultraviolet Pulse',
-    'Electric nightlife',
-    'Dusty violet glow over a muted charcoal base',
-    'ai',
-    '#8e8cff',
-    '#232229',
-    '#e6dff9'
-  ),
-  ayu: createTheme(
-    'ayu',
-    'Amber Circuit',
-    'Warm operator desk',
-    'Burnished amber accents on a deep ink backdrop',
-    'colorful',
-    '#e6b450',
-    '#0b0e14',
-    '#bfbdb6'
-  ),
-  codex: createTheme(
-    'codex',
-    'Blue Static',
-    'Clean midnight focus',
-    'Controlled cobalt signal on a tight near-black canvas',
-    'minimal',
-    '#0a84ff',
-    '#111315',
-    '#fcfcfc'
-  ),
-  gruvbox: createTheme(
-    'gruvbox',
-    'Furnace Terminal',
-    'Retro industrial',
-    'Weathered teal against a warm terminal-grade dark',
-    'terminal',
-    '#458588',
-    '#282828',
-    '#ebdbb2'
-  ),
-  'vscode-plus': createTheme(
-    'vscode-plus',
-    'Night Shift',
-    'Studio neutral',
-    'Balanced editor blues with a familiar tungsten-dark shell',
+  'warm-ledger': createTheme(
+    'warm-ledger',
+    'Warm Ledger',
+    'Paper under warm light',
+    'Soft warm neutrals for long comfortable work sessions',
     'classic',
-    '#007acc',
-    '#1e1e1e',
-    '#d4d4d4'
+    '#a88c6f',
+    '#1e1c19',
+    '#e6dccc'
+  ),
+  'quiet-sage': createTheme(
+    'quiet-sage',
+    'Quiet Sage',
+    'Calm focus grove',
+    'Muted sage over deep charcoal — reduced eye strain for daily use',
+    'minimal',
+    '#6d8b78',
+    '#181b18',
+    '#d6dcd4'
+  ),
+  'stone-linen': createTheme(
+    'stone-linen',
+    'Stone Linen',
+    'Quiet studio',
+    'Cool desaturated neutrals with soft, readable text',
+    'minimal',
+    '#7a8c9a',
+    '#1a1d22',
+    '#d8dce3'
   ),
   graphite: createTheme(
     'graphite',
@@ -221,26 +201,6 @@ const themes: Record<string, Theme> = {
     '#17181a',
     '#eef2f6'
   ),
-  emberfall: createTheme(
-    'emberfall',
-    'Emberfall',
-    'After-hours cockpit',
-    'Molten copper energy layered over volcanic dark surfaces',
-    'creative',
-    '#ff7a45',
-    '#160f0d',
-    '#f8ede8'
-  ),
-  deepsea: createTheme(
-    'deepsea',
-    'Deep Sea Signal',
-    'Submerged tech',
-    'Cold cyan-green markers cutting through a deep ocean black',
-    'creative',
-    '#22c7a9',
-    '#081317',
-    '#d7f5ef'
-  ),
   noir: createTheme(
     'noir',
     'Noir Alloy',
@@ -251,25 +211,35 @@ const themes: Record<string, Theme> = {
     '#111213',
     '#f0e7d7'
   ),
-  phantom: createTheme(
-    'phantom',
-    'Phantom Bloom',
-    'Dark editorial',
-    'Magenta-plum atmosphere with polished ink-heavy shadows',
-    'ai',
-    '#d946ef',
-    '#120d16',
-    '#f3defa'
-  ),
-  slatewave: createTheme(
-    'slatewave',
-    'Slatewave',
-    'Calm pro UI',
-    'Slate neutrals anchored by a crisp glacier-blue accent',
+  codex: createTheme(
+    'codex',
+    'Blue Static',
+    'Clean midnight focus',
+    'Controlled cobalt signal on a tight near-black canvas',
     'minimal',
-    '#58a6ff',
-    '#0f1722',
-    '#e6edf5'
+    '#0a84ff',
+    '#111315',
+    '#fcfcfc'
+  ),
+  charcoal: createTheme(
+    'charcoal',
+    'Charcoal',
+    'Grey minimal',
+    'Deep charcoal with neutral grey tones for a clean black-and-grey workspace',
+    'minimal',
+    '#6b6f78',
+    '#16171a',
+    '#d9d9dc'
+  ),
+  void: createTheme(
+    'void',
+    'Void',
+    'True black',
+    'Pure black canvas with cool desaturated grey accents for deep focus',
+    'minimal',
+    '#5b5f68',
+    '#0a0a0a',
+    '#e5e5e7'
   ),
 }
 

@@ -161,6 +161,7 @@ export type SecureStorageKey =
   | 'fireworksApiKey'
   | 'nvidiaApiKey'
   | 'onlineCompilerApiKey'
+  | 'brevoApiKey'
 
 export interface StorageStatus {
   encryptionAvailable: boolean
@@ -229,6 +230,18 @@ export interface DiscordRpcState {
   connected: boolean
   missingAppId: boolean
   lastError?: string
+}
+
+export interface EmailNotificationSettings {
+  enabled: boolean
+  senderName: string
+  senderEmail: string
+  recipientEmail: string
+}
+
+export interface EmailNotificationResult {
+  ok: boolean
+  error?: string
 }
 
 export type AnalyticsEventName =
@@ -668,6 +681,11 @@ export interface ComputerUseAPI {
   resolveApproval: (requestId: string, approved: boolean) => Promise<ApprovalDecision>
   onPendingApproval: (callback: (pending: PendingComputerAction[]) => void) => () => void
   onKilled: (callback: () => void) => () => void
+}
+
+export interface EmailNotificationsAPI {
+  applySettings: (settings: EmailNotificationSettings) => Promise<EmailNotificationSettings>
+  sendTest: () => Promise<EmailNotificationResult>
 }
 
 export interface McpAPI {

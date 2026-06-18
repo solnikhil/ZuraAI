@@ -1,11 +1,12 @@
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuShortcut,
-  DropdownMenuTrigger,
-} from './ui/dropdown-menu'
+  Menubar,
+  MenubarContent,
+  MenubarItem,
+  MenubarMenu,
+  MenubarSeparator,
+  MenubarShortcut,
+  MenubarTrigger,
+} from './ui/menubar'
 import type { AppMenuCommand } from '../electron/types'
 
 type EditCommand = 'undo' | 'redo' | 'cut' | 'copy' | 'paste' | 'select-all'
@@ -133,37 +134,35 @@ export function TitleBarAppMenu() {
   }
 
   return (
-    <nav className="app-titlebar__menubar no-drag" aria-label="Application menu">
+    <Menubar className="app-titlebar__menubar no-drag" aria-label="Application menu">
       {MENU_DEFINITIONS.map((menu) => (
-        <DropdownMenu key={menu.label}>
-          <DropdownMenuTrigger asChild>
-            <button type="button" className="app-titlebar__menu-trigger">
-              {menu.label}
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" sideOffset={6} className="app-titlebar__menu-content">
+        <MenubarMenu key={menu.label}>
+          <MenubarTrigger className="app-titlebar__menu-trigger">
+            {menu.label}
+          </MenubarTrigger>
+          <MenubarContent align="start" sideOffset={6} className="app-titlebar__menu-content">
             {menu.items
               .filter((item) => !item.devOnly || isDev)
               .map((item) => (
                 <div key={item.label}>
-                  {item.separatorBefore && <DropdownMenuSeparator />}
-                  <DropdownMenuItem
+                  {item.separatorBefore && <MenubarSeparator />}
+                  <MenubarItem
                     className="app-titlebar__menu-item"
                     onSelect={() => handleSelect(item)}
                   >
                     <span>{item.label}</span>
                     {item.shortcut && (
-                      <DropdownMenuShortcut className="app-titlebar__menu-shortcut">
+                      <MenubarShortcut className="app-titlebar__menu-shortcut">
                         {item.shortcut}
-                      </DropdownMenuShortcut>
+                      </MenubarShortcut>
                     )}
-                  </DropdownMenuItem>
+                  </MenubarItem>
                 </div>
               ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+          </MenubarContent>
+        </MenubarMenu>
       ))}
-    </nav>
+    </Menubar>
   )
 }
 

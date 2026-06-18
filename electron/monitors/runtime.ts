@@ -23,6 +23,7 @@ import type {
   ScheduledTaskSummaryResponse,
   ScheduledTaskLog,
 } from './types'
+import { sendScheduledTaskEmail } from '../notifications/email'
 
 const SUMMARY_TIMEOUT_MS = 45_000
 const NOTIFICATION_BODY_LIMIT = 240
@@ -44,6 +45,7 @@ interface MonitorRuntimeDeps {
   now?: () => number
   notificationsSupported?: () => boolean
   notificationFactory?: (options: NotificationConstructorOptions) => ScheduledTaskNotification
+  emailSender?: (task: ScheduledTaskDefinition, run: ScheduledTaskRun) => Promise<{ ok: boolean; error?: string; skipped?: boolean }>
 }
 
 interface ScheduledTaskNotification {
@@ -140,6 +142,7 @@ function createRuntime(deps: MonitorRuntimeDeps = {}): MonitorRuntime {
   const now = deps.now ?? Date.now
   const notificationsSupported = deps.notificationsSupported ?? (() => Notification.isSupported())
   const notificationFactory = deps.notificationFactory ?? ((options) => new Notification(options))
+  const emailSender = deps.emailSender ?? sendScheduledTaskEmail
   const timers = new Map<string, ReturnType<typeof setTimeout>>()
   const running = new Set<string>()
   const pendingSummaries = new Map<string, PendingSummary>()
@@ -244,6 +247,7 @@ function createRuntime(deps: MonitorRuntimeDeps = {}): MonitorRuntime {
           ? { error: summaryError || `${errorResults.length} URL(s) failed.` }
           : {}),
       }
+      await appendEmailNotificationLog(task, run)
       await saveScheduledTaskRun(task, run, nextSnapshots)
       void reschedule()
       broadcastChanged()
@@ -251,6 +255,35 @@ function createRuntime(deps: MonitorRuntimeDeps = {}): MonitorRuntime {
       return run
     } finally {
       running.delete(task.id)
+    }
+  }
+
+  const appendEmailNotificationLog = async (
+    task: ScheduledTaskDefinition,
+    run: ScheduledTaskRun
+  ): Promise<void> => {
+    try {
+      const result = await emailSender(task, run)
+      if (result.skipped) return
+      if (result.ok) {
+        run.logs.push({
+          url: '',
+          status: 'completed',
+          message: 'Email notification sent.',
+        })
+        return
+      }
+      run.logs.push({
+        url: '',
+        status: 'error',
+        error: result.error || 'Email notification failed.',
+      })
+    } catch (error) {
+      run.logs.push({
+        url: '',
+        status: 'error',
+        error: error instanceof Error ? error.message : String(error),
+      })
     }
   }
 

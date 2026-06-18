@@ -41,6 +41,7 @@ import { getProviderEnabledDefaults, getProviderSecretFields } from '../provider
 import type { ProviderId } from '../providers/providerTypes'
 import { warnOnceDuringHmr } from './hmrWarnings'
 import type { OverlaySettings } from '../electron/types'
+import type { EmailNotificationSettings } from '../electron/types'
 
 export type { OverlaySettings }
 
@@ -81,6 +82,7 @@ const SECURE_SETTINGS_KEY_NAMES = [
   ...getProviderSecretFields(),
   'tavilyApiKey',
   'onlineCompilerApiKey',
+  'brevoApiKey',
 ] as const
 
 /**
@@ -100,6 +102,7 @@ export interface SettingsConfig {
   nvidiaApiKey: string
   deepseekApiKey: string
   onlineCompilerApiKey: string
+  brevoApiKey: string
 
   // Model settings
   aiModel: string
@@ -197,6 +200,7 @@ export interface SettingsConfig {
   rememberLastSettingsSection: boolean
   rememberLastDashboardView: boolean
   overlay: OverlaySettings
+  emailNotifications: EmailNotificationSettings
   /**
    * Discord Rich Presence preferences. Lives in the sanitized `zura-settings`
    * blob. The `appId` field should be set to a valid Discord Application ID
@@ -225,6 +229,7 @@ export const defaultSettingsConfig: SettingsConfig = {
   deepseekApiKey: '',
 
   onlineCompilerApiKey: '',
+  brevoApiKey: '',
   // Model settings
   aiModel: '',
   modelProvider: 'openrouter',
@@ -389,6 +394,12 @@ export const defaultSettingsConfig: SettingsConfig = {
     expandedWidth: 460,
     promptAutoHideEnabled: false,
     promptAutoHideTimeout: 120,
+  },
+  emailNotifications: {
+    enabled: false,
+    senderName: 'ZuraAI',
+    senderEmail: '',
+    recipientEmail: '',
   },
   discordRpc: {
     appId: '1512516130911162610',

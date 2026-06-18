@@ -49,6 +49,7 @@ const SECRET_SETTING_KEYS: Array<keyof Settings> = [
   ...getProviderSecretFields(),
   'tavilyApiKey',
   'onlineCompilerApiKey',
+  'brevoApiKey',
 ]
 
 const PROVIDER_IDS = getProviderDefinitions().map((provider) => provider.id)
@@ -356,6 +357,7 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   }
   if (parsed.toolsEnabled === undefined) parsed.toolsEnabled = defaultSettings.toolsEnabled
   if (!parsed.tavilyApiKey) parsed.tavilyApiKey = defaultSettings.tavilyApiKey
+  if (!parsed.brevoApiKey) parsed.brevoApiKey = defaultSettings.brevoApiKey
   if (
     parsed.tavilySearchDepthPreference !== 'auto' &&
     parsed.tavilySearchDepthPreference !== 'ultra-fast' &&
@@ -451,6 +453,25 @@ export function normalizeStoredSettings(raw: string | null): Settings {
       ...defaultSettings.overlay,
       ...parsed.overlay,
       anchor: 'right',
+    }
+  }
+
+  if (!parsed.emailNotifications || typeof parsed.emailNotifications !== 'object') {
+    parsed.emailNotifications = defaultSettings.emailNotifications
+  } else {
+    const emailNotifications = parsed.emailNotifications as unknown as Record<string, unknown>
+    parsed.emailNotifications = {
+      ...defaultSettings.emailNotifications,
+      enabled: emailNotifications.enabled === true,
+      senderName: typeof emailNotifications.senderName === 'string'
+        ? emailNotifications.senderName
+        : defaultSettings.emailNotifications.senderName,
+      senderEmail: typeof emailNotifications.senderEmail === 'string'
+        ? emailNotifications.senderEmail
+        : '',
+      recipientEmail: typeof emailNotifications.recipientEmail === 'string'
+        ? emailNotifications.recipientEmail
+        : '',
     }
   }
 
@@ -561,6 +582,7 @@ export function getInitialConfigSettings(settings: Settings): Partial<SettingsCo
     deepseekApiKey: settings.deepseekApiKey,
     aiModel: settings.aiModel,
     onlineCompilerApiKey: settings.onlineCompilerApiKey,
+    brevoApiKey: settings.brevoApiKey,
     modelProvider: settings.modelProvider,
     providerEnabled: settings.providerEnabled,
     configuredModels: settings.configuredModels,
@@ -605,6 +627,7 @@ export function getInitialConfigSettings(settings: Settings): Partial<SettingsCo
     rememberLastSettingsSection: settings.rememberLastSettingsSection,
     rememberLastDashboardView: settings.rememberLastDashboardView,
     overlay: settings.overlay,
+    emailNotifications: settings.emailNotifications,
     discordRpc: settings.discordRpc,
   }
 }

@@ -226,6 +226,40 @@ describe('preload MCP bridge', () => {
       'Blocked IPC invoke channel: analytics:track'
     )
   })
+
+  it('exposes a dedicated email notification bridge and keeps it out of generic IPC', async () => {
+    const emailNotifications = getExposedBridge<{
+      applySettings: (settings: {
+        enabled: boolean
+        senderName: string
+        senderEmail: string
+        recipientEmail: string
+      }) => Promise<unknown>
+      sendTest: () => Promise<{ ok: boolean }>
+    }>('emailNotifications')
+    const ipcRenderer = getExposedBridge<{
+      invoke: (channel: string, ...args: unknown[]) => Promise<unknown>
+    }>('ipcRenderer')
+    const settings = {
+      enabled: true,
+      senderName: 'ZuraAI',
+      senderEmail: 'reminders@example.com',
+      recipientEmail: 'user@example.com',
+    }
+
+    preloadMocks.invoke
+      .mockResolvedValueOnce(settings)
+      .mockResolvedValueOnce({ ok: true })
+
+    await expect(emailNotifications.applySettings(settings)).resolves.toEqual(settings)
+    await expect(emailNotifications.sendTest()).resolves.toEqual({ ok: true })
+
+    expect(preloadMocks.invoke).toHaveBeenNthCalledWith(1, 'email-notifications:apply-settings', settings)
+    expect(preloadMocks.invoke).toHaveBeenNthCalledWith(2, 'email-notifications:send-test')
+    expect(() => ipcRenderer.invoke('email-notifications:send-test' as never)).toThrow(
+      'Blocked IPC invoke channel: email-notifications:send-test'
+    )
+  })
 })
 
 describe('preload updater bridge', () => {

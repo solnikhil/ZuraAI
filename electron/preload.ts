@@ -25,6 +25,7 @@ import type {
   AnalyticsState,
   AppMenuCommand,
   DiscordRpcState,
+  EmailNotificationSettings,
   Memory,
   MemoryScope,
   ScheduledTaskInput,
@@ -187,6 +188,11 @@ const ANALYTICS_INVOKE_CHANNELS = new Set<string>([
   'analytics:get-state',
   'analytics:set-enabled',
   'analytics:track',
+])
+
+const EMAIL_NOTIFICATIONS_INVOKE_CHANNELS = new Set<string>([
+  'email-notifications:apply-settings',
+  'email-notifications:send-test',
 ])
 
 function assertAllowed<TChannel extends string>(
@@ -438,6 +444,20 @@ contextBridge.exposeInMainWorld(
     track: (eventName: AnalyticsEventName, properties?: AnalyticsProperties) => {
       assertAllowed('invoke', 'analytics:track', ANALYTICS_INVOKE_CHANNELS)
       return ipcRenderer.invoke('analytics:track', eventName, properties) as Promise<boolean>
+    },
+  })
+)
+
+contextBridge.exposeInMainWorld(
+  'emailNotifications',
+  Object.freeze({
+    applySettings: (settings: EmailNotificationSettings) => {
+      assertAllowed('invoke', 'email-notifications:apply-settings', EMAIL_NOTIFICATIONS_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('email-notifications:apply-settings', settings) as Promise<EmailNotificationSettings>
+    },
+    sendTest: () => {
+      assertAllowed('invoke', 'email-notifications:send-test', EMAIL_NOTIFICATIONS_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('email-notifications:send-test') as Promise<{ ok: boolean; error?: string }>
     },
   })
 )

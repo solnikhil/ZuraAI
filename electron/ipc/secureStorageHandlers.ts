@@ -14,6 +14,7 @@ const ALLOWED_SECURE_STORAGE_KEYS = new Set([
   ...getProviderSecretFields(),
   'tavilyApiKey',
   'onlineCompilerApiKey',
+  'brevoApiKey',
 ])
 
 const ALLOWED_SECURE_STORAGE_KEY_LIST = [...ALLOWED_SECURE_STORAGE_KEYS] as const
@@ -22,6 +23,7 @@ type SecureStorageKey =
   | ProviderSecretField
   | 'tavilyApiKey'
   | 'onlineCompilerApiKey'
+  | 'brevoApiKey'
 
 function assertSecureStorageKey(key: string): asserts key is SecureStorageKey {
   if (!ALLOWED_SECURE_STORAGE_KEYS.has(key)) {

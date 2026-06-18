@@ -2,12 +2,13 @@ import { getProviderSecretFields, type ProviderSecretField } from '../providers'
 
 // Utility functions for managing API keys in secure storage
 
-type SecureStorageKey = ProviderSecretField | 'tavilyApiKey' | 'onlineCompilerApiKey'
+type SecureStorageKey = ProviderSecretField | 'tavilyApiKey' | 'onlineCompilerApiKey' | 'brevoApiKey'
 
 export const SECURE_API_KEY_NAMES: SecureStorageKey[] = [
     ...getProviderSecretFields(),
     'tavilyApiKey',
     'onlineCompilerApiKey',
+    'brevoApiKey',
 ]
 
 export const SECURE_API_KEY_PRESENT_VALUE = '__zura_secure_key_present__'
@@ -22,6 +23,7 @@ type SecureApiKeyValues = {
     perplexityApiKey: string
     tavilyApiKey: string
     onlineCompilerApiKey: string
+    brevoApiKey: string
 }
 
 function defaultSecureApiKeys(): SecureApiKeyValues {
@@ -35,6 +37,7 @@ function defaultSecureApiKeys(): SecureApiKeyValues {
         perplexityApiKey: '',
         tavilyApiKey: '',
         onlineCompilerApiKey: '',
+        brevoApiKey: '',
     }
 }
 
