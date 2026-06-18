@@ -161,12 +161,12 @@
     align-items: center;
     gap: 2px;
     flex: 0 0 auto;
-    height: 30px;
+    height: 28px;
     margin: 0 8px 0 -2px;
-    padding: 2px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 9px;
-    background: rgba(8, 8, 8, 0.92);
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 0;
+    background: transparent;
     box-shadow: none;
     -webkit-app-region: no-drag;
 }
@@ -178,10 +178,10 @@
     border: 1px solid transparent;
     border-radius: 6px;
     background: transparent;
-    color: rgba(255, 255, 255, 0.96);
+    color: var(--theme-text-secondary);
     font: inherit;
-    font-size: 0.8rem;
-    font-weight: 650;
+    font-size: 0.76rem;
+    font-weight: 600;
     line-height: 1;
     cursor: default;
     transition: background-color 120ms var(--motion-ease-standard), border-color 120ms var(--motion-ease-standard), color 120ms var(--motion-ease-standard);
@@ -190,9 +190,9 @@
 
 .app-titlebar__menu-trigger:hover,
 .app-titlebar__menu-trigger[data-state='open'] {
-    border-color: rgba(255, 255, 255, 0.16);
-    background: #050505;
-    color: #ffffff;
+    border-color: color-mix(in srgb, var(--theme-border) 88%, transparent);
+    background: var(--theme-surface-hover);
+    color: var(--theme-text-primary);
     outline: none;
 }
 
@@ -209,17 +209,17 @@
 }
 
 .app-titlebar__menu-trigger:focus-visible {
-    outline: 1px solid rgba(255, 255, 255, 0.42);
+    outline: 1px solid color-mix(in srgb, var(--theme-accent) 70%, transparent);
     outline-offset: 1px;
 }
 
 .app-titlebar__menu-content {
     min-width: 178px;
-    padding: 5px 0;
-    border-color: rgba(255, 255, 255, 0.1);
+    padding: 5px;
+    border-color: color-mix(in srgb, var(--theme-border) 72%, rgba(255, 255, 255, 0.14));
     border-radius: 9px;
-    background: #151515;
-    color: rgba(255, 255, 255, 0.92);
+    background: color-mix(in srgb, var(--theme-surface) 74%, #111111 26%);
+    color: color-mix(in srgb, var(--theme-text-primary) 88%, white 12%);
     box-shadow: none;
     transform-origin: var(--radix-menubar-content-transform-origin);
     will-change: opacity, transform;
@@ -227,8 +227,8 @@
 
 .app-titlebar__menu-content [data-slot='menubar-separator'] {
     height: 1px;
-    margin: 5px 0;
-    background: rgba(255, 255, 255, 0.1);
+    margin: 5px -5px;
+    background: color-mix(in srgb, var(--theme-border) 76%, rgba(255, 255, 255, 0.12));
 }
 
 .app-titlebar__menu-content[data-state='open'] {
@@ -241,21 +241,35 @@
 
 .app-titlebar__menu-item {
     min-height: 29px;
-    border-radius: 0;
-    padding: 6px 10px;
-    color: rgba(255, 255, 255, 0.88);
+    border-radius: 6px;
+    padding: 6px 8px;
+    color: color-mix(in srgb, var(--theme-text-primary) 78%, white 22%);
     font-size: 0.8rem;
     font-weight: 600;
 }
 
+.app-titlebar__menu-item > span:first-child {
+    flex: 1 1 auto;
+    min-width: 0;
+    text-align: left;
+}
+
 .app-titlebar__menu-item:focus {
-    background: rgba(255, 255, 255, 0.08);
-    color: #ffffff;
+    background: color-mix(in srgb, var(--theme-surface-hover) 72%, white 6%);
+    color: color-mix(in srgb, var(--theme-text-primary) 88%, white 12%);
 }
 
 .app-titlebar__menu-shortcut {
-    color: rgba(255, 255, 255, 0.45);
-    font-size: 0.74rem;
+    flex: 0 0 auto;
+    margin-left: 22px;
+    padding: 0 4px;
+    border: 1px solid color-mix(in srgb, var(--theme-border) 64%, transparent);
+    border-radius: 4px;
+    background: transparent;
+    color: color-mix(in srgb, var(--theme-text-muted) 88%, transparent);
+    font-size: 0.66rem;
+    font-weight: 500;
+    line-height: 1.35;
     letter-spacing: 0;
 }
 

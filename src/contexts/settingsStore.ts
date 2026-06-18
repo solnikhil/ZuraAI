@@ -41,6 +41,7 @@ export const UI_SETTING_KEYS: (keyof SettingsUI)[] = [
   'chatBubbleStyle',
   'chatSelectedOverlayStyle',
   'placeholderStyle',
+  'remindersAppearance',
   'modelSelector',
   'promptAutoHide',
 ]
@@ -492,6 +493,28 @@ export function normalizeStoredSettings(raw: string | null): Settings {
     parsed.commandBar = { ...defaultSettings.commandBar, ...parsed.commandBar }
   }
 
+  if (!parsed.remindersAppearance || typeof parsed.remindersAppearance !== 'object') {
+    parsed.remindersAppearance = defaultSettings.remindersAppearance
+  } else {
+    const remindersAppearance = parsed.remindersAppearance as Record<string, unknown>
+    parsed.remindersAppearance = {
+      ...defaultSettings.remindersAppearance!,
+      cardStyle: ['solid', 'subtle', 'outline'].includes(String(remindersAppearance.cardStyle))
+        ? remindersAppearance.cardStyle as NonNullable<SettingsUI['remindersAppearance']>['cardStyle']
+        : defaultSettings.remindersAppearance!.cardStyle,
+      actionStyle: ['pill', 'soft', 'minimal'].includes(String(remindersAppearance.actionStyle))
+        ? remindersAppearance.actionStyle as NonNullable<SettingsUI['remindersAppearance']>['actionStyle']
+        : defaultSettings.remindersAppearance!.actionStyle,
+      badgeStyle: ['soft', 'filled', 'outline'].includes(String(remindersAppearance.badgeStyle))
+        ? remindersAppearance.badgeStyle as NonNullable<SettingsUI['remindersAppearance']>['badgeStyle']
+        : defaultSettings.remindersAppearance!.badgeStyle,
+      useAccentTint:
+        typeof remindersAppearance.useAccentTint === 'boolean'
+          ? remindersAppearance.useAccentTint
+          : defaultSettings.remindersAppearance!.useAccentTint,
+    }
+  }
+
   parsed.configuredModels = normalizeProviderModels(
     parsed.configuredModels,
     defaultSettings.configuredModels
@@ -563,6 +586,8 @@ export function getInitialUISettings(settings: Settings): Partial<SettingsUI> {
     promptAutoHide: settings.promptAutoHide,
     chatBubbleStyle: settings.chatBubbleStyle,
     chatSelectedOverlayStyle: settings.chatSelectedOverlayStyle,
+    placeholderStyle: settings.placeholderStyle,
+    remindersAppearance: settings.remindersAppearance,
     modelSelector: settings.modelSelector,
   }
 }

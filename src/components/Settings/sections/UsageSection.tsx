@@ -75,29 +75,6 @@ export function UsageSection({
         <div className="page-subtitle">Monitor activity, response trends, model mix, and web search effectiveness</div>
       </div>
 
-      <div className="settings-section-card provider-hub-base-card mt-4">
-        <div className="settings-list-row">
-          <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Anonymous analytics</h3>
-            <div className="settings-list-row__description">
-              Share basic app usage and reliability events with ZuraAI. Prompt text, AI responses,
-              files, API keys, clipboard data, and conversation content are never sent.
-              {analyticsState && !analyticsState.hasProjectKey
-                ? ' Analytics is configured off in this build because no PostHog project key is present.'
-                : ''}
-            </div>
-          </div>
-          <div className="settings-list-row__control">
-            <Switch
-              checked={analyticsState?.analyticsEnabled ?? false}
-              onCheckedChange={(enabled) => void updateAnalyticsEnabled(enabled)}
-              disabled={!analyticsState || analyticsUpdating}
-              aria-label="Enable anonymous analytics"
-            />
-          </div>
-        </div>
-      </div>
-
       <div className="usage-stats-grid" style={{ marginTop: 24 }}>
         <div className="stat-card compact usage-motion-card usage-motion-card--compact" style={delayStyle(0)}>
           <div className="stat-icon-wrapper" style={{ color: 'var(--theme-accent)' }}>
@@ -320,6 +297,29 @@ export function UsageSection({
                   : 0}% of tokens ({otherModelsCount} more model{otherModelsCount === 1 ? '' : 's'})
               </div>
             )}
+          </div>
+        </div>
+      </div>
+
+      <div className="settings-section-card provider-hub-base-card mt-4">
+        <div className="settings-list-row">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Anonymous analytics</h3>
+            <div className="settings-list-row__description">
+              Share basic app usage and reliability events with ZuraAI. Prompt text, AI responses,
+              files, API keys, clipboard data, and conversation content are never sent.
+              {analyticsState && !analyticsState.hasProjectKey
+                ? ' Analytics is configured off in this build because no PostHog project key is present.'
+                : ''}
+            </div>
+          </div>
+          <div className="settings-list-row__control">
+            <Switch
+              checked={analyticsState?.analyticsEnabled ?? false}
+              onCheckedChange={(enabled) => void updateAnalyticsEnabled(enabled)}
+              disabled={!analyticsState || analyticsUpdating}
+              aria-label="Enable anonymous analytics"
+            />
           </div>
         </div>
       </div>

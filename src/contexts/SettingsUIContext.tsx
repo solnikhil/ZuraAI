@@ -26,6 +26,16 @@ import { warnOnceDuringHmr } from './hmrWarnings'
 export type ChatBubbleStyle = 'solid' | 'glass' | 'outline' | 'gradient' | 'elevated' | 'terminal'
 export type ChatSelectedOverlayStyle = 'linear' | 'notion' | 'slack' | 'discord' | 'github'
 export type PlaceholderStyle = 'normal' | 'genz'
+export type RemindersCardStyle = 'solid' | 'subtle' | 'outline'
+export type RemindersActionStyle = 'pill' | 'soft' | 'minimal'
+export type RemindersBadgeStyle = 'soft' | 'filled' | 'outline'
+
+export interface RemindersAppearanceSettings {
+  cardStyle: RemindersCardStyle
+  actionStyle: RemindersActionStyle
+  badgeStyle: RemindersBadgeStyle
+  useAccentTint: boolean
+}
 
 /**
  * Model Selector settings
@@ -111,6 +121,9 @@ export interface SettingsUI {
   // Empty state placeholder style
   placeholderStyle?: PlaceholderStyle
 
+  // Reminders & Lookouts surface style
+  remindersAppearance?: RemindersAppearanceSettings
+
   // Model Selector settings
   modelSelector?: ModelSelectorSettings
 }
@@ -145,6 +158,12 @@ export const defaultSettingsUI: SettingsUI = {
   chatBubbleStyle: 'solid',
   chatSelectedOverlayStyle: 'linear',
   placeholderStyle: 'genz',
+  remindersAppearance: {
+    cardStyle: 'solid',
+    actionStyle: 'pill',
+    badgeStyle: 'soft',
+    useAccentTint: true,
+  },
   modelSelector: {
     sidebarPosition: 'left',
     sidebarShowLabels: false,
@@ -213,6 +232,12 @@ export function SettingsUIProvider({
         ...initialSettings.promptAutoHide,
       }
     }
+    if (initialSettings?.remindersAppearance) {
+      merged.remindersAppearance = {
+        ...defaultSettingsUI.remindersAppearance!,
+        ...initialSettings.remindersAppearance,
+      }
+    }
     return merged
   })
 
@@ -245,6 +270,13 @@ export function SettingsUIProvider({
             ...initialSettings.promptAutoHide,
           }
         }
+        if (initialSettings.remindersAppearance) {
+          merged.remindersAppearance = {
+            ...defaultSettingsUI.remindersAppearance!,
+            ...prev.remindersAppearance,
+            ...initialSettings.remindersAppearance,
+          }
+        }
         return merged
       })
     }
@@ -264,7 +296,24 @@ export function SettingsUIProvider({
       customForeground,
       contrast: contrast < 100 ? contrast : undefined,
     })
-  }, [settingsUI.activeTheme, settingsUI.themeAccent, settingsUI.themeBackground, settingsUI.themeForeground, settingsUI.themeContrast])
+
+    const root = document.documentElement
+    const remindersAppearance = {
+      ...defaultSettingsUI.remindersAppearance!,
+      ...settingsUI.remindersAppearance,
+    }
+    root.dataset.remindersCard = remindersAppearance.cardStyle
+    root.dataset.remindersAction = remindersAppearance.actionStyle
+    root.dataset.remindersBadge = remindersAppearance.badgeStyle
+    root.dataset.remindersAccentTint = remindersAppearance.useAccentTint ? 'on' : 'off'
+  }, [
+    settingsUI.activeTheme,
+    settingsUI.themeAccent,
+    settingsUI.themeBackground,
+    settingsUI.themeForeground,
+    settingsUI.themeContrast,
+    settingsUI.remindersAppearance,
+  ])
 
   // Notify parent of changes
   useEffect(() => {
@@ -288,6 +337,14 @@ export function SettingsUIProvider({
           ...defaultSettingsUI.promptAutoHide,
           ...prev.promptAutoHide,
           ...newSettings.promptAutoHide,
+        }
+      }
+      // Deep merge remindersAppearance if present
+      if (newSettings.remindersAppearance) {
+        merged.remindersAppearance = {
+          ...defaultSettingsUI.remindersAppearance!,
+          ...prev.remindersAppearance,
+          ...newSettings.remindersAppearance,
         }
       }
       return merged
