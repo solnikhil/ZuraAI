@@ -62,10 +62,10 @@ export default function ToolCallIndicator({
     switch (status) {
       case 'executing':
         if (toolName === 'web_search' && args?.query) {
-          return `Tool: ${displayName} "${args.query}"`
+          return `Sourcing “${args.query}”`
         }
         if (toolName === 'web_search') {
-          return `Tool: ${displayName}`
+          return displayName
         }
         if (toolName === 'code_execution') {
           const desc = args?.description ? String(args.description) : null

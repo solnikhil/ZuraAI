@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronRight, Loader2, Search, Globe, Wrench } from './icons'
+import { ChevronRight, Loader2, Search, Wrench } from './icons'
 import './ThinkingBlock.css'
 import { ThinkingBlock as ThinkingBlockType } from '../contexts/ChatHistoryContext'
 import AITextLoading from './AITextLoading'
@@ -88,18 +88,26 @@ function getToolCallHeaderText(
   return remainingToolCalls.length > 0 ? `${baseText} (+${remainingToolCalls.length} more)` : baseText
 }
 
-function getActiveSearchItemText(query: string, index: number): string {
-  return `${index + 1}. Searching web: "${query}"`
+function getActiveSearchItemText(query: string): string {
+  return `Sourcing “${query}”`
 }
 
-function getCompletedToolBlockText(block: ThinkingBlockType): string {
+function getCompletedToolBlockText(block: ThinkingBlockType): React.ReactNode {
   const toolName = block.toolName || (block.type === 'searching' ? 'web_search' : '')
   const mcpLabel = formatMcpToolLabel(toolName, block.toolOutput?.metadata)
   const displayName =
     mcpLabel || formatToolDisplayName(toolName, block.toolInput, block.toolOutput?.data)
 
   if (toolName === 'web_search') {
-    return `${displayName}${block.query ? `: "${block.query}"` : ''}`
+    const q = block.query ? block.query : ''
+    const count = getWebSearchResultCount(block.toolOutput?.data)
+    const countPart = count != null ? `(${count} source${count === 1 ? '' : 's'})` : ''
+    return (
+      <>
+        Sourced <span className="search-query">“{q}”</span>
+        {countPart && <span className="search-count"> {countPart}</span>}
+      </>
+    )
   }
 
   if (toolName === 'code_execution' && block.toolInput?.description) {
@@ -109,6 +117,18 @@ function getCompletedToolBlockText(block: ThinkingBlockType): string {
 
   const argumentSummary = getToolArgumentSummary(block.toolInput)
   return argumentSummary ? `${displayName}: ${argumentSummary}` : displayName
+}
+
+function getWebSearchResultCount(data: unknown): number | null {
+  if (!data || typeof data !== 'object') return null
+  const obj = data as Record<string, unknown>
+  if (typeof obj.resultCount === 'number' && Number.isFinite(obj.resultCount)) {
+    return Math.max(0, obj.resultCount)
+  }
+  if (Array.isArray(obj.results)) {
+    return obj.results.length
+  }
+  return null
 }
 
 function getCompletedToolStatus(
@@ -345,9 +365,6 @@ function InlineWebSearchBlock({ block }: { block: ThinkingBlockType }) {
     (block.toolInput && Object.keys(block.toolInput).length > 0) ||
     (block.toolOutput && (block.toolOutput.data !== undefined || block.toolOutput.error))
   const query = block.query || ''
-  const mode =
-    inferWebToolModeFromResultData(block.toolOutput?.data) ||
-    inferWebToolModeFromArgs(block.toolInput)
   const displayName = formatToolDisplayName('web_search', block.toolInput, block.toolOutput?.data)
 
   return (
@@ -357,12 +374,14 @@ function InlineWebSearchBlock({ block }: { block: ThinkingBlockType }) {
         onClick={() => hasDetails && setIsExpanded(!isExpanded)}
       >
         <div className="thinking-label">
-          <span className="thinking-tool-calling-icon">
-            {mode === 'extract' ? <Globe size={14} /> : <Search size={14} />}
-          </span>
           <span className="thinking-text">
-            {displayName}
-            {query ? `: "${query}"` : ''}
+            {query ? (
+              <>
+                Sourced <span className="search-query">“{query}”</span>
+              </>
+            ) : (
+              displayName
+            )}
           </span>
         </div>
       </div>
@@ -666,11 +685,6 @@ function CompletedBlock({
       (block.toolInput && Object.keys(block.toolInput).length > 0) ||
       (block.toolOutput && (block.toolOutput.data !== undefined || block.toolOutput.error))
     const toolName = block.toolName || (block.type === 'searching' ? 'web_search' : '')
-    const mode =
-      toolName === 'web_search'
-        ? inferWebToolModeFromResultData(block.toolOutput?.data) ||
-          inferWebToolModeFromArgs(block.toolInput)
-        : 'search'
     const status = getCompletedToolStatus(block)
     const auditLine = formatToolAuditLine(block)
 
@@ -681,13 +695,11 @@ function CompletedBlock({
           onClick={() => hasDetails && setIsExpanded(!isExpanded)}
         >
           <div className="thinking-label">
-            <span className="thinking-tool-calling-icon">
-              {toolName === 'web_search' ? (
-                mode === 'extract' ? <Globe size={14} /> : <Search size={14} />
-              ) : (
+            {toolName !== 'web_search' && (
+              <span className="thinking-tool-calling-icon">
                 <Wrench size={14} />
-              )}
-            </span>
+              </span>
+            )}
             <span className="thinking-text">
               {getCompletedToolBlockText(block)}
             </span>
@@ -871,7 +883,6 @@ export default function ThinkingBlock({
   const searchingMode = inferWebToolModeFromArgs(
     primarySearchQuery ? { query: primarySearchQuery } : undefined
   )
-  const searchingLabel = searchingMode === 'extract' ? 'Extracting from web' : 'Searching web'
   const activeSearchToolCalls = hasActiveToolCalls
     ? activeToolCalls.filter((toolCall) => toolCall.name === 'web_search')
     : []
@@ -889,15 +900,21 @@ export default function ThinkingBlock({
       ? activeSearchBatchQueries
       : activeSearchQueries
   const hasVisibleSearchQueryList = visibleSearchQueries.length > 0
-  const primaryVisibleSearchQuery = visibleSearchQueries[0]
   const isSearchBatch = visibleSearchQueries.length > 1
+  const primaryVisibleSearchQuery = visibleSearchQueries[0]
+  const isExtract = searchingMode === 'extract'
+  const sourcingHeaderText = isExtract ? 'Extracting from web' : 'Sourcing the web'
   const searchingText = isSearchBatch
-    ? `${searchingLabel} · ${visibleSearchQueries.length} queries`
+    ? sourcingHeaderText
     : primaryVisibleSearchQuery
-      ? `${searchingLabel}: "${primaryVisibleSearchQuery}"`
-      : searchingLabel
+      ? `Sourcing “${primaryVisibleSearchQuery}”`
+      : sourcingHeaderText
+  const showSearchQueryDetail =
+    (isSearching || isActiveSearchBatch) && hasVisibleSearchQueryList
   const showSearchBatchDetails =
     (isSearching || isActiveSearchBatch) && isSearchBatch && hasVisibleSearchQueryList
+  const isSourcingBatch = (isSearching || isActiveSearchBatch) && isSearchBatch && hasVisibleSearchQueryList
+  const showSourcingHeader = !isSourcingBatch
   const handleHeaderClick = () => {
     if (showSearchBatchDetails) {
       setIsSearchBatchExpanded((expanded) => !expanded)
@@ -946,8 +963,9 @@ export default function ThinkingBlock({
 
       {showActiveBlock && (
         <div className="thinking-block">
+          {showSourcingHeader && (
           <div
-            className={`thinking-header ${hasActiveToolCalls ? 'tool-calling' : isSearching ? 'searching' : ''} ${showSearchBatchDetails ? 'search-batch' : ''}`}
+            className={`thinking-header ${hasActiveToolCalls ? 'tool-calling' : (isSearching && showSourcingHeader) ? 'searching' : ''} ${showSearchBatchDetails ? 'search-batch' : ''}`}
             onClick={handleHeaderClick}
           >
             <div className="thinking-label">
@@ -980,8 +998,11 @@ export default function ThinkingBlock({
                     animationKey="tool-calling"
                   />
                 </span>
-              ) : isSearching ? (
-                <span className="thinking-text">
+              ) : isSearching && showSourcingHeader ? (
+                <span className="thinking-text thinking-tool-calling">
+                  <span className="thinking-tool-calling-icon">
+                    <Search size={14} />
+                  </span>
                   <AITextLoading
                     text={searchingText}
                     animationKey="searching"
@@ -1018,7 +1039,7 @@ export default function ThinkingBlock({
                   </motion.div>
                 </>
               )}
-              {showSearchBatchDetails && (
+              {showSearchBatchDetails && showSourcingHeader && (
                 <motion.div
                   animate={{ rotate: isSearchBatchExpanded ? 90 : 0 }}
                   transition={motionSpringTransition(animationsEnabled, motionSpring.bouncy)}
@@ -1028,6 +1049,7 @@ export default function ThinkingBlock({
               )}
             </div>
           </div>
+          )}
           <AnimatePresence initial={false}>
             {isExpanded && hasThinkingContent && (
               <motion.div
@@ -1070,7 +1092,7 @@ export default function ThinkingBlock({
                   {isActiveSearchBatch
                     ? activeSearchBatchQueries.map((query, index) => (
                         <div key={`${query}-${index}`} className="thinking-active-tool-item">
-                          {getActiveSearchItemText(query, index)}
+                          {getActiveSearchItemText(query)}
                         </div>
                       ))
                     : extraActiveToolCalls.map((toolCall, index) => (
@@ -1081,7 +1103,7 @@ export default function ThinkingBlock({
                 </div>
               </motion.div>
             )}
-            {isExpanded && showSearchBatchDetails && isSearchBatchExpanded && (
+            {isExpanded && showSearchQueryDetail && visibleSearchQueries.length > 1 && (
               <motion.div
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: 'auto', opacity: 1 }}
@@ -1098,7 +1120,7 @@ export default function ThinkingBlock({
                 <div className="thinking-active-search-batch">
                   {visibleSearchQueries.map((query, index) => (
                     <div key={`${query}-${index}`} className="thinking-active-tool-item">
-                      {getActiveSearchItemText(query, index)}
+                      {getActiveSearchItemText(query)}
                     </div>
                   ))}
                 </div>

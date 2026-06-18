@@ -126,7 +126,7 @@ describe('ThinkingBlock behavior', () => {
       vi.advanceTimersByTime(5000)
     })
 
-    expect(screen.getByText('Searching web: "zura ai"')).toBeInTheDocument()
+    expect(screen.getByText('Sourcing “zura ai”')).toBeInTheDocument()
     expect(screen.queryByText(/Thinking for/)).not.toBeInTheDocument()
 
     rerender(
@@ -291,14 +291,12 @@ describe('ThinkingBlock behavior', () => {
     )
 
     expect(
-      await screen.findByText('Searching web · 2 queries')
+      screen.getByText('Sourcing “openai responses api pricing”')
     ).toBeInTheDocument()
     expect(
-      screen.getByText('1. Searching web: "openai responses api pricing"')
+      screen.getByText('Sourcing “openai responses api rate limits”')
     ).toBeInTheDocument()
-    expect(
-      screen.getByText('2. Searching web: "openai responses api rate limits"')
-    ).toBeInTheDocument()
+    expect(screen.queryByText('Sourcing the web')).not.toBeInTheDocument()
   })
 
   it('shows completed batched search queries together in the active search state', async () => {
@@ -316,14 +314,12 @@ describe('ThinkingBlock behavior', () => {
     )
 
     expect(
-      await screen.findByText('Searching web · 2 queries')
+      screen.getByText('Sourcing “electron app updater release notes”')
     ).toBeInTheDocument()
     expect(
-      screen.getByText('1. Searching web: "electron app updater release notes"')
+      screen.getByText('Sourcing “electron app updater windows installer behavior”')
     ).toBeInTheDocument()
-    expect(
-      screen.getByText('2. Searching web: "electron app updater windows installer behavior"')
-    ).toBeInTheDocument()
+    expect(screen.queryByText('Sourcing the web')).not.toBeInTheDocument()
   })
 
   it('does not let stale search queries override the thinking title after search finishes', async () => {
@@ -344,7 +340,7 @@ describe('ThinkingBlock behavior', () => {
     )
 
     expect(screen.getByText('Thought For 9.0 Seconds')).toBeInTheDocument()
-    expect(screen.queryByText('Searching web · 4 queries')).not.toBeInTheDocument()
+    expect(screen.queryByText('Sourcing the web · 4 queries')).not.toBeInTheDocument()
     fireEvent.click(screen.getByText('Thought For 9.0 Seconds'))
     expect(screen.getByText('Synthesizing the search results into an answer.')).toBeInTheDocument()
   })
