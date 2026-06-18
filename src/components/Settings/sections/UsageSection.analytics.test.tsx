@@ -103,11 +103,7 @@ describe('UsageSection analytics settings', () => {
 
   it('toggles anonymous analytics through the dedicated bridge', async () => {
     render(
-      <UsageSection
-        stats={emptyStats}
-        onExportSnapshot={vi.fn()}
-        onExportWebSearchCsv={vi.fn()}
-      />
+      <UsageSection stats={emptyStats} />
     )
 
     const toggle = await screen.findByRole('switch', { name: 'Enable anonymous analytics' })
@@ -118,7 +114,7 @@ describe('UsageSection analytics settings', () => {
     })
   })
 
-  it('renders activity graph first, then model mix with compact stats', async () => {
+  it('renders activity graph first, then model mix', async () => {
     render(
       <UsageSection
         stats={{
@@ -136,34 +132,20 @@ describe('UsageSection analytics settings', () => {
             { name: 'gpt-oss-120b', count: 1, tokens: 100 },
           ],
         }}
-        onExportSnapshot={vi.fn()}
-        onExportWebSearchCsv={vi.fn()}
       />
     )
 
     const modelMixRegion = await screen.findByRole('region', { name: 'Model Mix' })
     expect(within(modelMixRegion).getByRole('heading', { name: 'Model Mix' })).toBeInTheDocument()
     expect(within(modelMixRegion).getByText('Token share by model')).toBeInTheDocument()
-    expect(within(modelMixRegion).getByText('qwen3-max')).toBeInTheDocument()
-    expect(within(modelMixRegion).getByText('llama-3.3-70b')).toBeInTheDocument()
-    expect(within(modelMixRegion).getByText('600 tokens')).toBeInTheDocument()
-    expect(within(modelMixRegion).getByText('60%')).toBeInTheDocument()
-    expect(within(modelMixRegion).getByText('qwen3-max leads with 60% of model tokens')).toBeInTheDocument()
-
     const usageRoot = screen.getByText('Usage Intelligence').closest('.settings-section-layout')
     const graph = screen.getByTestId('activity-graph')
     const modelMix = within(modelMixRegion).getByRole('heading', { name: 'Model Mix' })
-    const stat = screen.getByText('Messages today')
     expect(usageRoot).not.toBeNull()
     expect(
       Array.from((usageRoot as HTMLElement).querySelectorAll('*')).indexOf(graph)
     ).toBeLessThan(
       Array.from((usageRoot as HTMLElement).querySelectorAll('*')).indexOf(modelMix)
-    )
-    expect(
-      Array.from((usageRoot as HTMLElement).querySelectorAll('*')).indexOf(modelMix)
-    ).toBeLessThan(
-      Array.from((usageRoot as HTMLElement).querySelectorAll('*')).indexOf(stat)
     )
     expect(screen.queryByText('Activity Streak')).not.toBeInTheDocument()
     expect(screen.queryByText('Model Details')).not.toBeInTheDocument()
@@ -211,8 +193,6 @@ describe('UsageSection analytics settings', () => {
             all: [groqSevenDay],
           },
         }}
-        onExportSnapshot={vi.fn()}
-        onExportWebSearchCsv={vi.fn()}
       />
     )
 
@@ -229,11 +209,7 @@ describe('UsageSection analytics settings', () => {
 
   it('renders compact model mix empty state when there is no model usage', async () => {
     render(
-      <UsageSection
-        stats={emptyStats}
-        onExportSnapshot={vi.fn()}
-        onExportWebSearchCsv={vi.fn()}
-      />
+      <UsageSection stats={emptyStats} />
     )
 
     const modelMixRegion = await screen.findByRole('region', { name: 'Model Mix' })

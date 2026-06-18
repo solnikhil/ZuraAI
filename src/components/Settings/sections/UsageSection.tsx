@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { MessageSquare, Clock, Zap, TrendingUp, BarChart, Shield, Download, FileDown } from 'lucide-react'
+import { BarChart } from 'lucide-react'
 import { Pie, PieChart } from 'recharts'
-import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import {
   ChartContainer,
@@ -15,8 +14,6 @@ import type { AnalyticsState } from '@/electron/types'
 
 export interface UsageSectionProps {
   stats: UsageStats
-  onExportSnapshot: () => void
-  onExportWebSearchCsv: () => void
 }
 
 type ModelMixEntry = UsageStats['modelEntries'][number]
@@ -334,8 +331,6 @@ function ResponsePerformancePanel({
 
 export function UsageSection({
   stats,
-  onExportSnapshot,
-  onExportWebSearchCsv,
 }: UsageSectionProps): React.ReactElement {
   const [analyticsState, setAnalyticsState] = useState<AnalyticsState | null>(null)
   const [analyticsUpdating, setAnalyticsUpdating] = useState(false)
@@ -360,10 +355,6 @@ export function UsageSection({
       setAnalyticsUpdating(false)
     }
   }
-
-  const delayStyle = (index: number): React.CSSProperties => ({
-    ['--usage-delay' as string]: `${index * 40}ms`
-  })
 
   const performanceEntries = useMemo(
     () => stats.providerPerformanceByRange?.[performanceRange] ?? stats.providerEntries,
@@ -396,125 +387,6 @@ export function UsageSection({
 
       <div className="usage-lower-grid">
         <ModelMixPieCard stats={stats} />
-
-        <div className="usage-stats-grid usage-stats-grid--compact">
-          <div className="stat-card compact usage-motion-card usage-motion-card--compact" style={delayStyle(0)}>
-            <div className="stat-icon-wrapper" style={{ color: 'var(--theme-accent)' }}>
-              <MessageSquare size={16} />
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div className="stat-value-sm">{stats.todayMessages}</div>
-              <div className="stat-label-sm">Messages today</div>
-            </div>
-          </div>
-
-          <div className="stat-card compact usage-motion-card usage-motion-card--compact" style={delayStyle(1)}>
-            <div className="stat-icon-wrapper" style={{ color: 'var(--theme-accent)' }}>
-              <Clock size={16} />
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div className="stat-value-sm">{stats.totalSessions}</div>
-              <div className="stat-label-sm">Total sessions</div>
-            </div>
-          </div>
-
-          <div className="stat-card compact usage-motion-card usage-motion-card--compact" style={delayStyle(2)}>
-            <div className="stat-icon-wrapper" style={{ color: 'var(--theme-accent)' }}>
-              <Zap size={16} />
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div className="stat-value-sm">{stats.avgMessagesPerSession}</div>
-              <div className="stat-label-sm">Avg msgs/session</div>
-            </div>
-          </div>
-
-          <div className="stat-card compact usage-motion-card usage-motion-card--compact" style={delayStyle(3)}>
-            <div className="stat-icon-wrapper" style={{ color: 'var(--theme-accent)' }}>
-              <TrendingUp size={16} />
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div className="stat-value-sm">{stats.avgTokensPerAssistant}</div>
-              <div className="stat-label-sm">Avg tokens/assistant</div>
-            </div>
-          </div>
-
-          <div className="stat-card compact usage-motion-card usage-motion-card--compact usage-stats-grid__wide" style={delayStyle(4)}>
-            <div className="stat-icon-wrapper" style={{ color: 'var(--theme-accent)' }}>
-              <Download size={16} />
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div className="stat-value-sm">{stats.cachedTotalTokens.toLocaleString()}</div>
-              <div className="stat-label-sm">
-                Cached tokens{stats.cacheWriteInputTokens > 0 ? ` / wrote ${stats.cacheWriteInputTokens.toLocaleString()}` : ''}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="usage-quality-grid">
-        <div className="stat-card usage-quality-card usage-motion-card usage-motion-card--surface" style={delayStyle(5)}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <span className="stat-label" style={{ fontSize: '0.85rem', fontWeight: 500 }}>Quality, Tools, and Privacy</span>
-            <Shield size={16} color="var(--theme-accent)" />
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
-              <div className="stat-subtext" style={{ fontSize: '0.75rem' }}>Total tool calls</div>
-              <div style={{ fontSize: '0.85rem', textAlign: 'right', color: 'var(--theme-text-primary)', fontWeight: 600 }}>
-                {stats.totalToolCalls.toLocaleString()}
-              </div>
-              <div className="stat-subtext" style={{ fontSize: '0.75rem' }}>Regenerated responses</div>
-              <div style={{ fontSize: '0.85rem', textAlign: 'right', color: 'var(--theme-text-primary)', fontWeight: 600 }}>
-                {stats.totalRegenerations.toLocaleString()}
-              </div>
-              <div className="stat-subtext" style={{ fontSize: '0.75rem' }}>Assistant error rate</div>
-              <div style={{ fontSize: '0.85rem', textAlign: 'right', color: 'var(--theme-text-primary)', fontWeight: 600 }}>
-                {stats.assistantErrorRate}%
-              </div>
-              <div className="stat-subtext" style={{ fontSize: '0.75rem' }}>Messages with errors</div>
-              <div style={{ fontSize: '0.85rem', textAlign: 'right', color: 'var(--theme-text-primary)', fontWeight: 600 }}>
-                {stats.assistantMessagesWithErrors.toLocaleString()}
-              </div>
-            </div>
-
-            <div style={{ borderTop: '1px solid var(--theme-border-subtle)', marginTop: 2, paddingTop: 8 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                <div className="stat-subtext" style={{ fontSize: '0.75rem' }}>
-                  Web searches: {stats.totalWebSearches.toLocaleString()} total
-                </div>
-                <Button type="button" variant="outline" size="sm" onClick={onExportWebSearchCsv} disabled={stats.totalWebSearches === 0}>
-                  <FileDown size={14} style={{ marginRight: 6 }} />
-                  Export CSV
-                </Button>
-              </div>
-            </div>
-
-            {(stats.errorBreakdown.network + stats.errorBreakdown.auth + stats.errorBreakdown.rateLimit + stats.errorBreakdown.provider + stats.errorBreakdown.tool + stats.errorBreakdown.other) > 0 && (
-              <div style={{ borderTop: '1px solid var(--theme-border-subtle)', marginTop: 2, paddingTop: 8 }}>
-                <div className="stat-subtext" style={{ fontSize: '0.75rem', marginBottom: 6 }}>Failure categories</div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
-                  <div className="stat-subtext" style={{ fontSize: '0.75rem' }}>Network: {stats.errorBreakdown.network}</div>
-                  <div className="stat-subtext" style={{ fontSize: '0.75rem' }}>Auth: {stats.errorBreakdown.auth}</div>
-                  <div className="stat-subtext" style={{ fontSize: '0.75rem' }}>Rate limit: {stats.errorBreakdown.rateLimit}</div>
-                  <div className="stat-subtext" style={{ fontSize: '0.75rem' }}>Provider: {stats.errorBreakdown.provider}</div>
-                  <div className="stat-subtext" style={{ fontSize: '0.75rem' }}>Tool: {stats.errorBreakdown.tool}</div>
-                  <div className="stat-subtext" style={{ fontSize: '0.75rem' }}>Other: {stats.errorBreakdown.other}</div>
-                </div>
-              </div>
-            )}
-
-            <div style={{ borderTop: '1px solid var(--theme-border-subtle)', marginTop: 2, paddingTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-              <div className="stat-subtext" style={{ fontSize: '0.75rem', maxWidth: 520 }}>
-                Privacy: usage insights are computed from local chat history. Prompt content, response content, and API keys are excluded from exported snapshots.
-              </div>
-              <Button type="button" variant="outline" size="sm" onClick={onExportSnapshot}>
-                <Download size={14} style={{ marginRight: 6 }} />
-                Export Snapshot
-              </Button>
-            </div>
-          </div>
-        </div>
       </div>
 
       <div className="settings-section-card provider-hub-base-card mt-4">

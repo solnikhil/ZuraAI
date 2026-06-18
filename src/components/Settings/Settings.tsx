@@ -106,60 +106,6 @@ export default function Settings({
 
   const usageStats = useMemo(() => computeUsageStats(usageSessions, usageModelCatalog), [usageSessions, usageModelCatalog])
 
-  const handleExportUsageSnapshot = useCallback(() => {
-    const snapshot = {
-      exportedAt: new Date().toISOString(),
-      privacy: {
-        localOnlyComputation: true,
-        includesPromptsOrResponses: false,
-        includesApiKeys: false,
-      },
-      usage: usageStats,
-    }
-
-    const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `zura-usage-snapshot-${new Date().toISOString().slice(0, 10)}.json`
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    window.setTimeout(() => URL.revokeObjectURL(url), 0)
-  }, [usageStats])
-
-  const handleExportWebSearchCsv = useCallback(() => {
-    const rows: string[] = []
-    rows.push('total_searches,successful_searches,failed_searches,success_rate_percent,avg_execution_ms')
-    rows.push([
-      usageStats.totalWebSearches,
-      usageStats.successfulWebSearches,
-      usageStats.failedWebSearches,
-      usageStats.webSearchSuccessRate,
-      usageStats.avgWebSearchExecutionMs,
-    ].join(','))
-
-    if (usageStats.topSearchQueries.length > 0) {
-      rows.push('')
-      rows.push('query,count')
-      for (const entry of usageStats.topSearchQueries) {
-        const escapedQuery = `"${entry.query.replace(/"/g, '""')}"`
-        rows.push(`${escapedQuery},${entry.count}`)
-      }
-    }
-
-    const csv = rows.join('\n')
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `zura-web-searches-${new Date().toISOString().slice(0, 10)}.csv`
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    window.setTimeout(() => URL.revokeObjectURL(url), 0)
-  }, [usageStats])
-
   const handleChange = (changes: Partial<typeof settings>) =>
     setPendingSettings((prev) => {
       for (const key of SECURE_API_KEY_NAMES) {
@@ -327,11 +273,7 @@ if (!hasSettingsChanges && !hasMcpChanges) {
         <div className="settings-shell">
           <div className="settings-shell__content">
             {normalizedActiveSection === 'usage' && (
-              <UsageSection
-                stats={usageStats}
-                onExportSnapshot={handleExportUsageSnapshot}
-                onExportWebSearchCsv={handleExportWebSearchCsv}
-              />
+              <UsageSection stats={usageStats} />
             )}
 
             {normalizedActiveSection === 'providers' && (
