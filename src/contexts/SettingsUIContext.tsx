@@ -27,10 +27,12 @@ export type ChatBubbleStyle = 'solid' | 'glass' | 'outline' | 'gradient' | 'elev
 export type ChatSelectedOverlayStyle = 'linear' | 'notion' | 'slack' | 'discord' | 'github'
 export type PlaceholderStyle = 'normal' | 'genz'
 export type RemindersCardStyle = 'solid' | 'subtle' | 'outline'
+export type RemindersContainerStyle = 'panel' | 'flush' | 'framed'
 export type RemindersActionStyle = 'pill' | 'soft' | 'minimal'
 export type RemindersBadgeStyle = 'soft' | 'filled' | 'outline'
 
 export interface RemindersAppearanceSettings {
+  containerStyle: RemindersContainerStyle
   cardStyle: RemindersCardStyle
   actionStyle: RemindersActionStyle
   badgeStyle: RemindersBadgeStyle
@@ -159,6 +161,7 @@ export const defaultSettingsUI: SettingsUI = {
   chatSelectedOverlayStyle: 'linear',
   placeholderStyle: 'genz',
   remindersAppearance: {
+    containerStyle: 'flush',
     cardStyle: 'solid',
     actionStyle: 'pill',
     badgeStyle: 'soft',
@@ -303,6 +306,7 @@ export function SettingsUIProvider({
       ...settingsUI.remindersAppearance,
     }
     root.dataset.remindersCard = remindersAppearance.cardStyle
+    root.dataset.remindersContainer = remindersAppearance.containerStyle
     root.dataset.remindersAction = remindersAppearance.actionStyle
     root.dataset.remindersBadge = remindersAppearance.badgeStyle
     root.dataset.remindersAccentTint = remindersAppearance.useAccentTint ? 'on' : 'off'

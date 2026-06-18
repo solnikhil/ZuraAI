@@ -8,7 +8,6 @@ export type SettingsSectionId =
   | 'memory'
   | 'themes'
   | 'systemprompt'
-  | 'resource-monitor'
 
 export interface SettingsSectionMeta {
   id: SettingsSectionId
@@ -82,14 +81,7 @@ export const SETTINGS_SECTIONS: SettingsSectionMeta[] = [
     description: 'Define default assistant behavior and response guidelines.',
     keywords: ['instruction', 'persona', 'behavior', 'prompt'],
   },
-  {
-    id: 'resource-monitor',
-    navLabel: 'Resources',
-    title: 'Resource Monitor',
-    description: 'Live per-process memory and CPU usage for the ZuraAI desktop app.',
-    keywords: ['memory', 'ram', 'cpu', 'processes', 'monitor', 'diagnostics', 'performance'],
-  },
-  ]
+]
 
 export const SETTINGS_SECTION_MAP: Record<SettingsSectionId, SettingsSectionMeta> =
   SETTINGS_SECTIONS.reduce<Record<SettingsSectionId, SettingsSectionMeta>>((acc, section) => {

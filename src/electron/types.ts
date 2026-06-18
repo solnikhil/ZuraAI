@@ -312,39 +312,6 @@ export interface NativeContextMenuRequest {
   isPinnedChatRow?: boolean
 }
 
-/**
- * Renderer-safe shape describing one sampled OS process belonging to the app.
- *
- * Values are normalized away from Electron's raw `ProcessMetric` units:
- * memory is reported in MB (rounded to 1 decimal) and CPU as a percent.
- */
-export type ProcessSampleType =
-  | 'Browser'
-  | 'Tab'
-  | 'GPU'
-  | 'Utility'
-  | 'Zygote'
-  | 'Sandbox helper'
-  | 'Unknown'
-
-export interface ProcessSample {
-  pid: number
-  type: ProcessSampleType
-  /** Raw type string from Electron in case main reported something we don't model yet. */
-  rawType: string
-  name: string
-  memoryMB: number
-  peakMemoryMB: number
-  cpuPercent: number
-  /** Title of the BrowserWindow that owns this Tab process, when known. */
-  windowTitle?: string
-}
-
-export interface ResourceSample {
-  capturedAt: number
-  processes: ProcessSample[]
-}
-
 export type MonitorIntervalPreset = '30m' | '1h' | '6h' | '12h' | 'daily' | 'weekly'
 export type ScheduledTaskIntervalPreset = MonitorIntervalPreset
 
@@ -441,16 +408,12 @@ export type IpcSendChannel =
   | 'overlay:drag-move'
   | 'overlay:drag-end'
   | 'overlay:navigate-settings'
-  | 'resource-monitor:subscribe'
-  | 'resource-monitor:unsubscribe'
 
 export interface IpcSendArgsMap {
   'overlay:drag-start': [cursorX: number, cursorY: number]
   'overlay:drag-move': [cursorX: number, cursorY: number]
   'overlay:drag-end': []
   'overlay:navigate-settings': [section: string]
-  'resource-monitor:subscribe': []
-  'resource-monitor:unsubscribe': []
 }
 
 export type IpcInvokeChannel =
@@ -479,7 +442,6 @@ export type IpcInvokeChannel =
   | 'updater:check-for-updates'
   | 'updater:quit-and-install'
   | 'updater:get-version'
-  | 'resource-monitor:get-now'
 
 export interface IpcInvokeArgsMap {
   'chat-store:get-metadata': []
@@ -507,9 +469,6 @@ export interface IpcInvokeArgsMap {
   'updater:check-for-updates': []
   'updater:quit-and-install': []
   'updater:get-version': []
-  'resource-monitor:get-now': []
-  'discord-rpc:get-state': []
-  'discord-rpc:set-activity': [activity: Record<string, unknown>]
 }
 
 export interface IpcInvokeReturnMap {
@@ -538,7 +497,6 @@ export interface IpcInvokeReturnMap {
   'updater:check-for-updates': UpdateCheckInfo | null
   'updater:quit-and-install': boolean
   'updater:get-version': string
-  'resource-monitor:get-now': ResourceSample
   'discord-rpc:get-state': DiscordRpcState
   'discord-rpc:set-activity': DiscordRpcState
 }
@@ -554,7 +512,6 @@ export type IpcOnChannel =
   | 'chat-store:changed'
   | 'context-menu:action'
   | 'chat-diagnostics:event'
-  | 'resource-monitor:sample'
   | 'discord-rpc:state-changed'
 
 export interface UpdaterDownloadProgress {
@@ -574,7 +531,6 @@ export interface IpcOnArgsMap {
   'chat-store:changed': []
   'context-menu:action': [action: NativeContextMenuAction]
   'chat-diagnostics:event': [event: ChatDiagnosticEvent]
-  'resource-monitor:sample': [sample: ResourceSample]
   'discord-rpc:state-changed': [state: DiscordRpcState]
 }
 
@@ -735,18 +691,6 @@ export interface ChatDiagnosticsAPI {
  */
 export interface ChatDebugAPI {
   open: (sessionId: string) => Promise<boolean>
-}
-
-/**
- * Renderer-facing bridge for the live Resource Monitor sampler.
- *
- * `subscribe` opens a stream of per-process samples; the returned function
- * unsubscribes and tears down the underlying main-process interval if no
- * other window is listening.
- */
-export interface ResourceMonitorAPI {
-  subscribe: (callback: (sample: ResourceSample) => void) => () => void
-  getNow: () => Promise<ResourceSample>
 }
 
 /**

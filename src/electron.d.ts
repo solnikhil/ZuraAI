@@ -16,7 +16,6 @@ import type {
   ScheduledTasksAPI,
   NativeDialogAPI,
   OverlayAPI,
-  ResourceMonitorAPI,
   SecureStorageAPI,
   ShellAPI,
   TerminalAPI,
@@ -46,7 +45,6 @@ declare global {
     computerUse: ComputerUseAPI
     chatDiagnostics?: ChatDiagnosticsAPI
     chatDebug?: ChatDebugAPI
-    resourceMonitor: ResourceMonitorAPI
     discordRpc: DiscordRpcAPI
     emailNotifications: EmailNotificationsAPI
   }

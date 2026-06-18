@@ -7,6 +7,7 @@ const MONTH_30_MS = 30 * DAY_MS
 const ONE_MILLION = 1_000_000
 
 export type UsageProvider = 'alibaba' | 'deepseek' | 'fireworks' | 'groq' | 'nvidia' | 'ollama' | 'openrouter' | 'perplexity' | 'unknown'
+export type UsagePerformanceRange = '1d' | '7d' | '30d' | 'all'
 
 interface ModelUsageEntry {
   name: string
@@ -30,6 +31,8 @@ export interface ProviderUsageEntry {
   cacheWriteInputTokens: number
   cachedTotalTokens: number
   avgLatencyMs: number
+  avgTtftMs: number
+  avgTps: number
   errors: number
   estimatedCostUsd: number
 }
@@ -77,6 +80,7 @@ export interface UsageStats {
   modelEntries: ModelUsageEntry[]
   topModelsByTokens: ModelUsageEntry[]
   providerEntries: ProviderUsageEntry[]
+  providerPerformanceByRange: Record<UsagePerformanceRange, ProviderUsageEntry[]>
   estimatedSpendUsd: number
   spendCoveragePercent: number
   avgAssistantLatencyMs: number
@@ -407,6 +411,117 @@ function calculateProviderCostUsd(provider: UsageProvider, inputTokens: number, 
   return Number((inputCost + outputCost).toFixed(4))
 }
 
+interface ProviderAccumulator {
+  messages: number
+  tokens: number
+  inputTokens: number
+  outputTokens: number
+  cachedInputTokens: number
+  cachedOutputTokens: number
+  cacheWriteInputTokens: number
+  latencySumMs: number
+  latencyCount: number
+  ttftSumMs: number
+  ttftCount: number
+  tpsSum: number
+  tpsCount: number
+  errors: number
+}
+
+function createProviderAccumulator(): ProviderAccumulator {
+  return {
+    messages: 0,
+    tokens: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    cachedInputTokens: 0,
+    cachedOutputTokens: 0,
+    cacheWriteInputTokens: 0,
+    latencySumMs: 0,
+    latencyCount: 0,
+    ttftSumMs: 0,
+    ttftCount: 0,
+    tpsSum: 0,
+    tpsCount: 0,
+    errors: 0,
+  }
+}
+
+function addProviderMetric(
+  usageMap: Map<UsageProvider, ProviderAccumulator>,
+  provider: UsageProvider,
+  metrics: {
+    tokens: number
+    inputTokens: number
+    outputTokens: number
+    cachedInputTokens: number
+    cachedOutputTokens: number
+    cacheWriteInputTokens: number
+    latency?: number
+    ttft?: number
+    tps?: number
+    hasError: boolean
+  }
+): void {
+  const usage = usageMap.get(provider) || createProviderAccumulator()
+  usage.messages += 1
+  usage.tokens += metrics.tokens
+  usage.inputTokens += metrics.inputTokens
+  usage.outputTokens += metrics.outputTokens
+  usage.cachedInputTokens += metrics.cachedInputTokens
+  usage.cachedOutputTokens += metrics.cachedOutputTokens
+  usage.cacheWriteInputTokens += metrics.cacheWriteInputTokens
+
+  if (typeof metrics.latency === 'number' && metrics.latency > 0) {
+    usage.latencySumMs += metrics.latency
+    usage.latencyCount += 1
+  }
+
+  if (typeof metrics.ttft === 'number' && metrics.ttft > 0) {
+    usage.ttftSumMs += metrics.ttft
+    usage.ttftCount += 1
+  }
+
+  if (typeof metrics.tps === 'number' && metrics.tps > 0) {
+    usage.tpsSum += metrics.tps
+    usage.tpsCount += 1
+  }
+
+  if (metrics.hasError) {
+    usage.errors += 1
+  }
+
+  usageMap.set(provider, usage)
+}
+
+function toProviderEntries(usageMap: Map<UsageProvider, ProviderAccumulator>): ProviderUsageEntry[] {
+  return Array.from(usageMap.entries())
+    .map(([provider, data]) => {
+      const estimatedCostUsd = calculateProviderCostUsd(provider, data.inputTokens, data.outputTokens)
+      return {
+        provider,
+        messages: data.messages,
+        tokens: data.tokens,
+        inputTokens: data.inputTokens,
+        outputTokens: data.outputTokens,
+        cachedInputTokens: data.cachedInputTokens,
+        cachedOutputTokens: data.cachedOutputTokens,
+        cacheWriteInputTokens: data.cacheWriteInputTokens,
+        cachedTotalTokens: data.cachedInputTokens + data.cachedOutputTokens,
+        avgLatencyMs: data.latencyCount > 0 ? Math.round(data.latencySumMs / data.latencyCount) : 0,
+        avgTtftMs: data.ttftCount > 0 ? Math.round(data.ttftSumMs / data.ttftCount) : 0,
+        avgTps: data.tpsCount > 0 ? Number((data.tpsSum / data.tpsCount).toFixed(1)) : 0,
+        errors: data.errors,
+        estimatedCostUsd,
+      }
+    })
+    .sort((a, b) => {
+      if (b.tokens !== a.tokens) return b.tokens - a.tokens
+      if (b.messages !== a.messages) return b.messages - a.messages
+      return a.provider.localeCompare(b.provider)
+    })
+}
+
 export function computeUsageStats(sessions: ChatSession[], modelCatalog?: UsageModelCatalog): UsageStats {
   const now = Date.now()
   const todayStart = new Date().setHours(0, 0, 0, 0)
@@ -451,18 +566,13 @@ export function computeUsageStats(sessions: ChatSession[], modelCatalog?: UsageM
 
   const activeDayKeys = new Set<string>()
   const modelUsage = new Map<string, { count: number; tokens: number }>()
-  const providerUsage = new Map<UsageProvider, {
-    messages: number
-    tokens: number
-    inputTokens: number
-    outputTokens: number
-    cachedInputTokens: number
-    cachedOutputTokens: number
-    cacheWriteInputTokens: number
-    latencySumMs: number
-    latencyCount: number
-    errors: number
-  }>()
+  const providerUsage = new Map<UsageProvider, ProviderAccumulator>()
+  const providerRangeUsage: Record<UsagePerformanceRange, Map<UsageProvider, ProviderAccumulator>> = {
+    '1d': new Map(),
+    '7d': new Map(),
+    '30d': new Map(),
+    all: new Map(),
+  }
   const queryCounts = new Map<string, number>()
   const activityData = getInitialActivityData(now)
 
@@ -551,32 +661,6 @@ export function computeUsageStats(sessions: ChatSession[], modelCatalog?: UsageM
       })
 
       const provider = inferProvider(message.model, modelProviderMap)
-      const existingProviderUsage = providerUsage.get(provider) || {
-        messages: 0,
-        tokens: 0,
-        inputTokens: 0,
-        outputTokens: 0,
-        cachedInputTokens: 0,
-        cachedOutputTokens: 0,
-        cacheWriteInputTokens: 0,
-        latencySumMs: 0,
-        latencyCount: 0,
-        errors: 0,
-      }
-
-      existingProviderUsage.messages += 1
-      existingProviderUsage.tokens += messageTokens
-      existingProviderUsage.inputTokens += tokenBreakdown.inputTokens
-      existingProviderUsage.outputTokens += tokenBreakdown.outputTokens
-      existingProviderUsage.cachedInputTokens += messageCachedInputTokens
-      existingProviderUsage.cachedOutputTokens += messageCachedOutputTokens
-      existingProviderUsage.cacheWriteInputTokens += messageCacheWriteInputTokens
-
-      if (typeof message.latency === 'number' && message.latency > 0) {
-        existingProviderUsage.latencySumMs += message.latency
-        existingProviderUsage.latencyCount += 1
-      }
-
       let hasAnyError = false
       const errorCategory = classifyAssistantError(message)
       if (errorCategory) {
@@ -595,10 +679,25 @@ export function computeUsageStats(sessions: ChatSession[], modelCatalog?: UsageM
 
       if (hasAnyError) {
         assistantMessagesWithErrors += 1
-        existingProviderUsage.errors += 1
       }
 
-      providerUsage.set(provider, existingProviderUsage)
+      const providerMetrics = {
+        tokens: messageTokens,
+        inputTokens: tokenBreakdown.inputTokens,
+        outputTokens: tokenBreakdown.outputTokens,
+        cachedInputTokens: messageCachedInputTokens,
+        cachedOutputTokens: messageCachedOutputTokens,
+        cacheWriteInputTokens: messageCacheWriteInputTokens,
+        latency: message.latency,
+        ttft: message.usage?.ttft,
+        tps: message.usage?.tps,
+        hasError: hasAnyError,
+      }
+      addProviderMetric(providerUsage, provider, providerMetrics)
+      addProviderMetric(providerRangeUsage.all, provider, providerMetrics)
+      if (ageMs >= 0 && ageMs < DAY_MS) addProviderMetric(providerRangeUsage['1d'], provider, providerMetrics)
+      if (ageMs >= 0 && ageMs < WEEK_MS) addProviderMetric(providerRangeUsage['7d'], provider, providerMetrics)
+      if (ageMs >= 0 && ageMs < MONTH_30_MS) addProviderMetric(providerRangeUsage['30d'], provider, providerMetrics)
     })
   })
 
@@ -610,29 +709,13 @@ export function computeUsageStats(sessions: ChatSession[], modelCatalog?: UsageM
       return a.name.localeCompare(b.name)
     })
 
-  const providerEntries = Array.from(providerUsage.entries())
-    .map(([provider, data]) => {
-      const estimatedCostUsd = calculateProviderCostUsd(provider, data.inputTokens, data.outputTokens)
-      return {
-        provider,
-        messages: data.messages,
-        tokens: data.tokens,
-        inputTokens: data.inputTokens,
-        outputTokens: data.outputTokens,
-        cachedInputTokens: data.cachedInputTokens,
-        cachedOutputTokens: data.cachedOutputTokens,
-        cacheWriteInputTokens: data.cacheWriteInputTokens,
-        cachedTotalTokens: data.cachedInputTokens + data.cachedOutputTokens,
-        avgLatencyMs: data.latencyCount > 0 ? Math.round(data.latencySumMs / data.latencyCount) : 0,
-        errors: data.errors,
-        estimatedCostUsd,
-      }
-    })
-    .sort((a, b) => {
-      if (b.tokens !== a.tokens) return b.tokens - a.tokens
-      if (b.messages !== a.messages) return b.messages - a.messages
-      return a.provider.localeCompare(b.provider)
-    })
+  const providerEntries = toProviderEntries(providerUsage)
+  const providerPerformanceByRange: Record<UsagePerformanceRange, ProviderUsageEntry[]> = {
+    '1d': toProviderEntries(providerRangeUsage['1d']),
+    '7d': toProviderEntries(providerRangeUsage['7d']),
+    '30d': toProviderEntries(providerRangeUsage['30d']),
+    all: toProviderEntries(providerRangeUsage.all),
+  }
 
   const topSearchQueries = Array.from(queryCounts.entries())
     .map(([query, count]) => ({ query, count }))
@@ -698,6 +781,7 @@ export function computeUsageStats(sessions: ChatSession[], modelCatalog?: UsageM
     modelEntries,
     topModelsByTokens: modelEntries.slice(0, 3),
     providerEntries,
+    providerPerformanceByRange,
     estimatedSpendUsd,
     spendCoveragePercent,
     avgAssistantLatencyMs,

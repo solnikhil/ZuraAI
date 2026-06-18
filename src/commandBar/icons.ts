@@ -2,7 +2,6 @@ import React from 'react'
 import {
   Search, SettingsIcon, LayoutDashboard, Plus, PanelLeft,
   ChartNoAxesCombined, Cloud, Box, Command, FileText, Globe, Send, Wrench, Terminal,
-  Activity
 } from '../components/icons'
 import type { CommandBarSuggestion } from './suggestions'
 
@@ -24,7 +23,6 @@ export function getSuggestionIcon(suggestion: CommandBarSuggestion): { Icon: Rea
   if (suggestion.id === 'go-settings-themes') return { Icon: Box, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
   if (suggestion.id === 'go-settings-systemprompt') return { Icon: FileText, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
   if (suggestion.id === 'go-settings-commandbar') return { Icon: Command, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
-  if (suggestion.id === 'go-settings-resource-monitor') return { Icon: Activity, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
 
   if (suggestion.id === 'new-chat') return { Icon: Plus, iconClass: 'app-titlebar__commandbar-item-icon--create' }
   if (suggestion.id === 'copy-chat-debug-id') return { Icon: Command, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }

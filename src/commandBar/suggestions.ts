@@ -289,13 +289,6 @@ function buildBaseSuggestions(
       action: { type: 'open_settings_section', section: 'themes', commandPaletteTab: true },
     },
     {
-      id: 'go-settings-resource-monitor',
-      title: 'Resource Monitor',
-      subtitle: 'Live memory and CPU usage',
-      keywords: ['resource', 'monitor', 'memory', 'ram', 'cpu', 'processes', 'performance', 'diagnostics', 'usage'],
-      action: { type: 'open_settings_section', section: 'resource-monitor' },
-    },
-    {
       id: 'new-chat',
       title: 'New Chat',
       subtitle: 'Start fresh',

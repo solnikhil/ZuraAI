@@ -21,6 +21,7 @@ import type {
   RemindersActionStyle,
   RemindersBadgeStyle,
   RemindersCardStyle,
+  RemindersContainerStyle,
 } from '../../../contexts/SettingsUIContext'
 import { defaultSettingsUI } from '../../../contexts/SettingsUIContext'
 import {
@@ -212,6 +213,12 @@ const remindersCardOptions: Array<{ value: RemindersCardStyle; label: string }> 
   { value: 'solid', label: 'Solid' },
   { value: 'subtle', label: 'Subtle' },
   { value: 'outline', label: 'Outline' },
+]
+
+const remindersContainerOptions: Array<{ value: RemindersContainerStyle; label: string }> = [
+  { value: 'panel', label: 'Panel' },
+  { value: 'flush', label: 'Flush' },
+  { value: 'framed', label: 'Framed' },
 ]
 
 const remindersActionOptions: Array<{ value: RemindersActionStyle; label: string }> = [
@@ -587,11 +594,12 @@ export function AppearanceSection({
           <div className="settings-list-row__meta">
             <h3 className="settings-list-row__label">Reminders & Lookouts</h3>
             <div className="settings-list-row__description">
-              Tune the Ask agent button, task card, and status badges used in the reminders view
+              Tune the container, Ask agent button, task card, and status badges used in the reminders view
             </div>
           </div>
           <div
             className="reminders-theme-preview"
+            data-container-style={remindersAppearance.containerStyle}
             data-card-style={remindersAppearance.cardStyle}
             data-action-style={remindersAppearance.actionStyle}
             data-badge-style={remindersAppearance.badgeStyle}
@@ -631,6 +639,25 @@ export function AppearanceSection({
                 ...
               </button>
             </div>
+          </div>
+        </div>
+
+        <div className="settings-list-row">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Container</h3>
+            <div className="settings-list-row__description">
+              Controls the outer Reminders panel surface around the header, filters, and task list
+            </div>
+          </div>
+          <div className="settings-list-row__control">
+            <SettingsSelect
+              value={remindersAppearance.containerStyle}
+              onValueChange={(value) =>
+                updateRemindersAppearance({ containerStyle: value as RemindersContainerStyle })
+              }
+              options={remindersContainerOptions}
+              aria-label="Reminders container style"
+            />
           </div>
         </div>
 

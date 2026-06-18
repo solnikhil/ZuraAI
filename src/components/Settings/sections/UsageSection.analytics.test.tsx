@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { UsageSection } from './UsageSection'
@@ -8,6 +8,17 @@ import type { UsageStats } from './usageMetrics'
 vi.mock('../ActivityGraph', () => ({
   ActivityGraph: () => <div data-testid="activity-graph" />,
 }))
+
+vi.mock('recharts', async () => {
+  const React = await import('react')
+  return {
+    ResponsiveContainer: ({ children }: { children: React.ReactNode }) => <div data-testid="responsive-container">{children}</div>,
+    Tooltip: () => <div data-testid="chart-tooltip" />,
+    Legend: () => <div data-testid="chart-legend" />,
+    PieChart: ({ children }: { children: React.ReactNode }) => <div data-testid="model-mix-pie-chart">{children}</div>,
+    Pie: () => <div data-testid="model-mix-pie" />,
+  }
+})
 
 const emptyStats: UsageStats = {
   totalSessions: 0,
@@ -35,6 +46,12 @@ const emptyStats: UsageStats = {
   modelEntries: [],
   topModelsByTokens: [],
   providerEntries: [],
+  providerPerformanceByRange: {
+    '1d': [],
+    '7d': [],
+    '30d': [],
+    all: [],
+  },
   estimatedSpendUsd: 0,
   spendCoveragePercent: 0,
   totalToolCalls: 0,
@@ -99,5 +116,128 @@ describe('UsageSection analytics settings', () => {
     await waitFor(() => {
       expect(window.analytics.setEnabled).toHaveBeenCalledWith(true)
     })
+  })
+
+  it('renders activity graph first, then model mix with compact stats', async () => {
+    render(
+      <UsageSection
+        stats={{
+          ...emptyStats,
+          totalTokens: 1000,
+          mostUsedModel: 'qwen3-max',
+          modelEntries: [
+            { name: 'qwen3-max', count: 4, tokens: 600 },
+            { name: 'llama-3.3-70b', count: 2, tokens: 300 },
+            { name: 'gpt-oss-120b', count: 1, tokens: 100 },
+          ],
+          topModelsByTokens: [
+            { name: 'qwen3-max', count: 4, tokens: 600 },
+            { name: 'llama-3.3-70b', count: 2, tokens: 300 },
+            { name: 'gpt-oss-120b', count: 1, tokens: 100 },
+          ],
+        }}
+        onExportSnapshot={vi.fn()}
+        onExportWebSearchCsv={vi.fn()}
+      />
+    )
+
+    const modelMixRegion = await screen.findByRole('region', { name: 'Model Mix' })
+    expect(within(modelMixRegion).getByRole('heading', { name: 'Model Mix' })).toBeInTheDocument()
+    expect(within(modelMixRegion).getByText('Token share by model')).toBeInTheDocument()
+    expect(within(modelMixRegion).getByText('qwen3-max')).toBeInTheDocument()
+    expect(within(modelMixRegion).getByText('llama-3.3-70b')).toBeInTheDocument()
+    expect(within(modelMixRegion).getByText('600 tokens')).toBeInTheDocument()
+    expect(within(modelMixRegion).getByText('60%')).toBeInTheDocument()
+    expect(within(modelMixRegion).getByText('qwen3-max leads with 60% of model tokens')).toBeInTheDocument()
+
+    const usageRoot = screen.getByText('Usage Intelligence').closest('.settings-section-layout')
+    const graph = screen.getByTestId('activity-graph')
+    const modelMix = within(modelMixRegion).getByRole('heading', { name: 'Model Mix' })
+    const stat = screen.getByText('Messages today')
+    expect(usageRoot).not.toBeNull()
+    expect(
+      Array.from((usageRoot as HTMLElement).querySelectorAll('*')).indexOf(graph)
+    ).toBeLessThan(
+      Array.from((usageRoot as HTMLElement).querySelectorAll('*')).indexOf(modelMix)
+    )
+    expect(
+      Array.from((usageRoot as HTMLElement).querySelectorAll('*')).indexOf(modelMix)
+    ).toBeLessThan(
+      Array.from((usageRoot as HTMLElement).querySelectorAll('*')).indexOf(stat)
+    )
+    expect(screen.queryByText('Activity Streak')).not.toBeInTheDocument()
+    expect(screen.queryByText('Model Details')).not.toBeInTheDocument()
+  })
+
+  it('filters response performance by range and provider', async () => {
+    const groqSevenDay = {
+      provider: 'groq' as const,
+      messages: 5,
+      tokens: 1000,
+      inputTokens: 400,
+      outputTokens: 600,
+      cachedInputTokens: 0,
+      cachedOutputTokens: 0,
+      cacheWriteInputTokens: 0,
+      cachedTotalTokens: 0,
+      avgLatencyMs: 800,
+      avgTtftMs: 120,
+      avgTps: 44.5,
+      errors: 1,
+      estimatedCostUsd: 0.01,
+    }
+    const groqOneDay = {
+      ...groqSevenDay,
+      messages: 2,
+      tokens: 300,
+      inputTokens: 120,
+      outputTokens: 180,
+      avgLatencyMs: 700,
+      avgTtftMs: 90,
+      avgTps: 51.2,
+      errors: 0,
+      estimatedCostUsd: 0.003,
+    }
+
+    render(
+      <UsageSection
+        stats={{
+          ...emptyStats,
+          providerEntries: [groqSevenDay],
+          providerPerformanceByRange: {
+            '1d': [groqOneDay],
+            '7d': [groqSevenDay],
+            '30d': [],
+            all: [groqSevenDay],
+          },
+        }}
+        onExportSnapshot={vi.fn()}
+        onExportWebSearchCsv={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('heading', { name: 'Response Performance' })).toBeInTheDocument()
+    expect(screen.getByText('800 ms')).toBeInTheDocument()
+    expect(screen.getByText('44.5 tok/s')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '1D' }))
+    fireEvent.change(screen.getByLabelText('Provider'), { target: { value: 'groq' } })
+
+    expect(screen.getByText('700 ms')).toBeInTheDocument()
+    expect(screen.getByText('51.2 tok/s')).toBeInTheDocument()
+  })
+
+  it('renders compact model mix empty state when there is no model usage', async () => {
+    render(
+      <UsageSection
+        stats={emptyStats}
+        onExportSnapshot={vi.fn()}
+        onExportWebSearchCsv={vi.fn()}
+      />
+    )
+
+    const modelMixRegion = await screen.findByRole('region', { name: 'Model Mix' })
+    expect(within(modelMixRegion).getByRole('heading', { name: 'Model Mix' })).toBeInTheDocument()
+    expect(within(modelMixRegion).getByText('No model usage yet')).toBeInTheDocument()
   })
 })

@@ -15,7 +15,6 @@ import { SkillsSection } from './sections/SkillsSection'
 import { NotificationsSection } from './sections/NotificationsSection'
 import { AppearanceSection } from './sections/AppearanceSection'
 import { SystemPromptSection } from './sections/SystemPromptSection'
-import { ResourceMonitorSection } from './sections/ResourceMonitorSection'
 
 import { computeUsageStats, mergeUsageSessionSnapshots } from './sections/usageMetrics'
 import type { ChatSession } from '@/chat/types'
@@ -431,8 +430,6 @@ if (!hasSettingsChanges && !hasMcpChanges) {
               />
             )}
 
-            {normalizedActiveSection === 'resource-monitor' && <ResourceMonitorSection />}
-            
           </div>
         </div>
       </ScrollArea>

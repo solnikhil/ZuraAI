@@ -91,4 +91,22 @@ describe('AppearanceSection', () => {
 
     expect(onChange).toHaveBeenCalledWith({ assistantPersonality: 'gen-z' })
   })
+
+  it('renders and updates reminders appearance controls', () => {
+    const onChange = vi.fn()
+    render(<AppearanceSection settings={defaultSettings} onChange={onChange} />)
+
+    expect(screen.getByLabelText('Reminders and Lookouts theme preview')).toBeInTheDocument()
+    expect(screen.getByText('Tune the container, Ask agent button, task card, and status badges used in the reminders view')).toBeInTheDocument()
+    expect(screen.getByText('Controls the outer Reminders panel surface around the header, filters, and task list')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Framed' }))
+
+    expect(onChange).toHaveBeenCalledWith({
+      remindersAppearance: {
+        ...defaultSettings.remindersAppearance,
+        containerStyle: 'framed',
+      },
+    })
+  })
 })

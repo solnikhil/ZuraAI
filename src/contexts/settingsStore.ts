@@ -496,9 +496,12 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   if (!parsed.remindersAppearance || typeof parsed.remindersAppearance !== 'object') {
     parsed.remindersAppearance = defaultSettings.remindersAppearance
   } else {
-    const remindersAppearance = parsed.remindersAppearance as Record<string, unknown>
+    const remindersAppearance = parsed.remindersAppearance as unknown as Record<string, unknown>
     parsed.remindersAppearance = {
       ...defaultSettings.remindersAppearance!,
+      containerStyle: ['panel', 'flush', 'framed'].includes(String(remindersAppearance.containerStyle))
+        ? remindersAppearance.containerStyle as NonNullable<SettingsUI['remindersAppearance']>['containerStyle']
+        : defaultSettings.remindersAppearance!.containerStyle,
       cardStyle: ['solid', 'subtle', 'outline'].includes(String(remindersAppearance.cardStyle))
         ? remindersAppearance.cardStyle as NonNullable<SettingsUI['remindersAppearance']>['cardStyle']
         : defaultSettings.remindersAppearance!.cardStyle,
