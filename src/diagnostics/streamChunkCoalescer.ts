@@ -29,7 +29,11 @@ export interface StreamChunkCoalescerOptions {
 }
 
 export interface StreamChunkCoalescer {
-  recordTextDelta: (delta: string, cumulativeTextLength: number) => void
+  recordTextDelta: (
+    delta: string,
+    cumulativeTextLength: number,
+    smoothing?: { sourceLength: number; pieceIndex: number; pieceCount: number }
+  ) => void
   recordToolCallDelta: (deltaCount?: number) => void
   flush: () => void
   reset: () => void
@@ -60,6 +64,8 @@ export function createStreamChunkCoalescer(
 
   let pendingTextDelta = ''
   let pendingToolCallDeltaCount = 0
+  let pendingSmoothingPieceCount = 0
+  let pendingSmoothingSourceLength = 0
   let chunkIndex = 0
   let latestCumulativeTextLength = 0
   let timerHandle: unknown = null
@@ -81,10 +87,16 @@ export function createStreamChunkCoalescer(
     if (pendingToolCallDeltaCount > 0) {
       chunk.toolCallDeltaCount = pendingToolCallDeltaCount
     }
+    if (pendingSmoothingPieceCount > 0) {
+      chunk.smoothingPieceCount = pendingSmoothingPieceCount
+      chunk.smoothingSourceLength = pendingSmoothingSourceLength
+    }
 
     chunkIndex += 1
     pendingTextDelta = ''
     pendingToolCallDeltaCount = 0
+    pendingSmoothingPieceCount = 0
+    pendingSmoothingSourceLength = 0
 
     options.emit(chunk)
   }
@@ -99,11 +111,18 @@ export function createStreamChunkCoalescer(
   }
 
   return {
-    recordTextDelta(delta, cumulativeTextLength) {
+    recordTextDelta(delta, cumulativeTextLength, smoothing) {
       if (!enabled) return
       latestCumulativeTextLength = cumulativeTextLength
       if (delta) {
         pendingTextDelta += delta
+      }
+      if (smoothing) {
+        pendingSmoothingPieceCount += 1
+        pendingSmoothingSourceLength = Math.max(
+          pendingSmoothingSourceLength,
+          smoothing.sourceLength
+        )
       }
       ensureTimer()
     },
@@ -123,6 +142,8 @@ export function createStreamChunkCoalescer(
       }
       pendingTextDelta = ''
       pendingToolCallDeltaCount = 0
+      pendingSmoothingPieceCount = 0
+      pendingSmoothingSourceLength = 0
       chunkIndex = 0
       latestCumulativeTextLength = 0
     },

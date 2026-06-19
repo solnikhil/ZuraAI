@@ -120,6 +120,12 @@ function sanitizeStreamChunk(input: unknown): ChatDiagnosticStreamChunk | undefi
   if (typeof raw.toolCallDeltaCount === 'number' && Number.isFinite(raw.toolCallDeltaCount)) {
     sanitized.toolCallDeltaCount = raw.toolCallDeltaCount
   }
+  if (typeof raw.smoothingPieceCount === 'number' && Number.isFinite(raw.smoothingPieceCount)) {
+    sanitized.smoothingPieceCount = raw.smoothingPieceCount
+  }
+  if (typeof raw.smoothingSourceLength === 'number' && Number.isFinite(raw.smoothingSourceLength)) {
+    sanitized.smoothingSourceLength = raw.smoothingSourceLength
+  }
 
   return sanitized
 }

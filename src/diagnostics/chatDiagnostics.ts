@@ -29,6 +29,8 @@ export interface ChatDiagnosticStreamChunk {
   cumulativeTextLength: number
   textDelta?: string
   toolCallDeltaCount?: number
+  smoothingPieceCount?: number
+  smoothingSourceLength?: number
 }
 
 export interface ChatDiagnosticMessageSummary {

@@ -32,7 +32,15 @@ export interface NormalizedToolCallDelta {
 }
 
 export type NormalizedStreamEvent =
-  | { type: 'text-delta'; delta: string }
+  | {
+      type: 'text-delta'
+      delta: string
+      smoothing?: {
+        sourceLength: number
+        pieceIndex: number
+        pieceCount: number
+      }
+    }
   | { type: 'reasoning-delta'; delta: string }
   | { type: 'reasoning-details'; details: ReasoningDetail[] }
   | { type: 'tool-call-delta'; delta: NormalizedToolCallDelta[] }

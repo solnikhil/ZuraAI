@@ -289,7 +289,18 @@ async function* yieldProgressiveTextDeltas(
 ): AsyncGenerator<NormalizedStreamEvent, void, unknown> {
   const progressiveDeltas = splitForProgressiveStreaming(delta)
   for (let index = 0; index < progressiveDeltas.length; index += 1) {
-    yield { type: 'text-delta', delta: progressiveDeltas[index] }
+    yield {
+      type: 'text-delta',
+      delta: progressiveDeltas[index],
+      smoothing:
+        progressiveDeltas.length > 1
+          ? {
+              sourceLength: delta.length,
+              pieceIndex: index,
+              pieceCount: progressiveDeltas.length,
+            }
+          : undefined,
+    }
     if (progressiveDeltas.length > 1 && index < progressiveDeltas.length - 1) {
       await smoothStreamingSleep(10)
     }

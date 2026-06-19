@@ -35,7 +35,13 @@ const mockEvents: ChatDiagnosticEvent[] = [
     messageId: 'm-4',
     phase: 'stream-chunk',
     timestamp: 1700000003000,
-    streamChunk: { chunkIndex: 0, cumulativeTextLength: 42, textDelta: 'hello world' },
+    streamChunk: {
+      chunkIndex: 0,
+      cumulativeTextLength: 42,
+      textDelta: 'hello world',
+      smoothingPieceCount: 2,
+      smoothingSourceLength: 48,
+    },
   },
   {
     sessionId: 'session-test',
@@ -88,12 +94,16 @@ function getTimeline(): HTMLElement {
   return screen.getByTestId('timeline')
 }
 
+const DEFAULT_VISIBLE_TIMELINE_COUNT = mockEvents.filter(
+  (event) => event.phase !== 'stream-chunk'
+).length
+
 describe('ChatDebugPanelView (standalone window)', () => {
   it('renders the timeline of events with phase chips', () => {
     render(<ChatDebugPanelView sessionId="session-test" />)
 
     expect(screen.getByText('Chat Debug Logs')).toBeInTheDocument()
-    expect(getTimelineRowCount()).toBe(mockEvents.length)
+    expect(getTimelineRowCount()).toBe(DEFAULT_VISIBLE_TIMELINE_COUNT)
     expect(within(getTimeline()).getByText(/web_search.*fail/i)).toBeInTheDocument()
   })
 
@@ -110,8 +120,9 @@ describe('ChatDebugPanelView (standalone window)', () => {
   it('toggles a phase chip to filter events', () => {
     render(<ChatDebugPanelView sessionId="session-test" />)
 
-    expect(getTimelineRowCount()).toBe(mockEvents.length)
+    expect(getTimelineRowCount()).toBe(DEFAULT_VISIBLE_TIMELINE_COUNT)
 
+    fireEvent.click(screen.getByRole('button', { name: 'Select all' }))
     fireEvent.click(screen.getByRole('button', { name: 'Clear all' }))
     expect(screen.getByText(/No events match the current filters/)).toBeInTheDocument()
 
@@ -121,6 +132,7 @@ describe('ChatDebugPanelView (standalone window)', () => {
 
     expect(getTimelineRowCount()).toBe(1)
     expect(within(getTimeline()).getByText(/chunk 0/)).toBeInTheDocument()
+    expect(within(getTimeline()).getByText(/smooth 2p\/48b/)).toBeInTheDocument()
   })
 
   it('expands a row to reveal the JSON body', () => {
@@ -137,7 +149,7 @@ describe('ChatDebugPanelView (standalone window)', () => {
 
   it('shows the count metabar with filtered/total events', () => {
     render(<ChatDebugPanelView sessionId="session-test" />)
-    expect(screen.getByText(/5 \/ 5 events/)).toBeInTheDocument()
+    expect(screen.getByText(/4 \/ 5 events/)).toBeInTheDocument()
 
     fireEvent.change(screen.getByPlaceholderText('Search events…'), {
       target: { value: 'tool' },
@@ -199,5 +211,7 @@ describe('ChatDebugPanelView (standalone window)', () => {
 
     expect(screen.getByText(/1 chunks/)).toBeInTheDocument()
     expect(screen.getAllByText('42 chars').length).toBeGreaterThan(0)
+    expect(screen.getByText(/2 smoothed pieces/)).toBeInTheDocument()
+    expect(screen.getByText(/smooth 2p\/48 chars/)).toBeInTheDocument()
   })
 })

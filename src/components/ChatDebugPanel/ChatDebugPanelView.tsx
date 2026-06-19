@@ -142,6 +142,9 @@ function summarizeEvent(event: ChatDiagnosticEvent): string {
       if (!chunk) return 'stream-chunk'
       const parts = [`+${chunk.cumulativeTextLength}b`]
       if (chunk.toolCallDeltaCount) parts.push(`+${chunk.toolCallDeltaCount} tool deltas`)
+      if (chunk.smoothingPieceCount) {
+        parts.push(`smooth ${chunk.smoothingPieceCount}p/${chunk.smoothingSourceLength ?? '?'}b`)
+      }
       return `chunk ${chunk.chunkIndex} ${parts.join(' · ')}`
     }
     case 'provider-error':

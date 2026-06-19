@@ -84,6 +84,36 @@ describe('createStreamChunkCoalescer', () => {
     })
   })
 
+  it('records smoothed text pieces in coalesced chunk metadata', () => {
+    const harness = makeHarness()
+    const coalescer = createStreamChunkCoalescer({
+      emit: harness.emit,
+      schedule: harness.schedule,
+      cancel: harness.cancel,
+    })
+
+    coalescer.recordTextDelta('Buffered ', 9, {
+      sourceLength: 48,
+      pieceIndex: 0,
+      pieceCount: 4,
+    })
+    coalescer.recordTextDelta('answer ', 16, {
+      sourceLength: 48,
+      pieceIndex: 1,
+      pieceCount: 4,
+    })
+
+    harness.runScheduled()
+
+    expect(harness.emit).toHaveBeenCalledWith({
+      chunkIndex: 0,
+      cumulativeTextLength: 16,
+      textDelta: 'Buffered answer ',
+      smoothingPieceCount: 2,
+      smoothingSourceLength: 48,
+    })
+  })
+
   it('increments chunkIndex monotonically across flushes', () => {
     const harness = makeHarness()
     const coalescer = createStreamChunkCoalescer({

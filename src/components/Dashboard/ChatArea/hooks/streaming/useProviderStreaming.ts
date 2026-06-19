@@ -659,7 +659,8 @@ export function useProviderStreaming({
                   }
                   streamChunkCoalescer.recordTextDelta(
                     event.delta,
-                    roundStartContent.length + roundContent.length
+                    roundStartContent.length + roundContent.length,
+                    event.smoothing
                   )
                   updateStreamingState({
                     phase: 'answering',

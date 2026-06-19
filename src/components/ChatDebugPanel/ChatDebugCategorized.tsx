@@ -157,12 +157,14 @@ export function ChatDebugCategorized({ events, category }: ChatDebugCategorizedP
   if (category === 'streaming') {
     let totalChunks = 0
     let totalToolDeltas = 0
+    let totalSmoothingPieces = 0
     let lastCumulativeLength = 0
     for (const event of slice) {
       const chunk = event.streamChunk
       if (!chunk) continue
       totalChunks += 1
       totalToolDeltas += chunk.toolCallDeltaCount ?? 0
+      totalSmoothingPieces += chunk.smoothingPieceCount ?? 0
       lastCumulativeLength = Math.max(lastCumulativeLength, chunk.cumulativeTextLength)
     }
     return (
@@ -171,6 +173,9 @@ export function ChatDebugCategorized({ events, category }: ChatDebugCategorizedP
           <span className="chat-debug-cat__row-stat">{totalChunks} chunks</span>
           <span className="chat-debug-cat__row-stat">{lastCumulativeLength} chars</span>
           <span className="chat-debug-cat__row-stat">{totalToolDeltas} tool deltas</span>
+          {totalSmoothingPieces > 0 ? (
+            <span className="chat-debug-cat__row-stat">{totalSmoothingPieces} smoothed pieces</span>
+          ) : null}
         </div>
         {slice.slice(-10).map((event) => (
           <div
@@ -183,6 +188,11 @@ export function ChatDebugCategorized({ events, category }: ChatDebugCategorizedP
             </span>
             {event.streamChunk?.toolCallDeltaCount ? (
               <span className="chat-debug-cat__row-stat">+{event.streamChunk.toolCallDeltaCount} tool deltas</span>
+            ) : null}
+            {event.streamChunk?.smoothingPieceCount ? (
+              <span className="chat-debug-cat__row-stat">
+                smooth {event.streamChunk.smoothingPieceCount}p/{event.streamChunk.smoothingSourceLength ?? '?'} chars
+              </span>
             ) : null}
             {event.streamChunk?.textDelta && (
               <span className="chat-debug-cat__row-preview">{event.streamChunk.textDelta}</span>

@@ -185,6 +185,8 @@ describe('chat diagnostics persistence', () => {
         cumulativeTextLength: 1234,
         textDelta: longDelta,
         toolCallDeltaCount: 2,
+        smoothingPieceCount: 3,
+        smoothingSourceLength: 88,
       },
     })
 
@@ -200,6 +202,8 @@ describe('chat diagnostics persistence', () => {
     expect(event.streamChunk.chunkIndex).toBe(7)
     expect(event.streamChunk.cumulativeTextLength).toBe(1234)
     expect(event.streamChunk.toolCallDeltaCount).toBe(2)
+    expect(event.streamChunk.smoothingPieceCount).toBe(3)
+    expect(event.streamChunk.smoothingSourceLength).toBe(88)
     expect(event.streamChunk.textDelta.length).toBeLessThan(longDelta.length)
     expect(event.streamChunk.textDelta).toMatch(/\.\.\.\[truncated\]$/)
   })
