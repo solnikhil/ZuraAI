@@ -539,6 +539,118 @@ describe('useProviderStreaming', () => {
     )
   })
 
+  it('publishes progressive updates during a tool-enabled follow-up after a tool batch', async () => {
+    const streamCalls: Array<{ tools?: unknown[]; toolChoice?: unknown }> = []
+    let invocation = 0
+
+    mocks.createProviderStreamClient.mockReturnValue({
+      stream: async function* (request: { tools?: unknown[]; toolChoice?: unknown }) {
+        streamCalls.push({ tools: request.tools, toolChoice: request.toolChoice })
+        invocation += 1
+
+        if (invocation === 1) {
+          yield {
+            type: 'tool-call-delta',
+            delta: [{
+              index: 0,
+              id: 'call_1',
+              type: 'function',
+              function: { name: 'web_search', arguments: '{"query":"zura"}' },
+            }],
+          }
+          yield { type: 'finish', finishReason: 'tool_calls' }
+          return
+        }
+
+        yield { type: 'text-delta', delta: 'Based on the gathered ' }
+        yield { type: 'text-delta', delta: 'search results, ' }
+        yield { type: 'text-delta', delta: 'Zura is documented in the source.' }
+        yield { type: 'finish', finishReason: 'stop' }
+      },
+    })
+
+    const updateStreamingMessage = vi.fn()
+    const handleToolCalls = vi.fn().mockResolvedValueOnce({
+      hasTools: true,
+      toolResults: [buildWebSearchToolResult('call_1', 'zura')],
+      formattedResults: [{ role: 'tool', tool_call_id: 'call_1', content: 'Search results' }],
+      needsFollowUp: true,
+      executionSummary: buildExecutionSummary('zura'),
+    })
+
+    const { result } = renderHook(() =>
+      useProviderStreaming({
+        settings: {
+          aiModel: 'deepseek-v4-pro',
+          modelProvider: 'deepseek',
+          temperature: 0.4,
+          maxTokens: 1024,
+          streamResponses: true,
+          deepseekApiKey: 'ds-key',
+        },
+        toolCalling: {
+          canUseTools: true,
+          getToolsForRequest: () => [{
+            type: 'function',
+            function: {
+              name: 'web_search',
+              description: 'Search the web',
+              parameters: { type: 'object', properties: {} },
+            },
+          }],
+          handleToolCalls,
+          getResearchContext: () => 'Research context',
+        },
+        updateStreamingMessage,
+        flushThrottledUpdates: vi.fn(),
+        throttledUpdateStreamingMessage: vi.fn(),
+      })
+    )
+
+    const streamResult = await result.current.runProviderStream({
+      provider: 'deepseek',
+      model: 'deepseek-v4-pro',
+      sessionId: 'session-synthesis',
+      messageId: 'message-synthesis',
+      messages: [{ role: 'user', content: 'research zura' }],
+      startTime: performance.now() - 25,
+      researchMaxRounds: 4,
+      enableTools: true,
+    })
+
+    expect(handleToolCalls).toHaveBeenCalledTimes(1)
+    expect(streamCalls).toHaveLength(2)
+    expect(streamCalls[1]?.toolChoice).toBeUndefined()
+    expect(streamCalls[1]?.tools).toEqual([
+      expect.objectContaining({
+        type: 'function',
+        function: expect.objectContaining({ name: 'web_search' }),
+      }),
+    ])
+    expect(mocks.updateStreaming).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: 'Based on the gathered ',
+        phase: 'answering',
+      })
+    )
+    expect(mocks.updateStreaming).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: 'Based on the gathered search results, ',
+        phase: 'answering',
+      })
+    )
+    expect(streamResult.content).toBe(
+      'Based on the gathered search results, Zura is documented in the source.'
+    )
+    expect(updateStreamingMessage).toHaveBeenLastCalledWith(
+      'session-synthesis',
+      'message-synthesis',
+      expect.objectContaining({
+        content: 'Based on the gathered search results, Zura is documented in the source.',
+      })
+    )
+  })
+
   it('records the tool follow-up split marker so pre-tool preamble text stays above the tool block', async () => {
     // Round 0 streams reasoning, then a short preamble, then a tool call.
     // The preamble is emitted BEFORE the tool runs, so the persisted split

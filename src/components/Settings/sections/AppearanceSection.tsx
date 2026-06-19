@@ -739,22 +739,6 @@ export function AppearanceSection({
       <Card className="settings-list-card">
         <div className="settings-list-row">
           <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Enable command palette</h3>
-            <div className="settings-list-row__description">
-              Show the floating command palette when activated via keyboard shortcut
-            </div>
-          </div>
-          <div className="settings-list-row__control">
-            <Switch
-              checked={commandBar.enabled}
-              onCheckedChange={(checked) => updateCommandBar({ enabled: checked })}
-              aria-label="Enable command palette"
-            />
-          </div>
-        </div>
-
-        <div className="settings-list-row">
-          <div className="settings-list-row__meta">
             <h3 className="settings-list-row__label">Recent commands</h3>
             <div className="settings-list-row__description">
               Show recently executed commands at the top of the palette

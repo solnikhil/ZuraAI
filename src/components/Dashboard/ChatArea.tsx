@@ -117,6 +117,8 @@ export default function ChatArea() {
 
   useEffect(() => {
     const handlePromptShortcut = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return
+
       const activeElement = document.activeElement as HTMLElement | null
       const tagName = activeElement?.tagName
       const isEditable =

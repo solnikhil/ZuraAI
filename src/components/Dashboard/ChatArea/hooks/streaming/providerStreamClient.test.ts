@@ -604,6 +604,86 @@ describe('createProviderStreamClient', () => {
     expect(events.at(-1)).toEqual({ type: 'finish', finishReason: 'stop' })
   })
 
+  it('breaks large DeepSeek text chunks into progressive deltas for smoother final synthesis', async () => {
+    const bufferedAnswer = 'Buffered final synthesis arrived as one large chunk.'
+    mocks.streamDeepSeekCompletion.mockImplementation(async function* () {
+      yield {
+        choices: [{
+          delta: {
+            content: bufferedAnswer,
+          },
+          finish_reason: 'stop',
+        }],
+      }
+    })
+
+    const client = createProviderStreamClient(
+      {
+        aiModel: 'deepseek-v4-pro',
+        modelProvider: 'deepseek',
+        temperature: 0.4,
+        maxTokens: 2048,
+        streamResponses: true,
+        deepseekApiKey: 'deepseek-key',
+      },
+      'deepseek'
+    )
+
+    const events = await collect(client.stream({
+      provider: 'deepseek',
+      model: 'deepseek-v4-pro',
+      messages: [{ role: 'user', content: 'synthesize the results' }],
+      streamResponses: true,
+    }))
+
+    const textDeltas = events.filter((event) => event.type === 'text-delta')
+    expect(textDeltas.length).toBeGreaterThan(1)
+    expect(textDeltas.map((event: any) => event.delta).join('')).toBe(bufferedAnswer)
+    expect(events.at(-1)).toEqual({ type: 'finish', finishReason: 'stop' })
+  })
+
+  it('breaks non-streaming OpenAI-compatible responses into progressive deltas', async () => {
+    const bufferedAnswer = 'Non-stream completion arrived as one buffered answer.'
+    mocks.generateGroqCompletion.mockResolvedValue({
+      id: 'resp_1',
+      object: 'chat.completion',
+      created: 1,
+      model: 'llama-3.3-70b-versatile',
+      choices: [{
+        index: 0,
+        finish_reason: 'stop',
+        message: {
+          role: 'assistant',
+          content: bufferedAnswer,
+        },
+      }],
+    })
+
+    const client = createProviderStreamClient(
+      {
+        aiModel: 'llama-3.3-70b-versatile',
+        modelProvider: 'groq',
+        temperature: 0.4,
+        maxTokens: 2048,
+        streamResponses: false,
+        groqApiKey: 'groq-key',
+      },
+      'groq'
+    )
+
+    const events = await collect(client.stream({
+      provider: 'groq',
+      model: 'llama-3.3-70b-versatile',
+      messages: [{ role: 'user', content: 'hello' }],
+      streamResponses: false,
+    }))
+
+    const textDeltas = events.filter((event) => event.type === 'text-delta')
+    expect(textDeltas.length).toBeGreaterThan(1)
+    expect(textDeltas.map((event: any) => event.delta).join('')).toBe(bufferedAnswer)
+    expect(events.at(-1)).toEqual({ type: 'finish', finishReason: 'stop' })
+  })
+
   it('falls back to non-streaming Ollama completion and forwards abort signals', async () => {
     const signal = new AbortController().signal
     mocks.streamOllamaCompletion.mockImplementation(async function* () {

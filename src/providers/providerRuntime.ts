@@ -284,6 +284,18 @@ function splitForProgressiveStreaming(delta: string): string[] {
   return pieces.length > 1 ? pieces : [delta]
 }
 
+async function* yieldProgressiveTextDeltas(
+  delta: string
+): AsyncGenerator<NormalizedStreamEvent, void, unknown> {
+  const progressiveDeltas = splitForProgressiveStreaming(delta)
+  for (let index = 0; index < progressiveDeltas.length; index += 1) {
+    yield { type: 'text-delta', delta: progressiveDeltas[index] }
+    if (progressiveDeltas.length > 1 && index < progressiveDeltas.length - 1) {
+      await smoothStreamingSleep(10)
+    }
+  }
+}
+
 async function* emitOpenAiCompatibleResponse(
   response: OpenAiCompatibleResponse,
   options?: { responsePrefix?: string; includeReasoning?: boolean; reasoningContentField?: string }
@@ -292,7 +304,7 @@ async function* emitOpenAiCompatibleResponse(
   const message = choice?.message
   const content = message?.content || ''
   if (content) {
-    yield { type: 'text-delta', delta: content }
+    yield* yieldProgressiveTextDeltas(content)
   }
 
   if (options?.includeReasoning) {
@@ -350,7 +362,7 @@ async function* emitOllamaResponse(
   }
 
   if (response.message?.content) {
-    yield { type: 'text-delta', delta: response.message.content }
+    yield* yieldProgressiveTextDeltas(response.message.content)
   }
 
   if (
@@ -695,13 +707,7 @@ export async function* streamProviderEvents(
       })) {
         const delta = chunk.choices?.[0]?.delta?.content || ''
         if (delta) {
-          const progressiveDeltas = splitForProgressiveStreaming(delta)
-          for (let index = 0; index < progressiveDeltas.length; index += 1) {
-            yield { type: 'text-delta', delta: progressiveDeltas[index] }
-            if (progressiveDeltas.length > 1 && index < progressiveDeltas.length - 1) {
-              await smoothStreamingSleep(10)
-            }
-          }
+          yield* yieldProgressiveTextDeltas(delta)
         }
 
         const reasoningDetails = chunk.choices?.[0]?.delta?.reasoning_details
@@ -759,7 +765,7 @@ export async function* streamProviderEvents(
         signal: request.signal,
       })) {
         const delta = chunk.choices?.[0]?.delta?.content || ''
-        if (delta) yield { type: 'text-delta', delta }
+        if (delta) yield* yieldProgressiveTextDeltas(delta)
         if (chunk.choices?.[0]?.delta?.tool_calls?.length) {
           yield { type: 'tool-call-delta', delta: chunk.choices[0].delta.tool_calls }
         }
@@ -800,7 +806,7 @@ export async function* streamProviderEvents(
         }
 
         const delta = chunk.choices?.[0]?.delta?.content || ''
-        if (delta) yield { type: 'text-delta', delta }
+        if (delta) yield* yieldProgressiveTextDeltas(delta)
         if (chunk.choices?.[0]?.delta?.tool_calls?.length) {
           yield { type: 'tool-call-delta', delta: chunk.choices[0].delta.tool_calls }
         }
@@ -847,7 +853,7 @@ export async function* streamProviderEvents(
         }
 
         const delta = chunk.choices?.[0]?.delta?.content || ''
-        if (delta) yield { type: 'text-delta', delta }
+        if (delta) yield* yieldProgressiveTextDeltas(delta)
         if (chunk.choices?.[0]?.delta?.tool_calls?.length) {
           yield { type: 'tool-call-delta', delta: chunk.choices[0].delta.tool_calls }
         }
@@ -891,7 +897,7 @@ export async function* streamProviderEvents(
         }
 
         const delta = chunk.choices?.[0]?.delta?.content || ''
-        if (delta) yield { type: 'text-delta', delta }
+        if (delta) yield* yieldProgressiveTextDeltas(delta)
         if (chunk.choices?.[0]?.delta?.tool_calls?.length) {
           yield { type: 'tool-call-delta', delta: chunk.choices[0].delta.tool_calls }
         }
@@ -932,7 +938,7 @@ export async function* streamProviderEvents(
         signal: request.signal,
       })) {
         const delta = chunk.choices?.[0]?.delta?.content || ''
-        if (delta) yield { type: 'text-delta', delta }
+        if (delta) yield* yieldProgressiveTextDeltas(delta)
         if (chunk.choices?.[0]?.delta?.tool_calls?.length) {
           yield { type: 'tool-call-delta', delta: chunk.choices[0].delta.tool_calls }
         }
@@ -968,7 +974,7 @@ export async function* streamProviderEvents(
           if (thinkingDelta) yield { type: 'reasoning-delta', delta: thinkingDelta }
 
           const delta = chunk.message?.content || ''
-          if (delta) yield { type: 'text-delta', delta }
+          if (delta) yield* yieldProgressiveTextDeltas(delta)
 
           const toolCalls = (
             chunk.message as {
@@ -1035,7 +1041,7 @@ export async function* streamProviderEvents(
 
         const delta = chunk.choices?.[0]?.delta?.content || ''
         if (delta) {
-          yield { type: 'text-delta', delta }
+          yield* yieldProgressiveTextDeltas(delta)
         }
 
         if (chunk.usage) {

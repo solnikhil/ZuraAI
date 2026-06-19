@@ -526,8 +526,7 @@ export function useProviderStreaming({
         const roundTools = roundOptions?.tools === undefined ? tools : roundOptions.tools
         const roundAllowsTools =
           Array.isArray(roundTools) && roundTools.length > 0 && roundOptions?.toolChoice !== 'none'
-        const shouldHideToolRoundDraft =
-          roundAllowsTools && (roundOptions?.round ?? 0) > 0
+        const isToolFollowUpRound = roundAllowsTools && (roundOptions?.round ?? 0) > 0
 
         if (
           roundOptions?.round !== undefined &&
@@ -535,7 +534,7 @@ export function useProviderStreaming({
           accumulatedContent.trim().length > 0 &&
           !endsWithToolFollowUpSplitMarker(accumulatedContent)
         ) {
-          const splitMarker = shouldHideToolRoundDraft
+          const splitMarker = isToolFollowUpRound
             ? createToolFollowUpSplitMarker(
                 visibleContentBlockBaseline ?? localThinkingBlocks.length
               )
@@ -617,16 +616,14 @@ export function useProviderStreaming({
                 }
 
                 roundContent += event.delta
-                if (!shouldHideToolRoundDraft) {
-                  accumulatedContent += event.delta
-                  // Record the block count at the start of the first visible
-                  // content. The preamble text streams AFTER this round's
-                  // reasoning is finalized but BEFORE its tool block is appended,
-                  // so this baseline excludes the tool activity the preamble
-                  // triggers and keeps the preamble above it in the timeline.
-                  if (event.delta && visibleContentBlockBaseline === null) {
-                    visibleContentBlockBaseline = localThinkingBlocks.length
-                  }
+                accumulatedContent += event.delta
+                // Record the block count at the start of the first visible
+                // content. The preamble text streams AFTER this round's
+                // reasoning is finalized but BEFORE its tool block is appended,
+                // so this baseline excludes the tool activity the preamble
+                // triggers and keeps the preamble above it in the timeline.
+                if (event.delta && visibleContentBlockBaseline === null) {
+                  visibleContentBlockBaseline = localThinkingBlocks.length
                 }
                 if (event.delta) {
                   if (!roundAllowsTools) {
@@ -664,14 +661,12 @@ export function useProviderStreaming({
                     event.delta,
                     roundStartContent.length + roundContent.length
                   )
-                  if (!shouldHideToolRoundDraft) {
-                    updateStreamingState({
-                      phase: 'answering',
-                      // Keep the isolated active-message view in sync on every delta.
-                      // Persisted chat-history writes stay throttled separately.
-                      content: frozenDisplayContent ?? accumulatedContent,
-                    })
-                  }
+                  updateStreamingState({
+                    phase: 'answering',
+                    // Keep the isolated active-message view in sync on every delta.
+                    // Persisted chat-history writes stay throttled separately.
+                    content: frozenDisplayContent ?? accumulatedContent,
+                  })
                 }
                 persistProgress()
                 break
@@ -813,9 +808,7 @@ export function useProviderStreaming({
         flushActiveThrottledUpdates()
         throwIfAborted()
         const hasValidRoundToolCalls = roundToolCalls.some((toolCall) => toolCall?.id)
-        const roundTranscriptContent = shouldHideToolRoundDraft
-          ? roundStartContent + roundContent
-          : accumulatedContent
+        const roundTranscriptContent = roundStartContent + roundContent
         let finalRoundContent = providerUsesNativeSearch(provider)
           ? cleanSonarResponse(roundTranscriptContent, citations)
           : roundTranscriptContent
@@ -911,7 +904,7 @@ export function useProviderStreaming({
         }
 
         const committedVisibleContent =
-          shouldHideToolRoundDraft && roundFinishReason === 'tool_calls'
+          isToolFollowUpRound && roundFinishReason === 'tool_calls'
             ? roundStartContent
             : finalRoundContent
 

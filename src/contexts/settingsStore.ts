@@ -492,6 +492,9 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   } else {
     parsed.commandBar = { ...defaultSettings.commandBar, ...parsed.commandBar }
   }
+  // The command palette is a core navigation surface; older persisted false values
+  // made the global shortcut look broken by removing the listener entirely.
+  parsed.commandBar.enabled = true
 
   if (!parsed.remindersAppearance || typeof parsed.remindersAppearance !== 'object') {
     parsed.remindersAppearance = defaultSettings.remindersAppearance

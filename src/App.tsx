@@ -7,6 +7,7 @@ import NotificationSettingsSync from './components/NotificationSettingsSync'
 import MonitorSummarySync from './components/MonitorSummarySync'
 import DashboardLayout from './components/Dashboard/Layout'
 import AppShellLayout from './components/AppShellLayout'
+import AppShellRouteHost from './components/AppShellRouteHost'
 import NotFound404 from './components/ui/demo'
 import { SettingsProvider } from './contexts/SettingsContext'
 import { ChatHistoryProvider } from './contexts/ChatHistoryContext'
@@ -120,18 +121,21 @@ function DashboardApp() {
                   <MonitorSummarySync />
                   <Router>
                     <Routes>
-                      <Route element={<AppShellLayout />}>
-                        <Route path="/" element={<DashboardLayout />} />
-                        <Route path="/dashboard" element={<DashboardLayout />} />
-                        <Route
-                          path="/settings"
-                          element={
-                            <Suspense fallback={<SettingsLoadingFallback />}>
-                              <Settings />
-                            </Suspense>
-                          }
-                        />
-                        <Route path="/chat" element={<DashboardLayout />} />
+                      <Route element={<AppShellRouteHost />}>
+                        <Route element={<AppShellLayout />}>
+                          <Route path="/" element={<DashboardLayout />} />
+                          <Route path="/dashboard" element={<DashboardLayout />} />
+                          <Route
+                            path="/settings"
+                            element={
+                              <Suspense fallback={<SettingsLoadingFallback />}>
+                                <Settings />
+                              </Suspense>
+                            }
+                          />
+                          <Route path="/chat" element={<DashboardLayout />} />
+                        </Route>
+                        <Route path="*" element={<NotFound404 />} />
                       </Route>
                       {!macOS && (
                         <Route
@@ -143,7 +147,6 @@ function DashboardApp() {
                           }
                         />
                       )}
-                      <Route path="*" element={<NotFound404 />} />
                     </Routes>
                   </Router>
                   <McpApprovalDialog />

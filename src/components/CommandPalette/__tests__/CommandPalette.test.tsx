@@ -110,6 +110,30 @@ function pressCtrlSpace() {
   )
 }
 
+function pressCtrlK() {
+  const event = new KeyboardEvent('keydown', {
+    key: 'k',
+    code: 'KeyK',
+    ctrlKey: true,
+    bubbles: true,
+    cancelable: true,
+  })
+  window.dispatchEvent(event)
+  return event
+}
+
+function pressCtrlKOnTarget(target: EventTarget) {
+  const event = new KeyboardEvent('keydown', {
+    key: 'k',
+    code: 'KeyK',
+    ctrlKey: true,
+    bubbles: true,
+    cancelable: true,
+  })
+  target.dispatchEvent(event)
+  return event
+}
+
 // Setup / Teardown
 
 beforeEach(() => {
@@ -151,6 +175,37 @@ describe('CommandPalette unit tests', () => {
         fireEvent.keyDown(input, { key: 'Escape', code: 'Escape' })
       })
       expect(container.querySelector('[role="dialog"]')).not.toBeInTheDocument()
+    })
+
+    it('opens on Ctrl+K and consumes the shortcut', () => {
+      const { container } = render(<CommandPalette />)
+
+      let event: KeyboardEvent | null = null
+      act(() => {
+        event = pressCtrlK()
+      })
+
+      expect(container.querySelector('[role="dialog"]')).toBeInTheDocument()
+      expect(event?.defaultPrevented).toBe(true)
+    })
+
+    it('opens on Ctrl+K before focused controls can stop propagation', () => {
+      const focusTarget = document.createElement('input')
+      focusTarget.addEventListener('keydown', (event) => {
+        event.stopPropagation()
+      })
+      document.body.appendChild(focusTarget)
+      focusTarget.focus()
+
+      const { container } = render(<CommandPalette />)
+
+      act(() => {
+        pressCtrlKOnTarget(focusTarget)
+      })
+
+      expect(container.querySelector('[role="dialog"]')).toBeInTheDocument()
+
+      document.body.removeChild(focusTarget)
     })
   })
 

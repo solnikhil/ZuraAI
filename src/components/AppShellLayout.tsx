@@ -1,17 +1,16 @@
 import { useEffect, useMemo } from 'react'
-import { Outlet, useNavigate, useLocation } from 'react-router-dom'
-import { AppShellProvider, useAppShell } from '../contexts/AppShellContext'
+import { Outlet, useNavigate } from 'react-router-dom'
+import { useAppShell } from '../contexts/AppShellContext'
 import { useChatHistory } from '../contexts/ChatHistoryContext'
 import TitleBar from './TitleBar'
 import ResizeHandles from './ResizeHandles'
-import { CommandPalette } from './CommandPalette'
 import AppContextMenu from './AppContextMenu'
 import { useToast } from './shared/Toast'
 import { useMouseNavigation } from './shell/useMouseNavigation'
 import { useResizeIndicator } from './shell/useResizeIndicator'
 import { useWindowMaximizeState } from './shell/useWindowMaximizeState'
 
-function AppShellContent() {
+export default function AppShellLayout() {
   const navigate = useNavigate()
   const { dashboardView, hasUnsavedSettings, setDashboardView } = useAppShell()
   const { clearCurrentSession } = useChatHistory()
@@ -56,7 +55,6 @@ function AppShellContent() {
         ].filter(Boolean).join(' ')}
       >
         <TitleBar />
-        <CommandPalette />
         <div className="app-content">
           <Outlet />
         </div>
@@ -88,16 +86,5 @@ function AppShellContent() {
         )}
       </div>
     </AppContextMenu>
-  )
-}
-
-export default function AppShellLayout() {
-  const navigate = useNavigate()
-  const location = useLocation()
-
-  return (
-    <AppShellProvider pathname={location.pathname} navigateToPath={(pathname) => navigate(pathname)}>
-      <AppShellContent />
-    </AppShellProvider>
   )
 }

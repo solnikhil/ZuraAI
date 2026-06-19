@@ -232,6 +232,17 @@ Rules:
       expect(normalized.streamResponses).toBe(true)
     })
 
+    it('normalizes persisted command palette disabled state back to enabled', () => {
+      const normalized = normalizeStoredSettings(
+        JSON.stringify({
+          commandBar: {
+            enabled: false,
+          },
+        })
+      )
+      expect(normalized.commandBar.enabled).toBe(true)
+    })
+
     it('normalizes missing openRouterDebug to false', () => {
       const normalized = normalizeStoredSettings(JSON.stringify({}))
       expect(normalized.openRouterDebug).toBe(false)
