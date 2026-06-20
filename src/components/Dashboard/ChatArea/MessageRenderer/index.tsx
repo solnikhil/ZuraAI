@@ -326,6 +326,7 @@ function MessageRendererComponent({
             }
             completedBlocks={timeline.beforeBlocks}
             activeToolCalls={activeTimelineOwner === 'upper' ? activeToolCalls : []}
+            compactCompletedBlocks={hasTopDisplayContent}
           />
         </div>
       )}
@@ -379,6 +380,7 @@ function MessageRendererComponent({
             }
             completedBlocks={timeline.afterBlocks}
             activeToolCalls={activeTimelineOwner === 'lower' ? activeToolCalls : []}
+            compactCompletedBlocks={hasBottomDisplayContent}
           />
         </div>
       )}

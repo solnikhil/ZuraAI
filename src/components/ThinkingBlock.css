@@ -24,6 +24,34 @@
     color: rgba(255, 255, 255, 0.5);
 }
 
+.thinking-work-summary {
+    width: 100%;
+}
+
+.thinking-work-summary .thinking-work-summary-header {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 8px;
+}
+
+.thinking-work-summary .thinking-label {
+    flex-shrink: 0;
+}
+
+.thinking-work-summary-separator {
+    flex: 1;
+    min-width: 48px;
+    height: 1px;
+    margin-top: 2px;
+    background: linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0.18),
+        rgba(255, 255, 255, 0.08) 58%,
+        transparent
+    );
+}
+
 /* Web Search / tool call inside thinking block */
 .thinking-block.thinking-tool-call .thinking-header.tool-call {
     opacity: 0.75;

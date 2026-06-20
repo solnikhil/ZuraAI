@@ -92,6 +92,14 @@ function getActiveSearchItemText(query: string): string {
   return `Sourcing “${query}”`
 }
 
+function getToolCallsAnimationKey(
+  activeToolCalls: Array<{ name: string; arguments?: Record<string, unknown> }>
+): string {
+  return activeToolCalls
+    .map((toolCall) => `${toolCall.name}:${JSON.stringify(toolCall.arguments ?? {})}`)
+    .join('|')
+}
+
 function getCompletedToolBlockText(block: ThinkingBlockType): React.ReactNode {
   const toolName = block.toolName || (block.type === 'searching' ? 'web_search' : '')
   const mcpLabel = formatMcpToolLabel(toolName, block.toolOutput?.metadata)
@@ -213,6 +221,7 @@ interface ThinkingBlockProps {
   activeToolCalls?: Array<{ name: string; arguments?: Record<string, unknown> }>
   // New props for showing completed blocks
   completedBlocks?: ThinkingBlockType[]
+  compactCompletedBlocks?: boolean
 }
 
 function formatDuration(ms: number): string {
@@ -228,6 +237,24 @@ function formatDuration(ms: number): string {
     return `${minutes}m ${remainingSeconds}s`
   }
   return `${remainingSeconds}s`
+}
+
+function getCompletedBlockDuration(block: ThinkingBlockType): number {
+  if (block.type === 'thinking') {
+    return typeof block.duration === 'number' && Number.isFinite(block.duration)
+      ? Math.max(0, block.duration)
+      : 0
+  }
+
+  const executionTime = block.toolOutput?.executionTime
+  return typeof executionTime === 'number' && Number.isFinite(executionTime)
+    ? Math.max(0, executionTime)
+    : 0
+}
+
+function getWorkedForLabel(blocks: ThinkingBlockType[]): string {
+  const totalDuration = blocks.reduce((sum, block) => sum + getCompletedBlockDuration(block), 0)
+  return totalDuration > 0 ? `Worked for ${formatDuration(totalDuration)}` : 'Worked for a moment'
 }
 
 function looksLikeStructuredThinkingLine(line: string): boolean {
@@ -809,6 +836,102 @@ function CompletedBlock({
   )
 }
 
+function CompletedBlocksList({ blocks }: { blocks: ThinkingBlockType[] }) {
+  type RenderItem =
+    | { kind: 'single'; block: ThinkingBlockType; index: number }
+    | { kind: 'shell'; blocks: ThinkingBlockType[]; index: number }
+
+  const items: RenderItem[] = []
+  blocks.forEach((block, index) => {
+    if (isShellToolBlock(block)) {
+      const last = items[items.length - 1]
+      if (last && last.kind === 'shell') {
+        last.blocks.push(block)
+        return
+      }
+      items.push({ kind: 'shell', blocks: [block], index })
+      return
+    }
+    items.push({ kind: 'single', block, index })
+  })
+
+  return (
+    <>
+      {items.map((item) =>
+        item.kind === 'shell' ? (
+          <CommandGroupBlock
+            key={`cmd-group-${item.index}-${item.blocks[0]?.timestamp}`}
+            blocks={item.blocks}
+            defaultExpanded={false}
+          />
+        ) : (
+          <CompletedBlock
+            key={`completed-${item.index}-${item.block.timestamp}`}
+            block={item.block}
+            defaultExpanded={false}
+          />
+        )
+      )}
+    </>
+  )
+}
+
+function CompactCompletedBlocks({ blocks }: { blocks: ThinkingBlockType[] }) {
+  const [isExpanded, setIsExpanded] = useState(false)
+  const { animationsEnabled } = useMotionPreferences()
+  const label = getWorkedForLabel(blocks)
+  const groupKey = blocks.map((block) => block.timestamp).join(',')
+
+  useEffect(() => {
+    setIsExpanded(false)
+  }, [groupKey])
+
+  return (
+    <div
+      className={`thinking-block completed thinking-work-summary ${
+        isExpanded ? 'is-expanded' : 'is-collapsed'
+      }`}
+    >
+      <div
+        className="thinking-header completed thinking-work-summary-header"
+        onClick={() => setIsExpanded((expanded) => !expanded)}
+      >
+        <div className="thinking-label">
+          <span className="thinking-text">{label}</span>
+          <motion.div
+            animate={{ rotate: isExpanded ? 90 : 0 }}
+            transition={motionSpringTransition(animationsEnabled, motionSpring.bouncy)}
+          >
+            <ChevronRight size={14} className="thinking-chevron" />
+          </motion.div>
+        </div>
+        {!isExpanded && <span className="thinking-work-summary-separator" aria-hidden="true" />}
+      </div>
+      <AnimatePresence initial={false}>
+        {isExpanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{
+              height: motionSpringTransition(animationsEnabled, motionSpring.settle),
+              opacity: {
+                duration: motionDuration(animationsEnabled, motionDurations.fast),
+                ease: motionEasing.standard,
+              },
+            }}
+            style={{ overflow: 'hidden' }}
+          >
+            <div className="thinking-work-summary-details">
+              <CompletedBlocksList blocks={blocks} />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
 export default function ThinkingBlock({
   messageId,
   activeBlockKey,
@@ -820,6 +943,7 @@ export default function ThinkingBlock({
   searchQueries,
   activeToolCalls = [],
   completedBlocks = [],
+  compactCompletedBlocks = false,
 }: ThinkingBlockProps) {
   const hasActiveToolCalls = activeToolCalls && activeToolCalls.length > 0
   const extraActiveToolCalls = hasActiveToolCalls ? activeToolCalls.slice(1) : []
@@ -927,39 +1051,12 @@ export default function ThinkingBlock({
     <div className="thinking-blocks-container">
       {/* Render completed blocks first - exclude search when shown inline in thinking.
           Consecutive system_shell calls are grouped into one "Ran N commands" entry. */}
-      {(() => {
-        type RenderItem =
-          | { kind: 'single'; block: typeof blocksToRender[number]; index: number }
-          | { kind: 'shell'; blocks: typeof blocksToRender; index: number }
-        const items: RenderItem[] = []
-        blocksToRender.forEach((block, index) => {
-          if (isShellToolBlock(block)) {
-            const last = items[items.length - 1]
-            if (last && last.kind === 'shell') {
-              last.blocks.push(block)
-              return
-            }
-            items.push({ kind: 'shell', blocks: [block], index })
-            return
-          }
-          items.push({ kind: 'single', block, index })
-        })
-        return items.map((item) =>
-          item.kind === 'shell' ? (
-            <CommandGroupBlock
-              key={`cmd-group-${item.index}-${item.blocks[0]?.timestamp}`}
-              blocks={item.blocks}
-              defaultExpanded={false}
-            />
-          ) : (
-            <CompletedBlock
-              key={`completed-${item.index}-${item.block.timestamp}`}
-              block={item.block}
-              defaultExpanded={false}
-            />
-          )
-        )
-      })()}
+      {blocksToRender.length > 0 &&
+        (compactCompletedBlocks ? (
+          <CompactCompletedBlocks blocks={blocksToRender} />
+        ) : (
+          <CompletedBlocksList blocks={blocksToRender} />
+        ))}
 
       {showActiveBlock && (
         <div className="thinking-block">
@@ -970,7 +1067,10 @@ export default function ThinkingBlock({
           >
             <div className="thinking-label">
               {hasActiveToolCalls ? (
-                <span className="thinking-text thinking-tool-calling">
+                <span
+                  key={`tool-calling-row:${getToolCallsAnimationKey(activeToolCalls)}`}
+                  className="thinking-text thinking-tool-calling"
+                >
                   <span className="thinking-tool-calling-icon">
                     {activeToolCalls[0]?.name === 'web_search' ? (
                       <Loader2 size={14} className="tool-call-spinner" />
@@ -995,7 +1095,7 @@ export default function ThinkingBlock({
                           ? searchingText
                           : getToolCallHeaderText(activeToolCalls)
                     }
-                    animationKey="tool-calling"
+                    animationKey={`tool-calling:${getToolCallsAnimationKey(activeToolCalls)}`}
                   />
                 </span>
               ) : isSearching && showSourcingHeader ? (

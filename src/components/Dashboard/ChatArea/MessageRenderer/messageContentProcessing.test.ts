@@ -26,6 +26,37 @@ describe('stripReferencesSection', () => {
     )
   })
 
+  it('removes compact pipe-separated title source sections', () => {
+    const content = [
+      'Here is the answer with inline support [[1]](https://example.com/a).',
+      '',
+      'Sources: Forbes - Prompt Engineering 2026 | Nature - AMIE Conversational AI for Disease Management | ScienceDaily - JUNO Neutrino Breakthrough | CNET - Android 17 Features',
+    ].join('\n')
+
+    expect(stripReferencesSection(content)).toBe(
+      'Here is the answer with inline support [[1]](https://example.com/a).'
+    )
+  })
+
+  it('removes compact pipe-separated markdown-link source sections', () => {
+    const content = [
+      'Here is the answer with inline support [[1]](https://example.com/a).',
+      '',
+      'References: [Example A](https://example.com/a) | [Example B](https://example.com/b)',
+    ].join('\n')
+
+    expect(stripReferencesSection(content)).toBe(
+      'Here is the answer with inline support [[1]](https://example.com/a).'
+    )
+  })
+
+  it('preserves normal prose that mentions sources', () => {
+    const content =
+      'The available sources are mixed, so I would treat this as a tentative conclusion.'
+
+    expect(stripReferencesSection(content)).toBe(content)
+  })
+
   it('removes title-based source sections generated without numeric citations', () => {
     const content = [
       'These web results informed the architectural decisions.',

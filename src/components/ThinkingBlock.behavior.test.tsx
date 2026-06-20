@@ -144,6 +144,10 @@ describe('ThinkingBlock behavior', () => {
     )
 
     act(() => {
+      vi.advanceTimersByTime(250)
+    })
+
+    act(() => {
       vi.advanceTimersByTime(5000)
     })
 
@@ -178,6 +182,149 @@ describe('ThinkingBlock behavior', () => {
     expect(screen.queryByText('Follow-up reasoning')).not.toBeInTheDocument()
     expect(screen.getByText('Thought for <1s')).toBeInTheDocument()
     expect(container.querySelector('.thinking-block.completed .thinking-content')).toBeNull()
+  })
+
+  it('compacts completed thinking, search, and tool blocks into one worked row', async () => {
+    const { container } = render(
+      <ThinkingBlock
+        messageId="message-compact"
+        activeBlockKey="message-compact:3:answering"
+        thinking=""
+        compactCompletedBlocks={true}
+        completedBlocks={[
+          {
+            type: 'thinking',
+            content: 'Initial reasoning',
+            duration: 1000,
+            timestamp: 1,
+          },
+          {
+            type: 'searching',
+            toolName: 'web_search',
+            query: 'zura ai',
+            timestamp: 2,
+            toolInput: { query: 'zura ai' },
+            toolOutput: {
+              success: true,
+              data: { resultCount: 2, results: [{ title: 'One' }, { title: 'Two' }] },
+              executionTime: 1500,
+            },
+          },
+          {
+            type: 'tool',
+            toolName: 'mcp__filesystem__read_file',
+            timestamp: 3,
+            toolInput: { path: '/tmp/demo.txt' },
+            toolOutput: {
+              success: true,
+              data: { text: 'demo' },
+              executionTime: 700,
+              metadata: {
+                origin: 'mcp',
+                serverId: 'filesystem',
+                serverName: 'Filesystem',
+                namespacedToolName: 'mcp__filesystem__read_file',
+                originalToolName: 'read_file',
+                trusted: true,
+                approvalState: 'approved',
+                durationMs: 700,
+                outcome: 'success',
+              },
+            },
+          },
+        ]}
+      />
+    )
+
+    expect(await screen.findByText('Worked for 3s')).toBeInTheDocument()
+    expect(screen.queryByText('Initial reasoning')).not.toBeInTheDocument()
+    expect(screen.queryByText('Tool: Filesystem - read_file: /tmp/demo.txt')).not.toBeInTheDocument()
+    expect(container.querySelectorAll('.thinking-block.completed')).toHaveLength(1)
+
+    fireEvent.click(screen.getByText('Worked for 3s'))
+
+    expect(await screen.findByText('Thought for 1s')).toBeInTheDocument()
+    expect(screen.getByText((content) => content.includes('Sourced'))).toBeInTheDocument()
+    expect(screen.getByText('Tool: Filesystem - read_file: /tmp/demo.txt')).toBeInTheDocument()
+    expect(screen.queryByText('Initial reasoning')).not.toBeInTheDocument()
+  })
+
+  it('shows a fallback compact label when completed work has no timing metadata', async () => {
+    render(
+      <ThinkingBlock
+        messageId="message-compact-no-duration"
+        activeBlockKey="message-compact-no-duration:1:answering"
+        thinking=""
+        compactCompletedBlocks={true}
+        completedBlocks={[
+          {
+            type: 'thinking',
+            content: 'Initial reasoning',
+            timestamp: 1,
+          },
+        ]}
+      />
+    )
+
+    expect(await screen.findByText('Worked for a moment')).toBeInTheDocument()
+    expect(screen.queryByText('Initial reasoning')).not.toBeInTheDocument()
+  })
+
+  it('shows the compact separator only while completed work is collapsed', async () => {
+    const { container } = render(
+      <ThinkingBlock
+        messageId="message-compact-separator"
+        activeBlockKey="message-compact-separator:1:answering"
+        thinking=""
+        compactCompletedBlocks={true}
+        completedBlocks={[
+          {
+            type: 'thinking',
+            content: 'Initial reasoning',
+            duration: 1000,
+            timestamp: 1,
+          },
+        ]}
+      />
+    )
+
+    expect(await screen.findByText('Worked for 1s')).toBeInTheDocument()
+    expect(container.querySelector('.thinking-work-summary.is-collapsed')).toBeTruthy()
+    expect(container.querySelector('.thinking-work-summary-separator')).toBeTruthy()
+
+    fireEvent.click(screen.getByText('Worked for 1s'))
+
+    expect(container.querySelector('.thinking-work-summary.is-expanded')).toBeTruthy()
+    expect(container.querySelector('.thinking-work-summary-separator')).toBeNull()
+  })
+
+  it('keeps active tool work visible while completed history is compacted', async () => {
+    render(
+      <ThinkingBlock
+        messageId="message-compact-active"
+        activeBlockKey="message-compact-active:1:tool"
+        thinking=""
+        compactCompletedBlocks={true}
+        completedBlocks={[
+          {
+            type: 'thinking',
+            content: 'Initial reasoning',
+            duration: 1000,
+            timestamp: 1,
+          },
+        ]}
+        activeToolCalls={[
+          {
+            name: 'mcp__filesystem__read_file',
+            arguments: { path: '/tmp/demo.txt' },
+          },
+        ]}
+      />
+    )
+
+    expect(await screen.findByText('Worked for 1s')).toBeInTheDocument()
+    expect(screen.getByText('Running Tool: Filesystem - read_file: /tmp/demo.txt')).toBeInTheDocument()
+    expect(screen.queryByText('Initial reasoning')).not.toBeInTheDocument()
   })
 
   it('normalizes provider reasoning that streams one short token per line', () => {

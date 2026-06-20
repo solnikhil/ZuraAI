@@ -27,6 +27,7 @@ vi.mock('../../ThinkingBlock', () => ({
     searchQueries,
     activeToolCalls,
     completedBlocks,
+    compactCompletedBlocks,
   }: {
     thinking?: string
     isThinking?: boolean
@@ -34,8 +35,12 @@ vi.mock('../../ThinkingBlock', () => ({
     searchQueries?: string[]
     activeToolCalls?: Array<{ name: string }>
     completedBlocks?: Array<{ content?: string; query?: string; toolName?: string }>
+    compactCompletedBlocks?: boolean
   }) => (
-    <div data-testid="thinking-block">
+    <div
+      data-testid="thinking-block"
+      data-compact-completed-blocks={compactCompletedBlocks ? 'true' : 'false'}
+    >
       {completedBlocks?.map((block, index) => (
         <span key={index}>{block.content || block.query || block.toolName}</span>
       ))}
@@ -198,6 +203,32 @@ describe('MessageRenderer follow-up timeline', () => {
       expect(sequence[2]).toContain('Follow-up reasoning')
       expect(sequence[3]).toBe('Follow-up response.')
     })
+  })
+
+  it('compacts completed work once the corresponding answer text is visible', async () => {
+    render(
+      <MessageRenderer
+        message={{
+          id: 'message-compact-work',
+          role: 'assistant',
+          content: 'Final answer has started.',
+          timestamp: 1,
+          thinkingBlocks: [
+            {
+              type: 'thinking',
+              content: 'Initial reasoning',
+              duration: 1000,
+              timestamp: 1,
+            },
+          ],
+        }}
+        isStreaming={true}
+        streamPhase="answering"
+      />
+    )
+
+    const thinkingBlock = await screen.findByTestId('thinking-block')
+    expect(thinkingBlock).toHaveAttribute('data-compact-completed-blocks', 'true')
   })
 
   it('keeps the split follow-up activity above the related assistant text after streaming completes', async () => {

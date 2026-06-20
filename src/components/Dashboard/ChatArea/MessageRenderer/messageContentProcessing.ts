@@ -11,16 +11,57 @@ function isReferenceHeading(block: string): boolean {
   )
 }
 
+function getInlineReferenceSectionBody(block: string): string | null {
+  const match = block
+    .trim()
+    .match(/^(?:#{1,4}\s*)?(?:\*{1,2})?(?:References|Sources)(?:\*{1,2})?:\s+(.+)$/i)
+  return match?.[1]?.trim() || null
+}
+
+function isGeneratedSourceEntry(entry: string): boolean {
+  const text = entry.trim()
+  if (!text) return false
+
+  return (
+    /https?:\/\//i.test(text) ||
+    /^\[[^\]]{2,}\]\([^)]+\)/.test(text) ||
+    /^.{3,}?\s[-\u2013\u2014]\s.{3,}$/s.test(text)
+  )
+}
+
+function isCompactGeneratedReferenceSection(block: string): boolean {
+  const body = getInlineReferenceSectionBody(block)
+  if (!body || !body.includes('|')) {
+    return false
+  }
+
+  const entries = body
+    .split(/\s+\|\s+/)
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+
+  return entries.length >= 2 && entries.every(isGeneratedSourceEntry)
+}
+
 function isGeneratedSourceBlock(block: string): boolean {
   const text = block.trim()
   if (!text) return false
 
   return (
+    isCompactGeneratedReferenceSection(text) ||
     /https?:\/\//i.test(text) ||
     /\[\[?\d+\]?\](?:\([^)]+\))?/.test(text) ||
     /\b(?:GitHub|Docs?|Documentation|Stack Overflow|Wikipedia)\b/i.test(text) ||
     /^.{8,}?\s[-–—]\s.{8,}$/s.test(text)
   )
+}
+
+function stripCompactReferenceLines(content: string): string {
+  return content
+    .split('\n')
+    .filter((line) => !isCompactGeneratedReferenceSection(line))
+    .join('\n')
+    .trimEnd()
 }
 
 function stripGeneratedReferenceBlocks(content: string): string {
@@ -64,7 +105,7 @@ function stripGeneratedReferenceBlocks(content: string): string {
  */
 export function stripReferencesSection(content: string): string {
   if (!content) return content
-  return stripGeneratedReferenceBlocks(content)
+  return stripCompactReferenceLines(stripGeneratedReferenceBlocks(content))
     .replace(
       /\n+(?:#{1,4}\s*)?(?:\*{1,2})?(?:References|Sources)(?:\*{1,2})?:?\s*\n+(?:\s*\[?\d+\]?[\s.:\-–—].+(?:\n|$))+$/i,
       ''
