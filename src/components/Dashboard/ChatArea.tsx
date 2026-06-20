@@ -18,13 +18,11 @@ import { MessageRenderer } from './ChatArea/MessageRenderer'
 import { StreamingMessage } from './ChatArea/StreamingMessage'
 import { VirtualMessageList } from './ChatArea/VirtualMessageList'
 import { InputArea } from './ChatArea/InputArea'
-import { WorkspaceArtifactsPanel } from './ChatArea/WorkspaceArtifactsPanel'
 import { shouldHideGenericToolResultCard } from './ChatArea/toolResultVisibility'
 import { useStreamingChat, usePromptAutoHide } from './ChatArea/hooks'
 import type { AttachedFile } from './ChatArea/attachmentUtils'
 import { NORMAL_PLACEHOLDERS, GENZ_PLACEHOLDERS } from './ChatArea/placeholders'
 import { CHAT_AREA_STYLES } from './ChatArea/chatAreaStyles'
-import { PanelLeft } from 'lucide-react'
 
 /**
  * Virtualization threshold - activate virtual scrolling for lists > 50 messages
@@ -41,7 +39,6 @@ export default function ChatArea() {
   const { draftText: input, setDraftText: setInput } = useComposerDraft()
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
   const [promptFocused, setPromptFocused] = useState(false)
-  const [artifactsOpen, setArtifactsOpen] = useState(false)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
@@ -413,116 +410,26 @@ export default function ChatArea() {
       style={{
         flex: 1,
         display: 'flex',
+        flexDirection: 'column',
         height: '100%',
         minHeight: 0,
         background: 'var(--theme-content-solid)',
         position: 'relative',
       }}
     >
-      <div className="chat-workspace-stage">
-        {!artifactsOpen && (
-          <button
-            type="button"
-            className="workspace-artifacts-toggle"
-            onClick={() => setArtifactsOpen(true)}
-            aria-label="Open workspace artifacts"
-          >
-            <PanelLeft size={15} />
-            <span>Artifacts</span>
-          </button>
-        )}
-
-        {useVirtualization ? (
-          <VirtualMessageList
-            messages={messages}
-            sessionId={currentSessionId!}
-            isGenerating={isLoading}
-            streamingContent={streamingState?.content || ''}
-            autoScrollEnabled={true}
-            renderMessage={renderMessage}
-            footer={
-              <>
-                {!isLoading &&
-                  displayActiveToolCalls.map((toolCall, i) => (
-                    <div key={`tool-active-${i}`} style={{ marginBottom: '12px', padding: '0 20px' }}>
-                      <ToolCallIndicator
-                        toolName={toolCall.name}
-                        status="executing"
-                        arguments={toolCall.arguments}
-                      />
-                    </div>
-                  ))}
-              </>
-            }
-          />
-        ) : (
-          <ScrollArea
-            className="flex-1"
-            data-select-all-scope="chat"
-            style={{ minHeight: 0 }}
-            viewportRef={messagesContainerRef}
-            viewportStyle={{ padding: '16px 20px 112px 20px', minHeight: 0 }}
-          >
-            <div
-              data-select-all-scope="chat"
-              style={{
-                width: '100%',
-                maxWidth: 'min(735px, 100%)',
-                margin: '0 auto',
-                minHeight: '100%',
-                display: 'flex',
-                flexDirection: 'column',
-              }}
-            >
-              {messages.map((msg, idx) => {
-                const isLastAssistant = msg.role === 'assistant' && idx === messages.length - 1
-                const isStreamingMessage = isLoading && isLastAssistant
-
-                return (
-                  <div key={msg.id} data-message-id={msg.id}>
-                    {isStreamingMessage ? (
-                      <StreamingMessage
-                        message={msg}
-                        sessionId={currentSessionId!}
-                        activeToolCalls={displayActiveToolCalls}
-                        onCopy={handleCopy}
-                        onRegenerate={(instruction) => regenerateMessage(msg, instruction)}
-                      />
-                    ) : (
-                      <MessageRenderer
-                        message={msg}
-                        isStreaming={false}
-                        sessionId={currentSessionId || undefined}
-                        onCopy={handleCopy}
-                        onRegenerate={(instruction) => regenerateMessage(msg, instruction)}
-                      />
-                    )}
-
-                    {isLastAssistant && visibleLiveToolResults.length > 0 && (
-                      <div style={{ marginTop: '8px', marginBottom: '24px' }}>
-                        {visibleLiveToolResults.map((result, i) => (
-                          <ToolResultDisplay
-                            key={i}
-                            toolName={result.toolCall.name}
-                            result={result.result.success ? result.result.data : undefined}
-                            error={result.result.success ? undefined : result.result.error}
-                            metadata={result.result?.metadata}
-                            toolArguments={result.toolCall.arguments}
-                            executionTime={result.result?.executionTime}
-                            sessionId={currentSessionId || undefined}
-                            messageId={msg.id}
-                            toolResultIndex={i}
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-
+      {useVirtualization ? (
+        <VirtualMessageList
+          messages={messages}
+          sessionId={currentSessionId!}
+          isGenerating={isLoading}
+          streamingContent={streamingState?.content || ''}
+          autoScrollEnabled={true}
+          renderMessage={renderMessage}
+          footer={
+            <>
               {!isLoading &&
                 displayActiveToolCalls.map((toolCall, i) => (
-                  <div key={`tool-active-${i}`} style={{ marginBottom: '12px' }}>
+                  <div key={`tool-active-${i}`} style={{ marginBottom: '12px', padding: '0 20px' }}>
                     <ToolCallIndicator
                       toolName={toolCall.name}
                       status="executing"
@@ -530,83 +437,156 @@ export default function ChatArea() {
                     />
                   </div>
                 ))}
-
-              {isLoading && <div style={{ minHeight: 'calc(100% - 350px)' }} />}
-
-              <div ref={messagesEndRef} />
-            </div>
-          </ScrollArea>
-        )}
-
-        <motion.div
-          className="chat-input-overlay"
-          animate={isPromptHidden ? { y: '100%', opacity: 0 } : { y: 0, opacity: 1 }}
-          initial={false}
-          transition={{ type: 'tween', duration: 0.38, ease: [0.22, 1, 0.36, 1] }}
-          style={{ willChange: 'transform, opacity' }}
-          aria-hidden={isPromptHidden}
+            </>
+          }
+        />
+      ) : (
+        <ScrollArea
+          className="flex-1"
+          data-select-all-scope="chat"
+          style={{ minHeight: 0 }}
+          viewportRef={messagesContainerRef}
+          viewportStyle={{ padding: '16px 20px 112px 20px', minHeight: 0 }}
         >
           <div
-            className="chat-input-overlay__inner"
-            style={{ pointerEvents: isPromptHidden ? 'none' : undefined }}
+            data-select-all-scope="chat"
+            style={{
+              width: '100%',
+              maxWidth: 'min(735px, 100%)',
+              margin: '0 auto',
+              minHeight: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
           >
-            <InputArea
-              input={input}
-              setInput={setInput}
-              onSend={handleSendMessage}
-              onStop={stopStreaming}
-              isLoading={isLoading}
-              attachedFiles={attachedFiles}
-              onFilesChange={setAttachedFiles}
-              onError={(msg) => showToast(msg, 'error')}
-              showContextRing={true}
-              onActivity={handlePromptActivity}
-              onFocusChange={handlePromptFocusChange}
-              textareaRefCallback={handleTextareaRefCallback}
-            />
+            {messages.map((msg, idx) => {
+              const isLastAssistant = msg.role === 'assistant' && idx === messages.length - 1
+              const isStreamingMessage = isLoading && isLastAssistant
+
+              return (
+                <div key={msg.id} data-message-id={msg.id}>
+                  {isStreamingMessage ? (
+                    <StreamingMessage
+                      message={msg}
+                      sessionId={currentSessionId!}
+                      activeToolCalls={displayActiveToolCalls}
+                      onCopy={handleCopy}
+                      onRegenerate={(instruction) => regenerateMessage(msg, instruction)}
+                    />
+                  ) : (
+                    <MessageRenderer
+                      message={msg}
+                      isStreaming={false}
+                      sessionId={currentSessionId || undefined}
+                      onCopy={handleCopy}
+                      onRegenerate={(instruction) => regenerateMessage(msg, instruction)}
+                    />
+                  )}
+
+                  {isLastAssistant && visibleLiveToolResults.length > 0 && (
+                    <div style={{ marginTop: '8px', marginBottom: '24px' }}>
+                      {visibleLiveToolResults.map((result, i) => (
+                        <ToolResultDisplay
+                          key={i}
+                          toolName={result.toolCall.name}
+                          result={result.result.success ? result.result.data : undefined}
+                          error={result.result.success ? undefined : result.result.error}
+                          metadata={result.result?.metadata}
+                          toolArguments={result.toolCall.arguments}
+                          executionTime={result.result?.executionTime}
+                          sessionId={currentSessionId || undefined}
+                          messageId={msg.id}
+                          toolResultIndex={i}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+
+            {!isLoading &&
+              displayActiveToolCalls.map((toolCall, i) => (
+                <div key={`tool-active-${i}`} style={{ marginBottom: '12px' }}>
+                  <ToolCallIndicator
+                    toolName={toolCall.name}
+                    status="executing"
+                    arguments={toolCall.arguments}
+                  />
+                </div>
+              ))}
+
+            {isLoading && <div style={{ minHeight: 'calc(100% - 350px)' }} />}
+
+            <div ref={messagesEndRef} />
           </div>
-        </motion.div>
-
-        <AnimatePresence>
-          {isPromptHidden && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-              {...triggerZoneProps}
-              style={{
-                position: 'absolute',
-                bottom: 0,
-                left: '50%',
-                transform: 'translateX(-50%)',
-                width: '100%',
-                maxWidth: 'min(735px, 100%)',
-                height: '48px',
-                cursor: 'pointer',
-                zIndex: 10,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <div
-                style={{
-                  width: '40px',
-                  height: '4px',
-                  borderRadius: '2px',
-                  background: 'var(--theme-text-muted)',
-                  opacity: 0.4,
-                }}
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-
-      {artifactsOpen && (
-        <WorkspaceArtifactsPanel messages={messages} onClose={() => setArtifactsOpen(false)} />
+        </ScrollArea>
       )}
+
+      <motion.div
+        className="chat-input-overlay"
+        animate={isPromptHidden ? { y: '100%', opacity: 0 } : { y: 0, opacity: 1 }}
+        initial={false}
+        transition={{ type: 'tween', duration: 0.38, ease: [0.22, 1, 0.36, 1] }}
+        style={{ willChange: 'transform, opacity' }}
+        aria-hidden={isPromptHidden}
+      >
+        <div
+          className="chat-input-overlay__inner"
+          style={{ pointerEvents: isPromptHidden ? 'none' : undefined }}
+        >
+          <InputArea
+            input={input}
+            setInput={setInput}
+            onSend={handleSendMessage}
+            onStop={stopStreaming}
+            isLoading={isLoading}
+            attachedFiles={attachedFiles}
+            onFilesChange={setAttachedFiles}
+            onError={(msg) => showToast(msg, 'error')}
+            showContextRing={true}
+            onActivity={handlePromptActivity}
+            onFocusChange={handlePromptFocusChange}
+            textareaRefCallback={handleTextareaRefCallback}
+          />
+        </div>
+      </motion.div>
+
+      <AnimatePresence>
+        {isPromptHidden && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            {...triggerZoneProps}
+            style={{
+              position: 'absolute',
+              bottom: 0,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              width: '100%',
+              maxWidth: 'min(735px, 100%)',
+              height: '48px',
+              cursor: 'pointer',
+              zIndex: 10,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <div
+              style={{
+                width: '40px',
+                height: '4px',
+                borderRadius: '2px',
+                background: 'var(--theme-text-muted)',
+                opacity: 0.4,
+              }}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <style>{CHAT_AREA_STYLES}</style>
     </div>
