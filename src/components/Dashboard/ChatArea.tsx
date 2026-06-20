@@ -18,7 +18,10 @@ import { MessageRenderer } from './ChatArea/MessageRenderer'
 import { StreamingMessage } from './ChatArea/StreamingMessage'
 import { VirtualMessageList } from './ChatArea/VirtualMessageList'
 import { InputArea } from './ChatArea/InputArea'
-import { WorkspaceArtifactsPanel } from './ChatArea/WorkspaceArtifactsPanel'
+import {
+  WorkspaceArtifactsPanel,
+  type WorkspaceArtifact,
+} from './ChatArea/WorkspaceArtifactsPanel'
 import { shouldHideGenericToolResultCard } from './ChatArea/toolResultVisibility'
 import { useStreamingChat, usePromptAutoHide } from './ChatArea/hooks'
 import type { AttachedFile } from './ChatArea/attachmentUtils'
@@ -259,6 +262,27 @@ export default function ChatArea() {
     if ((!input.trim() && attachedFiles.length === 0) || isLoading) return
     await sendMessage(input.trim(), attachedFiles)
   }
+
+  const handleRequestArtifactEdit = useCallback(
+    async (artifact: WorkspaceArtifact, instruction: string) => {
+      if (isLoading) return
+
+      const prompt = [
+        `Please edit the Markdown artifact titled "${artifact.title}" using this instruction:`,
+        '',
+        instruction,
+        '',
+        'Return the revised artifact as Markdown only. Preserve the useful structure unless the instruction says otherwise.',
+        '',
+        'Current artifact:',
+        '',
+        artifact.content,
+      ].join('\n')
+
+      await sendMessage(prompt, [])
+    },
+    [isLoading, sendMessage]
+  )
 
   const handleCopy = useCallback(async (content: string) => {
     const copiedSuccessfully = await writeTextToClipboard(content)
@@ -605,7 +629,12 @@ export default function ChatArea() {
       </div>
 
       {artifactsOpen && (
-        <WorkspaceArtifactsPanel messages={messages} onClose={() => setArtifactsOpen(false)} />
+        <WorkspaceArtifactsPanel
+          messages={messages}
+          onClose={() => setArtifactsOpen(false)}
+          onRequestEdit={handleRequestArtifactEdit}
+          isRequestingEdit={isLoading}
+        />
       )}
 
       <style>{CHAT_AREA_STYLES}</style>
