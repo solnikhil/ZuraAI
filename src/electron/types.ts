@@ -312,7 +312,7 @@ export interface NativeContextMenuRequest {
   isPinnedChatRow?: boolean
 }
 
-export type MonitorIntervalPreset = '30m' | '1h' | '6h' | '12h' | 'daily' | 'weekly'
+export type MonitorIntervalPreset = '1m' | '30m' | '1h' | '6h' | '12h' | 'daily' | 'weekly'
 export type ScheduledTaskIntervalPreset = MonitorIntervalPreset
 
 export type MonitorRunStatus = 'changed' | 'unchanged' | 'error'

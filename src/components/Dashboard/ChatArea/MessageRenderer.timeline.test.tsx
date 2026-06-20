@@ -231,6 +231,41 @@ describe('MessageRenderer follow-up timeline', () => {
     expect(thinkingBlock).toHaveAttribute('data-compact-completed-blocks', 'true')
   })
 
+  it('does not compact intermediate work before a follow-up final section', async () => {
+    const { container } = render(
+      <MessageRenderer
+        message={{
+          id: 'message-compact-final-only',
+          role: 'assistant',
+          content: `Intermediate answer.${TOOL_FOLLOW_UP_SPLIT_MARKER}Final answer.`,
+          timestamp: 1,
+          thinkingBlocks: [
+            {
+              type: 'thinking',
+              content: 'Intermediate reasoning',
+              duration: 1000,
+              timestamp: 1,
+            },
+            {
+              type: 'thinking',
+              content: 'Final reasoning',
+              duration: 1000,
+              timestamp: 2,
+            },
+          ],
+        }}
+        isStreaming={false}
+      />
+    )
+
+    await waitFor(() => {
+      const thinkingBlocks = Array.from(container.querySelectorAll('[data-testid="thinking-block"]'))
+      expect(thinkingBlocks).toHaveLength(2)
+      expect(thinkingBlocks[0]).toHaveAttribute('data-compact-completed-blocks', 'false')
+      expect(thinkingBlocks[1]).toHaveAttribute('data-compact-completed-blocks', 'true')
+    })
+  })
+
   it('keeps the split follow-up activity above the related assistant text after streaming completes', async () => {
     const { container } = render(
       <MessageRenderer

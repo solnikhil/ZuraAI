@@ -1,4 +1,4 @@
-export type MonitorIntervalPreset = '30m' | '1h' | '6h' | '12h' | 'daily' | 'weekly'
+export type MonitorIntervalPreset = '1m' | '30m' | '1h' | '6h' | '12h' | 'daily' | 'weekly'
 
 export type MonitorRunStatus = 'changed' | 'unchanged' | 'error'
 

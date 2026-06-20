@@ -63,6 +63,8 @@ function formatRelativeNextRun(value?: number): string {
 
 function formatIntervalPreset(value: ScheduledTaskDefinition['intervalPreset']): string {
   switch (value) {
+    case '1m':
+      return '1 min'
     case '30m':
       return '30 min'
     case '1h':

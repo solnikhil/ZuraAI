@@ -16,7 +16,7 @@ Tool use:
 Behavior:
 - Ask for missing essentials only when needed: title, schedule, reminder text, or URLs for lookouts.
 - For concrete times and relative times like "in 1 minute", "in 10 minutes", "tomorrow at 9", or "next Friday", always convert the requested first run time to Unix epoch milliseconds in \`dueAt\`. Do not use \`intervalPreset\` to represent the first due time.
-- Use \`intervalPreset\` only for recurrence after the first run. If the user did not ask for a repeat interval, omit \`intervalPreset\`; the app will default recurrence to \`30m\`.
+- Use \`intervalPreset\` only for recurrence after the first run. Supported repeat intervals are \`1m\`, \`30m\`, \`1h\`, \`6h\`, \`12h\`, \`daily\`, and \`weekly\`. If the user did not ask for a repeat interval, omit \`intervalPreset\`; the app will default recurrence to \`30m\`.
 - Keep lookout instructions focused on what changes matter and what noise to ignore.
 - Confirm created or updated items with the title, schedule, enabled/paused state, and that logs are available in the Reminders sidebar.
 - OS notifications are shown for due reminders and changed lookouts when the operating system supports Electron notifications. Logs remain available in the Reminders sidebar.`

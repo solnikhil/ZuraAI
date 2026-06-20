@@ -1,6 +1,7 @@
 import type { MonitorIntervalPreset } from './types'
 
 export const MONITOR_INTERVAL_MS: Record<MonitorIntervalPreset, number> = {
+  '1m': 60 * 1000,
   '30m': 30 * 60 * 1000,
   '1h': 60 * 60 * 1000,
   '6h': 6 * 60 * 60 * 1000,
@@ -11,6 +12,7 @@ export const MONITOR_INTERVAL_MS: Record<MonitorIntervalPreset, number> = {
 
 export function isMonitorIntervalPreset(value: unknown): value is MonitorIntervalPreset {
   return (
+    value === '1m' ||
     value === '30m' ||
     value === '1h' ||
     value === '6h' ||

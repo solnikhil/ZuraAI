@@ -53,4 +53,26 @@ describe('scheduled task storage', () => {
 
     expect(input.dueAt).toBe(dueAtSeconds * 1000)
   })
+
+  it('accepts one-minute recurring intervals for lookouts', async () => {
+    const { createScheduledTask, updateScheduledTask, sanitizeScheduledTaskInput } = await import('./storage')
+
+    const task = await createScheduledTask(sanitizeScheduledTaskInput({
+      type: 'web_lookout',
+      title: 'Fast lookout',
+      urls: ['https://example.com/status'],
+      instructions: 'Watch for status changes.',
+      intervalPreset: '1m',
+    }))
+
+    expect(task.intervalPreset).toBe('1m')
+    expect(task.nextRunAt).toBe(Date.now() + 60_000)
+
+    const updated = await updateScheduledTask(
+      task.id,
+      sanitizeScheduledTaskInput({ intervalPreset: '30m' }, true)
+    )
+
+    expect(updated?.intervalPreset).toBe('30m')
+  })
 })

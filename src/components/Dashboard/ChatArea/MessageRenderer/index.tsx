@@ -182,6 +182,8 @@ function MessageRendererComponent({
   const hasBottomDisplayContent = bottomProcessedContent.trim().length > 0
   const hasSplitFollowUpSection =
     Boolean(followUpSnapshot) || timeline.afterBlocks.length > 0 || hasBottomDisplayContent
+  const shouldCompactUpperCompletedBlocks = hasTopDisplayContent && !hasSplitFollowUpSection
+  const shouldCompactLowerCompletedBlocks = hasBottomDisplayContent
   const activeTimelineOwner = hasSplitFollowUpSection ? 'lower' : 'upper'
   const hasActiveThinkingState =
     hasThinking || showThinkingSpinner || Boolean(message.researchStatus?.isSearching) || hasActiveToolCalls
@@ -326,7 +328,7 @@ function MessageRendererComponent({
             }
             completedBlocks={timeline.beforeBlocks}
             activeToolCalls={activeTimelineOwner === 'upper' ? activeToolCalls : []}
-            compactCompletedBlocks={hasTopDisplayContent}
+            compactCompletedBlocks={shouldCompactUpperCompletedBlocks}
           />
         </div>
       )}
@@ -380,7 +382,7 @@ function MessageRendererComponent({
             }
             completedBlocks={timeline.afterBlocks}
             activeToolCalls={activeTimelineOwner === 'lower' ? activeToolCalls : []}
-            compactCompletedBlocks={hasBottomDisplayContent}
+            compactCompletedBlocks={shouldCompactLowerCompletedBlocks}
           />
         </div>
       )}
