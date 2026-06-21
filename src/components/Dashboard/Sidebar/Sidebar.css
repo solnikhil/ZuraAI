@@ -415,7 +415,7 @@
 .sidebar-section-label__chevron {
   margin-left: 2px;
   opacity: 0;
-  color: var(--theme-text-muted);
+  color: color-mix(in srgb, var(--theme-text-muted) 55%, var(--theme-text-primary) 45%);
   transition: opacity 0.12s ease, transform 0.15s ease, color 0.12s ease;
   flex-shrink: 0;
 }
@@ -423,7 +423,7 @@
 .sidebar-section-label:hover .sidebar-section-label__chevron,
 .sidebar-folder-dropzone:hover .sidebar-section-label__chevron,
 .sidebar-section-label:focus-visible .sidebar-section-label__chevron {
-  opacity: 0.72;
+  opacity: 1;
 }
 
 .sidebar-section-label__chevron--open {
@@ -441,11 +441,13 @@
 .sidebar-section-label__count {
   font-size: 0.64rem;
   opacity: 0.5;
-  margin-left: auto;
+  margin-left: 2px;
 }
 
 .sidebar-section-label__name {
-  flex: 1;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
