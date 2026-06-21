@@ -102,6 +102,7 @@ function sanitizeContextMenuRequest(value: unknown): NativeContextMenuRequest | 
   const isDev = request.isDev
   const kind = request.kind
   const isPinnedChatRow = request.isPinnedChatRow
+  const isChatRowInFolder = request.isChatRowInFolder
 
   if (
     !isBoolean(hasSelection) ||
@@ -115,7 +116,8 @@ function sanitizeContextMenuRequest(value: unknown): NativeContextMenuRequest | 
     !Number.isFinite(mouseY) ||
     !isBoolean(isDev) ||
     (kind !== undefined && kind !== 'default' && kind !== 'chat-row') ||
-    (isPinnedChatRow !== undefined && !isBoolean(isPinnedChatRow))
+    (isPinnedChatRow !== undefined && !isBoolean(isPinnedChatRow)) ||
+    (isChatRowInFolder !== undefined && !isBoolean(isChatRowInFolder))
   ) {
     return null
   }
@@ -131,6 +133,7 @@ function sanitizeContextMenuRequest(value: unknown): NativeContextMenuRequest | 
     isDev,
     kind: kind === 'chat-row' ? 'chat-row' : 'default',
     isPinnedChatRow: isPinnedChatRow === true,
+    isChatRowInFolder: isChatRowInFolder === true,
   }
 }
 
@@ -414,6 +417,7 @@ export function registerSystemHandlers(): void {
       isDev,
       kind,
       isPinnedChatRow,
+      isChatRowInFolder,
     } =
       sanitizedRequest
 
@@ -428,6 +432,9 @@ export function registerSystemHandlers(): void {
           click: () => sendContextMenuAction(win, isPinnedChatRow ? 'chat-unpin' : 'chat-pin'),
         },
         { label: 'Duplicate', click: () => sendContextMenuAction(win, 'chat-duplicate') },
+        ...(isChatRowInFolder
+          ? [{ label: 'Remove from Space', click: () => sendContextMenuAction(win, 'chat-remove-from-folder') }]
+          : []),
         { type: 'separator' },
         { label: 'Delete', click: () => sendContextMenuAction(win, 'chat-delete') }
       )

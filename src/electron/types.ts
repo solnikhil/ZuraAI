@@ -295,6 +295,7 @@ export type NativeContextMenuAction =
   | 'chat-pin'
   | 'chat-unpin'
   | 'chat-duplicate'
+  | 'chat-remove-from-folder'
   | 'chat-delete'
 
 export type NativeContextMenuKind = 'default' | 'chat-row'
@@ -310,6 +311,7 @@ export interface NativeContextMenuRequest {
   isDev: boolean
   kind?: NativeContextMenuKind
   isPinnedChatRow?: boolean
+  isChatRowInFolder?: boolean
 }
 
 export type MonitorIntervalPreset = '1m' | '30m' | '1h' | '6h' | '12h' | 'daily' | 'weekly'

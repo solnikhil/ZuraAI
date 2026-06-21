@@ -27,7 +27,6 @@ vi.mock('../../ThinkingBlock', () => ({
     searchQueries,
     activeToolCalls,
     completedBlocks,
-    compactCompletedBlocks,
   }: {
     thinking?: string
     isThinking?: boolean
@@ -35,12 +34,8 @@ vi.mock('../../ThinkingBlock', () => ({
     searchQueries?: string[]
     activeToolCalls?: Array<{ name: string }>
     completedBlocks?: Array<{ content?: string; query?: string; toolName?: string }>
-    compactCompletedBlocks?: boolean
   }) => (
-    <div
-      data-testid="thinking-block"
-      data-compact-completed-blocks={compactCompletedBlocks ? 'true' : 'false'}
-    >
+    <div data-testid="thinking-block">
       {completedBlocks?.map((block, index) => (
         <span key={index}>{block.content || block.query || block.toolName}</span>
       ))}
@@ -145,7 +140,7 @@ describe('MessageRenderer follow-up timeline', () => {
     })
   })
 
-  it('renders the thinking/tool activity above its corresponding assistant text', async () => {
+  it('prioritizes streamed assistant text above work activity without splitting it', async () => {
     const baseMessage = {
       id: 'message-1',
       role: 'assistant' as const,
@@ -177,7 +172,7 @@ describe('MessageRenderer follow-up timeline', () => {
     )
 
     await waitFor(() => {
-      expect(container.querySelectorAll('[data-testid="thinking-block"]')).toHaveLength(2)
+      expect(container.querySelectorAll('[data-testid="thinking-block"]')).toHaveLength(1)
     })
 
     rerender(
@@ -197,76 +192,15 @@ describe('MessageRenderer follow-up timeline', () => {
         container.querySelectorAll('[data-testid="thinking-block"],[data-testid="markdown"]')
       ).map((node) => node.textContent || '')
 
-      expect(sequence).toHaveLength(4)
-      expect(sequence[0]).toContain('Initial reasoning')
-      expect(sequence[1]).toBe('Initial response.')
-      expect(sequence[2]).toContain('Follow-up reasoning')
-      expect(sequence[3]).toBe('Follow-up response.')
+      expect(sequence).toHaveLength(2)
+      expect(sequence).toHaveLength(2)
+      expect(sequence[0]).toBe('Initial response.Follow-up response.')
+      expect(sequence[1]).toContain('Initial reasoning')
+      expect(sequence[1]).toContain('Follow-up reasoning')
     })
   })
 
-  it('compacts completed work once the corresponding answer text is visible', async () => {
-    render(
-      <MessageRenderer
-        message={{
-          id: 'message-compact-work',
-          role: 'assistant',
-          content: 'Final answer has started.',
-          timestamp: 1,
-          thinkingBlocks: [
-            {
-              type: 'thinking',
-              content: 'Initial reasoning',
-              duration: 1000,
-              timestamp: 1,
-            },
-          ],
-        }}
-        isStreaming={true}
-        streamPhase="answering"
-      />
-    )
-
-    const thinkingBlock = await screen.findByTestId('thinking-block')
-    expect(thinkingBlock).toHaveAttribute('data-compact-completed-blocks', 'true')
-  })
-
-  it('does not compact intermediate work before a follow-up final section', async () => {
-    const { container } = render(
-      <MessageRenderer
-        message={{
-          id: 'message-compact-final-only',
-          role: 'assistant',
-          content: `Intermediate answer.${TOOL_FOLLOW_UP_SPLIT_MARKER}Final answer.`,
-          timestamp: 1,
-          thinkingBlocks: [
-            {
-              type: 'thinking',
-              content: 'Intermediate reasoning',
-              duration: 1000,
-              timestamp: 1,
-            },
-            {
-              type: 'thinking',
-              content: 'Final reasoning',
-              duration: 1000,
-              timestamp: 2,
-            },
-          ],
-        }}
-        isStreaming={false}
-      />
-    )
-
-    await waitFor(() => {
-      const thinkingBlocks = Array.from(container.querySelectorAll('[data-testid="thinking-block"]'))
-      expect(thinkingBlocks).toHaveLength(2)
-      expect(thinkingBlocks[0]).toHaveAttribute('data-compact-completed-blocks', 'false')
-      expect(thinkingBlocks[1]).toHaveAttribute('data-compact-completed-blocks', 'true')
-    })
-  })
-
-  it('keeps the split follow-up activity above the related assistant text after streaming completes', async () => {
+  it('strips split markers without splitting the visible assistant text', async () => {
     const { container } = render(
       <MessageRenderer
         message={{
@@ -318,15 +252,13 @@ describe('MessageRenderer follow-up timeline', () => {
       ).map((node) => node.textContent)
 
       expect(sequence).toEqual([
-        'Initial reasoning',
-        'Initial response.',
-        'Follow-up reasoningmcp__filesystem__read_file',
-        'Follow-up response.',
+        'Initial reasoningFollow-up reasoningmcp__filesystem__read_file',
+        'Initial response.Follow-up response.',
       ])
     })
   })
 
-  it('renders only one active connecting state when a persisted split marker is already present', async () => {
+  it('renders one active connecting state when a persisted split marker is already present', async () => {
     const { container } = render(
       <MessageRenderer
         message={{
@@ -356,7 +288,7 @@ describe('MessageRenderer follow-up timeline', () => {
     )
 
     await waitFor(() => {
-      expect(container.querySelectorAll('[data-testid="thinking-block"]')).toHaveLength(2)
+      expect(container.querySelectorAll('[data-testid="thinking-block"]')).toHaveLength(1)
     })
 
     expect(container).toHaveTextContent('Initial reasoning')
@@ -389,7 +321,7 @@ describe('MessageRenderer follow-up timeline', () => {
     })
   })
 
-  it('hides completed code_execution thinking blocks while streaming', async () => {
+  it('keeps completed tool blocks and active response text in the same thinking area while streaming', async () => {
     render(
       <MessageRenderer
         message={{
@@ -413,6 +345,7 @@ describe('MessageRenderer follow-up timeline', () => {
 
     const thinkingBlocks = await screen.findAllByTestId('thinking-block')
     expect(thinkingBlocks).toHaveLength(1)
+    expect(thinkingBlocks[0]).toHaveTextContent('code_execution')
     expect(thinkingBlocks[0]).toHaveTextContent('Preparing final response')
   })
 })

@@ -20,17 +20,19 @@ const disabledSkills = { memory: { enabled: false } } as unknown as import('@/sk
 
 interface FakeBridge {
   added: string[]
+  addInputs: Array<{ content: string; scope?: unknown }>
   summaries: Array<{ sessionId: string; summary: string }>
 }
 
 function installBridge(): FakeBridge {
-  const state: FakeBridge = { added: [], summaries: [] }
+  const state: FakeBridge = { added: [], addInputs: [], summaries: [] }
   const seen = new Set<string>()
   const api = {
-    addDeduped: vi.fn(async (input: { content: string }) => {
+    addDeduped: vi.fn(async (input: { content: string; scope?: unknown }) => {
       const key = input.content.trim().toLowerCase()
       if (seen.has(key)) return { memory: null, operation: 'noop' }
       seen.add(key)
+      state.addInputs.push(input)
       state.added.push(input.content)
       return { memory: { id: `id-${state.added.length}` }, operation: 'added' }
     }),
@@ -92,6 +94,25 @@ describe('runMemoryExtraction', () => {
     expect(result?.facts).toEqual(['User studies at SRM'])
     expect(state.added).toEqual(['User studies at SRM'])
     expect(state.summaries).toEqual([{ sessionId: 's1', summary: 'Discussed coursework' }])
+  })
+
+  it('persists extracted facts with the provided Space memory scope', async () => {
+    const state = installBridge()
+    generateTitleTextForModel.mockResolvedValue(
+      '{"facts":["User is building ZuraAI Spaces"],"summary":"Discussed Spaces"}'
+    )
+
+    await runMemoryExtraction({
+      settings: baseSettings,
+      sessionId: 's-space',
+      scope: { type: 'project', projectId: 'space-1' },
+      messages: [{ role: 'user', content: 'Remember this for the Spaces project' }],
+    })
+
+    expect(state.addInputs[0]).toMatchObject({
+      content: 'User is building ZuraAI Spaces',
+      scope: { type: 'project', projectId: 'space-1' },
+    })
   })
 
   it('uses settings.memoryModel for the extraction call when set', async () => {

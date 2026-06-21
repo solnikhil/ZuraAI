@@ -27,7 +27,7 @@ interface SidebarChatListProps {
   onKeyDown: (e: React.KeyboardEvent) => void
 }
 
-/** Time-group definition for sub-labels inside "Your chats" */
+/** Time-group definition for sub-labels inside "Recents" */
 interface TimeGroupBucket {
   label: string
   sessions: ChatSession[]
@@ -137,7 +137,7 @@ export default function SidebarChatList({
       }
     })
 
-    items.push({ type: 'section', key: 'your-chats', label: 'Your chats' })
+    items.push({ type: 'section', key: 'your-chats', label: 'Recents' })
     if (isYourChatsOpen) {
       timeGroups.forEach((group) => {
         group.sessions.forEach((session) => {
@@ -230,13 +230,13 @@ export default function SidebarChatList({
               role="button"
               aria-expanded={isOpen}
             >
+              <FolderOpen size={12} className="sidebar-section-label__icon" />
+              <span className="sidebar-section-label__name">{item.label}</span>
+              <span className="sidebar-section-label__count">{item.count}</span>
               <ChevronDown
                 size={10}
                 className={`sidebar-section-label__chevron ${isOpen ? 'sidebar-section-label__chevron--open' : 'sidebar-section-label__chevron--closed'}`}
               />
-              <FolderOpen size={12} className="sidebar-section-label__icon" />
-              <span className="sidebar-section-label__name">{item.label}</span>
-              <span className="sidebar-section-label__count">{item.count}</span>
             </div>
           </div>
         )
@@ -250,12 +250,12 @@ export default function SidebarChatList({
 
       return (
         <div className="sidebar-section-label" onClick={toggleOpen} role="button" aria-expanded={isOpen}>
+          {item.icon === 'pin' && <Pin size={11} className="sidebar-section-label__icon" />}
+          <span className="sidebar-section-label__name">{item.label}</span>
           <ChevronDown
             size={10}
             className={`sidebar-section-label__chevron ${isOpen ? 'sidebar-section-label__chevron--open' : 'sidebar-section-label__chevron--closed'}`}
           />
-          {item.icon === 'pin' && <Pin size={11} className="sidebar-section-label__icon" />}
-          <span>{item.label}</span>
         </div>
       )
     },

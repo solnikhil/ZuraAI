@@ -11,6 +11,7 @@ import {
 import { useSettings } from '../../../../contexts/SettingsContext'
 import { useToast } from '../../../shared/Toast'
 import type { ToolCallState } from '../../../../hooks/useToolCalling'
+import { getSessionMemoryScope } from '../../../../utils/memoryScope'
 import {
   completeAgentToolStep,
   createAgentRun,
@@ -530,9 +531,10 @@ const streamingSettings: StreamingSettings = useMemo(
           startResearchMode(researchMaxRounds, forceWebSearch)
         }
 
+        const memoryScope = getSessionMemoryScope(sessions, targetSessionId)
         const baseSystemPrompt = getEffectiveSystemPrompt(
           settings,
-          await loadMemoryBlock(settings, { type: 'global' }, {
+          await loadMemoryBlock(settings, memoryScope, {
             userMessage:
               typeof outboundUserMessage.content === 'string' ? outboundUserMessage.content : '',
           }),
@@ -771,6 +773,7 @@ const streamingSettings: StreamingSettings = useMemo(
           void runMemoryExtraction({
             settings,
             sessionId: targetSessionId,
+            scope: memoryScope,
             messages: buildMemoryExtractionMessages(
               conversationHistory,
               content,
@@ -822,6 +825,7 @@ const streamingSettings: StreamingSettings = useMemo(
     [
       isLoading,
       currentSessionId,
+      sessions,
       messages,
       settings,
       streamingSettings,
@@ -955,9 +959,10 @@ const streamingSettings: StreamingSettings = useMemo(
           return
         }
 
+        const memoryScope = getSessionMemoryScope(sessions, currentSessionId)
         let systemPrompt = getEffectiveSystemPrompt(
           effectiveSettings,
-          await loadMemoryBlock(effectiveSettings, { type: 'global' }, {
+          await loadMemoryBlock(effectiveSettings, memoryScope, {
             userMessage: typeof userMessage.content === 'string' ? userMessage.content : '',
           }),
           await loadRecentActivityBlock(effectiveSettings)

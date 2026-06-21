@@ -25,6 +25,7 @@ import { generateTitleTextForModel } from '@/providers/providerRuntime'
 import { appendChatDiagnosticEvent } from '@/diagnostics/chatDiagnosticsClient'
 import type { ChatDiagnosticEvent } from '@/diagnostics/chatDiagnostics'
 import type { SettingsConfig } from '@/contexts/SettingsConfigContext'
+import type { MemoryScope } from '@/electron/types'
 
 export interface ExtractionMessage {
   role: 'user' | 'assistant'
@@ -60,6 +61,7 @@ export interface RunMemoryExtractionParams {
   settings: ExtractionSettings
   sessionId: string
   messages: ExtractionMessage[]
+  scope?: MemoryScope
 }
 
 /** Result of a parsed extraction call (for testability). */
@@ -248,7 +250,7 @@ async function withAbortTimeout<T>(
 export async function runMemoryExtraction(
   params: RunMemoryExtractionParams
 ): Promise<ExtractionResult | null> {
-  const { settings, sessionId, messages } = params
+  const { settings, sessionId, messages, scope = { type: 'global' } } = params
 
   // Gate: memory skill enabled AND auto-management on (manual-only pauses dreaming).
   if (!isMemoryAutoManageEnabled(settings.skills)) return null
@@ -312,7 +314,7 @@ export async function runMemoryExtraction(
   // Persist facts (ADD-only, deduped) — each is best-effort.
   for (const fact of result.facts) {
     try {
-      await window.memory.addDeduped({ content: fact, source: 'model', sessionId, origin: 'background' })
+      await window.memory.addDeduped({ content: fact, source: 'model', sessionId, origin: 'background', scope })
     } catch (error) {
       console.warn('[memory-extraction] Failed to persist a fact; continuing.', error)
     }

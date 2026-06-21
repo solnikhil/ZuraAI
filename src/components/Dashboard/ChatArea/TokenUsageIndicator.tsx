@@ -15,6 +15,7 @@ import { estimateTokens, estimateMessageTokens } from '../../../utils/tokenUtils
 import { getEffectiveSystemPrompt } from '../../../utils/promptSelection'
 import { loadMemoryBlock } from '../../../prompts/buildMemoryBlock'
 import { loadRecentActivityBlock } from '../../../prompts/buildRecentActivityBlock'
+import { getSessionMemoryScope } from '../../../utils/memoryScope'
 import { defaultWebSearchPrompt } from '../../../prompts/defaultWebSearchPrompt'
 import { isWebResearchEnabled } from '../../../skills'
 import { useToolCalling } from '../../../hooks/useToolCalling'
@@ -303,6 +304,10 @@ export function TokenUsageIndicator({ input, attachedFiles = [], className }: To
     }),
     [settings.skills, settings.memoryPrompt]
   )
+  const memoryScope = useMemo(
+    () => getSessionMemoryScope(sessions, currentSessionId),
+    [currentSessionId, sessions]
+  )
   const [memoryContext, setMemoryContext] = useState({
     memoryBlock: '',
     recentActivityBlock: '',
@@ -344,7 +349,7 @@ export function TokenUsageIndicator({ input, attachedFiles = [], className }: To
     async function loadMemoryContext() {
       try {
         const [memoryBlock, recentActivityBlock] = await Promise.all([
-          loadMemoryBlock(memoryPromptSettings, { type: 'global' }, { userMessage: input }),
+          loadMemoryBlock(memoryPromptSettings, memoryScope, { userMessage: input }),
           loadRecentActivityBlock(memoryPromptSettings),
         ])
         if (!cancelled) {
@@ -362,7 +367,7 @@ export function TokenUsageIndicator({ input, attachedFiles = [], className }: To
     return () => {
       cancelled = true
     }
-  }, [input, memoryPromptSettings])
+  }, [input, memoryPromptSettings, memoryScope])
 
   const contextData = useMemo(() => {
     const sessionMessages = currentSessionId

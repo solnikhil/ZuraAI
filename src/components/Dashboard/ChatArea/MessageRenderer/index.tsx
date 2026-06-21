@@ -14,12 +14,7 @@ import { useSettings } from '@/contexts/SettingsContext'
 import { writeTextToClipboard } from '@/utils/clipboard'
 import { getDeepseekReasoning } from '@/utils/deepseekReasoning'
 import { serializeDomToMarkdown } from '@/utils/domToMarkdown'
-import {
-  removeToolFollowUpSplitMarker,
-  shouldCaptureFollowUpSnapshot,
-  splitMessageTimeline,
-  type FollowUpTimelineSnapshot,
-} from '../messageTimeline'
+import { removeToolFollowUpSplitMarker } from '../messageTimeline'
 
 import type { MessageRendererProps } from './types'
 import { areMessagePropsEqual } from './messagePropsComparison'
@@ -56,7 +51,6 @@ function MessageRendererComponent({
   // Track whether to trigger the staggered button animation.
   // null = no animation (historical messages), true = animate in
   const [showActionButtons, setShowActionButtons] = useState<boolean | null>(null)
-  const [followUpSnapshot, setFollowUpSnapshot] = useState<FollowUpTimelineSnapshot | null>(null)
   const prevIsStreamingRef = useRef(isStreaming)
 
   // Hooks for web data
@@ -91,10 +85,6 @@ function MessageRendererComponent({
       setHasContentDuringStreaming(true)
     }
   }, [isStreaming, message.content])
-
-  useEffect(() => {
-    setFollowUpSnapshot(null)
-  }, [message.id])
 
   const versions = message.responseVersions || []
   const totalVersions = versions.length + (message.content ? 1 : 0)
@@ -138,62 +128,28 @@ function MessageRendererComponent({
   const activeThinkingBlockKey = `${message.id}:${completedThinkingCount}:${streamPhase || 'idle'}`
   const hasActiveToolCalls = (activeToolCalls?.length || 0) > 0
 
-  // Follow-up snapshot capture
-  useEffect(() => {
-    if (!shouldCaptureFollowUpSnapshot({
-      isStreaming,
-      streamPhase,
-      content: displayContent,
-      isSearching: message.researchStatus?.isSearching || false,
-      activeToolCallCount: activeToolCalls?.length || 0,
-      existingSnapshot: followUpSnapshot,
-    })) {
-      return
-    }
-
-    setFollowUpSnapshot({
-      contentLength: displayContent.length,
-      completedBlockCount: completedBlocks.length,
-    })
-  }, [
-    activeToolCalls?.length,
-    completedBlocks.length,
-    displayContent,
-    followUpSnapshot,
-    isStreaming,
-    message.researchStatus?.isSearching,
-    streamPhase,
-  ])
-
-  const timeline = useMemo(
-    () => splitMessageTimeline(rawDisplayContent, completedBlocks, followUpSnapshot),
-    [completedBlocks, followUpSnapshot, rawDisplayContent]
+  const processedDisplayContent = useMemo(
+    () => processMessageContent(displayContent),
+    [displayContent, processMessageContent]
   )
-
-  const topProcessedContent = useMemo(
-    () => processMessageContent(timeline.beforeContent),
-    [processMessageContent, timeline.beforeContent]
-  )
-  const bottomProcessedContent = useMemo(
-    () => processMessageContent(timeline.afterContent),
-    [processMessageContent, timeline.afterContent]
-  )
-  const hasTopDisplayContent = topProcessedContent.trim().length > 0
-  const hasBottomDisplayContent = bottomProcessedContent.trim().length > 0
-  const hasSplitFollowUpSection =
-    Boolean(followUpSnapshot) || timeline.afterBlocks.length > 0 || hasBottomDisplayContent
-  const shouldCompactUpperCompletedBlocks = hasTopDisplayContent && !hasSplitFollowUpSection
-  const shouldCompactLowerCompletedBlocks = hasBottomDisplayContent
-  const activeTimelineOwner = hasSplitFollowUpSection ? 'lower' : 'upper'
+  const hasProcessedDisplayContent = processedDisplayContent.trim().length > 0
   const hasActiveThinkingState =
     hasThinking || showThinkingSpinner || Boolean(message.researchStatus?.isSearching) || hasActiveToolCalls
-  const showUpperThinkingBlock =
-    timeline.beforeBlocks.length > 0 ||
-    (activeTimelineOwner === 'upper' && hasActiveThinkingState)
-  const showLowerThinkingBlock =
-    timeline.afterBlocks.length > 0 ||
-    hasBottomDisplayContent ||
-    (activeTimelineOwner === 'lower' && hasActiveThinkingState)
+  const showThinkingBlock = completedBlocks.length > 0 || hasActiveThinkingState
+  const shouldRenderDisplayContent =
+    (!isStreaming || hasContentDuringStreaming || completedBlocks.length > 0 || message.researchStatus) &&
+    hasProcessedDisplayContent
+  const shouldPrioritizeStreamingContent = isStreaming && shouldRenderDisplayContent
+
+  const renderDisplayContent = () => (
+    <div className="markdown-content">
+      <LazyMarkdown
+        content={processedDisplayContent}
+        webSources={webSourceMap}
+        isStreaming={isStreaming}
+      />
+    </div>
+  )
 
   const handleCopy = async () => {
     const contentToCopy = removeToolFollowUpSplitMarker(message.content)
@@ -296,106 +252,38 @@ function MessageRendererComponent({
         <WebSearchImageCarousel images={webSearchImages} mode={webImageMode} />
       )}
 
-      {/* Upper thinking/search activity - rendered ABOVE its related answer content */}
-      {showUpperThinkingBlock && (
-        <div style={{ marginTop: 0, marginBottom: hasTopDisplayContent ? '8px' : 0 }}>
+      {shouldPrioritizeStreamingContent && renderDisplayContent()}
+
+      {/* Thinking/search/tool activity stays above one continuous assistant message. */}
+      {showThinkingBlock && (
+        <div
+          style={{
+            marginTop: shouldPrioritizeStreamingContent ? '8px' : 0,
+            marginBottom: !shouldPrioritizeStreamingContent && hasProcessedDisplayContent ? '8px' : 0,
+          }}
+        >
           <ThinkingBlockComponent
             messageId={message.id}
-            activeBlockKey={
-              activeTimelineOwner === 'upper'
-                ? activeThinkingBlockKey
-                : `${activeThinkingBlockKey}:upper`
-            }
-            thinking={activeTimelineOwner === 'upper' ? message.thinking || '' : ''}
+            activeBlockKey={activeThinkingBlockKey}
+            thinking={message.thinking || ''}
             isThinking={
-              activeTimelineOwner === 'upper' &&
               isStreaming &&
               isReasoningPhase &&
               !message.researchStatus?.isSearching &&
               !hasActiveToolCalls
             }
-            thinkingDuration={
-              activeTimelineOwner === 'upper' ? message.thinkingDuration : undefined
-            }
-            isSearching={
-              activeTimelineOwner === 'upper' ? message.researchStatus?.isSearching || false : false
-            }
-            searchQuery={
-              activeTimelineOwner === 'upper' ? message.researchStatus?.currentSearch : undefined
-            }
-            searchQueries={
-              activeTimelineOwner === 'upper' ? message.researchStatus?.currentSearches : undefined
-            }
-            completedBlocks={timeline.beforeBlocks}
-            activeToolCalls={activeTimelineOwner === 'upper' ? activeToolCalls : []}
-            compactCompletedBlocks={shouldCompactUpperCompletedBlocks}
+            thinkingDuration={message.thinkingDuration}
+            isSearching={message.researchStatus?.isSearching || false}
+            searchQuery={message.researchStatus?.currentSearch}
+            searchQueries={message.researchStatus?.currentSearches}
+            completedBlocks={completedBlocks}
+            activeToolCalls={activeToolCalls || []}
           />
         </div>
       )}
 
       {/* Message content - only show when not streaming or when content has arrived */}
-      {((!isStreaming || hasContentDuringStreaming || completedBlocks.length > 0 || message.researchStatus) &&
-        hasTopDisplayContent) && (
-        <div className="markdown-content">
-          <LazyMarkdown
-            content={topProcessedContent}
-            webSources={webSourceMap}
-            isStreaming={isStreaming}
-          />
-        </div>
-      )}
-
-      {/* Lower thinking/search activity - rendered ABOVE its related follow-up content */}
-      {showLowerThinkingBlock && (
-        <div
-          style={{
-            marginTop: hasTopDisplayContent ? '12px' : 0,
-            marginBottom: hasBottomDisplayContent ? '8px' : 0,
-          }}
-        >
-          <ThinkingBlockComponent
-            messageId={message.id}
-            activeBlockKey={
-              activeTimelineOwner === 'lower'
-                ? activeThinkingBlockKey
-                : `${activeThinkingBlockKey}:lower`
-            }
-            thinking={activeTimelineOwner === 'lower' ? message.thinking || '' : ''}
-            isThinking={
-              activeTimelineOwner === 'lower' &&
-              isStreaming &&
-              isReasoningPhase &&
-              !message.researchStatus?.isSearching &&
-              !hasActiveToolCalls
-            }
-            thinkingDuration={
-              activeTimelineOwner === 'lower' ? message.thinkingDuration : undefined
-            }
-            isSearching={
-              activeTimelineOwner === 'lower' ? message.researchStatus?.isSearching || false : false
-            }
-            searchQuery={
-              activeTimelineOwner === 'lower' ? message.researchStatus?.currentSearch : undefined
-            }
-            searchQueries={
-              activeTimelineOwner === 'lower' ? message.researchStatus?.currentSearches : undefined
-            }
-            completedBlocks={timeline.afterBlocks}
-            activeToolCalls={activeTimelineOwner === 'lower' ? activeToolCalls : []}
-            compactCompletedBlocks={shouldCompactLowerCompletedBlocks}
-          />
-        </div>
-      )}
-
-      {hasBottomDisplayContent && (
-        <div className="markdown-content">
-          <LazyMarkdown
-            content={bottomProcessedContent}
-            webSources={webSourceMap}
-            isStreaming={isStreaming}
-          />
-        </div>
-      )}
+      {!shouldPrioritizeStreamingContent && shouldRenderDisplayContent && renderDisplayContent()}
 
       {shouldShowActionRow && (
         <AssistantMessageActions

@@ -387,9 +387,9 @@
 /* ── Section labels (unified) ──────────────────────────────── */
 
 .sidebar-section-label {
-  font-size: var(--sidebar-font-size-xs);
-  font-weight: 600;
-  color: var(--theme-text-muted);
+  font-size: var(--sidebar-font-size-sm);
+  font-weight: 400;
+  color: color-mix(in srgb, var(--theme-text-muted) 72%, var(--theme-text-primary) 28%);
   padding: 6px 6px 4px;
   display: flex;
   align-items: center;
@@ -397,9 +397,8 @@
   cursor: pointer;
   user-select: none;
   letter-spacing: 0.05em;
-  text-transform: uppercase;
-  opacity: 0.7;
-  transition: opacity 0.12s ease;
+  opacity: 0.86;
+  transition: opacity 0.12s ease, color 0.12s ease;
 }
 
 .sidebar-container--macos .sidebar-section-label {
@@ -409,13 +408,24 @@
 
 .sidebar-section-label:hover {
   opacity: 1;
+  color: color-mix(in srgb, var(--theme-text-muted) 52%, var(--theme-text-primary) 48%);
 }
 
 
 .sidebar-section-label__chevron {
-  transition: transform 0.15s ease;
+  margin-left: 2px;
+  opacity: 0;
+  color: var(--theme-text-muted);
+  transition: opacity 0.12s ease, transform 0.15s ease, color 0.12s ease;
   flex-shrink: 0;
 }
+
+.sidebar-section-label:hover .sidebar-section-label__chevron,
+.sidebar-folder-dropzone:hover .sidebar-section-label__chevron,
+.sidebar-section-label:focus-visible .sidebar-section-label__chevron {
+  opacity: 0.72;
+}
+
 .sidebar-section-label__chevron--open {
   transform: rotate(0deg);
 }

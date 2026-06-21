@@ -48,7 +48,7 @@ interface ChatHistoryContextType {
   folders: Folder[]
   currentSessionId: string | null
   isLoading: boolean
-  createSession: (firstMessage?: string) => string
+  createSession: (firstMessage?: string, folderId?: string | null) => string
   switchSession: (id: string) => void
   addMessageToSession: (sessionId: string, message: Omit<Message, 'id' | 'timestamp'>) => string
   updateStreamingMessage: (sessionId: string, messageId: string, updates: Partial<Message>) => void
@@ -494,20 +494,22 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
   )
 
   const createSession = useCallback(
-    (firstMessage?: string) => {
+    (firstMessage?: string, folderId?: string | null) => {
       const now = Date.now()
       const normalizedFirstMessage = typeof firstMessage === 'string' ? firstMessage.trim() : ''
+      const normalizedFolderId = folderId || null
       const existingReusable =
         !normalizedFirstMessage
           ? sessionsRef.current.find(
               (session) =>
                 session.title === 'New Chat' &&
+                (session.folderId ?? null) === normalizedFolderId &&
                 (session.messageCount ?? session.messages.length) === 0
             )
           : undefined
 
       if (existingReusable) {
-        const updatedExisting = { ...existingReusable, updatedAt: now }
+        const updatedExisting = { ...existingReusable, folderId: normalizedFolderId, updatedAt: now }
         markLoaded(updatedExisting.id)
         setSessions((prev) => [
           updatedExisting,
@@ -539,7 +541,7 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
         createdAt: now,
         updatedAt: now,
         pinned: false,
-        folderId: null,
+        folderId: normalizedFolderId,
         tags: [],
       })
 

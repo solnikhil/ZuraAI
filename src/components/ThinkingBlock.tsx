@@ -221,7 +221,6 @@ interface ThinkingBlockProps {
   activeToolCalls?: Array<{ name: string; arguments?: Record<string, unknown> }>
   // New props for showing completed blocks
   completedBlocks?: ThinkingBlockType[]
-  compactCompletedBlocks?: boolean
 }
 
 function formatDuration(ms: number): string {
@@ -237,24 +236,6 @@ function formatDuration(ms: number): string {
     return `${minutes}m ${remainingSeconds}s`
   }
   return `${remainingSeconds}s`
-}
-
-function getCompletedBlockDuration(block: ThinkingBlockType): number {
-  if (block.type === 'thinking') {
-    return typeof block.duration === 'number' && Number.isFinite(block.duration)
-      ? Math.max(0, block.duration)
-      : 0
-  }
-
-  const executionTime = block.toolOutput?.executionTime
-  return typeof executionTime === 'number' && Number.isFinite(executionTime)
-    ? Math.max(0, executionTime)
-    : 0
-}
-
-function getWorkedForLabel(blocks: ThinkingBlockType[]): string {
-  const totalDuration = blocks.reduce((sum, block) => sum + getCompletedBlockDuration(block), 0)
-  return totalDuration > 0 ? `Worked for ${formatDuration(totalDuration)}` : 'Worked for a moment'
 }
 
 function looksLikeStructuredThinkingLine(line: string): boolean {
@@ -876,62 +857,6 @@ function CompletedBlocksList({ blocks }: { blocks: ThinkingBlockType[] }) {
   )
 }
 
-function CompactCompletedBlocks({ blocks }: { blocks: ThinkingBlockType[] }) {
-  const [isExpanded, setIsExpanded] = useState(false)
-  const { animationsEnabled } = useMotionPreferences()
-  const label = getWorkedForLabel(blocks)
-  const groupKey = blocks.map((block) => block.timestamp).join(',')
-
-  useEffect(() => {
-    setIsExpanded(false)
-  }, [groupKey])
-
-  return (
-    <div
-      className={`thinking-block completed thinking-work-summary ${
-        isExpanded ? 'is-expanded' : 'is-collapsed'
-      }`}
-    >
-      <div
-        className="thinking-header completed thinking-work-summary-header"
-        onClick={() => setIsExpanded((expanded) => !expanded)}
-      >
-        <div className="thinking-label">
-          <span className="thinking-text">{label}</span>
-          <motion.div
-            animate={{ rotate: isExpanded ? 90 : 0 }}
-            transition={motionSpringTransition(animationsEnabled, motionSpring.bouncy)}
-          >
-            <ChevronRight size={14} className="thinking-chevron" />
-          </motion.div>
-        </div>
-        {!isExpanded && <span className="thinking-work-summary-separator" aria-hidden="true" />}
-      </div>
-      <AnimatePresence initial={false}>
-        {isExpanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{
-              height: motionSpringTransition(animationsEnabled, motionSpring.settle),
-              opacity: {
-                duration: motionDuration(animationsEnabled, motionDurations.fast),
-                ease: motionEasing.standard,
-              },
-            }}
-            style={{ overflow: 'hidden' }}
-          >
-            <div className="thinking-work-summary-details">
-              <CompletedBlocksList blocks={blocks} />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  )
-}
-
 export default function ThinkingBlock({
   messageId,
   activeBlockKey,
@@ -943,7 +868,6 @@ export default function ThinkingBlock({
   searchQueries,
   activeToolCalls = [],
   completedBlocks = [],
-  compactCompletedBlocks = false,
 }: ThinkingBlockProps) {
   const hasActiveToolCalls = activeToolCalls && activeToolCalls.length > 0
   const extraActiveToolCalls = hasActiveToolCalls ? activeToolCalls.slice(1) : []
@@ -1051,12 +975,7 @@ export default function ThinkingBlock({
     <div className="thinking-blocks-container">
       {/* Render completed blocks first - exclude search when shown inline in thinking.
           Consecutive system_shell calls are grouped into one "Ran N commands" entry. */}
-      {blocksToRender.length > 0 &&
-        (compactCompletedBlocks ? (
-          <CompactCompletedBlocks blocks={blocksToRender} />
-        ) : (
-          <CompletedBlocksList blocks={blocksToRender} />
-        ))}
+      {blocksToRender.length > 0 && <CompletedBlocksList blocks={blocksToRender} />}
 
       {showActiveBlock && (
         <div className="thinking-block">
