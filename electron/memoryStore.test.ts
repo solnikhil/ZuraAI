@@ -35,6 +35,7 @@ describe('memoryStore', () => {
     expect(added.id).toBeTruthy()
     expect(added.source).toBe('user')
     expect(added.scope).toEqual({ type: 'global' })
+    expect(added.category).toBe('context')
     expect(added.createdAt).toBe(added.updatedAt)
 
     const indexFile = path.join(electronMock.userDataPath, 'memory-index.json')
@@ -58,6 +59,53 @@ describe('memoryStore', () => {
     const store = await import('./memoryStore')
     const added = await store.addMemoryAsync({ content: '  hello  ' })
     expect(added.content).toBe('hello')
+  })
+
+  it('normalizes memory category on add and read', async () => {
+    const store = await import('./memoryStore')
+    const categorized = await store.addMemoryAsync({
+      content: 'User prefers concise answers',
+      category: 'preference',
+    })
+    const fallback = await store.addMemoryAsync({
+      content: 'User has uncategorized context',
+      category: 'made-up' as never,
+    })
+
+    expect(categorized.category).toBe('preference')
+    expect(fallback.category).toBe('context')
+
+    await writeFile(
+      path.join(electronMock.userDataPath, 'memory-index.json'),
+      JSON.stringify({
+        version: 1,
+        memories: [
+          {
+            id: 'valid-category',
+            content: 'User is building ZuraAI',
+            createdAt: 1,
+            updatedAt: 1,
+            source: 'model',
+            scope: { type: 'global' },
+            category: 'project',
+          },
+          {
+            id: 'invalid-category',
+            content: 'Old memory without a valid category',
+            createdAt: 2,
+            updatedAt: 2,
+            source: 'model',
+            scope: { type: 'global' },
+            category: 'custom-label',
+          },
+        ],
+      })
+    )
+    store._resetMemoryStoreCache()
+
+    const memories = await store.getAllMemoriesAsync()
+    expect(memories.find((memory) => memory.id === 'valid-category')?.category).toBe('project')
+    expect(memories.find((memory) => memory.id === 'invalid-category')?.category).toBe('context')
   })
 
   it('updates existing memory content and bumps updatedAt', async () => {
@@ -89,6 +137,38 @@ describe('memoryStore', () => {
 
     const remaining = await store.getAllMemoriesAsync()
     expect(remaining.map((memory) => memory.content)).toEqual(['b'])
+  })
+
+  it('deletes only memories linked to a chat session', async () => {
+    const store = await import('./memoryStore')
+    await store.addMemoryAsync({
+      content: 'linked one',
+      source: 'model',
+      sessionId: 'chat-1',
+      origin: 'background',
+    })
+    await store.addMemoryAsync({
+      content: 'linked two',
+      source: 'model',
+      sessionId: 'chat-1',
+      origin: 'background',
+    })
+    await store.addMemoryAsync({
+      content: 'other chat',
+      source: 'model',
+      sessionId: 'chat-2',
+      origin: 'background',
+    })
+    await store.addMemoryAsync({ content: 'manual memory' })
+
+    expect(await store.deleteMemoriesForSessionAsync('chat-1')).toBe(2)
+    expect(await store.deleteMemoriesForSessionAsync('chat-1')).toBe(0)
+
+    const remaining = await store.getAllMemoriesAsync()
+    expect(remaining.map((memory) => memory.content).sort()).toEqual([
+      'manual memory',
+      'other chat',
+    ])
   })
 
   it('clears all memories', async () => {
@@ -223,6 +303,7 @@ describe('memoryStore', () => {
             updatedAt: 1,
             source: 'user',
             scope: { type: 'global' },
+            category: 'context',
           },
           { id: 'bad' }, // missing required fields → dropped
           null,
@@ -234,6 +315,7 @@ describe('memoryStore', () => {
     const memories = await store.getAllMemoriesAsync()
     expect(memories).toHaveLength(1)
     expect(memories[0].id).toBe('good')
+    expect(memories[0].category).toBe('context')
   })
 
   it('preserves source=model and sessionId on add', async () => {

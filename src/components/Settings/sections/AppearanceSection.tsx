@@ -16,13 +16,7 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import type { Settings } from '../../../contexts/SettingsContext'
-import type {
-  ChatSelectedOverlayStyle,
-  RemindersActionStyle,
-  RemindersBadgeStyle,
-  RemindersCardStyle,
-  RemindersContainerStyle,
-} from '../../../contexts/SettingsUIContext'
+import type { ChatSelectedOverlayStyle } from '../../../contexts/SettingsUIContext'
 import { defaultSettingsUI } from '../../../contexts/SettingsUIContext'
 import {
   ASSISTANT_PERSONALITIES,
@@ -209,30 +203,6 @@ const chatSelectedOverlayPresets: Array<{
   },
 ]
 
-const remindersCardOptions: Array<{ value: RemindersCardStyle; label: string }> = [
-  { value: 'solid', label: 'Solid' },
-  { value: 'subtle', label: 'Subtle' },
-  { value: 'outline', label: 'Outline' },
-]
-
-const remindersContainerOptions: Array<{ value: RemindersContainerStyle; label: string }> = [
-  { value: 'panel', label: 'Panel' },
-  { value: 'flush', label: 'Flush' },
-  { value: 'framed', label: 'Framed' },
-]
-
-const remindersActionOptions: Array<{ value: RemindersActionStyle; label: string }> = [
-  { value: 'pill', label: 'Pill' },
-  { value: 'soft', label: 'Soft' },
-  { value: 'minimal', label: 'Minimal' },
-]
-
-const remindersBadgeOptions: Array<{ value: RemindersBadgeStyle; label: string }> = [
-  { value: 'soft', label: 'Soft' },
-  { value: 'filled', label: 'Filled' },
-  { value: 'outline', label: 'Outline' },
-]
-
 export interface AppearanceSectionProps {
   settings: Settings
   onChange: (changes: Partial<Settings>) => void
@@ -271,11 +241,6 @@ export function AppearanceSection({
   const overlayOpacity = clampNumber(commandBar.overlayOpacity, 0, 80)
   const promptAutoHide = settings.promptAutoHide
   const promptTimeout = clampNumber(promptAutoHide.timeout, 30, 600)
-  const remindersAppearance = {
-    ...defaultSettingsUI.remindersAppearance!,
-    ...settings.remindersAppearance,
-  }
-
   const titleModelOptions: Array<{ value: string; label: string; provider: string }> =
     getAvailableTitleModelOptions(settings).map((option) => ({
       value: option.id,
@@ -319,15 +284,6 @@ export function AppearanceSection({
     updateSettings({
       promptAutoHide: {
         ...settings.promptAutoHide,
-        ...changes,
-      },
-    })
-  }
-
-  const updateRemindersAppearance = (changes: Partial<typeof remindersAppearance>) => {
-    updateSettings({
-      remindersAppearance: {
-        ...remindersAppearance,
         ...changes,
       },
     })
@@ -585,152 +541,6 @@ export function AppearanceSection({
               <span className="theme-contrast-value">{currentContrast}%</span>
               </div>
             </div>
-          </div>
-        </div>
-      </Card>
-
-      <Card className="settings-list-card reminders-theme-card">
-        <div className="settings-list-row settings-list-row--preview">
-          <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Reminders & Lookouts</h3>
-            <div className="settings-list-row__description">
-              Tune the container, Ask agent button, task card, and status badges used in the reminders view
-            </div>
-          </div>
-          <div
-            className="reminders-theme-preview"
-            data-container-style={remindersAppearance.containerStyle}
-            data-card-style={remindersAppearance.cardStyle}
-            data-action-style={remindersAppearance.actionStyle}
-            data-badge-style={remindersAppearance.badgeStyle}
-            data-accent-tint={remindersAppearance.useAccentTint ? 'on' : 'off'}
-            aria-label="Reminders and Lookouts theme preview"
-          >
-            <div className="reminders-theme-preview__header">
-              <div>
-                <div className="reminders-theme-preview__title">Reminders & Lookouts</div>
-                <div className="reminders-theme-preview__subtitle">
-                  Scheduled work and monitored pages.
-                </div>
-              </div>
-              <button type="button" className="reminders-theme-preview__ask">
-                Ask agent
-              </button>
-            </div>
-            <div className="reminders-theme-preview__filters" aria-hidden="true">
-              <span className="is-active">All <b>1</b></span>
-              <span>Reminders <b>1</b></span>
-              <span>Lookouts <b>0</b></span>
-            </div>
-            <div className="reminders-theme-preview__row">
-              <span className="reminders-theme-preview__number">1</span>
-              <div className="reminders-theme-preview__main">
-                <strong>Random Reminder</strong>
-                <div className="reminders-theme-preview__badges">
-                  <span>Reminder</span>
-                  <span className="is-active">Active</span>
-                  <span>Every 30 min</span>
-                </div>
-              </div>
-              <button type="button" className="reminders-theme-preview__logs">
-                Logs
-              </button>
-              <button type="button" className="reminders-theme-preview__menu" aria-label="More actions">
-                ...
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div className="settings-list-row">
-          <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Container</h3>
-            <div className="settings-list-row__description">
-              Controls the outer Reminders panel surface around the header, filters, and task list
-            </div>
-          </div>
-          <div className="settings-list-row__control">
-            <SettingsSelect
-              value={remindersAppearance.containerStyle}
-              onValueChange={(value) =>
-                updateRemindersAppearance({ containerStyle: value as RemindersContainerStyle })
-              }
-              options={remindersContainerOptions}
-              aria-label="Reminders container style"
-            />
-          </div>
-        </div>
-
-        <div className="settings-list-row">
-          <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Task card</h3>
-            <div className="settings-list-row__description">
-              Controls the surface treatment for reminder and lookout rows
-            </div>
-          </div>
-          <div className="settings-list-row__control">
-            <SettingsSelect
-              value={remindersAppearance.cardStyle}
-              onValueChange={(value) =>
-                updateRemindersAppearance({ cardStyle: value as RemindersCardStyle })
-              }
-              options={remindersCardOptions}
-              aria-label="Reminders task card style"
-            />
-          </div>
-        </div>
-
-        <div className="settings-list-row">
-          <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Ask agent button</h3>
-            <div className="settings-list-row__description">
-              Controls the header action used to start a reminder or lookout prompt
-            </div>
-          </div>
-          <div className="settings-list-row__control">
-            <SettingsSelect
-              value={remindersAppearance.actionStyle}
-              onValueChange={(value) =>
-                updateRemindersAppearance({ actionStyle: value as RemindersActionStyle })
-              }
-              options={remindersActionOptions}
-              aria-label="Reminders Ask agent button style"
-            />
-          </div>
-        </div>
-
-        <div className="settings-list-row">
-          <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Badges</h3>
-            <div className="settings-list-row__description">
-              Controls the style of type, status, repeat, and next-run badges
-            </div>
-          </div>
-          <div className="settings-list-row__control">
-            <SettingsSelect
-              value={remindersAppearance.badgeStyle}
-              onValueChange={(value) =>
-                updateRemindersAppearance({ badgeStyle: value as RemindersBadgeStyle })
-              }
-              options={remindersBadgeOptions}
-              aria-label="Reminders badge style"
-            />
-          </div>
-        </div>
-
-        <div className="settings-list-row">
-          <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Accent tint</h3>
-            <div className="settings-list-row__description">
-              Let active reminders use the theme accent in hover and status treatments
-            </div>
-          </div>
-          <div className="settings-list-row__control">
-            <Switch
-              checked={remindersAppearance.useAccentTint}
-              onCheckedChange={(checked) => updateRemindersAppearance({ useAccentTint: checked })}
-              aria-label="Use accent tint in Reminders and Lookouts"
-            />
           </div>
         </div>
       </Card>

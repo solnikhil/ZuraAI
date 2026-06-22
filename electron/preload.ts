@@ -153,6 +153,8 @@ const MEMORY_INVOKE_CHANNELS = new Set<string>([
   'memory:search',
   'memory:summaries-list',
   'memory:summaries-upsert',
+  'memory:summaries-delete',
+  'memory:summaries-clear',
 ])
 
 const MEMORY_ON_CHANNELS = new Set<string>(['memory-store:changed'])
@@ -582,6 +584,14 @@ contextBridge.exposeInMainWorld(
         return ipcRenderer.invoke('memory:summaries-upsert', sessionId, summary) as Promise<
           import('../src/electron/types').ConversationSummary
         >
+      },
+      delete: (sessionId: string) => {
+        assertAllowed('invoke', 'memory:summaries-delete', MEMORY_INVOKE_CHANNELS)
+        return ipcRenderer.invoke('memory:summaries-delete', sessionId) as Promise<boolean>
+      },
+      clear: () => {
+        assertAllowed('invoke', 'memory:summaries-clear', MEMORY_INVOKE_CHANNELS)
+        return ipcRenderer.invoke('memory:summaries-clear') as Promise<boolean>
       },
     }),
     onChanged: (callback: () => void) => {

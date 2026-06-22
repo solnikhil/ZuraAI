@@ -11,6 +11,13 @@ const memoryStoreMocks = vi.hoisted(() => ({
   searchMemoriesAsync: vi.fn(),
 }))
 
+const summaryStoreMocks = vi.hoisted(() => ({
+  getAllSummariesAsync: vi.fn(),
+  upsertSummaryAsync: vi.fn(),
+  deleteSummaryAsync: vi.fn(),
+  clearAllSummariesAsync: vi.fn(),
+}))
+
 const ipcMainMocks = vi.hoisted(() => {
   const handlers = new Map<string, (...args: unknown[]) => unknown>()
   return {
@@ -40,12 +47,14 @@ vi.mock('electron', () => ({
 }))
 
 vi.mock('../memoryStore', () => memoryStoreMocks)
+vi.mock('../conversationSummaryStore', () => summaryStoreMocks)
 
 describe('registerMemoryStoreHandlers', () => {
   beforeEach(() => {
     vi.resetModules()
     ipcMainMocks.handlers.clear()
     Object.values(memoryStoreMocks).forEach((mock) => mock.mockReset())
+    Object.values(summaryStoreMocks).forEach((mock) => mock.mockReset())
     browserWindowMocks.send.mockClear()
   })
 
@@ -81,6 +90,7 @@ describe('registerMemoryStoreHandlers', () => {
       content: 'hello',
       source: 'model',
       sessionId: 'chat-1',
+      category: 'project',
       scope: { type: 'project', projectId: 'p1' },
       junk: 'ignored',
     })
@@ -89,6 +99,7 @@ describe('registerMemoryStoreHandlers', () => {
       content: 'hello',
       source: 'model',
       sessionId: 'chat-1',
+      category: 'project',
       scope: { type: 'project', projectId: 'p1' },
     })
     expect(result).toEqual({ id: 'm1' })
@@ -184,6 +195,59 @@ describe('registerMemoryStoreHandlers', () => {
     await handler({}, 'hello')
     // Default limit is 10 when not specified.
     expect(memoryStoreMocks.searchMemoriesAsync).toHaveBeenLastCalledWith('hello', 10, undefined)
+  })
+
+  it('add drops invalid categories through sanitization', async () => {
+    memoryStoreMocks.addMemoryAsync.mockResolvedValue({ id: 'm3' })
+    const { registerMemoryStoreHandlers } = await import('./memoryStoreHandlers')
+    registerMemoryStoreHandlers()
+
+    const handler = ipcMainMocks.handlers.get('memory:add')!
+    await handler({}, {
+      content: 'extracted fact',
+      source: 'model',
+      category: 'invented',
+    })
+
+    expect(memoryStoreMocks.addMemoryAsync).toHaveBeenCalledWith({
+      content: 'extracted fact',
+      source: 'model',
+    })
+  })
+
+  it('summary delete validates session id, forwards, and broadcasts on deletion', async () => {
+    summaryStoreMocks.deleteSummaryAsync.mockResolvedValue(true)
+    const { registerMemoryStoreHandlers } = await import('./memoryStoreHandlers')
+    registerMemoryStoreHandlers()
+    const handler = ipcMainMocks.handlers.get('memory:summaries-delete')!
+
+    await expect(handler({}, '   ')).rejects.toThrow(/sessionId/)
+    await handler({}, 'session-1')
+
+    expect(summaryStoreMocks.deleteSummaryAsync).toHaveBeenCalledWith('session-1')
+    expect(browserWindowMocks.send).toHaveBeenCalledWith('memory-store:changed')
+  })
+
+  it('summary delete returning false does not broadcast', async () => {
+    summaryStoreMocks.deleteSummaryAsync.mockResolvedValue(false)
+    const { registerMemoryStoreHandlers } = await import('./memoryStoreHandlers')
+    registerMemoryStoreHandlers()
+    const handler = ipcMainMocks.handlers.get('memory:summaries-delete')!
+
+    await handler({}, 'missing')
+
+    expect(browserWindowMocks.send).not.toHaveBeenCalled()
+  })
+
+  it('summary clear forwards and broadcasts', async () => {
+    const { registerMemoryStoreHandlers } = await import('./memoryStoreHandlers')
+    registerMemoryStoreHandlers()
+    const handler = ipcMainMocks.handlers.get('memory:summaries-clear')!
+
+    await handler({})
+
+    expect(summaryStoreMocks.clearAllSummariesAsync).toHaveBeenCalled()
+    expect(browserWindowMocks.send).toHaveBeenCalledWith('memory-store:changed')
   })
 
   it('unregister removes all handlers', async () => {

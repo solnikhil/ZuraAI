@@ -25,7 +25,12 @@ import { generateTitleTextForModel } from '@/providers/providerRuntime'
 import { appendChatDiagnosticEvent } from '@/diagnostics/chatDiagnosticsClient'
 import type { ChatDiagnosticEvent } from '@/diagnostics/chatDiagnostics'
 import type { SettingsConfig } from '@/contexts/SettingsConfigContext'
-import type { MemoryScope } from '@/electron/types'
+import type { MemoryCategory, MemoryScope } from '@/electron/types'
+import {
+  hasReminderOrLookoutIntent,
+  isMemoryStorageEligibleFact,
+  isReminderOrLookoutOnlyContext,
+} from '@/utils/memoryReview'
 
 export interface ExtractionMessage {
   role: 'user' | 'assistant'
@@ -66,8 +71,13 @@ export interface RunMemoryExtractionParams {
 
 /** Result of a parsed extraction call (for testability). */
 export interface ExtractionResult {
-  facts: string[]
+  facts: ExtractionFact[]
   summary: string
+}
+
+export interface ExtractionFact {
+  content: string
+  category: MemoryCategory
 }
 
 type ExtractionParseErrorCode =
@@ -93,6 +103,7 @@ const MAX_FACTS = 8
 const EXTRACTION_TIMEOUT_MS = 30_000
 const EXTRACTION_MAX_TOKENS = 1024
 const RESPONSE_PREVIEW_CHARS = 500
+const MEMORY_CATEGORIES = new Set<MemoryCategory>(['preference', 'project', 'personal', 'workflow', 'context'])
 
 /**
  * Synthetic messageId for diagnostics. Background extraction has no assistant
@@ -131,6 +142,9 @@ Rules:
 - Prefer stable user preferences, durable project context, recurring workflows, and explicit self-descriptions.
 - Rewrite facts as concise standalone memories about the user. Do not preserve chat transcript wording.
 - Avoid memories about the assistant, the model, tool behavior, or one-time task outcomes unless they describe an ongoing user project.
+- Do not extract reminders, alarms, follow-ups, check-ins, calendar-like requests, scheduled tasks, due dates, or notification requests. Those belong to the Reminders feature, not Memory.
+- Do not extract web lookouts, page monitoring, "watch this URL", change detection, or URL-checking requests. Those belong to the Reminders & Lookouts feature.
+- Do not extract one-off statements asking the assistant to remember/save something when the content is a reminder, task, alarm, follow-up, or lookout request.
 - NEVER extract secrets, passwords, API keys, tokens, financial account numbers, government IDs, precise home/work addresses, private health details, biometric data, or other sensitive credentials.
 - Do not extract sensitive personal attributes such as religion, politics, sexuality, race, medical status, or financial hardship unless the user explicitly asks the assistant to remember it and it is clearly useful for future help.
 - If there are no durable facts, return an empty "facts" array.
@@ -138,7 +152,25 @@ Rules:
 - Set "summary" to an empty string ("") when the chat is a one-off factual lookup, trivia, a definition, a calculation, or general Q&A with no lasting relevance to the user. When in doubt, prefer an empty summary over a trivial one.
 
 Respond with ONLY a JSON object, no prose, in exactly this shape:
-{"facts": ["fact one", "fact two"], "summary": "one line about this chat, or empty string"}`
+{"facts": [{"content": "fact one", "category": "preference"}], "summary": "one line about this chat, or empty string"}`
+
+function normalizeMemoryCategory(value: unknown): MemoryCategory {
+  return typeof value === 'string' && MEMORY_CATEGORIES.has(value as MemoryCategory)
+    ? (value as MemoryCategory)
+    : 'context'
+}
+
+function filterExtractionResultForStorage(
+  result: ExtractionResult,
+  conversation: string
+): ExtractionResult {
+  const facts = result.facts.filter((fact) => isMemoryStorageEligibleFact(fact.content))
+  const summary =
+    result.summary && (isReminderOrLookoutOnlyContext(conversation) || hasReminderOrLookoutIntent(result.summary))
+      ? ''
+      : result.summary
+  return { facts, summary }
+}
 
 function buildResponsePreview(raw: string): string {
   return raw.replace(/\s+/g, ' ').trim().slice(0, RESPONSE_PREVIEW_CHARS)
@@ -205,9 +237,19 @@ function parseExtractionResponseDetailed(raw: string): ExtractionParseOutcome {
   const obj = parsed as { facts?: unknown; summary?: unknown }
   const facts = Array.isArray(obj.facts)
     ? obj.facts
-        .filter((f): f is string => typeof f === 'string')
-        .map((f) => f.trim())
-        .filter((f) => f.length > 0)
+        .map((fact): ExtractionFact | null => {
+          if (typeof fact === 'string') {
+            const content = fact.trim()
+            return content ? { content, category: 'context' } : null
+          }
+          if (!fact || typeof fact !== 'object' || Array.isArray(fact)) return null
+          const raw = fact as { content?: unknown; category?: unknown }
+          if (typeof raw.content !== 'string') return null
+          const content = raw.content.trim()
+          if (!content) return null
+          return { content, category: normalizeMemoryCategory(raw.category) }
+        })
+        .filter((fact): fact is ExtractionFact => Boolean(fact))
         .slice(0, MAX_FACTS)
     : []
   const summary = typeof obj.summary === 'string' ? obj.summary.trim() : ''
@@ -309,12 +351,19 @@ export async function runMemoryExtraction(
     })
     return null
   }
-  const { result } = parsed
+  const result = filterExtractionResultForStorage(parsed.result, conversation)
 
   // Persist facts (ADD-only, deduped) — each is best-effort.
   for (const fact of result.facts) {
     try {
-      await window.memory.addDeduped({ content: fact, source: 'model', sessionId, origin: 'background', scope })
+      await window.memory.addDeduped({
+        content: fact.content,
+        category: fact.category,
+        source: 'model',
+        sessionId,
+        origin: 'background',
+        scope,
+      })
     } catch (error) {
       console.warn('[memory-extraction] Failed to persist a fact; continuing.', error)
     }

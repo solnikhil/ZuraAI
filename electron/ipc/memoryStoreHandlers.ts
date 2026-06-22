@@ -1,7 +1,7 @@
 import { BrowserWindow, ipcMain } from 'electron'
 import * as memoryStore from '../memoryStore'
 import * as summaryStore from '../conversationSummaryStore'
-import type { AddMemoryInput, MemoryScope, UpdateMemoryPatch } from '../memoryStore'
+import type { AddMemoryInput, MemoryCategory, MemoryScope, UpdateMemoryPatch } from '../memoryStore'
 
 const MEMORY_CHANGED_CHANNEL = 'memory-store:changed'
 
@@ -29,6 +29,19 @@ function sanitizeScope(value: unknown): MemoryScope | undefined {
   return undefined
 }
 
+function sanitizeCategory(value: unknown): MemoryCategory | undefined {
+  if (
+    value === 'preference' ||
+    value === 'project' ||
+    value === 'personal' ||
+    value === 'workflow' ||
+    value === 'context'
+  ) {
+    return value
+  }
+  return undefined
+}
+
 function sanitizeAddInput(raw: unknown): AddMemoryInput {
   if (!isPlainObject(raw)) {
     throw new Error('Invalid memory payload')
@@ -45,6 +58,10 @@ function sanitizeAddInput(raw: unknown): AddMemoryInput {
   }
   if (raw.origin === 'tool' || raw.origin === 'background') {
     result.origin = raw.origin
+  }
+  const category = sanitizeCategory(raw.category)
+  if (category) {
+    result.category = category
   }
   const scope = sanitizeScope(raw.scope)
   if (scope) {
@@ -152,6 +169,21 @@ export function registerMemoryStoreHandlers(): void {
     broadcastMemoryStoreChanged()
     return result
   })
+
+  ipcMain.handle('memory:summaries-delete', async (_event, sessionId: unknown) => {
+    if (typeof sessionId !== 'string' || !sessionId.trim()) {
+      throw new Error('Invalid conversation summary sessionId')
+    }
+    const deleted = await summaryStore.deleteSummaryAsync(sessionId)
+    if (deleted) broadcastMemoryStoreChanged()
+    return deleted
+  })
+
+  ipcMain.handle('memory:summaries-clear', async () => {
+    await summaryStore.clearAllSummariesAsync()
+    broadcastMemoryStoreChanged()
+    return true
+  })
 }
 
 /** Removes all memory store handlers. Symmetric with {@link registerMemoryStoreHandlers}. */
@@ -165,4 +197,6 @@ export function unregisterMemoryStoreHandlers(): void {
   ipcMain.removeHandler('memory:search')
   ipcMain.removeHandler('memory:summaries-list')
   ipcMain.removeHandler('memory:summaries-upsert')
+  ipcMain.removeHandler('memory:summaries-delete')
+  ipcMain.removeHandler('memory:summaries-clear')
 }

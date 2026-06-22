@@ -260,6 +260,29 @@ describe('preload MCP bridge', () => {
       'Blocked IPC invoke channel: email-notifications:send-test'
     )
   })
+
+  it('exposes memory summary delete and clear only through the memory bridge', async () => {
+    const memory = getExposedBridge<{
+      summaries: {
+        delete: (sessionId: string) => Promise<boolean>
+        clear: () => Promise<boolean>
+      }
+    }>('memory')
+    const ipcRenderer = getExposedBridge<{
+      invoke: (channel: string, ...args: unknown[]) => Promise<unknown>
+    }>('ipcRenderer')
+
+    preloadMocks.invoke.mockResolvedValueOnce(true).mockResolvedValueOnce(true)
+
+    await expect(memory.summaries.delete('session-1')).resolves.toBe(true)
+    await expect(memory.summaries.clear()).resolves.toBe(true)
+
+    expect(preloadMocks.invoke).toHaveBeenNthCalledWith(1, 'memory:summaries-delete', 'session-1')
+    expect(preloadMocks.invoke).toHaveBeenNthCalledWith(2, 'memory:summaries-clear')
+    expect(() => ipcRenderer.invoke('memory:summaries-delete' as never, 'session-1')).toThrow(
+      'Blocked IPC invoke channel: memory:summaries-delete'
+    )
+  })
 })
 
 describe('preload updater bridge', () => {

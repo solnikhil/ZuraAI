@@ -35,6 +35,7 @@ export type MemorySource = 'user' | 'model'
 export type MemoryOrigin = 'tool' | 'background'
 
 export type MemoryScope = { type: 'global' } | { type: 'project'; projectId: string }
+export type MemoryCategory = 'preference' | 'project' | 'personal' | 'workflow' | 'context'
 
 /**
  * Lifecycle status of a memory under the ADD-only model.
@@ -51,6 +52,7 @@ export interface Memory {
   updatedAt: number
   source: MemorySource
   scope: MemoryScope
+  category: MemoryCategory
   /** Lifecycle status; defaults to `active`. */
   status: MemoryStatus
   /** Id of an older memory this entry replaces (set on the newer entry). */
@@ -72,6 +74,7 @@ export interface AddMemoryInput {
   content: string
   source?: MemorySource
   scope?: MemoryScope
+  category?: MemoryCategory
   sessionId?: string
   origin?: MemoryOrigin
 }
@@ -143,6 +146,19 @@ function isMemoryScope(value: unknown): value is MemoryScope {
   return false
 }
 
+function normalizeMemoryCategory(value: unknown): MemoryCategory {
+  if (
+    value === 'preference' ||
+    value === 'project' ||
+    value === 'personal' ||
+    value === 'workflow' ||
+    value === 'context'
+  ) {
+    return value
+  }
+  return 'context'
+}
+
 function normalizeMemory(input: unknown): Memory | null {
   if (!input || typeof input !== 'object') return null
   const raw = input as Partial<Memory>
@@ -151,6 +167,7 @@ function normalizeMemory(input: unknown): Memory | null {
   if (typeof raw.createdAt !== 'number' || typeof raw.updatedAt !== 'number') return null
   const source: MemorySource = raw.source === 'model' ? 'model' : 'user'
   const scope: MemoryScope = isMemoryScope(raw.scope) ? raw.scope : { type: 'global' }
+  const category = normalizeMemoryCategory(raw.category)
   const status: MemoryStatus = raw.status === 'superseded' ? 'superseded' : 'active'
   const memory: Memory = {
     id: raw.id,
@@ -159,6 +176,7 @@ function normalizeMemory(input: unknown): Memory | null {
     updatedAt: raw.updatedAt,
     source,
     scope,
+    category,
     status,
   }
   if (typeof raw.supersedes === 'string' && raw.supersedes.length > 0) {
@@ -405,6 +423,7 @@ export async function addMemoryAsync(input: AddMemoryInput): Promise<Memory> {
   const scope: MemoryScope =
     input.scope && isMemoryScope(input.scope) ? input.scope : { type: 'global' }
   const source: MemorySource = input.source ?? 'user'
+  const category = normalizeMemoryCategory(input.category)
   const sessionId =
     typeof input.sessionId === 'string' && input.sessionId.length > 0 ? input.sessionId : undefined
   const origin: MemoryOrigin | undefined = input.origin ?? undefined
@@ -418,6 +437,7 @@ export async function addMemoryAsync(input: AddMemoryInput): Promise<Memory> {
       updatedAt: now,
       source,
       scope,
+      category,
       status: 'active',
       ...(sessionId ? { sessionId } : {}),
       ...(origin ? { origin } : {}),
@@ -498,6 +518,7 @@ export async function addMemoryWithDedupeAsync(
   const scope: MemoryScope =
     input.scope && isMemoryScope(input.scope) ? input.scope : { type: 'global' }
   const source: MemorySource = input.source ?? 'user'
+  const category = normalizeMemoryCategory(input.category)
   const sessionId =
     typeof input.sessionId === 'string' && input.sessionId.length > 0 ? input.sessionId : undefined
   const origin: MemoryOrigin | undefined = input.origin ?? undefined
@@ -519,6 +540,7 @@ export async function addMemoryWithDedupeAsync(
           updatedAt: now,
           source,
           scope,
+          category,
           status: 'active',
           supersedes: target.id,
           ...(sessionId ? { sessionId } : {}),
@@ -554,6 +576,7 @@ export async function addMemoryWithDedupeAsync(
       updatedAt: now,
       source,
       scope,
+      category,
       status: 'active',
       ...(sessionId ? { sessionId } : {}),
       ...(origin ? { origin } : {}),
@@ -607,6 +630,19 @@ export async function deleteMemoryAsync(id: string): Promise<boolean> {
     if (nextMemories.length === current.memories.length) return false
     await persistIndex({ memories: nextMemories, version: INDEX_VERSION })
     return true
+  })
+}
+
+/** Deletes all memories produced by a chat session. Returns the number removed. */
+export async function deleteMemoriesForSessionAsync(sessionId: string): Promise<number> {
+  if (typeof sessionId !== 'string' || !sessionId.trim()) return 0
+  return withWriteLock(async (current) => {
+    const trimmedSessionId = sessionId.trim()
+    const nextMemories = current.memories.filter((memory) => memory.sessionId !== trimmedSessionId)
+    const deletedCount = current.memories.length - nextMemories.length
+    if (deletedCount === 0) return 0
+    await persistIndex({ memories: nextMemories, version: INDEX_VERSION })
+    return deletedCount
   })
 }
 

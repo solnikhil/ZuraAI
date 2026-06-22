@@ -11,6 +11,7 @@ function mem(partial: Partial<Memory> & { id: string; content: string }): Memory
     updatedAt: 1,
     source: 'user',
     scope: { type: 'global' },
+    category: 'context',
     status: 'active',
     ...partial,
   }

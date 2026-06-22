@@ -12,6 +12,7 @@ function memory(partial: Partial<Memory> & { content: string; updatedAt?: number
     updatedAt: partial.updatedAt ?? 1,
     source: partial.source ?? 'user',
     scope: partial.scope ?? { type: 'global' },
+    category: partial.category ?? 'context',
     status: partial.status ?? 'active',
     sessionId: partial.sessionId,
   }

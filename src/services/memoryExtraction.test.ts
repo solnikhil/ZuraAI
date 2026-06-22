@@ -20,7 +20,7 @@ const disabledSkills = { memory: { enabled: false } } as unknown as import('@/sk
 
 interface FakeBridge {
   added: string[]
-  addInputs: Array<{ content: string; scope?: unknown }>
+  addInputs: Array<{ content: string; category?: string; scope?: unknown }>
   summaries: Array<{ sessionId: string; summary: string }>
 }
 
@@ -28,7 +28,7 @@ function installBridge(): FakeBridge {
   const state: FakeBridge = { added: [], addInputs: [], summaries: [] }
   const seen = new Set<string>()
   const api = {
-    addDeduped: vi.fn(async (input: { content: string; scope?: unknown }) => {
+    addDeduped: vi.fn(async (input: { content: string; category?: string; scope?: unknown }) => {
       const key = input.content.trim().toLowerCase()
       if (seen.has(key)) return { memory: null, operation: 'noop' }
       seen.add(key)
@@ -56,13 +56,27 @@ const baseSettings = {
 describe('parseExtractionResponse', () => {
   it('parses a clean JSON object', () => {
     const r = parseExtractionResponse('{"facts":["a","b"],"summary":"chat about x"}')
-    expect(r?.facts).toEqual(['a', 'b'])
+    expect(r?.facts).toEqual([
+      { content: 'a', category: 'context' },
+      { content: 'b', category: 'context' },
+    ])
     expect(r?.summary).toBe('chat about x')
   })
 
   it('tolerates surrounding prose / code fences', () => {
     const r = parseExtractionResponse('Sure!\n```json\n{"facts":["x"],"summary":"y"}\n```')
-    expect(r?.facts).toEqual(['x'])
+    expect(r?.facts).toEqual([{ content: 'x', category: 'context' }])
+  })
+
+  it('parses categorized facts and normalizes invalid or missing categories', () => {
+    const r = parseExtractionResponse(
+      '{"facts":[{"content":"User prefers concise answers","category":"preference"},{"content":"User is building ZuraAI","category":"made-up"},{"content":"User uses Bun"}],"summary":""}'
+    )
+    expect(r?.facts).toEqual([
+      { content: 'User prefers concise answers', category: 'preference' },
+      { content: 'User is building ZuraAI', category: 'context' },
+      { content: 'User uses Bun', category: 'context' },
+    ])
   })
 
   it('returns null on garbage', () => {
@@ -82,7 +96,7 @@ describe('runMemoryExtraction', () => {
   it('persists extracted facts (ADD-only) and upserts a summary', async () => {
     const state = installBridge()
     generateTitleTextForModel.mockResolvedValue(
-      '{"facts":["User studies at SRM"],"summary":"Discussed coursework"}'
+      '{"facts":[{"content":"User studies at SRM","category":"personal"}],"summary":"Discussed coursework"}'
     )
 
     const result = await runMemoryExtraction({
@@ -91,9 +105,106 @@ describe('runMemoryExtraction', () => {
       messages: [{ role: 'user', content: 'I study at SRM University' }],
     })
 
-    expect(result?.facts).toEqual(['User studies at SRM'])
+    expect(result?.facts).toEqual([{ content: 'User studies at SRM', category: 'personal' }])
     expect(state.added).toEqual(['User studies at SRM'])
+    expect(state.addInputs[0]).toMatchObject({ category: 'personal' })
     expect(state.summaries).toEqual([{ sessionId: 's1', summary: 'Discussed coursework' }])
+  })
+
+  it('does not store reminder requests as memories or summaries', async () => {
+    const state = installBridge()
+    generateTitleTextForModel.mockResolvedValue(
+      '{"facts":["User wants to be reminded tomorrow to submit the report"],"summary":"Set a reminder to submit the report"}'
+    )
+
+    const result = await runMemoryExtraction({
+      settings: baseSettings,
+      sessionId: 's-reminder',
+      messages: [{ role: 'user', content: 'Remind me tomorrow to submit the report' }],
+    })
+
+    expect(result).toEqual({ facts: [], summary: '' })
+    expect(state.added).toEqual([])
+    expect(state.summaries).toEqual([])
+  })
+
+  it('does not store web lookout requests as memories or summaries', async () => {
+    const state = installBridge()
+    generateTitleTextForModel.mockResolvedValue(
+      '{"facts":["User wants to watch https://example.com/pricing for changes"],"summary":"Set up pricing page monitoring"}'
+    )
+
+    const result = await runMemoryExtraction({
+      settings: baseSettings,
+      sessionId: 's-lookout',
+      messages: [{ role: 'user', content: 'Watch https://example.com/pricing for changes' }],
+    })
+
+    expect(result).toEqual({ facts: [], summary: '' })
+    expect(state.added).toEqual([])
+    expect(state.summaries).toEqual([])
+  })
+
+  it('does not store remember-to-remind requests as memories or summaries', async () => {
+    const state = installBridge()
+    generateTitleTextForModel.mockResolvedValue(
+      '{"facts":["User wants a recurring Friday reminder"],"summary":"Discussed a weekly reminder"}'
+    )
+
+    const result = await runMemoryExtraction({
+      settings: baseSettings,
+      sessionId: 's-remember-remind',
+      messages: [{ role: 'user', content: 'Remember to remind me every Friday to review invoices' }],
+    })
+
+    expect(result).toEqual({ facts: [], summary: '' })
+    expect(state.added).toEqual([])
+    expect(state.summaries).toEqual([])
+  })
+
+  it('keeps normal durable memory facts', async () => {
+    const state = installBridge()
+    generateTitleTextForModel.mockResolvedValue(
+      '{"facts":["User prefers concise answers"],"summary":"Discussed response style"}'
+    )
+
+    const result = await runMemoryExtraction({
+      settings: baseSettings,
+      sessionId: 's-durable',
+      messages: [{ role: 'user', content: 'I prefer concise answers' }],
+    })
+
+    expect(result).toEqual({
+      facts: [{ content: 'User prefers concise answers', category: 'context' }],
+      summary: 'Discussed response style',
+    })
+    expect(state.added).toEqual(['User prefers concise answers'])
+    expect(state.summaries).toEqual([{ sessionId: 's-durable', summary: 'Discussed response style' }])
+  })
+
+  it('keeps durable facts in mixed chats while dropping reminder-like facts', async () => {
+    const state = installBridge()
+    generateTitleTextForModel.mockResolvedValue(
+      '{"facts":["User prefers concise answers","User wants a reminder tomorrow to submit the report"],"summary":"Discussed user response preferences"}'
+    )
+
+    const result = await runMemoryExtraction({
+      settings: baseSettings,
+      sessionId: 's-mixed',
+      messages: [
+        {
+          role: 'user',
+          content: 'I prefer concise answers. Also remind me tomorrow to submit the report.',
+        },
+      ],
+    })
+
+    expect(result).toEqual({
+      facts: [{ content: 'User prefers concise answers', category: 'context' }],
+      summary: 'Discussed user response preferences',
+    })
+    expect(state.added).toEqual(['User prefers concise answers'])
+    expect(state.summaries).toEqual([{ sessionId: 's-mixed', summary: 'Discussed user response preferences' }])
   })
 
   it('persists extracted facts with the provided Space memory scope', async () => {
@@ -111,6 +222,7 @@ describe('runMemoryExtraction', () => {
 
     expect(state.addInputs[0]).toMatchObject({
       content: 'User is building ZuraAI Spaces',
+      category: 'context',
       scope: { type: 'project', projectId: 'space-1' },
     })
   })
@@ -282,7 +394,7 @@ describe('runMemoryExtraction', () => {
       messages: [{ role: 'user', content: 'please use dark mode going forward' }],
     })
 
-    expect(result?.facts).toEqual(['User prefers dark mode'])
+    expect(result?.facts).toEqual([{ content: 'User prefers dark mode', category: 'context' }])
     expect(state.added).toEqual(['User prefers dark mode'])
     expect(state.summaries).toEqual([{ sessionId: 's-reasoner', summary: 'Set up the app theme' }])
     // No error diagnostic should be emitted on the success path.

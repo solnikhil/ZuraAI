@@ -1,12 +1,22 @@
 import { BrowserWindow, ipcMain } from 'electron'
 import * as chatStore from '../chatStore'
+import * as memoryStore from '../memoryStore'
+import * as summaryStore from '../conversationSummaryStore'
 
 const CHAT_STORE_CHANGED_CHANNEL = 'chat-store:changed'
+const MEMORY_CHANGED_CHANNEL = 'memory-store:changed'
 
 function broadcastChatStoreChanged(): void {
   for (const window of BrowserWindow.getAllWindows()) {
     if (window.isDestroyed()) continue
     window.webContents.send(CHAT_STORE_CHANGED_CHANNEL)
+  }
+}
+
+function broadcastMemoryStoreChanged(): void {
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (window.isDestroyed()) continue
+    window.webContents.send(MEMORY_CHANGED_CHANNEL)
   }
 }
 
@@ -38,7 +48,16 @@ export function registerChatStoreHandlers(): void {
       throw new Error('Invalid chat session id')
     }
     const deleted = await chatStore.deleteSessionAsync(sessionId)
-    if (deleted) broadcastChatStoreChanged()
+    if (deleted) {
+      const [deletedMemories, deletedSummary] = await Promise.all([
+        memoryStore.deleteMemoriesForSessionAsync(sessionId),
+        summaryStore.deleteSummaryAsync(sessionId),
+      ])
+      broadcastChatStoreChanged()
+      if (deletedMemories > 0 || deletedSummary) {
+        broadcastMemoryStoreChanged()
+      }
+    }
     return deleted
   })
 

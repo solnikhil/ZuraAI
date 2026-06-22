@@ -79,6 +79,7 @@ export interface PendingComputerAction {
 export type MemorySource = 'user' | 'model'
 
 export type MemoryOrigin = 'tool' | 'background'
+export type MemoryCategory = 'preference' | 'project' | 'personal' | 'workflow' | 'context'
 
 export type MemoryScope =
   | { type: 'global' }
@@ -93,6 +94,7 @@ export interface Memory {
   updatedAt: number
   source: MemorySource
   scope: MemoryScope
+  category: MemoryCategory
   status: MemoryStatus
   supersedes?: string
   supersededBy?: string
@@ -104,6 +106,7 @@ export interface AddMemoryInput {
   content: string
   source?: MemorySource
   scope?: MemoryScope
+  category?: MemoryCategory
   sessionId?: string
   origin?: MemoryOrigin
 }
@@ -142,6 +145,8 @@ export interface MemoryAPI {
   summaries: {
     list: () => Promise<ConversationSummary[]>
     upsert: (sessionId: string, summary: string) => Promise<ConversationSummary>
+    delete: (sessionId: string) => Promise<boolean>
+    clear: () => Promise<boolean>
   }
   /**
    * Subscribe to broadcast notifications when any window mutates the memory
