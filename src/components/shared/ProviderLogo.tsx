@@ -46,7 +46,10 @@ const SIZE_MAP: Record<ProviderLogoSize, number> = {
 /**
  * Provider fallback icons
  */
-const PROVIDER_FALLBACK_ICONS: Record<string, React.ComponentType<{ size?: number | string }>> = {
+const PROVIDER_FALLBACK_ICONS: Record<
+  string,
+  React.ComponentType<{ size?: number | string; color?: string }>
+> = {
   gemini: Sparkles,
   openrouter: Cloud,
   perplexity: Globe,
@@ -182,11 +185,7 @@ export function ProviderLogo({
             ...style,
           }}
         >
-          <FallbackIcon
-            size={pixelSize}
-            // @ts-ignore - color prop is valid for lucide icons
-            color={color}
-          />
+          <FallbackIcon size={pixelSize} color={color} />
         </span>
       )
     }

@@ -5,6 +5,32 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
+    files: ['scripts/**/*.mjs', 'electron/**/*.cjs'],
+    languageOptions: {
+      globals: {
+        Buffer: 'readonly',
+        URLSearchParams: 'readonly',
+        console: 'readonly',
+        process: 'readonly',
+        require: 'readonly',
+        setTimeout: 'readonly',
+      },
+    },
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off',
+    },
+  },
+  {
+    files: [
+      'electron/discordRpc/rpcClient.ts',
+      'electron/tools/computer-use/actions.ts',
+      'electron/updater.test.ts',
+    ],
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off',
+    },
+  },
+  {
     files: ['src/**/*.{ts,tsx}', 'electron/**/*.ts'],
     rules: {
       '@typescript-eslint/no-explicit-any': 'warn',

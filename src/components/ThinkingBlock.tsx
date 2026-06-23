@@ -88,8 +88,12 @@ function getToolCallHeaderText(
   return remainingToolCalls.length > 0 ? `${baseText} (+${remainingToolCalls.length} more)` : baseText
 }
 
-function getActiveSearchItemText(query: string): string {
-  return `Sourcing “${query}”`
+function getActiveSearchItemText(query: string): React.ReactNode {
+  return (
+    <span className="thinking-text">
+      Sourcing <span className="search-query">“{query}”</span>
+    </span>
+  )
 }
 
 function getToolCallsAnimationKey(
@@ -987,7 +991,7 @@ export default function ThinkingBlock({
         <div className="thinking-block">
           {showSourcingHeader && (
           <div
-            className={`thinking-header ${hasActiveToolCalls ? (hasActiveSearches ? 'searching' : 'tool-calling') : (isSearching && showSourcingHeader) ? 'searching' : ''} ${showSearchBatchDetails ? 'search-batch' : ''}`}
+            className={`thinking-header ${hasActiveToolCalls ? (hasActiveSearches ? (isSearchBatch ? 'searching' : 'searching search-sourcing') : 'tool-calling') : (isSearching && showSourcingHeader) ? 'searching' : ''} ${showSearchBatchDetails ? 'search-batch' : ''}`}
             onClick={handleHeaderClick}
           >
             <div className="thinking-label">

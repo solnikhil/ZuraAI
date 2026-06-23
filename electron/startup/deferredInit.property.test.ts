@@ -151,7 +151,6 @@ describe('Deferred Initialization Property Tests', () => {
       await fc.assert(
         fc.asyncProperty(generators.delayMs, async (delayMs) => {
           const tracker = { executed: false, executedAt: 0 }
-          let windowVisibleAt = 0
 
           initializer.registerTask({
             name: 'devtools-install',
@@ -176,7 +175,7 @@ describe('Deferred Initialization Property Tests', () => {
 
           // Once the window becomes visible, deferred work is allowed to
           // begin.
-          windowVisibleAt = Date.now()
+          const windowVisibleAt = Date.now()
           initializer.markWindowVisible()
 
           // Advance far enough for both the configured delay and the task
@@ -243,13 +242,12 @@ describe('Deferred Initialization Property Tests', () => {
           fc.integer({ min: 100, max: 1000 }), // Protocol delay
           async (protocolDelay) => {
             const tracker = { executed: false, executedAt: 0 }
-            let windowCreatedAt = 0
 
             // Establish the startup timeline up to window creation.
             initializer.markAppReady()
             await vi.advanceTimersByTimeAsync(50)
 
-            windowCreatedAt = Date.now()
+            const windowCreatedAt = Date.now()
             initializer.markWindowCreated()
 
             // Register protocol initialization as deferred work.
@@ -327,7 +325,6 @@ describe('Deferred Initialization Property Tests', () => {
     it('should respect task delay for auto-updater (simulated 5s delay)', async () => {
       const AUTO_UPDATER_DELAY = 5000
       const tracker = { executed: false, executedAt: 0 }
-      let windowVisibleAt = 0
 
       initializer.registerTask({
         name: 'auto-updater',
@@ -343,7 +340,7 @@ describe('Deferred Initialization Property Tests', () => {
 
       // Record the moment the window becomes visible; all delay assertions are
       // measured relative to this milestone.
-      windowVisibleAt = Date.now()
+      const windowVisibleAt = Date.now()
       initializer.markWindowVisible()
 
       // Move time forward, but not far enough for the deferred update check to
@@ -366,7 +363,6 @@ describe('Deferred Initialization Property Tests', () => {
           fc.integer({ min: 100, max: 1000 }), // Shorter delays for testing
           async (delayMs) => {
             const tracker = { executed: false, executedAt: 0 }
-            let windowVisibleAt = 0
 
             initializer.registerTask({
               name: 'auto-updater-test',
@@ -380,7 +376,7 @@ describe('Deferred Initialization Property Tests', () => {
 
             const executionPromise = initializer.executeAfterWindowVisible()
 
-            windowVisibleAt = Date.now()
+            const windowVisibleAt = Date.now()
             initializer.markWindowVisible()
 
             // Move to just before the configured delay boundary.

@@ -485,12 +485,7 @@ function parseToolArguments(toolName: string, rawArgs: string): Record<string, u
   }
 
   const fallback = extractFallbackArgs(toolName, argsStr)
-  if (fallback) {
-    console.info('[openrouter] Incomplete JSON for tool call, recovered via fallback:', {
-      tool: toolName,
-      argsPreview: argsStr.slice(0, 80),
-    })
-  } else {
+  if (!fallback) {
     console.warn('[openrouter] Incomplete JSON for tool call, fallback failed:', {
       tool: toolName,
       argsLength: argsStr.length,
@@ -535,9 +530,6 @@ export function parseOpenRouterToolCalls(
 
       if (fallbackQuery) {
         args = { query: fallbackQuery }
-        console.info('[openrouter] Empty args for web_search, used fallback from context:', {
-          query: fallbackQuery.slice(0, 60) + (fallbackQuery.length > 60 ? '...' : ''),
-        })
       } else {
         console.warn(
           '[openrouter] Tool call had empty/invalid arguments, using synthetic error args so model receives a result:',

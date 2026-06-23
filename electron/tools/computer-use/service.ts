@@ -15,7 +15,7 @@ import {
 let approvalManager: ComputerUseApprovalManager | null = null
 let actionCount = 0
 let aborted = false
-let maxActions = MAX_ACTIONS_PER_SESSION
+const maxActions = MAX_ACTIONS_PER_SESSION
 let latestCoordinateContext: ScreenshotCoordinateContext | null = null
 let latestScreenshotArgs: ScreenshotArgs = {}
 

@@ -13,7 +13,7 @@
  *
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import * as fc from 'fast-check'
 
 /**
@@ -34,42 +34,6 @@ const FCP_THRESHOLD_MS = 500
  * TTI timeout fallback from useLazyLoad implementation
  */
 const TTI_TIMEOUT_DEFAULT_MS = 10000
-
-/**
- * Asset configuration for testing
- */
-interface AssetConfig {
-  type: 'image' | 'font' | 'script' | 'stylesheet'
-  critical: boolean
-  waitForTTI: boolean
-  rootMargin: string
-}
-
-/**
- * TTI state for testing
- */
-interface TTIState {
-  reached: boolean
-  timestamp: number | null
-}
-
-/**
- * Intersection state for testing
- */
-interface IntersectionState {
-  isIntersecting: boolean
-  timestamp: number
-}
-
-/**
- * Asset loading state for testing
- */
-interface AssetLoadingState {
-  shouldLoad: boolean
-  loadStartedAt: number | null
-  ttiState: TTIState
-  intersectionState: IntersectionState
-}
 
 /**
  * Generators for property-based testing

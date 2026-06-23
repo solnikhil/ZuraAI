@@ -10,7 +10,7 @@
  * **Validates: Requirements 4.6**
  */
 
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import * as fc from 'fast-check'
 
 import { registerProvider, resolveProvider, listProviders } from './registry'

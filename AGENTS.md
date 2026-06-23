@@ -511,6 +511,8 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 #### Response Streaming Cadence
 
 - Streaming updates use a fixed cadence from `getStreamingUpdateInterval()` in `src/components/Dashboard/ChatArea/hooks/streaming/streamingUtils.ts`, backed by shared provider constants in `src/providers/providerRegistry.ts` (`120ms`).
+- Provider deltas still accumulate immediately inside `useProviderStreaming`, but visible renderer updates for active response `content`/`thinking` flow through the shared `StreamingThrottler` before reaching `StreamingContext`; `stopStreaming()` and normal completion flush the throttler before committing final message state so the UI stays responsive without losing buffered tokens.
+- Dashboard auto-scroll is pinned-bottom and frame-batched: the non-virtualized chat surface uses `usePinnedAutoScroll`, and the virtualized `VirtualMessageList` gates streaming scroll-to-bottom calls behind one pending `requestAnimationFrame` while preserving user scroll lock behavior.
 
 #### Model Enablement (Provider Hub)
 

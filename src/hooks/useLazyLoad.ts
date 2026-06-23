@@ -92,7 +92,7 @@ export interface UseLazyLoadResult<T extends HTMLElement = HTMLElement> {
  * Shared across all hook instances to avoid redundant listeners
  */
 let globalTTIReached = false
-let globalTTIListeners: Set<() => void> = new Set()
+const globalTTIListeners: Set<() => void> = new Set()
 let globalTTIInitialized = false
 
 /**
@@ -105,7 +105,6 @@ function initializeGlobalTTI(): void {
   const metrics = rendererPerformanceTracker.getMetrics()
   if (metrics.tti !== null) {
     globalTTIReached = true
-    if (import.meta.env.DEV) console.log('[useLazyLoad] TTI already reached:', metrics.tti)
     return
   }
 
@@ -113,7 +112,6 @@ function initializeGlobalTTI(): void {
   const unsubscribe = rendererPerformanceTracker.onMetricsUpdate((updates) => {
     if (updates.tti !== undefined && updates.tti !== null) {
       globalTTIReached = true
-      if (import.meta.env.DEV) console.log('[useLazyLoad] TTI reached:', updates.tti)
 
       // Notify all listeners
       globalTTIListeners.forEach((listener) => {

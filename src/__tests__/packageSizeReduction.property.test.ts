@@ -147,25 +147,27 @@ describe('Property 1: Bug Condition — Build Configuration Bloat Detection', ()
     )
   })
 
-  // ── (d) duck-duck-scrape IS in rollupOptions.external ─────────────────────
+  // ── (d) duck-duck-scrape is not retained after DuckDuckGo removal ─────────
 
-  it('(d) duck-duck-scrape should be in rollupOptions.external for the main process build', () => {
+  it('(d) duck-duck-scrape should not remain in package or build config', () => {
     /**
      * **Validates: Requirements 1.4**
      *
-     * The vite.config.ts main-process build must externalize duck-duck-scrape
-     * so it is resolved from node_modules at runtime instead of being bundled.
+     * The DuckDuckGo backend was removed, so its package and build-time
+     * externalization entry should not remain as stale configuration.
      */
+    const deps = pkg.dependencies ?? {}
+
     fc.assert(
       fc.property(fc.constant(viteConfigSource), (source: string) => {
-        // The external array must include 'duck-duck-scrape'
         const externalMatch = source.match(
           /external\s*:\s*\[([^\]]*)\]/
         )
         expect(externalMatch).not.toBeNull()
 
         const externalContent = externalMatch![1]
-        expect(externalContent).toContain('duck-duck-scrape')
+        expect(externalContent).not.toContain('duck-duck-scrape')
+        expect(deps).not.toHaveProperty('duck-duck-scrape')
       }),
       PBT_CONFIG
     )

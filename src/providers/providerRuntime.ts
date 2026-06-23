@@ -454,42 +454,10 @@ function normalizeProviderModel(provider: ActiveProviderId, model: string): stri
   return model
 }
 
-function logTitleGenerationJson(direction: 'sent' | 'received', payload: Record<string, unknown>): void {
-  console.info(`[title-generator] ${direction} JSON`, JSON.stringify(payload, null, 2))
-}
-
 interface LightweightGenerationOptions {
   signal?: AbortSignal
   maxTokens?: number
   jsonMode?: boolean
-}
-
-async function runLoggedTitleRequest<TResponse>(
-  provider: ActiveProviderId,
-  model: string,
-  messages: ChatMessage[],
-  options: Record<string, unknown>,
-  request: () => Promise<TResponse>,
-  extractTitle: (response: TResponse) => string
-): Promise<string> {
-  logTitleGenerationJson('sent', {
-    provider,
-    model,
-    messages,
-    options,
-  })
-
-  const response = await request()
-  const extractedTitle = extractTitle(response)
-
-  logTitleGenerationJson('received', {
-    provider,
-    model,
-    response,
-    extractedTitle,
-  })
-
-  return extractedTitle
 }
 
 export async function generateProviderTitleText(
@@ -506,71 +474,43 @@ export async function generateProviderTitleText(
   switch (provider) {
     case 'groq': {
       const options = { signal: generationOptions.signal, max_tokens: generationOptions.maxTokens }
-      return runLoggedTitleRequest(
-        provider,
+      const result = await generateGroqCompletion(
+        getProviderCredential(resolvedSettings, provider),
         normalizedModel,
         messages,
-        options,
-        () =>
-          generateGroqCompletion(
-            getProviderCredential(resolvedSettings, provider),
-            normalizedModel,
-            messages,
-            options
-          ),
-        (result) => extractTitleTextFromMessage(result.choices?.[0]?.message)
+        options
       )
+      return extractTitleTextFromMessage(result.choices?.[0]?.message)
     }
     case 'perplexity': {
       const options = { signal: generationOptions.signal, max_tokens: generationOptions.maxTokens }
-      return runLoggedTitleRequest(
-        provider,
+      const result = await generatePerplexityCompletion(
+        getProviderCredential(resolvedSettings, provider),
         normalizedModel,
         messages,
-        options,
-        () =>
-          generatePerplexityCompletion(
-            getProviderCredential(resolvedSettings, provider),
-            normalizedModel,
-            messages,
-            options
-          ),
-        (result) => extractTitleTextFromMessage(result.choices?.[0]?.message)
+        options
       )
+      return extractTitleTextFromMessage(result.choices?.[0]?.message)
     }
     case 'ollama': {
       const options = { think: false, signal: generationOptions.signal, max_tokens: generationOptions.maxTokens }
-      return runLoggedTitleRequest(
-        provider,
+      const result = await generateOllamaCompletion(
+        getProviderCredential(resolvedSettings, provider),
         normalizedModel,
         messages,
-        options,
-        () =>
-          generateOllamaCompletion(
-            getProviderCredential(resolvedSettings, provider),
-            normalizedModel,
-            messages,
-            options
-          ),
-        (result) => extractTitleTextFromMessage(result.message)
+        options
       )
+      return extractTitleTextFromMessage(result.message)
     }
     case 'alibaba': {
       const options = { enableThinking: false, signal: generationOptions.signal, max_tokens: generationOptions.maxTokens }
-      return runLoggedTitleRequest(
-        provider,
+      const result = await generateAlibabaCompletion(
+        getProviderCredential(resolvedSettings, provider),
         normalizedModel,
         messages,
-        options,
-        () =>
-          generateAlibabaCompletion(
-            getProviderCredential(resolvedSettings, provider),
-            normalizedModel,
-            messages,
-            options
-          ),
-        (result) => extractTitleTextFromMessage(result.choices?.[0]?.message)
+        options
       )
+      return extractTitleTextFromMessage(result.choices?.[0]?.message)
     }
     case 'deepseek': {
       const options = {
@@ -579,37 +519,23 @@ export async function generateProviderTitleText(
         max_tokens: generationOptions.maxTokens,
         jsonMode: generationOptions.jsonMode,
       }
-      return runLoggedTitleRequest(
-        provider,
+      const result = await generateDeepSeekCompletion(
+        getProviderCredential(resolvedSettings, provider),
         normalizedModel,
         messages,
-        options,
-        () =>
-          generateDeepSeekCompletion(
-            getProviderCredential(resolvedSettings, provider),
-            normalizedModel,
-            messages,
-            options
-          ),
-        (result) => extractTitleTextFromMessage(result.choices?.[0]?.message)
+        options
       )
+      return extractTitleTextFromMessage(result.choices?.[0]?.message)
     }
     case 'fireworks': {
       const options = { signal: generationOptions.signal, max_tokens: generationOptions.maxTokens }
-      return runLoggedTitleRequest(
-        provider,
+      const result = await generateFireworksCompletion(
+        getProviderCredential(resolvedSettings, provider),
         normalizedModel,
         messages,
-        options,
-        () =>
-          generateFireworksCompletion(
-            getProviderCredential(resolvedSettings, provider),
-            normalizedModel,
-            messages,
-            options
-          ),
-        (result) => extractTitleTextFromMessage(result.choices?.[0]?.message)
+        options
       )
+      return extractTitleTextFromMessage(result.choices?.[0]?.message)
     }
     case 'nvidia': {
       const options = {
@@ -617,20 +543,13 @@ export async function generateProviderTitleText(
         max_tokens: generationOptions.maxTokens,
         enableThinking: false,
       }
-      return runLoggedTitleRequest(
-        provider,
+      const result = await generateNvidiaCompletion(
+        getProviderCredential(resolvedSettings, provider),
         normalizedModel,
         messages,
-        options,
-        () =>
-          generateNvidiaCompletion(
-            getProviderCredential(resolvedSettings, provider),
-            normalizedModel,
-            messages,
-            options
-          ),
-        (result) => extractTitleTextFromMessage(result.choices?.[0]?.message)
+        options
       )
+      return extractTitleTextFromMessage(result.choices?.[0]?.message)
     }
     case 'openrouter': {
       const options = {
@@ -638,20 +557,13 @@ export async function generateProviderTitleText(
         signal: generationOptions.signal,
         max_tokens: generationOptions.maxTokens,
       }
-      return runLoggedTitleRequest(
-        provider,
+      const result = await generateOpenRouterCompletion(
+        getProviderCredential(resolvedSettings, provider),
         normalizedModel,
         messages,
-        options,
-        () =>
-          generateOpenRouterCompletion(
-            getProviderCredential(resolvedSettings, provider),
-            normalizedModel,
-            messages,
-            options
-          ),
-        (result) => extractTitleTextFromMessage(result.choices?.[0]?.message)
+        options
       )
+      return extractTitleTextFromMessage(result.choices?.[0]?.message)
     }
   }
 }

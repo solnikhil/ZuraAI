@@ -31,9 +31,9 @@ const MAX_TITLE_WORDS = 6
 const TITLE_GENERATION_TIMEOUT_MS = 10_000
 
 const TITLE_PREFIX_PATTERNS: RegExp[] = [
-  /^\s*(?:here(?:'s| is)\s+(?:the\s+)?)?title\s*[:\-]\s*/i,
-  /^\s*suggested\s+title\s*[:\-]\s*/i,
-  /^\s*chat\s+title\s*[:\-]\s*/i,
+  /^\s*(?:here(?:'s| is)\s+(?:the\s+)?)?title\s*[:-]\s*/i,
+  /^\s*suggested\s+title\s*[:-]\s*/i,
+  /^\s*chat\s+title\s*[:-]\s*/i,
 ]
 
 function stripTitlePrefixes(value: string): string {

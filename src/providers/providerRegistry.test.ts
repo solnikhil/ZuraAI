@@ -5,7 +5,6 @@ import {
   getAvailableModelOptions,
   getAvailableTitleModelOptions,
   getProviderCredentialError,
-  getProviderDefinition,
   getProviderEndpoint,
   getProviderRetryPolicy,
   hasProviderAccess,

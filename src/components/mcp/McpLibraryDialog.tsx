@@ -86,7 +86,6 @@ export function McpLibraryDialog({
       nextArgs[argument.name] = promptArgs[argument.name] ?? ''
     }
     setPromptArgs(nextArgs)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPromptKey])
 
   const handlePreviewResource = async (resource: McpRuntimeResource) => {

@@ -80,10 +80,11 @@ describe('convertToOpenRouterFormat', () => {
       ]
     )
 
-    expect(formatted[0]?.content).toContain('No additional web_search results')
-    expect(formatted[0]?.content).toContain('over-budget')
+    expect(formatted[0]?.content).toContain('Web search budget for this response has been reached')
+    expect(formatted[0]?.content).toContain('No additional results were returned')
     expect(formatted[0]?.content).not.toContain('repeated')
     expect(formatted[0]?.content).not.toContain('Skipped')
+    expect(formatted[0]?.content).not.toContain('over-budget')
   })
 
   it('preserves dynamic MCP JSON Schema fields during conversion', () => {

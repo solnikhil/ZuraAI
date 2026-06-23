@@ -11,9 +11,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   ChatSessionManager,
   createChatSessionManager,
-  type SessionMetadata,
-  type LoadedSession,
-  type SessionManagerConfig,
 } from './ChatSessionManager'
 import type { ChatSession, Message } from '../chat/types'
 

@@ -52,6 +52,12 @@
     color: rgba(255, 255, 255, 0.5);
 }
 
+/* Active sourcing list items use the same muted treatment for uniformity with Sourced/Thought rows */
+.thinking-active-search-batch .search-query,
+.thinking-active-tool-item .search-query {
+    color: rgba(255, 255, 255, 0.5);
+}
+
 .search-count {
     color: rgba(255, 255, 255, 0.45);
     font-size: 0.85em;
@@ -207,6 +213,15 @@
 /* Searching state text - uses theme info color */
 .thinking-header.searching .thinking-text {
     color: var(--theme-info, rgba(59, 130, 246, 0.95));
+}
+
+/* For individual sourcing attributions (single query), use the same muted color as completed "Sourced" for uniformity */
+.thinking-header.search-sourcing .thinking-text {
+  color: rgba(255, 255, 255, 0.5) !important;
+}
+
+.thinking-header.search-sourcing {
+  opacity: 0.6;
 }
 
 .thinking-header.searching .thinking-tool-calling-icon {
@@ -377,21 +392,30 @@
 .thinking-active-tool-list {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 4px;
 }
 
 .thinking-active-search-batch {
     display: flex;
     flex-direction: column;
     gap: 4px;
+    opacity: 0.6;
 }
 
 .thinking-active-tool-item {
-    color: rgba(255, 255, 255, 0.62);
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 14px;
+    font-weight: 400;
+    padding: 6px 0;
 }
 
 .thinking-active-search-batch .thinking-active-tool-item {
-    color: rgba(255, 255, 255, 0.7);
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.thinking-active-search-batch .thinking-text,
+.thinking-active-tool-item .thinking-text {
+  color: rgba(255, 255, 255, 0.5);
 }
 
 @media (prefers-reduced-motion: reduce) {

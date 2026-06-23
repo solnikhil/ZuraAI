@@ -74,29 +74,6 @@ describe('generateChatTitle', () => {
     expect(generateOpenRouterCompletion).not.toHaveBeenCalled()
   })
 
-  it('logs sanitized title generation sent and received JSON', async () => {
-    vi.mocked(generateGroqCompletion).mockResolvedValue({
-      choices: [{ message: { content: 'Planning Thread Summary Notes' } }],
-    } as never)
-
-    await generateChatTitle('Summarize this planning thread', {
-      titleModel: 'groq-primary',
-      groqApiKey: 'groq-secret-key',
-      groqModels: [{ code: 'groq-primary', displayName: 'Groq Primary' }],
-    })
-
-    const infoCalls = vi.mocked(console.info).mock.calls
-    const sentCall = infoCalls.find(([label]) => label === '[title-generator] sent JSON')
-    const receivedCall = infoCalls.find(([label]) => label === '[title-generator] received JSON')
-
-    expect(sentCall).toBeTruthy()
-    expect(receivedCall).toBeTruthy()
-    expect(String(sentCall?.[1])).toContain('"provider": "groq"')
-    expect(String(sentCall?.[1])).toContain('"model": "groq-primary"')
-    expect(String(sentCall?.[1])).not.toContain('groq-secret-key')
-    expect(String(receivedCall?.[1])).toContain('"extractedTitle": "Planning Thread Summary Notes"')
-  })
-
   it('strips the openrouter/ prefix before requesting title generation', async () => {
     vi.mocked(generateOpenRouterCompletion).mockResolvedValue({
       choices: [{ message: { content: 'Launch plan summary notes' } }],

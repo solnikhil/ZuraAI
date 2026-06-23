@@ -9,9 +9,9 @@
  *
  */
 
-import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
+import { describe, it, expect, afterEach } from 'vitest'
 import * as fc from 'fast-check'
-import React, { memo, useState, useCallback } from 'react'
+import React, { memo } from 'react'
 import { render, act, cleanup, screen, fireEvent } from '@testing-library/react'
 
 // Test Utilities and Arbitraries
@@ -571,7 +571,7 @@ describe('Property 21: Message Component Memoization', () => {
   })
 })
 
-import { createSelectableContext, shallowEqual } from '../contexts/createSelectableContext'
+import { createSelectableContext } from '../contexts/createSelectableContext'
 
 /**
  * Test state interface for UI settings (frequently changing)

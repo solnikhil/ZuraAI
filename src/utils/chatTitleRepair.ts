@@ -13,7 +13,7 @@ const BAD_GENERATED_TITLE_PATTERNS: RegExp[] = [
   /^\s*(?:i(?:'m| am)\s+sorry|sorry\b|apolog(?:y|ize|ise|ies)\b)/i,
   /\b(?:api\s*key|unauthorized|forbidden|rate\s*limit|error|failed|failure)\b/i,
   /\b(?:cannot|can't|unable\s+to|does\s+not\s+support|do\s+not\s+have\s+access)\b/i,
-  /^\s*[\[{]/,
+  /^\s*(?:\[|{)/,
   /^\s*```/,
   /<\/?[a-z][\s\S]*>/i,
 ]

@@ -237,7 +237,7 @@ export const generateGroqCompletion = async (
                             } as GroqResponse
                         }
                     }
-                } catch (e) {
+                } catch {
                     // Failed to parse, fall through to returning failed_generation as content
                 }
                 

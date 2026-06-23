@@ -20,6 +20,7 @@ import { VirtualMessageList } from './ChatArea/VirtualMessageList'
 import { InputArea } from './ChatArea/InputArea'
 import { shouldHideGenericToolResultCard } from './ChatArea/toolResultVisibility'
 import { useStreamingChat, usePromptAutoHide } from './ChatArea/hooks'
+import { usePinnedAutoScroll } from './ChatArea/hooks/usePinnedAutoScroll'
 import type { AttachedFile } from './ChatArea/attachmentUtils'
 import { NORMAL_PLACEHOLDERS, GENZ_PLACEHOLDERS } from './ChatArea/placeholders'
 import { CHAT_AREA_STYLES } from './ChatArea/chatAreaStyles'
@@ -54,18 +55,11 @@ export default function ChatArea() {
 
   const useVirtualization = messages.length > VIRTUALIZATION_THRESHOLD
 
-  const prevMessageCountRef = useRef(messages.length)
-  const lastMessageIdRef = useRef<string | null>(null)
-  const hasScrolledToNewMessageRef = useRef(false)
-  const userScrolledAwayRef = useRef(false)
-  const isAutoScrollingRef = useRef(false)
-  const lastScrollTopRef = useRef(0)
-
   const { isLoading, toolState, sendMessage, regenerateMessage, stopStreaming } = useStreamingChat({
     onRegenerateStart: () => {
       // Scroll to position the new message in view when regenerating with smooth animation
       requestAnimationFrame(() => {
-        scrollToNewMessage(true)
+        scrollToBottom(true)
       })
     },
   })
@@ -231,119 +225,16 @@ export default function ChatArea() {
     return () => window.removeEventListener('keydown', handlePromptShortcut)
   }, [])
 
-  const scrollToNewMessage = (smooth = false) => {
-    const container = messagesContainerRef.current
-    if (!container) return
-    const scrollTop = Math.max(0, container.scrollHeight - container.clientHeight)
-    isAutoScrollingRef.current = true
-    if (smooth) {
-      container.scrollTo({ top: scrollTop, behavior: 'smooth' })
-    } else {
-      container.scrollTop = scrollTop
-    }
-    window.setTimeout(
-      () => {
-        isAutoScrollingRef.current = false
-      },
-      smooth ? 350 : 50
-    )
-  }
-
-  const isNearBottom = () => {
-    if (!messagesContainerRef.current) return true
-    const container = messagesContainerRef.current
-    const threshold = 150
-    return container.scrollHeight - container.scrollTop - container.clientHeight < threshold
-  }
-
-  // Track user scroll during streaming
-  useEffect(() => {
-    const container = messagesContainerRef.current
-    if (!container) return
-    lastScrollTopRef.current = container.scrollTop
-
-    const handleScroll = () => {
-      const previousScrollTop = lastScrollTopRef.current
-      const currentScrollTop = container.scrollTop
-      const isUserScrollingUp = currentScrollTop < previousScrollTop
-      lastScrollTopRef.current = currentScrollTop
-
-      if (isLoading && isUserScrollingUp) {
-        userScrolledAwayRef.current = true
-        return
-      }
-
-      if (isAutoScrollingRef.current) return
-
-      if (isLoading && !isNearBottom()) {
-        userScrolledAwayRef.current = true
-      } else if (isNearBottom() && currentScrollTop >= previousScrollTop) {
-        userScrolledAwayRef.current = false
-      }
-    }
-
-    const handleWheel = (event: WheelEvent) => {
-      if (!isLoading) return
-      if (event.deltaY < 0) {
-        userScrolledAwayRef.current = true
-      }
-    }
-
-    container.addEventListener('scroll', handleScroll)
-    container.addEventListener('wheel', handleWheel, { passive: true })
-    return () => {
-      container.removeEventListener('scroll', handleScroll)
-      container.removeEventListener('wheel', handleWheel)
-    }
-  }, [isLoading])
-
-  useEffect(() => {
-    const currentMessageCount = messages.length
-    const lastMessage = messages[messages.length - 1]
-    const lastMessageId = lastMessage?.id || null
-
-    if (
-      currentMessageCount > prevMessageCountRef.current ||
-      lastMessageId !== lastMessageIdRef.current
-    ) {
-      hasScrolledToNewMessageRef.current = false
-      userScrolledAwayRef.current = false
-
-      requestAnimationFrame(() => {
-        if (!hasScrolledToNewMessageRef.current) {
-          scrollToNewMessage()
-          hasScrolledToNewMessageRef.current = true
-        }
-      })
-    }
-
-    prevMessageCountRef.current = currentMessageCount
-    lastMessageIdRef.current = lastMessageId
-  }, [messages.length, messages[messages.length - 1]?.id])
-
-  useEffect(() => {
-    if (!isLoading || !streamingState?.isStreaming) return
-    if (streamingState.sessionId !== currentSessionId) return
-    if (!streamingState.content && !streamingState.thinking) return
-    if (userScrolledAwayRef.current) return
-    if (!isNearBottom()) {
-      userScrolledAwayRef.current = true
-      return
-    }
-
-    requestAnimationFrame(() => {
-      if (!userScrolledAwayRef.current && isNearBottom()) {
-        scrollToNewMessage()
-      }
-    })
-  }, [
+  const { scrollToBottom } = usePinnedAutoScroll({
+    containerRef: messagesContainerRef,
+    isStreaming: isLoading && Boolean(streamingState?.isStreaming),
+    streamSessionId: streamingState?.sessionId,
     currentSessionId,
-    isLoading,
-    streamingState?.content,
-    streamingState?.isStreaming,
-    streamingState?.sessionId,
-    streamingState?.thinking,
-  ])
+    streamingContent: streamingState?.content,
+    streamingThinking: streamingState?.thinking,
+    messageCount: messages.length,
+    lastMessageId: messages[messages.length - 1]?.id || null,
+  })
 
   const handleSendMessage = async () => {
     if ((!input.trim() && attachedFiles.length === 0) || isLoading) return
@@ -423,25 +314,7 @@ export default function ChatArea() {
     ]
   )
 
-  if (currentSessionIsLoading) {
-    return (
-      <div
-        style={{
-          flex: 1,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: '100%',
-          color: 'var(--theme-text-muted)',
-          background: 'var(--theme-content-solid)',
-        }}
-      >
-        Loading chat...
-      </div>
-    )
-  }
-
-  if (!currentSessionId || messages.length === 0) {
+  if (!currentSessionId || (messages.length === 0 && !currentSessionIsLoading)) {
     return (
       <div
         style={{

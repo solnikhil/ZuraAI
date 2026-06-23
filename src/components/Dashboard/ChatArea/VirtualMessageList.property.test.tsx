@@ -89,10 +89,11 @@ function shouldAutoScroll(
   autoScrollEnabled: boolean,
   atBottom: boolean,
   isGenerating: boolean,
-  isScrolling: boolean
+  isScrolling: boolean,
+  userScrollLocked = false
 ): boolean {
   if (!autoScrollEnabled) return false
-  return atBottom && isGenerating && !isScrolling
+  return atBottom && isGenerating && !isScrolling && !userScrollLocked
 }
 
 /**
@@ -270,16 +271,19 @@ describe('Property: Streaming Auto-Scroll Safety', () => {
         fc.boolean(), // atBottom
         fc.boolean(), // isGenerating
         fc.boolean(), // isScrolling
-        (autoScrollEnabled, atBottom, isGenerating, isScrolling) => {
+        fc.boolean(), // userScrollLocked
+        (autoScrollEnabled, atBottom, isGenerating, isScrolling, userScrollLocked) => {
           const shouldScroll = shouldAutoScroll(
             autoScrollEnabled,
             atBottom,
             isGenerating,
-            isScrolling
+            isScrolling,
+            userScrollLocked
           )
 
           // Property: Auto-scroll should only occur when ALL conditions are met
-          const expectedResult = autoScrollEnabled && atBottom && isGenerating && !isScrolling
+          const expectedResult =
+            autoScrollEnabled && atBottom && isGenerating && !isScrolling && !userScrollLocked
           expect(shouldScroll).toBe(expectedResult)
         }
       ),
@@ -343,6 +347,23 @@ describe('Property: Streaming Auto-Scroll Safety', () => {
           // Property: When user is actively scrolling, should never auto-scroll
           // This prevents scroll jank and respects user interaction
           expect(shouldAutoScroll(autoScrollEnabled, atBottom, isGenerating, true)).toBe(false)
+        }
+      ),
+      { numRuns: 100 }
+    )
+  })
+
+  it('should NOT auto-scroll while user scroll lock is active', () => {
+    fc.assert(
+      fc.property(
+        fc.boolean(), // autoScrollEnabled
+        fc.boolean(), // atBottom
+        fc.boolean(), // isGenerating
+        fc.boolean(), // isScrolling
+        (autoScrollEnabled, atBottom, isGenerating, isScrolling) => {
+          expect(
+            shouldAutoScroll(autoScrollEnabled, atBottom, isGenerating, isScrolling, true)
+          ).toBe(false)
         }
       ),
       { numRuns: 100 }

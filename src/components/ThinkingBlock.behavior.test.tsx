@@ -294,12 +294,8 @@ describe('ThinkingBlock behavior', () => {
       />
     )
 
-    expect(
-      screen.getByText('Sourcing “openai responses api pricing”')
-    ).toBeInTheDocument()
-    expect(
-      screen.getByText('Sourcing “openai responses api rate limits”')
-    ).toBeInTheDocument()
+    expect(screen.getByText(/openai responses api pricing/)).toBeInTheDocument()
+    expect(screen.getByText(/openai responses api rate limits/)).toBeInTheDocument()
     expect(screen.queryByText('Sourcing the web')).not.toBeInTheDocument()
   })
 
@@ -317,12 +313,8 @@ describe('ThinkingBlock behavior', () => {
       />
     )
 
-    expect(
-      screen.getByText('Sourcing “electron app updater release notes”')
-    ).toBeInTheDocument()
-    expect(
-      screen.getByText('Sourcing “electron app updater windows installer behavior”')
-    ).toBeInTheDocument()
+    expect(screen.getByText(/electron app updater release notes/)).toBeInTheDocument()
+    expect(screen.getByText(/electron app updater windows installer behavior/)).toBeInTheDocument()
     expect(screen.queryByText('Sourcing the web')).not.toBeInTheDocument()
   })
 

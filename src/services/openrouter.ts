@@ -311,7 +311,6 @@ export async function* streamOpenRouterCompletion(
     for (let attempt = 0; attempt <= OPENROUTER_RETRY_POLICY.maxRetries; attempt++) {
         if (attempt > 0) {
             const delay = getRetryDelay(attempt - 1, lastError?.message)
-            console.log(`[ZuraAI] OpenRouter stream retry ${attempt}/${OPENROUTER_RETRY_POLICY.maxRetries} after ${delay}ms`)
             await sleep(delay)
         }
 

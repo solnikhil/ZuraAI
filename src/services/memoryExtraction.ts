@@ -276,7 +276,9 @@ async function withAbortTimeout<T>(
     return await run(controller.signal)
   } catch (error) {
     if (controller.signal.aborted && isAbortError(error)) {
-      throw new Error(`Memory extraction timed out after ${Math.round(ms / 1000)}s`)
+      throw new Error(`Memory extraction timed out after ${Math.round(ms / 1000)}s`, {
+        cause: error,
+      })
     }
     throw error
   } finally {

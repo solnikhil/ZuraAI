@@ -81,7 +81,9 @@ function stripUiFieldsFromToolData(data: unknown): unknown {
       ],
     }
     cleaned.results = (obj.results as Array<Record<string, unknown>>).map((result, index) => {
-      const { favicon, source, displayed_link, score, ...rest } = result
+      const { source, score, ...rest } = result
+      delete rest.favicon
+      delete rest.displayed_link
       return {
         result_index: index + 1,
         source,

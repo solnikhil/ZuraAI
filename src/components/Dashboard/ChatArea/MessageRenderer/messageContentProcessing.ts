@@ -156,8 +156,8 @@ export function convertUrlsToMarkdownLinks(content: string): string {
 /** Apply URL→link conversion to a plain-text (non-code) segment */
 function convertUrlsInText(text: string): string {
   // Pattern 1: Reference-style URLs like [1] https://example.com
-  let result = text.replace(
-    /(^|\s)\[(\d+)\]\s+(https?:\/\/[^\s\)\]\[`]+)/gm,
+  const result = text.replace(
+    /(^|\s)\[(\d+)\]\s+(https?:\/\/[^\s)\][`]+)/gm,
     (_match, prefix, num, url) => {
       const cleanUrl = normalizeSafeHttpUrl(url.replace(/[.,;:!?]+$/, ''))
       return cleanUrl ? `${prefix}[[${num}]](${cleanUrl})` : `${prefix}[${num}] ${url}`
@@ -177,7 +177,7 @@ function convertUrlsInText(text: string): string {
     }
 
     // Pattern 3: Plain URLs (exclude backticks from URL chars)
-    const urlRegex = /(https?:\/\/[^\s\)\]\[`]+)/g
+    const urlRegex = /(https?:\/\/[^\s)\][`]+)/g
     let lastIndex = 0
     let lineResult = ''
 

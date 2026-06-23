@@ -37,7 +37,7 @@ export const checkOllamaStatus = async (baseUrl: string): Promise<boolean> => {
     try {
         const response = await fetch(`${baseUrl}/api/tags`, { method: 'HEAD' })
         return response.ok
-    } catch (error) {
+    } catch {
         return false
     }
 }

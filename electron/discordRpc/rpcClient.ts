@@ -54,7 +54,7 @@ class DiscordRpcClient {
     const trimmed = appId.trim()
     if (trimmed === this.appId) return
     this.appId = trimmed || DEFAULT_APP_ID
-    console.log('[DiscordRpcClient] App ID changed, reconnecting...')
+    discordLog.debug('app ID changed; reconnecting')
     this.disconnect('app-id-changed')
     void this.connect()
   }

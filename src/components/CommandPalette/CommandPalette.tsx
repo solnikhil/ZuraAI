@@ -1,6 +1,6 @@
 import React, { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { Search } from '../icons'
 import { useAppShell } from '../../contexts/AppShellContext'
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
@@ -21,12 +21,6 @@ import {
 } from '../../commandBar/history'
 import CommandPaletteResultList from './CommandPaletteResultList'
 import CommandPaletteFooter from './CommandPaletteFooter'
-
-/* ── helpers ── */
-
-function logCommandPaletteDebug(message: string, details?: Record<string, unknown>) {
-  console.info(`[CommandPalette] ${message}`, details ?? {})
-}
 
 function formatFilenamePart(value: string): string {
   return value
@@ -120,7 +114,6 @@ const palettePositionMap: Record<string, string> = {
 
 export default function CommandPalette() {
   const navigate = useNavigate()
-  const location = useLocation()
   const { showToast } = useToast()
   const {
     dashboardView,
@@ -148,45 +141,6 @@ export default function CommandPalette() {
   const { settingsUI } = useSettingsUI()
   const { commandBar } = settingsUI
   const isCommandPaletteEnabled = commandBar.enabled !== false
-
-  useEffect(() => {
-    logCommandPaletteDebug('component mounted', {
-      pathname: location.pathname,
-      hash: window.location.hash,
-    })
-    return () => {
-      logCommandPaletteDebug('component unmounted', {
-        pathname: location.pathname,
-        hash: window.location.hash,
-      })
-    }
-  }, [location.pathname])
-
-  useEffect(() => {
-    logCommandPaletteDebug('settings evaluated', {
-      enabled: isCommandPaletteEnabled,
-      rawEnabled: commandBar.enabled,
-      paletteWidth: commandBar.paletteWidth,
-      palettePosition: commandBar.palettePosition,
-      overlayOpacity: commandBar.overlayOpacity,
-      pathname: location.pathname,
-    })
-  }, [
-    commandBar.enabled,
-    commandBar.overlayOpacity,
-    commandBar.palettePosition,
-    commandBar.paletteWidth,
-    isCommandPaletteEnabled,
-    location.pathname,
-  ])
-
-  useEffect(() => {
-    logCommandPaletteDebug('open state changed', {
-      open,
-      pathname: location.pathname,
-      hash: window.location.hash,
-    })
-  }, [location.pathname, open])
 
   const dynamicOverlayStyle = useMemo<React.CSSProperties>(
     () => ({
@@ -281,30 +235,14 @@ export default function CommandPalette() {
   /* ── open / close helpers ── */
 
   const openPalette = useCallback(() => {
-    logCommandPaletteDebug('opening palette', {
-      activeElement:
-        document.activeElement instanceof HTMLElement
-          ? {
-              tagName: document.activeElement.tagName,
-              id: document.activeElement.id,
-              className: document.activeElement.className,
-            }
-          : null,
-      pathname: location.pathname,
-      hash: window.location.hash,
-    })
     previousFocusRef.current = document.activeElement as HTMLElement | null
     setOpen(true)
     setQuery('')
     setHighlightIndex(0)
     // Focus is set via onOpenAutoFocus
-  }, [location.pathname])
+  }, [])
 
   const closePalette = useCallback(() => {
-    logCommandPaletteDebug('closing palette', {
-      pathname: location.pathname,
-      hash: window.location.hash,
-    })
     setOpen(false)
     setQuery('')
     // Restore focus
@@ -312,16 +250,12 @@ export default function CommandPalette() {
       previousFocusRef.current?.focus()
       previousFocusRef.current = null
     })
-  }, [location.pathname])
+  }, [])
 
   /* ── global keyboard shortcut: Ctrl+Space / Cmd+Space ── */
 
   useEffect(() => {
     if (!isCommandPaletteEnabled) {
-      logCommandPaletteDebug('shortcut listener disabled by settings', {
-        pathname: location.pathname,
-        hash: window.location.hash,
-      })
       setOpen(false)
       setQuery('')
       return
@@ -338,25 +272,6 @@ export default function CommandPalette() {
       if (!(event.ctrlKey || event.metaKey)) return
       if (event.shiftKey || event.altKey) return
 
-      logCommandPaletteDebug('shortcut captured', {
-        key: event.key,
-        code: event.code,
-        ctrlKey: event.ctrlKey,
-        metaKey: event.metaKey,
-        defaultPreventedBefore: event.defaultPrevented,
-        openBefore: open,
-        target:
-          event.target instanceof HTMLElement
-            ? {
-                tagName: event.target.tagName,
-                id: event.target.id,
-                className: event.target.className,
-              }
-            : null,
-        pathname: location.pathname,
-        hash: window.location.hash,
-      })
-
       event.preventDefault()
       event.stopPropagation()
       event.stopImmediatePropagation?.()
@@ -368,19 +283,11 @@ export default function CommandPalette() {
       }
     }
 
-    logCommandPaletteDebug('shortcut listener attached', {
-      pathname: location.pathname,
-      hash: window.location.hash,
-    })
     window.addEventListener('keydown', handleKeyDown, { capture: true })
     return () => {
       window.removeEventListener('keydown', handleKeyDown, { capture: true })
-      logCommandPaletteDebug('shortcut listener detached', {
-        pathname: location.pathname,
-        hash: window.location.hash,
-      })
     }
-  }, [closePalette, isCommandPaletteEnabled, location.pathname, open, openPalette])
+  }, [closePalette, isCommandPaletteEnabled, open, openPalette])
 
   /* ── action execution ── */
 
@@ -646,13 +553,7 @@ export default function CommandPalette() {
 
   /* ── render ── */
 
-  if (!isCommandPaletteEnabled) {
-    logCommandPaletteDebug('render skipped because command palette is disabled', {
-      pathname: location.pathname,
-      hash: window.location.hash,
-    })
-    return null
-  }
+  if (!isCommandPaletteEnabled) return null
 
   return (
     <DialogPrimitive.Root

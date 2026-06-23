@@ -234,7 +234,7 @@ export class DeferredInitializer {
         const duration = this.metrics.phases[`deferred:${task.name}`]?.durationMs ?? 0
         const label = task.name.padEnd(26)
         log.info(`${label} ${duration}ms (priority=${task.priority} delay=${task.delayMs}ms)`)
-      } catch (error) {
+      } catch {
         // Failures are logged but do not abort the remaining task queue. That
         // keeps one non-critical startup task from preventing later tasks from
         // running.

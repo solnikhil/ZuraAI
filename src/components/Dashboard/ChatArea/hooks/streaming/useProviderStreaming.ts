@@ -32,7 +32,6 @@ import {
   buildThinkingBlocksFromResults,
   computeStreamMetrics,
   fillMissingUsage,
-  getStreamingUpdateInterval,
   getThinkingTranscript,
   hasSearchResults,
   mergeSavedToolResults,
@@ -313,7 +312,6 @@ export function useProviderStreaming({
   throttledUpdateStreamingMessage,
 }: UseProviderStreamingOptions): UseProviderStreamingReturn {
   const { updateStreaming } = useStreamingActions()
-  const updateInterval = getStreamingUpdateInterval()
   const shouldLogResearchLoop = import.meta.env.DEV
   const shouldLogOpenRouterDebug = settings.openRouterDebug === true
 
@@ -425,7 +423,6 @@ export function useProviderStreaming({
       // markup is detected mid-stream (prevents raw markup leaking to the UI).
       let frozenDisplayContent: string | null = null
       let generatedFiles: FileAttachment[] = []
-      let lastUpdateTime = Date.now()
       let finalVisibleAnswerRound: VisibleAnswerRound | null = null
       let savedToolResults: ToolCallResult[] | undefined
       let localThinkingBlocks: ThinkingBlock[] = []
@@ -455,6 +452,15 @@ export function useProviderStreaming({
         }
       }
 
+      const publishStreamingProgress = (updates: Record<string, unknown>) => {
+        if (options.signal?.aborted) return
+        throttledUpdateStreamingMessage(
+          options.sessionId,
+          options.messageId,
+          updates as Parameters<UpdateStreamingCallback>[2]
+        )
+      }
+
       const updatePersistedStreamingMessage: UpdateStreamingCallback = (
         sessionId,
         messageId,
@@ -471,10 +477,7 @@ export function useProviderStreaming({
 
       const persistProgress = () => {
         if (options.signal?.aborted) return
-        const now = Date.now()
-        if (now - lastUpdateTime < updateInterval) return
-
-        throttledUpdateStreamingMessage(options.sessionId, options.messageId, {
+        publishStreamingProgress({
           content: frozenDisplayContent ?? accumulatedContent,
           thinking: activeThinking || undefined,
           thinkingDuration: activeThinkingStartTime !== null
@@ -484,7 +487,6 @@ export function useProviderStreaming({
           files: generatedFiles,
           toolResults: savedToolResults,
         })
-        lastUpdateTime = now
       }
 
       const finalizeActiveThinking = () => {
@@ -662,13 +664,11 @@ export function useProviderStreaming({
                     roundStartContent.length + roundContent.length,
                     event.smoothing
                   )
-                  updateStreamingState({
-                    phase: 'answering',
-                    // Keep the isolated active-message view in sync on every delta.
-                    // Persisted chat-history writes stay throttled separately.
-                    content: frozenDisplayContent ?? accumulatedContent,
-                  })
-                }
+          publishStreamingProgress({
+            phase: 'answering',
+            content: frozenDisplayContent ?? accumulatedContent,
+          })
+        }
                 persistProgress()
                 break
               case 'reasoning-delta':
@@ -682,7 +682,7 @@ export function useProviderStreaming({
                 const thinkingDuration = activeThinkingStartTime !== null
                   ? performance.now() - activeThinkingStartTime
                   : undefined
-                updateStreamingState({
+                publishStreamingProgress({
                   phase: 'reasoning',
                   thinking: activeThinking,
                   thinkingDuration,
@@ -1589,6 +1589,8 @@ export function useProviderStreaming({
       }
 
       throwIfAborted()
+      publishStreamingProgress(finalMessageUpdates)
+      flushActiveThrottledUpdates()
       updatePersistedStreamingMessage(options.sessionId, options.messageId, finalMessageUpdates)
       logDiagnostic({
         phase: 'finish',
@@ -1615,7 +1617,6 @@ export function useProviderStreaming({
       flushThrottledUpdates,
       throttledUpdateStreamingMessage,
       updateStreaming,
-      updateInterval,
     ]
   )
 

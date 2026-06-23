@@ -96,7 +96,8 @@ export function fillMissingUsage(
   content: string,
   options?: { deriveInputFromTotal?: boolean }
 ): { inputTokens: number; outputTokens: number; totalTokens: number } {
-  let { inputTokens, outputTokens, totalTokens } = usage
+  let { inputTokens } = usage
+  const { outputTokens, totalTokens } = usage
 
   // Alibaba: derive input from total − output
   if (options?.deriveInputFromTotal && inputTokens === 0 && totalTokens > 0 && outputTokens > 0) {

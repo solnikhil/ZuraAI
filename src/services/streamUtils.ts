@@ -233,7 +233,7 @@ export async function* parseNDJSONStream<T>(
 
         try {
             return JSON.parse(line) as T
-        } catch (e) {
+        } catch {
             console.warn('Failed to parse NDJSON chunk:', line)
             return null
         }

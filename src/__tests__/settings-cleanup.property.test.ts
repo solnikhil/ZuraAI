@@ -60,7 +60,7 @@ describe('Property 1: Model Selection Persistence (Round-Trip)', () => {
       'x-ai/grok-4.1-fast'
     ),
     // Generic model code pattern
-    fc.stringMatching(/^[a-z0-9][a-z0-9\-\/\.:_]{2,50}$/)
+    fc.stringMatching(/^[a-z0-9][a-z0-9-/.:_]{2,50}$/)
   )
 
   it('should persist and retrieve the same titleModel value (100 iterations)', () => {
@@ -170,7 +170,7 @@ describe('Property 3: Tool Auto-Execution', () => {
 
   it('should have no approval-related properties in ToolCallState', async () => {
     // Dynamically import to test the actual module
-    const { useToolCalling } = await import('../hooks/useToolCalling')
+    await import('../hooks/useToolCalling')
 
     // The ToolCallState interface should not have pendingApproval
     // We verify this by checking the type definition doesn't include approval fields

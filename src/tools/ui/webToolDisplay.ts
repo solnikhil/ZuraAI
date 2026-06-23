@@ -3,8 +3,8 @@ export type WebToolMode = 'search' | 'extract'
 function sanitizeUrlToken(token: string): string {
   return token
     .trim()
-    .replace(/^[\[\]{}()<>"'`]+/, '')
-    .replace(/[\[\]{}()<>"'`,;:!?]+$/, '')
+    .replace(/^(?:\[|\]|\{|\}|\(|\)|<|>|"|'|`)+/, '')
+    .replace(/(?:\[|\]|\{|\}|\(|\)|<|>|"|'|`|,|;|:|!|\?)+$/, '')
 }
 
 function isLikelyUrlToken(token: string): boolean {

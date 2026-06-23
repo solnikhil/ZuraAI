@@ -18,9 +18,9 @@
  *
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import * as fc from 'fast-check'
-import React, { lazy, Suspense } from 'react'
+import { lazy } from 'react'
 
 /**
  * Property test configuration
@@ -117,7 +117,7 @@ describe('Bundle Optimization Property Tests', () => {
      */
     it('should verify lazy components are defined with React.lazy', async () => {
       await fc.assert(
-        fc.asyncProperty(generators.lazyComponent, async (componentConfig) => {
+        fc.asyncProperty(generators.lazyComponent, async () => {
           // Verify that the component can be lazy loaded
           // This tests the structure of lazy loading, not actual network behavior
           const lazyLoader = () => Promise.resolve({ default: () => null })
@@ -147,7 +147,7 @@ describe('Bundle Optimization Property Tests', () => {
 
     it('should verify Suspense boundaries are required for lazy components', async () => {
       await fc.assert(
-        fc.asyncProperty(generators.lazyComponent, async (componentConfig) => {
+        fc.asyncProperty(generators.lazyComponent, async () => {
           // Create a mock lazy component
           const mockLoader = vi.fn(() => Promise.resolve({ default: () => null }))
           const LazyComponent = lazy(mockLoader)

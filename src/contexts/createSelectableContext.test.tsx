@@ -10,8 +10,8 @@
  *
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import React, { useState, useEffect, memo } from 'react'
+import { describe, it, expect, vi } from 'vitest'
+import React, { useState, memo } from 'react'
 import { render, screen, act, fireEvent } from '@testing-library/react'
 import {
   createSelectableContext,

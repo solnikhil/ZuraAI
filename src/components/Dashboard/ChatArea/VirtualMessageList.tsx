@@ -70,6 +70,7 @@ export function VirtualMessageList({
   const virtuosoRef = useRef<VirtuosoHandle>(null)
   const prevLenRef = useRef(messages.length)
   const prevSessionRef = useRef(sessionId)
+  const streamingScrollRafRef = useRef<number | null>(null)
 
   // Track scroll state
   const [atBottom, setAtBottom] = useState(true)
@@ -119,6 +120,15 @@ export function VirtualMessageList({
     })
   }, [])
 
+  const scheduleStreamingScrollToBottom = useCallback(() => {
+    if (streamingScrollRafRef.current !== null) return
+
+    streamingScrollRafRef.current = requestAnimationFrame(() => {
+      streamingScrollRafRef.current = null
+      scrollToBottom('auto')
+    })
+  }, [scrollToBottom])
+
   /**
    * Reset scroll position when switching sessions
    */
@@ -148,13 +158,25 @@ export function VirtualMessageList({
   useEffect(() => {
     if (!autoScrollEnabled) return
     if (atBottom && isGenerating && !isScrolling && !userScrollLocked) {
-      virtuosoRef.current?.scrollToIndex({
-        index: 'LAST',
-        align: 'end',
-        behavior: 'auto',
-      })
+      scheduleStreamingScrollToBottom()
     }
-  }, [atBottom, isGenerating, isScrolling, streamingContent, autoScrollEnabled, userScrollLocked])
+  }, [
+    atBottom,
+    isGenerating,
+    isScrolling,
+    streamingContent,
+    autoScrollEnabled,
+    userScrollLocked,
+    scheduleStreamingScrollToBottom,
+  ])
+
+  useEffect(() => {
+    return () => {
+      if (streamingScrollRafRef.current !== null) {
+        cancelAnimationFrame(streamingScrollRafRef.current)
+      }
+    }
+  }, [])
 
   // Keep a modest pre-render buffer for smooth wheel scrolling without over-rendering heavy messages.
   // viewportHeight is tracked via state + resize listener above so it stays current.

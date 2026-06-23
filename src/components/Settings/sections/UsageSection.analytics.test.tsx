@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom/vitest'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ReactNode } from 'react'
 
 import { UsageSection } from './UsageSection'
 import type { UsageStats } from './usageMetrics'
@@ -10,12 +11,11 @@ vi.mock('../ActivityGraph', () => ({
 }))
 
 vi.mock('recharts', async () => {
-  const React = await import('react')
   return {
-    ResponsiveContainer: ({ children }: { children: React.ReactNode }) => <div data-testid="responsive-container">{children}</div>,
+    ResponsiveContainer: ({ children }: { children: ReactNode }) => <div data-testid="responsive-container">{children}</div>,
     Tooltip: () => <div data-testid="chart-tooltip" />,
     Legend: () => <div data-testid="chart-legend" />,
-    PieChart: ({ children }: { children: React.ReactNode }) => <div data-testid="model-mix-pie-chart">{children}</div>,
+    PieChart: ({ children }: { children: ReactNode }) => <div data-testid="model-mix-pie-chart">{children}</div>,
     Pie: () => <div data-testid="model-mix-pie" />,
   }
 })

@@ -33,7 +33,7 @@ const CACHE_TTL = 30000
 function isEncryptionAvailable(): boolean {
   try {
     return safeStorage.isEncryptionAvailable()
-  } catch (error) {
+  } catch {
     storageLog.warn('unable to determine safeStorage encryption availability')
     return false
   }
@@ -77,7 +77,7 @@ async function readSecureDataAsync(): Promise<SecureData> {
       if (typeof value === 'string' && value) {
         try {
           decrypted[key as keyof SecureData] = safeStorage.decryptString(Buffer.from(value, 'base64'))
-        } catch (error) {
+        } catch {
           if (isLikelyLegacyPlaintextSecret(value)) {
             decrypted[key as keyof SecureData] = value
             migratedLegacyPlaintext = true
@@ -98,7 +98,7 @@ async function readSecureDataAsync(): Promise<SecureData> {
     cachedData = decrypted
     cacheTimestamp = Date.now()
     return decrypted
-  } catch (error) {
+  } catch {
     storageLog.error('failed to read secure storage data')
     return {}
   }
@@ -123,7 +123,7 @@ export async function getSecureValuePresenceAsync(keys: readonly string[]): Prom
     }
 
     return presence
-  } catch (error) {
+  } catch {
     storageLog.error('failed to read secure storage key presence')
     return presence
   }
@@ -148,7 +148,7 @@ async function writeSecureDataAsync(data: SecureData): Promise<boolean> {
     cachedData = data
     cacheTimestamp = Date.now()
     return true
-  } catch (error) {
+  } catch {
     storageLog.error('failed to write secure storage data')
     return false
   }

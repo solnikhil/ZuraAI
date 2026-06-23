@@ -5,7 +5,6 @@ import React from 'react'
 import {
   findMatchingWebSource,
   normalizeHighlightLanguage,
-  shouldAnimateStreamingBlock,
 } from './LazyMarkdown'
 import WebSourceCitation from './Dashboard/ChatArea/WebSourceCitation'
 
@@ -47,35 +46,6 @@ describe('normalizeHighlightLanguage', () => {
     expect(normalizeHighlightLanguage('Python')).toBe('python')
     expect(normalizeHighlightLanguage('javascript')).toBe('javascript')
     expect(normalizeHighlightLanguage('bash')).toBe('bash')
-  })
-})
-
-describe('shouldAnimateStreamingBlock', () => {
-  it('marks the block that matches the streaming tail', () => {
-    expect(
-      shouldAnimateStreamingBlock(
-        'First paragraph.\n\nThe answer is still streaming',
-        'The answer is still streaming',
-        true
-      )
-    ).toBe(true)
-  })
-
-  it('does not animate stable earlier blocks or completed content', () => {
-    expect(
-      shouldAnimateStreamingBlock(
-        'First paragraph.\n\nThe answer is still streaming',
-        'First paragraph.',
-        true
-      )
-    ).toBe(false)
-    expect(
-      shouldAnimateStreamingBlock(
-        'The answer is complete.',
-        'The answer is complete.',
-        false
-      )
-    ).toBe(false)
   })
 })
 

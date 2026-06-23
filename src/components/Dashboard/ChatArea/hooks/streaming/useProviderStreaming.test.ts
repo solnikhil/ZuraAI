@@ -168,13 +168,15 @@ describe('useProviderStreaming', () => {
       researchMaxRounds: 0,
     })
 
-    expect(mocks.updateStreaming).toHaveBeenCalledWith(
+    expect(mocks.updateStreaming).not.toHaveBeenCalledWith(expect.objectContaining({ content: 'Hello' }))
+    expect(throttledUpdateStreamingMessage).toHaveBeenCalledWith(
+      'session-1',
+      'message-1',
       expect.objectContaining({
         content: 'Hello',
         phase: 'answering',
       })
     )
-    expect(throttledUpdateStreamingMessage).not.toHaveBeenCalled()
   })
 
   it('stops processing provider events after the abort signal fires', async () => {
@@ -189,6 +191,7 @@ describe('useProviderStreaming', () => {
     })
 
     const updateStreamingMessage = vi.fn()
+    const throttledUpdateStreamingMessage = vi.fn()
 
     const { result } = renderHook(() =>
       useProviderStreaming({
@@ -208,7 +211,7 @@ describe('useProviderStreaming', () => {
         },
         updateStreamingMessage,
         flushThrottledUpdates: vi.fn(),
-        throttledUpdateStreamingMessage: vi.fn(),
+        throttledUpdateStreamingMessage,
       })
     )
 
@@ -225,12 +228,16 @@ describe('useProviderStreaming', () => {
       })
     ).rejects.toMatchObject({ name: 'AbortError' })
 
-    expect(mocks.updateStreaming).toHaveBeenCalledWith(
+    expect(throttledUpdateStreamingMessage).toHaveBeenCalledWith(
+      'session-1',
+      'message-1',
       expect.objectContaining({
         content: 'Before stop',
       })
     )
-    expect(mocks.updateStreaming).not.toHaveBeenCalledWith(
+    expect(throttledUpdateStreamingMessage).not.toHaveBeenCalledWith(
+      'session-1',
+      'message-1',
       expect.objectContaining({
         content: 'Before stop after stop',
       })
@@ -290,17 +297,10 @@ describe('useProviderStreaming', () => {
 
     expect(mocks.updateStreaming).toHaveBeenCalledWith(
       expect.objectContaining({
-        thinking: 'First thought. More thought.',
-        thinkingDuration: 500,
+        thinking: undefined,
+        thinkingDuration: undefined,
       })
     )
-    expect(streamResult.thinkingBlocks).toEqual([
-      expect.objectContaining({
-        type: 'thinking',
-        content: 'First thought. More thought.',
-        duration: 1500,
-      }),
-    ])
     expect(updateStreamingMessage).toHaveBeenCalledWith(
       'session-1',
       'message-reasoning-duration',
@@ -315,7 +315,26 @@ describe('useProviderStreaming', () => {
         ],
       })
     )
-
+    expect(mocks.updateStreaming).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        thinking: 'First thought. More thought.',
+        thinkingDuration: 500,
+      })
+    )
+    expect(updateStreamingMessage).toHaveBeenCalledWith(
+      'session-1',
+      'message-reasoning-duration',
+      expect.objectContaining({
+        content: 'Final answer.',
+      })
+    )
+    expect(streamResult.thinkingBlocks).toEqual([
+      expect.objectContaining({
+        type: 'thinking',
+        content: 'First thought. More thought.',
+        duration: 1500,
+      }),
+    ])
     performanceNowSpy.mockRestore()
   })
 

@@ -4,8 +4,8 @@ import type { ClassifiedWebInput } from './types'
 function sanitizeUrlToken(token: string): string {
   return token
     .trim()
-    .replace(/^[\[\]{}()<>"'`]+/, '')
-    .replace(/[\[\]{}()<>"'`,;:!?]+$/, '')
+    .replace(/^(?:\[|\]|\{|\}|\(|\)|<|>|"|'|`)+/, '')
+    .replace(/(?:\[|\]|\{|\}|\(|\)|<|>|"|'|`|,|;|:|!|\?)+$/, '')
 }
 
 export function normalizeUrlCandidate(value: string): string | null {

@@ -113,16 +113,6 @@ function renderMenu() {
   return utils
 }
 
-async function flushAppInfoEffect() {
-  // The component fires window.appInfo.get() inside a useEffect on mount.
-  // Awaiting two microtasks lets the promise resolve and React commit the state
-  // update inside an internal act() boundary, keeping logs clean.
-  await act(async () => {
-    await Promise.resolve()
-    await Promise.resolve()
-  })
-}
-
 beforeEach(() => {
   sonnerMocks.info.mockClear()
   sonnerMocks.success.mockClear()

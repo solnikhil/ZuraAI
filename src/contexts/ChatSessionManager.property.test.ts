@@ -13,13 +13,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import * as fc from 'fast-check'
-import {
-  ChatSessionManager,
-  type SessionMetadata,
-  type LoadedSession,
-  type SessionManagerConfig,
-} from './ChatSessionManager'
-import type { ChatSession, Message } from '../chat/types'
+import { ChatSessionManager } from './ChatSessionManager'
 
 // Helper to generate a valid Message
 const messageArbitrary = fc.record({

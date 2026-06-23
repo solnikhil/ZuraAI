@@ -131,58 +131,6 @@ function getLanguageMeta(language?: string): LanguageMeta {
     return { label: fallbackLabel }
 }
 
-function getNodeText(node: React.ReactNode): string {
-    if (typeof node === 'string' || typeof node === 'number') {
-        return String(node)
-    }
-
-    if (Array.isArray(node)) {
-        return node.map(getNodeText).join('')
-    }
-
-    if (React.isValidElement(node)) {
-        return getNodeText((node.props as { children?: React.ReactNode }).children)
-    }
-
-    return ''
-}
-
-export function shouldAnimateStreamingBlock(
-    content: string,
-    children: React.ReactNode,
-    isStreaming: boolean
-): boolean {
-    if (!isStreaming) return false
-
-    const normalizedContent = content.trimEnd()
-    const nodeText = getNodeText(children).trimEnd()
-    if (!normalizedContent || !nodeText) return false
-
-    return normalizedContent.endsWith(nodeText)
-}
-
-function getStreamingBlockMotionProps(
-    tag: string,
-    content: string,
-    children: React.ReactNode,
-    isStreaming: boolean,
-    className?: string
-): {
-    key?: string
-    className?: string
-    'data-streaming-tail'?: 'true'
-} {
-    if (!shouldAnimateStreamingBlock(content, children, isStreaming)) {
-        return { className }
-    }
-
-    return {
-        key: `stream-tail-${tag}-${content.length}`,
-        className: [className, 'markdown-streaming-tail'].filter(Boolean).join(' '),
-        'data-streaming-tail': 'true',
-    }
-}
-
 function hasMarkdownCodeBlock(node: React.ReactNode): boolean {
     if (!React.isValidElement(node)) return false
 
@@ -800,38 +748,14 @@ const MarkdownContent = React.memo(function MarkdownContent({ content, webSource
                 },
                 ul: ({ node: _node, ...props }: ExtraProps & React.HTMLAttributes<HTMLUListElement>) => <ul {...props} />,
                 ol: ({ node: _node, ...props }: ExtraProps & React.OlHTMLAttributes<HTMLOListElement>) => <ol {...props} />,
-                li: ({ node: _node, children, className, ...props }: ExtraProps & React.LiHTMLAttributes<HTMLLIElement>) => {
-                    const { key, ...motionProps } = getStreamingBlockMotionProps('li', content, children, isStreaming, className)
-                    return <li key={key} {...props} {...motionProps}>{children}</li>
-                },
-                h1: ({ node: _node, children, className, ...props }: ExtraProps & React.HTMLAttributes<HTMLHeadingElement>) => {
-                    const { key, ...motionProps } = getStreamingBlockMotionProps('h1', content, children, isStreaming, className)
-                    return <h1 key={key} {...props} {...motionProps}>{children}</h1>
-                },
-                h2: ({ node: _node, children, className, ...props }: ExtraProps & React.HTMLAttributes<HTMLHeadingElement>) => {
-                    const { key, ...motionProps } = getStreamingBlockMotionProps('h2', content, children, isStreaming, className)
-                    return <h2 key={key} {...props} {...motionProps}>{children}</h2>
-                },
-                h3: ({ node: _node, children, className, ...props }: ExtraProps & React.HTMLAttributes<HTMLHeadingElement>) => {
-                    const { key, ...motionProps } = getStreamingBlockMotionProps('h3', content, children, isStreaming, className)
-                    return <h3 key={key} {...props} {...motionProps}>{children}</h3>
-                },
-                h4: ({ node: _node, children, className, ...props }: ExtraProps & React.HTMLAttributes<HTMLHeadingElement>) => {
-                    const { key, ...motionProps } = getStreamingBlockMotionProps('h4', content, children, isStreaming, className)
-                    return <h4 key={key} {...props} {...motionProps}>{children}</h4>
-                },
-                h5: ({ node: _node, children, className, ...props }: ExtraProps & React.HTMLAttributes<HTMLHeadingElement>) => {
-                    const { key, ...motionProps } = getStreamingBlockMotionProps('h5', content, children, isStreaming, className)
-                    return <h5 key={key} {...props} {...motionProps}>{children}</h5>
-                },
-                h6: ({ node: _node, children, className, ...props }: ExtraProps & React.HTMLAttributes<HTMLHeadingElement>) => {
-                    const { key, ...motionProps } = getStreamingBlockMotionProps('h6', content, children, isStreaming, className)
-                    return <h6 key={key} {...props} {...motionProps}>{children}</h6>
-                },
-                p: ({ node: _node, children, className, ...props }: ExtraProps & React.HTMLAttributes<HTMLParagraphElement>) => {
-                    const { key, ...motionProps } = getStreamingBlockMotionProps('p', content, children, isStreaming, className)
-                    return <p key={key} {...props} {...motionProps}>{children}</p>
-                }
+                li: ({ node: _node, children, ...props }: ExtraProps & React.LiHTMLAttributes<HTMLLIElement>) => <li {...props}>{children}</li>,
+                h1: ({ node: _node, children, ...props }: ExtraProps & React.HTMLAttributes<HTMLHeadingElement>) => <h1 {...props}>{children}</h1>,
+                h2: ({ node: _node, children, ...props }: ExtraProps & React.HTMLAttributes<HTMLHeadingElement>) => <h2 {...props}>{children}</h2>,
+                h3: ({ node: _node, children, ...props }: ExtraProps & React.HTMLAttributes<HTMLHeadingElement>) => <h3 {...props}>{children}</h3>,
+                h4: ({ node: _node, children, ...props }: ExtraProps & React.HTMLAttributes<HTMLHeadingElement>) => <h4 {...props}>{children}</h4>,
+                h5: ({ node: _node, children, ...props }: ExtraProps & React.HTMLAttributes<HTMLHeadingElement>) => <h5 {...props}>{children}</h5>,
+                h6: ({ node: _node, children, ...props }: ExtraProps & React.HTMLAttributes<HTMLHeadingElement>) => <h6 {...props}>{children}</h6>,
+                p: ({ node: _node, children, ...props }: ExtraProps & React.HTMLAttributes<HTMLParagraphElement>) => <p {...props}>{children}</p>
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }), [copiedCode, isStreaming, content, SyntaxHighlighter, prismStyle, webSources, codeExecutionEnabled])
 
