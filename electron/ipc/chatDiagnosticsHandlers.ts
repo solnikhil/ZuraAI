@@ -6,6 +6,7 @@ import {
   readChatDiagnosticEvents,
   setChatDiagnosticBroadcaster,
 } from '../chatDiagnostics'
+import { consumePendingChatLinkRequests, peekPendingChatLinkRequests } from '../chatLinks'
 import { showChatDebugWindow } from '../windows/chatDebugWindow'
 import type { ChatDiagnosticEvent } from '../../src/diagnostics/chatDiagnostics'
 
@@ -39,6 +40,12 @@ export function registerChatDiagnosticsHandlers(): void {
     const window = showChatDebugWindow(sessionId)
     return window !== null
   })
+  ipcMain.handle('chat-links:consume-pending', async () => {
+    return consumePendingChatLinkRequests()
+  })
+  ipcMain.handle('chat-links:peek-pending', async () => {
+    return peekPendingChatLinkRequests()
+  })
 
   setChatDiagnosticBroadcaster(broadcastChatDiagnosticEvent)
 }
@@ -48,5 +55,7 @@ export function unregisterChatDiagnosticsHandlers(): void {
   ipcMain.removeHandler('chat-diagnostics:get-debug-reference')
   ipcMain.removeHandler('chat-diagnostics:list-events')
   ipcMain.removeHandler('chat-debug-window:open')
+  ipcMain.removeHandler('chat-links:consume-pending')
+  ipcMain.removeHandler('chat-links:peek-pending')
   setChatDiagnosticBroadcaster(null)
 }

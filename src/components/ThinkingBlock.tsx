@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronRight, Loader2, Search, Wrench } from './icons'
+import { ChevronRight, Search, Wrench } from './icons'
 import './ThinkingBlock.css'
 import { ThinkingBlock as ThinkingBlockType } from '../contexts/ChatHistoryContext'
 import AITextLoading from './AITextLoading'
@@ -168,6 +168,11 @@ function getCompletedToolStatus(
 
   if (toolOutput?.success) {
     return { label: 'Completed', tone: 'success' }
+  }
+
+  const skippedReason = (metadata as any)?.skippedReason
+  if (toolName === 'web_search' && skippedReason === 'budget') {
+    return { label: 'Budget reached', tone: 'warning' }
   }
 
   if (toolOutput?.error) {
@@ -938,6 +943,7 @@ export default function ThinkingBlock({
     hasActiveToolCalls &&
     activeSearchToolCalls.length > 0 &&
     activeSearchToolCalls.length === activeToolCalls.length
+  const hasActiveSearches = activeSearchToolCalls.length > 0
   const activeSearchBatchQueries = isActiveSearchBatch
     ? activeSearchToolCalls
         .map((toolCall) => String(toolCall.arguments?.query || '').trim())
@@ -981,7 +987,7 @@ export default function ThinkingBlock({
         <div className="thinking-block">
           {showSourcingHeader && (
           <div
-            className={`thinking-header ${hasActiveToolCalls ? 'tool-calling' : (isSearching && showSourcingHeader) ? 'searching' : ''} ${showSearchBatchDetails ? 'search-batch' : ''}`}
+            className={`thinking-header ${hasActiveToolCalls ? (hasActiveSearches ? 'searching' : 'tool-calling') : (isSearching && showSourcingHeader) ? 'searching' : ''} ${showSearchBatchDetails ? 'search-batch' : ''}`}
             onClick={handleHeaderClick}
           >
             <div className="thinking-label">
@@ -991,8 +997,8 @@ export default function ThinkingBlock({
                   className="thinking-text thinking-tool-calling"
                 >
                   <span className="thinking-tool-calling-icon">
-                    {activeToolCalls[0]?.name === 'web_search' ? (
-                      <Loader2 size={14} className="tool-call-spinner" />
+                    {hasActiveSearches ? (
+                      <Search size={14} />
                     ) : activeToolCalls[0]?.name === 'system_shell' ? (
                       <span className="thinking-cmd-blob thinking-cmd-blob--running" />
                     ) : (
@@ -1010,7 +1016,7 @@ export default function ThinkingBlock({
                               ? 'Running a command…'
                               : `Running ${shellCount} commands…`
                           })()
-                        : isActiveSearchBatch
+                        : hasActiveSearches
                           ? searchingText
                           : getToolCallHeaderText(activeToolCalls)
                     }
@@ -1044,8 +1050,8 @@ export default function ThinkingBlock({
                     <AITextLoading
                       text={
                         activeThinkingSeconds === null
-                          ? 'Thought For a Moment'
-                          : `Thought For ${activeThinkingSeconds.toFixed(1)} Seconds`
+                          ? 'Thought for a moment'
+                          : `Thought for ${activeThinkingSeconds.toFixed(1)} seconds`
                       }
                       animationKey="completed"
                     />

@@ -36,7 +36,7 @@ describe('useResearchMode', () => {
     expect(perplexityConfig.forceWebSearch).toBe(false)
   })
 
-  it('keeps follow-up search guidance open after multiple searches in uncapped mode', () => {
+  it('keeps follow-up search guidance focused on named gaps after multiple searches', () => {
     const { result } = renderHook(() =>
       useResearchMode({
         canUseTools: true,
@@ -49,10 +49,13 @@ describe('useResearchMode', () => {
 
     const prompt = result.current.getResearchContext(3, 0)
 
-    expect(prompt).toContain('You have completed 3 of 8 targeted search(es)')
-    expect(prompt).toContain('what is already answered by evidence')
+    expect(prompt).toContain('You have already searched 3 time(s)')
+    expect(prompt).toContain('named critical gap')
+    expect(prompt).toContain('If you cannot name that gap, synthesize instead')
+    expect(prompt).toContain('do not continue just because more searches are possible')
     expect(prompt).toContain('same assistant turn so they run as one parallel batch')
     expect(prompt).toContain('one query per requested year for multi-year data')
+    expect(prompt).not.toContain('search(es) remain')
     expect(prompt).not.toContain('Do not call web_search again')
   })
 })

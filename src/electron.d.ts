@@ -4,6 +4,7 @@ import type {
   AnalyticsAPI,
   ChatDebugAPI,
   ChatDiagnosticsAPI,
+  ChatLinksAPI,
   CodeExecutionAPI,
   ComputerUseAPI,
   ContextMenuAPI,
@@ -45,6 +46,7 @@ declare global {
     computerUse: ComputerUseAPI
     chatDiagnostics?: ChatDiagnosticsAPI
     chatDebug?: ChatDebugAPI
+    chatLinks?: ChatLinksAPI
     discordRpc: DiscordRpcAPI
     emailNotifications: EmailNotificationsAPI
   }

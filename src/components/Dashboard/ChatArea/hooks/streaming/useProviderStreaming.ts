@@ -1232,9 +1232,15 @@ export function useProviderStreaming({
             initialDecision: initialLoopDecision.reason || 'continue',
           })
 
+          // Only force final synthesis for reasons other than budget.
+          // Budget is now surfaced as a normal (synthetic) tool result so the model
+          // can see it like any other web_search outcome and the loop isn't interrupted.
+          const forceFinalForInitial = initialLoopDecision.shouldForceFinalSynthesis &&
+            initialLoopDecision.reason !== 'budget'
+
           const shouldStopAfterInitialBatch =
             !initialHasNonWebTools &&
-            initialLoopDecision.shouldForceFinalSynthesis
+            forceFinalForInitial
 
           if (
             shouldStopAfterInitialBatch &&
@@ -1404,6 +1410,9 @@ export function useProviderStreaming({
               }
             )
             throwIfAborted()
+            if (!nextToolResult || !nextToolResult.toolResults) {
+              break
+            }
             const wasVerificationRound = Boolean(activeVerificationStrategy)
             const verificationSucceeded =
               wasVerificationRound &&
@@ -1499,7 +1508,8 @@ export function useProviderStreaming({
 
             const shouldStopAfterFollowUpBatch =
               !hasNonWebTools &&
-              continuationDecision.shouldForceFinalSynthesis
+              continuationDecision.shouldForceFinalSynthesis &&
+              continuationDecision.reason !== 'budget'
 
             if (
               shouldStopAfterFollowUpBatch &&

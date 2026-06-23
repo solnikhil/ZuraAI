@@ -12,14 +12,18 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { PNG } from 'pngjs';
+import { imagesToIco } from 'png-to-ico';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
 
 const SOURCE_PNG = resolve(ROOT, 'public/icon.png');
+const SOURCE_MARK_PNG = resolve(ROOT, 'public/icon-mark.png');
 const OUTPUT_DIR = resolve(ROOT, 'build');
 const OUTPUT_ICO = resolve(OUTPUT_DIR, 'icon.ico');
 const OUTPUT_SIDEBAR = resolve(OUTPUT_DIR, 'sidebar.bmp');
+const ICON_SIZES = [256, 128, 64, 48, 32, 24, 16];
 
 // --- Dark theme palette (Catppuccin Mocha inspired) ---
 const COLORS = {
@@ -34,6 +38,180 @@ const COLORS = {
  */
 function lerp(a, b, t) {
   return Math.round(a + (b - a) * t);
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function smoothstep(edge0, edge1, value) {
+  const t = clamp((value - edge0) / (edge1 - edge0), 0, 1);
+  return t * t * (3 - 2 * t);
+}
+
+function getAlphaBounds(png) {
+  let minX = png.width;
+  let minY = png.height;
+  let maxX = -1;
+  let maxY = -1;
+
+  for (let y = 0; y < png.height; y++) {
+    for (let x = 0; x < png.width; x++) {
+      const alpha = png.data[(y * png.width + x) * 4 + 3];
+      if (alpha > 0) {
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x);
+        maxY = Math.max(maxY, y);
+      }
+    }
+  }
+
+  if (maxX < minX || maxY < minY) {
+    return { x: 0, y: 0, width: png.width, height: png.height };
+  }
+
+  return { x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1 };
+}
+
+function sampleBilinear(png, x, y) {
+  const x0 = clamp(Math.floor(x), 0, png.width - 1);
+  const y0 = clamp(Math.floor(y), 0, png.height - 1);
+  const x1 = clamp(x0 + 1, 0, png.width - 1);
+  const y1 = clamp(y0 + 1, 0, png.height - 1);
+  const tx = x - x0;
+  const ty = y - y0;
+
+  const read = (px, py, channel) => png.data[(py * png.width + px) * 4 + channel];
+  const out = [0, 0, 0, 0];
+
+  for (let channel = 0; channel < 4; channel++) {
+    const top = lerp(read(x0, y0, channel), read(x1, y0, channel), tx);
+    const bottom = lerp(read(x0, y1, channel), read(x1, y1, channel), tx);
+    out[channel] = lerp(top, bottom, ty);
+  }
+
+  return out;
+}
+
+function blendPixel(target, x, y, color) {
+  if (x < 0 || y < 0 || x >= target.width || y >= target.height) return;
+
+  const index = (y * target.width + x) * 4;
+  const srcAlpha = color[3] / 255;
+  if (srcAlpha <= 0) return;
+
+  const dstAlpha = target.data[index + 3] / 255;
+  const outAlpha = srcAlpha + dstAlpha * (1 - srcAlpha);
+  if (outAlpha <= 0) return;
+
+  for (let channel = 0; channel < 3; channel++) {
+    const src = color[channel] / 255;
+    const dst = target.data[index + channel] / 255;
+    target.data[index + channel] = Math.round(((src * srcAlpha) + (dst * dstAlpha * (1 - srcAlpha))) / outAlpha * 255);
+  }
+  target.data[index + 3] = Math.round(outAlpha * 255);
+}
+
+function drawRoundedTile(png) {
+  const size = png.width;
+  const inset = size >= 128 ? Math.round(size * 0.015) : 0;
+  const radius = size * 0.22;
+  const top = [0x4a, 0x4d, 0x57];
+  const bottom = [0x1d, 0x20, 0x27];
+  const rim = [0x63, 0x66, 0x70];
+
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const px = x + 0.5;
+      const py = y + 0.5;
+      const left = inset;
+      const topEdge = inset;
+      const right = size - inset;
+      const bottomEdge = size - inset;
+      const cx = clamp(px, left + radius, right - radius);
+      const cy = clamp(py, topEdge + radius, bottomEdge - radius);
+      const dist = Math.hypot(px - cx, py - cy) - radius;
+      const alpha = Math.round((1 - smoothstep(-0.75, 0.75, dist)) * 255);
+      if (alpha <= 0) continue;
+
+      const t = y / Math.max(size - 1, 1);
+      const shade = [
+        lerp(top[0], bottom[0], t),
+        lerp(top[1], bottom[1], t),
+        lerp(top[2], bottom[2], t),
+      ];
+      const rimMix = dist > -Math.max(1.2, size * 0.018) ? 0.35 : 0;
+      const color = [
+        lerp(shade[0], rim[0], rimMix),
+        lerp(shade[1], rim[1], rimMix),
+        lerp(shade[2], rim[2], rimMix),
+        alpha,
+      ];
+
+      blendPixel(png, x, y, color);
+    }
+  }
+}
+
+function drawShadow(target, source, bounds, destX, destY, destW, destH, blurOffset, opacity) {
+  const passes = [
+    { dx: 0, dy: blurOffset, scale: 1, alpha: opacity },
+    { dx: 0, dy: blurOffset * 0.5, scale: 1.035, alpha: opacity * 0.55 },
+  ];
+
+  for (const pass of passes) {
+    const w = destW * pass.scale;
+    const h = destH * pass.scale;
+    const x0 = destX - (w - destW) / 2 + pass.dx;
+    const y0 = destY - (h - destH) / 2 + pass.dy;
+    drawResizedImage(target, source, bounds, x0, y0, w, h, [0, 0, 0], pass.alpha);
+  }
+}
+
+function drawResizedImage(target, source, bounds, destX, destY, destW, destH, tint = null, opacity = 1) {
+  const startX = Math.floor(destX);
+  const startY = Math.floor(destY);
+  const endX = Math.ceil(destX + destW);
+  const endY = Math.ceil(destY + destH);
+
+  for (let y = startY; y < endY; y++) {
+    for (let x = startX; x < endX; x++) {
+      const u = (x + 0.5 - destX) / destW;
+      const v = (y + 0.5 - destY) / destH;
+      if (u < 0 || u > 1 || v < 0 || v > 1) continue;
+
+      const sampleX = bounds.x + u * (bounds.width - 1);
+      const sampleY = bounds.y + v * (bounds.height - 1);
+      const color = sampleBilinear(source, sampleX, sampleY);
+      if (tint) {
+        color[0] = tint[0];
+        color[1] = tint[1];
+        color[2] = tint[2];
+      }
+      color[3] = Math.round(color[3] * opacity);
+      blendPixel(target, x, y, color);
+    }
+  }
+}
+
+function createIconLayer(markPng, size) {
+  const png = new PNG({ width: size, height: size });
+  drawRoundedTile(png);
+
+  const bounds = getAlphaBounds(markPng);
+  const markHeightRatio = size <= 32 ? 0.68 : 0.64;
+  const markHeight = size * markHeightRatio;
+  const markWidth = markHeight * (bounds.width / bounds.height);
+  const destX = (size - markWidth) / 2;
+  const destY = (size - markHeight) / 2 + size * 0.015;
+
+  if (size >= 32) {
+    drawShadow(png, markPng, bounds, destX, destY, markWidth, markHeight, Math.max(1, size * 0.025), 0.3);
+  }
+  drawResizedImage(png, markPng, bounds, destX, destY, markWidth, markHeight);
+
+  return png;
 }
 
 /**
@@ -162,14 +340,19 @@ async function main() {
     process.exit(1);
   }
 
+  if (!existsSync(SOURCE_MARK_PNG)) {
+    console.error(`Source mark PNG not found: ${SOURCE_MARK_PNG}`);
+    process.exit(1);
+  }
+
   if (!existsSync(OUTPUT_DIR)) {
     mkdirSync(OUTPUT_DIR, { recursive: true });
   }
 
-  // 1. Generate .ico from PNG
-  const pngToIco = (await import('png-to-ico')).default;
-  const pngBuffer = readFileSync(SOURCE_PNG);
-  const icoBuffer = await pngToIco(pngBuffer);
+  // 1. Generate .ico layers tuned for Windows shell sizes.
+  const markPng = PNG.sync.read(readFileSync(SOURCE_MARK_PNG));
+  const iconImages = ICON_SIZES.map((size) => createIconLayer(markPng, size));
+  const icoBuffer = imagesToIco(iconImages);
   writeFileSync(OUTPUT_ICO, icoBuffer);
   console.log(`  icon  -> ${OUTPUT_ICO}`);
 

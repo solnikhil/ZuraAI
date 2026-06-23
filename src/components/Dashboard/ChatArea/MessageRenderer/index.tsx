@@ -134,12 +134,20 @@ function MessageRendererComponent({
   )
   const hasProcessedDisplayContent = processedDisplayContent.trim().length > 0
   const hasActiveThinkingState =
-    hasThinking || showThinkingSpinner || Boolean(message.researchStatus?.isSearching) || hasActiveToolCalls
+    hasThinking ||
+    showThinkingSpinner ||
+    Boolean(message.researchStatus?.isSearching) ||
+    hasActiveToolCalls
   const showThinkingBlock = completedBlocks.length > 0 || hasActiveThinkingState
   const shouldRenderDisplayContent =
-    (!isStreaming || hasContentDuringStreaming || completedBlocks.length > 0 || message.researchStatus) &&
+    (!isStreaming ||
+      hasContentDuringStreaming ||
+      completedBlocks.length > 0 ||
+      message.researchStatus) &&
     hasProcessedDisplayContent
-  const shouldPrioritizeStreamingContent = isStreaming && shouldRenderDisplayContent
+  const isAnsweringPhase = streamPhase === 'answering'
+  const shouldPrioritizeStreamingContent =
+    isStreaming && shouldRenderDisplayContent && !isAnsweringPhase
 
   const renderDisplayContent = () => (
     <div className="markdown-content">
@@ -231,10 +239,7 @@ function MessageRendererComponent({
       Boolean(message.toolResults))
 
   const shouldShowActionRow =
-    !isStreaming &&
-    (hasDisplayContent ||
-      totalVersions > 0 ||
-      shouldShowInfoTooltip)
+    !isStreaming && (hasDisplayContent || totalVersions > 0 || shouldShowInfoTooltip)
 
   return (
     <div
@@ -259,7 +264,8 @@ function MessageRendererComponent({
         <div
           style={{
             marginTop: shouldPrioritizeStreamingContent ? '8px' : 0,
-            marginBottom: !shouldPrioritizeStreamingContent && hasProcessedDisplayContent ? '8px' : 0,
+            marginBottom:
+              !shouldPrioritizeStreamingContent && hasProcessedDisplayContent ? '8px' : 0,
           }}
         >
           <ThinkingBlockComponent
@@ -306,9 +312,7 @@ function MessageRendererComponent({
             reasoningEffort: (() => {
               // DeepSeek: surface the per-model reasoning effort when that model
               // has reasoning enabled and effort is not 'none'. Keyed by model code.
-              const reasoning = message.model
-                ? getDeepseekReasoning(settings, message.model)
-                : null
+              const reasoning = message.model ? getDeepseekReasoning(settings, message.model) : null
               if (reasoning?.enabled && reasoning?.effort !== 'none') {
                 return reasoning.effort
               }

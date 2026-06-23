@@ -352,7 +352,7 @@ export async function processToolCalls(
       if (remainingWebSearchBudget <= 0) {
         const budgetResult = createSyntheticToolResult(
           coercedToolCall,
-          'Skipped web_search call because the per-response search budget has been reached. Synthesize from the evidence already gathered.',
+          'Web search budget for this response has been reached. No additional results.',
           'budget'
         )
         config.onToolStart?.(coercedToolCall)

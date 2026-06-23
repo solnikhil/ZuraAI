@@ -33,14 +33,23 @@
     color: var(--theme-info, rgba(59, 130, 246, 0.85));
 }
 
+/* Completed tool/search rows match regular completed styling for uniformity */
+.thinking-block.completed .thinking-header.tool-call {
+    opacity: 0.6;
+}
+
 .thinking-block.completed.thinking-tool-call .thinking-header.tool-call .thinking-text {
-    color: rgba(255, 255, 255, 0.55);
+    color: rgba(255, 255, 255, 0.5);
 }
 
 /* Typography-focused web search completed row (no icon) */
 .search-query {
-    font-weight: 500;
-    color: rgba(255, 255, 255, 0.75);
+    font-weight: 400;
+    color: inherit;
+}
+
+.thinking-block.completed .search-query {
+    color: rgba(255, 255, 255, 0.5);
 }
 
 .search-count {
@@ -115,6 +124,7 @@
     font-weight: 600;
     line-height: 1.2;
     margin-left: 6px;
+    margin-top: 1px;
     border: 1px solid transparent;
 }
 
@@ -184,6 +194,7 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
+    flex-wrap: wrap;
     font-size: 14px;
     font-weight: 400;
     color: rgba(255, 255, 255, 0.7);

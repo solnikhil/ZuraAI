@@ -90,6 +90,8 @@ const INVOKE_CHANNELS = new Set<IpcInvokeChannel>([
   'chat-diagnostics:get-debug-reference',
   'chat-diagnostics:list-events',
   'chat-debug-window:open',
+  'chat-links:consume-pending',
+  'chat-links:peek-pending',
 
   // Secure storage
   'secure-storage:get',
@@ -122,6 +124,7 @@ const ON_CHANNELS = new Set<IpcOnChannel>([
   'chat-store:changed',
   'context-menu:action',
   'chat-diagnostics:event',
+  'chat-links:message',
 ])
 
 const MCP_INVOKE_CHANNELS = new Set<string>([
@@ -177,7 +180,10 @@ const SCHEDULED_TASKS_INVOKE_CHANNELS = new Set<string>([
   'scheduled-tasks:resolve-summary',
 ])
 
-const SCHEDULED_TASKS_ON_CHANNELS = new Set<string>(['scheduled-tasks:changed', 'scheduled-tasks:summary-request'])
+const SCHEDULED_TASKS_ON_CHANNELS = new Set<string>([
+  'scheduled-tasks:changed',
+  'scheduled-tasks:summary-request',
+])
 
 const ANALYTICS_INVOKE_CHANNELS = new Set<string>([
   'analytics:get-state',
@@ -217,7 +223,10 @@ contextBridge.exposeInMainWorld(
       assertAllowed('off', channel, ON_CHANNELS)
       ipcRenderer.off(channel, listener)
     },
-    send: <TChannel extends IpcSendChannel>(channel: TChannel, ...args: IpcSendArgsMap[TChannel]) => {
+    send: <TChannel extends IpcSendChannel>(
+      channel: TChannel,
+      ...args: IpcSendArgsMap[TChannel]
+    ) => {
       assertAllowed('send', channel, SEND_CHANNELS)
       ipcRenderer.send(channel, ...args)
     },
@@ -418,7 +427,8 @@ contextBridge.exposeInMainWorld(
     },
     onSummaryRequest: (callback: (request: ScheduledTaskSummaryRequest) => void) => {
       assertAllowed('on', 'scheduled-tasks:summary-request', SCHEDULED_TASKS_ON_CHANNELS)
-      const listener = (_event: IpcRendererEvent, request: ScheduledTaskSummaryRequest) => callback(request)
+      const listener = (_event: IpcRendererEvent, request: ScheduledTaskSummaryRequest) =>
+        callback(request)
       ipcRenderer.on('scheduled-tasks:summary-request', listener)
       return () => ipcRenderer.removeListener('scheduled-tasks:summary-request', listener)
     },
@@ -434,7 +444,10 @@ contextBridge.exposeInMainWorld(
     },
     setEnabled: (enabled: boolean) => {
       assertAllowed('invoke', 'analytics:set-enabled', ANALYTICS_INVOKE_CHANNELS)
-      return ipcRenderer.invoke('analytics:set-enabled', enabled === true) as Promise<AnalyticsState>
+      return ipcRenderer.invoke(
+        'analytics:set-enabled',
+        enabled === true
+      ) as Promise<AnalyticsState>
     },
     track: (eventName: AnalyticsEventName, properties?: AnalyticsProperties) => {
       assertAllowed('invoke', 'analytics:track', ANALYTICS_INVOKE_CHANNELS)
@@ -447,12 +460,22 @@ contextBridge.exposeInMainWorld(
   'emailNotifications',
   Object.freeze({
     applySettings: (settings: EmailNotificationSettings) => {
-      assertAllowed('invoke', 'email-notifications:apply-settings', EMAIL_NOTIFICATIONS_INVOKE_CHANNELS)
-      return ipcRenderer.invoke('email-notifications:apply-settings', settings) as Promise<EmailNotificationSettings>
+      assertAllowed(
+        'invoke',
+        'email-notifications:apply-settings',
+        EMAIL_NOTIFICATIONS_INVOKE_CHANNELS
+      )
+      return ipcRenderer.invoke(
+        'email-notifications:apply-settings',
+        settings
+      ) as Promise<EmailNotificationSettings>
     },
     sendTest: () => {
       assertAllowed('invoke', 'email-notifications:send-test', EMAIL_NOTIFICATIONS_INVOKE_CHANNELS)
-      return ipcRenderer.invoke('email-notifications:send-test') as Promise<{ ok: boolean; error?: string }>
+      return ipcRenderer.invoke('email-notifications:send-test') as Promise<{
+        ok: boolean
+        error?: string
+      }>
     },
   })
 )
@@ -478,7 +501,8 @@ contextBridge.exposeInMainWorld(
     resolveApproval: (requestId: string, approved: boolean) =>
       ipcRenderer.invoke('code-execution:resolve-approval', requestId, approved),
     onPendingApproval: (callback: (pending: PendingCodeApproval[]) => void) => {
-      const listener = (_event: IpcRendererEvent, pending: PendingCodeApproval[]) => callback(pending)
+      const listener = (_event: IpcRendererEvent, pending: PendingCodeApproval[]) =>
+        callback(pending)
       ipcRenderer.on('code-execution:pending-approval', listener)
       return () => ipcRenderer.removeListener('code-execution:pending-approval', listener)
     },
@@ -491,13 +515,13 @@ contextBridge.exposeInMainWorld(
     resolveApproval: (requestId: string, approved: boolean) =>
       ipcRenderer.invoke('terminal:resolve-approval', requestId, approved),
     onPendingApproval: (callback: (pending: PendingTerminalApproval[]) => void) => {
-      const listener = (_event: IpcRendererEvent, pending: PendingTerminalApproval[]) => callback(pending)
+      const listener = (_event: IpcRendererEvent, pending: PendingTerminalApproval[]) =>
+        callback(pending)
       ipcRenderer.on('terminal:pending-approval', listener)
       return () => ipcRenderer.removeListener('terminal:pending-approval', listener)
     },
   })
 )
-
 
 contextBridge.exposeInMainWorld(
   'chatDiagnostics',
@@ -521,12 +545,37 @@ contextBridge.exposeInMainWorld(
 )
 
 contextBridge.exposeInMainWorld(
+  'chatLinks',
+  Object.freeze({
+    consumePending: () =>
+      ipcRenderer.invoke('chat-links:consume-pending') as Promise<
+        import('../src/electron/types').ExternalChatMessageRequest[]
+      >,
+    peekPending: () =>
+      ipcRenderer.invoke('chat-links:peek-pending') as Promise<
+        import('../src/electron/types').ExternalChatMessageRequest[]
+      >,
+    onMessage: (
+      callback: (request: import('../src/electron/types').ExternalChatMessageRequest) => void
+    ) => {
+      const listener = (
+        _event: IpcRendererEvent,
+        request: import('../src/electron/types').ExternalChatMessageRequest
+      ) => callback(request)
+      ipcRenderer.on('chat-links:message', listener)
+      return () => ipcRenderer.removeListener('chat-links:message', listener)
+    },
+  })
+)
+
+contextBridge.exposeInMainWorld(
   'computerUse',
   Object.freeze({
     resolveApproval: (requestId: string, approved: boolean) =>
       ipcRenderer.invoke('computer-use:resolve-approval', requestId, approved),
     onPendingApproval: (callback: (pending: PendingComputerAction[]) => void) => {
-      const listener = (_event: IpcRendererEvent, pending: PendingComputerAction[]) => callback(pending)
+      const listener = (_event: IpcRendererEvent, pending: PendingComputerAction[]) =>
+        callback(pending)
       ipcRenderer.on('computer-use:pending-approval', listener)
       return () => ipcRenderer.removeListener('computer-use:pending-approval', listener)
     },
@@ -670,7 +719,11 @@ contextBridge.exposeInMainWorld(
     },
     readResource: (serverId: string, uri: string) => {
       assertAllowed('invoke', 'mcp:read-resource', MCP_INVOKE_CHANNELS)
-      return ipcRenderer.invoke('mcp:read-resource', serverId, uri) as Promise<McpResourceReadResult>
+      return ipcRenderer.invoke(
+        'mcp:read-resource',
+        serverId,
+        uri
+      ) as Promise<McpResourceReadResult>
     },
     listPrompts: (serverId?: string) => {
       assertAllowed('invoke', 'mcp:list-prompts', MCP_INVOKE_CHANNELS)
@@ -678,15 +731,28 @@ contextBridge.exposeInMainWorld(
     },
     getPrompt: (serverId: string, promptName: string, args: Record<string, unknown>) => {
       assertAllowed('invoke', 'mcp:get-prompt', MCP_INVOKE_CHANNELS)
-      return ipcRenderer.invoke('mcp:get-prompt', serverId, promptName, args) as Promise<McpPromptResult>
+      return ipcRenderer.invoke(
+        'mcp:get-prompt',
+        serverId,
+        promptName,
+        args
+      ) as Promise<McpPromptResult>
     },
     executeTool: (namespacedToolName: string, args: Record<string, unknown>) => {
       assertAllowed('invoke', 'mcp:execute-tool', MCP_INVOKE_CHANNELS)
-      return ipcRenderer.invoke('mcp:execute-tool', namespacedToolName, args) as Promise<McpToolExecutionResult>
+      return ipcRenderer.invoke(
+        'mcp:execute-tool',
+        namespacedToolName,
+        args
+      ) as Promise<McpToolExecutionResult>
     },
     resolveApproval: (requestId: string, approved: boolean) => {
       assertAllowed('invoke', 'mcp:resolve-approval', MCP_INVOKE_CHANNELS)
-      return ipcRenderer.invoke('mcp:resolve-approval', requestId, approved) as Promise<McpApprovalDecision>
+      return ipcRenderer.invoke(
+        'mcp:resolve-approval',
+        requestId,
+        approved
+      ) as Promise<McpApprovalDecision>
     },
     onStateChange: (callback: (snapshot: McpRuntimeSnapshot) => void) => {
       assertAllowed('on', 'mcp:state-changed', MCP_ON_CHANNELS)

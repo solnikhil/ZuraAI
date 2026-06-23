@@ -343,9 +343,9 @@ describe('ThinkingBlock behavior', () => {
       />
     )
 
-    expect(screen.getByText('Thought For 9.0 Seconds')).toBeInTheDocument()
+    expect(screen.getByText('Thought for 9.0 seconds')).toBeInTheDocument()
     expect(screen.queryByText('Sourcing the web · 4 queries')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByText('Thought For 9.0 Seconds'))
+    fireEvent.click(screen.getByText('Thought for 9.0 seconds'))
     expect(screen.getByText('Synthesizing the search results into an answer.')).toBeInTheDocument()
   })
 

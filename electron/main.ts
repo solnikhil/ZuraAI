@@ -52,6 +52,7 @@ import {
 } from './discordRpc'
 import { trackAppCrash, trackStartupAnalytics } from './analytics'
 import { startMonitorRuntime, stopMonitorRuntime } from './monitors'
+import { handleZuraChatMessageUrl, registerZuraChatProtocolHandlers } from './chatLinks'
 import { log } from './startup/logger'
 
 // Resolve packaged asset paths consistently in both development and production.
@@ -61,13 +62,18 @@ process.env.PUBLIC = app.isPackaged ? DIST_PATH : path.join(__dirname, '../publi
 
 app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion')
 
-
-
 const WINDOWS_APP_ID = 'in.zuraai.desktop'
 const APP_NAME = 'ZuraAI'
 const IS_MACOS = process.platform === 'darwin'
 let isAwaitingMcpShutdown = false
 let hasCompletedMcpShutdown = false
+const hasSingleInstanceLock = app.requestSingleInstanceLock()
+
+if (!hasSingleInstanceLock) {
+  app.quit()
+} else {
+  registerZuraChatProtocolHandlers()
+}
 
 process.on('uncaughtException', (error) => {
   trackAppCrash({
@@ -188,94 +194,103 @@ app.on('before-quit', (event) => {
     })
 })
 
-app.whenReady().then(async () => {
-  log.banner(app.getVersion())
-  log.startPhase('app-ready')
-  deferredInitializer.markAppReady()
-  log.endPhase('app-ready')
+if (hasSingleInstanceLock) {
+  app.whenReady().then(async () => {
+    log.banner(app.getVersion())
+    log.startPhase('app-ready')
+    deferredInitializer.markAppReady()
+    log.endPhase('app-ready')
 
-  // Defer DevTools installation in development mode (2000ms after window visible)
-  // Skip entirely in production builds
-  if (!app.isPackaged) {
-    deferredInitializer.registerTask({
-      name: 'devtools-install',
-      priority: 'low',
-      delayMs: 2000,
-      execute: async () => {
-        try {
-          const name = await installExtension(REACT_DEVELOPER_TOOLS)
-          log.success(`devtools installed: ${name}`)
-        } catch (err) {
-          log.warn(`devtools install skipped: ${err instanceof Error ? err.message : String(err)}`)
-        }
+    // Defer DevTools installation in development mode (2000ms after window visible)
+    // Skip entirely in production builds
+    if (!app.isPackaged) {
+      deferredInitializer.registerTask({
+        name: 'devtools-install',
+        priority: 'low',
+        delayMs: 2000,
+        execute: async () => {
+          try {
+            const name = await installExtension(REACT_DEVELOPER_TOOLS)
+            log.success(`devtools installed: ${name}`)
+          } catch (err) {
+            log.warn(
+              `devtools install skipped: ${err instanceof Error ? err.message : String(err)}`
+            )
+          }
+        },
+      })
+    }
+
+    // Register every preload-exposed IPC surface before the window is created.
+    log.startPhase('ipc-handlers')
+    registerAllHandlers()
+    registerMcpHandlers()
+    registerToolHandlers()
+    registerUpdaterHandlers(getMainWindow)
+    setShutdownHook(() => shutdownMcpManager())
+    registerCodeExecutionHandlers()
+    registerTerminalHandlers()
+    registerDiscordRpcHandlers(getMainWindow)
+    if (!IS_MACOS) {
+      registerComputerUseHandlers()
+    }
+    registerSessionSecurityHandlers()
+    log.endPhase('ipc-handlers')
+
+    log.startPhase('mcp-init')
+    await initializeMcpManager({
+      autoConnect: true,
+      clientInfo: {
+        name: APP_NAME,
+        version: app.getVersion(),
       },
     })
-  }
+    log.endPhase('mcp-init')
+    deferredInitializer.markIPCReady()
 
-  // Register every preload-exposed IPC surface before the window is created.
-  log.startPhase('ipc-handlers')
-  registerAllHandlers()
-  registerMcpHandlers()
-  registerToolHandlers()
-  registerUpdaterHandlers(getMainWindow)
-  setShutdownHook(() => shutdownMcpManager())
-  registerCodeExecutionHandlers()
-  registerTerminalHandlers()
-  registerDiscordRpcHandlers(getMainWindow)
-  if (!IS_MACOS) {
-    registerComputerUseHandlers()
-  }
-  registerSessionSecurityHandlers()
-  log.endPhase('ipc-handlers')
+    createApplicationMenu()
+    applyDevelopmentAppIcon()
 
-  log.startPhase('mcp-init')
-  await initializeMcpManager({
-    autoConnect: true,
-    clientInfo: {
-      name: APP_NAME,
-      version: app.getVersion(),
-    },
+    log.startPhase('overlay')
+    initializeOverlay()
+    applyOverlaySettings({})
+    log.endPhase('overlay')
+
+    deferredInitializer.registerTask({
+      name: 'scheduled-tasks',
+      priority: 'high',
+      delayMs: 1000,
+      execute: async () => {
+        await startMonitorRuntime()
+        log.success('scheduled tasks initialized')
+      },
+    })
+
+    // Defer auto-updater initialization (only in production)
+    // The updater itself adds an additional 10-second delay before checking
+    deferredInitializer.registerTask({
+      name: 'auto-updater',
+      priority: 'low',
+      delayMs: 0, // Start immediately after window visible, updater adds its own 10s delay
+      execute: async () => {
+        initializeAutoUpdater(getMainWindow)
+        log.success('auto-updater initialized')
+      },
+    })
+
+    log.startPhase('tray')
+    createTray()
+    log.endPhase('tray')
+
+    log.startPhase('main-window')
+    createMainWindow()
+    log.endPhase('main-window')
+
+    const initialChatLink = process.argv.find((arg) => arg.startsWith('zura-chat://'))
+    if (initialChatLink) {
+      handleZuraChatMessageUrl(initialChatLink)
+    }
+
+    void trackStartupAnalytics()
   })
-  log.endPhase('mcp-init')
-  deferredInitializer.markIPCReady()
-
-  createApplicationMenu()
-  applyDevelopmentAppIcon()
-
-  log.startPhase('overlay')
-  initializeOverlay()
-  applyOverlaySettings({})
-  log.endPhase('overlay')
-
-  deferredInitializer.registerTask({
-    name: 'scheduled-tasks',
-    priority: 'high',
-    delayMs: 1000,
-    execute: async () => {
-      await startMonitorRuntime()
-      log.success('scheduled tasks initialized')
-    },
-  })
-
-  // Defer auto-updater initialization (only in production)
-  // The updater itself adds an additional 10-second delay before checking
-  deferredInitializer.registerTask({
-    name: 'auto-updater',
-    priority: 'low',
-    delayMs: 0, // Start immediately after window visible, updater adds its own 10s delay
-    execute: async () => {
-      initializeAutoUpdater(getMainWindow)
-      log.success('auto-updater initialized')
-    },
-  })
-
-  log.startPhase('tray')
-  createTray()
-  log.endPhase('tray')
-
-  log.startPhase('main-window')
-  createMainWindow()
-  log.endPhase('main-window')
-
-  void trackStartupAnalytics()
-})
+}

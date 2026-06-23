@@ -7,9 +7,11 @@ This file is the single source of truth for how an automated coding agent should
 ---
 
 ## What This Project Is
- ZuraAI is a desktop AI assistant built with **Electron + React + Vite + TypeScript**.
+
+ZuraAI is a desktop AI assistant built with **Electron + React + Vite + TypeScript**.
 
 Core capabilities:
+
 - Dashboard UI (chat history, settings, model selection)
 - Multi-provider AI calls (Alibaba Cloud, Fireworks, Groq, NVIDIA NIM, Ollama, OpenRouter, Perplexity)
 - Hardened IPC boundary (renderer ↔ preload ↔ main)
@@ -18,6 +20,7 @@ Core capabilities:
 ---
 
 ## Quick Start (Agent Commands)
+
 - Install: `bun install`
 - Dev: `bun run dev`
 - Tests: `bun run test`
@@ -31,6 +34,7 @@ Core capabilities:
 ---
 
 ## Key Concepts (Read First)
+
 - The **renderer is untrusted**. Anything privileged must be implemented in the **main process** and exposed via a **narrow, allowlisted** IPC surface.
 - The app uses a **primary BrowserWindow** for the main app plus a dedicated **About window**. Main-app renderer routes live inside the primary window (`#/dashboard`, `#/settings`, `#/chat`) under a shared shell layout, while `#/about` is rendered in the separate utility window.
 - The app supports an optional **Overlay window** on non-macOS platforms. `#/overlay` renders in its own always-on-top frameless `BrowserWindow` and reuses the standard chat/runtime stack rather than introducing a second assistant runtime; macOS disables this floating-window surface for now.
@@ -51,6 +55,7 @@ Core capabilities:
 ---
 
 ## Repo Map
+
 - `electron/analytics/` - opt-in anonymous analytics service, default public PostHog Cloud config, event allowlist/sanitization, PostHog capture transport, consent-state persistence under `app.getPath('userData')`, and IPC registration
 - `electron/` — Electron **main process** + preload + IPC handlers
   - `electron/main.ts` — app lifecycle, IPC registration, tray, windows, updater, tool handlers
@@ -153,6 +158,7 @@ Core capabilities:
 ```
 
 ### Windows & Routing
+
 - **Main Window** (`electron/windows/mainWindow.ts`)
   - Loads `#/dashboard` (HashRouter)
   - `nodeIntegration: false`, `contextIsolation: true`, `sandbox: true`
@@ -188,9 +194,15 @@ Core capabilities:
 - In dev, windows load `${process.env.VITE_DEV_SERVER_URL}#/...`
 - In prod, windows load `dist/index.html` with the target route hash (`dashboard`, `about`, `overlay`, etc.)
 
+- **Chat deep links**
+- The packaged app registers the `zura-chat` OS protocol and uses a single-instance handoff so links opened from another process are routed into the already-running app.
+- Debug references keep the existing shape `zura-chat://<sessionId>?userData=<base64urlUserData>`. To continue a chat from a trusted debug reference, callers append `message=<urlEncodedText>` or `messageBase64=<base64urlUtf8Text>`.
+- Main validates that the link's `userData` decodes to this app instance's `app.getPath('userData')`, queues a `chat-links` request, focuses/creates the main window, and delivers the request over the dedicated `chat-links:message` main-to-renderer channel. The renderer consumes queued requests with `chat-links:consume-pending`, switches to the referenced session, and sends through the normal dashboard `useStreamingChat` pipeline.
+- Chat-link trace diagnostics are written by main to `chat-link-events.jsonl` under `app.getPath('userData')`. The trace records protocol registration, parse rejection/acceptance, queue delivery, peek, and consume events without storing message bodies.
+
 - **Renderer route fallback**
 - `src/App.tsx` defines `Route path="*"` to render the `NotFound404` component (`src/components/ui/demo.tsx`) for unknown hash routes.
- - Standalone utility routes outside `AppShellLayout` currently include `#/about` and the dev-only `#/chat-debug` window, plus `#/overlay` on non-macOS platforms.
+- Standalone utility routes outside `AppShellLayout` currently include `#/about` and the dev-only `#/chat-debug` window, plus `#/overlay` on non-macOS platforms.
 
 - **Shared shell layout**
   - `src/App.tsx` wraps `/`, `/dashboard`, `/settings`, and `/chat` in `AppShellLayout`
@@ -205,6 +217,7 @@ Core capabilities:
   - `electron/windows/tray.ts` keeps Windows tray behavior separate from the macOS status-item menu; macOS menu actions can show the app, open Settings/About, start a new chat, or quit without changing Windows tray flows
 
 ### Windows Installer Packaging
+
 - Windows packaging uses `electron-builder` + NSIS **wizard installer** (`oneClick: false`) with install-directory selection enabled via `allowToChangeInstallationDirectory: true`, plus a repo-local include override at `installer/installer.nsh`.
 - The installer uses the directory the user selects as the **final install path** for app files; it does not force an extra `\ZuraAI` subfolder when the user picks a custom location.
 - The installer applies Windows dark mode APIs (DWM dark title bar, `SetPreferredAppMode(ForceDark)`, `SetWindowTheme("DarkMode_Explorer")`, `SetCtlColors`) for a dark-themed install experience.
@@ -213,11 +226,13 @@ Core capabilities:
 - Build output goes to `release/` directory (gitignored). Installer artifact: `ZuraAI-Setup-{version}.exe`.
 
 ### CORS Bypass (Main Process)
+
 There is currently no active CORS-bypass header injection in `electron/main.ts`.
 
 If a new provider lacks CORS headers and renderer `fetch()` is blocked, add a narrowly scoped `session.defaultSession.webRequest.onHeadersReceived` handler in main process for that provider domain only.
 
 ### IPC Surface (Security-Critical)
+
 The renderer never imports Electron APIs directly; it uses what preload exposes.
 
 - IPC bridge and allowlists live in `electron/preload.ts`.
@@ -225,6 +240,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - `window.windowControls` is a **separate dedicated bridge** exposed from preload for minimize / maximize / close state, rather than part of the generic `window.ipcRenderer` allowlists.
 
 **Allowlisted channels (as implemented today):**
+
 - `INVOKE_CHANNELS`:
   - `chat-store:get-metadata`, `chat-store:get-session`, `chat-store:save-session`, `chat-store:delete-session`, `chat-store:save-index`, `chat-store:get-all`, `chat-store:save-all`, `chat-store:migrate`, `chat-store:get-all-folders`, `chat-store:save-folders`
   - `chat-diagnostics:append-event`, `chat-diagnostics:get-debug-reference`, `chat-diagnostics:list-events` (development diagnostics only; main process ignores diagnostics persistence/reference generation/listing in packaged builds)
@@ -238,6 +254,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - `update-available`, `update-downloaded`, `app:new-chat`, `context-menu:action`
 
 **Dedicated preload bridges (not part of `window.ipcRenderer` allowlists):**
+
 - `window.windowControls`
   - invokes: `window-controls:minimize`, `window-controls:toggle-maximize`, `window-controls:close`, `window-controls:is-maximized`
   - listens for: `window-controls:state`
@@ -275,6 +292,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - `apply-settings` accepts only sanitized non-secret email notification preferences for main-process runtime use; `send-test` generates a fixed main-process test email and reads `brevoApiKey` from secure storage
 
 **Important:** IPC handlers may exist in `electron/ipc/*` but are not reachable unless they’re also wired through preload allowlists or a dedicated preload bridge.
+
 - `window.codeExecution`
   - invokes: `code-execution:resolve-approval`
   - listens for: `code-execution:pending-approval`
@@ -283,12 +301,15 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - listens for: `terminal:pending-approval`
 - `window.chatDebug` (dev-only)
   - invokes: `chat-debug-window:open`
+- `window.chatLinks`
+  - invokes: `chat-links:consume-pending`
+  - listens for: `chat-links:message`
 - `window.discordRpc`
   - invokes: `discord-rpc:get-state`, `discord-rpc:set-activity`
   - listens for: `discord-rpc:state-changed`
 
-
 **If you add/rename any IPC channel:**
+
 1. Add it to the correct allowlist(s) in `electron/preload.ts`
 2. Add/adjust types in `src/electron.d.ts` (if exposed on `window.*`)
 3. Implement/register handlers in `electron/ipc/*` (or other main modules)
@@ -297,6 +318,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 ### Key Runtime Flows
 
 #### Startup + Shell Initialization
+
 - Main-process startup uses `electron/startup/deferredInit.ts` to defer non-critical work until the main window is visible.
 - Current deferred tasks include delayed React DevTools install in development and deferred auto-updater initialization after first paint.
 - Startup installs the native macOS app menu before creating the main window and only disables native window animations on Windows.
@@ -319,6 +341,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - NVIDIA NIM is a renderer-side OpenAI-compatible provider like Groq/Fireworks/DeepSeek: `nvidiaApiKey` is hydrated from main-process secure storage, `nvidiaModels` lives in sanitized renderer settings, catalog import calls `https://integrate.api.nvidia.com/v1/models`, and chat/title/memory requests dispatch through the shared provider runtime to `https://integrate.api.nvidia.com/v1/chat/completions` with no main-process IPC channel added.
 
 #### MCP Runtime Foundation
+
 - Shared MCP contracts and naming helpers live in `src/mcp/types.ts`.
 - `src/mcp/McpContext.tsx` hydrates MCP runtime state from `window.mcp`, subscribes to `mcp:state-changed`, exposes on-demand resource/prompt fetch helpers, and keeps the in-memory draft server list that plugs into the standard Settings save/discard bar.
 - `src/components/Settings/sections/McpSection.tsx` renders the MCP settings workflow for add/edit/delete/enable/connect actions, transport-specific forms, trust state, approval policy, optional per-server tool allow/block scaffolding, masked secret indicators, live connection/tool state, and entry points into the MCP library browser.
@@ -348,6 +371,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - MCP resources and prompts are intentionally **user-visible only** in the current release shape: trusted connected servers can surface them to the renderer, but they are not exposed as model-callable tools and require explicit user action for preview or composer insertion.
 
 #### Dashboard Chat (Streaming + Tools + History)
+
 - Main orchestration: `src/components/Dashboard/ChatArea/hooks/useStreamingChat.ts`
 - Shared provider metadata: `src/providers/providerRegistry.ts`
 - Shared stream orchestration: `src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.ts`
@@ -398,13 +422,14 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - The default Computer Use prompt no longer instructs agents to always screenshot first. Agent mode should inspect through native `file_*` / `app_*` / `window_*` / `windows_uia_snapshot` tools first, use app/window-targeted screenshots second, and use full-screen screenshots only as the fallback for truly visual tasks.
 
 #### Memory & Personalization (`settings.skills.memory`)
+
 - ChatGPT-style "saved memories" — short, user-visible facts that the model and the user can both manage. Persisted locally only.
 - Storage: `electron/memoryStore.ts` writes a single `memory-index.json` under `app.getPath('userData')`. Atomic whole-file writes; in-memory TTL cache; `withWriteLock` serializes the read-modify-write cycle so concurrent model + user mutations cannot clobber each other. Every memory has a fixed `category` (`preference`, `project`, `personal`, `workflow`, or `context`); main-process normalization preserves valid categories and defaults missing/invalid historical values to `context` without a destructive migration. Every write runs automatic cleanup before sorting/persisting: exact duplicate content in the same scope is coalesced (newest active wins), superseded memories older than `SUPERSEDED_MEMORY_RETENTION_MS` are pruned, dangling `supersedes` / `supersededBy` links are repaired, and then the FIFO cap at `MEMORY_CAP=200` is applied (oldest by `createdAt` evicted). Per-entry max length is `MAX_MEMORY_CONTENT_LENGTH=1000`.
 - Memory writes support an ADD-only lifecycle: entries are `active` or `superseded`, and `addMemoryWithDedupeAsync(...)` can NOOP near-duplicates or link a new memory to an older superseded one through `supersedes` / `supersededBy`. Superseded entries remain stored for history but are excluded from normal retrieval and prompt injection.
 - Conversation summaries live in `electron/conversationSummaryStore.ts` as `conversation-summaries.json` under `app.getPath('userData')`. The store keeps one rolling summary per chat session, capped at `SUMMARY_CAP=15`, using the same atomic-write, TTL-cache, serialized-write pattern as saved memories.
 - Data shape includes `scope: { type: 'global' } | { type: 'project'; projectId: string }`. Spaces use the project scope variant: chats with `session.folderId` load and write project-scoped memories with `projectId = folderId`, while unassigned chats use global scope. Global memories are still included inside Spaces.
 - Current renderer bridge: `window.memory.{list, add, addDeduped, update, delete, clear, search, summaries, onChanged}` (see `electron/preload.ts` and `src/electron/types.ts`). Summary APIs expose `window.memory.summaries.list()`, `window.memory.summaries.upsert(sessionId, summary)`, `window.memory.summaries.delete(sessionId)`, and `window.memory.summaries.clear()`. All channels are private to that bridge; they are not part of the generic `window.ipcRenderer` allowlist.
-- Current prompt injection: `loadMemoryBlock(settings, scope, { userMessage })` uses main-process memory search to inject only the top relevant memories for the current user message; when no user message is supplied, it injects the most-recent K memories. Dashboard send/regenerate and the token estimator derive `scope` from the active chat Space (`folderId`) or global scope for unassigned chats. Search ranking lives in `electron/memoryRetrieval.ts` and fuses normalized keyword/alias overlap, exact-phrase containment, proximity, recency, and a small user-authored source boost. It does not silently fall back from a no-match search to unrelated recent memories. Superseded memories are excluded. When memories are present, the block appends the built-in **passive** memory instruction from `src/prompts/defaultMemoryPrompt.ts` (guidance on how to *use* the injected memories — it does **not** instruct the model to save/update/delete anything). When no memories survive filtering, the block is empty.
+- Current prompt injection: `loadMemoryBlock(settings, scope, { userMessage })` uses main-process memory search to inject only the top relevant memories for the current user message; when no user message is supplied, it injects the most-recent K memories. Dashboard send/regenerate and the token estimator derive `scope` from the active chat Space (`folderId`) or global scope for unassigned chats. Search ranking lives in `electron/memoryRetrieval.ts` and fuses normalized keyword/alias overlap, exact-phrase containment, proximity, recency, and a small user-authored source boost. It does not silently fall back from a no-match search to unrelated recent memories. Superseded memories are excluded. When memories are present, the block appends the built-in **passive** memory instruction from `src/prompts/defaultMemoryPrompt.ts` (guidance on how to _use_ the injected memories — it does **not** instruct the model to save/update/delete anything). When no memories survive filtering, the block is empty.
 - Recent-activity prompt injection: `src/prompts/buildRecentActivityBlock.ts` builds a compact "## Recent Activity" block from conversation summaries and `getEffectiveSystemPrompt(...)` inserts it before saved memories. This gives new conversations continuity without embedding/vector retrieval.
 - Current skill gating: `skills.memory.enabled` gates memory injection and background extraction as a whole. `skills.memory.config.autoManage` (default true, surfaced in the UI as the "Background Active Memory" toggle) gates the background extraction ("dreaming") pipeline; when false, no facts are extracted in the background. Memory is **not** model-callable: there are no in-conversation memory tools.
 - Background extraction ("dreaming") runs after a completed chat turn in `src/services/memoryExtraction.ts`, called from `useStreamingChat`. It sends the recent conversation tail plus the just-finished turn to the resolved memory model, asks for categorized durable user facts and one short session summary, writes facts through `window.memory.addDeduped(...)` with the active Space/global scope, and upserts the session summary. The parser accepts both new `{ content, category }` facts and older string facts, normalizing invalid/missing categories to `context`. The deterministic reminder/lookout classifier in `src/utils/memoryReview.ts` blocks reminders, alarms, scheduled tasks, web lookouts, URL monitoring, and similar task-management facts before persistence and clears reminder/lookout-only Recent Activity summaries. The model is resolved from `settings.memoryModel` when set, otherwise it defaults to the active chat model (`settings.aiModel`); this is a documented default, not an error-masking fallback. The flow is best-effort and silent on failure, but it is a meaningful model-call data flow and is gated by `skills.memory.config.autoManage`.
@@ -415,14 +440,15 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Memory is **not** a model-callable tool surface. The in-conversation memory tools (`save_memory`, `update_memory`, `delete_memory`, `search_memories`) were removed: the model can no longer mutate the memory store mid-conversation. Durable facts are captured only by the background extraction pipeline (`origin: 'background'`), and saved memories are injected into the prompt for read-only context. `src/tools/memoryTools.ts` now retains only the historical `MEMORY_TOOL_NAMES` constant, used by `src/components/Dashboard/ChatArea/toolResultVisibility.ts` to keep suppressing any `origin:'tool'` tool-result cards persisted in older chat sessions.
 - Chat deletion cascades memory cleanup in `electron/ipc/chatStoreHandlers.ts`: after `chat-store:delete-session` successfully removes a chat, main deletes saved memories where `memory.sessionId === deletedSessionId` and the recent-activity summary where `summary.sessionId === deletedSessionId`, then broadcasts `memory-store:changed` only if linked memory data was removed.
 - Settings UI: Settings -> Personalization -> Memory (`src/components/Settings/sections/MemorySection.tsx`). Surfaces the "Background Active Memory" toggle (`skills.memory.config.autoManage`), the background memory-extraction model selector (`settings.memoryModel`, with a "use current chat model" default option), and a separate Memory Library section for background facts plus recent-activity conversation summaries. The library supports fixed category filters, a computed `Needs review` filter based on the same reminder/lookout classifier used by extraction, health counters (`Facts`, `Activity`, `Needs review`, `Stale`), per-row category badges, source-chat navigation for rows with a live `sessionId`, disabled "Source unavailable" actions for missing source chats, and per-row deletion. Writes through `window.memory.*` directly and live-syncs via `memory-store:changed`.
-- The built-in default memory prompt is passive guidance on how to *use* injected memories (no save/update/delete instructions). Settings -> System Prompt renders it read-only alongside the other built-in prompt templates.
+- The built-in default memory prompt is passive guidance on how to _use_ injected memories (no save/update/delete instructions). Settings -> System Prompt renders it read-only alongside the other built-in prompt templates.
 - Out of scope for v1 (deliberately): embeddings / vector search, dense AI-generated profile summary (ChatGPT's "User Knowledge Memories"), per-provider memory.
 
 #### Skills-Based Research (`settings.skills`)
+
 - Research capability is now controlled by built-in skills, not direct tool toggles.
 - Built-in skill: `web_research` (`settings.skills.web_research`).
 - When enabled, the model can call `web_search` directly and decide whether follow-up searches are needed. No separate structured/planned built-in research mode currently exists.
-- Shared follow-up search policy now lives in `src/components/Dashboard/ChatArea/hooks/streaming/researchLoopPolicy.ts`. The shared orchestrator in `src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.ts` now supports batched parallel `web_search` fan-out within a single provider turn, while still enforcing a hard per-response cap of 8 executed searches, repeated-query/facet breaking, and a forced final synthesis pass with tools disabled once the loop should stop.
+- Shared follow-up search policy now lives in `src/components/Dashboard/ChatArea/hooks/streaming/researchLoopPolicy.ts`. The shared orchestrator in `src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.ts` now supports batched parallel `web_search` fan-out within a single provider turn, with a safety budget (default 50 executed searches), repeated-query/facet breaking, and graceful handling when the budget is reached: the model may still emit the over-budget `web_search` call; a synthetic "budget reached" tool result is returned and shown normally in the chat (like other tool calls). No forced no-tools synthesis round or early `runFinalSynthesis` for budget (only for empty-batch or ungrounded recovery cases). The toolManager synthetic + execution skip prevents actual extra searches.
 - Tool schema exposure is skill-gated in renderer:
   - Skill OFF: expose no built-in web research tools
   - Skill ON: expose `web_search`
@@ -430,6 +456,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 #### Theme + Windows Titlebar Overlay
 
 #### Code Execution Skill (`settings.skills.code_execution`)
+
 - Built-in skill: `code_execution` (`settings.skills.code_execution`), default disabled.
 - When enabled, the model can call `code_execution` with `code` (string) and `language` (`'javascript'` | `'python'`) parameters.
 - Execution uses the free public Piston API (`https://emkc.org/api/v2/piston/execute`) — no API key, no local sandbox, no native addons.
@@ -444,6 +471,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Piston sandbox constraints: no filesystem, no network, 5s run timeout, 64MB memory limit.
 
 #### Terminal Skill (`settings.skills.terminal`)
+
 - Built-in skill: `terminal` (`settings.skills.terminal`), **Windows-only**, default **disabled**.
 - When enabled, the model can call `system_shell` to run bounded, non-interactive PowerShell commands for system inspection and automation. The tool name stays `system_shell`; the skill is the toggle that governs its exposure.
 - **Intentional behavior change:** `system_shell` is now skill-gated, not auto-bundled into the Windows agent-mode native tool list. It was removed from `NATIVE_WINDOWS_AGENT_TOOLS` in `src/hooks/useToolCalling.ts`. It is exposed only when `isWindowsRuntime()` AND `isSkillEnabled(settings.skills, 'terminal')`, in **both** chat and agent modes (parity with `code_execution`).
@@ -461,11 +489,10 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - ⚠️ Security: this runs arbitrary PowerShell with no OS sandbox. Guarantees: default OFF, mandatory per-command approval with full command preview, bounded timeout + output truncation, non-interactive shell, `autoApprove` only via explicit user opt-in.
 
 #### Computer Use (`skills.computer_use`)
+
 - **Windows-only**, default disabled. In Agent mode, the existing `computer_*` tools control the desktop the user is currently using. There is no separate Windows Virtual Desktop mode, no `agent_desktop` skill, no `settings.agentDesktop` payload, no `window.agentDesktop` bridge, and no `agent-desktop:*` IPC surface.
 - The renderer exposes `computer_*` only when `settings.assistantMode === 'agent'`, `isWindowsRuntime()` is true, and `skills.computer_use.enabled` is true. macOS hides the Computer Use settings section and the main process rejects `computer_*` calls on macOS.
 - Computer Use execution is direct: `electron/tools/index.ts` routes the remaining `computer_*` calls to `electron/tools/computer-use/*` without provisioning or switching desktops. The Computer Use surface intentionally excludes app launch/find/close tools; use `app_find`/`app_launch` and `window_list`/`window_close` for those operations. The existing Computer Use approval dialog, `computerUseAutoApprove`, double-Escape kill switch, action cap, and coordinate mapping remain the safeguards.
-
-
 
 - Startup theme apply: `src/main.tsx` reads `localStorage['zura-settings']` and applies theme with user customization (`themeAccent`, `themeBackground`, `themeForeground`, `themeContrast`).
 - Active theme preset (`activeTheme`) selects a base theme; accent/background/foreground colors can be overridden per-user.
@@ -476,14 +503,17 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - The main shell still uses the same hidden-titlebar/vibrancy window model on macOS, but the renderer title bar is visually lighter there: traffic-light spacing is preserved while solid sidebar/content overlays remain a Windows/Linux shell treatment.
 
 #### Renderer Performance Tracking
+
 - Renderer startup/performance metrics are tracked locally in `src/utils/rendererPerformance.ts`.
 - The tracker is initialized in `src/main.tsx` and consumed by `src/hooks/useLazyLoad.ts` for TTI-aware lazy loading.
 - There is no longer a main-process performance-monitor IPC pipeline or persisted performance metrics log.
 
 #### Response Streaming Cadence
+
 - Streaming updates use a fixed cadence from `getStreamingUpdateInterval()` in `src/components/Dashboard/ChatArea/hooks/streaming/streamingUtils.ts`, backed by shared provider constants in `src/providers/providerRegistry.ts` (`120ms`).
 
 #### Model Enablement (Provider Hub)
+
 - Provider model rows in `src/components/Settings/sections/ProviderHubSection.tsx` support per-model enable/disable toggles.
 - Model records in active settings arrays (`configuredModels`, `ollamaModels`, `perplexityModels`, `groqModels`, `alibabaModels`, `fireworksModels`) support optional `enabled?: boolean`.
 - Provider-level toggles are persisted in `settings.providerEnabled` for the active provider surface (`alibaba`, `fireworks`, `groq`, `ollama`, `openrouter`, `perplexity`) and are independent from whether API keys/endpoints are filled.
@@ -491,6 +521,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - The dashboard model selector UI is a compact, flat **cascading `DropdownMenu`** (shadcn) modeled on the Settings → Memory model picker: a trigger pill (`src/components/Dashboard/ModelSelector/ModelSelector.tsx`) shows the active model's provider logo + name + a reasoning-effort suffix (only for the active DeepSeek model with reasoning enabled) + chevron. The menu body (`ModelSelectorDropdown.tsx`) renders an optional top **Reasoning effort** radio group (Low/Medium/High/Xhigh, shown only when the active DeepSeek model has reasoning enabled) followed by a **current-model row** that opens a provider submenu (`getPickerVisibleProviders` filtered to providers with available models), each provider opening its own models submenu (✓ marks the active model). There is no search, provider rail, favorites, density, or capability-badge UI on this surface; the old two-pane layout and its `modelSelector` layout settings no longer drive it. Selecting a model goes through `useModelSelector().handleSelect` (updates `settings.aiModel`/`modelProvider`). `ModelList.tsx` is retained as a standalone component but is not part of this cascade.
 
 #### Command Palette Quick-Send
+
 - The command palette (`Ctrl+Space`) supports sending a chat message directly via **Shift+Enter**.
 - When the user types text that doesn't match any command well (top score < 100), a "Send as chat message" suggestion appears automatically.
 - Runtime behavior is controlled by `settings.commandBar`: `enabled` gates both mount and hotkey registration, and suggestion/recents limits use `maxSuggestions`, `showRecents`, and `maxRecents`.
@@ -502,17 +533,20 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - `QuickSendProvider` is mounted in `App.tsx` above the `Router` so it's accessible to both the command palette and `ChatArea`.
 
 #### Sidebar Session Organization
+
 - The chat sidebar no longer supports archiving/unarchiving sessions.
 - Session grouping is now based on pinning, Space assignment, and recency buckets only. The UI calls these groups **Spaces**, while persisted chat indexes keep the backward-compatible `folders` collection and per-session `folderId`.
 - Search overlays and list rendering include all sessions (subject to active filters), with no archive-only section or archive toggle. Searching a Space name also returns chats assigned to that Space.
 - Chat session metadata includes `pinned`, `folderId`, and `tags`; legacy `archived` values in persisted data are ignored during migration. Pinned chats remain visually pinned even when they have a Space assignment.
 
 #### Sidebar Width Resizing
+
 - Sidebar width is user-resizable from the dashboard via a right-edge drag handle in `src/components/Dashboard/Sidebar.tsx`.
 - The resize interaction is renderer-only: pointer drag updates `AppShellContext` width state in real time and clamps to shared bounds from `src/constants/sidebar.ts`.
 - Current shell width calculations (sidebar panel and titlebar overlays) consume `sidebarWidth` from `AppShellContext` when not hidden/collapsed.
 
 #### Chat Title Generation Controls
+
 - Title generation configuration UI lives in **Appearance** (`src/components/Settings/sections/AppearanceSection.tsx`) for dedicated title-model selection and sidebar reveal mode.
 - Title generation prompt editing lives in **System Prompt** (`src/components/Settings/sections/SystemPromptSection.tsx`) as a dedicated prompt block.
 - Runtime generation is handled by `src/services/titleGenerator.ts` using `settings.titleModel` and `settings.titleGenerationPrompt`; the selected title model is resolved through the shared provider registry and executed through the shared non-streaming provider runtime helper in `src/providers/providerRuntime.ts`.
@@ -524,6 +558,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 ### Data Persistence
 
 **Renderer (localStorage)**
+
 - Settings: `zura-settings`
   - Persisted settings are sanitized before write; secret API key fields are stripped and sourced from secure storage instead.
   - MCP server drafts are not persisted here; Phase 2 MCP edits live only in renderer memory until the user saves or discards them.
@@ -560,6 +595,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Model color assignments: `zura-model-colors`
 
 **Main process (`app.getPath('userData')`)**
+
 - Chat history: `chat-index.json` plus `chat-sessions/{sessionId}.json` (`electron/chatStore.ts`); legacy `chat-history.json` is a migration input only.
 - Dev-only chat diagnostics: `debug-sessions/{sessionId}.jsonl` (`electron/chatDiagnostics.ts`); sanitized rolling JSONL traces capped per session and unavailable in packaged builds.
 - Persisted assistant `thinkingBlocks` may now include completed MCP tool-history entries (`type: 'tool'`) with tool name/arguments/result metadata so the renderer can replay inline MCP call history from stored sessions.
@@ -575,6 +611,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - No dedicated performance metrics file is persisted by the app.
 
 ### Tool System (Function Calling)
+
 Tool execution is intentionally restricted.
 
 - Renderer side:
@@ -610,6 +647,7 @@ There is currently no built-in trusted browser-testing workflow; any replacement
 **Note:** The main-process built-in tool registry remains intentionally restricted; built-in main-process tools now flow from the shared manifest in `src/tools/builtinTools.ts`, stay skill-gated in renderer through `src/tools/definitions.ts` / `src/hooks/useToolCalling.ts`, and still require explicit handler registration in `electron/tools/index.ts`. MCP tool execution is separate, namespaced, and only available for servers that are enabled, connected, trusted, and allowed by the current approval policy.
 
 ### Providers
+
 - OpenRouter: `src/services/openrouter.ts` (OpenAI-compatible tool calling)
 - Groq: `src/services/groq.ts` (OpenAI-compatible)
 - Alibaba Cloud: `src/services/alibaba.ts` (DashScope/Tongyi Qwen; OpenAI-compatible at dashscope-intl.aliyuncs.com/compatible-mode/v1; thinking models stream `reasoning_content` deltas with `enable_thinking: true` request param)
@@ -621,6 +659,7 @@ There is currently no built-in trusted browser-testing workflow; any replacement
 - Chat title generation: `src/services/titleGenerator.ts` (uses `settings.titleModel` and `settings.titleGenerationPrompt`, resolves provider from the chosen model, and executes through the shared provider runtime)
 
 ### Environment & Secrets
+
 - `VITE_DEV_SERVER_URL` — set in dev (used by Electron windows)
 
 API keys are configured in-app and stored via secure storage (`secure-storage.json` under `app.getPath('userData')`).
@@ -628,7 +667,9 @@ API keys are configured in-app and stored via secure storage (`secure-storage.js
 Never commit `.env` or API keys.
 
 ### Known Architecture Gaps / TODOs (Current Code)
+
 These are useful breadcrumbs for agents:
+
 - User-configured global shortcut strings in settings are still not wired to `globalShortcut.register(...)`.
 
 ---
@@ -636,6 +677,7 @@ These are useful breadcrumbs for agents:
 ## Agent Best Practices (Do/Don’t)
 
 ### Do
+
 - Keep changes scoped and consistent with existing patterns.
 - Treat the renderer as untrusted; validate/sanitize everything in main-process handlers.
 - Keep `contextIsolation: true` and `nodeIntegration: false` for all BrowserWindows.
@@ -649,6 +691,7 @@ These are useful breadcrumbs for agents:
 - Run `npm test` after meaningful changes.
 
 ### Don’t
+
 - Don’t broaden the IPC surface “just to make it work”.
 - Don’t expose raw Node APIs to the renderer.
 - Don’t add new tools (or allow arbitrary tool names) without a clear security review.
@@ -660,6 +703,7 @@ These are useful breadcrumbs for agents:
 ---
 
 ## Testing
+
 - Test runner: Vitest (`vitest.config.ts`)
 - Setup: `src/test/setup.ts`
 - Included patterns:
@@ -669,6 +713,7 @@ These are useful breadcrumbs for agents:
 ---
 
 ## Build & Release Notes (Electron)
+
 - Packaging uses `electron-builder` (see `package.json#build`).
 - Auto-updater is enabled only when `app.isPackaged` (production) in `electron/updater.ts`.
 - `package.json#build.publish` is currently configured for GitHub releases on `solnikhil/ZuraAI`; update it if packaging from a fork or different repo.
@@ -676,7 +721,9 @@ These are useful breadcrumbs for agents:
 ---
 
 ## When to Update the Architecture Section
+
 Update **this file’s “Architecture”** whenever you:
+
 - Add/remove a BrowserWindow or change routing boundaries (`#/dashboard`, `#/settings`, etc.)
 - Add/remove/rename IPC channels or exposed `window.*` APIs
 - Change where data is persisted (settings/chat history/secure storage)

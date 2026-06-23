@@ -8,44 +8,89 @@ import {
   type ReactNode,
 } from 'react'
 
+export interface QuickSendRequest {
+  content: string
+  sessionId?: string
+}
+
 interface QuickSendContextValue {
   /** Message waiting to be sent, or null */
   pendingMessage: string | null
+  /** Full pending send request, including optional target session */
+  pendingRequest: QuickSendRequest | null
   /** Queue a message to be sent by ChatArea once it mounts / is ready */
   queueMessage: (content: string) => void
-  /** Consume (clear) the pending message — returns the message or null */
+  /** Queue a message for one specific chat session */
+  queueMessageForSession: (sessionId: string, content: string) => void
+  /** Consume (clear) the pending message; returns the message or null */
   consumeMessage: () => string | null
+  /** Consume (clear) the full pending request */
+  consumeRequest: () => QuickSendRequest | null
 }
 
 const QuickSendContext = createContext<QuickSendContextValue | null>(null)
 
 export function QuickSendProvider({ children }: { children: ReactNode }) {
-  const [pendingMessage, setPendingMessage] = useState<string | null>(null)
-  // Keep a ref in sync so consumeMessage always reads latest without stale closures
-  const pendingRef = useRef<string | null>(null)
+  const [pendingRequest, setPendingRequest] = useState<QuickSendRequest | null>(null)
+  const pendingRef = useRef<QuickSendRequest | null>(null)
+  const pendingMessage = pendingRequest?.content ?? null
 
-  const queueMessage = useCallback((content: string) => {
-    const trimmed = content.trim()
+  const queueRequest = useCallback((request: QuickSendRequest) => {
+    const trimmed = request.content.trim()
     if (!trimmed) return
-    pendingRef.current = trimmed
-    setPendingMessage(trimmed)
+    const normalized: QuickSendRequest = {
+      content: trimmed,
+      sessionId: request.sessionId?.trim() || undefined,
+    }
+    pendingRef.current = normalized
+    setPendingRequest(normalized)
+  }, [])
+
+  const queueMessage = useCallback(
+    (content: string) => {
+      queueRequest({ content })
+    },
+    [queueRequest]
+  )
+
+  const queueMessageForSession = useCallback(
+    (sessionId: string, content: string) => {
+      queueRequest({ content, sessionId })
+    },
+    [queueRequest]
+  )
+
+  const consumeRequest = useCallback((): QuickSendRequest | null => {
+    const request = pendingRef.current
+    pendingRef.current = null
+    setPendingRequest(null)
+    return request
   }, [])
 
   const consumeMessage = useCallback((): string | null => {
-    const msg = pendingRef.current
-    pendingRef.current = null
-    setPendingMessage(null)
-    return msg
-  }, [])
+    return consumeRequest()?.content ?? null
+  }, [consumeRequest])
 
   const contextValue = useMemo(
-    () => ({ pendingMessage, queueMessage, consumeMessage }),
-    [pendingMessage, queueMessage, consumeMessage]
+    () => ({
+      pendingMessage,
+      pendingRequest,
+      queueMessage,
+      queueMessageForSession,
+      consumeMessage,
+      consumeRequest,
+    }),
+    [
+      pendingMessage,
+      pendingRequest,
+      queueMessage,
+      queueMessageForSession,
+      consumeMessage,
+      consumeRequest,
+    ]
   )
 
-  return (
-    <QuickSendContext.Provider value={contextValue}>{children}</QuickSendContext.Provider>
-  )
+  return <QuickSendContext.Provider value={contextValue}>{children}</QuickSendContext.Provider>
 }
 
 export function useQuickSend(): QuickSendContextValue {

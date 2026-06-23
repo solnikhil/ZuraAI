@@ -81,9 +81,7 @@ export type MemorySource = 'user' | 'model'
 export type MemoryOrigin = 'tool' | 'background'
 export type MemoryCategory = 'preference' | 'project' | 'personal' | 'workflow' | 'context'
 
-export type MemoryScope =
-  | { type: 'global' }
-  | { type: 'project'; projectId: string }
+export type MemoryScope = { type: 'global' } | { type: 'project'; projectId: string }
 
 export type MemoryStatus = 'active' | 'superseded'
 
@@ -154,7 +152,6 @@ export interface MemoryAPI {
    */
   onChanged: (callback: () => void) => () => void
 }
-
 
 export type SecureStorageKey =
   | 'openRouterApiKey'
@@ -247,6 +244,12 @@ export interface EmailNotificationSettings {
 export interface EmailNotificationResult {
   ok: boolean
   error?: string
+}
+
+export interface ExternalChatMessageRequest {
+  sessionId: string
+  message: string
+  receivedAt: number
 }
 
 export type AnalyticsEventName =
@@ -438,6 +441,8 @@ export type IpcInvokeChannel =
   | 'chat-diagnostics:get-debug-reference'
   | 'chat-diagnostics:list-events'
   | 'chat-debug-window:open'
+  | 'chat-links:consume-pending'
+  | 'chat-links:peek-pending'
   | 'secure-storage:get'
   | 'secure-storage:set'
   | 'secure-storage:get-presence'
@@ -465,6 +470,8 @@ export interface IpcInvokeArgsMap {
   'chat-diagnostics:get-debug-reference': [sessionId: string]
   'chat-diagnostics:list-events': [sessionId: string]
   'chat-debug-window:open': [sessionId: string]
+  'chat-links:consume-pending': []
+  'chat-links:peek-pending': []
   'secure-storage:get': [key: SecureStorageKey]
   'secure-storage:set': [key: SecureStorageKey, value: string]
   'secure-storage:get-presence': []
@@ -493,6 +500,8 @@ export interface IpcInvokeReturnMap {
   'chat-diagnostics:get-debug-reference': string | null
   'chat-diagnostics:list-events': ChatDiagnosticEvent[]
   'chat-debug-window:open': boolean
+  'chat-links:consume-pending': ExternalChatMessageRequest[]
+  'chat-links:peek-pending': ExternalChatMessageRequest[]
   'secure-storage:get': string
   'secure-storage:set': boolean
   'secure-storage:get-presence': Record<SecureStorageKey, boolean>
@@ -519,6 +528,7 @@ export type IpcOnChannel =
   | 'chat-store:changed'
   | 'context-menu:action'
   | 'chat-diagnostics:event'
+  | 'chat-links:message'
   | 'discord-rpc:state-changed'
 
 export interface UpdaterDownloadProgress {
@@ -538,6 +548,7 @@ export interface IpcOnArgsMap {
   'chat-store:changed': []
   'context-menu:action': [action: NativeContextMenuAction]
   'chat-diagnostics:event': [event: ChatDiagnosticEvent]
+  'chat-links:message': [request: ExternalChatMessageRequest]
   'discord-rpc:state-changed': [state: DiscordRpcState]
 }
 
@@ -676,7 +687,6 @@ export interface McpAPI {
   onStateChange: (callback: (snapshot: McpRuntimeSnapshot) => void) => () => void
 }
 
-
 /**
  * Renderer-facing bridge for the dev-only chat diagnostics surface.
  *
@@ -689,7 +699,6 @@ export interface ChatDiagnosticsAPI {
   onEvent: (callback: (event: ChatDiagnosticEvent) => void) => () => void
 }
 
-
 /**
  * Renderer-facing bridge for opening the dev-only chat debug BrowserWindow.
  *
@@ -698,6 +707,12 @@ export interface ChatDiagnosticsAPI {
  */
 export interface ChatDebugAPI {
   open: (sessionId: string) => Promise<boolean>
+}
+
+export interface ChatLinksAPI {
+  consumePending: () => Promise<ExternalChatMessageRequest[]>
+  peekPending: () => Promise<ExternalChatMessageRequest[]>
+  onMessage: (callback: (request: ExternalChatMessageRequest) => void) => () => void
 }
 
 /**

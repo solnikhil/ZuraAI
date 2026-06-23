@@ -48,7 +48,8 @@ describe('streamingUtils final synthesis helpers', () => {
 
     expect(messages[0]).toEqual({ role: 'system', content: FINAL_SYNTHESIS_BUDGET_EXHAUSTED_PROMPT })
     expect(String(messages[0].content)).toContain('WEB SEARCH BUDGET EXHAUSTED')
-    expect(String(messages[0].content)).toContain('using only the results already returned')
+    expect(String(messages[0].content)).toContain('Produce the best supported answer from the gathered evidence')
+    expect(String(messages[0].content)).toContain('state what could not be verified instead of searching again')
   })
 
   it('tells the model when final synthesis is required because no executable search query remained', () => {
@@ -64,7 +65,8 @@ describe('streamingUtils final synthesis helpers', () => {
 
     expect(messages[0]).toEqual({ role: 'system', content: FINAL_SYNTHESIS_EMPTY_BATCH_PROMPT })
     expect(String(messages[0].content)).toContain('NO EXECUTABLE WEB SEARCH REMAINED')
-    expect(String(messages[0].content)).toContain('using only the results already returned')
+    expect(String(messages[0].content)).toContain('Produce the best supported answer from the gathered evidence')
+    expect(String(messages[0].content)).toContain('state what could not be verified instead of searching again')
   })
 
   it('builds a recovery synthesis instruction when the first synthesis returns empty', () => {
@@ -204,7 +206,7 @@ describe('streamingUtils final synthesis helpers', () => {
     })
   })
 
-  it('does not append a search timeline block for skipped web_search results', () => {
+  it('appends a search timeline block for budget-skipped web_search (visible like normal tool attempts)', () => {
     const blocks = buildThinkingBlocksFromResults(
       [
         {
@@ -215,7 +217,7 @@ describe('streamingUtils final synthesis helpers', () => {
           },
           result: {
             success: false,
-            error: 'Skipped web_search call because the per-response search budget has been reached.',
+            error: 'Web search budget for this response has been reached.',
             metadata: {
               origin: 'builtin-main' as const,
               executionDisposition: 'skipped' as const,
@@ -227,7 +229,12 @@ describe('streamingUtils final synthesis helpers', () => {
       []
     )
 
-    expect(blocks).toEqual([])
+    expect(blocks.length).toBe(1)
+    expect(blocks[0]).toMatchObject({
+      type: 'searching',
+      toolName: 'web_search',
+      query: 'zura ai overview',
+    })
   })
 
   it('does not inject a hard stop prompt just because several research rounds have occurred', () => {

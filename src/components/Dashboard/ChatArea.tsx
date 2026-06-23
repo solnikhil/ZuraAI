@@ -30,7 +30,8 @@ import { CHAT_AREA_STYLES } from './ChatArea/chatAreaStyles'
 const VIRTUALIZATION_THRESHOLD = 50
 
 export default function ChatArea() {
-  const { sessions, currentSessionId, isSessionLoaded, loadFullSession } = useChatHistory()
+  const { sessions, currentSessionId, isSessionLoaded, loadFullSession, switchSession } =
+    useChatHistory()
   const { settings } = useSettings()
   const { showToast } = useToast()
 
@@ -47,8 +48,9 @@ export default function ChatArea() {
   const currentSession = sessions.find((s) => s.id === currentSessionId)
   const messages = currentSession?.messages || []
   const currentSessionMessageCount = currentSession?.messageCount ?? messages.length
-  const currentSessionIsLoading =
-    Boolean(currentSessionId && currentSessionMessageCount > 0 && !isSessionLoaded(currentSessionId))
+  const currentSessionIsLoading = Boolean(
+    currentSessionId && currentSessionMessageCount > 0 && !isSessionLoaded(currentSessionId)
+  )
 
   const useVirtualization = messages.length > VIRTUALIZATION_THRESHOLD
 
@@ -67,6 +69,7 @@ export default function ChatArea() {
       })
     },
   })
+  const handledChatLinkKeysRef = useRef(new Set<string>())
 
   const vibe = useMemo(() => {
     const texts = settings.placeholderStyle === 'normal' ? NORMAL_PLACEHOLDERS : GENZ_PLACEHOLDERS
@@ -100,20 +103,107 @@ export default function ChatArea() {
   )
 
   // Quick-send: consume a pending message queued from the command palette
-  const { pendingMessage, consumeMessage } = useQuickSend()
+  const { pendingRequest, consumeRequest } = useQuickSend()
   useEffect(() => {
-    if (!pendingMessage || isLoading) return
-    const message = consumeMessage()
-    if (message) {
-      sendMessage(message, [])
+    if (!pendingRequest || isLoading || currentSessionIsLoading) return
+    if (pendingRequest.sessionId && pendingRequest.sessionId !== currentSessionId) return
+
+    const request = consumeRequest()
+    if (request?.content) {
+      sendMessage(request.content, [])
     }
-  }, [pendingMessage, isLoading, consumeMessage, sendMessage])
+  }, [
+    pendingRequest,
+    isLoading,
+    currentSessionIsLoading,
+    currentSessionId,
+    consumeRequest,
+    sendMessage,
+  ])
 
   useEffect(() => {
     if (currentSessionId && currentSessionIsLoading) {
       void loadFullSession(currentSessionId)
     }
   }, [currentSessionId, currentSessionIsLoading, loadFullSession])
+
+  const handleChatLinkRequest = useCallback(
+    async (request: { sessionId: string; message: string; receivedAt: number }) => {
+      const sessionId = request.sessionId.trim()
+      const message = request.message.trim()
+      if (!sessionId || !message || isLoading) return false
+
+      const dedupeKey = `${sessionId}:${request.receivedAt}:${message}`
+      if (handledChatLinkKeysRef.current.has(dedupeKey)) return true
+
+      let targetSession = sessions.find((session) => session.id === sessionId) ?? null
+      if (!targetSession) {
+        targetSession = await loadFullSession(sessionId)
+      }
+      if (!targetSession) {
+        showToast('Could not continue chat: session not found.', 'error')
+        handledChatLinkKeysRef.current.add(dedupeKey)
+        return true
+      }
+
+      if (currentSessionId !== sessionId) {
+        switchSession(sessionId)
+        await loadFullSession(sessionId)
+        return false
+      }
+
+      if (currentSessionIsLoading) return false
+
+      handledChatLinkKeysRef.current.add(dedupeKey)
+      await sendMessage(message, [])
+      return true
+    },
+    [
+      currentSessionId,
+      currentSessionIsLoading,
+      isLoading,
+      loadFullSession,
+      sendMessage,
+      sessions,
+      showToast,
+      switchSession,
+    ]
+  )
+
+  useEffect(() => {
+    if (!window.chatLinks) return
+
+    let active = true
+    const drainPending = async () => {
+      if (!active || isLoading || currentSessionIsLoading) return
+      const requests = await window.chatLinks!.peekPending()
+      for (const request of requests) {
+        if (!active) return
+        const handled = await handleChatLinkRequest(request)
+        if (!handled) return
+      }
+
+      if (!active) return
+      const remaining = await window.chatLinks!.peekPending()
+      const unhandled = remaining.filter((request) => {
+        const key = `${request.sessionId}:${request.receivedAt}:${request.message.trim()}`
+        return !handledChatLinkKeysRef.current.has(key)
+      })
+      if (unhandled.length === 0 && remaining.length > 0) {
+        await window.chatLinks!.consumePending()
+      }
+    }
+
+    drainPending().catch(() => undefined)
+    const unsubscribe = window.chatLinks.onMessage(() => {
+      drainPending().catch(() => undefined)
+    })
+
+    return () => {
+      active = false
+      unsubscribe()
+    }
+  }, [currentSessionId, currentSessionIsLoading, handleChatLinkRequest, isLoading])
 
   useEffect(() => {
     const handlePromptShortcut = (event: KeyboardEvent) => {
@@ -151,9 +241,12 @@ export default function ChatArea() {
     } else {
       container.scrollTop = scrollTop
     }
-    window.setTimeout(() => {
-      isAutoScrollingRef.current = false
-    }, smooth ? 350 : 50)
+    window.setTimeout(
+      () => {
+        isAutoScrollingRef.current = false
+      },
+      smooth ? 350 : 50
+    )
   }
 
   const isNearBottom = () => {
@@ -257,21 +350,23 @@ export default function ChatArea() {
     await sendMessage(input.trim(), attachedFiles)
   }
 
-  const handleCopy = useCallback(async (content: string) => {
-    const copiedSuccessfully = await writeTextToClipboard(content)
-    if (!copiedSuccessfully) {
-      showToast('Unable to copy message right now.', 'error')
-    }
-    return copiedSuccessfully
-  }, [showToast])
+  const handleCopy = useCallback(
+    async (content: string) => {
+      const copiedSuccessfully = await writeTextToClipboard(content)
+      if (!copiedSuccessfully) {
+        showToast('Unable to copy message right now.', 'error')
+      }
+      return copiedSuccessfully
+    },
+    [showToast]
+  )
 
   const visibleLiveToolResults = useMemo(
     () => toolState.toolResults.filter((result) => !shouldHideGenericToolResultCard(result)),
     [toolState.toolResults]
   )
-  const displayActiveToolCalls = toolState.activeToolBatch.length > 0
-    ? toolState.activeToolBatch
-    : toolState.activeToolCalls
+  const displayActiveToolCalls =
+    toolState.activeToolBatch.length > 0 ? toolState.activeToolBatch : toolState.activeToolCalls
 
   const renderMessage = useCallback(
     (index: number, msg: (typeof messages)[0]) => {

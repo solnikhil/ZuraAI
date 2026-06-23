@@ -13,10 +13,7 @@ import {
   XCircle,
 } from '../../components/icons'
 import { getWebToolLabel, inferWebToolModeFromResultData } from './webToolDisplay'
-import {
-  getToolPresentation,
-  stringifyToolValue,
-} from './toolPresentation'
+import { getToolPresentation, stringifyToolValue } from './toolPresentation'
 
 import './ToolResultDisplay.css'
 
@@ -79,6 +76,27 @@ export default function ToolResultDisplay({
   const durationMs = mcpMetadata?.durationMs ?? executionTime
 
   if (toolName === 'web_search') {
+    const skippedReason = (metadata as any)?.skippedReason
+    if (skippedReason === 'budget') {
+      // Render budget exhaustion as a normal-ish tool result (not a scary "Tool Error")
+      // so the user sees the attempt + outcome exactly like other web_search calls.
+      return (
+        <div className="tool-result tool-result-search tool-result-budget">
+          <div className="tool-result-header">
+            <AlertCircle size={16} />
+            <span>Web Search: {String(toolArguments?.query || 'query')}</span>
+            <span className="tool-result-badge">Budget reached</span>
+          </div>
+          <div
+            className="tool-result-error-message"
+            style={{ color: 'var(--theme-text-warning, #f59e0b)' }}
+          >
+            {error || 'Search budget for this response has been reached. No additional results.'}
+          </div>
+        </div>
+      )
+    }
+
     if (error) {
       return (
         <div className="tool-result tool-result-error">
@@ -87,7 +105,9 @@ export default function ToolResultDisplay({
             <span>Tool Error: {displayName}</span>
           </div>
           <div className="tool-result-error-message">{error}</div>
-          {mcpMetadata && <div className="tool-result-error-message">{formatMcpAuditLine(mcpMetadata)}</div>}
+          {mcpMetadata && (
+            <div className="tool-result-error-message">{formatMcpAuditLine(mcpMetadata)}</div>
+          )}
         </div>
       )
     }
@@ -187,18 +207,24 @@ export default function ToolResultDisplay({
     )
   }
 
-
   if (toolName === 'code_execution') {
     const data = result as Record<string, unknown> | undefined
     const stdout = typeof data?.stdout === 'string' ? data.stdout : ''
     const stderr = typeof data?.stderr === 'string' ? data.stderr : ''
     const exitCode = typeof data?.exitCode === 'number' ? data.exitCode : null
-    const lang = typeof data?.language === 'string' ? data.language : (typeof toolArguments?.language === 'string' ? toolArguments.language : 'code')
+    const lang =
+      typeof data?.language === 'string'
+        ? data.language
+        : typeof toolArguments?.language === 'string'
+          ? toolArguments.language
+          : 'code'
     const langLabel = lang === 'python' ? 'Python' : lang === 'javascript' ? 'JavaScript' : lang
     const hasOutput = stdout || stderr || error
 
     return (
-      <div className={`tool-result tool-result-mcp tool-result-mcp-status-${error ? 'error' : 'success'}`}>
+      <div
+        className={`tool-result tool-result-mcp tool-result-mcp-status-${error ? 'error' : 'success'}`}
+      >
         <div
           className="tool-result-header tool-result-clickable"
           onClick={() => setIsExpanded(!isExpanded)}
@@ -209,11 +235,16 @@ export default function ToolResultDisplay({
             </span>
             <div className="tool-result-title-group">
               <span className="tool-result-title">Code Execution</span>
-              <span className="tool-result-subtitle">{langLabel}{exitCode !== null && exitCode !== 0 ? ` • exit ${exitCode}` : ''}</span>
+              <span className="tool-result-subtitle">
+                {langLabel}
+                {exitCode !== null && exitCode !== 0 ? ` • exit ${exitCode}` : ''}
+              </span>
             </div>
           </div>
           <div className="tool-result-badge-row">
-            <span className={`tool-result-mcp-status tool-result-mcp-status-${error ? 'error' : 'success'}`}>
+            <span
+              className={`tool-result-mcp-status tool-result-mcp-status-${error ? 'error' : 'success'}`}
+            >
               {error ? 'Failed' : 'Completed'}
             </span>
             {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
@@ -225,19 +256,36 @@ export default function ToolResultDisplay({
             {error && (
               <div className="tool-result-mcp-detail-row">
                 <span className="tool-result-mcp-detail-label">Error</span>
-                <pre className="tool-result-mcp-detail-value" style={{ whiteSpace: 'pre-wrap' }}>{error}</pre>
+                <pre className="tool-result-mcp-detail-value" style={{ whiteSpace: 'pre-wrap' }}>
+                  {error}
+                </pre>
               </div>
             )}
             {stdout && (
               <div className="tool-result-mcp-detail-row">
                 <span className="tool-result-mcp-detail-label">Output</span>
-                <pre className="tool-result-mcp-detail-value" style={{ whiteSpace: 'pre-wrap', maxHeight: '300px', overflow: 'auto' }}>{stdout}</pre>
+                <pre
+                  className="tool-result-mcp-detail-value"
+                  style={{ whiteSpace: 'pre-wrap', maxHeight: '300px', overflow: 'auto' }}
+                >
+                  {stdout}
+                </pre>
               </div>
             )}
             {stderr && (
               <div className="tool-result-mcp-detail-row">
                 <span className="tool-result-mcp-detail-label">Stderr</span>
-                <pre className="tool-result-mcp-detail-value" style={{ whiteSpace: 'pre-wrap', maxHeight: '200px', overflow: 'auto', color: 'var(--theme-text-warning, #f59e0b)' }}>{stderr}</pre>
+                <pre
+                  className="tool-result-mcp-detail-value"
+                  style={{
+                    whiteSpace: 'pre-wrap',
+                    maxHeight: '200px',
+                    overflow: 'auto',
+                    color: 'var(--theme-text-warning, #f59e0b)',
+                  }}
+                >
+                  {stderr}
+                </pre>
               </div>
             )}
             {!hasOutput && (
@@ -257,17 +305,37 @@ export default function ToolResultDisplay({
     )
   }
 
-
   if (toolName.startsWith('computer_')) {
     const data = result as Record<string, unknown> | undefined
-    const action = typeof data?.action === 'string' ? data.action : toolName.replace('computer_', '')
-    const screenshot = typeof data?.screenshot === 'string' ? data.screenshot : (typeof data?.image === 'string' ? data.image : null)
+    const action =
+      typeof data?.action === 'string' ? data.action : toolName.replace('computer_', '')
+    const screenshot =
+      typeof data?.screenshot === 'string'
+        ? data.screenshot
+        : typeof data?.image === 'string'
+          ? data.image
+          : null
     const screenW = typeof data?.screenWidth === 'number' ? data.screenWidth : null
     const screenH = typeof data?.screenHeight === 'number' ? data.screenHeight : null
-    const actionLabel = action === 'screenshot' ? 'Screenshot' : action === 'click' ? 'Click' : action === 'type' ? 'Type' : action === 'key' ? 'Key Press' : action === 'scroll' ? 'Scroll' : action === 'cursor_position' ? 'Move Cursor' : action
+    const actionLabel =
+      action === 'screenshot'
+        ? 'Screenshot'
+        : action === 'click'
+          ? 'Click'
+          : action === 'type'
+            ? 'Type'
+            : action === 'key'
+              ? 'Key Press'
+              : action === 'scroll'
+                ? 'Scroll'
+                : action === 'cursor_position'
+                  ? 'Move Cursor'
+                  : action
 
     return (
-      <div className={`tool-result tool-result-mcp tool-result-mcp-status-${error ? 'error' : 'success'}`}>
+      <div
+        className={`tool-result tool-result-mcp tool-result-mcp-status-${error ? 'error' : 'success'}`}
+      >
         <div
           className="tool-result-header tool-result-clickable"
           onClick={() => setIsExpanded(!isExpanded)}
@@ -278,11 +346,17 @@ export default function ToolResultDisplay({
             </span>
             <div className="tool-result-title-group">
               <span className="tool-result-title">{actionLabel}</span>
-              {screenW && screenH && <span className="tool-result-subtitle">{screenW}×{screenH}</span>}
+              {screenW && screenH && (
+                <span className="tool-result-subtitle">
+                  {screenW}×{screenH}
+                </span>
+              )}
             </div>
           </div>
           <div className="tool-result-badge-row">
-            <span className={`tool-result-mcp-status tool-result-mcp-status-${error ? 'error' : 'success'}`}>
+            <span
+              className={`tool-result-mcp-status tool-result-mcp-status-${error ? 'error' : 'success'}`}
+            >
               {error ? 'Failed' : 'Done'}
             </span>
             {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
@@ -294,7 +368,9 @@ export default function ToolResultDisplay({
             {error && (
               <div className="tool-result-mcp-detail-row">
                 <span className="tool-result-mcp-detail-label">Error</span>
-                <pre className="tool-result-mcp-detail-value" style={{ whiteSpace: 'pre-wrap' }}>{error}</pre>
+                <pre className="tool-result-mcp-detail-value" style={{ whiteSpace: 'pre-wrap' }}>
+                  {error}
+                </pre>
               </div>
             )}
             {screenshot && (
@@ -302,7 +378,13 @@ export default function ToolResultDisplay({
                 <img
                   src={`data:image/png;base64,${screenshot}`}
                   alt={`${actionLabel} result`}
-                  style={{ width: '100%', maxHeight: '300px', objectFit: 'contain', borderRadius: '8px', background: '#000' }}
+                  style={{
+                    width: '100%',
+                    maxHeight: '300px',
+                    objectFit: 'contain',
+                    borderRadius: '8px',
+                    background: '#000',
+                  }}
                 />
               </div>
             )}
@@ -317,8 +399,6 @@ export default function ToolResultDisplay({
       </div>
     )
   }
-
-
 
   const status = getGenericToolStatus(mcpMetadata, error)
   const resultBody = stringifyToolValue(result)
@@ -374,7 +454,10 @@ export default function ToolResultDisplay({
                 </div>
               ))}
               {outputItems.length > 10 && (
-                <div className="mcp-result-item" style={{ fontStyle: 'italic', color: 'var(--theme-text-muted)' }}>
+                <div
+                  className="mcp-result-item"
+                  style={{ fontStyle: 'italic', color: 'var(--theme-text-muted)' }}
+                >
                   +{outputItems.length - 10} more items
                 </div>
               )}
@@ -530,7 +613,17 @@ function extractResultItems(result: unknown): ResultItem[] {
   const record = result as Record<string, unknown>
   const items: ResultItem[] = []
 
-  const arrayFields = ['results', 'items', 'data', 'files', 'content', 'entries', 'resources', 'tools', 'prompts']
+  const arrayFields = [
+    'results',
+    'items',
+    'data',
+    'files',
+    'content',
+    'entries',
+    'resources',
+    'tools',
+    'prompts',
+  ]
   for (const field of arrayFields) {
     if (Array.isArray(record[field])) {
       const arr = record[field] as unknown[]
@@ -542,9 +635,13 @@ function extractResultItems(result: unknown): ResultItem[] {
         } else if (item && typeof item === 'object') {
           const obj = item as Record<string, unknown>
           const title = obj.title || obj.name || obj.label || obj.id || obj.path || obj.key
-          const desc = obj.description || obj.content || obj.value || obj.text || obj.snippet || obj.message
+          const desc =
+            obj.description || obj.content || obj.value || obj.text || obj.snippet || obj.message
           if (typeof title === 'string' && title.trim()) {
-            items.push({ key: title.trim(), value: typeof desc === 'string' ? desc.trim() : stringifyToolValue(obj) })
+            items.push({
+              key: title.trim(),
+              value: typeof desc === 'string' ? desc.trim() : stringifyToolValue(obj),
+            })
           } else if (typeof desc === 'string' && desc.trim()) {
             items.push({ key: null, value: desc.trim() })
           } else {
@@ -631,11 +728,15 @@ function McpDetailsSection({
                 </div>
                 <div className="tool-result-meta-item">
                   <span className="tool-result-meta-label">Approval</span>
-                  <span className="tool-result-meta-value">{formatApprovalLabel(metadata.approvalState)}</span>
+                  <span className="tool-result-meta-value">
+                    {formatApprovalLabel(metadata.approvalState)}
+                  </span>
                 </div>
                 <div className="tool-result-meta-item">
                   <span className="tool-result-meta-label">Trusted</span>
-                  <span className="tool-result-meta-value">{metadata.trusted ? 'Trusted' : 'Untrusted'}</span>
+                  <span className="tool-result-meta-value">
+                    {metadata.trusted ? 'Trusted' : 'Untrusted'}
+                  </span>
                 </div>
                 {durationMs !== undefined && (
                   <div className="tool-result-meta-item">

@@ -115,47 +115,47 @@ function DashboardApp() {
             <QuickSendProvider>
               <ComposerDraftProvider>
                 <AgentToolApprovalProvider>
-                <ModelSelectorProvider>
-                  {!macOS && <OverlaySync />}
-                  <NotificationSettingsSync />
-                  <MonitorSummarySync />
-                  <Router>
-                    <Routes>
-                      <Route element={<AppShellRouteHost />}>
-                        <Route element={<AppShellLayout />}>
-                          <Route path="/" element={<DashboardLayout />} />
-                          <Route path="/dashboard" element={<DashboardLayout />} />
+                  <ModelSelectorProvider>
+                    {!macOS && <OverlaySync />}
+                    <NotificationSettingsSync />
+                    <MonitorSummarySync />
+                    <Router>
+                      <Routes>
+                        <Route element={<AppShellRouteHost />}>
+                          <Route element={<AppShellLayout />}>
+                            <Route path="/" element={<DashboardLayout />} />
+                            <Route path="/dashboard" element={<DashboardLayout />} />
+                            <Route
+                              path="/settings"
+                              element={
+                                <Suspense fallback={<SettingsLoadingFallback />}>
+                                  <Settings />
+                                </Suspense>
+                              }
+                            />
+                            <Route path="/chat" element={<DashboardLayout />} />
+                          </Route>
+                          <Route path="*" element={<NotFound404 />} />
+                        </Route>
+                        {!macOS && (
                           <Route
-                            path="/settings"
+                            path="/overlay"
                             element={
-                              <Suspense fallback={<SettingsLoadingFallback />}>
-                                <Settings />
+                              <Suspense fallback={null}>
+                                <OverlayView />
                               </Suspense>
                             }
                           />
-                          <Route path="/chat" element={<DashboardLayout />} />
-                        </Route>
-                        <Route path="*" element={<NotFound404 />} />
-                      </Route>
-                      {!macOS && (
-                        <Route
-                          path="/overlay"
-                          element={
-                            <Suspense fallback={null}>
-                              <OverlayView />
-                            </Suspense>
-                          }
-                        />
-                      )}
-                    </Routes>
-                  </Router>
-                  <McpApprovalDialog />
-                  <AnalyticsConsentPrompt />
-                </ModelSelectorProvider>
-              </AgentToolApprovalProvider>
-              <CodeExecutionApprovalHost />
-              <TerminalApprovalHost />
-              {!macOS && <ComputerUseApprovalDialog />}
+                        )}
+                      </Routes>
+                    </Router>
+                    <McpApprovalDialog />
+                    <AnalyticsConsentPrompt />
+                  </ModelSelectorProvider>
+                </AgentToolApprovalProvider>
+                <CodeExecutionApprovalHost />
+                <TerminalApprovalHost />
+                {!macOS && <ComputerUseApprovalDialog />}
               </ComposerDraftProvider>
             </QuickSendProvider>
           </StreamingProvider>

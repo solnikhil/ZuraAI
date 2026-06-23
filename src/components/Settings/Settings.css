@@ -637,6 +637,7 @@
 }
 
 .usage-lower-grid .usage-model-mix-card {
+    grid-column: 1 / -1;
     margin-top: 0;
 }
 
@@ -772,9 +773,11 @@
 }
 
 .usage-model-mix-card__body {
-    display: flex;
-    justify-content: center;
+    display: grid;
+    grid-template-columns: minmax(260px, 0.9fr) minmax(320px, 1.1fr);
+    gap: clamp(28px, 6vw, 96px);
     align-items: center;
+    justify-content: stretch;
 }
 
 .usage-model-mix-card__chart {
@@ -790,6 +793,7 @@
     display: grid;
     gap: 8px;
     min-width: 0;
+    width: 100%;
 }
 
 .usage-model-mix-card__legend-row {
@@ -1049,9 +1053,8 @@
         grid-column: span 1;
     }
     .usage-model-mix-card__body {
-        display: flex;
+        grid-template-columns: 1fr;
         justify-content: center;
-        align-items: center;
     }
     .usage-model-mix-card__chart {
         max-width: 250px;
