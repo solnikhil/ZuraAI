@@ -53,7 +53,7 @@ export interface SessionManagerConfig {
 const DEFAULT_CONFIG: SessionManagerConfig = {
   maxLoadedSessions: 3,
   unloadAfterMs: 300000, // 5 minutes
-  preloadMessageCount: 20,
+  preloadMessageCount: 80,
 }
 
 /**

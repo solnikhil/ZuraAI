@@ -58,7 +58,7 @@ interface ChatHistoryContextType {
   updateSessionTitle: (id: string, title: string) => void
   refreshSessions: () => Promise<void>
   clearCurrentSession: () => void
-  loadFullSession: (id: string) => Promise<ChatSession | null>
+  loadFullSession: (id: string, options?: { limit?: number }) => Promise<ChatSession | null>
   getSessionMetadata: () => SessionMetadata[]
   isSessionLoaded: (id: string) => boolean
 
@@ -99,6 +99,13 @@ const SAVE_DEBOUNCE_MS = 500
 const INDEX_VERSION = 3
 
 function sessionToMetadata(session: ChatSession): ChatSessionMetadata {
+  const messages = session.messages ?? []
+  const messageCount = session.messages?.length ?? session.messageCount ?? 0
+
+  // Mirror of main-process logic: embed recent tail for fast preview
+  const RECENT_TAIL_SIZE = 80
+  const recentMessages = messages.length > 0 ? messages.slice(-RECENT_TAIL_SIZE) : undefined
+
   return {
     id: session.id,
     title: session.title,
@@ -108,15 +115,18 @@ function sessionToMetadata(session: ChatSession): ChatSessionMetadata {
     pinned: session.pinned ?? false,
     folderId: session.folderId ?? null,
     tags: Array.isArray(session.tags) ? session.tags : [],
-    messageCount: session.messages?.length ?? session.messageCount ?? 0,
+    messageCount,
+    recentMessages,
   }
 }
 
 function metadataToSession(metadata: ChatSessionMetadata, messages: Message[] = []): ChatSession {
+  // If we have no full messages yet, fall back to the embedded recent tail for instant preview
+  const effectiveMessages = messages.length > 0 ? messages : (metadata.recentMessages ?? [])
   return {
     id: metadata.id,
     title: metadata.title,
-    messages,
+    messages: effectiveMessages,
     createdAt: metadata.createdAt,
     updatedAt: metadata.updatedAt,
     totalTokens: metadata.totalTokens,
@@ -283,11 +293,13 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
   }, [])
 
   const loadFullSession = useCallback(
-    async (id: string): Promise<ChatSession | null> => {
+    async (id: string, options?: { limit?: number }): Promise<ChatSession | null> => {
       const existing = sessionsRef.current.find((session) => session.id === id)
       if (!existing) return null
 
-      if (loadedSessionIdsRef.current.has(id) && isLoadedSession(existing)) {
+      // If already fully loaded (no limit was used before), reuse
+      const isFullyLoaded = loadedSessionIdsRef.current.has(id) && isLoadedSession(existing)
+      if (isFullyLoaded && !options?.limit) {
         markLoaded(id)
         pruneLoadedSessions(currentSessionId)
         return existing
@@ -295,11 +307,15 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
 
       try {
         const loaded = isElectron
-          ? await window.ipcRenderer.invoke('chat-store:get-session', id)
+          ? await window.ipcRenderer.invoke('chat-store:get-session', id, options)
           : (() => {
               const saved = localStorage.getItem('zura-chat-history')
               const parsed = saved ? (JSON.parse(saved) as ChatSession[]) : []
-              return parsed.find((session) => session.id === id) ?? null
+              const found = parsed.find((session) => session.id === id) ?? null
+              if (found && options?.limit && Array.isArray(found.messages)) {
+                found.messages = found.messages.slice(-options.limit)
+              }
+              return found
             })()
 
         if (!loaded) return null
@@ -308,10 +324,13 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
           ...loaded,
           ...existing,
           messages: loaded.messages ?? [],
-          messageCount: loaded.messages?.length ?? existing.messageCount ?? 0,
+          messageCount: loaded.messageCount ?? loaded.messages?.length ?? existing.messageCount ?? 0,
         })
 
-        markLoaded(id)
+        // Only mark as "loaded" (eligible for pruning as full) if we didn't use a limit
+        if (!options?.limit) {
+          markLoaded(id)
+        }
         setSessions((prev) => prev.map((session) => (session.id === id ? normalized : session)))
         pruneLoadedSessions(id)
         return normalized
@@ -402,7 +421,9 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     if (!rememberedId) return
     if (sessions.some((session) => session.id === rememberedId)) {
       setCurrentSessionId(rememberedId)
-      void loadFullSession(rememberedId)
+      // Use fast tail load for startup feel
+      void loadFullSession(rememberedId, { limit: 80 })
+      setTimeout(() => void loadFullSession(rememberedId), 150)
     }
   }, [currentSessionId, isInitialized, loadFullSession, sessions, settings.rememberLastChatSession])
 
@@ -410,7 +431,22 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     if (!currentSessionId) return
     const session = sessions.find((entry) => entry.id === currentSessionId)
     if (session && !loadedSessionIdsRef.current.has(currentSessionId)) {
-      void loadFullSession(currentSessionId)
+      const total = session.messageCount ?? session.messages?.length ?? 0
+      const have = session.messages?.length ?? 0
+
+      // If we already have a good tail from embedded recentMessages in metadata, we can skip the limited IPC
+      const alreadyHasDecentTail = have >= 50
+
+      if (!alreadyHasDecentTail) {
+        void loadFullSession(currentSessionId, { limit: 80 })
+      }
+
+      // Background: load the complete history so older context is available (if any)
+      if (total > have) {
+        setTimeout(() => {
+          void loadFullSession(currentSessionId)
+        }, 180)
+      }
     }
   }, [currentSessionId, loadFullSession, sessions])
 
@@ -572,7 +608,9 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     (id: string) => {
       if (!sessionsRef.current.some((session) => session.id === id)) return
       setCurrentSessionId(id)
-      void loadFullSession(id)
+      // Fast tail load first for snappy feel, then full background load
+      void loadFullSession(id, { limit: 80 })
+      setTimeout(() => void loadFullSession(id), 100)
     },
     [loadFullSession]
   )

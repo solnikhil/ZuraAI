@@ -135,7 +135,8 @@ export default function OverlayView() {
 
   useEffect(() => {
     if (currentSessionId && currentSessionIsLoading) {
-      void loadFullSession(currentSessionId)
+      void loadFullSession(currentSessionId, { limit: 80 })
+      setTimeout(() => void loadFullSession(currentSessionId), 150)
     }
   }, [currentSessionId, currentSessionIsLoading, loadFullSession])
 

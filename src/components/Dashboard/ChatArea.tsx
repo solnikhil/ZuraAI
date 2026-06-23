@@ -26,9 +26,10 @@ import { NORMAL_PLACEHOLDERS, GENZ_PLACEHOLDERS } from './ChatArea/placeholders'
 import { CHAT_AREA_STYLES } from './ChatArea/chatAreaStyles'
 
 /**
- * Virtualization threshold - activate virtual scrolling for lists > 50 messages
+ * Virtualization threshold - activate virtual scrolling for lists > 20 messages.
+ * Lowered to improve perceived performance even on medium-length chats.
  */
-const VIRTUALIZATION_THRESHOLD = 50
+const VIRTUALIZATION_THRESHOLD = 20
 
 export default function ChatArea() {
   const { sessions, currentSessionId, isSessionLoaded, loadFullSession, switchSession } =
@@ -117,7 +118,9 @@ export default function ChatArea() {
 
   useEffect(() => {
     if (currentSessionId && currentSessionIsLoading) {
-      void loadFullSession(currentSessionId)
+      // Fast tail load + background full (consistent with global chat loading strategy)
+      void loadFullSession(currentSessionId, { limit: 80 })
+      setTimeout(() => void loadFullSession(currentSessionId), 150)
     }
   }, [currentSessionId, currentSessionIsLoading, loadFullSession])
 
@@ -132,6 +135,7 @@ export default function ChatArea() {
 
       let targetSession = sessions.find((session) => session.id === sessionId) ?? null
       if (!targetSession) {
+        // Prefer full for deep link continuation
         targetSession = await loadFullSession(sessionId)
       }
       if (!targetSession) {
@@ -142,6 +146,7 @@ export default function ChatArea() {
 
       if (currentSessionId !== sessionId) {
         switchSession(sessionId)
+        // Ensure we have the full history for context when continuing via link
         await loadFullSession(sessionId)
         return false
       }

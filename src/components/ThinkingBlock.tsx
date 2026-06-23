@@ -143,6 +143,75 @@ function getWebSearchResultCount(data: unknown): number | null {
   return null
 }
 
+function WebSearchSourcesPreview({ data, executionTime }: { data: unknown; executionTime?: number }) {
+  if (!data || typeof data !== 'object') {
+    return <div className="text-xs text-white/50">No source data</div>
+  }
+  const d = data as Record<string, unknown>
+  const results = (Array.isArray(d.results) ? d.results : []) as Array<Record<string, unknown>>
+
+  if (results.length === 0) {
+    return <div className="text-xs text-white/50">No results returned</div>
+  }
+
+  const getFavicon = (url: string, provided?: string) => {
+    if (provided && typeof provided === 'string' && provided.trim()) return provided.trim()
+    try {
+      const host = new URL(String(url)).hostname
+      return `https://www.google.com/s2/favicons?domain=${host}&sz=64`
+    } catch {
+      return ''
+    }
+  }
+
+  const shown = results.slice(0, 4)
+  const extra = Math.max(0, results.length - 4)
+
+  return (
+    <div className="text-sm">
+      {/* Continuous icon group + time right next to it, under the Sources label.
+          Icons are now clickable links to the source pages (no list below). */}
+      <div className="flex items-center gap-3 mb-3">
+        <div className="flex items-center -space-x-1.5">
+          {shown.map((r, idx) => {
+            const url = String(r.url || '')
+            const fav = getFavicon(url, r.favicon as string | undefined)
+            const title = String(r.title || url)
+            return (
+              <a
+                key={idx}
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={title}
+                className="inline-block hover:z-10 hover:scale-110 transition-transform"
+              >
+                <img
+                  src={fav}
+                  alt=""
+                  className="w-6 h-6 rounded-full ring-1 ring-black/80 bg-white/5 object-cover"
+                  onError={(e) => {
+                    const el = e.currentTarget as HTMLImageElement
+                    el.style.display = 'none'
+                  }}
+                />
+              </a>
+            )
+          })}
+          {extra > 0 && (
+            <div className="w-6 h-6 rounded-full bg-zinc-900 text-xs font-medium flex items-center justify-center ring-1 ring-black/70 text-white/80">
+              +{extra}
+            </div>
+          )}
+        </div>
+        {executionTime != null && (
+          <span className="text-sm text-white/70 font-mono tracking-tight">{executionTime}ms</span>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function getCompletedToolStatus(
   block: ThinkingBlockType
 ): { label: string; tone: 'neutral' | 'success' | 'warning' | 'error' } | null {
@@ -361,7 +430,8 @@ function cleanToolOutputForDisplay(data: unknown): unknown {
   if (Array.isArray(obj.results)) {
     const cleaned = { ...obj }
     cleaned.results = (obj.results as Array<Record<string, unknown>>).map((r) => {
-      const { favicon, source, displayed_link, ...rest } = r
+      // Keep favicon for nice source previews (we no longer hide them)
+      const { source, displayed_link, ...rest } = r
       return rest
     })
     // Strip images array (shown in carousel), and metadata fields
@@ -418,7 +488,7 @@ function InlineWebSearchBlock({ block }: { block: ThinkingBlockType }) {
             style={{ overflow: 'hidden' }}
           >
             <div className="thinking-content thinking-tool-details">
-              {block.toolInput && Object.keys(block.toolInput).length > 0 && (
+              {block.toolInput && Object.keys(block.toolInput).length > 0 && toolName !== 'web_search' && (
                 <div className="thinking-tool-json">
                   <div className="thinking-tool-json-label">Input</div>
                   <pre>{JSON.stringify(block.toolInput, null, 2)}</pre>
@@ -427,21 +497,19 @@ function InlineWebSearchBlock({ block }: { block: ThinkingBlockType }) {
               {block.toolOutput && (
                 <div className="thinking-tool-json">
                   <div className="thinking-tool-json-label">
-                    Output
-                    {block.toolOutput.executionTime != null && (
-                      <span className="thinking-tool-meta">
-                        {' '}
-                        ({block.toolOutput.executionTime}ms)
-                      </span>
-                    )}
+                    {toolName === 'web_search' ? 'Sources' : 'Output'}
                   </div>
-                  <pre>
-                    {block.toolOutput.error
-                      ? block.toolOutput.error
-                      : block.toolOutput.data !== undefined
-                        ? JSON.stringify(cleanToolOutputForDisplay(block.toolOutput.data), null, 2)
-                        : '{}'}
-                  </pre>
+                  {block.toolOutput.data && (block.toolOutput.data as any).results ? (
+                    <WebSearchSourcesPreview data={block.toolOutput.data} executionTime={block.toolOutput.executionTime} />
+                  ) : (
+                    <pre>
+                      {block.toolOutput.error
+                        ? block.toolOutput.error
+                        : block.toolOutput.data !== undefined
+                          ? JSON.stringify(cleanToolOutputForDisplay(block.toolOutput.data), null, 2)
+                          : '{}'}
+                    </pre>
+                  )}
                 </div>
               )}
             </div>
@@ -743,7 +811,7 @@ function CompletedBlock({
               style={{ overflow: 'hidden' }}
             >
               <div className="thinking-content thinking-tool-details">
-                {block.toolInput && Object.keys(block.toolInput).length > 0 && (
+                {block.toolInput && Object.keys(block.toolInput).length > 0 && toolName !== 'web_search' && (
                   <div className="thinking-tool-json">
                     <div className="thinking-tool-json-label">Input</div>
                     <pre>{JSON.stringify(block.toolInput, null, 2)}</pre>
@@ -752,25 +820,23 @@ function CompletedBlock({
                 {block.toolOutput && (
                   <div className="thinking-tool-json">
                     <div className="thinking-tool-json-label">
-                      Output
-                      {block.toolOutput.executionTime != null && (
-                        <span className="thinking-tool-meta">
-                          {' '}
-                          ({block.toolOutput.executionTime}ms)
-                        </span>
-                      )}
+                      {toolName === 'web_search' ? 'Sources' : 'Output'}
                     </div>
-                    <pre>
-                      {block.toolOutput.error
-                        ? block.toolOutput.error
-                        : block.toolOutput.data !== undefined
-                          ? JSON.stringify(
-                              cleanToolOutputForDisplay(block.toolOutput.data),
-                              null,
-                              2
-                            )
-                          : '{}'}
-                    </pre>
+                    {toolName === 'web_search' && block.toolOutput.data && !block.toolOutput.error ? (
+                      <WebSearchSourcesPreview data={block.toolOutput.data} executionTime={block.toolOutput.executionTime} />
+                    ) : (
+                      <pre>
+                        {block.toolOutput.error
+                          ? block.toolOutput.error
+                          : block.toolOutput.data !== undefined
+                            ? JSON.stringify(
+                                cleanToolOutputForDisplay(block.toolOutput.data),
+                                null,
+                                2
+                              )
+                            : '{}'}
+                      </pre>
+                    )}
                     {auditLine && <div className="thinking-tool-audit-line">{auditLine}</div>}
                   </div>
                 )}

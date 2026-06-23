@@ -457,7 +457,7 @@ export type IpcInvokeChannel =
 
 export interface IpcInvokeArgsMap {
   'chat-store:get-metadata': []
-  'chat-store:get-session': [sessionId: string]
+  'chat-store:get-session': [sessionId: string, options?: { limit?: number }]
   'chat-store:save-session': [session: ChatSession]
   'chat-store:delete-session': [sessionId: string]
   'chat-store:save-index': [index: ChatIndexData]

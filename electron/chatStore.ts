@@ -53,6 +53,8 @@ export interface ChatSessionMetadata {
   folderId: string | null
   tags: string[]
   messageCount: number
+  /** Last ~30 messages for instant preview when switching chats (kept small for perf) */
+  recentMessages?: Message[]
 }
 
 /**
@@ -137,6 +139,14 @@ export function migrateSession(session: ChatSession): ChatSession {
 
 export function sessionToMetadata(session: ChatSession): ChatSessionMetadata {
   const migrated = migrateSession(session)
+  const messages = migrated.messages ?? []
+  const messageCount = migrated.messageCount ?? messages.length
+
+  // Embed a decent recent tail in metadata. This gives instant conversation context
+  // on chat switch without touching the full per-session file.
+  const RECENT_TAIL_SIZE = 80
+  const recentMessages = messages.length > 0 ? messages.slice(-RECENT_TAIL_SIZE) : undefined
+
   return {
     id: migrated.id,
     title: migrated.title,
@@ -146,15 +156,18 @@ export function sessionToMetadata(session: ChatSession): ChatSessionMetadata {
     pinned: migrated.pinned ?? false,
     folderId: migrated.folderId ?? null,
     tags: Array.isArray(migrated.tags) ? migrated.tags : [],
-    messageCount: migrated.messages.length,
+    messageCount,
+    recentMessages,
   }
 }
 
 function metadataToSession(metadata: ChatSessionMetadata, messages: Message[] = []): ChatSession {
+  // Prefer provided messages; otherwise fall back to embedded recent tail for preview
+  const effectiveMessages = messages.length > 0 ? messages : (metadata.recentMessages ?? [])
   return {
     id: metadata.id,
     title: metadata.title,
-    messages,
+    messages: effectiveMessages,
     createdAt: metadata.createdAt,
     updatedAt: metadata.updatedAt,
     totalTokens: metadata.totalTokens,
@@ -205,6 +218,7 @@ function normalizeMetadata(input: unknown): ChatSessionMetadata | null {
     folderId: raw.folderId ?? null,
     tags: Array.isArray(raw.tags) ? raw.tags : [],
     messageCount,
+    recentMessages: Array.isArray(raw.recentMessages) ? raw.recentMessages : undefined,
   }
 }
 
@@ -548,8 +562,15 @@ export async function saveAllSessionsAsync(sessions: ChatSession[]): Promise<voi
   })
 }
 
-export async function getSessionAsync(id: string): Promise<ChatSession | null> {
-  return readSessionFileAsync(id)
+export async function getSessionAsync(id: string, options?: { limit?: number }): Promise<ChatSession | null> {
+  const session = await readSessionFileAsync(id)
+  if (!session || !options?.limit || !Array.isArray(session.messages)) {
+    return session
+  }
+  // Return only the most recent messages for fast initial load
+  const limit = Math.max(1, options.limit)
+  session.messages = session.messages.slice(-limit)
+  return session
 }
 
 export async function saveSessionAsync(session: ChatSession): Promise<ChatSessionMetadata> {

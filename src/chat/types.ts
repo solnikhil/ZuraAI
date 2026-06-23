@@ -149,6 +149,8 @@ export interface ChatSessionMetadata {
   folderId: string | null
   tags: string[]
   messageCount: number
+  /** Last ~30 messages for instant preview when switching chats (kept small for perf) */
+  recentMessages?: Message[]
 }
 
 export interface Folder {

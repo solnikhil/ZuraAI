@@ -49,7 +49,7 @@
 }
 
 .thinking-block.completed .search-query {
-    color: rgba(255, 255, 255, 0.5);
+    color: rgba(255, 255, 255, 0.7);
 }
 
 /* Active sourcing list items use the same muted treatment for uniformity with Sourced/Thought rows */
@@ -99,6 +99,7 @@
     padding-left: 16px;
     margin-left: 4px;
     border-left: 2px solid rgba(255, 255, 255, 0.1);
+    font-size: 14px;
 }
 
 .thinking-tool-json {
@@ -110,10 +111,10 @@
 }
 
 .thinking-tool-json-label {
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 500;
-    color: rgba(255, 255, 255, 0.5);
-    margin-bottom: 4px;
+    color: rgba(255, 255, 255, 0.6);
+    margin-bottom: 6px;
 }
 
 .thinking-tool-meta {
