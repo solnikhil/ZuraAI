@@ -11,8 +11,8 @@ import {
   renameArtifactDocument,
   restoreArtifactVersion,
 } from '@/artifacts/artifactStore'
-import type { ArtifactDocument, ArtifactKind } from '@/artifacts/artifactTypes'
-import type { ChatSession } from '@/chat/types'
+import type { ArtifactDocument, ArtifactKind, ArtifactSummary } from '@/artifacts/artifactTypes'
+import type { ChatSession, ChatSessionMetadata } from '@/chat/types'
 import { downloadFile } from '@/utils/chatExport'
 import './ArtifactsView.css'
 
@@ -57,36 +57,141 @@ export default function ArtifactsView(): React.ReactElement {
     deleteArtifact,
   } = useChatHistory()
   const { setDashboardView } = useAppShell()
-  const [storedSessions, setStoredSessions] = useState<ChatSession[] | null>(null)
+  const [sessionMetadata, setSessionMetadata] = useState<ChatSessionMetadata[]>([])
   const [activeFilter, setActiveFilter] = useState<ArtifactFilter>('all')
   const [selected, setSelected] = useState<{ sessionId: string; artifactId: string } | null>(null)
+  const [loadedFullArtifact, setLoadedFullArtifact] = useState<ArtifactDocument | null>(null)
 
+  // Load lightweight metadata (with artifactSummaries) + listen for changes so we see artifacts
+  // from other chats + react to saves (including our own debounced ones).
   useEffect(() => {
     if (!window.ipcRenderer) return
     let cancelled = false
-    void window.ipcRenderer
-      .invoke('chat-store:get-all')
-      .then((nextSessions: ChatSession[]) => {
-        if (!cancelled) setStoredSessions(nextSessions)
-      })
-      .catch(() => {
-        if (!cancelled) setStoredSessions(null)
-      })
+
+    const loadMetadata = () => {
+      void window.ipcRenderer!
+        .invoke('chat-store:get-metadata')
+        .then((meta: ChatSessionMetadata[]) => {
+          if (!cancelled) setSessionMetadata(meta || [])
+        })
+        .catch(() => {
+          if (!cancelled) setSessionMetadata([])
+        })
+    }
+
+    loadMetadata()
+
+    const handleChanged = () => {
+      loadMetadata()
+    }
+
+    window.ipcRenderer.on('chat-store:changed', handleChanged)
+
     return () => {
       cancelled = true
+      window.ipcRenderer?.off('chat-store:changed', handleChanged)
     }
   }, [sessions])
 
-  const artifactSessions = storedSessions ?? sessions
+  // When selection changes, try to resolve a *full* ArtifactDocument (with real versions + content)
+  // 1. Prefer live data from ChatHistoryContext (instant after artifact_create)
+  // 2. Fall back to fetching the specific session from disk
+  useEffect(() => {
+    if (!selected) {
+      setLoadedFullArtifact(null)
+      return
+    }
+
+    // Prefer live full document (current chat or recently loaded sessions have the real thing)
+    const liveSession = sessions.find((s) => s.id === selected.sessionId)
+    const liveArtifact = liveSession?.artifacts?.find((a) => a.id === selected.artifactId)
+    if (liveArtifact) {
+      setLoadedFullArtifact(liveArtifact)
+      return
+    }
+
+    // Otherwise load the specific session (only when user actually opens an artifact)
+    if (window.ipcRenderer) {
+      void window.ipcRenderer
+        .invoke('chat-store:get-session', selected.sessionId)
+        .then((fullSession: ChatSession | null) => {
+          if (!fullSession) {
+            setLoadedFullArtifact(null)
+            return
+          }
+          const found = (fullSession.artifacts || []).find((a) => a.id === selected.artifactId) || null
+          setLoadedFullArtifact(found)
+        })
+        .catch(() => setLoadedFullArtifact(null))
+    } else {
+      setLoadedFullArtifact(null)
+    }
+  }, [selected, sessions])
+
+  // Build display list:
+  // - Use FULL documents from live sessions in context (these are immediately up-to-date after create/update)
+  // - Supplement with lightweight ArtifactSummary entries from metadata for other chats
+  // - Prefer live full docs over stale metadata summaries
   const items = useMemo<ArtifactListItem[]>(() => {
-    return artifactSessions.flatMap((session) =>
+    const liveById = new Map(sessions.map((s) => [s.id, s] as const))
+
+    // Full documents from whatever the context currently holds (current chat + any loaded ones)
+    const liveItems: ArtifactListItem[] = sessions.flatMap((session) =>
       (session.artifacts || []).map((artifact) => ({
         sessionId: session.id,
         sessionTitle: session.title,
         artifact,
       }))
-    ).sort((a, b) => b.artifact.updatedAt - a.artifact.updatedAt)
-  }, [artifactSessions])
+    )
+
+    // Lightweight entries from the persisted index (for chats we haven't loaded fully)
+    const metaItems: ArtifactListItem[] = sessionMetadata.flatMap((meta) => {
+      const live = liveById.get(meta.id)
+      // If this session is already represented with real artifacts in live state, skip the summary
+      if (live && (live.artifacts?.length ?? 0) > 0) return []
+
+      const summaries: ArtifactSummary[] = meta.artifactSummaries || []
+      return summaries.map((summary) => {
+        // Synthesize a minimal ArtifactDocument shape sufficient for list rendering.
+        // Real content + accurate version list will come from loadedFullArtifact when selected.
+        const stubVersions = Array.from({ length: Math.max(1, summary.versionCount) }, (_, i) => ({
+          id: i === 0 ? summary.currentVersionId : `v${i}`,
+          content: '',
+          createdAt: summary.updatedAt,
+        }))
+
+        const stub: ArtifactDocument = {
+          id: summary.id,
+          title: summary.title,
+          kind: summary.kind,
+          language: summary.language,
+          createdAt: summary.updatedAt,
+          updatedAt: summary.updatedAt,
+          currentVersionId: summary.currentVersionId,
+          versions: stubVersions,
+        }
+
+        return {
+          sessionId: meta.id,
+          sessionTitle: meta.title,
+          artifact: stub,
+        }
+      })
+    })
+
+    const combined = [...liveItems, ...metaItems]
+
+    // Dedupe (sessionId + artifactId), live wins because it comes first
+    const seen = new Set<string>()
+    const deduped = combined.filter((item) => {
+      const key = `${item.sessionId}:${item.artifact.id}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+
+    return deduped.sort((a, b) => b.artifact.updatedAt - a.artifact.updatedAt)
+  }, [sessions, sessionMetadata])
 
   const filteredItems = useMemo(() => {
     if (activeFilter === 'all') return items
@@ -94,10 +199,14 @@ export default function ArtifactsView(): React.ReactElement {
     return items.filter((item) => item.artifact.kind === activeFilter)
   }, [activeFilter, currentSessionId, items])
 
+  // selectedItem is used for list row identification + basic title/kind in header.
+  // For actual content + real version history we prefer the freshly loaded full artifact.
   const selectedItem = selected
     ? items.find((item) => item.sessionId === selected.sessionId && item.artifact.id === selected.artifactId) ?? null
     : null
-  const selectedVersion = selectedItem ? getCurrentArtifactVersion(selectedItem.artifact) : null
+
+  const effectiveArtifact = loadedFullArtifact || selectedItem?.artifact || null
+  const selectedVersion = effectiveArtifact ? getCurrentArtifactVersion(effectiveArtifact) : null
 
   const filters: Array<{ id: ArtifactFilter; label: string; count: number }> = [
     { id: 'all', label: 'All', count: items.length },
@@ -106,6 +215,9 @@ export default function ArtifactsView(): React.ReactElement {
     { id: 'code', label: 'Code', count: items.filter((item) => item.artifact.kind === 'code').length },
     { id: 'html', label: 'HTML', count: items.filter((item) => item.artifact.kind === 'html').length },
     { id: 'json', label: 'JSON', count: items.filter((item) => item.artifact.kind === 'json').length },
+    { id: 'mermaid', label: 'Mermaid', count: items.filter((item) => item.artifact.kind === 'mermaid').length },
+    { id: 'svg', label: 'SVG', count: items.filter((item) => item.artifact.kind === 'svg').length },
+    { id: 'text', label: 'Text', count: items.filter((item) => item.artifact.kind === 'text').length },
   ]
 
   const copySelected = async () => {
@@ -114,84 +226,118 @@ export default function ArtifactsView(): React.ReactElement {
   }
 
   const downloadSelected = () => {
-    if (!selectedItem || !selectedVersion) return
-    const filename = `${sanitizeFilename(selectedItem.artifact.title)}.${getArtifactExtension(selectedItem.artifact)}`
-    downloadFile(selectedVersion.content, filename, mimeForArtifact(selectedItem.artifact))
+    const art = effectiveArtifact || selectedItem?.artifact
+    if (!art || !selectedVersion) return
+    const filename = `${sanitizeFilename(art.title)}.${getArtifactExtension(art)}`
+    downloadFile(selectedVersion.content, filename, mimeForArtifact(art))
   }
 
+  // Helper for mutations on artifacts that may live only in metadata summaries.
+  // Strategy:
+  // - If we have a full live artifact in context, prefer the proper context action (it will update state + schedule saves).
+  // - Otherwise load the session, apply the change locally, and save directly (for historical artifacts).
   const updateArtifactInSourceSession = (
     sessionId: string,
     artifactId: string,
     updater: (artifact: ArtifactDocument) => ArtifactDocument | null
   ) => {
-    const sourceSessions = storedSessions ?? sessions
-    const sourceSession = sourceSessions.find((session) => session.id === sessionId)
-    if (!sourceSession) return
-
-    const nextArtifacts = (sourceSession.artifacts || [])
-      .map((artifact) => (artifact.id === artifactId ? updater(artifact) : artifact))
-      .filter((artifact): artifact is ArtifactDocument => Boolean(artifact))
-    const nextSession: ChatSession = {
-      ...sourceSession,
-      artifacts: nextArtifacts,
-      updatedAt: Date.now(),
-    }
-
-    setStoredSessions((prev) => {
-      const base = prev ?? sessions
-      return base.map((session) => (session.id === sessionId ? nextSession : session))
-    })
-
-    if (window.ipcRenderer) {
-      void window.ipcRenderer.invoke('chat-store:save-session', nextSession)
+    // Fast path: live session already has the full artifact → use context actions
+    const live = sessions.find((s) => s.id === sessionId)
+    const liveArt = live?.artifacts?.find((a) => a.id === artifactId)
+    if (live && liveArt) {
+      // The context methods already do the right thing (normalize, persist, index update)
+      // We just call the matching high-level action from the caller.
       return
     }
 
-    const isLoadedInContext = sessions.some((session) => session.id === sessionId && (session.artifacts || []).length > 0)
-    if (!isLoadedInContext) return
-    const currentArtifact = nextArtifacts.find((artifact) => artifact.id === artifactId)
-    if (!currentArtifact) {
-      deleteArtifact(sessionId, artifactId)
-    }
+    // Slow path: fetch the real session from disk, mutate, persist
+    if (!window.ipcRenderer) return
+
+    void (async () => {
+      try {
+        const full: ChatSession | null = await window.ipcRenderer.invoke('chat-store:get-session', sessionId)
+        if (!full) return
+
+        const currentArts = full.artifacts || []
+        const nextArts = currentArts
+          .map((artifact) => (artifact.id === artifactId ? updater(artifact) : artifact))
+          .filter((a): a is ArtifactDocument => Boolean(a))
+
+        const nextSession: ChatSession = {
+          ...full,
+          artifacts: nextArts,
+          updatedAt: Date.now(),
+        }
+
+        await window.ipcRenderer.invoke('chat-store:save-session', nextSession)
+
+        // Refresh metadata for the gallery list
+        const freshMeta: ChatSessionMetadata[] = await window.ipcRenderer.invoke('chat-store:get-metadata')
+        setSessionMetadata(freshMeta || [])
+
+        // If this artifact is currently selected in the drawer, re-load the fresh full document
+        if (selected && selected.sessionId === sessionId && selected.artifactId === artifactId) {
+          const refreshed: ChatSession | null = await window.ipcRenderer.invoke('chat-store:get-session', sessionId)
+          const freshArt = refreshed?.artifacts?.find((a) => a.id === artifactId) || null
+          setLoadedFullArtifact(freshArt)
+        }
+      } catch (e) {
+        console.error('Failed to update artifact via direct session save', e)
+      }
+    })()
   }
 
   const renameSelected = () => {
     if (!selectedItem) return
     const title = window.prompt('Rename artifact', selectedItem.artifact.title)
     if (!title) return
-    if (window.ipcRenderer || storedSessions) {
+
+    const liveSession = sessions.find((s) => s.id === selectedItem.sessionId)
+    const liveArt = liveSession?.artifacts?.find((a) => a.id === selectedItem.artifact.id)
+
+    if (liveArt) {
+      // Live full document exists → go through context (handles state + persistence)
+      renameArtifact(selectedItem.sessionId, selectedItem.artifact.id, title)
+    } else {
       updateArtifactInSourceSession(selectedItem.sessionId, selectedItem.artifact.id, (artifact) =>
         renameArtifactDocument(artifact, title)
       )
-      return
     }
-    renameArtifact(selectedItem.sessionId, selectedItem.artifact.id, title)
   }
 
   const restoreSelectedVersion = (versionId: string) => {
     if (!selectedItem) return
-    if (window.ipcRenderer || storedSessions) {
+
+    const liveSession = sessions.find((s) => s.id === selectedItem.sessionId)
+    const liveArt = liveSession?.artifacts?.find((a) => a.id === selectedItem.artifact.id)
+
+    if (liveArt) {
+      restoreArtifact(selectedItem.sessionId, selectedItem.artifact.id, versionId)
+    } else {
       updateArtifactInSourceSession(selectedItem.sessionId, selectedItem.artifact.id, (artifact) =>
         restoreArtifactVersion(artifact, versionId)
       )
-      return
     }
-    restoreArtifact(selectedItem.sessionId, selectedItem.artifact.id, versionId)
   }
 
   const deleteSelected = () => {
     if (!selectedItem) return
-    if (window.ipcRenderer || storedSessions) {
-      updateArtifactInSourceSession(selectedItem.sessionId, selectedItem.artifact.id, () => null)
-    } else {
+
+    const liveSession = sessions.find((s) => s.id === selectedItem.sessionId)
+    const liveArt = liveSession?.artifacts?.find((a) => a.id === selectedItem.artifact.id)
+
+    if (liveArt) {
       deleteArtifact(selectedItem.sessionId, selectedItem.artifact.id)
+    } else {
+      updateArtifactInSourceSession(selectedItem.sessionId, selectedItem.artifact.id, () => null)
     }
     setSelected(null)
+    setLoadedFullArtifact(null)
   }
 
   const renderPreview = () => {
-    if (!selectedItem || !selectedVersion) return null
-    const { artifact } = selectedItem
+    if (!effectiveArtifact || !selectedVersion) return null
+    const artifact = effectiveArtifact
     if (artifact.kind === 'markdown') return <LazyMarkdown content={selectedVersion.content} />
     if (artifact.kind === 'mermaid') return <MermaidDiagram code={selectedVersion.content} />
     if (artifact.kind === 'html') {
@@ -267,17 +413,17 @@ export default function ArtifactsView(): React.ReactElement {
           )}
         </main>
 
-        {selectedItem && selectedVersion && (
+        {selectedItem && effectiveArtifact && selectedVersion && (
           <>
             <div className="artifacts-view__drawer-divider" aria-hidden="true" />
-            <aside className="artifacts-view__drawer" aria-label={`Artifact details for ${selectedItem.artifact.title}`}>
+            <aside className="artifacts-view__drawer" aria-label={`Artifact details for ${effectiveArtifact.title}`}>
               <div className="artifacts-view__drawer-header">
                 <div>
-                  <span>{formatArtifactKind(selectedItem.artifact.kind)}</span>
-                  <h3>{selectedItem.artifact.title}</h3>
+                  <span>{formatArtifactKind(effectiveArtifact.kind)}</span>
+                  <h3>{effectiveArtifact.title}</h3>
                   <div className="artifacts-view__drawer-meta">
                     <span>{selectedItem.sessionTitle}</span>
-                    <span>Updated {formatDate(selectedItem.artifact.updatedAt)}</span>
+                    <span>Updated {formatDate(effectiveArtifact.updatedAt)}</span>
                   </div>
                 </div>
                 <button type="button" className="artifacts-view__icon-button" onClick={() => setSelected(null)} aria-label="Close artifact details">
@@ -319,10 +465,10 @@ export default function ArtifactsView(): React.ReactElement {
               </div>
 
               <div className="artifacts-view__versions">
-                {selectedItem.artifact.versions.slice().reverse().map((version) => (
+                {effectiveArtifact.versions.slice().reverse().map((version) => (
                   <div key={version.id} className="artifacts-view__version">
-                    <span>{version.id === selectedItem.artifact.currentVersionId ? 'Current' : 'Version'} / {formatDate(version.createdAt)}</span>
-                    {version.id !== selectedItem.artifact.currentVersionId && (
+                    <span>{version.id === effectiveArtifact.currentVersionId ? 'Current' : 'Version'} / {formatDate(version.createdAt)}</span>
+                    {version.id !== effectiveArtifact.currentVersionId && (
                       <Button size="sm" variant="ghost" onClick={() => restoreSelectedVersion(version.id)}>
                         Restore
                       </Button>

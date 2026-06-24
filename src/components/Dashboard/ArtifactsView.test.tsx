@@ -52,10 +52,15 @@ vi.mock('../MermaidDiagram', () => ({
 describe('ArtifactsView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    Object.defineProperty(window, 'ipcRenderer', {
-      value: undefined,
-      configurable: true,
-    })
+    if (typeof window !== 'undefined') {
+      Object.defineProperty(window, 'ipcRenderer', {
+        value: undefined,
+        configurable: true,
+      })
+    } else {
+      // @ts-expect-error test env
+      global.window = { ipcRenderer: undefined }
+    }
   })
 
   it('lists artifacts and opens the detail drawer', () => {

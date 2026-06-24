@@ -177,23 +177,6 @@
     overflow-y: auto;
 }
 
-.page-header {
-    margin-bottom: 8px;
-}
-
-.page-title {
-    font-size: 1.5rem;
-    font-weight: 600;
-    color: var(--theme-text-primary);
-    margin-bottom: 8px;
-}
-
-.page-subtitle {
-    color: var(--theme-text-tertiary);
-    font-size: 0.9rem;
-}
-
-
 /* Usage Stats Row */
 
 .usage-stats-row {
@@ -233,7 +216,7 @@
     flex: 1;
     background: var(--theme-surface);
     border: 1px solid var(--theme-border);
-    border-radius: 12px;
+    border-radius: 16px;
     padding: 16px;
     position: relative;
     overflow: hidden;
@@ -256,14 +239,13 @@
     padding: 12px 14px;
     background: var(--theme-surface);
     border: 1px solid var(--theme-border);
-    border-radius: 12px;
+    border-radius: 16px;
     min-width: 0;
-    transition: border-color 150ms ease, background-color 150ms ease, box-shadow 180ms ease;
+    transition: border-color 150ms ease, background-color 150ms ease;
 }
 
 .stat-card.compact:hover {
     border-color: var(--theme-border-hover);
-    box-shadow: var(--theme-shadow-sm);
 }
 
 
@@ -331,19 +313,17 @@
 .detail-card-small {
     background: var(--theme-surface);
     border: 1px solid var(--theme-border);
-    border-radius: 12px;
+    border-radius: 16px;
     padding: 14px;
     display: flex;
     flex-direction: column;
     gap: 8px;
     min-width: 0;
-    transition: border-color 180ms ease, background-color 180ms ease, box-shadow 220ms ease, transform 220ms ease;
+    transition: border-color 180ms ease, background-color 180ms ease;
 }
 
 .detail-card-small:hover {
     border-color: var(--theme-border-hover);
-    transform: translateY(-1px);
-    box-shadow: var(--theme-shadow-md);
 }
 
 
@@ -395,21 +375,16 @@
 /* Activity section */
 
 .activity-section {
-    background:
-        linear-gradient(180deg,
-            color-mix(in srgb, var(--theme-surface) 92%, var(--theme-accent) 8%),
-            color-mix(in srgb, var(--theme-background) 88%, var(--theme-surface) 12%));
-    border: 1px solid color-mix(in srgb, var(--theme-border) 78%, var(--theme-accent) 22%);
-    border-radius: 12px;
+    background: var(--theme-surface);
+    border: 1px solid var(--theme-border);
+    border-radius: 16px;
     padding: 20px;
     margin-top: 20px;
-    box-shadow: inset 0 1px 0 color-mix(in srgb, white 5%, transparent);
-    transition: border-color 180ms ease, background-color 180ms ease, box-shadow 220ms ease;
+    transition: border-color 180ms ease, background-color 180ms ease;
 }
 
 .activity-section:hover {
-    border-color: color-mix(in srgb, var(--theme-border-hover) 72%, var(--theme-accent) 28%);
-    box-shadow: var(--theme-shadow-sm);
+    border-color: var(--theme-border-hover);
 }
 
 .activity-header {
@@ -462,10 +437,7 @@
 .activity-section--embedded {
     margin-top: 0;
     height: 100%;
-    background:
-        linear-gradient(180deg,
-            color-mix(in srgb, var(--theme-surface) 86%, var(--theme-accent) 14%),
-            color-mix(in srgb, var(--theme-background) 90%, var(--theme-surface) 10%));
+    background: var(--theme-surface);
 }
 
 .usage-overview-grid {
@@ -487,7 +459,6 @@
     min-height: 360px;
     padding: 20px;
     border-radius: 16px;
-    background: color-mix(in srgb, var(--theme-surface) 88%, var(--theme-background));
 }
 
 .usage-response-card__header {
@@ -534,18 +505,18 @@
 .usage-response-range button {
     min-height: 30px;
     border: 0;
-    border-radius: 7px;
+    border-radius: 8px;
     background: transparent;
     color: var(--theme-text-muted);
-    font-size: 0.75rem;
-    font-weight: 650;
+    font-size: 0.72rem;
+    font-weight: 580;
     cursor: pointer;
     transition: background-color 150ms ease, color 150ms ease;
 }
 
 .usage-response-range button:hover,
 .usage-response-range button.active {
-    background: color-mix(in srgb, var(--theme-surface-hover) 86%, var(--theme-accent) 14%);
+    background: color-mix(in srgb, var(--theme-surface-hover) 70%, transparent);
     color: var(--theme-text-primary);
 }
 
@@ -614,10 +585,10 @@
     align-items: center;
     min-height: 112px;
     border: 1px dashed color-mix(in srgb, var(--theme-border) 72%, transparent);
-    border-radius: 12px;
-    padding: 14px;
+    border-radius: 16px;
+    padding: 18px;
     color: var(--theme-text-muted);
-    font-size: 0.82rem;
+    font-size: 0.85rem;
 }
 
 .usage-lower-grid {
@@ -673,7 +644,7 @@
     padding: 20px;
     border-radius: 16px;
     min-height: 140px;
-    transition: border-color 180ms ease, background-color 180ms ease, box-shadow 220ms ease, transform 220ms ease;
+    transition: border-color 180ms ease, background-color 180ms ease;
 }
 
 .usage-bento-graph {
@@ -701,10 +672,7 @@
     position: relative;
     overflow: hidden;
     border-radius: 16px;
-    background:
-        linear-gradient(180deg,
-            color-mix(in srgb, var(--theme-surface-hover) 72%, var(--theme-accent) 12%),
-            color-mix(in srgb, var(--theme-background) 92%, var(--theme-surface) 8%));
+    background: var(--theme-surface);
     border: 1px solid var(--theme-border);
 }
 
@@ -825,13 +793,16 @@
 
 .usage-chart-card__empty {
     position: absolute;
-    inset: 0;
+    inset: 16px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: 6px;
-    color: var(--theme-text-tertiary);
+    border: 1px dashed color-mix(in srgb, var(--theme-border) 72%, transparent);
+    border-radius: 12px;
+    padding: 18px;
+    color: var(--theme-text-muted);
     font-size: 0.85rem;
     pointer-events: none;
 }
@@ -915,10 +886,9 @@
     display: grid;
     gap: 18px;
     margin-top: 24px;
-    padding: clamp(18px, 2.4vw, 24px);
+    padding: 20px;
     border-radius: 16px;
-    background: color-mix(in srgb, var(--theme-surface) 86%, var(--theme-background));
-    border: 1px solid color-mix(in srgb, var(--theme-border) 84%, transparent);
+    border: 1px solid var(--theme-border);
     box-shadow: none;
 }
 
@@ -1056,10 +1026,10 @@
     align-items: center;
     min-height: 190px;
     border: 1px dashed color-mix(in srgb, var(--theme-border) 72%, transparent);
-    border-radius: 12px;
+    border-radius: 16px;
     padding: 18px;
     color: var(--theme-text-muted);
-    font-size: 0.86rem;
+    font-size: 0.85rem;
 }
 
 .usage-model-mix-card__tooltip-row {
@@ -1161,9 +1131,7 @@
         transform: none;
     }
 
-    .stat-card:hover,
-    .detail-card-small:hover,
-    .usage-bento-card:hover {
+    .detail-card-small:hover {
         transform: none;
     }
 
@@ -1358,7 +1326,7 @@
     gap: 20px;
     background: var(--theme-surface);
     border: 1px solid var(--theme-border);
-    border-radius: 12px;
+    border-radius: 16px;
     padding: 20px;
     transition: border-color 0.2s ease, background-color 0.2s ease;
 }
@@ -1418,16 +1386,6 @@
     background: var(--theme-error);
 }
 
-
-/* Settings Section Card */
-
-.settings-section-card {
-    background: var(--theme-surface);
-    border: 1px solid var(--theme-border);
-    border-radius: 12px;
-    padding: 20px;
-    transition: border-color 0.2s ease, background-color 0.2s ease;
-}
 
 .settings-section-card h3 {
     margin: 0 0 16px;
@@ -2219,20 +2177,6 @@
     padding-right: clamp(16px, 2.4vw, 30px);
 }
 
-.page-header {
-    margin-bottom: 14px;
-}
-
-.page-title {
-    font-size: clamp(1.05rem, 1.6vw, 1.35rem);
-    letter-spacing: 0.01em;
-}
-
-.page-subtitle {
-    max-width: 85ch;
-    line-height: 1.45;
-}
-
 .section-head {
     margin: 0;
     font-size: 0.98rem;
@@ -2245,15 +2189,6 @@
     font-size: 0.82rem;
     color: var(--theme-text-muted);
     line-height: 1.45;
-}
-
-.settings-section-card {
-    border-radius: 14px;
-    border: 1px solid color-mix(in srgb, var(--theme-border) 92%, transparent);
-    background:
-        linear-gradient(160deg, color-mix(in srgb, var(--theme-surface) 96%, transparent) 0%, color-mix(in srgb, var(--theme-background) 88%, transparent) 100%);
-    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.02);
-    transition: border-color 180ms ease, transform 180ms ease, box-shadow 220ms ease;
 }
 
 .skills-list {
@@ -2868,16 +2803,6 @@
     border: 1px solid color-mix(in srgb, var(--theme-border) 84%, transparent);
     background: var(--settings-panel-container-bg);
     box-shadow: none;
-}
-
-.stat-card,
-.stat-card.compact,
-.detail-card-small,
-.activity-section,
-.limits-section,
-.usage-chart-surface,
-.settings-list-row--field {
-    background: var(--settings-panel-container-bg);
 }
 
 .provider-hub-base-card {

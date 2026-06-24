@@ -37,10 +37,7 @@ export function ComputerUseSection({
         </div>
       </div>
 
-      <Card
-        className="settings-section-card provider-hub-base-card mt-4"
-        style={{ background: '#212121' }}
-      >
+      <Card className="settings-section-card provider-hub-base-card mt-4">
         <div className="space-y-6">
           <div className="flex items-center justify-between gap-2">
             <div className="inline-flex items-center gap-2">

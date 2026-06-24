@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Activity, BarChart } from 'lucide-react'
 import { Pie, PieChart } from 'recharts'
+import { Card } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 import {
   ChartContainer,
@@ -481,7 +482,7 @@ export function UsageSection({
         <ModelMixPieCard stats={stats} />
       </div>
 
-      <div className="settings-section-card provider-hub-base-card mt-4">
+      <Card className="settings-section-card provider-hub-base-card mt-4">
         <div className="settings-list-row">
           <div className="settings-list-row__meta">
             <h3 className="settings-list-row__label">Anonymous analytics</h3>
@@ -502,7 +503,7 @@ export function UsageSection({
             />
           </div>
         </div>
-      </div>
+      </Card>
     </div>
   )
 }
