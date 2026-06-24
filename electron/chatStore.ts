@@ -33,6 +33,7 @@ export interface ChatSession {
   id: string
   title: string
   messages: Message[]
+  artifacts?: ArtifactDocument[]
   createdAt: number
   updatedAt: number
   totalTokens?: number
@@ -41,6 +42,39 @@ export interface ChatSession {
   folderId?: string | null // default: null
   tags?: string[] // default: []
   messageCount?: number
+}
+
+export type ArtifactKind = 'text' | 'markdown' | 'code' | 'html' | 'json' | 'svg' | 'mermaid'
+
+export interface ArtifactVersion {
+  id: string
+  content: string
+  createdAt: number
+  sourceMessageId?: string
+  changeSummary?: string
+}
+
+export interface ArtifactDocument {
+  id: string
+  title: string
+  kind: ArtifactKind
+  language?: string
+  createdAt: number
+  updatedAt: number
+  createdByMessageId?: string
+  updatedByMessageId?: string
+  currentVersionId: string
+  versions: ArtifactVersion[]
+}
+
+export interface ArtifactSummary {
+  id: string
+  title: string
+  kind: ArtifactKind
+  language?: string
+  updatedAt: number
+  currentVersionId: string
+  versionCount: number
 }
 
 export interface ChatSessionMetadata {
@@ -53,6 +87,8 @@ export interface ChatSessionMetadata {
   folderId: string | null
   tags: string[]
   messageCount: number
+  artifactCount?: number
+  artifactSummaries?: ArtifactSummary[]
   /** Last ~30 messages for instant preview when switching chats (kept small for perf) */
   recentMessages?: Message[]
 }
@@ -83,7 +119,7 @@ type LegacyChatHistoryData = Omit<ChatHistoryData, 'folders'> & {
   folders?: Folder[]
 }
 
-const INDEX_VERSION = 3
+const INDEX_VERSION = 4
 
 let cachedIndex: ChatIndexData | null = null
 let indexCacheTimestamp = 0
@@ -120,6 +156,51 @@ function normalizeFolders(folders: unknown): Folder[] {
   return Array.isArray(folders) ? (folders.filter(Boolean) as Folder[]) : []
 }
 
+function isArtifactKind(value: unknown): value is ArtifactKind {
+  return value === 'text' || value === 'markdown' || value === 'code' || value === 'html' || value === 'json' || value === 'svg' || value === 'mermaid'
+}
+
+function normalizeArtifacts(raw: unknown): ArtifactDocument[] {
+  if (!Array.isArray(raw)) return []
+  return raw.map((entry): ArtifactDocument | null => {
+    if (!entry || typeof entry !== 'object') return null
+    const artifact = entry as Partial<ArtifactDocument>
+    if (!artifact.id || !artifact.title || !isArtifactKind(artifact.kind) || !Array.isArray(artifact.versions)) return null
+    const versions = artifact.versions.filter((version): version is ArtifactVersion =>
+      Boolean(version && typeof version.id === 'string' && typeof version.content === 'string' && typeof version.createdAt === 'number')
+    )
+    if (versions.length === 0) return null
+    const currentVersionId = versions.some((version) => version.id === artifact.currentVersionId)
+      ? artifact.currentVersionId!
+      : versions[versions.length - 1].id
+    return {
+      id: artifact.id,
+      title: artifact.title.trim() || 'Untitled artifact',
+      kind: artifact.kind,
+      language: typeof artifact.language === 'string' && artifact.language.trim() ? artifact.language.trim() : undefined,
+      createdAt: typeof artifact.createdAt === 'number' ? artifact.createdAt : versions[0].createdAt,
+      updatedAt: typeof artifact.updatedAt === 'number' ? artifact.updatedAt : versions[versions.length - 1].createdAt,
+      createdByMessageId: typeof artifact.createdByMessageId === 'string' ? artifact.createdByMessageId : undefined,
+      updatedByMessageId: typeof artifact.updatedByMessageId === 'string' ? artifact.updatedByMessageId : undefined,
+      currentVersionId,
+      versions,
+    }
+  }).filter((artifact): artifact is ArtifactDocument => Boolean(artifact))
+}
+
+function summarizeArtifacts(artifacts: ArtifactDocument[] | undefined): ArtifactSummary[] | undefined {
+  if (!artifacts || artifacts.length === 0) return undefined
+  return artifacts.map((artifact) => ({
+    id: artifact.id,
+    title: artifact.title,
+    kind: artifact.kind,
+    language: artifact.language,
+    updatedAt: artifact.updatedAt,
+    currentVersionId: artifact.currentVersionId,
+    versionCount: artifact.versions.length,
+  }))
+}
+
 /**
  * Normalizes optional session metadata and removes deprecated fields.
  */
@@ -130,6 +211,7 @@ export function migrateSession(session: ChatSession): ChatSession {
   return {
     ...rest,
     messages,
+    artifacts: normalizeArtifacts(session.artifacts),
     pinned: session.pinned ?? false,
     folderId: session.folderId ?? null,
     tags: Array.isArray(session.tags) ? session.tags : [],
@@ -157,6 +239,8 @@ export function sessionToMetadata(session: ChatSession): ChatSessionMetadata {
     folderId: migrated.folderId ?? null,
     tags: Array.isArray(migrated.tags) ? migrated.tags : [],
     messageCount,
+    artifactCount: migrated.artifacts?.length ?? 0,
+    artifactSummaries: summarizeArtifacts(migrated.artifacts),
     recentMessages,
   }
 }
@@ -175,6 +259,7 @@ function metadataToSession(metadata: ChatSessionMetadata, messages: Message[] = 
     folderId: metadata.folderId,
     tags: [...metadata.tags],
     messageCount: metadata.messageCount,
+    artifacts: [],
   }
 }
 
@@ -193,6 +278,8 @@ function mergeMetadataWithSession(
     folderId: migrated.folderId ?? existing?.folderId ?? null,
     tags: Array.isArray(migrated.tags) ? migrated.tags : existing?.tags ?? [],
     messageCount: migrated.messages.length,
+    artifactCount: migrated.artifacts?.length ?? 0,
+    artifactSummaries: summarizeArtifacts(migrated.artifacts),
   }
 }
 
@@ -218,6 +305,8 @@ function normalizeMetadata(input: unknown): ChatSessionMetadata | null {
     folderId: raw.folderId ?? null,
     tags: Array.isArray(raw.tags) ? raw.tags : [],
     messageCount,
+    artifactCount: typeof raw.artifactCount === 'number' ? raw.artifactCount : 0,
+    artifactSummaries: Array.isArray(raw.artifactSummaries) ? raw.artifactSummaries.filter(Boolean) as ArtifactSummary[] : undefined,
     recentMessages: Array.isArray(raw.recentMessages) ? raw.recentMessages : undefined,
   }
 }

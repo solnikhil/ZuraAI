@@ -102,7 +102,9 @@ export interface ToolExecutionPolicy {
      * Active chat session id. Threaded down to memory tools so model-saved
      * memories can record `sessionId` for traceability.
      */
-    sessionId?: string
+  sessionId?: string
+  /** Active assistant message id, used by renderer tools such as artifacts. */
+  messageId?: string
 }
 
 export interface ToolExecutionSummary {

@@ -89,6 +89,10 @@
     flex-shrink: 0;
 }
 
+.thinking-inline-tool-call .thinking-tool-calling-icon.search-icon {
+  color: rgba(255, 255, 255, 0.5);
+}
+
 .thinking-content .thinking-segment {
     display: block;
 }
@@ -229,6 +233,30 @@
     color: var(--theme-info, rgba(59, 130, 246, 0.9));
 }
 
+/* Web search icons use the muted color of "Sourced" text (and sourcing attributions),
+   not the bright blue info color used for general tool calling / searching. */
+.thinking-tool-calling-icon.search-icon {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.thinking-block.completed .thinking-tool-calling-icon.search-icon {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.thinking-header.search-sourcing .thinking-tool-calling-icon.search-icon {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* Ensure search icons stay muted even under the 'searching' accent rule */
+.thinking-header.searching .thinking-tool-calling-icon.search-icon {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* Also beat the generic tool-call blue rule for search icons inside tool-call blocks */
+.thinking-block.thinking-tool-call .thinking-tool-calling-icon.search-icon {
+  color: rgba(255, 255, 255, 0.5);
+}
+
 .thinking-header.search-batch {
     padding-bottom: 4px;
 }
@@ -248,6 +276,18 @@
     display: inline-flex;
     align-items: center;
     flex-shrink: 0;
+}
+
+/* BrainCircuit icon for thinking/thought states.
+   Matches the muted color of the "Thinking"/"Thought" text (not the blue used for search/tool calls). */
+.thinking-tool-calling-icon.brain-icon {
+  color: inherit;
+}
+
+/* Force the same muted thinking color in completed and header contexts */
+.thinking-block.completed .thinking-tool-calling-icon.brain-icon,
+.thinking-header .thinking-tool-calling-icon.brain-icon {
+  color: rgba(255, 255, 255, 0.5);
 }
 
 .tool-call-spinner {

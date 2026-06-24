@@ -1,14 +1,26 @@
 /**
  * ActivityGraph component for Settings
- * Visualizes token usage over the last 30 days as a bar chart
- *
+ * Premium interactive bar chart visualizing token usage over the last 30 days.
+ * Toggle between "All" / Top 5 models / Other to focus a single series.
  */
 
 import React, { useEffect, useMemo, useState } from 'react'
-import { Bar, BarChart, XAxis, YAxis } from 'recharts'
-import { ChartContainer, ChartTooltip, type ChartConfig } from '@/components/ui/chart'
+import { Bar, BarChart, CartesianGrid, XAxis } from 'recharts'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { ChartContainer, ChartTooltip } from '@/components/ui/chart'
 import { assignColor } from '@/utils/colorManager'
 import { cn } from '@/lib/utils'
+
+const OTHER_KEY = 'Other'
+const ALL_KEY = 'All'
+
+type SeriesKey = typeof ALL_KEY | typeof OTHER_KEY | string
 
 /**
  * Activity data point interface
@@ -17,48 +29,45 @@ export interface ActivityData {
   label: string
   date: string
   tokens: number
-  modelBreakdown?: Record<string, number> // Per-model token usage
+  modelBreakdown?: Record<string, number>
 }
 
 /**
  * Props for ActivityGraph component
  */
 export interface ActivityGraphProps {
-  /** Activity data points for 30 days */
   data: ActivityData[]
-  /** Remove outer margin for embedded layouts */
   embedded?: boolean
-  /** Optional class name for container */
   className?: string
 }
 
-/**
- * Custom tooltip component showing model breakdown
- */
+interface ChartPoint {
+  label: string
+  date: string
+  tokens: number
+  [modelName: string]: number | string
+}
+
+interface TooltipPayloadItem {
+  dataKey: string
+  value: number
+  color: string
+  payload: ChartPoint
+}
+
 interface CustomTooltipProps {
   active?: boolean
-  payload?: Array<{
-    dataKey: string
-    value: number
-    color: string
-    payload: Record<string, unknown>
-  }>
+  payload?: TooltipPayloadItem[]
   label?: string
 }
 
 const CustomTooltip: React.FC<CustomTooltipProps> = ({ active, payload, label }) => {
   if (!active || !payload || payload.length === 0) return null
 
-  const date = (payload[0]?.payload?.date as string) || label
-
-  const totalTokens = payload.reduce((sum, item) => sum + (item.value || 0), 0)
-
-  // Filter out items with 0 tokens and sort by value descending
-  const sortedPayload = payload
-    .filter((item) => item.value > 0)
-    .sort((a, b) => (b.value || 0) - (a.value || 0))
-
-  if (sortedPayload.length === 0) return null
+  const item = payload[0]
+  const date = (item?.payload?.date as string) ?? label ?? ''
+  const value = item?.value ?? 0
+  const seriesName = item?.dataKey === OTHER_KEY ? OTHER_KEY : item?.dataKey
 
   return (
     <div
@@ -67,8 +76,7 @@ const CustomTooltip: React.FC<CustomTooltipProps> = ({ active, payload, label })
         border: '1px solid var(--theme-border)',
         borderRadius: 8,
         padding: '8px 12px',
-        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-        minWidth: 180,
+        minWidth: 140,
       }}
     >
       <div
@@ -76,68 +84,31 @@ const CustomTooltip: React.FC<CustomTooltipProps> = ({ active, payload, label })
           fontSize: '0.75rem',
           fontWeight: 600,
           color: 'var(--theme-text-primary)',
-          marginBottom: 8,
-          paddingBottom: 6,
-          borderBottom: '1px solid var(--theme-border)',
+          marginBottom: 6,
         }}
       >
         {date}
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {sortedPayload.map((item) => {
-          const percentage = totalTokens > 0 ? ((item.value / totalTokens) * 100).toFixed(1) : '0'
-          return (
-            <div
-              key={item.dataKey}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                fontSize: '0.75rem',
-              }}
-            >
-              <div
-                style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: '50%',
-                  backgroundColor: item.color,
-                  flexShrink: 0,
-                }}
-              />
-              <div style={{ flex: 1, color: 'var(--theme-text-secondary)' }}>{item.dataKey}</div>
-              <div
-                style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}
-              >
-                <div style={{ fontWeight: 600, color: 'var(--theme-text-primary)' }}>
-                  {item.value.toLocaleString()}
-                </div>
-                <div style={{ fontSize: '0.65rem', color: 'var(--theme-text-muted)' }}>
-                  {percentage}%
-                </div>
-              </div>
-            </div>
-          )
-        })}
-      </div>
       <div
         style={{
-          marginTop: 8,
-          paddingTop: 6,
-          borderTop: '1px solid var(--theme-border)',
-          fontSize: '0.7rem',
-          color: 'var(--theme-text-muted)',
-          textAlign: 'right',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+          fontSize: '0.8rem',
         }}
       >
-        Total: {totalTokens.toLocaleString()} tokens
+        <span style={{ color: 'var(--theme-text-secondary)' }}>{seriesName}</span>
+        <span style={{ fontWeight: 600, color: 'var(--theme-text-primary)' }}>
+          {Number(value).toLocaleString()} tokens
+        </span>
       </div>
     </div>
   )
 }
 
 /**
- * ActivityGraph - Interactive 30-day token usage bar chart
+ * ActivityGraph - Premium interactive 30-day token usage bar chart
  */
 export function ActivityGraph({
   data,
@@ -146,211 +117,193 @@ export function ActivityGraph({
 }: ActivityGraphProps): React.ReactElement {
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false)
 
-  const activeBarStyle = useMemo(
-    () => ({
-      fillOpacity: 1,
-      stroke: 'rgba(255, 255, 255, 0.24)',
-      strokeWidth: 1,
-    }),
-    []
-  )
-
   useEffect(() => {
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
-      return
-    }
-
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
     const media = window.matchMedia('(prefers-reduced-motion: reduce)')
     const update = () => setPrefersReducedMotion(media.matches)
     update()
-
     if (typeof media.addEventListener === 'function') {
       media.addEventListener('change', update)
       return () => media.removeEventListener('change', update)
     }
-
     media.addListener(update)
     return () => media.removeListener(update)
   }, [])
 
-  // Transform data and extract unique models
-  const { chartData, uniqueModels, chartConfig, modelColors } = useMemo(() => {
-    const modelsSet = new Set<string>()
+  const {
+    chartData,
+    series,
+    seriesColors,
+    totals,
+    totalTokens,
+  } = useMemo(() => {
+    const modelTotals: Record<string, number> = {}
 
-    // Collect all unique models
-    data.forEach((item) => {
-      if (item.modelBreakdown) {
-        Object.keys(item.modelBreakdown).forEach((model) => modelsSet.add(model))
-      }
-    })
-
-    const models = Array.from(modelsSet)
-
-    // Assign colors to all models and create a direct color map
-    const config: ChartConfig = {}
-    const colorMap: Record<string, string> = {}
-    models.forEach((model) => {
-      const color = assignColor(model)
-      config[model] = {
-        label: model,
-        color: color,
-      }
-      colorMap[model] = color
-    })
-
-    // Transform data to Recharts format
-    const transformed = data.map((item) => {
-      const point: Record<string, unknown> = {
-        label: item.label,
-        date: item.date,
-        tokens: item.tokens,
-      }
-
-      if (item.modelBreakdown) {
-        Object.entries(item.modelBreakdown).forEach(([model, tokens]) => {
-          point[model] = tokens
+    data.forEach((day) => {
+      if (day.modelBreakdown) {
+        Object.entries(day.modelBreakdown).forEach(([model, tokens]) => {
+          modelTotals[model] = (modelTotals[model] ?? 0) + tokens
         })
+      }
+    })
+
+    const sortedModels = Object.entries(modelTotals)
+      .sort((a, b) => b[1] - a[1])
+      .map(([name]) => name)
+
+    const topModels = sortedModels.slice(0, 5)
+    const otherModels = sortedModels.slice(5)
+    const seriesList: string[] =
+      otherModels.length > 0 ? [ALL_KEY, ...topModels, OTHER_KEY] : [ALL_KEY, ...topModels]
+
+    const colors: Record<string, string> = {
+      [ALL_KEY]: 'var(--theme-accent)',
+      [OTHER_KEY]: 'var(--theme-text-muted)',
+    }
+    topModels.forEach((model) => {
+      colors[model] = assignColor(model)
+    })
+
+    const transformed: ChartPoint[] = data.map((day) => {
+      const point: ChartPoint = {
+        label: day.label,
+        date: day.date,
+        tokens: day.tokens,
+        [ALL_KEY]: day.tokens,
+      }
+
+      topModels.forEach((model) => {
+        point[model] = day.modelBreakdown?.[model] ?? 0
+      })
+
+      if (otherModels.length > 0) {
+        point[OTHER_KEY] = otherModels.reduce(
+          (sum, model) => sum + (day.modelBreakdown?.[model] ?? 0),
+          0
+        )
       }
 
       return point
     })
 
+    const computedTotalTokens = data.reduce((sum, day) => sum + day.tokens, 0)
+    const seriesTotals: Record<string, number> = { [ALL_KEY]: computedTotalTokens }
+    topModels.forEach((model) => {
+      seriesTotals[model] = modelTotals[model] ?? 0
+    })
+    if (otherModels.length > 0) {
+      seriesTotals[OTHER_KEY] = otherModels.reduce((sum, model) => sum + (modelTotals[model] ?? 0), 0)
+    }
+
     return {
       chartData: transformed,
-      uniqueModels: models,
-      chartConfig: config,
-      modelColors: colorMap,
+      series: seriesList,
+      seriesColors: colors,
+      totals: seriesTotals,
+      totalTokens: computedTotalTokens,
     }
   }, [data])
 
-  const showEmptyState =
-    chartData.length === 0 || chartData.every((item) => (item.tokens as number) === 0)
-  const totalTokens = chartData.reduce((sum, item) => sum + ((item.tokens as number) || 0), 0)
+  const [activeChart, setActiveChart] = useState<SeriesKey>(ALL_KEY)
+
+  useEffect(() => {
+    if (!series.includes(activeChart)) {
+      setActiveChart(ALL_KEY)
+    }
+  }, [series, activeChart])
+
+  const activeColor = seriesColors[activeChart] ?? 'var(--theme-accent)'
+
+  const showEmptyState = chartData.length === 0 || totalTokens === 0
 
   return (
-    <div
-      className={cn('activity-section', embedded && 'activity-section--embedded', className)}
-      style={{ marginTop: embedded ? 0 : 32 }}
+    <Card
+      className={cn(
+        'usage-chart-card gap-0 border-0 shadow-none bg-transparent',
+        embedded && 'usage-chart-card--embedded',
+        className
+      )}
     >
-      <div
-        className="activity-header"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: 20,
-          flexWrap: 'wrap',
-          gap: 12,
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span
-            className="stat-label"
-            style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--theme-text-primary)' }}
-          >
-            Token Usage
-          </span>
-          <span
-            style={{
-              fontSize: '0.85rem',
-              color: 'var(--theme-text-muted)',
-              fontWeight: 400,
-            }}
-          >
+      <CardHeader className="usage-chart-card__header px-0">
+        <div className="usage-chart-card__title-block">
+          <CardTitle className="usage-chart-card__title">Token Usage</CardTitle>
+          <CardDescription className="usage-chart-card__description">
             Last 30 days
-          </span>
+          </CardDescription>
         </div>
-        <div
-          style={{
-            fontSize: '0.85rem',
-            color: 'var(--theme-text-secondary)',
-            fontWeight: 500,
-          }}
-        >
-          {totalTokens.toLocaleString()} total tokens
+        <div className="usage-chart-card__toggles" role="tablist" aria-label="Token usage series">
+          {series.map((key) => {
+            const isActive = activeChart === key
+            const color = seriesColors[key] ?? 'var(--theme-accent)'
+            return (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                data-active={isActive}
+                className="usage-chart-card__toggle"
+                onClick={() => setActiveChart(key)}
+                title={key}
+              >
+                <span
+                  className="usage-chart-card__toggle-swatch"
+                  style={{ background: color }}
+                  aria-hidden="true"
+                />
+                <span className="usage-chart-card__toggle-label">{key}</span>
+                <span className="usage-chart-card__toggle-value">
+                  {(totals[key] ?? 0).toLocaleString()}
+                </span>
+              </button>
+            )
+          })}
         </div>
-      </div>
+      </CardHeader>
 
-      <div
-        className="usage-chart-surface usage-motion-surface"
-        style={{
-          minHeight: 280,
-          width: '100%',
-          position: 'relative',
-          borderRadius: 12,
-          padding: '16px 16px 8px 8px',
-          boxSizing: 'border-box',
-        }}
-      >
-        <div style={{ position: 'relative', minHeight: 240 }}>
-          <ChartContainer
-            config={chartConfig}
-            style={{ width: '100%', minWidth: 0, height: 240, minHeight: 240 }}
-          >
+      <CardContent className="usage-chart-card__content px-0">
+        <div className="usage-chart-surface usage-motion-surface">
+          <ChartContainer config={{}} className="usage-chart-card__chart">
             <BarChart
               accessibilityLayer
               data={chartData}
-              margin={{ left: 0, right: 0, top: 8, bottom: 0 }}
+              margin={{ left: 12, right: 12, top: 8, bottom: 0 }}
             >
+              <CartesianGrid vertical={false} stroke="var(--theme-border)" strokeOpacity={0.5} />
               <XAxis
-                dataKey="label"
+                dataKey="date"
                 tickLine={false}
                 axisLine={false}
                 tickMargin={8}
-                interval={5}
+                minTickGap={32}
                 tick={{ fontSize: 10, fill: 'var(--theme-text-muted)' }}
-              />
-              <YAxis
-                tickLine={false}
-                axisLine={false}
-                tickMargin={8}
-                width={40}
                 tickFormatter={(value) => {
-                  if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`
-                  if (value >= 1000) return `${(value / 1000).toFixed(0)}k`
-                  return value.toString()
+                  const date = new Date(value)
+                  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
                 }}
-                tick={{ fontSize: 10, fill: 'var(--theme-text-muted)' }}
               />
-              <ChartTooltip cursor={false} isAnimationActive={false} content={<CustomTooltip />} />
-              {uniqueModels.map((model, index) => (
-                <Bar
-                  key={model}
-                  className="usage-activity-bar"
-                  dataKey={model}
-                  stackId="models"
-                  fill={modelColors[model]}
-                  fillOpacity={0.9}
-                  radius={[3, 3, 0, 0]}
-                  activeBar={activeBarStyle}
-                  isAnimationActive={!prefersReducedMotion}
-                  animationBegin={Math.min(index * 50, 260)}
-                  animationDuration={420}
-                  animationEasing="ease-out"
-                />
-              ))}
+              <ChartTooltip cursor={false} content={<CustomTooltip />} />
+              <Bar
+                dataKey={activeChart}
+                fill={activeColor}
+                fillOpacity={0.95}
+                radius={[8, 8, 0, 0]}
+                isAnimationActive={!prefersReducedMotion}
+                animationDuration={400}
+                animationEasing="ease-out"
+              />
             </BarChart>
           </ChartContainer>
 
           {showEmptyState && (
-            <div
-              style={{
-                position: 'absolute',
-                inset: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--theme-text-tertiary)',
-                fontSize: '0.85rem',
-                pointerEvents: 'none',
-              }}
-            >
-              No token usage yet
+            <div className="usage-chart-card__empty">
+              <span>No token usage yet</span>
+              <span className="usage-chart-card__empty-sub">Start chatting to see your activity.</span>
             </div>
           )}
         </div>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   )
 }
 

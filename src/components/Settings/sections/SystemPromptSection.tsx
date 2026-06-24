@@ -14,6 +14,7 @@ import { defaultComputerUsePrompt } from '../../../prompts/defaultComputerUsePro
 import { defaultChartGenerationPrompt } from '../../../prompts/defaultChartGenerationPrompt'
 import { defaultMemoryPrompt } from '../../../prompts/defaultMemoryPrompt'
 import { defaultRemindersPrompt } from '../../../prompts/defaultRemindersPrompt'
+import { defaultArtifactsPrompt } from '../../../prompts/defaultArtifactsPrompt'
 import {
   buildSelectedPersonalityPrompt,
   type AssistantPersonalityId,
@@ -31,6 +32,7 @@ export interface SystemPromptSectionProps {
   chartGenerationPrompt?: string
   memoryPrompt?: string
   remindersPrompt?: string
+  artifactsPrompt?: string
   onChange: (changes: {
     systemPrompt?: string
     webSearchPrompt?: string
@@ -41,6 +43,7 @@ export interface SystemPromptSectionProps {
     chartGenerationPrompt?: string
     memoryPrompt?: string
     remindersPrompt?: string
+    artifactsPrompt?: string
   }) => void
 }
 
@@ -147,7 +150,7 @@ export function SystemPromptSection(props: SystemPromptSectionProps): React.Reac
       <PromptViewerCard
         title="Code Execution Prompt"
         description="Instructions appended when Code Execution is enabled. Guides how the assistant uses the code execution sandbox."
-        note="This only applies when the Code Execution skill is active."
+        note="This only applies when the Code Execution extension is active."
         value={defaultCodeExecutionPrompt}
         showLabel="Show Code Execution Prompt"
         hideLabel="Hide Code Execution Prompt"
@@ -155,8 +158,8 @@ export function SystemPromptSection(props: SystemPromptSectionProps): React.Reac
 
       <PromptViewerCard
         title="Terminal Prompt"
-        description="Instructions appended when the Terminal skill is enabled. Guides how the assistant runs bounded, non-interactive PowerShell commands."
-        note="Windows-only. This only applies when the Terminal skill is active."
+        description="Instructions appended when the Terminal extension is enabled. Guides how the assistant runs bounded, non-interactive PowerShell commands."
+        note="Windows-only. This only applies when the Terminal extension is active."
         value={defaultTerminalPrompt}
         showLabel="Show Terminal Prompt"
         hideLabel="Hide Terminal Prompt"
@@ -165,7 +168,7 @@ export function SystemPromptSection(props: SystemPromptSectionProps): React.Reac
       <PromptViewerCard
         title="Computer Use Prompt"
         description="Instructions appended when Computer Use is enabled. Guides screenshots, clicks, typing, and desktop navigation."
-        note="This only applies when the Computer Use skill is active."
+        note="This only applies when the Computer Use extension is active."
         value={defaultComputerUsePrompt}
         showLabel="Show Computer Use Prompt"
         hideLabel="Hide Computer Use Prompt"
@@ -174,7 +177,7 @@ export function SystemPromptSection(props: SystemPromptSectionProps): React.Reac
       <PromptViewerCard
         title="Chart Generation Prompt"
         description="Instructions appended when Chart Generation is enabled. Guides Mermaid bar, line, and pie chart creation from data."
-        note="This only applies when the Chart Generation skill is active."
+        note="This only applies when the Chart Generation extension is active."
         value={defaultChartGenerationPrompt}
         showLabel="Show Chart Generation Prompt"
         hideLabel="Hide Chart Generation Prompt"
@@ -184,11 +187,11 @@ export function SystemPromptSection(props: SystemPromptSectionProps): React.Reac
         title="Memory Prompt"
         description={
           <>
-            Instructions appended to the saved-memories block when the Memory skill is enabled.
+            Instructions appended to the saved-memories block when the Memory extension is enabled.
             Guides how the assistant should use the injected memories to personalize replies.
           </>
         }
-        note="This only applies when the Memory skill is active."
+        note="This only applies when the Memory extension is active."
         value={defaultMemoryPrompt}
         showLabel="Show Memory Prompt"
         hideLabel="Hide Memory Prompt"
@@ -196,11 +199,20 @@ export function SystemPromptSection(props: SystemPromptSectionProps): React.Reac
 
       <PromptViewerCard
         title="Reminders & Lookouts Prompt"
-        description="Instructions appended when the Reminders & Lookouts skill is enabled. Guides local reminders, recurring checks, and web lookouts."
-        note="This only applies when the Reminders & Lookouts skill is active."
+        description="Instructions appended when the Reminders & Lookouts extension is enabled. Guides local reminders, recurring checks, and web lookouts."
+        note="This only applies when the Reminders & Lookouts extension is active."
         value={defaultRemindersPrompt}
         showLabel="Show Reminders Prompt"
         hideLabel="Hide Reminders Prompt"
+      />
+
+      <PromptViewerCard
+        title="Artifacts Prompt"
+        description="Instructions appended when the Artifacts extension is enabled. Guides artifact creation, updates, and short chat follow-ups."
+        note="This only applies when the Artifacts extension is active."
+        value={defaultArtifactsPrompt}
+        showLabel="Show Artifacts Prompt"
+        hideLabel="Hide Artifacts Prompt"
       />
 
       <PromptViewerCard

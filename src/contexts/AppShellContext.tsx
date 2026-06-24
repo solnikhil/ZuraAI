@@ -16,7 +16,7 @@ import {
   type AppShellNavigationSnapshot,
 } from './appShellNavigation'
 
-export type DashboardView = 'chat' | 'settings' | 'reminders'
+export type DashboardView = 'chat' | 'settings' | 'reminders' | 'artifacts'
 
 export type ProviderKey = ProviderId
 
@@ -63,7 +63,7 @@ const STORAGE_KEYS = {
 
 function readStoredDashboardView(): DashboardView | null {
   const raw = localStorage.getItem(STORAGE_KEYS.dashboardView)
-  if (raw === 'chat' || raw === 'settings' || raw === 'reminders') return raw
+  if (raw === 'chat' || raw === 'settings' || raw === 'reminders' || raw === 'artifacts') return raw
   return null
 }
 

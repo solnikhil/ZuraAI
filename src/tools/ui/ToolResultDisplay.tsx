@@ -4,10 +4,10 @@ import {
   ChevronDown,
   ChevronUp,
   ExternalLink,
-  Search,
   AlertCircle,
   AlertTriangle,
   Globe,
+  Search,
   Wrench,
   CheckCircle,
   XCircle,
@@ -203,6 +203,36 @@ export default function ToolResultDisplay({
             ))}
           </div>
         )}
+      </div>
+    )
+  }
+
+  if (toolName === 'artifact_create' || toolName === 'artifact_update') {
+    const data = result as Record<string, unknown> | undefined
+    const title = typeof data?.title === 'string' ? data.title : String(toolArguments?.title || 'Artifact')
+    const kind = typeof data?.kind === 'string' ? data.kind : 'artifact'
+    const versionId = typeof data?.versionId === 'string' ? data.versionId : ''
+    return (
+      <div className={`tool-result tool-result-mcp tool-result-mcp-status-${error ? 'error' : 'success'}`}>
+        <div className="tool-result-header">
+          <div className="tool-result-heading">
+            <span className="tool-result-leading-icon">
+              {error ? <XCircle size={16} /> : <CheckCircle size={16} />}
+            </span>
+            <div className="tool-result-title-group">
+              <span className="tool-result-title">
+                {toolName === 'artifact_create' ? 'Artifact created' : 'Artifact updated'}
+              </span>
+              <span className="tool-result-subtitle">
+                {title} · {kind}{versionId ? ` · ${versionId.slice(0, 8)}` : ''}
+              </span>
+            </div>
+          </div>
+          <span className={`tool-result-mcp-status tool-result-mcp-status-${error ? 'error' : 'success'}`}>
+            {error ? 'Failed' : 'Saved'}
+          </span>
+        </div>
+        {error && <div className="tool-result-error-message">{error}</div>}
       </div>
     )
   }

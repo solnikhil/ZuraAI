@@ -79,7 +79,7 @@ describe('AppShellContext providers section normalization', () => {
     expect(screen.getByTestId('section').textContent).toBe('providers')
   })
 
-  it('normalizes stored "tools" to skills', () => {
+  it('normalizes stored "tools" to extensions', () => {
     localStorage.setItem('zura-ui:settingsSection', 'tools')
 
     render(
@@ -88,7 +88,7 @@ describe('AppShellContext providers section normalization', () => {
       </AppShellProvider>
     )
 
-    expect(screen.getByTestId('section').textContent).toBe('skills')
+    expect(screen.getByTestId('section').textContent).toBe('overlay')
   })
 
   it('normalizes runtime section updates to providers', () => {

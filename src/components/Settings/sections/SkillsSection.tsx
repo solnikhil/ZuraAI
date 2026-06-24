@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { SkillLogo } from '@/components/shared'
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
@@ -52,8 +53,8 @@ export function SkillsSection({
   const visibleSkills = isMacOSRuntime()
     ? BUILT_IN_SKILLS.filter((skill) => skill.id !== 'computer_use' && skill.id !== 'terminal')
     : BUILT_IN_SKILLS
-  const recommendedSkills = visibleSkills.filter((skill) => skill.id === 'web_research')
-  const systemSkills = visibleSkills.filter((skill) => skill.id !== 'web_research')
+  const recommendedSkills = visibleSkills.filter((skill) => skill.id === 'web_research' || skill.id === 'artifacts')
+  const systemSkills = visibleSkills.filter((skill) => skill.id !== 'web_research' && skill.id !== 'artifacts')
 
   const setEnabled = (skillId: SkillId, enabled: boolean) => {
     if (skillId === 'computer_use') {
@@ -71,13 +72,13 @@ export function SkillsSection({
   return (
     <div className="settings-section-layout">
       <div className="page-header">
-        <h2 className="page-title">Skills</h2>
+        <h2 className="page-title">Extensions</h2>
         <div className="page-subtitle">
-          Enable built-in capabilities that allow the assistant to search the web, run code, and more.
+          Enable built-in extensions that let the assistant search, create artifacts, run tools, and more.
         </div>
       </div>
 
-      <div className="skills-catalog" aria-label="Built-in skills">
+      <div className="skills-catalog" aria-label="Built-in extensions">
         <SkillCatalogGroup
           title="Recommended"
           skills={recommendedSkills}
@@ -170,33 +171,45 @@ function SkillCatalogGroup({
                         <MoreHorizontal size={15} />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => setEnabled(skill.id, false)}>
+                    <DropdownMenuContent align="end" className="zura-menu-surface--compact">
+                      <DropdownMenuItem className="zura-menu-item--compact" onClick={() => setEnabled(skill.id, false)}>
                         Disable
                       </DropdownMenuItem>
                       {skill.id === 'code_execution' && (
                         <>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={() => onChange({ codeExecutionAutoApprove: !codeExecutionAutoApprove })}>
-                            {codeExecutionAutoApprove ? '✓ ' : ''}Auto-approve execution
-                          </DropdownMenuItem>
+                          <DropdownMenuCheckboxItem
+                            className="zura-menu-item--compact"
+                            checked={codeExecutionAutoApprove}
+                            onCheckedChange={() => onChange({ codeExecutionAutoApprove: !codeExecutionAutoApprove })}
+                          >
+                            Auto-approve execution
+                          </DropdownMenuCheckboxItem>
                         </>
                       )}
                       {skill.id === 'terminal' && (
                         <>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={() => onChange({ terminalAutoApprove: !terminalAutoApprove })}>
-                            {terminalAutoApprove ? '✓ ' : ''}Auto-approve execution
-                          </DropdownMenuItem>
+                          <DropdownMenuCheckboxItem
+                            className="zura-menu-item--compact"
+                            checked={terminalAutoApprove}
+                            onCheckedChange={() => onChange({ terminalAutoApprove: !terminalAutoApprove })}
+                          >
+                            Auto-approve execution
+                          </DropdownMenuCheckboxItem>
                         </>
                       )}
                       {skill.id === 'computer_use' && (
                         <>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={() => onChange({ computerUseAutoApprove: !computerUseAutoApprove })}>
-                            {computerUseAutoApprove ? '✓ ' : ''}Auto-approve actions
-                          </DropdownMenuItem>
-                          <DropdownMenuLabel className="px-2 py-1 text-xs font-normal text-muted-foreground">
+                          <DropdownMenuCheckboxItem
+                            className="zura-menu-item--compact"
+                            checked={computerUseAutoApprove}
+                            onCheckedChange={() => onChange({ computerUseAutoApprove: !computerUseAutoApprove })}
+                          >
+                            Auto-approve actions
+                          </DropdownMenuCheckboxItem>
+                          <DropdownMenuLabel>
                             Kill switch: Esc+Esc
                           </DropdownMenuLabel>
                         </>

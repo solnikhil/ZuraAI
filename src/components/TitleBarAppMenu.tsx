@@ -1,6 +1,7 @@
 import {
   Menubar,
   MenubarContent,
+  MenubarGroup,
   MenubarItem,
   MenubarMenu,
   MenubarSeparator,
@@ -70,6 +71,17 @@ const MENU_DEFINITIONS: MenuDefinition[] = [
     items: [{ label: 'ZuraAI Help', appCommand: 'open-help' }],
   },
 ]
+
+function groupMenuItems(items: MenuItemDefinition[]): MenuItemDefinition[][] {
+  return items.reduce<MenuItemDefinition[][]>((groups, item) => {
+    if (item.separatorBefore || groups.length === 0) {
+      groups.push([])
+    }
+
+    groups[groups.length - 1].push(item)
+    return groups
+  }, [])
+}
 
 function isTextInput(element: Element | null): element is HTMLInputElement | HTMLTextAreaElement {
   return element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement
@@ -141,12 +153,12 @@ export function TitleBarAppMenu() {
             {menu.label}
           </MenubarTrigger>
           <MenubarContent align="start" sideOffset={6} className="app-titlebar__menu-content">
-            {menu.items
-              .filter((item) => !item.devOnly || isDev)
-              .map((item) => (
-                <div key={item.label}>
-                  {item.separatorBefore && <MenubarSeparator />}
+            {groupMenuItems(menu.items.filter((item) => !item.devOnly || isDev)).map((group, groupIndex) => (
+              <MenubarGroup key={`${menu.label}-${groupIndex}`}>
+                {groupIndex > 0 && <MenubarSeparator />}
+                {group.map((item) => (
                   <MenubarItem
+                    key={item.label}
                     className="app-titlebar__menu-item"
                     onSelect={() => handleSelect(item)}
                   >
@@ -157,8 +169,9 @@ export function TitleBarAppMenu() {
                       </MenubarShortcut>
                     )}
                   </MenubarItem>
-                </div>
-              ))}
+                ))}
+              </MenubarGroup>
+            ))}
           </MenubarContent>
         </MenubarMenu>
       ))}

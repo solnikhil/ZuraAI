@@ -109,6 +109,25 @@ describe('SettingsContext Provider Integration', () => {
       expect(defaultSettingsConfig.titleGenerationDisplayMode).toBe('instant')
     })
 
+    it('normalizes extensions from missing, legacy skills, and explicit extensions', () => {
+      const missing = normalizeStoredSettings(JSON.stringify({}))
+      expect(missing.extensions.artifacts.enabled).toBe(true)
+      expect(missing.skills).toEqual(missing.extensions)
+
+      const legacySkills = normalizeStoredSettings(JSON.stringify({
+        skills: { artifacts: { enabled: false }, web_research: { enabled: true } },
+      }))
+      expect(legacySkills.extensions.artifacts.enabled).toBe(false)
+      expect(legacySkills.skills).toEqual(legacySkills.extensions)
+
+      const explicitExtensions = normalizeStoredSettings(JSON.stringify({
+        skills: { artifacts: { enabled: false } },
+        extensions: { artifacts: { enabled: true }, web_research: { enabled: false } },
+      }))
+      expect(explicitExtensions.extensions.artifacts.enabled).toBe(true)
+      expect(explicitExtensions.extensions.web_research.enabled).toBe(false)
+    })
+
     it('migrates the legacy default title generation prompt to the hardened prompt', () => {
       const legacyPrompt = `Give this conversation a short descriptive title (2-6 words).
 
@@ -130,6 +149,26 @@ Rules:
     it('defaults assistant personality to Professional Engineer', async () => {
       const { defaultSettingsConfig } = await import('./SettingsConfigContext')
       expect(defaultSettingsConfig.assistantPersonality).toBe(DEFAULT_ASSISTANT_PERSONALITY)
+    })
+
+    it('defaults font scale to 100 percent', async () => {
+      const { defaultSettingsUI } = await import('./SettingsUIContext')
+      expect(defaultSettingsUI.fontScale).toBe(100)
+    })
+
+    it('normalizes missing font scale to the default', () => {
+      const normalized = normalizeStoredSettings(JSON.stringify({}))
+      expect(normalized.fontScale).toBe(100)
+    })
+
+    it('normalizes invalid font scale to the default', () => {
+      const normalized = normalizeStoredSettings(JSON.stringify({ fontScale: 'large' }))
+      expect(normalized.fontScale).toBe(100)
+    })
+
+    it('clamps too-low and too-high persisted font scale values', () => {
+      expect(normalizeStoredSettings(JSON.stringify({ fontScale: 70 })).fontScale).toBe(85)
+      expect(normalizeStoredSettings(JSON.stringify({ fontScale: 140 })).fontScale).toBe(125)
     })
 
     it('normalizes invalid assistant personality to the default', () => {

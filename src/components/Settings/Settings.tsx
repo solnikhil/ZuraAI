@@ -312,23 +312,25 @@ if (!hasSettingsChanges && !hasMcpChanges) {
             )}
 
             {!isMacOSRuntime() && normalizedActiveSection === 'overlay' && (
-              <OverlaySection
-                overlay={pendingSettings.overlay}
-                onChange={(changes) => handleChange(changes)}
-              />
+              <>
+                <OverlaySection
+                  overlay={pendingSettings.overlay}
+                  onChange={(changes) => handleChange(changes)}
+                />
+                <SkillsSection
+                  skills={pendingSettings.extensions}
+                  codeExecutionAutoApprove={pendingSettings.codeExecutionAutoApprove}
+                  terminalAutoApprove={pendingSettings.terminalAutoApprove}
+                  computerUseAutoApprove={pendingSettings.computerUseAutoApprove}
+                  onChange={(changes) => handleChange({
+                    ...changes,
+                    ...(changes.skills ? { extensions: changes.skills } : {}),
+                  })}
+                />
+              </>
             )}
 
             {normalizedActiveSection === 'mcp' && <McpSection />}
-
-            {normalizedActiveSection === 'skills' && (
-              <SkillsSection
-                skills={pendingSettings.skills}
-                codeExecutionAutoApprove={pendingSettings.codeExecutionAutoApprove}
-                terminalAutoApprove={pendingSettings.terminalAutoApprove}
-                computerUseAutoApprove={pendingSettings.computerUseAutoApprove}
-                onChange={(changes) => handleChange(changes)}
-              />
-            )}
 
             {normalizedActiveSection === 'notifications' && (
               <NotificationsSection
@@ -341,9 +343,12 @@ if (!hasSettingsChanges && !hasMcpChanges) {
 
             {normalizedActiveSection === 'memory' && (
               <MemorySection
-                skills={pendingSettings.skills}
+                skills={pendingSettings.extensions}
                 settings={pendingSettings}
-                onChange={(changes) => handleChange(changes)}
+                onChange={(changes) => handleChange({
+                  ...changes,
+                  ...(changes.skills ? { extensions: changes.skills } : {}),
+                })}
               />
             )}
 
@@ -368,6 +373,7 @@ if (!hasSettingsChanges && !hasMcpChanges) {
                 chartGenerationPrompt={pendingSettings.chartGenerationPrompt}
                 memoryPrompt={pendingSettings.memoryPrompt}
                 remindersPrompt={pendingSettings.remindersPrompt}
+                artifactsPrompt={pendingSettings.artifactsPrompt}
                 onChange={(changes) => handleChange(changes)}
               />
             )}

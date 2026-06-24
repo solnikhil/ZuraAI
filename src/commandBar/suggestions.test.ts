@@ -109,14 +109,14 @@ describe('commandBar suggestions', () => {
       expect(searchApisSuggestion?.title).toBe('Search APIs Settings')
     })
 
-    it('offers Skills settings when typing skills', () => {
+    it('offers Extensions settings when typing skills', () => {
       const suggestions = getCommandBarSuggestions('skills', {
         hasCurrentSession: false,
       })
 
-      const skillsSuggestion = suggestions.find((s) => s.id === 'go-settings-skills')
-      expect(skillsSuggestion).toBeDefined()
-      expect(skillsSuggestion?.title).toBe('Skills Settings')
+      const extensionsSuggestion = suggestions.find((s) => s.id === 'go-settings-extensions')
+      expect(extensionsSuggestion).toBeDefined()
+      expect(extensionsSuggestion?.title).toBe('Extensions Settings')
     })
 
     it('offers dev-only chat debug id copy when a session is active', () => {

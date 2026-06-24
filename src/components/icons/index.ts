@@ -59,6 +59,7 @@ export {
   Brain,
   Sparkles,
 } from 'lucide-react'
+export { Brain as BrainCircuit } from 'lucide-react'
 
 // Animated icons
 export { default as EyeIcon } from './EyeIcon'

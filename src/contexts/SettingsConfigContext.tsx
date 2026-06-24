@@ -31,11 +31,12 @@ import { defaultComputerUsePrompt } from '../prompts/defaultComputerUsePrompt'
 import { defaultChartGenerationPrompt } from '../prompts/defaultChartGenerationPrompt'
 import { defaultMemoryPrompt } from '../prompts/defaultMemoryPrompt'
 import { defaultRemindersPrompt } from '../prompts/defaultRemindersPrompt'
+import { defaultArtifactsPrompt } from '../prompts/defaultArtifactsPrompt'
 import {
   DEFAULT_ASSISTANT_PERSONALITY,
   type AssistantPersonalityId,
 } from '../prompts/assistantPersonalities'
-import { defaultSkillsSettings, type SkillsSettings } from '../skills'
+import { defaultSkillsSettings, type ExtensionsSettings, type SkillsSettings } from '../skills'
 import type { AssistantMode } from '../chat/types'
 import { getProviderEnabledDefaults, getProviderSecretFields } from '../providers'
 import type { ProviderId } from '../providers/providerTypes'
@@ -164,12 +165,15 @@ export interface SettingsConfig {
   memoryPrompt: string
   /** Reminders & Lookouts instructions appended when the Reminders skill is enabled */
   remindersPrompt: string
+  /** Artifacts instructions appended when the Artifacts extension is enabled */
+  artifactsPrompt: string
   streamResponses: boolean
 
   // Tool settings
   assistantMode: AssistantMode
   toolsEnabled: boolean
   enabledTools: string[]
+  extensions: ExtensionsSettings
   skills: SkillsSettings
   /** When true, code execution runs without the approval dialog */
   codeExecutionAutoApprove: boolean
@@ -348,12 +352,14 @@ export const defaultSettingsConfig: SettingsConfig = {
   chartGenerationPrompt: defaultChartGenerationPrompt,
   memoryPrompt: defaultMemoryPrompt,
   remindersPrompt: defaultRemindersPrompt,
+  artifactsPrompt: defaultArtifactsPrompt,
   streamResponses: true,
 
   // Tool settings
   assistantMode: 'chat',
   toolsEnabled: true,
   enabledTools: ['web_search'],
+  extensions: defaultSkillsSettings,
   skills: defaultSkillsSettings,
 
   codeExecutionAutoApprove: false,

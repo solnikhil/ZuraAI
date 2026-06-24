@@ -420,8 +420,8 @@ export async function processToolCalls(
   const executionPromises = approvedExecutableCalls.map(async ({ index, toolCall: executableToolCall }) => {
     try {
       const executeOptions = config.requestToolApproval
-        ? { userContextText, bypassNativeApproval: true }
-        : { userContextText }
+        ? { userContextText, bypassNativeApproval: true, sessionId: config.executionPolicy?.sessionId, messageId: config.executionPolicy?.messageId }
+        : { userContextText, sessionId: config.executionPolicy?.sessionId, messageId: config.executionPolicy?.messageId }
       const result = await executeToolCalls([executableToolCall], executeOptions)
       resultsByIndex[index] = result[0]
       config.onToolComplete?.(result[0])

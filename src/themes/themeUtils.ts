@@ -55,6 +55,21 @@ export interface ApplyThemeOptions {
   customForeground?: string
 }
 
+export const DEFAULT_FONT_SCALE = 100
+export const MIN_FONT_SCALE = 85
+export const MAX_FONT_SCALE = 125
+export const FONT_SCALE_STEP = 5
+const BASE_ROOT_FONT_SIZE_PX = 15
+
+export function normalizeFontScale(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return DEFAULT_FONT_SCALE
+  }
+
+  const clamped = Math.min(MAX_FONT_SCALE, Math.max(MIN_FONT_SCALE, value))
+  return Math.round(clamped / FONT_SCALE_STEP) * FONT_SCALE_STEP
+}
+
 function resolveTheme(theme: Theme, options?: ApplyThemeOptions): Theme {
   const accent = options?.customAccent ?? theme.baseColors.accent
   const background = options?.customBackground ?? theme.baseColors.background
@@ -118,4 +133,16 @@ export function applyThemeToDocument(theme: Theme, options?: ApplyThemeOptions):
   root.setAttribute('data-theme', theme.id)
   root.classList.toggle('dark', effectiveTheme.isDark)
   root.style.colorScheme = effectiveTheme.isDark ? 'dark' : 'light'
+}
+
+export function applyFontScaleToDocument(fontScale: unknown): number {
+  const normalizedScale = normalizeFontScale(fontScale)
+  const scaleRatio = normalizedScale / DEFAULT_FONT_SCALE
+  const rootFontSize = BASE_ROOT_FONT_SIZE_PX * scaleRatio
+  const root = document.documentElement
+
+  root.style.setProperty('--app-font-scale', String(scaleRatio))
+  root.style.setProperty('--app-root-font-size', `${rootFontSize}px`)
+
+  return normalizedScale
 }

@@ -159,7 +159,7 @@
 .app-titlebar__menubar {
     display: inline-flex;
     align-items: center;
-    gap: 2px;
+    gap: 1px;
     flex: 0 0 auto;
     height: 28px;
     margin: 0 8px 0 -2px;
@@ -174,31 +174,37 @@
 .app-titlebar__menu-trigger {
     height: 24px;
     min-width: 0;
-    padding: 0 8px;
-    border: 1px solid transparent;
-    border-radius: 6px;
+    padding: 0 7px;
+    border: 0;
+    border-radius: 3px;
     background: transparent;
+    box-shadow: none;
     color: var(--theme-text-secondary);
     font: inherit;
     font-size: 0.76rem;
     font-weight: 600;
     line-height: 1;
     cursor: default;
-    transition: background-color 120ms var(--motion-ease-standard), border-color 120ms var(--motion-ease-standard), color 120ms var(--motion-ease-standard);
+    transition: background-color 120ms var(--motion-ease-standard), color 120ms var(--motion-ease-standard);
     -webkit-app-region: no-drag;
 }
 
 .app-titlebar__menu-trigger:hover,
 .app-titlebar__menu-trigger[data-state='open'] {
-    border-color: color-mix(in srgb, var(--theme-border) 88%, transparent);
-    background: var(--theme-surface-hover);
+    background: color-mix(in srgb, var(--theme-surface-hover) 74%, transparent);
+    box-shadow: none;
     color: var(--theme-text-primary);
     outline: none;
 }
 
+.app-titlebar__menu-trigger[aria-expanded='true'] {
+    background: color-mix(in srgb, var(--theme-surface-hover) 82%, transparent);
+    box-shadow: none;
+}
+
 .app-titlebar__menu-trigger:focus:not(:focus-visible) {
     background: transparent;
-    border-color: transparent;
+    box-shadow: none;
     color: var(--theme-text-secondary);
     outline: none;
 }
@@ -209,17 +215,20 @@
 }
 
 .app-titlebar__menu-trigger:focus-visible {
-    outline: 1px solid color-mix(in srgb, var(--theme-accent) 70%, transparent);
-    outline-offset: 1px;
+    background: color-mix(in srgb, var(--theme-surface-hover) 68%, transparent);
+    box-shadow: none;
+    outline: none;
 }
 
 .app-titlebar__menu-content {
     min-width: 178px;
     padding: 5px;
-    border-color: color-mix(in srgb, var(--theme-border) 72%, rgba(255, 255, 255, 0.14));
+    border-color: var(--zura-menu-border);
+    outline: 1px solid var(--zura-menu-outline);
+    outline-offset: -1px;
     border-radius: 9px;
-    background: color-mix(in srgb, var(--theme-surface) 74%, #111111 26%);
-    color: color-mix(in srgb, var(--theme-text-primary) 88%, white 12%);
+    background: var(--zura-menu-bg);
+    color: var(--zura-menu-fg);
     box-shadow: none;
     transform-origin: var(--radix-menubar-content-transform-origin);
     will-change: opacity, transform;
@@ -228,7 +237,7 @@
 .app-titlebar__menu-content [data-slot='menubar-separator'] {
     height: 1px;
     margin: 5px -5px;
-    background: color-mix(in srgb, var(--theme-border) 76%, rgba(255, 255, 255, 0.12));
+    background: var(--zura-menu-separator);
 }
 
 .app-titlebar__menu-content[data-state='open'] {
@@ -239,24 +248,10 @@
     animation: app-titlebar-menu-out 150ms var(--motion-ease-standard);
 }
 
-.app-titlebar__menu-item {
-    min-height: 29px;
-    border-radius: 6px;
-    padding: 6px 8px;
-    color: color-mix(in srgb, var(--theme-text-primary) 78%, white 22%);
-    font-size: 0.8rem;
-    font-weight: 600;
-}
-
 .app-titlebar__menu-item > span:first-child {
     flex: 1 1 auto;
     min-width: 0;
     text-align: left;
-}
-
-.app-titlebar__menu-item:focus {
-    background: color-mix(in srgb, var(--theme-surface-hover) 72%, white 6%);
-    color: color-mix(in srgb, var(--theme-text-primary) 88%, white 12%);
 }
 
 .app-titlebar__menu-shortcut {

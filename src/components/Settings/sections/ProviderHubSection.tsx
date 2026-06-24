@@ -1760,8 +1760,9 @@ function ModelGroup({
                     <MoreVertical size={14} />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
+                <DropdownMenuContent align="end" className="zura-menu-surface--compact">
                   <DropdownMenuItem
+                    className="zura-menu-item--compact"
                     onSelect={(e) => {
                       e.preventDefault()
                       onEditModel(model)
@@ -1771,6 +1772,7 @@ function ModelGroup({
                     Edit
                   </DropdownMenuItem>
                   <DropdownMenuItem
+                    className="zura-menu-item--compact"
                     onSelect={(e) => {
                       e.preventDefault()
                       onDeleteModel(model)

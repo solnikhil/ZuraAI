@@ -4,7 +4,12 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { getThemeCssVariables, applyThemeToDocument } from './themeUtils'
+import {
+  getThemeCssVariables,
+  applyThemeToDocument,
+  applyFontScaleToDocument,
+  normalizeFontScale,
+} from './themeUtils'
 import { getDefaultTheme, getThemeById, mixHex } from './themeRegistry'
 
 describe('themeUtils', () => {
@@ -82,6 +87,38 @@ describe('themeUtils', () => {
       applyThemeToDocument(theme, { customForeground: '#EEEEEE' })
       const fg = document.documentElement.style.getPropertyValue('--theme-text-primary')
       expect(fg).toBe('#EEEEEE')
+    })
+  })
+
+  describe('font scale', () => {
+    beforeEach(() => {
+      document.documentElement.style.cssText = ''
+    })
+
+    afterEach(() => {
+      document.documentElement.style.cssText = ''
+    })
+
+    it('normalizes invalid font scale values to the default', () => {
+      expect(normalizeFontScale(undefined)).toBe(100)
+      expect(normalizeFontScale(Number.NaN)).toBe(100)
+      expect(normalizeFontScale('115')).toBe(100)
+    })
+
+    it('clamps and snaps font scale values to the supported range and step', () => {
+      expect(normalizeFontScale(80)).toBe(85)
+      expect(normalizeFontScale(127)).toBe(125)
+      expect(normalizeFontScale(112)).toBe(110)
+      expect(normalizeFontScale(113)).toBe(115)
+    })
+
+    it('applies font scale CSS variables to the document root', () => {
+      expect(applyFontScaleToDocument(125)).toBe(125)
+
+      expect(document.documentElement.style.getPropertyValue('--app-font-scale')).toBe('1.25')
+      expect(document.documentElement.style.getPropertyValue('--app-root-font-size')).toBe(
+        '18.75px'
+      )
     })
   })
 

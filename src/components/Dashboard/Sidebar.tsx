@@ -52,6 +52,7 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
   const { settings } = useSettings()
   const { chatSelectedOverlayStyle = 'linear' } = settingsUI
   const remindersEnabled = isSkillEnabled(settings.skills, 'reminders')
+  const artifactsEnabled = isSkillEnabled(settings.skills, 'artifacts')
   const sidebarFooterScrollPadding = 72
 
   // Sidebar state
@@ -129,10 +130,14 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
     setDashboardView('reminders')
   }, [setDashboardView])
 
+  const openArtifacts = useCallback(() => {
+    setDashboardView('artifacts')
+  }, [setDashboardView])
+
   const handleSelectSession = useCallback(
     (sessionId: string) => {
       switchSession(sessionId)
-      if (dashboardView === 'reminders') {
+      if (dashboardView === 'reminders' || dashboardView === 'artifacts') {
         setDashboardView('chat')
       }
     },
@@ -141,7 +146,7 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
 
   const handleNewChat = useCallback(() => {
     clearCurrentSession()
-    if (dashboardView === 'reminders') {
+    if (dashboardView === 'reminders' || dashboardView === 'artifacts') {
       setDashboardView('chat')
     }
   }, [clearCurrentSession, dashboardView, setDashboardView])
@@ -376,19 +381,21 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
       >
       <div className="sidebar__inner">
         <SidebarChatView
-          active={view === 'chat' || view === 'reminders'}
+          active={view === 'chat' || view === 'reminders' || view === 'artifacts'}
           groupedSessions={groupedSessions}
           folders={folders}
           chatSelectedOverlayStyle={chatSelectedOverlayStyle}
-          currentSessionId={view === 'reminders' ? null : currentSessionId}
-          focusIndex={view === 'reminders' ? -1 : focusIndex}
+          currentSessionId={view === 'reminders' || view === 'artifacts' ? null : currentSessionId}
+          focusIndex={view === 'reminders' || view === 'artifacts' ? -1 : focusIndex}
           flatVisibleSessions={flatVisibleSessions}
           sessionIndexMap={sessionIndexMap}
           bottomPadding={sidebarFooterScrollPadding}
           remindersEnabled={remindersEnabled}
+          artifactsEnabled={artifactsEnabled}
           onNewChat={handleNewChat}
           onOpenSearch={openSearchOverlay}
           onOpenReminders={openReminders}
+          onOpenArtifacts={openArtifacts}
           onSelectSession={handleSelectSession}
           onContextAction={handleContextAction}
           onRenameConfirm={handleRenameConfirm}

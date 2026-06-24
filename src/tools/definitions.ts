@@ -3,6 +3,7 @@
 
 import type { ToolDescriptor } from './types'
 import { builtInMainToolDefinitions, builtInMainToolManifest } from './builtinTools'
+import { artifactToolDefinitions } from './artifactTools'
 
 export type ToolDefinition = ToolDescriptor
 
@@ -19,6 +20,7 @@ export type ToolDefinition = ToolDescriptor
  */
 export const builtInToolDefinitions: ToolDefinition[] = [
   ...builtInMainToolDefinitions,
+  ...artifactToolDefinitions,
 ]
 
 export const toolDefinitions = builtInToolDefinitions

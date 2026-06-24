@@ -64,6 +64,11 @@ const SCHEDULED_TASK_TOOLS = [
     'scheduled_task_get_logs',
 ]
 
+const ARTIFACT_TOOLS = [
+    'artifact_create',
+    'artifact_update',
+]
+
 export interface ToolCallState {
     activeToolCalls: ToolCall[]
     activeToolBatch: ToolCall[]
@@ -187,6 +192,15 @@ export function useToolCalling() {
             enabledTools = enabledTools.filter((tool) => !SCHEDULED_TASK_TOOLS.includes(tool))
         } else {
             for (const tool of SCHEDULED_TASK_TOOLS) {
+                if (!enabledTools.includes(tool)) enabledTools.push(tool)
+            }
+        }
+
+        const artifactsSurfaceEnabled = isSkillEnabled(settings.skills, 'artifacts')
+        if (!artifactsSurfaceEnabled) {
+            enabledTools = enabledTools.filter((tool) => !ARTIFACT_TOOLS.includes(tool))
+        } else {
+            for (const tool of ARTIFACT_TOOLS) {
                 if (!enabledTools.includes(tool)) enabledTools.push(tool)
             }
         }

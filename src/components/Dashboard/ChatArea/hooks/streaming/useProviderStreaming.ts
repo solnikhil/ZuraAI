@@ -1159,6 +1159,8 @@ export function useProviderStreaming({
               remainingWebSearchBudget: effectiveSearchBudget,
               priorWebSearchQueries: [],
               userContextText,
+              sessionId: options.sessionId,
+              messageId: options.messageId,
             }),
           }
         )
@@ -1406,6 +1408,8 @@ export function useProviderStreaming({
                   remainingWebSearchBudget: Math.max(0, effectiveSearchBudget - totalSearchCount),
                   priorWebSearchQueries: [...searchQueryHistory],
                   userContextText,
+                  sessionId: options.sessionId,
+                  messageId: options.messageId,
                 }),
               }
             )

@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, lazy, Suspense } from 'react'
 import Sidebar from './Sidebar'
 import ChatArea from './ChatArea'
 import RemindersView from './RemindersView'
+import ArtifactsView from './ArtifactsView'
 import { useAppShell } from '../../contexts/AppShellContext'
 import { useSettings } from '../../contexts/SettingsContext'
 import { isSkillEnabled } from '../../skills'
@@ -39,13 +40,17 @@ export default function DashboardLayout() {
   } = useAppShell()
   const { settings } = useSettings()
   const remindersEnabled = isSkillEnabled(settings.skills, 'reminders')
+  const artifactsEnabled = isSkillEnabled(settings.skills, 'artifacts')
   const [showUnsavedWarning, setShowUnsavedWarning] = useState(false)
 
   useEffect(() => {
     if (view === 'reminders' && !remindersEnabled) {
       setDashboardView('chat')
     }
-  }, [remindersEnabled, setDashboardView, view])
+    if (view === 'artifacts' && !artifactsEnabled) {
+      setDashboardView('chat')
+    }
+  }, [artifactsEnabled, remindersEnabled, setDashboardView, view])
 
   useEffect(() => {
     if (!window.ipcRenderer?.on) return
@@ -132,6 +137,12 @@ export default function DashboardLayout() {
               style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}
             >
               <RemindersView />
+            </div>
+          ) : view === 'artifacts' && artifactsEnabled ? (
+            <div
+              style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}
+            >
+              <ArtifactsView />
             </div>
           ) : (
             <div

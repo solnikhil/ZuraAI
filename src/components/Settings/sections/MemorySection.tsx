@@ -301,7 +301,7 @@ export function MemorySection({
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <button
-                        className="inline-flex items-center gap-2 rounded-[12px] border border-[var(--theme-border)] bg-[var(--theme-surface)] px-3 py-1.5 text-[13px] text-[var(--theme-text-primary)] transition-colors hover:bg-[var(--theme-surface-hover)]"
+                        className="zura-menu-trigger inline-flex items-center gap-2 px-3 py-1.5 text-[13px]"
                         aria-label="Background memory model"
                       >
                         {selectedMemoryModel ? (
@@ -316,36 +316,36 @@ export function MemorySection({
                     </DropdownMenuTrigger>
                     <DropdownMenuContent
                       align="end"
-                      className="w-[205px] rounded-[14px] p-0.5"
+                      className="zura-menu-surface--model w-[205px]"
                     >
                       <DropdownMenuItem
                         onClick={() => onChange({ memoryModel: '' })}
-                        className="h-8 rounded-[12px] px-1.5 text-[12px]"
+                        className="zura-menu-item--model"
                       >
                         <Zap className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
                         <span>Use current chat model</span>
                       </DropdownMenuItem>
-                      <DropdownMenuSeparator className="mx-0 my-px h-px" />
+                      <DropdownMenuSeparator />
                       <DropdownMenuSub>
-                        <DropdownMenuSubTrigger className="h-8 rounded-[12px] px-1.5 text-[12px]">
+                        <DropdownMenuSubTrigger className="zura-menu-sub-trigger--model">
                           <SettingsIcon className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
                           <span>Use separate model</span>
                         </DropdownMenuSubTrigger>
                         <DropdownMenuSubContent
                           sideOffset={8}
                           collisionPadding={12}
-                          className="w-[220px] rounded-[14px] p-0.5"
+                          className="zura-menu-surface--model w-[220px]"
                         >
                           {memoryProviders.map((provider) => (
                             <DropdownMenuSub key={provider.id}>
-                              <DropdownMenuSubTrigger className="h-8 rounded-[12px] px-1.5 text-[12px]">
+                              <DropdownMenuSubTrigger className="zura-menu-sub-trigger--model">
                                 <ProviderLogo provider={provider.id} size={14} />
                                 <span>{provider.label}</span>
                               </DropdownMenuSubTrigger>
                               <DropdownMenuSubContent
                                 sideOffset={8}
                                 collisionPadding={12}
-                                className="w-[220px] max-h-[60vh] overflow-y-auto rounded-[14px] p-0.5"
+                                className="zura-menu-surface--model w-[220px] max-h-[60vh] overflow-y-auto"
                               >
                                 {memoryModelOptions
                                   .filter((o) => o.provider === provider.id)
@@ -353,7 +353,7 @@ export function MemorySection({
                                     <DropdownMenuItem
                                       key={option.value}
                                       onClick={() => onChange({ memoryModel: option.value })}
-                                      className="h-8 rounded-[12px] px-1.5 text-[12px]"
+                                      className="zura-menu-item--model"
                                     >
                                       <ProviderLogo provider={option.provider} size={14} />
                                       <span>{option.label}</span>

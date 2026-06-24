@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronRight, Search, Wrench } from './icons'
+import { BrainCircuit, ChevronRight, Search, Wrench } from './icons'
 import './ThinkingBlock.css'
 import { ThinkingBlock as ThinkingBlockType } from '../contexts/ChatHistoryContext'
 import AITextLoading from './AITextLoading'
@@ -854,6 +854,7 @@ function CompletedBlock({
     <div className="thinking-block completed">
       <div className="thinking-header completed" onClick={() => setIsExpanded(!isExpanded)}>
         <div className="thinking-label">
+          <span className="thinking-tool-calling-icon brain-icon"><BrainCircuit size={14} /></span>
           <span className="thinking-text">
             Thought for {block.duration ? formatDuration(block.duration) : 'a moment'}
           </span>
@@ -1066,7 +1067,7 @@ export default function ThinkingBlock({
                   key={`tool-calling-row:${getToolCallsAnimationKey(activeToolCalls)}`}
                   className="thinking-text thinking-tool-calling"
                 >
-                  <span className="thinking-tool-calling-icon">
+                  <span className="thinking-tool-calling-icon search-icon">
                     {hasActiveSearches ? (
                       <Search size={14} />
                     ) : activeToolCalls[0]?.name === 'system_shell' ? (
@@ -1095,7 +1096,7 @@ export default function ThinkingBlock({
                 </span>
               ) : isSearching && showSourcingHeader ? (
                 <span className="thinking-text thinking-tool-calling">
-                  <span className="thinking-tool-calling-icon">
+                  <span className="thinking-tool-calling-icon search-icon">
                     <Search size={14} />
                   </span>
                   <AITextLoading
@@ -1105,6 +1106,7 @@ export default function ThinkingBlock({
                 </span>
               ) : isThinking ? (
                 <span className="thinking-text">
+                  <span className="thinking-tool-calling-icon brain-icon"><BrainCircuit size={14} /></span>
                   {activeThinkingSeconds === null ? (
                     <AITextLoading text="Connecting" animationKey="connecting" />
                   ) : (
@@ -1116,6 +1118,7 @@ export default function ThinkingBlock({
                 </span>
               ) : (
                 <>
+                  <span className="thinking-tool-calling-icon brain-icon"><BrainCircuit size={14} /></span>
                   <span className="thinking-text">
                     <AITextLoading
                       text={

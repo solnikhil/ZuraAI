@@ -1,4 +1,5 @@
-export type SkillId = 'web_research' | 'code_execution' | 'terminal' | 'computer_use' | 'chart_generation' | 'memory' | 'reminders'
+export type SkillId = 'web_research' | 'code_execution' | 'terminal' | 'computer_use' | 'chart_generation' | 'memory' | 'reminders' | 'artifacts'
+export type ExtensionId = SkillId
 
 export interface SkillState {
   enabled: boolean
@@ -18,6 +19,7 @@ export interface ChartGenerationSkillState extends SkillState {}
 export interface MemorySkillState extends SkillState {}
 
 export interface RemindersSkillState extends SkillState {}
+export interface ArtifactsSkillState extends SkillState {}
 
 export type SkillsSettings = Record<string, SkillState> & {
   web_research: WebResearchSkillState
@@ -27,7 +29,10 @@ export type SkillsSettings = Record<string, SkillState> & {
   chart_generation: ChartGenerationSkillState
   memory: MemorySkillState
   reminders: RemindersSkillState
+  artifacts: ArtifactsSkillState
 }
+export type ExtensionState = SkillState
+export type ExtensionsSettings = SkillsSettings
 
 export interface BuiltInSkill {
   id: SkillId
@@ -36,6 +41,7 @@ export interface BuiltInSkill {
   note: string
   usageGuidance: string[]
 }
+export type BuiltInExtension = BuiltInSkill
 
 export const BUILT_IN_SKILLS: BuiltInSkill[] = [
   {
@@ -102,6 +108,17 @@ export const BUILT_IN_SKILLS: BuiltInSkill[] = [
     ],
   },
   {
+    id: 'artifacts',
+    name: 'Artifacts',
+    description: 'Create, update, preview, and manage assistant-generated documents across chats.',
+    note: 'Artifacts are stored locally inside their source chat and can be copied, downloaded, restored, or deleted.',
+    usageGuidance: [
+      'Use artifact_create for substantial documents, code, markdown, HTML, JSON, SVG, or Mermaid output.',
+      'Use artifact_update to revise an existing artifact instead of posting duplicate full copies in chat.',
+      'Keep normal short answers in chat; use artifacts when the user will likely edit, reuse, or export the result.',
+    ],
+  },
+  {
     id: 'reminders',
     name: 'Reminders & Lookouts',
     description: 'Let the assistant create local reminders and scheduled web lookouts that appear in the Reminders sidebar.',
@@ -143,6 +160,10 @@ const DEFAULT_REMINDERS_SKILL: RemindersSkillState = {
   enabled: false,
 }
 
+const DEFAULT_ARTIFACTS_SKILL: ArtifactsSkillState = {
+  enabled: true,
+}
+
 export const defaultSkillsSettings: SkillsSettings = {
   web_research: DEFAULT_WEB_RESEARCH_SKILL,
   code_execution: DEFAULT_CODE_EXECUTION_SKILL,
@@ -151,6 +172,7 @@ export const defaultSkillsSettings: SkillsSettings = {
   chart_generation: DEFAULT_CHART_GENERATION_SKILL,
   memory: DEFAULT_MEMORY_SKILL,
   reminders: DEFAULT_REMINDERS_SKILL,
+  artifacts: DEFAULT_ARTIFACTS_SKILL,
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -196,7 +218,7 @@ export function normalizeSkillsSettings(raw: unknown): SkillsSettings {
 
   if (isRecord(raw)) {
     for (const [skillId, value] of Object.entries(raw)) {
-      if (skillId === 'web_research' || skillId === 'code_execution' || skillId === 'terminal' || skillId === 'testing' || skillId === 'computer_use' || skillId === 'chart_generation' || skillId === 'memory' || skillId === 'reminders' || skillId === 'agent_desktop') continue
+      if (skillId === 'web_research' || skillId === 'code_execution' || skillId === 'terminal' || skillId === 'testing' || skillId === 'computer_use' || skillId === 'chart_generation' || skillId === 'memory' || skillId === 'reminders' || skillId === 'artifacts' || skillId === 'agent_desktop') continue
       const generic = normalizeGenericSkillState(value)
       if (generic) {
         normalized[skillId] = generic
@@ -232,6 +254,10 @@ export function normalizeSkillsSettings(raw: unknown): SkillsSettings {
   normalized.reminders = normalizeKnownSkill(
     rawRecord?.reminders,
     defaultSkillsSettings.reminders
+  )
+  normalized.artifacts = normalizeKnownSkill(
+    rawRecord?.artifacts,
+    defaultSkillsSettings.artifacts
   )
   return normalized as SkillsSettings
 }
@@ -452,7 +478,7 @@ export function withSkillEnabled(skills: SkillsSettings | undefined, skillId: Sk
 
 export function buildEnabledSkillsPrompt(
   skills: SkillsSettings | undefined,
-  options?: { codeExecutionPrompt?: string; terminalPrompt?: string; computerUsePrompt?: string; chartGenerationPrompt?: string; remindersPrompt?: string },
+  options?: { codeExecutionPrompt?: string; terminalPrompt?: string; computerUsePrompt?: string; chartGenerationPrompt?: string; remindersPrompt?: string; artifactsPrompt?: string },
 ): string {
   if (!skills) return ''
 
@@ -493,6 +519,11 @@ export function buildEnabledSkillsPrompt(
     skillLines.push('- For reminder requests like "in 1 minute" or "tomorrow at 9", set `dueAt` to the first run time; do not use `intervalPreset` as the first due time.')
   }
 
+  if (normalized.artifacts.enabled) {
+    skillLines.push('- Artifacts (`artifact_create`, `artifact_update`): create durable documents when output should be edited, previewed, reused, or exported.')
+    skillLines.push('- Update an existing artifact for revisions instead of repeating long document content in chat.')
+  }
+
   if (skillLines.length > 0) {
     sections.push(`Enabled Skills:\n${skillLines.join('\n')}`)
   }
@@ -517,5 +548,17 @@ export function buildEnabledSkillsPrompt(
     sections.push(options.remindersPrompt)
   }
 
+  if (normalized.artifacts.enabled && options?.artifactsPrompt) {
+    sections.push(options.artifactsPrompt)
+  }
+
   return sections.join('\n\n')
 }
+
+export const BUILT_IN_EXTENSIONS = BUILT_IN_SKILLS
+export const defaultExtensionsSettings = defaultSkillsSettings
+export const normalizeExtensionsSettings = normalizeSkillsSettings
+export const migrateExtensionsFromLegacySettings = migrateSkillsFromLegacySettings
+export const isExtensionEnabled = isSkillEnabled
+export const withExtensionEnabled = withSkillEnabled
+export const buildEnabledExtensionsPrompt = buildEnabledSkillsPrompt

@@ -95,11 +95,18 @@ function SettingsContextBridge({ children }: { children: React.ReactNode }) {
   // be batched into a single render cycle, preventing cascading re-renders.
   const updateSettings = useCallback(
     (newSettings: Partial<Settings>) => {
+      const normalizedUpdates: Partial<Settings> = { ...newSettings }
+      if (newSettings.extensions && !newSettings.skills) {
+        normalizedUpdates.skills = newSettings.extensions
+      }
+      if (newSettings.skills && !newSettings.extensions) {
+        normalizedUpdates.extensions = newSettings.skills
+      }
       // Separate UI settings from config settings
       const uiUpdates: Partial<SettingsUI> = {}
       const configUpdates: Partial<SettingsConfig> = {}
 
-      for (const [key, value] of Object.entries(newSettings)) {
+      for (const [key, value] of Object.entries(normalizedUpdates)) {
         if (UI_SETTING_KEYS.includes(key as keyof SettingsUI)) {
           ;(uiUpdates as Record<string, unknown>)[key] = value
         } else {

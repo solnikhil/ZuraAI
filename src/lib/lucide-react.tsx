@@ -9,6 +9,7 @@ import { ChartBarIcon as ChartBarBase } from '@phosphor-icons/react/dist/csr/Cha
 import { ChartLineUpIcon as ChartLineUpBase } from '@phosphor-icons/react/dist/csr/ChartLineUp'
 import { CubeIcon as CubeBase } from '@phosphor-icons/react/dist/csr/Cube'
 import { BrainIcon as BrainBase } from '@phosphor-icons/react/dist/csr/Brain'
+
 import { PlugsConnectedIcon as PlugsConnectedBase } from '@phosphor-icons/react/dist/csr/PlugsConnected'
 import { CalendarIcon as CalendarBase } from '@phosphor-icons/react/dist/csr/Calendar'
 import { CheckCircleIcon as CheckCircleBase } from '@phosphor-icons/react/dist/csr/CheckCircle'
@@ -128,6 +129,7 @@ export const BarChart = withDefaultWeight(ChartBarBase, 'duotone', 'BarChart')
 export const Bell = withDefaultWeight(BellSimpleBase, 'duotone', 'Bell')
 export const Box = withDefaultWeight(CubeBase, 'duotone', 'Box')
 export const Brain = withDefaultWeight(BrainBase, 'duotone', 'Brain')
+export { BrainBase as BrainCircuit }
 export const Cable = withDefaultWeight(PlugsConnectedBase, 'duotone', 'Cable')
 export const Calendar = withDefaultWeight(CalendarBase, 'duotone', 'Calendar')
 export const ChartNoAxesCombined = withDefaultWeight(ChartLineUpBase, 'duotone', 'ChartNoAxesCombined')

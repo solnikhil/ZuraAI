@@ -71,11 +71,11 @@ export function ModelSelectorDropdown({
       align={align}
       sideOffset={8}
       collisionPadding={12}
-      className="theme-menu-surface w-[248px] rounded-[16px] p-1.5 shadow-none"
+      className="zura-menu-surface--model w-[248px]"
     >
       {showReasoning && (
         <>
-          <DropdownMenuLabel className="px-2 pb-1.5 pt-2 font-[var(--font-sans)] text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--theme-text-tertiary)]">
+          <DropdownMenuLabel>
             Reasoning effort
           </DropdownMenuLabel>
           <DropdownMenuRadioGroup
@@ -87,41 +87,41 @@ export function ModelSelectorDropdown({
               <DropdownMenuRadioItem
                 key={effort}
                 value={effort}
-                className="min-h-9 rounded-[10px] py-2 pl-3 pr-2 font-[var(--font-sans)] text-[13px] font-medium leading-none tracking-[0.01em] transition-colors data-[state=checked]:bg-[var(--theme-surface-active)] data-[state=checked]:text-[var(--theme-text-primary)] data-[state=checked]:shadow-[inset_0_0_0_1px_var(--theme-border-subtle)] focus:bg-[var(--theme-surface-hover)] [&>span:first-child]:hidden"
+                className="zura-menu-item--model pl-3 pr-2 [&>span:first-child]:hidden"
               >
                 {getReasoningEffortLabel(effort)}
               </DropdownMenuRadioItem>
             ))}
           </DropdownMenuRadioGroup>
-          <DropdownMenuSeparator className="mx-1 my-1.5 h-px" />
+          <DropdownMenuSeparator />
         </>
       )}
 
       <DropdownMenuSub>
-        <DropdownMenuSubTrigger className="h-10 rounded-[13px] px-2 text-[13px]">
+        <DropdownMenuSubTrigger className="zura-menu-sub-trigger--model">
           {currentModel && <ProviderLogo provider={currentModel.provider} size={16} />}
           <span className="truncate">{currentName}</span>
         </DropdownMenuSubTrigger>
         <DropdownMenuSubContent
           sideOffset={6}
           collisionPadding={12}
-          className="theme-menu-surface w-[210px] rounded-[16px] p-1.5 shadow-none"
+          className="zura-menu-surface--model w-[210px]"
         >
           {providers.length === 0 ? (
-            <DropdownMenuItem disabled className="h-10 rounded-[13px] px-2 text-[13px]">
+            <DropdownMenuItem disabled className="zura-menu-item--model">
               No models available
             </DropdownMenuItem>
           ) : (
             providers.map((provider) => (
               <DropdownMenuSub key={provider.id}>
-                <DropdownMenuSubTrigger className="h-10 rounded-[13px] px-2 text-[13px]">
+                <DropdownMenuSubTrigger className="zura-menu-sub-trigger--model">
                   <ProviderLogo provider={provider.id} size={16} />
                   <span>{provider.label}</span>
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent
                   sideOffset={6}
                   collisionPadding={12}
-                  className="theme-menu-surface w-[230px] max-h-[60vh] overflow-y-auto rounded-[16px] p-1.5 shadow-none"
+                  className="zura-menu-surface--model w-[230px] max-h-[60vh] overflow-y-auto"
                 >
                   {(groupedModels[provider.id] || []).map((model) => {
                     const isActive =
@@ -130,7 +130,7 @@ export function ModelSelectorDropdown({
                       <DropdownMenuItem
                         key={`${model.provider}-${model.code}`}
                         onSelect={() => onModelSelect(model)}
-                        className="h-10 rounded-[13px] px-2 text-[13px]"
+                        className="zura-menu-item--model"
                       >
                         <ProviderLogo provider={model.provider} size={16} />
                         <span className="flex-1 truncate">{removeEmojis(model.displayName)}</span>

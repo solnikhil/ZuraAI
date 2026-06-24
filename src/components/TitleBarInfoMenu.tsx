@@ -238,7 +238,7 @@ export default function TitleBarInfoMenu({
       <DropdownMenuContent
         align="end"
         sideOffset={6}
-        className="app-menu-panel w-60 rounded-xl border border-border/70 bg-popover/98 p-2 shadow-2xl"
+        className="app-menu-panel zura-menu-surface--compact w-60 p-2"
       >
         {overlayAvailable && (
           <DropdownMenuItem

@@ -20,7 +20,11 @@ import React, {
   useMemo,
 } from 'react'
 import { getThemeById, getDefaultTheme } from '../themes/themeRegistry'
-import { applyThemeToDocument } from '../themes/themeUtils'
+import {
+  DEFAULT_FONT_SCALE,
+  applyFontScaleToDocument,
+  applyThemeToDocument,
+} from '../themes/themeUtils'
 import { warnOnceDuringHmr } from './hmrWarnings'
 
 export type ChatBubbleStyle = 'solid' | 'glass' | 'outline' | 'gradient' | 'elevated' | 'terminal'
@@ -85,6 +89,7 @@ export interface SettingsUI {
   themeBackground?: string // Custom background color override
   themeForeground?: string // Custom foreground color override
   themeContrast: number // Contrast slider (0-100, 100 = full contrast, lower = softer)
+  fontScale: number // Text size scale (85-125, 100 = current default)
 
   // Title bar personalization
   titleBarDensity: 'comfortable' | 'compact'
@@ -137,6 +142,7 @@ export const defaultSettingsUI: SettingsUI = {
   theme: 'dark',
   activeTheme: 'zuraai',
   themeContrast: 100,
+  fontScale: DEFAULT_FONT_SCALE,
   titleBarDensity: 'compact',
   titleBarShowAppName: true,
   titleBarShowChatTitle: true,
@@ -299,6 +305,7 @@ export function SettingsUIProvider({
       customForeground,
       contrast: contrast < 100 ? contrast : undefined,
     })
+    applyFontScaleToDocument(settingsUI.fontScale)
 
     const root = document.documentElement
     const remindersAppearance = {
@@ -316,6 +323,7 @@ export function SettingsUIProvider({
     settingsUI.themeBackground,
     settingsUI.themeForeground,
     settingsUI.themeContrast,
+    settingsUI.fontScale,
     settingsUI.remindersAppearance,
   ])
 

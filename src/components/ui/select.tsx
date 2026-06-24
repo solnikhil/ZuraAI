@@ -5,7 +5,7 @@ import { Check, ChevronDown, ChevronUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const selectItemClassName =
-  'theme-menu-item relative flex w-full cursor-pointer select-none items-center gap-2 rounded-lg py-2 pr-8 pl-2.5 text-sm outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[highlighted]:bg-[var(--interactive-hover-bg)] data-[highlighted]:text-[var(--theme-text-primary)] data-[highlighted]:border-[var(--interactive-hover-border)] data-[highlighted]:shadow-[var(--interactive-hover-shadow)]'
+  'zura-menu-item w-full cursor-pointer pr-8 pl-2.5'
 
 function Select({
   ...props
@@ -34,7 +34,7 @@ const SelectTrigger = React.forwardRef<
       ref={ref}
       data-slot="select-trigger"
       className={cn(
-        'inline-flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-[color-mix(in_srgb,var(--theme-border)_84%,transparent)] bg-[color-mix(in_srgb,var(--theme-background)_76%,var(--theme-surface))] px-3 py-2 text-sm text-[var(--theme-text-primary)] shadow-[inset_0_1px_1px_rgba(0,0,0,0.26)] outline-none transition-[border-color,background-color,box-shadow,color] disabled:cursor-not-allowed disabled:opacity-50 data-[placeholder]:text-[var(--theme-text-muted)] focus-visible:border-[color-mix(in_srgb,var(--theme-accent)_64%,transparent)] focus-visible:bg-[var(--theme-surface)] focus-visible:shadow-[0_0_0_3px_var(--theme-accent-muted),inset_0_1px_1px_rgba(0,0,0,0.26)] [&_svg]:pointer-events-none [&_svg]:shrink-0',
+        'zura-menu-trigger inline-flex h-9 w-full items-center justify-between gap-2 px-3 py-2 text-sm outline-none disabled:cursor-not-allowed disabled:opacity-50 data-[placeholder]:text-[var(--theme-text-muted)] [&_svg]:pointer-events-none [&_svg]:shrink-0',
         className
       )}
       {...props}
@@ -92,9 +92,9 @@ const SelectContent = React.forwardRef<
     <SelectPrimitive.Portal>
       <SelectPrimitive.Content
         ref={ref}
-        data-slot="select-content"
-        className={cn(
-          'theme-menu-surface relative z-50 max-h-96 min-w-[8rem] overflow-hidden rounded-xl p-1.5',
+      data-slot="select-content"
+      className={cn(
+          'zura-menu-surface relative z-50 max-h-96 min-w-[8rem] overflow-hidden p-1.5',
           'origin-(--radix-select-content-transform-origin)',
           'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
           'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
@@ -128,7 +128,7 @@ function SelectLabel({
   return (
     <SelectPrimitive.Label
       data-slot="select-label"
-      className={cn('px-2.5 py-2 text-sm font-medium text-[var(--theme-text-primary)]', className)}
+      className={cn('zura-menu-label', className)}
       {...props}
     />
   )
@@ -163,7 +163,7 @@ function SelectSeparator({
   return (
     <SelectPrimitive.Separator
       data-slot="select-separator"
-      className={cn('theme-subtle-divider -mx-1.5 my-1.5 h-px', className)}
+      className={cn('zura-menu-separator', className)}
       {...props}
     />
   )

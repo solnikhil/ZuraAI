@@ -3,7 +3,6 @@ export type SettingsSectionId =
   | 'providers'
   | 'overlay'
   | 'mcp'
-  | 'skills'
   | 'notifications'
   | 'memory'
   | 'themes'
@@ -47,13 +46,6 @@ export const SETTINGS_SECTIONS: SettingsSectionMeta[] = [
     keywords: ['mcp', 'model context protocol', 'server', 'stdio', 'sse', 'websocket', 'tools'],
   },
   {
-    id: 'skills',
-    navLabel: 'Skills',
-    title: 'Skills & Capabilities',
-    description: 'Enable built-in research skills and control tool access behavior.',
-    keywords: ['tools', 'research', 'capabilities', 'web search', 'tavily'],
-  },
-  {
     id: 'notifications',
     navLabel: 'Notifications',
     title: 'Notifications',
@@ -90,7 +82,9 @@ export const SETTINGS_SECTION_MAP: Record<SettingsSectionId, SettingsSectionMeta
   }, {} as Record<SettingsSectionId, SettingsSectionMeta>)
 
 const SETTINGS_SECTION_ALIASES: Record<string, SettingsSectionId> = {
-  tools: 'skills',
+  tools: 'overlay',
+  skills: 'overlay',
+  extensions: 'overlay',
   models: 'providers',
   preferences: 'providers',
   servers: 'mcp',

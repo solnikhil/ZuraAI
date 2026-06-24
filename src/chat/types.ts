@@ -1,4 +1,6 @@
 import type { ToolCallResult, ToolExecutionMetadata } from '../tools/types'
+import type { ArtifactDocument, ArtifactSummary } from '../artifacts/artifactTypes'
+export type { ArtifactDocument, ArtifactSummary } from '../artifacts/artifactTypes'
 
 export type { ToolCallResult }
 
@@ -130,6 +132,7 @@ export interface ChatSession {
   id: string
   title: string
   messages: Message[]
+  artifacts?: ArtifactDocument[]
   createdAt: number
   updatedAt: number
   totalTokens?: number
@@ -149,6 +152,8 @@ export interface ChatSessionMetadata {
   folderId: string | null
   tags: string[]
   messageCount: number
+  artifactCount?: number
+  artifactSummaries?: ArtifactSummary[]
   /** Last ~30 messages for instant preview when switching chats (kept small for perf) */
   recentMessages?: Message[]
 }

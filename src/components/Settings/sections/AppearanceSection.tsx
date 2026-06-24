@@ -29,6 +29,13 @@ import {
   getThemesByCategory,
 } from '../../../themes/themeRegistry'
 import {
+  DEFAULT_FONT_SCALE,
+  MAX_FONT_SCALE,
+  MIN_FONT_SCALE,
+  FONT_SCALE_STEP,
+  normalizeFontScale,
+} from '../../../themes/themeUtils'
+import {
   getAvailableTitleModelOptions,
   getProviderDefinition,
 } from '../../../providers'
@@ -291,6 +298,7 @@ export function AppearanceSection({
 
   const currentTheme = getThemeById(settings.activeTheme) || getDefaultTheme()
   const currentContrast = settings.themeContrast ?? 100
+  const currentFontScale = normalizeFontScale(settings.fontScale ?? DEFAULT_FONT_SCALE)
   const themeAccentColor = settings.themeAccent ?? currentTheme.baseColors.accent
   const themeBackgroundColor = settings.themeBackground ?? currentTheme.baseColors.background
   const themeForegroundColor = settings.themeForeground ?? currentTheme.baseColors.foreground
@@ -363,6 +371,10 @@ export function AppearanceSection({
   const handleContrastChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = clampNumber(Number(e.target.value), 0, 100)
     updateSettings({ themeContrast: value })
+  }
+
+  const handleFontScaleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    updateSettings({ fontScale: normalizeFontScale(Number(e.target.value)) })
   }
 
   return (
@@ -529,16 +541,40 @@ export function AppearanceSection({
             </div>
             <div className="settings-list-row__control">
               <div className="theme-contrast-control">
-              <input
-                type="range"
-                min={0}
-                max={100}
-                value={currentContrast}
-                onChange={handleContrastChange}
-                className="theme-contrast-slider"
-                aria-label="Contrast slider"
-              />
-              <span className="theme-contrast-value">{currentContrast}%</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={currentContrast}
+                  onChange={handleContrastChange}
+                  className="theme-contrast-slider"
+                  aria-label="Contrast slider"
+                />
+                <span className="theme-contrast-value">{currentContrast}%</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="settings-list-row">
+            <div className="settings-list-row__meta">
+              <h3 className="settings-list-row__label">Text size</h3>
+              <div className="settings-list-row__description">
+                Scale app text while keeping the current layout density
+              </div>
+            </div>
+            <div className="settings-list-row__control">
+              <div className="theme-contrast-control">
+                <input
+                  type="range"
+                  min={MIN_FONT_SCALE}
+                  max={MAX_FONT_SCALE}
+                  step={FONT_SCALE_STEP}
+                  value={currentFontScale}
+                  onChange={handleFontScaleChange}
+                  className="theme-contrast-slider"
+                  aria-label="Text size slider"
+                />
+                <span className="theme-contrast-value">{currentFontScale}%</span>
               </div>
             </div>
           </div>
@@ -932,7 +968,7 @@ export function AppearanceSection({
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
-                  className="inline-flex items-center gap-2 rounded-[12px] border border-[var(--theme-border)] bg-[var(--theme-surface)] px-3 py-1.5 text-[13px] text-[var(--theme-text-primary)] transition-colors hover:bg-[var(--theme-surface-hover)]"
+                  className="zura-menu-trigger inline-flex items-center gap-2 px-3 py-1.5 text-[13px]"
                   aria-label="Title generation model"
                 >
                   {selectedTitleModel ? (
@@ -947,36 +983,36 @@ export function AppearanceSection({
               </DropdownMenuTrigger>
               <DropdownMenuContent
                 align="end"
-                className="w-[205px] rounded-[14px] p-0.5"
+                className="zura-menu-surface--model w-[205px]"
               >
                 <DropdownMenuItem
                   onClick={() => updateSettings({ titleModel: '' })}
-                  className="h-8 rounded-[12px] px-1.5 text-[12px]"
+                  className="zura-menu-item--model"
                 >
                   <Zap className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
                   <span>Use current chat model</span>
                 </DropdownMenuItem>
-                <DropdownMenuSeparator className="mx-0 my-px h-px" />
+                <DropdownMenuSeparator />
                 <DropdownMenuSub>
-                  <DropdownMenuSubTrigger className="h-8 rounded-[12px] px-1.5 text-[12px]">
+                  <DropdownMenuSubTrigger className="zura-menu-sub-trigger--model">
                     <SettingsIcon className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
                     <span>Use separate model</span>
                   </DropdownMenuSubTrigger>
                   <DropdownMenuSubContent
                     sideOffset={8}
                     collisionPadding={12}
-                    className="w-[220px] rounded-[14px] p-0.5"
+                    className="zura-menu-surface--model w-[220px]"
                   >
                     {titleProviders.map((provider) => (
                       <DropdownMenuSub key={provider.id}>
-                        <DropdownMenuSubTrigger className="h-8 rounded-[12px] px-1.5 text-[12px]">
+                        <DropdownMenuSubTrigger className="zura-menu-sub-trigger--model">
                           <ProviderLogo provider={provider.id} size={14} />
                           <span>{provider.label}</span>
                         </DropdownMenuSubTrigger>
                         <DropdownMenuSubContent
                           sideOffset={8}
                           collisionPadding={12}
-                          className="w-[220px] max-h-[60vh] overflow-y-auto rounded-[14px] p-0.5"
+                          className="zura-menu-surface--model w-[220px] max-h-[60vh] overflow-y-auto"
                         >
                           {titleModelOptions
                             .filter((o) => o.provider === provider.id)
@@ -984,7 +1020,7 @@ export function AppearanceSection({
                               <DropdownMenuItem
                                 key={option.value}
                                 onClick={() => updateSettings({ titleModel: option.value })}
-                                className="h-8 rounded-[12px] px-1.5 text-[12px]"
+                                className="zura-menu-item--model"
                               >
                                 <ProviderLogo provider={option.provider} size={14} />
                                 <span>{option.label}</span>
@@ -1548,7 +1584,7 @@ function SettingsSelect({
     <Select value={value} onValueChange={onValueChange} disabled={disabled}>
       <SelectTrigger
         className={[
-          'setting-input-scira min-w-[140px] justify-between gap-3',
+          'min-w-[140px] justify-between gap-3',
           disabled ? 'opacity-50' : '',
           className ?? '',
         ].join(' ')}

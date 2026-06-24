@@ -265,24 +265,24 @@ export default function RemindersView(): React.ReactElement {
                 <MoreVertical size={18} strokeWidth={2.25} />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" sideOffset={6} className="w-[155px] rounded-[14px] p-0.5">
+            <DropdownMenuContent align="end" sideOffset={6} className="zura-menu-surface--compact w-[155px]">
               <DropdownMenuItem
                 onSelect={() => void runTaskNow(task.id)}
-                className="h-8 rounded-[12px] px-1.5 text-[12px]"
+                className="zura-menu-item--compact"
               >
                 <Play className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
                 Run now
               </DropdownMenuItem>
               <DropdownMenuItem
                 onSelect={() => setDrawer({ taskId: task.id, mode: 'details' })}
-                className="h-8 rounded-[12px] px-1.5 text-[12px]"
+                className="zura-menu-item--compact"
               >
                 <Pencil className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
                 Edit
               </DropdownMenuItem>
               <DropdownMenuItem
                 onSelect={() => void toggleEnabled(task)}
-                className="h-8 rounded-[12px] px-1.5 text-[12px]"
+                className="zura-menu-item--compact"
               >
                 {task.enabled ? (
                   <Pause className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
@@ -291,11 +291,11 @@ export default function RemindersView(): React.ReactElement {
                 )}
                 {task.enabled ? 'Pause' : 'Resume'}
               </DropdownMenuItem>
-              <DropdownMenuSeparator className="mx-0 my-px h-px" />
+              <DropdownMenuSeparator />
               <DropdownMenuItem
                 variant="destructive"
                 onSelect={() => void deleteTask(task.id)}
-                className="h-8 rounded-[12px] px-1.5 text-[12px]"
+                className="zura-menu-item--compact"
               >
                 <Trash2 className="h-3.5 w-3.5" />
                 Delete

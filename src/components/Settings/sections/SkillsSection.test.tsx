@@ -27,6 +27,17 @@ vi.mock('@/components/ui/dropdown-menu', () => ({
       {children}
     </button>
   ),
+  DropdownMenuCheckboxItem: ({
+    children,
+    onCheckedChange,
+  }: {
+    children: React.ReactNode
+    onCheckedChange?: () => void
+  }) => (
+    <button type="button" role="menuitemcheckbox" onClick={onCheckedChange}>
+      {children}
+    </button>
+  ),
 }))
 
 describe('SkillsSection', () => {
@@ -34,7 +45,7 @@ describe('SkillsSection', () => {
     isMac = false
   })
 
-  it('renders grouped skills catalog with actions', () => {
+  it('renders grouped extensions catalog with actions', () => {
     render(
       <SkillsSection
         skills={defaultSkillsSettings}
@@ -45,10 +56,11 @@ describe('SkillsSection', () => {
       />
     )
 
-    expect(screen.getByText('Skills')).toBeInTheDocument()
+    expect(screen.getByText('Extensions')).toBeInTheDocument()
     expect(screen.getByText('Recommended')).toBeInTheDocument()
     expect(screen.getByText('System')).toBeInTheDocument()
     expect(screen.getByText('Web Research')).toBeInTheDocument()
+    expect(screen.getByText('Artifacts')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /disable web research/i })).toBeInTheDocument()
   })
 
@@ -124,7 +136,7 @@ describe('SkillsSection', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('menuitem', { name: /auto-approve execution/i }))
+    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: /auto-approve execution/i }))
 
     expect(onChange).toHaveBeenCalledWith({ terminalAutoApprove: true })
   })

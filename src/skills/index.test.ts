@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   buildEnabledSkillsPrompt,
   defaultSkillsSettings,
+  defaultExtensionsSettings,
   getCodeExecutionToolExposure,
   getComputerUseToolExposure,
   getWebResearchToolExposure,
@@ -12,7 +13,9 @@ import {
   getTerminalToolExposure,
   withTerminalEnabled,
   migrateSkillsFromLegacySettings,
+  migrateExtensionsFromLegacySettings,
   normalizeSkillsSettings,
+  normalizeExtensionsSettings,
   withCodeExecutionEnabled,
   withChartGenerationEnabled,
   withComputerUseEnabled,
@@ -79,6 +82,30 @@ describe('skills tool exposure', () => {
     const prompt = buildEnabledSkillsPrompt(defaultSkillsSettings)
     expect(prompt).toContain('Enabled Skills:')
     expect(prompt).toContain('Tavily (`web_research`)')
+  })
+})
+
+describe('extensions settings migration', () => {
+  it('defaults artifacts on when extensions are missing', () => {
+    const normalized = normalizeExtensionsSettings(undefined)
+    expect(normalized.artifacts.enabled).toBe(true)
+  })
+
+  it('migrates legacy skills into extensions', () => {
+    const migrated = migrateExtensionsFromLegacySettings({
+      skills: { artifacts: { enabled: false }, web_research: { enabled: true } },
+      webSearchEnabled: undefined,
+      structuredResearchEnabled: undefined,
+      deepResearchEnabled: undefined,
+    })
+
+    expect(migrated.artifacts.enabled).toBe(false)
+    expect(migrated.web_research.enabled).toBe(true)
+  })
+
+  it('exposes extension aliases', () => {
+    expect(defaultExtensionsSettings.artifacts.enabled).toBe(defaultSkillsSettings.artifacts.enabled)
+    expect(normalizeExtensionsSettings({ artifacts: { enabled: false } }).artifacts.enabled).toBe(false)
   })
 })
 

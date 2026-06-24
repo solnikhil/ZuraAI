@@ -237,13 +237,11 @@
     padding: 16px;
     position: relative;
     overflow: hidden;
-    transition: border-color 180ms ease, background-color 180ms ease, box-shadow 220ms ease, transform 220ms ease;
+    transition: border-color 180ms ease, background-color 180ms ease;
 }
 
 .stat-card:hover {
     border-color: var(--theme-border-hover);
-    transform: translateY(-1px);
-    box-shadow: var(--theme-shadow-md);
 }
 
 
@@ -479,7 +477,7 @@
 }
 
 .usage-overview-graph {
-    min-height: 360px;
+    min-height: 0;
 }
 
 .usage-response-card {
@@ -678,12 +676,6 @@
     transition: border-color 180ms ease, background-color 180ms ease, box-shadow 220ms ease, transform 220ms ease;
 }
 
-.usage-bento-card:hover {
-    border-color: var(--theme-border-hover);
-    box-shadow: var(--theme-shadow-md);
-    transform: translateY(-1px);
-}
-
 .usage-bento-graph {
     grid-column: span 12;
     min-height: 360px;
@@ -706,18 +698,216 @@
 }
 
 .usage-chart-surface {
+    position: relative;
+    overflow: hidden;
+    border-radius: 16px;
     background:
         linear-gradient(180deg,
             color-mix(in srgb, var(--theme-surface-hover) 72%, var(--theme-accent) 12%),
             color-mix(in srgb, var(--theme-background) 92%, var(--theme-surface) 8%));
-    border: 1px solid color-mix(in srgb, var(--theme-border) 76%, var(--theme-accent) 24%);
-    box-shadow: inset 0 1px 0 color-mix(in srgb, white 4%, transparent);
-    transition: border-color var(--motion-duration-normal) var(--motion-ease-standard), box-shadow var(--motion-duration-normal) var(--motion-ease-standard);
+    border: 1px solid var(--theme-border);
 }
 
-.usage-chart-surface:hover {
-    border-color: color-mix(in srgb, var(--theme-border-hover) 70%, var(--theme-accent) 30%) !important;
-    box-shadow: var(--theme-shadow-sm);
+/* ---- Interactive usage bar chart ---- */
+
+.usage-chart-card {
+    --usage-delay: 0ms;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    border-radius: 16px;
+}
+
+.usage-chart-card--embedded {
+    margin-top: 0;
+}
+
+.usage-chart-card__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 0 0 16px;
+    flex-wrap: wrap;
+}
+
+.usage-chart-card__title-block {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.usage-chart-card__title {
+    margin: 0;
+    color: var(--theme-text-primary);
+    font-size: 1.02rem;
+    font-weight: 680;
+    letter-spacing: 0;
+    line-height: 1.25;
+}
+
+.usage-chart-card__description {
+    margin: 0;
+    color: var(--theme-text-muted);
+    font-size: 0.82rem;
+    font-weight: 450;
+    line-height: 1.35;
+}
+
+.usage-chart-card__toggles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: flex-end;
+    max-width: 100%;
+}
+
+.usage-chart-card__toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--theme-border);
+    background: color-mix(in srgb, var(--theme-surface) 80%, transparent);
+    color: var(--theme-text-secondary);
+    font-size: 0.72rem;
+    font-weight: 580;
+    line-height: 1;
+    cursor: pointer;
+    transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+    white-space: nowrap;
+}
+
+.usage-chart-card__toggle:hover {
+    border-color: var(--theme-border-hover);
+    background: color-mix(in srgb, var(--theme-surface-hover) 80%, transparent);
+}
+
+.usage-chart-card__toggle[data-active="true"] {
+    background: color-mix(in srgb, var(--theme-surface-hover) 70%, transparent);
+    border-color: var(--theme-border-hover);
+    color: var(--theme-text-primary);
+}
+
+.usage-chart-card__toggle-swatch {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.usage-chart-card__toggle-label {
+    max-width: 96px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.usage-chart-card__toggle-value {
+    color: var(--theme-text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.usage-chart-card__toggle[data-active="true"] .usage-chart-card__toggle-value {
+    color: var(--theme-text-secondary);
+}
+
+.usage-chart-card__content {
+    padding: 0;
+}
+
+.usage-chart-card__chart {
+    aspect-ratio: auto;
+    height: 250px;
+    width: 100%;
+    min-height: 250px;
+}
+
+.usage-chart-card__empty {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    color: var(--theme-text-tertiary);
+    font-size: 0.85rem;
+    pointer-events: none;
+}
+
+.usage-chart-card__empty-sub {
+    font-size: 0.75rem;
+    color: var(--theme-text-muted);
+}
+
+/* ---- Side-by-side response + activity cards ---- */
+
+.usage-sidecards-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 16px;
+    align-items: stretch;
+    margin-top: 16px;
+}
+
+/* ---- Activity summary stat grid ---- */
+
+.usage-activity-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.usage-activity-summary-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--theme-background) 60%, var(--theme-surface));
+    border: 1px solid color-mix(in srgb, var(--theme-border) 60%, transparent);
+}
+
+.usage-activity-summary-item--long {
+    grid-column: span 2;
+}
+
+.usage-activity-summary-item__label {
+    font-size: 0.72rem;
+    font-weight: 520;
+    color: var(--theme-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.usage-activity-summary-item__value-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+}
+
+.usage-activity-summary-item__value {
+    font-size: 1.15rem;
+    font-weight: 720;
+    color: var(--theme-text-primary);
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.usage-activity-summary-item--long .usage-activity-summary-item__value {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.usage-activity-summary-item__unit {
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: var(--theme-text-muted);
 }
 
 .usage-model-mix-card {
@@ -1005,6 +1195,9 @@
     .usage-overview-grid {
         grid-template-columns: minmax(0, 1fr);
     }
+    .usage-sidecards-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
     .usage-lower-grid {
         grid-template-columns: minmax(300px, 0.92fr) minmax(0, 1.08fr);
     }
@@ -1036,6 +1229,13 @@
     .usage-overview-graph,
     .usage-response-card {
         min-height: 300px;
+    }
+    .usage-chart-card__header {
+        flex-direction: column;
+    }
+    .usage-chart-card__toggles {
+        justify-content: flex-start;
+        width: 100%;
     }
     .usage-bento-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1095,6 +1295,23 @@
     }
     .usage-bento-graph {
         min-height: 260px;
+    }
+    .usage-chart-card__chart {
+        height: 220px;
+        min-height: 220px;
+    }
+    .usage-chart-card__toggle {
+        padding: 4px 8px;
+        font-size: 0.68rem;
+    }
+    .usage-chart-card__toggle-label {
+        max-width: 72px;
+    }
+    .usage-activity-summary-grid {
+        grid-template-columns: 1fr;
+    }
+    .usage-activity-summary-item--long {
+        grid-column: span 1;
     }
     .usage-model-mix-card__header {
         align-items: flex-start;

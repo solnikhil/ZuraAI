@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { BarChart } from 'lucide-react'
+import { Activity, BarChart } from 'lucide-react'
 import { Pie, PieChart } from 'recharts'
 import { Switch } from '@/components/ui/switch'
 import {
@@ -135,6 +135,94 @@ function aggregateProviderEntries(entries: ProviderUsageEntry[]): ProviderUsageE
     avgTtftMs: getWeightedAverage(entries, 'avgTtftMs'),
     avgTps: getWeightedAverage(entries, 'avgTps'),
   }
+}
+
+function ActivitySummaryCard({ stats }: { stats: UsageStats }): React.ReactElement {
+  const hasActivity = stats.totalMessages > 0 || stats.totalSessions > 0
+
+  const statItems = [
+    {
+      label: 'Today',
+      value: stats.todayMessages.toLocaleString(),
+      unit: stats.todayMessages === 1 ? 'message' : 'messages',
+    },
+    {
+      label: 'Total messages',
+      value: stats.totalMessages.toLocaleString(),
+      unit: stats.totalMessages === 1 ? 'message' : 'messages',
+    },
+    {
+      label: 'Sessions',
+      value: stats.totalSessions.toLocaleString(),
+      unit: stats.avgMessagesPerSession > 0 ? `${stats.avgMessagesPerSession}/session` : undefined,
+    },
+    {
+      label: 'Active days',
+      value: stats.activeDays.toLocaleString(),
+      unit: stats.activeDays === 1 ? 'day' : 'days',
+    },
+    {
+      label: 'Current streak',
+      value: stats.currentActiveStreak.toLocaleString(),
+      unit: stats.longestActiveStreak > 0 ? `best ${stats.longestActiveStreak}` : undefined,
+    },
+    {
+      label: 'Top model',
+      value: stats.mostUsedModel || '—',
+      unit: undefined,
+      isLong: true,
+    },
+    {
+      label: 'Images processed',
+      value: stats.imagesProcessed.toLocaleString(),
+      unit: stats.imagesProcessed === 1 ? 'image' : 'images',
+    },
+    {
+      label: 'Avg / session',
+      value: stats.avgMessagesPerSession.toLocaleString(),
+      unit: 'messages',
+    },
+  ]
+
+  return (
+    <section
+      className="stat-card usage-response-card usage-motion-card usage-motion-card--surface"
+      aria-labelledby="usage-activity-summary-title"
+    >
+      <div className="usage-response-card__header">
+        <div>
+          <h3 id="usage-activity-summary-title" className="usage-response-card__title">
+            Activity Summary
+          </h3>
+          <p className="usage-response-card__description">Your chat highlights</p>
+        </div>
+        <span className="usage-response-card__icon">
+          <Activity size={16} />
+        </span>
+      </div>
+
+      {hasActivity ? (
+        <div className="usage-activity-summary-grid">
+          {statItems.map((item) => (
+            <div
+              key={item.label}
+              className={`usage-activity-summary-item${item.isLong ? ' usage-activity-summary-item--long' : ''}`}
+            >
+              <span className="usage-activity-summary-item__label">{item.label}</span>
+              <div className="usage-activity-summary-item__value-row">
+                <strong className="usage-activity-summary-item__value" title={item.value}>
+                  {item.value}
+                </strong>
+                {item.unit && <span className="usage-activity-summary-item__unit">{item.unit}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="usage-response-empty">No activity yet.</div>
+      )}
+    </section>
+  )
 }
 
 function ModelMixPieCard({ stats }: { stats: UsageStats }): React.ReactElement {
@@ -376,6 +464,9 @@ export function UsageSection({
 
       <div className="usage-overview-grid">
         <ActivityGraph data={stats.activityData} embedded className="usage-overview-graph usage-motion-card usage-motion-card--surface" />
+      </div>
+
+      <div className="usage-sidecards-grid">
         <ResponsePerformancePanel
           entries={performanceEntries}
           selectedProvider={selectedProvider}
@@ -383,6 +474,7 @@ export function UsageSection({
           onProviderChange={setSelectedProvider}
           onRangeChange={setPerformanceRange}
         />
+        <ActivitySummaryCard stats={stats} />
       </div>
 
       <div className="usage-lower-grid">

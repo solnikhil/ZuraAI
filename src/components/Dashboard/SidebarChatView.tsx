@@ -17,9 +17,11 @@ interface SidebarChatViewProps {
   sessionIndexMap: Map<string, number>
   bottomPadding: number
   remindersEnabled: boolean
+  artifactsEnabled: boolean
   onNewChat: () => void
   onOpenSearch: () => void
   onOpenReminders: () => void
+  onOpenArtifacts: () => void
   onSelectSession: (sessionId: string) => void
   onContextAction: (action: ChatRowAction, sessionId: string) => void
   onRenameConfirm: (id: string, newTitle: string) => void
@@ -38,9 +40,11 @@ function SidebarChatView({
   sessionIndexMap,
   bottomPadding,
   remindersEnabled,
+  artifactsEnabled,
   onNewChat,
   onOpenSearch,
   onOpenReminders,
+  onOpenArtifacts,
   onSelectSession,
   onContextAction,
   onRenameConfirm,
@@ -53,7 +57,9 @@ function SidebarChatView({
         onNewChat={onNewChat}
         onOpenSearch={onOpenSearch}
         onOpenReminders={onOpenReminders}
+        onOpenArtifacts={onOpenArtifacts}
         remindersEnabled={remindersEnabled}
+        artifactsEnabled={artifactsEnabled}
       />
 
       <SidebarChatList

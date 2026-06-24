@@ -313,10 +313,10 @@ export function McpSection(): React.ReactElement {
                           <DropdownMenuContent
                             align="end"
                             sideOffset={8}
-                            className="mcp-server-menu-content w-48 rounded-lg border border-border/80 bg-popover p-1"
+                            className="mcp-server-menu-content zura-menu-surface--compact w-48"
                           >
                             <DropdownMenuItem
-                              className="cursor-pointer"
+                              className="zura-menu-item--compact cursor-pointer"
                               disabled={!canManageTools}
                               onSelect={() => openToolsDialog(server)}
                             >
@@ -324,7 +324,7 @@ export function McpSection(): React.ReactElement {
                               Manage Tools
                             </DropdownMenuItem>
                             <DropdownMenuItem
-                              className="cursor-pointer"
+                              className="zura-menu-item--compact cursor-pointer"
                               disabled={isBusy || hasDraftChanges || isDraftOnly || !server.enabled || !isSupported}
                               onSelect={() => {
                                 void handleConnectToggle(server)
@@ -334,7 +334,7 @@ export function McpSection(): React.ReactElement {
                               {status === 'connected' ? 'Disconnect' : 'Connect'}
                             </DropdownMenuItem>
                             <DropdownMenuItem
-                              className="cursor-pointer"
+                              className="zura-menu-item--compact cursor-pointer"
                               onSelect={() => openEditDialog(server)}
                             >
                               <PencilLine className="h-4 w-4" />
@@ -342,7 +342,7 @@ export function McpSection(): React.ReactElement {
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
-                              className="cursor-pointer"
+                              className="zura-menu-item--compact cursor-pointer"
                               variant="destructive"
                               onSelect={() => setDeleteTarget(server)}
                             >

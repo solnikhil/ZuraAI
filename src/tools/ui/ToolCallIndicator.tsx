@@ -1,5 +1,5 @@
 import React from 'react'
-import { Search, Loader2, Globe, Wrench, Terminal, Monitor, MousePointer } from '../../components/icons'
+import { Loader2, Globe, Search, Wrench, Terminal, Monitor, MousePointer } from '../../components/icons'
 import { getWebToolLabel, inferWebToolModeFromArgs } from './webToolDisplay'
 import { getToolArgumentSummary, getToolPresentation } from './toolPresentation'
 

@@ -350,7 +350,7 @@ export function InputArea({
         alignOffset={0}
         side="top"
         sideOffset={6}
-        className="w-[205px] rounded-[14px] p-0.5"
+        className="zura-menu-surface--compact w-[205px]"
       >
         <DropdownMenuGroup>
           <DropdownMenuItem
@@ -358,7 +358,7 @@ export function InputArea({
               event.preventDefault()
               fileInputRef.current?.click()
             }}
-            className="group/menu-item h-8 rounded-[12px] px-1.5 text-[12px]"
+            className="zura-menu-item--compact group/menu-item"
           >
             <Paperclip className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
             <span>Add photos & files</span>
@@ -368,22 +368,22 @@ export function InputArea({
           </DropdownMenuItem>
         </DropdownMenuGroup>
 
-        <DropdownMenuSeparator className="mx-0 my-px h-px" />
+        <DropdownMenuSeparator />
 
         <DropdownMenuSub>
-          <DropdownMenuSubTrigger className="h-8 rounded-[12px] px-1.5 text-[12px]">
+          <DropdownMenuSubTrigger className="zura-menu-sub-trigger--compact">
             <Wrench className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
             <span>Desktop control</span>
           </DropdownMenuSubTrigger>
           <DropdownMenuSubContent
             sideOffset={8}
             collisionPadding={12}
-            className="w-[220px] rounded-[14px] p-0.5"
+            className="zura-menu-surface--compact w-[220px]"
           >
             {isWindowsRuntime() && (
               <DropdownMenuItem
                 onSelect={(event) => event.preventDefault()}
-                className="h-8 rounded-[12px] px-1.5 text-[12px]"
+                className="zura-menu-item--compact"
               >
                 <Brain className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
                 <span className="flex-1">Control this desktop</span>
@@ -396,7 +396,7 @@ export function InputArea({
               </DropdownMenuItem>
             )}
             {!isWindowsRuntime() && (
-              <DropdownMenuItem disabled className="h-8 rounded-[12px] px-1.5 text-[12px]">
+              <DropdownMenuItem disabled className="zura-menu-item--compact">
                 <Monitor className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
                 <span>Desktop control requires Windows</span>
               </DropdownMenuItem>
@@ -404,24 +404,24 @@ export function InputArea({
           </DropdownMenuSubContent>
         </DropdownMenuSub>
 
-        <DropdownMenuSeparator className="mx-0 my-px h-px" />
+        <DropdownMenuSeparator />
 
         <DropdownMenuSub>
-          <DropdownMenuSubTrigger className="h-8 rounded-[12px] px-1.5 text-[12px]">
+          <DropdownMenuSubTrigger className="zura-menu-sub-trigger--compact">
             <Wrench className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
             <span>MCP Library</span>
           </DropdownMenuSubTrigger>
           <DropdownMenuSubContent
             sideOffset={8}
             collisionPadding={12}
-            className="w-[190px] rounded-[14px] p-0.5"
+            className="zura-menu-surface--compact w-[190px]"
           >
             <DropdownMenuItem
               onSelect={() => {
                 setMcpDialogMode('resources')
                 setQuickActionsOpen(false)
               }}
-              className="group/menu-item h-8 rounded-[12px] px-1.5 text-[12px]"
+              className="zura-menu-item--compact group/menu-item"
             >
               <Wrench className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
               <span>Browse resources</span>
@@ -431,7 +431,7 @@ export function InputArea({
                 setMcpDialogMode('prompts')
                 setQuickActionsOpen(false)
               }}
-              className="group/menu-item h-8 rounded-[12px] px-1.5 text-[12px]"
+              className="zura-menu-item--compact group/menu-item"
             >
               <Wrench className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
               <span>Browse prompts</span>

@@ -20,6 +20,7 @@ import type { SessionMetadata } from './ChatSessionManager'
 import { createSelectableContext } from './createSelectableContext'
 import { warnOnceDuringHmr } from './hmrWarnings'
 import type {
+  ArtifactDocument,
   ChatIndexData,
   ChatSession,
   ChatSessionMetadata,
@@ -30,6 +31,16 @@ import type {
   ThinkingBlock,
   ToolCallResult,
 } from '../chat/types'
+import {
+  createArtifactDocument,
+  normalizeArtifacts,
+  renameArtifactDocument,
+  restoreArtifactVersion,
+  summarizeArtifact,
+  updateArtifactDocument,
+} from '../artifacts/artifactStore'
+import type { ArtifactKind } from '../artifacts/artifactTypes'
+import { registerArtifactToolHost } from '../tools/artifactTools'
 
 export type { SessionMetadata } from './ChatSessionManager'
 
@@ -65,6 +76,11 @@ interface ChatHistoryContextType {
   pinSession: (id: string) => void
   unpinSession: (id: string) => void
   duplicateSession: (id: string) => void
+  createArtifact: (sessionId: string, input: { title: string; kind: ArtifactKind; language?: string; content: string; sourceMessageId?: string }) => ArtifactDocument | null
+  updateArtifact: (sessionId: string, artifactId: string, input: { content: string; title?: string; language?: string; sourceMessageId?: string; changeSummary?: string }) => ArtifactDocument | null
+  renameArtifact: (sessionId: string, artifactId: string, title: string) => void
+  restoreArtifact: (sessionId: string, artifactId: string, versionId: string) => void
+  deleteArtifact: (sessionId: string, artifactId: string) => void
 
   assignFolder: (sessionId: string, folderId: string) => void
   removeFromFolder: (sessionId: string) => void
@@ -96,7 +112,7 @@ const isElectron = typeof window !== 'undefined' && Boolean(window.ipcRenderer)
 const LAST_SESSION_ID_KEY = 'zura-ui:lastChatSessionId'
 const MAX_LOADED_SESSIONS = 3
 const SAVE_DEBOUNCE_MS = 500
-const INDEX_VERSION = 3
+const INDEX_VERSION = 4
 
 function sessionToMetadata(session: ChatSession): ChatSessionMetadata {
   const messages = session.messages ?? []
@@ -116,6 +132,8 @@ function sessionToMetadata(session: ChatSession): ChatSessionMetadata {
     folderId: session.folderId ?? null,
     tags: Array.isArray(session.tags) ? session.tags : [],
     messageCount,
+    artifactCount: session.artifacts?.length ?? 0,
+    artifactSummaries: session.artifacts?.length ? session.artifacts.map(summarizeArtifact) : undefined,
     recentMessages,
   }
 }
@@ -134,6 +152,7 @@ function metadataToSession(metadata: ChatSessionMetadata, messages: Message[] = 
     folderId: metadata.folderId,
     tags: [...metadata.tags],
     messageCount: metadata.messageCount,
+    artifacts: [],
   }
 }
 
@@ -142,6 +161,7 @@ function normalizeSession(session: ChatSession): ChatSession {
   return {
     ...session,
     messages,
+    artifacts: normalizeArtifacts(session.artifacts),
     pinned: session.pinned ?? false,
     folderId: session.folderId ?? null,
     tags: Array.isArray(session.tags) ? session.tags : [],
@@ -789,6 +809,85 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     [loadFullSession, markLoaded, persistSessionMutation]
   )
 
+  const createArtifact = useCallback(
+    (sessionId: string, input: { title: string; kind: ArtifactKind; language?: string; content: string; sourceMessageId?: string }): ArtifactDocument | null => {
+      let created: ArtifactDocument | null = null
+      updateOneSession(sessionId, (session) => {
+        created = createArtifactDocument(input)
+        return {
+          ...session,
+          artifacts: [...normalizeArtifacts(session.artifacts), created],
+          updatedAt: Date.now(),
+        }
+      })
+      return created
+    },
+    [updateOneSession]
+  )
+
+  const updateArtifact = useCallback(
+    (sessionId: string, artifactId: string, input: { content: string; title?: string; language?: string; sourceMessageId?: string; changeSummary?: string }): ArtifactDocument | null => {
+      let updated: ArtifactDocument | null = null
+      updateOneSession(sessionId, (session) => {
+        const artifacts = normalizeArtifacts(session.artifacts)
+        const nextArtifacts = artifacts.map((artifact) => {
+          if (artifact.id !== artifactId) return artifact
+          updated = updateArtifactDocument(artifact, input)
+          return updated
+        })
+        return updated
+          ? { ...session, artifacts: nextArtifacts, updatedAt: Date.now() }
+          : session
+      })
+      return updated
+    },
+    [updateOneSession]
+  )
+
+  const renameArtifact = useCallback(
+    (sessionId: string, artifactId: string, title: string) => {
+      updateOneSession(sessionId, (session) => ({
+        ...session,
+        artifacts: normalizeArtifacts(session.artifacts).map((artifact) =>
+          artifact.id === artifactId ? renameArtifactDocument(artifact, title) : artifact
+        ),
+        updatedAt: Date.now(),
+      }))
+    },
+    [updateOneSession]
+  )
+
+  const restoreArtifact = useCallback(
+    (sessionId: string, artifactId: string, versionId: string) => {
+      updateOneSession(sessionId, (session) => ({
+        ...session,
+        artifacts: normalizeArtifacts(session.artifacts).map((artifact) =>
+          artifact.id === artifactId ? restoreArtifactVersion(artifact, versionId) : artifact
+        ),
+        updatedAt: Date.now(),
+      }))
+    },
+    [updateOneSession]
+  )
+
+  const deleteArtifact = useCallback(
+    (sessionId: string, artifactId: string) => {
+      updateOneSession(sessionId, (session) => ({
+        ...session,
+        artifacts: normalizeArtifacts(session.artifacts).filter((artifact) => artifact.id !== artifactId),
+        updatedAt: Date.now(),
+      }))
+    },
+    [updateOneSession]
+  )
+
+  useEffect(() => {
+    return registerArtifactToolHost({
+      createArtifact,
+      updateArtifact,
+    })
+  }, [createArtifact, updateArtifact])
+
   const assignFolder = useCallback(
     (sessionId: string, folderId: string) => {
       updateOneSession(sessionId, (session) => ({ ...session, folderId, updatedAt: Date.now() }))
@@ -902,6 +1001,11 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
       pinSession,
       unpinSession,
       duplicateSession,
+      createArtifact,
+      updateArtifact,
+      renameArtifact,
+      restoreArtifact,
+      deleteArtifact,
       assignFolder,
       removeFromFolder,
       addTag,
@@ -932,6 +1036,11 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
       pinSession,
       unpinSession,
       duplicateSession,
+      createArtifact,
+      updateArtifact,
+      renameArtifact,
+      restoreArtifact,
+      deleteArtifact,
       assignFolder,
       removeFromFolder,
       addTag,
@@ -987,6 +1096,11 @@ export function useChatHistory() {
         pinSession: noop,
         unpinSession: noop,
         duplicateSession: noop,
+        createArtifact: () => null,
+        updateArtifact: () => null,
+        renameArtifact: noop,
+        restoreArtifact: noop,
+        deleteArtifact: noop,
         assignFolder: noop,
         removeFromFolder: noop,
         addTag: noop,
@@ -1058,7 +1172,12 @@ export function useChatHistoryActions() {
       isSessionLoaded: context.isSessionLoaded,
       pinSession: context.pinSession,
       unpinSession: context.unpinSession,
-      duplicateSession: context.duplicateSession,
+       duplicateSession: context.duplicateSession,
+      createArtifact: context.createArtifact,
+      updateArtifact: context.updateArtifact,
+      renameArtifact: context.renameArtifact,
+      restoreArtifact: context.restoreArtifact,
+      deleteArtifact: context.deleteArtifact,
       assignFolder: context.assignFolder,
       removeFromFolder: context.removeFromFolder,
       addTag: context.addTag,
@@ -1085,6 +1204,11 @@ export function useChatHistoryActions() {
       context.pinSession,
       context.unpinSession,
       context.duplicateSession,
+      context.createArtifact,
+      context.updateArtifact,
+      context.renameArtifact,
+      context.restoreArtifact,
+      context.deleteArtifact,
       context.assignFolder,
       context.removeFromFolder,
       context.addTag,

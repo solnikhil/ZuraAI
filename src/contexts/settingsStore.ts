@@ -7,7 +7,7 @@ import {
   type SettingsConfig,
 } from './SettingsConfigContext'
 import { getAllToolDefinitions } from '../tools/definitions'
-import { migrateSkillsFromLegacySettings } from '../skills'
+import { migrateExtensionsFromLegacySettings, normalizeExtensionsSettings } from '../skills'
 import {
   getProviderDefinitions,
   getProviderEnabledDefaults,
@@ -17,6 +17,7 @@ import {
 } from '../providers'
 import { normalizeAssistantPersonalityId } from '../prompts/assistantPersonalities'
 import { normalizeDeepseekReasoning, coerceReasoningEffort } from '../utils/deepseekReasoning'
+import { normalizeFontScale } from '../themes/themeUtils'
 
 export interface Settings extends SettingsUI, SettingsConfig {}
 
@@ -32,6 +33,7 @@ export const UI_SETTING_KEYS: (keyof SettingsUI)[] = [
   'themeBackground',
   'themeForeground',
   'themeContrast',
+  'fontScale',
   'titleBarDensity',
   'titleBarShowAppName',
   'titleBarShowChatTitle',
@@ -239,6 +241,7 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   parsed.chartGenerationPrompt = defaultSettings.chartGenerationPrompt
   parsed.memoryPrompt = defaultSettings.memoryPrompt
   parsed.remindersPrompt = defaultSettings.remindersPrompt
+  parsed.artifactsPrompt = defaultSettings.artifactsPrompt
 
   if (!parsed.modelProvider) parsed.modelProvider = defaultSettings.modelProvider
   if (!PROVIDER_IDS.includes(parsed.modelProvider as typeof PROVIDER_IDS[number])) {
@@ -385,14 +388,19 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   }
 
   const legacySettingsRecord = parsed as Record<string, unknown>
-  parsed.skills = migrateSkillsFromLegacySettings({
-    skills: legacySettingsRecord.skills,
+  const storedSettingsRecord = parsedFromStorage as Record<string, unknown>
+  const migratedExtensions = migrateExtensionsFromLegacySettings({
+    skills: Object.prototype.hasOwnProperty.call(storedSettingsRecord, 'extensions')
+      ? storedSettingsRecord.extensions
+      : legacySettingsRecord.skills,
     webSearchEnabled: legacySettingsRecord.webSearchEnabled,
     structuredResearchEnabled: legacySettingsRecord.structuredResearchEnabled,
     deepResearchEnabled: legacySettingsRecord.deepResearchEnabled,
     memoryEnabled: legacySettingsRecord.memoryEnabled,
     autoMemoryEnabled: legacySettingsRecord.autoMemoryEnabled,
   })
+  parsed.extensions = normalizeExtensionsSettings(migratedExtensions)
+  parsed.skills = parsed.extensions
   delete legacySettingsRecord.deepResearchEnabled
   delete legacySettingsRecord.webSearchEnabled
   delete legacySettingsRecord.structuredResearchEnabled
@@ -538,6 +546,7 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   if (parsed.themeContrast === undefined) {
     parsed.themeContrast = (parsed as Record<string, unknown>).softenedContrast === true ? 85 : 100
   }
+  parsed.fontScale = normalizeFontScale(parsed.fontScale)
   delete (parsed as Record<string, unknown>).softenedContrast
   delete (parsed as Record<string, unknown>).notificationsEnabled
   delete (parsed as Record<string, unknown>).nativeNotificationsEnabled
@@ -584,6 +593,7 @@ export function getInitialUISettings(settings: Settings): Partial<SettingsUI> {
     themeBackground: settings.themeBackground,
     themeForeground: settings.themeForeground,
     themeContrast: settings.themeContrast,
+    fontScale: settings.fontScale,
     titleBarDensity: settings.titleBarDensity,
     titleBarShowAppName: settings.titleBarShowAppName,
     titleBarShowChatTitle: settings.titleBarShowChatTitle,
@@ -640,10 +650,12 @@ export function getInitialConfigSettings(settings: Settings): Partial<SettingsCo
     chartGenerationPrompt: settings.chartGenerationPrompt,
     memoryPrompt: settings.memoryPrompt,
     remindersPrompt: settings.remindersPrompt,
+    artifactsPrompt: settings.artifactsPrompt,
     streamResponses: settings.streamResponses,
     assistantMode: settings.assistantMode,
     toolsEnabled: settings.toolsEnabled,
     enabledTools: settings.enabledTools,
+    extensions: settings.extensions,
     skills: settings.skills,
     titleModel: settings.titleModel,
     codeExecutionAutoApprove: settings.codeExecutionAutoApprove,

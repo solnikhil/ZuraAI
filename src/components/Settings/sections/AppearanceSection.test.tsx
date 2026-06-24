@@ -92,6 +92,20 @@ describe('AppearanceSection', () => {
     expect(onChange).toHaveBeenCalledWith({ assistantPersonality: 'gen-z' })
   })
 
+  it('renders and emits app text size changes', () => {
+    const onChange = vi.fn()
+    render(<AppearanceSection settings={defaultSettings} onChange={onChange} />)
+
+    expect(screen.getByText('Text size')).toBeInTheDocument()
+    expect(
+      screen.getByText('Scale app text while keeping the current layout density')
+    ).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Text size slider'), { target: { value: '115' } })
+
+    expect(onChange).toHaveBeenCalledWith({ fontScale: 115 })
+  })
+
   it('does not render the removed reminders appearance controls', () => {
     render(<AppearanceSection settings={defaultSettings} onChange={vi.fn()} />)
 

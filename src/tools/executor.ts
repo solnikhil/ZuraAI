@@ -2,6 +2,7 @@
 
 import { ToolResult, ToolCall, ToolCallResult, isMcpNamespacedToolName } from './types'
 import { resolveWebSearchArgsForExecution } from './webSearchPreferences'
+import { executeArtifactTool, isArtifactToolName } from './artifactTools'
 
 // Re-export types for backward compatibility
 export type { ToolResult, ToolCall, ToolCallResult }
@@ -9,6 +10,8 @@ export type { ToolResult, ToolCall, ToolCallResult }
 export interface ExecuteToolOptions {
     userContextText?: string
     bypassNativeApproval?: boolean
+    sessionId?: string
+    messageId?: string
 }
 
 const DEFAULT_TIMEOUT_MS = 30_000
@@ -40,6 +43,13 @@ export async function executeTool(
     const TIMEOUT_MS = getTimeoutForTool(toolName)
     
     try {
+        if (isArtifactToolName(toolName)) {
+            return executeArtifactTool(toolName, args, {
+                sessionId: options.sessionId,
+                messageId: options.messageId,
+            })
+        }
+
         if (isMcpNamespacedToolName(toolName)) {
             if (!window.mcp) {
                 return {
