@@ -133,6 +133,8 @@ export interface ChatSession {
   title: string
   messages: Message[]
   artifacts?: ArtifactDocument[]
+  /** Carried on lightweight sessions (from metadata) so index re-saves don't drop old artifact history */
+  artifactSummaries?: ArtifactSummary[]
   createdAt: number
   updatedAt: number
   totalTokens?: number

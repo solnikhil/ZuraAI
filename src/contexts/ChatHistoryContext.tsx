@@ -132,8 +132,10 @@ function sessionToMetadata(session: ChatSession): ChatSessionMetadata {
     folderId: session.folderId ?? null,
     tags: Array.isArray(session.tags) ? session.tags : [],
     messageCount,
-    artifactCount: session.artifacts?.length ?? 0,
-    artifactSummaries: session.artifacts?.length ? session.artifacts.map(summarizeArtifact) : undefined,
+    artifactCount: session.artifacts?.length ?? session.artifactSummaries?.length ?? 0,
+    artifactSummaries: session.artifacts?.length
+      ? session.artifacts.map(summarizeArtifact)
+      : session.artifactSummaries ?? undefined,
     recentMessages,
   }
 }
@@ -153,6 +155,7 @@ function metadataToSession(metadata: ChatSessionMetadata, messages: Message[] = 
     tags: [...metadata.tags],
     messageCount: metadata.messageCount,
     artifacts: [],
+    artifactSummaries: metadata.artifactSummaries,
   }
 }
 
@@ -162,6 +165,7 @@ function normalizeSession(session: ChatSession): ChatSession {
     ...session,
     messages,
     artifacts: normalizeArtifacts(session.artifacts),
+    artifactSummaries: session.artifactSummaries,
     pinned: session.pinned ?? false,
     folderId: session.folderId ?? null,
     tags: Array.isArray(session.tags) ? session.tags : [],

@@ -19,6 +19,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { motionSpring } from '@/lib/motion'
+import { motion } from 'framer-motion'
 import { MoreVertical, Pause, Pencil, Play, Trash2 } from 'lucide-react'
 import './RemindersView.css'
 
@@ -318,21 +321,32 @@ export default function RemindersView(): React.ReactElement {
 
     return (
       <section className="reminders-view__group" aria-labelledby="reminders-all">
-        <div className="reminders-view__filters" role="tablist" aria-label="Task filters">
-          {filterLabels.map((filter) => (
-            <button
-              key={filter.id}
-              type="button"
-              role="tab"
-              aria-selected={activeFilter === filter.id}
-              className={`reminders-view__filter ${activeFilter === filter.id ? 'reminders-view__filter--active' : ''}`}
-              onClick={() => setActiveFilter(filter.id)}
-            >
-              <span>{filter.label}</span>
-              <span>{filter.count}</span>
-            </button>
-          ))}
-        </div>
+        <Tabs
+          value={activeFilter}
+          onValueChange={(value) => setActiveFilter(value as TaskFilter)}
+          className="reminders-view__tabs"
+        >
+          <TabsList variant="line" className="reminders-view__tabs-list">
+            {filterLabels.map((filter) => (
+              <TabsTrigger
+                key={filter.id}
+                value={filter.id}
+                className="reminders-view__tabs-trigger"
+              >
+                <span>{filter.label}</span>
+                <span className="reminders-view__tabs-count">{filter.count}</span>
+                {activeFilter === filter.id && (
+                  <motion.div
+                    layoutId="reminders-active-tab-indicator"
+                    className="reminders-view__tabs-indicator"
+                    initial={false}
+                    transition={motionSpring.bouncy}
+                  />
+                )}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
         <h3 id="reminders-all" className="reminders-view__sr-heading">
           {filterLabels.find((filter) => filter.id === activeFilter)?.label ?? 'All'} tasks
         </h3>

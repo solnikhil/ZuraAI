@@ -71,6 +71,15 @@ function getToolCallText(tool: { name: string; arguments?: Record<string, unknow
     return desc ? `Running ${lang}: ${desc}` : `Running ${lang} code…`
   }
 
+  // Friendlier status for artifact tools (e.g. "recreate those")
+  if (tool.name === 'artifact_create' || tool.name === 'artifact_update') {
+    const title = typeof tool.arguments?.title === 'string' ? tool.arguments.title : ''
+    const verb = tool.name === 'artifact_create' ? 'Creating' : 'Updating'
+    if (title) {
+      return `${verb} “${title}”`
+    }
+    return `${verb} artifact…`
+  }
 
   const argumentSummary = getToolArgumentSummary(tool.arguments)
   return argumentSummary ? `Running ${displayName}: ${argumentSummary}` : `Running ${displayName}...`

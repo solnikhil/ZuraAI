@@ -34,6 +34,8 @@ export interface ChatSession {
   title: string
   messages: Message[]
   artifacts?: ArtifactDocument[]
+  /** Carried on lightweight sessions so index re-saves don't drop old artifact history */
+  artifactSummaries?: ArtifactSummary[]
   createdAt: number
   updatedAt: number
   totalTokens?: number
@@ -212,6 +214,7 @@ export function migrateSession(session: ChatSession): ChatSession {
     ...rest,
     messages,
     artifacts: normalizeArtifacts(session.artifacts),
+    artifactSummaries: session.artifactSummaries,
     pinned: session.pinned ?? false,
     folderId: session.folderId ?? null,
     tags: Array.isArray(session.tags) ? session.tags : [],
@@ -239,8 +242,10 @@ export function sessionToMetadata(session: ChatSession): ChatSessionMetadata {
     folderId: migrated.folderId ?? null,
     tags: Array.isArray(migrated.tags) ? migrated.tags : [],
     messageCount,
-    artifactCount: migrated.artifacts?.length ?? 0,
-    artifactSummaries: summarizeArtifacts(migrated.artifacts),
+    artifactCount: migrated.artifacts?.length ?? migrated.artifactSummaries?.length ?? 0,
+    artifactSummaries: migrated.artifacts?.length
+      ? summarizeArtifacts(migrated.artifacts)
+      : migrated.artifactSummaries ?? undefined,
     recentMessages,
   }
 }
@@ -260,6 +265,7 @@ function metadataToSession(metadata: ChatSessionMetadata, messages: Message[] = 
     tags: [...metadata.tags],
     messageCount: metadata.messageCount,
     artifacts: [],
+    artifactSummaries: metadata.artifactSummaries,
   }
 }
 

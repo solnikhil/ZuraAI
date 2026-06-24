@@ -8,6 +8,7 @@
  */
 
 import React, { useState, useRef, useEffect, useMemo, memo } from 'react'
+import { Box } from 'lucide-react'
 import LazyMarkdown from '@/components/LazyMarkdown'
 import ThinkingBlockComponent from '@/components/ThinkingBlock'
 import { useSettings } from '@/contexts/SettingsContext'
@@ -123,6 +124,7 @@ function MessageRendererComponent({
   const isUser = message.role === 'user'
   const hasThinking = typeof message.thinking === 'string' && message.thinking.trim().length > 0
   const isReasoningPhase = streamPhase === 'reasoning'
+  const isToolPhase = streamPhase === 'tool'
   const showThinkingSpinner = isStreaming && isReasoningPhase && !hasThinking
   const completedThinkingCount = completedBlocks.filter((block) => block.type === 'thinking').length
   const activeThinkingBlockKey = `${message.id}:${completedThinkingCount}:${streamPhase || 'idle'}`
@@ -137,7 +139,8 @@ function MessageRendererComponent({
     hasThinking ||
     showThinkingSpinner ||
     Boolean(message.researchStatus?.isSearching) ||
-    hasActiveToolCalls
+    hasActiveToolCalls ||
+    isToolPhase
   const showThinkingBlock = completedBlocks.length > 0 || hasActiveThinkingState
   const shouldRenderDisplayContent =
     (!isStreaming ||
@@ -290,6 +293,27 @@ function MessageRendererComponent({
 
       {/* Message content - only show when not streaming or when content has arrived */}
       {!shouldPrioritizeStreamingContent && shouldRenderDisplayContent && renderDisplayContent()}
+
+      {/* Prominent, always-visible status while waiting on tool calls.
+          This prevents the "blank" / hanging response feeling after a lead-in sentence
+          like "All five, fresh versions. Let's go:". The ThinkingBlock also shows active
+          tool details, but this guarantees something is obviously happening. */}
+      {isStreaming && (isToolPhase || hasActiveToolCalls) && hasProcessedDisplayContent && (
+        <div
+          className="thinking-header tool-calling"
+          style={{ marginTop: '8px', marginBottom: '4px' }}
+          aria-live="polite"
+        >
+          <div className="thinking-label">
+            <span className="thinking-tool-calling-icon default-icon">
+              <Box size={14} />
+            </span>
+            <span className="thinking-text thinking-tool-calling">
+              Working on tools…
+            </span>
+          </div>
+        </div>
+      )}
 
       {shouldShowActionRow && (
         <AssistantMessageActions

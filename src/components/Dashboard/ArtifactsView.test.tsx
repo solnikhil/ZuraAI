@@ -49,18 +49,25 @@ vi.mock('../MermaidDiagram', () => ({
   default: ({ code }: { code: string }) => <div data-testid="mermaid-preview">{code}</div>,
 }))
 
+// Ensure window exists for the component (some tests run before full jsdom init)
+if (typeof globalThis.window === 'undefined') {
+  // @ts-expect-error - test shim
+  globalThis.window = {}
+}
+Object.defineProperty(globalThis.window, 'ipcRenderer', {
+  value: undefined,
+  configurable: true,
+  writable: true,
+})
+
 describe('ArtifactsView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    if (typeof window !== 'undefined') {
-      Object.defineProperty(window, 'ipcRenderer', {
-        value: undefined,
-        configurable: true,
-      })
-    } else {
-      // @ts-expect-error test env
-      global.window = { ipcRenderer: undefined }
-    }
+    Object.defineProperty(globalThis.window, 'ipcRenderer', {
+      value: undefined,
+      configurable: true,
+      writable: true,
+    })
   })
 
   it('lists artifacts and opens the detail drawer', () => {

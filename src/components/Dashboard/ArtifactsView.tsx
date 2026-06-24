@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Copy, Download, FileText, Trash2, X } from 'lucide-react'
+import { motion } from 'framer-motion'
 import LazyMarkdown from '../LazyMarkdown'
 import MermaidDiagram from '../MermaidDiagram'
 import { Button } from '@/components/ui/button'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { motionSpring } from '@/lib/motion'
 import { useChatHistory } from '@/contexts/ChatHistoryContext'
 import { useAppShell } from '@/contexts/AppShellContext'
 import {
@@ -136,19 +139,46 @@ export default function ArtifactsView(): React.ReactElement {
     const liveById = new Map(sessions.map((s) => [s.id, s] as const))
 
     // Full documents from whatever the context currently holds (current chat + any loaded ones)
-    const liveItems: ArtifactListItem[] = sessions.flatMap((session) =>
-      (session.artifacts || []).map((artifact) => ({
-        sessionId: session.id,
-        sessionTitle: session.title,
-        artifact,
-      }))
-    )
+    // Also turn carried artifactSummaries (for lightweight sessions) into stubs so old ones show
+    const liveItems: ArtifactListItem[] = sessions.flatMap((session) => {
+      if (session.artifacts && session.artifacts.length > 0) {
+        return session.artifacts.map((artifact) => ({
+          sessionId: session.id,
+          sessionTitle: session.title,
+          artifact,
+        }))
+      }
+      // lightweight carried summaries
+      const sums = session.artifactSummaries
+      if (sums && sums.length) {
+        return sums.map((summary) => {
+          const stubVersions = Array.from({ length: Math.max(1, summary.versionCount) }, (_, i) => ({
+            id: i === 0 ? summary.currentVersionId : `v${i}`,
+            content: '',
+            createdAt: summary.updatedAt,
+          }))
+          const stub: ArtifactDocument = {
+            id: summary.id,
+            title: summary.title,
+            kind: summary.kind,
+            language: summary.language,
+            createdAt: summary.updatedAt,
+            updatedAt: summary.updatedAt,
+            currentVersionId: summary.currentVersionId,
+            versions: stubVersions,
+          }
+          return { sessionId: session.id, sessionTitle: session.title, artifact: stub }
+        })
+      }
+      return []
+    })
 
     // Lightweight entries from the persisted index (for chats we haven't loaded fully)
     const metaItems: ArtifactListItem[] = sessionMetadata.flatMap((meta) => {
       const live = liveById.get(meta.id)
-      // If this session is already represented with real artifacts in live state, skip the summary
-      if (live && (live.artifacts?.length ?? 0) > 0) return []
+      // If this session is already represented in live (full artifacts or carried summaries), skip
+      const liveHasArtifacts = live && ((live.artifacts?.length ?? 0) > 0 || (live.artifactSummaries?.length ?? 0) > 0)
+      if (liveHasArtifacts) return []
 
       const summaries: ArtifactSummary[] = meta.artifactSummaries || []
       return summaries.map((summary) => {
@@ -361,19 +391,32 @@ export default function ArtifactsView(): React.ReactElement {
             </div>
           </header>
 
-          <div className="artifacts-view__filters" role="tablist" aria-label="Artifact filters">
-            {filters.map((filter) => (
-              <button
-                key={filter.id}
-                type="button"
-                className={`artifacts-view__filter ${activeFilter === filter.id ? 'artifacts-view__filter--active' : ''}`}
-                onClick={() => setActiveFilter(filter.id)}
-              >
-                <span>{filter.label}</span>
-                <span>{filter.count}</span>
-              </button>
-            ))}
-          </div>
+          <Tabs
+            value={activeFilter}
+            onValueChange={(value) => setActiveFilter(value as ArtifactFilter)}
+            className="artifacts-view__tabs"
+          >
+            <TabsList variant="line" className="artifacts-view__tabs-list">
+              {filters.map((filter) => (
+                <TabsTrigger
+                  key={filter.id}
+                  value={filter.id}
+                  className="artifacts-view__tabs-trigger"
+                >
+                  <span>{filter.label}</span>
+                  <span className="artifacts-view__tabs-count">{filter.count}</span>
+                  {activeFilter === filter.id && (
+                    <motion.div
+                      layoutId="artifacts-active-tab-indicator"
+                      className="artifacts-view__tabs-indicator"
+                      initial={false}
+                      transition={motionSpring.bouncy}
+                    />
+                  )}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
 
           {filteredItems.length === 0 ? (
             <div className="artifacts-view__empty-state">

@@ -730,6 +730,8 @@ export function useProviderStreaming({
                 streamChunkCoalescer.recordToolCallDelta(
                   Array.isArray(event.delta) ? event.delta.length : 1
                 )
+                // Early signal that tool calls are coming
+                updateStreamingState({ phase: 'tool' })
                 break
               case 'file-delta':
                 generatedFiles = mergeGeneratedFiles(generatedFiles, event.files)
@@ -1148,6 +1150,11 @@ export function useProviderStreaming({
                 reasoningDetails: initialRound.roundReasoningDetails,
               }
             )
+
+        // Signal that we are now waiting on / executing tool calls
+        updateStreamingState({ phase: 'tool' })
+        updatePersistedStreamingMessage(options.sessionId, options.messageId, { /* no persist for ephemeral phase */ })
+
         let toolResult = await toolCalling.handleToolCalls(
           buildResponseWithFallback(
             reconstructedMessage,
@@ -1397,6 +1404,9 @@ export function useProviderStreaming({
               }
             )
             lastAssistantMessage = reconstructedFollowUp
+
+            updateStreamingState({ phase: 'tool' })
+
             const nextToolResult = await toolCalling.handleToolCalls(
               buildResponseWithFallback(
                 reconstructedFollowUp,
