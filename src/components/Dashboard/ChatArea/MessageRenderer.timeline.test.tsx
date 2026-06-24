@@ -39,7 +39,7 @@ vi.mock('../../ThinkingBlock', () => ({
       {completedBlocks?.map((block, index) => (
         <span key={index}>{block.content || block.query || block.toolName}</span>
       ))}
-      {isThinking ? <span>Connecting</span> : null}
+      {isThinking ? <span>Thinking...</span> : null}
       {isSearching ? <span>Searching</span> : null}
       {searchQueries?.length ? <span>{searchQueries.join(' | ')}</span> : null}
       {activeToolCalls?.length ? <span>Tool Active</span> : null}
@@ -292,7 +292,7 @@ describe('MessageRenderer follow-up timeline', () => {
     })
 
     expect(container).toHaveTextContent('Initial reasoning')
-    expect(screen.getAllByText('Connecting')).toHaveLength(1)
+    expect(screen.getAllByText('Thinking...')).toHaveLength(1)
   })
 
   it('passes parallel active search queries to the thinking block', async () => {

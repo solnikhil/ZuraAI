@@ -215,6 +215,19 @@
     color: rgba(255, 255, 255, 0.7);
 }
 
+/* Wrapper for active pure thinking state to guarantee proper spacing and alignment
+   between the BrainCircuit icon and the "Thinking for X seconds" text */
+.thinking-text.thinking-thinking {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Slight boost for the brain icon so the details remain visible in muted color at small size */
+.thinking-text.thinking-thinking .thinking-tool-calling-icon.brain-icon svg {
+  stroke-width: inherit;
+}
+
 /* Searching state text - uses theme info color */
 .thinking-header.searching .thinking-text {
     color: var(--theme-info, rgba(59, 130, 246, 0.95));
@@ -254,6 +267,30 @@
 
 /* Also beat the generic tool-call blue rule for search icons inside tool-call blocks */
 .thinking-block.thinking-tool-call .thinking-tool-calling-icon.search-icon {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* Default cardboard box icon (for artifact/generic tools without specific icon) uses the same muted "thinking" / "sourced" color */
+.thinking-tool-calling-icon.default-icon {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.thinking-block.completed .thinking-tool-calling-icon.default-icon {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.thinking-header.search-sourcing .thinking-tool-calling-icon.default-icon,
+.thinking-header.tool-calling .thinking-tool-calling-icon.default-icon {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* Ensure default icons stay muted even under the 'searching' accent rule */
+.thinking-header.searching .thinking-tool-calling-icon.default-icon {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* Also beat the generic tool-call blue rule for default icons inside tool-call blocks */
+.thinking-block.thinking-tool-call .thinking-tool-calling-icon.default-icon {
   color: rgba(255, 255, 255, 0.5);
 }
 

@@ -74,7 +74,7 @@ describe('ThinkingBlock behavior', () => {
     expect(await screen.findByText(/Follow-up reasoning/)).toBeInTheDocument()
   })
 
-  it('shows connecting before the streaming layer reports a reasoning duration', () => {
+  it('shows initial Thinking... state before the streaming layer reports a reasoning duration', () => {
     render(
       <ThinkingBlock
         messageId="message-1"
@@ -85,7 +85,7 @@ describe('ThinkingBlock behavior', () => {
       />
     )
 
-    expect(screen.getByText('Connecting')).toBeInTheDocument()
+    expect(screen.getByText('Thinking...')).toBeInTheDocument()
     expect(screen.queryByText(/Thinking for/)).not.toBeInTheDocument()
   })
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { BrainCircuit, ChevronRight, Search, Wrench } from './icons'
+import { Box, BrainCircuit, ChevronRight, Search } from './icons'
 import './ThinkingBlock.css'
 import { ThinkingBlock as ThinkingBlockType } from '../contexts/ChatHistoryContext'
 import AITextLoading from './AITextLoading'
@@ -488,17 +488,9 @@ function InlineWebSearchBlock({ block }: { block: ThinkingBlockType }) {
             style={{ overflow: 'hidden' }}
           >
             <div className="thinking-content thinking-tool-details">
-              {block.toolInput && Object.keys(block.toolInput).length > 0 && toolName !== 'web_search' && (
-                <div className="thinking-tool-json">
-                  <div className="thinking-tool-json-label">Input</div>
-                  <pre>{JSON.stringify(block.toolInput, null, 2)}</pre>
-                </div>
-              )}
               {block.toolOutput && (
                 <div className="thinking-tool-json">
-                  <div className="thinking-tool-json-label">
-                    {toolName === 'web_search' ? 'Sources' : 'Output'}
-                  </div>
+                  <div className="thinking-tool-json-label">Sources</div>
                   {block.toolOutput.data && (block.toolOutput.data as any).results ? (
                     <WebSearchSourcesPreview data={block.toolOutput.data} executionTime={block.toolOutput.executionTime} />
                   ) : (
@@ -781,8 +773,8 @@ function CompletedBlock({
         >
           <div className="thinking-label">
             {toolName !== 'web_search' && (
-              <span className="thinking-tool-calling-icon">
-                <Wrench size={14} />
+              <span className="thinking-tool-calling-icon default-icon">
+                <Box size={14} />
               </span>
             )}
             <span className="thinking-text">
@@ -1067,13 +1059,13 @@ export default function ThinkingBlock({
                   key={`tool-calling-row:${getToolCallsAnimationKey(activeToolCalls)}`}
                   className="thinking-text thinking-tool-calling"
                 >
-                  <span className="thinking-tool-calling-icon search-icon">
+                  <span className={`thinking-tool-calling-icon ${hasActiveSearches ? 'search-icon' : 'default-icon'}`}>
                     {hasActiveSearches ? (
                       <Search size={14} />
                     ) : activeToolCalls[0]?.name === 'system_shell' ? (
                       <span className="thinking-cmd-blob thinking-cmd-blob--running" />
                     ) : (
-                      <Wrench size={14} />
+                      <Box size={14} />
                     )}
                   </span>
                   <AITextLoading
@@ -1105,10 +1097,10 @@ export default function ThinkingBlock({
                   />
                 </span>
               ) : isThinking ? (
-                <span className="thinking-text">
-                  <span className="thinking-tool-calling-icon brain-icon"><BrainCircuit size={14} /></span>
+                <span className="thinking-text thinking-thinking">
+                  <span className="thinking-tool-calling-icon brain-icon"><BrainCircuit size={14} strokeWidth={2} /></span>
                   {activeThinkingSeconds === null ? (
-                    <AITextLoading text="Connecting" animationKey="connecting" />
+                    <AITextLoading text="Thinking..." animationKey="thinking" />
                   ) : (
                     <AITextLoading
                       text={`Thinking for ${activeThinkingSeconds.toFixed(1)} seconds`}
@@ -1118,7 +1110,7 @@ export default function ThinkingBlock({
                 </span>
               ) : (
                 <>
-                  <span className="thinking-tool-calling-icon brain-icon"><BrainCircuit size={14} /></span>
+                  <span className="thinking-tool-calling-icon brain-icon"><BrainCircuit size={14} strokeWidth={2} /></span>
                   <span className="thinking-text">
                     <AITextLoading
                       text={

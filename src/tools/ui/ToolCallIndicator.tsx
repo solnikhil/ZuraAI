@@ -1,5 +1,5 @@
 import React from 'react'
-import { Loader2, Globe, Search, Wrench, Terminal, Monitor, MousePointer } from '../../components/icons'
+import { Box, Loader2, Globe, Search, Terminal, Monitor, MousePointer } from '../../components/icons'
 import { getWebToolLabel, inferWebToolModeFromArgs } from './webToolDisplay'
 import { getToolArgumentSummary, getToolPresentation } from './toolPresentation'
 
@@ -51,7 +51,7 @@ export default function ToolCallIndicator({
         <Search size={16} />
       )
     ) : (
-      toolIcons[toolName] || <Wrench size={16} />
+      toolIcons[toolName] || <Box size={16} />
     )
   const displayName =
     toolName === 'web_search'

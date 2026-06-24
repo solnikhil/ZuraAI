@@ -28,6 +28,13 @@ function formatDate(value: number): string {
   return new Date(value).toLocaleString()
 }
 
+function formatArtifactKind(kind: ArtifactKind): string {
+  if (kind === 'html') return 'HTML'
+  if (kind === 'json') return 'JSON'
+  if (kind === 'svg') return 'SVG'
+  return kind.charAt(0).toUpperCase() + kind.slice(1)
+}
+
 function mimeForArtifact(artifact: ArtifactDocument): string {
   if (artifact.kind === 'html') return 'text/html'
   if (artifact.kind === 'json') return 'application/json'
@@ -216,37 +223,44 @@ export default function ArtifactsView(): React.ReactElement {
                 className={`artifacts-view__filter ${activeFilter === filter.id ? 'artifacts-view__filter--active' : ''}`}
                 onClick={() => setActiveFilter(filter.id)}
               >
-                {filter.label} {filter.count}
+                <span>{filter.label}</span>
+                <span>{filter.count}</span>
               </button>
             ))}
           </div>
 
           {filteredItems.length === 0 ? (
-            <div className="artifacts-view__empty">
-              <div>
-                <FileText size={22} />
-                <p>No artifacts yet. Ask the assistant to create a document, code file, SVG, or Mermaid diagram.</p>
-              </div>
+            <div className="artifacts-view__empty-state">
+              <FileText size={18} />
+              <strong>No artifacts yet</strong>
+              <span>Ask the assistant to create a document, code file, SVG, or Mermaid diagram.</span>
             </div>
           ) : (
             <div className="artifacts-view__rows">
-              {filteredItems.map((item) => (
+              {filteredItems.map((item, index) => (
                 <button
                   key={`${item.sessionId}:${item.artifact.id}`}
                   type="button"
-                  className="artifacts-view__row"
+                  className={`artifacts-view__row ${selectedItem?.sessionId === item.sessionId && selectedItem.artifact.id === item.artifact.id ? 'artifacts-view__row--active' : ''}`}
                   onClick={() => setSelected({ sessionId: item.sessionId, artifactId: item.artifact.id })}
                 >
-                  <div>
-                    <h4>{item.artifact.title}</h4>
-                    <div className="artifacts-view__row-meta">
-                      <span>{item.artifact.kind}</span>
-                      {item.artifact.language && <span>{item.artifact.language}</span>}
-                      <span>{item.artifact.versions.length} version{item.artifact.versions.length === 1 ? '' : 's'}</span>
-                      <span>{item.sessionTitle}</span>
+                  <div className="artifacts-view__row-main">
+                    <span className="artifacts-view__row-number">{index + 1}</span>
+                    <div className="artifacts-view__row-content">
+                      <div className="artifacts-view__badge-row">
+                        <span className="artifacts-view__type-badge">{formatArtifactKind(item.artifact.kind)}</span>
+                        {item.artifact.language && <span className="artifacts-view__status-badge">{item.artifact.language}</span>}
+                        <span className="artifacts-view__date-badge">{item.artifact.versions.length} version{item.artifact.versions.length === 1 ? '' : 's'}</span>
+                      </div>
+                      <h4>{item.artifact.title}</h4>
+                      <div className="artifacts-view__row-meta">
+                        <span>{item.sessionTitle}</span>
+                        <span className="artifacts-view__meta-divider">/</span>
+                        <span>Updated {formatDate(item.artifact.updatedAt)}</span>
+                      </div>
                     </div>
                   </div>
-                  <span>{formatDate(item.artifact.updatedAt)}</span>
+                  <span className="artifacts-view__open-label">Open</span>
                 </button>
               ))}
             </div>
@@ -254,67 +268,70 @@ export default function ArtifactsView(): React.ReactElement {
         </main>
 
         {selectedItem && selectedVersion && (
-          <aside className="artifacts-view__drawer" aria-label={`Artifact details for ${selectedItem.artifact.title}`}>
-            <div className="artifacts-view__drawer-header">
-              <div>
-                <span>{selectedItem.artifact.kind}</span>
-                <h3>{selectedItem.artifact.title}</h3>
-                <div className="artifacts-view__drawer-meta">
-                  <span>{selectedItem.sessionTitle}</span>
-                  <span>Updated {formatDate(selectedItem.artifact.updatedAt)}</span>
+          <>
+            <div className="artifacts-view__drawer-divider" aria-hidden="true" />
+            <aside className="artifacts-view__drawer" aria-label={`Artifact details for ${selectedItem.artifact.title}`}>
+              <div className="artifacts-view__drawer-header">
+                <div>
+                  <span>{formatArtifactKind(selectedItem.artifact.kind)}</span>
+                  <h3>{selectedItem.artifact.title}</h3>
+                  <div className="artifacts-view__drawer-meta">
+                    <span>{selectedItem.sessionTitle}</span>
+                    <span>Updated {formatDate(selectedItem.artifact.updatedAt)}</span>
+                  </div>
                 </div>
+                <button type="button" className="artifacts-view__icon-button" onClick={() => setSelected(null)} aria-label="Close artifact details">
+                  <X size={15} />
+                </button>
               </div>
-              <button type="button" className="reminders-view__icon-button" onClick={() => setSelected(null)} aria-label="Close artifact details">
-                <X size={15} />
-              </button>
-            </div>
 
-            <div className="artifacts-view__drawer-actions">
-              <Button size="sm" variant="secondary" onClick={() => void copySelected()}><Copy size={14} /> Copy</Button>
-              <Button size="sm" variant="secondary" onClick={downloadSelected}><Download size={14} /> Download</Button>
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => {
-                  switchSession(selectedItem.sessionId)
-                  setDashboardView('chat')
-                }}
-              >
-                Open chat
-              </Button>
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={renameSelected}
-              >
-                Rename
-              </Button>
-              <Button
-                size="sm"
-                variant="destructive"
-                onClick={deleteSelected}
-              >
-                <Trash2 size={14} /> Delete
-              </Button>
-            </div>
+              <div className="artifacts-view__drawer-actions">
+                <Button size="sm" variant="secondary" onClick={() => void copySelected()}><Copy size={14} /> Copy</Button>
+                <Button size="sm" variant="secondary" onClick={downloadSelected}><Download size={14} /> Download</Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => {
+                    switchSession(selectedItem.sessionId)
+                    setDashboardView('chat')
+                  }}
+                >
+                  Open chat
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={renameSelected}
+                >
+                  Rename
+                </Button>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={deleteSelected}
+                >
+                  <Trash2 size={14} /> Delete
+                </Button>
+              </div>
 
-            <div className="artifacts-view__preview">
-              {renderPreview()}
-            </div>
+              <div className="artifacts-view__preview">
+                {renderPreview()}
+              </div>
 
-            <div className="artifacts-view__versions">
-              {selectedItem.artifact.versions.slice().reverse().map((version) => (
-                <div key={version.id} className="artifacts-view__version">
-                  <span>{version.id === selectedItem.artifact.currentVersionId ? 'Current' : 'Version'} · {formatDate(version.createdAt)}</span>
-                  {version.id !== selectedItem.artifact.currentVersionId && (
-                    <Button size="sm" variant="ghost" onClick={() => restoreSelectedVersion(version.id)}>
-                      Restore
-                    </Button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </aside>
+              <div className="artifacts-view__versions">
+                {selectedItem.artifact.versions.slice().reverse().map((version) => (
+                  <div key={version.id} className="artifacts-view__version">
+                    <span>{version.id === selectedItem.artifact.currentVersionId ? 'Current' : 'Version'} / {formatDate(version.createdAt)}</span>
+                    {version.id !== selectedItem.artifact.currentVersionId && (
+                      <Button size="sm" variant="ghost" onClick={() => restoreSelectedVersion(version.id)}>
+                        Restore
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </aside>
+          </>
         )}
       </div>
     </section>

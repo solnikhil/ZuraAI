@@ -811,9 +811,8 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
 
   const createArtifact = useCallback(
     (sessionId: string, input: { title: string; kind: ArtifactKind; language?: string; content: string; sourceMessageId?: string }): ArtifactDocument | null => {
-      let created: ArtifactDocument | null = null
+      const created = createArtifactDocument(input)
       updateOneSession(sessionId, (session) => {
-        created = createArtifactDocument(input)
         return {
           ...session,
           artifacts: [...normalizeArtifacts(session.artifacts), created],
@@ -827,19 +826,20 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
 
   const updateArtifact = useCallback(
     (sessionId: string, artifactId: string, input: { content: string; title?: string; language?: string; sourceMessageId?: string; changeSummary?: string }): ArtifactDocument | null => {
-      let updated: ArtifactDocument | null = null
+      const existingSession = sessionsRef.current.find((session) => session.id === sessionId)
+      const existingArtifact = normalizeArtifacts(existingSession?.artifacts).find((artifact) => artifact.id === artifactId)
+      const optimisticUpdated = existingArtifact ? updateArtifactDocument(existingArtifact, input) : null
       updateOneSession(sessionId, (session) => {
         const artifacts = normalizeArtifacts(session.artifacts)
         const nextArtifacts = artifacts.map((artifact) => {
           if (artifact.id !== artifactId) return artifact
-          updated = updateArtifactDocument(artifact, input)
-          return updated
+          return artifact.id === optimisticUpdated?.id ? optimisticUpdated : updateArtifactDocument(artifact, input)
         })
-        return updated
+        return nextArtifacts.some((artifact) => artifact.id === artifactId)
           ? { ...session, artifacts: nextArtifacts, updatedAt: Date.now() }
           : session
       })
-      return updated
+      return optimisticUpdated
     },
     [updateOneSession]
   )
