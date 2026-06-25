@@ -173,6 +173,51 @@ function normalizeSession(session: ChatSession): ChatSession {
   }
 }
 
+function mergeArtifactDocuments(
+  loadedArtifacts: unknown,
+  liveArtifacts: unknown
+): ArtifactDocument[] {
+  const merged = new Map<string, ArtifactDocument>()
+  for (const artifact of normalizeArtifacts(loadedArtifacts)) {
+    merged.set(artifact.id, artifact)
+  }
+  for (const artifact of normalizeArtifacts(liveArtifacts)) {
+    const existing = merged.get(artifact.id)
+    if (!existing || artifact.updatedAt >= existing.updatedAt) {
+      merged.set(artifact.id, artifact)
+    }
+  }
+  return Array.from(merged.values()).sort((a, b) => b.updatedAt - a.updatedAt)
+}
+
+function withArtifactSummaries(session: ChatSession): ChatSession {
+  const artifacts = normalizeArtifacts(session.artifacts)
+  return {
+    ...session,
+    artifacts,
+    artifactSummaries: artifacts.length > 0 ? artifacts.map(summarizeArtifact) : [],
+  }
+}
+
+function mergeLoadedSessionWithLiveShell(
+  loaded: ChatSession,
+  latestExisting?: ChatSession
+): ChatSession {
+  const artifacts = mergeArtifactDocuments(loaded.artifacts, latestExisting?.artifacts)
+  const artifactSummaries = artifacts.length > 0
+    ? artifacts.map(summarizeArtifact)
+    : latestExisting?.artifactSummaries ?? loaded.artifactSummaries
+
+  return normalizeSession({
+    ...loaded,
+    ...latestExisting,
+    messages: loaded.messages ?? [],
+    messageCount: loaded.messageCount ?? loaded.messages?.length ?? latestExisting?.messageCount ?? 0,
+    artifacts,
+    artifactSummaries,
+  })
+}
+
 function isLoadedSession(session: ChatSession): boolean {
   return session.messages.length > 0 || (session.messageCount ?? 0) === 0
 }
@@ -344,12 +389,8 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
 
         if (!loaded) return null
 
-        const normalized = normalizeSession({
-          ...loaded,
-          ...existing,
-          messages: loaded.messages ?? [],
-          messageCount: loaded.messageCount ?? loaded.messages?.length ?? existing.messageCount ?? 0,
-        })
+        const latestExisting = sessionsRef.current.find((session) => session.id === id) ?? existing
+        const normalized = mergeLoadedSessionWithLiveShell(loaded, latestExisting)
 
         // Only mark as "loaded" (eligible for pruning as full) if we didn't use a limit
         if (!options?.limit) {
@@ -659,6 +700,30 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     [persistSessionMutation]
   )
 
+  const persistUnloadedArtifactMutation = useCallback(
+    (sessionId: string, updater: (session: ChatSession) => ChatSession) => {
+      if (!isElectron || loadedSessionIdsRef.current.has(sessionId)) return
+
+      void (async () => {
+        try {
+          const fullSession = await window.ipcRenderer.invoke('chat-store:get-session', sessionId)
+          if (!fullSession) return
+
+          const latestExisting = sessionsRef.current.find((session) => session.id === sessionId)
+          const mergedBase = mergeLoadedSessionWithLiveShell(fullSession, latestExisting)
+          const nextSession = withArtifactSummaries(normalizeSession(updater(mergedBase)))
+
+          expectedSelfSessionStoreChangeRef.current = true
+          await window.ipcRenderer.invoke('chat-store:save-session', nextSession)
+        } catch (error) {
+          expectedSelfSessionStoreChangeRef.current = false
+          console.error(`Failed to persist artifact mutation for session ${sessionId}:`, error)
+        }
+      })()
+    },
+    []
+  )
+
   const addMessageToSession = useCallback(
     (sessionId: string, message: Omit<Message, 'id' | 'timestamp'>): string => {
       const newMessage: Message = {
@@ -817,15 +882,24 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     (sessionId: string, input: { title: string; kind: ArtifactKind; language?: string; content: string; sourceMessageId?: string }): ArtifactDocument | null => {
       const created = createArtifactDocument(input)
       updateOneSession(sessionId, (session) => {
-        return {
+        return withArtifactSummaries({
           ...session,
           artifacts: [...normalizeArtifacts(session.artifacts), created],
           updatedAt: Date.now(),
+        })
+      })
+      persistUnloadedArtifactMutation(sessionId, (session) => {
+        const artifacts = normalizeArtifacts(session.artifacts)
+        if (artifacts.some((artifact) => artifact.id === created.id)) return session
+        return {
+          ...session,
+          artifacts: [...artifacts, created],
+          updatedAt: Math.max(session.updatedAt, created.updatedAt),
         }
       })
       return created
     },
-    [updateOneSession]
+    [persistUnloadedArtifactMutation, updateOneSession]
   )
 
   const updateArtifact = useCallback(
@@ -840,49 +914,64 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
           return artifact.id === optimisticUpdated?.id ? optimisticUpdated : updateArtifactDocument(artifact, input)
         })
         return nextArtifacts.some((artifact) => artifact.id === artifactId)
+          ? withArtifactSummaries({ ...session, artifacts: nextArtifacts, updatedAt: Date.now() })
+          : session
+      })
+      persistUnloadedArtifactMutation(sessionId, (session) => {
+        const artifacts = normalizeArtifacts(session.artifacts)
+        const nextArtifacts = artifacts.map((artifact) =>
+          artifact.id === artifactId ? updateArtifactDocument(artifact, input) : artifact
+        )
+        return nextArtifacts.some((artifact) => artifact.id === artifactId)
           ? { ...session, artifacts: nextArtifacts, updatedAt: Date.now() }
           : session
       })
       return optimisticUpdated
     },
-    [updateOneSession]
+    [persistUnloadedArtifactMutation, updateOneSession]
   )
 
   const renameArtifact = useCallback(
     (sessionId: string, artifactId: string, title: string) => {
-      updateOneSession(sessionId, (session) => ({
+      const updater = (session: ChatSession) => ({
         ...session,
         artifacts: normalizeArtifacts(session.artifacts).map((artifact) =>
           artifact.id === artifactId ? renameArtifactDocument(artifact, title) : artifact
         ),
         updatedAt: Date.now(),
-      }))
+      })
+      updateOneSession(sessionId, (session) => withArtifactSummaries(updater(session)))
+      persistUnloadedArtifactMutation(sessionId, updater)
     },
-    [updateOneSession]
+    [persistUnloadedArtifactMutation, updateOneSession]
   )
 
   const restoreArtifact = useCallback(
     (sessionId: string, artifactId: string, versionId: string) => {
-      updateOneSession(sessionId, (session) => ({
+      const updater = (session: ChatSession) => ({
         ...session,
         artifacts: normalizeArtifacts(session.artifacts).map((artifact) =>
           artifact.id === artifactId ? restoreArtifactVersion(artifact, versionId) : artifact
         ),
         updatedAt: Date.now(),
-      }))
+      })
+      updateOneSession(sessionId, (session) => withArtifactSummaries(updater(session)))
+      persistUnloadedArtifactMutation(sessionId, updater)
     },
-    [updateOneSession]
+    [persistUnloadedArtifactMutation, updateOneSession]
   )
 
   const deleteArtifact = useCallback(
     (sessionId: string, artifactId: string) => {
-      updateOneSession(sessionId, (session) => ({
+      const updater = (session: ChatSession) => ({
         ...session,
         artifacts: normalizeArtifacts(session.artifacts).filter((artifact) => artifact.id !== artifactId),
         updatedAt: Date.now(),
-      }))
+      })
+      updateOneSession(sessionId, (session) => withArtifactSummaries(updater(session)))
+      persistUnloadedArtifactMutation(sessionId, updater)
     },
-    [updateOneSession]
+    [persistUnloadedArtifactMutation, updateOneSession]
   )
 
   useEffect(() => {

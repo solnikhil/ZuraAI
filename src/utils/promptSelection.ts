@@ -2,6 +2,7 @@ import { Settings } from '../contexts/SettingsContext'
 import { buildEnabledExtensionsPrompt } from '../skills'
 import { CURRENT_YEAR_PLACEHOLDER } from '../prompts/defaultSystemPrompt'
 import { buildSelectedPersonalityPrompt } from '../prompts/assistantPersonalities'
+import { buildAgentSkillsCatalogPrompt } from '../agentSkills/prompt'
 
 export function resolveSystemPromptTemplate(systemPrompt: string): string {
     const currentYear = String(new Date().getFullYear())
@@ -18,7 +19,7 @@ export function resolveSystemPromptTemplate(systemPrompt: string): string {
  * @returns The effective system prompt to use for AI calls.
  */
 export function getEffectiveSystemPrompt(
-    settings: Pick<Settings, 'systemPrompt'> & Partial<Pick<Settings, 'assistantPersonality' | 'skills' | 'extensions' | 'codeExecutionPrompt' | 'terminalPrompt' | 'computerUsePrompt' | 'chartGenerationPrompt' | 'remindersPrompt' | 'artifactsPrompt'>>,
+    settings: Pick<Settings, 'systemPrompt'> & Partial<Pick<Settings, 'assistantPersonality' | 'skills' | 'extensions' | 'agentSkills' | 'codeExecutionPrompt' | 'terminalPrompt' | 'computerUsePrompt' | 'chartGenerationPrompt' | 'remindersPrompt' | 'artifactsPrompt'>>,
     memoryBlock?: string,
     recentActivityBlock?: string
 ): string {
@@ -34,6 +35,8 @@ export function getEffectiveSystemPrompt(
     })
     const sections = [resolvedSystemPrompt, selectedPersonalityPrompt]
     if (enabledExtensionsSection) sections.push(enabledExtensionsSection)
+    const agentSkillsCatalog = buildAgentSkillsCatalogPrompt(settings.agentSkills)
+    if (agentSkillsCatalog) sections.push(agentSkillsCatalog)
     if (recentActivityBlock && recentActivityBlock.trim()) sections.push(recentActivityBlock.trim())
     if (memoryBlock && memoryBlock.trim()) sections.push(memoryBlock.trim())
     return sections.join('\n\n')

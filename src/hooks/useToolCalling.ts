@@ -69,6 +69,10 @@ const ARTIFACT_TOOLS = [
     'artifact_update',
 ]
 
+const AGENT_SKILL_TOOLS = [
+    'activate_skill',
+]
+
 export interface ToolCallState {
     activeToolCalls: ToolCall[]
     activeToolBatch: ToolCall[]
@@ -201,6 +205,18 @@ export function useToolCalling() {
             enabledTools = enabledTools.filter((tool) => !ARTIFACT_TOOLS.includes(tool))
         } else {
             for (const tool of ARTIFACT_TOOLS) {
+                if (!enabledTools.includes(tool)) enabledTools.push(tool)
+            }
+        }
+
+        const agentSkillsSurfaceEnabled =
+            settings.agentSkills?.enabled === true &&
+            Array.isArray(settings.agentSkills.catalog) &&
+            settings.agentSkills.catalog.some((skill) => !settings.agentSkills.disabledSkillNames.includes(skill.name))
+        if (!agentSkillsSurfaceEnabled) {
+            enabledTools = enabledTools.filter((tool) => !AGENT_SKILL_TOOLS.includes(tool))
+        } else {
+            for (const tool of AGENT_SKILL_TOOLS) {
                 if (!enabledTools.includes(tool)) enabledTools.push(tool)
             }
         }

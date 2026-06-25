@@ -45,6 +45,7 @@ import type { ScreenshotArgs, TypeArgs, KeyArgs } from './computerUse'
 import { showSpotlight } from '../windows/spotlightOverlay'
 import { isBuiltinMainToolName, type BuiltinMainToolName } from '../../src/tools/builtinTools'
 import { normalizeClickArgs, normalizeCursorArgs, normalizeScrollArgs } from './computer-use/normalize'
+import { activateAgentSkill } from '../agentSkills/service'
 
 import type { ToolResult, ToolHandler } from './types'
 export type { ToolResult, ToolHandler } from './types'
@@ -160,6 +161,20 @@ const spotlightFn = (opts: { x: number; y: number; label?: string }) => showSpot
 const toolHandlers: Record<BuiltinMainToolName, ToolHandler> = {
   web_search: (args) => executeWebSearch(normalizeWebSearchArgsInput(args)),
   code_execution: (args) => executeCode(normalizeCodeExecutionArgsInput(args)),
+  activate_skill: async (args) => {
+    const r = (typeof args === 'object' && args !== null) ? args as Record<string, unknown> : {}
+    const name = typeof r.name === 'string' ? r.name : ''
+    const settings = (typeof r._agentSkills === 'object' && r._agentSkills !== null)
+      ? r._agentSkills as Record<string, unknown>
+      : {}
+    const result = await activateAgentSkill(name, {
+      projectRoot: typeof settings.projectRoot === 'string' ? settings.projectRoot : undefined,
+      disabledSkillNames: Array.isArray(settings.disabledSkillNames)
+        ? settings.disabledSkillNames.filter((value): value is string => typeof value === 'string')
+        : undefined,
+    })
+    return { success: true, data: result }
+  },
   computer_screenshot: (args) => executeScreenshot(normalizeScreenshotArgs(args)),
   computer_click: (args) => { const n = normalizeClickArgs(args); return executeClick(n.args, n.autoApprove, spotlightFn) },
   computer_type: (args) => { const n = normalizeTypeArgs(args); return executeType(n.args, n.autoApprove) },

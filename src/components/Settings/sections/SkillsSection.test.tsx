@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { SkillsSection } from './SkillsSection'
 import { defaultSkillsSettings, withTerminalEnabled } from '../../../skills'
+import type { AgentSkillsSettings } from '@/agentSkills/types'
 
 let isMac = false
 vi.mock('@/utils/platform', () => ({
@@ -40,6 +41,13 @@ vi.mock('@/components/ui/dropdown-menu', () => ({
   ),
 }))
 
+const defaultAgentSkills: AgentSkillsSettings = {
+  enabled: false,
+  projectRoot: '',
+  disabledSkillNames: [],
+  catalog: [],
+}
+
 describe('SkillsSection', () => {
   beforeEach(() => {
     isMac = false
@@ -49,6 +57,7 @@ describe('SkillsSection', () => {
     render(
       <SkillsSection
         skills={defaultSkillsSettings}
+        agentSkills={defaultAgentSkills}
         codeExecutionAutoApprove={false}
         terminalAutoApprove={false}
         computerUseAutoApprove={false}
@@ -69,6 +78,7 @@ describe('SkillsSection', () => {
     render(
       <SkillsSection
         skills={defaultSkillsSettings}
+        agentSkills={defaultAgentSkills}
         codeExecutionAutoApprove={false}
         terminalAutoApprove={false}
         computerUseAutoApprove={false}
@@ -92,6 +102,7 @@ describe('SkillsSection', () => {
     render(
       <SkillsSection
         skills={defaultSkillsSettings}
+        agentSkills={defaultAgentSkills}
         codeExecutionAutoApprove={false}
         terminalAutoApprove={false}
         computerUseAutoApprove={false}
@@ -114,6 +125,7 @@ describe('SkillsSection', () => {
     render(
       <SkillsSection
         skills={defaultSkillsSettings}
+        agentSkills={defaultAgentSkills}
         codeExecutionAutoApprove={false}
         terminalAutoApprove={false}
         computerUseAutoApprove={false}
@@ -129,6 +141,7 @@ describe('SkillsSection', () => {
     render(
       <SkillsSection
         skills={withTerminalEnabled(defaultSkillsSettings, true)}
+        agentSkills={defaultAgentSkills}
         codeExecutionAutoApprove={false}
         terminalAutoApprove={false}
         computerUseAutoApprove={false}

@@ -41,9 +41,10 @@ Core capabilities:
 - Persistence is split:
   - **Sanitized non-secret settings + UI state** live in renderer `localStorage`.
   - Built-in assistant capabilities are surfaced as **Extensions** in the UI and persisted in the sanitized renderer settings blob as `settings.extensions`. Legacy `settings.skills` payloads are normalized into `settings.extensions`, and normalized settings mirror the value back to `settings.skills` as a compatibility alias while call sites migrate.
+  - **Agent Skills settings** live in the sanitized renderer settings blob as `settings.agentSkills` (`enabled`, trusted `projectRoot`, `disabledSkillNames`, and the compact discovered catalog). Skill files themselves live outside app storage in `.agents/skills/*/SKILL.md`: user skills under `~/.agents/skills`, and optional project skills under `<trustedProject>/.agents/skills` only after the user selects the project folder.
   - **API keys and MCP secrets** live in main-process secure storage and are hydrated/resolved at runtime.
   - **Chat history, conversation summaries, MCP server metadata, and secure storage** live in the main process under `app.getPath('userData')`.
-  - **Artifacts** are assistant-created documents stored on their source chat session JSON (`ChatSession.artifacts`) with lightweight counts/summaries in the existing chat index. There is no separate artifact store, IPC channel, or main-process artifact capability.
+  - **Artifacts** are assistant-created documents stored on their source chat session JSON (`ChatSession.artifacts`) with lightweight counts/summaries in the existing chat index. Renderer session reconciliation preserves full artifact documents over lightweight metadata shells, and unloaded-session artifact mutations fetch/save the full source chat session so summaries cannot erase artifact content. There is no separate artifact store or main-process artifact mutation API. External open is the only artifact IPC path: the renderer resolves artifact content, main writes a sanitized export under `app.getPath('userData')/artifact-exports/`, and `shell.openPath(...)` launches the OS default app/editor for that file type.
   - **Scheduled task definitions, web lookout snapshots, reminder logs, and run history** live in the main process under `app.getPath('userData')` in `scheduled-tasks.json`; legacy `web-monitors.json` data is migrated on read. The scheduled-task runtime schedules enabled reminders/lookouts while ZuraAI is open, supports repeat intervals from `1m` through weekly presets, performs due checks once on next startup, fetches public or local-loopback http/https lookout pages directly from main, asks the renderer to summarize detected changes through the existing provider runtime, emits OS-level Electron notifications for due reminders and changed lookouts when desktop notifications are supported, and can send opt-in Brevo transactional emails for due reminders plus changed lookouts when Email Notifications are configured.
   - **Email notification preferences** (`emailNotifications.enabled`, sender name/email, and recipient email) live in the sanitized renderer settings blob and are mirrored into main at runtime via the dedicated `window.emailNotifications.applySettings(...)` bridge. The Brevo transactional email API key (`brevoApiKey`) lives only in main-process secure storage. Main sends test emails and scheduled reminder/lookout emails through `electron/notifications/email/`; the renderer never sends arbitrary email bodies over IPC.
   - **Analytics consent and anonymous install metadata** live in the main process under `app.getPath('userData')` in `analytics-state.json`; analytics is opt-in only and sends to the configured PostHog Cloud target after consent. The default public PostHog project token and US ingestion host live in `electron/analytics/config.ts`, while `ZURA_POSTHOG_PROJECT_KEY` / `ZURA_POSTHOG_HOST` can override or disable transport for forks and tests.
@@ -79,6 +80,7 @@ Core capabilities:
 - `electron/mcp/mcpStorage.ts` — MCP server metadata persistence + secret resolution helpers
 - `electron/secureStorage.ts` — encrypted key storage via `safeStorage` (JSON under `userData`)
 - `electron/mcp/transports/` — MCP transport foundation primitives and concrete transport implementations
+- `electron/agentSkills/` - main-process Agent Skills discovery/activation/install service for the open `.agents/skills/*/SKILL.md` format. It parses compact YAML frontmatter, reports diagnostics without crashing discovery, lets project skills override user skills by name, returns body-only instructions on activation, and does not eagerly read bundled references, assets, or scripts.
 - `electron/tools/` — main-process tool implementations (IPC registry is restricted)
   - `electron/tools/web-search/` — built-in **Tavily-only, no-fallback** web-search pipeline behind a pluggable `SearchProvider` seam: `service.ts` (thin orchestrator, single dispatch, no fallback branching), `request.ts` (untrusted-input validation/normalization), `intent.ts` (query-vs-URL intent classification + weak-query reformulation), `normalize.ts` (result/image/snippet/source shaping, renamed from `helpers.ts`), `credentials.ts` (secure-storage credential resolution), `logging.ts` (single secret-safe failure logger), `providers/registry.ts` + `providers/types.ts` (the `SearchProvider` abstraction), and `providers/tavily/*` (`transport.ts` + `mapper.ts` + `index.ts`). The DuckDuckGo backend and the `backends/` split were removed.
   - `electron/tools/windows-uia/` — Windows-only Microsoft UI Automation bridge for native desktop snapshots and supported control actions (`InvokePattern`, `ValuePattern`, selection/toggle patterns)
@@ -115,6 +117,7 @@ Core capabilities:
 - `src/services/` — AI provider integrations (HTTP calls; streaming + non-streaming)
 - `src/services/streamUtils.ts` — shared SSE (`parseSSEStream`) and NDJSON (`parseNDJSONStream`) stream parsing utilities used by all providers; SSE parsing accepts `data:` with/without spaces, CRLF framing, multi-line payloads, and terminal flushes
 - `src/skills/` — built-in extension catalog + settings normalization/migration compatibility helpers; the module still exports legacy skill-named aliases while the UI and persisted source of truth use Extensions. The `reminders` extension is disabled by default and gates the Reminders sidebar entry plus the model-callable `scheduled_task_*` tools. The `artifacts` extension is enabled by default and gates renderer-only `artifact_create` / `artifact_update` tools.
+- `src/agentSkills/` - shared Agent Skills types plus compact prompt-catalog construction. The model sees only enabled skill names, descriptions, and scope until it explicitly calls `activate_skill`.
 - `src/mcp/` — shared MCP contracts, draft helpers, and renderer MCP runtime/settings context
 - `src/components/Settings/sections/McpSection.tsx` — MCP Settings UI for server CRUD, secret-masked forms, and connect/disconnect controls
 - `src/components/Settings/sections/OverlaySection.tsx` — Overlay settings UI for enablement, startup behavior, sizing, and global shortcut configuration
@@ -269,6 +272,9 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - `window.analytics`
   - invokes: `analytics:get-state`, `analytics:set-enabled`, `analytics:track`
   - only accepts the fixed analytics event allowlist; main sanitizes event properties and never accepts prompts, responses, file paths, clipboard data, API keys, MCP payloads, or conversation content
+- `window.agentSkills`
+  - invokes: `agent-skills:list`, `agent-skills:activate`, `agent-skills:select-project-root`, `agent-skills:clear-project-root`, `agent-skills:search`, `agent-skills:install`
+  - main owns filesystem discovery, SKILL.md activation, folder selection, and Skills CLI execution. The renderer can pass only sanitized settings state and skill/package names; `allowed-tools` frontmatter is metadata and never grants new tool permissions.
 - `window.overlay`
   - invokes: `overlay:show`, `overlay:hide`, `overlay:toggle`, `overlay:expand`, `overlay:collapse`, `overlay:get-state`, `overlay:focus-main-window`, `overlay:apply-settings`, `overlay:set-content-height`
   - listens for: `overlay:pending-prompt`
@@ -294,6 +300,9 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - `window.emailNotifications`
   - invokes: `email-notifications:apply-settings`, `email-notifications:send-test`
   - `apply-settings` accepts only sanitized non-secret email notification preferences for main-process runtime use; `send-test` generates a fixed main-process test email and reads `brevoApiKey` from secure storage
+- `window.artifacts`
+  - invokes: `artifacts:open-external`
+  - accepts only sanitized artifact metadata + current-version content from the renderer, writes a typed export file under `userData/artifact-exports/`, and opens it with the OS default application via `shell.openPath(...)`
 
 **Important:** IPC handlers may exist in `electron/ipc/*` but are not reachable unless they’re also wired through preload allowlists or a dedicated preload bridge.
 
@@ -625,6 +634,7 @@ Tool execution is intentionally restricted.
 - Built-in tool schemas: `src/tools/definitions.ts` (renderer-facing definitions derived from `builtinTools.ts`)
   - Runtime MCP tool adapter: `src/tools/mcpRegistry.ts` maps connected MCP tools into generic request-time descriptors
   - Skill gating + runtime merge: `src/hooks/useToolCalling.ts` + `src/skills/index.ts` decide which built-in tools are exposed and merge them with eligible MCP tools at request time
+  - Agent Skills prompt catalog: `src/agentSkills/prompt.ts` injects only enabled skill names/descriptions/source scope when `settings.agentSkills.enabled` is true; full SKILL.md bodies are loaded only through `activate_skill`.
   - Provider adapters: `src/tools/adapters/*` (Perplexity is explicitly excluded)
     - `src/tools/adapters/openrouter.ts` formats successful `web_search` results for model follow-up with `guidance`, `result_index`, source/date/score metadata, search/extract depth, intent, and partial-extract messages so the assistant can cite numbered results and detect insufficient or stale evidence without seeing UI-only favicon/display-link fields.
   - Execution: `src/tools/executor.ts` keeps built-in IPC execution for built-in main-process tools and routes namespaced MCP tools through the dedicated `window.mcp.executeTool(...)` bridge
@@ -633,7 +643,8 @@ Tool execution is intentionally restricted.
   - MCP resources and prompts are not merged into the model tool surface; the renderer only exposes them through user-driven browsing/preview flows in the MCP library UI.
 
 - Main process side:
-  - Tool IPC: `electron/tools/index.ts` (restricted registry for `web_search`, code execution, Computer Use, and Windows-native built-ins)
+  - Tool IPC: `electron/tools/index.ts` (restricted registry for `web_search`, `activate_skill`, code execution, Computer Use, and Windows-native built-ins)
+  - Agent Skills: `activate_skill` loads the selected enabled skill by name through `electron/agentSkills/service.ts`, returns body-only instructions wrapped in structured tags plus a capped relative resource listing, and never executes bundled scripts. `allowed-tools` frontmatter is advisory metadata only; unavailable tools remain unavailable and approval-gated tools still require approval.
   - MCP tool IPC: `electron/mcp/index.ts` (`mcp:execute-tool`, `mcp:resolve-approval`) with approval gating handled by `electron/mcp/mcpApprovalManager.ts`
   - Native Windows tools: `windows_uia_snapshot`, `windows_uia_invoke`, `windows_uia_set_value`, `windows_uia_select`, `system_shell`, `file_read`, `file_write`, `file_search`, `file_move`, `app_find`, `app_launch`, `app_list`, `app_install`, `app_uninstall`, `window_list`, `window_focus`, `window_move`, and `window_close` are exposed through the existing `execute-tool` path and preload validation, with no new renderer IPC channel. Read-only tools auto-run. Mutating tools require explicit approval/`autoApprove` and fail closed when approval is absent or rejected. UIA/app/window tools return clear unsupported-platform errors off Windows. These tools are intended to reduce screenshot/click/type usage; `computer_*` remains the current-desktop fallback for unsupported controls and genuinely visual tasks. Browser and Office automation are intentionally not included in this version.
   - Web search: `electron/tools/webSearch.ts`

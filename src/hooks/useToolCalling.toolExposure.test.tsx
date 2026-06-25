@@ -8,6 +8,7 @@ import {
   withTerminalEnabled,
   type SkillsSettings,
 } from '../skills'
+import type { AgentSkillsSettings } from '../agentSkills/types'
 import { getBuiltinToolDefinitions } from '../tools/definitions'
 
 let isWindows = true
@@ -23,6 +24,7 @@ interface MockSettingsShape {
   skills: SkillsSettings
   modelProvider: string
   aiModel: string
+  agentSkills: AgentSkillsSettings
   configuredModels: Array<{ code: string; displayName: string; supportsToolCall?: boolean }>
 }
 
@@ -45,6 +47,12 @@ function makeSettings(overrides: Partial<MockSettingsShape> = {}): MockSettingsS
     assistantMode: 'agent',
     enabledTools: ['web_search'],
     skills: defaultSkillsSettings,
+    agentSkills: {
+      enabled: false,
+      projectRoot: '',
+      disabledSkillNames: [],
+      catalog: [],
+    },
     modelProvider: 'openrouter',
     aiModel: 'openai/gpt-4o',
     configuredModels: [
@@ -305,5 +313,70 @@ describe('useToolCalling - Reminders skill scheduled task tool exposure gating',
     for (const tool of SCHEDULED_TASK_TOOL_NAMES) {
       expect(names).toContain(tool)
     }
+  })
+})
+
+describe('useToolCalling - Agent Skills activation tool exposure gating', () => {
+  it('does not expose activate_skill when Agent Skills are disabled', () => {
+    mockSettings.settings = makeSettings({
+      agentSkills: {
+        enabled: false,
+        projectRoot: '',
+        disabledSkillNames: [],
+        catalog: [
+          {
+            name: 'design-review',
+            description: 'Review UI',
+            scope: 'user',
+            skillPath: 'C:/Users/Test/.agents/skills/design/SKILL.md',
+            skillDir: 'C:/Users/Test/.agents/skills/design',
+          },
+        ],
+      },
+    })
+
+    expect(getExposedToolNames()).not.toContain('activate_skill')
+  })
+
+  it('exposes activate_skill only when at least one enabled Agent Skill exists', () => {
+    mockSettings.settings = makeSettings({
+      agentSkills: {
+        enabled: true,
+        projectRoot: '',
+        disabledSkillNames: [],
+        catalog: [
+          {
+            name: 'design-review',
+            description: 'Review UI',
+            scope: 'user',
+            skillPath: 'C:/Users/Test/.agents/skills/design/SKILL.md',
+            skillDir: 'C:/Users/Test/.agents/skills/design',
+          },
+        ],
+      },
+    })
+
+    expect(getExposedToolNames()).toContain('activate_skill')
+  })
+
+  it('hides activate_skill when every discovered Agent Skill is disabled', () => {
+    mockSettings.settings = makeSettings({
+      agentSkills: {
+        enabled: true,
+        projectRoot: '',
+        disabledSkillNames: ['design-review'],
+        catalog: [
+          {
+            name: 'design-review',
+            description: 'Review UI',
+            scope: 'user',
+            skillPath: 'C:/Users/Test/.agents/skills/design/SKILL.md',
+            skillDir: 'C:/Users/Test/.agents/skills/design',
+          },
+        ],
+      },
+    })
+
+    expect(getExposedToolNames()).not.toContain('activate_skill')
   })
 })

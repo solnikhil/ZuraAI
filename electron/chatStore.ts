@@ -274,6 +274,12 @@ function mergeMetadataWithSession(
   session: ChatSession
 ): ChatSessionMetadata {
   const migrated = migrateSession(session)
+  const migratedArtifacts = normalizeArtifacts(migrated.artifacts)
+  const artifactSummaries = migratedArtifacts.length > 0
+    ? summarizeArtifacts(migratedArtifacts)
+    : Array.isArray(migrated.artifactSummaries)
+      ? migrated.artifactSummaries
+      : existing?.artifactSummaries
   return {
     id: migrated.id,
     title: migrated.title,
@@ -284,8 +290,10 @@ function mergeMetadataWithSession(
     folderId: migrated.folderId ?? existing?.folderId ?? null,
     tags: Array.isArray(migrated.tags) ? migrated.tags : existing?.tags ?? [],
     messageCount: migrated.messages.length,
-    artifactCount: migrated.artifacts?.length ?? 0,
-    artifactSummaries: summarizeArtifacts(migrated.artifacts),
+    artifactCount: migratedArtifacts.length > 0
+      ? migratedArtifacts.length
+      : artifactSummaries?.length ?? existing?.artifactCount ?? 0,
+    artifactSummaries,
   }
 }
 

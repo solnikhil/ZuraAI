@@ -106,6 +106,24 @@ Best practices:
     category: 'utility',
     origin: 'builtin-main',
   },
+  activate_skill: {
+    description: `Load full instructions for an installed Agent Skill.
+
+Use this when the user's task matches a skill listed in the Agent Skills catalog. The tool returns the selected SKILL.md body wrapped in <skill_content> tags plus a capped list of bundled resources. It does not execute bundled scripts or grant extra permissions.`,
+    parameters: {
+      type: 'object',
+      description: 'Arguments for loading an Agent Skill.',
+      properties: {
+        name: {
+          type: 'string',
+          description: 'The exact skill name from the available Agent Skills catalog.',
+        },
+      },
+      required: ['name'],
+    },
+    category: 'utility',
+    origin: 'builtin-main',
+  },
   computer_screenshot: {
     description: 'Capture visual context for Computer Use. Prefer targeting a specific app/window with window_id, window_title, or app_name when the task is about one app; use a full display capture only for desktop-wide or visual layout tasks. Returns a base64 PNG image with dimensions and coordinate metadata used by follow-up actions.',
     parameters: {

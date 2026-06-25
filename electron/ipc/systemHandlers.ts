@@ -9,6 +9,7 @@ import {
   type IpcMainInvokeEvent,
   type MenuItemConstructorOptions,
 } from 'electron'
+import { openArtifactExternally } from '../artifacts/openArtifactExternally'
 import { getAppRuntimeInfo } from '../runtimeInfo'
 import { showAboutWindow } from '../windows'
 import type {
@@ -361,6 +362,16 @@ export function registerSystemHandlers(): void {
   })
 
   /**
+   * Writes an artifact to userData and opens it with the OS default app.
+   *
+   * Channel: `artifacts:open-external`
+   * Type: request/response
+   */
+  ipcMain.handle('artifacts:open-external', async (_event, payload: unknown) => {
+    return openArtifactExternally(payload)
+  })
+
+  /**
    * Opens DevTools and inspects the element at the given coordinates.
    *
    * Channel: `devtools:inspect-element`
@@ -607,6 +618,7 @@ export function unregisterSystemHandlers(): void {
   ipcMain.removeHandler('app-info:get-memory-report')
   ipcMain.removeHandler('app-info:open-about-window')
   ipcMain.removeHandler('shell:open-external')
+  ipcMain.removeHandler('artifacts:open-external')
   ipcMain.removeHandler('devtools:inspect-element')
   ipcMain.removeHandler('clipboard:read-text')
   ipcMain.removeHandler('context-menu:show')

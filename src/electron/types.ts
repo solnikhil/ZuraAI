@@ -14,6 +14,13 @@ import type {
 } from '../mcp/types'
 import type { McpServerInputPayload } from '../mcp/draft'
 import type { ToolResult } from '../tools/types'
+import type {
+  AgentSkillActivationResult,
+  AgentSkillInstallResult,
+  AgentSkillsListResult,
+  AgentSkillSearchResult,
+  AgentSkillScope,
+} from '../agentSkills/types'
 
 /**
  * Renderer-side subset of electron-updater's UpdateInfo.
@@ -244,6 +251,24 @@ export interface EmailNotificationSettings {
 export interface EmailNotificationResult {
   ok: boolean
   error?: string
+}
+
+export interface AgentSkillsQuery {
+  projectRoot?: string
+  disabledSkillNames?: string[]
+}
+
+export interface AgentSkillsAPI {
+  list: (query?: AgentSkillsQuery) => Promise<AgentSkillsListResult>
+  activate: (name: string) => Promise<AgentSkillActivationResult>
+  selectProjectRoot: () => Promise<string>
+  clearProjectRoot: () => Promise<string>
+  search: (query: string) => Promise<AgentSkillSearchResult>
+  install: (
+    packageRef: string,
+    target: AgentSkillScope,
+    projectRoot?: string
+  ) => Promise<AgentSkillInstallResult>
 }
 
 export interface ExternalChatMessageRequest {
@@ -622,6 +647,25 @@ export interface WindowControlsAPI {
 export interface ShellAPI {
   openExternal: (url: string) => Promise<void>
   readClipboardText: () => Promise<string>
+}
+
+export interface OpenArtifactExternallyInput {
+  sessionId: string
+  artifactId: string
+  title: string
+  kind: import('../artifacts/artifactTypes').ArtifactKind
+  language?: string
+  content: string
+}
+
+export interface OpenArtifactExternallyResult {
+  ok: boolean
+  path?: string
+  error?: string
+}
+
+export interface ArtifactsAPI {
+  openExternally: (payload: OpenArtifactExternallyInput) => Promise<OpenArtifactExternallyResult>
 }
 
 export interface DevToolsAPI {

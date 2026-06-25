@@ -78,4 +78,95 @@ describe('chatStore metadata-first persistence', () => {
     const sessionFile = path.join(electronMock.userDataPath, 'chat-sessions', 'session-2.json')
     expect(JSON.parse(await readFile(sessionFile, 'utf8')).messages).toHaveLength(2)
   })
+
+  it('preserves artifact summaries when saving a lightweight session shell', async () => {
+    const chatStore = await import('./chatStore')
+
+    await chatStore.saveSessionAsync({
+      id: 'session-artifact',
+      title: 'Artifact chat',
+      messages: [{ id: 'm1', role: 'user', content: 'one', timestamp: 1 }],
+      artifacts: [
+        {
+          id: 'artifact-1',
+          title: 'Persisted artifact',
+          kind: 'markdown',
+          createdAt: 1,
+          updatedAt: 2,
+          currentVersionId: 'version-1',
+          versions: [{ id: 'version-1', content: '# Saved', createdAt: 1 }],
+        },
+      ],
+      createdAt: 1,
+      updatedAt: 2,
+    })
+
+    await chatStore.saveSessionAsync({
+      id: 'session-artifact',
+      title: 'Artifact chat renamed',
+      messages: [{ id: 'm1', role: 'user', content: 'one', timestamp: 1 }],
+      artifacts: [],
+      artifactSummaries: [
+        {
+          id: 'artifact-1',
+          title: 'Persisted artifact',
+          kind: 'markdown',
+          updatedAt: 2,
+          currentVersionId: 'version-1',
+          versionCount: 1,
+        },
+      ],
+      createdAt: 1,
+      updatedAt: 3,
+    })
+
+    const metadata = await chatStore.getSessionMetadataAsync()
+    expect(metadata[0]).toEqual(expect.objectContaining({
+      id: 'session-artifact',
+      title: 'Artifact chat renamed',
+      artifactCount: 1,
+    }))
+    expect(metadata[0].artifactSummaries?.[0]).toEqual(expect.objectContaining({
+      id: 'artifact-1',
+      title: 'Persisted artifact',
+    }))
+  })
+
+  it('derives artifact metadata from full artifact documents', async () => {
+    const chatStore = await import('./chatStore')
+
+    await chatStore.saveSessionAsync({
+      id: 'session-full-artifact',
+      title: 'Full artifact chat',
+      messages: [],
+      artifacts: [
+        {
+          id: 'artifact-1',
+          title: 'Full artifact',
+          kind: 'code',
+          language: 'typescript',
+          createdAt: 1,
+          updatedAt: 5,
+          currentVersionId: 'version-2',
+          versions: [
+            { id: 'version-1', content: 'one', createdAt: 1 },
+            { id: 'version-2', content: 'two', createdAt: 5 },
+          ],
+        },
+      ],
+      createdAt: 1,
+      updatedAt: 5,
+    })
+
+    const metadata = await chatStore.getSessionMetadataAsync()
+    expect(metadata[0].artifactCount).toBe(1)
+    expect(metadata[0].artifactSummaries?.[0]).toEqual(expect.objectContaining({
+      id: 'artifact-1',
+      title: 'Full artifact',
+      kind: 'code',
+      language: 'typescript',
+      currentVersionId: 'version-2',
+      versionCount: 2,
+    }))
+  })
 })

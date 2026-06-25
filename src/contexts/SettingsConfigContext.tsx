@@ -43,6 +43,7 @@ import type { ProviderId } from '../providers/providerTypes'
 import { warnOnceDuringHmr } from './hmrWarnings'
 import type { OverlaySettings } from '../electron/types'
 import type { EmailNotificationSettings } from '../electron/types'
+import type { AgentSkillsSettings } from '../agentSkills/types'
 
 export type { OverlaySettings }
 
@@ -175,6 +176,7 @@ export interface SettingsConfig {
   enabledTools: string[]
   extensions: ExtensionsSettings
   skills: SkillsSettings
+  agentSkills: AgentSkillsSettings
   /** When true, code execution runs without the approval dialog */
   codeExecutionAutoApprove: boolean
   /** When true, terminal (system_shell) commands run without the approval dialog */
@@ -361,6 +363,12 @@ export const defaultSettingsConfig: SettingsConfig = {
   enabledTools: ['web_search'],
   extensions: defaultSkillsSettings,
   skills: defaultSkillsSettings,
+  agentSkills: {
+    enabled: false,
+    projectRoot: '',
+    disabledSkillNames: [],
+    catalog: [],
+  },
 
   codeExecutionAutoApprove: false,
   terminalAutoApprove: false,

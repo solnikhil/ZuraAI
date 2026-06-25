@@ -126,6 +126,23 @@ export async function executeTool(
         if (isNativeWindowsToolName(toolName) && options.bypassNativeApproval) {
             resolvedArgs.autoApprove = true
         }
+
+        if (toolName === 'activate_skill') {
+            try {
+                const raw = localStorage.getItem('zura-settings')
+                if (raw) {
+                    const parsed = JSON.parse(raw)
+                    resolvedArgs._agentSkills = {
+                        projectRoot: typeof parsed?.agentSkills?.projectRoot === 'string'
+                            ? parsed.agentSkills.projectRoot
+                            : '',
+                        disabledSkillNames: Array.isArray(parsed?.agentSkills?.disabledSkillNames)
+                            ? parsed.agentSkills.disabledSkillNames.filter((name: unknown) => typeof name === 'string')
+                            : [],
+                    }
+                }
+            } catch { /* ignore */ }
+        }
         
         // Add timeout handling (and ensure the timer is cleared)
         let timeoutId: ReturnType<typeof setTimeout> | undefined

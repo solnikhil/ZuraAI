@@ -15,6 +15,15 @@ let persistedFolders: Folder[] = []
 const ipcListeners = new Map<string, (event: unknown, ...args: unknown[]) => void>()
 
 function sessionMetadata(session: ChatSession) {
+  const artifactSummaries = session.artifacts?.map((artifact) => ({
+    id: artifact.id,
+    title: artifact.title,
+    kind: artifact.kind,
+    language: artifact.language,
+    updatedAt: artifact.updatedAt,
+    currentVersionId: artifact.currentVersionId,
+    versionCount: artifact.versions.length,
+  }))
   return {
     id: session.id,
     title: session.title,
@@ -25,6 +34,8 @@ function sessionMetadata(session: ChatSession) {
     folderId: session.folderId ?? null,
     tags: session.tags ?? [],
     messageCount: session.messages.length,
+    artifactCount: session.artifacts?.length ?? artifactSummaries?.length ?? 0,
+    artifactSummaries,
   }
 }
 
@@ -102,11 +113,11 @@ describe('ChatHistoryContext external sync', () => {
     vi.useRealTimers()
   })
 
-  it('refreshes persisted sessions on focus after an external chat-store change without auto-switching chats', async () => {
+  it('refreshes persisted sessions after an external chat-store change without auto-switching chats', async () => {
     const { ChatHistoryProvider, useChatHistory } = await import('./ChatHistoryContext')
 
     function Probe() {
-      const { sessions, currentSessionId, switchSession } = useChatHistory()
+      const { sessions, currentSessionId, switchSession, refreshSessions } = useChatHistory()
       return (
         <div>
           <div data-testid="session-count">{sessions.length}</div>
@@ -115,6 +126,7 @@ describe('ChatHistoryContext external sync', () => {
             {sessions.find((session) => session.id === currentSessionId)?.title ?? 'none'}
           </div>
           <button onClick={() => switchSession('session-1')}>switch-session-1</button>
+          <button onClick={() => void refreshSessions()}>refresh-sessions</button>
         </div>
       )
     }
@@ -127,6 +139,10 @@ describe('ChatHistoryContext external sync', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('session-count').textContent).toBe('1')
+    }, { timeout: 1000 })
+
+    await act(async () => {
+      await Promise.resolve()
     })
 
     fireEvent.click(screen.getByText('switch-session-1'))
@@ -134,7 +150,7 @@ describe('ChatHistoryContext external sync', () => {
     await waitFor(() => {
       expect(screen.getByTestId('current-session-id').textContent).toBe('session-1')
       expect(screen.getByTestId('current-title').textContent).toBe('Original chat')
-    })
+    }, { timeout: 1000 })
 
     persistedSessions = [
       {
@@ -155,20 +171,19 @@ describe('ChatHistoryContext external sync', () => {
 
     await act(async () => {
       ipcListeners.get('chat-store:changed')?.({})
+      await Promise.resolve()
     })
 
     expect(screen.getByTestId('session-count').textContent).toBe('1')
     expect(screen.getByTestId('current-title').textContent).toBe('Original chat')
 
-    await act(async () => {
-      fireEvent.focus(window)
-    })
+    fireEvent.click(screen.getByText('refresh-sessions'))
 
     await waitFor(() => {
       expect(screen.getByTestId('session-count').textContent).toBe('2')
       expect(screen.getByTestId('current-session-id').textContent).toBe('session-1')
       expect(screen.getByTestId('current-title').textContent).toBe('Updated from overlay')
-    })
+    }, { timeout: 1000 })
   })
 
   it('keeps active-session optimistic messages when a stale external reload is signaled before save', async () => {
@@ -271,6 +286,222 @@ describe('ChatHistoryContext external sync', () => {
       expect(persistedSessions[0].messages.some((message) => message.content === 'new user message')).toBe(
         true
       )
+    })
+  })
+
+  it('loads full-session artifacts without metadata shell artifacts replacing them', async () => {
+    const { ChatHistoryProvider, useChatHistory } = await import('./ChatHistoryContext')
+
+    persistedSessions = [
+      {
+        id: 'session-1',
+        title: 'Artifact chat',
+        messages: [{ id: 'msg-1', role: 'user', content: 'old message', timestamp: 1 }],
+        artifacts: [
+          {
+            id: 'artifact-1',
+            title: 'Persisted artifact',
+            kind: 'markdown',
+            createdAt: 1,
+            updatedAt: 2,
+            currentVersionId: 'version-1',
+            versions: [{ id: 'version-1', content: '# Saved', createdAt: 1 }],
+          },
+        ],
+        createdAt: 1,
+        updatedAt: 2,
+      },
+    ]
+
+    function Probe() {
+      const { sessions, loadFullSession } = useChatHistory()
+      const session = sessions.find((entry) => entry.id === 'session-1')
+      return (
+        <div>
+          <div data-testid="session-title">{session?.title ?? 'none'}</div>
+          <div data-testid="artifact-count">{session?.artifacts?.length ?? 0}</div>
+          <div data-testid="artifact-title">{session?.artifacts?.[0]?.title ?? 'none'}</div>
+          <button onClick={() => void loadFullSession('session-1')}>load-full</button>
+        </div>
+      )
+    }
+
+    render(
+      <ChatHistoryProvider>
+        <Probe />
+      </ChatHistoryProvider>
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('session-title').textContent).toBe('Artifact chat')
+    })
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    fireEvent.click(screen.getByText('load-full'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('artifact-count').textContent).toBe('1')
+      expect(screen.getByTestId('artifact-title').textContent).toBe('Persisted artifact')
+    })
+  })
+
+  it('persists a newly created artifact when only metadata is loaded', async () => {
+    const { ChatHistoryProvider, useChatHistory } = await import('./ChatHistoryContext')
+
+    persistedSessions = [
+      {
+        id: 'session-1',
+        title: 'Metadata-only chat',
+        messages: [{ id: 'msg-1', role: 'user', content: 'old message', timestamp: 1 }],
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ]
+
+    function Probe() {
+      const { sessions, createArtifact } = useChatHistory()
+      const session = sessions.find((entry) => entry.id === 'session-1')
+      return (
+        <div>
+          <div data-testid="session-title">{session?.title ?? 'none'}</div>
+          <div data-testid="artifact-count">{session?.artifacts?.length ?? 0}</div>
+          <button
+            onClick={() =>
+              createArtifact('session-1', {
+                title: 'New artifact',
+                kind: 'text',
+                content: 'hello',
+              })
+            }
+          >
+            create-artifact
+          </button>
+        </div>
+      )
+    }
+
+    render(
+      <ChatHistoryProvider>
+        <Probe />
+      </ChatHistoryProvider>
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('session-title').textContent).toBe('Metadata-only chat')
+    })
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    fireEvent.click(screen.getByText('create-artifact'))
+
+    expect(screen.getByTestId('artifact-count').textContent).toBe('1')
+
+    await waitFor(() => {
+      expect(persistedSessions[0].artifacts?.[0]?.title).toBe('New artifact')
+      expect(persistedSessions[0].messages).toHaveLength(1)
+    })
+  })
+
+  it('does not let a stale full-session load remove a newly created artifact', async () => {
+    const { ChatHistoryProvider, useChatHistory } = await import('./ChatHistoryContext')
+
+    const staleSession: ChatSession = {
+      id: 'session-1',
+      title: 'Race chat',
+      messages: [{ id: 'msg-1', role: 'user', content: 'old message', timestamp: 1 }],
+      createdAt: 1,
+      updatedAt: 1,
+    }
+    persistedSessions = [staleSession]
+
+    let resolveStaleLoad!: (session: ChatSession) => void
+    const staleLoad = new Promise<ChatSession>((resolve) => {
+      resolveStaleLoad = resolve
+    })
+    let getSessionCalls = 0
+
+    ;(window.ipcRenderer.invoke as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+      async (channel: string, ...args: unknown[]) => {
+        if (channel === 'chat-store:get-metadata') return persistedSessions.map(sessionMetadata)
+        if (channel === 'chat-store:get-session') {
+          getSessionCalls += 1
+          if (getSessionCalls === 1) return staleLoad
+          return persistedSessions.find((session) => session.id === args[0]) ?? null
+        }
+        if (channel === 'chat-store:save-session') {
+          const nextSession = args[0] as ChatSession
+          persistedSessions = [
+            nextSession,
+            ...persistedSessions.filter((session) => session.id !== nextSession.id),
+          ]
+          ipcListeners.get('chat-store:changed')?.({})
+          return true
+        }
+        if (channel === 'chat-store:save-index') return true
+        if (channel === 'chat-store:get-all-folders') return persistedFolders
+        throw new Error(`Unexpected channel: ${channel}`)
+      }
+    )
+
+    function Probe() {
+      const { sessions, createArtifact, loadFullSession } = useChatHistory()
+      const session = sessions.find((entry) => entry.id === 'session-1')
+      return (
+        <div>
+          <div data-testid="session-title">{session?.title ?? 'none'}</div>
+          <div data-testid="artifact-count">{session?.artifacts?.length ?? 0}</div>
+          <button onClick={() => void loadFullSession('session-1')}>load-full</button>
+          <button
+            onClick={() =>
+              createArtifact('session-1', {
+                title: 'Race artifact',
+                kind: 'text',
+                content: 'survives',
+              })
+            }
+          >
+            create-artifact
+          </button>
+        </div>
+      )
+    }
+
+    render(
+      <ChatHistoryProvider>
+        <Probe />
+      </ChatHistoryProvider>
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('session-title').textContent).toBe('Race chat')
+    })
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    fireEvent.click(screen.getByText('load-full'))
+    fireEvent.click(screen.getByText('create-artifact'))
+
+    expect(screen.getByTestId('artifact-count').textContent).toBe('1')
+
+    await waitFor(() => {
+      expect(persistedSessions[0].artifacts?.[0]?.title).toBe('Race artifact')
+    })
+
+    await act(async () => {
+      resolveStaleLoad(staleSession)
+      await staleLoad
+      await Promise.resolve()
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('artifact-count').textContent).toBe('1')
     })
   })
 })

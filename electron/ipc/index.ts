@@ -19,6 +19,10 @@ import {
   registerEmailNotificationHandlers,
   unregisterEmailNotificationHandlers,
 } from './emailNotificationHandlers'
+import {
+  registerAgentSkillsHandlers,
+  unregisterAgentSkillsHandlers,
+} from './agentSkillsHandlers'
 
 interface IpcDomainHandlers {
   register: () => void
@@ -61,6 +65,10 @@ const IPC_DOMAIN_HANDLERS: readonly IpcDomainHandlers[] = [
   {
     register: registerMonitorHandlers,
     unregister: unregisterMonitorHandlers,
+  },
+  {
+    register: registerAgentSkillsHandlers,
+    unregister: unregisterAgentSkillsHandlers,
   },
 ] as const
 
@@ -111,3 +119,7 @@ export {
   unregisterEmailNotificationHandlers,
 } from './emailNotificationHandlers'
 export { registerMonitorHandlers, unregisterMonitorHandlers } from './monitorHandlers'
+export {
+  registerAgentSkillsHandlers,
+  unregisterAgentSkillsHandlers,
+} from './agentSkillsHandlers'

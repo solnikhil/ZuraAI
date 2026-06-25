@@ -20,6 +20,7 @@ import type {
   IpcSendArgsMap,
   IpcSendChannel,
   AddMemoryInput,
+  AgentSkillsQuery,
   AnalyticsEventName,
   AnalyticsProperties,
   AnalyticsState,
@@ -196,6 +197,15 @@ const EMAIL_NOTIFICATIONS_INVOKE_CHANNELS = new Set<string>([
   'email-notifications:send-test',
 ])
 
+const AGENT_SKILLS_INVOKE_CHANNELS = new Set<string>([
+  'agent-skills:list',
+  'agent-skills:activate',
+  'agent-skills:select-project-root',
+  'agent-skills:clear-project-root',
+  'agent-skills:search',
+  'agent-skills:install',
+])
+
 function assertAllowed<TChannel extends string>(
   kind: 'send' | 'invoke' | 'on' | 'off',
   channel: TChannel,
@@ -246,6 +256,7 @@ contextBridge.exposeInMainWorld(
             toolName.startsWith('app_') ||
             toolName.startsWith('window_') ||
             toolName.startsWith('scheduled_task_') ||
+            toolName === 'activate_skill' ||
             toolName === 'system_shell')
         if (
           toolName !== 'web_search' &&
@@ -485,6 +496,48 @@ contextBridge.exposeInMainWorld(
   Object.freeze({
     openExternal: (url: string) => ipcRenderer.invoke('shell:open-external', url),
     readClipboardText: () => ipcRenderer.invoke('clipboard:read-text') as Promise<string>,
+  })
+)
+
+contextBridge.exposeInMainWorld(
+  'agentSkills',
+  Object.freeze({
+    list: (query?: AgentSkillsQuery) => {
+      assertAllowed('invoke', 'agent-skills:list', AGENT_SKILLS_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('agent-skills:list', query)
+    },
+    activate: (name: string) => {
+      assertAllowed('invoke', 'agent-skills:activate', AGENT_SKILLS_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('agent-skills:activate', name)
+    },
+    selectProjectRoot: () => {
+      assertAllowed('invoke', 'agent-skills:select-project-root', AGENT_SKILLS_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('agent-skills:select-project-root')
+    },
+    clearProjectRoot: () => {
+      assertAllowed('invoke', 'agent-skills:clear-project-root', AGENT_SKILLS_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('agent-skills:clear-project-root')
+    },
+    search: (query: string) => {
+      assertAllowed('invoke', 'agent-skills:search', AGENT_SKILLS_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('agent-skills:search', query)
+    },
+    install: (packageRef: string, target: 'user' | 'project', projectRoot?: string) => {
+      assertAllowed('invoke', 'agent-skills:install', AGENT_SKILLS_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('agent-skills:install', packageRef, target, projectRoot)
+    },
+  })
+)
+
+contextBridge.exposeInMainWorld(
+  'artifacts',
+  Object.freeze({
+    openExternally: (payload: unknown) =>
+      ipcRenderer.invoke('artifacts:open-external', payload) as Promise<{
+        ok: boolean
+        path?: string
+        error?: string
+      }>,
   })
 )
 

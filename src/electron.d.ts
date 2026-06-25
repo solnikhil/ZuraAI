@@ -1,6 +1,7 @@
 import type {
   AppInfoAPI,
   AppMenuAPI,
+  AgentSkillsAPI,
   AnalyticsAPI,
   ChatDebugAPI,
   ChatDiagnosticsAPI,
@@ -18,6 +19,7 @@ import type {
   NativeDialogAPI,
   OverlayAPI,
   SecureStorageAPI,
+  ArtifactsAPI,
   ShellAPI,
   TerminalAPI,
   UpdaterAPI,
@@ -31,8 +33,10 @@ declare global {
     updater: UpdaterAPI
     overlay: OverlayAPI
     appInfo: AppInfoAPI
+    agentSkills: AgentSkillsAPI
     windowControls: WindowControlsAPI
     shell: ShellAPI
+    artifacts: ArtifactsAPI
     devTools: DevToolsAPI
     contextMenu: ContextMenuAPI
     nativeDialog: NativeDialogAPI

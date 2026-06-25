@@ -18,6 +18,7 @@ import {
 import { normalizeAssistantPersonalityId } from '../prompts/assistantPersonalities'
 import { normalizeDeepseekReasoning, coerceReasoningEffort } from '../utils/deepseekReasoning'
 import { normalizeFontScale } from '../themes/themeUtils'
+import type { AgentSkillSummary, AgentSkillsSettings } from '../agentSkills/types'
 
 export interface Settings extends SettingsUI, SettingsConfig {}
 
@@ -75,6 +76,47 @@ const LEGACY_FIREWORKS_SEEDED_MODEL_CODES = new Set([
   'accounts/fireworks/models/glm-4p7',
   'accounts/fireworks/models/nvidia-nemotron-3-super-120b-a12b-fp8',
 ])
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function normalizeAgentSkillSummary(raw: unknown): AgentSkillSummary | null {
+  if (!isRecord(raw)) return null
+  const name = typeof raw.name === 'string' ? raw.name.trim() : ''
+  const description = typeof raw.description === 'string' ? raw.description.trim() : ''
+  const scope = raw.scope === 'project' ? 'project' : raw.scope === 'user' ? 'user' : null
+  const skillPath = typeof raw.skillPath === 'string' ? raw.skillPath : ''
+  const skillDir = typeof raw.skillDir === 'string' ? raw.skillDir : ''
+  if (!name || !description || !scope || !skillPath || !skillDir) return null
+  return {
+    name,
+    description,
+    scope,
+    skillPath,
+    skillDir,
+    license: typeof raw.license === 'string' ? raw.license : undefined,
+    compatibility: typeof raw.compatibility === 'string' ? raw.compatibility : undefined,
+    allowedTools: typeof raw.allowedTools === 'string' ? raw.allowedTools : undefined,
+    metadata: isRecord(raw.metadata)
+      ? Object.fromEntries(Object.entries(raw.metadata).filter((entry): entry is [string, string] => typeof entry[1] === 'string'))
+      : undefined,
+  }
+}
+
+function normalizeAgentSkillsSettings(raw: unknown): AgentSkillsSettings {
+  const record = isRecord(raw) ? raw : {}
+  return {
+    enabled: record.enabled === true,
+    projectRoot: typeof record.projectRoot === 'string' ? record.projectRoot : '',
+    disabledSkillNames: Array.isArray(record.disabledSkillNames)
+      ? record.disabledSkillNames.filter((name): name is string => typeof name === 'string')
+      : [],
+    catalog: Array.isArray(record.catalog)
+      ? record.catalog.map(normalizeAgentSkillSummary).filter((skill): skill is AgentSkillSummary => Boolean(skill))
+      : [],
+  }
+}
 function shouldClearLegacyFireworksSeededModels(models: unknown): boolean {
   if (!Array.isArray(models) || models.length !== LEGACY_FIREWORKS_SEEDED_MODEL_CODES.size) {
     return false
@@ -401,6 +443,7 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   })
   parsed.extensions = normalizeExtensionsSettings(migratedExtensions)
   parsed.skills = parsed.extensions
+  parsed.agentSkills = normalizeAgentSkillsSettings((parsedFromStorage as Record<string, unknown>).agentSkills)
   delete legacySettingsRecord.deepResearchEnabled
   delete legacySettingsRecord.webSearchEnabled
   delete legacySettingsRecord.structuredResearchEnabled
@@ -657,6 +700,7 @@ export function getInitialConfigSettings(settings: Settings): Partial<SettingsCo
     enabledTools: settings.enabledTools,
     extensions: settings.extensions,
     skills: settings.skills,
+    agentSkills: settings.agentSkills,
     titleModel: settings.titleModel,
     codeExecutionAutoApprove: settings.codeExecutionAutoApprove,
     terminalAutoApprove: settings.terminalAutoApprove,

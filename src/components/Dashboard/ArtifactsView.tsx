@@ -1,5 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Copy, Download, FileText, Trash2, X } from 'lucide-react'
+import {
+  ChevronRight,
+  Copy,
+  Download,
+  File,
+  FileCode2,
+  FileImage,
+  FileJson,
+  FileTerminal,
+  FileText,
+  Trash2,
+  X,
+} from 'lucide-react'
 import { motion } from 'framer-motion'
 import LazyMarkdown from '../LazyMarkdown'
 import MermaidDiagram from '../MermaidDiagram'
@@ -14,12 +26,16 @@ import {
   renameArtifactDocument,
   restoreArtifactVersion,
 } from '@/artifacts/artifactStore'
+import {
+  getExternalOpenLabel,
+  openArtifactInExternalApp,
+} from '@/artifacts/openArtifactExternally'
 import type { ArtifactDocument, ArtifactKind, ArtifactSummary } from '@/artifacts/artifactTypes'
 import type { ChatSession, ChatSessionMetadata } from '@/chat/types'
 import { downloadFile } from '@/utils/chatExport'
 import './ArtifactsView.css'
 
-type ArtifactFilter = 'all' | ArtifactKind | 'current'
+type ArtifactFilter = 'all' | ArtifactKind
 
 interface ArtifactListItem {
   sessionId: string
@@ -38,6 +54,54 @@ function formatArtifactKind(kind: ArtifactKind): string {
   return kind.charAt(0).toUpperCase() + kind.slice(1)
 }
 
+function formatRelativeDate(value: number): string {
+  const date = new Date(value)
+  const now = new Date()
+  const isToday = date.toDateString() === now.toDateString()
+
+  const yesterday = new Date(now)
+  yesterday.setDate(yesterday.getDate() - 1)
+  const isYesterday = date.toDateString() === yesterday.toDateString()
+
+  const isThisYear = date.getFullYear() === now.getFullYear()
+  const time = date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+
+  if (isToday) return `Today, ${time}`
+  if (isYesterday) return `Yesterday, ${time}`
+  if (isThisYear) {
+    const monthDay = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+    return `${monthDay}, ${time}`
+  }
+  return date.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
+function getArtifactIcon(kind: ArtifactKind): React.ReactElement {
+  const props = { size: 16, strokeWidth: 1.9 }
+  switch (kind) {
+    case 'html':
+      return <FileCode2 {...props} />
+    case 'svg':
+      return <FileImage {...props} />
+    case 'markdown':
+      return <FileText {...props} />
+    case 'json':
+      return <FileJson {...props} />
+    case 'code':
+      return <FileTerminal {...props} />
+    case 'mermaid':
+      return <FileText {...props} />
+    case 'text':
+    default:
+      return <File {...props} />
+  }
+}
+
 function mimeForArtifact(artifact: ArtifactDocument): string {
   if (artifact.kind === 'html') return 'text/html'
   if (artifact.kind === 'json') return 'application/json'
@@ -53,7 +117,6 @@ function sanitizeFilename(value: string): string {
 export default function ArtifactsView(): React.ReactElement {
   const {
     sessions,
-    currentSessionId,
     switchSession,
     renameArtifact,
     restoreArtifact,
@@ -64,6 +127,7 @@ export default function ArtifactsView(): React.ReactElement {
   const [activeFilter, setActiveFilter] = useState<ArtifactFilter>('all')
   const [selected, setSelected] = useState<{ sessionId: string; artifactId: string } | null>(null)
   const [loadedFullArtifact, setLoadedFullArtifact] = useState<ArtifactDocument | null>(null)
+  const [openingArtifactKey, setOpeningArtifactKey] = useState<string | null>(null)
 
   // Load lightweight metadata (with artifactSummaries) + listen for changes so we see artifacts
   // from other chats + react to saves (including our own debounced ones).
@@ -225,9 +289,8 @@ export default function ArtifactsView(): React.ReactElement {
 
   const filteredItems = useMemo(() => {
     if (activeFilter === 'all') return items
-    if (activeFilter === 'current') return items.filter((item) => item.sessionId === currentSessionId)
     return items.filter((item) => item.artifact.kind === activeFilter)
-  }, [activeFilter, currentSessionId, items])
+  }, [activeFilter, items])
 
   // selectedItem is used for list row identification + basic title/kind in header.
   // For actual content + real version history we prefer the freshly loaded full artifact.
@@ -240,7 +303,6 @@ export default function ArtifactsView(): React.ReactElement {
 
   const filters: Array<{ id: ArtifactFilter; label: string; count: number }> = [
     { id: 'all', label: 'All', count: items.length },
-    { id: 'current', label: 'Current chat', count: items.filter((item) => item.sessionId === currentSessionId).length },
     { id: 'markdown', label: 'Markdown', count: items.filter((item) => item.artifact.kind === 'markdown').length },
     { id: 'code', label: 'Code', count: items.filter((item) => item.artifact.kind === 'code').length },
     { id: 'html', label: 'HTML', count: items.filter((item) => item.artifact.kind === 'html').length },
@@ -260,6 +322,16 @@ export default function ArtifactsView(): React.ReactElement {
     if (!art || !selectedVersion) return
     const filename = `${sanitizeFilename(art.title)}.${getArtifactExtension(art)}`
     downloadFile(selectedVersion.content, filename, mimeForArtifact(art))
+  }
+
+  const openExternally = async (item: ArtifactListItem) => {
+    const key = `${item.sessionId}:${item.artifact.id}`
+    setOpeningArtifactKey(key)
+    try {
+      await openArtifactInExternalApp(item.sessionId, item.artifact.id, sessions)
+    } finally {
+      setOpeningArtifactKey((current) => (current === key ? null : current))
+    }
   }
 
   // Helper for mutations on artifacts that may live only in metadata summaries.
@@ -426,32 +498,63 @@ export default function ArtifactsView(): React.ReactElement {
             </div>
           ) : (
             <div className="artifacts-view__rows">
-              {filteredItems.map((item, index) => (
-                <button
-                  key={`${item.sessionId}:${item.artifact.id}`}
-                  type="button"
-                  className={`artifacts-view__row ${selectedItem?.sessionId === item.sessionId && selectedItem.artifact.id === item.artifact.id ? 'artifacts-view__row--active' : ''}`}
-                  onClick={() => setSelected({ sessionId: item.sessionId, artifactId: item.artifact.id })}
-                >
-                  <div className="artifacts-view__row-main">
-                    <span className="artifacts-view__row-number">{index + 1}</span>
-                    <div className="artifacts-view__row-content">
-                      <div className="artifacts-view__badge-row">
-                        <span className="artifacts-view__type-badge">{formatArtifactKind(item.artifact.kind)}</span>
-                        {item.artifact.language && <span className="artifacts-view__status-badge">{item.artifact.language}</span>}
-                        <span className="artifacts-view__date-badge">{item.artifact.versions.length} version{item.artifact.versions.length === 1 ? '' : 's'}</span>
+              {filteredItems.map((item, index) => {
+                const itemKey = `${item.sessionId}:${item.artifact.id}`
+                const isOpening = openingArtifactKey === itemKey
+                const externalOpenLabel = getExternalOpenLabel(item.artifact.kind)
+
+                return (
+                  <div
+                    key={itemKey}
+                    data-kind={item.artifact.kind}
+                    className={`artifacts-view__row-card ${selectedItem?.sessionId === item.sessionId && selectedItem.artifact.id === item.artifact.id ? 'artifacts-view__row-card--active' : ''}`}
+                  >
+                    <button
+                      type="button"
+                      className="artifacts-view__row"
+                      aria-label={`Preview ${item.artifact.title}`}
+                      onClick={() => setSelected({ sessionId: item.sessionId, artifactId: item.artifact.id })}
+                    >
+                      <div className="artifacts-view__row-main">
+                        <div className="artifacts-view__row-header">
+                          <span className="artifacts-view__type-icon" aria-hidden="true">
+                            {getArtifactIcon(item.artifact.kind)}
+                          </span>
+                          <h4>{item.artifact.title}</h4>
+                          <span className="artifacts-view__row-index" aria-hidden="true">
+                            {String(index + 1).padStart(2, '0')}
+                          </span>
+                        </div>
+                        <div className="artifacts-view__row-body">
+                          <div className="artifacts-view__badge-row">
+                            <span className="artifacts-view__type-badge">{formatArtifactKind(item.artifact.kind)}</span>
+                            {item.artifact.language && <span className="artifacts-view__status-badge">{item.artifact.language}</span>}
+                            <span className="artifacts-view__version-badge">
+                              {item.artifact.versions.length} version{item.artifact.versions.length === 1 ? '' : 's'}
+                            </span>
+                          </div>
+                          <div className="artifacts-view__row-meta">
+                            <span>Updated {formatRelativeDate(item.artifact.updatedAt)}</span>
+                          </div>
+                        </div>
                       </div>
-                      <h4>{item.artifact.title}</h4>
-                      <div className="artifacts-view__row-meta">
-                        <span>{item.sessionTitle}</span>
-                        <span className="artifacts-view__meta-divider">/</span>
-                        <span>Updated {formatDate(item.artifact.updatedAt)}</span>
-                      </div>
-                    </div>
+                    </button>
+                    <button
+                      type="button"
+                      className={`artifacts-view__open-chevron ${isOpening ? 'artifacts-view__open-chevron--opening' : ''}`}
+                      title={externalOpenLabel}
+                      aria-label={`${externalOpenLabel}: ${item.artifact.title}`}
+                      disabled={isOpening}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        void openExternally(item)
+                      }}
+                    >
+                      <ChevronRight size={18} strokeWidth={1.8} />
+                    </button>
                   </div>
-                  <span className="artifacts-view__open-label">Open</span>
-                </button>
-              ))}
+                )
+              })}
             </div>
           )}
         </main>
@@ -477,6 +580,14 @@ export default function ArtifactsView(): React.ReactElement {
               <div className="artifacts-view__drawer-actions">
                 <Button size="sm" variant="secondary" onClick={() => void copySelected()}><Copy size={14} /> Copy</Button>
                 <Button size="sm" variant="secondary" onClick={downloadSelected}><Download size={14} /> Download</Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={openingArtifactKey === `${selectedItem.sessionId}:${selectedItem.artifact.id}`}
+                  onClick={() => void openExternally(selectedItem)}
+                >
+                  <ChevronRight size={14} /> Open externally
+                </Button>
                 <Button
                   size="sm"
                   variant="secondary"
