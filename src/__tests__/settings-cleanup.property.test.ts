@@ -223,7 +223,7 @@ describe('Property 3: Tool Auto-Execution', () => {
       fc.property(
         // Generate random tool configurations
         fc.record({
-          provider: fc.constantFrom('openrouter', 'gemini', 'groq', 'ollama'),
+          provider: fc.constantFrom('openrouter', 'gemini', 'groq', 'ollama', 'opencode'),
           model: fc.string({ minLength: 1, maxLength: 50 }),
           enabledTools: fc.array(fc.string({ minLength: 1, maxLength: 30 }), {
             minLength: 0,

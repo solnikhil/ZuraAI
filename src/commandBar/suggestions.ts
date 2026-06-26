@@ -261,6 +261,13 @@ function buildBaseSuggestions(
       action: { type: 'open_settings_section', section: 'providers', provider: 'nvidia' },
     },
     {
+      id: 'go-settings-opencode',
+      title: 'OpenCode Go Settings',
+      subtitle: 'Low-cost curated coding models',
+      keywords: ['opencode', 'opencode go', 'go subscription', 'glm', 'kimi', 'minimax'],
+      action: { type: 'open_settings_section', section: 'providers', provider: 'opencode' },
+    },
+    {
       id: 'go-settings-search-apis',
       title: 'Search APIs Settings',
       subtitle: 'Tavily & web search',

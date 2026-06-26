@@ -62,6 +62,18 @@ function createPerplexityCatalogPage(
   return `Body application/json model enum<string> required Available options: ${models.map((model) => `\`${model}\``).join(', ')} messages ChatMessage`
 }
 
+function openProviderCatalog(name: string): void {
+  const configureButton = screen.queryByRole('button', {
+    name: new RegExp(`^Configure ${name}$`, 'i'),
+  })
+  const setupButton = screen.queryByRole('button', { name: new RegExp(`^Set up ${name}$`, 'i') })
+  const button = configureButton ?? setupButton
+  if (!button) {
+    throw new Error(`Could not find catalog button for provider: ${name}`)
+  }
+  fireEvent.click(button)
+}
+
 describe('ProviderHubSection', () => {
   const openExternal = vi.fn()
   const fetchMock = vi.fn()
@@ -72,6 +84,7 @@ describe('ProviderHubSection', () => {
     groqApiKey: '',
     alibabaApiKey: '',
     deepseekApiKey: '',
+    opencodeGoApiKey: '',
     fireworksApiKey: '',
     nvidiaApiKey: '',
     tavilyApiKey: '',
@@ -90,6 +103,7 @@ describe('ProviderHubSection', () => {
     groqModels: [{ code: 'llama-3.1-8b-instant', displayName: 'Llama 3.1 8B Instant' }],
     alibabaModels: [{ code: 'qwen-plus', displayName: 'Qwen Plus' }],
     deepseekModels: [{ code: 'deepseek-v4-flash', displayName: 'DeepSeek V4 Flash' }],
+    opencodeModels: [{ code: 'deepseek-v4-pro', displayName: 'DeepSeek V4 Pro' }],
     fireworksModels: [
       { code: 'accounts/fireworks/models/deepseek-v3p2', displayName: 'DeepSeek V3.2' },
     ],
@@ -121,9 +135,7 @@ describe('ProviderHubSection', () => {
     const onChange = vi.fn()
     render(<ProviderHubSection {...baseProps} onChange={onChange} />)
 
-    fireEvent.click(
-      screen.getByText('OpenRouter provides access to many frontier models through one API.')
-    )
+    openProviderCatalog('OpenRouter')
     fireEvent.click(screen.getByRole('button', { name: /add custom model/i }))
     expect(screen.getByText('Create Custom AI Model')).toBeInTheDocument()
 
@@ -151,9 +163,7 @@ describe('ProviderHubSection', () => {
     const onChange = vi.fn()
     render(<ProviderHubSection {...baseProps} onChange={onChange} />)
 
-    fireEvent.click(
-      screen.getByText('OpenRouter provides access to many frontier models through one API.')
-    )
+    openProviderCatalog('OpenRouter')
 
     expect(screen.queryByLabelText(/Set current/i)).not.toBeInTheDocument()
   })
@@ -171,9 +181,7 @@ describe('ProviderHubSection', () => {
 
     render(<ProviderHubSection {...props} onChange={onChange} />)
 
-    fireEvent.click(
-      screen.getByText('OpenRouter provides access to many frontier models through one API.')
-    )
+    openProviderCatalog('OpenRouter')
     fireEvent.click(screen.getByLabelText('Toggle Grok 4.1 Mini'))
 
     expect(onChange).toHaveBeenCalledWith(
@@ -189,9 +197,7 @@ describe('ProviderHubSection', () => {
   it('switches model list between all and chat views', () => {
     render(<ProviderHubSection {...baseProps} />)
 
-    fireEvent.click(
-      screen.getByText('OpenRouter provides access to many frontier models through one API.')
-    )
+    openProviderCatalog('OpenRouter')
 
     expect(screen.getByText(/All \(/)).toBeInTheDocument()
     expect(screen.getByText(/Chat \(/)).toBeInTheDocument()
@@ -205,9 +211,7 @@ describe('ProviderHubSection', () => {
     const onChange = vi.fn()
     render(<ProviderHubSection {...baseProps} onChange={onChange} />)
 
-    fireEvent.click(
-      screen.getByText('OpenRouter provides access to many frontier models through one API.')
-    )
+    openProviderCatalog('OpenRouter')
 
     const editButtons = screen.getAllByRole('button', { name: /edit grok 4\.1 fast/i })
     fireEvent.click(editButtons[0])
@@ -222,9 +226,7 @@ describe('ProviderHubSection', () => {
     const onChange = vi.fn()
     render(<ProviderHubSection {...baseProps} onChange={onChange} />)
 
-    fireEvent.click(
-      screen.getByText('OpenRouter provides access to many frontier models through one API.')
-    )
+    openProviderCatalog('OpenRouter')
 
     const editButtons = screen.getAllByRole('button', { name: /edit grok 4\.1 fast/i })
     fireEvent.click(editButtons[0])
@@ -272,9 +274,7 @@ describe('ProviderHubSection', () => {
 
     render(<ProviderHubSection {...baseProps} onChange={onChange} />)
 
-    fireEvent.click(
-      screen.getByText('OpenRouter provides access to many frontier models through one API.')
-    )
+    openProviderCatalog('OpenRouter')
     fireEvent.click(screen.getByRole('button', { name: /add custom model/i }))
 
     const modelIdInput = screen.getByPlaceholderText(/please enter the model id/i)
@@ -293,9 +293,7 @@ describe('ProviderHubSection', () => {
   it('opens the selected provider dashboard from the detail header', () => {
     render(<ProviderHubSection {...baseProps} />)
 
-    fireEvent.click(
-      screen.getByText('OpenRouter provides access to many frontier models through one API.')
-    )
+    openProviderCatalog('OpenRouter')
     fireEvent.click(screen.getByRole('button', { name: /open openrouter dashboard/i }))
 
     expect(openExternal).toHaveBeenCalledWith('https://openrouter.ai/settings/keys')
@@ -304,9 +302,7 @@ describe('ProviderHubSection', () => {
   it('opens delete confirmation when Delete is clicked in model dropdown', async () => {
     render(<ProviderHubSection {...baseProps} />)
 
-    fireEvent.click(
-      screen.getByText('OpenRouter provides access to many frontier models through one API.')
-    )
+    openProviderCatalog('OpenRouter')
 
     const moreButtons = screen.getAllByRole('button', { name: /more actions for grok 4\.1 fast/i })
     fireEvent.pointerDown(moreButtons[0], { button: 0, ctrlKey: false })
@@ -326,9 +322,7 @@ describe('ProviderHubSection', () => {
     const onChange = vi.fn()
     render(<ProviderHubSection {...baseProps} onChange={onChange} />)
 
-    fireEvent.click(
-      screen.getByText('OpenRouter provides access to many frontier models through one API.')
-    )
+    openProviderCatalog('OpenRouter')
 
     const moreButtons = screen.getAllByRole('button', { name: /more actions for grok 4\.1 fast/i })
     fireEvent.pointerDown(moreButtons[0], { button: 0, ctrlKey: false })
@@ -352,9 +346,7 @@ describe('ProviderHubSection', () => {
     const onChange = vi.fn()
     render(<ProviderHubSection {...baseProps} onChange={onChange} />)
 
-    fireEvent.click(
-      screen.getByText('OpenRouter provides access to many frontier models through one API.')
-    )
+    openProviderCatalog('OpenRouter')
     fireEvent.click(screen.getByRole('button', { name: /remove all/i }))
 
     expect(screen.getByText('Remove All Models')).toBeInTheDocument()
@@ -430,7 +422,7 @@ describe('ProviderHubSection', () => {
 
     render(<ProviderHubSection {...baseProps} alibabaApiKey="test-key" />)
 
-    fireEvent.click(screen.getByText('Qwen models via DashScope API (Tongyi).'))
+    openProviderCatalog('Alibaba Cloud')
 
     const checkButton = await screen.findByRole('button', { name: /^check$/i })
     fireEvent.click(checkButton)
@@ -459,9 +451,7 @@ describe('ProviderHubSection', () => {
 
     render(<ProviderHubSection {...baseProps} deepseekApiKey="deepseek-key" />)
 
-    fireEvent.click(
-      screen.getByText('DeepSeek V4 Flash and V4 Pro with tool calling and optional thinking mode.')
-    )
+    openProviderCatalog('DeepSeek')
 
     const checkButton = await screen.findByRole('button', { name: /^check$/i })
     fireEvent.click(checkButton)
@@ -494,9 +484,7 @@ describe('ProviderHubSection', () => {
   it('shows Fireworks catalog controls in provider detail view', () => {
     render(<ProviderHubSection {...baseProps} />)
 
-    fireEvent.click(
-      screen.getByText('Fast inference platform with an official serverless model catalog.')
-    )
+    openProviderCatalog('Fireworks')
 
     expect(screen.getByRole('button', { name: /add from catalog/i })).toBeInTheDocument()
     expect(screen.getByText('DeepSeek V3.2')).toBeInTheDocument()
@@ -505,9 +493,7 @@ describe('ProviderHubSection', () => {
   it('shows Perplexity catalog controls in provider detail view', () => {
     render(<ProviderHubSection {...baseProps} />)
 
-    fireEvent.click(
-      screen.getByText('Research-focused model provider with search-native reasoning models.')
-    )
+    openProviderCatalog('Perplexity')
 
     expect(screen.getByRole('button', { name: /add from catalog/i })).toBeInTheDocument()
     expect(screen.getByText('Sonar')).toBeInTheDocument()
@@ -517,7 +503,7 @@ describe('ProviderHubSection', () => {
     render(<ProviderHubSection {...baseProps} />)
 
     const img = screen.getByAltText('fireworks logo')
-    expect(img).toHaveStyle({ width: '20px', height: '20px' })
+    expect(img).toHaveStyle({ width: '22px', height: '22px' })
   })
 
   it('updates Tavily search speed preference from Search APIs settings', async () => {
@@ -525,9 +511,7 @@ describe('ProviderHubSection', () => {
     render(<ProviderHubSection {...baseProps} onChange={onChange} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Service APIs' }))
-    fireEvent.click(
-      screen.getByText('AI-optimized search for web_search. Add a key for best results.')
-    )
+    openProviderCatalog('Tavily')
     fireEvent.click(screen.getByRole('combobox'))
     fireEvent.click(await screen.findByRole('option', { name: 'Lightning' }))
 
@@ -541,9 +525,7 @@ describe('ProviderHubSection', () => {
     render(<ProviderHubSection {...baseProps} onChange={onChange} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Service APIs' }))
-    fireEvent.click(
-      screen.getByText('AI-optimized search for web_search. Add a key for best results.')
-    )
+    openProviderCatalog('Tavily')
     fireEvent.click(screen.getByRole('switch', { name: 'Include web search images' }))
 
     expect(onChange).toHaveBeenCalledWith(
@@ -554,7 +536,7 @@ describe('ProviderHubSection', () => {
   it('shows Add from Catalog for Alibaba provider', () => {
     render(<ProviderHubSection {...baseProps} />)
 
-    fireEvent.click(screen.getByText('Qwen models via DashScope API (Tongyi).'))
+    openProviderCatalog('Alibaba Cloud')
 
     expect(screen.getByRole('button', { name: /add from catalog/i })).toBeInTheDocument()
   })
@@ -562,7 +544,7 @@ describe('ProviderHubSection', () => {
   it('opens Alibaba catalog dialog and surfaces the missing-key error', async () => {
     render(<ProviderHubSection {...baseProps} />)
 
-    fireEvent.click(screen.getByText('Qwen models via DashScope API (Tongyi).'))
+    openProviderCatalog('Alibaba Cloud')
     fireEvent.click(screen.getByRole('button', { name: /add from catalog/i }))
 
     expect(await screen.findByText('Add Model from Alibaba Catalog')).toBeInTheDocument()
@@ -580,7 +562,7 @@ describe('ProviderHubSection', () => {
 
     render(<ProviderHubSection {...baseProps} alibabaApiKey="ali-key" onChange={onChange} />)
 
-    fireEvent.click(screen.getByText('Qwen models via DashScope API (Tongyi).'))
+    openProviderCatalog('Alibaba Cloud')
     fireEvent.click(screen.getByRole('button', { name: /add from catalog/i }))
 
     expect(await screen.findByText('Qwen3-Coder-Next')).toBeInTheDocument()
@@ -602,9 +584,7 @@ describe('ProviderHubSection', () => {
   it('opens Perplexity catalog dialog and surfaces the missing-key error', async () => {
     render(<ProviderHubSection {...baseProps} />)
 
-    fireEvent.click(
-      screen.getByText('Research-focused model provider with search-native reasoning models.')
-    )
+    openProviderCatalog('Perplexity')
     fireEvent.click(screen.getByRole('button', { name: /add from catalog/i }))
 
     expect(await screen.findByText('Add Model from Perplexity Catalog')).toBeInTheDocument()
@@ -622,9 +602,7 @@ describe('ProviderHubSection', () => {
 
     render(<ProviderHubSection {...baseProps} perplexityApiKey="px-key" onChange={onChange} />)
 
-    fireEvent.click(
-      screen.getByText('Research-focused model provider with search-native reasoning models.')
-    )
+    openProviderCatalog('Perplexity')
     fireEvent.click(screen.getByRole('button', { name: /add from catalog/i }))
 
     expect(await screen.findByText('Sonar Deep Research')).toBeInTheDocument()
@@ -639,6 +617,41 @@ describe('ProviderHubSection', () => {
             displayName: 'Sonar Deep Research',
             supportsWebSearch: true,
             supportsDeepThinking: true,
+          }),
+        ]),
+      })
+    )
+  })
+
+  it('adds an OpenCode Go catalog model to opencodeModels', async () => {
+    const onChange = vi.fn()
+    vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        object: 'list',
+        data: [
+          { id: 'deepseek-v4-pro', object: 'model', owned_by: 'opencode' },
+          { id: 'glm-5.2', object: 'model', owned_by: 'opencode' },
+        ],
+      }),
+    } as Response)
+
+    render(<ProviderHubSection {...baseProps} opencodeGoApiKey="go-key" onChange={onChange} />)
+
+    openProviderCatalog('OpenCode Go')
+    fireEvent.click(screen.getByRole('button', { name: /add from catalog/i }))
+
+    expect(await screen.findByText('GLM 5.2')).toBeInTheDocument()
+    const addButtons = screen.getAllByRole('button', { name: /^add$/i })
+    fireEvent.click(addButtons[addButtons.length - 1])
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        opencodeModels: expect.arrayContaining([
+          expect.objectContaining({
+            code: 'glm-5.2',
+            displayName: 'GLM 5.2',
+            supportsToolCall: true,
           }),
         ]),
       })
@@ -660,9 +673,7 @@ describe('ProviderHubSection', () => {
 
     render(<ProviderHubSection {...baseProps} nvidiaApiKey="nvapi-key" onChange={onChange} />)
 
-    fireEvent.click(
-      screen.getByText('OpenAI-compatible NVIDIA NIM models hosted through build.nvidia.com.')
-    )
+    openProviderCatalog('NVIDIA NIM')
     fireEvent.click(screen.getByRole('button', { name: /add from catalog/i }))
 
     expect(await screen.findByText('Llama Chat')).toBeInTheDocument()
@@ -686,9 +697,7 @@ describe('ProviderHubSection', () => {
     const onChange = vi.fn()
     render(<ProviderHubSection {...baseProps} onChange={onChange} />)
 
-    fireEvent.click(
-      screen.getByText('DeepSeek V4 Flash and V4 Pro with tool calling and optional thinking mode.')
-    )
+    openProviderCatalog('DeepSeek')
 
     const reasoningToggle = screen.getByLabelText('Toggle reasoning for DeepSeek V4 Flash')
     expect(reasoningToggle).toBeInTheDocument()
@@ -706,9 +715,7 @@ describe('ProviderHubSection', () => {
   it('does not show a reasoning toggle for non-DeepSeek providers', () => {
     render(<ProviderHubSection {...baseProps} />)
 
-    fireEvent.click(
-      screen.getByText('OpenRouter provides access to many frontier models through one API.')
-    )
+    openProviderCatalog('OpenRouter')
 
     expect(screen.queryByLabelText(/Toggle reasoning for/i)).not.toBeInTheDocument()
   })
@@ -728,9 +735,7 @@ describe('ProviderHubSection', () => {
       />
     )
 
-    fireEvent.click(
-      screen.getByText('OpenRouter provides access to many frontier models through one API.')
-    )
+    openProviderCatalog('OpenRouter')
 
     expect(screen.getByText('Reasoning detected')).toBeInTheDocument()
     expect(screen.queryByLabelText('Toggle OpenRouter reasoning for Kimi K2 Thinking')).not.toBeInTheDocument()
@@ -754,9 +759,7 @@ describe('ProviderHubSection', () => {
 
     render(<ProviderHubSection {...baseProps} onChange={onChange} />)
 
-    fireEvent.click(
-      screen.getByText('OpenRouter provides access to many frontier models through one API.')
-    )
+    openProviderCatalog('OpenRouter')
     fireEvent.click(screen.getAllByRole('button', { name: /detect reasoning/i })[0])
 
     await waitFor(() => {

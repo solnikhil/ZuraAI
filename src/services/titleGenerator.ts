@@ -10,6 +10,7 @@ type TitleGenerationSettings = Partial<
     | 'titleGenerationPrompt'
     | 'alibabaApiKey'
     | 'deepseekApiKey'
+    | 'opencodeGoApiKey'
     | 'fireworksApiKey'
     | 'nvidiaApiKey'
     | 'groqApiKey'
@@ -24,6 +25,7 @@ type TitleGenerationSettings = Partial<
     | 'fireworksModels'
     | 'nvidiaModels'
     | 'deepseekModels'
+    | 'opencodeModels'
   >
 >
 

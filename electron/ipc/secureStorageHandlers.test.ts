@@ -48,6 +48,7 @@ describe('registerSecureStorageHandlers', () => {
       fireworksApiKey: 'fireworks-key',
       nvidiaApiKey: 'nvidia-key',
       deepseekApiKey: 'deepseek-key',
+      opencodeGoApiKey: 'opencode-key',
       onlineCompilerApiKey: 'oc-key',
       brevoApiKey: 'brevo-key',
     }
@@ -71,11 +72,12 @@ describe('registerSecureStorageHandlers', () => {
       fireworksApiKey: 'fireworks-key',
       nvidiaApiKey: 'nvidia-key',
       deepseekApiKey: 'deepseek-key',
+      opencodeGoApiKey: 'opencode-key',
       onlineCompilerApiKey: 'oc-key',
       brevoApiKey: 'brevo-key',
     })
 
-    expect(secureStorageMocks.getSecureValueAsync).toHaveBeenCalledTimes(10)
+    expect(secureStorageMocks.getSecureValueAsync).toHaveBeenCalledTimes(11)
     expect(secureStorageMocks.getSecureValueAsync).not.toHaveBeenCalledWith('mcp.server.demo.token')
   })
 

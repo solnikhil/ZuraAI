@@ -64,6 +64,7 @@ export type ProviderModelListKey =
   | 'alibabaModels'
   | 'fireworksModels'
   | 'deepseekModels'
+  | 'opencodeModels'
 
 export type ProviderSettingsLike = Partial<
   Pick<
@@ -76,6 +77,7 @@ export type ProviderSettingsLike = Partial<
     | 'alibabaApiKey'
     | 'fireworksApiKey'
     | 'deepseekApiKey'
+    | 'opencodeGoApiKey'
     | 'ollamaUrl'
     | 'configuredModels'
     | 'ollamaModels'
@@ -85,6 +87,7 @@ export type ProviderSettingsLike = Partial<
     | 'alibabaModels'
     | 'fireworksModels'
     | 'deepseekModels'
+  | 'opencodeModels'
   >
 >
 
@@ -157,6 +160,7 @@ const PROVIDER_TOOL_MODEL_PREFIXES: Record<ProviderId, string[]> = {
     'qwen3-coder-flash',
   ],
   perplexity: [],
+  opencode: [],
 }
 
 export const DEFAULT_OLLAMA_URL = 'http://localhost:11434'
@@ -173,7 +177,8 @@ const allowAllToolModels = (provider: ProviderId) =>
   provider === 'openrouter' ||
   provider === 'fireworks' ||
   provider === 'deepseek' ||
-  provider === 'nvidia'
+  provider === 'nvidia' ||
+  provider === 'opencode'
 
 const supportsModelTools = (provider: ProviderId, model: string): boolean => {
   if (allowAllToolModels(provider)) return true
@@ -443,6 +448,42 @@ const PROVIDERS: Record<ProviderId, ProviderDefinition> = {
     models: {
       settingsModelKey: 'fireworksModels',
       supportsTools: (model) => supportsModelTools('fireworks', model),
+    },
+  },
+  opencode: {
+    id: 'opencode',
+    label: 'OpenCode Go',
+    description:
+      'Low-cost subscription with curated open coding models (DeepSeek, Kimi, GLM, Qwen, MiniMax).',
+    accentColor: '#0ea5e9',
+    capabilities: {
+      supportsStreaming: true,
+      supportsTools: true,
+      supportsVisionUploads: false,
+      supportsReasoning: false,
+      supportsImageGeneration: false,
+      supportsNativeSearch: false,
+    },
+    promptCaching: {
+      promptCaching: 'none',
+      sessionAffinity: 'none',
+    },
+    endpoints: {
+      baseUrl: 'https://opencode.ai/zen/go/v1',
+      chatCompletionsUrl: 'https://opencode.ai/zen/go/v1/chat/completions',
+      modelCatalogUrl: 'https://opencode.ai/zen/go/v1/models',
+    },
+    retryPolicy: OPENAI_COMPATIBLE_RETRY_POLICY,
+    auth: {
+      hasAccess: (settings) => hasConfiguredApiKey(settings.opencodeGoApiKey),
+      getCredentialError: (settings) =>
+        hasConfiguredApiKey(settings.opencodeGoApiKey)
+          ? null
+          : 'OpenCode Go API key is required. Add it in Settings > Providers and save.',
+    },
+    models: {
+      settingsModelKey: 'opencodeModels',
+      supportsTools: (model) => supportsModelTools('opencode', model),
     },
   },
   nvidia: {

@@ -5,6 +5,7 @@ export type ProviderId =
   | 'groq'
   | 'nvidia'
   | 'ollama'
+  | 'opencode'
   | 'openrouter'
   | 'perplexity'
 

@@ -60,6 +60,7 @@ const PROVIDER_FALLBACK_ICONS: Record<
   deepseek: Brain,
   fireworks: Sparkles,
   nvidia: Zap,
+  opencode: Sparkles,
 }
 
 const PROVIDER_COLORS: Record<string, string> = {
@@ -71,6 +72,7 @@ const PROVIDER_COLORS: Record<string, string> = {
 const PROVIDER_LOGO_EXTENSIONS: Record<string, 'png' | 'svg'> = {
   deepseek: 'svg',
   fireworks: 'svg',
+  opencode: 'svg',
 }
 
 const PROVIDER_LOGO_ADJUSTMENTS: Record<

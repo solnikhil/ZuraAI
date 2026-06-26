@@ -19,6 +19,7 @@ describe('providerSettingsRegistry', () => {
       'perplexityApiKey',
       'fireworksApiKey',
       'nvidiaApiKey',
+      'opencodeGoApiKey',
     ])
 
     expect(getProviderModelListField('openrouter')).toBe('configuredModels')
@@ -37,6 +38,7 @@ describe('providerSettingsRegistry', () => {
       nvidia: true,
       ollama: true,
       openrouter: true,
+      opencode: true,
       perplexity: true,
     })
   })
@@ -51,6 +53,7 @@ describe('providerSettingsRegistry', () => {
       'ollama',
       'fireworks',
       'nvidia',
+      'opencode',
     ])
 
     expect(getPickerVisibleProviders().map((provider) => provider.id)).toEqual([
@@ -62,6 +65,7 @@ describe('providerSettingsRegistry', () => {
       'alibaba',
       'ollama',
       'nvidia',
+      'opencode',
     ])
 
     expect(getLogoVisibleProviderIds()).toEqual([
@@ -73,6 +77,7 @@ describe('providerSettingsRegistry', () => {
       'ollama',
       'fireworks',
       'nvidia',
+      'opencode',
     ])
   })
 })

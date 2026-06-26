@@ -9,6 +9,7 @@ export type ProviderSecretField =
   | 'fireworksApiKey'
   | 'nvidiaApiKey'
   | 'deepseekApiKey'
+  | 'opencodeGoApiKey'
 
 export type ProviderCatalogDialogKind =
   | 'openrouter'
@@ -17,6 +18,7 @@ export type ProviderCatalogDialogKind =
   | 'nvidia'
   | 'perplexity'
   | 'deepseek'
+  | 'opencode'
 
 export interface ProviderSettingsDefinition {
   id: ProviderId
@@ -149,6 +151,20 @@ const PROVIDER_SETTINGS_EXTRAS: Record<
     catalogDialogKind: 'nvidia',
     settingsOrder: 7,
     pickerOrder: 7,
+  },
+  opencode: {
+    id: 'opencode',
+    secretKeyField: 'opencodeGoApiKey',
+    modelListField: 'opencodeModels',
+    enabledByDefault: true,
+    dashboardUrl: 'https://opencode.ai/go',
+    settingsVisible: true,
+    pickerVisible: true,
+    logoVisible: true,
+    supportsCatalogDialog: true,
+    catalogDialogKind: 'opencode',
+    settingsOrder: 8,
+    pickerOrder: 8,
   },
 }
 

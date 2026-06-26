@@ -5,6 +5,7 @@ import {
   CircleHelp,
   CheckCircle2,
   ChevronLeft,
+  ChevronRight,
   Edit2,
   Eye,
   EyeOff,
@@ -58,6 +59,7 @@ import {
 import { CreateCustomModelDialog } from './CreateCustomModelDialog'
 import { AlibabaModelSearchDialog } from './AlibabaModelSearchDialog'
 import { DeepseekModelSearchDialog } from './DeepseekModelSearchDialog'
+import { OpencodeModelSearchDialog } from './OpencodeModelSearchDialog'
 import { FireworksModelSearchDialog } from './FireworksModelSearchDialog'
 import { NvidiaModelSearchDialog } from './NvidiaModelSearchDialog'
 import { OpenRouterModelSearchDialog } from './OpenRouterModelSearchDialog'
@@ -93,9 +95,81 @@ const PROVIDERS: ProviderDefinition[] = getSettingsVisibleProviders().map((provi
   apiKeyField: provider.secretKeyField,
 }))
 
+type ProviderCatalogFilter = 'all' | 'needs-setup' | 'disabled' | 'active'
+
+type ProviderCatalogGroup = {
+  title: string
+  keys: ProviderKey[]
+  featured?: boolean
+}
+
+const PROVIDER_CATALOG_GROUPS: ProviderCatalogGroup[] = [
+  { title: 'Gateways', keys: ['openrouter'], featured: true },
+  {
+    title: 'Cloud APIs',
+    keys: ['groq', 'alibaba', 'deepseek', 'opencode', 'perplexity', 'fireworks', 'nvidia'],
+  },
+  { title: 'Local', keys: ['ollama'], featured: true },
+]
+
+type ProviderSetupState = 'needs-setup' | 'ready' | 'disabled'
+
+function providerNeedsApiKey(provider: ProviderDefinition, hasApiKey: boolean): boolean {
+  return Boolean(provider.apiKeyField && !hasApiKey)
+}
+
+function getProviderSetupState(
+  provider: ProviderDefinition,
+  hasApiKey: boolean,
+  enabled: boolean
+): ProviderSetupState {
+  if (providerNeedsApiKey(provider, hasApiKey)) return 'needs-setup'
+  if (!enabled) return 'disabled'
+  return 'ready'
+}
+
+function formatProviderStatusLine(
+  provider: ProviderDefinition,
+  hasApiKey: boolean,
+  enabled: boolean,
+  enabledModelCount: number,
+  modelCount: number
+): string {
+  if (providerNeedsApiKey(provider, hasApiKey)) return 'API key required'
+  if (!provider.apiKeyField) {
+    if (!enabled) return 'Local · Disabled'
+    return modelCount > 0 ? `Local · ${enabledModelCount}/${modelCount} models` : 'Local · Ready'
+  }
+  if (!enabled) {
+    return modelCount > 0
+      ? `Configured · ${enabledModelCount}/${modelCount} models`
+      : 'Configured · Disabled'
+  }
+  return modelCount > 0 ? `Key set · ${enabledModelCount}/${modelCount} models` : 'Key set'
+}
+
+function providerMatchesCatalogFilter(
+  provider: ProviderDefinition,
+  filter: ProviderCatalogFilter,
+  hasApiKey: boolean,
+  enabled: boolean
+): boolean {
+  switch (filter) {
+    case 'needs-setup':
+      return providerNeedsApiKey(provider, hasApiKey)
+    case 'disabled':
+      return !providerNeedsApiKey(provider, hasApiKey) && !enabled
+    case 'active':
+      return !providerNeedsApiKey(provider, hasApiKey) && enabled
+    default:
+      return true
+  }
+}
+
 const PROVIDER_ENDPOINTS: Record<ProviderKey, string> = {
   alibaba: getProviderEndpoint('alibaba', 'baseUrl') || '',
   deepseek: getProviderEndpoint('deepseek', 'baseUrl') || '',
+  opencode: getProviderEndpoint('opencode', 'baseUrl') || '',
   fireworks: getProviderEndpoint('fireworks', 'baseUrl') || '',
   groq: getProviderEndpoint('groq', 'baseUrl') || '',
   nvidia: getProviderEndpoint('nvidia', 'baseUrl') || '',
@@ -105,8 +179,6 @@ const PROVIDER_ENDPOINTS: Record<ProviderKey, string> = {
 }
 
 const CATALOG_BASE_BACKGROUND = 'var(--theme-background)'
-const CATALOG_CARD_BACKGROUND =
-  'color-mix(in srgb, var(--theme-surface) 86%, var(--theme-background) 14%)'
 const STATUS_COLORS = {
   success: {
     background: 'color-mix(in srgb, var(--theme-success) 14%, transparent)',
@@ -184,6 +256,7 @@ interface ModelBasic {
 export interface ProviderHubSectionProps {
   alibabaApiKey: string
   deepseekApiKey: string
+  opencodeGoApiKey: string
   fireworksApiKey: string
   nvidiaApiKey: string
   groqApiKey: string
@@ -200,6 +273,7 @@ export interface ProviderHubSectionProps {
   configuredModels: ConfiguredModel[]
   alibabaModels: ModelBasic[]
   deepseekModels: ModelBasic[]
+  opencodeModels: ModelBasic[]
   fireworksModels: ModelBasic[]
   nvidiaModels: ModelBasic[]
   groqModels: ModelBasic[]
@@ -215,6 +289,7 @@ export interface ProviderHubSectionProps {
     changes: Partial<{
       alibabaApiKey: string
       deepseekApiKey: string
+      opencodeGoApiKey: string
       fireworksApiKey: string
       nvidiaApiKey: string
       groqApiKey: string
@@ -229,6 +304,7 @@ export interface ProviderHubSectionProps {
       configuredModels: ConfiguredModel[]
       alibabaModels: ConfiguredModel[]
       deepseekModels: ConfiguredModel[]
+      opencodeModels: ConfiguredModel[]
       fireworksModels: ConfiguredModel[]
       nvidiaModels: ConfiguredModel[]
       groqModels: ConfiguredModel[]
@@ -252,6 +328,7 @@ type ProviderSettingsUpdate = Partial<
     | 'groqModels'
     | 'alibabaModels'
     | 'deepseekModels'
+    | 'opencodeModels'
     | 'fireworksModels'
     | 'nvidiaModels'
     | 'ollamaModels'
@@ -267,6 +344,7 @@ export function ProviderHubSection({
   groqApiKey,
   alibabaApiKey,
   deepseekApiKey,
+  opencodeGoApiKey,
   fireworksApiKey,
   nvidiaApiKey,
   tavilyApiKey,
@@ -282,6 +360,7 @@ export function ProviderHubSection({
   groqModels,
   alibabaModels,
   deepseekModels,
+  opencodeModels,
   fireworksModels,
   nvidiaModels,
   ollamaModels,
@@ -295,6 +374,7 @@ export function ProviderHubSection({
   const normalizeVisibleProvider = (provider?: ProviderKey): ProviderKey => provider || 'openrouter'
 
   const [manageMode, setManageMode] = useState<ManageMode>(initialManageMode ?? 'providers')
+  const [catalogFilter, setCatalogFilter] = useState<ProviderCatalogFilter>('all')
   const [providerView, setProviderView] = useState<ProviderView>(
     initialProvider ? 'detail' : 'catalog'
   )
@@ -310,6 +390,7 @@ export function ProviderHubSection({
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [alibabaSearchDialogOpen, setAlibabaSearchDialogOpen] = useState(false)
   const [deepseekSearchDialogOpen, setDeepseekSearchDialogOpen] = useState(false)
+  const [opencodeSearchDialogOpen, setOpencodeSearchDialogOpen] = useState(false)
   const [fireworksSearchDialogOpen, setFireworksSearchDialogOpen] = useState(false)
   const [nvidiaSearchDialogOpen, setNvidiaSearchDialogOpen] = useState(false)
   const [perplexitySearchDialogOpen, setPerplexitySearchDialogOpen] = useState(false)
@@ -370,6 +451,7 @@ export function ProviderHubSection({
     groq: groqModels,
     alibaba: alibabaModels,
     deepseek: deepseekModels,
+    opencode: opencodeModels,
     fireworks: fireworksModels,
     nvidia: nvidiaModels,
     ollama: ollamaModels,
@@ -518,6 +600,7 @@ export function ProviderHubSection({
     const providerApiKeys: Record<ProviderSecretField, string> = {
       alibabaApiKey: alibabaApiKey ?? '',
       deepseekApiKey: deepseekApiKey ?? '',
+      opencodeGoApiKey: opencodeGoApiKey ?? '',
       fireworksApiKey: fireworksApiKey ?? '',
       nvidiaApiKey: nvidiaApiKey ?? '',
       groqApiKey: groqApiKey ?? '',
@@ -535,6 +618,7 @@ export function ProviderHubSection({
       ollama: providerEnabled?.ollama !== false,
       alibaba: providerEnabled?.alibaba !== false,
       deepseek: providerEnabled?.deepseek !== false,
+      opencode: providerEnabled?.opencode !== false,
       fireworks: providerEnabled?.fireworks !== false,
       nvidia: providerEnabled?.nvidia !== false,
     }
@@ -545,12 +629,49 @@ export function ProviderHubSection({
     providerEnabled?.ollama,
     providerEnabled?.alibaba,
     providerEnabled?.deepseek,
+    providerEnabled?.opencode,
     providerEnabled?.fireworks,
     providerEnabled?.nvidia,
   ])
 
   const isProviderEnabled = (provider: ProviderDefinition): boolean =>
     normalizedProviderEnabled[provider.key]
+
+  const catalogStats = useMemo(() => {
+    let configured = 0
+    let active = 0
+    let needsSetup = 0
+    let disabled = 0
+
+    for (const provider of PROVIDERS) {
+      const hasApiKey = provider.apiKeyField ? getProviderApiKey(provider).trim().length > 0 : true
+      const enabled = isProviderEnabled(provider)
+      const needsKey = providerNeedsApiKey(provider, hasApiKey)
+
+      if (!needsKey) configured += 1
+      if (needsKey) needsSetup += 1
+      if (!needsKey && enabled) active += 1
+      if (!needsKey && !enabled) disabled += 1
+    }
+
+    return {
+      total: PROVIDERS.length,
+      configured,
+      active,
+      needsSetup,
+      disabled,
+    }
+  }, [
+    alibabaApiKey,
+    deepseekApiKey,
+    opencodeGoApiKey,
+    fireworksApiKey,
+    groqApiKey,
+    nvidiaApiKey,
+    openRouterApiKey,
+    perplexityApiKey,
+    normalizedProviderEnabled,
+  ])
 
   const setProviderApiKey = (provider: ProviderDefinition, value: string) => {
     if (!provider.apiKeyField) return
@@ -746,6 +867,10 @@ export function ProviderHubSection({
       setDeepseekSearchDialogOpen(true)
       return
     }
+    if (provider === 'opencode') {
+      setOpencodeSearchDialogOpen(true)
+      return
+    }
     if (provider === 'nvidia') {
       setNvidiaSearchDialogOpen(true)
     }
@@ -834,6 +959,14 @@ export function ProviderHubSection({
           'DeepSeek check failed',
           controller.signal
         )
+      } else if (selectedProviderDef.key === 'opencode') {
+        await runChatCompletionsConnectivityCheck(
+          endpoint,
+          selectedKey,
+          connectivityModel,
+          'OpenCode Go check failed',
+          controller.signal
+        )
       } else if (selectedProviderDef.key === 'nvidia') {
         await runChatCompletionsConnectivityCheck(
           endpoint,
@@ -879,11 +1012,13 @@ export function ProviderHubSection({
             Manage model providers, API keys, and search APIs in one place.
           </div>
         </div>
-        <div className="flex rounded-md border border-border bg-secondary/60 p-1">
+        <div className="provider-hub-mode-switch flex rounded-md border border-border p-1">
           <button
             type="button"
             onClick={() => setManageMode('providers')}
-            className="rounded px-3 py-1.5 text-xs font-medium transition"
+            className={`provider-hub-mode-switch__item rounded px-3 py-1.5 text-xs font-medium transition ${
+              manageMode === 'providers' ? 'is-active' : ''
+            }`}
             style={{
               background:
                 manageMode === 'providers' ? 'var(--theme-surface-active)' : 'transparent',
@@ -895,7 +1030,9 @@ export function ProviderHubSection({
           <button
             type="button"
             onClick={() => setManageMode('search-apis')}
-            className="rounded px-3 py-1.5 text-xs font-medium transition"
+            className={`provider-hub-mode-switch__item rounded px-3 py-1.5 text-xs font-medium transition ${
+              manageMode === 'search-apis' ? 'is-active' : ''
+            }`}
             style={{
               background:
                 manageMode === 'search-apis' ? 'var(--theme-surface-active)' : 'transparent',
@@ -908,13 +1045,19 @@ export function ProviderHubSection({
       </div>
 
       {manageMode === 'providers' && providerView === 'catalog' && (
-        <div className="mt-4 min-w-0">
+        <div className="mt-4 min-w-0 space-y-4">
+          <ProviderCatalogStats
+            stats={catalogStats}
+            filter={catalogFilter}
+            onFilterChange={setCatalogFilter}
+          />
           <Card
-            className="settings-section-card provider-hub-base-card min-w-0 overflow-y-auto"
+            className="settings-section-card provider-hub-base-card min-w-0 overflow-y-auto p-4 sm:p-5"
             style={{ background: CATALOG_BASE_BACKGROUND }}
           >
-            <ProviderSection
+            <ProviderCatalog
               providers={PROVIDERS}
+              filter={catalogFilter}
               onCardClick={(provider) => {
                 setSelectedProvider(provider.key)
                 setProviderView('detail')
@@ -1249,6 +1392,7 @@ export function ProviderHubSection({
                   selectedProviderDef.key === 'fireworks' ||
                   selectedProviderDef.key === 'alibaba' ||
                   selectedProviderDef.key === 'deepseek' ||
+                  selectedProviderDef.key === 'opencode' ||
                   selectedProviderDef.key === 'nvidia' ||
                   selectedProviderDef.key === 'perplexity') && (
                   <Button
@@ -1316,7 +1460,7 @@ export function ProviderHubSection({
       {manageMode === 'search-apis' && searchApiView === 'catalog' && (
         <div className="mt-4 min-w-0">
           <Card
-            className="settings-section-card provider-hub-base-card min-w-0 h-[min(320px,calc(50vh-100px))] overflow-y-auto lg:h-[min(400px,calc(60vh-120px))]"
+            className="settings-section-card provider-hub-base-card min-w-0 overflow-y-auto p-4 sm:p-5"
             style={{ background: CATALOG_BASE_BACKGROUND }}
           >
             <SearchApiSection
@@ -1491,6 +1635,16 @@ export function ProviderHubSection({
         />
       )}
 
+      {selectedProviderDef.key === 'opencode' && (
+        <OpencodeModelSearchDialog
+          open={opencodeSearchDialogOpen}
+          onOpenChange={setOpencodeSearchDialogOpen}
+          onAddModel={(model) => addCustomModel(model, 'opencode')}
+          apiKey={getProviderApiKey(selectedProviderDef)}
+          existingModelCodes={opencodeModels.map((m) => m.code)}
+        />
+      )}
+
       {selectedProviderDef.key === 'nvidia' && (
         <NvidiaModelSearchDialog
           open={nvidiaSearchDialogOpen}
@@ -1504,8 +1658,56 @@ export function ProviderHubSection({
   )
 }
 
-function ProviderSection({
+function ProviderCatalogStats({
+  stats,
+  filter,
+  onFilterChange,
+}: {
+  stats: { total: number; configured: number; active: number; needsSetup: number; disabled: number }
+  filter: ProviderCatalogFilter
+  onFilterChange: (filter: ProviderCatalogFilter) => void
+}): React.ReactElement {
+  const chips: Array<{ id: ProviderCatalogFilter; label: string; value: number }> = [
+    { id: 'all', label: 'All', value: stats.total },
+    { id: 'active', label: 'Active', value: stats.active },
+    { id: 'needs-setup', label: 'Needs setup', value: stats.needsSetup },
+    { id: 'disabled', label: 'Disabled', value: stats.disabled },
+  ]
+
+  const summaryParts = [
+    `${stats.configured}/${stats.total} configured`,
+    `${stats.active} active`,
+  ]
+  if (stats.needsSetup > 0) {
+    summaryParts.push(`${stats.needsSetup} need setup`)
+  }
+
+  return (
+    <div className="provider-hub-header" aria-label="Provider status summary">
+      <div className="provider-hub-header__intro">
+        <p className="provider-hub-header__summary">{summaryParts.join(' · ')}</p>
+      </div>
+      <div className="provider-hub-header__stats">
+        {chips.map((chip) => (
+          <button
+            key={chip.id}
+            type="button"
+            className={`provider-hub-stat ${filter === chip.id ? 'is-active' : ''}`}
+            onClick={() => onFilterChange(filter === chip.id && chip.id !== 'all' ? 'all' : chip.id)}
+            aria-pressed={filter === chip.id}
+          >
+            <span className="provider-hub-stat__label">{chip.label}</span>
+            <span className="provider-hub-stat__value">{chip.value}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function ProviderCatalog({
   providers,
+  filter,
   onCardClick,
   isProviderEnabled,
   setProviderEnabled,
@@ -1513,92 +1715,183 @@ function ProviderSection({
   modelMap,
 }: {
   providers: ProviderDefinition[]
+  filter: ProviderCatalogFilter
   onCardClick: (provider: ProviderDefinition) => void
   isProviderEnabled: (provider: ProviderDefinition) => boolean
   setProviderEnabled: (providerKey: ProviderKey, enabled: boolean) => void
   getApiKey: (provider: ProviderDefinition) => string
   modelMap: Record<ProviderKey, ModelBasic[]>
 }): React.ReactElement | null {
-  if (providers.length === 0) {
-    return null
+  const providerByKey = useMemo(() => {
+    return new Map(providers.map((provider) => [provider.key, provider]))
+  }, [providers])
+
+  const visibleGroups = PROVIDER_CATALOG_GROUPS.map((group) => ({
+    ...group,
+    providers: group.keys
+      .map((key) => providerByKey.get(key))
+      .filter((provider): provider is ProviderDefinition => Boolean(provider))
+      .filter((provider) => {
+        const hasApiKey = provider.apiKeyField ? getApiKey(provider).trim().length > 0 : true
+        const enabled = isProviderEnabled(provider)
+        return providerMatchesCatalogFilter(provider, filter, hasApiKey, enabled)
+      }),
+  })).filter((group) => group.providers.length > 0)
+
+  if (visibleGroups.length === 0) {
+    return (
+      <div className="provider-catalog-empty" role="status">
+        No providers match this filter.
+      </div>
+    )
   }
 
   return (
-    <div className="flex flex-col gap-px overflow-hidden rounded-lg border border-white/10">
-      {providers.map((provider) => {
-        const enabled = isProviderEnabled(provider)
-        const hasApiKey = provider.apiKeyField ? getApiKey(provider).trim().length > 0 : true
-        const models = modelMap[provider.key] || []
-        const modelCount = models.length
-        const enabledModelCount = models.filter((m) => m.enabled !== false).length
-        return (
-          <div
-            key={provider.key}
-            onClick={() => onCardClick(provider)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault()
-                onCardClick(provider)
-              }
-            }}
-            role="button"
-            tabIndex={0}
-            className="provider-hub-provider-row flex items-center gap-3 px-3.5 py-3 text-left transition"
-          >
-            <div className="flex shrink-0 items-center justify-center">
-              <ProviderLogo provider={provider.key} size={20} />
-            </div>
-
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <span className="truncate text-sm font-semibold text-foreground">
-                  {provider.name}
-                </span>
-              </div>
-              <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                {provider.description}
-              </p>
-            </div>
-
-            <div className="flex shrink-0 items-center gap-2">
-              <span
-                className="inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-medium"
-                style={{
-                  background: hasApiKey
-                    ? STATUS_COLORS.success.background
-                    : STATUS_COLORS.warning.background,
-                  color: hasApiKey ? STATUS_COLORS.success.color : STATUS_COLORS.warning.color,
-                }}
-              >
-                <span
-                  className="inline-block h-1.5 w-1.5 rounded-full"
-                  style={{
-                    background: hasApiKey
-                      ? STATUS_COLORS.success.color
-                      : STATUS_COLORS.warning.color,
-                  }}
-                />
-                {provider.apiKeyField ? (hasApiKey ? 'Key set' : 'No key') : 'Local'}
-              </span>
-              {modelCount > 0 && (
-                <span className="hidden rounded-md bg-secondary px-2 py-0.5 text-[11px] font-medium text-muted-foreground sm:inline-flex">
-                  {enabledModelCount}/{modelCount} models
-                </span>
-              )}
-            </div>
-
-            <Switch
-              className="provider-hub-toggle"
-              checked={enabled}
-              onCheckedChange={(checked) => {
-                setProviderEnabled(provider.key, checked)
-              }}
-              aria-label={`Toggle ${provider.name}`}
-              onClick={(e) => e.stopPropagation()}
-            />
+    <div className="provider-catalog" aria-label="Model providers">
+      {visibleGroups.map((group) => (
+        <section key={group.title} className="provider-catalog-group">
+          <div className="provider-catalog-group__header">
+            <h3>{group.title}</h3>
           </div>
-        )
-      })}
+          <div
+            className={`provider-catalog-group__grid ${
+              group.featured ? 'provider-catalog-group__grid--featured' : ''
+            }`}
+          >
+            {group.providers.map((provider) => (
+              <ProviderCatalogRow
+                key={provider.key}
+                provider={provider}
+                enabled={isProviderEnabled(provider)}
+                hasApiKey={provider.apiKeyField ? getApiKey(provider).trim().length > 0 : true}
+                models={modelMap[provider.key] || []}
+                onOpen={() => onCardClick(provider)}
+                onToggle={(checked) => setProviderEnabled(provider.key, checked)}
+              />
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  )
+}
+
+function ProviderCatalogRow({
+  provider,
+  enabled,
+  hasApiKey,
+  models,
+  onOpen,
+  onToggle,
+}: {
+  provider: ProviderDefinition
+  enabled: boolean
+  hasApiKey: boolean
+  models: ModelBasic[]
+  onOpen: () => void
+  onToggle: (checked: boolean) => void
+}): React.ReactElement {
+  const modelCount = models.length
+  const enabledModelCount = models.filter((model) => model.enabled !== false).length
+  const setupState = getProviderSetupState(provider, hasApiKey, enabled)
+  const statusLine = formatProviderStatusLine(
+    provider,
+    hasApiKey,
+    enabled,
+    enabledModelCount,
+    modelCount
+  )
+  const dashboardUrl = getProviderDashboardUrl(provider.key)
+  const logoActive = setupState === 'ready'
+
+  return (
+    <div
+      className={`provider-catalog-row provider-catalog-row--${setupState}`}
+      data-provider={provider.key}
+    >
+      <button
+        type="button"
+        className="provider-catalog-row__main"
+        onClick={onOpen}
+        aria-label={
+          setupState === 'needs-setup' ? `Set up ${provider.name}` : `Configure ${provider.name}`
+        }
+      >
+        <span
+          className={`provider-catalog-row__logo ${
+            logoActive ? 'provider-catalog-row__logo--enabled' : ''
+          }`}
+        >
+          <ProviderLogo provider={provider.key} size={22} />
+        </span>
+        <span className="provider-catalog-row__content">
+          <span className="provider-catalog-row__title">{provider.name}</span>
+          <span
+            className={`provider-catalog-row__status provider-catalog-row__status--${setupState}`}
+          >
+            {setupState === 'ready' && (
+              <span className="provider-catalog-row__status-dot" aria-hidden="true" />
+            )}
+            {statusLine}
+          </span>
+        </span>
+      </button>
+
+      <div className="provider-catalog-row__actions">
+        {setupState === 'needs-setup' && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="provider-catalog-row__setup"
+            onClick={onOpen}
+          >
+            Set up
+            <ChevronRight size={14} aria-hidden="true" />
+          </Button>
+        )}
+
+        <Switch
+          className="provider-hub-toggle provider-catalog-row__toggle"
+          checked={enabled}
+          onCheckedChange={onToggle}
+          aria-label={`Toggle ${provider.name}`}
+          onClick={(event) => event.stopPropagation()}
+        />
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="provider-catalog-row__menu"
+              aria-label={`More actions for ${provider.name}`}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <MoreVertical size={15} />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="settings-menu-surface zura-menu-surface--compact">
+            <DropdownMenuItem className="zura-menu-item--compact" onClick={onOpen}>
+              Configure
+            </DropdownMenuItem>
+            {dashboardUrl ? (
+              <DropdownMenuItem
+                className="zura-menu-item--compact"
+                onClick={() => window.shell?.openExternal(dashboardUrl)}
+              >
+                Open dashboard
+              </DropdownMenuItem>
+            ) : null}
+            <DropdownMenuItem
+              className="zura-menu-item--compact"
+              onClick={() => onToggle(!enabled)}
+            >
+              {enabled ? 'Disable provider' : 'Enable provider'}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </div>
   )
 }
@@ -1845,113 +2138,149 @@ function SearchApiSection({
     }
   }
 
+  const configuredCount = apis.filter((api) => {
+    const keyValue =
+      api.apiKeyField === 'tavilyApiKey'
+        ? tavilyApiKey
+        : api.apiKeyField === 'onlineCompilerApiKey'
+          ? onlineCompilerApiKey
+          : ''
+    return Boolean(api.apiKeyField && typeof keyValue === 'string' && keyValue.trim())
+  }).length
+
   return (
-    <div className="mt-3 first:mt-0">
-      <div className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-foreground">
-        <span>Search APIs</span>
-        <span className="rounded bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
-          {apis.length}
-        </span>
-      </div>
-      <div className="flex flex-col gap-px overflow-hidden rounded-lg border border-white/10">
-        {apis.map((api) => {
-          const keyValue =
-            api.apiKeyField === 'tavilyApiKey'
-              ? tavilyApiKey
-              : api.apiKeyField === 'onlineCompilerApiKey'
-                ? onlineCompilerApiKey
-                : ''
-          const normalizedKeyValue = typeof keyValue === 'string' ? keyValue : ''
-          const enabled = Boolean(api.apiKeyField && normalizedKeyValue.trim())
-          const speedSummary =
-            api.key === 'tavily'
-              ? `Default search speed: ${getDepthSummary(tavilySearchDepthPreference)}`
-              : null
+    <div className="provider-catalog" aria-label="Service APIs">
+      <section className="provider-catalog-group">
+        <div className="provider-catalog-group__header">
+          <h3>Search APIs</h3>
+        </div>
+        <p className="provider-catalog-group__summary">
+          {configuredCount}/{apis.length} configured
+        </p>
+        <div className="provider-catalog-group__grid provider-catalog-group__grid--featured">
+          {apis.map((api) => {
+            const keyValue =
+              api.apiKeyField === 'tavilyApiKey'
+                ? tavilyApiKey
+                : api.apiKeyField === 'onlineCompilerApiKey'
+                  ? onlineCompilerApiKey
+                  : ''
+            const normalizedKeyValue = typeof keyValue === 'string' ? keyValue : ''
+            const hasKey = Boolean(api.apiKeyField && normalizedKeyValue.trim())
+            const setupState: ProviderSetupState = hasKey ? 'ready' : 'needs-setup'
+            const speedSummary =
+              api.key === 'tavily'
+                ? `Search speed: ${getDepthSummary(tavilySearchDepthPreference)}`
+                : null
+            const statusLine = hasKey
+              ? speedSummary || 'Key set'
+              : 'API key required'
 
-          return (
-            <div
-              key={api.key}
-              onClick={() => onCardClick(api)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault()
-                  onCardClick(api)
-                }
-              }}
-              role="button"
-              tabIndex={0}
-              className="flex items-center gap-3 px-3.5 py-3 text-left transition hover:bg-white/[0.04]"
-              style={{
-                background: CATALOG_CARD_BACKGROUND,
-                boxShadow:
-                  selectedApi === api.key ? 'inset 0 0 0 1px var(--theme-surface-active)' : 'none',
-              }}
-            >
-              <div className="flex shrink-0 items-center justify-center">
-                <span style={api.color ? { color: api.color } : undefined}>{api.icon}</span>
-              </div>
-
-              <div className="min-w-0 flex-1">
-                <div className="flex min-w-0 items-center gap-2">
-                  <span className="truncate text-sm font-semibold text-foreground">{api.name}</span>
-                  {api.key === 'tavily' && (
-                    <span className="shrink-0 rounded bg-[var(--theme-accent)]/20 px-1.5 py-0.5 text-[10px] font-medium text-[var(--theme-accent)]">
-                      Recommended
-                    </span>
-                  )}
-                </div>
-                <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                  {api.shortDescription || api.description}
-                </p>
-                {speedSummary && (
-                  <div className="mt-1 text-xs text-muted-foreground">{speedSummary}</div>
-                )}
-              </div>
-
-              <div className="flex shrink-0 items-center gap-2">
-                <span
-                  className="inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-medium"
-                  style={{
-                    background: enabled
-                      ? STATUS_COLORS.success.background
-                      : STATUS_COLORS.warning.background,
-                    color: enabled ? STATUS_COLORS.success.color : STATUS_COLORS.warning.color,
-                  }}
+            return (
+              <div
+                key={api.key}
+                className={`provider-catalog-row provider-catalog-row--${setupState} ${
+                  selectedApi === api.key ? 'provider-catalog-row--selected' : ''
+                }`}
+              >
+                <button
+                  type="button"
+                  className="provider-catalog-row__main"
+                  onClick={() => onCardClick(api)}
+                  aria-label={hasKey ? `Configure ${api.name}` : `Set up ${api.name}`}
                 >
                   <span
-                    className="inline-block h-1.5 w-1.5 rounded-full"
-                    style={{
-                      background: enabled
-                        ? STATUS_COLORS.success.color
-                        : STATUS_COLORS.warning.color,
-                    }}
-                  />
-                  {enabled ? 'Key set' : 'No key'}
-                </span>
-              </div>
+                    className={`provider-catalog-row__logo provider-catalog-row__logo--api ${
+                      hasKey ? 'provider-catalog-row__logo--enabled' : ''
+                    }`}
+                    style={api.color ? { color: api.color } : undefined}
+                  >
+                    {api.icon}
+                  </span>
+                  <span className="provider-catalog-row__content">
+                    <span className="provider-catalog-row__title-row">
+                      <span className="provider-catalog-row__title">{api.name}</span>
+                      {api.key === 'tavily' && (
+                        <span className="provider-catalog-row__badge">Recommended</span>
+                      )}
+                    </span>
+                    <span
+                      className={`provider-catalog-row__status provider-catalog-row__status--${setupState}`}
+                    >
+                      {hasKey && <span className="provider-catalog-row__status-dot" aria-hidden="true" />}
+                      {statusLine}
+                    </span>
+                  </span>
+                </button>
 
-              <Switch
-                className="provider-hub-toggle"
-                checked={enabled}
-                onCheckedChange={(checked) => {
-                  if (!checked) {
-                    if (api.apiKeyField === 'tavilyApiKey') {
-                      onChange({ tavilyApiKey: '' })
-                    }
-                    if (api.apiKeyField === 'onlineCompilerApiKey') {
-                      onChange({ onlineCompilerApiKey: '' })
-                    }
-                  } else {
-                    onCardClick(api)
-                  }
-                }}
-                aria-label={`Toggle ${api.name}`}
-                onClick={(e) => e.stopPropagation()}
-              />
-            </div>
-          )
-        })}
-      </div>
+                <div className="provider-catalog-row__actions">
+                  {!hasKey && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="provider-catalog-row__setup"
+                      onClick={() => onCardClick(api)}
+                    >
+                      Set up
+                      <ChevronRight size={14} aria-hidden="true" />
+                    </Button>
+                  )}
+
+                  <Switch
+                    className="provider-hub-toggle provider-catalog-row__toggle"
+                    checked={hasKey}
+                    onCheckedChange={(checked) => {
+                      if (!checked) {
+                        if (api.apiKeyField === 'tavilyApiKey') {
+                          onChange({ tavilyApiKey: '' })
+                        }
+                        if (api.apiKeyField === 'onlineCompilerApiKey') {
+                          onChange({ onlineCompilerApiKey: '' })
+                        }
+                      } else {
+                        onCardClick(api)
+                      }
+                    }}
+                    aria-label={`Toggle ${api.name}`}
+                    onClick={(event) => event.stopPropagation()}
+                  />
+
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="provider-catalog-row__menu"
+                        aria-label={`More actions for ${api.name}`}
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <MoreVertical size={15} />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align="end"
+                      className="settings-menu-surface zura-menu-surface--compact"
+                    >
+                      <DropdownMenuItem className="zura-menu-item--compact" onClick={() => onCardClick(api)}>
+                        Configure
+                      </DropdownMenuItem>
+                      {api.learnMoreUrl ? (
+                        <DropdownMenuItem
+                          className="zura-menu-item--compact"
+                          onClick={() => window.shell?.openExternal(api.learnMoreUrl!)}
+                        >
+                          Learn more
+                        </DropdownMenuItem>
+                      ) : null}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </section>
     </div>
   )
 }

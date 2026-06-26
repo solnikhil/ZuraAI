@@ -24,6 +24,10 @@ import {
   type NvidiaResponse,
 } from '../services/nvidia'
 import {
+  generateOpencodeCompletion,
+  streamOpencodeCompletion,
+} from '../services/opencode'
+import {
   generateOllamaCompletion,
   streamOllamaCompletion,
   type OllamaResponse,
@@ -115,6 +119,7 @@ type TitleGenerationSettings = Pick<
   StreamingSettings,
   | 'alibabaApiKey'
   | 'deepseekApiKey'
+  | 'opencodeGoApiKey'
   | 'fireworksApiKey'
   | 'groqApiKey'
   | 'nvidiaApiKey'
@@ -435,6 +440,9 @@ function getProviderCredential(
     case 'deepseek':
       if (!settings.deepseekApiKey) throw new Error('DeepSeek API Key is missing')
       return settings.deepseekApiKey
+    case 'opencode':
+      if (!settings.opencodeGoApiKey) throw new Error('OpenCode Go API Key is missing')
+      return settings.opencodeGoApiKey
     case 'fireworks':
       if (!settings.fireworksApiKey) throw new Error('Fireworks API Key is missing')
       return settings.fireworksApiKey
@@ -449,6 +457,9 @@ function getProviderCredential(
 function normalizeProviderModel(provider: ActiveProviderId, model: string): string {
   if (provider === 'openrouter' && model.startsWith('openrouter/')) {
     return model.slice('openrouter/'.length)
+  }
+  if (provider === 'opencode' && model.startsWith('opencode-go/')) {
+    return model.slice('opencode-go/'.length)
   }
 
   return model
@@ -527,6 +538,16 @@ export async function generateProviderTitleText(
       )
       return extractTitleTextFromMessage(result.choices?.[0]?.message)
     }
+    case 'opencode': {
+      const options = { signal: generationOptions.signal, max_tokens: generationOptions.maxTokens }
+      const result = await generateOpencodeCompletion(
+        getProviderCredential(resolvedSettings, provider),
+        normalizedModel,
+        messages,
+        options
+      )
+      return extractTitleTextFromMessage(result.choices?.[0]?.message)
+    }
     case 'fireworks': {
       const options = { signal: generationOptions.signal, max_tokens: generationOptions.maxTokens }
       const result = await generateFireworksCompletion(
@@ -581,6 +602,7 @@ export async function generateTitleTextForModel(
         | 'alibabaModels'
         | 'fireworksModels'
         | 'deepseekModels'
+        | 'opencodeModels'
       >
     >,
   model: string,
@@ -681,6 +703,39 @@ export async function* streamProviderEvents(
       }
 
       for await (const chunk of streamGroqCompletion(apiKey, normalizedModel, request.messages, {
+        temperature: request.temperature,
+        max_tokens: request.maxTokens,
+        tools: request.tools || undefined,
+        toolChoice: request.toolChoice,
+        signal: request.signal,
+      })) {
+        const delta = chunk.choices?.[0]?.delta?.content || ''
+        if (delta) yield* yieldProgressiveTextDeltas(delta)
+        if (chunk.choices?.[0]?.delta?.tool_calls?.length) {
+          yield { type: 'tool-call-delta', delta: chunk.choices[0].delta.tool_calls }
+        }
+        if (chunk.usage) yield { type: 'usage', usage: normalizeUsage(chunk.usage), rawUsage: chunk.usage }
+        if (chunk.choices?.[0]?.finish_reason) {
+          yield { type: 'finish', finishReason: chunk.choices[0].finish_reason }
+        }
+      }
+      return
+    }
+    case 'opencode': {
+      const apiKey = getProviderCredential(settings, 'opencode')
+      if (request.streamResponses === false) {
+        const response = await generateOpencodeCompletion(apiKey, normalizedModel, request.messages, {
+          temperature: request.temperature,
+          max_tokens: request.maxTokens,
+          tools: request.tools || undefined,
+          toolChoice: request.toolChoice,
+          signal: request.signal,
+        })
+        yield* emitOpenAiCompatibleResponse(response)
+        return
+      }
+
+      for await (const chunk of streamOpencodeCompletion(apiKey, normalizedModel, request.messages, {
         temperature: request.temperature,
         max_tokens: request.maxTokens,
         tools: request.tools || undefined,

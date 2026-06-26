@@ -12,6 +12,7 @@ export interface ModelDisplaySettingsLike {
   fireworksModels?: ModelOption[]
   nvidiaModels?: ModelOption[]
   deepseekModels?: ModelOption[]
+  opencodeModels?: ModelOption[]
 }
 
 export function getModelDisplayName(settings: ModelDisplaySettingsLike): string {

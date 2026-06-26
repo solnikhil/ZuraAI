@@ -19,6 +19,7 @@ interface SecureData {
   tavilyApiKey?: string
   alibabaApiKey?: string
   deepseekApiKey?: string
+  opencodeGoApiKey?: string
   fireworksApiKey?: string
   nvidiaApiKey?: string
   brevoApiKey?: string

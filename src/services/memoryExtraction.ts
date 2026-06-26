@@ -45,6 +45,7 @@ type ExtractionSettings = Partial<
     | 'memoryModel'
     | 'alibabaApiKey'
     | 'deepseekApiKey'
+    | 'opencodeGoApiKey'
     | 'fireworksApiKey'
     | 'nvidiaApiKey'
     | 'groqApiKey'
@@ -59,6 +60,7 @@ type ExtractionSettings = Partial<
     | 'fireworksModels'
     | 'nvidiaModels'
     | 'deepseekModels'
+    | 'opencodeModels'
   >
 > & { skills?: SkillsSettings }
 

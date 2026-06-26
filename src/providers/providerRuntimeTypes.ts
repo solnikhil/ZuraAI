@@ -88,6 +88,7 @@ export interface ProviderRuntimeSettings {
   streamResponses: boolean
   alibabaApiKey?: string
   deepseekApiKey?: string
+  opencodeGoApiKey?: string
   fireworksApiKey?: string
   groqApiKey?: string
   nvidiaApiKey?: string

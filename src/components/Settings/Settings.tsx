@@ -283,6 +283,7 @@ if (!hasSettingsChanges && !hasMcpChanges) {
                 onParamsConsumed={clearParams}
                 alibabaApiKey={pendingSettings.alibabaApiKey}
                 deepseekApiKey={pendingSettings.deepseekApiKey}
+                opencodeGoApiKey={pendingSettings.opencodeGoApiKey}
                 fireworksApiKey={pendingSettings.fireworksApiKey}
                 nvidiaApiKey={pendingSettings.nvidiaApiKey}
                 groqApiKey={pendingSettings.groqApiKey}
@@ -299,6 +300,7 @@ if (!hasSettingsChanges && !hasMcpChanges) {
                 configuredModels={pendingSettings.configuredModels}
                 alibabaModels={pendingSettings.alibabaModels}
                 deepseekModels={pendingSettings.deepseekModels}
+                opencodeModels={pendingSettings.opencodeModels}
                 fireworksModels={pendingSettings.fireworksModels}
                 nvidiaModels={pendingSettings.nvidiaModels}
                 groqModels={pendingSettings.groqModels}

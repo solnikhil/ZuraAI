@@ -79,6 +79,16 @@ describe('commandBar suggestions', () => {
       expect(openrouterSuggestion?.title).toBe('OpenRouter Settings')
     })
 
+    it('offers OpenCode Go settings when typing opencode', () => {
+      const suggestions = getCommandBarSuggestions('opencode', {
+        hasCurrentSession: false,
+      })
+
+      const opencodeSuggestion = suggestions.find((s) => s.id === 'go-settings-opencode')
+      expect(opencodeSuggestion).toBeDefined()
+      expect(opencodeSuggestion?.title).toBe('OpenCode Go Settings')
+    })
+
     it('offers Groq settings when typing groq', () => {
       const suggestions = getCommandBarSuggestions('groq', {
         hasCurrentSession: false,

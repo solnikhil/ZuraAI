@@ -13,6 +13,8 @@ const mocks = vi.hoisted(() => ({
   generateFireworksCompletion: vi.fn(),
   streamNvidiaCompletion: vi.fn(),
   generateNvidiaCompletion: vi.fn(),
+  streamOpencodeCompletion: vi.fn(),
+  generateOpencodeCompletion: vi.fn(),
   streamOllamaCompletion: vi.fn(),
   generateOllamaCompletion: vi.fn(),
   streamPerplexityCompletion: vi.fn(),
@@ -47,6 +49,11 @@ vi.mock('../../../../../services/fireworks', () => ({
 vi.mock('../../../../../services/nvidia', () => ({
   streamNvidiaCompletion: mocks.streamNvidiaCompletion,
   generateNvidiaCompletion: mocks.generateNvidiaCompletion,
+}))
+
+vi.mock('../../../../../services/opencode', () => ({
+  streamOpencodeCompletion: mocks.streamOpencodeCompletion,
+  generateOpencodeCompletion: mocks.generateOpencodeCompletion,
 }))
 
 vi.mock('../../../../../services/ollama', () => ({
@@ -471,6 +478,83 @@ describe('createProviderStreamClient', () => {
         enableThinking: true,
       })
     )
+  })
+
+  it('normalizes OpenCode Go streaming events through the shared provider client', async () => {
+    mocks.streamOpencodeCompletion.mockImplementation(async function* (
+      _apiKey: string,
+      model: string
+    ) {
+      expect(model).toBe('glm-5.2')
+      yield {
+        choices: [{ delta: { content: 'Hello' } }],
+      }
+      yield {
+        choices: [{
+          delta: {
+            tool_calls: [{
+              index: 0,
+              id: 'call_1',
+              type: 'function',
+              function: { name: 'web_search', arguments: '{"query":"zura"}' },
+            }],
+          },
+        }],
+      }
+      yield {
+        choices: [{ finish_reason: 'tool_calls' }],
+        usage: { prompt_tokens: 6, completion_tokens: 4, total_tokens: 10 },
+      }
+    })
+
+    const client = createProviderStreamClient(
+      {
+        aiModel: 'glm-5.2',
+        modelProvider: 'opencode',
+        temperature: 0.4,
+        maxTokens: 2048,
+        streamResponses: true,
+        opencodeGoApiKey: 'go-key',
+      },
+      'opencode'
+    )
+
+    const events = await collect(client.stream({
+      provider: 'opencode',
+      model: 'opencode-go/glm-5.2',
+      messages: [{ role: 'user', content: 'hello' }],
+      streamResponses: true,
+    }))
+
+    expect(events.some((event) => event.type === 'text-delta')).toBe(true)
+    expect(events).toContainEqual({
+      type: 'tool-call-delta',
+      delta: [{
+        index: 0,
+        id: 'call_1',
+        type: 'function',
+        function: { name: 'web_search', arguments: '{"query":"zura"}' },
+      }],
+    })
+    expect(events).toContainEqual({
+      type: 'usage',
+      usage: {
+        inputTokens: 6,
+        outputTokens: 4,
+        totalTokens: 10,
+        thinkingTokens: undefined,
+        cachedInputTokens: undefined,
+        cachedOutputTokens: undefined,
+        cacheMissInputTokens: undefined,
+        cacheWriteInputTokens: undefined,
+      },
+      rawUsage: expect.objectContaining({
+        prompt_tokens: 6,
+        completion_tokens: 4,
+        total_tokens: 10,
+      }),
+    })
+    expect(events).toContainEqual({ type: 'finish', finishReason: 'tool_calls' })
   })
 
   it('extracts OpenRouter reasoning summaries when text reasoning is not present', async () => {

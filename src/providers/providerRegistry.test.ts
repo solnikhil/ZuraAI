@@ -25,6 +25,7 @@ describe('providerRegistry', () => {
       'perplexity',
       'ollama',
       'fireworks',
+      'opencode',
       'nvidia',
     ])
     expect(normalizeActiveProviderId('fireworks')).toBe('fireworks')
@@ -39,6 +40,10 @@ describe('providerRegistry', () => {
     expect(getProviderEndpoint('ollama', 'defaultLocalUrl')).toBe(DEFAULT_OLLAMA_URL)
     expect(getProviderEndpoint('nvidia', 'chatCompletionsUrl')).toBe(
       'https://integrate.api.nvidia.com/v1/chat/completions'
+    )
+    expect(getProviderEndpoint('opencode', 'baseUrl')).toBe('https://opencode.ai/zen/go/v1')
+    expect(getProviderEndpoint('opencode', 'chatCompletionsUrl')).toBe(
+      'https://opencode.ai/zen/go/v1/chat/completions'
     )
     expect(getProviderRetryPolicy('openrouter')).toMatchObject({
       maxRetries: 3,
@@ -78,6 +83,8 @@ describe('providerRegistry', () => {
     expect(hasProviderAccess(settings, 'groq')).toBe(false)
     expect(hasProviderAccess(settings, 'deepseek')).toBe(true)
     expect(hasProviderAccess(settings, 'nvidia')).toBe(true)
+    expect(hasProviderAccess({ ...settings, opencodeGoApiKey: 'go-key' }, 'opencode')).toBe(true)
+    expect(hasProviderAccess({ ...settings, opencodeGoApiKey: '' }, 'opencode')).toBe(false)
     expect(getProviderCredentialError(settings, 'groq')).toContain('Groq API key is required')
     expect(providerSupportsTools('perplexity')).toBe(false)
     expect(providerUsesNativeSearch('perplexity')).toBe(true)

@@ -694,12 +694,13 @@
   bottom: 0;
   z-index: 3;
   pointer-events: auto;
-  padding: 0 8px 8px 4px;
+  padding: 6px 8px 8px 4px;
   background: var(--theme-sidebar-solid);
+  border-top: 1px solid color-mix(in srgb, var(--theme-border) 72%, transparent);
 }
 
-.sidebar-footer-wrapper::before {
-  content: none;
+.sidebar-container.frosted .sidebar-footer-wrapper {
+  border-top-color: color-mix(in srgb, var(--theme-border) 96%, rgba(255, 255, 255, 0.06));
 }
 
 .sidebar-footer-row {

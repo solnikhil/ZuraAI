@@ -103,6 +103,7 @@ export interface SettingsConfig {
   fireworksApiKey: string
   nvidiaApiKey: string
   deepseekApiKey: string
+  opencodeGoApiKey: string
   onlineCompilerApiKey: string
   brevoApiKey: string
 
@@ -119,6 +120,7 @@ export interface SettingsConfig {
   fireworksModels: ConfiguredModel[]
   nvidiaModels: ConfiguredModel[]
   deepseekModels: ConfiguredModel[]
+  opencodeModels: ConfiguredModel[]
 
   /**
    * Per-model DeepSeek reasoning ("thinking mode") preferences, keyed by model
@@ -230,6 +232,7 @@ export const defaultSettingsConfig: SettingsConfig = {
   fireworksApiKey: '',
   nvidiaApiKey: '',
   deepseekApiKey: '',
+  opencodeGoApiKey: '',
 
   onlineCompilerApiKey: '',
   brevoApiKey: '',
@@ -337,6 +340,14 @@ export const defaultSettingsConfig: SettingsConfig = {
   deepseekModels: [
     { code: 'deepseek-v4-flash', displayName: 'DeepSeek V4 Flash', enabled: true, maxContext: 1048576, supportsToolCall: true, modelType: 'chat' },
     { code: 'deepseek-v4-pro', displayName: 'DeepSeek V4 Pro', enabled: true, maxContext: 1048576, supportsToolCall: true, supportsDeepThinking: true, modelType: 'reasoning' },
+  ],
+  opencodeModels: [
+    { code: 'deepseek-v4-pro', displayName: 'DeepSeek V4 Pro', enabled: true, maxContext: 1048576, supportsToolCall: true, modelType: 'chat' },
+    { code: 'kimi-k2.7', displayName: 'Kimi K2.7 Code', enabled: true, maxContext: 262144, supportsToolCall: true, modelType: 'chat' },
+    { code: 'glm-5.2', displayName: 'GLM 5.2', enabled: true, maxContext: 131072, supportsToolCall: true, modelType: 'chat' },
+    { code: 'qwen3.7-plus', displayName: 'Qwen3.7 Plus', enabled: true, maxContext: 262144, supportsToolCall: true, modelType: 'chat' },
+    { code: 'minimax-m3', displayName: 'MiniMax M3', enabled: true, maxContext: 1048576, supportsToolCall: true, modelType: 'chat' },
+    { code: 'deepseek-v4-flash', displayName: 'DeepSeek V4 Flash', enabled: true, maxContext: 1048576, supportsToolCall: true, modelType: 'chat' },
   ],
 
   // AI parameters

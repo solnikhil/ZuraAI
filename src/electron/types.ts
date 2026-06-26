@@ -167,6 +167,7 @@ export type SecureStorageKey =
   | 'tavilyApiKey'
   | 'alibabaApiKey'
   | 'deepseekApiKey'
+  | 'opencodeGoApiKey'
   | 'fireworksApiKey'
   | 'nvidiaApiKey'
   | 'onlineCompilerApiKey'

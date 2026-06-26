@@ -212,6 +212,19 @@ Rules:
       expect(defaultSettingsConfig.alibabaModels).toEqual([])
     })
 
+    it('defaults OpenCode Go models to at least five recommended models', async () => {
+      const { defaultSettingsConfig } = await import('./SettingsConfigContext')
+      expect(defaultSettingsConfig.opencodeGoApiKey).toBe('')
+      expect(defaultSettingsConfig.opencodeModels.length).toBeGreaterThanOrEqual(5)
+      expect(defaultSettingsConfig.opencodeModels).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ code: 'deepseek-v4-pro', enabled: true }),
+          expect.objectContaining({ code: 'glm-5.2', enabled: true }),
+          expect.objectContaining({ code: 'qwen3.7-plus', enabled: true }),
+        ])
+      )
+    })
+
     it('defaults DeepSeek models to the documented v4 model ids', async () => {
       const { defaultSettingsConfig } = await import('./SettingsConfigContext')
       expect(defaultSettingsConfig.deepseekModels).toEqual([
@@ -238,6 +251,7 @@ Rules:
         nvidia: true,
         ollama: true,
         openrouter: true,
+        opencode: true,
         perplexity: true,
       })
     })
@@ -247,6 +261,7 @@ Rules:
         stripSecretSettings({
           openRouterApiKey: 'or-key',
           deepseekApiKey: 'deepseek-key',
+          opencodeGoApiKey: 'opencode-key',
           nvidiaApiKey: 'nvidia-key',
           tavilyApiKey: 'tavily-key',
           onlineCompilerApiKey: 'compiler-key',

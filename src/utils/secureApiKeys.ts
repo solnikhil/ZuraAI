@@ -16,6 +16,7 @@ export const SECURE_API_KEY_PRESENT_VALUE = '__zura_secure_key_present__'
 type SecureApiKeyValues = {
     alibabaApiKey: string
     deepseekApiKey: string
+    opencodeGoApiKey: string
     fireworksApiKey: string
     groqApiKey: string
     nvidiaApiKey: string
@@ -30,6 +31,7 @@ function defaultSecureApiKeys(): SecureApiKeyValues {
     return {
         alibabaApiKey: '',
         deepseekApiKey: '',
+        opencodeGoApiKey: '',
         fireworksApiKey: '',
         groqApiKey: '',
         nvidiaApiKey: '',
@@ -108,6 +110,7 @@ export async function resolveApiKeyFromSecureStorage(
 export async function resolveProviderApiKeysForSettings<TSettings extends {
     alibabaApiKey?: string
     deepseekApiKey?: string
+    opencodeGoApiKey?: string
     fireworksApiKey?: string
     groqApiKey?: string
     nvidiaApiKey?: string
@@ -115,11 +118,12 @@ export async function resolveProviderApiKeysForSettings<TSettings extends {
     perplexityApiKey?: string
 }>(
     settings: TSettings,
-    provider: 'alibaba' | 'deepseek' | 'fireworks' | 'groq' | 'nvidia' | 'openrouter' | 'perplexity' | 'ollama'
+    provider: 'alibaba' | 'deepseek' | 'fireworks' | 'groq' | 'nvidia' | 'openrouter' | 'opencode' | 'perplexity' | 'ollama'
 ): Promise<TSettings> {
     const providerKeyMap = {
         alibaba: 'alibabaApiKey',
         deepseek: 'deepseekApiKey',
+        opencode: 'opencodeGoApiKey',
         fireworks: 'fireworksApiKey',
         groq: 'groqApiKey',
         nvidia: 'nvidiaApiKey',
