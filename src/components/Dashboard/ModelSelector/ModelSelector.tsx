@@ -15,7 +15,6 @@ import type { DeepSeekReasoningEffort } from '../../../contexts/SettingsConfigCo
 import { DropdownMenu, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import './ModelSelector.css'
 
 export interface ModelSelectorProps {
   minimal?: boolean

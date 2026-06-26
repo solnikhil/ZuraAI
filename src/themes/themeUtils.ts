@@ -1,5 +1,9 @@
 import { ColorPalette, Theme } from './themeDefinitions'
-import { derivePaletteFromBase, mixHex } from './themeRegistry'
+import {
+  derivePaletteFromBase,
+  getLightChromeBackground,
+  mixHex,
+} from './themeRegistry'
 
 const THEME_CSS_VAR_MAP = {
   background: '--theme-background',
@@ -117,10 +121,17 @@ export function applyThemeToDocument(theme: Theme, options?: ApplyThemeOptions):
     root.style.setProperty(cssVar, value)
   }
 
-  root.style.setProperty('--theme-sidebar-solid', effectiveTheme.colors.background)
-  const contentMixTarget = effectiveTheme.isDark ? '#ffffff' : '#000000'
-  const contentMixAmount = effectiveTheme.isDark ? 0.04 : 0.018
-  const contentSolid = mixHex(effectiveTheme.colors.background, contentMixTarget, contentMixAmount)
+  const sidebarSolid = effectiveTheme.isDark
+    ? effectiveTheme.colors.background
+    : getLightChromeBackground(
+        effectiveTheme.baseColors.background,
+        effectiveTheme.baseColors.accent
+      )
+  const contentSolid = effectiveTheme.isDark
+    ? mixHex(effectiveTheme.colors.background, '#ffffff', 0.04)
+    : effectiveTheme.colors.background
+
+  root.style.setProperty('--theme-sidebar-solid', sidebarSolid)
   root.style.setProperty('--theme-raise-mix-target', effectiveTheme.isDark ? '#ffffff' : '#000000')
   root.style.setProperty('--theme-well-mix-target', effectiveTheme.isDark ? '#000000' : '#ffffff')
   root.style.setProperty('--theme-content-solid', contentSolid)

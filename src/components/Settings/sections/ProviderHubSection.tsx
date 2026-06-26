@@ -1065,7 +1065,7 @@ export function ProviderHubSection({
                             >
                               <SelectValue placeholder="Select model" />
                             </SelectTrigger>
-                            <SelectContent>
+                            <SelectContent className="settings-menu-surface">
                               {providerModels.map((model) => (
                                 <SelectItem key={model.code} value={model.code}>
                                   {model.code}
@@ -1771,7 +1771,7 @@ function ModelGroup({
                     <MoreVertical size={14} />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="zura-menu-surface--compact">
+                <DropdownMenuContent align="end" className="settings-menu-surface zura-menu-surface--compact">
                   <DropdownMenuItem
                     className="zura-menu-item--compact"
                     onSelect={(e) => {
@@ -2117,7 +2117,7 @@ function SearchApiDetail({
                         <SelectTrigger className="border-border bg-secondary">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="settings-menu-surface">
                           <SelectItem value="auto">Auto</SelectItem>
                           <SelectItem value="ultra-fast">Lightning</SelectItem>
                           <SelectItem value="fast">Fast</SelectItem>

@@ -13,9 +13,14 @@ import {
 import {
   getDefaultTheme,
   getThemeById,
+  getResolvedTheme,
+  getLightChromeBackground,
+  getLightContentBackground,
   mixHex,
   normalizeActiveThemeId,
+  resolveEffectiveIsDark,
 } from './themeRegistry'
+import { normalizeStoredSettings } from '../contexts/settingsStore'
 
 describe('themeUtils', () => {
   describe('getThemeCssVariables', () => {
@@ -71,6 +76,20 @@ describe('themeUtils', () => {
       applyThemeToDocument(theme)
       expect(document.documentElement.classList.contains('dark')).toBe(theme.isDark)
       expect(document.documentElement.style.colorScheme).toBe('dark')
+    })
+
+    it('uses separate sidebar chrome and content surfaces in light mode', () => {
+      const theme = getThemeById('quiet-sage', false)!
+      applyThemeToDocument(theme)
+
+      const sidebar = document.documentElement.style.getPropertyValue('--theme-sidebar-solid')
+      const content = document.documentElement.style.getPropertyValue('--theme-content-solid')
+
+      expect(sidebar).toBe(
+        getLightChromeBackground(theme.baseColors.background, theme.baseColors.accent)
+      )
+      expect(content).toBe(theme.colors.background)
+      expect(sidebar).not.toBe(content)
     })
 
     it('applies custom accent color when provided', () => {
@@ -160,18 +179,81 @@ describe('themeUtils', () => {
       expect(theme?.baseColors.background).toBe('#1a1d22')
     })
 
-    it('migrates removed theme presets to their replacements', () => {
+    it('migrates removed theme presets to their shared replacements', () => {
       expect(normalizeActiveThemeId('charcoal')).toBe('graphite')
       expect(normalizeActiveThemeId('void')).toBe('graphite')
       expect(normalizeActiveThemeId('noir')).toBe('zuraai')
-      expect(normalizeActiveThemeId('paper-trail')).toBe('zuraai-light')
+      expect(normalizeActiveThemeId('paper-trail')).toBe('zuraai')
+      expect(normalizeActiveThemeId('zuraai-light')).toBe('zuraai')
     })
 
     it('resolves removed theme ids through getThemeById', () => {
       expect(getThemeById('charcoal')?.id).toBe('graphite')
       expect(getThemeById('void')?.id).toBe('graphite')
       expect(getThemeById('noir')?.id).toBe('zuraai')
-      expect(getThemeById('paper-trail')?.id).toBe('zuraai-light')
+      expect(getThemeById('paper-trail')?.id).toBe('zuraai')
+      expect(getThemeById('zuraai-light')?.id).toBe('zuraai')
+    })
+
+    it('returns different base colors for the same preset id under light and dark', () => {
+      const darkTheme = getThemeById('zuraai', true)
+      const lightTheme = getThemeById('zuraai', false)
+
+      expect(darkTheme?.id).toBe('zuraai')
+      expect(lightTheme?.id).toBe('zuraai')
+      expect(darkTheme?.name).toBe(lightTheme?.name)
+      expect(darkTheme?.baseColors.background).not.toBe(lightTheme?.baseColors.background)
+      expect(darkTheme?.isDark).toBe(true)
+      expect(lightTheme?.isDark).toBe(false)
+    })
+
+    it('splits light mode into tinted chrome and a cleaner content workspace', () => {
+      const lightTheme = getThemeById('quiet-sage', false)
+      const chrome = getLightChromeBackground(
+        lightTheme!.baseColors.background,
+        lightTheme!.baseColors.accent
+      )
+      const content = getLightContentBackground(chrome)
+
+      expect(lightTheme?.colors.background).toBe(content)
+      expect(content).not.toBe(chrome)
+      expect(lightTheme?.colors.surface).not.toBe(lightTheme?.colors.background)
+    })
+
+    it('resolves theme variation from active preset and appearance mode', () => {
+      const darkResolved = getResolvedTheme('warm-ledger', 'dark', false)
+      const lightResolved = getResolvedTheme('warm-ledger', 'light', true)
+
+      expect(darkResolved.id).toBe('warm-ledger')
+      expect(lightResolved.id).toBe('warm-ledger')
+      expect(darkResolved.baseColors.background).toBe('#1e1c19')
+      expect(lightResolved.baseColors.background).toBe('#d6c9b8')
+      expect(lightResolved.colors.background).toBe(
+        getLightContentBackground(
+          getLightChromeBackground(lightResolved.baseColors.background, lightResolved.baseColors.accent)
+        )
+      )
+    })
+
+    it('uses system preference when appearance mode is system', () => {
+      expect(resolveEffectiveIsDark('system', true)).toBe(true)
+      expect(resolveEffectiveIsDark('system', false)).toBe(false)
+      expect(resolveEffectiveIsDark('light', true)).toBe(false)
+      expect(resolveEffectiveIsDark('dark', false)).toBe(true)
+    })
+
+    it('normalizes legacy polarized activeTheme ids in stored settings', () => {
+      const normalized = normalizeStoredSettings(
+        JSON.stringify({
+          activeTheme: 'zuraai-light',
+          theme: 'light',
+          themeContrast: 85,
+        })
+      )
+
+      expect(normalized.activeTheme).toBe('zuraai')
+      expect(normalized.theme).toBe('light')
+      expect(normalized.themeContrast).toBe(85)
     })
   })
 })

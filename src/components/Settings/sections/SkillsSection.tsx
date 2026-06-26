@@ -172,7 +172,7 @@ function SkillCatalogGroup({
                         <MoreHorizontal size={15} />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="zura-menu-surface--compact">
+                    <DropdownMenuContent align="end" className="settings-menu-surface zura-menu-surface--compact">
                       <DropdownMenuItem className="zura-menu-item--compact" onClick={() => setEnabled(skill.id, false)}>
                         Disable
                       </DropdownMenuItem>

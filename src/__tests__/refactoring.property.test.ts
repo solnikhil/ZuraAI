@@ -113,7 +113,6 @@ describe('Codebase Reorganization Properties', () => {
         'src/components/Dashboard/ModelSelector/index.ts',
         'src/components/Dashboard/ModelSelector/ModelSelector.tsx',
         'src/components/Dashboard/ModelSelector/ModelSelectorDropdown.tsx',
-        'src/components/Dashboard/ModelSelector/ModelList.tsx',
         'src/components/Dashboard/ModelSelector/useModelSelector.ts',
         'src/components/Dashboard/ModelSelector/types.ts',
         'src/components/Dashboard/ModelSelector/ModelIcon.tsx',
@@ -227,11 +226,6 @@ describe('Codebase Reorganization Properties', () => {
         component: 'src/components/Settings/Settings.tsx',
         css: 'src/components/Settings/Settings.css',
         description: 'Settings component',
-      },
-      {
-        component: 'src/components/Dashboard/ModelSelector/ModelSelector.tsx',
-        css: 'src/components/Dashboard/ModelSelector/ModelSelector.css',
-        description: 'ModelSelector component',
       },
     ]
 

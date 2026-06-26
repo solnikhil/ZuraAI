@@ -1,14 +1,9 @@
 /**
  * Type definitions for ModelSelector components
- *
  */
 
-import React from 'react'
 import type { ActiveProviderId } from '../../../providers'
 
-/**
- * Model with provider information
- */
 export interface ModelWithProvider {
   code: string
   displayName: string
@@ -25,43 +20,4 @@ export interface ModelWithProvider {
   openRouterReasoningDetected?: boolean
 }
 
-/**
- * View mode for the model selector
- */
-export type ViewMode = 'favorites' | 'all'
-
-/**
- * Responsive compact mode for model selector UI
- */
-export type ModelSelectorCompactMode = 'none' | 'compact' | 'tight'
-
-/**
- * Provider key type union
- */
-export type ProviderKey =
-  ActiveProviderId
-
-/**
- * Provider configuration
- */
-export interface ProviderConfig {
-  key: string
-  title: string
-  icon: React.ReactNode
-  color: string
-  logo: boolean
-}
-
-/**
- * Grouped models by provider
- */
 export type GroupedModels = Record<string, ModelWithProvider[]>
-
-/**
- * Dropdown position state
- */
-export interface DropdownPositionState {
-  top: number
-  left: number
-  showAbove: boolean
-}

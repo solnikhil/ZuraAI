@@ -345,7 +345,11 @@
         color 120ms var(--motion-ease-standard);
 }
 
-.zura-menu-trigger:hover,
+.zura-menu-trigger:hover {
+    background: var(--theme-surface);
+    border-color: color-mix(in srgb, var(--theme-border) 96%, var(--theme-text-primary));
+}
+
 .zura-menu-trigger:focus-visible,
 .zura-menu-trigger[data-state='open'],
 .zura-menu-trigger[aria-expanded='true'] {

@@ -4,7 +4,7 @@
  *
  */
 
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo } from 'react'
 
 import { Card } from '@/components/ui/card'
 import {
@@ -17,17 +17,12 @@ import {
 import { Switch } from '@/components/ui/switch'
 import type { Settings } from '../../../contexts/SettingsContext'
 import type { ChatSelectedOverlayStyle } from '../../../contexts/SettingsUIContext'
-import { defaultSettingsUI } from '../../../contexts/SettingsUIContext'
 import {
   ASSISTANT_PERSONALITIES,
   normalizeAssistantPersonalityId,
   type AssistantPersonalityId,
 } from '../../../prompts/assistantPersonalities'
-import {
-  getThemeById,
-  getDefaultTheme,
-  getThemesByCategory,
-} from '../../../themes/themeRegistry'
+import { getThemesByCategory, type ThemeMode } from '../../../themes/themeRegistry'
 import {
   DEFAULT_FONT_SCALE,
   MAX_FONT_SCALE,
@@ -56,26 +51,6 @@ import {
 function clampNumber(value: number, min: number, max: number): number {
   if (Number.isNaN(value)) return min
   return Math.min(max, Math.max(min, value))
-}
-
-function isValidHexColor(color: string): boolean {
-  return /^#[0-9A-Fa-f]{6}$/.test(color)
-}
-
-function normalizeHexColor(color: string): string {
-  if (!color) return ''
-  const trimmed = color.trim()
-  if (isValidHexColor(trimmed)) return trimmed
-  if (/^[0-9A-Fa-f]{6}$/.test(trimmed)) return `#${trimmed}`
-  if (/^#[0-9A-Fa-f]{3}$/.test(trimmed)) {
-    const [, r, g, b] = trimmed
-    return `#${r}${r}${g}${g}${b}${b}`
-  }
-  if (/^[0-9A-Fa-f]{3}$/.test(trimmed)) {
-    const [r, g, b] = trimmed
-    return `#${r}${r}${g}${g}${b}${b}`
-  }
-  return trimmed
 }
 
 const chatBubblePresets = [
@@ -210,28 +185,46 @@ const chatSelectedOverlayPresets: Array<{
   },
 ]
 
-function AppearanceModePreview({ mode }: { mode: 'system' | 'light' | 'dark' }): React.ReactElement {
-  const workspaceLines = (
+function AppearanceModePreviewWorkspace(): React.ReactElement {
+  return (
     <span className="appearance-mode-picker__preview-main">
       <span />
       <span />
       <span />
     </span>
   )
+}
 
+function AppearanceModePreview({ mode }: { mode: 'system' | 'light' | 'dark' }): React.ReactElement {
   if (mode === 'system') {
     return (
-      <span className="appearance-mode-picker__preview" aria-hidden="true">
-        <span className="appearance-mode-picker__preview-sidebar" />
-        {workspaceLines}
+      <span
+        className="appearance-mode-picker__preview appearance-mode-picker__preview--system"
+        aria-hidden="true"
+      >
+        <span className="appearance-mode-picker__preview-duo">
+          <span className="appearance-mode-picker__preview-pane appearance-mode-picker__preview-pane--light">
+            <span className="appearance-mode-picker__preview-sidebar appearance-mode-picker__preview-sidebar--light" />
+            <AppearanceModePreviewWorkspace />
+          </span>
+          <span className="appearance-mode-picker__preview-pane appearance-mode-picker__preview-pane--dark">
+            <span className="appearance-mode-picker__preview-sidebar appearance-mode-picker__preview-sidebar--dark" />
+            <AppearanceModePreviewWorkspace />
+          </span>
+        </span>
       </span>
     )
   }
 
   return (
-    <span className="appearance-mode-picker__preview" aria-hidden="true">
-      <span className="appearance-mode-picker__preview-sidebar" />
-      {workspaceLines}
+    <span
+      className={`appearance-mode-picker__preview appearance-mode-picker__preview--${mode}`}
+      aria-hidden="true"
+    >
+      <span
+        className={`appearance-mode-picker__preview-sidebar appearance-mode-picker__preview-sidebar--${mode}`}
+      />
+      <AppearanceModePreviewWorkspace />
     </span>
   )
 }
@@ -274,10 +267,6 @@ export function AppearanceSection({
   const updateSettings = (changes: Partial<typeof settings>) => onChange(changes)
   const currentChatBubbleStyle = settings.chatBubbleStyle || 'solid'
   const currentChatSelectedOverlayStyle = settings.chatSelectedOverlayStyle || 'linear'
-  const [accentInput, setAccentInput] = useState('')
-  const [backgroundInput, setBackgroundInput] = useState('')
-  const [foregroundInput, setForegroundInput] = useState('')
-
   // Consume the initialCommandPaletteTab param (no longer needed for tab switching but keep the callback)
   useEffect(() => {
     if (initialCommandPaletteTab) {
@@ -285,11 +274,6 @@ export function AppearanceSection({
     }
   }, [initialCommandPaletteTab, onParamsConsumed])
 
-  // Helper to get modelSelector with defaults
-  const getModelSelector = () => ({
-    ...defaultSettingsUI.modelSelector!,
-    ...settings.modelSelector,
-  })
   const commandBar = settings.commandBar
   const maxRecents = clampNumber(commandBar.maxRecents, 0, 3)
   const maxSuggestions = clampNumber(commandBar.maxSuggestions, 3, 12)
@@ -344,88 +328,32 @@ export function AppearanceSection({
     })
   }
 
-  const currentTheme = getThemeById(settings.activeTheme) || getDefaultTheme()
   const currentContrast = settings.themeContrast ?? 100
   const currentFontScale = normalizeFontScale(settings.fontScale ?? DEFAULT_FONT_SCALE)
-  const themeAccentColor = settings.themeAccent ?? currentTheme.baseColors.accent
-  const themeBackgroundColor = settings.themeBackground ?? currentTheme.baseColors.background
-  const themeForegroundColor = settings.themeForeground ?? currentTheme.baseColors.foreground
-
-  useEffect(() => {
-    setAccentInput(themeAccentColor)
-    setBackgroundInput(themeBackgroundColor)
-    setForegroundInput(themeForegroundColor)
-  }, [themeAccentColor, themeBackgroundColor, themeForegroundColor])
 
   const allThemes = useMemo(() => getThemesByCategory('all'), [])
-  const hasCustomThemeOverrides =
-    settings.themeAccent !== undefined ||
-    settings.themeBackground !== undefined ||
-    settings.themeForeground !== undefined ||
-    currentContrast !== 100
-  const activeThemeMode = settings.theme === 'system' ? 'system' : currentTheme.isDark ? 'dark' : 'light'
+  const hasCustomThemeOverrides = currentContrast !== 100
+  const activeThemeMode: ThemeMode = settings.theme
 
   const handleThemePresetChange = (themeId: string) => {
-    const selectedTheme = getThemeById(themeId)
-    if (selectedTheme) {
-      updateSettings({
-        activeTheme: themeId,
-        theme: selectedTheme.isDark ? 'dark' : 'light',
-        themeAccent: undefined,
-        themeBackground: undefined,
-        themeForeground: undefined,
-        themeContrast: 100,
-      })
-    }
+    updateSettings({
+      activeTheme: themeId,
+      themeAccent: undefined,
+      themeBackground: undefined,
+      themeForeground: undefined,
+      themeContrast: 100,
+    })
   }
 
-  const handleThemeModeChange = (mode: 'system' | 'light' | 'dark') => {
+  const handleThemeModeChange = (mode: ThemeMode) => {
     if (mode === activeThemeMode) return
-    if (mode === 'system') {
-      const systemPrefersDark =
-        typeof window === 'undefined' || typeof window.matchMedia !== 'function'
-          ? true
-          : window.matchMedia('(prefers-color-scheme: dark)').matches
-      updateSettings({
-        activeTheme: systemPrefersDark ? 'zuraai' : 'zuraai-light',
-        theme: 'system',
-        themeAccent: undefined,
-        themeBackground: undefined,
-        themeForeground: undefined,
-        themeContrast: 100,
-      })
-      return
-    }
-    handleThemePresetChange(mode === 'light' ? 'zuraai-light' : 'zuraai')
-  }
-
-  const commitThemeColor = (
-    key: 'themeAccent' | 'themeBackground' | 'themeForeground',
-    value: string,
-    fallback: string
-  ) => {
-    const normalized = normalizeHexColor(value)
-    if (!normalized) {
-      updateSettings({ [key]: undefined } as Partial<Settings>)
-      return fallback
-    }
-
-    if (!isValidHexColor(normalized)) {
-      return fallback
-    }
-
-    updateSettings({ [key]: normalized } as Partial<Settings>)
-    return normalized
-  }
-
-  const handleColorInputKeyDown = (
-    event: React.KeyboardEvent<HTMLInputElement>,
-    commit: () => void
-  ) => {
-    if (event.key === 'Enter') {
-      event.currentTarget.blur()
-      commit()
-    }
+    updateSettings({
+      theme: mode,
+      themeAccent: undefined,
+      themeBackground: undefined,
+      themeForeground: undefined,
+      themeContrast: 100,
+    })
   }
 
   const resetThemeCustomization = () => {
@@ -501,7 +429,7 @@ export function AppearanceSection({
             <div className="settings-list-row__meta">
               <h3 className="settings-list-row__label">Preset</h3>
               <div className="settings-list-row__description">
-                Choose a base theme preset, then fine-tune colors below if needed
+                Choose a base theme preset for the active appearance mode
               </div>
             </div>
             <div className="settings-list-row__control">
@@ -521,120 +449,6 @@ export function AppearanceSection({
                     Reset
                   </button>
                 )}
-              </div>
-            </div>
-          </div>
-
-          <div className="settings-list-row">
-            <div className="settings-list-row__meta">
-              <h3 className="settings-list-row__label">Accent</h3>
-              <div className="settings-list-row__description">
-                Primary accent color for highlights and buttons
-              </div>
-            </div>
-            <div className="settings-list-row__control">
-              <div className="theme-control-group">
-              <input
-                type="color"
-                value={themeAccentColor}
-                onChange={(event) => updateSettings({ themeAccent: event.target.value })}
-                className="theme-color-picker"
-                aria-label="Accent color"
-              />
-              <input
-                type="text"
-                value={accentInput}
-                onChange={(event) => setAccentInput(normalizeHexColor(event.target.value))}
-                onBlur={() => setAccentInput(commitThemeColor('themeAccent', accentInput, themeAccentColor))}
-                onKeyDown={(event) =>
-                  handleColorInputKeyDown(event, () =>
-                    setAccentInput(commitThemeColor('themeAccent', accentInput, themeAccentColor))
-                  )
-                }
-                placeholder={currentTheme.baseColors.accent}
-                className="theme-color-input"
-                aria-label="Accent color hex value"
-              />
-              </div>
-            </div>
-          </div>
-
-          <div className="settings-list-row">
-            <div className="settings-list-row__meta">
-              <h3 className="settings-list-row__label">Background</h3>
-              <div className="settings-list-row__description">
-                Base background color for the interface
-              </div>
-            </div>
-            <div className="settings-list-row__control">
-              <div className="theme-control-group">
-              <input
-                type="color"
-                value={themeBackgroundColor}
-                onChange={(event) => updateSettings({ themeBackground: event.target.value })}
-                className="theme-color-picker"
-                aria-label="Background color"
-              />
-              <input
-                type="text"
-                value={backgroundInput}
-                onChange={(event) => setBackgroundInput(normalizeHexColor(event.target.value))}
-                onBlur={() =>
-                  setBackgroundInput(
-                    commitThemeColor('themeBackground', backgroundInput, themeBackgroundColor)
-                  )
-                }
-                onKeyDown={(event) =>
-                  handleColorInputKeyDown(event, () =>
-                    setBackgroundInput(
-                      commitThemeColor('themeBackground', backgroundInput, themeBackgroundColor)
-                    )
-                  )
-                }
-                placeholder={currentTheme.baseColors.background}
-                className="theme-color-input"
-                aria-label="Background color hex value"
-              />
-              </div>
-            </div>
-          </div>
-
-          <div className="settings-list-row">
-            <div className="settings-list-row__meta">
-              <h3 className="settings-list-row__label">Foreground</h3>
-              <div className="settings-list-row__description">
-                Primary text and foreground element color
-              </div>
-            </div>
-            <div className="settings-list-row__control">
-              <div className="theme-control-group">
-              <input
-                type="color"
-                value={themeForegroundColor}
-                onChange={(event) => updateSettings({ themeForeground: event.target.value })}
-                className="theme-color-picker"
-                aria-label="Foreground color"
-              />
-              <input
-                type="text"
-                value={foregroundInput}
-                onChange={(event) => setForegroundInput(normalizeHexColor(event.target.value))}
-                onBlur={() =>
-                  setForegroundInput(
-                    commitThemeColor('themeForeground', foregroundInput, themeForegroundColor)
-                  )
-                }
-                onKeyDown={(event) =>
-                  handleColorInputKeyDown(event, () =>
-                    setForegroundInput(
-                      commitThemeColor('themeForeground', foregroundInput, themeForegroundColor)
-                    )
-                  )
-                }
-                placeholder={currentTheme.baseColors.foreground}
-                className="theme-color-input"
-                aria-label="Foreground color hex value"
-              />
               </div>
             </div>
           </div>
@@ -824,203 +638,90 @@ export function AppearanceSection({
         </div>
       </Card>
 
-      <h3 className="appearance-group-heading">Chat Bubbles</h3>
-      <Card className="settings-section-card">
-        <p style={{ margin: '0 0 14px', color: 'var(--theme-text-muted)', fontSize: '0.85rem' }}>
-          Choose how your user messages are rendered in dashboard chat.
-        </p>
-
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-            gap: '12px',
-          }}
-        >
-          {chatBubblePresets.map((preset) => {
-            const isActive = currentChatBubbleStyle === preset.id
-            return (
-              <button
-                key={preset.id}
-                onClick={() => updateSettings({ chatBubbleStyle: preset.id })}
-                style={{
-                  textAlign: 'left',
-                  padding: '14px',
-                  borderRadius: '12px',
-                  border: isActive
-                    ? '1px solid var(--theme-border-hover)'
-                    : '1px solid var(--theme-border)',
-                  background: isActive
-                    ? 'var(--theme-surface-active)'
-                    : 'var(--theme-surface-subtle)',
-                  boxShadow: isActive ? 'inset 0 0 0 1px var(--theme-border-hover)' : 'none',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                }}
-              >
-                <div
-                  style={{
-                    display: 'inline-block',
-                    padding: '9px 14px',
-                    borderRadius: '18px 18px 6px 18px',
-                    fontSize: '0.85rem',
-                    marginBottom: '10px',
-                    ...preset.previewStyle,
-                  }}
-                >
-                  who are you
-                </div>
-                <div
-                  style={{
-                    fontSize: '0.9rem',
-                    fontWeight: 600,
-                    color: 'var(--theme-text-primary)',
-                    marginBottom: '4px',
-                  }}
-                >
-                  {preset.label}
-                </div>
-                <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>
-                  {preset.description}
-                </div>
-              </button>
-            )
-          })}
-        </div>
-
-        <div
-          style={{
-            marginTop: 22,
-            paddingTop: 18,
-            borderTop: '1px solid var(--theme-border-subtle)',
-          }}
-        >
-          <h4
-            style={{
-              margin: '0 0 6px',
-              fontSize: '1rem',
-              fontWeight: 600,
-              color: 'var(--theme-text-primary)',
-            }}
-          >
-            Chat Selected Overlay
+      <h3 className="appearance-group-heading">Chat</h3>
+      <Card
+        className="settings-section-card settings-section-card--style-gallery"
+        aria-labelledby="appearance-chat-styles-heading"
+      >
+        <section className="appearance-chat-styles" aria-labelledby="appearance-chat-styles-heading">
+          <h4 id="appearance-chat-styles-heading" className="appearance-chat-styles__title">
+            Message appearance
           </h4>
-          <p
-            style={{
-              margin: '0 0 14px',
-              fontSize: '0.82rem',
-              color: 'var(--theme-text-muted)',
-            }}
-          >
+          <p className="appearance-chat-styles__description">
+            Customize how chat messages and sidebar highlights look in the dashboard.
+          </p>
+
+          <div className="appearance-style-gallery__section">
+            <h5 className="appearance-style-gallery__section-title">Bubble style</h5>
+            <p className="appearance-style-gallery__section-description">
+              Choose how your user messages are rendered in dashboard chat.
+            </p>
+
+            <div className="appearance-style-picker" role="radiogroup" aria-label="Chat bubble style">
+              {chatBubblePresets.map((preset) => {
+                const isActive = currentChatBubbleStyle === preset.id
+                return (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={isActive}
+                    data-active={isActive ? 'true' : 'false'}
+                    className="appearance-style-picker__card"
+                    onClick={() => updateSettings({ chatBubbleStyle: preset.id })}
+                  >
+                    <div
+                      className="appearance-style-picker__bubble-preview"
+                      style={preset.previewStyle}
+                    >
+                      who are you
+                    </div>
+                    <div className="appearance-style-picker__label">{preset.label}</div>
+                    <div className="appearance-style-picker__description">{preset.description}</div>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+        <div className="appearance-style-subsection">
+          <h4 className="appearance-style-subsection__title">Chat Selected Overlay</h4>
+          <p className="appearance-style-subsection__description">
             Choose the selected chat highlight style in the sidebar.
           </p>
 
           <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-              gap: '12px',
-            }}
+            className="appearance-style-picker"
+            role="radiogroup"
+            aria-label="Chat selected overlay style"
           >
             {chatSelectedOverlayPresets.map((preset) => {
               const isActive = currentChatSelectedOverlayStyle === preset.id
               return (
                 <button
                   key={preset.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={isActive}
+                  data-active={isActive ? 'true' : 'false'}
+                  className="appearance-style-picker__card"
                   onClick={() => updateSettings({ chatSelectedOverlayStyle: preset.id })}
-                  style={{
-                    textAlign: 'left',
-                    padding: '14px',
-                    borderRadius: '12px',
-                    border: isActive
-                      ? '1px solid var(--theme-border-hover)'
-                      : '1px solid var(--theme-border)',
-                    background: isActive
-                      ? 'var(--theme-surface-active)'
-                      : 'var(--theme-surface-subtle)',
-                    boxShadow: isActive ? 'inset 0 0 0 1px var(--theme-border-hover)' : 'none',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease',
-                  }}
                 >
-                  <div
-                    style={{
-                      height: 34,
-                      borderRadius: 10,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '0 10px',
-                      marginBottom: 10,
-                      ...preset.previewStyle,
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: '0.82rem',
-                        color: 'var(--theme-text-primary)',
-                        fontWeight: 600,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      Opensource
-                    </span>
-                    <span
-                      style={{
-                        marginLeft: 8,
-                        color: 'var(--theme-text-muted)',
-                        fontSize: '0.85rem',
-                        lineHeight: 1,
-                      }}
-                    >
-                      ...
-                    </span>
+                  <div className="appearance-style-picker__overlay-preview" style={preset.previewStyle}>
+                    <span className="appearance-style-picker__overlay-preview-label">Opensource</span>
+                    <span className="appearance-style-picker__overlay-preview-meta">...</span>
                   </div>
-                  <div
-                    style={{
-                      fontSize: '0.9rem',
-                      fontWeight: 600,
-                      color: 'var(--theme-text-primary)',
-                      marginBottom: '4px',
-                    }}
-                  >
-                    {preset.label}
-                  </div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>
-                    {preset.description}
-                  </div>
+                  <div className="appearance-style-picker__label">{preset.label}</div>
+                  <div className="appearance-style-picker__description">{preset.description}</div>
                 </button>
               )
             })}
           </div>
         </div>
 
-        <div
-          style={{
-            marginTop: 22,
-            paddingTop: 18,
-            borderTop: '1px solid var(--theme-border-subtle)',
-          }}
-        >
-          <h4
-            style={{
-              margin: '0 0 6px',
-              fontSize: '1rem',
-              fontWeight: 600,
-              color: 'var(--theme-text-primary)',
-            }}
-          >
-            Empty State Placeholder
-          </h4>
-          <p
-            style={{
-              margin: '0 0 14px',
-              fontSize: '0.82rem',
-              color: 'var(--theme-text-muted)',
-            }}
-          >
+        <div className="appearance-style-subsection">
+          <h4 className="appearance-style-subsection__title">Empty State Placeholder</h4>
+          <p className="appearance-style-subsection__description">
             Choose the style of placeholder text shown in an empty chat.
           </p>
           <SettingsSelect
@@ -1035,6 +736,7 @@ export function AppearanceSection({
             aria-label="Empty state placeholder style"
           />
         </div>
+        </section>
       </Card>
 
       <h3 className="appearance-group-heading">Assistant</h3>
@@ -1090,7 +792,7 @@ export function AppearanceSection({
               </DropdownMenuTrigger>
               <DropdownMenuContent
                 align="end"
-                className="zura-menu-surface--model w-[205px]"
+                className="settings-menu-surface zura-menu-surface--model w-[205px]"
               >
                 <DropdownMenuItem
                   onClick={() => updateSettings({ titleModel: '' })}
@@ -1108,7 +810,7 @@ export function AppearanceSection({
                   <DropdownMenuSubContent
                     sideOffset={8}
                     collisionPadding={12}
-                    className="zura-menu-surface--model w-[220px]"
+                    className="settings-menu-surface zura-menu-surface--model w-[220px]"
                   >
                     {titleProviders.map((provider) => (
                       <DropdownMenuSub key={provider.id}>
@@ -1119,7 +821,7 @@ export function AppearanceSection({
                         <DropdownMenuSubContent
                           sideOffset={8}
                           collisionPadding={12}
-                          className="zura-menu-surface--model w-[220px] max-h-[60vh] overflow-y-auto"
+                          className="settings-menu-surface zura-menu-surface--model w-[220px] max-h-[60vh] overflow-y-auto"
                         >
                           {titleModelOptions
                             .filter((o) => o.provider === provider.id)
@@ -1220,450 +922,6 @@ export function AppearanceSection({
           </div>
         </div>
       </Card>
-
-      <h3 className="appearance-group-heading">Model Selector</h3>
-
-      <Card className="settings-list-card">
-        <div className="settings-list-row">
-          <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Sidebar position</h3>
-            <div className="settings-list-row__description">
-              Place provider sidebar on left or right
-            </div>
-          </div>
-          <div className="settings-list-row__control">
-            <SettingsSelect
-              value={getModelSelector().sidebarPosition}
-              onValueChange={(value) =>
-                updateSettings({
-                  modelSelector: {
-                    ...getModelSelector(),
-                    sidebarPosition: value as 'left' | 'right',
-                  },
-                })
-              }
-              options={[
-                { value: 'left', label: 'Left' },
-                { value: 'right', label: 'Right' },
-              ]}
-              aria-label="Model selector sidebar position"
-            />
-          </div>
-        </div>
-
-        <div className="settings-list-row">
-          <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Dropdown width</h3>
-            <div className="settings-list-row__description">Control the overall selector size</div>
-          </div>
-          <div className="settings-list-row__control">
-            <SettingsSelect
-              value={getModelSelector().dropdownWidth}
-              onValueChange={(value) =>
-                updateSettings({
-                  modelSelector: {
-                    ...getModelSelector(),
-                    dropdownWidth: value as 'compact' | 'default' | 'wide',
-                  },
-                })
-              }
-              options={[
-                { value: 'compact', label: 'Compact (420px)' },
-                { value: 'default', label: 'Default (520px)' },
-                { value: 'wide', label: 'Wide (640px)' },
-              ]}
-              aria-label="Model selector dropdown width"
-            />
-          </div>
-        </div>
-
-        <div className="settings-list-row">
-          <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Show model descriptions</h3>
-            <div className="settings-list-row__description">
-              Display model capability descriptions
-            </div>
-          </div>
-          <div className="settings-list-row__control">
-            <Switch
-              checked={getModelSelector().showDescriptions}
-              onCheckedChange={(checked) =>
-                updateSettings({
-                  modelSelector: {
-                    ...getModelSelector(),
-                    showDescriptions: checked,
-                  },
-                })
-              }
-              aria-label="Show model descriptions"
-            />
-          </div>
-        </div>
-
-        <div className="settings-list-row">
-          <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Show capability badges</h3>
-            <div className="settings-list-row__description">
-              Display tools, vision, search & other capability labels
-            </div>
-          </div>
-          <div className="settings-list-row__control">
-            <Switch
-              checked={getModelSelector().showCapabilityBadges}
-              onCheckedChange={(checked) =>
-                updateSettings({
-                  modelSelector: {
-                    ...getModelSelector(),
-                    showCapabilityBadges: checked,
-                  },
-                })
-              }
-              aria-label="Show capability badges"
-            />
-          </div>
-        </div>
-
-        {getModelSelector().showCapabilityBadges && (
-          <div className="settings-list-row">
-            <div className="settings-list-row__meta">
-              <h3 className="settings-list-row__label">Badge display</h3>
-              <div className="settings-list-row__description">
-                Show icon only, text only, or both
-              </div>
-            </div>
-            <div className="settings-list-row__control">
-              <SettingsSelect
-                value={getModelSelector().capabilityBadgeDisplay ?? 'both'}
-                onValueChange={(value) =>
-                  updateSettings({
-                    modelSelector: {
-                      ...getModelSelector(),
-                      capabilityBadgeDisplay: value as 'icon' | 'text' | 'both',
-                    },
-                  })
-                }
-                options={[
-                  { value: 'icon', label: 'Icon only' },
-                  { value: 'text', label: 'Text only' },
-                  { value: 'both', label: 'Icon + text' },
-                ]}
-                aria-label="Model capability badge display"
-              />
-            </div>
-          </div>
-        )}
-
-        <div className="settings-list-row">
-          <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Show favorite stars</h3>
-            <div className="settings-list-row__description">Display favorite toggle buttons</div>
-          </div>
-          <div className="settings-list-row__control">
-            <Switch
-              checked={getModelSelector().showFavoriteStars}
-              onCheckedChange={(checked) =>
-                updateSettings({
-                  modelSelector: {
-                    ...getModelSelector(),
-                    showFavoriteStars: checked,
-                  },
-                })
-              }
-              aria-label="Show favorite stars"
-            />
-          </div>
-        </div>
-
-        <div className="settings-list-row">
-          <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Show context length</h3>
-            <div className="settings-list-row__description">
-              Display context length (e.g. 200K, 1M) next to each model
-            </div>
-          </div>
-          <div className="settings-list-row__control">
-            <Switch
-              checked={getModelSelector().showContextLength !== false}
-              onCheckedChange={(checked) =>
-                updateSettings({
-                  modelSelector: {
-                    ...getModelSelector(),
-                    showContextLength: checked,
-                  },
-                })
-              }
-              aria-label="Show context length"
-            />
-          </div>
-        </div>
-
-        <div className="settings-list-row">
-          <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Show info tooltips</h3>
-            <div className="settings-list-row__description">
-              Enable hover tooltips with model details
-            </div>
-          </div>
-          <div className="settings-list-row__control">
-            <Switch
-              checked={getModelSelector().showInfoTooltips}
-              onCheckedChange={(checked) =>
-                updateSettings({
-                  modelSelector: {
-                    ...getModelSelector(),
-                    showInfoTooltips: checked,
-                  },
-                })
-              }
-              aria-label="Show info tooltips"
-            />
-          </div>
-        </div>
-
-        <div className="settings-list-row">
-          <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Active indicator style</h3>
-            <div className="settings-list-row__description">
-              How the selected model is highlighted
-            </div>
-          </div>
-          <div className="settings-list-row__control">
-            <SettingsSelect
-              value={getModelSelector().activeIndicatorStyle}
-              onValueChange={(value) =>
-                updateSettings({
-                  modelSelector: {
-                    ...getModelSelector(),
-                    activeIndicatorStyle: value as 'dot' | 'checkmark' | 'highlight',
-                  },
-                })
-              }
-              options={[
-                { value: 'dot', label: 'Dot' },
-                { value: 'checkmark', label: 'Checkmark' },
-                { value: 'highlight', label: 'Highlight' },
-              ]}
-              aria-label="Model active indicator style"
-            />
-          </div>
-        </div>
-
-        <div className="settings-list-row">
-          <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Default view on open</h3>
-            <div className="settings-list-row__description">What to show when selector opens</div>
-          </div>
-          <div className="settings-list-row__control">
-            <SettingsSelect
-              value={getModelSelector().defaultView}
-              onValueChange={(value) =>
-                updateSettings({
-                  modelSelector: {
-                    ...getModelSelector(),
-                    defaultView: value as 'favorites' | 'lastUsed',
-                  },
-                })
-              }
-              options={[
-                { value: 'lastUsed', label: 'Last Used Provider' },
-                { value: 'favorites', label: 'Favorites' },
-              ]}
-              aria-label="Model selector default view"
-            />
-          </div>
-        </div>
-
-        <div className="settings-list-row">
-          <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Auto-close on select</h3>
-            <div className="settings-list-row__description">
-              Close dropdown when a model is selected
-            </div>
-          </div>
-          <div className="settings-list-row__control">
-            <Switch
-              checked={getModelSelector().autoCloseOnSelect}
-              onCheckedChange={(checked) =>
-                updateSettings({
-                  modelSelector: {
-                    ...getModelSelector(),
-                    autoCloseOnSelect: checked,
-                  },
-                })
-              }
-              aria-label="Auto-close on select"
-            />
-          </div>
-        </div>
-
-        <div className="settings-list-row">
-          <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Remember last provider</h3>
-            <div className="settings-list-row__description">
-              Restore last selected provider on open
-            </div>
-          </div>
-          <div className="settings-list-row__control">
-            <Switch
-              checked={getModelSelector().rememberProvider}
-              onCheckedChange={(checked) =>
-                updateSettings({
-                  modelSelector: {
-                    ...getModelSelector(),
-                    rememberProvider: checked,
-                  },
-                })
-              }
-              aria-label="Remember last provider"
-            />
-          </div>
-        </div>
-
-        <div className="settings-list-row">
-          <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Show search bar</h3>
-            <div className="settings-list-row__description">
-              Display search input for filtering models
-            </div>
-          </div>
-          <div className="settings-list-row__control">
-            <Switch
-              checked={getModelSelector().showSearch}
-              onCheckedChange={(checked) =>
-                updateSettings({
-                  modelSelector: {
-                    ...getModelSelector(),
-                    showSearch: checked,
-                  },
-                })
-              }
-              aria-label="Show search bar"
-            />
-          </div>
-        </div>
-
-        <div className="settings-list-row">
-          <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Enable animations</h3>
-            <div className="settings-list-row__description">Smooth transitions and effects</div>
-          </div>
-          <div className="settings-list-row__control">
-            <Switch
-              checked={getModelSelector().enableAnimations}
-              onCheckedChange={(checked) =>
-                updateSettings({
-                  modelSelector: {
-                    ...getModelSelector(),
-                    enableAnimations: checked,
-                  },
-                })
-              }
-              aria-label="Enable animations"
-            />
-          </div>
-        </div>
-
-        <div className="settings-list-row">
-          <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Stagger animation speed</h3>
-            <div className="settings-list-row__description">
-              How quickly items appear in sequence
-            </div>
-          </div>
-          <div className="settings-list-row__control">
-            <SettingsSelect
-              value={getModelSelector().staggerSpeed}
-              onValueChange={(value) =>
-                updateSettings({
-                  modelSelector: {
-                    ...getModelSelector(),
-                    staggerSpeed: value as 'fast' | 'normal' | 'slow',
-                  },
-                })
-              }
-              options={[
-                { value: 'fast', label: 'Fast' },
-                { value: 'normal', label: 'Normal' },
-                { value: 'slow', label: 'Slow' },
-              ]}
-              disabled={!getModelSelector().enableAnimations}
-              aria-label="Model selector stagger animation speed"
-            />
-          </div>
-        </div>
-      </Card>
-
-      <Card className="settings-section-card" style={{ marginTop: 16 }}>
-        <h4
-          style={{
-            margin: '0 0 6px',
-            fontSize: '0.95rem',
-            fontWeight: 600,
-            color: 'var(--theme-text-primary)',
-          }}
-        >
-          Item Density
-        </h4>
-        <p style={{ margin: '0 0 14px', color: 'var(--theme-text-muted)', fontSize: '0.85rem' }}>
-          Control spacing between model items.
-        </p>
-
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-            gap: 12,
-          }}
-        >
-          {(['compact', 'comfortable', 'spacious'] as const).map((density) => {
-            const isActive = getModelSelector().itemDensity === density
-            return (
-              <button
-                key={density}
-                onClick={() =>
-                  updateSettings({
-                    modelSelector: {
-                      ...getModelSelector(),
-                      itemDensity: density,
-                    },
-                  })
-                }
-                style={{
-                  textAlign: 'left',
-                  padding: 14,
-                  borderRadius: 12,
-                  border: isActive
-                    ? '1px solid var(--theme-border-hover)'
-                    : '1px solid var(--theme-border)',
-                  background: isActive
-                    ? 'var(--theme-surface-active)'
-                    : 'var(--theme-surface-subtle)',
-                  boxShadow: isActive ? 'inset 0 0 0 1px var(--theme-border-hover)' : 'none',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: '0.9rem',
-                    fontWeight: 600,
-                    color: 'var(--theme-text-primary)',
-                    marginBottom: '4px',
-                    textTransform: 'capitalize',
-                  }}
-                >
-                  {density}
-                </div>
-                <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>
-                  {density === 'compact' && 'Tighter spacing, more models visible'}
-                  {density === 'comfortable' && 'Balanced spacing for readability'}
-                  {density === 'spacious' && 'More breathing room between items'}
-                </div>
-              </button>
-            )
-          })}
-        </div>
-      </Card>
     </div>
   )
 }
@@ -1699,7 +957,7 @@ function SettingsSelect({
       >
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
-      <SelectContent align="end">
+      <SelectContent align="end" className="settings-menu-surface">
         {options.map((option) => (
           <SelectItem key={option.value} value={option.value}>
             {option.label}

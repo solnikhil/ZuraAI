@@ -1,6 +1,5 @@
 /**
  * useModelSelector hook - handles model selection state and logic
- *
  */
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
@@ -12,149 +11,38 @@ import {
 } from '../../../services/ollama'
 import {
   DEFAULT_OLLAMA_URL,
-  getActiveProviderIds,
   getPickerVisibleProviders,
   getProviderModelListField,
   hasProviderAccess,
-  type ActiveProviderId,
 } from '../../../providers'
-import { filterModels } from '../../../utils/modelUtils'
 import { removeEmojis } from '../../../utils/textUtils'
-import type { ModelWithProvider, ViewMode, GroupedModels } from './types'
-import { DEFAULT_MODEL_SELECTOR_SETTINGS } from './modelSelectorDefaults'
+import type { ModelWithProvider, GroupedModels } from './types'
 
-/**
- * State returned by the useModelSelector hook
- */
 export interface ModelSelectorState {
-  /** Whether the dropdown is open */
   isOpen: boolean
-  /** Current search query */
-  searchQuery: string
-  /** Current view mode (favorites or all) */
-  viewMode: ViewMode
-  /** Currently selected provider in sidebar */
-  selectedProvider: string
-  /** Collapsed state for each provider group */
-  collapsedGroups: Record<string, boolean>
-  /** Focused model index for keyboard navigation */
-  focusedIndex: number
 }
 
-/**
- * Return type for useModelSelector hook
- */
 export interface UseModelSelectorReturn {
-  // State
   state: ModelSelectorState
-
-  searchInputRef: React.RefObject<HTMLInputElement | null>
-
-  // Computed values
   allModels: ModelWithProvider[]
-  filteredModels: ModelWithProvider[]
   groupedModels: GroupedModels
-  currentModels: ModelWithProvider[]
-  favoriteModels: ModelWithProvider[]
   currentModel: ModelWithProvider | undefined
   currentName: string
-
-  // Actions
   setIsOpen: (open: boolean) => void
-  setSearchQuery: (query: string) => void
-  setViewMode: (mode: ViewMode) => void
-  setSelectedProvider: (provider: string) => void
-  setFocusedIndex: (index: number) => void
   toggleOpen: () => void
-  toggleGroup: (provider: string) => void
-  toggleFavorite: (modelCode: string, e: React.MouseEvent) => void
   handleSelect: (model: ModelWithProvider, e?: React.MouseEvent) => void
-  handleKeyboardNav: (e: KeyboardEvent) => void
 }
 
-/**
- * Custom hook for managing ModelSelector state and logic
- * Centralizes all model selection functionality
- */
 export function useModelSelector(): UseModelSelectorReturn {
   const { settings, updateSettings } = useSettings()
-
-  const modelSelector = settings.modelSelector || DEFAULT_MODEL_SELECTOR_SETTINGS
-
-  // Determine initial view mode based on settings
-  const getInitialViewMode = (): ViewMode => {
-    if (modelSelector.defaultView === 'favorites') {
-      return 'favorites'
-    }
-    return 'all'
-  }
-
-  // State
   const [isOpen, setIsOpen] = useState(false)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [viewMode, setViewMode] = useState<ViewMode>(getInitialViewMode())
-  const validProviders = getActiveProviderIds()
   const pickerProviders = getPickerVisibleProviders()
 
   const isProviderEnabled = useCallback(
-    (provider: string): boolean => {
-      return hasProviderAccess(settings, provider)
-    },
+    (provider: string): boolean => hasProviderAccess(settings, provider),
     [settings]
   )
 
-  const [selectedProvider, setSelectedProviderState] = useState<string>(() => {
-    if (modelSelector.rememberProvider && settings.modelProvider) {
-      const p = settings.modelProvider as ActiveProviderId
-      return (validProviders as readonly string[]).includes(p) ? p : 'openrouter'
-    }
-    return 'openrouter'
-  })
-
-  // Wrapper to accept string type
-  const setSelectedProvider = (provider: string) => setSelectedProviderState(provider)
-  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(
-    Object.fromEntries(pickerProviders.map((provider) => [provider.id, false]))
-  )
-
-  const searchInputRef = useRef<HTMLInputElement>(null)
-
-  // Keyboard navigation state
-  const [focusedIndex, setFocusedIndex] = useState(-1)
-
-  // Sync selectedProvider with settings.modelProvider when dropdown opens
-  useEffect(() => {
-    if (isOpen) {
-      if (modelSelector.defaultView === 'favorites') {
-        setViewMode('favorites')
-      } else {
-        setViewMode('all')
-        // Restore provider if rememberProvider is enabled and provider is valid and enabled
-        let provider =
-          modelSelector.rememberProvider && settings.modelProvider
-            ? settings.modelProvider
-            : 'openrouter'
-        if (
-          !validProviders.includes(provider as (typeof validProviders)[number]) ||
-          !isProviderEnabled(provider)
-        ) {
-          provider = validProviders.find((p) => isProviderEnabled(p)) ?? 'openrouter'
-        }
-        setSelectedProvider(provider)
-      }
-      setFocusedIndex(-1) // Reset focus when opening
-    } else {
-      setFocusedIndex(-1) // Reset focus when closing
-    }
-  }, [
-    isOpen,
-    settings.modelProvider,
-    modelSelector.defaultView,
-    modelSelector.rememberProvider,
-    isProviderEnabled,
-  ])
-
-  // Refresh Ollama models when dropdown opens so models added via terminal appear immediately
   const prevOpenRef = useRef(false)
   useEffect(() => {
     if (!isOpen) {
@@ -165,7 +53,7 @@ export function useModelSelector(): UseModelSelectorReturn {
       prevOpenRef.current = false
       return
     }
-    if (prevOpenRef.current) return // Already fetched for this open session
+    if (prevOpenRef.current) return
     prevOpenRef.current = true
     const url = settings.ollamaUrl?.trim() || DEFAULT_OLLAMA_URL
     const existing = (settings.ollamaModels || []).map((m) => [m.code, m.enabled] as const)
@@ -210,64 +98,15 @@ export function useModelSelector(): UseModelSelectorReturn {
     })
   }, [settings, isProviderEnabled, pickerProviders])
 
-  // Filter models based on search query
-  const filteredModels = useMemo(() => {
-    return filterModels(allModels, searchQuery)
-  }, [allModels, searchQuery])
-
-  // Group models by provider
   const groupedModels = useMemo((): GroupedModels => {
     return Object.fromEntries(
       pickerProviders.map((provider) => [
         provider.id,
-        filteredModels.filter((model) => model.provider === provider.id),
+        allModels.filter((model) => model.provider === provider.id),
       ])
     )
-  }, [filteredModels, pickerProviders])
+  }, [allModels, pickerProviders])
 
-  const favoriteModels = useMemo(() => {
-    const favs = settings.favoriteModels || []
-    if (favs.length === 0) return []
-    return allModels.filter((m) => favs.includes(m.code))
-  }, [allModels, settings.favoriteModels])
-
-  const currentModels = useMemo((): ModelWithProvider[] => {
-    if (searchQuery.trim()) {
-      return filteredModels
-    }
-    if (viewMode === 'favorites') {
-      return favoriteModels
-    }
-    return allModels.filter((m) => m.provider === selectedProvider)
-  }, [searchQuery, filteredModels, viewMode, favoriteModels, allModels, selectedProvider])
-
-  useEffect(() => {
-    if (!isOpen) return
-    if (searchQuery.trim()) return
-    if (viewMode !== 'all') return
-    if (currentModels.length > 0) return
-
-    const nextProvider = validProviders.find(
-      (provider) =>
-        isProviderEnabled(provider) &&
-        allModels.some((model) => model.provider === provider)
-    )
-
-    if (nextProvider && nextProvider !== selectedProvider) {
-      setSelectedProvider(nextProvider)
-    }
-  }, [
-    allModels,
-    currentModels.length,
-    isOpen,
-    isProviderEnabled,
-    searchQuery,
-    selectedProvider,
-    validProviders,
-    viewMode,
-  ])
-
-  // Find current model
   const currentModel = useMemo(() => {
     return allModels.find(
       (m) => m.code === settings.aiModel && m.provider === settings.modelProvider
@@ -282,14 +121,6 @@ export function useModelSelector(): UseModelSelectorReturn {
     return removeEmojis(nameRaw)
   }, [currentModel, settings.aiModel])
 
-  // Reset focused index when models change
-  useEffect(() => {
-    if (focusedIndex >= currentModels.length) {
-      setFocusedIndex(Math.max(0, currentModels.length - 1))
-    }
-  }, [currentModels.length, focusedIndex])
-
-  // Auto-switch when current model is from a disabled provider (no longer in allModels)
   useEffect(() => {
     const currentInList = allModels.some(
       (m) => m.code === settings.aiModel && m.provider === settings.modelProvider
@@ -300,31 +131,9 @@ export function useModelSelector(): UseModelSelectorReturn {
     }
   }, [allModels, settings.aiModel, settings.modelProvider, updateSettings])
 
-  // Toggle dropdown open/close
   const toggleOpen = useCallback(() => {
     setIsOpen((prev) => !prev)
   }, [])
-
-  // Toggle provider group collapse
-  const toggleGroup = useCallback((provider: string) => {
-    setCollapsedGroups((prev) => ({
-      ...prev,
-      [provider]: !prev[provider],
-    }))
-  }, [])
-
-  // Toggle favorite status
-  const toggleFavorite = useCallback(
-    (modelCode: string, e: React.MouseEvent) => {
-      e.stopPropagation()
-      const currentFavorites = settings.favoriteModels || []
-      const newFavorites = currentFavorites.includes(modelCode)
-        ? currentFavorites.filter((f) => f !== modelCode)
-        : [...currentFavorites, modelCode]
-      updateSettings({ favoriteModels: newFavorites })
-    },
-    [settings.favoriteModels, updateSettings]
-  )
 
   const handleSelect = useCallback(
     (model: ModelWithProvider, e?: React.MouseEvent) => {
@@ -332,92 +141,21 @@ export function useModelSelector(): UseModelSelectorReturn {
         e.stopPropagation()
         e.preventDefault()
       }
-      if (modelSelector.autoCloseOnSelect) {
-        setIsOpen(false)
-      }
-      setFocusedIndex(-1)
+      setIsOpen(false)
       updateSettings({ aiModel: model.code, modelProvider: model.provider })
     },
-    [updateSettings, modelSelector.autoCloseOnSelect]
+    [updateSettings]
   )
-
-  // Keyboard navigation handler — cmdk handles ArrowUp/ArrowDown/Enter internally,
-  // so we only need to handle Escape here.
-  const handleKeyboardNav = useCallback(
-    (e: KeyboardEvent) => {
-      if (!isOpen) return
-
-      if (e.key === 'ArrowDown') {
-        e.preventDefault()
-        if (currentModels.length === 0) return
-        setFocusedIndex((prev) => (prev + 1 + currentModels.length) % currentModels.length)
-        return
-      }
-
-      if (e.key === 'ArrowUp') {
-        e.preventDefault()
-        if (currentModels.length === 0) return
-        setFocusedIndex((prev) => {
-          const baseIndex = prev < 0 ? 0 : prev
-          return (baseIndex - 1 + currentModels.length) % currentModels.length
-        })
-        return
-      }
-
-      if (e.key === 'Enter') {
-        if (focusedIndex >= 0 && focusedIndex < currentModels.length) {
-          e.preventDefault()
-          handleSelect(currentModels[focusedIndex])
-        }
-        return
-      }
-
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        setIsOpen(false)
-        setFocusedIndex(-1)
-      }
-    },
-    [currentModels, focusedIndex, handleSelect, isOpen]
-  )
-
-  // Attach keyboard event listener when dropdown is open
-  useEffect(() => {
-    if (isOpen) {
-      window.addEventListener('keydown', handleKeyboardNav)
-      return () => {
-        window.removeEventListener('keydown', handleKeyboardNav)
-      }
-    }
-  }, [isOpen, handleKeyboardNav])
 
   return {
-    state: {
-      isOpen,
-      searchQuery,
-      viewMode,
-      selectedProvider,
-      collapsedGroups,
-      focusedIndex,
-    },
-    searchInputRef,
+    state: { isOpen },
     allModels,
-    filteredModels,
     groupedModels,
-    currentModels,
-    favoriteModels,
     currentModel,
     currentName,
     setIsOpen,
-    setSearchQuery,
-    setViewMode,
-    setSelectedProvider,
-    setFocusedIndex,
     toggleOpen,
-    toggleGroup,
-    toggleFavorite,
     handleSelect,
-    handleKeyboardNav,
   }
 }
 

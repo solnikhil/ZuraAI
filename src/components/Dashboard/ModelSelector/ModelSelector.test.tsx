@@ -20,7 +20,6 @@ const updateSettings = vi.fn()
 let mockSettings = {
   modelProvider: 'fireworks',
   aiModel: 'accounts/fireworks/models/deepseek-v3p2',
-  modelSelector: {},
   openRouterReasoningEffort: {},
 }
 
@@ -54,11 +53,6 @@ vi.mock('./useModelSelector', () => ({
   useModelSelector: () => ({
     state: {
       isOpen: true,
-      searchQuery: '',
-      viewMode: 'all',
-      selectedProvider: mockSettings.modelProvider,
-      collapsedGroups: {},
-      focusedIndex: -1,
     },
     groupedModels: {
       alibaba: [],
@@ -84,7 +78,6 @@ describe('ModelSelector', () => {
     mockSettings = {
       modelProvider: 'fireworks',
       aiModel: 'accounts/fireworks/models/deepseek-v3p2',
-      modelSelector: {},
       openRouterReasoningEffort: {},
     }
     mockCurrentModel = fireworksModel
@@ -108,7 +101,6 @@ describe('ModelSelector', () => {
     mockSettings = {
       modelProvider: 'openrouter',
       aiModel: 'nex-agi/nex-n2-pro:free',
-      modelSelector: {},
       openRouterReasoningEffort: { 'nex-agi/nex-n2-pro:free': 'medium' },
     }
     mockCurrentModel = openRouterReasoningModel
@@ -134,7 +126,6 @@ describe('ModelSelector', () => {
     mockSettings = {
       modelProvider: 'openrouter',
       aiModel: 'nex-agi/nex-n2-pro:free',
-      modelSelector: {},
       openRouterReasoningEffort: { 'nex-agi/nex-n2-pro:free': 'none' },
     }
     mockCurrentModel = openRouterReasoningModel
@@ -150,7 +141,6 @@ describe('ModelSelector', () => {
     mockSettings = {
       modelProvider: 'openrouter',
       aiModel: 'nex-agi/nex-n2-pro:free',
-      modelSelector: {},
       openRouterReasoningEffort: { 'nex-agi/nex-n2-pro:free': 'medium' },
     }
     mockCurrentModel = openRouterReasoningModel

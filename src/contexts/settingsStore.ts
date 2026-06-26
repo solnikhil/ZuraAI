@@ -46,7 +46,6 @@ export const UI_SETTING_KEYS: (keyof SettingsUI)[] = [
   'chatSelectedOverlayStyle',
   'placeholderStyle',
   'remindersAppearance',
-  'modelSelector',
   'promptAutoHide',
 ]
 
@@ -463,7 +462,7 @@ export function normalizeStoredSettings(raw: string | null): Settings {
     parsed.computerUseAutoApprove = defaultSettings.computerUseAutoApprove
   }
 
-  if (!parsed.favoriteModels) parsed.favoriteModels = defaultSettings.favoriteModels
+
 
   parsed.titleBarDensity = 'compact'
   if (parsed.titleBarShowAppName === undefined) {
@@ -581,6 +580,9 @@ export function normalizeStoredSettings(raw: string | null): Settings {
     parsed.theme = defaultSettings.theme
   }
   parsed.activeTheme = normalizeActiveThemeId(parsed.activeTheme || defaultSettings.activeTheme)
+  delete parsed.themeAccent
+  delete parsed.themeBackground
+  delete parsed.themeForeground
   delete (parsed as Record<string, unknown>).frostedSidebar
   delete (parsed as Record<string, unknown>).frostedPrompt
   delete (parsed as Record<string, unknown>).sidebarAutoHideOnResize
@@ -629,6 +631,9 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   parsed.deepseekLastEffort =
     coerceReasoningEffort(parsed.deepseekLastEffort) ?? defaultSettings.deepseekLastEffort
 
+  delete (parsed as Record<string, unknown>).modelSelector
+  delete (parsed as Record<string, unknown>).favoriteModels
+
   return parsed
 }
 
@@ -651,7 +656,6 @@ export function getInitialUISettings(settings: Settings): Partial<SettingsUI> {
     chatSelectedOverlayStyle: settings.chatSelectedOverlayStyle,
     placeholderStyle: settings.placeholderStyle,
     remindersAppearance: settings.remindersAppearance,
-    modelSelector: settings.modelSelector,
   }
 }
 
@@ -711,7 +715,6 @@ export function getInitialConfigSettings(settings: Settings): Partial<SettingsCo
     computerUseAutoApprove: settings.computerUseAutoApprove,
     titleGenerationPrompt: settings.titleGenerationPrompt,
     titleGenerationDisplayMode: settings.titleGenerationDisplayMode,
-    favoriteModels: settings.favoriteModels,
     quickPrompts: settings.quickPrompts,
     todos: settings.todos,
     rememberLastChatSession: settings.rememberLastChatSession,

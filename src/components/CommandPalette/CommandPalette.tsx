@@ -30,6 +30,42 @@ function formatFilenamePart(value: string): string {
     .slice(0, 60)
 }
 
+/* ── size-aware style config ── */
+
+export type CommandPaletteSize = 'small' | 'medium' | 'large'
+
+interface SizeStyleConfig {
+  searchMargin: string
+  searchPadding: string
+  searchGap: number
+  searchFontSize: string
+  searchIconSize: number
+}
+
+export const sizeStyleMap: Record<CommandPaletteSize, SizeStyleConfig> = {
+  small: {
+    searchMargin: '8px 12px',
+    searchPadding: '7px 11px',
+    searchGap: 8,
+    searchFontSize: '0.8rem',
+    searchIconSize: 14,
+  },
+  medium: {
+    searchMargin: '12px 16px',
+    searchPadding: '10px 14px',
+    searchGap: 10,
+    searchFontSize: '0.88rem',
+    searchIconSize: 16,
+  },
+  large: {
+    searchMargin: '14px 18px',
+    searchPadding: '12px 17px',
+    searchGap: 12,
+    searchFontSize: '0.98rem',
+    searchIconSize: 18,
+  },
+}
+
 /* ── inline styles ── */
 
 const overlayStyle: React.CSSProperties = {
@@ -58,16 +94,19 @@ const contentStyle: React.CSSProperties = {
   overflow: 'hidden',
 }
 
-const searchWrapStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 10,
-  margin: '12px 16px',
-  padding: '10px 14px',
-  borderRadius: 999,
-  background: 'rgba(255, 255, 255, 0.06)',
-  border: '1px solid rgba(255, 255, 255, 0.08)',
-  flexShrink: 0,
+function getSearchWrapStyle(size: CommandPaletteSize): React.CSSProperties {
+  const config = sizeStyleMap[size] ?? sizeStyleMap.medium
+  return {
+    display: 'flex',
+    alignItems: 'center',
+    gap: config.searchGap,
+    margin: config.searchMargin,
+    padding: config.searchPadding,
+    borderRadius: 999,
+    background: 'rgba(255, 255, 255, 0.06)',
+    border: '1px solid rgba(255, 255, 255, 0.08)',
+    flexShrink: 0,
+  }
 }
 
 const searchIconStyle: React.CSSProperties = {
@@ -75,15 +114,18 @@ const searchIconStyle: React.CSSProperties = {
   color: 'var(--theme-text-muted)',
 }
 
-const searchInputStyle: React.CSSProperties = {
-  flex: 1,
-  background: 'transparent',
-  border: 'none',
-  outline: 'none',
-  fontSize: '0.88rem',
-  color: 'var(--theme-text-primary)',
-  fontFamily: 'inherit',
-  lineHeight: 1.4,
+function getSearchInputStyle(size: CommandPaletteSize): React.CSSProperties {
+  const config = sizeStyleMap[size] ?? sizeStyleMap.medium
+  return {
+    flex: 1,
+    background: 'transparent',
+    border: 'none',
+    outline: 'none',
+    fontSize: config.searchFontSize,
+    color: 'var(--theme-text-primary)',
+    fontFamily: 'inherit',
+    lineHeight: 1.4,
+  }
 }
 
 const liveRegionStyle: React.CSSProperties = {
@@ -150,6 +192,8 @@ export default function CommandPalette() {
     [commandBar.overlayOpacity]
   )
 
+  const paletteSize: CommandPaletteSize = commandBar.size ?? 'medium'
+
   const dynamicContentStyle = useMemo<React.CSSProperties>(
     () => ({
       ...contentStyle,
@@ -157,6 +201,16 @@ export default function CommandPalette() {
       top: palettePositionMap[commandBar.palettePosition ?? 'center'] ?? '20%',
     }),
     [commandBar.paletteWidth, commandBar.palettePosition]
+  )
+
+  const dynamicSearchWrapStyle = useMemo<React.CSSProperties>(
+    () => getSearchWrapStyle(paletteSize),
+    [paletteSize]
+  )
+
+  const dynamicSearchInputStyle = useMemo<React.CSSProperties>(
+    () => getSearchInputStyle(paletteSize),
+    [paletteSize]
   )
 
   const currentSession = useMemo(() => {
@@ -590,11 +644,11 @@ export default function CommandPalette() {
             Search and run commands
           </DialogPrimitive.Description>
 
-          <div style={searchWrapStyle}>
-            <Search size={16} style={searchIconStyle} />
+          <div style={dynamicSearchWrapStyle}>
+            <Search size={sizeStyleMap[paletteSize]?.searchIconSize ?? 16} style={searchIconStyle} />
             <input
               ref={inputRef}
-              style={searchInputStyle}
+              style={dynamicSearchInputStyle}
               type="text"
               role="combobox"
               aria-expanded={totalItems > 0}
@@ -616,11 +670,12 @@ export default function CommandPalette() {
             recentSuggestions={displayedRecents}
             highlightIndex={highlightIndex}
             query={query}
+            size={paletteSize}
             onSelect={runSuggestion}
             onHighlight={setHighlightIndex}
           />
 
-          <CommandPaletteFooter />
+          <CommandPaletteFooter size={paletteSize} />
 
           {/* Live region for screen readers */}
           <div role="status" aria-live="polite" aria-atomic="true" style={liveRegionStyle}>

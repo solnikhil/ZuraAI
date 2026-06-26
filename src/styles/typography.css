@@ -330,8 +330,12 @@
 }
 
 /* Keep the outer code-block container tinted while clearing inner highlighter layers */
-.markdown-code-block {
+.dark .markdown-code-block {
     background: color-mix(in srgb, var(--theme-surface-active) 58%, black 42%) !important;
+}
+
+:root:not(.dark) .markdown-code-block {
+    background: color-mix(in srgb, var(--theme-surface-hover) 72%, var(--theme-background)) !important;
 }
 
 .markdown-code-block > div,

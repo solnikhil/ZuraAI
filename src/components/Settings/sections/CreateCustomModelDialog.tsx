@@ -382,7 +382,7 @@ export function CreateCustomModelDialog({
                       >
                         <SelectValue placeholder="Select model type" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="settings-menu-surface">
                         <SelectItem value="chat">Chat</SelectItem>
                         <SelectItem value="reasoning">Reasoning</SelectItem>
                         <SelectItem value="image">Image</SelectItem>

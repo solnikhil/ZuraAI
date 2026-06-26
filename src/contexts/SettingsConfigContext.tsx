@@ -192,9 +192,6 @@ export interface SettingsConfig {
   // Background memory extraction ("dreaming"). Empty string = follow the active chat model.
   memoryModel: string
 
-  // Favorites
-  favoriteModels: string[]
-
   // Quick prompts
   quickPrompts: string[]
 
@@ -380,9 +377,6 @@ export const defaultSettingsConfig: SettingsConfig = {
 
   // Background memory extraction — empty = follow the active chat model.
   memoryModel: '',
-
-  // Favorites
-  favoriteModels: [],
 
   // Quick prompts
   quickPrompts: [

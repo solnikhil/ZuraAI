@@ -319,7 +319,7 @@ export function MemorySection({
                         )}
                       </button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="zura-menu-surface--model w-[205px]">
+                    <DropdownMenuContent align="end" className="settings-menu-surface zura-menu-surface--model w-[205px]">
                       <DropdownMenuItem
                         onClick={() => onChange({ memoryModel: '' })}
                         className="zura-menu-item--model"
@@ -336,7 +336,7 @@ export function MemorySection({
                         <DropdownMenuSubContent
                           sideOffset={8}
                           collisionPadding={12}
-                          className="zura-menu-surface--model w-[220px]"
+                          className="settings-menu-surface zura-menu-surface--model w-[220px]"
                         >
                           {memoryProviders.map((provider) => (
                             <DropdownMenuSub key={provider.id}>
@@ -347,7 +347,7 @@ export function MemorySection({
                               <DropdownMenuSubContent
                                 sideOffset={8}
                                 collisionPadding={12}
-                                className="zura-menu-surface--model w-[220px] max-h-[60vh] overflow-y-auto"
+                                className="settings-menu-surface zura-menu-surface--model w-[220px] max-h-[60vh] overflow-y-auto"
                               >
                                 {memoryModelOptions
                                   .filter((o) => o.provider === provider.id)

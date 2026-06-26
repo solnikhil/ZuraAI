@@ -1,7 +1,7 @@
 import './polyfills'
 import ReactDOM from 'react-dom/client'
 import App from './App'
-import { getDefaultTheme, getThemeById } from './themes/themeRegistry'
+import { getDefaultTheme, getResolvedTheme, type ThemeMode } from './themes/themeRegistry'
 import {
   DEFAULT_FONT_SCALE,
   applyFontScaleToDocument,
@@ -28,20 +28,23 @@ if (savedSettings) {
   try {
     const parsed = JSON.parse(savedSettings) as {
       activeTheme?: string
-      themeAccent?: string
-      themeBackground?: string
-      themeForeground?: string
+      theme?: ThemeMode
       themeContrast?: number
       fontScale?: number
     }
-    const theme = parsed.activeTheme ? getThemeById(parsed.activeTheme) : getDefaultTheme()
+    const systemPrefersDark =
+      typeof window.matchMedia === 'function'
+        ? window.matchMedia('(prefers-color-scheme: dark)').matches
+        : true
+    const theme = getResolvedTheme(
+      parsed.activeTheme ?? getDefaultTheme().id,
+      parsed.theme ?? 'dark',
+      systemPrefersDark
+    )
     
     const contrast = parsed.themeContrast
     
     applyThemeToDocument(theme || getDefaultTheme(), {
-      customAccent: parsed.themeAccent,
-      customBackground: parsed.themeBackground,
-      customForeground: parsed.themeForeground,
       contrast: contrast !== undefined && contrast < 100 ? contrast : undefined,
     })
     applyFontScaleToDocument(parsed.fontScale ?? DEFAULT_FONT_SCALE)

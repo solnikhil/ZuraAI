@@ -19,7 +19,7 @@ import React, {
   useCallback,
   useMemo,
 } from 'react'
-import { getThemeById, getDefaultTheme } from '../themes/themeRegistry'
+import { getResolvedTheme } from '../themes/themeRegistry'
 import {
   DEFAULT_FONT_SCALE,
   applyFontScaleToDocument,
@@ -41,41 +41,6 @@ export interface RemindersAppearanceSettings {
   actionStyle: RemindersActionStyle
   badgeStyle: RemindersBadgeStyle
   useAccentTint: boolean
-}
-
-/**
- * Model Selector settings
- */
-export interface ModelSelectorSettings {
-  // Layout
-  sidebarPosition: 'left' | 'right'
-  sidebarShowLabels: boolean
-  sidebarShowModelCount: boolean
-  dropdownWidth: 'compact' | 'default' | 'wide'
-
-  // Display
-  showDescriptions: boolean
-  showCapabilityBadges: boolean
-  /** How capability badges are shown: icon only, text only, or both */
-  capabilityBadgeDisplay: 'icon' | 'text' | 'both'
-  showProviderLogos: boolean
-  showFavoriteStars: boolean
-  showContextLength: boolean
-  showInfoTooltips: boolean
-  activeIndicatorStyle: 'dot' | 'checkmark' | 'highlight'
-
-  // Density
-  itemDensity: 'compact' | 'comfortable' | 'spacious'
-
-  // Behavior
-  defaultView: 'favorites' | 'lastUsed'
-  autoCloseOnSelect: boolean
-  rememberProvider: boolean
-  showSearch: boolean
-
-  // Animations
-  enableAnimations: boolean
-  staggerSpeed: 'fast' | 'normal' | 'slow'
 }
 
 /**
@@ -130,9 +95,6 @@ export interface SettingsUI {
 
   // Reminders & Lookouts surface style
   remindersAppearance?: RemindersAppearanceSettings
-
-  // Model Selector settings
-  modelSelector?: ModelSelectorSettings
 }
 
 /**
@@ -172,27 +134,6 @@ export const defaultSettingsUI: SettingsUI = {
     actionStyle: 'pill',
     badgeStyle: 'soft',
     useAccentTint: true,
-  },
-  modelSelector: {
-    sidebarPosition: 'left',
-    sidebarShowLabels: false,
-    sidebarShowModelCount: false,
-    dropdownWidth: 'default',
-    showDescriptions: false,
-    showCapabilityBadges: false,
-    capabilityBadgeDisplay: 'both',
-    showProviderLogos: true,
-    showFavoriteStars: false,
-    showContextLength: true,
-    showInfoTooltips: true,
-    activeIndicatorStyle: 'dot',
-    itemDensity: 'compact',
-    defaultView: 'lastUsed',
-    autoCloseOnSelect: true,
-    rememberProvider: true,
-    showSearch: true,
-    enableAnimations: true,
-    staggerSpeed: 'normal',
   },
 }
 
@@ -238,12 +179,6 @@ export function SettingsUIProvider({
         ...initialSettings.commandBar,
       }
     }
-    if (initialSettings?.modelSelector) {
-      merged.modelSelector = {
-        ...defaultSettingsUI.modelSelector!,
-        ...initialSettings.modelSelector,
-      }
-    }
     if (initialSettings?.promptAutoHide) {
       merged.promptAutoHide = {
         ...defaultSettingsUI.promptAutoHide,
@@ -287,14 +222,6 @@ export function SettingsUIProvider({
             ...initialSettings.commandBar,
           }
         }
-        // Deep merge modelSelector
-        if (initialSettings.modelSelector) {
-          merged.modelSelector = {
-            ...defaultSettingsUI.modelSelector!,
-            ...prev.modelSelector,
-            ...initialSettings.modelSelector,
-          }
-        }
         // Deep merge promptAutoHide
         if (initialSettings.promptAutoHide) {
           merged.promptAutoHide = {
@@ -317,22 +244,10 @@ export function SettingsUIProvider({
 
   // Apply theme to document
   useLayoutEffect(() => {
-    const effectiveThemeId =
-      settingsUI.theme === 'system'
-        ? systemPrefersDark
-          ? 'zuraai'
-          : 'zuraai-light'
-        : settingsUI.activeTheme
-    const theme = getThemeById(effectiveThemeId) || getDefaultTheme()
-    const customAccent = settingsUI.themeAccent
-    const customBackground = settingsUI.themeBackground
-    const customForeground = settingsUI.themeForeground
+    const theme = getResolvedTheme(settingsUI.activeTheme, settingsUI.theme, systemPrefersDark)
     const contrast = settingsUI.themeContrast
-    
+
     applyThemeToDocument(theme, {
-      customAccent,
-      customBackground,
-      customForeground,
       contrast: contrast < 100 ? contrast : undefined,
     })
     applyFontScaleToDocument(settingsUI.fontScale)
@@ -350,9 +265,6 @@ export function SettingsUIProvider({
   }, [
     settingsUI.theme,
     settingsUI.activeTheme,
-    settingsUI.themeAccent,
-    settingsUI.themeBackground,
-    settingsUI.themeForeground,
     settingsUI.themeContrast,
     settingsUI.fontScale,
     settingsUI.remindersAppearance,
@@ -367,14 +279,6 @@ export function SettingsUIProvider({
   const updateSettingsUI = useCallback((newSettings: Partial<SettingsUI>) => {
     setSettingsUI((prev) => {
       const merged = { ...prev, ...newSettings }
-      // Deep merge modelSelector if present
-      if (newSettings.modelSelector) {
-        merged.modelSelector = {
-          ...defaultSettingsUI.modelSelector!,
-          ...prev.modelSelector,
-          ...newSettings.modelSelector,
-        }
-      }
       // Deep merge promptAutoHide if present
       if (newSettings.promptAutoHide) {
         merged.promptAutoHide = {

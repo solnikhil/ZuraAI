@@ -80,7 +80,7 @@ export function CatalogFilterBar({
             <SelectTrigger className="h-8 w-[150px] shrink-0" aria-label="Sort models">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="settings-menu-surface">
               {(Object.keys(SORT_LABELS) as CatalogSortKey[]).map((key) => (
                 <SelectItem key={key} value={key}>
                   {SORT_LABELS[key]}

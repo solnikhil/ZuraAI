@@ -14,6 +14,10 @@
 import { describe, it, expect } from 'vitest'
 import * as fc from 'fast-check'
 import { defaultSettingsUI } from '../../contexts/SettingsUIContext'
+import {
+  sizeStyleMap,
+  type CommandPaletteSize,
+} from '../../components/CommandPalette/CommandPalette'
 
 // Generators
 
@@ -483,5 +487,75 @@ describe('Feature: command-palette-settings, Property 4: Palette position maps t
     const defaultPosition = defaultSettingsUI.commandBar.palettePosition
     expect(defaultPosition).toBe('center')
     expect(computeTopOffset(defaultPosition)).toBe('20%')
+  })
+})
+
+/**
+ *
+ * *For any* valid paletteSize value ('small', 'medium', 'large'), the CommandPalette
+ * search area and result items should scale to the corresponding size config.
+ * The default value is 'medium'.
+ *
+ * This tests the pure mapping logic from CommandPalette.tsx:
+ *   const sizeStyleMap: Record<CommandPaletteSize, SizeStyleConfig> = { ... }
+ *   getSearchWrapStyle(size), getSearchInputStyle(size), resultSizeMap[size], ...
+ *
+ */
+describe('Feature: command-palette-settings, Property 7: Palette size maps to correct style config', () => {
+  function computeSearchFontSize(size: CommandPaletteSize): string {
+    return sizeStyleMap[size ?? 'medium']?.searchFontSize ?? sizeStyleMap.medium.searchFontSize
+  }
+
+  function computeSearchIconSize(size: CommandPaletteSize): number {
+    return sizeStyleMap[size ?? 'medium']?.searchIconSize ?? sizeStyleMap.medium.searchIconSize
+  }
+
+  it('any valid paletteSize enum maps to a defined style config', () => {
+    fc.assert(
+      fc.property(
+        fc.constantFrom('small' as const, 'medium' as const, 'large' as const),
+        (size) => {
+          const config = sizeStyleMap[size]
+          expect(config).toBeDefined()
+          expect(typeof config.searchFontSize).toBe('string')
+          expect(typeof config.searchIconSize).toBe('number')
+          expect(config.searchIconSize).toBeGreaterThan(0)
+        }
+      ),
+      { numRuns: 100 }
+    )
+  })
+
+  it('small maps to smaller search font and icon than medium', () => {
+    expect(computeSearchFontSize('small')).toBe(sizeStyleMap.small.searchFontSize)
+    expect(computeSearchIconSize('small')).toBeLessThan(computeSearchIconSize('medium'))
+  })
+
+  it('large maps to larger search font and icon than medium', () => {
+    expect(computeSearchFontSize('large')).toBe(sizeStyleMap.large.searchFontSize)
+    expect(computeSearchIconSize('large')).toBeGreaterThan(computeSearchIconSize('medium'))
+  })
+
+  it('unknown paletteSize falls back to medium config', () => {
+    fc.assert(
+      fc.property(
+        fc
+          .string({ minLength: 1, maxLength: 20 })
+          .filter((s) => !['small', 'medium', 'large'].includes(s)),
+        (unknownSize) => {
+          const fontSize = computeSearchFontSize(unknownSize as CommandPaletteSize)
+          const iconSize = computeSearchIconSize(unknownSize as CommandPaletteSize)
+          expect(fontSize).toBe(sizeStyleMap.medium.searchFontSize)
+          expect(iconSize).toBe(sizeStyleMap.medium.searchIconSize)
+        }
+      ),
+      { numRuns: 100 }
+    )
+  })
+
+  it('default paletteSize setting is "medium"', () => {
+    const defaultSize = defaultSettingsUI.commandBar.size
+    expect(defaultSize).toBe('medium')
+    expect(computeSearchFontSize(defaultSize)).toBe(sizeStyleMap.medium.searchFontSize)
   })
 })

@@ -1,7 +1,7 @@
 import './GradientText.css';
 import { ReactNode } from 'react';
 import { useSettings } from '../contexts/SettingsContext';
-import { getThemeById, getDefaultTheme } from '../themes/themeRegistry';
+import { getResolvedTheme } from '../themes/themeRegistry';
 
 interface GradientTextProps {
     children: ReactNode;
@@ -20,7 +20,11 @@ export default function GradientText({
 }: GradientTextProps) {
     const { settings } = useSettings();
     
-    const theme = getThemeById(settings.activeTheme) || getDefaultTheme();
+    const systemPrefersDark =
+        typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+            ? window.matchMedia('(prefers-color-scheme: dark)').matches
+            : true;
+    const theme = getResolvedTheme(settings.activeTheme, settings.theme, systemPrefersDark);
     const themeColors = theme.colors;
     
     // If useThemeAccent is true, build colors from theme

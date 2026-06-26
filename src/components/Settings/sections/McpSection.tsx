@@ -313,7 +313,7 @@ export function McpSection(): React.ReactElement {
                           <DropdownMenuContent
                             align="end"
                             sideOffset={8}
-                            className="mcp-server-menu-content zura-menu-surface--compact w-48"
+                            className="settings-menu-surface mcp-server-menu-content zura-menu-surface--compact w-48"
                           >
                             <DropdownMenuItem
                               className="zura-menu-item--compact cursor-pointer"
@@ -427,7 +427,7 @@ export function McpSection(): React.ReactElement {
                       <SelectTrigger>
                         <SelectValue placeholder="Select transport" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="settings-menu-surface">
                         <SelectItem value="stdio">Stdio</SelectItem>
                         <SelectItem value="sse">SSE</SelectItem>
                         <SelectItem value="websocket">WebSocket</SelectItem>
@@ -465,7 +465,7 @@ export function McpSection(): React.ReactElement {
                     <SelectTrigger>
                       <SelectValue placeholder="Select trust level" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="settings-menu-surface">
                       <SelectItem value="untrusted">Untrusted</SelectItem>
                       <SelectItem value="trusted">Trusted</SelectItem>
                     </SelectContent>
@@ -724,7 +724,7 @@ function SecretTokenEditor(props: {
           <SelectTrigger className="mcp-secret-type">
             <SelectValue placeholder="Value type" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="settings-menu-surface">
             <SelectItem value="plaintext">Plaintext</SelectItem>
             <SelectItem value="secret">Secret</SelectItem>
           </SelectContent>
@@ -844,7 +844,7 @@ function ConfigValueRow(props: {
         <SelectTrigger className="mcp-config-type">
           <SelectValue placeholder="Type" />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent className="settings-menu-surface">
           <SelectItem value="plaintext">Plaintext</SelectItem>
           <SelectItem value="secret">Secret</SelectItem>
         </SelectContent>
