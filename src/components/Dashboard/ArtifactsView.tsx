@@ -17,6 +17,7 @@ import LazyMarkdown from '../LazyMarkdown'
 import MermaidDiagram from '../MermaidDiagram'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { TooltipIconButton } from '@/components/ui/TooltipIconButton'
 import { motionSpring } from '@/lib/motion'
 import { useChatHistory } from '@/contexts/ChatHistoryContext'
 import { useAppShell } from '@/contexts/AppShellContext'
@@ -26,10 +27,7 @@ import {
   renameArtifactDocument,
   restoreArtifactVersion,
 } from '@/artifacts/artifactStore'
-import {
-  getExternalOpenLabel,
-  openArtifactInExternalApp,
-} from '@/artifacts/openArtifactExternally'
+import { getExternalOpenLabel, openArtifactInExternalApp } from '@/artifacts/openArtifactExternally'
 import type { ArtifactDocument, ArtifactKind, ArtifactSummary } from '@/artifacts/artifactTypes'
 import type { ChatSession, ChatSessionMetadata } from '@/chat/types'
 import { downloadFile } from '@/utils/chatExport'
@@ -111,17 +109,18 @@ function mimeForArtifact(artifact: ArtifactDocument): string {
 }
 
 function sanitizeFilename(value: string): string {
-  return value.trim().replace(/[<>:"/\\|?*\x00-\x1F]/g, '-').replace(/\s+/g, '-').slice(0, 80) || 'artifact'
+  return (
+    value
+      .trim()
+      .replace(/[<>:"/\\|?*\x00-\x1F]/g, '-')
+      .replace(/\s+/g, '-')
+      .slice(0, 80) || 'artifact'
+  )
 }
 
 export default function ArtifactsView(): React.ReactElement {
-  const {
-    sessions,
-    switchSession,
-    renameArtifact,
-    restoreArtifact,
-    deleteArtifact,
-  } = useChatHistory()
+  const { sessions, switchSession, renameArtifact, restoreArtifact, deleteArtifact } =
+    useChatHistory()
   const { setDashboardView } = useAppShell()
   const [sessionMetadata, setSessionMetadata] = useState<ChatSessionMetadata[]>([])
   const [activeFilter, setActiveFilter] = useState<ArtifactFilter>('all')
@@ -136,8 +135,8 @@ export default function ArtifactsView(): React.ReactElement {
     let cancelled = false
 
     const loadMetadata = () => {
-      void window.ipcRenderer!
-        .invoke('chat-store:get-metadata')
+      void window
+        .ipcRenderer!.invoke('chat-store:get-metadata')
         .then((meta: ChatSessionMetadata[]) => {
           if (!cancelled) setSessionMetadata(meta || [])
         })
@@ -186,7 +185,8 @@ export default function ArtifactsView(): React.ReactElement {
             setLoadedFullArtifact(null)
             return
           }
-          const found = (fullSession.artifacts || []).find((a) => a.id === selected.artifactId) || null
+          const found =
+            (fullSession.artifacts || []).find((a) => a.id === selected.artifactId) || null
           setLoadedFullArtifact(found)
         })
         .catch(() => setLoadedFullArtifact(null))
@@ -216,11 +216,14 @@ export default function ArtifactsView(): React.ReactElement {
       const sums = session.artifactSummaries
       if (sums && sums.length) {
         return sums.map((summary) => {
-          const stubVersions = Array.from({ length: Math.max(1, summary.versionCount) }, (_, i) => ({
-            id: i === 0 ? summary.currentVersionId : `v${i}`,
-            content: '',
-            createdAt: summary.updatedAt,
-          }))
+          const stubVersions = Array.from(
+            { length: Math.max(1, summary.versionCount) },
+            (_, i) => ({
+              id: i === 0 ? summary.currentVersionId : `v${i}`,
+              content: '',
+              createdAt: summary.updatedAt,
+            })
+          )
           const stub: ArtifactDocument = {
             id: summary.id,
             title: summary.title,
@@ -241,7 +244,8 @@ export default function ArtifactsView(): React.ReactElement {
     const metaItems: ArtifactListItem[] = sessionMetadata.flatMap((meta) => {
       const live = liveById.get(meta.id)
       // If this session is already represented in live (full artifacts or carried summaries), skip
-      const liveHasArtifacts = live && ((live.artifacts?.length ?? 0) > 0 || (live.artifactSummaries?.length ?? 0) > 0)
+      const liveHasArtifacts =
+        live && ((live.artifacts?.length ?? 0) > 0 || (live.artifactSummaries?.length ?? 0) > 0)
       if (liveHasArtifacts) return []
 
       const summaries: ArtifactSummary[] = meta.artifactSummaries || []
@@ -295,7 +299,9 @@ export default function ArtifactsView(): React.ReactElement {
   // selectedItem is used for list row identification + basic title/kind in header.
   // For actual content + real version history we prefer the freshly loaded full artifact.
   const selectedItem = selected
-    ? items.find((item) => item.sessionId === selected.sessionId && item.artifact.id === selected.artifactId) ?? null
+    ? (items.find(
+        (item) => item.sessionId === selected.sessionId && item.artifact.id === selected.artifactId
+      ) ?? null)
     : null
 
   const effectiveArtifact = loadedFullArtifact || selectedItem?.artifact || null
@@ -303,13 +309,37 @@ export default function ArtifactsView(): React.ReactElement {
 
   const filters: Array<{ id: ArtifactFilter; label: string; count: number }> = [
     { id: 'all', label: 'All', count: items.length },
-    { id: 'markdown', label: 'Markdown', count: items.filter((item) => item.artifact.kind === 'markdown').length },
-    { id: 'code', label: 'Code', count: items.filter((item) => item.artifact.kind === 'code').length },
-    { id: 'html', label: 'HTML', count: items.filter((item) => item.artifact.kind === 'html').length },
-    { id: 'json', label: 'JSON', count: items.filter((item) => item.artifact.kind === 'json').length },
-    { id: 'mermaid', label: 'Mermaid', count: items.filter((item) => item.artifact.kind === 'mermaid').length },
+    {
+      id: 'markdown',
+      label: 'Markdown',
+      count: items.filter((item) => item.artifact.kind === 'markdown').length,
+    },
+    {
+      id: 'code',
+      label: 'Code',
+      count: items.filter((item) => item.artifact.kind === 'code').length,
+    },
+    {
+      id: 'html',
+      label: 'HTML',
+      count: items.filter((item) => item.artifact.kind === 'html').length,
+    },
+    {
+      id: 'json',
+      label: 'JSON',
+      count: items.filter((item) => item.artifact.kind === 'json').length,
+    },
+    {
+      id: 'mermaid',
+      label: 'Mermaid',
+      count: items.filter((item) => item.artifact.kind === 'mermaid').length,
+    },
     { id: 'svg', label: 'SVG', count: items.filter((item) => item.artifact.kind === 'svg').length },
-    { id: 'text', label: 'Text', count: items.filter((item) => item.artifact.kind === 'text').length },
+    {
+      id: 'text',
+      label: 'Text',
+      count: items.filter((item) => item.artifact.kind === 'text').length,
+    },
   ]
 
   const copySelected = async () => {
@@ -357,7 +387,10 @@ export default function ArtifactsView(): React.ReactElement {
 
     void (async () => {
       try {
-        const full: ChatSession | null = await window.ipcRenderer.invoke('chat-store:get-session', sessionId)
+        const full: ChatSession | null = await window.ipcRenderer.invoke(
+          'chat-store:get-session',
+          sessionId
+        )
         if (!full) return
 
         const currentArts = full.artifacts || []
@@ -374,12 +407,16 @@ export default function ArtifactsView(): React.ReactElement {
         await window.ipcRenderer.invoke('chat-store:save-session', nextSession)
 
         // Refresh metadata for the gallery list
-        const freshMeta: ChatSessionMetadata[] = await window.ipcRenderer.invoke('chat-store:get-metadata')
+        const freshMeta: ChatSessionMetadata[] =
+          await window.ipcRenderer.invoke('chat-store:get-metadata')
         setSessionMetadata(freshMeta || [])
 
         // If this artifact is currently selected in the drawer, re-load the fresh full document
         if (selected && selected.sessionId === sessionId && selected.artifactId === artifactId) {
-          const refreshed: ChatSession | null = await window.ipcRenderer.invoke('chat-store:get-session', sessionId)
+          const refreshed: ChatSession | null = await window.ipcRenderer.invoke(
+            'chat-store:get-session',
+            sessionId
+          )
           const freshArt = refreshed?.artifacts?.find((a) => a.id === artifactId) || null
           setLoadedFullArtifact(freshArt)
         }
@@ -449,12 +486,21 @@ export default function ArtifactsView(): React.ReactElement {
       return <iframe title={artifact.title} sandbox="" srcDoc={selectedVersion.content} />
     }
     const language = artifact.kind === 'json' ? 'json' : artifact.language || artifact.kind
-    return <pre><code>{language ? `// ${language}\n` : ''}{selectedVersion.content}</code></pre>
+    return (
+      <pre>
+        <code>
+          {language ? `// ${language}\n` : ''}
+          {selectedVersion.content}
+        </code>
+      </pre>
+    )
   }
 
   return (
     <section className="artifacts-view" aria-labelledby="artifacts-title">
-      <div className={`artifacts-view__stage ${selectedItem ? 'artifacts-view__stage--drawer-open' : ''}`}>
+      <div
+        className={`artifacts-view__stage ${selectedItem ? 'artifacts-view__stage--drawer-open' : ''}`}
+      >
         <main className="artifacts-view__panel">
           <header className="artifacts-view__panel-header">
             <div>
@@ -494,7 +540,9 @@ export default function ArtifactsView(): React.ReactElement {
             <div className="artifacts-view__empty-state">
               <FileText size={18} />
               <strong>No artifacts yet</strong>
-              <span>Ask the assistant to create a document, code file, SVG, or Mermaid diagram.</span>
+              <span>
+                Ask the assistant to create a document, code file, SVG, or Mermaid diagram.
+              </span>
             </div>
           ) : (
             <div className="artifacts-view__rows">
@@ -513,7 +561,9 @@ export default function ArtifactsView(): React.ReactElement {
                       type="button"
                       className="artifacts-view__row"
                       aria-label={`Preview ${item.artifact.title}`}
-                      onClick={() => setSelected({ sessionId: item.sessionId, artifactId: item.artifact.id })}
+                      onClick={() =>
+                        setSelected({ sessionId: item.sessionId, artifactId: item.artifact.id })
+                      }
                     >
                       <div className="artifacts-view__row-main">
                         <div className="artifacts-view__row-header">
@@ -527,10 +577,17 @@ export default function ArtifactsView(): React.ReactElement {
                         </div>
                         <div className="artifacts-view__row-body">
                           <div className="artifacts-view__badge-row">
-                            <span className="artifacts-view__type-badge">{formatArtifactKind(item.artifact.kind)}</span>
-                            {item.artifact.language && <span className="artifacts-view__status-badge">{item.artifact.language}</span>}
+                            <span className="artifacts-view__type-badge">
+                              {formatArtifactKind(item.artifact.kind)}
+                            </span>
+                            {item.artifact.language && (
+                              <span className="artifacts-view__status-badge">
+                                {item.artifact.language}
+                              </span>
+                            )}
                             <span className="artifacts-view__version-badge">
-                              {item.artifact.versions.length} version{item.artifact.versions.length === 1 ? '' : 's'}
+                              {item.artifact.versions.length} version
+                              {item.artifact.versions.length === 1 ? '' : 's'}
                             </span>
                           </div>
                           <div className="artifacts-view__row-meta">
@@ -539,10 +596,9 @@ export default function ArtifactsView(): React.ReactElement {
                         </div>
                       </div>
                     </button>
-                    <button
-                      type="button"
+                    <TooltipIconButton
+                      tooltip={externalOpenLabel}
                       className={`artifacts-view__open-chevron ${isOpening ? 'artifacts-view__open-chevron--opening' : ''}`}
-                      title={externalOpenLabel}
                       aria-label={`${externalOpenLabel}: ${item.artifact.title}`}
                       disabled={isOpening}
                       onClick={(event) => {
@@ -551,7 +607,7 @@ export default function ArtifactsView(): React.ReactElement {
                       }}
                     >
                       <ChevronRight size={18} strokeWidth={1.8} />
-                    </button>
+                    </TooltipIconButton>
                   </div>
                 )
               })}
@@ -562,7 +618,10 @@ export default function ArtifactsView(): React.ReactElement {
         {selectedItem && effectiveArtifact && selectedVersion && (
           <>
             <div className="artifacts-view__drawer-divider" aria-hidden="true" />
-            <aside className="artifacts-view__drawer" aria-label={`Artifact details for ${effectiveArtifact.title}`}>
+            <aside
+              className="artifacts-view__drawer"
+              aria-label={`Artifact details for ${effectiveArtifact.title}`}
+            >
               <div className="artifacts-view__drawer-header">
                 <div>
                   <span>{formatArtifactKind(effectiveArtifact.kind)}</span>
@@ -572,18 +631,29 @@ export default function ArtifactsView(): React.ReactElement {
                     <span>Updated {formatDate(effectiveArtifact.updatedAt)}</span>
                   </div>
                 </div>
-                <button type="button" className="artifacts-view__icon-button" onClick={() => setSelected(null)} aria-label="Close artifact details">
+                <button
+                  type="button"
+                  className="artifacts-view__icon-button"
+                  onClick={() => setSelected(null)}
+                  aria-label="Close artifact details"
+                >
                   <X size={15} />
                 </button>
               </div>
 
               <div className="artifacts-view__drawer-actions">
-                <Button size="sm" variant="secondary" onClick={() => void copySelected()}><Copy size={14} /> Copy</Button>
-                <Button size="sm" variant="secondary" onClick={downloadSelected}><Download size={14} /> Download</Button>
+                <Button size="sm" variant="secondary" onClick={() => void copySelected()}>
+                  <Copy size={14} /> Copy
+                </Button>
+                <Button size="sm" variant="secondary" onClick={downloadSelected}>
+                  <Download size={14} /> Download
+                </Button>
                 <Button
                   size="sm"
                   variant="secondary"
-                  disabled={openingArtifactKey === `${selectedItem.sessionId}:${selectedItem.artifact.id}`}
+                  disabled={
+                    openingArtifactKey === `${selectedItem.sessionId}:${selectedItem.artifact.id}`
+                  }
                   onClick={() => void openExternally(selectedItem)}
                 >
                   <ChevronRight size={14} /> Open externally
@@ -598,37 +668,37 @@ export default function ArtifactsView(): React.ReactElement {
                 >
                   Open chat
                 </Button>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={renameSelected}
-                >
+                <Button size="sm" variant="secondary" onClick={renameSelected}>
                   Rename
                 </Button>
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  onClick={deleteSelected}
-                >
+                <Button size="sm" variant="destructive" onClick={deleteSelected}>
                   <Trash2 size={14} /> Delete
                 </Button>
               </div>
 
-              <div className="artifacts-view__preview">
-                {renderPreview()}
-              </div>
+              <div className="artifacts-view__preview">{renderPreview()}</div>
 
               <div className="artifacts-view__versions">
-                {effectiveArtifact.versions.slice().reverse().map((version) => (
-                  <div key={version.id} className="artifacts-view__version">
-                    <span>{version.id === effectiveArtifact.currentVersionId ? 'Current' : 'Version'} / {formatDate(version.createdAt)}</span>
-                    {version.id !== effectiveArtifact.currentVersionId && (
-                      <Button size="sm" variant="ghost" onClick={() => restoreSelectedVersion(version.id)}>
-                        Restore
-                      </Button>
-                    )}
-                  </div>
-                ))}
+                {effectiveArtifact.versions
+                  .slice()
+                  .reverse()
+                  .map((version) => (
+                    <div key={version.id} className="artifacts-view__version">
+                      <span>
+                        {version.id === effectiveArtifact.currentVersionId ? 'Current' : 'Version'}{' '}
+                        / {formatDate(version.createdAt)}
+                      </span>
+                      {version.id !== effectiveArtifact.currentVersionId && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => restoreSelectedVersion(version.id)}
+                        >
+                          Restore
+                        </Button>
+                      )}
+                    </div>
+                  ))}
               </div>
             </aside>
           </>

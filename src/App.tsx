@@ -18,6 +18,7 @@ import { ComposerDraftProvider } from './contexts/ComposerDraftContext'
 import { ModelSelectorProvider } from './contexts/ModelSelectorContext'
 import { McpProvider } from './mcp/McpContext'
 import { ToastProvider, ErrorBoundary } from './components/shared'
+import { TooltipProvider } from './components/ui/tooltip'
 import { McpApprovalDialog } from './components/mcp/McpApprovalDialog'
 import { ComputerUseApprovalDialog } from './components/ComputerUseApprovalDialog'
 import { AnalyticsConsentPrompt } from './components/AnalyticsConsentPrompt'
@@ -186,7 +187,9 @@ function App() {
   return (
     <ErrorBoundary>
       <MotionConfig reducedMotion="user">
-        <ToastProvider>{content}</ToastProvider>
+        <ToastProvider>
+          <TooltipProvider>{content}</TooltipProvider>
+        </ToastProvider>
       </MotionConfig>
     </ErrorBoundary>
   )

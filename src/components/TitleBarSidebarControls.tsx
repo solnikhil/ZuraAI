@@ -1,5 +1,7 @@
 import { PanelLeft } from './icons'
 import TitleBarNavigation from './TitleBarNavigation'
+import { TooltipIconButton } from './ui/TooltipIconButton'
+import { WithTooltip } from './ui/WithTooltip'
 
 interface TitleBarSidebarControlsProps {
   canGoBack: boolean
@@ -41,15 +43,14 @@ export default function TitleBarSidebarControls({
             .filter(Boolean)
             .join(' ')}
         >
-          <button
-            type="button"
+          <TooltipIconButton
+            tooltip={sidebarHidden ? 'Show sidebar' : 'Hide sidebar'}
             className="app-titlebar__icon-btn app-titlebar__icon-btn--nav"
             onClick={toggleSidebarHidden}
             aria-label={sidebarHidden ? 'Show sidebar' : 'Hide sidebar'}
-            title={sidebarHidden ? 'Show sidebar' : 'Hide sidebar'}
           >
             <PanelLeft size={16} />
-          </button>
+          </TooltipIconButton>
         </div>
       )}
 
@@ -63,7 +64,9 @@ export default function TitleBarSidebarControls({
       )}
 
       {showNavigation && hasUnsavedSettings && isSettingsView && (
-        <span className="app-titlebar__unsaved" title="Unsaved changes" />
+        <WithTooltip tooltip="Unsaved changes">
+          <span className="app-titlebar__unsaved" />
+        </WithTooltip>
       )}
     </>
   )

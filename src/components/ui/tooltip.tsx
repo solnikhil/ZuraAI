@@ -5,32 +5,30 @@ import { cn } from '@/lib/utils'
 
 const DEFAULT_TOOLTIP_DELAY_MS = 450
 
+const TooltipProviderPresenceContext = React.createContext(false)
+
 function TooltipProvider({
   delayDuration = DEFAULT_TOOLTIP_DELAY_MS,
   skipDelayDuration = 0,
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
   return (
-    <TooltipPrimitive.Provider
-      data-slot="tooltip-provider"
-      delayDuration={delayDuration}
-      skipDelayDuration={skipDelayDuration}
-      {...props}
-    />
+    <TooltipProviderPresenceContext.Provider value={true}>
+      <TooltipPrimitive.Provider
+        data-slot="tooltip-provider"
+        delayDuration={delayDuration}
+        skipDelayDuration={skipDelayDuration}
+        {...props}
+      />
+    </TooltipProviderPresenceContext.Provider>
   )
 }
 
-function Tooltip({
-  delayDuration = DEFAULT_TOOLTIP_DELAY_MS,
-  ...props
-}: React.ComponentProps<typeof TooltipPrimitive.Root> & {
-  delayDuration?: number
-}) {
-  return (
-    <TooltipProvider delayDuration={delayDuration}>
-      <TooltipPrimitive.Root data-slot="tooltip" {...props} />
-    </TooltipProvider>
-  )
+function Tooltip({ ...props }: React.ComponentProps<typeof TooltipPrimitive.Root>) {
+  const hasProvider = React.useContext(TooltipProviderPresenceContext)
+  const root = <TooltipPrimitive.Root data-slot="tooltip" {...props} />
+  if (hasProvider) return root
+  return <TooltipProvider>{root}</TooltipProvider>
 }
 
 function TooltipTrigger({ ...props }: React.ComponentProps<typeof TooltipPrimitive.Trigger>) {

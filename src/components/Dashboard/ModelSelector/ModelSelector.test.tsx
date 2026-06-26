@@ -101,7 +101,7 @@ describe('ModelSelector', () => {
   it('does not show reasoning effort for non-reasoning active models', () => {
     render(<ModelSelector minimal={true} />)
     expect(screen.queryByText(/· (high|xhigh|medium|low|none)/i)).not.toBeInTheDocument()
-    expect(screen.queryByText('Reasoning effort')).not.toBeInTheDocument()
+    expect(screen.queryByText('Reasoning')).not.toBeInTheDocument()
   })
 
   it('shows reasoning effort section with None option for OpenRouter reasoning models', async () => {
@@ -117,10 +117,11 @@ describe('ModelSelector', () => {
     render(<ModelSelector minimal={true} />)
 
     expect(screen.getByText('M')).toBeInTheDocument()
-    expect(await screen.findByText('Reasoning effort')).toBeInTheDocument()
-    expect(screen.getByRole('menuitemradio', { name: /none/i })).toBeInTheDocument()
+    expect(await screen.findByText('Reasoning')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Medium'))
+    expect(screen.getByRole('menuitem', { name: /^none$/i })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('menuitemradio', { name: /none/i }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /^none$/i }))
 
     expect(updateSettings).toHaveBeenCalledWith({
       openRouterReasoningEffort: {
@@ -142,7 +143,7 @@ describe('ModelSelector', () => {
     render(<ModelSelector minimal={true} />)
 
     expect(screen.queryByText('N')).not.toBeInTheDocument()
-    expect(await screen.findByText('Reasoning effort')).toBeInTheDocument()
+    expect(await screen.findByText('Reasoning')).toBeInTheDocument()
   })
 
   it('enables the reasoning effort area for detected OpenRouter reasoning models', async () => {
@@ -158,9 +159,10 @@ describe('ModelSelector', () => {
     render(<ModelSelector minimal={true} />)
 
     expect(screen.getByText('M')).toBeInTheDocument()
-    expect(await screen.findByText('Reasoning effort')).toBeInTheDocument()
+    expect(await screen.findByText('Reasoning')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Medium'))
 
-    fireEvent.click(screen.getByRole('menuitemradio', { name: /xhigh/i }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /^xhigh$/i }))
 
     expect(updateSettings).toHaveBeenCalledWith({
       openRouterReasoningEffort: {

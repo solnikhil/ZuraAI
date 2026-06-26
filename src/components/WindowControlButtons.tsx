@@ -1,5 +1,7 @@
 import type { ReactElement } from 'react'
 
+import { TooltipIconButton } from './ui/TooltipIconButton'
+
 export interface WindowControlButtonsProps {
   isMaximized: boolean
   onMinimize: () => void
@@ -57,35 +59,32 @@ export default function WindowControlButtons({
 }: WindowControlButtonsProps) {
   return (
     <div className="app-titlebar__window-controls no-drag">
-      <button
-        type="button"
+      <TooltipIconButton
+        tooltip="Minimize"
         className="app-titlebar__icon-btn app-titlebar__window-btn app-titlebar__window-btn--minimize no-drag"
         onClick={onMinimize}
         aria-label="Minimize window"
-        title="Minimize"
       >
         <MinimizeWindowIcon />
-      </button>
+      </TooltipIconButton>
 
-      <button
-        type="button"
+      <TooltipIconButton
+        tooltip={isMaximized ? 'Restore' : 'Maximize'}
         className="app-titlebar__icon-btn app-titlebar__window-btn app-titlebar__window-btn--maximize no-drag"
         onClick={onToggleMaximize}
         aria-label={isMaximized ? 'Restore window' : 'Maximize window'}
-        title={isMaximized ? 'Restore' : 'Maximize'}
       >
         {isMaximized ? <RestoreWindowIcon /> : <MaximizeWindowIcon />}
-      </button>
+      </TooltipIconButton>
 
-      <button
-        type="button"
+      <TooltipIconButton
+        tooltip="Close"
         className="app-titlebar__icon-btn app-titlebar__window-btn app-titlebar__window-btn--close no-drag"
         onClick={onClose}
         aria-label="Close window"
-        title="Close"
       >
         <CloseWindowIcon />
-      </button>
+      </TooltipIconButton>
     </div>
   )
 }

@@ -5,15 +5,13 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/shared'
+import { WithTooltip } from '@/components/ui/WithTooltip'
 import { writeTextToClipboard } from '@/utils/clipboard'
 import {
   CHAT_DIAGNOSTICS_BUFFER_LIMIT,
   useChatDiagnosticsStream,
 } from '@/diagnostics/useChatDiagnosticsStream'
-import type {
-  ChatDiagnosticEvent,
-  ChatDiagnosticPhase,
-} from '@/diagnostics/chatDiagnostics'
+import type { ChatDiagnosticEvent, ChatDiagnosticPhase } from '@/diagnostics/chatDiagnostics'
 
 import {
   CHAT_DEBUG_CATEGORIES,
@@ -69,7 +67,7 @@ const PHASE_TONE: Record<ChatDiagnosticPhase, string> = {
   'context-optimized': 'phase--neutral',
   'round-start': 'phase--info',
   'round-finish': 'phase--info',
-  'usage': 'phase--success',
+  usage: 'phase--success',
   'tool-start': 'phase--info',
   'tool-complete': 'phase--info',
   'stream-chunk': 'phase--muted',
@@ -78,7 +76,7 @@ const PHASE_TONE: Record<ChatDiagnosticPhase, string> = {
   'memory-extraction-result': 'phase--success',
   'memory-extraction-error': 'phase--error',
   'provider-error': 'phase--error',
-  'finish': 'phase--success',
+  finish: 'phase--success',
 }
 
 // The three memory-extraction phases are the background "dreaming" pipeline.
@@ -134,7 +132,8 @@ function summarizeEvent(event: ChatDiagnosticEvent): string {
       return `tool: ${event.tool?.name ?? 'unknown'}`
     case 'tool-complete': {
       const ok = event.tool?.success ? 'ok' : 'fail'
-      const ms = event.tool?.executionTime != null ? `${Math.round(event.tool.executionTime)}ms` : '—'
+      const ms =
+        event.tool?.executionTime != null ? `${Math.round(event.tool.executionTime)}ms` : '—'
       return `tool: ${event.tool?.name ?? 'unknown'} (${ok}) ${ms}`
     }
     case 'stream-chunk': {
@@ -151,7 +150,8 @@ function summarizeEvent(event: ChatDiagnosticEvent): string {
       return event.error ? `error: ${event.error.slice(0, 120)}` : 'error'
     case 'research-state': {
       const parts = [event.researchState ?? 'research']
-      if (event.searchBudgetRemaining != null) parts.push(`${event.searchBudgetRemaining} search left`)
+      if (event.searchBudgetRemaining != null)
+        parts.push(`${event.searchBudgetRemaining} search left`)
       if (event.recoveredQueryCount != null) parts.push(`${event.recoveredQueryCount} recovered`)
       if (event.skippedReason) parts.push(`skipped=${event.skippedReason}`)
       if (event.deterministicAnswerUsed) parts.push('deterministic')
@@ -185,7 +185,11 @@ function summarizeEvent(event: ChatDiagnosticEvent): string {
 function formatTimestamp(timestamp: number | undefined): string {
   if (!timestamp) return '—'
   const date = new Date(timestamp)
-  return date.toLocaleTimeString(undefined, { hour12: false }) + '.' + String(date.getMilliseconds()).padStart(3, '0')
+  return (
+    date.toLocaleTimeString(undefined, { hour12: false }) +
+    '.' +
+    String(date.getMilliseconds()).padStart(3, '0')
+  )
 }
 
 interface TimelineRowProps {
@@ -196,22 +200,20 @@ interface TimelineRowProps {
 
 function TimelineRow({ event, expanded, onToggle }: TimelineRowProps) {
   const failed = isFailedToolComplete(event)
-  const tone = failed ? 'phase--error' : PHASE_TONE[event.phase] ?? 'phase--muted'
+  const tone = failed ? 'phase--error' : (PHASE_TONE[event.phase] ?? 'phase--muted')
 
   return (
     <div className={`chat-debug-row ${expanded ? 'chat-debug-row--expanded' : ''}`}>
       <button type="button" className="chat-debug-row__head" onClick={onToggle}>
-        <span className="chat-debug-row__time" title={String(event.timestamp ?? '')}>
-          {formatTimestamp(event.timestamp)}
-        </span>
+        <WithTooltip tooltip={String(event.timestamp ?? '')}>
+          <span className="chat-debug-row__time">{formatTimestamp(event.timestamp)}</span>
+        </WithTooltip>
         <Badge className={`chat-debug-row__phase ${tone}`} variant="outline">
           {event.phase}
         </Badge>
         <span className="chat-debug-row__summary">{summarizeEvent(event)}</span>
       </button>
-      {expanded && (
-        <pre className="chat-debug-row__json">{JSON.stringify(event, null, 2)}</pre>
-      )}
+      {expanded && <pre className="chat-debug-row__json">{JSON.stringify(event, null, 2)}</pre>}
     </div>
   )
 }
@@ -236,7 +238,9 @@ export function ChatDebugPanelView({ sessionId }: ChatDebugPanelViewProps) {
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set())
   const [autoScroll, setAutoScroll] = useState(true)
   const [viewMode, setViewMode] = useState<ViewMode>(() => readStoredViewMode())
-  const [activeCategory, setActiveCategory] = useState<ChatDebugCategoryId>(() => readStoredCategory())
+  const [activeCategory, setActiveCategory] = useState<ChatDebugCategoryId>(() =>
+    readStoredCategory()
+  )
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -320,20 +324,23 @@ export function ChatDebugPanelView({ sessionId }: ChatDebugPanelViewProps) {
         <div>
           <h1 className="chat-debug-panel__title">Chat Debug Logs</h1>
           <p className="chat-debug-page__subtitle">
-            Live diagnostic events for this chat session. Dev-only; capped at {CHAT_DIAGNOSTICS_BUFFER_LIMIT} events
-            in memory and 500 events per session on disk. Secrets (API keys, tokens, base64 images) are redacted.
+            Live diagnostic events for this chat session. Dev-only; capped at{' '}
+            {CHAT_DIAGNOSTICS_BUFFER_LIMIT} events in memory and 500 events per session on disk.
+            Secrets (API keys, tokens, base64 images) are redacted.
           </p>
         </div>
       </header>
 
       <div className="chat-debug-panel__metabar">
-        <div className="chat-debug-panel__session" title={sessionId}>
-          <span className="chat-debug-panel__session-label">session</span>
-          <code className="chat-debug-panel__session-id">{sessionId.slice(0, 12)}…</code>
-          <Button size="sm" variant="ghost" onClick={handleCopySession}>
-            Copy
-          </Button>
-        </div>
+        <WithTooltip tooltip={sessionId}>
+          <div className="chat-debug-panel__session">
+            <span className="chat-debug-panel__session-label">session</span>
+            <code className="chat-debug-panel__session-id">{sessionId.slice(0, 12)}…</code>
+            <Button size="sm" variant="ghost" onClick={handleCopySession}>
+              Copy
+            </Button>
+          </div>
+        </WithTooltip>
         <div className="chat-debug-panel__counts">
           {filteredEvents.length} / {events.length} events
         </div>
@@ -423,11 +430,7 @@ export function ChatDebugPanelView({ sessionId }: ChatDebugPanelViewProps) {
               const key = `${event.timestamp}-${event.phase}-${event.messageId}`
               const expanded = expandedKeys.has(key)
               return (
-                <TimelineRow
-                  event={event}
-                  expanded={expanded}
-                  onToggle={() => toggleRow(key)}
-                />
+                <TimelineRow event={event} expanded={expanded} onToggle={() => toggleRow(key)} />
               )
             }}
           />

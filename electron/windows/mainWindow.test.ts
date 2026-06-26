@@ -2,6 +2,10 @@ import path from 'path'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => ({
+  app: {
+    isPackaged: false,
+    getPath: vi.fn(() => '/tmp/zura-test'),
+  },
   BrowserWindow: vi.fn(),
   shell: {
     openExternal: vi.fn(),

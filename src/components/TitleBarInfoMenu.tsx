@@ -4,15 +4,18 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 
 import type { AppRuntimeInfo } from '../electron/types'
 import type { DashboardView } from '../contexts/AppShellContext'
-import { ArrowLeft, ChevronRight, Clock, Info, List, MessageCircle, SettingsIcon } from './icons'
+import { ArrowLeft, Clock, Info, List, Loader2, MessageCircle, SettingsIcon } from './icons'
 import { useToast } from './shared/Toast'
 import { isMacOSRuntime } from '@/utils/platform'
+import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip'
+import { TooltipIconButton } from './ui/TooltipIconButton'
 
 import type { UpdateCheckInfo } from '@/electron/types'
 
@@ -114,6 +117,7 @@ export default function TitleBarInfoMenu({
   const overlayAvailable = !isMacOSRuntime()
   const settingsButtonDisabled = isSettingsView && hasUnsavedSettings
   const isSidebarTrigger = triggerVariant === 'sidebar'
+  const updateBusy = updateState === 'checking' || updateState === 'available'
   const handleCheckForUpdates = useCallback(async () => {
     if (!window.updater) {
       showToast('Updater is not available in this environment.', 'error')
@@ -193,108 +197,110 @@ export default function TitleBarInfoMenu({
 
   if (isSidebarTrigger && isSettingsView) {
     return (
-      <button
-        type="button"
+      <TooltipIconButton
+        tooltip="Back to chat"
         className="sidebar-header__btn sidebar-footer-row"
         aria-label="Back to chat"
-        title="Back to chat"
         onClick={handleSettingsToggle}
       >
         <span className="sidebar-header__icon-slot" aria-hidden="true">
           <ArrowLeft size={16} className="sidebar-header__icon" />
         </span>
         {!sidebarCollapsed ? <span className="sidebar-header__label">Back to chat</span> : null}
-      </button>
+      </TooltipIconButton>
     )
   }
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        {isSidebarTrigger ? (
-          <button
-            type="button"
-            className="sidebar-header__btn sidebar-footer-row"
-            aria-label="Open app menu"
-            title="Settings"
-          >
-            <span className="sidebar-header__icon-slot" aria-hidden="true">
-              <SettingsIcon size={16} className="sidebar-header__icon" />
-            </span>
-            {!sidebarCollapsed ? <span className="sidebar-header__label">Settings</span> : null}
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="app-titlebar__icon-btn app-titlebar__info-trigger no-drag"
-            aria-label="Open app info menu"
-            title="App info"
-          >
-            <List size={16} />
-          </button>
-        )}
-      </DropdownMenuTrigger>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger asChild>
+            {isSidebarTrigger ? (
+              <button
+                type="button"
+                className="sidebar-header__btn sidebar-footer-row"
+                aria-label="Open app menu"
+              >
+                <span className="sidebar-header__icon-slot" aria-hidden="true">
+                  <SettingsIcon size={16} className="sidebar-header__icon" />
+                </span>
+                {!sidebarCollapsed ? <span className="sidebar-header__label">Settings</span> : null}
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="app-titlebar__icon-btn app-titlebar__info-trigger no-drag"
+                aria-label="Open app info menu"
+              >
+                <List size={16} />
+              </button>
+            )}
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent>{isSidebarTrigger ? 'Settings' : 'App info'}</TooltipContent>
+      </Tooltip>
 
       <DropdownMenuContent
-        align="end"
-        sideOffset={6}
-        className="app-menu-panel zura-menu-surface--compact w-60 p-2"
+        side={isSidebarTrigger ? 'top' : 'bottom'}
+        align={isSidebarTrigger ? 'start' : 'end'}
+        sideOffset={isSidebarTrigger ? 6 : 8}
+        collisionPadding={12}
+        className={
+          isSidebarTrigger
+            ? 'zura-menu-surface--compact min-w-[var(--radix-dropdown-menu-trigger-width)]'
+            : 'zura-menu-surface--compact w-60'
+        }
       >
-        {overlayAvailable && (
-          <DropdownMenuItem
-            className="app-menu-panel__item"
-            onSelect={handleToggleOverlay}
-          >
-            <span className="app-menu-panel__item-left">
-              <MessageCircle size={16} />
-              <span>Overlay</span>
-            </span>
+        <DropdownMenuLabel>App</DropdownMenuLabel>
+
+        {overlayAvailable ? (
+          <DropdownMenuItem className="zura-menu-item--compact" onSelect={handleToggleOverlay}>
+            <MessageCircle size={16} />
+            <span>Overlay</span>
           </DropdownMenuItem>
-        )}
+        ) : null}
 
         <DropdownMenuItem
-          className="app-menu-panel__item"
+          className="zura-menu-item--compact"
           disabled={settingsButtonDisabled}
           onSelect={() => {
             handleSettingsToggle()
           }}
         >
-          <span className="app-menu-panel__item-left">
-            <SettingsIcon size={16} />
-            <span>
-              {settingsButtonDisabled
-                ? 'Save or discard changes first'
-                : isSettingsView
-                  ? 'Back to chat'
-                  : 'Settings'}
-            </span>
+          <SettingsIcon size={16} />
+          <span className="truncate">
+            {settingsButtonDisabled
+              ? 'Save or discard changes first'
+              : isSettingsView
+                ? 'Back to chat'
+                : 'Settings'}
           </span>
         </DropdownMenuItem>
 
-        <DropdownMenuSeparator className="app-menu-panel__separator" />
+        <DropdownMenuSeparator />
 
-        <DropdownMenuItem
-          className="app-menu-panel__item"
-          onSelect={handleOpenAbout}
-        >
-          <span className="app-menu-panel__item-left">
-            <Info size={16} />
-            <span>About</span>
-          </span>
+        <DropdownMenuLabel>About</DropdownMenuLabel>
+
+        <DropdownMenuItem className="zura-menu-item--compact" onSelect={handleOpenAbout}>
+          <Info size={16} />
+          <span>About</span>
         </DropdownMenuItem>
 
         <DropdownMenuItem
-          className="app-menu-panel__item"
+          className="zura-menu-item--compact"
           disabled={updateState === 'checking'}
           onSelect={() => {
             void handleCheckForUpdates()
           }}
         >
-          <span className="app-menu-panel__item-left">
-            <Clock size={16} />
-            <span>{getUpdateMenuLabel(updateState, downloadPercent)}</span>
+          <Clock size={16} />
+          <span className="flex-1 truncate">
+            {getUpdateMenuLabel(updateState, downloadPercent)}
           </span>
-          <ChevronRight size={15} className="app-menu-panel__chevron" />
+          {updateBusy ? (
+            <Loader2 size={14} className="shrink-0 animate-spin opacity-70" aria-hidden="true" />
+          ) : null}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

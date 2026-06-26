@@ -1,4 +1,5 @@
 import { ChevronLeft, ChevronRight } from './icons'
+import { TooltipIconButton } from './ui/TooltipIconButton'
 
 interface TitleBarNavigationProps {
   canGoBack: boolean
@@ -15,27 +16,25 @@ export default function TitleBarNavigation({
 }: TitleBarNavigationProps) {
   return (
     <div className="app-titlebar__controls app-titlebar__nav-cluster no-drag">
-      <button
-        type="button"
+      <TooltipIconButton
+        tooltip="Back"
         className="app-titlebar__icon-btn app-titlebar__icon-btn--nav"
         onClick={onBack}
         aria-label="Go back"
-        title="Back"
         disabled={!canGoBack}
       >
         <ChevronLeft size={16} />
-      </button>
+      </TooltipIconButton>
 
-      <button
-        type="button"
+      <TooltipIconButton
+        tooltip="Forward"
         className="app-titlebar__icon-btn app-titlebar__icon-btn--nav"
         onClick={onForward}
         aria-label="Go forward"
-        title="Forward"
         disabled={!canGoForward}
       >
         <ChevronRight size={16} />
-      </button>
+      </TooltipIconButton>
     </div>
   )
 }

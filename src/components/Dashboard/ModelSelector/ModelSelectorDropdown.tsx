@@ -5,8 +5,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
@@ -44,9 +42,8 @@ export interface ModelSelectorDropdownProps {
 /**
  * Cascading model picker content (Codex / memory-selector style).
  *
- * Structure: an optional top "Reasoning effort" group (only for the active
- * DeepSeek model with reasoning enabled), then a single current-model row that
- * opens a provider submenu, each provider opening its own models submenu.
+ * Structure: current-model row first (provider → models cascade), then an
+ * optional reasoning-effort submenu for reasoning-capable active models.
  * Provider → models mirrors the cascade in Settings → Memory.
  */
 export function ModelSelectorDropdown({
@@ -65,6 +62,7 @@ export function ModelSelectorDropdown({
   const providers = getPickerVisibleProviders()
     .filter((provider) => (groupedModels[provider.id]?.length || 0) > 0)
     .map((provider) => ({ id: provider.id, label: getProviderDefinition(provider.id).label }))
+  const currentReasoningLabel = getReasoningEffortLabel(reasoningEffort)
 
   return (
     <DropdownMenuContent
@@ -73,30 +71,7 @@ export function ModelSelectorDropdown({
       collisionPadding={12}
       className="zura-menu-surface--model w-[248px]"
     >
-      {showReasoning && (
-        <>
-          <DropdownMenuLabel>
-            Reasoning effort
-          </DropdownMenuLabel>
-          <DropdownMenuRadioGroup
-            className="flex flex-col gap-0.5"
-            value={reasoningEffort}
-            onValueChange={(value) => onReasoningEffortChange(value as DeepSeekReasoningEffort)}
-          >
-            {reasoningEfforts.map((effort) => (
-              <DropdownMenuRadioItem
-                key={effort}
-                value={effort}
-                className="zura-menu-item--model pl-3 pr-2 [&>span:first-child]:hidden"
-              >
-                {getReasoningEffortLabel(effort)}
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-          <DropdownMenuSeparator />
-        </>
-      )}
-
+      <DropdownMenuLabel>Model</DropdownMenuLabel>
       <DropdownMenuSub>
         <DropdownMenuSubTrigger className="zura-menu-sub-trigger--model">
           {currentModel && <ProviderLogo provider={currentModel.provider} size={16} />}
@@ -149,6 +124,42 @@ export function ModelSelectorDropdown({
           )}
         </DropdownMenuSubContent>
       </DropdownMenuSub>
+
+      {showReasoning && (
+        <>
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel>Reasoning</DropdownMenuLabel>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger className="zura-menu-sub-trigger--model">
+              <span className="truncate">{currentReasoningLabel}</span>
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent
+              sideOffset={6}
+              collisionPadding={12}
+              className="zura-menu-surface--model w-[210px]"
+            >
+              {reasoningEfforts.map((effort) => {
+                const isActive = effort === reasoningEffort
+                return (
+                  <DropdownMenuItem
+                    key={effort}
+                    onSelect={() => onReasoningEffortChange(effort)}
+                    className="zura-menu-item--model"
+                  >
+                    <span className="flex-1 truncate">{getReasoningEffortLabel(effort)}</span>
+                    {isActive && (
+                      <Check
+                        className="h-3.5 w-3.5 text-[var(--theme-primary)]"
+                        aria-label="Active reasoning effort"
+                      />
+                    )}
+                  </DropdownMenuItem>
+                )
+              })}
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+        </>
+      )}
     </DropdownMenuContent>
   )
 }

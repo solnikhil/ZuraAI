@@ -13,7 +13,7 @@ import {
 } from '../../../utils/deepseekReasoning'
 import type { DeepSeekReasoningEffort } from '../../../contexts/SettingsConfigContext'
 import { DropdownMenu, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import './ModelSelector.css'
 
@@ -45,8 +45,7 @@ export default function ModelSelector({ minimal, popoverAlign = 'start' }: Model
     currentModel?.openRouterReasoningDetected === true &&
     currentModel?.supportsDeepThinking === true
   const isNvidiaReasoningModel =
-    settings.modelProvider === 'nvidia' &&
-    currentModel?.supportsDeepThinking === true
+    settings.modelProvider === 'nvidia' && currentModel?.supportsDeepThinking === true
   // Show reasoning section for reasoning-capable models (DeepSeek only when enabled)
   const showReasoningSection =
     (isDeepseekModel && deepseekReasoning.enabled) ||
@@ -62,63 +61,65 @@ export default function ModelSelector({ minimal, popoverAlign = 'start' }: Model
   // Show badge on trigger only when reasoning is actually enabled
   const showReasoningBadge = showReasoningSection && reasoningEnabled
   const compactReasoningEffortLabel =
-    reasoningEffort === 'xhigh' ? 'XH' : reasoningEffort === 'none' ? 'N' : reasoningEffort.charAt(0).toUpperCase()
+    reasoningEffort === 'xhigh'
+      ? 'XH'
+      : reasoningEffort === 'none'
+        ? 'N'
+        : reasoningEffort.charAt(0).toUpperCase()
   const showLeadingIcon = !minimal
 
   return (
     <DropdownMenu open={state.isOpen} onOpenChange={setIsOpen} modal={false}>
-      <TooltipProvider delayDuration={350}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                aria-label={`Select model: ${currentName}`}
-                className={cn(
-                  'flex cursor-pointer items-center gap-1.5 rounded-xl px-3 py-1.5 transition-[background-color,border-color,color] duration-150',
-                  minimal
-                    ? 'min-h-9 rounded-full border border-transparent bg-transparent px-2 py-1.5 text-[var(--theme-text-secondary)] hover:bg-[color-mix(in_srgb,var(--theme-surface)_72%,transparent)] hover:text-[var(--theme-text-primary)] data-[state=open]:bg-[color-mix(in_srgb,var(--theme-surface)_72%,transparent)] data-[state=open]:text-[var(--theme-text-primary)]'
-                    : 'border border-[var(--theme-border)] bg-[var(--theme-surface-subtle)] text-[var(--theme-text-secondary)] hover:border-[var(--theme-border-hover)] hover:bg-[var(--theme-surface-hover)] hover:text-[var(--theme-text-primary)] data-[state=open]:border-[var(--theme-border-hover)] data-[state=open]:bg-[var(--theme-surface-hover)] data-[state=open]:text-[var(--theme-text-primary)]'
-                )}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              aria-label={`Select model: ${currentName}`}
+              className={cn(
+                'flex cursor-pointer items-center gap-1.5 rounded-xl px-3 py-1.5 transition-[background-color,border-color,color] duration-150',
+                minimal
+                  ? 'min-h-9 rounded-full border border-transparent bg-transparent px-2 py-1.5 text-[var(--theme-text-secondary)] hover:bg-[color-mix(in_srgb,var(--theme-surface)_72%,transparent)] hover:text-[var(--theme-text-primary)] data-[state=open]:bg-[color-mix(in_srgb,var(--theme-surface)_72%,transparent)] data-[state=open]:text-[var(--theme-text-primary)]'
+                  : 'border border-[var(--theme-border)] bg-[var(--theme-surface-subtle)] text-[var(--theme-text-secondary)] hover:border-[var(--theme-border-hover)] hover:bg-[var(--theme-surface-hover)] hover:text-[var(--theme-text-primary)] data-[state=open]:border-[var(--theme-border-hover)] data-[state=open]:bg-[var(--theme-surface-hover)] data-[state=open]:text-[var(--theme-text-primary)]'
+              )}
+            >
+              {showLeadingIcon &&
+                (currentModel ? (
+                  <ModelIcon
+                    model={currentModel}
+                    icon={getModelAttributes(currentModel).icon}
+                    color={getModelAttributes(currentModel).color}
+                    size={16}
+                  />
+                ) : (
+                  <Cpu size={14} />
+                ))}
+              <span
+                className={cn('truncate', minimal ? 'text-[0.95rem]' : 'text-xs font-medium')}
+                style={{ maxWidth: minimal ? '220px' : '140px', minWidth: minimal ? 0 : '80px' }}
               >
-                {showLeadingIcon &&
-                  (currentModel ? (
-                    <ModelIcon
-                      model={currentModel}
-                      icon={getModelAttributes(currentModel).icon}
-                      color={getModelAttributes(currentModel).color}
-                      size={16}
-                    />
-                  ) : (
-                    <Cpu size={14} />
-                  ))}
-                <span
-                  className={cn('truncate', minimal ? 'text-[0.95rem]' : 'text-xs font-medium')}
-                  style={{ maxWidth: minimal ? '220px' : '140px', minWidth: minimal ? 0 : '80px' }}
-                >
-                  {currentName}
+                {currentName}
+              </span>
+              {showReasoningBadge && (
+                <span className="inline-flex shrink-0 items-center border-l border-[var(--theme-border-subtle)] pl-1.5 text-[0.68rem] font-semibold leading-none text-[var(--theme-text-tertiary)]">
+                  {compactReasoningEffortLabel}
                 </span>
-                {showReasoningBadge && (
-                  <span className="inline-flex shrink-0 items-center border-l border-[var(--theme-border-subtle)] pl-1.5 text-[0.68rem] font-semibold leading-none text-[var(--theme-text-tertiary)]">
-                    {compactReasoningEffortLabel}
-                  </span>
+              )}
+              <ChevronDown
+                size={12}
+                className={cn(
+                  'shrink-0 opacity-50 transition-transform duration-150',
+                  minimal && 'opacity-40',
+                  state.isOpen && 'rotate-180'
                 )}
-                <ChevronDown
-                  size={12}
-                  className={cn(
-                    'shrink-0 opacity-50 transition-transform duration-150',
-                    minimal && 'opacity-40',
-                    state.isOpen && 'rotate-180'
-                  )}
-                />
-              </button>
-            </DropdownMenuTrigger>
-          </TooltipTrigger>
-          <TooltipContent side="top" align="end" className="rounded-full">
-            Model Selector
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+              />
+            </button>
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent side="top" align="end" className="rounded-full">
+          Model Selector
+        </TooltipContent>
+      </Tooltip>
       <ModelSelectorDropdown
         align={popoverAlign}
         groupedModels={groupedModels}

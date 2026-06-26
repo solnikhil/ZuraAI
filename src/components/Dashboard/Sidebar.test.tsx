@@ -72,6 +72,7 @@ const mockSettings = {
   settings: {
     skills: {
       reminders: { enabled: false },
+      artifacts: { enabled: false },
     },
   },
 }
@@ -109,6 +110,7 @@ describe('Sidebar', () => {
     mockAppShell.sidebarHidden = false
     mockAppShell.sidebarWidth = 300
     mockSettings.settings.skills.reminders.enabled = false
+    mockSettings.settings.skills.artifacts.enabled = false
   })
 
   it('uses the solid sidebar surface when visible', () => {
@@ -162,7 +164,22 @@ describe('Sidebar', () => {
     mockSettings.settings.skills.reminders.enabled = true
     render(<Sidebar {...defaultProps} />)
 
-    screen.getByRole('button', { name: 'Reminders' }).click()
+    const remindersButton = screen.getByRole('button', { name: 'Reminders' })
+    expect(remindersButton.closest('.sidebar-chatlist__scroller')).toBeInTheDocument()
+
+    remindersButton.click()
     expect(mockAppShell.setDashboardView).toHaveBeenCalledWith('reminders')
+  })
+
+  it('shows the Artifacts entry in the scrollable list when the skill is enabled', () => {
+    mockSettings.settings.skills.artifacts.enabled = true
+
+    render(<Sidebar {...defaultProps} />)
+
+    const artifactsButton = screen.getByRole('button', { name: 'Artifacts' })
+    expect(artifactsButton.closest('.sidebar-chatlist__scroller')).toBeInTheDocument()
+
+    artifactsButton.click()
+    expect(mockAppShell.setDashboardView).toHaveBeenCalledWith('artifacts')
   })
 })

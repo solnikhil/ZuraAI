@@ -44,6 +44,7 @@ import {
 } from './streamingUtils'
 import { selectVerificationStrategy, type AgentVerificationStrategy } from '../../../../../agent/reliability'
 import { createProviderStreamClient } from './providerStreamClient'
+import { resolveStreamPhase as resolveStreamPhaseForContent } from './streamingContentPlacement'
 import {
   appendChatDiagnosticEvent,
   summarizeDiagnosticMessages,
@@ -470,6 +471,13 @@ export function useProviderStreaming({
         updateStreamingMessage(sessionId, messageId, updates)
       }
 
+      const hasVisibleAnswerContent = () => accumulatedContent.trim().length > 0
+
+      const resolveStreamPhase = (
+        phase: 'reasoning' | 'searching' | 'tool' | 'answering'
+      ): 'reasoning' | 'searching' | 'tool' | 'answering' =>
+        resolveStreamPhaseForContent(phase, hasVisibleAnswerContent())
+
       const flushActiveThrottledUpdates = () => {
         if (options.signal?.aborted) return
         flushThrottledUpdates()
@@ -505,16 +513,6 @@ export function useProviderStreaming({
         activeThinking = ''
         activeThinkingStartTime = null
         return true
-      }
-
-      const publishCompletedThinking = () => {
-        const completedThinkingUpdate = {
-          thinking: undefined,
-          thinkingDuration: undefined,
-          thinkingBlocks: localThinkingBlocks,
-        }
-        updateStreamingState(completedThinkingUpdate)
-        updatePersistedStreamingMessage(options.sessionId, options.messageId, completedThinkingUpdate)
       }
 
       const runRound = async (
@@ -612,9 +610,10 @@ export function useProviderStreaming({
                   roundFirstTokenTime = performance.now()
                 }
 
+                let finalizedThinkingThisDelta = false
                 if (event.delta && activeThinking) {
                   finalizeActiveThinking()
-                  publishCompletedThinking()
+                  finalizedThinkingThisDelta = true
                 }
 
                 roundContent += event.delta
@@ -664,11 +663,29 @@ export function useProviderStreaming({
                     roundStartContent.length + roundContent.length,
                     event.smoothing
                   )
-          publishStreamingProgress({
-            phase: 'answering',
-            content: frozenDisplayContent ?? accumulatedContent,
-          })
-        }
+                  const answeringProgress = {
+                    phase: 'answering' as const,
+                    content: frozenDisplayContent ?? accumulatedContent,
+                    ...(finalizedThinkingThisDelta
+                      ? {
+                          thinking: undefined,
+                          thinkingDuration: undefined,
+                          thinkingBlocks: localThinkingBlocks,
+                          files: generatedFiles,
+                          toolResults: savedToolResults,
+                        }
+                      : {}),
+                  }
+                  updateStreamingState(answeringProgress)
+                  publishStreamingProgress(answeringProgress)
+                  if (finalizedThinkingThisDelta) {
+                    updatePersistedStreamingMessage(
+                      options.sessionId,
+                      options.messageId,
+                      answeringProgress
+                    )
+                  }
+                }
                 persistProgress()
                 break
               case 'reasoning-delta':
@@ -682,13 +699,15 @@ export function useProviderStreaming({
                 const thinkingDuration = activeThinkingStartTime !== null
                   ? performance.now() - activeThinkingStartTime
                   : undefined
-                publishStreamingProgress({
-                  phase: 'reasoning',
+                const reasoningProgress = {
+                  phase: resolveStreamPhase('reasoning'),
                   thinking: activeThinking,
                   thinkingDuration,
                   thinkingBlocks: localThinkingBlocks,
                   files: generatedFiles,
-                })
+                }
+                updateStreamingState(reasoningProgress)
+                publishStreamingProgress(reasoningProgress)
                 persistProgress()
                 break
               case 'reasoning-details':
@@ -697,7 +716,6 @@ export function useProviderStreaming({
               case 'tool-call-delta':
                 if (activeThinking) {
                   finalizeActiveThinking()
-                  publishCompletedThinking()
                 }
                 if (!roundAllowsTools) {
                   suppressedInlineToolMarkup = true
@@ -731,7 +749,12 @@ export function useProviderStreaming({
                   Array.isArray(event.delta) ? event.delta.length : 1
                 )
                 // Early signal that tool calls are coming
-                updateStreamingState({ phase: 'tool' })
+                updateStreamingState({
+                  phase: resolveStreamPhase('tool'),
+                  thinking: undefined,
+                  thinkingDuration: undefined,
+                  thinkingBlocks: localThinkingBlocks,
+                })
                 break
               case 'file-delta':
                 generatedFiles = mergeGeneratedFiles(generatedFiles, event.files)
@@ -1152,7 +1175,7 @@ export function useProviderStreaming({
             )
 
         // Signal that we are now waiting on / executing tool calls
-        updateStreamingState({ phase: 'tool' })
+        updateStreamingState({ phase: resolveStreamPhase('tool') })
         updatePersistedStreamingMessage(options.sessionId, options.messageId, { /* no persist for ephemeral phase */ })
 
         let toolResult = await toolCalling.handleToolCalls(
@@ -1205,7 +1228,11 @@ export function useProviderStreaming({
             false,
             initialExecutedSearchQueries
           )
-          updateStreamingState({ phase: 'reasoning', researchStatus, thinkingBlocks: localThinkingBlocks })
+          updateStreamingState({
+            phase: resolveStreamPhase('reasoning'),
+            researchStatus,
+            thinkingBlocks: localThinkingBlocks,
+          })
           updatePersistedStreamingMessage(options.sessionId, options.messageId, {
             researchStatus,
             thinkingBlocks: localThinkingBlocks,
@@ -1315,7 +1342,7 @@ export function useProviderStreaming({
                 )
 
             updateStreamingState({
-              phase: 'reasoning',
+              phase: resolveStreamPhase('reasoning'),
               researchStatus: buildResearchStatus(
                 researchRound,
                 options.researchMaxRounds,
@@ -1405,7 +1432,7 @@ export function useProviderStreaming({
             )
             lastAssistantMessage = reconstructedFollowUp
 
-            updateStreamingState({ phase: 'tool' })
+            updateStreamingState({ phase: resolveStreamPhase('tool') })
 
             const nextToolResult = await toolCalling.handleToolCalls(
               buildResponseWithFallback(
@@ -1465,7 +1492,7 @@ export function useProviderStreaming({
             )
 
             updateStreamingState({
-              phase: 'reasoning',
+              phase: resolveStreamPhase('reasoning'),
               thinkingBlocks: localThinkingBlocks,
               researchStatus: buildResearchStatus(
                 researchRound,

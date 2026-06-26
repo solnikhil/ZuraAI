@@ -10,6 +10,7 @@ import { shouldHideGenericToolResultCard } from './Dashboard/ChatArea/toolResult
 import { writeTextToClipboard } from '@/utils/clipboard'
 import type { Message } from '@/chat/types'
 
+import { clearOverlayRouteDocumentClasses } from './overlay/overlayDocument'
 import { OverlayShell } from './overlay/OverlayShell'
 import { OverlayPill } from './overlay/OverlayPill'
 import { OverlayCard } from './overlay/OverlayCard'
@@ -17,7 +18,7 @@ import { useOverlayAutoHeight } from './overlay/useOverlayAutoHeight'
 import './overlay/overlay.css'
 
 export default function OverlayView() {
-  const { sessions, currentSessionId, createSession, isSessionLoaded, loadFullSession } = useChatHistory()
+  const { sessions, currentSessionId, clearCurrentSession, isSessionLoaded, loadFullSession } = useChatHistory()
   const { settings } = useSettings()
   const { showToast } = useToast()
   const streamingState = useStreamingState()
@@ -60,8 +61,16 @@ export default function OverlayView() {
   })
   const pillDimmed = isPromptHidden && !promptFocused
 
+  const heightReportKey = [
+    isExpanded,
+    messages.length,
+    isLoading,
+    streamingState?.content?.length ?? 0,
+    visibleLiveToolResults.length,
+  ].join(':')
+
   // Keep the OS window height fitted to the measured content (pill -> card growth).
-  useOverlayAutoHeight(measureRef, true)
+  useOverlayAutoHeight(measureRef, true, heightReportKey)
 
   const handleSend = useCallback(async () => {
     const content = input.trim()
@@ -96,11 +105,14 @@ export default function OverlayView() {
   )
 
   const handleNewChat = useCallback(() => {
-    createSession()
+    clearCurrentSession()
     setInput('')
     resetTimer()
     inputTextareaRef.current?.focus()
-  }, [createSession, resetTimer])
+  }, [clearCurrentSession, resetTimer])
+
+  // Overlay route classes are applied synchronously in main.tsx before first paint.
+  useEffect(() => () => clearOverlayRouteDocumentClasses(), [])
 
   // Keep the overlay window background transparent so the glass shell can frost.
   useEffect(() => {
@@ -199,11 +211,7 @@ export default function OverlayView() {
               onCopy={handleCopy}
               onRegenerate={handleRegenerate}
             />
-          ) : (
-            <div className="zo-empty-hint">
-              Ask without opening the dashboard — same providers, tools, and history.
-            </div>
-          )}
+          ) : null}
         </div>
       </OverlayShell>
     </div>

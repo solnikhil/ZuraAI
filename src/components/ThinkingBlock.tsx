@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Box, BrainCircuit, ChevronRight, Search } from './icons'
+import { WithTooltip } from './ui/WithTooltip'
 import './ThinkingBlock.css'
 import { ThinkingBlock as ThinkingBlockType } from '../contexts/ChatHistoryContext'
 import AITextLoading from './AITextLoading'
@@ -11,7 +12,14 @@ import {
   inferWebToolModeFromResultData,
 } from '../tools/ui/webToolDisplay'
 import { getToolArgumentSummary, getToolPresentation } from '../tools/ui/toolPresentation'
-import { motionDuration, motionDurations, motionEasing, motionSpring, motionSpringTransition, useMotionPreferences } from '@/lib/motion'
+import {
+  motionDuration,
+  motionDurations,
+  motionEasing,
+  motionSpring,
+  motionSpringTransition,
+  useMotionPreferences,
+} from '@/lib/motion'
 
 function formatToolDisplayName(
   name: string,
@@ -36,10 +44,7 @@ function parseMcpToolName(name: string): { serverId: string; toolId: string } | 
   return { serverId, toolId }
 }
 
-function formatMcpToolLabel(
-  name: string,
-  metadata?: ToolExecutionMetadata
-): string | null {
+function formatMcpToolLabel(name: string, metadata?: ToolExecutionMetadata): string | null {
   const parsed = parseMcpToolName(name)
   if (!parsed && metadata?.origin !== 'mcp') {
     return null
@@ -82,7 +87,9 @@ function getToolCallText(tool: { name: string; arguments?: Record<string, unknow
   }
 
   const argumentSummary = getToolArgumentSummary(tool.arguments)
-  return argumentSummary ? `Running ${displayName}: ${argumentSummary}` : `Running ${displayName}...`
+  return argumentSummary
+    ? `Running ${displayName}: ${argumentSummary}`
+    : `Running ${displayName}...`
 }
 
 function getToolCallHeaderText(
@@ -94,7 +101,9 @@ function getToolCallHeaderText(
   }
 
   const baseText = getToolCallText(firstToolCall)
-  return remainingToolCalls.length > 0 ? `${baseText} (+${remainingToolCalls.length} more)` : baseText
+  return remainingToolCalls.length > 0
+    ? `${baseText} (+${remainingToolCalls.length} more)`
+    : baseText
 }
 
 function getActiveSearchItemText(query: string): React.ReactNode {
@@ -135,7 +144,6 @@ function getCompletedToolBlockText(block: ThinkingBlockType): React.ReactNode {
     return `${displayName}: ${String(block.toolInput.description)}`
   }
 
-
   const argumentSummary = getToolArgumentSummary(block.toolInput)
   return argumentSummary ? `${displayName}: ${argumentSummary}` : displayName
 }
@@ -152,15 +160,21 @@ function getWebSearchResultCount(data: unknown): number | null {
   return null
 }
 
-function WebSearchSourcesPreview({ data, executionTime }: { data: unknown; executionTime?: number }) {
+function WebSearchSourcesPreview({
+  data,
+  executionTime,
+}: {
+  data: unknown
+  executionTime?: number
+}) {
   if (!data || typeof data !== 'object') {
-    return <div className="text-xs text-white/50">No source data</div>
+    return <div className="text-xs text-[var(--theme-text-muted)]">No source data</div>
   }
   const d = data as Record<string, unknown>
   const results = (Array.isArray(d.results) ? d.results : []) as Array<Record<string, unknown>>
 
   if (results.length === 0) {
-    return <div className="text-xs text-white/50">No results returned</div>
+    return <div className="text-xs text-[var(--theme-text-muted)]">No results returned</div>
   }
 
   const getFavicon = (url: string, provided?: string) => {
@@ -187,34 +201,36 @@ function WebSearchSourcesPreview({ data, executionTime }: { data: unknown; execu
             const fav = getFavicon(url, r.favicon as string | undefined)
             const title = String(r.title || url)
             return (
-              <a
-                key={idx}
-                href={url}
-                target="_blank"
-                rel="noopener noreferrer"
-                title={title}
-                className="inline-block hover:z-10 hover:scale-110 transition-transform"
-              >
-                <img
-                  src={fav}
-                  alt=""
-                  className="w-6 h-6 rounded-full ring-1 ring-black/80 bg-white/5 object-cover"
-                  onError={(e) => {
-                    const el = e.currentTarget as HTMLImageElement
-                    el.style.display = 'none'
-                  }}
-                />
-              </a>
+              <WithTooltip key={idx} tooltip={title}>
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block hover:z-10 hover:scale-110 transition-transform"
+                >
+                  <img
+                    src={fav}
+                    alt=""
+                    className="w-6 h-6 rounded-full ring-1 ring-[var(--theme-border)] bg-[var(--theme-surface-subtle)] object-cover"
+                    onError={(e) => {
+                      const el = e.currentTarget as HTMLImageElement
+                      el.style.display = 'none'
+                    }}
+                  />
+                </a>
+              </WithTooltip>
             )
           })}
           {extra > 0 && (
-            <div className="w-6 h-6 rounded-full bg-zinc-900 text-xs font-medium flex items-center justify-center ring-1 ring-black/70 text-white/80">
+            <div className="w-6 h-6 rounded-full bg-[var(--theme-surface-active)] text-xs font-medium flex items-center justify-center ring-1 ring-[var(--theme-border)] text-[var(--theme-text-secondary)]">
               +{extra}
             </div>
           )}
         </div>
         {executionTime != null && (
-          <span className="text-sm text-white/70 font-mono tracking-tight">{executionTime}ms</span>
+          <span className="text-sm text-[var(--theme-text-secondary)] font-mono tracking-tight">
+            {executionTime}ms
+          </span>
         )}
       </div>
     </div>
@@ -501,13 +517,20 @@ function InlineWebSearchBlock({ block }: { block: ThinkingBlockType }) {
                 <div className="thinking-tool-json">
                   <div className="thinking-tool-json-label">Sources</div>
                   {block.toolOutput.data && (block.toolOutput.data as any).results ? (
-                    <WebSearchSourcesPreview data={block.toolOutput.data} executionTime={block.toolOutput.executionTime} />
+                    <WebSearchSourcesPreview
+                      data={block.toolOutput.data}
+                      executionTime={block.toolOutput.executionTime}
+                    />
                   ) : (
                     <pre>
                       {block.toolOutput.error
                         ? block.toolOutput.error
                         : block.toolOutput.data !== undefined
-                          ? JSON.stringify(cleanToolOutputForDisplay(block.toolOutput.data), null, 2)
+                          ? JSON.stringify(
+                              cleanToolOutputForDisplay(block.toolOutput.data),
+                              null,
+                              2
+                            )
                           : '{}'}
                     </pre>
                   )}
@@ -570,17 +593,16 @@ function TerminalToolView({ block }: { block: ThinkingBlockType }) {
       : typeof block.toolInput?.cwd === 'string'
         ? String(block.toolInput.cwd)
         : ''
-  const stdout = typeof data.stdout === 'string' ? stripAnsiEscapes(data.stdout).replace(/\s+$/, '') : ''
-  const stderr = typeof data.stderr === 'string' ? stripAnsiEscapes(data.stderr).replace(/\s+$/, '') : ''
+  const stdout =
+    typeof data.stdout === 'string' ? stripAnsiEscapes(data.stdout).replace(/\s+$/, '') : ''
+  const stderr =
+    typeof data.stderr === 'string' ? stripAnsiEscapes(data.stderr).replace(/\s+$/, '') : ''
   const exitCode = typeof data.exitCode === 'number' ? data.exitCode : null
   const error = block.toolOutput?.error ? stripAnsiEscapes(block.toolOutput.error) : ''
-  const isSuccess = Boolean(block.toolOutput?.success) && !error && (exitCode === null || exitCode === 0)
+  const isSuccess =
+    Boolean(block.toolOutput?.success) && !error && (exitCode === null || exitCode === 0)
   const hasOutput = Boolean(stdout || stderr || error)
-  const statusLabel = isSuccess
-    ? '✓ Success'
-    : exitCode != null
-      ? `✗ Exit ${exitCode}`
-      : '✗ Failed'
+  const statusLabel = isSuccess ? '✓ Success' : exitCode != null ? `✗ Exit ${exitCode}` : '✗ Failed'
 
   return (
     <div className={`terminal-tool ${isSuccess ? 'is-success' : 'is-error'}`}>
@@ -637,20 +659,21 @@ function CommandRow({ block }: { block: ThinkingBlockType }) {
         className="thinking-command-row__head clickable"
         onClick={() => setIsExpanded((prev) => !prev)}
       >
-        <span
-          className={`thinking-cmd-blob thinking-cmd-blob--${failed ? 'error' : 'success'}`}
-          title={failed ? 'Failed' : 'Success'}
-          aria-label={failed ? 'Failed' : 'Success'}
-        />
+        <WithTooltip tooltip={failed ? 'Failed' : 'Success'}>
+          <span
+            className={`thinking-cmd-blob thinking-cmd-blob--${failed ? 'error' : 'success'}`}
+            aria-label={failed ? 'Failed' : 'Success'}
+          />
+        </WithTooltip>
         <motion.div
           animate={{ rotate: isExpanded ? 90 : 0 }}
           transition={motionSpringTransition(animationsEnabled, motionSpring.bouncy)}
         >
           <ChevronRight size={13} className="thinking-chevron" />
         </motion.div>
-        <span className="thinking-command-row__name" title={command}>
-          {command}
-        </span>
+        <WithTooltip tooltip={command}>
+          <span className="thinking-command-row__name">{command}</span>
+        </WithTooltip>
       </div>
       <AnimatePresence initial={false}>
         {isExpanded && (
@@ -705,11 +728,12 @@ function CommandGroupBlock({
         onClick={() => setIsExpanded((prev) => !prev)}
       >
         <div className="thinking-label">
-          <span
-            className={`thinking-cmd-blob thinking-cmd-blob--${failed ? 'error' : 'success'}`}
-            title={failed ? 'Failed' : 'Success'}
-            aria-label={failed ? 'Failed' : 'Success'}
-          />
+          <WithTooltip tooltip={failed ? 'Failed' : 'Success'}>
+            <span
+              className={`thinking-cmd-blob thinking-cmd-blob--${failed ? 'error' : 'success'}`}
+              aria-label={failed ? 'Failed' : 'Success'}
+            />
+          </WithTooltip>
           <motion.div
             animate={{ rotate: isExpanded ? 90 : 0 }}
             transition={motionSpringTransition(animationsEnabled, motionSpring.bouncy)}
@@ -781,14 +805,16 @@ function CompletedBlock({
           onClick={() => hasDetails && setIsExpanded(!isExpanded)}
         >
           <div className="thinking-label">
-            {toolName !== 'web_search' && (
+            {toolName === 'web_search' ? (
+              <span className="thinking-tool-calling-icon search-icon">
+                <Search size={14} />
+              </span>
+            ) : (
               <span className="thinking-tool-calling-icon default-icon">
                 <Box size={14} />
               </span>
             )}
-            <span className="thinking-text">
-              {getCompletedToolBlockText(block)}
-            </span>
+            <span className="thinking-text">{getCompletedToolBlockText(block)}</span>
             {status && (
               <span className={`thinking-tool-status thinking-tool-status-${status.tone}`}>
                 {status.label}
@@ -812,19 +838,26 @@ function CompletedBlock({
               style={{ overflow: 'hidden' }}
             >
               <div className="thinking-content thinking-tool-details">
-                {block.toolInput && Object.keys(block.toolInput).length > 0 && toolName !== 'web_search' && (
-                  <div className="thinking-tool-json">
-                    <div className="thinking-tool-json-label">Input</div>
-                    <pre>{JSON.stringify(block.toolInput, null, 2)}</pre>
-                  </div>
-                )}
+                {block.toolInput &&
+                  Object.keys(block.toolInput).length > 0 &&
+                  toolName !== 'web_search' && (
+                    <div className="thinking-tool-json">
+                      <div className="thinking-tool-json-label">Input</div>
+                      <pre>{JSON.stringify(block.toolInput, null, 2)}</pre>
+                    </div>
+                  )}
                 {block.toolOutput && (
                   <div className="thinking-tool-json">
                     <div className="thinking-tool-json-label">
                       {toolName === 'web_search' ? 'Sources' : 'Output'}
                     </div>
-                    {toolName === 'web_search' && block.toolOutput.data && !block.toolOutput.error ? (
-                      <WebSearchSourcesPreview data={block.toolOutput.data} executionTime={block.toolOutput.executionTime} />
+                    {toolName === 'web_search' &&
+                    block.toolOutput.data &&
+                    !block.toolOutput.error ? (
+                      <WebSearchSourcesPreview
+                        data={block.toolOutput.data}
+                        executionTime={block.toolOutput.executionTime}
+                      />
                     ) : (
                       <pre>
                         {block.toolOutput.error
@@ -855,7 +888,9 @@ function CompletedBlock({
     <div className="thinking-block completed">
       <div className="thinking-header completed" onClick={() => setIsExpanded(!isExpanded)}>
         <div className="thinking-label">
-          <span className="thinking-tool-calling-icon brain-icon"><BrainCircuit size={14} /></span>
+          <span className="thinking-tool-calling-icon brain-icon">
+            <BrainCircuit size={14} />
+          </span>
           <span className="thinking-text">
             Thought for {block.duration ? formatDuration(block.duration) : 'a moment'}
           </span>
@@ -884,9 +919,9 @@ function CompletedBlock({
             }}
             style={{ overflow: 'hidden' }}
           >
-              <div className="thinking-content">
-                {normalizeThinkingContentForDisplay(block.content || '')}
-              </div>
+            <div className="thinking-content">
+              {normalizeThinkingContentForDisplay(block.content || '')}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -999,11 +1034,12 @@ export default function ThinkingBlock({
   const blocksToRender = hasLegacyInlineThinkingWithToolCalls
     ? completedBlocks.filter((b) => b.type !== 'searching')
     : completedBlocks
-  const activeSearchQueries = (searchQueries && searchQueries.length > 0)
-    ? searchQueries.filter(Boolean)
-    : searchQuery
-      ? [searchQuery]
-      : []
+  const activeSearchQueries =
+    searchQueries && searchQueries.length > 0
+      ? searchQueries.filter(Boolean)
+      : searchQuery
+        ? [searchQuery]
+        : []
   const primarySearchQuery = activeSearchQueries[0]
   const searchingMode = inferWebToolModeFromArgs(
     primarySearchQuery ? { query: primarySearchQuery } : undefined
@@ -1035,11 +1071,11 @@ export default function ThinkingBlock({
     : primaryVisibleSearchQuery
       ? `Sourcing “${primaryVisibleSearchQuery}”`
       : sourcingHeaderText
-  const showSearchQueryDetail =
-    (isSearching || isActiveSearchBatch) && hasVisibleSearchQueryList
+  const showSearchQueryDetail = (isSearching || isActiveSearchBatch) && hasVisibleSearchQueryList
   const showSearchBatchDetails =
     (isSearching || isActiveSearchBatch) && isSearchBatch && hasVisibleSearchQueryList
-  const isSourcingBatch = (isSearching || isActiveSearchBatch) && isSearchBatch && hasVisibleSearchQueryList
+  const isSourcingBatch =
+    (isSearching || isActiveSearchBatch) && isSearchBatch && hasVisibleSearchQueryList
   const showSourcingHeader = !isSourcingBatch
   const handleHeaderClick = () => {
     if (showSearchBatchDetails) {
@@ -1058,96 +1094,99 @@ export default function ThinkingBlock({
       {showActiveBlock && (
         <div className="thinking-block">
           {showSourcingHeader && (
-          <div
-            className={`thinking-header ${hasActiveToolCalls ? (hasActiveSearches ? (isSearchBatch ? 'searching' : 'searching search-sourcing') : 'tool-calling') : (isSearching && showSourcingHeader) ? 'searching' : ''} ${showSearchBatchDetails ? 'search-batch' : ''}`}
-            onClick={handleHeaderClick}
-          >
-            <div className="thinking-label">
-              {hasActiveToolCalls ? (
-                <span
-                  key={`tool-calling-row:${getToolCallsAnimationKey(activeToolCalls)}`}
-                  className="thinking-text thinking-tool-calling"
-                >
-                  <span className={`thinking-tool-calling-icon ${hasActiveSearches ? 'search-icon' : 'default-icon'}`}>
-                    {hasActiveSearches ? (
-                      <Search size={14} />
-                    ) : activeToolCalls[0]?.name === 'system_shell' ? (
-                      <span className="thinking-cmd-blob thinking-cmd-blob--running" />
-                    ) : (
-                      <Box size={14} />
-                    )}
-                  </span>
-                  <AITextLoading
-                    text={
-                      activeToolCalls[0]?.name === 'system_shell'
-                        ? (() => {
-                            const shellCount = activeToolCalls.filter(
-                              (toolCall) => toolCall.name === 'system_shell'
-                            ).length
-                            return shellCount <= 1
-                              ? 'Running a command…'
-                              : `Running ${shellCount} commands…`
-                          })()
-                        : hasActiveSearches
-                          ? searchingText
-                          : getToolCallHeaderText(activeToolCalls)
-                    }
-                    animationKey={`tool-calling:${getToolCallsAnimationKey(activeToolCalls)}`}
-                  />
-                </span>
-              ) : isSearching && showSourcingHeader ? (
-                <span className="thinking-text thinking-tool-calling">
-                  <span className="thinking-tool-calling-icon search-icon">
-                    <Search size={14} />
-                  </span>
-                  <AITextLoading
-                    text={searchingText}
-                    animationKey="searching"
-                  />
-                </span>
-              ) : isThinking ? (
-                <span className="thinking-text thinking-thinking">
-                  <span className="thinking-tool-calling-icon brain-icon"><BrainCircuit size={14} strokeWidth={2} /></span>
-                  {activeThinkingSeconds === null ? (
-                    <AITextLoading text="Thinking..." animationKey="thinking" />
-                  ) : (
-                    <AITextLoading
-                      text={`Thinking for ${activeThinkingSeconds.toFixed(1)} seconds`}
-                      animationKey="thinking"
-                    />
-                  )}
-                </span>
-              ) : (
-                <>
-                  <span className="thinking-tool-calling-icon brain-icon"><BrainCircuit size={14} strokeWidth={2} /></span>
-                  <span className="thinking-text">
+            <div
+              className={`thinking-header ${hasActiveToolCalls ? (hasActiveSearches ? (isSearchBatch ? 'searching' : 'searching search-sourcing') : 'tool-calling') : isSearching && showSourcingHeader ? 'searching' : ''} ${showSearchBatchDetails ? 'search-batch' : ''}`}
+              onClick={handleHeaderClick}
+            >
+              <div className="thinking-label">
+                {hasActiveToolCalls ? (
+                  <span
+                    key={`tool-calling-row:${getToolCallsAnimationKey(activeToolCalls)}`}
+                    className="thinking-text thinking-tool-calling"
+                  >
+                    <span
+                      className={`thinking-tool-calling-icon ${hasActiveSearches ? 'search-icon' : 'default-icon'}`}
+                    >
+                      {hasActiveSearches ? (
+                        <Search size={14} />
+                      ) : activeToolCalls[0]?.name === 'system_shell' ? (
+                        <span className="thinking-cmd-blob thinking-cmd-blob--running" />
+                      ) : (
+                        <Box size={14} />
+                      )}
+                    </span>
                     <AITextLoading
                       text={
-                        activeThinkingSeconds === null
-                          ? 'Thought for a moment'
-                          : `Thought for ${activeThinkingSeconds.toFixed(1)} seconds`
+                        activeToolCalls[0]?.name === 'system_shell'
+                          ? (() => {
+                              const shellCount = activeToolCalls.filter(
+                                (toolCall) => toolCall.name === 'system_shell'
+                              ).length
+                              return shellCount <= 1
+                                ? 'Running a command…'
+                                : `Running ${shellCount} commands…`
+                            })()
+                          : hasActiveSearches
+                            ? searchingText
+                            : getToolCallHeaderText(activeToolCalls)
                       }
-                      animationKey="completed"
+                      animationKey={`tool-calling:${getToolCallsAnimationKey(activeToolCalls)}`}
                     />
                   </span>
+                ) : isSearching && showSourcingHeader ? (
+                  <span className="thinking-text thinking-tool-calling">
+                    <span className="thinking-tool-calling-icon search-icon">
+                      <Search size={14} />
+                    </span>
+                    <AITextLoading text={searchingText} animationKey="searching" />
+                  </span>
+                ) : isThinking ? (
+                  <span className="thinking-text thinking-thinking">
+                    <span className="thinking-tool-calling-icon brain-icon">
+                      <BrainCircuit size={14} strokeWidth={2} />
+                    </span>
+                    {activeThinkingSeconds === null ? (
+                      <AITextLoading text="Thinking..." animationKey="thinking" />
+                    ) : (
+                      <AITextLoading
+                        text={`Thinking for ${activeThinkingSeconds.toFixed(1)} seconds`}
+                        animationKey="thinking"
+                      />
+                    )}
+                  </span>
+                ) : (
+                  <>
+                    <span className="thinking-tool-calling-icon brain-icon">
+                      <BrainCircuit size={14} strokeWidth={2} />
+                    </span>
+                    <span className="thinking-text">
+                      <AITextLoading
+                        text={
+                          activeThinkingSeconds === null
+                            ? 'Thought for a moment'
+                            : `Thought for ${activeThinkingSeconds.toFixed(1)} seconds`
+                        }
+                        animationKey="completed"
+                      />
+                    </span>
+                    <motion.div
+                      animate={{ rotate: isExpanded ? 90 : 0 }}
+                      transition={motionSpringTransition(animationsEnabled, motionSpring.bouncy)}
+                    >
+                      <ChevronRight size={14} className="thinking-chevron" />
+                    </motion.div>
+                  </>
+                )}
+                {showSearchBatchDetails && showSourcingHeader && (
                   <motion.div
-                    animate={{ rotate: isExpanded ? 90 : 0 }}
+                    animate={{ rotate: isSearchBatchExpanded ? 90 : 0 }}
                     transition={motionSpringTransition(animationsEnabled, motionSpring.bouncy)}
                   >
                     <ChevronRight size={14} className="thinking-chevron" />
                   </motion.div>
-                </>
-              )}
-              {showSearchBatchDetails && showSourcingHeader && (
-                <motion.div
-                  animate={{ rotate: isSearchBatchExpanded ? 90 : 0 }}
-                  transition={motionSpringTransition(animationsEnabled, motionSpring.bouncy)}
-                >
-                  <ChevronRight size={14} className="thinking-chevron" />
-                </motion.div>
-              )}
+                )}
+              </div>
             </div>
-          </div>
           )}
           <AnimatePresence initial={false}>
             {isExpanded && hasThinkingContent && (
@@ -1171,9 +1210,7 @@ export default function ThinkingBlock({
                 </div>
               </motion.div>
             )}
-            {isExpanded &&
-              !isActiveSearchBatch &&
-              extraActiveToolCalls.length > 0 && (
+            {isExpanded && !isActiveSearchBatch && extraActiveToolCalls.length > 0 && (
               <motion.div
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: 'auto', opacity: 1 }}
@@ -1195,7 +1232,10 @@ export default function ThinkingBlock({
                         </div>
                       ))
                     : extraActiveToolCalls.map((toolCall, index) => (
-                        <div key={`${toolCall.name}-${index}`} className="thinking-active-tool-item">
+                        <div
+                          key={`${toolCall.name}-${index}`}
+                          className="thinking-active-tool-item"
+                        >
                           {index + 2}. {getToolCallText(toolCall)}
                         </div>
                       ))}

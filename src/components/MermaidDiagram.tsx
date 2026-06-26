@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useId } from 'react'
 import { Copy, Check, Code, AlertCircle, Maximize2 } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { WithTooltip } from './ui/WithTooltip'
 
 interface MermaidDiagramProps {
   code: string
@@ -331,29 +332,31 @@ export default function MermaidDiagram({ code }: MermaidDiagramProps) {
             >
               Diagram
             </button>
-            <button
-              onClick={handleCopy}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: copied ? 'var(--theme-success)' : 'var(--theme-text-tertiary)',
-                cursor: 'pointer',
-                padding: '4px',
-                borderRadius: '4px',
-                transition: 'all 0.2s ease',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                lineHeight: 1,
-              }}
-              title={copied ? 'Copied!' : 'Copy'}
-            >
-              {copied ? (
-                <Check size={14} style={{ display: 'block' }} />
-              ) : (
-                <Copy size={14} style={{ display: 'block' }} />
-              )}
-            </button>
+            <WithTooltip tooltip={copied ? 'Copied!' : 'Copy'}>
+              <button
+                onClick={handleCopy}
+                aria-label={copied ? 'Copied!' : 'Copy'}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: copied ? 'var(--theme-success)' : 'var(--theme-text-tertiary)',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  borderRadius: '4px',
+                  transition: 'all 0.2s ease',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  lineHeight: 1,
+                }}
+              >
+                {copied ? (
+                  <Check size={14} style={{ display: 'block' }} />
+                ) : (
+                  <Copy size={14} style={{ display: 'block' }} />
+                )}
+              </button>
+            </WithTooltip>
           </div>
         </div>
         <div
@@ -398,81 +401,87 @@ export default function MermaidDiagram({ code }: MermaidDiagramProps) {
       >
         <span>Mermaid Diagram</span>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <button
-            onClick={() => setIsFullscreen(true)}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: 'var(--theme-text-tertiary)',
-              cursor: 'pointer',
-              padding: '4px 8px',
-              borderRadius: '4px',
-              fontSize: '0.75rem',
-              transition: 'all 0.2s ease',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'var(--theme-surface-hover)'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'none'
-            }}
-            title="View Fullscreen"
-          >
-            <Maximize2 size={12} />
-            Fullscreen
-          </button>
-          <button
-            onClick={() => setShowSource(true)}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: 'var(--theme-text-tertiary)',
-              cursor: 'pointer',
-              padding: '4px 8px',
-              borderRadius: '4px',
-              fontSize: '0.75rem',
-              transition: 'all 0.2s ease',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'var(--theme-surface-hover)'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'none'
-            }}
-            title="View Source"
-          >
-            <Code size={12} />
-            Source
-          </button>
-          <button
-            onClick={handleCopy}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: copied ? 'var(--theme-success)' : 'var(--theme-text-tertiary)',
-              cursor: 'pointer',
-              padding: '4px',
-              borderRadius: '4px',
-              transition: 'all 0.2s ease',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              lineHeight: 1,
-            }}
-            title={copied ? 'Copied!' : 'Copy'}
-          >
-            {copied ? (
-              <Check size={14} style={{ display: 'block' }} />
-            ) : (
-              <Copy size={14} style={{ display: 'block' }} />
-            )}
-          </button>
+          <WithTooltip tooltip="View Fullscreen">
+            <button
+              onClick={() => setIsFullscreen(true)}
+              aria-label="View Fullscreen"
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--theme-text-tertiary)',
+                cursor: 'pointer',
+                padding: '4px 8px',
+                borderRadius: '4px',
+                fontSize: '0.75rem',
+                transition: 'all 0.2s ease',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--theme-surface-hover)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'none'
+              }}
+            >
+              <Maximize2 size={12} />
+              Fullscreen
+            </button>
+          </WithTooltip>
+          <WithTooltip tooltip="View Source">
+            <button
+              onClick={() => setShowSource(true)}
+              aria-label="View Source"
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--theme-text-tertiary)',
+                cursor: 'pointer',
+                padding: '4px 8px',
+                borderRadius: '4px',
+                fontSize: '0.75rem',
+                transition: 'all 0.2s ease',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--theme-surface-hover)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'none'
+              }}
+            >
+              <Code size={12} />
+              Source
+            </button>
+          </WithTooltip>
+          <WithTooltip tooltip={copied ? 'Copied!' : 'Copy'}>
+            <button
+              onClick={handleCopy}
+              aria-label={copied ? 'Copied!' : 'Copy'}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: copied ? 'var(--theme-success)' : 'var(--theme-text-tertiary)',
+                cursor: 'pointer',
+                padding: '4px',
+                borderRadius: '4px',
+                transition: 'all 0.2s ease',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                lineHeight: 1,
+              }}
+            >
+              {copied ? (
+                <Check size={14} style={{ display: 'block' }} />
+              ) : (
+                <Copy size={14} style={{ display: 'block' }} />
+              )}
+            </button>
+          </WithTooltip>
         </div>
       </div>
 
@@ -630,24 +639,26 @@ export default function MermaidDiagram({ code }: MermaidDiagramProps) {
               Mermaid Diagram - Fullscreen
             </DialogTitle>
             <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-              <button
-                onClick={handleCopy}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: copied ? 'var(--theme-success)' : 'var(--theme-text-tertiary)',
-                  cursor: 'pointer',
-                  padding: '6px',
-                  borderRadius: '4px',
-                  transition: 'all 0.2s ease',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-                title={copied ? 'Copied!' : 'Copy Source'}
-              >
-                {copied ? <Check size={16} /> : <Copy size={16} />}
-              </button>
+              <WithTooltip tooltip={copied ? 'Copied!' : 'Copy Source'}>
+                <button
+                  onClick={handleCopy}
+                  aria-label={copied ? 'Copied!' : 'Copy Source'}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: copied ? 'var(--theme-success)' : 'var(--theme-text-tertiary)',
+                    cursor: 'pointer',
+                    padding: '6px',
+                    borderRadius: '4px',
+                    transition: 'all 0.2s ease',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  {copied ? <Check size={16} /> : <Copy size={16} />}
+                </button>
+              </WithTooltip>
             </div>
           </DialogHeader>
           <div

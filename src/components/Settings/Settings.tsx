@@ -319,7 +319,6 @@ if (!hasSettingsChanges && !hasMcpChanges) {
                 />
                 <SkillsSection
                   skills={pendingSettings.extensions}
-                  agentSkills={pendingSettings.agentSkills}
                   codeExecutionAutoApprove={pendingSettings.codeExecutionAutoApprove}
                   terminalAutoApprove={pendingSettings.terminalAutoApprove}
                   computerUseAutoApprove={pendingSettings.computerUseAutoApprove}

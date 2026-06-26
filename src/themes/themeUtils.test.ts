@@ -10,7 +10,12 @@ import {
   applyFontScaleToDocument,
   normalizeFontScale,
 } from './themeUtils'
-import { getDefaultTheme, getThemeById, mixHex } from './themeRegistry'
+import {
+  getDefaultTheme,
+  getThemeById,
+  mixHex,
+  normalizeActiveThemeId,
+} from './themeRegistry'
 
 describe('themeUtils', () => {
   describe('getThemeCssVariables', () => {
@@ -155,18 +160,18 @@ describe('themeUtils', () => {
       expect(theme?.baseColors.background).toBe('#1a1d22')
     })
 
-    it('includes void black preset', () => {
-      const theme = getThemeById('void')
-      expect(theme).toBeDefined()
-      expect(theme?.baseColors.accent).toBe('#5b5f68')
-      expect(theme?.baseColors.background).toBe('#0a0a0a')
+    it('migrates removed theme presets to their replacements', () => {
+      expect(normalizeActiveThemeId('charcoal')).toBe('graphite')
+      expect(normalizeActiveThemeId('void')).toBe('graphite')
+      expect(normalizeActiveThemeId('noir')).toBe('zuraai')
+      expect(normalizeActiveThemeId('paper-trail')).toBe('zuraai-light')
     })
 
-    it('includes charcoal grey preset', () => {
-      const theme = getThemeById('charcoal')
-      expect(theme).toBeDefined()
-      expect(theme?.baseColors.accent).toBe('#6b6f78')
-      expect(theme?.baseColors.background).toBe('#16171a')
+    it('resolves removed theme ids through getThemeById', () => {
+      expect(getThemeById('charcoal')?.id).toBe('graphite')
+      expect(getThemeById('void')?.id).toBe('graphite')
+      expect(getThemeById('noir')?.id).toBe('zuraai')
+      expect(getThemeById('paper-trail')?.id).toBe('zuraai-light')
     })
   })
 })

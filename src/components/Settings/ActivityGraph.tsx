@@ -6,14 +6,9 @@
 
 import React, { useEffect, useMemo, useState } from 'react'
 import { Bar, BarChart, CartesianGrid, XAxis } from 'recharts'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ChartContainer, ChartTooltip } from '@/components/ui/chart'
+import { WithTooltip } from '@/components/ui/WithTooltip'
 import { assignColor } from '@/utils/colorManager'
 import { cn } from '@/lib/utils'
 
@@ -130,13 +125,7 @@ export function ActivityGraph({
     return () => media.removeListener(update)
   }, [])
 
-  const {
-    chartData,
-    series,
-    seriesColors,
-    totals,
-    totalTokens,
-  } = useMemo(() => {
+  const { chartData, series, seriesColors, totals, totalTokens } = useMemo(() => {
     const modelTotals: Record<string, number> = {}
 
     data.forEach((day) => {
@@ -192,7 +181,10 @@ export function ActivityGraph({
       seriesTotals[model] = modelTotals[model] ?? 0
     })
     if (otherModels.length > 0) {
-      seriesTotals[OTHER_KEY] = otherModels.reduce((sum, model) => sum + (modelTotals[model] ?? 0), 0)
+      seriesTotals[OTHER_KEY] = otherModels.reduce(
+        (sum, model) => sum + (modelTotals[model] ?? 0),
+        0
+      )
     }
 
     return {
@@ -227,35 +219,33 @@ export function ActivityGraph({
       <CardHeader className="usage-chart-card__header px-0">
         <div className="usage-chart-card__title-block">
           <CardTitle className="usage-chart-card__title">Token Usage</CardTitle>
-          <CardDescription className="usage-chart-card__description">
-            Last 30 days
-          </CardDescription>
+          <CardDescription className="usage-chart-card__description">Last 30 days</CardDescription>
         </div>
         <div className="usage-chart-card__toggles" role="tablist" aria-label="Token usage series">
           {series.map((key) => {
             const isActive = activeChart === key
             const color = seriesColors[key] ?? 'var(--theme-accent)'
             return (
-              <button
-                key={key}
-                type="button"
-                role="tab"
-                aria-selected={isActive}
-                data-active={isActive}
-                className="usage-chart-card__toggle"
-                onClick={() => setActiveChart(key)}
-                title={key}
-              >
-                <span
-                  className="usage-chart-card__toggle-swatch"
-                  style={{ background: color }}
-                  aria-hidden="true"
-                />
-                <span className="usage-chart-card__toggle-label">{key}</span>
-                <span className="usage-chart-card__toggle-value">
-                  {(totals[key] ?? 0).toLocaleString()}
-                </span>
-              </button>
+              <WithTooltip key={key} tooltip={key}>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  data-active={isActive}
+                  className="usage-chart-card__toggle"
+                  onClick={() => setActiveChart(key)}
+                >
+                  <span
+                    className="usage-chart-card__toggle-swatch"
+                    style={{ background: color }}
+                    aria-hidden="true"
+                  />
+                  <span className="usage-chart-card__toggle-label">{key}</span>
+                  <span className="usage-chart-card__toggle-value">
+                    {(totals[key] ?? 0).toLocaleString()}
+                  </span>
+                </button>
+              </WithTooltip>
             )
           })}
         </div>
@@ -298,7 +288,9 @@ export function ActivityGraph({
           {showEmptyState && (
             <div className="usage-chart-card__empty">
               <span>No token usage yet</span>
-              <span className="usage-chart-card__empty-sub">Start chatting to see your activity.</span>
+              <span className="usage-chart-card__empty-sub">
+                Start chatting to see your activity.
+              </span>
             </div>
           )}
         </div>

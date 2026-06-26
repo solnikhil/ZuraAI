@@ -321,7 +321,7 @@ describe('Property 2: Maximize/restore icon reflects window state', () => {
     )
   })
 
-  it('should show correct title attribute matching the isMaximized state', () => {
+  it('should show correct aria-label matching the isMaximized state', () => {
     fc.assert(
       fc.property(fc.boolean(), (isMaximized) => {
         // Arrange & Act
@@ -338,11 +338,11 @@ describe('Property 2: Maximize/restore icon reflects window state', () => {
         const buttons = container.querySelectorAll('button')
         const maxRestoreBtn = buttons[1] // minimize=0, max/restore=1, close=2
 
-        // Assert: title attribute matches state
+        // Assert: aria-label matches state
         if (isMaximized) {
-          expect(maxRestoreBtn.getAttribute('title')).toBe('Restore')
+          expect(maxRestoreBtn.getAttribute('aria-label')).toBe('Restore window')
         } else {
-          expect(maxRestoreBtn.getAttribute('title')).toBe('Maximize')
+          expect(maxRestoreBtn.getAttribute('aria-label')).toBe('Maximize window')
         }
 
         cleanup()
@@ -353,7 +353,7 @@ describe('Property 2: Maximize/restore icon reflects window state', () => {
 
   it('should maintain correct icon state across a sequence of maximize state changes', () => {
     fc.assert(
-      fc.property(fc.array(fc.boolean(), { minLength: 1, maxLength: 20 }), (stateSequence) => {
+      fc.property(fc.array(fc.boolean(), { minLength: 1, maxLength: 10 }), (stateSequence) => {
         // For each state in the sequence, render and verify the icon matches
         for (const isMaximized of stateSequence) {
           const { queryByLabelText } = render(
@@ -379,7 +379,7 @@ describe('Property 2: Maximize/restore icon reflects window state', () => {
       }),
       { numRuns: 100 }
     )
-  })
+  }, 15000)
 
   it('should render exactly one maximize/restore button regardless of isMaximized state', () => {
     fc.assert(

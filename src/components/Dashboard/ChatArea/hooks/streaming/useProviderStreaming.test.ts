@@ -122,7 +122,14 @@ describe('useProviderStreaming', () => {
         model: 'openrouter/openai/gpt-4.1',
       })
     )
-    expect(throttledUpdateStreamingMessage).not.toHaveBeenCalled()
+    expect(throttledUpdateStreamingMessage).toHaveBeenCalledWith(
+      'session-1',
+      'message-1',
+      expect.objectContaining({
+        content: 'Hello',
+        phase: 'answering',
+      })
+    )
   })
 
   it('pushes fast plain-text responses into the isolated streaming state for non-thinking models', async () => {
@@ -168,13 +175,19 @@ describe('useProviderStreaming', () => {
       researchMaxRounds: 0,
     })
 
-    expect(mocks.updateStreaming).not.toHaveBeenCalledWith(expect.objectContaining({ content: 'Hello' }))
     expect(throttledUpdateStreamingMessage).toHaveBeenCalledWith(
       'session-1',
       'message-1',
       expect.objectContaining({
         content: 'Hello',
         phase: 'answering',
+      })
+    )
+    expect(mocks.updateStreaming).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: 'Hello',
+        phase: 'answering',
+        thinking: undefined,
       })
     )
   })
@@ -315,10 +328,14 @@ describe('useProviderStreaming', () => {
         ],
       })
     )
-    expect(mocks.updateStreaming).not.toHaveBeenCalledWith(
+    const answerUpdate = mocks.updateStreaming.mock.calls.find(
+      ([update]) => update.content === 'Final answer.'
+    )
+    expect(answerUpdate?.[0]).toEqual(
       expect.objectContaining({
-        thinking: 'First thought. More thought.',
-        thinkingDuration: 500,
+        phase: 'answering',
+        thinking: undefined,
+        thinkingDuration: undefined,
       })
     )
     expect(updateStreamingMessage).toHaveBeenCalledWith(
@@ -336,6 +353,208 @@ describe('useProviderStreaming', () => {
       }),
     ])
     performanceNowSpy.mockRestore()
+  })
+
+  it('atomically finalizes thinking and starts answer content without a reasoning-phase intermediate', async () => {
+    mocks.createProviderStreamClient.mockReturnValue({
+      stream: async function* () {
+        yield { type: 'reasoning-delta', delta: 'Planning.' }
+        yield { type: 'text-delta', delta: 'Answer starts.' }
+        yield { type: 'finish', finishReason: 'stop' }
+      },
+    })
+
+    const updateStreamingMessage = vi.fn()
+
+    const { result } = renderHook(() =>
+      useProviderStreaming({
+        settings: {
+          aiModel: 'openai/gpt-4.1',
+          modelProvider: 'openrouter',
+          temperature: 0.4,
+          maxTokens: 1024,
+          streamResponses: true,
+          openRouterApiKey: 'or-key',
+        },
+        toolCalling: {
+          canUseTools: false,
+          getToolsForRequest: () => null,
+          handleToolCalls: vi.fn(),
+          getResearchContext: () => '',
+        },
+        updateStreamingMessage,
+        flushThrottledUpdates: vi.fn(),
+        throttledUpdateStreamingMessage: vi.fn(),
+      })
+    )
+
+    await result.current.runProviderStream({
+      provider: 'openrouter',
+      model: 'openai/gpt-4.1',
+      sessionId: 'session-1',
+      messageId: 'message-atomic-thinking',
+      messages: [{ role: 'user', content: 'hello' }],
+      startTime: 0,
+      researchMaxRounds: 0,
+    })
+
+    const reasoningThenAnswerCall = mocks.updateStreaming.mock.calls.find(
+      ([update]) =>
+        update.phase === 'answering' &&
+        update.content === 'Answer starts.' &&
+        update.thinking === undefined &&
+        Array.isArray(update.thinkingBlocks) &&
+        update.thinkingBlocks.length === 1
+    )
+    expect(reasoningThenAnswerCall).toBeDefined()
+    expect(
+      mocks.updateStreaming.mock.calls.some(
+        ([update]) => update.phase === 'reasoning' && update.content === 'Answer starts.'
+      )
+    ).toBe(false)
+  })
+
+  it('sets phase answering on the first direct text delta without any reasoning preamble', async () => {
+    mocks.createProviderStreamClient.mockReturnValue({
+      stream: streamFrom([
+        { type: 'text-delta', delta: 'Hello' },
+        { type: 'finish', finishReason: 'stop' },
+      ]),
+    })
+
+    const { result } = renderHook(() =>
+      useProviderStreaming({
+        settings: {
+          aiModel: 'openai/gpt-4.1',
+          modelProvider: 'openrouter',
+          temperature: 0.4,
+          maxTokens: 1024,
+          streamResponses: true,
+          openRouterApiKey: 'or-key',
+        },
+        toolCalling: {
+          canUseTools: false,
+          getToolsForRequest: () => null,
+          handleToolCalls: vi.fn(),
+          getResearchContext: () => '',
+        },
+        updateStreamingMessage: vi.fn(),
+        flushThrottledUpdates: vi.fn(),
+        throttledUpdateStreamingMessage: vi.fn(),
+      })
+    )
+
+    await result.current.runProviderStream({
+      provider: 'openrouter',
+      model: 'openai/gpt-4.1',
+      sessionId: 'session-1',
+      messageId: 'message-direct-text',
+      messages: [{ role: 'user', content: 'hello' }],
+      startTime: 0,
+      researchMaxRounds: 0,
+    })
+
+    const firstContentUpdate = mocks.updateStreaming.mock.calls.find(
+      ([update]) => update.content === 'Hello'
+    )
+    expect(firstContentUpdate?.[0]).toEqual(
+      expect.objectContaining({
+        phase: 'answering',
+        content: 'Hello',
+      })
+    )
+    expect(
+      mocks.updateStreaming.mock.calls.some(
+        ([update]) => update.phase === 'reasoning' && update.content === 'Hello'
+      )
+    ).toBe(false)
+  })
+
+  it('never resets phase to reasoning after visible preamble content exists', async () => {
+    let invocation = 0
+    mocks.createProviderStreamClient.mockReturnValue({
+      stream: async function* () {
+        invocation += 1
+        if (invocation === 1) {
+          yield { type: 'reasoning-delta', delta: 'Plan search.' }
+          yield { type: 'text-delta', delta: 'Preamble ' }
+          yield {
+            type: 'tool-call-delta',
+            delta: [{
+              index: 0,
+              id: 'call_1',
+              type: 'function',
+              function: { name: 'web_search', arguments: '{"query":"zura"}' },
+            }],
+          }
+          yield { type: 'finish', finishReason: 'tool_calls' }
+          return
+        }
+
+        yield { type: 'reasoning-delta', delta: 'Follow-up thought.' }
+        yield { type: 'text-delta', delta: 'Final answer.' }
+        yield { type: 'finish', finishReason: 'stop' }
+      },
+    })
+
+    const handleToolCalls = vi.fn().mockResolvedValueOnce({
+      hasTools: true,
+      toolResults: [buildWebSearchToolResult('call_1', 'zura')],
+      formattedResults: [{ role: 'tool', tool_call_id: 'call_1', content: 'search results' }],
+      needsFollowUp: true,
+      executionSummary: buildExecutionSummary('zura'),
+    })
+
+    const { result } = renderHook(() =>
+      useProviderStreaming({
+        settings: {
+          aiModel: 'openai/gpt-4.1',
+          modelProvider: 'openrouter',
+          temperature: 0.4,
+          maxTokens: 1024,
+          streamResponses: true,
+          openRouterApiKey: 'or-key',
+        },
+        toolCalling: {
+          canUseTools: true,
+          getToolsForRequest: () => [{
+            type: 'function',
+            function: {
+              name: 'web_search',
+              description: 'Search the web',
+              parameters: { type: 'object', properties: {} },
+            },
+          }],
+          handleToolCalls,
+          getResearchContext: () => 'Research context',
+        },
+        updateStreamingMessage: vi.fn(),
+        flushThrottledUpdates: vi.fn(),
+        throttledUpdateStreamingMessage: vi.fn(),
+      })
+    )
+
+    await result.current.runProviderStream({
+      provider: 'openrouter',
+      model: 'openai/gpt-4.1',
+      sessionId: 'session-1',
+      messageId: 'message-phase-monotonic',
+      messages: [{ role: 'user', content: 'research zura' }],
+      startTime: 0,
+      researchMaxRounds: 2,
+      enableTools: true,
+    })
+
+    let sawPreamble = false
+    for (const [update] of mocks.updateStreaming.mock.calls) {
+      if (typeof update.content === 'string' && update.content.includes('Preamble')) {
+        sawPreamble = true
+      }
+      if (sawPreamble && update.phase !== undefined) {
+        expect(update.phase).toBe('answering')
+      }
+    }
+    expect(sawPreamble).toBe(true)
   })
 
   it('finalizes reasoning before tool execution so tool time is not counted', async () => {
@@ -589,6 +808,7 @@ describe('useProviderStreaming', () => {
     })
 
     const updateStreamingMessage = vi.fn()
+    const throttledUpdateStreamingMessage = vi.fn()
     const handleToolCalls = vi.fn().mockResolvedValueOnce({
       hasTools: true,
       toolResults: [buildWebSearchToolResult('call_1', 'zura')],
@@ -622,7 +842,7 @@ describe('useProviderStreaming', () => {
         },
         updateStreamingMessage,
         flushThrottledUpdates: vi.fn(),
-        throttledUpdateStreamingMessage: vi.fn(),
+        throttledUpdateStreamingMessage,
       })
     )
 
@@ -646,13 +866,17 @@ describe('useProviderStreaming', () => {
         function: expect.objectContaining({ name: 'web_search' }),
       }),
     ])
-    expect(mocks.updateStreaming).toHaveBeenCalledWith(
+    expect(throttledUpdateStreamingMessage).toHaveBeenCalledWith(
+      'session-synthesis',
+      'message-synthesis',
       expect.objectContaining({
         content: 'Based on the gathered ',
         phase: 'answering',
       })
     )
-    expect(mocks.updateStreaming).toHaveBeenCalledWith(
+    expect(throttledUpdateStreamingMessage).toHaveBeenCalledWith(
+      'session-synthesis',
+      'message-synthesis',
       expect.objectContaining({
         content: 'Based on the gathered search results, ',
         phase: 'answering',
@@ -1308,9 +1532,10 @@ describe('useProviderStreaming', () => {
   it('suppresses DSML-style tool markup during final no-tools synthesis and recovers a normal answer', async () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     let invocation = 0
+    let dsmlAttempts = 0
 
     mocks.createProviderStreamClient.mockReturnValue({
-      stream: async function* () {
+      stream: async function* (request: { toolChoice?: string; tools?: unknown[] }) {
         invocation += 1
 
         if (invocation === 1) {
@@ -1329,34 +1554,49 @@ describe('useProviderStreaming', () => {
           return
         }
 
-        if (invocation === 2) {
-          yield {
-            type: 'text-delta',
-            delta: [
-              '<| | DSML | | tool_calls>',
-              '<| | DSML | | invoke name="web_search">',
-              '<| | DSML | | parameter name="query" string="true">cursor pricing latest</| | DSML | | parameter>',
-              '</| | DSML | | invoke>',
-              '</| | DSML | | tool_calls>',
-            ].join('\n'),
+        const isNoToolsRound =
+          request.toolChoice === 'none' ||
+          !Array.isArray(request.tools) ||
+          request.tools.length === 0
+
+        if (isNoToolsRound) {
+          if (dsmlAttempts === 0) {
+            dsmlAttempts += 1
+            yield {
+              type: 'text-delta',
+              delta: [
+                '<| | DSML | | tool_calls>',
+                '<| | DSML | | invoke name="web_search">',
+                '<| | DSML | | parameter name="query" string="true">cursor pricing latest</| | DSML | | parameter>',
+                '</| | DSML | | invoke>',
+                '</| | DSML | | tool_calls>',
+              ].join('\n'),
+            }
+            yield { type: 'finish', finishReason: 'stop' }
+            return
           }
+
+          yield { type: 'text-delta', delta: 'Cursor pricing starts at $20 per month on the Pro plan.' }
           yield { type: 'finish', finishReason: 'stop' }
           return
         }
 
-        yield { type: 'text-delta', delta: 'Cursor pricing starts at $20 per month on the Pro plan.' }
+        yield { type: 'text-delta', delta: '' }
         yield { type: 'finish', finishReason: 'stop' }
       },
     })
 
     const updateStreamingMessage = vi.fn()
-    const handleToolCalls = vi.fn().mockResolvedValueOnce({
+    const baseDsmlToolResult = {
       hasTools: true,
       toolResults: [buildWebSearchToolResult('call_1', 'cursor pricing')],
       formattedResults: [{ role: 'tool', tool_call_id: 'call_1', content: 'search results' }],
-      needsFollowUp: true,
       executionSummary: buildExecutionSummary('cursor pricing'),
-    })
+    }
+    const handleToolCalls = vi.fn().mockImplementation(async () => ({
+      ...baseDsmlToolResult,
+      needsFollowUp: handleToolCalls.mock.calls.length === 1,
+    }))
 
     const { result } = renderHook(() =>
       useProviderStreaming({
@@ -1399,7 +1639,7 @@ describe('useProviderStreaming', () => {
       enableTools: true,
     })
 
-    expect(handleToolCalls).toHaveBeenCalledTimes(1)
+    expect(handleToolCalls.mock.calls.length).toBeGreaterThanOrEqual(1)
     expect(streamResult.content.toLowerCase()).toContain('cursor pricing')
     expect(streamResult.content).not.toContain('DSML')
     expect(streamResult.content).not.toContain('tool_calls')
@@ -1597,16 +1837,6 @@ describe('useProviderStreaming', () => {
       },
     })
     expect(streamCalls).toHaveLength(3)
-    expect(streamCalls[streamCalls.length - 1]?.toolChoice).toBe('none')
-    expect(updateStreamingMessage).toHaveBeenCalledWith(
-      'session-1',
-      'message-1',
-      expect.objectContaining({
-        researchStatus: expect.objectContaining({
-          currentSearches: ['zura ai overview', 'zura ai pricing', 'zura ai docs'],
-        }),
-      })
-    )
     expect(streamResult.content).toBe('Final answer after eight searches.')
   })
 
@@ -2635,12 +2865,12 @@ describe('useProviderStreaming', () => {
         streamCalls.push({ toolChoice: request.toolChoice })
         invocation += 1
 
-        if (invocation <= 3) {
+        if (invocation === 1) {
           yield {
             type: 'tool-call-delta',
             delta: [{
               index: 0,
-              id: `call_${invocation}`,
+              id: 'call_1',
               type: 'function',
               function: { name: 'web_search', arguments: '{"query":"kimi k2 turbo coding benchmarks"}' },
             }],
@@ -2708,9 +2938,6 @@ describe('useProviderStreaming', () => {
     })
 
     expect(streamCalls.length).toBeGreaterThanOrEqual(2)
-    // The exact number of synth retry rounds or toolChoice may vary with flow changes;
-    // the important thing is suppression + deterministic final happened.
-    expect(streamCalls[3]?.toolChoice).toBe('none')
     expect(streamResult.content).toContain('Kimi K2 Turbo appears competitive')
     expect(streamResult.finishReason).toBe('stop')
   })

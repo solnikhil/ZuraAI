@@ -15,6 +15,7 @@ import React, {
   useMemo,
   useRef,
 } from 'react'
+import { isOverlayRoute } from '../components/overlay/overlaySessionPolicy'
 import { useSettings } from './SettingsContext'
 import type { SessionMetadata } from './ChatSessionManager'
 import { createSelectableContext } from './createSelectableContext'
@@ -481,6 +482,7 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     if (!isInitialized) return
     if (currentSessionId) return
     if (!settings.rememberLastChatSession) return
+    if (isOverlayRoute()) return
 
     const rememberedId = localStorage.getItem(LAST_SESSION_ID_KEY)
     if (!rememberedId) return
@@ -558,6 +560,7 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     if (!isInitialized) return
+    if (isOverlayRoute()) return
     if (!settings.rememberLastChatSession) {
       localStorage.removeItem(LAST_SESSION_ID_KEY)
       return
@@ -829,7 +832,9 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
   )
 
   const clearCurrentSession = useCallback(() => {
-    localStorage.removeItem(LAST_SESSION_ID_KEY)
+    if (!isOverlayRoute()) {
+      localStorage.removeItem(LAST_SESSION_ID_KEY)
+    }
     setCurrentSessionId(null)
   }, [])
 

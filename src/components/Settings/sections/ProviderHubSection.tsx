@@ -43,10 +43,18 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { ProviderLogo, SkillLogo } from '@/components/shared'
-import type { ConfiguredModel, TavilySearchDepthPreference, DeepSeekReasoningEffort } from '@/contexts/SettingsConfigContext'
+import { WithTooltip } from '@/components/ui/WithTooltip'
+import type {
+  ConfiguredModel,
+  TavilySearchDepthPreference,
+  DeepSeekReasoningEffort,
+} from '@/contexts/SettingsConfigContext'
 import { getDeepseekReasoning, setDeepseekReasoningEnabled } from '@/utils/deepseekReasoning'
 import { isSecureApiKeyPlaceholder, resolveApiKeyFromSecureStorage } from '@/utils/secureApiKeys'
-import { fetchOpenRouterModels, mapOpenRouterModelToConfiguredModel } from '@/services/openrouterModels'
+import {
+  fetchOpenRouterModels,
+  mapOpenRouterModelToConfiguredModel,
+} from '@/services/openrouterModels'
 import { CreateCustomModelDialog } from './CreateCustomModelDialog'
 import { AlibabaModelSearchDialog } from './AlibabaModelSearchDialog'
 import { DeepseekModelSearchDialog } from './DeepseekModelSearchDialog'
@@ -236,20 +244,22 @@ export interface ProviderHubSectionProps {
   ) => void
 }
 
-type ProviderSettingsUpdate = Partial<Pick<
-  ProviderHubSectionProps,
-  | 'configuredModels'
-  | 'perplexityModels'
-  | 'groqModels'
-  | 'alibabaModels'
-  | 'deepseekModels'
-  | 'fireworksModels'
-  | 'nvidiaModels'
-  | 'ollamaModels'
-  | 'aiModel'
-  | 'modelProvider'
-  | 'providerEnabled'
->>
+type ProviderSettingsUpdate = Partial<
+  Pick<
+    ProviderHubSectionProps,
+    | 'configuredModels'
+    | 'perplexityModels'
+    | 'groqModels'
+    | 'alibabaModels'
+    | 'deepseekModels'
+    | 'fireworksModels'
+    | 'nvidiaModels'
+    | 'ollamaModels'
+    | 'aiModel'
+    | 'modelProvider'
+    | 'providerEnabled'
+  >
+>
 
 export function ProviderHubSection({
   openRouterApiKey,
@@ -549,10 +559,7 @@ export function ProviderHubSection({
 
   const resolveProviderApiKey = async (provider: ProviderDefinition): Promise<string> => {
     if (!provider.apiKeyField) return ''
-    return resolveApiKeyFromSecureStorage(
-      provider.apiKeyField,
-      getProviderApiKey(provider)
-    )
+    return resolveApiKeyFromSecureStorage(provider.apiKeyField, getProviderApiKey(provider))
   }
 
   const setProviderEnabled = (providerKey: ProviderKey, enabled: boolean) => {
@@ -632,7 +639,9 @@ export function ProviderHubSection({
 
   const toggleModelReasoning = (modelCode: string, checked: boolean) => {
     // DeepSeek-only: the user's explicit per-model toggle is the source of truth.
-    onChange(setDeepseekReasoningEnabled({ deepseekReasoning, deepseekLastEffort }, modelCode, checked))
+    onChange(
+      setDeepseekReasoningEnabled({ deepseekReasoning, deepseekLastEffort }, modelCode, checked)
+    )
   }
 
   const detectOpenRouterReasoning = async (modelCode: string) => {
@@ -940,17 +949,18 @@ export function ProviderHubSection({
                   {selectedProviderDef.name}
                 </span>
                 {providerDashboardUrl ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-5 w-5 rounded-full border border-border text-muted-foreground hover:bg-secondary hover:text-foreground"
-                    onClick={() => window.shell?.openExternal(providerDashboardUrl)}
-                    aria-label={`Open ${selectedProviderDef.name} dashboard`}
-                    title={`Open ${selectedProviderDef.name} dashboard`}
-                  >
-                    <ExternalLink size={12} />
-                  </Button>
+                  <WithTooltip tooltip={`Open ${selectedProviderDef.name} dashboard`}>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-5 w-5 rounded-full border border-border text-muted-foreground hover:bg-secondary hover:text-foreground"
+                      onClick={() => window.shell?.openExternal(providerDashboardUrl)}
+                      aria-label={`Open ${selectedProviderDef.name} dashboard`}
+                    >
+                      <ExternalLink size={12} />
+                    </Button>
+                  </WithTooltip>
                 ) : (
                   <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-border text-muted-foreground">
                     <CircleHelp size={12} />
@@ -991,7 +1001,9 @@ export function ProviderHubSection({
                           onChange={(e) => {
                             setDisplayedApiKey(e.target.value)
                             setProviderApiKey(selectedProviderDef, e.target.value)
-                            resetConnectivityState('API key changed. Run connectivity check to verify.')
+                            resetConnectivityState(
+                              'API key changed. Run connectivity check to verify.'
+                            )
                           }}
                           className="border-border bg-secondary pr-10"
                           placeholder={getSecretFieldPlaceholder(
@@ -1012,8 +1024,6 @@ export function ProviderHubSection({
                       </div>
                     }
                   />
-
-
 
                   <DetailField
                     label="API Proxy URL"
@@ -1281,7 +1291,8 @@ export function ProviderHubSection({
                   reasoningEnabledFor={
                     selectedProviderDef.key === 'deepseek'
                       ? (code) =>
-                          getDeepseekReasoning({ deepseekReasoning, deepseekLastEffort }, code).enabled
+                          getDeepseekReasoning({ deepseekReasoning, deepseekLastEffort }, code)
+                            .enabled
                       : undefined
                   }
                   onToggleReasoning={
@@ -1659,13 +1670,13 @@ function ModelGroup({
         )
         const showOpenRouterReasoningDetected = Boolean(
           onDetectOpenRouterReasoning &&
-            configuredModel.openRouterReasoningDetected &&
-            configuredModel.supportsDeepThinking
+          configuredModel.openRouterReasoningDetected &&
+          configuredModel.supportsDeepThinking
         )
         const showOpenRouterNoReasoning = Boolean(
           onDetectOpenRouterReasoning &&
-            configuredModel.openRouterReasoningDetected &&
-            !configuredModel.supportsDeepThinking
+          configuredModel.openRouterReasoningDetected &&
+          !configuredModel.supportsDeepThinking
         )
         const isDetectingReasoning = detectingOpenRouterReasoningCode === model.code
         return (
@@ -1872,7 +1883,8 @@ function SearchApiSection({
               className="flex items-center gap-3 px-3.5 py-3 text-left transition hover:bg-white/[0.04]"
               style={{
                 background: CATALOG_CARD_BACKGROUND,
-                boxShadow: selectedApi === api.key ? 'inset 0 0 0 1px var(--theme-surface-active)' : 'none',
+                boxShadow:
+                  selectedApi === api.key ? 'inset 0 0 0 1px var(--theme-surface-active)' : 'none',
               }}
             >
               <div className="flex shrink-0 items-center justify-center">
@@ -1881,9 +1893,7 @@ function SearchApiSection({
 
               <div className="min-w-0 flex-1">
                 <div className="flex min-w-0 items-center gap-2">
-                  <span className="truncate text-sm font-semibold text-foreground">
-                    {api.name}
-                  </span>
+                  <span className="truncate text-sm font-semibold text-foreground">{api.name}</span>
                   {api.key === 'tavily' && (
                     <span className="shrink-0 rounded bg-[var(--theme-accent)]/20 px-1.5 py-0.5 text-[10px] font-medium text-[var(--theme-accent)]">
                       Recommended
@@ -1893,7 +1903,9 @@ function SearchApiSection({
                 <p className="mt-0.5 truncate text-xs text-muted-foreground">
                   {api.shortDescription || api.description}
                 </p>
-                {speedSummary && <div className="mt-1 text-xs text-muted-foreground">{speedSummary}</div>}
+                {speedSummary && (
+                  <div className="mt-1 text-xs text-muted-foreground">{speedSummary}</div>
+                )}
               </div>
 
               <div className="flex shrink-0 items-center gap-2">
@@ -2040,7 +2052,7 @@ function SearchApiDetail({
         </div>
 
         <div className="border-t border-border pt-6">
-          {(api.apiKeyField === 'tavilyApiKey' || api.apiKeyField === 'onlineCompilerApiKey') ? (
+          {api.apiKeyField === 'tavilyApiKey' || api.apiKeyField === 'onlineCompilerApiKey' ? (
             <div className="space-y-6">
               <DetailField
                 label="API Key"
@@ -2068,16 +2080,12 @@ function SearchApiDetail({
                       }}
                       placeholder={
                         api.apiKeyField === 'tavilyApiKey'
-                          ? (
-                              isSecureApiKeyPlaceholder(tavilyApiKey)
-                                ? 'Tavily key stored securely. Enter a new key to replace it.'
-                                : 'tvly-...'
-                            )
-                          : (
-                              isSecureApiKeyPlaceholder(onlineCompilerApiKey)
-                                ? 'OnlineCompiler key stored securely. Enter a new key to replace it.'
-                                : 'Paste your OnlineCompiler API key'
-                            )
+                          ? isSecureApiKeyPlaceholder(tavilyApiKey)
+                            ? 'Tavily key stored securely. Enter a new key to replace it.'
+                            : 'tvly-...'
+                          : isSecureApiKeyPlaceholder(onlineCompilerApiKey)
+                            ? 'OnlineCompiler key stored securely. Enter a new key to replace it.'
+                            : 'Paste your OnlineCompiler API key'
                       }
                       className="border-border bg-secondary pr-10"
                       autoComplete="new-password"
@@ -2126,7 +2134,9 @@ function SearchApiDetail({
                       <div className="flex justify-end">
                         <Switch
                           checked={webSearchIncludeImages}
-                          onCheckedChange={(checked) => onChange({ webSearchIncludeImages: checked })}
+                          onCheckedChange={(checked) =>
+                            onChange({ webSearchIncludeImages: checked })
+                          }
                           aria-label="Include web search images"
                         />
                       </div>

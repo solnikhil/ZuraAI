@@ -100,16 +100,37 @@ describe('ModelSelectorDropdown', () => {
     )
   })
 
-  it('does not render the reasoning effort section when showReasoning is false', () => {
+  it('does not render the reasoning section when showReasoning is false', () => {
     renderOpen({ showReasoning: false })
-    expect(screen.queryByText('Reasoning effort')).not.toBeInTheDocument()
+    expect(screen.queryByText('Reasoning')).not.toBeInTheDocument()
   })
 
-  it('shows the reasoning effort section and allows selecting None when reasoning is off', () => {
+  it('renders reasoning effort below the model row inside a submenu', () => {
+    renderOpen({
+      showReasoning: true,
+      reasoningEnabled: true,
+      reasoningEffort: 'medium',
+      currentModel: deepseekModel,
+      currentName: 'DeepSeek V4 Pro',
+      groupedModels: { ...emptyGroups, deepseek: [deepseekModel] },
+      selectedModelCode: deepseekModel.code,
+      selectedModelProvider: 'deepseek',
+    })
+
+    expect(screen.getByText('Model')).toBeInTheDocument()
+    expect(screen.getByText('Reasoning')).toBeInTheDocument()
+
+    const modelRow = screen.getByText('DeepSeek V4 Pro')
+    const reasoningRow = screen.getByText('Medium')
+    expect(modelRow.compareDocumentPosition(reasoningRow) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('shows the reasoning effort submenu and allows selecting None when reasoning is off', () => {
     const onReasoningEffortChange = vi.fn()
     renderOpen({
       showReasoning: true,
       reasoningEnabled: false,
+      reasoningEffort: 'high',
       currentModel: deepseekModel,
       currentName: 'DeepSeek V4 Pro',
       groupedModels: { ...emptyGroups, deepseek: [deepseekModel] },
@@ -118,14 +139,16 @@ describe('ModelSelectorDropdown', () => {
       onReasoningEffortChange,
     })
 
-    expect(screen.getByText('Reasoning effort')).toBeInTheDocument()
-    const noneItem = screen.getByRole('menuitemradio', { name: /none/i })
+    expect(screen.getByText('Reasoning')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('High'))
+
+    const noneItem = screen.getByRole('menuitem', { name: /^none$/i })
     expect(noneItem).toBeInTheDocument()
     fireEvent.click(noneItem)
     expect(onReasoningEffortChange).toHaveBeenCalledWith('none')
   })
 
-  it('shows the reasoning effort section and switches effort when enabled', () => {
+  it('shows the reasoning effort submenu and switches effort when enabled', () => {
     const onReasoningEffortChange = vi.fn()
     renderOpen({
       showReasoning: true,
@@ -139,8 +162,10 @@ describe('ModelSelectorDropdown', () => {
       onReasoningEffortChange,
     })
 
-    expect(screen.getByText('Reasoning effort')).toBeInTheDocument()
-    const maxItem = screen.getByRole('menuitemradio', { name: /xhigh/i })
+    expect(screen.getByText('Reasoning')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('High'))
+
+    const maxItem = screen.getByRole('menuitem', { name: /^xhigh$/i })
     fireEvent.click(maxItem)
     expect(onReasoningEffortChange).toHaveBeenCalledWith('xhigh')
   })

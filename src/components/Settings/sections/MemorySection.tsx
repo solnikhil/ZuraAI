@@ -13,6 +13,7 @@ import {
 
 import { ProviderLogo } from '@/components/shared'
 import { Card } from '@/components/ui/card'
+import { TooltipIconButton } from '@/components/ui/TooltipIconButton'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -227,33 +228,39 @@ export function MemorySection({
 
   const selectedProvider = selectedMemoryModel?.provider || memoryProviders[0]?.id || ''
 
-  const deleteLibraryItem = useCallback(async (item: BackgroundViewerItem) => {
-    if (typeof window === 'undefined' || !window.memory) return
-    const key = `${item.kind}:${item.id}`
-    setDeletingItemIds((current) => new Set(current).add(key))
-    try {
-      if (item.kind === 'memory') {
-        await window.memory.delete(item.id)
-      } else {
-        await window.memory.summaries?.delete(item.id)
+  const deleteLibraryItem = useCallback(
+    async (item: BackgroundViewerItem) => {
+      if (typeof window === 'undefined' || !window.memory) return
+      const key = `${item.kind}:${item.id}`
+      setDeletingItemIds((current) => new Set(current).add(key))
+      try {
+        if (item.kind === 'memory') {
+          await window.memory.delete(item.id)
+        } else {
+          await window.memory.summaries?.delete(item.id)
+        }
+        await refresh()
+      } catch (error) {
+        console.error('Failed to delete memory library item:', error)
+      } finally {
+        setDeletingItemIds((current) => {
+          const next = new Set(current)
+          next.delete(key)
+          return next
+        })
       }
-      await refresh()
-    } catch (error) {
-      console.error('Failed to delete memory library item:', error)
-    } finally {
-      setDeletingItemIds((current) => {
-        const next = new Set(current)
-        next.delete(key)
-        return next
-      })
-    }
-  }, [refresh])
+    },
+    [refresh]
+  )
 
-  const openSourceChat = useCallback((sessionId: string) => {
-    if (!availableSessionIds.has(sessionId)) return
-    switchSession(sessionId)
-    setDashboardView('chat')
-  }, [availableSessionIds, setDashboardView, switchSession])
+  const openSourceChat = useCallback(
+    (sessionId: string) => {
+      if (!availableSessionIds.has(sessionId)) return
+      switchSession(sessionId)
+      setDashboardView('chat')
+    },
+    [availableSessionIds, setDashboardView, switchSession]
+  )
 
   return (
     <div className="settings-section-layout">
@@ -270,12 +277,10 @@ export function MemorySection({
           <Card className="settings-list-card">
             <div className="settings-list-row">
               <div className="settings-list-row__meta">
-                <h3 className="settings-list-row__label">
-                  Background Active Memory
-                </h3>
+                <h3 className="settings-list-row__label">Background Active Memory</h3>
                 <div className="settings-list-row__description">
-                  Automatically learns and recalls facts from your conversations to personalize future
-                  chats.
+                  Automatically learns and recalls facts from your conversations to personalize
+                  future chats.
                 </div>
               </div>
               <div className="settings-list-row__control">
@@ -314,10 +319,7 @@ export function MemorySection({
                         )}
                       </button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent
-                      align="end"
-                      className="zura-menu-surface--model w-[205px]"
-                    >
+                    <DropdownMenuContent align="end" className="zura-menu-surface--model w-[205px]">
                       <DropdownMenuItem
                         onClick={() => onChange({ memoryModel: '' })}
                         className="zura-menu-item--model"
@@ -369,7 +371,6 @@ export function MemorySection({
                 </div>
               </div>
             )}
-
           </Card>
 
           <h3 className="appearance-group-heading memory-library-heading">Memory Library</h3>
@@ -384,7 +385,10 @@ export function MemorySection({
                       : `${factCount} ${factCount === 1 ? 'fact' : 'facts'} · ${summaryCount} ${summaryCount === 1 ? 'activity item' : 'activity items'}`}
                   </div>
                 </div>
-                <div className="memory-library-panel__stats" aria-label={`${bgTotalCount} memory items`}>
+                <div
+                  className="memory-library-panel__stats"
+                  aria-label={`${bgTotalCount} memory items`}
+                >
                   <Database size={14} />
                   <span>{bgTotalCount}</span>
                 </div>
@@ -401,12 +405,20 @@ export function MemorySection({
                   />
                 </label>
                 <div className="memory-library-panel__filter-stack">
-                  <div className="memory-library-panel__tabs" role="tablist" aria-label="Memory item filters">
+                  <div
+                    className="memory-library-panel__tabs"
+                    role="tablist"
+                    aria-label="Memory item filters"
+                  >
                     {[
                       { id: 'all' as const, label: 'All', count: bgTotalCount },
                       { id: 'memory' as const, label: 'Facts', count: factCount },
                       { id: 'summary' as const, label: 'Activity', count: summaryCount },
-                      { id: 'needs_review' as const, label: 'Needs review', count: needsReviewCount },
+                      {
+                        id: 'needs_review' as const,
+                        label: 'Needs review',
+                        count: needsReviewCount,
+                      },
                     ].map((filter) => (
                       <button
                         key={filter.id}
@@ -421,7 +433,11 @@ export function MemorySection({
                     ))}
                   </div>
                   {factCount > 0 && (
-                    <div className="memory-library-panel__category-tabs" role="tablist" aria-label="Memory category filters">
+                    <div
+                      className="memory-library-panel__category-tabs"
+                      role="tablist"
+                      aria-label="Memory category filters"
+                    >
                       {MEMORY_CATEGORY_FILTERS.map((filter) => (
                         <button
                           key={filter.id}
@@ -448,7 +464,9 @@ export function MemorySection({
                       </div>
                       <div>
                         <div className="memory-library-panel__empty-title">
-                          {bgTotalCount === 0 ? 'No memories saved yet' : 'Nothing matches this view'}
+                          {bgTotalCount === 0
+                            ? 'No memories saved yet'
+                            : 'Nothing matches this view'}
                         </div>
                         <p>
                           {bgTotalCount === 0
@@ -458,7 +476,10 @@ export function MemorySection({
                       </div>
                     </div>
                     {bgTotalCount === 0 && (
-                      <div className="memory-library-panel__empty-tags" aria-label="Memory categories">
+                      <div
+                        className="memory-library-panel__empty-tags"
+                        aria-label="Memory categories"
+                      >
                         <span>Preferences</span>
                         <span>Projects</span>
                         <span>Workflows</span>
@@ -515,16 +536,15 @@ export function MemorySection({
                               {hasSourceSession ? 'Open chat' : 'Source unavailable'}
                             </button>
                           )}
-                          <button
-                            type="button"
+                          <TooltipIconButton
+                            tooltip={`Delete ${isSummary ? 'recent activity' : 'background fact'}`}
                             className="memory-library-panel__delete"
                             disabled={isDeleting}
                             onClick={() => void deleteLibraryItem(item)}
                             aria-label={`Delete ${isSummary ? 'recent activity' : 'background fact'}`}
-                            title={`Delete ${isSummary ? 'recent activity' : 'background fact'}`}
                           >
                             <Trash2 size={13} />
-                          </button>
+                          </TooltipIconButton>
                         </div>
                       </article>
                     )

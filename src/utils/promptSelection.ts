@@ -4,6 +4,10 @@ import { CURRENT_YEAR_PLACEHOLDER } from '../prompts/defaultSystemPrompt'
 import { buildSelectedPersonalityPrompt } from '../prompts/assistantPersonalities'
 import { buildAgentSkillsCatalogPrompt } from '../agentSkills/prompt'
 
+export interface EffectiveSystemPromptOptions {
+    includeAgentSkillsCatalog?: boolean
+}
+
 export function resolveSystemPromptTemplate(systemPrompt: string): string {
     const currentYear = String(new Date().getFullYear())
     return systemPrompt.replaceAll(CURRENT_YEAR_PLACEHOLDER, currentYear)
@@ -21,8 +25,10 @@ export function resolveSystemPromptTemplate(systemPrompt: string): string {
 export function getEffectiveSystemPrompt(
     settings: Pick<Settings, 'systemPrompt'> & Partial<Pick<Settings, 'assistantPersonality' | 'skills' | 'extensions' | 'agentSkills' | 'codeExecutionPrompt' | 'terminalPrompt' | 'computerUsePrompt' | 'chartGenerationPrompt' | 'remindersPrompt' | 'artifactsPrompt'>>,
     memoryBlock?: string,
-    recentActivityBlock?: string
+    recentActivityBlock?: string,
+    options: EffectiveSystemPromptOptions = {}
 ): string {
+    const includeAgentSkillsCatalog = options.includeAgentSkillsCatalog ?? true
     const resolvedSystemPrompt = resolveSystemPromptTemplate(settings.systemPrompt)
     const selectedPersonalityPrompt = buildSelectedPersonalityPrompt(settings.assistantPersonality)
     const enabledExtensionsSection = buildEnabledExtensionsPrompt(settings.extensions ?? settings.skills, {
@@ -35,8 +41,10 @@ export function getEffectiveSystemPrompt(
     })
     const sections = [resolvedSystemPrompt, selectedPersonalityPrompt]
     if (enabledExtensionsSection) sections.push(enabledExtensionsSection)
-    const agentSkillsCatalog = buildAgentSkillsCatalogPrompt(settings.agentSkills)
-    if (agentSkillsCatalog) sections.push(agentSkillsCatalog)
+    if (includeAgentSkillsCatalog) {
+        const agentSkillsCatalog = buildAgentSkillsCatalogPrompt(settings.agentSkills)
+        if (agentSkillsCatalog) sections.push(agentSkillsCatalog)
+    }
     if (recentActivityBlock && recentActivityBlock.trim()) sections.push(recentActivityBlock.trim())
     if (memoryBlock && memoryBlock.trim()) sections.push(memoryBlock.trim())
     return sections.join('\n\n')

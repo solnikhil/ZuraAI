@@ -313,14 +313,18 @@ export function TokenUsageIndicator({ input, attachedFiles = [], className }: To
     recentActivityBlock: '',
   })
   const nonMemorySystemPrompt = useMemo(
-    () => getEffectiveSystemPrompt(settings),
+    () => getEffectiveSystemPrompt(settings, undefined, undefined, { includeAgentSkillsCatalog: false }),
     [
       settings.systemPrompt,
+      settings.assistantPersonality,
       settings.skills,
+      settings.extensions,
       settings.codeExecutionPrompt,
       settings.terminalPrompt,
       settings.computerUsePrompt,
       settings.chartGenerationPrompt,
+      settings.remindersPrompt,
+      settings.artifactsPrompt,
     ]
   )
   const requestTools = canUseTools ? getToolsForRequest() : null

@@ -17,6 +17,7 @@ import {
 } from '../providers'
 import { normalizeAssistantPersonalityId } from '../prompts/assistantPersonalities'
 import { normalizeDeepseekReasoning, coerceReasoningEffort } from '../utils/deepseekReasoning'
+import { normalizeActiveThemeId } from '../themes/themeRegistry'
 import { normalizeFontScale } from '../themes/themeUtils'
 import type { AgentSkillSummary, AgentSkillsSettings } from '../agentSkills/types'
 
@@ -576,7 +577,10 @@ export function normalizeStoredSettings(raw: string | null): Settings {
     parsed.configuredModels,
     defaultSettings.configuredModels
   )
-  if (!parsed.activeTheme) parsed.activeTheme = defaultSettings.activeTheme
+  if (!['light', 'dark', 'system'].includes(String(parsed.theme))) {
+    parsed.theme = defaultSettings.theme
+  }
+  parsed.activeTheme = normalizeActiveThemeId(parsed.activeTheme || defaultSettings.activeTheme)
   delete (parsed as Record<string, unknown>).frostedSidebar
   delete (parsed as Record<string, unknown>).frostedPrompt
   delete (parsed as Record<string, unknown>).sidebarAutoHideOnResize

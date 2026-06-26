@@ -9,7 +9,9 @@
 :root {
   /* Apple-style snappy spring: fast start, gentle settle. */
   --zo-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --zo-drag-strip-height: 14px;
   --zo-pill-height: 64px;
+  --zo-idle-height: calc(var(--zo-drag-strip-height) + var(--zo-pill-height));
 }
 
 /* The reset host — keep the overlay surface transparent so the window material
@@ -25,6 +27,14 @@
   overflow: hidden;
 }
 
+/* Suppress the dashboard launch fade overlay on the dedicated overlay window. */
+html.zo-overlay-route #root::before {
+  content: none;
+  display: none;
+  animation: none;
+  opacity: 0;
+}
+
 /* --------------------------------------------------------------------------
    Shell: the vibrant glass container
    -------------------------------------------------------------------------- */
@@ -33,8 +43,10 @@
   display: flex;
   flex-direction: column;
   width: 100%;
-  height: 100%;
-  min-height: 0;
+  /* Grow with measured content; min-height fills the initial pill-sized window. */
+  height: auto;
+  min-height: 100%;
+  flex-shrink: 0;
   background: rgba(25, 25, 25, 0.45);
   -webkit-backdrop-filter: blur(40px) saturate(150%);
   backdrop-filter: blur(40px) saturate(150%);
@@ -44,6 +56,14 @@
   overflow: hidden;
   /* The window height is animated/snapped from main; the shell follows. */
   transition: border-color 240ms var(--zo-ease), box-shadow 240ms var(--zo-ease);
+}
+
+/* Windows 11 acrylic uses an opaque window background; skip CSS blur stacking. */
+html.zo-overlay-acrylic .zo-shell {
+  background: rgba(32, 32, 34, 0.68);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.32);
 }
 
 .zo-shell.is-expanded {
@@ -56,6 +76,9 @@
   display: flex;
   flex-direction: column;
   width: 100%;
+  flex-shrink: 0;
+  /* Reserve space for the top drag strip so it does not cover the pill. */
+  padding-top: 14px;
 }
 
 /* Idle dim driven by the prompt auto-hide setting (the pill stays interactive). */
@@ -97,9 +120,10 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  min-height: var(--zo-pill-height);
+  min-height: 64px;
   padding: 0 12px 0 16px;
   flex-shrink: 0;
+  -webkit-app-region: no-drag;
 }
 
 .zo-pill__icon {
@@ -121,6 +145,7 @@
   background: transparent;
   border: none;
   outline: none;
+  -webkit-app-region: no-drag;
   color: var(--theme-text-primary, rgba(245, 248, 255, 0.96));
   font-size: 1rem;
   font-weight: 450;
@@ -155,6 +180,7 @@
   background: transparent;
   color: rgba(200, 208, 224, 0.7);
   cursor: pointer;
+  -webkit-app-region: no-drag;
   transition: background 140ms var(--zo-ease), color 140ms var(--zo-ease), transform 140ms var(--zo-ease);
 }
 
@@ -189,8 +215,10 @@
 .zo-card {
   display: flex;
   flex-direction: column;
-  min-height: 0;
+  min-height: 96px; /* synced with OVERLAY_CARD_MIN_HEIGHT */
+  flex-shrink: 0;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
+  -webkit-app-region: no-drag;
 }
 
 .zo-card__scroll {
@@ -238,9 +266,4 @@
   .zo-spinner { animation-duration: 1.6s; }
 }
 
-/* Empty/idle hint shown under the pill before the first message. */
-.zo-empty-hint {
-  padding: 4px 16px 14px;
-  font-size: 0.8rem;
-  color: var(--theme-text-muted, rgba(170, 176, 190, 0.7));
-}
+

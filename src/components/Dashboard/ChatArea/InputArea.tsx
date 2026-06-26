@@ -36,7 +36,7 @@ import {
   motionEasing,
   useMotionPreferences,
 } from '@/lib/motion'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -52,10 +52,7 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { ComposerAttachments } from './ComposerAttachments'
 import McpLibraryDialog from '@/components/mcp/McpLibraryDialog'
-import {
-  isSkillEnabled,
-  withComputerUseEnabled,
-} from '@/skills'
+import { isSkillEnabled, withComputerUseEnabled } from '@/skills'
 import { isWindowsRuntime } from '@/utils/platform'
 
 export interface InputAreaProps {
@@ -126,7 +123,7 @@ export function InputArea({
   const fileInputRef = React.useRef<HTMLInputElement>(null)
   const { settings, updateSettings } = useSettings()
   const { animationsEnabled } = useMotionPreferences()
-  
+
   const assistantMode = settings.assistantMode || 'chat'
   const computerUseEnabled = isSkillEnabled(settings.skills, 'computer_use')
   const activeAgentPillLabel = computerUseEnabled ? 'This desktop' : 'Agent mode'
@@ -305,16 +302,10 @@ export function InputArea({
 
   const canSend = !isLoading && (input.trim() || attachedFiles.length > 0)
   const showAttachmentRail = attachedFiles.length > 0
-  const placeholder = isDragging
-    ? 'Drop files here...'
-    : 'Enter your message to continue...'
-  const composerWidthClass = isLandingVariant
-    ? 'max-w-[min(745px,100%)]'
-    : 'max-w-full'
+  const placeholder = isDragging ? 'Drop files here...' : 'Enter your message to continue...'
+  const composerWidthClass = isLandingVariant ? 'max-w-[min(745px,100%)]' : 'max-w-full'
   const shellRadiusClass = 'rounded-[24px] md:rounded-[26px]'
-  const shellPaddingClass = showAttachmentRail
-    ? 'px-3 py-3'
-    : 'px-3 py-2.5'
+  const shellPaddingClass = showAttachmentRail ? 'px-3 py-3' : 'px-3 py-2.5'
   const controlClusterClass = 'flex items-center gap-2'
   const secondaryControlButtonClass =
     'theme-control-btn inline-flex h-9 w-9 items-center justify-center rounded-full p-2'
@@ -472,7 +463,7 @@ export function InputArea({
   }, [onActivity])
 
   return (
-    <TooltipProvider>
+    <>
       <div
         className="w-full pb-0 pt-3"
         onDragOver={handleDragOver}
@@ -510,7 +501,9 @@ export function InputArea({
               )}
             </AnimatePresence>
 
-            {showAttachmentRail && <ComposerAttachments files={attachedFiles} onRemove={removeFile} />}
+            {showAttachmentRail && (
+              <ComposerAttachments files={attachedFiles} onRemove={removeFile} />
+            )}
 
             <input
               type="file"
@@ -658,7 +651,7 @@ export function InputArea({
           onInsertText={insertMcpTextIntoComposer}
         />
       )}
-    </TooltipProvider>
+    </>
   )
 }
 

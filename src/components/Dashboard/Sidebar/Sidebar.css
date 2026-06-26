@@ -509,6 +509,18 @@
   box-sizing: border-box;
 }
 
+.sidebar-chatlist__utility-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 0 0 8px;
+}
+
+.sidebar-chatlist__utility-action {
+  padding-left: 8px;
+  padding-right: 12px;
+}
+
 /* ── Chat row ──────────────────────────────────────────────── */
 
 .sidebar-chat-row {
@@ -706,55 +718,13 @@
   display: none;
 }
 
-.app-menu-panel {
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
+.sidebar-footer-row[data-state='open'] {
+  background: var(--theme-surface-active);
+  color: var(--theme-text-primary);
 }
 
-.app-menu-panel__separator {
-  margin: 4px 2px;
-}
-
-.app-menu-panel__item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-height: 36px;
-  border-radius: 10px;
-  padding: 0 8px;
-  font-size: 0.88rem;
-  color: var(--zura-menu-fg, var(--theme-text-primary));
-  transition: background 140ms ease, color 140ms ease;
-  outline: none;
-}
-
-.app-menu-panel__item[data-highlighted] {
-  background: var(--zura-menu-hover-bg, var(--theme-surface-active));
-  color: var(--zura-menu-fg, var(--theme-text-primary));
-  border-radius: 10px;
-}
-
-.app-menu-panel__item[data-highlighted] .app-menu-panel__item-left svg,
-.app-menu-panel__item[data-highlighted] .app-menu-panel__chevron {
-  opacity: 1;
-}
-
-.app-menu-panel__item[data-disabled] {
-  opacity: 0.5;
-}
-
-.app-menu-panel__item-left {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-
-.app-menu-panel__item-left svg,
-.app-menu-panel__chevron {
-  flex-shrink: 0;
-  opacity: 0.72;
+.sidebar-container.frosted .sidebar-footer-row[data-state='open'] {
+  background: color-mix(in srgb, var(--theme-surface-active) 72%, transparent);
 }
 
 /* ── Settings nav ──────────────────────────────────────────── */

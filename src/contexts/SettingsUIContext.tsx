@@ -196,6 +196,14 @@ export const defaultSettingsUI: SettingsUI = {
   },
 }
 
+function getSystemPrefersDark(): boolean {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    return true
+  }
+
+  return window.matchMedia('(prefers-color-scheme: dark)').matches
+}
+
 interface SettingsUIContextType {
   settingsUI: SettingsUI
   updateSettingsUI: (newSettings: Partial<SettingsUI>) => void
@@ -220,6 +228,7 @@ export function SettingsUIProvider({
   initialSettings,
   onSettingsChange,
 }: SettingsUIProviderProps) {
+  const [systemPrefersDark, setSystemPrefersDark] = useState(getSystemPrefersDark)
   const [settingsUI, setSettingsUI] = useState<SettingsUI>(() => {
     // Deep merge nested objects so new fields get defaults
     const merged = { ...defaultSettingsUI, ...initialSettings }
@@ -249,6 +258,21 @@ export function SettingsUIProvider({
     }
     return merged
   })
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return
+    }
+
+    const media = window.matchMedia('(prefers-color-scheme: dark)')
+    const handleChange = (event: MediaQueryListEvent) => {
+      setSystemPrefersDark(event.matches)
+    }
+
+    setSystemPrefersDark(media.matches)
+    media.addEventListener('change', handleChange)
+    return () => media.removeEventListener('change', handleChange)
+  }, [])
 
   // Sync with parent when initialSettings change (e.g., from storage events)
   useEffect(() => {
@@ -293,7 +317,13 @@ export function SettingsUIProvider({
 
   // Apply theme to document
   useLayoutEffect(() => {
-    const theme = getThemeById(settingsUI.activeTheme) || getDefaultTheme()
+    const effectiveThemeId =
+      settingsUI.theme === 'system'
+        ? systemPrefersDark
+          ? 'zuraai'
+          : 'zuraai-light'
+        : settingsUI.activeTheme
+    const theme = getThemeById(effectiveThemeId) || getDefaultTheme()
     const customAccent = settingsUI.themeAccent
     const customBackground = settingsUI.themeBackground
     const customForeground = settingsUI.themeForeground
@@ -318,6 +348,7 @@ export function SettingsUIProvider({
     root.dataset.remindersBadge = remindersAppearance.badgeStyle
     root.dataset.remindersAccentTint = remindersAppearance.useAccentTint ? 'on' : 'off'
   }, [
+    settingsUI.theme,
     settingsUI.activeTheme,
     settingsUI.themeAccent,
     settingsUI.themeBackground,
@@ -325,6 +356,7 @@ export function SettingsUIProvider({
     settingsUI.themeContrast,
     settingsUI.fontScale,
     settingsUI.remindersAppearance,
+    systemPrefersDark,
   ])
 
   // Notify parent of changes

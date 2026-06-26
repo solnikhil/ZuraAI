@@ -271,7 +271,7 @@ describe('ChatSessionManager', () => {
     it('should not unload recently accessed sessions', async () => {
       const testManager = new ChatSessionManager(sessionLoader, allSessionsLoader, {
         maxLoadedSessions: 3,
-        unloadAfterMs: 100,
+        unloadAfterMs: 500,
         preloadMessageCount: 20,
       })
 
@@ -279,11 +279,11 @@ describe('ChatSessionManager', () => {
       await testManager.loadSession('session-1')
 
       // Access it again before timeout
-      await new Promise((resolve) => setTimeout(resolve, 50))
+      await new Promise((resolve) => setTimeout(resolve, 100))
       await testManager.loadSession('session-1')
 
-      // Wait a bit more but not enough for full timeout from last access
-      await new Promise((resolve) => setTimeout(resolve, 60))
+      // Stay under unloadAfterMs from the most recent access even under timer jitter
+      await new Promise((resolve) => setTimeout(resolve, 200))
 
       testManager.unloadInactiveSessions()
 
@@ -379,7 +379,7 @@ describe('ChatSessionManager', () => {
 
       expect(config.maxLoadedSessions).toBe(3)
       expect(config.unloadAfterMs).toBe(300000)
-      expect(config.preloadMessageCount).toBe(20)
+      expect(config.preloadMessageCount).toBe(80)
 
       defaultManager.dispose()
     })
@@ -393,7 +393,7 @@ describe('ChatSessionManager', () => {
 
       expect(config.maxLoadedSessions).toBe(5)
       expect(config.unloadAfterMs).toBe(600000)
-      expect(config.preloadMessageCount).toBe(20) // Default
+      expect(config.preloadMessageCount).toBe(80) // Default
 
       customManager.dispose()
     })

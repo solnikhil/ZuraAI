@@ -16,7 +16,6 @@ import { writeTextToClipboard } from '@/utils/clipboard'
 import { getDeepseekReasoning } from '@/utils/deepseekReasoning'
 import { serializeDomToMarkdown } from '@/utils/domToMarkdown'
 import { removeToolFollowUpSplitMarker } from '../messageTimeline'
-
 import type { MessageRendererProps } from './types'
 import { areMessagePropsEqual } from './messagePropsComparison'
 import { UserMessageBubble, RenderImageFiles } from './UserMessageBubble'
@@ -47,8 +46,6 @@ function MessageRendererComponent({
   const [displayVersionIndex, setDisplayVersionIndex] = useState(0)
   const messageRef = useRef<HTMLDivElement>(null)
 
-  // Track if content has arrived during streaming
-  const [hasContentDuringStreaming, setHasContentDuringStreaming] = useState(false)
   // Track whether to trigger the staggered button animation.
   // null = no animation (historical messages), true = animate in
   const [showActionButtons, setShowActionButtons] = useState<boolean | null>(null)
@@ -61,13 +58,6 @@ function MessageRendererComponent({
     settings.webSearchIncludeImages
   )
 
-  // Reset content tracking when streaming starts
-  useEffect(() => {
-    if (isStreaming) {
-      setHasContentDuringStreaming(false)
-    }
-  }, [isStreaming])
-
   // Trigger staggered button animation ONLY when streaming transitions from true → false
   useEffect(() => {
     if (prevIsStreamingRef.current && !isStreaming) {
@@ -79,13 +69,6 @@ function MessageRendererComponent({
     }
     prevIsStreamingRef.current = isStreaming
   }, [isStreaming])
-
-  // Track when content arrives during streaming
-  useEffect(() => {
-    if (isStreaming && message.content && message.content.length > 0) {
-      setHasContentDuringStreaming(true)
-    }
-  }, [isStreaming, message.content])
 
   const versions = message.responseVersions || []
   const totalVersions = versions.length + (message.content ? 1 : 0)
@@ -134,7 +117,7 @@ function MessageRendererComponent({
     () => processMessageContent(displayContent),
     [displayContent, processMessageContent]
   )
-  const hasProcessedDisplayContent = processedDisplayContent.trim().length > 0
+  const hasVisibleContent = processedDisplayContent.trim().length > 0
   const hasActiveThinkingState =
     hasThinking ||
     showThinkingSpinner ||
@@ -142,15 +125,7 @@ function MessageRendererComponent({
     hasActiveToolCalls ||
     isToolPhase
   const showThinkingBlock = completedBlocks.length > 0 || hasActiveThinkingState
-  const shouldRenderDisplayContent =
-    (!isStreaming ||
-      hasContentDuringStreaming ||
-      completedBlocks.length > 0 ||
-      message.researchStatus) &&
-    hasProcessedDisplayContent
-  const isAnsweringPhase = streamPhase === 'answering'
-  const shouldPrioritizeStreamingContent =
-    isStreaming && shouldRenderDisplayContent && !isAnsweringPhase
+  const shouldRenderDisplayContent = hasVisibleContent
 
   const renderDisplayContent = () => (
     <div className="markdown-content">
@@ -260,15 +235,11 @@ function MessageRendererComponent({
         <WebSearchImageCarousel images={webSearchImages} mode={webImageMode} />
       )}
 
-      {shouldPrioritizeStreamingContent && renderDisplayContent()}
-
       {/* Thinking/search/tool activity stays above one continuous assistant message. */}
       {showThinkingBlock && (
         <div
           style={{
-            marginTop: shouldPrioritizeStreamingContent ? '8px' : 0,
-            marginBottom:
-              !shouldPrioritizeStreamingContent && hasProcessedDisplayContent ? '8px' : 0,
+            marginBottom: hasVisibleContent ? '8px' : 0,
           }}
         >
           <ThinkingBlockComponent
@@ -291,14 +262,13 @@ function MessageRendererComponent({
         </div>
       )}
 
-      {/* Message content - only show when not streaming or when content has arrived */}
-      {!shouldPrioritizeStreamingContent && shouldRenderDisplayContent && renderDisplayContent()}
+      {shouldRenderDisplayContent && renderDisplayContent()}
 
       {/* Prominent, always-visible status while waiting on tool calls.
           This prevents the "blank" / hanging response feeling after a lead-in sentence
           like "All five, fresh versions. Let's go:". The ThinkingBlock also shows active
           tool details, but this guarantees something is obviously happening. */}
-      {isStreaming && (isToolPhase || hasActiveToolCalls) && hasProcessedDisplayContent && (
+      {isStreaming && (isToolPhase || hasActiveToolCalls) && hasVisibleContent && (
         <div
           className="thinking-header tool-calling"
           style={{ marginTop: '8px', marginBottom: '4px' }}

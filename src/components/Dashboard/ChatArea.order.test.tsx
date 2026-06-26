@@ -64,11 +64,15 @@ describe('MessageRenderer tool result surface', () => {
 
     const markdown = container.querySelector('[data-testid="markdown"]')
     const toolResult = container.querySelector('[data-testid="tool-result-display"]')
-    const actionRowButton = container.querySelector('button[title="Regenerate with custom instructions"]')
+    const actionRowButton = container.querySelector(
+      'button[aria-label="Regenerate with custom instructions"]'
+    )
 
     expect(markdown).not.toBeNull()
     expect(toolResult).toBeNull()
     expect(actionRowButton).not.toBeNull()
-    expect(markdown?.compareDocumentPosition(actionRowButton as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(markdown?.compareDocumentPosition(actionRowButton as Node)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    )
   })
 })

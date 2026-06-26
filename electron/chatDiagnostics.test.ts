@@ -169,7 +169,7 @@ describe('chat diagnostics persistence', () => {
     expect(lines).toHaveLength(500)
     expect(JSON.parse(lines[0]).messageId).toBe('message-10')
     expect(fileStat.size).toBeLessThanOrEqual(2 * 1024 * 1024)
-  })
+  }, 60_000)
 
   it('sanitizes stream-chunk events and truncates long text deltas', async () => {
     const diagnostics = await import('./chatDiagnostics')

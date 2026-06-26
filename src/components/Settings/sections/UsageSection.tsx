@@ -9,8 +9,14 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from '@/components/ui/chart'
+import { WithTooltip } from '@/components/ui/WithTooltip'
 import { ActivityGraph } from '../ActivityGraph'
-import type { UsageStats, UsageProvider, UsagePerformanceRange, ProviderUsageEntry } from './usageMetrics'
+import type {
+  UsageStats,
+  UsageProvider,
+  UsagePerformanceRange,
+  ProviderUsageEntry,
+} from './usageMetrics'
 import type { AnalyticsState } from '@/electron/types'
 
 export interface UsageSectionProps {
@@ -20,14 +26,7 @@ export interface UsageSectionProps {
 type ModelMixEntry = UsageStats['modelEntries'][number]
 type PerformanceProviderSelection = UsageProvider | 'all'
 
-const MODEL_MIX_BLUE_SCALE = [
-  '#8fc5fb',
-  '#347ff2',
-  '#2564ed',
-  '#1f4ed8',
-  '#203fbc',
-  '#172f91',
-]
+const MODEL_MIX_BLUE_SCALE = ['#8fc5fb', '#347ff2', '#2564ed', '#1f4ed8', '#203fbc', '#172f91']
 
 const PERFORMANCE_RANGES: Array<{ value: UsagePerformanceRange; label: string }> = [
   { value: '1d', label: '1D' },
@@ -95,7 +94,10 @@ function getEmptyProviderSummary(): ProviderUsageEntry {
   }
 }
 
-function getWeightedAverage(entries: ProviderUsageEntry[], key: 'avgLatencyMs' | 'avgTtftMs' | 'avgTps'): number {
+function getWeightedAverage(
+  entries: ProviderUsageEntry[],
+  key: 'avgLatencyMs' | 'avgTtftMs' | 'avgTps'
+): number {
   const weighted = entries.reduce(
     (total, entry) => {
       const value = entry[key]
@@ -211,10 +213,12 @@ function ActivitySummaryCard({ stats }: { stats: UsageStats }): React.ReactEleme
             >
               <span className="usage-activity-summary-item__label">{item.label}</span>
               <div className="usage-activity-summary-item__value-row">
-                <strong className="usage-activity-summary-item__value" title={item.value}>
-                  {item.value}
-                </strong>
-                {item.unit && <span className="usage-activity-summary-item__unit">{item.unit}</span>}
+                <WithTooltip tooltip={item.value}>
+                  <strong className="usage-activity-summary-item__value">{item.value}</strong>
+                </WithTooltip>
+                {item.unit && (
+                  <span className="usage-activity-summary-item__unit">{item.unit}</span>
+                )}
               </div>
             </div>
           ))}
@@ -239,10 +243,15 @@ function ModelMixPieCard({ stats }: { stats: UsageStats }): React.ReactElement {
   } satisfies ChartConfig
 
   return (
-    <section className="stat-card usage-model-mix-card usage-motion-card usage-motion-card--surface" aria-labelledby="usage-model-mix-title">
+    <section
+      className="stat-card usage-model-mix-card usage-motion-card usage-motion-card--surface"
+      aria-labelledby="usage-model-mix-title"
+    >
       <div className="usage-model-mix-card__header">
         <div>
-          <h3 id="usage-model-mix-title" className="usage-model-mix-card__title">Model Mix</h3>
+          <h3 id="usage-model-mix-title" className="usage-model-mix-card__title">
+            Model Mix
+          </h3>
           <p className="usage-model-mix-card__description">Token share by model</p>
         </div>
         <span className="usage-model-mix-card__badge">
@@ -291,9 +300,16 @@ function ModelMixPieCard({ stats }: { stats: UsageStats }): React.ReactElement {
                 const share = formatPercent(model.tokens, modelTokenTotal)
                 return (
                   <div key={model.model} className="usage-model-mix-card__legend-row">
-                    <span className="usage-model-mix-card__swatch" style={{ background: model.fill }} />
-                    <span className="usage-model-mix-card__model" title={model.model}>{model.model}</span>
-                    <span className="usage-model-mix-card__tokens">{model.tokens.toLocaleString()} tokens</span>
+                    <span
+                      className="usage-model-mix-card__swatch"
+                      style={{ background: model.fill }}
+                    />
+                    <WithTooltip tooltip={model.model}>
+                      <span className="usage-model-mix-card__model">{model.model}</span>
+                    </WithTooltip>
+                    <span className="usage-model-mix-card__tokens">
+                      {model.tokens.toLocaleString()} tokens
+                    </span>
                     <span className="usage-model-mix-card__percent">{share}%</span>
                   </div>
                 )
@@ -332,25 +348,35 @@ function ResponsePerformancePanel({
   onProviderChange,
   onRangeChange,
 }: ResponsePerformancePanelProps): React.ReactElement {
-  const selectedEntry = selectedProvider === 'all'
-    ? aggregateProviderEntries(entries)
-    : entries.find((entry) => entry.provider === selectedProvider) ?? getEmptyProviderSummary()
+  const selectedEntry =
+    selectedProvider === 'all'
+      ? aggregateProviderEntries(entries)
+      : (entries.find((entry) => entry.provider === selectedProvider) ?? getEmptyProviderSummary())
   const hasActivity = selectedEntry.messages > 0 || selectedEntry.tokens > 0
-  const errorRate = selectedEntry.messages > 0
-    ? Math.round((selectedEntry.errors / selectedEntry.messages) * 100)
-    : 0
+  const errorRate =
+    selectedEntry.messages > 0
+      ? Math.round((selectedEntry.errors / selectedEntry.messages) * 100)
+      : 0
 
-  const formatMs = (value: number): string => value > 0 ? `${value} ms` : 'N/A'
-  const formatTps = (value: number): string => value > 0 ? `${value.toLocaleString()} tok/s` : 'N/A'
+  const formatMs = (value: number): string => (value > 0 ? `${value} ms` : 'N/A')
+  const formatTps = (value: number): string =>
+    value > 0 ? `${value.toLocaleString()} tok/s` : 'N/A'
 
   return (
-    <section className="stat-card usage-response-card usage-motion-card usage-motion-card--surface" aria-labelledby="usage-response-title">
+    <section
+      className="stat-card usage-response-card usage-motion-card usage-motion-card--surface"
+      aria-labelledby="usage-response-title"
+    >
       <div className="usage-response-card__header">
         <div>
-          <h3 id="usage-response-title" className="usage-response-card__title">Response Performance</h3>
+          <h3 id="usage-response-title" className="usage-response-card__title">
+            Response Performance
+          </h3>
           <p className="usage-response-card__description">Provider latency and throughput</p>
         </div>
-        <span className="usage-response-card__icon"><BarChart size={16} /></span>
+        <span className="usage-response-card__icon">
+          <BarChart size={16} />
+        </span>
       </div>
 
       <div className="usage-response-controls">
@@ -371,7 +397,9 @@ function ResponsePerformancePanel({
           <span>Provider</span>
           <select
             value={selectedProvider}
-            onChange={(event) => onProviderChange(event.target.value as PerformanceProviderSelection)}
+            onChange={(event) =>
+              onProviderChange(event.target.value as PerformanceProviderSelection)
+            }
             aria-label="Provider"
           >
             <option value="all">All providers</option>
@@ -418,9 +446,7 @@ function ResponsePerformancePanel({
   )
 }
 
-export function UsageSection({
-  stats,
-}: UsageSectionProps): React.ReactElement {
+export function UsageSection({ stats }: UsageSectionProps): React.ReactElement {
   const [analyticsState, setAnalyticsState] = useState<AnalyticsState | null>(null)
   const [analyticsUpdating, setAnalyticsUpdating] = useState(false)
   const [performanceRange, setPerformanceRange] = useState<UsagePerformanceRange>('7d')
@@ -460,11 +486,17 @@ export function UsageSection({
     <div className="settings-section-layout settings-section-layout--wide settings-section-layout--usage">
       <div className="page-header">
         <h2 className="page-title">Usage Intelligence</h2>
-        <div className="page-subtitle">Monitor activity, response trends, model mix, and web search effectiveness</div>
+        <div className="page-subtitle">
+          Monitor activity, response trends, model mix, and web search effectiveness
+        </div>
       </div>
 
       <div className="usage-overview-grid">
-        <ActivityGraph data={stats.activityData} embedded className="usage-overview-graph usage-motion-card usage-motion-card--surface" />
+        <ActivityGraph
+          data={stats.activityData}
+          embedded
+          className="usage-overview-graph usage-motion-card usage-motion-card--surface"
+        />
       </div>
 
       <div className="usage-sidecards-grid">

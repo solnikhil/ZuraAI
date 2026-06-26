@@ -496,6 +496,89 @@
   color: rgba(255, 255, 255, 0.5);
 }
 
+/* Theme-aware readability overrides.
+   Older thinking/search rows used translucent white because the app was dark-only.
+   Keep terminal panels dark, but render chat reasoning/status text from theme vars. */
+.thinking-blocks-container {
+  --thinking-text: var(--theme-text-secondary);
+  --thinking-muted: var(--theme-text-muted);
+  --thinking-quiet: var(--theme-text-tertiary);
+  --thinking-border: var(--theme-border);
+  --thinking-code-bg: var(--theme-surface-hover);
+}
+
+.thinking-blocks-container .thinking-label,
+.thinking-blocks-container .thinking-text,
+.thinking-blocks-container .search-query,
+.thinking-blocks-container .search-count,
+.thinking-blocks-container .thinking-tool-meta,
+.thinking-blocks-container .thinking-tool-audit-line,
+.thinking-blocks-container .thinking-active-tool-item,
+.thinking-blocks-container .thinking-command-row__name {
+  color: var(--thinking-muted);
+}
+
+.thinking-blocks-container .thinking-content,
+.thinking-blocks-container .thinking-tool-json-label,
+.thinking-blocks-container .thinking-chevron {
+  color: var(--thinking-text);
+}
+
+.thinking-blocks-container .thinking-content strong {
+  color: var(--theme-text-primary);
+}
+
+.thinking-blocks-container .thinking-content,
+.thinking-blocks-container .thinking-tool-details {
+  border-left-color: var(--thinking-border);
+}
+
+.thinking-blocks-container .thinking-content code,
+.thinking-blocks-container .thinking-tool-status-neutral {
+  color: var(--theme-text-secondary);
+  background: var(--thinking-code-bg);
+  border-color: var(--thinking-border);
+}
+
+.thinking-blocks-container .thinking-tool-json pre {
+  color: var(--theme-text-primary);
+  background: var(--theme-surface-subtle);
+}
+
+.thinking-blocks-container .thinking-tool-calling-icon.search-icon,
+.thinking-blocks-container .thinking-tool-calling-icon.default-icon,
+.thinking-blocks-container .thinking-tool-calling-icon.brain-icon,
+.thinking-block.completed .thinking-tool-calling-icon.search-icon,
+.thinking-block.completed .thinking-tool-calling-icon.default-icon,
+.thinking-header.search-sourcing .thinking-tool-calling-icon.search-icon,
+.thinking-header.search-sourcing .thinking-tool-calling-icon.default-icon,
+.thinking-header.tool-calling .thinking-tool-calling-icon.default-icon,
+.thinking-header.searching .thinking-tool-calling-icon.search-icon,
+.thinking-header.searching .thinking-tool-calling-icon.default-icon,
+.thinking-block.thinking-tool-call .thinking-tool-calling-icon.search-icon,
+.thinking-block.thinking-tool-call .thinking-tool-calling-icon.default-icon {
+  color: var(--thinking-muted);
+}
+
+.thinking-block.completed .thinking-text,
+.thinking-block.completed .thinking-header.tool-call .thinking-text,
+.thinking-block.completed.thinking-tool-call .thinking-header.tool-call .thinking-text,
+.thinking-block.completed .search-query,
+.thinking-active-search-batch .search-query,
+.thinking-active-tool-item .search-query,
+.thinking-header.search-sourcing .thinking-text,
+.thinking-command-group .thinking-header.tool-call .thinking-text.thinking-cmd-text,
+.thinking-command-group .thinking-chevron {
+  color: var(--thinking-muted) !important;
+}
+
+:root:not(.dark) .thinking-block.completed .thinking-header,
+:root:not(.dark) .thinking-block.completed .thinking-header.tool-call,
+:root:not(.dark) .thinking-header.search-sourcing,
+:root:not(.dark) .thinking-active-search-batch {
+  opacity: 0.88;
+}
+
 @media (prefers-reduced-motion: reduce) {
     .tool-call-spinner {
         animation: none;
@@ -708,4 +791,46 @@
 
 .thinking-command-row__body {
     padding: 4px 0 6px 0;
+}
+
+/* Keep late command-group rules readable in light mode too. */
+.thinking-blocks-container .thinking-command-group .thinking-header.tool-call .thinking-text.thinking-cmd-text,
+.thinking-blocks-container .thinking-command-group .thinking-chevron,
+.thinking-blocks-container .thinking-command-row__name {
+    color: var(--theme-text-muted) !important;
+}
+
+/* Final light-mode pass: completed reasoning/search rows must stay legible on paper backgrounds. */
+:root:not(.dark) .thinking-blocks-container {
+    --thinking-text: color-mix(in srgb, var(--theme-text-primary) 72%, transparent);
+    --thinking-muted: color-mix(in srgb, var(--theme-text-primary) 62%, transparent);
+    --thinking-quiet: color-mix(in srgb, var(--theme-text-primary) 52%, transparent);
+}
+
+:root:not(.dark) .thinking-block.completed .thinking-header,
+:root:not(.dark) .thinking-block.completed .thinking-header.tool-call,
+:root:not(.dark) .thinking-header.search-sourcing,
+:root:not(.dark) .thinking-active-search-batch,
+:root:not(.dark) .thinking-command-row__head {
+    opacity: 1 !important;
+}
+
+:root:not(.dark) .thinking-blocks-container .thinking-label,
+:root:not(.dark) .thinking-blocks-container .thinking-text,
+:root:not(.dark) .thinking-blocks-container .search-query,
+:root:not(.dark) .thinking-blocks-container .search-count,
+:root:not(.dark) .thinking-blocks-container .thinking-chevron,
+:root:not(.dark) .thinking-blocks-container .thinking-command-row__name {
+    color: var(--thinking-muted) !important;
+}
+
+:root:not(.dark) .thinking-blocks-container .thinking-content {
+    color: var(--thinking-text) !important;
+    border-left-color: color-mix(in srgb, var(--theme-text-primary) 18%, transparent) !important;
+}
+
+:root:not(.dark) .thinking-blocks-container .thinking-tool-calling-icon,
+:root:not(.dark) .thinking-blocks-container .thinking-tool-calling-icon svg {
+    color: var(--thinking-muted) !important;
+    opacity: 1 !important;
 }

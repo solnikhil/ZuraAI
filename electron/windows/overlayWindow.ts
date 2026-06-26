@@ -2,6 +2,7 @@ import os from 'os'
 import { app, BrowserWindow, globalShortcut, screen } from 'electron'
 import path from 'path'
 
+import { OVERLAY_IDLE_HEIGHT } from '../../src/components/overlay/overlayLayout'
 import { getMainWindow, resolveDistPath, showMainWindow } from './mainWindow'
 import { resolveAppIconPath } from '../windowIcon'
 import { trackAnalyticsEvent } from '../analytics'
@@ -47,7 +48,7 @@ const DEFAULT_SETTINGS: OverlaySettings = {
 // The redesigned overlay is a single-width Siri/Spotlight surface whose height is
 // content-driven: it opens as a short "pill" and grows into a taller "card" as the
 // renderer measures its content and reports the target height via IPC.
-const PILL_HEIGHT = 72
+const PILL_HEIGHT = OVERLAY_IDLE_HEIGHT
 const MAX_CONTENT_HEIGHT = 680
 const MIN_WIDTH = 320
 const MAX_WIDTH = 640
@@ -256,9 +257,10 @@ function createOverlayWindow(): BrowserWindow {
 
   applyOverlayMaterial(overlayWindow, materialKind)
 
+  const overlayHash = `overlay?material=${materialKind}`
   const loadPromise = process.env.VITE_DEV_SERVER_URL
-    ? overlayWindow.loadURL(`${process.env.VITE_DEV_SERVER_URL}#/overlay`)
-    : overlayWindow.loadFile(path.join(distPath, 'index.html'), { hash: 'overlay' })
+    ? overlayWindow.loadURL(`${process.env.VITE_DEV_SERVER_URL}#/${overlayHash}`)
+    : overlayWindow.loadFile(path.join(distPath, 'index.html'), { hash: overlayHash })
 
   void loadPromise.catch((error) => {
     console.error('[OVERLAY] Failed to load overlay window:', error)

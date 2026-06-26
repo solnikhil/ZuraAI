@@ -1,21 +1,13 @@
-import { Bell, FileEdit, FileText, Search } from '../../icons'
+import { FileEdit, Search } from '../../icons'
 
 interface SidebarHeaderProps {
   onNewChat: () => void
   onOpenSearch: () => void
-  onOpenReminders?: () => void
-  onOpenArtifacts?: () => void
-  remindersEnabled?: boolean
-  artifactsEnabled?: boolean
 }
 
 export default function SidebarHeader({
   onNewChat,
   onOpenSearch,
-  onOpenReminders,
-  onOpenArtifacts,
-  remindersEnabled = false,
-  artifactsEnabled = false,
 }: SidebarHeaderProps) {
   return (
     <div className="sidebar-header">
@@ -54,46 +46,6 @@ export default function SidebarHeader({
         </span>
         <span className="sidebar-header__label">Search chats</span>
       </div>
-
-      {remindersEnabled && onOpenReminders ? (
-        <div
-          role="button"
-          tabIndex={0}
-          onClick={onOpenReminders}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' || event.key === ' ') {
-              event.preventDefault()
-              onOpenReminders()
-            }
-          }}
-          className="sidebar-header__btn"
-        >
-          <span className="sidebar-header__icon-slot" aria-hidden="true">
-            <Bell size={16} className="sidebar-header__icon" />
-          </span>
-          <span className="sidebar-header__label">Reminders</span>
-        </div>
-      ) : null}
-
-      {artifactsEnabled && onOpenArtifacts ? (
-        <div
-          role="button"
-          tabIndex={0}
-          onClick={onOpenArtifacts}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' || event.key === ' ') {
-              event.preventDefault()
-              onOpenArtifacts()
-            }
-          }}
-          className="sidebar-header__btn"
-        >
-          <span className="sidebar-header__icon-slot" aria-hidden="true">
-            <FileText size={16} className="sidebar-header__icon" />
-          </span>
-          <span className="sidebar-header__label">Artifacts</span>
-        </div>
-      ) : null}
     </div>
   )
 }

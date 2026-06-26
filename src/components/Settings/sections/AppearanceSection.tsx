@@ -210,6 +210,54 @@ const chatSelectedOverlayPresets: Array<{
   },
 ]
 
+function AppearanceModePreview({ mode }: { mode: 'system' | 'light' | 'dark' }): React.ReactElement {
+  const workspaceLines = (
+    <span className="appearance-mode-picker__preview-main">
+      <span />
+      <span />
+      <span />
+    </span>
+  )
+
+  if (mode === 'system') {
+    return (
+      <span className="appearance-mode-picker__preview" aria-hidden="true">
+        <span className="appearance-mode-picker__preview-sidebar" />
+        {workspaceLines}
+      </span>
+    )
+  }
+
+  return (
+    <span className="appearance-mode-picker__preview" aria-hidden="true">
+      <span className="appearance-mode-picker__preview-sidebar" />
+      {workspaceLines}
+    </span>
+  )
+}
+
+const appearanceModeOptions: Array<{
+  mode: 'system' | 'light' | 'dark'
+  label: string
+  description: string
+}> = [
+  {
+    mode: 'system',
+    label: 'System',
+    description: 'Follow Windows theme',
+  },
+  {
+    mode: 'light',
+    label: 'Light',
+    description: 'Warm paper workspace',
+  },
+  {
+    mode: 'dark',
+    label: 'Dark',
+    description: 'Original graphite workspace',
+  },
+]
+
 export interface AppearanceSectionProps {
   settings: Settings
   onChange: (changes: Partial<Settings>) => void
@@ -315,6 +363,7 @@ export function AppearanceSection({
     settings.themeBackground !== undefined ||
     settings.themeForeground !== undefined ||
     currentContrast !== 100
+  const activeThemeMode = settings.theme === 'system' ? 'system' : currentTheme.isDark ? 'dark' : 'light'
 
   const handleThemePresetChange = (themeId: string) => {
     const selectedTheme = getThemeById(themeId)
@@ -328,6 +377,26 @@ export function AppearanceSection({
         themeContrast: 100,
       })
     }
+  }
+
+  const handleThemeModeChange = (mode: 'system' | 'light' | 'dark') => {
+    if (mode === activeThemeMode) return
+    if (mode === 'system') {
+      const systemPrefersDark =
+        typeof window === 'undefined' || typeof window.matchMedia !== 'function'
+          ? true
+          : window.matchMedia('(prefers-color-scheme: dark)').matches
+      updateSettings({
+        activeTheme: systemPrefersDark ? 'zuraai' : 'zuraai-light',
+        theme: 'system',
+        themeAccent: undefined,
+        themeBackground: undefined,
+        themeForeground: undefined,
+        themeContrast: 100,
+      })
+      return
+    }
+    handleThemePresetChange(mode === 'light' ? 'zuraai-light' : 'zuraai')
   }
 
   const commitThemeColor = (
@@ -390,6 +459,44 @@ export function AppearanceSection({
       <h3 className="appearance-group-heading">Theme</h3>
       <Card className="settings-list-card">
         <div className="theme-customization-panel">
+          <div className="settings-list-row settings-list-row--appearance-mode">
+            <div className="settings-list-row__meta">
+              <h3 className="settings-list-row__label">Appearance mode</h3>
+              <div className="settings-list-row__description">
+                Pick a visual theme with preview cards
+              </div>
+            </div>
+            <div className="settings-list-row__control settings-list-row__control--stretch">
+              <div className="appearance-mode-picker" role="radiogroup" aria-label="Appearance mode">
+                {appearanceModeOptions.map((option) => {
+                  const isActive = activeThemeMode === option.mode
+
+                  return (
+                    <button
+                      key={option.mode}
+                      type="button"
+                      role="radio"
+                      aria-checked={isActive}
+                      className="appearance-mode-picker__card"
+                      data-mode={option.mode}
+                      data-active={isActive ? 'true' : 'false'}
+                      onClick={() => handleThemeModeChange(option.mode)}
+                    >
+                      <AppearanceModePreview mode={option.mode} />
+                      <span className="appearance-mode-picker__body">
+                        <span className="appearance-mode-picker__label">{option.label}</span>
+                        <span className="appearance-mode-picker__description">
+                          {option.description}
+                        </span>
+                      </span>
+                      <span className="appearance-mode-picker__check" aria-hidden="true" />
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+
           <div className="settings-list-row">
             <div className="settings-list-row__meta">
               <h3 className="settings-list-row__label">Preset</h3>

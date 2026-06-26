@@ -106,6 +106,50 @@ describe('AppearanceSection', () => {
     expect(onChange).toHaveBeenCalledWith({ fontScale: 115 })
   })
 
+  it('renders appearance mode preview radio cards', () => {
+    render(<AppearanceSection settings={defaultSettings} onChange={vi.fn()} />)
+
+    expect(screen.getByRole('radiogroup', { name: 'Appearance mode' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: /System/ })).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByRole('radio', { name: /Light/ })).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByRole('radio', { name: /Dark/ })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByText('Follow Windows theme')).toBeInTheDocument()
+    expect(screen.getByText('Warm paper workspace')).toBeInTheDocument()
+    expect(screen.getByText('Original graphite workspace')).toBeInTheDocument()
+  })
+
+  it('emits light theme mode changes from the preview card', () => {
+    const onChange = vi.fn()
+    render(<AppearanceSection settings={defaultSettings} onChange={onChange} />)
+
+    fireEvent.click(screen.getByRole('radio', { name: /Light/ }))
+
+    expect(onChange).toHaveBeenCalledWith({
+      activeTheme: 'zuraai-light',
+      theme: 'light',
+      themeAccent: undefined,
+      themeBackground: undefined,
+      themeForeground: undefined,
+      themeContrast: 100,
+    })
+  })
+
+  it('emits system theme mode changes from the sliced preview card', () => {
+    const onChange = vi.fn()
+    render(<AppearanceSection settings={defaultSettings} onChange={onChange} />)
+
+    fireEvent.click(screen.getByRole('radio', { name: /System/ }))
+
+    expect(onChange).toHaveBeenCalledWith({
+      activeTheme: 'zuraai',
+      theme: 'system',
+      themeAccent: undefined,
+      themeBackground: undefined,
+      themeForeground: undefined,
+      themeContrast: 100,
+    })
+  })
+
   it('does not render the removed reminders appearance controls', () => {
     render(<AppearanceSection settings={defaultSettings} onChange={vi.fn()} />)
 

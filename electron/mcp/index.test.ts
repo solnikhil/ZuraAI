@@ -88,6 +88,10 @@ class MockMcpManager {
 }
 
 vi.mock('electron', () => ({
+  app: {
+    getPath: vi.fn(() => '/tmp/zura-mcp-test'),
+    isPackaged: false,
+  },
   BrowserWindow: {
     getAllWindows: indexMocks.getAllWindows,
   },

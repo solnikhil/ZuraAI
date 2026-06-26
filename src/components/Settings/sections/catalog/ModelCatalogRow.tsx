@@ -2,6 +2,7 @@ import React from 'react'
 import { Check, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { WithTooltip } from '@/components/ui/WithTooltip'
 import { CAPABILITY_BADGE_STYLES, getProviderColor } from '@/utils/modelUtils'
 import type { CatalogItem } from './catalogTypes'
 
@@ -17,15 +18,7 @@ interface ModelCatalogRowProps {
 
 export const ModelCatalogRow = React.forwardRef<HTMLDivElement, ModelCatalogRowProps>(
   function ModelCatalogRow(
-    {
-      item,
-      index,
-      focused,
-      isAdded,
-      providerKey,
-      onAdd,
-      onFocus,
-    }: ModelCatalogRowProps,
+    { item, index, focused, isAdded, providerKey, onAdd, onFocus }: ModelCatalogRowProps,
     ref
   ): React.ReactElement {
     const accent = getProviderColor(providerKey)
@@ -58,12 +51,11 @@ export const ModelCatalogRow = React.forwardRef<HTMLDivElement, ModelCatalogRowP
           />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <span
-                className="truncate text-sm font-medium text-foreground"
-                title={item.displayName}
-              >
-                {item.displayName}
-              </span>
+              <WithTooltip tooltip={item.displayName}>
+                <span className="truncate text-sm font-medium text-foreground">
+                  {item.displayName}
+                </span>
+              </WithTooltip>
               {isAdded && (
                 <span className="inline-flex items-center gap-0.5 rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-medium text-primary shrink-0">
                   <Check size={10} />
@@ -71,16 +63,15 @@ export const ModelCatalogRow = React.forwardRef<HTMLDivElement, ModelCatalogRowP
                 </span>
               )}
             </div>
-            <div className="truncate font-mono text-[11px] text-muted-foreground" title={item.id}>
-              {item.id}
-            </div>
+            <WithTooltip tooltip={item.id}>
+              <div className="truncate font-mono text-[11px] text-muted-foreground">{item.id}</div>
+            </WithTooltip>
             {item.description && (
-              <div
-                className="mt-0.5 line-clamp-1 text-xs text-muted-foreground"
-                title={item.description}
-              >
-                {item.description}
-              </div>
+              <WithTooltip tooltip={item.description}>
+                <div className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
+                  {item.description}
+                </div>
+              </WithTooltip>
             )}
           </div>
         </div>

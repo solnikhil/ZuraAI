@@ -83,7 +83,7 @@ function resolveTheme(theme: Theme, options?: ApplyThemeOptions): Theme {
       background,
       foreground,
     },
-    colors: derivePaletteFromBase(accent, background, foreground, contrast),
+    colors: derivePaletteFromBase(accent, background, foreground, contrast, theme.isDark),
   }
 }
 
@@ -118,19 +118,22 @@ export function applyThemeToDocument(theme: Theme, options?: ApplyThemeOptions):
   }
 
   root.style.setProperty('--theme-sidebar-solid', effectiveTheme.colors.background)
-  // Content area is intentionally darker than card surfaces so cards pop
-  const contentSolid = mixHex(effectiveTheme.colors.background, '#ffffff', 0.04)
+  const contentMixTarget = effectiveTheme.isDark ? '#ffffff' : '#000000'
+  const contentMixAmount = effectiveTheme.isDark ? 0.04 : 0.018
+  const contentSolid = mixHex(effectiveTheme.colors.background, contentMixTarget, contentMixAmount)
+  root.style.setProperty('--theme-raise-mix-target', effectiveTheme.isDark ? '#ffffff' : '#000000')
+  root.style.setProperty('--theme-well-mix-target', effectiveTheme.isDark ? '#000000' : '#ffffff')
   root.style.setProperty('--theme-content-solid', contentSolid)
   root.style.setProperty(
     '--theme-chrome-elevated',
-    effectiveTheme.colors.surfaceActive
+    effectiveTheme.isDark ? effectiveTheme.colors.surfaceActive : effectiveTheme.colors.surface
   )
   root.style.setProperty(
     '--theme-panel-inset',
-    effectiveTheme.colors.surfaceHover
+    effectiveTheme.isDark ? effectiveTheme.colors.surfaceHover : effectiveTheme.colors.surfaceSubtle
   )
 
-  root.setAttribute('data-theme', theme.id)
+  root.setAttribute('data-theme', effectiveTheme.id)
   root.classList.toggle('dark', effectiveTheme.isDark)
   root.style.colorScheme = effectiveTheme.isDark ? 'dark' : 'light'
 }

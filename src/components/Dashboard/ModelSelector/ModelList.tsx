@@ -15,6 +15,7 @@ import {
 import { removeEmojis } from '../../../utils/textUtils'
 import type { ModelWithProvider } from './types'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { WithTooltip } from '@/components/ui/WithTooltip'
 import { maybeAnimate, motionSpring, useMotionPreferences } from '@/lib/motion'
 import { ModelIcon } from './ModelIcon'
 
@@ -209,13 +210,11 @@ function ModelItem({
           if (!badgeConfig) return null
           const Icon = badgeConfig.icon
           return (
-            <div
-              key={capKey}
-              title={badgeConfig.label}
-              className="p-1 rounded opacity-60 hover:opacity-80 transition-opacity"
-            >
-              <Icon size={14} className="text-muted-foreground" />
-            </div>
+            <WithTooltip key={capKey} tooltip={badgeConfig.label}>
+              <div className="p-1 rounded opacity-60 hover:opacity-80 transition-opacity">
+                <Icon size={14} className="text-muted-foreground" />
+              </div>
+            </WithTooltip>
           )
         })}
 

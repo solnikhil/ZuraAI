@@ -135,7 +135,7 @@ describe('generateChatTitle', () => {
     )
   })
 
-  it('rejects DeepSeek reasoning_content when content is empty', async () => {
+  it('falls back to DeepSeek reasoning_content when content is empty', async () => {
     vi.mocked(generateDeepSeekCompletion).mockResolvedValue({
       choices: [{ message: { content: '', reasoning_content: 'DeepSeek Title Output' } }],
     } as never)
@@ -146,7 +146,7 @@ describe('generateChatTitle', () => {
       deepseekModels: [{ code: 'deepseek-v4-flash', displayName: 'DeepSeek V4 Flash' }],
     })
 
-    expect(result).toBeNull()
+    expect(result).toBe('DeepSeek Title Output')
   })
 
   it('skips image-only OpenRouter models in the title selector pipeline', async () => {

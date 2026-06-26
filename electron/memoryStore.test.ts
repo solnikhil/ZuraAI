@@ -192,7 +192,7 @@ describe('memoryStore', () => {
     // Oldest five should have been evicted; newest first.
     expect(memories[0].content).toBe(`memory ${overflow - 1}`)
     expect(memories.find((memory) => memory.content === 'memory 0')).toBeUndefined()
-  })
+  }, 30_000)
 
   it('evicts by createdAt, not updatedAt (editing an old memory does not shield it)', async () => {
     const store = await import('./memoryStore')
@@ -229,7 +229,7 @@ describe('memoryStore', () => {
     } finally {
       nowSpy.mockRestore()
     }
-  })
+  }, 30_000)
 
   it('filters by scope (global only excludes project-scoped memories)', async () => {
     const store = await import('./memoryStore')

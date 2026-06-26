@@ -1,6 +1,7 @@
 import React from 'react'
 
 import { Loader2, Plus, Send, Sparkles } from '../icons'
+import { TooltipIconButton } from '../ui/TooltipIconButton'
 
 function MicGlyph(): React.ReactElement {
   return (
@@ -98,39 +99,49 @@ export function OverlayPill({
         aria-label="Ask ZuraAI"
       />
 
-      <button
-        type="button"
-        className="zo-pill__action"
-        data-variant={actionVariant}
-        onClick={() => {
-          if (isLoading) {
-            onStop()
-            return
-          }
-          onSubmit()
-        }}
-        aria-label={isLoading ? 'Stop generation' : hasText ? 'Send message' : 'Voice (coming soon)'}
-        title={isLoading ? 'Stop' : hasText ? 'Send' : undefined}
-      >
-        {actionVariant === 'stop' ? (
-          <Loader2 className="zo-spinner" aria-hidden="true" />
-        ) : actionVariant === 'send' ? (
-          <Send size={16} strokeWidth={2.4} />
-        ) : (
-          <MicGlyph />
-        )}
-      </button>
-
-      {onNewChat ? (
+      {isLoading || hasText ? (
+        <TooltipIconButton
+          tooltip={isLoading ? 'Stop' : 'Send'}
+          className="zo-pill__action"
+          data-variant={actionVariant}
+          onClick={() => {
+            if (isLoading) {
+              onStop()
+              return
+            }
+            onSubmit()
+          }}
+          aria-label={isLoading ? 'Stop generation' : 'Send message'}
+        >
+          {isLoading ? (
+            <Loader2 className="zo-spinner" aria-hidden="true" />
+          ) : (
+            <Send size={16} strokeWidth={2.4} />
+          )}
+        </TooltipIconButton>
+      ) : (
         <button
           type="button"
           className="zo-pill__action"
+          data-variant={actionVariant}
+          onClick={() => {
+            onSubmit()
+          }}
+          aria-label="Voice (coming soon)"
+        >
+          <MicGlyph />
+        </button>
+      )}
+
+      {onNewChat ? (
+        <TooltipIconButton
+          tooltip="New chat"
+          className="zo-pill__action"
           onClick={onNewChat}
           aria-label="New chat"
-          title="New chat"
         >
           <Plus size={17} strokeWidth={2.2} />
-        </button>
+        </TooltipIconButton>
       ) : null}
     </div>
   )

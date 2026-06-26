@@ -67,7 +67,7 @@ import {
 } from './overlayWindow'
 
 const WINDOW_MARGIN = 20
-const PILL_HEIGHT = 72
+const PILL_HEIGHT = 78
 const WORK_AREA_WIDTH = 1440
 
 describe('selectOverlayMaterial', () => {

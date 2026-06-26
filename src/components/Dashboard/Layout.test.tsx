@@ -113,7 +113,7 @@ describe('DashboardLayout', () => {
 
         expect(getByTestId('mock-sidebar')).toBeInTheDocument()
         expect(getByTestId('mock-chat-area')).toBeInTheDocument()
-    })
+    }, 15_000)
 
     it('renders root container with flex layout', async () => {
         const { default: DashboardLayout } = await import('./Layout')

@@ -2,7 +2,12 @@ import { fireEvent, render } from '@testing-library/react'
 import { createRef } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+
 import { OverlayPill } from './OverlayPill'
+
+const overlayCss = readFileSync(resolve('src/components/overlay/overlay.css'), 'utf8')
 
 function renderPill(overrides: Partial<React.ComponentProps<typeof OverlayPill>> = {}) {
   const props: React.ComponentProps<typeof OverlayPill> = {
@@ -58,5 +63,15 @@ describe('OverlayPill', () => {
     const textarea = container.querySelector('textarea')!
     fireEvent.keyDown(textarea, { key: 'Escape' })
     expect(onEscape).toHaveBeenCalledTimes(1)
+  })
+
+  it('styles interactive pill controls as no-drag for frameless windows', () => {
+    const { container } = renderPill({ value: 'hello' })
+    expect(container.querySelector('.zo-pill')).not.toBeNull()
+    expect(container.querySelector('.zo-pill__input')).not.toBeNull()
+    expect(container.querySelector('.zo-pill__action')).not.toBeNull()
+    expect(overlayCss).toMatch(/\.zo-pill[\s\S]*?-webkit-app-region:\s*no-drag/)
+    expect(overlayCss).toMatch(/\.zo-pill__input[\s\S]*?-webkit-app-region:\s*no-drag/)
+    expect(overlayCss).toMatch(/\.zo-pill__action[\s\S]*?-webkit-app-region:\s*no-drag/)
   })
 })

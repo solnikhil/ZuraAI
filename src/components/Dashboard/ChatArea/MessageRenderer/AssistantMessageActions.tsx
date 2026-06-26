@@ -1,12 +1,6 @@
 import { createPortal } from 'react-dom'
-import {
-  Copy,
-  Check,
-  Info,
-  RotateCcw,
-  ChevronLeft,
-  ChevronRight,
-} from '@/components/icons'
+import { Copy, Check, Info, RotateCcw, ChevronLeft, ChevronRight } from '@/components/icons'
+import { TooltipIconButton } from '@/components/ui/TooltipIconButton'
 import ResponseInfo from '@/components/ResponseInfo'
 import { useResponseInfoPopover } from './useResponseInfoPopover'
 
@@ -162,7 +156,8 @@ export function AssistantMessageActions({
 
       {/* Regenerate Button */}
       {onOpenRegenerateModal && (
-        <button
+        <TooltipIconButton
+          tooltip="Regenerate with custom instructions"
           onClick={onOpenRegenerateModal}
           className={messageActionButtonClassName}
           style={{
@@ -176,11 +171,14 @@ export function AssistantMessageActions({
             padding: '6px',
             lineHeight: 1,
             animationDelay: '60ms',
+            background: 'transparent',
+            border: 'none',
+            fontFamily: 'inherit',
+            fontSize: '0.85rem',
           }}
-          title="Regenerate with custom instructions"
         >
           <RotateCcw size={MESSAGE_ACTION_ICON_SIZE} />
-        </button>
+        </TooltipIconButton>
       )}
 
       {/* Info Trigger */}
@@ -194,7 +192,6 @@ export function AssistantMessageActions({
           onMouseEnter={handleTriggerMouseEnter}
           onMouseLeave={handleTriggerMouseLeave}
           aria-label="Response details"
-          title="Response details"
         >
           <Info size={MESSAGE_ACTION_ICON_SIZE} />
         </button>

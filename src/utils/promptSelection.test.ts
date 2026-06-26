@@ -84,6 +84,33 @@ describe('Tool Enablement', () => {
         expect(prompt).toContain('Enabled Skills:')
         expect(prompt).toContain('Tavily (`web_research`)')
     })
+
+    it('can omit Agent Skills catalog context for context-ring estimates', () => {
+        const settings = {
+            systemPrompt: 'Base prompt',
+            agentSkills: {
+                enabled: true,
+                projectRoot: '',
+                disabledSkillNames: [],
+                catalog: [
+                    {
+                        name: 'design-review',
+                        description: 'Review interface quality',
+                        scope: 'user' as const,
+                        skillPath: 'C:/Users/Test/.agents/skills/design-review/SKILL.md',
+                        skillDir: 'C:/Users/Test/.agents/skills/design-review',
+                    },
+                ],
+            },
+        }
+
+        expect(getEffectiveSystemPrompt(settings)).toContain('Agent Skills:')
+        expect(
+            getEffectiveSystemPrompt(settings, undefined, undefined, {
+                includeAgentSkillsCatalog: false,
+            })
+        ).not.toContain('Agent Skills:')
+    })
 })
 
 describe('Chart Generation skill prompt integration', () => {

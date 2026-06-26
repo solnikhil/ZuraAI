@@ -56,10 +56,6 @@ function SidebarChatView({
       <SidebarHeader
         onNewChat={onNewChat}
         onOpenSearch={onOpenSearch}
-        onOpenReminders={onOpenReminders}
-        onOpenArtifacts={onOpenArtifacts}
-        remindersEnabled={remindersEnabled}
-        artifactsEnabled={artifactsEnabled}
       />
 
       <SidebarChatList
@@ -73,6 +69,10 @@ function SidebarChatView({
         flatVisibleSessions={flatVisibleSessions}
         sessionIndexMap={sessionIndexMap}
         bottomPadding={bottomPadding}
+        remindersEnabled={remindersEnabled}
+        artifactsEnabled={artifactsEnabled}
+        onOpenReminders={onOpenReminders}
+        onOpenArtifacts={onOpenArtifacts}
         onSelectSession={onSelectSession}
         onContextAction={onContextAction}
         onRenameConfirm={onRenameConfirm}

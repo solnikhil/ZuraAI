@@ -1,9 +1,16 @@
 import React from 'react'
 import { Search, X } from 'lucide-react'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { CAPABILITY_BADGE_STYLES } from '@/utils/modelUtils'
+import { WithTooltip } from '@/components/ui/WithTooltip'
 import type { CatalogFilters, CatalogSortKey } from './catalogTypes'
 
 interface CatalogFilterBarProps {
@@ -100,30 +107,30 @@ export function CatalogFilterBar({
               const Icon = config.icon
               const active = filters.caps.includes(capKey)
               return (
-                <button
-                  key={capKey}
-                  type="button"
-                  onClick={() => toggleCap(capKey)}
-                  title={config.tooltip}
-                  className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-all"
-                  style={
-                    active
-                      ? {
-                          background: config.gradient,
-                          color: '#ffffff',
-                          boxShadow: '0 1px 2px rgba(0,0,0,0.18)',
-                        }
-                      : {
-                          background: 'var(--theme-surface-active)',
-                          color: 'var(--theme-text-muted)',
-                          border: '1px solid var(--theme-border)',
-                        }
-                  }
-                  aria-pressed={active}
-                >
-                  <Icon size={12} />
-                  <span>{config.label}</span>
-                </button>
+                <WithTooltip key={capKey} tooltip={config.tooltip}>
+                  <button
+                    type="button"
+                    onClick={() => toggleCap(capKey)}
+                    className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-all"
+                    style={
+                      active
+                        ? {
+                            background: config.gradient,
+                            color: '#ffffff',
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.18)',
+                          }
+                        : {
+                            background: 'var(--theme-surface-active)',
+                            color: 'var(--theme-text-muted)',
+                            border: '1px solid var(--theme-border)',
+                          }
+                    }
+                    aria-pressed={active}
+                  >
+                    <Icon size={12} />
+                    <span>{config.label}</span>
+                  </button>
+                </WithTooltip>
               )
             })}
             {filters.caps.length > 0 && (

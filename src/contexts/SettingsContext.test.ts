@@ -161,6 +161,11 @@ Rules:
       expect(normalized.fontScale).toBe(100)
     })
 
+    it('normalizes invalid theme mode to the default and preserves system mode', () => {
+      expect(normalizeStoredSettings(JSON.stringify({ theme: 'sepia' })).theme).toBe('dark')
+      expect(normalizeStoredSettings(JSON.stringify({ theme: 'system' })).theme).toBe('system')
+    })
+
     it('normalizes invalid font scale to the default', () => {
       const normalized = normalizeStoredSettings(JSON.stringify({ fontScale: 'large' }))
       expect(normalized.fontScale).toBe(100)

@@ -14,6 +14,7 @@ import './Sidebar/Sidebar.css'
 import SidebarChatView from './SidebarChatView'
 import SidebarSettingsView from './SidebarSettingsView'
 import { isMacOSRuntime } from '../../utils/platform'
+import { WithTooltip } from '../ui/WithTooltip'
 
 interface SidebarProps {
   view: DashboardView
@@ -368,76 +369,75 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
   return (
     <>
       {sidebarHidden && !isPeeking && (
-        <div
-          className="sidebar-peek-trigger"
-          aria-hidden="true"
-          onMouseEnter={openPeek}
-        />
+        <div className="sidebar-peek-trigger" aria-hidden="true" onMouseEnter={openPeek} />
       )}
       <div
         className={containerClasses}
         style={containerStyle}
         onMouseLeave={isPeeking ? closePeek : undefined}
       >
-      <div className="sidebar__inner">
-        <SidebarChatView
-          active={view === 'chat' || view === 'reminders' || view === 'artifacts'}
-          groupedSessions={groupedSessions}
-          folders={folders}
-          chatSelectedOverlayStyle={chatSelectedOverlayStyle}
-          currentSessionId={view === 'reminders' || view === 'artifacts' ? null : currentSessionId}
-          focusIndex={view === 'reminders' || view === 'artifacts' ? -1 : focusIndex}
-          flatVisibleSessions={flatVisibleSessions}
-          sessionIndexMap={sessionIndexMap}
-          bottomPadding={sidebarFooterScrollPadding}
-          remindersEnabled={remindersEnabled}
-          artifactsEnabled={artifactsEnabled}
-          onNewChat={handleNewChat}
-          onOpenSearch={openSearchOverlay}
-          onOpenReminders={openReminders}
-          onOpenArtifacts={openArtifacts}
-          onSelectSession={handleSelectSession}
-          onContextAction={handleContextAction}
-          onRenameConfirm={handleRenameConfirm}
-          onDropSessionToFolder={handleDropSessionToFolder}
-          onKeyDown={handleKeyDown}
-        />
-        <SidebarSettingsView
-          active={view === 'settings'}
-          activeSettingsSection={activeSettingsSection}
-          onNavigateSettings={onNavigateSettings}
-        />
-
-        <div className="sidebar-footer-wrapper">
-          <TitleBarInfoMenu
-            hasUnsavedSettings={hasUnsavedSettings}
-            isSettingsView={dashboardView === 'settings'}
-            setDashboardView={setDashboardView}
-            triggerVariant="sidebar"
-            sidebarCollapsed={sidebarCollapsed}
+        <div className="sidebar__inner">
+          <SidebarChatView
+            active={view === 'chat' || view === 'reminders' || view === 'artifacts'}
+            groupedSessions={groupedSessions}
+            folders={folders}
+            chatSelectedOverlayStyle={chatSelectedOverlayStyle}
+            currentSessionId={
+              view === 'reminders' || view === 'artifacts' ? null : currentSessionId
+            }
+            focusIndex={view === 'reminders' || view === 'artifacts' ? -1 : focusIndex}
+            flatVisibleSessions={flatVisibleSessions}
+            sessionIndexMap={sessionIndexMap}
+            bottomPadding={sidebarFooterScrollPadding}
+            remindersEnabled={remindersEnabled}
+            artifactsEnabled={artifactsEnabled}
+            onNewChat={handleNewChat}
+            onOpenSearch={openSearchOverlay}
+            onOpenReminders={openReminders}
+            onOpenArtifacts={openArtifacts}
+            onSelectSession={handleSelectSession}
+            onContextAction={handleContextAction}
+            onRenameConfirm={handleRenameConfirm}
+            onDropSessionToFolder={handleDropSessionToFolder}
+            onKeyDown={handleKeyDown}
           />
+          <SidebarSettingsView
+            active={view === 'settings'}
+            activeSettingsSection={activeSettingsSection}
+            onNavigateSettings={onNavigateSettings}
+          />
+
+          <div className="sidebar-footer-wrapper">
+            <TitleBarInfoMenu
+              hasUnsavedSettings={hasUnsavedSettings}
+              isSettingsView={dashboardView === 'settings'}
+              setDashboardView={setDashboardView}
+              triggerVariant="sidebar"
+              sidebarCollapsed={sidebarCollapsed}
+            />
+          </div>
         </div>
-      </div>
 
-      <SidebarSearchOverlay
-        isOpen={view === 'chat' && searchOverlayOpen}
-        query={searchQuery}
-        sessions={sessions}
-        currentSessionId={currentSessionId}
-        onQueryChange={setSearchQuery}
-        onSelectSession={handleSelectSession}
-        onClose={closeSearchOverlay}
-      />
-
-      {!sidebarHidden && !sidebarCollapsed && (
-        <div
-          className="sidebar-resize-handle"
-          aria-hidden="true"
-          title="Drag to resize sidebar"
-          onPointerDown={handleResizePointerDown}
+        <SidebarSearchOverlay
+          isOpen={view === 'chat' && searchOverlayOpen}
+          query={searchQuery}
+          sessions={sessions}
+          currentSessionId={currentSessionId}
+          onQueryChange={setSearchQuery}
+          onSelectSession={handleSelectSession}
+          onClose={closeSearchOverlay}
         />
-      )}
-    </div>
+
+        {!sidebarHidden && !sidebarCollapsed && (
+          <WithTooltip tooltip="Drag to resize sidebar">
+            <div
+              className="sidebar-resize-handle"
+              aria-hidden="true"
+              onPointerDown={handleResizePointerDown}
+            />
+          </WithTooltip>
+        )}
+      </div>
     </>
   )
 }

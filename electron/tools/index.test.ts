@@ -50,6 +50,10 @@ describe('tool routing through current-desktop Computer Use', () => {
       | null = null
 
     vi.doMock('electron', () => ({
+      app: {
+        getPath: vi.fn(() => '/tmp/zura-tools-test'),
+        isPackaged: false,
+      },
       ipcMain: {
         handle: vi.fn((channel: string, callback: typeof handler) => {
           if (channel === 'execute-tool') {
@@ -108,6 +112,18 @@ describe('tool routing through current-desktop Computer Use', () => {
     }))
     vi.doMock('../windows/spotlightOverlay', () => ({
       showSpotlight: vi.fn(async () => undefined),
+    }))
+    vi.doMock('../monitors', () => ({
+      createScheduledTask: vi.fn(),
+      deleteScheduledTask: vi.fn(),
+      listRuns: vi.fn(async () => []),
+      listScheduledTasks: vi.fn(async () => []),
+      sanitizeScheduledTaskInput: vi.fn((input: unknown) => input),
+      updateScheduledTask: vi.fn(),
+      getMonitorRuntime: vi.fn(() => null),
+    }))
+    vi.doMock('../agentSkills/service', () => ({
+      activateAgentSkill: vi.fn(async () => ({ success: true, data: { content: '' } })),
     }))
 
     const tools = await import('./index')

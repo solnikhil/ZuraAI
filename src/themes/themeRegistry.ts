@@ -47,7 +47,8 @@ function createTheme(
   category: Theme['category'],
   accent: string,
   background: string,
-  foreground: string
+  foreground: string,
+  isDark = true
 ): Theme {
   return {
     id,
@@ -56,13 +57,13 @@ function createTheme(
     vibe,
     description,
     category,
-    isDark: true,
+    isDark,
     baseColors: {
       accent,
       background,
       foreground,
     },
-    colors: derivePaletteFromBase(accent, background, foreground),
+    colors: derivePaletteFromBase(accent, background, foreground, 100, isDark),
   }
 }
 
@@ -70,32 +71,42 @@ export function derivePaletteFromBase(
   accent: string,
   background: string,
   foreground: string,
-  contrast = 100
+  contrast = 100,
+  isDark = true
 ): Theme['colors'] {
   const contrastScale = clamp(contrast, 0, 100) / 100
-  const isDark = true
   const textInverse = isDark ? '#0b0b0b' : '#ffffff'
-  const surface = mixHex(background, '#ffffff', 0.08 + 0.04 * contrastScale)
-  const surfaceHover = mixHex(background, '#ffffff', 0.12 + 0.05 * contrastScale)
-  const surfaceActive = mixHex(background, '#ffffff', 0.16 + 0.06 * contrastScale)
-  const surfacePressed = mixHex(background, '#ffffff', 0.20 + 0.07 * contrastScale)
-  const surfaceSubtle = alpha('#ffffff', 0.015 + 0.015 * contrastScale)
+  const surfaceMixTarget = isDark ? '#ffffff' : '#000000'
+  const surface = isDark
+    ? mixHex(background, surfaceMixTarget, 0.08 + 0.04 * contrastScale)
+    : mixHex(background, surfaceMixTarget, 0.025 + 0.025 * contrastScale)
+  const surfaceHover = isDark
+    ? mixHex(background, surfaceMixTarget, 0.12 + 0.05 * contrastScale)
+    : mixHex(background, surfaceMixTarget, 0.045 + 0.035 * contrastScale)
+  const surfaceActive = isDark
+    ? mixHex(background, surfaceMixTarget, 0.16 + 0.06 * contrastScale)
+    : mixHex(background, surfaceMixTarget, 0.07 + 0.045 * contrastScale)
+  const surfacePressed = isDark
+    ? mixHex(background, surfaceMixTarget, 0.20 + 0.07 * contrastScale)
+    : mixHex(background, surfaceMixTarget, 0.09 + 0.06 * contrastScale)
+  const surfaceSubtle = alpha(isDark ? '#ffffff' : '#000000', 0.015 + 0.015 * contrastScale)
 
   const textPrimary = foreground
-  const textSecondary = alpha(foreground, 0.5 + 0.12 * contrastScale)
-  const textTertiary = alpha(foreground, 0.4 + 0.08 * contrastScale)
-  const textMuted = alpha(foreground, 0.26 + 0.09 * contrastScale)
+  const textSecondary = alpha(foreground, isDark ? 0.5 + 0.12 * contrastScale : 0.56 + 0.14 * contrastScale)
+  const textTertiary = alpha(foreground, isDark ? 0.4 + 0.08 * contrastScale : 0.44 + 0.1 * contrastScale)
+  const textMuted = alpha(foreground, isDark ? 0.26 + 0.09 * contrastScale : 0.32 + 0.1 * contrastScale)
 
-  const border = alpha('#ffffff', 0.06 + 0.02 * contrastScale)
-  const borderHover = alpha('#ffffff', 0.09 + 0.03 * contrastScale)
-  const borderActive = alpha('#ffffff', 0.12 + 0.04 * contrastScale)
-  const borderSubtle = alpha('#ffffff', 0.035 + 0.02 * contrastScale)
+  const borderBase = isDark ? '#ffffff' : '#000000'
+  const border = alpha(borderBase, isDark ? 0.06 + 0.02 * contrastScale : 0.08 + 0.04 * contrastScale)
+  const borderHover = alpha(borderBase, isDark ? 0.09 + 0.03 * contrastScale : 0.12 + 0.05 * contrastScale)
+  const borderActive = alpha(borderBase, isDark ? 0.12 + 0.04 * contrastScale : 0.16 + 0.06 * contrastScale)
+  const borderSubtle = alpha(borderBase, isDark ? 0.035 + 0.02 * contrastScale : 0.045 + 0.025 * contrastScale)
 
-  const accentSecondary = mixHex(accent, '#ffffff', 0.12)
-  const accentHover = mixHex(accent, '#ffffff', 0.18)
-  const accentMuted = alpha(accent, 0.14 + 0.06 * contrastScale)
+  const accentSecondary = mixHex(accent, isDark ? '#ffffff' : '#000000', isDark ? 0.12 : 0.08)
+  const accentHover = mixHex(accent, isDark ? '#ffffff' : '#000000', isDark ? 0.18 : 0.12)
+  const accentMuted = alpha(accent, isDark ? 0.14 + 0.06 * contrastScale : 0.1 + 0.06 * contrastScale)
 
-  const assistantMessageBg = alpha('#ffffff', 0.03 + 0.02 * contrastScale)
+  const assistantMessageBg = alpha(isDark ? '#ffffff' : '#000000', isDark ? 0.03 + 0.02 * contrastScale : 0.025 + 0.02 * contrastScale)
   const userMessageBg = mixHex(accent, surface, 0.12)
 
   return {
@@ -122,28 +133,28 @@ export function derivePaletteFromBase(
     accentHover,
     accentMuted,
 
-    error: '#ff453a',
-    errorBg: alpha('#ff453a', 0.18),
-    success: '#32d74b',
-    successBg: alpha('#32d74b', 0.18),
-    warning: '#ffd60a',
-    warningBg: alpha('#ffd60a', 0.18),
-    info: '#0a84ff',
-    infoBg: alpha('#0a84ff', 0.18),
-    favorite: '#ffd60a',
+    error: isDark ? '#ff453a' : '#c4382f',
+    errorBg: alpha(isDark ? '#ff453a' : '#c4382f', isDark ? 0.18 : 0.12),
+    success: isDark ? '#32d74b' : '#2f7d45',
+    successBg: alpha(isDark ? '#32d74b' : '#2f7d45', isDark ? 0.18 : 0.12),
+    warning: isDark ? '#ffd60a' : '#986f00',
+    warningBg: alpha(isDark ? '#ffd60a' : '#986f00', isDark ? 0.18 : 0.12),
+    info: isDark ? '#0a84ff' : '#256bb8',
+    infoBg: alpha(isDark ? '#0a84ff' : '#256bb8', isDark ? 0.18 : 0.12),
+    favorite: isDark ? '#ffd60a' : '#9b7220',
 
     userMessageBg,
     userMessageText: '#ffffff',
     assistantMessageBg,
     assistantMessageText: textPrimary,
-    overlayBg: alpha('#000000', 0.62 + 0.12 * contrastScale),
-    dimmerBg: alpha('#000000', 0.38 + 0.12 * contrastScale),
+    overlayBg: alpha('#000000', isDark ? 0.62 + 0.12 * contrastScale : 0.28 + 0.16 * contrastScale),
+    dimmerBg: alpha('#000000', isDark ? 0.38 + 0.12 * contrastScale : 0.18 + 0.14 * contrastScale),
     selectionBg: alpha(accent, 0.18 + 0.1 * contrastScale),
     selectionText: '#ffffff',
 
-    shadowSm: '0 1px 2px rgba(0, 0, 0, 0.18)',
-    shadowMd: '0 4px 14px rgba(0, 0, 0, 0.2)',
-    shadowLg: '0 10px 28px rgba(0, 0, 0, 0.22)',
+    shadowSm: isDark ? '0 1px 2px rgba(0, 0, 0, 0.18)' : '0 1px 2px rgba(45, 35, 22, 0.08)',
+    shadowMd: isDark ? '0 4px 14px rgba(0, 0, 0, 0.2)' : '0 6px 18px rgba(45, 35, 22, 0.1)',
+    shadowLg: isDark ? '0 10px 28px rgba(0, 0, 0, 0.22)' : '0 14px 34px rgba(45, 35, 22, 0.12)',
 
     scrollbar: alpha(foreground, 0.12 + 0.06 * contrastScale),
     scrollbarHover: alpha(foreground, 0.18 + 0.08 * contrastScale),
@@ -160,6 +171,28 @@ const themes: Record<string, Theme> = {
     '#c9a66e',
     '#1a1a1a',
     '#ffffff'
+  ),
+  'zuraai-light': createTheme(
+    'zuraai-light',
+    'Zura Light',
+    'Warm studio',
+    'Warm off-white workspace with graphite text and restrained gold accents',
+    'classic',
+    '#a57d3d',
+    '#f7f3ea',
+    '#27231d',
+    false
+  ),
+  mist: createTheme(
+    'mist',
+    'Mist',
+    'Cool daylight',
+    'Cool low-glare light mode with blue-grey neutrals',
+    'minimal',
+    '#6f8798',
+    '#f3f6f7',
+    '#20282f',
+    false
   ),
   'warm-ledger': createTheme(
     'warm-ledger',
@@ -201,16 +234,6 @@ const themes: Record<string, Theme> = {
     '#17181a',
     '#eef2f6'
   ),
-  noir: createTheme(
-    'noir',
-    'Noir Alloy',
-    'Luxury machine',
-    'Gunmetal darkness with restrained champagne-metal warmth',
-    'classic',
-    '#c7a86d',
-    '#111213',
-    '#f0e7d7'
-  ),
   codex: createTheme(
     'codex',
     'Blue Static',
@@ -221,30 +244,24 @@ const themes: Record<string, Theme> = {
     '#111315',
     '#fcfcfc'
   ),
-  charcoal: createTheme(
-    'charcoal',
-    'Charcoal',
-    'Grey minimal',
-    'Deep charcoal with neutral grey tones for a clean black-and-grey workspace',
-    'minimal',
-    '#6b6f78',
-    '#16171a',
-    '#d9d9dc'
-  ),
-  void: createTheme(
-    'void',
-    'Void',
-    'True black',
-    'Pure black canvas with cool desaturated grey accents for deep focus',
-    'minimal',
-    '#5b5f68',
-    '#0a0a0a',
-    '#e5e5e7'
-  ),
+}
+
+const REMOVED_THEME_MIGRATIONS: Record<string, string> = {
+  charcoal: 'graphite',
+  void: 'graphite',
+  noir: 'zuraai',
+  'paper-trail': 'zuraai-light',
+}
+
+export function normalizeActiveThemeId(themeId: string): string {
+  const trimmed = themeId.trim()
+  if (!trimmed) return getDefaultTheme().id
+  if (themes[trimmed]) return trimmed
+  return REMOVED_THEME_MIGRATIONS[trimmed] ?? getDefaultTheme().id
 }
 
 export function getThemeById(id: string): Theme | undefined {
-  return themes[id]
+  return themes[normalizeActiveThemeId(id)]
 }
 
 export function getThemesByCategory(category: string): Theme[] {

@@ -4,7 +4,7 @@ import type { ChatRowAction } from './ChatRow'
 import ChatRowContextMenu from './ChatRowContextMenu'
 import DeleteChatAlertDialog from './DeleteChatAlertDialog'
 import RenameChatDialog from './RenameChatDialog'
-import { ChevronDown, FolderOpen, Pin } from '../../icons'
+import { Bell, ChevronDown, FileText, FolderOpen, Pin } from '../../icons'
 import type { GroupedSessions } from './utils/groupSessions'
 import type { ChatSession, Folder } from '../../../chat/types'
 import type { ChatSelectedOverlayStyle } from '../../../contexts/SettingsUIContext'
@@ -20,6 +20,10 @@ interface SidebarChatListProps {
   flatVisibleSessions: ChatSession[]
   sessionIndexMap: Map<string, number>
   bottomPadding?: number
+  remindersEnabled: boolean
+  artifactsEnabled: boolean
+  onOpenReminders: () => void
+  onOpenArtifacts: () => void
   onSelectSession: (id: string) => void
   onContextAction: (action: ChatRowAction, sessionId: string) => void
   onRenameConfirm: (id: string, newTitle: string) => void
@@ -49,6 +53,10 @@ export default function SidebarChatList({
   flatVisibleSessions,
   sessionIndexMap,
   bottomPadding = 8,
+  remindersEnabled,
+  artifactsEnabled,
+  onOpenReminders,
+  onOpenArtifacts,
   onSelectSession,
   onContextAction,
   onRenameConfirm,
@@ -277,6 +285,30 @@ export default function SidebarChatList({
     [renderChatRow, renderSectionHeader]
   )
 
+  const renderUtilityAction = (
+    label: string,
+    icon: React.ReactNode,
+    onClick: () => void
+  ) => (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          onClick()
+        }
+      }}
+      className="sidebar-header__btn sidebar-chatlist__utility-action"
+    >
+      <span className="sidebar-header__icon-slot" aria-hidden="true">
+        {icon}
+      </span>
+      <span className="sidebar-header__label">{label}</span>
+    </div>
+  )
+
   return (
     <>
       <div className="sidebar-chatlist">
@@ -290,6 +322,24 @@ export default function SidebarChatList({
             className="sidebar-chatlist__listbox"
             style={{ paddingBottom: bottomPadding }}
           >
+            {(remindersEnabled || artifactsEnabled) && (
+              <div className="sidebar-chatlist__utility-actions">
+                {remindersEnabled
+                  ? renderUtilityAction(
+                      'Reminders',
+                      <Bell size={16} className="sidebar-header__icon" />,
+                      onOpenReminders
+                    )
+                  : null}
+                {artifactsEnabled
+                  ? renderUtilityAction(
+                      'Artifacts',
+                      <FileText size={16} className="sidebar-header__icon" />,
+                      onOpenArtifacts
+                    )
+                  : null}
+              </div>
+            )}
             {sidebarItems.map((item, index) => (
               <React.Fragment key={item.key}>{renderItem(index, item)}</React.Fragment>
             ))}
