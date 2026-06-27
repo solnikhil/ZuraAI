@@ -22,8 +22,9 @@
     "typecheck": "tsc --noEmit",
     "build:renderer": "tsc && vite build",
     "generate-icons": "bun scripts/generate-icons.mjs",
-    "build": "bun scripts/generate-icons.mjs && tsc && vite build && electron-builder",
+    "build": "bun scripts/generate-icons.mjs && tsc && vite build && electron-builder && bun scripts/generate-release-checksums.mjs",
     "build:dir": "bun scripts/generate-icons.mjs && tsc && vite build && electron-builder --dir",
+    "release:checksums": "bun scripts/generate-release-checksums.mjs",
     "verify:mcp-release": "bun scripts/verify-mcp-release.mjs",
     "preview": "vite preview",
     "test": "vitest --run",
@@ -115,6 +116,7 @@
     "executableName": "ZuraAI",
     "copyright": "Copyright (c) 2026 Nikhil",
     "asar": true,
+    "npmRebuild": false,
     "compression": "maximum",
     "electronLanguages": ["en-US"],
     "directories": {
@@ -131,6 +133,12 @@
       "target": [
         {
           "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
           "arch": [
             "x64"
           ]
@@ -161,6 +169,9 @@
       "include": "installer/installer.nsh",
       "deleteAppDataOnUninstall": false,
       "artifactName": "ZuraAI-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "ZuraAI-Portable-${version}-${arch}.${ext}"
     },
     "files": [
       "dist/**/*",

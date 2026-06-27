@@ -1,4 +1,12 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 
 import type {
   McpApprovalRequest,
@@ -38,6 +46,7 @@ interface McpContextValue {
   discardDraft: () => void
   saveDraft: () => Promise<void>
   refresh: () => Promise<void>
+  openConfigFile: () => Promise<{ ok: boolean; path?: string; error?: string }>
   connectServer: (serverId: string) => Promise<void>
   disconnectServer: (serverId: string) => Promise<void>
   listResources: (serverId?: string) => Promise<McpRuntimeResource[]>
@@ -167,7 +176,9 @@ export function McpProvider({ children }: { children: React.ReactNode }): React.
   }, [])
 
   const removeDraftServer = useCallback((serverId: string) => {
-    setDraftServers((currentDraftServers) => currentDraftServers.filter((server) => server.id !== serverId))
+    setDraftServers((currentDraftServers) =>
+      currentDraftServers.filter((server) => server.id !== serverId)
+    )
   }, [])
 
   const discardDraft = useCallback(() => {
@@ -222,6 +233,14 @@ export function McpProvider({ children }: { children: React.ReactNode }): React.
     [refresh]
   )
 
+  const openConfigFile = useCallback(async () => {
+    if (!window.mcp) {
+      throw new Error('MCP bridge is unavailable in this environment.')
+    }
+
+    return window.mcp.openConfigFile()
+  }, [])
+
   const disconnectServer = useCallback(
     async (serverId: string) => {
       if (!window.mcp) {
@@ -269,14 +288,17 @@ export function McpProvider({ children }: { children: React.ReactNode }): React.
     []
   )
 
-  const resolveApproval = useCallback(async (requestId: string, approved: boolean) => {
-    if (!window.mcp) {
-      throw new Error('MCP bridge is unavailable in this environment.')
-    }
+  const resolveApproval = useCallback(
+    async (requestId: string, approved: boolean) => {
+      if (!window.mcp) {
+        throw new Error('MCP bridge is unavailable in this environment.')
+      }
 
-    await window.mcp.resolveApproval(requestId, approved)
-    await refresh()
-  }, [refresh])
+      await window.mcp.resolveApproval(requestId, approved)
+      await refresh()
+    },
+    [refresh]
+  )
 
   const getRuntimeState = useCallback(
     (serverId: string) => snapshot.runtimeStates.find((state) => state.serverId === serverId),
@@ -303,6 +325,7 @@ export function McpProvider({ children }: { children: React.ReactNode }): React.
       discardDraft,
       saveDraft,
       refresh,
+      openConfigFile,
       connectServer,
       disconnectServer,
       listResources,
@@ -326,6 +349,7 @@ export function McpProvider({ children }: { children: React.ReactNode }): React.
       isSupported,
       listPrompts,
       listResources,
+      openConfigFile,
       readResource,
       resolveApproval,
       refresh,

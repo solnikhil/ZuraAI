@@ -737,6 +737,7 @@ export interface McpAPI {
   connectServer: (serverId: string) => Promise<McpServerRuntimeState>
   disconnectServer: (serverId: string) => Promise<McpServerRuntimeState>
   getState: () => Promise<McpRuntimeSnapshot>
+  openConfigFile: () => Promise<{ ok: boolean; path?: string; error?: string }>
   listTools: (serverId?: string) => Promise<McpNamespacedTool[]>
   listResources: (serverId?: string) => Promise<McpRuntimeResource[]>
   readResource: (serverId: string, uri: string) => Promise<McpResourceReadResult>

@@ -144,7 +144,19 @@ Use `bun run build:dir` if you want an unpacked directory build instead of the i
 | `bun run build:renderer` | Typecheck and build the renderer |
 | `bun run build` | Create the production Electron package |
 | `bun run build:dir` | Create an unpacked Electron directory build |
+| `bun run release:checksums` | Generate SHA-256 checksums for release artifacts |
 | `bun run preview` | Preview the renderer build locally |
+
+## Release Packaging
+
+ZuraAI ships desktop binaries through GitHub Releases. The package-manager entrypoint is a small launcher package in `packages/zuraai`, so users can run:
+
+```bash
+bunx zuraai
+npx zuraai
+```
+
+The launcher downloads the matching GitHub release artifact, verifies it against `checksums.txt`, caches it locally, and launches the app. See `docs/RELEASE.md` for the release checklist.
 
 ## Security model
 

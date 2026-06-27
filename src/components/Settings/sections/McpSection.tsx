@@ -16,14 +16,42 @@ import {
 } from 'lucide-react'
 
 import { useToast } from '@/components/shared'
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
@@ -32,7 +60,9 @@ import McpToolsDialog from '@/components/mcp/McpToolsDialog'
 import { useMcp } from '@/mcp/McpContext'
 import {
   createDraftConfigValue,
+  draftServersToMcpJsonText,
   isDraftServerEqualToLiveServer,
+  parseMcpJsonDraftServers,
   validateDraftServer,
   type McpDraftConfigValue,
   type McpDraftServer,
@@ -50,6 +80,7 @@ export function McpSection(): React.ReactElement {
     isLoading,
     isRefreshing,
     isSupported,
+    openConfigFile,
     refresh,
     removeDraftServer,
     runtimeStates,
@@ -63,10 +94,15 @@ export function McpSection(): React.ReactElement {
   const [dialogServer, setDialogServer] = useState<McpDraftServer | null>(null)
   const [dialogErrors, setDialogErrors] = useState<string[]>([])
   const [deleteTarget, setDeleteTarget] = useState<McpDraftServer | null>(null)
-  const [serverActionState, setServerActionState] = useState<Record<string, 'connecting' | 'disconnecting' | 'idle'>>({})
+  const [serverActionState, setServerActionState] = useState<
+    Record<string, 'connecting' | 'disconnecting' | 'idle'>
+  >({})
   const [libraryMode, setLibraryMode] = useState<'resources' | 'prompts' | null>(null)
   const [libraryServerId, setLibraryServerId] = useState<string | undefined>(undefined)
   const [toolsDialogServer, setToolsDialogServer] = useState<McpDraftServer | null>(null)
+  const [mcpJsonDialogOpen, setMcpJsonDialogOpen] = useState(false)
+  const [mcpJsonText, setMcpJsonText] = useState('')
+  const [mcpJsonErrors, setMcpJsonErrors] = useState<string[]>([])
 
   const liveServersById = useMemo(
     () => new Map(servers.map((server) => [server.id, server])),
@@ -151,12 +187,74 @@ export function McpSection(): React.ReactElement {
     setToolsDialogServer(null)
   }
 
+  const openMcpJsonDialog = () => {
+    setMcpJsonText(draftServersToMcpJsonText(draftServers))
+    setMcpJsonErrors([])
+    setMcpJsonDialogOpen(true)
+  }
+
+  const closeMcpJsonDialog = () => {
+    setMcpJsonDialogOpen(false)
+    setMcpJsonText('')
+    setMcpJsonErrors([])
+  }
+
+  const applyMcpJson = (source: string) => {
+    const result = parseMcpJsonDraftServers(source)
+
+    if (result.errors.length > 0 || result.servers.length === 0) {
+      setMcpJsonErrors(result.errors)
+      return
+    }
+
+    draftServers.forEach((server) => {
+      removeDraftServer(server.id)
+    })
+    result.servers.forEach((server) => {
+      upsertDraftServer(server)
+    })
+
+    showToast(
+      `Updated ${result.servers.length} MCP server${result.servers.length === 1 ? '' : 's'} from mcp.json. Save changes to apply.`,
+      'success'
+    )
+    closeMcpJsonDialog()
+  }
+
+  const handleMcpJsonFile = async (file: File | null) => {
+    if (!file) {
+      return
+    }
+
+    try {
+      setMcpJsonText(await file.text())
+      setMcpJsonErrors([])
+    } catch (fileError) {
+      setMcpJsonErrors([toErrorMessage(fileError)])
+    }
+  }
+
+  const handleOpenLocalConfigFile = async () => {
+    try {
+      const result = await openConfigFile()
+      if (!result.ok) {
+        showToast(result.error || 'Could not open the MCP config file.', 'error')
+        return
+      }
+
+      showToast(`Opened MCP config file${result.path ? `: ${result.path}` : '.'}`, 'success')
+    } catch (openError) {
+      showToast(toErrorMessage(openError), 'error')
+    }
+  }
+
   return (
     <div className="settings-section-layout">
       <div className="page-header">
         <h2 className="page-title">MCP Servers</h2>
         <div className="page-subtitle">
-          Configure Model Context Protocol servers. Connected and trusted servers can expose tools to the chat.
+          Configure Model Context Protocol servers. Connected and trusted servers can expose tools
+          to the chat.
         </div>
       </div>
 
@@ -177,8 +275,18 @@ export function McpSection(): React.ReactElement {
             </span>
           </div>
           <div className="mcp-header-actions">
-            <Button type="button" variant="outline" size="sm" onClick={() => void refresh()} disabled={isRefreshing}>
-              {isRefreshing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCcw className="mr-2 h-4 w-4" />}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void refresh()}
+              disabled={isRefreshing}
+            >
+              {isRefreshing ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCcw className="mr-2 h-4 w-4" />
+              )}
               Refresh
             </Button>
             <Button
@@ -192,10 +300,34 @@ export function McpSection(): React.ReactElement {
             >
               Browse Library
             </Button>
-            <Button type="button" size="sm" onClick={openCreateDialog}>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Server
+            <Button type="button" size="sm" onClick={openMcpJsonDialog}>
+              <PencilLine className="mr-2 h-4 w-4" />
+              Edit mcp.json
             </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="mcp-server-menu-trigger"
+                  aria-label="More MCP actions"
+                >
+                  <MoreHorizontal size={16} />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                sideOffset={8}
+                className="settings-menu-surface zura-menu-surface--compact w-44"
+              >
+                <DropdownMenuItem
+                  className="zura-menu-item--compact cursor-pointer"
+                  onSelect={openCreateDialog}
+                >
+                  <Plus className="h-4 w-4" />
+                  Add manually
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
@@ -229,15 +361,26 @@ export function McpSection(): React.ReactElement {
               <Server className="mcp-empty-icon" />
               <div className="mcp-empty-content">
                 <div className="mcp-empty-title">No servers added yet</div>
-                <div className="mcp-empty-desc">Add a local or remote MCP server to extend ZuraAI with custom tools.</div>
+                <div className="mcp-empty-desc">
+                  Add a local or remote MCP server to extend ZuraAI with custom tools.
+                </div>
               </div>
             </div>
           ) : (
             draftServers.map((server) => {
               const runtimeState = getRuntimeState(server.id)
-              const toolCount = runtimeState?.tools.length ?? liveServersById.get(server.id)?.lastKnownTools?.length ?? 0
-              const resourceCount = runtimeState?.resources.length ?? liveServersById.get(server.id)?.lastKnownResources?.length ?? 0
-              const promptCount = runtimeState?.prompts.length ?? liveServersById.get(server.id)?.lastKnownPrompts?.length ?? 0
+              const toolCount =
+                runtimeState?.tools.length ??
+                liveServersById.get(server.id)?.lastKnownTools?.length ??
+                0
+              const resourceCount =
+                runtimeState?.resources.length ??
+                liveServersById.get(server.id)?.lastKnownResources?.length ??
+                0
+              const promptCount =
+                runtimeState?.prompts.length ??
+                liveServersById.get(server.id)?.lastKnownPrompts?.length ??
+                0
               const liveServer = liveServersById.get(server.id)
               const isDraftOnly = !liveServer
               const isDirty = !liveServer || !isDraftServerEqualToLiveServer(server, liveServer)
@@ -246,9 +389,17 @@ export function McpSection(): React.ReactElement {
 
               const discoveredTools = runtimeState?.tools ?? liveServer?.lastKnownTools ?? []
               const blockedToolsSet = new Set(
-                (server.toolBlocklistText ?? '').split('\n').map(s => s.trim().toLowerCase()).filter(Boolean))
+                (server.toolBlocklistText ?? '')
+                  .split('\n')
+                  .map((s) => s.trim().toLowerCase())
+                  .filter(Boolean)
+              )
               const allowedToolsSet = new Set(
-                (server.toolAllowlistText ?? '').split('\n').map(s => s.trim().toLowerCase()).filter(Boolean))
+                (server.toolAllowlistText ?? '')
+                  .split('\n')
+                  .map((s) => s.trim().toLowerCase())
+                  .filter(Boolean)
+              )
               const hasAllowlist = allowedToolsSet.size > 0
 
               const activeToolCount = discoveredTools.filter((tool) => {
@@ -258,7 +409,11 @@ export function McpSection(): React.ReactElement {
                 return true
               }).length
 
-              const canManageTools = status === 'connected' && discoveredTools.length > 0 && !hasDraftChanges && !isDraftOnly
+              const canManageTools =
+                status === 'connected' &&
+                discoveredTools.length > 0 &&
+                !hasDraftChanges &&
+                !isDraftOnly
 
               return (
                 <div key={server.id} className="mcp-server-row">
@@ -272,7 +427,13 @@ export function McpSection(): React.ReactElement {
                           <h3 className="mcp-server-title">{server.name || 'Untitled Server'}</h3>
                           <div className="mcp-server-badges">
                             <span className={`mcp-status-badge mcp-status-badge--${status}`}>
-                              {status === 'connected' ? 'Connected' : status === 'connecting' ? 'Connecting...' : status === 'error' ? 'Error' : 'Disconnected'}
+                              {status === 'connected'
+                                ? 'Connected'
+                                : status === 'connecting'
+                                  ? 'Connecting...'
+                                  : status === 'error'
+                                    ? 'Error'
+                                    : 'Disconnected'}
                             </span>
                             {server.trustState === 'trusted' && (
                               <span className="mcp-trust-badge">Trusted</span>
@@ -281,7 +442,9 @@ export function McpSection(): React.ReactElement {
                               <span className="mcp-disabled-badge">Disabled</span>
                             )}
                             {isDraftOnly && <span className="mcp-new-badge">New</span>}
-                            {isDirty && !isDraftOnly && <span className="mcp-edited-badge">Edited</span>}
+                            {isDirty && !isDraftOnly && (
+                              <span className="mcp-edited-badge">Edited</span>
+                            )}
                           </div>
                         </div>
                         <div className="mcp-server-controls">
@@ -300,57 +463,67 @@ export function McpSection(): React.ReactElement {
                               <span className="mcp-server-stat-value">{promptCount}</span>
                             </span>
                           </div>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <button
-                              type="button"
-                              className="mcp-server-menu-trigger"
-                              aria-label={`Open actions for ${server.name || 'Untitled Server'}`}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button
+                                type="button"
+                                className="mcp-server-menu-trigger"
+                                aria-label={`Open actions for ${server.name || 'Untitled Server'}`}
+                              >
+                                <MoreHorizontal size={16} />
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent
+                              align="end"
+                              sideOffset={8}
+                              className="settings-menu-surface mcp-server-menu-content zura-menu-surface--compact w-48"
                             >
-                              <MoreHorizontal size={16} />
-                            </button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent
-                            align="end"
-                            sideOffset={8}
-                            className="settings-menu-surface mcp-server-menu-content zura-menu-surface--compact w-48"
-                          >
-                            <DropdownMenuItem
-                              className="zura-menu-item--compact cursor-pointer"
-                              disabled={!canManageTools}
-                              onSelect={() => openToolsDialog(server)}
-                            >
-                              <Wrench className="h-4 w-4" />
-                              Manage Tools
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              className="zura-menu-item--compact cursor-pointer"
-                              disabled={isBusy || hasDraftChanges || isDraftOnly || !server.enabled || !isSupported}
-                              onSelect={() => {
-                                void handleConnectToggle(server)
-                              }}
-                            >
-                              {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Cable className="h-4 w-4" />}
-                              {status === 'connected' ? 'Disconnect' : 'Connect'}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              className="zura-menu-item--compact cursor-pointer"
-                              onSelect={() => openEditDialog(server)}
-                            >
-                              <PencilLine className="h-4 w-4" />
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              className="zura-menu-item--compact cursor-pointer"
-                              variant="destructive"
-                              onSelect={() => setDeleteTarget(server)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                              <DropdownMenuItem
+                                className="zura-menu-item--compact cursor-pointer"
+                                disabled={!canManageTools}
+                                onSelect={() => openToolsDialog(server)}
+                              >
+                                <Wrench className="h-4 w-4" />
+                                Manage Tools
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="zura-menu-item--compact cursor-pointer"
+                                disabled={
+                                  isBusy ||
+                                  hasDraftChanges ||
+                                  isDraftOnly ||
+                                  !server.enabled ||
+                                  !isSupported
+                                }
+                                onSelect={() => {
+                                  void handleConnectToggle(server)
+                                }}
+                              >
+                                {isBusy ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Cable className="h-4 w-4" />
+                                )}
+                                {status === 'connected' ? 'Disconnect' : 'Connect'}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="zura-menu-item--compact cursor-pointer"
+                                onSelect={() => openEditDialog(server)}
+                              >
+                                <PencilLine className="h-4 w-4" />
+                                Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className="zura-menu-item--compact cursor-pointer"
+                                variant="destructive"
+                                onSelect={() => setDeleteTarget(server)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </div>
                       {runtimeState?.error && (
@@ -377,12 +550,99 @@ export function McpSection(): React.ReactElement {
         serverId={libraryServerId}
       />
 
-      <Dialog open={dialogOpen} onOpenChange={(open) => (open ? setDialogOpen(true) : closeDialog())}>
+      <Dialog
+        open={mcpJsonDialogOpen}
+        onOpenChange={(open) => (open ? openMcpJsonDialog() : closeMcpJsonDialog())}
+      >
         <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{dialogServer && liveServersById.has(dialogServer.id) ? 'Edit Server' : 'Add Server'}</DialogTitle>
+            <DialogTitle>Edit mcp.json</DialogTitle>
             <DialogDescription>
-              Configure how ZuraAI connects to this MCP server. Secrets are stored securely and never saved to config files.
+              Edit the MCP config as JSON. Applying replaces the unsaved MCP draft; Settings Save
+              persists it.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="mcp-dialog-body">
+            {mcpJsonErrors.length > 0 && (
+              <div className="mcp-dialog-errors">
+                <div className="mcp-dialog-errors-header">
+                  <TriangleAlert className="h-4 w-4" />
+                  <span>mcp.json issues</span>
+                </div>
+                <ul>
+                  {mcpJsonErrors.map((message) => (
+                    <li key={message}>{message}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <FieldGroup>
+              <Field>
+                <FieldLabel>Config JSON</FieldLabel>
+                <Textarea
+                  value={mcpJsonText}
+                  onChange={(event) => {
+                    setMcpJsonText(event.target.value)
+                    setMcpJsonErrors([])
+                  }}
+                  placeholder={
+                    '{\n  "mcpServers": {\n    "filesystem": {\n      "command": "npx",\n      "args": ["-y", "@modelcontextprotocol/server-filesystem", "C:\\\\Projects"]\n    }\n  }\n}'
+                  }
+                  className="min-h-72 font-mono text-xs"
+                />
+                <FieldDescription>
+                  Stored secrets are represented by secure references, not raw secret values.
+                  External mcp.json files with mcpServers, command, args, env, headers, url, and
+                  transport are supported.
+                </FieldDescription>
+              </Field>
+
+              <Field>
+                <FieldLabel>Choose file</FieldLabel>
+                <Input
+                  type="file"
+                  accept=".json,application/json"
+                  onChange={(event) => {
+                    void handleMcpJsonFile(event.target.files?.[0] ?? null)
+                    event.target.value = ''
+                  }}
+                />
+              </Field>
+            </FieldGroup>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void handleOpenLocalConfigFile()}
+            >
+              Open local file
+            </Button>
+            <Button type="button" variant="outline" onClick={closeMcpJsonDialog}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={() => applyMcpJson(mcpJsonText)}>
+              Apply JSON
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={dialogOpen}
+        onOpenChange={(open) => (open ? setDialogOpen(true) : closeDialog())}
+      >
+        <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              {dialogServer && liveServersById.has(dialogServer.id) ? 'Edit Server' : 'Add Server'}
+            </DialogTitle>
+            <DialogDescription>
+              Configure how ZuraAI connects to this MCP server. Secrets are stored securely and
+              never saved to config files.
             </DialogDescription>
           </DialogHeader>
 
@@ -408,7 +668,9 @@ export function McpSection(): React.ReactElement {
                     <FieldLabel>Server name</FieldLabel>
                     <Input
                       value={dialogServer.name}
-                      onChange={(event) => setDialogServer({ ...dialogServer, name: event.target.value })}
+                      onChange={(event) =>
+                        setDialogServer({ ...dialogServer, name: event.target.value })
+                      }
                       placeholder="Filesystem"
                     />
                   </Field>
@@ -436,20 +698,24 @@ export function McpSection(): React.ReactElement {
                   </Field>
                 </div>
 
-<div className="mcp-dialog-row">
-                    <ToggleField
-                     label="Enable this server"
-                     description="When off, the server won't connect and its tools won't appear in chat."
-                     checked={dialogServer.enabled}
-                     onCheckedChange={(checked) => setDialogServer({ ...dialogServer, enabled: checked })}
-                   />
-                   <ToggleField
-                     label="Connect on startup"
-                     description="Automatically connect when ZuraAI launches."
-                     checked={dialogServer.autoConnect}
-                     onCheckedChange={(checked) => setDialogServer({ ...dialogServer, autoConnect: checked })}
-                   />
-                 </div>
+                <div className="mcp-dialog-row">
+                  <ToggleField
+                    label="Enable this server"
+                    description="When off, the server won't connect and its tools won't appear in chat."
+                    checked={dialogServer.enabled}
+                    onCheckedChange={(checked) =>
+                      setDialogServer({ ...dialogServer, enabled: checked })
+                    }
+                  />
+                  <ToggleField
+                    label="Connect on startup"
+                    description="Automatically connect when ZuraAI launches."
+                    checked={dialogServer.autoConnect}
+                    onCheckedChange={(checked) =>
+                      setDialogServer({ ...dialogServer, autoConnect: checked })
+                    }
+                  />
+                </div>
 
                 <Field>
                   <FieldLabel>Trust level</FieldLabel>
@@ -471,7 +737,8 @@ export function McpSection(): React.ReactElement {
                     </SelectContent>
                   </Select>
                   <FieldDescription>
-                    Untrusted servers can connect but their tools stay hidden from the model until approved.
+                    Untrusted servers can connect but their tools stay hidden from the model until
+                    approved.
                   </FieldDescription>
                 </Field>
               </FieldGroup>
@@ -489,7 +756,9 @@ export function McpSection(): React.ReactElement {
                     <FieldLabel>Command</FieldLabel>
                     <Input
                       value={dialogServer.command}
-                      onChange={(event) => setDialogServer({ ...dialogServer, command: event.target.value })}
+                      onChange={(event) =>
+                        setDialogServer({ ...dialogServer, command: event.target.value })
+                      }
                       placeholder="npx"
                     />
                   </Field>
@@ -498,7 +767,9 @@ export function McpSection(): React.ReactElement {
                     <FieldLabel>Arguments</FieldLabel>
                     <Textarea
                       value={dialogServer.argsText}
-                      onChange={(event) => setDialogServer({ ...dialogServer, argsText: event.target.value })}
+                      onChange={(event) =>
+                        setDialogServer({ ...dialogServer, argsText: event.target.value })
+                      }
                       placeholder={'-y\n@modelcontextprotocol/server-filesystem\nC:\\Projects'}
                       className="min-h-24"
                     />
@@ -509,7 +780,9 @@ export function McpSection(): React.ReactElement {
                     <FieldLabel>Working directory</FieldLabel>
                     <Input
                       value={dialogServer.cwd}
-                      onChange={(event) => setDialogServer({ ...dialogServer, cwd: event.target.value })}
+                      onChange={(event) =>
+                        setDialogServer({ ...dialogServer, cwd: event.target.value })
+                      }
                       placeholder="C:\\Projects"
                     />
                   </Field>
@@ -525,14 +798,22 @@ export function McpSection(): React.ReactElement {
                     <FieldLabel>URL</FieldLabel>
                     <Input
                       value={dialogServer.url}
-                      onChange={(event) => setDialogServer({ ...dialogServer, url: event.target.value })}
-                      placeholder={dialogServer.transport === 'sse' ? 'https://example.com/mcp' : 'wss://example.com/mcp'}
+                      onChange={(event) =>
+                        setDialogServer({ ...dialogServer, url: event.target.value })
+                      }
+                      placeholder={
+                        dialogServer.transport === 'sse'
+                          ? 'https://example.com/mcp'
+                          : 'wss://example.com/mcp'
+                      }
                     />
                   </Field>
 
                   <SecretTokenEditor
                     value={dialogServer.authToken}
-                    onChange={(nextValue) => setDialogServer({ ...dialogServer, authToken: nextValue })}
+                    onChange={(nextValue) =>
+                      setDialogServer({ ...dialogServer, authToken: nextValue })
+                    }
                   />
 
                   <ConfigValueEditor
@@ -540,7 +821,9 @@ export function McpSection(): React.ReactElement {
                     description="Additional request headers."
                     entries={dialogServer.headers}
                     kind="header"
-                    onChange={(nextEntries) => setDialogServer({ ...dialogServer, headers: nextEntries })}
+                    onChange={(nextEntries) =>
+                      setDialogServer({ ...dialogServer, headers: nextEntries })
+                    }
                   />
                 </FieldGroup>
               )}
@@ -567,7 +850,9 @@ export function McpSection(): React.ReactElement {
                   <NumberInputField
                     label="Startup timeout (ms)"
                     value={dialogServer.startupTimeoutMs}
-                    onChange={(value) => setDialogServer({ ...dialogServer, startupTimeoutMs: value })}
+                    onChange={(value) =>
+                      setDialogServer({ ...dialogServer, startupTimeoutMs: value })
+                    }
                     placeholder="10000"
                   />
                   <NumberInputField
@@ -579,40 +864,54 @@ export function McpSection(): React.ReactElement {
                   <NumberInputField
                     label="Reconnect attempts"
                     value={dialogServer.reconnectAttempts}
-                    onChange={(value) => setDialogServer({ ...dialogServer, reconnectAttempts: value })}
+                    onChange={(value) =>
+                      setDialogServer({ ...dialogServer, reconnectAttempts: value })
+                    }
                     placeholder="3"
                   />
                   <NumberInputField
                     label="Reconnect delay (ms)"
                     value={dialogServer.reconnectDelayMs}
-                    onChange={(value) => setDialogServer({ ...dialogServer, reconnectDelayMs: value })}
+                    onChange={(value) =>
+                      setDialogServer({ ...dialogServer, reconnectDelayMs: value })
+                    }
                     placeholder="1000"
                   />
                 </div>
 
-<ToggleField
-                   label="Ask before running tools"
-                   description="Show a confirmation dialog each time this server wants to run a tool."
-                   checked={dialogServer.requireApproval}
-                   onCheckedChange={(checked) => setDialogServer({ ...dialogServer, requireApproval: checked })}
-                 />
+                <ToggleField
+                  label="Ask before running tools"
+                  description="Show a confirmation dialog each time this server wants to run a tool."
+                  checked={dialogServer.requireApproval}
+                  onCheckedChange={(checked) =>
+                    setDialogServer({ ...dialogServer, requireApproval: checked })
+                  }
+                />
               </FieldGroup>
             </div>
           )}
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={closeDialog}>Cancel</Button>
-            <Button type="button" onClick={saveDialogServer}>Save</Button>
+            <Button type="button" variant="outline" onClick={closeDialog}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={saveDialogServer}>
+              Save
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={deleteTarget != null} onOpenChange={(open) => (!open ? setDeleteTarget(null) : undefined)}>
+      <AlertDialog
+        open={deleteTarget != null}
+        onOpenChange={(open) => (!open ? setDeleteTarget(null) : undefined)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete "{deleteTarget?.name || 'thisserver'}"?</AlertDialogTitle>
             <AlertDialogDescription>
-              This removes the server from your configuration. Any active connections will be closed. Save your changes to apply the deletion.
+              This removes the server from your configuration. Any active connections will be
+              closed. Save your changes to apply the deletion.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -632,29 +931,41 @@ export function McpSection(): React.ReactElement {
         </AlertDialogContent>
       </AlertDialog>
 
-      {toolsDialogServer && (() => {
-        const runtimeState = getRuntimeState(toolsDialogServer.id)
-        const discoveredTools = runtimeState?.tools ?? liveServersById.get(toolsDialogServer.id)?.lastKnownTools ?? []
-        const blockedToolsSet = new Set(
-          (toolsDialogServer.toolBlocklistText ?? '').split('\n').map(s => s.trim().toLowerCase()).filter(Boolean))
-        const allowedToolsSet = new Set(
-          (toolsDialogServer.toolAllowlistText ?? '').split('\n').map(s => s.trim().toLowerCase()).filter(Boolean))
+      {toolsDialogServer &&
+        (() => {
+          const runtimeState = getRuntimeState(toolsDialogServer.id)
+          const discoveredTools =
+            runtimeState?.tools ?? liveServersById.get(toolsDialogServer.id)?.lastKnownTools ?? []
+          const blockedToolsSet = new Set(
+            (toolsDialogServer.toolBlocklistText ?? '')
+              .split('\n')
+              .map((s) => s.trim().toLowerCase())
+              .filter(Boolean)
+          )
+          const allowedToolsSet = new Set(
+            (toolsDialogServer.toolAllowlistText ?? '')
+              .split('\n')
+              .map((s) => s.trim().toLowerCase())
+              .filter(Boolean)
+          )
 
-        return (
-          <McpToolsDialog
-            open={true}
-            onOpenChange={(open) => { if (!open) closeToolsDialog()}}
-            serverName={toolsDialogServer.name || 'Untitled Server'}
-            discoveredTools={discoveredTools}
-            blockedTools={blockedToolsSet}
-            allowedTools={allowedToolsSet}
-            onSave={(blocked) => {
-              handleSaveToolChanges(toolsDialogServer.id, blocked)
-              closeToolsDialog()
-            }}
-          />
-        )
-      })()}
+          return (
+            <McpToolsDialog
+              open={true}
+              onOpenChange={(open) => {
+                if (!open) closeToolsDialog()
+              }}
+              serverName={toolsDialogServer.name || 'Untitled Server'}
+              discoveredTools={discoveredTools}
+              blockedTools={blockedToolsSet}
+              allowedTools={allowedToolsSet}
+              onSave={(blocked) => {
+                handleSaveToolChanges(toolsDialogServer.id, blocked)
+                closeToolsDialog()
+              }}
+            />
+          )
+        })()}
     </div>
   )
 }
@@ -671,7 +982,11 @@ function ToggleField(props: {
         <div className="mcp-toggle-label">{props.label}</div>
         <div className="mcp-toggle-desc">{props.description}</div>
       </div>
-      <Switch checked={props.checked} onCheckedChange={props.onCheckedChange} aria-label={props.label} />
+      <Switch
+        checked={props.checked}
+        onCheckedChange={props.onCheckedChange}
+        aria-label={props.label}
+      />
     </div>
   )
 }
@@ -742,7 +1057,11 @@ function SecretTokenEditor(props: {
                 clearSecret: false,
               })
             }
-            placeholder={entry.valueSource === 'secret' && entry.secretStored ? 'Stored - type to replace' : 'Bearer token'}
+            placeholder={
+              entry.valueSource === 'secret' && entry.secretStored
+                ? 'Stored - type to replace'
+                : 'Bearer token'
+            }
           />
           <div className="mcp-secret-meta">
             {entry.valueSource === 'secret' && entry.secretStored && !entry.clearSecret && (
@@ -753,7 +1072,9 @@ function SecretTokenEditor(props: {
                 type="button"
                 variant="ghost"
                 size="sm"
-                onClick={() => props.onChange({ ...entry, clearSecret: !entry.clearSecret, secretValue: '' })}
+                onClick={() =>
+                  props.onChange({ ...entry, clearSecret: !entry.clearSecret, secretValue: '' })
+                }
               >
                 {entry.clearSecret ? 'Keep' : 'Clear'}
               </Button>
@@ -800,9 +1121,15 @@ function ConfigValueEditor(props: {
               entry={entry}
               kind={props.kind}
               onChange={(nextEntry) =>
-                props.onChange(props.entries.map((currentEntry) => (currentEntry.id === nextEntry.id ? nextEntry : currentEntry)))
+                props.onChange(
+                  props.entries.map((currentEntry) =>
+                    currentEntry.id === nextEntry.id ? nextEntry : currentEntry
+                  )
+                )
               }
-              onRemove={() => props.onChange(props.entries.filter((currentEntry) => currentEntry.id !== entry.id))}
+              onRemove={() =>
+                props.onChange(props.entries.filter((currentEntry) => currentEntry.id !== entry.id))
+              }
             />
           ))}
         </div>
@@ -861,7 +1188,11 @@ function ConfigValueRow(props: {
             clearSecret: false,
           })
         }
-        placeholder={props.entry.valueSource === 'secret' && props.entry.secretStored ? 'Stored - type to replace' : 'Value'}
+        placeholder={
+          props.entry.valueSource === 'secret' && props.entry.secretStored
+            ? 'Stored - type to replace'
+            : 'Value'
+        }
         className="mcp-config-value"
       />
 

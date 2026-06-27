@@ -15,6 +15,26 @@ vi.mock('@/mcp/McpContext', () => ({
   useMcp: () => mockUseMcp(),
 }))
 
+vi.mock('@/components/ui/dropdown-menu', () => ({
+  DropdownMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  DropdownMenuContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenuItem: ({
+    children,
+    disabled,
+    onSelect,
+  }: {
+    children: React.ReactNode
+    disabled?: boolean
+    onSelect?: () => void
+  }) => (
+    <button type="button" role="menuitem" disabled={disabled} onClick={onSelect}>
+      {children}
+    </button>
+  ),
+  DropdownMenuSeparator: () => <div />,
+}))
+
 describe('McpSection', () => {
   beforeEach(() => {
     mockShowToast.mockReset()
@@ -31,6 +51,9 @@ describe('McpSection', () => {
     expect(screen.getByText('Connected')).toBeTruthy()
     expect(screen.getByText('2', { selector: '.mcp-server-stat-active' })).toBeTruthy()
 
+    expect(screen.getByRole('button', { name: /edit mcp\.json/i })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /add server/i })).toBeNull()
+    expect(screen.getByRole('button', { name: 'More MCP actions' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Open actions for Filesystem' })).toBeTruthy()
   })
 
@@ -72,10 +95,10 @@ describe('McpSection', () => {
 
     render(<McpSection />)
 
-    fireEvent.click(screen.getByRole('button', { name: /add server/i }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /add manually/i }))
     fireEvent.change(screen.getByPlaceholderText('Filesystem'), { target: { value: 'Filesystem' } })
     fireEvent.change(screen.getByPlaceholderText('npx'), { target: { value: 'npx' } })
-    const argsTextarea = screen.getByPlaceholderText(/-y/) 
+    const argsTextarea = screen.getByPlaceholderText(/-y/)
     fireEvent.change(argsTextarea, { target: { value: '@modelcontextprotocol/server-filesystem' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
@@ -86,6 +109,75 @@ describe('McpSection', () => {
         command: 'npx',
       })
     )
+  })
+
+  it('applies edited mcp.json servers as replacement drafts', () => {
+    const upsertDraftServer = vi.fn()
+    const removeDraftServer = vi.fn()
+
+    mockUseMcp.mockReturnValue(
+      createMcpContextValue({
+        removeDraftServer,
+        upsertDraftServer,
+      })
+    )
+
+    render(<McpSection />)
+
+    fireEvent.click(screen.getByRole('button', { name: /edit mcp\.json/i }))
+    fireEvent.change(screen.getByPlaceholderText(/"mcpServers"/), {
+      target: {
+        value: JSON.stringify({
+          mcpServers: {
+            filesystem: {
+              command: 'npx',
+              args: ['-y', '@modelcontextprotocol/server-filesystem', 'C:\\Projects'],
+              env: {
+                GITHUB_TOKEN: 'secret-token',
+              },
+            },
+          },
+        }),
+      },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Apply JSON' }))
+
+    expect(removeDraftServer).toHaveBeenCalledWith('server-1')
+    expect(upsertDraftServer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'filesystem',
+        enabled: true,
+        trustState: 'untrusted',
+        transport: 'stdio',
+        command: 'npx',
+        argsText: '-y\n@modelcontextprotocol/server-filesystem\nC:\\Projects',
+        requireApproval: true,
+      })
+    )
+    expect(mockShowToast).toHaveBeenCalledWith(
+      'Updated 1 MCP server from mcp.json. Save changes to apply.',
+      'success'
+    )
+  })
+
+  it('opens the local MCP config file from the JSON editor', () => {
+    const openConfigFile = vi.fn(async () => ({
+      ok: true,
+      path: 'C:\\Users\\Nikhil\\AppData\\Roaming\\ZuraAI\\mcp-servers.json',
+    }))
+
+    mockUseMcp.mockReturnValue(
+      createMcpContextValue({
+        openConfigFile,
+      })
+    )
+
+    render(<McpSection />)
+
+    fireEvent.click(screen.getByRole('button', { name: /edit mcp\.json/i }))
+    fireEvent.click(screen.getByRole('button', { name: /open local file/i }))
+
+    expect(openConfigFile).toHaveBeenCalled()
   })
 })
 
@@ -150,8 +242,22 @@ function createMcpContextValue(overrides: Record<string, unknown> = {}) {
       },
     ],
     tools: [{ namespacedName: 'mcp__filesystem__read_file' }],
-    resources: [{ serverId: 'server-1', serverName: 'Filesystem', manifest: { uri: 'file:///tmp/demo.txt', title: 'Demo File' }, exposure: { userVisible: true, modelVisible: false, requiresExplicitUserAction: true } }],
-    prompts: [{ serverId: 'server-1', serverName: 'Filesystem', manifest: { name: 'summarize_demo', title: 'Summarize Demo' }, exposure: { userVisible: true, modelVisible: false, requiresExplicitUserAction: true } }],
+    resources: [
+      {
+        serverId: 'server-1',
+        serverName: 'Filesystem',
+        manifest: { uri: 'file:///tmp/demo.txt', title: 'Demo File' },
+        exposure: { userVisible: true, modelVisible: false, requiresExplicitUserAction: true },
+      },
+    ],
+    prompts: [
+      {
+        serverId: 'server-1',
+        serverName: 'Filesystem',
+        manifest: { name: 'summarize_demo', title: 'Summarize Demo' },
+        exposure: { userVisible: true, modelVisible: false, requiresExplicitUserAction: true },
+      },
+    ],
     pendingApprovals: [],
     draftServers: [server],
     hasDraftChanges: false,
@@ -161,6 +267,7 @@ function createMcpContextValue(overrides: Record<string, unknown> = {}) {
     discardDraft: vi.fn(),
     saveDraft: vi.fn(async () => undefined),
     refresh: vi.fn(async () => undefined),
+    openConfigFile: vi.fn(async () => ({ ok: true, path: 'mcp-servers.json' })),
     connectServer: vi.fn(async () => undefined),
     disconnectServer: vi.fn(async () => undefined),
     resolveApproval: vi.fn(async () => undefined),

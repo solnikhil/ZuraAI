@@ -51,6 +51,7 @@ describe('preload MCP bridge', () => {
       executeTool: (toolName: string, args: Record<string, unknown>) => Promise<unknown>
       resolveApproval: (requestId: string, approved: boolean) => Promise<unknown>
       getState: () => Promise<unknown>
+      openConfigFile: () => Promise<unknown>
     }>('mcp')
 
     preloadMocks.invoke
@@ -60,6 +61,7 @@ describe('preload MCP bridge', () => {
       .mockResolvedValueOnce({ success: true, metadata: { origin: 'mcp' } })
       .mockResolvedValueOnce({ requestId: 'approval-1', approved: true, outcome: 'approved' })
       .mockResolvedValueOnce({ servers: [], runtimeStates: [], tools: [], pendingApprovals: [] })
+      .mockResolvedValueOnce({ ok: true, path: '/tmp/mcp-servers.json' })
 
     await expect(mcp.listServers()).resolves.toEqual([{ id: 'server-1' }])
     await expect(mcp.connectServer('server-1')).resolves.toEqual({
@@ -78,14 +80,31 @@ describe('preload MCP bridge', () => {
       approved: true,
       outcome: 'approved',
     })
-    await expect(mcp.getState()).resolves.toEqual({ servers: [], runtimeStates: [], tools: [], pendingApprovals: [] })
+    await expect(mcp.getState()).resolves.toEqual({
+      servers: [],
+      runtimeStates: [],
+      tools: [],
+      pendingApprovals: [],
+    })
+    await expect(mcp.openConfigFile()).resolves.toEqual({ ok: true, path: '/tmp/mcp-servers.json' })
 
     expect(preloadMocks.invoke).toHaveBeenNthCalledWith(1, 'mcp:list-servers')
     expect(preloadMocks.invoke).toHaveBeenNthCalledWith(2, 'mcp:connect-server', 'server-1')
     expect(preloadMocks.invoke).toHaveBeenNthCalledWith(3, 'mcp:list-tools', 'server-1')
-    expect(preloadMocks.invoke).toHaveBeenNthCalledWith(4, 'mcp:execute-tool', 'mcp__server__read_file', { path: 'demo.txt' })
-    expect(preloadMocks.invoke).toHaveBeenNthCalledWith(5, 'mcp:resolve-approval', 'approval-1', true)
+    expect(preloadMocks.invoke).toHaveBeenNthCalledWith(
+      4,
+      'mcp:execute-tool',
+      'mcp__server__read_file',
+      { path: 'demo.txt' }
+    )
+    expect(preloadMocks.invoke).toHaveBeenNthCalledWith(
+      5,
+      'mcp:resolve-approval',
+      'approval-1',
+      true
+    )
     expect(preloadMocks.invoke).toHaveBeenNthCalledWith(6, 'mcp:get-state')
+    expect(preloadMocks.invoke).toHaveBeenNthCalledWith(7, 'mcp:open-config-file')
   })
 
   it('subscribes to MCP snapshot updates and unregisters listeners', () => {
@@ -98,7 +117,11 @@ describe('preload MCP bridge', () => {
 
     expect(preloadMocks.on).toHaveBeenCalledWith('mcp:state-changed', expect.any(Function))
     const listener = preloadMocks.on.mock.calls[0]?.[1]
-    const snapshot = { servers: [], runtimeStates: [{ serverId: 'server-1', status: 'connected' }], tools: [] }
+    const snapshot = {
+      servers: [],
+      runtimeStates: [{ serverId: 'server-1', status: 'connected' }],
+      tools: [],
+    }
 
     listener?.({}, snapshot)
     expect(callback).toHaveBeenCalledWith(snapshot)
@@ -121,7 +144,9 @@ describe('preload MCP bridge', () => {
     const unsubscribe = contextMenu.onAction(callback)
     expect(preloadMocks.on).toHaveBeenCalledWith('context-menu:action', expect.any(Function))
 
-    const listener = preloadMocks.on.mock.calls.find((call) => call[0] === 'context-menu:action')?.[1]
+    const listener = preloadMocks.on.mock.calls.find(
+      (call) => call[0] === 'context-menu:action'
+    )?.[1]
     listener?.({}, 'copy')
     expect(callback).toHaveBeenCalledWith('copy')
 
@@ -168,14 +193,18 @@ describe('preload MCP bridge', () => {
     )
     expect(preloadMocks.send).not.toHaveBeenCalled()
 
-    await expect(ipcRenderer.invoke('execute-tool', 'mcp__server__read_file', { path: 'demo.txt' })).resolves.toEqual({
+    await expect(
+      ipcRenderer.invoke('execute-tool', 'mcp__server__read_file', { path: 'demo.txt' })
+    ).resolves.toEqual({
       success: false,
       error: 'Tool "mcp__server__read_file" is disabled.',
     })
     expect(preloadMocks.invoke).not.toHaveBeenCalled()
 
     preloadMocks.invoke.mockResolvedValueOnce({ success: true, data: { ok: true } })
-    await expect(ipcRenderer.invoke('execute-tool', 'web_search', { query: 'mcp' })).resolves.toEqual({
+    await expect(
+      ipcRenderer.invoke('execute-tool', 'web_search', { query: 'mcp' })
+    ).resolves.toEqual({
       success: true,
       data: { ok: true },
     })
@@ -215,7 +244,9 @@ describe('preload MCP bridge', () => {
       analyticsEnabled: true,
       consentState: 'accepted',
     })
-    await expect(analytics.track('chat_message_sent', { provider: 'openrouter' })).resolves.toBe(true)
+    await expect(analytics.track('chat_message_sent', { provider: 'openrouter' })).resolves.toBe(
+      true
+    )
 
     expect(preloadMocks.invoke).toHaveBeenNthCalledWith(1, 'analytics:get-state')
     expect(preloadMocks.invoke).toHaveBeenNthCalledWith(2, 'analytics:set-enabled', true)
@@ -247,14 +278,16 @@ describe('preload MCP bridge', () => {
       recipientEmail: 'user@example.com',
     }
 
-    preloadMocks.invoke
-      .mockResolvedValueOnce(settings)
-      .mockResolvedValueOnce({ ok: true })
+    preloadMocks.invoke.mockResolvedValueOnce(settings).mockResolvedValueOnce({ ok: true })
 
     await expect(emailNotifications.applySettings(settings)).resolves.toEqual(settings)
     await expect(emailNotifications.sendTest()).resolves.toEqual({ ok: true })
 
-    expect(preloadMocks.invoke).toHaveBeenNthCalledWith(1, 'email-notifications:apply-settings', settings)
+    expect(preloadMocks.invoke).toHaveBeenNthCalledWith(
+      1,
+      'email-notifications:apply-settings',
+      settings
+    )
     expect(preloadMocks.invoke).toHaveBeenNthCalledWith(2, 'email-notifications:send-test')
     expect(() => ipcRenderer.invoke('email-notifications:send-test' as never)).toThrow(
       'Blocked IPC invoke channel: email-notifications:send-test'

@@ -9,7 +9,6 @@
 import type {
   ThinkingBlock,
   ToolCallResult,
-  Message,
 } from '../../../../../chat/types'
 import type {
   ReasoningDetail,
@@ -19,7 +18,6 @@ import type { ToolCallingResponse } from '../../../../../tools/types'
 import { isSkippedBuiltinToolResult } from '../../../../../tools/types'
 import type { AgentVerificationStrategy } from '../../../../../agent/reliability'
 import { buildAgentVerificationPrompt } from '../../../../../agent/reliability'
-import type { UpdateStreamingCallback } from './types'
 import { normalizeInlineToolCallMarkup } from '../../../../../tools/adapters/openrouterToolCalls'
 import type { SearchEvidenceItem } from '../../../../../research/types'
 import {

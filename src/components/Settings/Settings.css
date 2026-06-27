@@ -2598,6 +2598,30 @@
     }
 }
 
+.extension-detail__toolbar {
+    margin-bottom: 20px;
+}
+
+.extension-detail__back {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border: none;
+    background: transparent;
+    color: var(--theme-text-secondary);
+    font-size: 0.92rem;
+    font-weight: 500;
+    padding: 4px 6px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.extension-detail__back:hover {
+    color: var(--theme-text-primary);
+    background: color-mix(in srgb, var(--theme-surface-subtle) 88%, transparent);
+}
+
 .extension-detail__header {
     display: flex;
     align-items: flex-start;

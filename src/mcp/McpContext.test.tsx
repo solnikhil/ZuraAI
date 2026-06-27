@@ -32,9 +32,15 @@ describe('McpContext', () => {
         lastConnectionTime: null,
       })),
       getState: vi.fn(async () => createSnapshot()),
+      openConfigFile: vi.fn(async () => ({ ok: true, path: '/tmp/mcp-servers.json' })),
       listTools: vi.fn(async () => []),
       executeTool: vi.fn(async () => ({ success: true, metadata: { origin: 'mcp' } })),
-      resolveApproval: vi.fn(async () => ({ requestId: 'approval-1', approved: true, resolvedAt: Date.now(), outcome: 'approved' })),
+      resolveApproval: vi.fn(async () => ({
+        requestId: 'approval-1',
+        approved: true,
+        resolvedAt: Date.now(),
+        outcome: 'approved',
+      })),
       onStateChange: vi.fn((callback: (snapshot: unknown) => void) => {
         stateListener = callback as (snapshot: any) => void
         return () => {
@@ -113,13 +119,25 @@ describe('McpContext', () => {
 })
 
 function Probe(): React.ReactElement {
-  const { connectServer, createDraftServer, draftServers, hasDraftChanges, pendingApprovals, runtimeStates, saveDraft, tools, upsertDraftServer } = useMcp()
+  const {
+    connectServer,
+    createDraftServer,
+    draftServers,
+    hasDraftChanges,
+    pendingApprovals,
+    runtimeStates,
+    saveDraft,
+    tools,
+    upsertDraftServer,
+  } = useMcp()
 
   return (
     <div>
       <div data-testid="server-count">{draftServers.length}</div>
       <div data-testid="draft-count">{draftServers.length}</div>
-      <div data-testid="connected-count">{runtimeStates.filter((state) => state.status === 'connected').length}</div>
+      <div data-testid="connected-count">
+        {runtimeStates.filter((state) => state.status === 'connected').length}
+      </div>
       <div data-testid="tool-count">{tools.length}</div>
       <div data-testid="approval-count">{pendingApprovals.length}</div>
       <div data-testid="dirty-flag">{hasDraftChanges ? 'dirty' : 'clean'}</div>

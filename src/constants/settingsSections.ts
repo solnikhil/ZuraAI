@@ -100,7 +100,6 @@ const EXTENSION_ROUTE_ALIASES: Record<string, Pick<ResolvedSettingsNavigation, '
   notifications: { extension: 'reminders', extensionPanel: 'notifications' },
   email: { extension: 'reminders', extensionPanel: 'notifications' },
   brevo: { extension: 'reminders', extensionPanel: 'notifications' },
-  overlay: { extension: 'overlay' },
   buddyoverlay: { extension: 'overlay' },
 }
 

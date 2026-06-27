@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react'
-import { Check, MoreHorizontal, Plus } from 'lucide-react'
+import React, { useMemo } from 'react'
+import { Check, ChevronLeft, MoreHorizontal, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { SkillLogo } from '@/components/shared'
 import {
@@ -17,12 +17,12 @@ import {
   withComputerUseEnabled,
   withSkillEnabled,
   type BuiltInSkill,
-  type SkillId,
   type SkillsSettings,
 } from '@/skills'
 import { isMacOSRuntime } from '@/utils/platform'
-import { ExtensionConfigDialog } from './ExtensionConfigDialog'
+import { ExtensionDetailSection } from './ExtensionDetailSection'
 import {
+  getCatalogExtension,
   OVERLAY_CATALOG_EXTENSION,
   type CatalogExtensionId,
 } from './extensionCatalog'
@@ -37,9 +37,12 @@ export interface SkillsSectionProps {
   brevoApiKey?: string
   emailNotifications?: EmailNotificationSettings
   hasUnsavedChanges?: boolean
-  initialExtension?: CatalogExtensionId
-  initialExtensionPanel?: 'notifications'
-  onExtensionNavigationConsumed?: () => void
+  activeExtension?: CatalogExtensionId | null
+  activeExtensionPanel?: 'notifications'
+  onActiveExtensionChange: (
+    extension: CatalogExtensionId | null,
+    panel?: 'notifications'
+  ) => void
   onChange: (changes: {
     skills?: SkillsSettings
     overlay?: OverlaySettings
@@ -63,7 +66,7 @@ interface ExtensionCatalogGroupProps {
   rows: CatalogRow[]
   isEnabled: (extensionId: CatalogExtensionId) => boolean
   setEnabled: (extensionId: CatalogExtensionId, enabled: boolean) => void
-  onConfigure: (extensionId: CatalogExtensionId) => void
+  onOpen: (extensionId: CatalogExtensionId) => void
   featured?: boolean
 }
 
@@ -77,25 +80,11 @@ export function SkillsSection({
   brevoApiKey,
   emailNotifications,
   hasUnsavedChanges,
-  initialExtension,
-  initialExtensionPanel,
-  onExtensionNavigationConsumed,
+  activeExtension = null,
+  activeExtensionPanel,
+  onActiveExtensionChange,
   onChange,
 }: SkillsSectionProps): React.ReactElement {
-  const [activeExtension, setActiveExtension] = useState<CatalogExtensionId | null>(
-    initialExtension ?? null
-  )
-  const [activeExtensionPanel, setActiveExtensionPanel] = useState<'notifications' | undefined>(
-    initialExtensionPanel
-  )
-
-  useEffect(() => {
-    if (!initialExtension) return
-    setActiveExtension(initialExtension)
-    setActiveExtensionPanel(initialExtensionPanel)
-    onExtensionNavigationConsumed?.()
-  }, [initialExtension, initialExtensionPanel, onExtensionNavigationConsumed])
-
   const isEnabled = (extensionId: CatalogExtensionId): boolean => {
     if (extensionId === 'overlay') {
       return overlay?.enabled ?? false
@@ -151,14 +140,49 @@ export function SkillsSection({
     })
   }
 
-  const openExtensionConfig = (extensionId: CatalogExtensionId) => {
-    setActiveExtension(extensionId)
-    setActiveExtensionPanel(undefined)
+  const openExtension = (extensionId: CatalogExtensionId) => {
+    onActiveExtensionChange(extensionId)
   }
 
-  const closeExtensionConfig = () => {
-    setActiveExtension(null)
-    setActiveExtensionPanel(undefined)
+  if (activeExtension) {
+    const catalogEntry = getCatalogExtension(activeExtension)
+
+    return (
+      <div className="settings-section-layout" data-testid="extension-detail-view">
+        <div className="extension-detail__toolbar">
+          <button
+            type="button"
+            onClick={() => onActiveExtensionChange(null)}
+            className="extension-detail__back"
+            aria-label="Back to extensions"
+          >
+            <ChevronLeft size={16} />
+            <span>Extensions</span>
+          </button>
+        </div>
+
+        <ExtensionDetailSection
+          extensionId={activeExtension}
+          skills={skills}
+          overlay={overlay}
+          settings={settings}
+          codeExecutionAutoApprove={codeExecutionAutoApprove}
+          terminalAutoApprove={terminalAutoApprove}
+          computerUseAutoApprove={computerUseAutoApprove}
+          brevoApiKey={brevoApiKey}
+          emailNotifications={emailNotifications}
+          hasUnsavedChanges={hasUnsavedChanges}
+          initialPanel={activeExtensionPanel}
+          isEnabled={isEnabled}
+          setEnabled={setEnabled}
+          onChange={onChange}
+        />
+
+        {!catalogEntry ? (
+          <div className="page-subtitle">This extension is unavailable.</div>
+        ) : null}
+      </div>
+    )
   }
 
   return (
@@ -176,7 +200,7 @@ export function SkillsSection({
           rows={recommendedRows}
           isEnabled={isEnabled}
           setEnabled={setEnabled}
-          onConfigure={openExtensionConfig}
+          onOpen={openExtension}
           featured
         />
         <ExtensionCatalogGroup
@@ -184,30 +208,9 @@ export function SkillsSection({
           rows={systemRows}
           isEnabled={isEnabled}
           setEnabled={setEnabled}
-          onConfigure={openExtensionConfig}
+          onOpen={openExtension}
         />
       </div>
-
-      <ExtensionConfigDialog
-        open={activeExtension !== null}
-        extensionId={activeExtension}
-        skills={skills}
-        overlay={overlay}
-        settings={settings}
-        codeExecutionAutoApprove={codeExecutionAutoApprove}
-        terminalAutoApprove={terminalAutoApprove}
-        computerUseAutoApprove={computerUseAutoApprove}
-        brevoApiKey={brevoApiKey}
-        emailNotifications={emailNotifications}
-        hasUnsavedChanges={hasUnsavedChanges}
-        initialPanel={activeExtensionPanel}
-        isEnabled={isEnabled}
-        setEnabled={setEnabled}
-        onChange={onChange}
-        onOpenChange={(open) => {
-          if (!open) closeExtensionConfig()
-        }}
-      />
     </div>
   )
 }
@@ -225,7 +228,7 @@ function ExtensionCatalogGroup({
   rows,
   isEnabled,
   setEnabled,
-  onConfigure,
+  onOpen,
   featured = false,
 }: ExtensionCatalogGroupProps): React.ReactElement | null {
   if (rows.length === 0) return null
@@ -247,8 +250,8 @@ function ExtensionCatalogGroup({
               <button
                 type="button"
                 className="skills-catalog-row__main"
-                onClick={() => setEnabled(row.id, !enabled)}
-                aria-pressed={enabled}
+                onClick={() => onOpen(row.id)}
+                aria-label={`Open ${row.name} settings`}
               >
                 <span className={`skills-catalog-row__logo ${enabled ? 'skills-catalog-row__logo--enabled' : ''}`}>
                   <SkillLogo skill={row.id} size={logoSize} />
@@ -284,7 +287,7 @@ function ExtensionCatalogGroup({
                   <DropdownMenuContent align="end" className="settings-menu-surface zura-menu-surface--compact">
                     <DropdownMenuItem
                       className="zura-menu-item--compact"
-                      onClick={() => onConfigure(row.id)}
+                      onClick={() => onOpen(row.id)}
                     >
                       Configure
                     </DropdownMenuItem>

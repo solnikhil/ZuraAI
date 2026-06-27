@@ -138,6 +138,7 @@ const MCP_INVOKE_CHANNELS = new Set<string>([
   'mcp:connect-server',
   'mcp:disconnect-server',
   'mcp:get-state',
+  'mcp:open-config-file',
   'mcp:list-tools',
   'mcp:list-resources',
   'mcp:read-resource',
@@ -199,9 +200,7 @@ const EMAIL_NOTIFICATIONS_INVOKE_CHANNELS = new Set<string>([
   'email-notifications:send-test',
 ])
 
-const PROVIDER_PROXY_INVOKE_CHANNELS = new Set<string>([
-  'provider-proxy:opencode-fetch',
-])
+const PROVIDER_PROXY_INVOKE_CHANNELS = new Set<string>(['provider-proxy:opencode-fetch'])
 
 const AGENT_SKILLS_INVOKE_CHANNELS = new Set<string>([
   'agent-skills:list',
@@ -780,6 +779,14 @@ contextBridge.exposeInMainWorld(
     getState: () => {
       assertAllowed('invoke', 'mcp:get-state', MCP_INVOKE_CHANNELS)
       return ipcRenderer.invoke('mcp:get-state') as Promise<McpRuntimeSnapshot>
+    },
+    openConfigFile: () => {
+      assertAllowed('invoke', 'mcp:open-config-file', MCP_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('mcp:open-config-file') as Promise<{
+        ok: boolean
+        path?: string
+        error?: string
+      }>
     },
     listTools: (serverId?: string) => {
       assertAllowed('invoke', 'mcp:list-tools', MCP_INVOKE_CHANNELS)

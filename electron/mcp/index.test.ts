@@ -7,18 +7,33 @@ const indexMocks = vi.hoisted(() => ({
   removeHandler: vi.fn((channel: string) => {
     indexMocks.handlers.delete(channel)
   }),
-  windows: [] as Array<{ isDestroyed: () => boolean; webContents: { send: ReturnType<typeof vi.fn> } }>,
+  windows: [] as Array<{
+    isDestroyed: () => boolean
+    webContents: { send: ReturnType<typeof vi.fn> }
+  }>,
   getAllWindows: vi.fn(() => indexMocks.windows),
+  openPath: vi.fn(async () => ''),
+  getMcpStoreFilePath: vi.fn(() => '/tmp/zura-mcp-test/mcp-servers.json'),
+  saveMcpServers: vi.fn(async () => undefined),
   managerInstances: [] as MockMcpManager[],
-  approvalInstances: [] as Array<{ requestApproval: ReturnType<typeof vi.fn>; resolveApproval: ReturnType<typeof vi.fn> }>,
+  approvalInstances: [] as Array<{
+    requestApproval: ReturnType<typeof vi.fn>
+    resolveApproval: ReturnType<typeof vi.fn>
+  }>,
 }))
 
 class MockMcpManager {
   readonly initialize = vi.fn(async () => this.getSnapshot())
   readonly dispose = vi.fn(async () => undefined)
   readonly listServers = vi.fn(() => [{ id: 'server-1', name: 'Server', enabled: true }])
-  readonly addServer = vi.fn(async (serverConfig: unknown) => ({ id: 'server-2', ...toRecord(serverConfig) }))
-  readonly updateServer = vi.fn(async (serverId: string, updates: unknown) => ({ id: serverId, ...toRecord(updates) }))
+  readonly addServer = vi.fn(async (serverConfig: unknown) => ({
+    id: 'server-2',
+    ...toRecord(serverConfig),
+  }))
+  readonly updateServer = vi.fn(async (serverId: string, updates: unknown) => ({
+    id: serverId,
+    ...toRecord(updates),
+  }))
   readonly removeServer = vi.fn(async () => true)
   readonly connectServer = vi.fn(async (serverId: string) => ({
     serverId,
@@ -38,14 +53,16 @@ class MockMcpManager {
   }))
   readonly getSnapshot = vi.fn(() => ({
     servers: [{ id: 'server-1', name: 'Server', enabled: true }],
-    runtimeStates: [{
-      serverId: 'server-1',
-      status: 'connected',
-      tools: [],
-      capabilities: { tools: true, resources: false, prompts: false },
-      lastConnectionError: null,
-      lastConnectionTime: null,
-    }],
+    runtimeStates: [
+      {
+        serverId: 'server-1',
+        status: 'connected',
+        tools: [],
+        capabilities: { tools: true, resources: false, prompts: false },
+        lastConnectionError: null,
+        lastConnectionTime: null,
+      },
+    ],
     tools: [{ namespacedName: 'mcp__server__read_file' }],
     resources: [],
     prompts: [],
@@ -58,17 +75,33 @@ class MockMcpManager {
   readonly listPrompts = vi.fn(() => [])
   readonly getServerPrompts = vi.fn(async () => [])
   readonly getPrompt = vi.fn(async () => ({ messages: [] }))
-  readonly getServerTools = vi.fn(async (serverId: string) => [{ namespacedName: `mcp__${serverId}__read_file` }])
+  readonly getServerTools = vi.fn(async (serverId: string) => [
+    { namespacedName: `mcp__${serverId}__read_file` },
+  ])
   readonly getExecutableTool = vi.fn(async (namespacedToolName: string) => ({
-    server: { id: 'server-1', name: 'Server', trustState: 'trusted', transport: 'stdio', requireApproval: false },
+    server: {
+      id: 'server-1',
+      name: 'Server',
+      trustState: 'trusted',
+      transport: 'stdio',
+      requireApproval: false,
+    },
     tool: { namespacedName: namespacedToolName, toolName: 'read_file' },
     connection: {},
   }))
-  readonly executeTool = vi.fn(async (_namespacedToolName: string, args: Record<string, unknown>) => ({
-    server: { id: 'server-1', name: 'Server', trustState: 'trusted', transport: 'stdio', requireApproval: false },
-    tool: { namespacedName: 'mcp__server__read_file', toolName: 'read_file' },
-    result: { content: [{ type: 'text', text: 'ok' }], structuredContent: args, isError: false },
-  }))
+  readonly executeTool = vi.fn(
+    async (_namespacedToolName: string, args: Record<string, unknown>) => ({
+      server: {
+        id: 'server-1',
+        name: 'Server',
+        trustState: 'trusted',
+        transport: 'stdio',
+        requireApproval: false,
+      },
+      tool: { namespacedName: 'mcp__server__read_file', toolName: 'read_file' },
+      result: { content: [{ type: 'text', text: 'ok' }], structuredContent: args, isError: false },
+    })
+  )
 
   private snapshotHandler: ((snapshot: unknown) => void) | null = null
   private unsubscribe = vi.fn()
@@ -95,12 +128,20 @@ vi.mock('electron', () => ({
   BrowserWindow: {
     getAllWindows: indexMocks.getAllWindows,
   },
+  shell: {
+    openPath: indexMocks.openPath,
+  },
   ipcMain: {
     handle: vi.fn((channel: string, handler: (...args: any[]) => any) => {
       indexMocks.handlers.set(channel, handler)
     }),
     removeHandler: indexMocks.removeHandler,
   },
+}))
+
+vi.mock('./mcpStorage', () => ({
+  getMcpStoreFilePath: indexMocks.getMcpStoreFilePath,
+  saveMcpServers: indexMocks.saveMcpServers,
 }))
 
 vi.mock('./mcpManager', () => ({
@@ -113,12 +154,14 @@ vi.mock('./mcpManager', () => ({
 }))
 
 vi.mock('./rendererPayload', () => ({
-  prepareRendererMcpServerInput: vi.fn(async (serverConfig: unknown, options: { serverId: string }) => ({
-    ...(typeof serverConfig === 'object' && serverConfig !== null && !Array.isArray(serverConfig)
-      ? serverConfig
-      : {}),
-    id: options.serverId,
-  })),
+  prepareRendererMcpServerInput: vi.fn(
+    async (serverConfig: unknown, options: { serverId: string }) => ({
+      ...(typeof serverConfig === 'object' && serverConfig !== null && !Array.isArray(serverConfig)
+        ? serverConfig
+        : {}),
+      id: options.serverId,
+    })
+  ),
   clearMcpServerSecrets: vi.fn(async () => undefined),
 }))
 
@@ -156,6 +199,9 @@ describe('electron MCP handler registration', () => {
     indexMocks.handlers.clear()
     indexMocks.removeHandler.mockClear()
     indexMocks.getAllWindows.mockClear()
+    indexMocks.openPath.mockClear()
+    indexMocks.getMcpStoreFilePath.mockClear()
+    indexMocks.saveMcpServers.mockClear()
     indexMocks.managerInstances.length = 0
     indexMocks.approvalInstances.length = 0
     indexMocks.windows = [
@@ -181,6 +227,7 @@ describe('electron MCP handler registration', () => {
         'mcp:connect-server',
         'mcp:disconnect-server',
         'mcp:get-state',
+        'mcp:open-config-file',
         'mcp:list-tools',
         'mcp:list-resources',
         'mcp:read-resource',
@@ -191,27 +238,41 @@ describe('electron MCP handler registration', () => {
       ])
     )
 
-    await expect(invokeHandler('mcp:list-servers')).resolves.toEqual([{ id: 'server-1', name: 'Server', enabled: true }])
+    await expect(invokeHandler('mcp:list-servers')).resolves.toEqual([
+      { id: 'server-1', name: 'Server', enabled: true },
+    ])
     await expect(invokeHandler('mcp:connect-server', {}, ' server-1 ')).resolves.toEqual(
       expect.objectContaining({ serverId: 'server-1', status: 'connected' })
     )
     await expect(invokeHandler('mcp:list-tools', {}, 'server-1')).resolves.toEqual([
       { namespacedName: 'mcp__server-1__read_file' },
     ])
-    await expect(invokeHandler('mcp:execute-tool', {}, 'mcp__server__read_file', { path: 'demo.txt' })).resolves.toEqual(
-      expect.objectContaining({ success: true })
-    )
+    await expect(
+      invokeHandler('mcp:execute-tool', {}, 'mcp__server__read_file', { path: 'demo.txt' })
+    ).resolves.toEqual(expect.objectContaining({ success: true }))
     await expect(invokeHandler('mcp:get-state')).resolves.toEqual(manager.getSnapshot())
+    await expect(invokeHandler('mcp:open-config-file')).resolves.toEqual({
+      ok: true,
+      path: '/tmp/zura-mcp-test/mcp-servers.json',
+      error: undefined,
+    })
 
-    expect(manager.initialize).toHaveBeenCalledTimes(5)
-    expect(manager.listServers).toHaveBeenCalledTimes(1)
+    expect(manager.initialize).toHaveBeenCalledTimes(6)
+    expect(manager.listServers).toHaveBeenCalledTimes(2)
     expect(manager.connectServer).toHaveBeenCalledWith('server-1')
     expect(manager.getServerTools).toHaveBeenCalledWith('server-1')
     expect(manager.getSnapshot).toHaveBeenCalled()
+    expect(indexMocks.saveMcpServers).toHaveBeenCalledWith([
+      { id: 'server-1', name: 'Server', enabled: true },
+    ])
+    expect(indexMocks.openPath).toHaveBeenCalledWith('/tmp/zura-mcp-test/mcp-servers.json')
 
     const snapshot = manager.getSnapshot()
     manager.emitSnapshot(snapshot)
-    expect(indexMocks.windows[0]?.webContents.send).toHaveBeenCalledWith('mcp:state-changed', snapshot)
+    expect(indexMocks.windows[0]?.webContents.send).toHaveBeenCalledWith(
+      'mcp:state-changed',
+      snapshot
+    )
   })
 
   it('supports lifecycle helpers and unregisters handlers cleanly', async () => {
@@ -234,6 +295,7 @@ describe('electron MCP handler registration', () => {
     expect(manager.getUnsubscribeMock()).toHaveBeenCalledTimes(1)
     expect(indexMocks.removeHandler).toHaveBeenCalledWith('mcp:list-servers')
     expect(indexMocks.removeHandler).toHaveBeenCalledWith('mcp:list-tools')
+    expect(indexMocks.removeHandler).toHaveBeenCalledWith('mcp:open-config-file')
     expect(indexMocks.removeHandler).toHaveBeenCalledWith('mcp:list-resources')
     expect(indexMocks.removeHandler).toHaveBeenCalledWith('mcp:list-prompts')
 
@@ -246,8 +308,12 @@ describe('electron MCP handler registration', () => {
 
     mcpIndex.registerMcpHandlers()
 
-    await expect(invokeHandler('mcp:connect-server', {}, '   ')).rejects.toThrow('Invalid MCP server id')
-    await expect(invokeHandler('mcp:disconnect-server', {}, '')).rejects.toThrow('Invalid MCP server id')
+    await expect(invokeHandler('mcp:connect-server', {}, '   ')).rejects.toThrow(
+      'Invalid MCP server id'
+    )
+    await expect(invokeHandler('mcp:disconnect-server', {}, '')).rejects.toThrow(
+      'Invalid MCP server id'
+    )
   })
 
   it('does not let the renderer execute arbitrary MCP tool names or bypass approval', async () => {
@@ -278,16 +344,26 @@ describe('electron MCP handler registration', () => {
       outcome: 'rejected',
     })
 
-    await expect(invokeHandler('mcp:execute-tool', {}, 'mcp__server__read_file', { path: 'demo.txt' })).resolves.toEqual(
-      expect.objectContaining({ success: false, error: expect.stringContaining('Approval rejected') })
+    await expect(
+      invokeHandler('mcp:execute-tool', {}, 'mcp__server__read_file', { path: 'demo.txt' })
+    ).resolves.toEqual(
+      expect.objectContaining({
+        success: false,
+        error: expect.stringContaining('Approval rejected'),
+      })
     )
     expect(manager.executeTool).not.toHaveBeenCalled()
 
-    manager.getExecutableTool.mockRejectedValueOnce(new Error('Unknown or unavailable MCP tool: mcp__server__shell_exec'))
+    manager.getExecutableTool.mockRejectedValueOnce(
+      new Error('Unknown or unavailable MCP tool: mcp__server__shell_exec')
+    )
     await expect(
       invokeHandler('mcp:execute-tool', {}, 'mcp__server__shell_exec', { command: 'rm -rf /' })
     ).resolves.toEqual(
-      expect.objectContaining({ success: false, error: 'Unknown or unavailable MCP tool: mcp__server__shell_exec' })
+      expect.objectContaining({
+        success: false,
+        error: 'Unknown or unavailable MCP tool: mcp__server__shell_exec',
+      })
     )
   })
 })
@@ -312,6 +388,6 @@ function invokeHandler(channel: string, ...args: any[]) {
 
 function toRecord(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? value as Record<string, unknown>
+    ? (value as Record<string, unknown>)
     : {}
 }

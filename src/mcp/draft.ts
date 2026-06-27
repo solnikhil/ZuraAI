@@ -111,6 +111,25 @@ interface ComparableServer {
 
 const AUTHORIZATION_HEADER_NAME = 'Authorization'
 
+export interface ParseMcpJsonDraftServersOptions {
+  existingNames?: string[]
+}
+
+export interface ParseMcpJsonDraftServersResult {
+  servers: McpDraftServer[]
+  errors: string[]
+}
+
+type McpJsonConfigValue =
+  | string
+  | {
+      value?: string
+      valueSource?: McpConfigValueSource
+      secretValue?: string
+      secretStored?: boolean
+      secretKey?: string
+    }
+
 export function createEmptyMcpDraftServer(): McpDraftServer {
   const now = new Date().toISOString()
 
@@ -233,7 +252,10 @@ export function isDraftServerEqualToLiveServer(
     return false
   }
 
-  return JSON.stringify(toComparableServerFromDraft(draft)) === JSON.stringify(toComparableServerFromLive(liveServer))
+  return (
+    JSON.stringify(toComparableServerFromDraft(draft)) ===
+    JSON.stringify(toComparableServerFromLive(liveServer))
+  )
 }
 
 export function validateDraftServer(draft: McpDraftServer): string[] {
@@ -279,6 +301,71 @@ export function validateDraftServer(draft: McpDraftServer): string[] {
   return dedupeStrings(errors)
 }
 
+export function parseMcpJsonDraftServers(
+  source: string,
+  options: ParseMcpJsonDraftServersOptions = {}
+): ParseMcpJsonDraftServersResult {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(source)
+  } catch {
+    return {
+      servers: [],
+      errors: ['mcp.json is invalid.'],
+    }
+  }
+
+  const entries = extractMcpJsonServerEntries(parsed)
+  if (entries.length === 0) {
+    return {
+      servers: [],
+      errors: ['No MCP servers found. Expected a top-level "mcpServers" object.'],
+    }
+  }
+
+  const usedNames = new Set(
+    (options.existingNames ?? []).map((name) => name.trim().toLowerCase()).filter(Boolean)
+  )
+  const servers: McpDraftServer[] = []
+  const errors: string[] = []
+
+  entries.forEach(([name, rawServer], index) => {
+    const server = mcpJsonEntryToDraftServer(name, rawServer, usedNames)
+    if (!server) {
+      errors.push(`Skipped "${name || `server ${index + 1}`}" because its config is not an object.`)
+      return
+    }
+
+    const validationErrors = validateDraftServer(server)
+    if (validationErrors.length > 0) {
+      errors.push(...validationErrors.map((error) => `${server.name}: ${error}`))
+      return
+    }
+
+    servers.push(server)
+  })
+
+  if (servers.length === 0 && errors.length === 0) {
+    errors.push('No valid MCP servers found.')
+  }
+
+  return {
+    servers,
+    errors: dedupeStrings(errors),
+  }
+}
+
+export function draftServersToMcpJsonText(drafts: McpDraftServer[]): string {
+  const mcpServers = Object.fromEntries(
+    drafts.map((draft) => [
+      draft.name.trim() || 'Untitled Server',
+      draftServerToMcpJsonEntry(draft),
+    ])
+  )
+
+  return JSON.stringify({ mcpServers }, null, 2)
+}
+
 function configValueToDraft(
   entry: McpConfigValue,
   fallbackStorageKind: McpSecretStorageKind,
@@ -288,13 +375,15 @@ function configValueToDraft(
     id: `${fallbackStorageKind}-${entry.name}-${index}`,
     name: entry.name,
     valueSource: entry.valueSource,
-    value: entry.valueSource === 'plaintext' ? entry.value ?? '' : '',
+    value: entry.valueSource === 'plaintext' ? (entry.value ?? '') : '',
     secretValue: '',
     secretKey: entry.secretKey,
     secretStored: entry.valueSource === 'secret' && Boolean(entry.secretKey),
     clearSecret: false,
     secretStorageKind:
-      fallbackStorageKind === 'header' && entry.secretKey?.endsWith('.token') ? 'token' : fallbackStorageKind,
+      fallbackStorageKind === 'header' && entry.secretKey?.endsWith('.token')
+        ? 'token'
+        : fallbackStorageKind,
   }
 }
 
@@ -362,7 +451,9 @@ function draftConfigValueToPayload(entry: McpDraftConfigValue): McpConfigValueIn
   }
 }
 
-function draftAuthTokenToPayload(entry: McpDraftConfigValue | null): McpConfigValueInputPayload | null {
+function draftAuthTokenToPayload(
+  entry: McpDraftConfigValue | null
+): McpConfigValueInputPayload | null {
   if (!entry) {
     return null
   }
@@ -458,22 +549,28 @@ function normalizeComparableServer(server: ComparableServer): ComparableServer {
     toolTimeoutMs: normalizeOptionalNumber(server.toolTimeoutMs),
     reconnectAttempts: normalizeOptionalNumber(server.reconnectAttempts),
     reconnectDelayMs: normalizeOptionalNumber(server.reconnectDelayMs),
-    toolAllowlist: [...server.toolAllowlist].map((entry) => entry.trim()).filter(Boolean).sort(),
-    toolBlocklist: [...server.toolBlocklist].map((entry) => entry.trim()).filter(Boolean).sort(),
+    toolAllowlist: [...server.toolAllowlist]
+      .map((entry) => entry.trim())
+      .filter(Boolean)
+      .sort(),
+    toolBlocklist: [...server.toolBlocklist]
+      .map((entry) => entry.trim())
+      .filter(Boolean)
+      .sort(),
   }
 }
 
 function toComparableConfigValue(
   entry: McpConfigValue | McpConfigValueInputPayload
 ): ComparableConfigValue {
-  const secretStorageKind =
-    'secretStorageKind' in entry ? entry.secretStorageKind : undefined
+  const secretStorageKind = 'secretStorageKind' in entry ? entry.secretStorageKind : undefined
 
   return {
     name: entry.name.trim(),
     valueSource: entry.valueSource,
-    value: entry.valueSource === 'plaintext' ? entry.value ?? '' : undefined,
-    secretKey: entry.valueSource === 'secret' ? normalizeOptionalString(entry.secretKey) : undefined,
+    value: entry.valueSource === 'plaintext' ? (entry.value ?? '') : undefined,
+    secretKey:
+      entry.valueSource === 'secret' ? normalizeOptionalString(entry.secretKey) : undefined,
     secretStorageKind:
       entry.valueSource === 'secret' && entry.secretKey?.endsWith('.token')
         ? 'token'
@@ -483,15 +580,18 @@ function toComparableConfigValue(
 
 function sortComparableConfigValues(values: ComparableConfigValue[]): ComparableConfigValue[] {
   return [...values].sort((left, right) => {
-    return [left.name, left.valueSource, left.value ?? '', left.secretKey ?? ''].join('|').localeCompare(
-      [right.name, right.valueSource, right.value ?? '', right.secretKey ?? ''].join('|')
-    )
+    return [left.name, left.valueSource, left.value ?? '', left.secretKey ?? '']
+      .join('|')
+      .localeCompare(
+        [right.name, right.valueSource, right.value ?? '', right.secretKey ?? ''].join('|')
+      )
   })
 }
 
 function hasPendingSecretEdits(draft: McpDraftServer): boolean {
   return [...draft.env, ...draft.headers, ...(draft.authToken ? [draft.authToken] : [])].some(
-    (entry) => entry.valueSource === 'secret' && (entry.clearSecret || entry.secretValue.trim().length > 0)
+    (entry) =>
+      entry.valueSource === 'secret' && (entry.clearSecret || entry.secretValue.trim().length > 0)
   )
 }
 
@@ -532,6 +632,322 @@ function validateSecretEntry(label: string, entry: McpDraftConfigValue, errors: 
   }
 }
 
+function extractMcpJsonServerEntries(parsed: unknown): Array<[string, unknown]> {
+  if (!isRecord(parsed)) {
+    return []
+  }
+
+  const containers = [parsed.mcpServers, parsed.servers]
+  for (const container of containers) {
+    if (isRecord(container)) {
+      return Object.entries(container)
+    }
+  }
+
+  const looksLikeSingleServer =
+    typeof parsed.command === 'string' ||
+    Array.isArray(parsed.args) ||
+    typeof parsed.url === 'string'
+  if (looksLikeSingleServer) {
+    const name =
+      typeof parsed.name === 'string' && parsed.name.trim()
+        ? parsed.name.trim()
+        : 'Imported MCP Server'
+    return [[name, parsed]]
+  }
+
+  return []
+}
+
+function mcpJsonEntryToDraftServer(
+  name: string,
+  rawServer: unknown,
+  usedNames: Set<string>
+): McpDraftServer | null {
+  if (!isRecord(rawServer)) {
+    return null
+  }
+
+  const transport = normalizeMcpJsonTransport(rawServer)
+  const url = getOptionalString(rawServer.url)
+  const headers = configRecordToDraftValues(rawServer.headers, 'header')
+  const { authToken, remainingHeaders } = extractDraftAuthToken(headers)
+  const serverName = makeUniqueMcpJsonName(getOptionalString(rawServer.name) ?? name, usedNames)
+
+  return {
+    ...createEmptyMcpDraftServer(),
+    name: serverName,
+    enabled: normalizeMcpJsonEnabled(rawServer),
+    trustState: 'untrusted',
+    transport,
+    command: transport === 'stdio' ? (getOptionalString(rawServer.command) ?? '') : '',
+    argsText: normalizeMcpJsonArgs(rawServer.args).join('\n'),
+    cwd: getOptionalString(rawServer.cwd) ?? '',
+    url: transport === 'stdio' ? '' : (url ?? ''),
+    env: configRecordToDraftValues(rawServer.env, 'env'),
+    headers: remainingHeaders,
+    authToken,
+    autoConnect: rawServer.autoConnect === true,
+    requireApproval: true,
+  }
+}
+
+function normalizeMcpJsonEnabled(rawServer: Record<string, unknown>): boolean {
+  if (typeof rawServer.enabled === 'boolean') {
+    return rawServer.enabled
+  }
+
+  if (typeof rawServer.disabled === 'boolean') {
+    return !rawServer.disabled
+  }
+
+  return true
+}
+
+function normalizeMcpJsonTransport(rawServer: Record<string, unknown>): McpTransportType {
+  const rawTransport = getOptionalString(rawServer.transport) ?? getOptionalString(rawServer.type)
+  const url = getOptionalString(rawServer.url)
+  const normalizedTransport = rawTransport?.toLowerCase()
+
+  if (normalizedTransport === 'websocket' || normalizedTransport === 'ws') {
+    return 'websocket'
+  }
+
+  if (
+    normalizedTransport === 'sse' ||
+    normalizedTransport === 'http' ||
+    normalizedTransport === 'streamable-http'
+  ) {
+    return 'sse'
+  }
+
+  if (url) {
+    return /^wss?:\/\//i.test(url) ? 'websocket' : 'sse'
+  }
+
+  return 'stdio'
+}
+
+function normalizeMcpJsonArgs(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map((entry) => String(entry).trim()).filter(Boolean)
+  }
+
+  if (typeof value === 'string') {
+    return value
+      .split(/\r?\n/)
+      .map((entry) => entry.trim())
+      .filter(Boolean)
+  }
+
+  return []
+}
+
+function configRecordToDraftValues(
+  value: unknown,
+  kind: Extract<McpSecretStorageKind, 'env' | 'header'>
+): McpDraftConfigValue[] {
+  const entries = normalizeMcpJsonConfigEntries(value)
+
+  return entries.map(([name, entryValue]) => {
+    const storedSecret = normalizeMcpJsonStoredSecret(entryValue)
+    if (storedSecret) {
+      return createDraftConfigValue(kind, {
+        name,
+        valueSource: 'secret',
+        value: '',
+        secretValue: storedSecret.secretValue,
+        secretKey: storedSecret.secretKey,
+        secretStored: storedSecret.secretStored,
+        secretStorageKind: kind,
+      })
+    }
+
+    return createDraftConfigValue(kind, {
+      name,
+      valueSource: 'secret',
+      value: '',
+      secretValue: normalizeMcpJsonConfigValue(entryValue),
+      secretStorageKind: kind,
+    })
+  })
+}
+
+function draftServerToMcpJsonEntry(draft: McpDraftServer): Record<string, unknown> {
+  const entry: Record<string, unknown> = {}
+
+  if (draft.transport === 'stdio') {
+    entry.command = draft.command
+    const args = parseArgsText(draft.argsText)
+    if (args.length > 0) {
+      entry.args = args
+    }
+    if (draft.cwd.trim()) {
+      entry.cwd = draft.cwd.trim()
+    }
+  } else {
+    entry.transport = draft.transport
+    entry.url = draft.url
+  }
+
+  if (!draft.enabled) {
+    entry.disabled = true
+  }
+
+  if (draft.autoConnect) {
+    entry.autoConnect = true
+  }
+
+  const env = draftConfigValuesToMcpJsonRecord(draft.env)
+  if (Object.keys(env).length > 0) {
+    entry.env = env
+  }
+
+  const headers = draftConfigValuesToMcpJsonRecord([
+    ...(draft.authToken ? [authTokenDraftToHeaderDraft(draft.authToken)] : []),
+    ...draft.headers,
+  ])
+  if (Object.keys(headers).length > 0) {
+    entry.headers = headers
+  }
+
+  return entry
+}
+
+function draftConfigValuesToMcpJsonRecord(
+  entries: McpDraftConfigValue[]
+): Record<string, McpJsonConfigValue> {
+  return Object.fromEntries(
+    entries
+      .map((entry) => [entry.name.trim(), draftConfigValueToMcpJsonValue(entry)] as const)
+      .filter(([name]) => Boolean(name))
+  )
+}
+
+function authTokenDraftToHeaderDraft(entry: McpDraftConfigValue): McpDraftConfigValue {
+  return {
+    ...entry,
+    name: AUTHORIZATION_HEADER_NAME,
+    secretValue: entry.secretValue.trim()
+      ? ensureBearerPrefix(entry.secretValue)
+      : entry.secretValue,
+    value: entry.value.trim() ? ensureBearerPrefix(entry.value) : entry.value,
+  }
+}
+
+function draftConfigValueToMcpJsonValue(entry: McpDraftConfigValue): McpJsonConfigValue {
+  if (entry.valueSource === 'plaintext') {
+    return entry.value
+  }
+
+  if (entry.secretValue.trim()) {
+    return { valueSource: 'secret', secretValue: entry.secretValue }
+  }
+
+  if (entry.secretStored) {
+    return {
+      valueSource: 'secret',
+      secretStored: true,
+      secretKey: entry.secretKey,
+    }
+  }
+
+  return { valueSource: 'secret', secretValue: '' }
+}
+
+function normalizeMcpJsonConfigEntries(value: unknown): Array<[string, unknown]> {
+  if (isRecord(value)) {
+    return Object.entries(value)
+      .map(([name, entryValue]) => [name.trim(), entryValue] as [string, unknown])
+      .filter(([name]) => Boolean(name))
+  }
+
+  if (Array.isArray(value)) {
+    return value.flatMap((entry) => {
+      if (!isRecord(entry)) {
+        return []
+      }
+
+      const name = getOptionalString(entry.name) ?? getOptionalString(entry.key)
+      if (!name) {
+        return []
+      }
+
+      return [[name, entry.value] as [string, unknown]]
+    })
+  }
+
+  return []
+}
+
+function normalizeMcpJsonConfigValue(value: unknown): string {
+  if (isRecord(value)) {
+    const nestedValue =
+      getOptionalString(value.value) ??
+      getOptionalString(value.secretValue) ??
+      getOptionalString(value.default)
+    return nestedValue ?? ''
+  }
+
+  return String(value ?? '')
+}
+
+function normalizeMcpJsonStoredSecret(
+  value: unknown
+): Pick<McpDraftConfigValue, 'secretKey' | 'secretStored' | 'secretValue' | 'valueSource'> | null {
+  if (!isRecord(value) || value.valueSource !== 'secret') {
+    return null
+  }
+
+  return {
+    valueSource: 'secret',
+    secretValue: getOptionalString(value.secretValue) ?? getOptionalString(value.value) ?? '',
+    secretKey: getOptionalString(value.secretKey),
+    secretStored: value.secretStored === true,
+  }
+}
+
+function extractDraftAuthToken(headers: McpDraftConfigValue[]): {
+  authToken: McpDraftConfigValue | null
+  remainingHeaders: McpDraftConfigValue[]
+} {
+  let authToken: McpDraftConfigValue | null = null
+  const remainingHeaders: McpDraftConfigValue[] = []
+
+  for (const header of headers) {
+    if (
+      authToken == null &&
+      header.name.toLowerCase() === AUTHORIZATION_HEADER_NAME.toLowerCase()
+    ) {
+      authToken = {
+        ...header,
+        id: createDraftId(),
+        name: AUTHORIZATION_HEADER_NAME,
+        secretStorageKind: 'token',
+      }
+      continue
+    }
+
+    remainingHeaders.push(header)
+  }
+
+  return { authToken, remainingHeaders }
+}
+
+function makeUniqueMcpJsonName(name: string, usedNames: Set<string>): string {
+  const fallbackName = name.trim() || 'Imported MCP Server'
+  let candidate = fallbackName
+  let suffix = 2
+
+  while (usedNames.has(candidate.toLowerCase())) {
+    candidate = `${fallbackName} ${suffix}`
+    suffix += 1
+  }
+
+  usedNames.add(candidate.toLowerCase())
+  return candidate
+}
+
 function validateNumericField(label: string, rawValue: string, errors: string[]): void {
   const trimmed = rawValue.trim()
   if (!trimmed) {
@@ -542,6 +958,19 @@ function validateNumericField(label: string, rawValue: string, errors: string[])
   if (!Number.isFinite(parsed) || parsed < 0 || !Number.isInteger(parsed)) {
     errors.push(`${label} must be a non-negative whole number.`)
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function getOptionalString(value: unknown): string | undefined {
+  if (typeof value !== 'string') {
+    return undefined
+  }
+
+  const trimmed = value.trim()
+  return trimmed || undefined
 }
 
 function parseArgsText(argsText: string): string[] {
@@ -604,16 +1033,29 @@ function dedupeStrings(values: string[]): string[] {
 }
 
 function parseListText(value: string | undefined): string[] {
-  return [...new Set((value ?? '').split(/\r?\n/).map((entry) => entry.trim()).filter(Boolean))]
+  return [
+    ...new Set(
+      (value ?? '')
+        .split(/\r?\n/)
+        .map((entry) => entry.trim())
+        .filter(Boolean)
+    ),
+  ]
 }
 
-function validateToolPolicy(allowlistText: string | undefined, blocklistText: string | undefined, errors: string[]): void {
+function validateToolPolicy(
+  allowlistText: string | undefined,
+  blocklistText: string | undefined,
+  errors: string[]
+): void {
   const allowlist = new Set(parseListText(allowlistText).map((entry) => entry.toLowerCase()))
   const blocklist = new Set(parseListText(blocklistText).map((entry) => entry.toLowerCase()))
 
   for (const toolName of allowlist) {
     if (blocklist.has(toolName)) {
-      errors.push(`Tool policy conflict: "${toolName}" appears in both the allowlist and blocklist.`)
+      errors.push(
+        `Tool policy conflict: "${toolName}" appears in both the allowlist and blocklist.`
+      )
     }
   }
 }

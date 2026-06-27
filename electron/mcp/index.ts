@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto'
-import { BrowserWindow, ipcMain } from 'electron'
+import { BrowserWindow, ipcMain, shell } from 'electron'
 
 import type {
   McpApprovalOutcome,
@@ -11,6 +11,7 @@ import type {
 import { McpApprovalManager } from './mcpApprovalManager'
 import { McpManager } from './mcpManager'
 import { clearMcpServerSecrets, prepareRendererMcpServerInput } from './rendererPayload'
+import { getMcpStoreFilePath, saveMcpServers } from './mcpStorage'
 import { trackAnalyticsEvent } from '../analytics'
 
 const MCP_STATE_CHANGED_CHANNEL = 'mcp:state-changed'
@@ -36,10 +37,12 @@ function getOrCreateApprovalManager(): McpApprovalManager {
   return approvalManager
 }
 
-export async function initializeMcpManager(options: {
-  autoConnect?: boolean
-  clientInfo?: { name: string; version: string }
-} = {}): Promise<McpManager> {
+export async function initializeMcpManager(
+  options: {
+    autoConnect?: boolean
+    clientInfo?: { name: string; version: string }
+  } = {}
+): Promise<McpManager> {
   const manager = getOrCreateMcpManager()
   await manager.initialize(options)
   return manager
@@ -135,6 +138,19 @@ export function registerMcpHandlers(): void {
     return buildSnapshot(manager, approvals)
   })
 
+  ipcMain.handle('mcp:open-config-file', async () => {
+    await manager.initialize()
+    const filePath = getMcpStoreFilePath()
+    await saveMcpServers(manager.listServers())
+    const error = await shell.openPath(filePath)
+
+    return {
+      ok: !error,
+      path: filePath,
+      error: error || undefined,
+    }
+  })
+
   ipcMain.handle('mcp:list-tools', async (_event, serverId?: string) => {
     await manager.initialize()
     if (typeof serverId === 'string' && serverId.trim()) {
@@ -204,6 +220,7 @@ export function unregisterMcpHandlers(): void {
   ipcMain.removeHandler('mcp:connect-server')
   ipcMain.removeHandler('mcp:disconnect-server')
   ipcMain.removeHandler('mcp:get-state')
+  ipcMain.removeHandler('mcp:open-config-file')
   ipcMain.removeHandler('mcp:list-tools')
   ipcMain.removeHandler('mcp:list-resources')
   ipcMain.removeHandler('mcp:read-resource')
@@ -238,7 +255,10 @@ function assertApprovalRequestId(requestId: string): string {
 }
 
 function assertMcpToolName(namespacedToolName: string): string {
-  if (typeof namespacedToolName !== 'string' || !/^mcp__([a-z0-9_]+)__([a-z0-9_]+)$/.test(namespacedToolName.trim())) {
+  if (
+    typeof namespacedToolName !== 'string' ||
+    !/^mcp__([a-z0-9_]+)__([a-z0-9_]+)$/.test(namespacedToolName.trim())
+  ) {
     throw new Error('Invalid MCP tool name')
   }
 
@@ -406,7 +426,11 @@ function buildRejectedExecutionResult(
   }
 }
 
-function extractToolErrorMessage(result: { content: unknown[]; structuredContent?: unknown; isError: boolean }): string {
+function extractToolErrorMessage(result: {
+  content: unknown[]
+  structuredContent?: unknown
+  isError: boolean
+}): string {
   if (!result.isError) {
     return ''
   }

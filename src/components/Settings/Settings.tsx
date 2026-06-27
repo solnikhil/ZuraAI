@@ -318,9 +318,18 @@ if (!hasSettingsChanges && !hasMcpChanges) {
                 brevoApiKey={pendingSettings.brevoApiKey}
                 emailNotifications={pendingSettings.emailNotifications}
                 hasUnsavedChanges={hasSettingsChanges}
-                initialExtension={settingsSectionParams?.extension}
-                initialExtensionPanel={settingsSectionParams?.extensionPanel}
-                onExtensionNavigationConsumed={clearParams}
+                activeExtension={settingsSectionParams?.extension ?? null}
+                activeExtensionPanel={settingsSectionParams?.extensionPanel}
+                onActiveExtensionChange={(extension, panel) => {
+                  if (extension) {
+                    setSettingsSectionParams({
+                      extension,
+                      ...(panel ? { extensionPanel: panel } : {}),
+                    })
+                    return
+                  }
+                  clearParams()
+                }}
                 onChange={(changes) => handleChange({
                   ...changes,
                   ...(changes.skills ? { extensions: changes.skills } : {}),

@@ -1,0 +1,22 @@
+{
+  "name": "zuraai",
+  "version": "0.0.0",
+  "description": "Coming soon. Visit zuraai.in for ZuraAI.",
+  "license": "MIT",
+  "author": "Nikhil",
+  "homepage": "https://zuraai.in",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/solnikhil/ZuraAI.git",
+    "directory": "packages/zuraai"
+  },
+  "bugs": {
+    "url": "https://github.com/solnikhil/ZuraAI/issues"
+  },
+  "files": [
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

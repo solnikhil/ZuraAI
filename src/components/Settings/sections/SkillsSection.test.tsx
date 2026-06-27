@@ -2,7 +2,7 @@ import React from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { SkillsSection } from './SkillsSection'
-import { defaultSkillsSettings, withTerminalEnabled } from '../../../skills'
+import { defaultSkillsSettings } from '../../../skills'
 import { defaultSettingsConfig } from '../../../contexts/SettingsConfigContext'
 
 let isMac = false
@@ -28,19 +28,10 @@ vi.mock('@/components/ui/dropdown-menu', () => ({
   ),
 }))
 
-vi.mock('./ExtensionConfigDialog', () => ({
-  ExtensionConfigDialog: ({
-    open,
-    extensionId,
-  }: {
-    open: boolean
-    extensionId: string | null
-  }) =>
-    open && extensionId ? (
-      <div role="dialog" data-testid="extension-config-overlay">
-        {extensionId}
-      </div>
-    ) : null,
+vi.mock('./ExtensionDetailSection', () => ({
+  ExtensionDetailSection: ({ extensionId }: { extensionId: string }) => (
+    <div data-testid="extension-detail-content">{extensionId}</div>
+  ),
 }))
 
 describe('SkillsSection', () => {
@@ -55,6 +46,7 @@ describe('SkillsSection', () => {
         codeExecutionAutoApprove={false}
         terminalAutoApprove={false}
         computerUseAutoApprove={false}
+        onActiveExtensionChange={vi.fn()}
         onChange={vi.fn()}
       />
     )
@@ -76,6 +68,7 @@ describe('SkillsSection', () => {
         codeExecutionAutoApprove={false}
         terminalAutoApprove={false}
         computerUseAutoApprove={false}
+        onActiveExtensionChange={vi.fn()}
         onChange={onChange}
       />
     )
@@ -91,7 +84,8 @@ describe('SkillsSection', () => {
     }))
   })
 
-  it('opens an extension config overlay from the row menu', () => {
+  it('opens an extension settings view when clicking the row', () => {
+    const onActiveExtensionChange = vi.fn()
     render(
       <SkillsSection
         skills={defaultSkillsSettings}
@@ -100,14 +94,55 @@ describe('SkillsSection', () => {
         terminalAutoApprove={false}
         computerUseAutoApprove={false}
         emailNotifications={defaultSettingsConfig.emailNotifications}
+        onActiveExtensionChange={onActiveExtensionChange}
+        onChange={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /open web research settings/i }))
+
+    expect(onActiveExtensionChange).toHaveBeenCalledWith('web_research')
+  })
+
+  it('opens an extension settings view from the row menu', () => {
+    const onActiveExtensionChange = vi.fn()
+    render(
+      <SkillsSection
+        skills={defaultSkillsSettings}
+        settings={defaultSettingsConfig}
+        codeExecutionAutoApprove={false}
+        terminalAutoApprove={false}
+        computerUseAutoApprove={false}
+        emailNotifications={defaultSettingsConfig.emailNotifications}
+        onActiveExtensionChange={onActiveExtensionChange}
         onChange={vi.fn()}
       />
     )
 
     fireEvent.click(screen.getAllByRole('menuitem', { name: 'Configure' })[0])
 
-    expect(screen.getByTestId('extension-config-overlay')).toBeInTheDocument()
-    expect(screen.getByText('Extensions')).toBeInTheDocument()
+    expect(onActiveExtensionChange).toHaveBeenCalledWith('web_research')
+  })
+
+  it('renders inline extension settings when activeExtension is set', () => {
+    render(
+      <SkillsSection
+        skills={defaultSkillsSettings}
+        settings={defaultSettingsConfig}
+        codeExecutionAutoApprove={false}
+        terminalAutoApprove={false}
+        computerUseAutoApprove={false}
+        emailNotifications={defaultSettingsConfig.emailNotifications}
+        activeExtension="overlay"
+        overlay={defaultSettingsConfig.overlay}
+        onActiveExtensionChange={vi.fn()}
+        onChange={vi.fn()}
+      />
+    )
+
+    expect(screen.getByTestId('extension-detail-view')).toBeInTheDocument()
+    expect(screen.getByTestId('extension-detail-content')).toHaveTextContent('overlay')
+    expect(screen.getByRole('button', { name: /back to extensions/i })).toBeInTheDocument()
   })
 
   it('renders the Terminal skill on Windows and toggles it on', () => {
@@ -118,6 +153,7 @@ describe('SkillsSection', () => {
         codeExecutionAutoApprove={false}
         terminalAutoApprove={false}
         computerUseAutoApprove={false}
+        onActiveExtensionChange={vi.fn()}
         onChange={onChange}
       />
     )
@@ -140,6 +176,7 @@ describe('SkillsSection', () => {
         codeExecutionAutoApprove={false}
         terminalAutoApprove={false}
         computerUseAutoApprove={false}
+        onActiveExtensionChange={vi.fn()}
         onChange={vi.fn()}
       />
     )
@@ -156,6 +193,7 @@ describe('SkillsSection', () => {
         codeExecutionAutoApprove={false}
         terminalAutoApprove={false}
         computerUseAutoApprove={false}
+        onActiveExtensionChange={vi.fn()}
         onChange={onChange}
       />
     )
@@ -179,6 +217,7 @@ describe('SkillsSection', () => {
         codeExecutionAutoApprove={false}
         terminalAutoApprove={false}
         computerUseAutoApprove={false}
+        onActiveExtensionChange={vi.fn()}
         onChange={vi.fn()}
       />
     )
@@ -186,42 +225,23 @@ describe('SkillsSection', () => {
     expect(screen.queryByText('Overlay')).not.toBeInTheDocument()
   })
 
-  it('opens overlay extension config from deep-link params', () => {
-    const onConsumed = vi.fn()
+  it('returns to the catalog from inline extension settings', () => {
+    const onActiveExtensionChange = vi.fn()
     render(
       <SkillsSection
         skills={defaultSkillsSettings}
         overlay={defaultSettingsConfig.overlay}
+        activeExtension="overlay"
         codeExecutionAutoApprove={false}
         terminalAutoApprove={false}
         computerUseAutoApprove={false}
-        initialExtension="overlay"
-        onExtensionNavigationConsumed={onConsumed}
+        onActiveExtensionChange={onActiveExtensionChange}
         onChange={vi.fn()}
       />
     )
 
-    expect(screen.getByTestId('extension-config-overlay')).toHaveTextContent('overlay')
-    expect(onConsumed).toHaveBeenCalled()
-  })
+    fireEvent.click(screen.getByRole('button', { name: /back to extensions/i }))
 
-  it('opens memory extension config from deep-link params', () => {
-    const onConsumed = vi.fn()
-    render(
-      <SkillsSection
-        skills={defaultSkillsSettings}
-        settings={defaultSettingsConfig}
-        codeExecutionAutoApprove={false}
-        terminalAutoApprove={false}
-        computerUseAutoApprove={false}
-        emailNotifications={defaultSettingsConfig.emailNotifications}
-        initialExtension="memory"
-        onExtensionNavigationConsumed={onConsumed}
-        onChange={vi.fn()}
-      />
-    )
-
-    expect(screen.getByTestId('extension-config-overlay')).toHaveTextContent('memory')
-    expect(onConsumed).toHaveBeenCalled()
+    expect(onActiveExtensionChange).toHaveBeenCalledWith(null)
   })
 })
