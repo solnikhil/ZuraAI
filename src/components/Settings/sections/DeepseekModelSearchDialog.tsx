@@ -103,7 +103,7 @@ export function DeepseekModelSearchDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="p-0 sm:max-w-[900px] max-h-[85vh] flex flex-col" showCloseButton={false} overlayClassName="catalog-modal-backdrop">
+      <DialogContent className="provider-catalog-dialog p-0" showCloseButton={false} overlayClassName="catalog-modal-backdrop">
         <CatalogHeader
           provider="deepseek"
           title="Add Model from DeepSeek Catalog"

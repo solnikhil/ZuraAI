@@ -16,6 +16,7 @@ import { writeTextToClipboard } from '@/utils/clipboard'
 import { getDeepseekReasoning } from '@/utils/deepseekReasoning'
 import { serializeDomToMarkdown } from '@/utils/domToMarkdown'
 import { removeToolFollowUpSplitMarker } from '../messageTimeline'
+import { resolveStreamPhase } from '../hooks/streaming/streamingContentPlacement'
 import type { MessageRendererProps } from './types'
 import { areMessagePropsEqual } from './messagePropsComparison'
 import { UserMessageBubble, RenderImageFiles } from './UserMessageBubble'
@@ -106,18 +107,19 @@ function MessageRendererComponent({
 
   const isUser = message.role === 'user'
   const hasThinking = typeof message.thinking === 'string' && message.thinking.trim().length > 0
-  const isReasoningPhase = streamPhase === 'reasoning'
-  const isToolPhase = streamPhase === 'tool'
-  const showThinkingSpinner = isStreaming && isReasoningPhase && !hasThinking
-  const completedThinkingCount = completedBlocks.filter((block) => block.type === 'thinking').length
-  const activeThinkingBlockKey = `${message.id}:${completedThinkingCount}:${streamPhase || 'idle'}`
-  const hasActiveToolCalls = (activeToolCalls?.length || 0) > 0
-
   const processedDisplayContent = useMemo(
     () => processMessageContent(displayContent),
     [displayContent, processMessageContent]
   )
   const hasVisibleContent = processedDisplayContent.trim().length > 0
+  const effectiveStreamPhase = resolveStreamPhase(streamPhase ?? 'answering', hasVisibleContent)
+  const isReasoningPhase = effectiveStreamPhase === 'reasoning'
+  const isToolPhase = effectiveStreamPhase === 'tool'
+  const showThinkingSpinner = isStreaming && isReasoningPhase && !hasThinking
+  const completedThinkingCount = completedBlocks.filter((block) => block.type === 'thinking').length
+  const activeThinkingBlockKey = `${message.id}:${completedThinkingCount}`
+  const hasActiveToolCalls = (activeToolCalls?.length || 0) > 0
+
   const hasActiveThinkingState =
     hasThinking ||
     showThinkingSpinner ||

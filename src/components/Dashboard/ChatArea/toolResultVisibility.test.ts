@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { shouldHideGenericToolResultCard, shouldHideMessageToolResultCard } from './toolResultVisibility'
+import {
+  shouldHideGenericToolResultCard,
+  shouldHideMessageToolResultCard,
+  shouldSuppressNoisyToolUi,
+} from './toolResultVisibility'
 import type { ToolCallResult } from '../../../chat/types'
 import type { ToolCall, ToolResult } from '../../../tools/types'
 
@@ -42,6 +46,28 @@ describe('shouldHideGenericToolResultCard', () => {
         })
       )
     ).toBe(true)
+  })
+
+  it('hides noisy built-in creation and execution results', () => {
+    for (const toolName of [
+      'artifact_create',
+      'artifact_update',
+      'code_execution',
+      'scheduled_task_create',
+      'scheduled_task_update',
+      'scheduled_task_delete',
+      'scheduled_task_list',
+      'scheduled_task_get_logs',
+    ]) {
+      expect(
+        shouldHideGenericToolResultCard(
+          buildToolResult({
+            toolCall: { name: toolName },
+          })
+        )
+      ).toBe(true)
+      expect(shouldSuppressNoisyToolUi(toolName)).toBe(true)
+    }
   })
 
   it('hides namespaced MCP results', () => {

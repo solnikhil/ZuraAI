@@ -127,11 +127,17 @@ export function useToolCalling() {
             ? settings.enabledTools.filter((tool) => knownBuiltInTools.has(tool))
             : builtinToolNames
 
-        if (!enabledTools.includes('web_search')) {
+        const webResearchSurfaceEnabled = isSkillEnabled(settings.skills, 'web_research')
+        if (!webResearchSurfaceEnabled) {
+            enabledTools = enabledTools.filter((tool) => tool !== 'web_search')
+        } else if (!enabledTools.includes('web_search')) {
             enabledTools.push('web_search')
         }
 
-        if (!enabledTools.includes('code_execution')) {
+        const codeExecutionSurfaceEnabled = isSkillEnabled(settings.skills, 'code_execution')
+        if (!codeExecutionSurfaceEnabled) {
+            enabledTools = enabledTools.filter((tool) => tool !== 'code_execution')
+        } else if (!enabledTools.includes('code_execution')) {
             enabledTools.push('code_execution')
         }
 

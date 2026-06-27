@@ -35,6 +35,8 @@ import type {
   ScheduledTaskUpdateInput,
   OverlaySettings,
   OverlayState,
+  ProviderProxyFetchRequest,
+  ProviderProxyFetchResponse,
   PendingCodeApproval,
   PendingComputerAction,
   PendingTerminalApproval,
@@ -195,6 +197,10 @@ const ANALYTICS_INVOKE_CHANNELS = new Set<string>([
 const EMAIL_NOTIFICATIONS_INVOKE_CHANNELS = new Set<string>([
   'email-notifications:apply-settings',
   'email-notifications:send-test',
+])
+
+const PROVIDER_PROXY_INVOKE_CHANNELS = new Set<string>([
+  'provider-proxy:opencode-fetch',
 ])
 
 const AGENT_SKILLS_INVOKE_CHANNELS = new Set<string>([
@@ -487,6 +493,19 @@ contextBridge.exposeInMainWorld(
         ok: boolean
         error?: string
       }>
+    },
+  })
+)
+
+contextBridge.exposeInMainWorld(
+  'providerProxy',
+  Object.freeze({
+    fetchOpencode: (request: ProviderProxyFetchRequest) => {
+      assertAllowed('invoke', 'provider-proxy:opencode-fetch', PROVIDER_PROXY_INVOKE_CHANNELS)
+      return ipcRenderer.invoke(
+        'provider-proxy:opencode-fetch',
+        request
+      ) as Promise<ProviderProxyFetchResponse>
     },
   })
 )

@@ -111,7 +111,7 @@ describe('SettingsContext Provider Integration', () => {
 
     it('normalizes extensions from missing, legacy skills, and explicit extensions', () => {
       const missing = normalizeStoredSettings(JSON.stringify({}))
-      expect(missing.extensions.artifacts.enabled).toBe(true)
+      expect(missing.extensions.artifacts.enabled).toBe(false)
       expect(missing.skills).toEqual(missing.extensions)
 
       const legacySkills = normalizeStoredSettings(JSON.stringify({
@@ -124,8 +124,15 @@ describe('SettingsContext Provider Integration', () => {
         skills: { artifacts: { enabled: false } },
         extensions: { artifacts: { enabled: true }, web_research: { enabled: false } },
       }))
-      expect(explicitExtensions.extensions.artifacts.enabled).toBe(true)
+      expect(explicitExtensions.extensions.artifacts.enabled).toBe(false)
       expect(explicitExtensions.extensions.web_research.enabled).toBe(false)
+
+      const versionedExtensions = normalizeStoredSettings(JSON.stringify({
+        extensionDefaultsVersion: 2,
+        extensions: { artifacts: { enabled: true }, web_research: { enabled: false } },
+      }))
+      expect(versionedExtensions.extensions.artifacts.enabled).toBe(true)
+      expect(versionedExtensions.extensionDefaultsVersion).toBe(2)
     })
 
     it('migrates the legacy default title generation prompt to the hardened prompt', () => {
@@ -219,9 +226,13 @@ Rules:
       expect(defaultSettingsConfig.opencodeModels).toEqual(
         expect.arrayContaining([
           expect.objectContaining({ code: 'deepseek-v4-pro', enabled: true }),
+          expect.objectContaining({ code: 'kimi-k2.7-code', enabled: true }),
           expect.objectContaining({ code: 'glm-5.2', enabled: true }),
           expect.objectContaining({ code: 'qwen3.7-plus', enabled: true }),
         ])
+      )
+      expect(defaultSettingsConfig.opencodeModels).not.toEqual(
+        expect.arrayContaining([expect.objectContaining({ code: 'kimi-k2.7' })])
       )
     })
 
@@ -284,6 +295,43 @@ Rules:
         displayName: 'Kimi K2.5 Turbo',
         enabled: true,
       })
+    })
+
+    it('migrates the legacy OpenCode Kimi model id to the live catalog id', () => {
+      expect(
+        migrateConfiguredModelCode({
+          code: 'kimi-k2.7',
+          displayName: 'Kimi K2.7 Code',
+          enabled: true,
+        })
+      ).toEqual({
+        code: 'kimi-k2.7-code',
+        displayName: 'Kimi K2.7 Code',
+        enabled: true,
+      })
+    })
+
+    it('normalizes persisted OpenCode models away from the stale Kimi id', () => {
+      const normalized = normalizeStoredSettings(
+        JSON.stringify({
+          opencodeModels: [
+            {
+              code: 'kimi-k2.7',
+              displayName: 'Kimi K2.7 Code',
+              enabled: true,
+            },
+          ],
+        })
+      )
+
+      expect(normalized.opencodeModels).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ code: 'kimi-k2.7-code', displayName: 'Kimi K2.7 Code' }),
+        ])
+      )
+      expect(normalized.opencodeModels).not.toEqual(
+        expect.arrayContaining([expect.objectContaining({ code: 'kimi-k2.7' })])
+      )
     })
 
     it('normalizes legacy persisted streamResponses false back to true', () => {

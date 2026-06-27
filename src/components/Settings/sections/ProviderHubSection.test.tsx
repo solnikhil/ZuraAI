@@ -126,7 +126,6 @@ describe('ProviderHubSection', () => {
     render(<ProviderHubSection {...baseProps} />)
 
     expect(screen.getByRole('heading', { name: 'Providers' })).toBeInTheDocument()
-    expect(screen.getByText('Model Providers')).toBeInTheDocument()
     expect(screen.getByText('Service APIs')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /add custom model/i })).not.toBeInTheDocument()
   })
@@ -627,21 +626,21 @@ describe('ProviderHubSection', () => {
     const onChange = vi.fn()
     vi.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,
-      json: async () => ({
+      text: async () => JSON.stringify({
         object: 'list',
         data: [
           { id: 'deepseek-v4-pro', object: 'model', owned_by: 'opencode' },
-          { id: 'glm-5.2', object: 'model', owned_by: 'opencode' },
+          { id: 'kimi-k2.7-code', object: 'model', owned_by: 'opencode' },
         ],
       }),
     } as Response)
 
-    render(<ProviderHubSection {...baseProps} opencodeGoApiKey="go-key" onChange={onChange} />)
+    render(<ProviderHubSection {...baseProps} opencodeGoApiKey="" onChange={onChange} />)
 
     openProviderCatalog('OpenCode Go')
     fireEvent.click(screen.getByRole('button', { name: /add from catalog/i }))
 
-    expect(await screen.findByText('GLM 5.2')).toBeInTheDocument()
+    expect(await screen.findByText('Kimi K2.7 Code')).toBeInTheDocument()
     const addButtons = screen.getAllByRole('button', { name: /^add$/i })
     fireEvent.click(addButtons[addButtons.length - 1])
 
@@ -649,8 +648,8 @@ describe('ProviderHubSection', () => {
       expect.objectContaining({
         opencodeModels: expect.arrayContaining([
           expect.objectContaining({
-            code: 'glm-5.2',
-            displayName: 'GLM 5.2',
+            code: 'kimi-k2.7-code',
+            displayName: 'Kimi K2.7 Code',
             supportsToolCall: true,
           }),
         ]),

@@ -43,8 +43,8 @@ export function CatalogFilterBar({
   return (
     <div className="border-b border-border px-6 py-3">
       <div className="flex flex-col gap-3">
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative min-w-[260px] flex-1">
             <Search
               size={16}
               className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"

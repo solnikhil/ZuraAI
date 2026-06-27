@@ -5,7 +5,6 @@ import {
   CircleHelp,
   CheckCircle2,
   ChevronLeft,
-  ChevronRight,
   Edit2,
   Eye,
   EyeOff,
@@ -87,12 +86,14 @@ interface ProviderDefinition {
   name: string
   description: string
   apiKeyField?: ProviderSecretField
+  supportsCatalogDialog: boolean
 }
 const PROVIDERS: ProviderDefinition[] = getSettingsVisibleProviders().map((provider) => ({
   key: provider.id,
   name: provider.label,
   description: provider.description,
   apiKeyField: provider.secretKeyField,
+  supportsCatalogDialog: provider.supportsCatalogDialog,
 }))
 
 type ProviderCatalogFilter = 'all' | 'needs-setup' | 'disabled' | 'active'
@@ -135,7 +136,7 @@ function formatProviderStatusLine(
   enabledModelCount: number,
   modelCount: number
 ): string {
-  if (providerNeedsApiKey(provider, hasApiKey)) return 'API key required'
+  if (providerNeedsApiKey(provider, hasApiKey)) return 'API key not set'
   if (!provider.apiKeyField) {
     if (!enabled) return 'Local · Disabled'
     return modelCount > 0 ? `Local · ${enabledModelCount}/${modelCount} models` : 'Local · Ready'
@@ -373,7 +374,6 @@ export function ProviderHubSection({
 }: ProviderHubSectionProps): React.ReactElement {
   const normalizeVisibleProvider = (provider?: ProviderKey): ProviderKey => provider || 'openrouter'
 
-  const [manageMode, setManageMode] = useState<ManageMode>(initialManageMode ?? 'providers')
   const [catalogFilter, setCatalogFilter] = useState<ProviderCatalogFilter>('all')
   const [providerView, setProviderView] = useState<ProviderView>(
     initialProvider ? 'detail' : 'catalog'
@@ -424,22 +424,13 @@ export function ProviderHubSection({
   const apiKeyOrEndpointInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    if (manageMode !== 'providers') {
-      setProviderView('catalog')
-      if (manageMode === 'search-apis') {
-        setSearchApiView('catalog')
-      }
-    }
-  }, [manageMode])
-
-  useEffect(() => {
     if (initialProvider != null || initialManageMode != null) {
       if (initialProvider != null) {
         setSelectedProvider(normalizeVisibleProvider(initialProvider))
         setProviderView('detail')
-      }
-      if (initialManageMode != null) {
-        setManageMode(initialManageMode)
+      } else if (initialManageMode === 'search-apis') {
+        setSelectedSearchApi('tavily')
+        setSearchApiView('detail')
       }
       onParamsConsumed?.()
     }
@@ -523,6 +514,59 @@ export function ProviderHubSection({
 
     if (!response.ok && response.status !== 400) {
       throw new Error(`${failurePrefix} (${response.status}).`)
+    }
+  }
+
+  const runOpencodeConnectivityCheck = async (
+    endpoint: string,
+    apiKey: string,
+    modelCode: string,
+    signal: AbortSignal
+  ) => {
+    const url = `${endpoint}/chat/completions`
+    const body = JSON.stringify({
+      model: modelCode,
+      messages: [{ role: 'user', content: 'ping' }],
+      max_completion_tokens: 1,
+    })
+    const canUseOpencodeProxy = (() => {
+      try {
+        const parsed = new URL(url)
+        return parsed.origin === 'https://opencode.ai' && parsed.pathname.startsWith('/zen/go/')
+      } catch {
+        return false
+      }
+    })()
+    const providerProxy = (
+      window as unknown as {
+        providerProxy?: {
+          fetchOpencode?: typeof window.providerProxy.fetchOpencode
+        }
+      }
+    ).providerProxy
+
+    const response = providerProxy?.fetchOpencode && canUseOpencodeProxy
+      ? await providerProxy.fetchOpencode({
+          url,
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body,
+        })
+      : await fetch(url, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body,
+          signal,
+        })
+
+    if (!response.ok && response.status !== 400) {
+      throw new Error(`OpenCode Go check failed (${response.status}).`)
     }
   }
 
@@ -960,11 +1004,10 @@ export function ProviderHubSection({
           controller.signal
         )
       } else if (selectedProviderDef.key === 'opencode') {
-        await runChatCompletionsConnectivityCheck(
+        await runOpencodeConnectivityCheck(
           endpoint,
           selectedKey,
           connectivityModel,
-          'OpenCode Go check failed',
           controller.signal
         )
       } else if (selectedProviderDef.key === 'nvidia') {
@@ -1009,42 +1052,12 @@ export function ProviderHubSection({
         <div>
           <h2 className="page-title">Providers</h2>
           <div className="page-subtitle">
-            Manage model providers, API keys, and search APIs in one place.
+            Manage model providers, API keys, and service APIs in one place.
           </div>
-        </div>
-        <div className="provider-hub-mode-switch flex rounded-md border border-border p-1">
-          <button
-            type="button"
-            onClick={() => setManageMode('providers')}
-            className={`provider-hub-mode-switch__item rounded px-3 py-1.5 text-xs font-medium transition ${
-              manageMode === 'providers' ? 'is-active' : ''
-            }`}
-            style={{
-              background:
-                manageMode === 'providers' ? 'var(--theme-surface-active)' : 'transparent',
-              color: 'var(--theme-text-primary)',
-            }}
-          >
-            Model Providers
-          </button>
-          <button
-            type="button"
-            onClick={() => setManageMode('search-apis')}
-            className={`provider-hub-mode-switch__item rounded px-3 py-1.5 text-xs font-medium transition ${
-              manageMode === 'search-apis' ? 'is-active' : ''
-            }`}
-            style={{
-              background:
-                manageMode === 'search-apis' ? 'var(--theme-surface-active)' : 'transparent',
-              color: 'var(--theme-text-primary)',
-            }}
-          >
-            Service APIs
-          </button>
         </div>
       </div>
 
-      {manageMode === 'providers' && providerView === 'catalog' && (
+      {providerView === 'catalog' && searchApiView === 'catalog' && (
         <div className="mt-4 min-w-0 space-y-4">
           <ProviderCatalogStats
             stats={catalogStats}
@@ -1067,16 +1080,31 @@ export function ProviderHubSection({
               getApiKey={getProviderApiKey}
               modelMap={providerModelMap}
             />
+            <div className="mt-4 border-t border-border pt-4">
+              <SearchApiSection
+                apis={SEARCH_APIS}
+                filter={catalogFilter}
+                selectedApi={selectedSearchApi}
+                tavilyApiKey={tavilyApiKey}
+                onlineCompilerApiKey={onlineCompilerApiKey}
+                tavilySearchDepthPreference={tavilySearchDepthPreference}
+                onCardClick={(api) => {
+                  setSelectedSearchApi(api.key)
+                  setSearchApiView('detail')
+                }}
+                onChange={onChange}
+              />
+            </div>
           </Card>
         </div>
       )}
 
-      {manageMode === 'providers' && providerView === 'detail' && (
+      {providerView === 'detail' && searchApiView === 'catalog' && (
         <Card
-          className="settings-section-card provider-hub-base-card mt-4"
+          className="settings-section-card provider-hub-base-card mt-4 min-w-0 px-4 sm:px-5"
           style={{ background: CATALOG_BASE_BACKGROUND }}
         >
-          <div className="space-y-6">
+          <div className="min-w-0 space-y-6">
             <div className="flex items-center justify-between gap-2">
               <div className="inline-flex items-center gap-2">
                 <button
@@ -1375,8 +1403,8 @@ export function ProviderHubSection({
                 </button>
               </div>
 
-              <div className="grid items-center gap-2 md:grid-cols-[1fr_auto_auto_auto]">
-                <div className="relative">
+              <div className="grid min-w-0 items-center gap-2 md:grid-cols-[minmax(0,1fr)_auto_auto_auto]">
+                <div className="relative min-w-0">
                   <Search
                     size={16}
                     className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
@@ -1385,21 +1413,15 @@ export function ProviderHubSection({
                     value={providerModelQuery}
                     onChange={(e) => setProviderModelQuery(e.target.value)}
                     placeholder="Search models..."
-                    className="h-8 border-border bg-secondary pl-9"
+                    className="h-8 w-full border-border bg-secondary pl-9"
                   />
                 </div>
-                {(selectedProviderDef.key === 'openrouter' ||
-                  selectedProviderDef.key === 'fireworks' ||
-                  selectedProviderDef.key === 'alibaba' ||
-                  selectedProviderDef.key === 'deepseek' ||
-                  selectedProviderDef.key === 'opencode' ||
-                  selectedProviderDef.key === 'nvidia' ||
-                  selectedProviderDef.key === 'perplexity') && (
+                {selectedProviderDef.supportsCatalogDialog && (
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => openCatalogDialogForProvider(selectedProviderDef.key)}
-                    className="gap-2"
+                    className="gap-2 whitespace-nowrap"
                   >
                     <Search size={14} />
                     Add from Catalog
@@ -1410,7 +1432,7 @@ export function ProviderHubSection({
                   size="sm"
                   onClick={() => setClearModelsConfirmOpen(true)}
                   disabled={providerModels.length === 0}
-                  className="gap-2 text-rose-300 hover:text-rose-200"
+                  className="gap-2 whitespace-nowrap text-rose-300 hover:text-rose-200"
                 >
                   <Trash2 size={14} />
                   Remove All
@@ -1457,29 +1479,7 @@ export function ProviderHubSection({
         </Card>
       )}
 
-      {manageMode === 'search-apis' && searchApiView === 'catalog' && (
-        <div className="mt-4 min-w-0">
-          <Card
-            className="settings-section-card provider-hub-base-card min-w-0 overflow-y-auto p-4 sm:p-5"
-            style={{ background: CATALOG_BASE_BACKGROUND }}
-          >
-            <SearchApiSection
-              apis={SEARCH_APIS}
-              selectedApi={selectedSearchApi}
-              tavilyApiKey={tavilyApiKey}
-              onlineCompilerApiKey={onlineCompilerApiKey}
-              tavilySearchDepthPreference={tavilySearchDepthPreference}
-              onCardClick={(api) => {
-                setSelectedSearchApi(api.key)
-                setSearchApiView('detail')
-              }}
-              onChange={onChange}
-            />
-          </Card>
-        </div>
-      )}
-
-      {manageMode === 'search-apis' && searchApiView === 'detail' && (
+      {searchApiView === 'detail' && providerView === 'catalog' && (
         <SearchApiDetail
           api={SEARCH_APIS.find((a) => a.key === selectedSearchApi)!}
           tavilyApiKey={tavilyApiKey}
@@ -1813,9 +1813,7 @@ function ProviderCatalogRow({
         type="button"
         className="provider-catalog-row__main"
         onClick={onOpen}
-        aria-label={
-          setupState === 'needs-setup' ? `Set up ${provider.name}` : `Configure ${provider.name}`
-        }
+        aria-label={`Configure ${provider.name}`}
       >
         <span
           className={`provider-catalog-row__logo ${
@@ -1838,19 +1836,6 @@ function ProviderCatalogRow({
       </button>
 
       <div className="provider-catalog-row__actions">
-        {setupState === 'needs-setup' && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="provider-catalog-row__setup"
-            onClick={onOpen}
-          >
-            Set up
-            <ChevronRight size={14} aria-hidden="true" />
-          </Button>
-        )}
-
         <Switch
           className="provider-hub-toggle provider-catalog-row__toggle"
           checked={enabled}
@@ -2106,6 +2091,7 @@ function ModelGroup({
 
 function SearchApiSection({
   apis,
+  filter,
   selectedApi,
   tavilyApiKey,
   onlineCompilerApiKey,
@@ -2114,13 +2100,14 @@ function SearchApiSection({
   onChange,
 }: {
   apis: SearchApiDefinition[]
+  filter: ProviderCatalogFilter
   selectedApi: SearchApiKey
   tavilyApiKey: string
   onlineCompilerApiKey: string
   tavilySearchDepthPreference: TavilySearchDepthPreference
   onCardClick: (api: SearchApiDefinition) => void
   onChange: ProviderHubSectionProps['onChange']
-}): React.ReactElement {
+}): React.ReactElement | null {
   const getDepthSummary = (preference: TavilySearchDepthPreference): string => {
     switch (preference) {
       case 'auto':
@@ -2138,13 +2125,34 @@ function SearchApiSection({
     }
   }
 
-  const configuredCount = apis.filter((api) => {
-    const keyValue =
-      api.apiKeyField === 'tavilyApiKey'
-        ? tavilyApiKey
-        : api.apiKeyField === 'onlineCompilerApiKey'
-          ? onlineCompilerApiKey
-          : ''
+  const getApiKeyValue = (api: SearchApiDefinition): string => {
+    if (api.apiKeyField === 'tavilyApiKey') return tavilyApiKey
+    if (api.apiKeyField === 'onlineCompilerApiKey') return onlineCompilerApiKey
+    return ''
+  }
+
+  const visibleApis = apis.filter((api) => {
+    const hasKey = Boolean(
+      api.apiKeyField && typeof getApiKeyValue(api) === 'string' && getApiKeyValue(api).trim()
+    )
+    switch (filter) {
+      case 'needs-setup':
+        return !hasKey
+      case 'active':
+        return hasKey
+      case 'disabled':
+        return false
+      default:
+        return true
+    }
+  })
+
+  if (visibleApis.length === 0) {
+    return null
+  }
+
+  const configuredCount = visibleApis.filter((api) => {
+    const keyValue = getApiKeyValue(api)
     return Boolean(api.apiKeyField && typeof keyValue === 'string' && keyValue.trim())
   }).length
 
@@ -2152,19 +2160,14 @@ function SearchApiSection({
     <div className="provider-catalog" aria-label="Service APIs">
       <section className="provider-catalog-group">
         <div className="provider-catalog-group__header">
-          <h3>Search APIs</h3>
+          <h3>Service APIs</h3>
         </div>
         <p className="provider-catalog-group__summary">
-          {configuredCount}/{apis.length} configured
+          {configuredCount}/{visibleApis.length} configured
         </p>
         <div className="provider-catalog-group__grid provider-catalog-group__grid--featured">
-          {apis.map((api) => {
-            const keyValue =
-              api.apiKeyField === 'tavilyApiKey'
-                ? tavilyApiKey
-                : api.apiKeyField === 'onlineCompilerApiKey'
-                  ? onlineCompilerApiKey
-                  : ''
+          {visibleApis.map((api) => {
+            const keyValue = getApiKeyValue(api)
             const normalizedKeyValue = typeof keyValue === 'string' ? keyValue : ''
             const hasKey = Boolean(api.apiKeyField && normalizedKeyValue.trim())
             const setupState: ProviderSetupState = hasKey ? 'ready' : 'needs-setup'
@@ -2174,7 +2177,7 @@ function SearchApiSection({
                 : null
             const statusLine = hasKey
               ? speedSummary || 'Key set'
-              : 'API key required'
+              : 'API key not set'
 
             return (
               <div
@@ -2187,7 +2190,7 @@ function SearchApiSection({
                   type="button"
                   className="provider-catalog-row__main"
                   onClick={() => onCardClick(api)}
-                  aria-label={hasKey ? `Configure ${api.name}` : `Set up ${api.name}`}
+                  aria-label={`Configure ${api.name}`}
                 >
                   <span
                     className={`provider-catalog-row__logo provider-catalog-row__logo--api ${
@@ -2214,19 +2217,6 @@ function SearchApiSection({
                 </button>
 
                 <div className="provider-catalog-row__actions">
-                  {!hasKey && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="provider-catalog-row__setup"
-                      onClick={() => onCardClick(api)}
-                    >
-                      Set up
-                      <ChevronRight size={14} aria-hidden="true" />
-                    </Button>
-                  )}
-
                   <Switch
                     className="provider-hub-toggle provider-catalog-row__toggle"
                     checked={hasKey}

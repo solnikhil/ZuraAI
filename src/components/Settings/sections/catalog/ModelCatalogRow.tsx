@@ -36,23 +36,23 @@ export const ModelCatalogRow = React.forwardRef<HTMLDivElement, ModelCatalogRowP
             if (!isAdded) onAdd(item)
           }
         }}
-        className="group flex items-center justify-between gap-3 rounded-lg border border-transparent bg-secondary/40 px-3 py-2.5 outline-none transition-colors hover:border-border hover:bg-secondary/70 focus-visible:border-[var(--theme-accent)] focus-visible:bg-secondary/80"
+        className="group grid min-h-[58px] grid-cols-[minmax(0,1fr)_auto] items-center gap-4 rounded-lg border border-transparent bg-secondary/40 px-3 py-2.5 outline-none transition-colors hover:border-border hover:bg-secondary/70 focus-visible:border-[var(--theme-accent)] focus-visible:bg-secondary/80"
         style={
           focused
             ? { borderColor: 'var(--theme-accent)', background: 'var(--theme-surface-active)' }
             : undefined
         }
       >
-        <div className="flex min-w-0 flex-1 items-center gap-2.5">
+        <div className="flex min-w-0 items-center gap-2.5">
           <span
             className="size-2 shrink-0 rounded-full"
             style={{ background: accent, opacity: isAdded ? 0.4 : 1 }}
             aria-hidden="true"
           />
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-0 items-center gap-2">
               <WithTooltip tooltip={item.displayName}>
-                <span className="truncate text-sm font-medium text-foreground">
+                <span className="min-w-0 truncate text-sm font-medium text-foreground">
                   {item.displayName}
                 </span>
               </WithTooltip>
@@ -76,7 +76,7 @@ export const ModelCatalogRow = React.forwardRef<HTMLDivElement, ModelCatalogRowP
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex min-w-fit shrink-0 items-center justify-end gap-2">
           {item.capabilities.length > 0 && (
             <div className="hidden items-center gap-1 md:flex">
               {item.capabilities.map((capKey) => {

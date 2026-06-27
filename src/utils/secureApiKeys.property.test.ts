@@ -3,16 +3,19 @@
  *
  * These tests verify the correctness properties for secure storage of API keys
  * including OpenRouter, Perplexity, Groq, Tavily, Alibaba, DeepSeek,
- * Fireworks, and Online Compiler.
+ * Fireworks, NVIDIA, OpenCode Go, Brevo, and Online Compiler.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import * as fc from 'fast-check'
 import {
+  SECURE_API_KEY_NAMES,
   loadApiKeysFromSecureStorage,
   saveApiKeyToSecureStorage,
   migrateApiKeysFromLocalStorage,
 } from './secureApiKeys'
+
+type SecureApiKeyName = (typeof SECURE_API_KEY_NAMES)[number]
 
 // Mock window.secureStorage
 const mockSecureStorage = {
@@ -58,25 +61,7 @@ describe('Secure API Keys Property Tests', () => {
     const apiKeyArb = fc.string({ minLength: 1, maxLength: 100 }).filter((s) => s.trim().length > 0)
 
     // Arbitrary for generating API key names
-    const apiKeyNameArb = fc.constantFrom(
-      'openRouterApiKey',
-      'perplexityApiKey',
-      'groqApiKey',
-      'tavilyApiKey',
-      'alibabaApiKey',
-      'deepseekApiKey',
-      'fireworksApiKey',
-      'onlineCompilerApiKey'
-    ) as fc.Arbitrary<
-      | 'openRouterApiKey'
-      | 'perplexityApiKey'
-      | 'groqApiKey'
-      | 'tavilyApiKey'
-      | 'alibabaApiKey'
-      | 'deepseekApiKey'
-      | 'fireworksApiKey'
-      | 'onlineCompilerApiKey'
-    >
+    const apiKeyNameArb = fc.constantFrom(...SECURE_API_KEY_NAMES) as fc.Arbitrary<SecureApiKeyName>
 
     it('should return identical value after save and load for any API key', async () => {
       await fc.assert(
@@ -185,8 +170,11 @@ describe('Secure API Keys Property Tests', () => {
             tavilyApiKey: apiKeyArb,
             alibabaApiKey: apiKeyArb,
             deepseekApiKey: apiKeyArb,
+            opencodeGoApiKey: apiKeyArb,
             fireworksApiKey: apiKeyArb,
+            nvidiaApiKey: apiKeyArb,
             onlineCompilerApiKey: apiKeyArb,
+            brevoApiKey: apiKeyArb,
           }),
           async (allKeys) => {
             mockSecureStorage.getAll.mockResolvedValue(allKeys)
@@ -201,8 +189,11 @@ describe('Secure API Keys Property Tests', () => {
             expect(loadedKeys.tavilyApiKey).toBe(allKeys.tavilyApiKey)
             expect(loadedKeys.alibabaApiKey).toBe(allKeys.alibabaApiKey)
             expect(loadedKeys.deepseekApiKey).toBe(allKeys.deepseekApiKey)
+            expect(loadedKeys.opencodeGoApiKey).toBe(allKeys.opencodeGoApiKey)
             expect(loadedKeys.fireworksApiKey).toBe(allKeys.fireworksApiKey)
+            expect(loadedKeys.nvidiaApiKey).toBe(allKeys.nvidiaApiKey)
             expect(loadedKeys.onlineCompilerApiKey).toBe(allKeys.onlineCompilerApiKey)
+            expect(loadedKeys.brevoApiKey).toBe(allKeys.brevoApiKey)
           }
         ),
         { numRuns: 100 }
@@ -229,25 +220,7 @@ describe('Secure API Keys Property Tests', () => {
       // Remove secureStorage from window
       ;(global as any).window = {}
 
-      const saveKeyArb = fc.constantFrom(
-        'openRouterApiKey',
-        'perplexityApiKey',
-        'groqApiKey',
-        'tavilyApiKey',
-        'alibabaApiKey',
-        'deepseekApiKey',
-        'fireworksApiKey',
-        'onlineCompilerApiKey'
-      ) as fc.Arbitrary<
-        | 'openRouterApiKey'
-        | 'perplexityApiKey'
-        | 'groqApiKey'
-        | 'tavilyApiKey'
-        | 'alibabaApiKey'
-        | 'deepseekApiKey'
-        | 'fireworksApiKey'
-        | 'onlineCompilerApiKey'
-      >
+      const saveKeyArb = fc.constantFrom(...SECURE_API_KEY_NAMES) as fc.Arbitrary<SecureApiKeyName>
 
       await fc.assert(
         fc.asyncProperty(saveKeyArb, apiKeyArb, async (keyName, keyValue) => {

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import {
   appendCompletedThinkingBlock,
+  shouldSkipStrayReasoningDelta,
   buildAgentVerificationMessages,
   buildDeterministicSearchSynthesis,
   buildFollowUpMessages,
@@ -101,6 +102,27 @@ describe('streamingUtils final synthesis helpers', () => {
     })
   })
 
+  it('skips stray duplicate reasoning prefixes after answer content has started', () => {
+    const completedBlocks = [
+      {
+        type: 'thinking' as const,
+        content: 'The user just said hello.',
+        duration: 900,
+        timestamp: 1,
+      },
+    ]
+
+    expect(
+      shouldSkipStrayReasoningDelta('The', completedBlocks, '', true)
+    ).toBe(true)
+    expect(
+      shouldSkipStrayReasoningDelta(' more detail', completedBlocks, '', true)
+    ).toBe(false)
+    expect(
+      shouldSkipStrayReasoningDelta('The', completedBlocks, '', false)
+    ).toBe(false)
+  })
+
   it('builds fallback reasoning transcripts from completed blocks and the active segment', () => {
     const transcript = getThinkingTranscript(
       [
@@ -115,7 +137,7 @@ describe('streamingUtils final synthesis helpers', () => {
 
   it('publishes tool results into streaming state as soon as they complete', () => {
     const updateStreaming = vi.fn()
-    const updateStreamingMessage = vi.fn()
+    const publishProgress = vi.fn()
     const thinkingBlocks = [
       {
         type: 'tool' as const,
@@ -151,16 +173,18 @@ describe('streamingUtils final synthesis helpers', () => {
 
     publishStreamingToolResults(
       updateStreaming,
-      updateStreamingMessage,
-      'session-1',
-      'message-1',
+      publishProgress,
       toolResults,
       thinkingBlocks
     )
 
-    expect(updateStreaming).toHaveBeenCalledWith({ toolResults })
-    expect(updateStreamingMessage).toHaveBeenCalledWith('session-1', 'message-1', {
+    expect(updateStreaming).toHaveBeenCalledWith({
       toolResults,
+      thinkingBlocks,
+    })
+    expect(publishProgress).toHaveBeenCalledWith({
+      toolResults,
+      thinkingBlocks,
     })
   })
 

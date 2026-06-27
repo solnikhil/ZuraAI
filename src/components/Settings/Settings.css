@@ -2900,6 +2900,25 @@
     box-shadow: 0 16px 28px rgba(0, 0, 0, 0.2);
 }
 
+.provider-catalog-dialog {
+    width: min(1080px, calc(100vw - 48px)) !important;
+    max-width: min(1080px, calc(100vw - 48px)) !important;
+    height: min(760px, calc(100vh - 64px));
+    max-height: calc(100vh - 64px);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+@media (max-width: 640px) {
+    .provider-catalog-dialog {
+        width: calc(100vw - 24px) !important;
+        max-width: calc(100vw - 24px) !important;
+        height: calc(100vh - 32px);
+        max-height: calc(100vh - 32px);
+    }
+}
+
 .provider-hub-provider-card,
 .provider-hub-api-card {
     border: 1px solid color-mix(in srgb, var(--theme-border) 74%, transparent) !important;

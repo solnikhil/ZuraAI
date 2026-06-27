@@ -1,0 +1,4129 @@
+bun : $ vitest --run src/services/opencode.test.ts src/providers/providerRuntime.opencode.test.ts 
+src/components/Dashboard/ChatArea/hooks/streaming/streamingUtils.test.ts 
+src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts
+At line:1 char:43
++ ... ra\ZuraAI"; bun run test -- src/services/opencode.test.ts src/provide ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ($ vitest --run ...reaming.test.ts:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+ RUN  v4.1.5 C:/Users/Nikhil/Desktop/Zura/ZuraAI
+
+ ✓ src/services/opencode.test.ts (10 tests) 40ms
+ ✓ src/components/Dashboard/ChatArea/hooks/streaming/streamingUtils.test.ts (22 tests) 24ms
+ ❯ src/providers/providerRuntime.opencode.test.ts (5 tests | 3 failed) 18ms
+     × emits text, tool-call, usage, and finish events from the opencode stream branch 10ms
+     × emits reasoning-delta events from the opencode stream when reasoning_content deltas arrive 1ms
+     ✓ emits reasoning-delta from the opencode non-stream branch when reasoning_content is present 1ms
+     × drops duplicate opencode reasoning prefixes echoed after answer content starts 1ms
+     ✓ emits normalized completion events from the opencode non-stream branch 3ms
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > publishes completed thinking when reasoning is followed directly by a tool call
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'openai/gpt-4.1',
+  sessionId: 'session-1',
+  searchCount: 1,
+  needsFollowUp: false,
+  toolNames: [ 'web_search' ]
+}
+stderr | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > 
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > never resets phase to reasoning after visible preamble content exists
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'openai/gpt-4.1',
+  sessionId: 'session-1',
+  searchCount: 1,
+  needsFollowUp: true,
+  toolNames: [ 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'openai/gpt-4.1',
+  totalSearchCount: 1,
+  researchRound: 1,
+  initialQueries: [ 'zura' ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start { researchRound: 1, totalSearchCount: 1, priorQueries: [ 'zura' ] }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > never resets phase to reasoning after visible preamble content exists
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 1, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > finalizes reasoning before tool execution so tool time is not counted
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'anthropic/claude-sonnet-4.5',
+  sessionId: 'session-1',
+  searchCount: 1,
+  needsFollowUp: false,
+  toolNames: [ 'web_search' ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > reuses the same orchestrator for tool calls and follow-up answers
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'openai/gpt-4.1',
+  sessionId: 'session-1',
+  searchCount: 1,
+  needsFollowUp: true,
+  toolNames: [ 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'openai/gpt-4.1',
+  totalSearchCount: 1,
+  researchRound: 1,
+  initialQueries: [ 'zura' ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start { researchRound: 1, totalSearchCount: 1, priorQueries: [ 'zura' ] }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > reuses the same orchestrator for tool calls and follow-up answers
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 1, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > publishes progressive updates during a tool-enabled follow-up after a tool batch
+[research-loop] initial-tool-result {
+  provider: 'deepseek',
+  model: 'deepseek-v4-pro',
+  sessionId: 'session-synthesis',
+  searchCount: 1,
+  needsFollowUp: true,
+  toolNames: [ 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'deepseek',
+  model: 'deepseek-v4-pro',
+  totalSearchCount: 1,
+  researchRound: 1,
+  initialQueries: [ 'zura' ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start { researchRound: 1, totalSearchCount: 1, priorQueries: [ 'zura' ] }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > publishes progressive updates during a tool-enabled follow-up after a tool batch
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 1, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > records the tool follow-up split marker so pre-tool preamble text stays above the tool block
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'openai/gpt-4.1',
+  sessionId: 'session-1',
+  searchCount: 1,
+  needsFollowUp: true,
+  toolNames: [ 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'openai/gpt-4.1',
+  totalSearchCount: 1,
+  researchRound: 1,
+  initialQueries: [ 'zura' ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start { researchRound: 1, totalSearchCount: 1, priorQueries: [ 'zura' ] }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > records the tool follow-up split marker so pre-tool preamble text stays above the tool block
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 1, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > adds a verification prompt after successful mutating agent tool results
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'openai/gpt-4.1',
+  sessionId: 'session-1',
+  searchCount: 0,
+  needsFollowUp: true,
+  toolNames: [ 'file_move' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'openai/gpt-4.1',
+  totalSearchCount: 0,
+  researchRound: 1,
+  initialQueries: [],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start { researchRound: 1, totalSearchCount: 0, priorQueries: [] }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > adds a verification prompt after successful mutating agent tool results
+[research-loop] follow-up-tool-result {
+  researchRound: 1,
+  newWebSearches: 0,
+  totalSearchCount: 0,
+  nextQueries: [],
+  needsFollowUp: true
+}
+[research-loop] follow-up-round-start { researchRound: 2, totalSearchCount: 0, priorQueries: [] }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > adds a verification prompt after successful mutating agent tool results
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 2, totalSearchCount: 0, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > preserves OpenRouter reasoning_details on tool-call follow-up messages
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'anthropic/claude-sonnet-4.5',
+  sessionId: 'session-1',
+  searchCount: 1,
+  needsFollowUp: false,
+  toolNames: [ 'web_search' ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > preserves pre-tool assistant text as visible message content for non-reasoning models
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'openai/gpt-4.1',
+  sessionId: 'session-1',
+  searchCount: 1,
+  needsFollowUp: false,
+  toolNames: [ 'web_search' ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > recovers DSML-style tool markup during tool-enabled research rounds without leaking it
+[research-loop] initial-tool-result {
+  provider: 'deepseek',
+  model: 'deepseek-v4-flash',
+  sessionId: 'session-1',
+  searchCount: 1,
+  needsFollowUp: false,
+  toolNames: [ 'web_search' ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > suppresses DSML-style tool markup during final no-tools synthesis and recovers a normal answer
+[research-loop] initial-tool-result {
+  provider: 'deepseek',
+  model: 'deepseek-v4-flash',
+  sessionId: 'session-1',
+  searchCount: 1,
+  needsFollowUp: true,
+  toolNames: [ 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'deepseek',
+  model: 'deepseek-v4-flash',
+  totalSearchCount: 1,
+  researchRound: 1,
+  initialQueries: [ 'cursor pricing' ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 1,
+  priorQueries: [ 'cursor pricing' ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > suppresses DSML-style tool markup during final no-tools synthesis and recovers a normal answer
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 1, hasAnswerText: false }
+[research-loop] tool-loop-stopped {
+  reason: 'empty-follow-up-answer',
+  totalSearchCount: 1,
+  researchRound: 1
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > suppresses DSML-stretries fullwidth DSML web_search markup leaked during no-tools synthesis without executing it
+[tool-markup-leak] detected {
+  provider: 'deepseek',
+  model: 'deepseek-v4-pro',
+  roundType: 'tool-enabled',
+  format: 'dsml',
+  rawPreview: '<||DSML||tool_calls><||DSML||invoke name="web_search"><||DSML||parameter name="query" 
+string="true">Kiro brand ambassador program official welcome 
+kit</||DSML||parameter></||DSML||invoke></||DSML||tool_calls>'
+}
+[tool-markup-leak] recovered {
+  provider: 'deepseek',
+  model: 'deepseek-v4-pro',
+  roundType: 'tool-enabled',
+  format: 'dsml',
+  toolNames: [ 'web_search' ],
+  cleanedContentLength: 0,
+  rawPreview: '<||DSML||tool_calls><||DSML||invoke name="web_search"><||DSML||parameter name="query" 
+string="true">Kiro brand ambassador program official welcome 
+kit</||DSML||parameter></||DSML||invoke></||DSML||tool_calls>'
+}
+yle tool markup during final no-tools synthesis and recovers a normal answer
+[research-loop] synthesis-retry { attempt: 1, outcome: 'leaked-or-ungrounded', baseRound: 1 }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > supports parallel web_search batches until the total executed cap is reached
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'openai/gpt-4.1',
+  sessionId: 'session-1',
+  searchCount: 3,
+  needsFollowUp: true,
+  toolNames: [ 'web_search', 'web_search', 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'openai/gpt-4.1',
+  totalSearchCount: 3,
+  researchRound: 1,
+  initialQueries: [ 'zura ai overview', 'zura ai pricing', 'zura ai docs' ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 3,
+  priorQueries: [ 'zura ai overview', 'zura ai pricing', 'zura ai docs' ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > supports parallel web_search batches until the total executed cap is reached
+[research-loop] follow-up-tool-result {
+  researchRound: 1,
+  newWebSearches: 5,
+  totalSearchCount: 8,
+  nextQueries: [
+    'zura ai reviews',
+    'zura ai changelog',
+    'zura ai github',
+    'zura ai release notes',
+    'zura ai roadmap'
+  ],
+  needsFollowUp: true
+}
+[research-loop] follow-up-round-start {
+  researchRound: 2,
+  totalSearchCount: 8,
+  priorQueries: [
+    'zura ai overview',
+    'zura ai pricing',
+    'zura ai docs',
+    'zura ai reviews',
+    'zura ai changelog',
+    'zura ai github',
+    'zura ai release notes',
+    'zura ai roadmap'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > supports parallel web_search batches until the total executed cap is reached
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 2, totalSearchCount: 8, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > passes a five-search batch into the next synthesis turn in order
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'openai/gpt-4.1',
+  sessionId: 'session-1',
+  searchCount: 5,
+  needsFollowUp: true,
+  toolNames: [
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search'
+  ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'openai/gpt-4.1',
+  totalSearchCount: 5,
+  researchRound: 1,
+  initialQueries: [
+    'AI market size 2021',
+    'AI market size 2022',
+    'AI market size 2023',
+    'AI market size 2024',
+    'AI market size 2025'
+  ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 5,
+  priorQueries: [
+    'AI market size 2021',
+    'AI market size 2022',
+    'AI market size 2023',
+    'AI market size 2024',
+    'AI market size 2025'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > passes a five-search batch into the next synthesis turn in order
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 5, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > grants a second tool-enabled round after a successful first batch with budget remaining
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'openai/gpt-4.1',
+  sessionId: 'session-1',
+  searchCount: 1,
+  needsFollowUp: true,
+  toolNames: [ 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'openai/gpt-4.1',
+  totalSearchCount: 1,
+  researchRound: 1,
+  initialQueries: [ 'MrBeast subscribers 2026' ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 1,
+  priorQueries: [ 'MrBeast subscribers 2026' ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > grants a second tool-enabled round after a successful first batch with budget remaining
+[research-loop] follow-up-tool-result {
+  researchRound: 1,
+  newWebSearches: 1,
+  totalSearchCount: 2,
+  nextQueries: [ 'best YouTuber ranking 2026' ],
+  needsFollowUp: true
+}
+[research-loop] follow-up-round-start {
+  researchRound: 2,
+  totalSearchCount: 2,
+  priorQueries: [ 'MrBeast subscribers 2026', 'best YouTuber ranking 2026' ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > grants a second tool-enabled round after a successful first batch with budget remaining
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 2, totalSearchCount: 2, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > reaches final synthesized answer after explicit research budget is exhausted (via normal tool result flow when model emits over-budget call)
+[research-loop] initial-tool-result {
+  provider: 'fireworks',
+  model: 'accounts/fireworks/routers/kimi-k2p5-turbo',
+  sessionId: 'session-1',
+  searchCount: 1,
+  needsFollowUp: true,
+  toolNames: [ 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'fireworks',
+  model: 'accounts/fireworks/routers/kimi-k2p5-turbo',
+  totalSearchCount: 1,
+  researchRound: 1,
+  initialQueries: [ 'research angle 1' ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 1,
+  priorQueries: [ 'research angle 1' ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > reaches final synthesized answer after explicit research budget is exhausted (via normal tool result flow when model emits over-budget call)
+[research-loop] follow-up-tool-result {
+  researchRound: 1,
+  newWebSearches: 1,
+  totalSearchCount: 2,
+  nextQueries: [ 'research angle 2' ],
+  needsFollowUp: true
+}
+[research-loop] follow-up-round-start {
+  researchRound: 2,
+  totalSearchCount: 2,
+  priorQueries: [ 'research angle 1', 'research angle 2' ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > reaches final synthesized answer after explicit research budget is exhausted (via normal tool result flow when model emits over-budget call)
+[research-loop] follow-up-tool-result {
+  researchRound: 2,
+  newWebSearches: 1,
+  totalSearchCount: 3,
+  nextQueries: [ 'research angle 3' ],
+  needsFollowUp: true
+}
+[research-loop] follow-up-round-start {
+  researchRound: 3,
+  totalSearchCount: 3,
+  priorQueries: [ 'research angle 1', 'research angle 2', 'research angle 3' ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > reaches final synthesized answer after explicit research budget is exhausted (via normal tool result flow when model emits over-budget call)
+[research-loop] follow-up-tool-result {
+  researchRound: 3,
+  newWebSearches: 1,
+  totalSearchCount: 4,
+  nextQueries: [ 'research angle 4' ],
+  needsFollowUp: true
+}
+[research-loop] follow-up-round-start {
+  researchRound: 4,
+  totalSearchCount: 4,
+  priorQueries: [
+    'research angle 1',
+    'research angle 2',
+    'research angle 3',
+    'research angle 4'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > reaches final synthesized answer after explicit research budget is exhausted (via normal tool result flow when model emits over-budget call)
+[research-loop] follow-up-tool-result {
+  researchRound: 4,
+  newWebSearches: 1,
+  totalSearchCount: 5,
+  nextQueries: [ 'research angle 5' ],
+  needsFollowUp: true
+}
+[research-loop] follow-up-round-start {
+  researchRound: 5,
+  totalSearchCount: 5,
+  priorQueries: [
+    'research angle 1',
+    'research angle 2',
+    'research angle 3',
+    'research angle 4',
+    'research angle 5'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > reaches final synthesized answer after explicit research budget is exhausted (via normal tool result flow when model emits over-budget call)
+[research-loop] follow-up-tool-result {
+  researchRound: 5,
+  newWebSearches: 1,
+  totalSearchCount: 6,
+  nextQueries: [ 'research angle 6' ],
+  needsFollowUp: true
+}
+[research-loop] follow-up-round-start {
+  researchRound: 6,
+  totalSearchCount: 6,
+  priorQueries: [
+    'research angle 1',
+    'research angle 2',
+    'research angle 3',
+    'research angle 4',
+    'research angle 5',
+    'research angle 6'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > reaches final synthesized answer after explicit research budget is exhausted (via normal tool result flow when model emits over-budget call)
+[research-loop] follow-up-tool-result {
+  researchRound: 6,
+  newWebSearches: 1,
+  totalSearchCount: 7,
+  nextQueries: [ 'research angle 7' ],
+  needsFollowUp: true
+}
+[research-loop] follow-up-round-start {
+  researchRound: 7,
+  totalSearchCount: 7,
+  priorQueries: [
+    'research angle 1',
+    'research angle 2',
+    'research angle 3',
+    'research angle 4',
+    'research angle 5',
+    'research angle 6',
+    'research angle 7'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > reaches final synthesized answer after explicit research budget is exhausted (via normal tool result flow when model emits over-budget call)
+[research-loop] follow-up-tool-result {
+  researchRound: 7,
+  newWebSearches: 1,
+  totalSearchCount: 8,
+  nextQueries: [ 'research angle 8' ],
+  needsFollowUp: true
+}
+[research-loop] follow-up-round-start {
+  researchRound: 8,
+  totalSearchCount: 8,
+  priorQueries: [
+    'research angle 1',
+    'research angle 2',
+    'research angle 3',
+    'research angle 4',
+    'research angle 5',
+    'research angle 6',
+    'research angle 7',
+    'research angle 8'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > reaches final synthesized answer after explicit research budget is exhausted (via normal tool result flow when model emits over-budget call)
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 8, totalSearchCount: 8, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > allows repeated same-facet searches while budget remains
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'openai/gpt-4.1',
+  sessionId: 'session-1',
+  searchCount: 1,
+  needsFollowUp: true,
+  toolNames: [ 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'openai/gpt-4.1',
+  totalSearchCount: 1,
+  researchRound: 1,
+  initialQueries: [ 'cursor pricing plans enterprise' ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 1,
+  priorQueries: [ 'cursor pricing plans enterprise' ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > allows repeated same-facet searches while budget remains
+[research-loop] follow-up-tool-result {
+  researchRound: 1,
+  newWebSearches: 1,
+  totalSearchCount: 2,
+  nextQueries: [ 'cursor team pricing costs' ],
+  needsFollowUp: true
+}
+[research-loop] follow-up-round-start {
+  researchRound: 2,
+  totalSearchCount: 2,
+  priorQueries: [ 'cursor pricing plans enterprise', 'cursor team pricing costs' ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > allows repeated same-facet searches while budget remains
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 2, totalSearchCount: 2, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > keeps assistant text from tool-call rounds and separates it from follow-up answers
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'openai/gpt-4.1',
+  sessionId: 'session-1',
+  searchCount: 1,
+  needsFollowUp: true,
+  toolNames: [ 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'openai/gpt-4.1',
+  totalSearchCount: 1,
+  researchRound: 1,
+  initialQueries: [ 'Cursor code editor history' ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 1,
+  priorQueries: [ 'Cursor code editor history' ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > keeps assistant text from tool-call rounds and separates it from follow-up answers
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 1, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > keeps follow-up tool-call narration out of the visible answer while preserving tool transcripts
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'openai/gpt-4.1',
+  sessionId: 'session-1',
+  searchCount: 1,
+  needsFollowUp: true,
+  toolNames: [ 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'openai/gpt-4.1',
+  totalSearchCount: 1,
+  researchRound: 1,
+  initialQueries: [ 'WWDC 2026 no new hardware' ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 1,
+  priorQueries: [ 'WWDC 2026 no new hardware' ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > keeps follow-up tool-call narration out of the visible answer while preserving tool transcripts
+[research-loop] follow-up-tool-result {
+  researchRound: 1,
+  newWebSearches: 1,
+  totalSearchCount: 2,
+  nextQueries: [ 'WWDC 2026 keynote recap no hardware' ],
+  needsFollowUp: true
+}
+[research-loop] follow-up-round-start {
+  researchRound: 2,
+  totalSearchCount: 2,
+  priorQueries: [
+    'WWDC 2026 no new hardware',
+    'WWDC 2026 keynote recap no hardware'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > keeps follow-up tool-call narration out of the visible answer while preserving tool transcripts
+[research-loop] follow-up-tool-result {
+  researchRound: 2,
+  newWebSearches: 1,
+  totalSearchCount: 3,
+  nextQueries: [ 'WWDC 2026 post keynote recap no hardware' ],
+  needsFollowUp: true
+}
+[research-loop] follow-up-round-start {
+  researchRound: 3,
+  totalSearchCount: 3,
+  priorQueries: [
+    'WWDC 2026 no new hardware',
+    'WWDC 2026 keynote recap no hardware',
+    'WWDC 2026 post keynote recap no hardware'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > keeps follow-up tool-call narration out of the visible answer while preserving tool transcripts
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 3, totalSearchCount: 3, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > forces a final synthesis pass when the provider ends the research loop without an answer
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'openai/gpt-4.1',
+  sessionId: 'session-1',
+  searchCount: 1,
+  needsFollowUp: true,
+  toolNames: [ 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'openai/gpt-4.1',
+  totalSearchCount: 1,
+  researchRound: 1,
+  initialQueries: [ 'latest ipl result' ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 1,
+  priorQueries: [ 'latest ipl result' ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > forces a final synthesis pass when the provider ends the research loop without an answer
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 1, hasAnswerText: false }
+[research-loop] tool-loop-stopped {
+  reason: 'empty-follow-up-answer',
+  totalSearchCount: 1,
+  researchRound: 1
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > retries final synthesis once when a search-only response still ends blank
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'openai/gpt-4.1',
+  sessionId: 'session-1',
+  searchCount: 1,
+  needsFollowUp: true,
+  toolNames: [ 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'openai/gpt-4.1',
+  totalSearchCount: 1,
+  researchRound: 1,
+  initialQueries: [ 'anthropic capybara model' ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 1,
+  priorQueries: [ 'anthropic capybara model' ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > retries final synthesis once when a search-only response still ends blank
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 1, hasAnswerText: false }
+[research-loop] tool-loop-stopped {
+  reason: 'empty-follow-up-answer',
+  totalSearchCount: 1,
+  researchRound: 1
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > retries post-search synthesis when the provider falls back to a knowledge-cutoff answer
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'openai/gpt-4.1',
+  sessionId: 'session-1',
+  searchCount: 1,
+  needsFollowUp: true,
+  toolNames: [ 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'openai/gpt-4.1',
+  totalSearchCount: 1,
+  researchRound: 1,
+  initialQueries: [ 'epstein files latest findings 2026' ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 1,
+  priorQueries: [ 'epstein files latest findings 2026' ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > retries post-search synthesis when the provider falls back to a knowledge-cutoff answer
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 1, hasAnswerText: true }
+[research-loop] tool-loop-stopped {
+  reason: 'ungrounded-follow-up-answer',
+  totalSearchCount: 1,
+  researchRound: 1
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > retries plain-text-only synthesis when no-tools follow-ups still return tool calls
+[research-loop] initial-tool-result {
+  provider: 'fireworks',
+  model: 'accounts/fireworks/routers/kimi-k2p5-turbo',
+  sessionId: 'session-1',
+  searchCount: 1,
+  needsFollowUp: true,
+  toolNames: [ 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'fireworks',
+  model: 'accounts/fireworks/routers/kimi-k2p5-turbo',
+  totalSearchCount: 1,
+  researchRound: 1,
+  initialQueries: [ 'kimi k2 turbo coding benchmarks' ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 1,
+  priorQueries: [ 'kimi k2 turbo coding benchmarks' ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > retries plain-text-only synthesis when no-tools follow-ups still return tool calls
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 1, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > retries fullwidth DSML web_search markup leaked during no-tools synthesis without executing it
+[research-loop] initial-tool-result {
+  provider: 'deepseek',
+  model: 'deepseek-v4-pro',
+  sessionId: 'session-1',
+  searchCount: 1,
+  needsFollowUp: true,
+  toolNames: [ 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'deepseek',
+  model: 'deepseek-v4-pro',
+  totalSearchCount: 1,
+  researchRound: 1,
+  initialQueries: [ 'Kiro ambassador welcome kit 2026' ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 1,
+  priorQueries: [ 'Kiro ambassador welcome kit 2026' ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > commits a deterministic search synthesis when all synthesis attempts end blank
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'openai/gpt-4.1',
+  sessionId: 'session-1',
+  searchCount: 1,
+  needsFollowUp: true,
+  toolNames: [ 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'openai/gpt-4.1',
+  totalSearchCount: 1,
+  researchRound: 1,
+  initialQueries: [ 'diddy 50 cent hit allegation' ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 1,
+  priorQueries: [ 'diddy 50 cent hit allegation' ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > commits a deterministic search synthesis when all synthesis attempts end blank
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 1, hasAnswerText: false }
+[research-loop] tool-loop-stopped {
+  reason: 'empty-follow-up-answer',
+  totalSearchCount: 1,
+  researchRound: 1
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > commits a deterministic search synthesis when all synthesis attempts end blank
+[research-loop] synthesis-retry { attempt: 1, outcome: 'blank', baseRound: 1 }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > commits a deterministic search synthesis when all synthesis attempts end blank
+[research-loop] synthesis-retry { attempt: 2, outcome: 'blank', baseRound: 1 }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > commits a deterministic search synthesis when all synthesis attempts end blank
+[research-loop] synthesis-retry { attempt: 3, outcome: 'blank', baseRound: 1 }
+[research-loop] synthesis-failed { deterministicAnswerUsed: true, searchBudgetRemaining: 49 }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > commits a deterministic search synthesis when every synthesis retry stays ungrounded
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'openai/gpt-4.1',
+  sessionId: 'session-1',
+  searchCount: 1,
+  needsFollowUp: true,
+  toolNames: [ 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'openai/gpt-4.1',
+  totalSearchCount: 1,
+  researchRound: 1,
+  initialQueries: [ 'qwen 3.6 plus thinking mode' ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 1,
+  priorQueries: [ 'qwen 3.6 plus thinking mode' ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > commits a deterministic search synthesis when every synthesis retry stays ungrounded
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 1, hasAnswerText: true }
+[research-loop] tool-loop-stopped {
+  reason: 'ungrounded-follow-up-answer',
+  totalSearchCount: 1,
+  researchRound: 1
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > commits a deterministic search synthesis when every synthesis retry stays ungrounded
+[research-loop] synthesis-retry { attempt: 1, outcome: 'leaked-or-ungrounded', baseRound: 1 }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > commits a deterministic search synthesis when every synthesis retry stays ungrounded
+[research-loop] synthesis-retry { attempt: 2, outcome: 'leaked-or-ungrounded', baseRound: 1 }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > commits a deterministic search synthesis when every synthesis retry stays ungrounded
+[research-loop] synthesis-retry { attempt: 3, outcome: 'leaked-or-ungrounded', baseRound: 1 }
+[research-loop] synthesis-failed { deterministicAnswerUsed: true, searchBudgetRemaining: 49 }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > commits a deterministic search synthesis when every synthesis retry returns tool calls
+[research-loop] initial-tool-result {
+  provider: 'fireworks',
+  model: 'accounts/fireworks/routers/kimi-k2p5-turbo',
+  sessionId: 'session-1',
+  searchCount: 1,
+  needsFollowUp: true,
+  toolNames: [ 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'fireworks',
+  model: 'accounts/fireworks/routers/kimi-k2p5-turbo',
+  totalSearchCount: 1,
+  researchRound: 1,
+  initialQueries: [ 'qwen plus model studio docs' ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 1,
+  priorQueries: [ 'qwen plus model studio docs' ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > commits a deterministic search synthesis when every synthesis retry returns tool calls
+[research-loop] follow-up-tool-result {
+  researchRound: 1,
+  newWebSearches: 1,
+  totalSearchCount: 2,
+  nextQueries: [ 'qwen plus model studio docs' ],
+  needsFollowUp: true
+}
+[research-loop] follow-up-round-start {
+  researchRound: 2,
+  totalSearchCount: 2,
+  priorQueries: [ 'qwen plus model studio docs', 'qwen plus model studio docs' ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > commits a deterministic search synthesis when every synthesis retry returns tool calls
+[research-loop] follow-up-tool-result {
+  researchRound: 2,
+  newWebSearches: 1,
+  totalSearchCount: 3,
+  nextQueries: [ 'qwen plus model studio docs' ],
+  needsFollowUp: true
+}
+[research-loop] follow-up-round-start {
+  researchRound: 3,
+  totalSearchCount: 3,
+  priorQueries: [
+    'qwen plus model studio docs',
+    'qwen plus model studio docs',
+    'qwen plus model studio docs'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > commits a deterministic search synthesis when every synthesis retry returns tool calls
+[research-loop] follow-up-tool-result {
+  researchRound: 3,
+  newWebSearches: 1,
+  totalSearchCount: 4,
+  nextQueries: [ 'qwen plus model studio docs' ],
+  needsFollowUp: true
+}
+[research-loop] follow-up-round-start {
+  researchRound: 4,
+  totalSearchCount: 4,
+  priorQueries: [
+    'qwen plus model studio docs',
+    'qwen plus model studio docs',
+    'qwen plus model studio docs',
+    'qwen plus model studio docs'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > commits a deterministic search synthesis when every synthesis retry returns tool calls
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 4, totalSearchCount: 4, hasAnswerText: false }
+[research-loop] tool-loop-stopped {
+  reason: 'empty-follow-up-answer',
+  totalSearchCount: 4,
+  researchRound: 4
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > commits a deterministic search synthesis when every synthesis retry returns tool calls
+[research-loop] synthesis-retry { attempt: 1, outcome: 'blank', baseRound: 4 }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > commits a deterministic search synthesis when every synthesis retry returns tool calls
+[research-loop] synthesis-retry { attempt: 2, outcome: 'blank', baseRound: 4 }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming > commits a deterministic search synthesis when every synthesis retry returns tool calls
+[research-loop] synthesis-retry { attempt: 3, outcome: 'blank', baseRound: 4 }
+[research-loop] synthesis-failed { deterministicAnswerUsed: true, searchBudgetRemaining: 46 }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-research-followup',
+  searchCount: 3,
+  needsFollowUp: true,
+  toolNames: [ 'web_search', 'web_search', 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 3,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison'
+  ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 3,
+  priorQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 3, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-research-followup',
+  searchCount: 6,
+  needsFollowUp: true,
+  toolNames: [
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search'
+  ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 6,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison',
+    'placeholder facet 4 provider comparison',
+    'placeholder facet 5 provider comparison',
+    'placeholder facet 6 provider comparison'
+  ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 6,
+  priorQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison',
+    'placeholder facet 4 provider comparison',
+    'placeholder facet 5 provider comparison',
+    'placeholder facet 6 provider comparison'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 6, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-research-followup',
+  searchCount: 7,
+  needsFollowUp: true,
+  toolNames: [
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search'
+  ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 7,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison',
+    'placeholder facet 4 provider comparison',
+    'placeholder facet 5 provider comparison',
+    'placeholder facet 6 provider comparison',
+    'placeholder facet 7 provider comparison'
+  ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 7,
+  priorQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison',
+    'placeholder facet 4 provider comparison',
+    'placeholder facet 5 provider comparison',
+    'placeholder facet 6 provider comparison',
+    'placeholder facet 7 provider comparison'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 7, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-research-followup',
+  searchCount: 6,
+  needsFollowUp: true,
+  toolNames: [
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search'
+  ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 6,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison',
+    'placeholder facet 4 provider comparison',
+    'placeholder facet 5 provider comparison',
+    'placeholder facet 6 provider comparison'
+  ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 6,
+  priorQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison',
+    'placeholder facet 4 provider comparison',
+    'placeholder facet 5 provider comparison',
+    'placeholder facet 6 provider comparison'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 6, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-research-followup',
+  searchCount: 4,
+  needsFollowUp: true,
+  toolNames: [ 'web_search', 'web_search', 'web_search', 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 4,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison',
+    'placeholder facet 4 provider comparison'
+  ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 4,
+  priorQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison',
+    'placeholder facet 4 provider comparison'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 4, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-research-followup',
+  searchCount: 6,
+  needsFollowUp: true,
+  toolNames: [
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search'
+  ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 6,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison',
+    'placeholder facet 4 provider comparison',
+    'placeholder facet 5 provider comparison',
+    'placeholder facet 6 provider comparison'
+  ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 6,
+  priorQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison',
+    'placeholder facet 4 provider comparison',
+    'placeholder facet 5 provider comparison',
+    'placeholder facet 6 provider comparison'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 6, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-research-followup',
+  searchCount: 3,
+  needsFollowUp: true,
+  toolNames: [ 'web_search', 'web_search', 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 3,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison'
+  ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 3,
+  priorQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 3, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-research-followup',
+  searchCount: 1,
+  needsFollowUp: true,
+  toolNames: [ 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 1,
+  researchRound: 1,
+  initialQueries: [ 'placeholder facet 1 provider comparison' ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 1,
+  priorQueries: [ 'placeholder facet 1 provider comparison' ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 1, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-research-followup',
+  searchCount: 2,
+  needsFollowUp: true,
+  toolNames: [ 'web_search', 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 2,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison'
+  ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 2,
+  priorQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 2, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-research-followup',
+  searchCount: 5,
+  needsFollowUp: true,
+  toolNames: [
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search'
+  ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 5,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison',
+    'placeholder facet 4 provider comparison',
+    'placeholder facet 5 provider comparison'
+  ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 5,
+  priorQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison',
+    'placeholder facet 4 provider comparison',
+    'placeholder facet 5 provider comparison'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 5, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-research-followup',
+  searchCount: 2,
+  needsFollowUp: true,
+  toolNames: [ 'web_search', 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 2,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison'
+  ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 2,
+  priorQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 2, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-research-followup',
+  searchCount: 3,
+  needsFollowUp: true,
+  toolNames: [ 'web_search', 'web_search', 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 3,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison'
+  ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 3,
+  priorQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 3, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-research-followup',
+  searchCount: 3,
+  needsFollowUp: true,
+  toolNames: [ 'web_search', 'web_search', 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 3,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison'
+  ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 3,
+  priorQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 3, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-research-followup',
+  searchCount: 5,
+  needsFollowUp: true,
+  toolNames: [
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search'
+  ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 5,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison',
+    'placeholder facet 4 provider comparison',
+    'placeholder facet 5 provider comparison'
+  ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 5,
+  priorQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison',
+    'placeholder facet 4 provider comparison',
+    'placeholder facet 5 provider comparison'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 5, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-research-followup',
+  searchCount: 7,
+  needsFollowUp: true,
+  toolNames: [
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search'
+  ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 7,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison',
+    'placeholder facet 4 provider comparison',
+    'placeholder facet 5 provider comparison',
+    'placeholder facet 6 provider comparison',
+    'placeholder facet 7 provider comparison'
+  ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 7,
+  priorQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison',
+    'placeholder facet 4 provider comparison',
+    'placeholder facet 5 provider comparison',
+    'placeholder facet 6 provider comparison',
+    'placeholder facet 7 provider comparison'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 7, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-research-followup',
+  searchCount: 4,
+  needsFollowUp: true,
+  toolNames: [ 'web_search', 'web_search', 'web_search', 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 4,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison',
+    'placeholder facet 4 provider comparison'
+  ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 4,
+  priorQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison',
+    'placeholder facet 4 provider comparison'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 4, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-research-followup',
+  searchCount: 3,
+  needsFollowUp: true,
+  toolNames: [ 'web_search', 'web_search', 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 3,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison'
+  ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 3,
+  priorQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 3, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-research-followup',
+  searchCount: 6,
+  needsFollowUp: true,
+  toolNames: [
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search'
+  ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 6,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison',
+    'placeholder facet 4 provider comparison',
+    'placeholder facet 5 provider comparison',
+    'placeholder facet 6 provider comparison'
+  ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 6,
+  priorQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison',
+    'placeholder facet 4 provider comparison',
+    'placeholder facet 5 provider comparison',
+    'placeholder facet 6 provider comparison'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 6, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-research-followup',
+  searchCount: 6,
+  needsFollowUp: true,
+  toolNames: [
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search'
+  ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 6,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison',
+    'placeholder facet 4 provider comparison',
+    'placeholder facet 5 provider comparison',
+    'placeholder facet 6 provider comparison'
+  ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 6,
+  priorQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison',
+    'placeholder facet 4 provider comparison',
+    'placeholder facet 5 provider comparison',
+    'placeholder facet 6 provider comparison'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 6, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-research-followup',
+  searchCount: 3,
+  needsFollowUp: true,
+  toolNames: [ 'web_search', 'web_search', 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 3,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison'
+  ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 3,
+  priorQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 3, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-research-followup',
+  searchCount: 5,
+  needsFollowUp: true,
+  toolNames: [
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search'
+  ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 5,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison',
+    'placeholder facet 4 provider comparison',
+    'placeholder facet 5 provider comparison'
+  ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 5,
+  priorQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison',
+    'placeholder facet 4 provider comparison',
+    'placeholder facet 5 provider comparison'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 5, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-research-followup',
+  searchCount: 2,
+  needsFollowUp: true,
+  toolNames: [ 'web_search', 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 2,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison'
+  ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 2,
+  priorQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 2, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-research-followup',
+  searchCount: 2,
+  needsFollowUp: true,
+  toolNames: [ 'web_search', 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 2,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison'
+  ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 2,
+  priorQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 2, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-research-followup',
+  searchCount: 1,
+  needsFollowUp: true,
+  toolNames: [ 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 1,
+  researchRound: 1,
+  initialQueries: [ 'placeholder facet 1 provider comparison' ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 1,
+  priorQueries: [ 'placeholder facet 1 provider comparison' ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 1, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-research-followup',
+  searchCount: 2,
+  needsFollowUp: true,
+  toolNames: [ 'web_search', 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 2,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison'
+  ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 2,
+  priorQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 2, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-research-followup',
+  searchCount: 2,
+  needsFollowUp: true,
+  toolNames: [ 'web_search', 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 2,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison'
+  ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 2,
+  priorQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 2, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-research-followup',
+  searchCount: 2,
+  needsFollowUp: true,
+  toolNames: [ 'web_search', 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 2,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison'
+  ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 2,
+  priorQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 2, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-research-followup',
+  searchCount: 4,
+  needsFollowUp: true,
+  toolNames: [ 'web_search', 'web_search', 'web_search', 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 4,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison',
+    'placeholder facet 4 provider comparison'
+  ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 4,
+  priorQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison',
+    'placeholder facet 4 provider comparison'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 4, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-research-followup',
+  searchCount: 4,
+  needsFollowUp: true,
+  toolNames: [ 'web_search', 'web_search', 'web_search', 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 4,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison',
+    'placeholder facet 4 provider comparison'
+  ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 4,
+  priorQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison',
+    'placeholder facet 4 provider comparison'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 4, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-research-followup',
+  searchCount: 1,
+  needsFollowUp: true,
+  toolNames: [ 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 1,
+  researchRound: 1,
+  initialQueries: [ 'placeholder facet 1 provider comparison' ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 1,
+  priorQueries: [ 'placeholder facet 1 provider comparison' ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 1, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-research-followup',
+  searchCount: 2,
+  needsFollowUp: true,
+  toolNames: [ 'web_search', 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 2,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison'
+  ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 2,
+  priorQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 2, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-research-followup',
+  searchCount: 2,
+  needsFollowUp: true,
+  toolNames: [ 'web_search', 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 2,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison'
+  ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 2,
+  priorQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 2, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-research-followup',
+  searchCount: 1,
+  needsFollowUp: true,
+  toolNames: [ 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 1,
+  researchRound: 1,
+  initialQueries: [ 'placeholder facet 1 provider comparison' ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 1,
+  priorQueries: [ 'placeholder facet 1 provider comparison' ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 1, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-research-followup',
+  searchCount: 2,
+  needsFollowUp: true,
+  toolNames: [ 'web_search', 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 2,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison'
+  ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 2,
+  priorQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 2, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-research-followup',
+  searchCount: 3,
+  needsFollowUp: true,
+  toolNames: [ 'web_search', 'web_search', 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 3,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison'
+  ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 3,
+  priorQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 3, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-research-followup',
+  searchCount: 3,
+  needsFollowUp: true,
+  toolNames: [ 'web_search', 'web_search', 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 3,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison'
+  ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 3,
+  priorQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 3, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-research-followup',
+  searchCount: 5,
+  needsFollowUp: true,
+  toolNames: [
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search'
+  ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 5,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison',
+    'placeholder facet 4 provider comparison',
+    'placeholder facet 5 provider comparison'
+  ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 5,
+  priorQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison',
+    'placeholder facet 4 provider comparison',
+    'placeholder facet 5 provider comparison'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 5, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-research-followup',
+  searchCount: 6,
+  needsFollowUp: true,
+  toolNames: [
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search'
+  ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 6,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison',
+    'placeholder facet 4 provider comparison',
+    'placeholder facet 5 provider comparison',
+    'placeholder facet 6 provider comparison'
+  ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 6,
+  priorQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison',
+    'placeholder facet 4 provider comparison',
+    'placeholder facet 5 provider comparison',
+    'placeholder facet 6 provider comparison'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 6, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-research-followup',
+  searchCount: 4,
+  needsFollowUp: true,
+  toolNames: [ 'web_search', 'web_search', 'web_search', 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 4,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison',
+    'placeholder facet 4 provider comparison'
+  ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 4,
+  priorQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison',
+    'placeholder facet 3 provider comparison',
+    'placeholder facet 4 provider comparison'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 4, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-research-followup',
+  searchCount: 2,
+  needsFollowUp: true,
+  toolNames: [ 'web_search', 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 2,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison'
+  ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 2,
+  priorQueries: [
+    'placeholder facet 1 provider comparison',
+    'placeholder facet 2 provider comparison'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 2, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round for the observed 6-of-8 multi-facet comparison
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/test-alpha',
+  sessionId: 'session-research-followup',
+  searchCount: 6,
+  needsFollowUp: true,
+  toolNames: [
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search'
+  ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/test-alpha',
+  totalSearchCount: 6,
+  researchRound: 1,
+  initialQueries: [
+    'provider a pricing',
+    'provider a free tier limits',
+    'provider b pricing',
+    'provider b rate limits',
+    'provider c pricing',
+    'provider c supported models'
+  ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 6,
+  priorQueries: [
+    'provider a pricing',
+    'provider a free tier limits',
+    'provider b pricing',
+    'provider b rate limits',
+    'provider c pricing',
+    'provider c supported models'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a follow-up tool-enabled round for the observed 6-of-8 multi-facet comparison
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 6, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a third tool-enabled round after a successful follow-up batch (budget remaining)
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-research-followup',
+  searchCount: 3,
+  needsFollowUp: true,
+  toolNames: [ 'web_search', 'web_search', 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 3,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder overview a',
+    'placeholder overview b',
+    'placeholder overview c'
+  ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 3,
+  priorQueries: [
+    'placeholder overview a',
+    'placeholder overview b',
+    'placeholder overview c'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a third tool-enabled round after a successful follow-up batch (budget remaining)
+[research-loop] follow-up-tool-result {
+  researchRound: 1,
+  newWebSearches: 2,
+  totalSearchCount: 5,
+  nextQueries: [ 'placeholder docs a', 'placeholder docs b' ],
+  needsFollowUp: true
+}
+[research-loop] follow-up-round-start {
+  researchRound: 2,
+  totalSearchCount: 5,
+  priorQueries: [
+    'placeholder overview a',
+    'placeholder overview b',
+    'placeholder overview c',
+    'placeholder docs a',
+    'placeholder docs b'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (bug condition) > grants a third tool-enabled round after a successful follow-up batch (budget remaining)
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 2, totalSearchCount: 5, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > budget-reached no longer forces no-tools synthesis (surfaces as normal skipped tool result)
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 8,
+  needsFollowUp: true,
+  toolNames: [
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search'
+  ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 8,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder budget facet 1',
+    'placeholder budget facet 2',
+    'placeholder budget facet 3',
+    'placeholder budget facet 4',
+    'placeholder budget facet 5',
+    'placeholder budget facet 6',
+    'placeholder budget facet 7',
+    'placeholder budget facet 8'
+  ],
+  initialDecision: 'budget'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 8,
+  priorQueries: [
+    'placeholder budget facet 1',
+    'placeholder budget facet 2',
+    'placeholder budget facet 3',
+    'placeholder budget facet 4',
+    'placeholder budget facet 5',
+    'placeholder budget facet 6',
+    'placeholder budget facet 7',
+    'placeholder budget facet 8'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > budget-reached no longer forces no-tools synthesis (surfaces as normal skipped tool result)
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 8, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves empty-batch: stops and forces no-tools synthesis when the next batch has no usable queries
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 1,
+  needsFollowUp: true,
+  toolNames: [ 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 1,
+  researchRound: 1,
+  initialQueries: [ '!!!' ],
+  initialDecision: 'empty-batch'
+}
+[research-loop] tool-loop-stopped { reason: 'empty-batch', totalSearchCount: 1, researchRound: 1 }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves non-web tool batch: grants a tool-enabled follow-up round via the verification path
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 0,
+  needsFollowUp: true,
+  toolNames: [ 'file_read' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 0,
+  researchRound: 1,
+  initialQueries: [],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start { researchRound: 1, totalSearchCount: 0, priorQueries: [] }
+
+stdout | src/components/Dashboard/ChatArea/h⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+ooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves non-web tool batch: grants a tool-enabled follow-up round via the verification path
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 0, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves model-completion: ends the loop when the follow-up round returns no tool calls
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 1,
+  needsFollowUp: true,
+  toolNames: [ 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 1,
+  researchRound: 1,
+  initialQueries: [ 'placeholder primary query' ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 1,
+  priorQueries: [ 'placeholder primary query' ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves model-completion: ends the loop when the follow-up round returns no tool calls
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 1, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves failed-search with budget remaining: continues the loop with a tool-enabled follow-up round
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 2,
+  needsFollowUp: true,
+  toolNames: [ 'web_search', 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 2,
+  researchRound: 1,
+  initialQueries: [ 'placeholder facet one', 'placeholder facet two' ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 2,
+  priorQueries: [ 'placeholder facet one', 'placeholder facet two' ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves failed-search with budget remaining: continues the loop with a tool-enabled follow-up round
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 2, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves de-duplication context forwarded to the tool layer (prior queries + remaining budget)
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 2,
+  needsFollowUp: true,
+  toolNames: [ 'web_search', 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 2,
+  researchRound: 1,
+  initialQueries: [ 'alpha query', 'beta query' ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 2,
+  priorQueries: [ 'alpha query', 'beta query' ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves de-duplication context forwarded to the tool layer (prior queries + remaining budget)
+[research-loop] follow-up-tool-result {
+  researchRound: 1,
+  newWebSearches: 0,
+  totalSearchCount: 2,
+  nextQueries: [ 'alpha query' ],
+  needsFollowUp: true
+}
+[research-loop] follow-up-round-start {
+  researchRound: 2,
+  totalSearchCount: 2,
+  priorQueries: [ 'alpha query', 'beta query' ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves de-duplication context forwarded to the tool layer (prior queries + remaining budget)
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 2, totalSearchCount: 2, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 2,
+  needsFollowUp: true,
+  toolNames: [ 'web_search', 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 2,
+  researchRound: 1,
+  initialQueries: [ 'placeholder failed facet 1', 'placeholder failed facet 2' ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 2,
+  priorQueries: [ 'placeholder failed facet 1', 'placeholder failed facet 2' ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 2, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 3,
+  needsFollowUp: true,
+  toolNames: [ 'web_search', 'web_search', 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 3,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder failed facet 1',
+    'placeholder failed facet 2',
+    'placeholder failed facet 3'
+  ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 3,
+  priorQueries: [
+    'placeholder failed facet 1',
+    'placeholder failed facet 2',
+    'placeholder failed facet 3'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 3, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 1,
+  needsFollowUp: true,
+  toolNames: [ 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 1,
+  researchRound: 1,
+  initialQueries: [ '!!!' ],
+  initialDecision: 'empty-batch'
+}
+[research-loop] tool-loop-stopped { reason: 'empty-batch', totalSearchCount: 1, researchRound: 1 }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy FAIL  src/providers/providerRuntime.opencode.test.ts > providerRuntime opencode dispatch > emits text, tool-call, 
+usage, and finish events from the opencode stream branch
+Error: [vitest] No "extractOpencodeStreamReasoningDelta" export is defined on the "../services/opencode" mock. Did you 
+forget to return it from "vi.mock"?
+If you need to partially mock a module, you can use "importOriginal" helper inside:
+vi.mock(import("../services/opencode"), async (importOriginal) => {
+  const actual = await importOriginal()
+  return {
+    ...actual,
+    // your mocked methods
+  }
+})
+ ❯ Module.streamProviderEvents src/providers/providerRuntime.ts:746:32
+    744|         signal: request.signal,
+    745|       })) {
+    746|         const reasoningEvent = extractOpencodeStreamReasoningDelta(
+       |                                ^
+    747|           chunk.choices?.[0]?.delta,
+    748|           emittedOpencodeReasoning
+ ❯ collectEvents src/providers/providerRuntime.opencode.test.ts:21:20
+ ❯ src/providers/providerRuntime.opencode.test.ts:73:20
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+ FAIL  src/providers/providerRuntime.opencode.test.ts > providerRuntime opencode dispatch > emits reasoning-delta 
+events from the opencode stream when reasoning_content deltas arrive
+Error: [vitest] No "extractOpencodeStreamReasoningDelta" export is defined on the "../services/opencode" mock. Did you 
+forget to return it from "vi.mock"?
+If you need to partially mock a module, you can use "importOriginal" helper inside:
+vi.mock(import("../services/opencode"), async (importOriginal) => {
+  const actual = await importOriginal()
+  return {
+    ...actual,
+    // your mocked methods
+  }
+})
+ ❯ Module.streamProviderEvents src/providers/providerRuntime.ts:746:32
+    744|         signal: request.signal,
+    745|       })) {
+    746|         const reasoningEvent = extractOpencodeStreamReasoningDelta(
+       |                                ^
+    747|           chunk.choices?.[0]?.delta,
+    748|           emittedOpencodeReasoning
+ ❯ collectEvents src/providers/providerRuntime.opencode.test.ts:21:20
+ ❯ src/providers/providerRuntime.opencode.test.ts:166:20
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+ FAIL  src/providers/providerRuntime.opencode.test.ts > providerRuntime opencode dispatch > drops duplicate opencode 
+reasoning prefixes echoed after answer content starts
+Error: [vitest] No "extractOpencodeStreamReasoningDelta" export is defined on the "../services/opencode" mock. Did you 
+forget to return it from "vi.mock"?
+If you need to partially mock a module, you can use "importOriginal" helper inside:
+vi.mock(import("../services/opencode"), async (importOriginal) => {
+  const actual = await importOriginal()
+  return {
+    ...actual,
+    // your mocked methods
+  }
+})
+ ❯ Module.streamProviderEvents src/providers/providerRuntime.ts:746:32
+    744|         signal: request.signal,
+    745|       })) {
+    746|         const reasoningEvent = extractOpencodeStreamReasoningDelta(
+       |                                ^
+    747|           chunk.choices?.[0]?.delta,
+    748|           emittedOpencodeReasoning
+ ❯ collectEvents src/providers/providerRuntime.opencode.test.ts:21:20
+ ❯ src/providers/providerRuntime.opencode.test.ts:256:20
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+error: script "test" exited with code 1
+ turns
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 1,
+  needsFollowUp: true,
+  toolNames: [ 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 1,
+  researchRound: 1,
+  initialQueries: [ '!!!' ],
+  initialDecision: 'empty-batch'
+}
+[research-loop] tool-loop-stopped { reason: 'empty-batch', totalSearchCount: 1, researchRound: 1 }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 8,
+  needsFollowUp: true,
+  toolNames: [ 'web_search', 'web_search', 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 8,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder budget facet 1',
+    'placeholder budget facet 2',
+    'placeholder budget facet 3'
+  ],
+  initialDecision: 'budget'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 8,
+  priorQueries: [
+    'placeholder budget facet 1',
+    'placeholder budget facet 2',
+    'placeholder budget facet 3'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 8, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 8,
+  needsFollowUp: true,
+  toolNames: [
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search'
+  ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 8,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder budget facet 1',
+    'placeholder budget facet 2',
+    'placeholder budget facet 3',
+    'placeholder budget facet 4',
+    'placeholder budget facet 5'
+  ],
+  initialDecision: 'budget'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 8,
+  priorQueries: [
+    'placeholder budget facet 1',
+    'placeholder budget facet 2',
+    'placeholder budget facet 3',
+    'placeholder budget facet 4',
+    'placeholder budget facet 5'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 8, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 8,
+  needsFollowUp: true,
+  toolNames: [ 'web_search', 'web_search', 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 8,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder budget facet 1',
+    'placeholder budget facet 2',
+    'placeholder budget facet 3'
+  ],
+  initialDecision: 'budget'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 8,
+  priorQueries: [
+    'placeholder budget facet 1',
+    'placeholder budget facet 2',
+    'placeholder budget facet 3'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 8, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 1,
+  needsFollowUp: true,
+  toolNames: [ 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 1,
+  researchRound: 1,
+  initialQueries: [ 'placeholder failed facet 1' ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 1,
+  priorQueries: [ 'placeholder failed facet 1' ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 1, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 3,
+  needsFollowUp: true,
+  toolNames: [ 'web_search', 'web_search', 'web_search', 'file_read' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 3,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder facet 1',
+    'placeholder facet 2',
+    'placeholder facet 3'
+  ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 3,
+  priorQueries: [
+    'placeholder facet 1',
+    'placeholder facet 2',
+    'placeholder facet 3'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 3, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 8,
+  needsFollowUp: true,
+  toolNames: [
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search'
+  ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 8,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder budget facet 1',
+    'placeholder budget facet 2',
+    'placeholder budget facet 3',
+    'placeholder budget facet 4',
+    'placeholder budget facet 5'
+  ],
+  initialDecision: 'budget'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 8,
+  priorQueries: [
+    'placeholder budget facet 1',
+    'placeholder budget facet 2',
+    'placeholder budget facet 3',
+    'placeholder budget facet 4',
+    'placeholder budget facet 5'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 8, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 1,
+  needsFollowUp: true,
+  toolNames: [ 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 1,
+  researchRound: 1,
+  initialQueries: [ 'placeholder failed facet 1' ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 1,
+  priorQueries: [ 'placeholder failed facet 1' ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 1, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 8,
+  needsFollowUp: true,
+  toolNames: [ 'web_search', 'web_search', 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 8,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder budget facet 1',
+    'placeholder budget facet 2',
+    'placeholder budget facet 3'
+  ],
+  initialDecision: 'budget'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 8,
+  priorQueries: [
+    'placeholder budget facet 1',
+    'placeholder budget facet 2',
+    'placeholder budget facet 3'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 8, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 1,
+  needsFollowUp: true,
+  toolNames: [ 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 1,
+  researchRound: 1,
+  initialQueries: [ '!!!' ],
+  initialDecision: 'empty-batch'
+}
+[research-loop] tool-loop-stopped { reason: 'empty-batch', totalSearchCount: 1, researchRound: 1 }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 1,
+  needsFollowUp: true,
+  toolNames: [ 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 1,
+  researchRound: 1,
+  initialQueries: [ '!!!' ],
+  initialDecision: 'empty-batch'
+}
+[research-loop] tool-loop-stopped { reason: 'empty-batch', totalSearchCount: 1, researchRound: 1 }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 8,
+  needsFollowUp: true,
+  toolNames: [
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search'
+  ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 8,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder budget facet 1',
+    'placeholder budget facet 2',
+    'placeholder budget facet 3',
+    'placeholder budget facet 4',
+    'placeholder budget facet 5'
+  ],
+  initialDecision: 'budget'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 8,
+  priorQueries: [
+    'placeholder budget facet 1',
+    'placeholder budget facet 2',
+    'placeholder budget facet 3',
+    'placeholder budget facet 4',
+    'placeholder budget facet 5'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 8, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 1,
+  needsFollowUp: true,
+  toolNames: [ 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 1,
+  researchRound: 1,
+  initialQueries: [ '!!!' ],
+  initialDecision: 'empty-batch'
+}
+[research-loop] tool-loop-stopped { reason: 'empty-batch', totalSearchCount: 1, researchRound: 1 }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 0,
+  needsFollowUp: true,
+  toolNames: [ 'file_read' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 0,
+  researchRound: 1,
+  initialQueries: [],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start { researchRound: 1, totalSearchCount: 0, priorQueries: [] }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 0, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 4,
+  needsFollowUp: true,
+  toolNames: [ 'web_search', 'web_search', 'web_search', 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 4,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder failed facet 1',
+    'placeholder failed facet 2',
+    'placeholder failed facet 3',
+    'placeholder failed facet 4'
+  ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 4,
+  priorQueries: [
+    'placeholder failed facet 1',
+    'placeholder failed facet 2',
+    'placeholder failed facet 3',
+    'placeholder failed facet 4'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 4, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 1,
+  needsFollowUp: true,
+  toolNames: [ 'web_search', 'file_read' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 1,
+  researchRound: 1,
+  initialQueries: [ 'placeholder facet 1' ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 1,
+  priorQueries: [ 'placeholder facet 1' ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 1, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 3,
+  needsFollowUp: true,
+  toolNames: [ 'web_search', 'web_search', 'web_search', 'file_read' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 3,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder facet 1',
+    'placeholder facet 2',
+    'placeholder facet 3'
+  ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 3,
+  priorQueries: [
+    'placeholder facet 1',
+    'placeholder facet 2',
+    'placeholder facet 3'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 3, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 8,
+  needsFollowUp: true,
+  toolNames: [ 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 8,
+  researchRound: 1,
+  initialQueries: [ 'placeholder budget facet 1' ],
+  initialDecision: 'budget'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 8,
+  priorQueries: [ 'placeholder budget facet 1' ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 8, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 8,
+  needsFollowUp: true,
+  toolNames: [
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search'
+  ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 8,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder budget facet 1',
+    'placeholder budget facet 2',
+    'placeholder budget facet 3',
+    'placeholder budget facet 4',
+    'placeholder budget facet 5'
+  ],
+  initialDecision: 'budget'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 8,
+  priorQueries: [
+    'placeholder budget facet 1',
+    'placeholder budget facet 2',
+    'placeholder budget facet 3',
+    'placeholder budget facet 4',
+    'placeholder budget facet 5'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 8, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 3,
+  needsFollowUp: true,
+  toolNames: [ 'web_search', 'web_search', 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 3,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder failed facet 1',
+    'placeholder failed facet 2',
+    'placeholder failed facet 3'
+  ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 3,
+  priorQueries: [
+    'placeholder failed facet 1',
+    'placeholder failed facet 2',
+    'placeholder failed facet 3'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 3, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 0,
+  needsFollowUp: true,
+  toolNames: [ 'file_read' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 0,
+  researchRound: 1,
+  initialQueries: [],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start { researchRound: 1, totalSearchCount: 0, priorQueries: [] }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 0, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 1,
+  needsFollowUp: true,
+  toolNames: [ 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 1,
+  researchRound: 1,
+  initialQueries: [ 'placeholder failed facet 1' ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 1,
+  priorQueries: [ 'placeholder failed facet 1' ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 1, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 0,
+  needsFollowUp: true,
+  toolNames: [ 'file_read' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 0,
+  researchRound: 1,
+  initialQueries: [],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start { researchRound: 1, totalSearchCount: 0, priorQueries: [] }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 0, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 8,
+  needsFollowUp: true,
+  toolNames: [ 'web_search', 'web_search', 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 8,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder budget facet 1',
+    'placeholder budget facet 2',
+    'placeholder budget facet 3'
+  ],
+  initialDecision: 'budget'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 8,
+  priorQueries: [
+    'placeholder budget facet 1',
+    'placeholder budget facet 2',
+    'placeholder budget facet 3'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 8, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 5,
+  needsFollowUp: true,
+  toolNames: [
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search'
+  ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 5,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder failed facet 1',
+    'placeholder failed facet 2',
+    'placeholder failed facet 3',
+    'placeholder failed facet 4',
+    'placeholder failed facet 5'
+  ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 5,
+  priorQueries: [
+    'placeholder failed facet 1',
+    'placeholder failed facet 2',
+    'placeholder failed facet 3',
+    'placeholder failed facet 4',
+    'placeholder failed facet 5'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 5, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 1,
+  needsFollowUp: true,
+  toolNames: [ 'web_search', 'file_read' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 1,
+  researchRound: 1,
+  initialQueries: [ 'placeholder facet 1' ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 1,
+  priorQueries: [ 'placeholder facet 1' ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 1, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 1,
+  needsFollowUp: true,
+  toolNames: [ 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 1,
+  researchRound: 1,
+  initialQueries: [ '!!!' ],
+  initialDecision: 'empty-batch'
+}
+[research-loop] tool-loop-stopped { reason: 'empty-batch', totalSearchCount: 1, researchRound: 1 }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 8,
+  needsFollowUp: true,
+  toolNames: [ 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 8,
+  researchRound: 1,
+  initialQueries: [ 'placeholder budget facet 1' ],
+  initialDecision: 'budget'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 8,
+  priorQueries: [ 'placeholder budget facet 1' ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 8, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 8,
+  needsFollowUp: true,
+  toolNames: [
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search'
+  ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 8,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder budget facet 1',
+    'placeholder budget facet 2',
+    'placeholder budget facet 3',
+    'placeholder budget facet 4',
+    'placeholder budget facet 5'
+  ],
+  initialDecision: 'budget'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 8,
+  priorQueries: [
+    'placeholder budget facet 1',
+    'placeholder budget facet 2',
+    'placeholder budget facet 3',
+    'placeholder budget facet 4',
+    'placeholder budget facet 5'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 8, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 2,
+  needsFollowUp: true,
+  toolNames: [ 'web_search', 'web_search', 'file_read' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 2,
+  researchRound: 1,
+  initialQueries: [ 'placeholder facet 1', 'placeholder facet 2' ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 2,
+  priorQueries: [ 'placeholder facet 1', 'placeholder facet 2' ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 2, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 1,
+  needsFollowUp: true,
+  toolNames: [ 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 1,
+  researchRound: 1,
+  initialQueries: [ '!!!' ],
+  initialDecision: 'empty-batch'
+}
+[research-loop] tool-loop-stopped { reason: 'empty-batch', totalSearchCount: 1, researchRound: 1 }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 0,
+  needsFollowUp: true,
+  toolNames: [ 'file_read' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 0,
+  researchRound: 1,
+  initialQueries: [],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start { researchRound: 1, totalSearchCount: 0, priorQueries: [] }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 0, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 2,
+  needsFollowUp: true,
+  toolNames: [ 'web_search', 'web_search', 'file_read' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 2,
+  researchRound: 1,
+  initialQueries: [ 'placeholder facet 1', 'placeholder facet 2' ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 2,
+  priorQueries: [ 'placeholder facet 1', 'placeholder facet 2' ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 2, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 3,
+  needsFollowUp: true,
+  toolNames: [ 'web_search', 'web_search', 'web_search', 'file_read' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 3,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder facet 1',
+    'placeholder facet 2',
+    'placeholder facet 3'
+  ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 3,
+  priorQueries: [
+    'placeholder facet 1',
+    'placeholder facet 2',
+    'placeholder facet 3'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 3, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 8,
+  needsFollowUp: true,
+  toolNames: [
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search',
+    'web_search'
+  ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 8,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder budget facet 1',
+    'placeholder budget facet 2',
+    'placeholder budget facet 3',
+    'placeholder budget facet 4',
+    'placeholder budget facet 5'
+  ],
+  initialDecision: 'budget'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 8,
+  priorQueries: [
+    'placeholder budget facet 1',
+    'placeholder budget facet 2',
+    'placeholder budget facet 3',
+    'placeholder budget facet 4',
+    'placeholder budget facet 5'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 8, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 8,
+  needsFollowUp: true,
+  toolNames: [ 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 8,
+  researchRound: 1,
+  initialQueries: [ 'placeholder budget facet 1' ],
+  initialDecision: 'budget'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 8,
+  priorQueries: [ 'placeholder budget facet 1' ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 8, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 8,
+  needsFollowUp: true,
+  toolNames: [ 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 8,
+  researchRound: 1,
+  initialQueries: [ 'placeholder budget facet 1' ],
+  initialDecision: 'budget'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 8,
+  priorQueries: [ 'placeholder budget facet 1' ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 8, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 8,
+  needsFollowUp: true,
+  toolNames: [ 'web_search', 'web_search', 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 8,
+  researchRound: 1,
+  initialQueries: [
+    'placeholder budget facet 1',
+    'placeholder budget facet 2',
+    'placeholder budget facet 3'
+  ],
+  initialDecision: 'budget'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 8,
+  priorQueries: [
+    'placeholder budget facet 1',
+    'placeholder budget facet 2',
+    'placeholder budget facet 3'
+  ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 8, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 1,
+  needsFollowUp: true,
+  toolNames: [ 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 1,
+  researchRound: 1,
+  initialQueries: [ '!!!' ],
+  initialDecision: 'empty-batch'
+}
+[research-loop] tool-loop-stopped { reason: 'empty-batch', totalSearchCount: 1, researchRound: 1 }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 8,
+  needsFollowUp: true,
+  toolNames: [ 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 8,
+  researchRound: 1,
+  initialQueries: [ 'placeholder budget facet 1' ],
+  initialDecision: 'budget'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 8,
+  priorQueries: [ 'placeholder budget facet 1' ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 8, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 2,
+  needsFollowUp: true,
+  toolNames: [ 'web_search', 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 2,
+  researchRound: 1,
+  initialQueries: [ 'placeholder failed facet 1', 'placeholder failed facet 2' ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 2,
+  priorQueries: [ 'placeholder failed facet 1', 'placeholder failed facet 2' ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 2, hasAnswerText: true }
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] initial-tool-result {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  sessionId: 'session-preservation',
+  searchCount: 1,
+  needsFollowUp: true,
+  toolNames: [ 'web_search' ]
+}
+[research-loop] loop-start {
+  provider: 'openrouter',
+  model: 'placeholder-model/research-pro-x',
+  totalSearchCount: 1,
+  researchRound: 1,
+  initialQueries: [ 'placeholder failed facet 1' ],
+  initialDecision: 'continue'
+}
+[research-loop] follow-up-round-start {
+  researchRound: 1,
+  totalSearchCount: 1,
+  priorQueries: [ 'placeholder failed facet 1' ]
+}
+
+stdout | src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts > useProviderStreaming — research follow-up tool calls (preservation) > preserves the loop-control decision for randomly generated non-buggy turns
+[research-loop] follow-up-round-ended-without-tool-call { researchRound: 1, totalSearchCount: 1, hasAnswerText: true }
+
+ ✓ src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.test.ts (46 tests) 225ms
+
+ Test Files  1 failed | 3 passed (4)
+      Tests  3 failed | 80 passed (83)
+   Start at  18:44:19
+   Duration  3.09s (transform 1.35s, setup 599ms, import 1.96s, tests 306ms, environment 2.81s)
+

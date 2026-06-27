@@ -456,11 +456,11 @@ const PROVIDERS: Record<ProviderId, ProviderDefinition> = {
     description:
       'Low-cost subscription with curated open coding models (DeepSeek, Kimi, GLM, Qwen, MiniMax).',
     accentColor: '#0ea5e9',
-    capabilities: {
+capabilities: {
       supportsStreaming: true,
       supportsTools: true,
       supportsVisionUploads: false,
-      supportsReasoning: false,
+      supportsReasoning: true,
       supportsImageGeneration: false,
       supportsNativeSearch: false,
     },

@@ -23,6 +23,10 @@ import {
   registerAgentSkillsHandlers,
   unregisterAgentSkillsHandlers,
 } from './agentSkillsHandlers'
+import {
+  registerProviderProxyHandlers,
+  unregisterProviderProxyHandlers,
+} from './providerProxyHandlers'
 
 interface IpcDomainHandlers {
   register: () => void
@@ -69,6 +73,10 @@ const IPC_DOMAIN_HANDLERS: readonly IpcDomainHandlers[] = [
   {
     register: registerAgentSkillsHandlers,
     unregister: unregisterAgentSkillsHandlers,
+  },
+  {
+    register: registerProviderProxyHandlers,
+    unregister: unregisterProviderProxyHandlers,
   },
 ] as const
 
@@ -123,3 +131,7 @@ export {
   registerAgentSkillsHandlers,
   unregisterAgentSkillsHandlers,
 } from './agentSkillsHandlers'
+export {
+  registerProviderProxyHandlers,
+  unregisterProviderProxyHandlers,
+} from './providerProxyHandlers'

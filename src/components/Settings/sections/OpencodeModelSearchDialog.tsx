@@ -33,12 +33,6 @@ export function OpencodeModelSearchDialog({
   const loadModels = useCallback(async () => {
     const resolvedApiKey = await resolveApiKeyFromSecureStorage('opencodeGoApiKey', apiKey ?? '')
 
-    if (!resolvedApiKey.trim()) {
-      setError('Add an OpenCode Go API key before loading the catalog.')
-      setModels([])
-      return
-    }
-
     setLoading(true)
     setError(null)
     fetchOpencodeModels(resolvedApiKey)
@@ -82,7 +76,7 @@ export function OpencodeModelSearchDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="p-0 sm:max-w-[900px] max-h-[85vh] flex flex-col" showCloseButton={false} overlayClassName="catalog-modal-backdrop">
+      <DialogContent className="provider-catalog-dialog p-0" showCloseButton={false} overlayClassName="catalog-modal-backdrop">
         <CatalogHeader
           provider="opencode"
           title="Add Model from OpenCode Go Catalog"

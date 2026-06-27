@@ -24,6 +24,7 @@ import {
   type NvidiaResponse,
 } from '../services/nvidia'
 import {
+  extractOpencodeStreamReasoningDelta,
   generateOpencodeCompletion,
   streamOpencodeCompletion,
 } from '../services/opencode'
@@ -44,8 +45,12 @@ import {
 } from '../services/perplexity'
 import type { ChatMessage, ReasoningDetail } from '../services/types'
 import type { SettingsConfig } from '../contexts/SettingsConfigContext'
-import { DEFAULT_OLLAMA_URL } from './providerRegistry'
-import { resolveProviderForModel } from './providerRegistry'
+import {
+  DEFAULT_OLLAMA_URL,
+  getProviderDefinition,
+  resolveProviderForModel,
+} from './providerRegistry'
+import { getProviderSettingsDefinition } from './providerSettingsRegistry'
 import type { ActiveProviderId } from './providerTypes'
 import { shapePromptCacheRequest } from './promptCaching'
 import type { FileAttachment } from '../chat/types'
@@ -319,9 +324,6 @@ async function* emitOpenAiCompatibleResponse(
   const choice = response.choices?.[0]
   const message = choice?.message
   const content = message?.content || ''
-  if (content) {
-    yield* yieldProgressiveTextDeltas(content)
-  }
 
   if (options?.includeReasoning) {
     const reasoningField = options?.reasoningContentField || 'reasoning'
@@ -336,6 +338,10 @@ async function* emitOpenAiCompatibleResponse(
         yield { type: 'reasoning-delta', delta: reasoning }
       }
     }
+  }
+
+  if (content) {
+    yield* yieldProgressiveTextDeltas(content)
   }
 
   const toolCalls = normalizeToolCalls(
@@ -422,36 +428,27 @@ function getProviderCredential(
   settings: TitleGenerationSettings | StreamingSettings,
   provider: ActiveProviderId
 ): string {
-  switch (provider) {
-    case 'openrouter': {
-      const apiKey = getOpenRouterApiKey(settings.openRouterApiKey)
-      if (!apiKey) throw new Error('OpenRouter API Key is missing')
-      return apiKey
-    }
-    case 'groq':
-      if (!settings.groqApiKey) throw new Error('Groq API Key is missing')
-      return settings.groqApiKey
-    case 'nvidia':
-      if (!settings.nvidiaApiKey) throw new Error('NVIDIA API Key is missing')
-      return settings.nvidiaApiKey
-    case 'alibaba':
-      if (!settings.alibabaApiKey) throw new Error('Alibaba API Key is missing')
-      return settings.alibabaApiKey
-    case 'deepseek':
-      if (!settings.deepseekApiKey) throw new Error('DeepSeek API Key is missing')
-      return settings.deepseekApiKey
-    case 'opencode':
-      if (!settings.opencodeGoApiKey) throw new Error('OpenCode Go API Key is missing')
-      return settings.opencodeGoApiKey
-    case 'fireworks':
-      if (!settings.fireworksApiKey) throw new Error('Fireworks API Key is missing')
-      return settings.fireworksApiKey
-    case 'perplexity':
-      if (!settings.perplexityApiKey) throw new Error('Perplexity API Key is missing')
-      return settings.perplexityApiKey
-    case 'ollama':
-      return settings.ollamaUrl?.trim() || DEFAULT_OLLAMA_URL
+  if (provider === 'ollama') {
+    return settings.ollamaUrl?.trim() || DEFAULT_OLLAMA_URL
   }
+
+  if (provider === 'openrouter') {
+    const apiKey = getOpenRouterApiKey(settings.openRouterApiKey)
+    if (!apiKey) throw new Error('OpenRouter API Key is missing')
+    return apiKey
+  }
+
+  const secretKeyField = getProviderSettingsDefinition(provider)?.secretKeyField
+  const rawValue = secretKeyField
+    ? (settings as Record<string, unknown>)[secretKeyField]
+    : undefined
+  const apiKey = typeof rawValue === 'string' ? rawValue.trim() : ''
+
+  if (!apiKey) {
+    throw new Error(`${getProviderDefinition(provider).label} API Key is missing`)
+  }
+
+  return apiKey
 }
 
 function normalizeProviderModel(provider: ActiveProviderId, model: string): string {
@@ -721,7 +718,7 @@ export async function* streamProviderEvents(
       }
       return
     }
-    case 'opencode': {
+case 'opencode': {
       const apiKey = getProviderCredential(settings, 'opencode')
       if (request.streamResponses === false) {
         const response = await generateOpencodeCompletion(apiKey, normalizedModel, request.messages, {
@@ -731,10 +728,14 @@ export async function* streamProviderEvents(
           toolChoice: request.toolChoice,
           signal: request.signal,
         })
-        yield* emitOpenAiCompatibleResponse(response)
+        yield* emitOpenAiCompatibleResponse(response, {
+          includeReasoning: true,
+          reasoningContentField: 'reasoning_content',
+        })
         return
       }
 
+      let emittedOpencodeReasoning = ''
       for await (const chunk of streamOpencodeCompletion(apiKey, normalizedModel, request.messages, {
         temperature: request.temperature,
         max_tokens: request.maxTokens,
@@ -742,6 +743,15 @@ export async function* streamProviderEvents(
         toolChoice: request.toolChoice,
         signal: request.signal,
       })) {
+        const reasoningEvent = extractOpencodeStreamReasoningDelta(
+          chunk.choices?.[0]?.delta,
+          emittedOpencodeReasoning
+        )
+        if (reasoningEvent) {
+          emittedOpencodeReasoning = reasoningEvent.nextEmitted
+          yield { type: 'reasoning-delta', delta: reasoningEvent.delta }
+        }
+
         const delta = chunk.choices?.[0]?.delta?.content || ''
         if (delta) yield* yieldProgressiveTextDeltas(delta)
         if (chunk.choices?.[0]?.delta?.tool_calls?.length) {

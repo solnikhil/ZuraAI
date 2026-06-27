@@ -261,6 +261,25 @@ describe('preload MCP bridge', () => {
     )
   })
 
+  it('exposes a dedicated provider proxy bridge and keeps it out of generic IPC', async () => {
+    const providerProxy = getExposedBridge<{
+      fetchOpencode: (request: { url: string; method: 'GET' }) => Promise<unknown>
+    }>('providerProxy')
+    const ipcRenderer = getExposedBridge<{
+      invoke: (channel: string, ...args: unknown[]) => Promise<unknown>
+    }>('ipcRenderer')
+    const request = { url: 'https://opencode.ai/zen/go/v1/models', method: 'GET' as const }
+    const response = { ok: true, status: 200, statusText: 'OK', headers: {}, body: '{"data":[]}' }
+
+    preloadMocks.invoke.mockResolvedValueOnce(response)
+
+    await expect(providerProxy.fetchOpencode(request)).resolves.toEqual(response)
+    expect(preloadMocks.invoke).toHaveBeenCalledWith('provider-proxy:opencode-fetch', request)
+    expect(() => ipcRenderer.invoke('provider-proxy:opencode-fetch' as never, request)).toThrow(
+      'Blocked IPC invoke channel: provider-proxy:opencode-fetch'
+    )
+  })
+
   it('exposes memory summary delete and clear only through the memory bridge', async () => {
     const memory = getExposedBridge<{
       summaries: {

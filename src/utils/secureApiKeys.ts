@@ -1,4 +1,9 @@
-import { getProviderSecretFields, type ProviderSecretField } from '../providers'
+import {
+    getProviderSecretFields,
+    getProviderSettingsDefinition,
+    type ProviderSecretField,
+} from '../providers'
+import type { ActiveProviderId } from '../providers/providerTypes'
 
 // Utility functions for managing API keys in secure storage
 
@@ -107,37 +112,19 @@ export async function resolveApiKeyFromSecureStorage(
     }
 }
 
-export async function resolveProviderApiKeysForSettings<TSettings extends {
-    alibabaApiKey?: string
-    deepseekApiKey?: string
-    opencodeGoApiKey?: string
-    fireworksApiKey?: string
-    groqApiKey?: string
-    nvidiaApiKey?: string
-    openRouterApiKey?: string
-    perplexityApiKey?: string
-}>(
+export async function resolveProviderApiKeysForSettings<TSettings extends object>(
     settings: TSettings,
-    provider: 'alibaba' | 'deepseek' | 'fireworks' | 'groq' | 'nvidia' | 'openrouter' | 'opencode' | 'perplexity' | 'ollama'
+    provider: ActiveProviderId
 ): Promise<TSettings> {
-    const providerKeyMap = {
-        alibaba: 'alibabaApiKey',
-        deepseek: 'deepseekApiKey',
-        opencode: 'opencodeGoApiKey',
-        fireworks: 'fireworksApiKey',
-        groq: 'groqApiKey',
-        nvidia: 'nvidiaApiKey',
-        openrouter: 'openRouterApiKey',
-        perplexity: 'perplexityApiKey',
-        ollama: null,
-    } as const
-    const key = providerKeyMap[provider]
+    const key = getProviderSettingsDefinition(provider)?.secretKeyField
+    const settingsRecord = settings as Record<string, unknown>
+    const currentValue = key ? settingsRecord[key] : undefined
 
-    if (!key || !isSecureApiKeyPlaceholder(settings[key])) {
+    if (!key || typeof currentValue !== 'string' || !isSecureApiKeyPlaceholder(currentValue)) {
         return settings
     }
 
-    const resolved = await resolveApiKeyFromSecureStorage(key, settings[key] || '')
+    const resolved = await resolveApiKeyFromSecureStorage(key, currentValue)
     return {
         ...settings,
         [key]: resolved,

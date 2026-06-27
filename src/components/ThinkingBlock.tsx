@@ -12,6 +12,7 @@ import {
   inferWebToolModeFromResultData,
 } from '../tools/ui/webToolDisplay'
 import { getToolArgumentSummary, getToolPresentation } from '../tools/ui/toolPresentation'
+import { shouldSuppressNoisyToolUi } from './Dashboard/ChatArea/toolResultVisibility'
 import {
   motionDuration,
   motionDurations,
@@ -981,6 +982,10 @@ export default function ThinkingBlock({
   activeToolCalls = [],
   completedBlocks = [],
 }: ThinkingBlockProps) {
+  const visibleCompletedBlocks = completedBlocks.filter((block) => {
+    if (block.type !== 'tool') return true
+    return !shouldSuppressNoisyToolUi(block.toolName)
+  })
   const hasActiveToolCalls = activeToolCalls && activeToolCalls.length > 0
   const extraActiveToolCalls = hasActiveToolCalls ? activeToolCalls.slice(1) : []
   const { animationsEnabled } = useMotionPreferences()
@@ -1013,7 +1018,7 @@ export default function ThinkingBlock({
     !isThinking &&
     !isSearching &&
     !hasActiveToolCalls &&
-    completedBlocks.length === 0
+    visibleCompletedBlocks.length === 0
   )
     return null
 
@@ -1024,16 +1029,16 @@ export default function ThinkingBlock({
     thinkingDuration !== undefined ? Math.max(0, thinkingDuration / 1000) : null
 
   // When thinking contains --- and we have search blocks, show them inline (don't duplicate above)
-  const searchBlocks = completedBlocks.filter((b) => b.type === 'searching')
-  const hasCompletedThinkingBlocks = completedBlocks.some((block) => block.type === 'thinking')
+  const searchBlocks = visibleCompletedBlocks.filter((b) => b.type === 'searching')
+  const hasCompletedThinkingBlocks = visibleCompletedBlocks.some((block) => block.type === 'thinking')
   const hasLegacyInlineThinkingWithToolCalls =
     hasThinkingContent &&
     !hasCompletedThinkingBlocks &&
     /\n\s*---\s*\n?/.test(thinking) &&
     searchBlocks.length > 0
   const blocksToRender = hasLegacyInlineThinkingWithToolCalls
-    ? completedBlocks.filter((b) => b.type !== 'searching')
-    : completedBlocks
+    ? visibleCompletedBlocks.filter((b) => b.type !== 'searching')
+    : visibleCompletedBlocks
   const activeSearchQueries =
     searchQueries && searchQueries.length > 0
       ? searchQueries.filter(Boolean)
@@ -1205,7 +1210,7 @@ export default function ThinkingBlock({
               >
                 <div className="thinking-content">
                   {hasLegacyInlineThinkingWithToolCalls
-                    ? renderThinkingWithToolCalls(thinking, completedBlocks)
+                    ? renderThinkingWithToolCalls(thinking, visibleCompletedBlocks)
                     : normalizeThinkingContentForDisplay(thinking)}
                 </div>
               </motion.div>

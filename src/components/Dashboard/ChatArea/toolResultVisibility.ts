@@ -1,6 +1,21 @@
 import type { ThinkingBlock, ToolCallResult } from '../../../chat/types'
 import { MEMORY_TOOL_NAMES } from '../../../tools/memoryTools'
 
+const SUPPRESSED_NOISY_TOOL_RESULT_NAMES = new Set([
+  'artifact_create',
+  'artifact_update',
+  'code_execution',
+  'scheduled_task_create',
+  'scheduled_task_update',
+  'scheduled_task_delete',
+  'scheduled_task_list',
+  'scheduled_task_get_logs',
+])
+
+export function shouldSuppressNoisyToolUi(toolName: string | undefined): boolean {
+  return Boolean(toolName && SUPPRESSED_NOISY_TOOL_RESULT_NAMES.has(toolName))
+}
+
 function hasMcpMetadataShape(metadata: unknown): boolean {
   if (!metadata || typeof metadata !== 'object') {
     return false
@@ -21,7 +36,7 @@ export function shouldHideGenericToolResultCard(result: ToolCallResult): boolean
     return true
   }
 
-  if (result.toolCall.name === 'code_execution') {
+  if (shouldSuppressNoisyToolUi(result.toolCall.name)) {
     return true
   }
 

@@ -63,6 +63,13 @@ const LEGACY_FIREWORKS_MODEL_ID_MAP: Record<string, string> = {
   'accounts/fireworks/models/kimi-k2p5-turbo': 'accounts/fireworks/routers/kimi-k2p5-turbo',
   'accounts/fireworks/models/kimi-k2p5-turbo-instruct': 'accounts/fireworks/routers/kimi-k2p5-turbo',
 }
+const LEGACY_OPENCODE_MODEL_ID_MAP: Record<string, string> = {
+  'kimi-k2.7': 'kimi-k2.7-code',
+}
+const LEGACY_MODEL_ID_MAP: Record<string, string> = {
+  ...LEGACY_FIREWORKS_MODEL_ID_MAP,
+  ...LEGACY_OPENCODE_MODEL_ID_MAP,
+}
 const LEGACY_FIREWORKS_SEEDED_MODEL_CODES = new Set([
   'accounts/fireworks/models/deepseek-v3p2',
   'accounts/fireworks/models/kimi-k2p5',
@@ -197,7 +204,7 @@ export function migrateConfiguredModelCode<
     displayName?: string
   },
 >(model: T): T {
-  const mappedCode = LEGACY_FIREWORKS_MODEL_ID_MAP[model.code]
+  const mappedCode = LEGACY_MODEL_ID_MAP[model.code]
   if (!mappedCode) return model
 
   return {
@@ -312,14 +319,19 @@ export function normalizeStoredSettings(raw: string | null): Settings {
       continue
     }
 
+    const storedModels =
+      modelListField === 'opencodeModels' && Array.isArray(parsed[modelListField])
+        ? parsed[modelListField].map((model) => migrateConfiguredModelCode(model))
+        : parsed[modelListField]
+
     parsed[modelListField] = normalizeProviderModels(
-      parsed[modelListField],
+      storedModels,
       getDefaultProviderModels(defaultSettings, modelListField)
     ) as never
   }
 
-  if (parsed.aiModel && LEGACY_FIREWORKS_MODEL_ID_MAP[parsed.aiModel]) {
-    parsed.aiModel = LEGACY_FIREWORKS_MODEL_ID_MAP[parsed.aiModel]
+  if (parsed.aiModel && LEGACY_MODEL_ID_MAP[parsed.aiModel]) {
+    parsed.aiModel = LEGACY_MODEL_ID_MAP[parsed.aiModel]
   }
   const userFireworks = Array.isArray(parsed.fireworksModels)
     ? parsed.fireworksModels.map((model) => migrateConfiguredModelCode(model))
@@ -442,6 +454,28 @@ export function normalizeStoredSettings(raw: string | null): Settings {
     autoMemoryEnabled: legacySettingsRecord.autoMemoryEnabled,
   })
   parsed.extensions = normalizeExtensionsSettings(migratedExtensions)
+  const storedExtensionDefaultsVersion =
+    typeof storedSettingsRecord.extensionDefaultsVersion === 'number'
+      ? storedSettingsRecord.extensionDefaultsVersion
+      : 0
+  if (storedExtensionDefaultsVersion < defaultSettings.extensionDefaultsVersion) {
+    parsed.extensions = {
+      ...parsed.extensions,
+      code_execution: {
+        ...parsed.extensions.code_execution,
+        enabled: false,
+      },
+      reminders: {
+        ...parsed.extensions.reminders,
+        enabled: false,
+      },
+      artifacts: {
+        ...parsed.extensions.artifacts,
+        enabled: false,
+      },
+    }
+  }
+  parsed.extensionDefaultsVersion = defaultSettings.extensionDefaultsVersion
   parsed.skills = parsed.extensions
   parsed.agentSkills = normalizeAgentSkillsSettings((parsedFromStorage as Record<string, unknown>).agentSkills)
   delete legacySettingsRecord.deepResearchEnabled
@@ -708,6 +742,7 @@ export function getInitialConfigSettings(settings: Settings): Partial<SettingsCo
     assistantMode: settings.assistantMode,
     toolsEnabled: settings.toolsEnabled,
     enabledTools: settings.enabledTools,
+    extensionDefaultsVersion: settings.extensionDefaultsVersion,
     extensions: settings.extensions,
     skills: settings.skills,
     agentSkills: settings.agentSkills,

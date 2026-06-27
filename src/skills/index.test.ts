@@ -86,9 +86,9 @@ describe('skills tool exposure', () => {
 })
 
 describe('extensions settings migration', () => {
-  it('defaults artifacts on when extensions are missing', () => {
+  it('defaults artifacts off when extensions are missing', () => {
     const normalized = normalizeExtensionsSettings(undefined)
-    expect(normalized.artifacts.enabled).toBe(true)
+    expect(normalized.artifacts.enabled).toBe(false)
   })
 
   it('migrates legacy skills into extensions', () => {

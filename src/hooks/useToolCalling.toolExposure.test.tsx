@@ -4,6 +4,7 @@ import { cleanup, renderHook } from '@testing-library/react'
 
 import {
   defaultSkillsSettings,
+  withCodeExecutionEnabled,
   withComputerUseEnabled,
   withTerminalEnabled,
   type SkillsSettings,
@@ -85,6 +86,11 @@ const SCHEDULED_TASK_TOOL_NAMES = [
   'scheduled_task_delete',
   'scheduled_task_list',
   'scheduled_task_get_logs',
+]
+
+const ARTIFACT_TOOL_NAMES = [
+  'artifact_create',
+  'artifact_update',
 ]
 
 function getExposedToolNames(): string[] {
@@ -201,7 +207,7 @@ describe('useToolCalling - Computer Use tool exposure gating', () => {
 
     const names = getExposedToolNames()
     expect(names).toContain('web_search')
-    expect(names).toContain('code_execution')
+    expect(names).not.toContain('code_execution')
     for (const tool of COMPUTER_USE_TOOL_NAMES) {
       expect(names).not.toContain(tool)
     }
@@ -291,6 +297,28 @@ describe('useToolCalling - Terminal skill (system_shell) exposure gating', () =>
   })
 })
 
+describe('useToolCalling - Code Execution extension exposure gating', () => {
+  it('does not expose code_execution when the Code Execution extension is disabled', () => {
+    mockSettings.settings = makeSettings({
+      assistantMode: 'chat',
+      enabledTools: ['web_search', 'code_execution'],
+      skills: defaultSkillsSettings,
+    })
+
+    expect(getExposedToolNames()).not.toContain('code_execution')
+  })
+
+  it('exposes code_execution when the Code Execution extension is enabled', () => {
+    mockSettings.settings = makeSettings({
+      assistantMode: 'chat',
+      enabledTools: ['web_search'],
+      skills: withCodeExecutionEnabled(defaultSkillsSettings, true),
+    })
+
+    expect(getExposedToolNames()).toContain('code_execution')
+  })
+})
+
 describe('useToolCalling - Reminders skill scheduled task tool exposure gating', () => {
   it('does not expose scheduled task tools when the Reminders skill is disabled', () => {
     mockSettings.settings = makeSettings({ skills: defaultSkillsSettings })
@@ -311,6 +339,33 @@ describe('useToolCalling - Reminders skill scheduled task tool exposure gating',
 
     const names = getExposedToolNames()
     for (const tool of SCHEDULED_TASK_TOOL_NAMES) {
+      expect(names).toContain(tool)
+    }
+  })
+})
+
+describe('useToolCalling - Artifacts extension exposure gating', () => {
+  it('does not expose artifact tools when the Artifacts extension is disabled', () => {
+    mockSettings.settings = makeSettings({
+      skills: defaultSkillsSettings,
+    })
+
+    const names = getExposedToolNames()
+    for (const tool of ARTIFACT_TOOL_NAMES) {
+      expect(names).not.toContain(tool)
+    }
+  })
+
+  it('exposes artifact tools when the Artifacts extension is enabled', () => {
+    mockSettings.settings = makeSettings({
+      skills: {
+        ...defaultSkillsSettings,
+        artifacts: { enabled: true },
+      },
+    })
+
+    const names = getExposedToolNames()
+    for (const tool of ARTIFACT_TOOL_NAMES) {
       expect(names).toContain(tool)
     }
   })

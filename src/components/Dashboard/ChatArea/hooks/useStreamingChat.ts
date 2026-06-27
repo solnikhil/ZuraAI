@@ -244,7 +244,12 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       if (!agentRun) return
       activeAgentRunRef.current = agentRun
       updateStreaming({ agentRun })
-      updateStreamingMessage(sessionId, messageId, { agentRun })
+      if (
+        streamingMessageRef.current?.sessionId !== sessionId ||
+        streamingMessageRef.current?.messageId !== messageId
+      ) {
+        updateStreamingMessage(sessionId, messageId, { agentRun })
+      }
     },
     [updateStreaming, updateStreamingMessage]
   )
@@ -356,6 +361,7 @@ const streamingSettings: StreamingSettings = useMemo(
       groqApiKey: settings.groqApiKey,
       alibabaApiKey: settings.alibabaApiKey,
       deepseekApiKey: settings.deepseekApiKey,
+      opencodeGoApiKey: settings.opencodeGoApiKey,
       fireworksApiKey: settings.fireworksApiKey,
       nvidiaApiKey: settings.nvidiaApiKey,
       nvidiaModels: settings.nvidiaModels,
@@ -376,6 +382,7 @@ const streamingSettings: StreamingSettings = useMemo(
       settings.groqApiKey,
       settings.alibabaApiKey,
       settings.deepseekApiKey,
+      settings.opencodeGoApiKey,
       settings.fireworksApiKey,
       settings.nvidiaApiKey,
       settings.nvidiaModels,
@@ -946,6 +953,7 @@ const streamingSettings: StreamingSettings = useMemo(
             groqApiKey: effectiveSettings.groqApiKey,
             alibabaApiKey: effectiveSettings.alibabaApiKey,
             deepseekApiKey: effectiveSettings.deepseekApiKey,
+            opencodeGoApiKey: effectiveSettings.opencodeGoApiKey,
             fireworksApiKey: effectiveSettings.fireworksApiKey,
             nvidiaApiKey: effectiveSettings.nvidiaApiKey,
             nvidiaModels: effectiveSettings.nvidiaModels,

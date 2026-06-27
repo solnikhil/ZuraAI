@@ -176,6 +176,7 @@ export interface SettingsConfig {
   assistantMode: AssistantMode
   toolsEnabled: boolean
   enabledTools: string[]
+  extensionDefaultsVersion: number
   extensions: ExtensionsSettings
   skills: SkillsSettings
   agentSkills: AgentSkillsSettings
@@ -343,7 +344,7 @@ export const defaultSettingsConfig: SettingsConfig = {
   ],
   opencodeModels: [
     { code: 'deepseek-v4-pro', displayName: 'DeepSeek V4 Pro', enabled: true, maxContext: 1048576, supportsToolCall: true, modelType: 'chat' },
-    { code: 'kimi-k2.7', displayName: 'Kimi K2.7 Code', enabled: true, maxContext: 262144, supportsToolCall: true, modelType: 'chat' },
+    { code: 'kimi-k2.7-code', displayName: 'Kimi K2.7 Code', enabled: true, maxContext: 262144, supportsToolCall: true, modelType: 'chat' },
     { code: 'glm-5.2', displayName: 'GLM 5.2', enabled: true, maxContext: 131072, supportsToolCall: true, modelType: 'chat' },
     { code: 'qwen3.7-plus', displayName: 'Qwen3.7 Plus', enabled: true, maxContext: 262144, supportsToolCall: true, modelType: 'chat' },
     { code: 'minimax-m3', displayName: 'MiniMax M3', enabled: true, maxContext: 1048576, supportsToolCall: true, modelType: 'chat' },
@@ -369,6 +370,7 @@ export const defaultSettingsConfig: SettingsConfig = {
   assistantMode: 'chat',
   toolsEnabled: true,
   enabledTools: ['web_search'],
+  extensionDefaultsVersion: 2,
   extensions: defaultSkillsSettings,
   skills: defaultSkillsSettings,
   agentSkills: {

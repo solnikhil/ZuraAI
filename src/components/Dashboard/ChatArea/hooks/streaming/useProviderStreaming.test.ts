@@ -258,7 +258,7 @@ describe('useProviderStreaming', () => {
     expect(updateStreamingMessage).not.toHaveBeenCalled()
   })
 
-  it('publishes live reasoning duration and persists the completed reasoning block duration', async () => {
+  it('publishes live reasoning duration through isolated streaming and commits on finish', async () => {
     let now = 0
     const performanceNowSpy = vi.spyOn(performance, 'now').mockImplementation(() => now)
 
@@ -275,6 +275,7 @@ describe('useProviderStreaming', () => {
     })
 
     const updateStreamingMessage = vi.fn()
+    const throttledUpdateStreamingMessage = vi.fn()
 
     const { result } = renderHook(() =>
       useProviderStreaming({
@@ -294,7 +295,7 @@ describe('useProviderStreaming', () => {
         },
         updateStreamingMessage,
         flushThrottledUpdates: vi.fn(),
-        throttledUpdateStreamingMessage: vi.fn(),
+        throttledUpdateStreamingMessage,
       })
     )
 
@@ -314,7 +315,7 @@ describe('useProviderStreaming', () => {
         thinkingDuration: undefined,
       })
     )
-    expect(updateStreamingMessage).toHaveBeenCalledWith(
+    expect(throttledUpdateStreamingMessage).toHaveBeenCalledWith(
       'session-1',
       'message-reasoning-duration',
       expect.objectContaining({
@@ -338,11 +339,18 @@ describe('useProviderStreaming', () => {
         thinkingDuration: undefined,
       })
     )
+    expect(updateStreamingMessage).toHaveBeenCalledTimes(1)
     expect(updateStreamingMessage).toHaveBeenCalledWith(
       'session-1',
       'message-reasoning-duration',
       expect.objectContaining({
         content: 'Final answer.',
+        thinkingBlocks: [
+          expect.objectContaining({
+            type: 'thinking',
+            duration: 1500,
+          }),
+        ],
       })
     )
     expect(streamResult.thinkingBlocks).toEqual([
@@ -353,6 +361,59 @@ describe('useProviderStreaming', () => {
       }),
     ])
     performanceNowSpy.mockRestore()
+  })
+
+  it('ignores stray duplicate reasoning after answer content has started', async () => {
+    mocks.createProviderStreamClient.mockReturnValue({
+      stream: async function* () {
+        yield { type: 'reasoning-delta', delta: 'The user just said hello.' }
+        yield { type: 'text-delta', delta: 'Hey there.' }
+        yield { type: 'reasoning-delta', delta: 'The' }
+        yield { type: 'finish', finishReason: 'stop' }
+      },
+    })
+
+    const updateStreamingMessage = vi.fn()
+
+    const { result } = renderHook(() =>
+      useProviderStreaming({
+        settings: {
+          aiModel: 'glm-5.2',
+          modelProvider: 'opencode',
+          temperature: 0.4,
+          maxTokens: 1024,
+          streamResponses: true,
+          opencodeGoApiKey: 'go-key',
+        },
+        toolCalling: {
+          canUseTools: false,
+          getToolsForRequest: () => null,
+          handleToolCalls: vi.fn(),
+          getResearchContext: () => '',
+        },
+        updateStreamingMessage,
+        flushThrottledUpdates: vi.fn(),
+        throttledUpdateStreamingMessage: vi.fn(),
+      })
+    )
+
+    const streamResult = await result.current.runProviderStream({
+      provider: 'opencode',
+      model: 'glm-5.2',
+      sessionId: 'session-1',
+      messageId: 'message-stray-reasoning',
+      messages: [{ role: 'user', content: 'hello' }],
+      startTime: 0,
+      researchMaxRounds: 0,
+    })
+
+    expect(streamResult.thinkingBlocks).toEqual([
+      expect.objectContaining({
+        type: 'thinking',
+        content: 'The user just said hello.',
+      }),
+    ])
+    expect(streamResult.content).toBe('Hey there.')
   })
 
   it('atomically finalizes thinking and starts answer content without a reasoning-phase intermediate', async () => {
@@ -412,6 +473,111 @@ describe('useProviderStreaming', () => {
         ([update]) => update.phase === 'reasoning' && update.content === 'Answer starts.'
       )
     ).toBe(false)
+  })
+
+  it('publishes completed thinking when reasoning is followed directly by a tool call', async () => {
+    mocks.createProviderStreamClient.mockReturnValue({
+      stream: async function* () {
+        yield { type: 'reasoning-delta', delta: 'Need to check a source.' }
+        yield {
+          type: 'tool-call-delta',
+          delta: [{
+            index: 0,
+            id: 'call_1',
+            type: 'function',
+            function: { name: 'web_search', arguments: '{"query":"zura"}' },
+          }],
+        }
+        yield { type: 'finish', finishReason: 'tool_calls' }
+      },
+    })
+
+    const updateStreamingMessage = vi.fn()
+    const throttledUpdateStreamingMessage = vi.fn()
+    const handleToolCalls = vi.fn().mockResolvedValueOnce({
+      hasTools: true,
+      toolResults: [buildWebSearchToolResult('call_1', 'zura')],
+      formattedResults: [{ role: 'tool', tool_call_id: 'call_1', content: 'Search results' }],
+      needsFollowUp: false,
+      executionSummary: buildExecutionSummary('zura'),
+    } as ToolCallingResponse)
+
+    const { result } = renderHook(() =>
+      useProviderStreaming({
+        settings: {
+          aiModel: 'openai/gpt-4.1',
+          modelProvider: 'openrouter',
+          temperature: 0.4,
+          maxTokens: 1024,
+          streamResponses: true,
+          openRouterApiKey: 'or-key',
+        },
+        toolCalling: {
+          canUseTools: true,
+          getToolsForRequest: () => [{
+            type: 'function',
+            function: {
+              name: 'web_search',
+              description: 'Search the web',
+              parameters: { type: 'object', properties: {} },
+            },
+          }],
+          handleToolCalls,
+          getResearchContext: () => '',
+        },
+        updateStreamingMessage,
+        flushThrottledUpdates: vi.fn(),
+        throttledUpdateStreamingMessage,
+      })
+    )
+
+    await result.current.runProviderStream({
+      provider: 'openrouter',
+      model: 'openai/gpt-4.1',
+      sessionId: 'session-1',
+      messageId: 'message-thinking-tool',
+      messages: [{ role: 'user', content: 'check' }],
+      startTime: 0,
+      researchMaxRounds: 1,
+      enableTools: true,
+    })
+
+    expect(mocks.updateStreaming).toHaveBeenCalledWith(
+      expect.objectContaining({
+        phase: 'tool',
+        thinking: undefined,
+        thinkingDuration: undefined,
+        thinkingBlocks: [
+          expect.objectContaining({
+            type: 'thinking',
+            content: 'Need to check a source.',
+          }),
+        ],
+      })
+    )
+    expect(throttledUpdateStreamingMessage).toHaveBeenCalledWith(
+      'session-1',
+      'message-thinking-tool',
+      expect.objectContaining({
+        phase: 'tool',
+        thinkingBlocks: [
+          expect.objectContaining({
+            type: 'thinking',
+            content: 'Need to check a source.',
+          }),
+        ],
+      })
+    )
+    expect(updateStreamingMessage).toHaveBeenCalledTimes(1)
+    const finalPersistedUpdate = updateStreamingMessage.mock.calls[0]?.[2]
+    expect(finalPersistedUpdate?.thinkingBlocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'thinking',
+          content: 'Need to check a source.',
+        }),
+      ])
+    )
   })
 
   it('sets phase answering on the first direct text delta without any reasoning preamble', async () => {

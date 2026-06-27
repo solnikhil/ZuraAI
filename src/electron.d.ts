@@ -18,6 +18,7 @@ import type {
   ScheduledTasksAPI,
   NativeDialogAPI,
   OverlayAPI,
+  ProviderProxyAPI,
   SecureStorageAPI,
   ArtifactsAPI,
   ShellAPI,
@@ -32,6 +33,7 @@ declare global {
     secureStorage: SecureStorageAPI
     updater: UpdaterAPI
     overlay: OverlayAPI
+    providerProxy: ProviderProxyAPI
     appInfo: AppInfoAPI
     agentSkills: AgentSkillsAPI
     windowControls: WindowControlsAPI

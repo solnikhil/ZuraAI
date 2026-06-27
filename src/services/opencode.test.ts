@@ -1,11 +1,39 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import {
+  extractOpencodeStreamReasoningDelta,
   fetchOpencodeModels,
   generateOpencodeCompletion,
   mapOpencodeModelToConfiguredModel,
   streamOpencodeCompletion,
 } from './opencode'
 import { getProviderDefinition, getProviderSettingsDefinition, getProviderSecretFields } from '../providers'
+
+describe('extractOpencodeStreamReasoningDelta', () => {
+  it('keeps continuation deltas across reasoning_content and reasoning fields', () => {
+    const first = extractOpencodeStreamReasoningDelta(
+      { reasoning_content: 'Thinking' },
+      ''
+    )
+    expect(first).toEqual({ delta: 'Thinking', nextEmitted: 'Thinking' })
+
+    const second = extractOpencodeStreamReasoningDelta(
+      { reasoning: ' more' },
+      first!.nextEmitted
+    )
+    expect(second).toEqual({ delta: ' more', nextEmitted: 'Thinking more' })
+  })
+
+  it('drops duplicate reasoning prefixes echoed after the main reasoning stream', () => {
+    const emitted = 'The user just said hello.'
+    expect(extractOpencodeStreamReasoningDelta({ reasoning: 'The' }, emitted)).toBeNull()
+    expect(
+      extractOpencodeStreamReasoningDelta(
+        { reasoning_content: 'The user just said hello.' },
+        emitted
+      )
+    ).toBeNull()
+  })
+})
 
 describe('opencode service', () => {
   it('maps catalog models with tool support enabled', () => {
@@ -21,7 +49,8 @@ describe('opencode service', () => {
         displayName: 'DeepSeek V4 Pro',
         enabled: true,
         supportsToolCall: true,
-        modelType: 'chat',
+        supportsDeepThinking: true,
+        modelType: 'reasoning',
       })
     )
   })
@@ -125,14 +154,36 @@ describe('opencode service', () => {
   it('fetches models from the documented catalog endpoint', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({
+      text: async () => JSON.stringify({
+        object: 'list',
+        data: [{ id: 'kimi-k2.7-code', object: 'model', owned_by: 'opencode' }],
+      }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const models = await fetchOpencodeModels()
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://opencode.ai/zen/go/v1/models',
+      expect.objectContaining({
+        headers: {},
+      })
+    )
+    expect(models).toHaveLength(1)
+    expect(models[0].id).toBe('kimi-k2.7-code')
+  })
+
+  it('sends the OpenCode Go key for catalog requests when one is available', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () => JSON.stringify({
         object: 'list',
         data: [{ id: 'glm-5.2', object: 'model', owned_by: 'opencode' }],
       }),
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    const models = await fetchOpencodeModels('test-key')
+    await fetchOpencodeModels('test-key')
 
     expect(fetchMock).toHaveBeenCalledWith(
       'https://opencode.ai/zen/go/v1/models',
@@ -140,8 +191,6 @@ describe('opencode service', () => {
         headers: { Authorization: 'Bearer test-key' },
       })
     )
-    expect(models).toHaveLength(1)
-    expect(models[0].id).toBe('glm-5.2')
   })
 })
 
@@ -164,6 +213,17 @@ describe('opencode credential resolution', () => {
     expect(fetchKey).toHaveBeenCalledWith('opencodeGoApiKey')
     expect(resolved.opencodeGoApiKey).toBe('resolved-go-key')
     expect(resolved.opencodeGoApiKey).not.toContain('__zura_secure')
+  })
+
+  it('leaves providers without a secret field unchanged for future registry-driven resolution', async () => {
+    const { resolveProviderApiKeysForSettings, SECURE_API_KEY_PRESENT_VALUE } = await import(
+      '../utils/secureApiKeys'
+    )
+    const settings = { ollamaUrl: 'http://localhost:11434', openRouterApiKey: SECURE_API_KEY_PRESENT_VALUE }
+
+    const resolved = await resolveProviderApiKeysForSettings(settings, 'ollama')
+
+    expect(resolved).toBe(settings)
   })
 })
 

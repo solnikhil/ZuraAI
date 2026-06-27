@@ -254,6 +254,30 @@ function createThinkingBlock(
   }
 }
 
+/** Skip duplicate reasoning prefixes that arrive after answer content has started. */
+export function shouldSkipStrayReasoningDelta(
+  delta: string | undefined,
+  completedBlocks: ThinkingBlock[],
+  activeThinking: string,
+  hasAnswerContent: boolean
+): boolean {
+  const normalizedDelta = delta?.trim()
+  if (!normalizedDelta || !hasAnswerContent) return false
+
+  const completedThinking = completedBlocks
+    .filter((block) => block.type === 'thinking' && block.content)
+    .map((block) => block.content!.trim())
+    .filter(Boolean)
+
+  const transcript = [...completedThinking, activeThinking.trim()].filter(Boolean).join('')
+  if (!transcript) return false
+
+  return (
+    normalizedDelta === transcript ||
+    (normalizedDelta.length < transcript.length && transcript.startsWith(normalizedDelta))
+  )
+}
+
 /** Append a completed thinking segment as its own block. */
 export function appendCompletedThinkingBlock(
   existingBlocks: ThinkingBlock[],
@@ -305,25 +329,26 @@ export function mergeSavedToolResults(
   return existing ? [...existing, ...mapped] : mapped
 }
 
-/** Push persisted tool results into the active streaming state and message shell. */
+/** Push tool results into the isolated streaming state while the response is live. */
 export function publishStreamingToolResults(
   updateStreaming: (updates: Record<string, unknown>) => void,
-  updateStreamingMessage: UpdateStreamingCallback,
-  sessionId: string,
-  messageId: string,
+  publishProgress: (updates: Record<string, unknown>) => void,
   savedToolResults: ToolCallResult[] | undefined,
-  _thinkingBlocks?: ThinkingBlock[]
+  thinkingBlocks?: ThinkingBlock[]
 ): void {
   if (!savedToolResults || savedToolResults.length === 0) {
     return
   }
 
-  const updates: Partial<Message> = {
+  const updates: Record<string, unknown> = {
     toolResults: savedToolResults,
   }
+  if (thinkingBlocks) {
+    updates.thinkingBlocks = thinkingBlocks
+  }
 
-  updateStreaming(updates as Record<string, unknown>)
-  updateStreamingMessage(sessionId, messageId, updates)
+  updateStreaming(updates)
+  publishProgress(updates)
 }
 
 // Search query extraction

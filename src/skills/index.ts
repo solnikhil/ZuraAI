@@ -161,7 +161,7 @@ const DEFAULT_REMINDERS_SKILL: RemindersSkillState = {
 }
 
 const DEFAULT_ARTIFACTS_SKILL: ArtifactsSkillState = {
-  enabled: true,
+  enabled: false,
 }
 
 export const defaultSkillsSettings: SkillsSettings = {

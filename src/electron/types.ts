@@ -272,6 +272,25 @@ export interface AgentSkillsAPI {
   ) => Promise<AgentSkillInstallResult>
 }
 
+export interface ProviderProxyFetchRequest {
+  url: string
+  method?: 'GET' | 'POST'
+  headers?: Record<string, string>
+  body?: string
+}
+
+export interface ProviderProxyFetchResponse {
+  ok: boolean
+  status: number
+  statusText: string
+  headers: Record<string, string>
+  body: string
+}
+
+export interface ProviderProxyAPI {
+  fetchOpencode: (request: ProviderProxyFetchRequest) => Promise<ProviderProxyFetchResponse>
+}
+
 export interface ExternalChatMessageRequest {
   sessionId: string
   message: string
@@ -480,6 +499,7 @@ export type IpcInvokeChannel =
   | 'updater:check-for-updates'
   | 'updater:quit-and-install'
   | 'updater:get-version'
+  | 'provider-proxy:opencode-fetch'
 
 export interface IpcInvokeArgsMap {
   'chat-store:get-metadata': []
@@ -509,6 +529,7 @@ export interface IpcInvokeArgsMap {
   'updater:check-for-updates': []
   'updater:quit-and-install': []
   'updater:get-version': []
+  'provider-proxy:opencode-fetch': [request: ProviderProxyFetchRequest]
 }
 
 export interface IpcInvokeReturnMap {
@@ -539,6 +560,7 @@ export interface IpcInvokeReturnMap {
   'updater:check-for-updates': UpdateCheckInfo | null
   'updater:quit-and-install': boolean
   'updater:get-version': string
+  'provider-proxy:opencode-fetch': ProviderProxyFetchResponse
   'discord-rpc:get-state': DiscordRpcState
   'discord-rpc:set-activity': DiscordRpcState
 }

@@ -22,6 +22,7 @@ import {
   MAX_RESEARCH_ROUNDS,
   accumulateDeltaToolCalls,
   appendCompletedThinkingBlock,
+  shouldSkipStrayReasoningDelta,
   buildAgentVerificationMessages,
   buildDeterministicSearchSynthesis,
   buildFollowUpMessages,
@@ -497,8 +498,16 @@ export function useProviderStreaming({
         })
       }
 
-      const finalizeActiveThinking = () => {
-        if (!activeThinking.trim()) return false
+      const finalizeActiveThinking = ():
+        | {
+            thinking: undefined
+            thinkingDuration: undefined
+            thinkingBlocks: ThinkingBlock[]
+            files: FileAttachment[]
+            toolResults: ToolCallResult[] | undefined
+          }
+        | null => {
+        if (!activeThinking.trim()) return null
 
         const thinkingEndTime = performance.now()
         const thinkingDuration = activeThinkingStartTime !== null
@@ -512,7 +521,13 @@ export function useProviderStreaming({
         )
         activeThinking = ''
         activeThinkingStartTime = null
-        return true
+        return {
+          thinking: undefined,
+          thinkingDuration: undefined,
+          thinkingBlocks: localThinkingBlocks,
+          files: generatedFiles,
+          toolResults: savedToolResults,
+        }
       }
 
       const runRound = async (
@@ -541,9 +556,7 @@ export function useProviderStreaming({
             : TOOL_FOLLOW_UP_SPLIT_MARKER
           accumulatedContent = `${accumulatedContent.trimEnd()}${splitMarker}`
           updateStreamingState({ content: accumulatedContent })
-          updatePersistedStreamingMessage(options.sessionId, options.messageId, {
-            content: accumulatedContent,
-          })
+          publishStreamingProgress({ content: accumulatedContent })
         }
 
         const roundStartContent = accumulatedContent
@@ -610,10 +623,9 @@ export function useProviderStreaming({
                   roundFirstTokenTime = performance.now()
                 }
 
-                let finalizedThinkingThisDelta = false
+                let finalizedThinkingUpdates: ReturnType<typeof finalizeActiveThinking> = null
                 if (event.delta && activeThinking) {
-                  finalizeActiveThinking()
-                  finalizedThinkingThisDelta = true
+                  finalizedThinkingUpdates = finalizeActiveThinking()
                 }
 
                 roundContent += event.delta
@@ -666,29 +678,24 @@ export function useProviderStreaming({
                   const answeringProgress = {
                     phase: 'answering' as const,
                     content: frozenDisplayContent ?? accumulatedContent,
-                    ...(finalizedThinkingThisDelta
-                      ? {
-                          thinking: undefined,
-                          thinkingDuration: undefined,
-                          thinkingBlocks: localThinkingBlocks,
-                          files: generatedFiles,
-                          toolResults: savedToolResults,
-                        }
-                      : {}),
+                    ...(finalizedThinkingUpdates ?? {}),
                   }
                   updateStreamingState(answeringProgress)
                   publishStreamingProgress(answeringProgress)
-                  if (finalizedThinkingThisDelta) {
-                    updatePersistedStreamingMessage(
-                      options.sessionId,
-                      options.messageId,
-                      answeringProgress
-                    )
-                  }
                 }
                 persistProgress()
                 break
               case 'reasoning-delta':
+                if (
+                  shouldSkipStrayReasoningDelta(
+                    event.delta,
+                    localThinkingBlocks,
+                    activeThinking,
+                    roundContent.length > 0
+                  )
+                ) {
+                  break
+                }
                 if (!roundFirstTokenTime && event.delta) {
                   roundFirstTokenTime = performance.now()
                 }
@@ -714,8 +721,9 @@ export function useProviderStreaming({
                 roundReasoningDetails.push(...event.details)
                 break
               case 'tool-call-delta':
+                let finalizedThinkingForTool: ReturnType<typeof finalizeActiveThinking> = null
                 if (activeThinking) {
-                  finalizeActiveThinking()
+                  finalizedThinkingForTool = finalizeActiveThinking()
                 }
                 if (!roundAllowsTools) {
                   suppressedInlineToolMarkup = true
@@ -751,10 +759,18 @@ export function useProviderStreaming({
                 // Early signal that tool calls are coming
                 updateStreamingState({
                   phase: resolveStreamPhase('tool'),
-                  thinking: undefined,
-                  thinkingDuration: undefined,
-                  thinkingBlocks: localThinkingBlocks,
+                  ...(finalizedThinkingForTool ?? {
+                    thinking: undefined,
+                    thinkingDuration: undefined,
+                    thinkingBlocks: localThinkingBlocks,
+                  }),
                 })
+                if (finalizedThinkingForTool) {
+                  publishStreamingProgress({
+                    phase: resolveStreamPhase('tool'),
+                    ...finalizedThinkingForTool,
+                  })
+                }
                 break
               case 'file-delta':
                 generatedFiles = mergeGeneratedFiles(generatedFiles, event.files)
@@ -828,7 +844,11 @@ export function useProviderStreaming({
         throwIfAborted()
 
         if (activeThinking) {
-          finalizeActiveThinking()
+          const finalizedThinkingUpdates = finalizeActiveThinking()
+          if (finalizedThinkingUpdates) {
+            updateStreamingState(finalizedThinkingUpdates)
+            publishStreamingProgress(finalizedThinkingUpdates)
+          }
         }
 
         flushActiveThrottledUpdates()
@@ -934,22 +954,17 @@ export function useProviderStreaming({
             ? roundStartContent
             : finalRoundContent
 
-        updateStreamingState({
+        const roundCommitProgress = {
           content: committedVisibleContent,
-          phase: 'answering',
-          thinking: undefined,
-          thinkingDuration: undefined,
-          thinkingBlocks: localThinkingBlocks,
-          files: generatedFiles,
-        })
-        updatePersistedStreamingMessage(options.sessionId, options.messageId, {
-          content: committedVisibleContent,
+          phase: 'answering' as const,
           thinking: undefined,
           thinkingDuration: undefined,
           thinkingBlocks: localThinkingBlocks,
           files: generatedFiles,
           toolResults: savedToolResults,
-        })
+        }
+        updateStreamingState(roundCommitProgress)
+        publishStreamingProgress(roundCommitProgress)
 
         accumulatedContent = committedVisibleContent
         if (roundFinishReason) {
@@ -1031,9 +1046,7 @@ export function useProviderStreaming({
             content: accumulatedContent,
             phase: 'answering',
           })
-          updatePersistedStreamingMessage(options.sessionId, options.messageId, {
-            content: accumulatedContent,
-          })
+          publishStreamingProgress({ content: accumulatedContent, phase: 'answering' })
         }
 
         // Attempt 1: plain follow-up. No discouragement prompt; we want to
@@ -1176,7 +1189,7 @@ export function useProviderStreaming({
 
         // Signal that we are now waiting on / executing tool calls
         updateStreamingState({ phase: resolveStreamPhase('tool') })
-        updatePersistedStreamingMessage(options.sessionId, options.messageId, { /* no persist for ephemeral phase */ })
+        publishStreamingProgress({ phase: resolveStreamPhase('tool') })
 
         let toolResult = await toolCalling.handleToolCalls(
           buildResponseWithFallback(
@@ -1214,9 +1227,7 @@ export function useProviderStreaming({
         savedToolResults = processed.savedToolResults
         publishStreamingToolResults(
           updateStreamingState,
-          updatePersistedStreamingMessage,
-          options.sessionId,
-          options.messageId,
+          publishStreamingProgress,
           savedToolResults,
           localThinkingBlocks
         )
@@ -1228,15 +1239,13 @@ export function useProviderStreaming({
             false,
             initialExecutedSearchQueries
           )
-          updateStreamingState({
+          const searchProgress = {
             phase: resolveStreamPhase('reasoning'),
             researchStatus,
             thinkingBlocks: localThinkingBlocks,
-          })
-          updatePersistedStreamingMessage(options.sessionId, options.messageId, {
-            researchStatus,
-            thinkingBlocks: localThinkingBlocks,
-          })
+          }
+          updateStreamingState(searchProgress)
+          publishStreamingProgress(searchProgress)
         }
 
         if (toolResult.needsFollowUp && toolResult.formattedResults.length > 0) {
@@ -1380,9 +1389,7 @@ export function useProviderStreaming({
                   followUpRoundStart +
                   'I made a change, but I could not verify the outcome after one recovery attempt, so I stopped instead of continuing blind.'
                 updateStreamingState({ content: accumulatedContent })
-                updatePersistedStreamingMessage(options.sessionId, options.messageId, {
-                  content: accumulatedContent,
-                })
+                publishStreamingProgress({ content: accumulatedContent })
                 break
               }
               const followUpClassifiable = {
@@ -1484,9 +1491,7 @@ export function useProviderStreaming({
             )
             publishStreamingToolResults(
               updateStreamingState,
-              updatePersistedStreamingMessage,
-              options.sessionId,
-              options.messageId,
+              publishStreamingProgress,
               savedToolResults,
               localThinkingBlocks
             )
@@ -1523,9 +1528,7 @@ export function useProviderStreaming({
                 accumulatedContent +=
                   '\n\nI made a change, but verification did not succeed after one recovery attempt, so I stopped instead of continuing blind.'
                 updateStreamingState({ content: accumulatedContent })
-                updatePersistedStreamingMessage(options.sessionId, options.messageId, {
-                  content: accumulatedContent,
-                })
+                publishStreamingProgress({ content: accumulatedContent })
                 toolResult = {
                   ...nextToolResult,
                   needsFollowUp: false,
