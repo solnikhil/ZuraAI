@@ -390,13 +390,19 @@ export default function CommandPalette() {
           if (
             action.provider != null ||
             action.manageMode != null ||
-            action.commandPaletteTab != null
+            action.commandPaletteTab != null ||
+            action.extension != null ||
+            action.extensionPanel != null
           ) {
             setSettingsSectionParams({
               ...(action.provider != null && { provider: action.provider }),
               ...(action.manageMode != null && { manageMode: action.manageMode }),
               ...(action.commandPaletteTab != null && {
                 commandPaletteTab: action.commandPaletteTab,
+              }),
+              ...(action.extension != null && { extension: action.extension }),
+              ...(action.extensionPanel != null && {
+                extensionPanel: action.extensionPanel,
               }),
             })
           } else {

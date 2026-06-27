@@ -40,6 +40,8 @@ export interface MemorySectionProps {
   settings?: Settings
   /** Persist settings changes (auto-management toggle, memory model). */
   onChange?: (changes: { skills?: SkillsSettings; memoryModel?: string }) => void
+  /** Hide the top-level page header when rendered inside an extension detail page. */
+  embedded?: boolean
 }
 
 function formatTimestamp(ms: number): string {
@@ -88,6 +90,7 @@ export function MemorySection({
   skills,
   settings,
   onChange,
+  embedded = false,
 }: MemorySectionProps = {}): React.ReactElement {
   const [memories, setMemories] = useState<Memory[]>([])
   const [summaries, setSummaries] = useState<ConversationSummary[]>([])
@@ -263,13 +266,15 @@ export function MemorySection({
   )
 
   return (
-    <div className="settings-section-layout">
-      <div className="page-header">
-        <h2 className="page-title">Memory</h2>
-        <div className="page-subtitle">
-          Manage saved facts the assistant uses to personalize chats.
+    <div className={embedded ? 'extension-detail__embedded-section' : 'settings-section-layout'}>
+      {!embedded && (
+        <div className="page-header">
+          <h2 className="page-title">Memory</h2>
+          <div className="page-subtitle">
+            Manage saved facts the assistant uses to personalize chats.
+          </div>
         </div>
-      </div>
+      )}
 
       {onChange && (
         <>

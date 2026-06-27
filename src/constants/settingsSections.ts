@@ -1,10 +1,10 @@
+import type { CatalogExtensionId } from '../components/Settings/sections/extensionCatalog'
+
 export type SettingsSectionId =
   | 'usage'
   | 'providers'
   | 'overlay'
   | 'mcp'
-  | 'notifications'
-  | 'memory'
   | 'themes'
   | 'systemprompt'
 
@@ -46,20 +46,6 @@ export const SETTINGS_SECTIONS: SettingsSectionMeta[] = [
     keywords: ['mcp', 'model context protocol', 'server', 'stdio', 'sse', 'websocket', 'tools'],
   },
   {
-    id: 'notifications',
-    navLabel: 'Notifications',
-    title: 'Notifications',
-    description: 'Configure reminder and lookout email delivery.',
-    keywords: ['email', 'brevo', 'notifications', 'reminders', 'lookouts'],
-  },
-  {
-    id: 'memory',
-    navLabel: 'Memory',
-    title: 'Memory & Personalization',
-    description: 'Manage what ZuraAI remembers about you across chats.',
-    keywords: ['memory', 'memories', 'personalization', 'remember', 'profile', 'preferences'],
-  },
-  {
     id: 'themes',
     navLabel: 'Appearance',
     title: 'Appearance & Personalization',
@@ -88,14 +74,49 @@ const SETTINGS_SECTION_ALIASES: Record<string, SettingsSectionId> = {
   models: 'providers',
   preferences: 'providers',
   servers: 'mcp',
-overlay: 'overlay',
+  overlay: 'overlay',
   buddyoverlay: 'overlay',
   commandbar: 'themes',
-  notifications: 'notifications',
-  email: 'notifications',
-  brevo: 'notifications',
-  personalization: 'memory',
-  memories: 'memory',
+  notifications: 'overlay',
+  email: 'overlay',
+  brevo: 'overlay',
+  personalization: 'overlay',
+  memories: 'overlay',
+  memory: 'overlay',
+}
+
+export interface ResolvedSettingsNavigation {
+  section: SettingsSectionId
+  extension?: CatalogExtensionId
+  extensionPanel?: 'notifications'
+}
+
+const EXTENSION_ROUTE_ALIASES: Record<string, Pick<ResolvedSettingsNavigation, 'extension' | 'extensionPanel'>> = {
+  memory: { extension: 'memory' },
+  memories: { extension: 'memory' },
+  personalization: { extension: 'memory' },
+  reminders: { extension: 'reminders' },
+  lookouts: { extension: 'reminders' },
+  notifications: { extension: 'reminders', extensionPanel: 'notifications' },
+  email: { extension: 'reminders', extensionPanel: 'notifications' },
+  brevo: { extension: 'reminders', extensionPanel: 'notifications' },
+  overlay: { extension: 'overlay' },
+  buddyoverlay: { extension: 'overlay' },
+}
+
+export function resolveSettingsNavigation(
+  section: string | null | undefined
+): ResolvedSettingsNavigation {
+  if (!section) return { section: 'providers' }
+
+  const aliasKey = section.trim().toLowerCase()
+  const extensionRoute = EXTENSION_ROUTE_ALIASES[aliasKey]
+  if (extensionRoute) {
+    return { section: 'overlay', ...extensionRoute }
+  }
+
+  const normalized = normalizeSettingsSection(section) ?? 'providers'
+  return { section: normalized }
 }
 
 export function normalizeSettingsSection(section: string | null | undefined): SettingsSectionId | null {

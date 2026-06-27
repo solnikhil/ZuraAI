@@ -1,7 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { useSettings } from './SettingsContext'
 import { SIDEBAR_DEFAULT_WIDTH_PX, clampSidebarWidth } from '../constants/sidebar'
-import { normalizeSettingsSection } from '../constants/settingsSections'
+import { normalizeSettingsSection, resolveSettingsNavigation } from '../constants/settingsSections'
+import type { CatalogExtensionId } from '../components/Settings/sections/extensionCatalog'
 import type { ProviderId } from '../providers/providerTypes'
 import { warnOnceDuringHmr } from './hmrWarnings'
 import {
@@ -24,6 +25,8 @@ export interface SettingsSectionParams {
   provider?: ProviderKey
   manageMode?: 'providers' | 'search-apis'
   commandPaletteTab?: boolean
+  extension?: CatalogExtensionId
+  extensionPanel?: 'notifications'
 }
 
 interface AppShellContextType {
@@ -176,8 +179,16 @@ export function AppShellProvider({
   }, [])
 
   const setActiveSettingsSection = useCallback((section: string) => {
-    const normalized = normalizeSettingsSection(section) ?? 'providers'
-    setActiveSettingsSectionState(normalized)
+    const resolved = resolveSettingsNavigation(section)
+    setActiveSettingsSectionState(resolved.section)
+    if (resolved.extension || resolved.extensionPanel) {
+      setSettingsSectionParamsState({
+        extension: resolved.extension,
+        extensionPanel: resolved.extensionPanel,
+      })
+    } else {
+      setSettingsSectionParamsState(null)
+    }
   }, [])
 
   const setSettingsSectionParamsCallback = useCallback((params: SettingsSectionParams | null) => {

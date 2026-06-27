@@ -535,6 +535,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 
 #### Model Enablement (Provider Hub)
 
+- Settings → Providers is a single unified catalog: the former `Model Providers` / `Service APIs` tab switch was removed. Service API cards (Tavily, Code Execution API) now render as a dedicated **Service APIs** group at the bottom of the same providers catalog Card, share the same `ProviderCatalogFilter` chips (All / Active / Needs setup / Disabled), and opening a service API card swaps to the existing `SearchApiDetail` inline (back returns to the catalog). The `initialManageMode="search-apis"` prop/command-palette entry (`go-settings-search-apis`) is preserved for compatibility and now opens the Tavily service API detail directly instead of switching a tab.
 - Provider model rows in `src/components/Settings/sections/ProviderHubSection.tsx` support per-model enable/disable toggles.
 - Model records in active settings arrays (`configuredModels`, `ollamaModels`, `perplexityModels`, `groqModels`, `alibabaModels`, `fireworksModels`) support optional `enabled?: boolean`.
 - Provider-level toggles are persisted in `settings.providerEnabled` for the active provider surface (`alibaba`, `fireworks`, `groq`, `ollama`, `openrouter`, `perplexity`) and are independent from whether API keys/endpoints are filled.

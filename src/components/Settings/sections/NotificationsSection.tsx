@@ -12,6 +12,7 @@ export interface NotificationsSectionProps {
   brevoApiKey: string
   emailNotifications: EmailNotificationSettings
   hasUnsavedChanges: boolean
+  embedded?: boolean
   onChange: (changes: {
     brevoApiKey?: string
     emailNotifications?: EmailNotificationSettings
@@ -22,6 +23,7 @@ export function NotificationsSection({
   brevoApiKey,
   emailNotifications,
   hasUnsavedChanges,
+  embedded = false,
   onChange,
 }: NotificationsSectionProps): React.ReactElement {
   const [showApiKey, setShowApiKey] = useState(false)
@@ -76,16 +78,8 @@ export function NotificationsSection({
 
   const apiKeyValue = isSecureApiKeyPlaceholder(brevoApiKey) ? displayedApiKey : brevoApiKey
 
-  return (
-    <div className="settings-section-layout">
-      <div className="page-header">
-        <h2 className="page-title">Notifications</h2>
-        <div className="page-subtitle">
-          Send reminder and lookout emails through your own Brevo transactional email account.
-        </div>
-      </div>
-
-      <Card className="settings-section-card provider-hub-base-card mt-4">
+  const content = (
+      <Card className={`settings-section-card provider-hub-base-card ${embedded ? '' : 'mt-4'}`}>
         <div className="space-y-6">
           <div className="flex items-center justify-between gap-2">
             <div className="inline-flex items-center gap-2">
@@ -207,6 +201,21 @@ export function NotificationsSection({
           </div>
         </div>
       </Card>
+  )
+
+  if (embedded) {
+    return <div className="extension-detail__embedded-section">{content}</div>
+  }
+
+  return (
+    <div className="settings-section-layout">
+      <div className="page-header">
+        <h2 className="page-title">Notifications</h2>
+        <div className="page-subtitle">
+          Send reminder and lookout emails through your own Brevo transactional email account.
+        </div>
+      </div>
+      {content}
     </div>
   )
 }

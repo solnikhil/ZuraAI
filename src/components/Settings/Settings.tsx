@@ -7,19 +7,16 @@ import { useMcp } from '../../mcp/McpContext'
 import { checkOllamaStatus, listOllamaModels, enrichOllamaModelsWithContext } from '../../services/ollama'
 import { SECURE_API_KEY_NAMES, saveApiKeyToSecureStorage } from '../../utils/secureApiKeys'
 import { UsageSection } from './sections/UsageSection'
-import { OverlaySection } from './sections/OverlaySection'
 import { McpSection } from './sections/McpSection'
-import { MemorySection } from './sections/MemorySection'
 import { ProviderHubSection } from './sections/ProviderHubSection'
 import { SkillsSection } from './sections/SkillsSection'
-import { NotificationsSection } from './sections/NotificationsSection'
 import { AppearanceSection } from './sections/AppearanceSection'
 import { SystemPromptSection } from './sections/SystemPromptSection'
 
 import { computeUsageStats, mergeUsageSessionSnapshots } from './sections/usageMetrics'
 import type { ChatSession } from '@/chat/types'
 import { normalizeSettingsSection } from '../../constants/settingsSections'
-import { isMacOSRuntime } from '../../utils/platform'
+
 import { getProviderModelListField, getProviderSettingsDefinitions } from '../../providers'
 
 import './Settings.css'
@@ -50,10 +47,7 @@ export default function Settings({
   const clearParams = useCallback(() => setSettingsSectionParams(null), [setSettingsSectionParams])
 
   const normalizedActiveSection = useMemo(() => {
-    const normalized = normalizeSettingsSection(activeSection) ?? 'providers'
-    return isMacOSRuntime() && normalized === 'overlay'
-      ? 'providers'
-      : normalized
+    return normalizeSettingsSection(activeSection) ?? 'providers'
   }, [activeSection])
 
   const usageModelCatalog = useMemo(() => {
@@ -313,46 +307,28 @@ if (!hasSettingsChanges && !hasMcpChanges) {
               />
             )}
 
-            {!isMacOSRuntime() && normalizedActiveSection === 'overlay' && (
-              <>
-                <OverlaySection
-                  overlay={pendingSettings.overlay}
-                  onChange={(changes) => handleChange(changes)}
-                />
-                <SkillsSection
-                  skills={pendingSettings.extensions}
-                  codeExecutionAutoApprove={pendingSettings.codeExecutionAutoApprove}
-                  terminalAutoApprove={pendingSettings.terminalAutoApprove}
-                  computerUseAutoApprove={pendingSettings.computerUseAutoApprove}
-                  onChange={(changes) => handleChange({
-                    ...changes,
-                    ...(changes.skills ? { extensions: changes.skills } : {}),
-                  })}
-                />
-              </>
-            )}
-
-            {normalizedActiveSection === 'mcp' && <McpSection />}
-
-            {normalizedActiveSection === 'notifications' && (
-              <NotificationsSection
+            {normalizedActiveSection === 'overlay' && (
+              <SkillsSection
+                skills={pendingSettings.extensions}
+                overlay={pendingSettings.overlay}
+                settings={pendingSettings}
+                codeExecutionAutoApprove={pendingSettings.codeExecutionAutoApprove}
+                terminalAutoApprove={pendingSettings.terminalAutoApprove}
+                computerUseAutoApprove={pendingSettings.computerUseAutoApprove}
                 brevoApiKey={pendingSettings.brevoApiKey}
                 emailNotifications={pendingSettings.emailNotifications}
                 hasUnsavedChanges={hasSettingsChanges}
-                onChange={(changes) => handleChange(changes)}
-              />
-            )}
-
-            {normalizedActiveSection === 'memory' && (
-              <MemorySection
-                skills={pendingSettings.extensions}
-                settings={pendingSettings}
+                initialExtension={settingsSectionParams?.extension}
+                initialExtensionPanel={settingsSectionParams?.extensionPanel}
+                onExtensionNavigationConsumed={clearParams}
                 onChange={(changes) => handleChange({
                   ...changes,
                   ...(changes.skills ? { extensions: changes.skills } : {}),
                 })}
               />
             )}
+
+            {normalizedActiveSection === 'mcp' && <McpSection />}
 
             {normalizedActiveSection === 'themes' && (
               <AppearanceSection

@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { SkillsSection } from './SkillsSection'
 import { defaultSkillsSettings, withTerminalEnabled } from '../../../skills'
-import type { AgentSkillsSettings } from '@/agentSkills/types'
+import { defaultSettingsConfig } from '../../../contexts/SettingsConfigContext'
 
 let isMac = false
 vi.mock('@/utils/platform', () => ({
@@ -15,8 +15,6 @@ vi.mock('@/components/ui/dropdown-menu', () => ({
   DropdownMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   DropdownMenuContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DropdownMenuLabel: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DropdownMenuSeparator: () => <div />,
   DropdownMenuItem: ({
     children,
     onClick,
@@ -28,25 +26,22 @@ vi.mock('@/components/ui/dropdown-menu', () => ({
       {children}
     </button>
   ),
-  DropdownMenuCheckboxItem: ({
-    children,
-    onCheckedChange,
-  }: {
-    children: React.ReactNode
-    onCheckedChange?: () => void
-  }) => (
-    <button type="button" role="menuitemcheckbox" onClick={onCheckedChange}>
-      {children}
-    </button>
-  ),
 }))
 
-const defaultAgentSkills: AgentSkillsSettings = {
-  enabled: false,
-  projectRoot: '',
-  disabledSkillNames: [],
-  catalog: [],
-}
+vi.mock('./ExtensionConfigDialog', () => ({
+  ExtensionConfigDialog: ({
+    open,
+    extensionId,
+  }: {
+    open: boolean
+    extensionId: string | null
+  }) =>
+    open && extensionId ? (
+      <div role="dialog" data-testid="extension-config-overlay">
+        {extensionId}
+      </div>
+    ) : null,
+}))
 
 describe('SkillsSection', () => {
   beforeEach(() => {
@@ -57,7 +52,6 @@ describe('SkillsSection', () => {
     render(
       <SkillsSection
         skills={defaultSkillsSettings}
-        agentSkills={defaultAgentSkills}
         codeExecutionAutoApprove={false}
         terminalAutoApprove={false}
         computerUseAutoApprove={false}
@@ -71,6 +65,7 @@ describe('SkillsSection', () => {
     expect(screen.getByText('Web Research')).toBeInTheDocument()
     expect(screen.getByText('Artifacts')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /disable web research/i })).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /more actions for/i }).length).toBeGreaterThan(0)
   })
 
   it('toggles disable from skill action', () => {
@@ -78,7 +73,6 @@ describe('SkillsSection', () => {
     render(
       <SkillsSection
         skills={defaultSkillsSettings}
-        agentSkills={defaultAgentSkills}
         codeExecutionAutoApprove={false}
         terminalAutoApprove={false}
         computerUseAutoApprove={false}
@@ -97,12 +91,30 @@ describe('SkillsSection', () => {
     }))
   })
 
+  it('opens an extension config overlay from the row menu', () => {
+    render(
+      <SkillsSection
+        skills={defaultSkillsSettings}
+        settings={defaultSettingsConfig}
+        codeExecutionAutoApprove={false}
+        terminalAutoApprove={false}
+        computerUseAutoApprove={false}
+        emailNotifications={defaultSettingsConfig.emailNotifications}
+        onChange={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getAllByRole('menuitem', { name: 'Configure' })[0])
+
+    expect(screen.getByTestId('extension-config-overlay')).toBeInTheDocument()
+    expect(screen.getByText('Extensions')).toBeInTheDocument()
+  })
+
   it('renders the Terminal skill on Windows and toggles it on', () => {
     const onChange = vi.fn()
     render(
       <SkillsSection
         skills={defaultSkillsSettings}
-        agentSkills={defaultAgentSkills}
         codeExecutionAutoApprove={false}
         terminalAutoApprove={false}
         computerUseAutoApprove={false}
@@ -125,7 +137,6 @@ describe('SkillsSection', () => {
     render(
       <SkillsSection
         skills={defaultSkillsSettings}
-        agentSkills={defaultAgentSkills}
         codeExecutionAutoApprove={false}
         terminalAutoApprove={false}
         computerUseAutoApprove={false}
@@ -136,12 +147,12 @@ describe('SkillsSection', () => {
     expect(screen.queryByText('Terminal')).not.toBeInTheDocument()
   })
 
-  it('toggles terminal auto-approve from the skill menu when enabled', () => {
+  it('renders the Overlay extension card on Windows and toggles it', () => {
     const onChange = vi.fn()
     render(
       <SkillsSection
-        skills={withTerminalEnabled(defaultSkillsSettings, true)}
-        agentSkills={defaultAgentSkills}
+        skills={defaultSkillsSettings}
+        overlay={defaultSettingsConfig.overlay}
         codeExecutionAutoApprove={false}
         terminalAutoApprove={false}
         computerUseAutoApprove={false}
@@ -149,8 +160,68 @@ describe('SkillsSection', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: /auto-approve execution/i }))
+    expect(screen.getByText('Overlay')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /enable overlay/i }))
 
-    expect(onChange).toHaveBeenCalledWith({ terminalAutoApprove: true })
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({
+      overlay: expect.objectContaining({
+        enabled: true,
+      }),
+    }))
+  })
+
+  it('hides the Overlay extension card on macOS', () => {
+    isMac = true
+    render(
+      <SkillsSection
+        skills={defaultSkillsSettings}
+        overlay={defaultSettingsConfig.overlay}
+        codeExecutionAutoApprove={false}
+        terminalAutoApprove={false}
+        computerUseAutoApprove={false}
+        onChange={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByText('Overlay')).not.toBeInTheDocument()
+  })
+
+  it('opens overlay extension config from deep-link params', () => {
+    const onConsumed = vi.fn()
+    render(
+      <SkillsSection
+        skills={defaultSkillsSettings}
+        overlay={defaultSettingsConfig.overlay}
+        codeExecutionAutoApprove={false}
+        terminalAutoApprove={false}
+        computerUseAutoApprove={false}
+        initialExtension="overlay"
+        onExtensionNavigationConsumed={onConsumed}
+        onChange={vi.fn()}
+      />
+    )
+
+    expect(screen.getByTestId('extension-config-overlay')).toHaveTextContent('overlay')
+    expect(onConsumed).toHaveBeenCalled()
+  })
+
+  it('opens memory extension config from deep-link params', () => {
+    const onConsumed = vi.fn()
+    render(
+      <SkillsSection
+        skills={defaultSkillsSettings}
+        settings={defaultSettingsConfig}
+        codeExecutionAutoApprove={false}
+        terminalAutoApprove={false}
+        computerUseAutoApprove={false}
+        emailNotifications={defaultSettingsConfig.emailNotifications}
+        initialExtension="memory"
+        onExtensionNavigationConsumed={onConsumed}
+        onChange={vi.fn()}
+      />
+    )
+
+    expect(screen.getByTestId('extension-config-overlay')).toHaveTextContent('memory')
+    expect(onConsumed).toHaveBeenCalled()
   })
 })

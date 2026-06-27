@@ -8,6 +8,8 @@ import type { OverlaySettings } from '../../../contexts/SettingsConfigContext'
 export interface OverlaySectionProps {
   overlay: OverlaySettings
   onChange: (changes: { overlay: OverlaySettings }) => void
+  embedded?: boolean
+  hideEnableToggle?: boolean
 }
 
 function clampWidth(value: number, fallback: number) {
@@ -18,6 +20,8 @@ function clampWidth(value: number, fallback: number) {
 export function OverlaySection({
   overlay,
   onChange,
+  embedded = false,
+  hideEnableToggle = false,
 }: OverlaySectionProps): React.ReactElement {
   const [overlayState, setOverlayState] = useState<string>('Checking overlay runtime...')
 
@@ -50,28 +54,22 @@ export function OverlaySection({
     })
   }
 
-  return (
-    <div className="settings-section-layout">
-      <div className="page-header">
-        <h2 className="page-title">Overlay</h2>
-        <div className="page-subtitle">
-          Configure the Siri/Spotlight-style desktop chat surface that docks to the top-right corner.
-        </div>
-      </div>
-
-      <Card className="settings-section-card provider-hub-base-card mt-4">
+  const content = (
+      <Card className={`settings-section-card provider-hub-base-card ${embedded ? '' : 'mt-4'}`}>
         <div className="space-y-6">
-          <div className="flex items-center justify-between gap-2">
-            <h3 className="text-base font-semibold text-foreground">Enable Overlay</h3>
-            <Switch
-              className="provider-hub-toggle"
-              checked={overlay.enabled}
-              onCheckedChange={(enabled) => updateOverlay({ enabled })}
-              aria-label="Enable Overlay"
-            />
-          </div>
+          {!hideEnableToggle ? (
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-base font-semibold text-foreground">Enable Overlay</h3>
+              <Switch
+                className="provider-hub-toggle"
+                checked={overlay.enabled}
+                onCheckedChange={(enabled) => updateOverlay({ enabled })}
+                aria-label="Enable Overlay"
+              />
+            </div>
+          ) : null}
 
-          <div className="border-t border-border pt-6 space-y-4">
+          <div className={`space-y-4 ${hideEnableToggle ? '' : 'border-t border-border pt-6'}`}>
             <DetailField
               label="Open on App Startup"
               description="Reopen the overlay automatically after app launch when the feature is enabled."
@@ -203,6 +201,21 @@ export function OverlaySection({
           </div>
         </div>
       </Card>
+  )
+
+  if (embedded) {
+    return <div className="extension-detail__embedded-section">{content}</div>
+  }
+
+  return (
+    <div className="settings-section-layout">
+      <div className="page-header">
+        <h2 className="page-title">Overlay</h2>
+        <div className="page-subtitle">
+          Configure the Siri/Spotlight-style desktop chat surface that docks to the top-right corner.
+        </div>
+      </div>
+      {content}
     </div>
   )
 }

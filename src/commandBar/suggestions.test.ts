@@ -116,7 +116,7 @@ describe('commandBar suggestions', () => {
 
       const searchApisSuggestion = suggestions.find((s) => s.id === 'go-settings-search-apis')
       expect(searchApisSuggestion).toBeDefined()
-      expect(searchApisSuggestion?.title).toBe('Search APIs Settings')
+      expect(searchApisSuggestion?.title).toBe('Service APIs Settings')
     })
 
     it('offers Extensions settings when typing skills', () => {

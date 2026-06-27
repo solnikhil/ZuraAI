@@ -7,7 +7,7 @@ import { useAppShell } from '../../contexts/AppShellContext'
 import { useSettings } from '../../contexts/SettingsContext'
 import { isSkillEnabled } from '../../skills'
 import { loadSettingsModule } from '../Settings/settingsLoader'
-import { normalizeSettingsSection } from '../../constants/settingsSections'
+import { resolveSettingsNavigation } from '../../constants/settingsSections'
 
 // Lazy load Settings component for memory optimization
 // Only loads when user actually opens Settings
@@ -35,6 +35,7 @@ export default function DashboardLayout() {
     setDashboardView,
     activeSettingsSection,
     setActiveSettingsSection,
+    setSettingsSectionParams,
     hasUnsavedSettings,
     setHasUnsavedSettings,
   } = useAppShell()
@@ -56,17 +57,23 @@ export default function DashboardLayout() {
     if (!window.ipcRenderer?.on) return
     const listener = (_event: unknown, section: unknown) => {
       if (typeof section !== 'string') return
-      const normalized = normalizeSettingsSection(section)
-      if (normalized) {
-        setActiveSettingsSection(normalized)
-        setDashboardView('settings')
+      const resolved = resolveSettingsNavigation(section)
+      setActiveSettingsSection(resolved.section)
+      if (resolved.extension || resolved.extensionPanel) {
+        setSettingsSectionParams({
+          extension: resolved.extension,
+          extensionPanel: resolved.extensionPanel,
+        })
+      } else {
+        setSettingsSectionParams(null)
       }
+      setDashboardView('settings')
     }
     window.ipcRenderer.on('settings:navigate', listener)
     return () => {
       window.ipcRenderer.off('settings:navigate', listener)
     }
-  }, [setActiveSettingsSection, setDashboardView])
+  }, [setActiveSettingsSection, setDashboardView, setSettingsSectionParams])
 
   // This callback is passed to Settings to track unsaved changes
   const handleUnsavedChange = useCallback((hasChanges: boolean) => {

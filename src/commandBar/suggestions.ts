@@ -12,6 +12,8 @@ export type CommandBarAction =
       provider?: ProviderKey
       manageMode?: 'providers' | 'search-apis'
       commandPaletteTab?: boolean
+      extension?: import('../components/Settings/sections/extensionCatalog').CatalogExtensionId
+      extensionPanel?: 'notifications'
     }
   | { type: 'toggle_sidebar_hidden' }
   | { type: 'toggle_sidebar_collapsed' }
@@ -186,7 +188,7 @@ function buildBaseSuggestions(
             title: 'Extensions Settings',
             subtitle: 'Overlay and future extension surfaces',
             keywords: ['extensions', 'overlay', 'shortcut', 'desktop chat'],
-            action: { type: 'open_settings_section', section: 'overlay' },
+            action: { type: 'open_settings_section', section: 'overlay', extension: 'overlay' },
           },
         ] satisfies Array<Omit<CommandBarSuggestion, 'score'>>
       : []),
@@ -269,9 +271,9 @@ function buildBaseSuggestions(
     },
     {
       id: 'go-settings-search-apis',
-      title: 'Search APIs Settings',
+      title: 'Service APIs Settings',
       subtitle: 'Tavily & web search',
-      keywords: ['tavily', 'search api', 'web search', 'tools'],
+      keywords: ['tavily', 'search api', 'web search', 'tools', 'service apis'],
       action: { type: 'open_settings_section', section: 'providers', manageMode: 'search-apis' },
     },
     {

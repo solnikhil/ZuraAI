@@ -509,7 +509,6 @@ describe('ProviderHubSection', () => {
     const onChange = vi.fn()
     render(<ProviderHubSection {...baseProps} onChange={onChange} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Service APIs' }))
     openProviderCatalog('Tavily')
     fireEvent.click(screen.getByRole('combobox'))
     fireEvent.click(await screen.findByRole('option', { name: 'Lightning' }))
@@ -523,7 +522,6 @@ describe('ProviderHubSection', () => {
     const onChange = vi.fn()
     render(<ProviderHubSection {...baseProps} onChange={onChange} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Service APIs' }))
     openProviderCatalog('Tavily')
     fireEvent.click(screen.getByRole('switch', { name: 'Include web search images' }))
 
