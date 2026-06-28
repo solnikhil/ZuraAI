@@ -35,6 +35,8 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
     sidebarWidth,
     setSidebarWidth,
     setIsResizingSidebar,
+    selectedFolderId,
+    setSelectedFolderId,
   } = useAppShell()
   const {
     sessions,
@@ -78,10 +80,6 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
   // Flatten visible sessions for keyboard navigation (pinned + folders + time groups in display order)
   const flatVisibleSessions = useMemo(() => {
     const flat = [...groupedSessions.pinned]
-    for (const folder of sortedFolders) {
-      const folderSessions = groupedSessions.folders.get(folder.id) || []
-      flat.push(...folderSessions)
-    }
     flat.push(
       ...groupedSessions.today,
       ...groupedSessions.yesterday,
@@ -90,7 +88,7 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
       ...groupedSessions.older
     )
     return flat
-  }, [groupedSessions, sortedFolders])
+  }, [groupedSessions])
 
   const sessionIndexMap = useMemo(() => {
     const indexMap = new Map<string, number>()
@@ -143,10 +141,22 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
     setDashboardView('artifacts')
   }, [setDashboardView])
 
+  const openFolders = useCallback(() => {
+    setDashboardView('folders')
+  }, [setDashboardView])
+
+  const openFolder = useCallback(
+    (folderId: string) => {
+      setSelectedFolderId(folderId)
+      setDashboardView('folders')
+    },
+    [setDashboardView, setSelectedFolderId]
+  )
+
   const handleSelectSession = useCallback(
     (sessionId: string) => {
       switchSession(sessionId)
-      if (dashboardView === 'reminders' || dashboardView === 'artifacts') {
+      if (dashboardView === 'reminders' || dashboardView === 'artifacts' || dashboardView === 'folders') {
         setDashboardView('chat')
       }
     },
@@ -155,16 +165,17 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
 
   const handleNewChat = useCallback(() => {
     clearCurrentSession()
-    if (dashboardView === 'reminders' || dashboardView === 'artifacts') {
+    if (dashboardView === 'reminders' || dashboardView === 'artifacts' || dashboardView === 'folders') {
       setDashboardView('chat')
     }
   }, [clearCurrentSession, dashboardView, setDashboardView])
 
   const handleCreateFolder = useCallback(
-    (name: string) => {
-      createFolder(name)
+    (name: string, memoryMode?: Parameters<typeof createFolder>[1]) => {
+      const folderId = createFolder(name, memoryMode)
+      openFolder(folderId)
     },
-    [createFolder]
+    [createFolder, openFolder]
   )
 
   // Keyboard navigation handler (Requirements 4.4, 4.5, 4.6, 4.7)
@@ -396,14 +407,15 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
       >
         <div className="sidebar__inner">
           <SidebarChatView
-            active={view === 'chat' || view === 'reminders' || view === 'artifacts'}
+            active={view === 'chat' || view === 'reminders' || view === 'artifacts' || view === 'folders'}
             groupedSessions={groupedSessions}
             folders={sortedFolders}
+            selectedFolderId={selectedFolderId}
             chatSelectedOverlayStyle={chatSelectedOverlayStyle}
             currentSessionId={
-              view === 'reminders' || view === 'artifacts' ? null : currentSessionId
+              view === 'reminders' || view === 'artifacts' || view === 'folders' ? null : currentSessionId
             }
-            focusIndex={view === 'reminders' || view === 'artifacts' ? -1 : focusIndex}
+            focusIndex={view === 'reminders' || view === 'artifacts' || view === 'folders' ? -1 : focusIndex}
             flatVisibleSessions={flatVisibleSessions}
             sessionIndexMap={sessionIndexMap}
             bottomPadding={sidebarFooterScrollPadding}
@@ -414,6 +426,8 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
             onOpenSearch={openSearchOverlay}
             onOpenReminders={openReminders}
             onOpenArtifacts={openArtifacts}
+            onOpenFolders={openFolders}
+            onOpenFolder={openFolder}
             onSelectSession={handleSelectSession}
             onContextAction={handleContextAction}
             onAssignFolder={assignFolder}

@@ -136,7 +136,7 @@ function createEmptyIndex(): MemoryIndex {
 
 function isMemoryScope(value: unknown): value is MemoryScope {
   if (!value || typeof value !== 'object') return false
-  const scope = value as { type?: unknown; projectId?: unknown }
+  const scope = value as { type?: unknown; projectId?: unknown; includeGlobal?: unknown }
   if (scope.type === 'global') return true
   if (
     scope.type === 'project' &&

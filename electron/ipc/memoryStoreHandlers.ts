@@ -24,7 +24,11 @@ function sanitizeScope(value: unknown): MemoryScope | undefined {
     typeof value.projectId === 'string' &&
     value.projectId.length > 0
   ) {
-    return { type: 'project', projectId: value.projectId }
+    return {
+      type: 'project',
+      projectId: value.projectId,
+      ...(typeof value.includeGlobal === 'boolean' ? { includeGlobal: value.includeGlobal } : {}),
+    }
   }
   return undefined
 }

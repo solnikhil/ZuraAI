@@ -1,12 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type KeyboardEvent } from 'react'
 import { motion } from 'framer-motion'
 import { useAppShell } from '../../contexts/AppShellContext'
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
-import { useComposerDraft } from '../../contexts/ComposerDraftContext'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
-import { Brain, FileText, FolderOpen, Plus, Search } from '../icons'
+import { Brain, FileText, FolderOpen, Plus } from '../icons'
 import FolderNameDialog from './Sidebar/FolderNameDialog'
 import './FoldersView.css'
 
@@ -21,7 +20,7 @@ function formatRelativeDate(value: number): string {
   return new Date(value).toLocaleDateString()
 }
 
-export default function FoldersView(): React.ReactElement {
+export default function FoldersView() {
   const { selectedFolderId, setSelectedFolderId, setDashboardView } = useAppShell()
   const {
     folders,
@@ -30,7 +29,6 @@ export default function FoldersView(): React.ReactElement {
     createSession,
     switchSession,
   } = useChatHistory()
-  const { setDraftText } = useComposerDraft()
   const [createOpen, setCreateOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<FolderTab>('chats')
 
@@ -61,12 +59,17 @@ export default function FoldersView(): React.ReactElement {
     setDashboardView('chat')
   }
 
+  const handleComposerKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return
+    event.preventDefault()
+    startChatInFolder()
+  }
+
   const openChat = (sessionId: string) => {
     switchSession(sessionId)
     setDashboardView('chat')
   }
 
-  const folderCount = sortedFolders.length
   const chatCount = folderSessions.length
   const memoryModeLabel = selectedFolder?.memoryMode === 'folder-only' ? 'Folder-only memory' : 'Default memory'
 
@@ -122,7 +125,13 @@ export default function FoldersView(): React.ReactElement {
               </div>
             </header>
 
-            <div className="folders-view__composer-entry" role="button" tabIndex={0} onClick={startChatInFolder}>
+            <div
+              className="folders-view__composer-entry"
+              role="button"
+              tabIndex={0}
+              onClick={startChatInFolder}
+              onKeyDown={handleComposerKeyDown}
+            >
               <Plus size={18} />
               <span>New chat in {selectedFolder.name}</span>
             </div>

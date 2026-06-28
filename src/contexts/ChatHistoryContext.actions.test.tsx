@@ -111,13 +111,18 @@ function removeTagAction(sessions: ChatSession[], sessionId: string, tag: string
   })
 }
 
-function createFolderAction(folders: Folder[], name: string): { folders: Folder[]; id: string } {
+function createFolderAction(
+  folders: Folder[],
+  name: string,
+  memoryMode: Folder['memoryMode'] = 'default'
+): { folders: Folder[]; id: string } {
   const maxOrder = folders.reduce((max, f) => Math.max(max, f.order), -1)
   const newFolder: Folder = {
     id: `folder-${Math.random().toString(36).slice(2, 8)}`,
     name,
     order: maxOrder + 1,
     createdAt: Date.now(),
+    memoryMode,
   }
   return { folders: [...folders, newFolder], id: newFolder.id }
 }
@@ -362,6 +367,12 @@ describe('ChatHistoryContext Sidebar Redesign Actions', () => {
 
       expect(folders[0].createdAt).toBeGreaterThanOrEqual(before)
       expect(folders[0].createdAt).toBeLessThanOrEqual(after)
+    })
+
+    it('createFolder should persist the selected memory mode', () => {
+      const { folders } = createFolderAction([], 'Private Work', 'folder-only')
+
+      expect(folders[0].memoryMode).toBe('folder-only')
     })
 
     it('deleteFolder should remove the folder', () => {

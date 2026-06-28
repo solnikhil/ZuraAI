@@ -29,6 +29,7 @@ import type { ChatSelectedOverlayStyle } from '../../../contexts/SettingsUIConte
 interface SidebarChatListProps {
   groupedSessions: GroupedSessions
   folders: Folder[]
+  selectedFolderId: string | null
   chatSelectedOverlayStyle: ChatSelectedOverlayStyle
   isFrosted: boolean
   currentSessionId: string | null
@@ -41,6 +42,8 @@ interface SidebarChatListProps {
   artifactsEnabled: boolean
   onOpenReminders: () => void
   onOpenArtifacts: () => void
+  onOpenFolders: () => void
+  onOpenFolder: (folderId: string) => void
   onSelectSession: (id: string) => void
   onContextAction: (action: ChatRowAction, sessionId: string) => void
   onAssignFolder: (sessionId: string, folderId: string) => void
@@ -61,11 +64,11 @@ interface TimeGroupBucket {
 type SidebarListItem =
   | { type: 'section'; key: string; label: string; icon?: 'pin' | 'folder'; count?: number; folder?: Folder }
   | { type: 'row'; key: string; session: ChatSession; indented?: boolean }
-  | { type: 'folder-empty'; key: string; folderId: string }
 
 export default function SidebarChatList({
   groupedSessions,
   folders,
+  selectedFolderId,
   chatSelectedOverlayStyle,
   isFrosted,
   currentSessionId,
@@ -78,6 +81,8 @@ export default function SidebarChatList({
   artifactsEnabled,
   onOpenReminders,
   onOpenArtifacts,
+  onOpenFolders,
+  onOpenFolder,
   onSelectSession,
   onContextAction,
   onAssignFolder,
@@ -95,20 +100,7 @@ export default function SidebarChatList({
   const [deleteFolderId, setDeleteFolderId] = React.useState<string | null>(null)
   const [isPinnedOpen, setIsPinnedOpen] = React.useState(true)
   const [isYourChatsOpen, setIsYourChatsOpen] = React.useState(true)
-  const [openFolderIds, setOpenFolderIds] = React.useState(() => new Set<string>())
   const [dragOverFolderId, setDragOverFolderId] = React.useState<string | null>(null)
-
-  React.useEffect(() => {
-    setOpenFolderIds((prev) => {
-      const next = new Set<string>()
-      folders.forEach((folder) => {
-        if (prev.size === 0 || prev.has(folder.id)) {
-          next.add(folder.id)
-        }
-      })
-      return next
-    })
-  }, [folders])
 
   const timeGroups: TimeGroupBucket[] = React.useMemo(() => {
     const buckets: TimeGroupBucket[] = [
@@ -120,18 +112,6 @@ export default function SidebarChatList({
     ]
     return buckets.filter((b) => b.sessions.length > 0)
   }, [groupedSessions])
-
-  const toggleFolderOpen = React.useCallback((folderId: string) => {
-    setOpenFolderIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(folderId)) {
-        next.delete(folderId)
-      } else {
-        next.add(folderId)
-      }
-      return next
-    })
-  }, [])
 
   const sidebarItems = React.useMemo<SidebarListItem[]>(() => {
     const items: SidebarListItem[] = []
@@ -156,20 +136,6 @@ export default function SidebarChatList({
         folder,
       })
 
-      if (openFolderIds.has(folder.id)) {
-        folderSessions.forEach((session) => {
-          items.push({
-            type: 'row',
-            key: `folder:${folder.id}:${session.id}`,
-            session,
-            indented: true,
-          })
-        })
-
-        if (folderSessions.length === 0) {
-          items.push({ type: 'folder-empty', key: `folder-empty:${folder.id}`, folderId: folder.id })
-        }
-      }
     })
 
     items.push({ type: 'section', key: 'your-chats', label: 'Recents' })
@@ -182,7 +148,7 @@ export default function SidebarChatList({
     }
 
     return items
-  }, [folders, groupedSessions.folders, groupedSessions.pinned, isPinnedOpen, isYourChatsOpen, openFolderIds, timeGroups])
+  }, [folders, groupedSessions.folders, groupedSessions.pinned, isPinnedOpen, isYourChatsOpen, timeGroups])
 
   const renderChatRow = React.useCallback((session: ChatSession, indented = false) => {
     const flatIndex = sessionIndexMap.get(session.id) ?? -1
@@ -247,7 +213,7 @@ export default function SidebarChatList({
   const renderSectionHeader = React.useCallback(
     (item: Extract<SidebarListItem, { type: 'section' }>) => {
       if (item.folder) {
-        const isOpen = openFolderIds.has(item.folder.id)
+        const isActive = selectedFolderId === item.folder.id
         const isDragOver = dragOverFolderId === item.folder.id
         const header = (
           <div
@@ -270,18 +236,21 @@ export default function SidebarChatList({
             className={`sidebar-folder-dropzone ${isDragOver ? 'sidebar-folder-dropzone--over' : ''}`}
           >
             <div
-              className="sidebar-section-label"
-              onClick={() => toggleFolderOpen(item.folder!.id)}
+              className={`sidebar-section-label sidebar-section-label--folder ${isActive ? 'sidebar-section-label--active' : ''}`}
+              onClick={() => onOpenFolder(item.folder!.id)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault()
+                  onOpenFolder(item.folder!.id)
+                }
+              }}
               role="button"
-              aria-expanded={isOpen}
+              tabIndex={0}
+              aria-current={isActive ? 'page' : undefined}
             >
               <FolderOpen size={12} className="sidebar-section-label__icon" />
               <span className="sidebar-section-label__name">{item.label}</span>
               <span className="sidebar-section-label__count">{item.count}</span>
-              <ChevronDown
-                size={10}
-                className={`sidebar-section-label__chevron ${isOpen ? 'sidebar-section-label__chevron--open' : 'sidebar-section-label__chevron--closed'}`}
-              />
             </div>
           </div>
         )
@@ -324,17 +293,13 @@ export default function SidebarChatList({
         </div>
       )
     },
-    [dragOverFolderId, isPinnedOpen, isYourChatsOpen, onDropSessionToFolder, openFolderIds, toggleFolderOpen]
+    [dragOverFolderId, isPinnedOpen, isYourChatsOpen, onDropSessionToFolder, onOpenFolder, selectedFolderId]
   )
 
   const renderItem = React.useCallback(
     (_index: number, item: SidebarListItem) => {
       if (item.type === 'section') {
         return renderSectionHeader(item)
-      }
-
-      if (item.type === 'folder-empty') {
-        return <div className="sidebar-folder-empty">Drop chats here</div>
       }
 
       return renderChatRow(item.session, item.indented)
@@ -379,24 +344,27 @@ export default function SidebarChatList({
             className="sidebar-chatlist__listbox"
             style={{ paddingBottom: bottomPadding }}
           >
-            {(remindersEnabled || artifactsEnabled) && (
-              <div className="sidebar-chatlist__utility-actions">
-                {remindersEnabled
-                  ? renderUtilityAction(
-                      'Reminders',
-                      <Bell size={16} className="sidebar-header__icon" />,
-                      onOpenReminders
-                    )
-                  : null}
-                {artifactsEnabled
-                  ? renderUtilityAction(
-                      'Artifacts',
-                      <FileText size={16} className="sidebar-header__icon" />,
-                      onOpenArtifacts
-                    )
-                  : null}
-              </div>
-            )}
+            <div className="sidebar-chatlist__utility-actions">
+              {renderUtilityAction(
+                'Folders',
+                <FolderOpen size={16} className="sidebar-header__icon" />,
+                onOpenFolders
+              )}
+              {remindersEnabled
+                ? renderUtilityAction(
+                    'Reminders',
+                    <Bell size={16} className="sidebar-header__icon" />,
+                    onOpenReminders
+                  )
+                : null}
+              {artifactsEnabled
+                ? renderUtilityAction(
+                    'Artifacts',
+                    <FileText size={16} className="sidebar-header__icon" />,
+                    onOpenArtifacts
+                  )
+                : null}
+            </div>
             {sidebarItems.map((item, index) => (
               <React.Fragment key={item.key}>{renderItem(index, item)}</React.Fragment>
             ))}

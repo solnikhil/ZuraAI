@@ -110,12 +110,13 @@ Renderer `localStorage`:
 - Extensions/settings compatibility state (`settings.extensions`, legacy `settings.skills` alias while migration continues)
 - Agent Skills non-secret settings (`settings.agentSkills`)
 - Provider model lists, enablement, reasoning preferences, theme settings, command bar state, sidebar/shell state
+- Last-open dashboard folder selection (`zura-ui:selectedFolderId`) when dashboard view persistence is enabled
 - Trusted exact tool signatures for renderer approval gating
 - Non-Electron chat fallback only
 
 Main `app.getPath('userData')`:
 
-- Chat index and per-session chat JSON
+- Chat index, folder metadata, and per-session chat JSON
 - Conversation summaries and assistant run metadata on chat messages
 - MCP server metadata, runtime metadata, and non-secret config
 - Secure-storage JSON encrypted through `safeStorage`
@@ -224,10 +225,12 @@ Important tool rules:
 - Agent Skills are separate from built-in extensions and use the open `.agents/skills/*/SKILL.md` format.
 - Agent Skills discovery returns compact catalog metadata; full SKILL.md bodies are loaded only through explicit activation.
 - Agent Skills `allowed-tools` frontmatter is advisory metadata only; it must not grant new tool permissions or bypass approvals.
+- Folders are first-class dashboard workspaces opened through `dashboardView: 'folders'`; folder chats still store `folderId` on `ChatSession`, and folder metadata lives in the chat index rather than a separate store.
 
 ### Feature Guardrails
 
 - Artifacts live on their source chat session (`ChatSession.artifacts`). Do not add a separate artifact store or main-process artifact mutation API; external open is the only artifact IPC path.
+- Folder `memoryMode` is selected when a folder is created and controls project memory scope: `default` includes global plus folder memories, while `folder-only` excludes global memories for chats in that folder.
 - Scheduled web lookouts may fetch public `http`/`https` URLs and local loopback hosts only. Keep private LAN URLs rejected.
 - Email notification settings in renderer are non-secret preferences only. `brevoApiKey` stays in secure storage, and the renderer must not send arbitrary email bodies over IPC.
 - Analytics is opt-in only. Main sanitizes events and must never accept prompts, responses, file paths, clipboard data, API keys, MCP payloads, or conversation content.

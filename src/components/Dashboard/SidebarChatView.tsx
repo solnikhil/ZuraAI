@@ -11,6 +11,7 @@ interface SidebarChatViewProps {
   active: boolean
   groupedSessions: GroupedSessions
   folders: Folder[]
+  selectedFolderId: string | null
   chatSelectedOverlayStyle: ChatSelectedOverlayStyle
   currentSessionId: string | null
   focusIndex: number
@@ -20,10 +21,12 @@ interface SidebarChatViewProps {
   remindersEnabled: boolean
   artifactsEnabled: boolean
   onNewChat: () => void
-  onCreateFolder: (name: string) => void
+  onCreateFolder: (name: string, memoryMode?: Folder['memoryMode']) => void
   onOpenSearch: () => void
   onOpenReminders: () => void
   onOpenArtifacts: () => void
+  onOpenFolders: () => void
+  onOpenFolder: (folderId: string) => void
   onSelectSession: (sessionId: string) => void
   onContextAction: (action: ChatRowAction, sessionId: string) => void
   onAssignFolder: (sessionId: string, folderId: string) => void
@@ -39,6 +42,7 @@ function SidebarChatView({
   active,
   groupedSessions,
   folders,
+  selectedFolderId,
   chatSelectedOverlayStyle,
   currentSessionId,
   focusIndex,
@@ -52,6 +56,8 @@ function SidebarChatView({
   onOpenSearch,
   onOpenReminders,
   onOpenArtifacts,
+  onOpenFolders,
+  onOpenFolder,
   onSelectSession,
   onContextAction,
   onAssignFolder,
@@ -75,6 +81,7 @@ function SidebarChatView({
       <SidebarChatList
         groupedSessions={groupedSessions}
         folders={folders}
+        selectedFolderId={selectedFolderId}
         chatSelectedOverlayStyle={chatSelectedOverlayStyle}
         isFrosted={false}
         currentSessionId={currentSessionId}
@@ -87,6 +94,8 @@ function SidebarChatView({
         artifactsEnabled={artifactsEnabled}
         onOpenReminders={onOpenReminders}
         onOpenArtifacts={onOpenArtifacts}
+        onOpenFolders={onOpenFolders}
+        onOpenFolder={onOpenFolder}
         onSelectSession={onSelectSession}
         onContextAction={onContextAction}
         onAssignFolder={onAssignFolder}

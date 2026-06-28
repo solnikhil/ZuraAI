@@ -412,6 +412,18 @@
   color: color-mix(in srgb, var(--theme-text-muted) 52%, var(--theme-text-primary) 48%);
 }
 
+.sidebar-section-label--folder {
+  border-radius: 7px;
+  letter-spacing: 0;
+  padding: 7px 7px;
+}
+
+.sidebar-section-label--folder.sidebar-section-label--active {
+  background: var(--theme-surface-hover);
+  color: var(--theme-text-primary);
+  opacity: 1;
+}
+
 
 .sidebar-section-label__chevron {
   margin-left: 2px;
