@@ -307,10 +307,9 @@ if (!hasSettingsChanges && !hasMcpChanges) {
               />
             )}
 
-            {normalizedActiveSection === 'overlay' && (
+            {normalizedActiveSection === 'extensions' && (
               <SkillsSection
                 skills={pendingSettings.extensions}
-                overlay={pendingSettings.overlay}
                 settings={pendingSettings}
                 codeExecutionAutoApprove={pendingSettings.codeExecutionAutoApprove}
                 terminalAutoApprove={pendingSettings.terminalAutoApprove}

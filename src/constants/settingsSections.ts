@@ -3,7 +3,7 @@ import type { CatalogExtensionId } from '../components/Settings/sections/extensi
 export type SettingsSectionId =
   | 'usage'
   | 'providers'
-  | 'overlay'
+  | 'extensions'
   | 'mcp'
   | 'themes'
   | 'systemprompt'
@@ -32,11 +32,11 @@ export const SETTINGS_SECTIONS: SettingsSectionMeta[] = [
     keywords: ['models', 'openrouter', 'groq', 'perplexity', 'ollama', 'alibaba', 'tavily'],
   },
   {
-    id: 'overlay',
+    id: 'extensions',
     navLabel: 'Extensions',
     title: 'Extensions',
-    description: 'Manage desktop add-ons like the Overlay and future extension surfaces.',
-    keywords: ['extensions', 'overlay', 'desktop overlay', 'shortcut', 'compact chat'],
+    description: 'Manage built-in assistant capabilities and local tool surfaces.',
+    keywords: ['extensions', 'skills', 'tools', 'artifacts', 'memory', 'reminders'],
   },
   {
     id: 'mcp',
@@ -68,21 +68,19 @@ export const SETTINGS_SECTION_MAP: Record<SettingsSectionId, SettingsSectionMeta
   }, {} as Record<SettingsSectionId, SettingsSectionMeta>)
 
 const SETTINGS_SECTION_ALIASES: Record<string, SettingsSectionId> = {
-  tools: 'overlay',
-  skills: 'overlay',
-  extensions: 'overlay',
+  tools: 'extensions',
+  skills: 'extensions',
+  extensions: 'extensions',
   models: 'providers',
   preferences: 'providers',
   servers: 'mcp',
-  overlay: 'overlay',
-  buddyoverlay: 'overlay',
   commandbar: 'themes',
-  notifications: 'overlay',
-  email: 'overlay',
-  brevo: 'overlay',
-  personalization: 'overlay',
-  memories: 'overlay',
-  memory: 'overlay',
+  notifications: 'extensions',
+  email: 'extensions',
+  brevo: 'extensions',
+  personalization: 'extensions',
+  memories: 'extensions',
+  memory: 'extensions',
 }
 
 export interface ResolvedSettingsNavigation {
@@ -100,7 +98,6 @@ const EXTENSION_ROUTE_ALIASES: Record<string, Pick<ResolvedSettingsNavigation, '
   notifications: { extension: 'reminders', extensionPanel: 'notifications' },
   email: { extension: 'reminders', extensionPanel: 'notifications' },
   brevo: { extension: 'reminders', extensionPanel: 'notifications' },
-  buddyoverlay: { extension: 'overlay' },
 }
 
 export function resolveSettingsNavigation(
@@ -111,7 +108,7 @@ export function resolveSettingsNavigation(
   const aliasKey = section.trim().toLowerCase()
   const extensionRoute = EXTENSION_ROUTE_ALIASES[aliasKey]
   if (extensionRoute) {
-    return { section: 'overlay', ...extensionRoute }
+    return { section: 'extensions', ...extensionRoute }
   }
 
   const normalized = normalizeSettingsSection(section) ?? 'providers'

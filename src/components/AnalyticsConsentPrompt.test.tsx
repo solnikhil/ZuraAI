@@ -44,8 +44,8 @@ describe('AnalyticsConsentPrompt', () => {
     expect(screen.queryByText('Share anonymous app stats?')).not.toBeInTheDocument()
   })
 
-  it('does not render on utility overlay routes', async () => {
-    window.location.hash = '#/overlay'
+  it('does not render on utility routes', async () => {
+    window.location.hash = '#/about'
 
     render(<AnalyticsConsentPrompt />)
 

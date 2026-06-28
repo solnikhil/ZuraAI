@@ -36,16 +36,13 @@ import {
   DEFAULT_ASSISTANT_PERSONALITY,
   type AssistantPersonalityId,
 } from '../prompts/assistantPersonalities'
-import { defaultSkillsSettings, type ExtensionsSettings, type SkillsSettings } from '../skills'
+import { defaultSkillsSettings, isSkillEnabled, type ExtensionsSettings, type SkillsSettings } from '../skills'
 import type { AssistantMode } from '../chat/types'
 import { getProviderEnabledDefaults, getProviderSecretFields } from '../providers'
 import type { ProviderId } from '../providers/providerTypes'
 import { warnOnceDuringHmr } from './hmrWarnings'
-import type { OverlaySettings } from '../electron/types'
 import type { EmailNotificationSettings } from '../electron/types'
 import type { AgentSkillsSettings } from '../agentSkills/types'
-
-export type { OverlaySettings }
 
 // Todo item structure (shared with main Settings)
 export interface TodoItem {
@@ -205,7 +202,6 @@ export interface SettingsConfig {
   rememberLastChatSession: boolean
   rememberLastSettingsSection: boolean
   rememberLastDashboardView: boolean
-  overlay: OverlaySettings
   emailNotifications: EmailNotificationSettings
   /**
    * Discord Rich Presence preferences. Lives in the sanitized `zura-settings`
@@ -406,16 +402,6 @@ export const defaultSettingsConfig: SettingsConfig = {
   rememberLastChatSession: true,
   rememberLastSettingsSection: true,
   rememberLastDashboardView: true,
-  overlay: {
-    enabled: false,
-    launchOnStartup: false,
-    hotkey: 'CommandOrControl+Shift+/',
-    anchor: 'right',
-    compactWidth: 360,
-    expandedWidth: 460,
-    promptAutoHideEnabled: false,
-    promptAutoHideTimeout: 120,
-  },
   emailNotifications: {
     enabled: false,
     senderName: 'ZuraAI',
@@ -527,6 +513,17 @@ export function SettingsConfigProvider({
   useEffect(() => {
     onSettingsChange?.(settingsConfig)
   }, [settingsConfig, onSettingsChange])
+
+  useEffect(() => {
+    void window.scheduledTasks?.setExtensionEnabled(
+      isSkillEnabled(settingsConfig.extensions ?? settingsConfig.skills, 'reminders')
+    ).catch((error) => {
+      console.error(
+        '[SettingsConfigContext] Failed to sync Reminders extension state:',
+        error
+      )
+    })
+  }, [settingsConfig.extensions, settingsConfig.skills])
 
   const updateSettingsConfig = useCallback((newSettings: Partial<SettingsConfig>) => {
     setSettingsConfig((prev) => ({ ...prev, ...newSettings }))

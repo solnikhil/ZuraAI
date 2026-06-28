@@ -11,9 +11,8 @@ import {
 
 import type { AppRuntimeInfo } from '../electron/types'
 import type { DashboardView } from '../contexts/AppShellContext'
-import { ArrowLeft, Clock, Info, List, Loader2, MessageCircle, SettingsIcon } from './icons'
+import { ArrowLeft, Clock, Info, List, Loader2, SettingsIcon } from './icons'
 import { useToast } from './shared/Toast'
-import { isMacOSRuntime } from '@/utils/platform'
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip'
 import { TooltipIconButton } from './ui/TooltipIconButton'
 
@@ -114,7 +113,6 @@ export default function TitleBarInfoMenu({
   }, [showToast])
 
   const isPackaged = appInfo?.isPackaged ?? false
-  const overlayAvailable = !isMacOSRuntime()
   const settingsButtonDisabled = isSettingsView && hasUnsavedSettings
   const isSidebarTrigger = triggerVariant === 'sidebar'
   const updateBusy = updateState === 'checking' || updateState === 'available'
@@ -177,24 +175,6 @@ export default function TitleBarInfoMenu({
     setDashboardView('settings')
   }, [hasUnsavedSettings, isSettingsView, setDashboardView])
 
-  const handleToggleOverlay = useCallback(() => {
-    if (!window.overlay?.toggle) {
-      showToast('Overlay is not available in this environment.', 'error')
-      return
-    }
-
-    void window.overlay
-      .toggle()
-      .then((state) => {
-        if (!state.enabled) {
-          showToast('Enable Overlay in Extension settings before opening it.', 'warning')
-        }
-      })
-      .catch(() => {
-        showToast('Unable to toggle the Overlay right now.', 'error')
-      })
-  }, [showToast])
-
   if (isSidebarTrigger && isSettingsView) {
     return (
       <TooltipIconButton
@@ -253,13 +233,6 @@ export default function TitleBarInfoMenu({
         }
       >
         <DropdownMenuLabel>App</DropdownMenuLabel>
-
-        {overlayAvailable ? (
-          <DropdownMenuItem className="zura-menu-item--compact" onSelect={handleToggleOverlay}>
-            <MessageCircle size={16} />
-            <span>Overlay</span>
-          </DropdownMenuItem>
-        ) : null}
 
         <DropdownMenuItem
           className="zura-menu-item--compact"

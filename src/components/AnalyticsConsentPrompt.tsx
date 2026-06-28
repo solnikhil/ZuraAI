@@ -14,7 +14,6 @@ import type { AnalyticsState } from '@/electron/types'
 function isUtilityRoute(): boolean {
   if (typeof window === 'undefined') return true
   return (
-    window.location.hash.startsWith('#/overlay') ||
     window.location.hash.startsWith('#/about') ||
     window.location.hash.startsWith('#/chat-debug')
   )

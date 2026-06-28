@@ -54,7 +54,7 @@ Prereqs: Bun `>= 1.1`, Node.js `>= 18`.
 | `electron/main.ts`                    | App lifecycle, IPC registration, windows, tray, updater, tool handlers                                            |
 | `electron/preload.ts`                 | `contextBridge` surface and IPC allowlists; security boundary                                                     |
 | `electron/ipc/`                       | Main-process IPC handlers                                                                                         |
-| `electron/windows/`                   | Main, About, Overlay, tray, macOS menu, dev chat-debug windows                                                    |
+| `electron/windows/`                   | Main, About, tray, macOS menu, dev chat-debug windows                                                            |
 | `electron/chatStore.ts`               | Chat index/session persistence under `app.getPath('userData')`                                                    |
 | `electron/secureStorage.ts`           | Encrypted key storage via Electron `safeStorage`                                                                  |
 | `electron/mcp/`                       | MCP server storage, connection lifecycle, transports, approvals, IPC                                              |
@@ -65,7 +65,7 @@ Prereqs: Bun `>= 1.1`, Node.js `>= 18`.
 | `electron/agentSkills/`               | Main-process Agent Skills discovery/activation/install service                                                    |
 | `src/App.tsx`                         | Renderer routing and shared shell layout                                                                          |
 | `src/main.tsx`                        | Renderer bootstrap, first-paint setup, startup preloads                                                           |
-| `src/components/`                     | UI surfaces: dashboard, settings, overlay, titlebar, dialogs                                                      |
+| `src/components/`                     | UI surfaces: dashboard, settings, titlebar, dialogs                                                              |
 | `src/contexts/`                       | Renderer state: settings, chat history, shell, streaming, quick-send                                              |
 | `src/providers/`                      | Provider registry, runtime dispatch, capabilities, metadata                                                       |
 | `src/services/`                       | Provider HTTP integrations and stream parsers                                                                     |
@@ -95,7 +95,6 @@ Renderer (React/Vite) -> Preload (allowlisted bridges) -> Electron Main
 
 - Main window: loads `#/dashboard`; routes `/`, `/dashboard`, `/settings`, and `/chat` under `AppShellLayout`.
 - About window: separate `BrowserWindow`, loads `#/about`, opened through `window.appInfo.openAboutWindow()`.
-- Overlay window: non-macOS optional always-on-top frameless `BrowserWindow`, loads `#/overlay`, anchored top-right, reuses the standard chat/runtime stack, and reports content height through `overlay:set-content-height`.
 - Chat debug window: dev-only separate `BrowserWindow`, loads `#/chat-debug?sessionId=<id>`, disabled in packaged builds.
 - Unknown renderer routes render the dedicated 404 view.
 - Packaged app registers the `zura-chat` protocol for trusted local chat deep links. Debug references keep the shape `zura-chat://<sessionId>?userData=<base64urlUserData>` and may include `message=` or `messageBase64=`.
@@ -151,7 +150,6 @@ Dedicated preload bridges include:
 - `window.appMenu`
 - `window.analytics`
 - `window.agentSkills`
-- `window.overlay`
 - `window.shell`
 - `window.devTools`
 - `window.contextMenu`
@@ -179,6 +177,11 @@ MCP includes a narrow `mcp:open-config-file` channel that opens ZuraAI's own
 `mcp-servers.json` under `app.getPath('userData')` with the OS default editor.
 It must not accept renderer-provided paths.
 
+Scheduled tasks include a narrow `scheduled-tasks:set-extension-enabled` channel
+that accepts only a boolean Reminders & Lookouts extension state from the
+renderer settings runtime. Main uses this state to start/stop scheduling and to
+reject scheduled-task mutations/runs while the extension is disabled.
+
 ### CORS / Provider Proxy
 
 - `electron/main.ts` has a narrow CORS header handler for known provider domains that lack browser CORS headers, currently including NVIDIA NIM.
@@ -199,6 +202,9 @@ Important tool rules:
 - `web_search` is a main-process Tavily-only pipeline. No fallback backend.
 - Renderer-only artifact tools mutate active chat session state and do not cross IPC.
 - Scheduled task tools execute in main and are gated by the reminders extension.
+- The scheduled-task runtime also has a main-process extension gate synced from
+  renderer settings; disabling Reminders & Lookouts clears active timers and
+  prevents manual or model-callable task execution until re-enabled.
 - MCP tools use `window.mcp.executeTool(...)`, not the generic built-in tool IPC.
 - Mutating/high-risk tools require user approval unless an explicit trusted signature/auto-approve setting applies.
 - Agent mode should prefer native structured tools before visual Computer Use and verify mutating actions with read-only inspection where possible.
@@ -329,5 +335,4 @@ Don't:
 ## Known Gaps / Watchpoints
 
 - User-configured global shortcut strings in settings are still not fully wired to `globalShortcut.register(...)`.
-- Overlay floating-window support is intentionally disabled on macOS unless explicitly gated on.
 - Package-manager launcher support is planned but not active in the published npm package; `zuraai@0.0.0` is currently only a placeholder.

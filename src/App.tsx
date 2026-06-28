@@ -2,7 +2,6 @@ import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
 import { MotionConfig } from 'framer-motion'
 import { HashRouter as Router, Routes, Route } from 'react-router-dom'
 import AboutWindow from './components/AboutWindow'
-import OverlaySync from './components/OverlaySync'
 import AgentSkillsSync from './components/AgentSkillsSync'
 import NotificationSettingsSync from './components/NotificationSettingsSync'
 import MonitorSummarySync from './components/MonitorSummarySync'
@@ -29,7 +28,6 @@ import type { PendingCodeApproval, PendingTerminalApproval } from './electron/ty
 import { loadSettingsModule } from './components/Settings/settingsLoader'
 
 const Settings = lazy(loadSettingsModule)
-const OverlayView = lazy(() => import('./components/OverlayView'))
 const CodeExecutionApprovalDialog = lazy(() =>
   import('./components/CodeExecutionApprovalDialog').then((module) => ({
     default: module.CodeExecutionApprovalDialog,
@@ -118,7 +116,6 @@ function DashboardApp() {
               <ComposerDraftProvider>
                 <AgentToolApprovalProvider>
                   <ModelSelectorProvider>
-                    {!macOS && <OverlaySync />}
                     <AgentSkillsSync />
                     <NotificationSettingsSync />
                     <MonitorSummarySync />
@@ -140,16 +137,6 @@ function DashboardApp() {
                           </Route>
                           <Route path="*" element={<NotFound404 />} />
                         </Route>
-                        {!macOS && (
-                          <Route
-                            path="/overlay"
-                            element={
-                              <Suspense fallback={null}>
-                                <OverlayView />
-                              </Suspense>
-                            }
-                          />
-                        )}
                       </Routes>
                     </Router>
                     <McpApprovalDialog />

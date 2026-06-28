@@ -39,6 +39,7 @@ import {
   sanitizeScheduledTaskInput,
   updateScheduledTask,
   getMonitorRuntime,
+  isMonitorRuntimeExtensionEnabled,
 } from '../monitors'
 import type { ScheduledTaskInput, ScheduledTaskUpdateInput } from '../monitors'
 import type { ScreenshotArgs, TypeArgs, KeyArgs } from './computerUse'
@@ -49,6 +50,14 @@ import { activateAgentSkill } from '../agentSkills/service'
 
 import type { ToolResult, ToolHandler } from './types'
 export type { ToolResult, ToolHandler } from './types'
+
+const SCHEDULED_TASK_TOOL_NAMES = new Set<string>([
+  'scheduled_task_create',
+  'scheduled_task_update',
+  'scheduled_task_delete',
+  'scheduled_task_list',
+  'scheduled_task_get_logs',
+])
 
 function isComputerUseToolName(toolName: string): boolean {
   return toolName.startsWith('computer_')
@@ -256,6 +265,13 @@ export function registerToolHandlers(): void {
       return {
         success: false,
         error: 'Computer Use is disabled on macOS for now.',
+      }
+    }
+
+    if (SCHEDULED_TASK_TOOL_NAMES.has(toolName) && !isMonitorRuntimeExtensionEnabled()) {
+      return {
+        success: false,
+        error: 'Reminders & Lookouts extension is disabled.',
       }
     }
 

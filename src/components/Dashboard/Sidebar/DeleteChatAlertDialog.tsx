@@ -51,12 +51,10 @@ export default function DeleteChatAlertDialog({
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent
-        className="border-[var(--theme-border)] bg-[var(--theme-surface)] text-[var(--theme-text-primary)] shadow-none"
-      >
+      <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle className="text-[var(--theme-text-primary)]">Delete chat?</AlertDialogTitle>
-          <AlertDialogDescription className="text-[var(--theme-text-muted)]">
+          <AlertDialogTitle className="theme-overlay-title">Delete chat?</AlertDialogTitle>
+          <AlertDialogDescription className="theme-overlay-description">
             This action cannot be undone. This will permanently delete this conversation.
           </AlertDialogDescription>
         </AlertDialogHeader>

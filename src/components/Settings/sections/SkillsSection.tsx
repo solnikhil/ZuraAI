@@ -8,7 +8,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import type { OverlaySettings } from '@/contexts/SettingsConfigContext'
 import type { Settings } from '@/contexts/SettingsContext'
 import type { EmailNotificationSettings } from '@/electron/types'
 import {
@@ -23,13 +22,11 @@ import { isMacOSRuntime } from '@/utils/platform'
 import { ExtensionDetailSection } from './ExtensionDetailSection'
 import {
   getCatalogExtension,
-  OVERLAY_CATALOG_EXTENSION,
   type CatalogExtensionId,
 } from './extensionCatalog'
 
 export interface SkillsSectionProps {
   skills: SkillsSettings
-  overlay?: OverlaySettings
   settings?: Settings
   codeExecutionAutoApprove: boolean
   terminalAutoApprove: boolean
@@ -45,7 +42,6 @@ export interface SkillsSectionProps {
   ) => void
   onChange: (changes: {
     skills?: SkillsSettings
-    overlay?: OverlaySettings
     codeExecutionAutoApprove?: boolean
     terminalAutoApprove?: boolean
     computerUseAutoApprove?: boolean
@@ -72,7 +68,6 @@ interface ExtensionCatalogGroupProps {
 
 export function SkillsSection({
   skills,
-  overlay,
   settings,
   codeExecutionAutoApprove,
   terminalAutoApprove,
@@ -86,9 +81,6 @@ export function SkillsSection({
   onChange,
 }: SkillsSectionProps): React.ReactElement {
   const isEnabled = (extensionId: CatalogExtensionId): boolean => {
-    if (extensionId === 'overlay') {
-      return overlay?.enabled ?? false
-    }
     return checkSkillEnabled(skills, extensionId)
   }
 
@@ -97,15 +89,9 @@ export function SkillsSection({
     : BUILT_IN_SKILLS
 
   const recommendedRows = useMemo((): CatalogRow[] => {
-    const rows = visibleSkills
+    return visibleSkills
       .filter((skill) => skill.id === 'web_research' || skill.id === 'artifacts')
       .map(toCatalogRow)
-
-    if (!isMacOSRuntime()) {
-      rows.push(OVERLAY_CATALOG_EXTENSION)
-    }
-
-    return rows
   }, [visibleSkills])
 
   const systemRows = useMemo(
@@ -117,17 +103,6 @@ export function SkillsSection({
   )
 
   const setEnabled = (extensionId: CatalogExtensionId, enabled: boolean) => {
-    if (extensionId === 'overlay') {
-      if (!overlay) return
-      onChange({
-        overlay: {
-          ...overlay,
-          enabled,
-        },
-      })
-      return
-    }
-
     if (extensionId === 'computer_use') {
       onChange({
         skills: withComputerUseEnabled(skills, enabled),
@@ -164,7 +139,6 @@ export function SkillsSection({
         <ExtensionDetailSection
           extensionId={activeExtension}
           skills={skills}
-          overlay={overlay}
           settings={settings}
           codeExecutionAutoApprove={codeExecutionAutoApprove}
           terminalAutoApprove={terminalAutoApprove}

@@ -2,7 +2,6 @@ import React, { useEffect, useRef } from 'react'
 import { Card } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 import { SkillLogo } from '@/components/shared'
-import type { OverlaySettings } from '@/contexts/SettingsConfigContext'
 import type { Settings } from '@/contexts/SettingsContext'
 import type { EmailNotificationSettings } from '@/electron/types'
 import {
@@ -14,12 +13,10 @@ import {
 import { getCatalogExtension, type CatalogExtensionId } from './extensionCatalog'
 import { MemorySection } from './MemorySection'
 import { NotificationsSection } from './NotificationsSection'
-import { OverlaySection } from './OverlaySection'
 
 export interface ExtensionDetailSectionProps {
   extensionId: CatalogExtensionId
   skills: SkillsSettings
-  overlay?: OverlaySettings
   settings?: Settings
   codeExecutionAutoApprove: boolean
   terminalAutoApprove: boolean
@@ -32,7 +29,6 @@ export interface ExtensionDetailSectionProps {
   setEnabled: (extensionId: CatalogExtensionId, enabled: boolean) => void
   onChange: (changes: {
     skills?: SkillsSettings
-    overlay?: OverlaySettings
     codeExecutionAutoApprove?: boolean
     terminalAutoApprove?: boolean
     computerUseAutoApprove?: boolean
@@ -49,7 +45,6 @@ function getBuiltInSkill(extensionId: SkillId): BuiltInSkill | undefined {
 export function ExtensionDetailSection({
   extensionId,
   skills,
-  overlay,
   settings,
   codeExecutionAutoApprove,
   terminalAutoApprove,
@@ -63,7 +58,7 @@ export function ExtensionDetailSection({
   onChange,
 }: ExtensionDetailSectionProps): React.ReactElement | null {
   const catalogEntry = getCatalogExtension(extensionId)
-  const skill = extensionId === 'overlay' ? undefined : getBuiltInSkill(extensionId)
+  const skill = getBuiltInSkill(extensionId)
   const notificationsRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -94,14 +89,7 @@ export function ExtensionDetailSection({
         </div>
       </div>
 
-      {extensionId === 'overlay' && overlay ? (
-        <OverlaySection
-          embedded
-          hideEnableToggle
-          overlay={overlay}
-          onChange={(changes) => onChange(changes)}
-        />
-      ) : extensionId === 'memory' && settings ? (
+      {extensionId === 'memory' && settings ? (
         <MemorySection
           embedded
           skills={skills}
@@ -159,7 +147,7 @@ export function ExtensionDetailSection({
         <ExtensionInfoCard skill={skill} />
       ) : null}
 
-      {extensionId !== 'memory' && extensionId !== 'overlay' && skill?.note ? (
+      {extensionId !== 'memory' && skill?.note ? (
         <Card className="settings-list-card extension-detail__note-card">
           <div className="settings-list-row">
             <div className="settings-list-row__meta">

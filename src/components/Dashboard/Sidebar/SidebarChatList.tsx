@@ -13,6 +13,8 @@ import {
   FileText,
   FolderOpen,
   Pin,
+  Plus,
+  SettingsIcon,
   Trash2,
 } from '../../icons'
 import {
@@ -43,6 +45,7 @@ interface SidebarChatListProps {
   onOpenReminders: () => void
   onOpenArtifacts: () => void
   onOpenFolders: () => void
+  onCreateFolder: () => void
   onOpenFolder: (folderId: string) => void
   onSelectSession: (id: string) => void
   onContextAction: (action: ChatRowAction, sessionId: string) => void
@@ -63,6 +66,7 @@ interface TimeGroupBucket {
 
 type SidebarListItem =
   | { type: 'section'; key: string; label: string; icon?: 'pin' | 'folder'; count?: number; folder?: Folder }
+  | { type: 'folder-heading'; key: string; label: string }
   | { type: 'row'; key: string; session: ChatSession; indented?: boolean }
 
 export default function SidebarChatList({
@@ -82,6 +86,7 @@ export default function SidebarChatList({
   onOpenReminders,
   onOpenArtifacts,
   onOpenFolders,
+  onCreateFolder,
   onOpenFolder,
   onSelectSession,
   onContextAction,
@@ -125,6 +130,7 @@ export default function SidebarChatList({
       }
     }
 
+    items.push({ type: 'folder-heading', key: 'folders-heading', label: 'Folders' })
     folders.forEach((folder) => {
       const folderSessions = groupedSessions.folders.get(folder.id) || []
       items.push({
@@ -135,7 +141,6 @@ export default function SidebarChatList({
         count: folderSessions.length,
         folder,
       })
-
     })
 
     items.push({ type: 'section', key: 'your-chats', label: 'Recents' })
@@ -298,13 +303,60 @@ export default function SidebarChatList({
 
   const renderItem = React.useCallback(
     (_index: number, item: SidebarListItem) => {
+      if (item.type === 'folder-heading') {
+        return (
+          <div
+            className="sidebar-section-label sidebar-section-label--heading"
+            onClick={onOpenFolders}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault()
+                onOpenFolders()
+              }
+            }}
+            role="button"
+            tabIndex={0}
+          >
+            <span className="sidebar-section-label__name">{item.label}</span>
+            <span className="sidebar-section-label__actions">
+              <button
+                type="button"
+                className="sidebar-section-label__action"
+                aria-label="New folder"
+                title="New folder"
+                onClick={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  onCreateFolder()
+                }}
+              >
+                <Plus size={12} />
+              </button>
+              <button
+                type="button"
+                className="sidebar-section-label__action"
+                aria-label="View folders"
+                title="View folders"
+                onClick={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  onOpenFolders()
+                }}
+              >
+                <SettingsIcon size={12} />
+              </button>
+            </span>
+          </div>
+        )
+      }
+
       if (item.type === 'section') {
         return renderSectionHeader(item)
       }
 
       return renderChatRow(item.session, item.indented)
     },
-    [renderChatRow, renderSectionHeader]
+    [onCreateFolder, onOpenFolders, renderChatRow, renderSectionHeader]
   )
 
   const renderUtilityAction = (
@@ -344,27 +396,24 @@ export default function SidebarChatList({
             className="sidebar-chatlist__listbox"
             style={{ paddingBottom: bottomPadding }}
           >
-            <div className="sidebar-chatlist__utility-actions">
-              {renderUtilityAction(
-                'Folders',
-                <FolderOpen size={16} className="sidebar-header__icon" />,
-                onOpenFolders
-              )}
-              {remindersEnabled
-                ? renderUtilityAction(
-                    'Reminders',
-                    <Bell size={16} className="sidebar-header__icon" />,
-                    onOpenReminders
-                  )
-                : null}
-              {artifactsEnabled
-                ? renderUtilityAction(
-                    'Artifacts',
-                    <FileText size={16} className="sidebar-header__icon" />,
-                    onOpenArtifacts
-                  )
-                : null}
-            </div>
+            {(remindersEnabled || artifactsEnabled) && (
+              <div className="sidebar-chatlist__utility-actions">
+                {remindersEnabled
+                  ? renderUtilityAction(
+                      'Reminders',
+                      <Bell size={16} className="sidebar-header__icon" />,
+                      onOpenReminders
+                    )
+                  : null}
+                {artifactsEnabled
+                  ? renderUtilityAction(
+                      'Artifacts',
+                      <FileText size={16} className="sidebar-header__icon" />,
+                      onOpenArtifacts
+                    )
+                  : null}
+              </div>
+            )}
             {sidebarItems.map((item, index) => (
               <React.Fragment key={item.key}>{renderItem(index, item)}</React.Fragment>
             ))}

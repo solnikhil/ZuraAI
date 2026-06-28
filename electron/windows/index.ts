@@ -15,15 +15,6 @@ export {
 } from './chatDebugWindow'
 
 export {
-    initializeOverlay,
-    cleanupOverlay,
-    showOverlay,
-    toggleOverlay,
-    getOverlayState,
-    applyOverlaySettings,
-} from './overlayWindow'
-
-export {
     createTray,
     destroyTray
 } from './tray'

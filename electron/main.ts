@@ -3,14 +3,11 @@ import path from 'path'
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer'
 
 import {
-  applyOverlaySettings,
-  cleanupOverlay,
   createMainWindow,
   createApplicationMenu,
   createTray,
   destroyTray,
   getMainWindow,
-  initializeOverlay,
   destroyChatDebugWindow,
 } from './windows'
 import { applyDevelopmentAppIcon } from './windowIcon'
@@ -149,7 +146,6 @@ app.on('activate', () => {
 
 app.on('will-quit', () => {
   globalShortcut.unregisterAll()
-  cleanupOverlay()
   destroyChatDebugWindow()
   unregisterMcpHandlers()
   disposeCodeExecutionApprovalManager()
@@ -254,11 +250,6 @@ if (hasSingleInstanceLock) {
 
     createApplicationMenu()
     applyDevelopmentAppIcon()
-
-    log.startPhase('overlay')
-    initializeOverlay()
-    applyOverlaySettings({})
-    log.endPhase('overlay')
 
     deferredInitializer.registerTask({
       name: 'scheduled-tasks',

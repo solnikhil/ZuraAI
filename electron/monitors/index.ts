@@ -8,7 +8,13 @@ export {
   sanitizeScheduledTaskInput,
   updateScheduledTask,
 } from './storage'
-export { startMonitorRuntime, stopMonitorRuntime, getMonitorRuntime } from './runtime'
+export {
+  startMonitorRuntime,
+  stopMonitorRuntime,
+  getMonitorRuntime,
+  isMonitorRuntimeExtensionEnabled,
+  setMonitorRuntimeExtensionEnabled,
+} from './runtime'
 export type {
   MonitorIntervalPreset,
   ScheduledTaskDefinition,

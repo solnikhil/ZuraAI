@@ -50,14 +50,12 @@ export default function RenameChatDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className="border-[var(--theme-border)] bg-[var(--theme-surface)] text-[var(--theme-text-primary)] shadow-none"
-      >
+      <DialogContent>
         <DialogHeader>
-          <DialogTitle className="text-[var(--theme-text-primary)]">
+          <DialogTitle className="theme-overlay-title">
             Rename chat
           </DialogTitle>
-          <DialogDescription className="text-[var(--theme-text-muted)]">
+          <DialogDescription className="theme-overlay-description">
             Enter a new name for this conversation.
           </DialogDescription>
         </DialogHeader>
@@ -72,7 +70,7 @@ export default function RenameChatDialog({
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             onKeyDown={handleKeyDown}
-            className="w-full rounded-md border border-[var(--theme-border)] bg-[var(--theme-surface-hover)] px-3 py-2 text-sm text-[var(--theme-text-primary)] outline-none focus:border-[var(--theme-accent)] focus:ring-1 focus:ring-[var(--theme-accent)]"
+            className="theme-overlay-field w-full rounded-md px-3 py-2 text-sm outline-none"
             placeholder="Chat name"
             aria-describedby="rename-chat-description"
           />

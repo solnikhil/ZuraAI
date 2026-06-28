@@ -74,7 +74,6 @@ function SidebarChatView({
     <div className={`sidebar-view sidebar-view--chat ${active ? 'active' : 'inactive'}`}>
       <SidebarHeader
         onNewChat={onNewChat}
-        onCreateFolder={() => setCreateFolderOpen(true)}
         onOpenSearch={onOpenSearch}
       />
 
@@ -95,6 +94,7 @@ function SidebarChatView({
         onOpenReminders={onOpenReminders}
         onOpenArtifacts={onOpenArtifacts}
         onOpenFolders={onOpenFolders}
+        onCreateFolder={() => setCreateFolderOpen(true)}
         onOpenFolder={onOpenFolder}
         onSelectSession={onSelectSession}
         onContextAction={onContextAction}

@@ -133,15 +133,14 @@ describe('SkillsSection', () => {
         terminalAutoApprove={false}
         computerUseAutoApprove={false}
         emailNotifications={defaultSettingsConfig.emailNotifications}
-        activeExtension="overlay"
-        overlay={defaultSettingsConfig.overlay}
+        activeExtension="memory"
         onActiveExtensionChange={vi.fn()}
         onChange={vi.fn()}
       />
     )
 
     expect(screen.getByTestId('extension-detail-view')).toBeInTheDocument()
-    expect(screen.getByTestId('extension-detail-content')).toHaveTextContent('overlay')
+    expect(screen.getByTestId('extension-detail-content')).toHaveTextContent('memory')
     expect(screen.getByRole('button', { name: /back to extensions/i })).toBeInTheDocument()
   })
 
@@ -184,54 +183,12 @@ describe('SkillsSection', () => {
     expect(screen.queryByText('Terminal')).not.toBeInTheDocument()
   })
 
-  it('renders the Overlay extension card on Windows and toggles it', () => {
-    const onChange = vi.fn()
-    render(
-      <SkillsSection
-        skills={defaultSkillsSettings}
-        overlay={defaultSettingsConfig.overlay}
-        codeExecutionAutoApprove={false}
-        terminalAutoApprove={false}
-        computerUseAutoApprove={false}
-        onActiveExtensionChange={vi.fn()}
-        onChange={onChange}
-      />
-    )
-
-    expect(screen.getByText('Overlay')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /enable overlay/i }))
-
-    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({
-      overlay: expect.objectContaining({
-        enabled: true,
-      }),
-    }))
-  })
-
-  it('hides the Overlay extension card on macOS', () => {
-    isMac = true
-    render(
-      <SkillsSection
-        skills={defaultSkillsSettings}
-        overlay={defaultSettingsConfig.overlay}
-        codeExecutionAutoApprove={false}
-        terminalAutoApprove={false}
-        computerUseAutoApprove={false}
-        onActiveExtensionChange={vi.fn()}
-        onChange={vi.fn()}
-      />
-    )
-
-    expect(screen.queryByText('Overlay')).not.toBeInTheDocument()
-  })
-
   it('returns to the catalog from inline extension settings', () => {
     const onActiveExtensionChange = vi.fn()
     render(
       <SkillsSection
         skills={defaultSkillsSettings}
-        overlay={defaultSettingsConfig.overlay}
-        activeExtension="overlay"
+        activeExtension="memory"
         codeExecutionAutoApprove={false}
         terminalAutoApprove={false}
         computerUseAutoApprove={false}

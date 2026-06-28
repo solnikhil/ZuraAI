@@ -15,7 +15,6 @@ Events:
 - `tool_used`
 - `web_search_used`
 - `mcp_server_connected`
-- `overlay_opened`
 - `app_error`
 - `app_crash`
 
@@ -27,7 +26,7 @@ Common metadata:
 - Anonymous install ID
 - Timestamp
 
-Event-specific metadata is limited to provider/model names, assistant mode, whether attachments were present, tool name, success/failure, duration, coarse error category, MCP transport/trust state, and overlay open source when known.
+Event-specific metadata is limited to provider/model names, assistant mode, whether attachments were present, tool name, success/failure, duration, coarse error category, and MCP transport/trust state.
 
 ## What Is Never Collected
 

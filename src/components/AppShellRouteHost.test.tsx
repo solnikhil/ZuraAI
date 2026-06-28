@@ -50,7 +50,6 @@ function renderRoute(initialEntry: string) {
             <Route path="/dashboard" element={<div data-testid="dashboard-route" />} />
             <Route path="/settings" element={<div data-testid="settings-route" />} />
           </Route>
-          <Route path="/overlay" element={<div data-testid="overlay-route" />} />
         </Routes>
       </MemoryRouter>
     </SettingsProvider>
@@ -114,14 +113,4 @@ describe('AppShellRouteHost command palette routing', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
 
-  it('does not mount the main command palette on the overlay route', async () => {
-    renderRoute('/overlay')
-    await screen.findByTestId('overlay-route')
-
-    act(() => {
-      pressCtrlK()
-    })
-
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-  })
 })

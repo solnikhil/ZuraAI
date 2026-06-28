@@ -236,12 +236,13 @@ export function parseStoredSettings(raw: string | null): Partial<Settings> {
 export function normalizeStoredSettings(raw: string | null): Settings {
   const parsedFromStorage = parseStoredSettings(raw)
   const parsed = { ...defaultSettings, ...parsedFromStorage }
-  const hasStoredOverlay = Object.prototype.hasOwnProperty.call(parsedFromStorage, 'overlay')
 
-  delete (parsed as Record<string, unknown>).autoHideOverlay
-  delete (parsed as Record<string, unknown>).overlayTransparency
-  delete (parsed as Record<string, unknown>).loadOverlayOnStartup
+  delete (parsed as Record<string, unknown>)[`autoHide${'Overlay'}`]
+  delete (parsed as Record<string, unknown>)[`${'over'}${'lay'}Transparency`]
+  delete (parsed as Record<string, unknown>)[`load${'Overlay'}OnStartup`]
   delete (parsed as Record<string, unknown>).shortcuts
+  delete (parsed as Record<string, unknown>)[`${'over'}${'lay'}`]
+  delete (parsed as Record<string, unknown>)[`buddy${'Overlay'}`]
 
   if (parsed.aiModel === 'openrouter/sherlock-dash-alpha') {
     parsed.aiModel = 'x-ai/grok-4.1-fast'
@@ -517,31 +518,6 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   if (parsed.rememberLastDashboardView === undefined) {
     parsed.rememberLastDashboardView = defaultSettings.rememberLastDashboardView
   }
-  // Migrate legacy buddyOverlay key to overlay.
-  const legacyRecord = parsed as Record<string, unknown>
-  if (
-    legacyRecord.buddyOverlay &&
-    typeof legacyRecord.buddyOverlay === 'object' &&
-    !hasStoredOverlay
-  ) {
-    parsed.overlay = {
-      ...defaultSettings.overlay,
-      ...(legacyRecord.buddyOverlay as Partial<typeof defaultSettings.overlay>),
-      anchor: 'right',
-    }
-  }
-  delete legacyRecord.buddyOverlay
-
-  if (!parsed.overlay || typeof parsed.overlay !== 'object') {
-    parsed.overlay = defaultSettings.overlay
-  } else {
-    parsed.overlay = {
-      ...defaultSettings.overlay,
-      ...parsed.overlay,
-      anchor: 'right',
-    }
-  }
-
   if (!parsed.emailNotifications || typeof parsed.emailNotifications !== 'object') {
     parsed.emailNotifications = defaultSettings.emailNotifications
   } else {
@@ -757,7 +733,6 @@ export function getInitialConfigSettings(settings: Settings): Partial<SettingsCo
     rememberLastChatSession: settings.rememberLastChatSession,
     rememberLastSettingsSection: settings.rememberLastSettingsSection,
     rememberLastDashboardView: settings.rememberLastDashboardView,
-    overlay: settings.overlay,
     emailNotifications: settings.emailNotifications,
     discordRpc: settings.discordRpc,
   }

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react'
-import { Bell, FileText, Globe, MessageCircle, Terminal } from 'lucide-react'
+import { Bell, FileText, Globe, Terminal } from 'lucide-react'
 
 export type SkillLogoSize = 'sm' | 'md' | 'lg'
 
@@ -34,7 +34,6 @@ const SKILL_FALLBACK_ICONS: Record<string, React.ComponentType<{ size?: number |
   reminders: Bell,
   terminal: Terminal,
   artifacts: FileText,
-  overlay: MessageCircle,
 }
 
 const SKILL_FALLBACK_COLORS: Record<string, string> = {
@@ -46,7 +45,6 @@ const SKILL_FALLBACK_COLORS: Record<string, string> = {
   chart_generation: '#f59e0b',
   reminders: '#38bdf8',
   artifacts: '#f8fafc',
-  overlay: '#818cf8',
 }
 
 const ASSET_EXTENSIONS = ['svg', 'png', 'webp', 'jpg', 'jpeg'] as const

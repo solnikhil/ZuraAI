@@ -88,7 +88,7 @@ describe('AppShellContext providers section normalization', () => {
       </AppShellProvider>
     )
 
-    expect(screen.getByTestId('section').textContent).toBe('overlay')
+    expect(screen.getByTestId('section').textContent).toBe('extensions')
   })
 
   it('normalizes runtime section updates to providers', () => {

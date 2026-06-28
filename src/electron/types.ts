@@ -223,17 +223,6 @@ export interface AppMemoryReport {
   }>
 }
 
-export interface OverlaySettings {
-  enabled: boolean
-  launchOnStartup: boolean
-  hotkey: string
-  anchor: 'right'
-  compactWidth: number
-  expandedWidth: number
-  promptAutoHideEnabled: boolean
-  promptAutoHideTimeout: number
-}
-
 export interface DiscordRpcSettings {
   appId: string
 }
@@ -309,7 +298,6 @@ export type AnalyticsEventName =
   | 'tool_used'
   | 'web_search_used'
   | 'mcp_server_connected'
-  | 'overlay_opened'
   | 'app_error'
   | 'app_crash'
 
@@ -325,12 +313,6 @@ export interface AnalyticsState {
 }
 
 export type AnalyticsProperties = Record<string, string | number | boolean | undefined>
-
-export interface OverlayState extends OverlaySettings {
-  visible: boolean
-  mode: 'hidden' | 'compact' | 'expanded'
-  shortcutRegistered: boolean
-}
 
 export interface WindowBounds {
   x: number
@@ -460,18 +442,9 @@ export type AppMenuCommand =
   | 'close-window'
   | 'open-help'
 
-export type IpcSendChannel =
-  | 'overlay:drag-start'
-  | 'overlay:drag-move'
-  | 'overlay:drag-end'
-  | 'overlay:navigate-settings'
+export type IpcSendChannel = never
 
-export interface IpcSendArgsMap {
-  'overlay:drag-start': [cursorX: number, cursorY: number]
-  'overlay:drag-move': [cursorX: number, cursorY: number]
-  'overlay:drag-end': []
-  'overlay:navigate-settings': [section: string]
-}
+export type IpcSendArgsMap = Record<never, never>
 
 export type IpcInvokeChannel =
   | 'chat-store:get-metadata'
@@ -572,7 +545,6 @@ export type IpcOnChannel =
   | 'update-downloaded'
   | 'update-error'
   | 'update-download-progress'
-  | 'overlay:pending-prompt'
   | 'app:new-chat'
   | 'settings:navigate'
   | 'chat-store:changed'
@@ -592,7 +564,6 @@ export interface IpcOnArgsMap {
   'update-downloaded': [version: string]
   'update-error': [message: string]
   'update-download-progress': [progress: UpdaterDownloadProgress]
-  'overlay:pending-prompt': [prompt: string]
   'app:new-chat': []
   'settings:navigate': [section: string]
   'chat-store:changed': []
@@ -636,23 +607,6 @@ export interface UpdaterAPI {
   onUpdateDownloaded: (callback: (version: string) => void) => () => void
   onUpdateError: (callback: (message: string) => void) => () => void
   onUpdateProgress: (callback: (progress: UpdaterDownloadProgress) => void) => () => void
-}
-
-export interface OverlayAPI {
-  show: () => Promise<OverlayState>
-  hide: () => Promise<OverlayState>
-  toggle: () => Promise<OverlayState>
-  expand: () => Promise<OverlayState>
-  collapse: () => Promise<OverlayState>
-  getState: () => Promise<OverlayState>
-  focusMainWindow: () => Promise<void>
-  applySettings: (settings: Partial<OverlaySettings>) => Promise<OverlayState>
-  setContentHeight: (height: number) => Promise<OverlayState>
-  onPendingPrompt: (callback: (prompt: string) => void) => () => void
-  dragStart: (cursorX: number, cursorY: number) => void
-  dragMove: (cursorX: number, cursorY: number) => void
-  dragEnd: () => void
-  navigateSettings: (section: string) => void
 }
 
 export interface AppInfoAPI {
@@ -798,6 +752,7 @@ export interface DiscordRpcAPI {
 }
 
 export interface ScheduledTasksAPI {
+  setExtensionEnabled: (enabled: boolean) => Promise<boolean>
   list: () => Promise<ScheduledTaskDefinition[]>
   create: (input: ScheduledTaskInput) => Promise<ScheduledTaskDefinition>
   update: (id: string, patch: ScheduledTaskUpdateInput) => Promise<ScheduledTaskDefinition | null>

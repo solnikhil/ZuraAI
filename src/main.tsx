@@ -11,12 +11,6 @@ import { initializeRendererPerformance } from './utils/rendererPerformance'
 import { injectLazyImageStyles } from './components/shared/LazyImage'
 import { scheduleNonCriticalPreloads } from './utils/startupPreloads'
 import './index.css'
-import { applyOverlayRouteDocumentClasses } from './components/overlay/overlayDocument'
-import { isOverlayRoute } from './components/overlay/overlaySessionPolicy'
-
-if (typeof window !== 'undefined' && isOverlayRoute()) {
-  applyOverlayRouteDocumentClasses()
-}
 
 initializeRendererPerformance()
 

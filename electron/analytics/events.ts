@@ -8,7 +8,6 @@ export const ANALYTICS_EVENTS = [
   'tool_used',
   'web_search_used',
   'mcp_server_connected',
-  'overlay_opened',
   'app_error',
   'app_crash',
 ] as const

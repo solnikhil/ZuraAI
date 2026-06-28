@@ -1,11 +1,9 @@
 import type { ProviderId } from '../providers/providerTypes'
-import { isMacOSRuntime } from '../utils/platform'
 
 export type ProviderKey = ProviderId
 
 export type CommandBarAction =
   | { type: 'open_dashboard_view'; view: 'chat' | 'settings' }
-  | { type: 'toggle_overlay' }
   | {
       type: 'open_settings_section'
       section: string
@@ -174,24 +172,6 @@ function buildBaseSuggestions(
       keywords: ['providers', 'config', 'api keys', 'models'],
       action: { type: 'open_dashboard_view', view: 'settings' },
     },
-    ...(!isMacOSRuntime()
-      ? [
-          {
-            id: 'toggle-overlay',
-            title: 'Toggle Overlay',
-            subtitle: 'Show or hide the compact desktop chat',
-            keywords: ['overlay', 'desktop chat', 'floating', 'compact'],
-            action: { type: 'toggle_overlay' },
-          },
-          {
-            id: 'go-settings-overlay',
-            title: 'Extensions Settings',
-            subtitle: 'Overlay and future extension surfaces',
-            keywords: ['extensions', 'overlay', 'shortcut', 'desktop chat'],
-            action: { type: 'open_settings_section', section: 'overlay', extension: 'overlay' },
-          },
-        ] satisfies Array<Omit<CommandBarSuggestion, 'score'>>
-      : []),
     {
       id: 'go-settings-usage',
       title: 'Usage Settings',
@@ -211,7 +191,7 @@ function buildBaseSuggestions(
       title: 'Extensions Settings',
       subtitle: 'Built-in extensions, artifacts, and modes',
       keywords: ['extensions', 'skills', 'artifacts', 'web research', 'research mode', 'capabilities'],
-      action: { type: 'open_settings_section', section: 'overlay' },
+      action: { type: 'open_settings_section', section: 'extensions' },
     },
     {
       id: 'go-settings-openrouter',
@@ -294,7 +274,7 @@ function buildBaseSuggestions(
       id: 'go-settings-commandbar',
       title: 'Command Palette Settings',
       subtitle: 'Customize floating command palette',
-      keywords: ['command', 'bar', 'commandbar', 'shortcut', 'palette', 'floating', 'overlay'],
+      keywords: ['command', 'bar', 'commandbar', 'shortcut', 'palette', 'floating'],
       action: { type: 'open_settings_section', section: 'themes', commandPaletteTab: true },
     },
     {

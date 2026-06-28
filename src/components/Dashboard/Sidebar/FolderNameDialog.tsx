@@ -52,18 +52,18 @@ export default function FolderNameDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="folder-name-dialog border-[var(--theme-border)] bg-[var(--theme-surface)] text-[var(--theme-text-primary)] shadow-none">
+      <DialogContent className="folder-name-dialog">
         <DialogHeader>
-          <DialogTitle className="text-[var(--theme-text-primary)]">
+          <DialogTitle className="theme-overlay-title">
             {mode === 'create' ? 'New folder' : 'Rename folder'}
           </DialogTitle>
-          <DialogDescription className="text-[var(--theme-text-muted)]">
+          <DialogDescription className="theme-overlay-description">
             {mode === 'create'
               ? 'Keep related chats, context, and memory behavior together.'
               : 'Update the folder name shown in the sidebar.'}
           </DialogDescription>
         </DialogHeader>
-        <div className="my-2">
+        <div className="folder-name-dialog__field my-2">
           <label htmlFor="folder-name-input" className="sr-only">
             Folder name
           </label>
@@ -80,7 +80,7 @@ export default function FolderNameDialog({
               }
             }}
             placeholder="Folder name"
-            className="border-[var(--theme-border)] bg-[var(--theme-surface-hover)] focus-visible:border-[var(--theme-accent)] focus-visible:ring-[var(--theme-accent)]/30"
+            className="theme-overlay-field"
           />
         </div>
         {mode === 'create' ? (

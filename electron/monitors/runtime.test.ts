@@ -98,6 +98,7 @@ describe('scheduled task runtime notifications', () => {
       now: () => 1_000,
     })
 
+    await runtime.setExtensionEnabled(true)
     await runtime.runNow('task-1')
     runtime.stop()
 
@@ -136,6 +137,7 @@ describe('scheduled task runtime notifications', () => {
       now: () => 1_000,
     })
 
+    await runtime.setExtensionEnabled(true)
     await runtime.runNow('task-1')
     runtime.stop()
 
@@ -163,6 +165,7 @@ describe('scheduled task runtime notifications', () => {
       now: () => 1_000,
     })
 
+    await runtime.setExtensionEnabled(true)
     await runtime.runNow('task-1')
     runtime.stop()
 
@@ -186,6 +189,7 @@ describe('scheduled task runtime notifications', () => {
       now: () => 1_000,
     })
 
+    await runtime.setExtensionEnabled(true)
     await runtime.runNow('task-1')
     runtime.stop()
 
@@ -216,6 +220,7 @@ describe('scheduled task runtime notifications', () => {
       now: () => 1_000,
     })
 
+    await runtime.setExtensionEnabled(true)
     await expect(runtime.runNow('task-1')).resolves.toEqual(expect.objectContaining({
       taskId: 'task-1',
     }))
@@ -245,6 +250,7 @@ describe('scheduled task runtime notifications', () => {
       now: () => 1_000,
     })
 
+    await runtime.setExtensionEnabled(true)
     await runtime.runNow('task-1')
     runtime.stop()
 
@@ -252,6 +258,47 @@ describe('scheduled task runtime notifications', () => {
     expect(storageMock.savedRuns[0]?.logs).not.toContainEqual(
       expect.objectContaining({ message: 'Email notification sent.' })
     )
+  })
+
+  it('does not schedule tasks while the extension is disabled', async () => {
+    const { __test__ } = await import('./runtime')
+    const setTimeoutImpl = vi.fn(() => 1 as unknown as ReturnType<typeof setTimeout>)
+    const clearTimeoutImpl = vi.fn()
+    storageMock.task = createTask({})
+
+    const runtime = __test__.createRuntime({
+      setTimeoutImpl,
+      clearTimeoutImpl,
+      now: () => 1_000,
+    })
+
+    await runtime.reschedule()
+    await expect(runtime.runNow('task-1')).rejects.toThrow('Reminders & Lookouts extension is disabled')
+    runtime.stop()
+
+    expect(setTimeoutImpl).not.toHaveBeenCalled()
+    expect(storageMock.saveScheduledTaskRun).not.toHaveBeenCalled()
+  })
+
+  it('clears scheduled timers when the extension is disabled', async () => {
+    const { __test__ } = await import('./runtime')
+    const timer = 1 as unknown as ReturnType<typeof setTimeout>
+    const setTimeoutImpl = vi.fn(() => timer)
+    const clearTimeoutImpl = vi.fn()
+    storageMock.task = createTask({ nextRunAt: 2_000 })
+
+    const runtime = __test__.createRuntime({
+      setTimeoutImpl,
+      clearTimeoutImpl,
+      now: () => 1_000,
+    })
+
+    await runtime.setExtensionEnabled(true)
+    await runtime.setExtensionEnabled(false)
+    runtime.stop()
+
+    expect(setTimeoutImpl).toHaveBeenCalledTimes(1)
+    expect(clearTimeoutImpl).toHaveBeenCalledWith(timer)
   })
 })
 

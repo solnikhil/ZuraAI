@@ -7,7 +7,6 @@ import {
   registerMemoryStoreHandlers,
   unregisterMemoryStoreHandlers,
 } from './memoryStoreHandlers'
-import { registerOverlayHandlers, unregisterOverlayHandlers } from './overlayHandlers'
 import {
   registerSecureStorageHandlers,
   unregisterSecureStorageHandlers,
@@ -49,10 +48,6 @@ const IPC_DOMAIN_HANDLERS: readonly IpcDomainHandlers[] = [
   {
     register: registerSecureStorageHandlers,
     unregister: unregisterSecureStorageHandlers,
-  },
-  {
-    register: registerOverlayHandlers,
-    unregister: unregisterOverlayHandlers,
   },
   {
     register: registerSystemHandlers,
@@ -116,10 +111,6 @@ export {
   registerSecureStorageHandlers,
   unregisterSecureStorageHandlers,
 } from './secureStorageHandlers'
-export {
-  registerOverlayHandlers,
-  unregisterOverlayHandlers,
-} from './overlayHandlers'
 export { registerSystemHandlers, unregisterSystemHandlers } from './systemHandlers'
 export { registerAnalyticsHandlers, unregisterAnalyticsHandlers } from '../analytics'
 export {

@@ -17,7 +17,6 @@ import type {
   IpcInvokeChannel,
   IpcOnArgsMap,
   IpcOnChannel,
-  IpcSendArgsMap,
   IpcSendChannel,
   AddMemoryInput,
   AgentSkillsQuery,
@@ -33,8 +32,6 @@ import type {
   ScheduledTaskSummaryRequest,
   ScheduledTaskSummaryResponse,
   ScheduledTaskUpdateInput,
-  OverlaySettings,
-  OverlayState,
   ProviderProxyFetchRequest,
   ProviderProxyFetchResponse,
   PendingCodeApproval,
@@ -70,12 +67,7 @@ contextBridge.exposeInMainWorld('windowControls', {
 // Only allow a small set of channels to be used by the renderer.
 // This prevents arbitrary IPC access if the renderer is compromised.
 
-const SEND_CHANNELS = new Set<IpcSendChannel>([
-  'overlay:drag-start',
-  'overlay:drag-move',
-  'overlay:drag-end',
-  'overlay:navigate-settings',
-])
+const SEND_CHANNELS = new Set<IpcSendChannel>([])
 
 const INVOKE_CHANNELS = new Set<IpcInvokeChannel>([
   // Chat store
@@ -121,7 +113,6 @@ const ON_CHANNELS = new Set<IpcOnChannel>([
   'update-downloaded',
   'update-error',
   'update-download-progress',
-  'overlay:pending-prompt',
   'app:new-chat',
   'settings:navigate',
   'chat-store:changed',
@@ -174,6 +165,7 @@ const DISCORD_RPC_INVOKE_CHANNELS = new Set<string>([
 const DISCORD_RPC_ON_CHANNELS = new Set<string>(['discord-rpc:state-changed'])
 
 const SCHEDULED_TASKS_INVOKE_CHANNELS = new Set<string>([
+  'scheduled-tasks:set-extension-enabled',
   'scheduled-tasks:list',
   'scheduled-tasks:create',
   'scheduled-tasks:update',
@@ -238,12 +230,9 @@ contextBridge.exposeInMainWorld(
       assertAllowed('off', channel, ON_CHANNELS)
       ipcRenderer.off(channel, listener)
     },
-    send: <TChannel extends IpcSendChannel>(
-      channel: TChannel,
-      ...args: IpcSendArgsMap[TChannel]
-    ) => {
+    send: (channel: IpcSendChannel) => {
       assertAllowed('send', channel, SEND_CHANNELS)
-      ipcRenderer.send(channel, ...args)
+      ipcRenderer.send(channel)
     },
     invoke: <TChannel extends IpcInvokeChannel>(
       channel: TChannel,
@@ -328,40 +317,6 @@ contextBridge.exposeInMainWorld(
 )
 
 contextBridge.exposeInMainWorld(
-  'overlay',
-  Object.freeze({
-    show: () => ipcRenderer.invoke('overlay:show') as Promise<OverlayState>,
-    hide: () => ipcRenderer.invoke('overlay:hide') as Promise<OverlayState>,
-    toggle: () => ipcRenderer.invoke('overlay:toggle') as Promise<OverlayState>,
-    expand: () => ipcRenderer.invoke('overlay:expand') as Promise<OverlayState>,
-    collapse: () => ipcRenderer.invoke('overlay:collapse') as Promise<OverlayState>,
-    getState: () => ipcRenderer.invoke('overlay:get-state') as Promise<OverlayState>,
-    focusMainWindow: () => ipcRenderer.invoke('overlay:focus-main-window') as Promise<void>,
-    applySettings: (settings: Partial<OverlaySettings>) =>
-      ipcRenderer.invoke('overlay:apply-settings', settings) as Promise<OverlayState>,
-    setContentHeight: (height: number) =>
-      ipcRenderer.invoke('overlay:set-content-height', height) as Promise<OverlayState>,
-    onPendingPrompt: (callback: (prompt: string) => void) => {
-      const listener = (_event: IpcRendererEvent, prompt: string) => callback(prompt)
-      ipcRenderer.on('overlay:pending-prompt', listener)
-      return () => ipcRenderer.removeListener('overlay:pending-prompt', listener)
-    },
-    dragStart: (cursorX: number, cursorY: number) => {
-      ipcRenderer.send('overlay:drag-start', cursorX, cursorY)
-    },
-    dragMove: (cursorX: number, cursorY: number) => {
-      ipcRenderer.send('overlay:drag-move', cursorX, cursorY)
-    },
-    dragEnd: () => {
-      ipcRenderer.send('overlay:drag-end')
-    },
-    navigateSettings: (section: string) => {
-      ipcRenderer.send('overlay:navigate-settings', section)
-    },
-  })
-)
-
-contextBridge.exposeInMainWorld(
   'appInfo',
   Object.freeze({
     get: () => ipcRenderer.invoke('app-info:get'),
@@ -403,6 +358,14 @@ contextBridge.exposeInMainWorld(
 contextBridge.exposeInMainWorld(
   'scheduledTasks',
   Object.freeze({
+    setExtensionEnabled: (enabled: boolean) => {
+      assertAllowed(
+        'invoke',
+        'scheduled-tasks:set-extension-enabled',
+        SCHEDULED_TASKS_INVOKE_CHANNELS
+      )
+      return ipcRenderer.invoke('scheduled-tasks:set-extension-enabled', enabled === true)
+    },
     list: () => {
       assertAllowed('invoke', 'scheduled-tasks:list', SCHEDULED_TASKS_INVOKE_CHANNELS)
       return ipcRenderer.invoke('scheduled-tasks:list')

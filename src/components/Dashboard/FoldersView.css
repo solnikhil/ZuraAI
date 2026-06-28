@@ -334,6 +334,45 @@
   margin: 2px 0 4px;
 }
 
+.folder-name-dialog[data-state='open'] [data-slot='dialog-header'],
+.folder-name-dialog[data-state='open'] .folder-name-dialog__field,
+.folder-name-dialog[data-state='open'] .folder-name-dialog__hint,
+.folder-name-dialog[data-state='open'] .folder-name-dialog__memory-panel,
+.folder-name-dialog[data-state='open'] [data-slot='dialog-footer'] {
+  animation: folderDialogElementIn 170ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.folder-name-dialog[data-state='open'] [data-slot='dialog-header'] {
+  animation-delay: 18ms;
+}
+
+.folder-name-dialog[data-state='open'] .folder-name-dialog__field {
+  animation-delay: 38ms;
+}
+
+.folder-name-dialog[data-state='open'] .folder-name-dialog__hint {
+  animation-delay: 58ms;
+}
+
+.folder-name-dialog[data-state='open'] .folder-name-dialog__memory-panel {
+  animation-delay: 78ms;
+}
+
+.folder-name-dialog[data-state='open'] [data-slot='dialog-footer'] {
+  animation-delay: 98ms;
+}
+
+@keyframes folderDialogElementIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .folder-name-dialog__hint,
 .folder-name-dialog__memory-panel {
   border-radius: 8px;
@@ -411,6 +450,17 @@
   font-size: 0.77rem;
   line-height: 1.35;
   margin-top: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .folder-name-dialog[data-state='open'] [data-slot='dialog-header'],
+  .folder-name-dialog[data-state='open'] .folder-name-dialog__field,
+  .folder-name-dialog[data-state='open'] .folder-name-dialog__hint,
+  .folder-name-dialog[data-state='open'] .folder-name-dialog__memory-panel,
+  .folder-name-dialog[data-state='open'] [data-slot='dialog-footer'] {
+    animation-duration: 1ms;
+    animation-delay: 0ms;
+  }
 }
 
 @media (max-width: 780px) {

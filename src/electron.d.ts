@@ -17,7 +17,6 @@ import type {
   MemoryAPI,
   ScheduledTasksAPI,
   NativeDialogAPI,
-  OverlayAPI,
   ProviderProxyAPI,
   SecureStorageAPI,
   ArtifactsAPI,
@@ -32,7 +31,6 @@ declare global {
     ipcRenderer: IElectronAPI
     secureStorage: SecureStorageAPI
     updater: UpdaterAPI
-    overlay: OverlayAPI
     providerProxy: ProviderProxyAPI
     appInfo: AppInfoAPI
     agentSkills: AgentSkillsAPI

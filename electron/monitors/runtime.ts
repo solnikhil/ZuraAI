@@ -58,6 +58,8 @@ interface MonitorRuntime {
   stop: () => void
   reschedule: () => Promise<void>
   runNow: (taskId: string) => Promise<ScheduledTaskRun>
+  setExtensionEnabled: (enabled: boolean) => Promise<void>
+  isExtensionEnabled: () => boolean
 }
 
 function buildDiffSummary(task: ScheduledTaskDefinition, changedResults: ScheduledTaskLog[]): string {
@@ -146,6 +148,7 @@ function createRuntime(deps: MonitorRuntimeDeps = {}): MonitorRuntime {
   const timers = new Map<string, ReturnType<typeof setTimeout>>()
   const running = new Set<string>()
   const pendingSummaries = new Map<string, PendingSummary>()
+  let extensionEnabled = false
 
   const requestAiSummary = (request: ScheduledTaskSummaryRequest): Promise<string> => {
     const target = findSummaryTarget()
@@ -305,6 +308,7 @@ function createRuntime(deps: MonitorRuntimeDeps = {}): MonitorRuntime {
     const existing = timers.get(task.id)
     if (existing) clearTimeoutFn(existing)
     timers.delete(task.id)
+    if (!extensionEnabled) return
     if (!task.enabled) return
 
     const delay = Math.max(0, Math.min(task.nextRunAt - now(), getMonitorIntervalMs(task.intervalPreset)))
@@ -312,6 +316,7 @@ function createRuntime(deps: MonitorRuntimeDeps = {}): MonitorRuntime {
       timers.delete(task.id)
       void getScheduledTask(task.id)
         .then((freshTask) => {
+          if (!extensionEnabled) return undefined
           if (!freshTask?.enabled) return undefined
           return runTask(freshTask)
         })
@@ -325,11 +330,13 @@ function createRuntime(deps: MonitorRuntimeDeps = {}): MonitorRuntime {
   const reschedule = async () => {
     for (const timer of timers.values()) clearTimeoutFn(timer)
     timers.clear()
+    if (!extensionEnabled) return
     const tasks = await listScheduledTasks()
     for (const task of tasks) scheduleTask(task)
   }
 
   const start = async () => {
+    if (!extensionEnabled) return
     await reschedule()
     const due = (await listScheduledTasks()).filter((task) => task.enabled && task.nextRunAt <= now())
     for (const task of due) {
@@ -350,10 +357,20 @@ function createRuntime(deps: MonitorRuntimeDeps = {}): MonitorRuntime {
   }
 
   const runNow = async (taskId: string): Promise<ScheduledTaskRun> => {
+    if (!extensionEnabled) throw new Error('Reminders & Lookouts extension is disabled')
     const task = await getScheduledTask(taskId)
     if (!task) throw new Error('Scheduled task not found')
     return runTask(task)
   }
+
+  const setExtensionEnabled = async (enabled: boolean): Promise<void> => {
+    const nextEnabled = enabled === true
+    if (extensionEnabled === nextEnabled) return
+    extensionEnabled = nextEnabled
+    await reschedule()
+  }
+
+  const isExtensionEnabled = (): boolean => extensionEnabled
 
   ipcMain.handle('scheduled-tasks:resolve-summary', (_event, response: ScheduledTaskSummaryResponse) => {
     if (!response || typeof response !== 'object' || typeof response.requestId !== 'string') {
@@ -371,7 +388,7 @@ function createRuntime(deps: MonitorRuntimeDeps = {}): MonitorRuntime {
     return true
   })
 
-  return { start, stop, reschedule, runNow }
+  return { start, stop, reschedule, runNow, setExtensionEnabled, isExtensionEnabled }
 }
 
 function broadcastChanged(): void {
@@ -392,6 +409,15 @@ export async function startMonitorRuntime(deps?: MonitorRuntimeDeps): Promise<Mo
 
 export function getMonitorRuntime(): MonitorRuntime | null {
   return activeRuntime
+}
+
+export function isMonitorRuntimeExtensionEnabled(): boolean {
+  return activeRuntime?.isExtensionEnabled() === true
+}
+
+export async function setMonitorRuntimeExtensionEnabled(enabled: boolean): Promise<void> {
+  const runtime = activeRuntime ?? await startMonitorRuntime()
+  await runtime.setExtensionEnabled(enabled)
 }
 
 export function stopMonitorRuntime(ipc: IpcMain = ipcMain): void {

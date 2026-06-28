@@ -451,10 +451,11 @@
     background: linear-gradient(90deg, transparent 0%, color-mix(in srgb, var(--theme-border) 68%, transparent) 18%, color-mix(in srgb, var(--theme-border-hover) 92%, transparent) 50%, color-mix(in srgb, var(--theme-border) 68%, transparent) 82%, transparent 100%);
 }
 
+.theme-overlay-backdrop,
 .theme-modal-backdrop {
-    background: color-mix(in srgb, var(--theme-overlay-bg) 92%, black 8%);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    background: color-mix(in srgb, var(--theme-overlay-bg) 48%, transparent);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
 }
 
 .catalog-modal-backdrop {
@@ -462,10 +463,110 @@
     -webkit-backdrop-filter: none !important;
 }
 
+.theme-overlay-surface,
 .theme-modal-surface {
     background: color-mix(in srgb, var(--theme-surface) 98%, var(--theme-background) 2%);
     border: 1px solid var(--theme-border);
     box-shadow: var(--theme-shadow-md);
+    color: var(--theme-text-primary);
+}
+
+.theme-overlay-panel {
+    border: 1px solid var(--theme-border);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--theme-surface-hover) 72%, transparent);
+}
+
+.theme-overlay-field {
+    border: 1px solid var(--theme-border);
+    background: var(--theme-surface-hover);
+    color: var(--theme-text-primary);
+}
+
+.theme-overlay-field:focus-visible {
+    border-color: var(--theme-accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--theme-accent) 24%, transparent);
+}
+
+.theme-overlay-title {
+    color: var(--theme-text-primary);
+}
+
+.theme-overlay-description {
+    color: var(--theme-text-muted);
+}
+
+.theme-overlay-backdrop[data-state='open'],
+.theme-modal-backdrop[data-state='open'] {
+    animation: overlayBackdropIn 150ms var(--motion-ease-standard) both;
+}
+
+.theme-overlay-backdrop[data-state='closed'],
+.theme-modal-backdrop[data-state='closed'] {
+    animation: overlayBackdropOut 110ms var(--motion-ease-standard) both;
+}
+
+.theme-overlay-surface[data-state='open'],
+.theme-modal-surface[data-state='open'] {
+    animation: overlaySurfaceIn 185ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    transform-origin: center;
+    will-change: opacity, scale;
+}
+
+.theme-overlay-surface[data-state='closed'],
+.theme-modal-surface[data-state='closed'] {
+    animation: overlaySurfaceOut 120ms cubic-bezier(0.32, 0, 0.67, 0) both;
+    transform-origin: center;
+}
+
+@keyframes overlayBackdropIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes overlayBackdropOut {
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+    }
+}
+
+@keyframes overlaySurfaceIn {
+    from {
+        opacity: 0;
+        scale: 0.96;
+    }
+    to {
+        opacity: 1;
+        scale: 1;
+    }
+}
+
+@keyframes overlaySurfaceOut {
+    from {
+        opacity: 1;
+        scale: 1;
+    }
+    to {
+        opacity: 0;
+        scale: 0.98;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .theme-overlay-backdrop[data-state],
+    .theme-modal-backdrop[data-state],
+    .theme-overlay-surface[data-state],
+    .theme-modal-surface[data-state] {
+        animation-duration: 1ms;
+        transition-duration: 1ms;
+    }
 }
 
 
@@ -569,9 +670,9 @@
 }
 
 .glass-overlay {
-    background: var(--theme-overlay-bg);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
+    background: color-mix(in srgb, var(--theme-overlay-bg) 48%, transparent);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
 }
 
 .glass-modal {
