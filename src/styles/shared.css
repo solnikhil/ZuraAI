@@ -484,8 +484,8 @@
 }
 
 .theme-overlay-field:focus-visible {
-    border-color: var(--theme-accent);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--theme-accent) 24%, transparent);
+    border-color: var(--theme-border);
+    box-shadow: none;
 }
 
 .theme-overlay-title {

@@ -11,6 +11,7 @@ const appShellMock = vi.hoisted(() => ({
 
 const chatHistoryMock = vi.hoisted(() => ({
   sessions: [] as Array<{ id: string }>,
+  folders: [] as Array<{ id: string; name: string }>,
   switchSession: vi.fn(),
 }))
 
@@ -68,6 +69,7 @@ beforeEach(() => {
   appShellMock.setDashboardView.mockReset()
   chatHistoryMock.switchSession.mockReset()
   chatHistoryMock.sessions = []
+  chatHistoryMock.folders = []
 
   memoryAPI.list.mockResolvedValue([])
   memoryAPI.delete.mockResolvedValue(true)
@@ -80,14 +82,14 @@ beforeEach(() => {
 })
 
 describe('MemorySection', () => {
-  it('renders header and loads global memories on mount', async () => {
+  it('renders header and loads memories on mount', async () => {
     render(<MemorySection />)
 
     expect(screen.getByText('Memory')).toBeInTheDocument()
     expect(screen.queryByLabelText('Recent activity')).not.toBeInTheDocument()
 
     await waitFor(() => expect(memoryAPI.list).toHaveBeenCalled())
-    expect(memoryAPI.list).toHaveBeenCalledWith({ type: 'global' })
+    expect(memoryAPI.list).toHaveBeenCalledWith()
   })
 
   it('surfaces background memories in the viewer when onChange is provided', async () => {
@@ -109,6 +111,33 @@ describe('MemorySection', () => {
     expect(await screen.findByText('I prefer dark mode')).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /Facts 1/i })).toBeInTheDocument()
     expect(screen.getAllByText('Context').length).toBeGreaterThan(0)
+  })
+
+  it('surfaces project-scoped memories in the extension library', async () => {
+    chatHistoryMock.folders = [{ id: 'project-1', name: 'Launch Plan' }]
+    memoryAPI.list.mockResolvedValue([
+      backgroundMemory({
+        id: 'project-memory',
+        content: 'Launch checklist lives in Linear',
+        scope: { type: 'project', projectId: 'project-1', includeGlobal: false },
+      }),
+      backgroundMemory({
+        id: 'global-memory',
+        content: 'User prefers concise answers',
+      }),
+    ])
+
+    const onChange = vi.fn()
+    render(<MemorySection onChange={onChange} />)
+
+    await screen.findByText('Launch checklist lives in Linear')
+    expect(screen.getByText('Launch Plan')).toBeInTheDocument()
+    expect(screen.getByText('2 facts · 0 activity items · 1 project memory')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /Project memory 1/i })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('tab', { name: /Project memory 1/i }))
+    expect(screen.getByText('Launch checklist lives in Linear')).toBeInTheDocument()
+    expect(screen.queryByText('User prefers concise answers')).not.toBeInTheDocument()
   })
 
   it('deletes a background memory from the library', async () => {

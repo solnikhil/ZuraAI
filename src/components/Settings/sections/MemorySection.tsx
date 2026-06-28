@@ -4,6 +4,7 @@ import {
   Brain,
   Clock,
   Database,
+  FolderOpen,
   Link2,
   Search,
   Settings as SettingsIcon,
@@ -60,6 +61,8 @@ type BackgroundViewerItem =
       content: string
       updatedAt: number
       category: MemoryCategory
+      scope: Memory['scope']
+      folderName?: string
       sessionId?: string
       needsReview: boolean
     }
@@ -72,7 +75,13 @@ type BackgroundViewerItem =
       needsReview: boolean
     }
 
-type MemoryLibraryFilter = 'all' | 'memory' | 'summary' | MemoryCategory | 'needs_review'
+type MemoryLibraryFilter =
+  | 'all'
+  | 'memory'
+  | 'summary'
+  | 'project_scope'
+  | MemoryCategory
+  | 'needs_review'
 
 const MEMORY_CATEGORY_FILTERS: Array<{ id: MemoryCategory; label: string }> = [
   { id: 'preference', label: 'Preferences' },
@@ -97,7 +106,7 @@ export function MemorySection({
   const [libraryFilter, setLibraryFilter] = useState<MemoryLibraryFilter>('all')
   const [librarySearch, setLibrarySearch] = useState('')
   const [deletingItemIds, setDeletingItemIds] = useState<Set<string>>(() => new Set())
-  const { sessions, switchSession } = useChatHistory()
+  const { sessions, folders, switchSession } = useChatHistory()
   const { setDashboardView } = useAppShell()
 
   const refresh = useCallback(async () => {
@@ -106,7 +115,7 @@ export function MemorySection({
       return
     }
     try {
-      const next = await window.memory.list({ type: 'global' })
+      const next = await window.memory.list()
       setMemories(next)
       if (window.memory.summaries) {
         try {
@@ -132,6 +141,10 @@ export function MemorySection({
     () => memories.filter((memory) => memory.origin === 'background'),
     [memories]
   )
+  const folderNameById = useMemo(
+    () => new Map(folders.map((folder) => [folder.id, folder.name])),
+    [folders]
+  )
   const backgroundViewerItems = useMemo<BackgroundViewerItem[]>(
     () =>
       [
@@ -141,6 +154,11 @@ export function MemorySection({
           content: memory.content,
           updatedAt: memory.updatedAt,
           category: memory.category,
+          scope: memory.scope,
+          folderName:
+            memory.scope.type === 'project'
+              ? (folderNameById.get(memory.scope.projectId) ?? 'Unknown folder')
+              : undefined,
           sessionId: memory.sessionId,
           needsReview: needsMemoryReview(memory.content),
         })),
@@ -153,11 +171,14 @@ export function MemorySection({
           needsReview: needsMemoryReview(summary.summary),
         })),
       ].sort((a, b) => b.updatedAt - a.updatedAt),
-    [backgroundMemories, summaries]
+    [backgroundMemories, folderNameById, summaries]
   )
   const bgTotalCount = backgroundViewerItems.length
   const summaryCount = summaries.length
   const factCount = backgroundMemories.length
+  const projectScopedCount = backgroundMemories.filter(
+    (memory) => memory.scope.type === 'project'
+  ).length
   const needsReviewCount = backgroundViewerItems.filter((item) => item.needsReview).length
   const categoryCounts = useMemo(
     () =>
@@ -181,6 +202,12 @@ export function MemorySection({
     return backgroundViewerItems.filter((item) => {
       if (libraryFilter === 'memory' && item.kind !== 'memory') return false
       if (libraryFilter === 'summary' && item.kind !== 'summary') return false
+      if (
+        libraryFilter === 'project_scope' &&
+        (item.kind !== 'memory' || item.scope.type !== 'project')
+      ) {
+        return false
+      }
       if (libraryFilter === 'needs_review' && !item.needsReview) return false
       if (
         MEMORY_CATEGORY_FILTERS.some((filter) => filter.id === libraryFilter) &&
@@ -191,7 +218,11 @@ export function MemorySection({
       if (!query) return true
       return (
         item.content.toLowerCase().includes(query) ||
-        (item.kind === 'memory' && formatCategoryLabel(item.category).toLowerCase().includes(query))
+        (item.kind === 'memory' &&
+          (formatCategoryLabel(item.category).toLowerCase().includes(query) ||
+            (item.folderName?.toLowerCase().includes(query) ?? false) ||
+            (item.scope.type === 'project' &&
+              item.scope.projectId.toLowerCase().includes(query))))
       )
     })
   }, [backgroundViewerItems, libraryFilter, librarySearch])
@@ -387,7 +418,17 @@ export function MemorySection({
                   <div className="memory-library-panel__subtitle">
                     {bgTotalCount === 0
                       ? 'No saved facts or recent activity yet.'
-                      : `${factCount} ${factCount === 1 ? 'fact' : 'facts'} · ${summaryCount} ${summaryCount === 1 ? 'activity item' : 'activity items'}`}
+                      : [
+                          `${factCount} ${factCount === 1 ? 'fact' : 'facts'}`,
+                          `${summaryCount} ${summaryCount === 1 ? 'activity item' : 'activity items'}`,
+                          projectScopedCount > 0
+                            ? `${projectScopedCount} project ${
+                                projectScopedCount === 1 ? 'memory' : 'memories'
+                              }`
+                            : null,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
                   </div>
                 </div>
                 <div
@@ -419,6 +460,11 @@ export function MemorySection({
                       { id: 'all' as const, label: 'All', count: bgTotalCount },
                       { id: 'memory' as const, label: 'Facts', count: factCount },
                       { id: 'summary' as const, label: 'Activity', count: summaryCount },
+                      {
+                        id: 'project_scope' as const,
+                        label: 'Project memory',
+                        count: projectScopedCount,
+                      },
                       {
                         id: 'needs_review' as const,
                         label: 'Needs review',
@@ -515,6 +561,12 @@ export function MemorySection({
                             {!isSummary && (
                               <span className="memory-library-panel__badge">
                                 {formatCategoryLabel(item.category)}
+                              </span>
+                            )}
+                            {!isSummary && item.scope.type === 'project' && (
+                              <span className="memory-library-panel__badge">
+                                <FolderOpen size={11} />
+                                {item.folderName}
                               </span>
                             )}
                             {item.needsReview && (

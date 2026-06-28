@@ -126,7 +126,7 @@ export function InputArea({
 
   const assistantMode = settings.assistantMode || 'chat'
   const computerUseEnabled = isSkillEnabled(settings.skills, 'computer_use')
-  const activeAgentPillLabel = computerUseEnabled ? 'This desktop' : 'Agent mode'
+  const activeAgentPillLabel = 'Agent mode'
   const fastTransition = {
     duration: motionDuration(animationsEnabled, motionDurations.fast),
     ease: motionEasing.standard,
@@ -552,7 +552,7 @@ export function InputArea({
                             disableAgentWorkspace()
                           }}
                           className="group inline-flex h-7 items-center gap-1.5 rounded-full border border-[var(--theme-border-subtle)] bg-[color-mix(in_srgb,var(--theme-accent)_14%,var(--theme-surface))] px-2.5 text-[11px] font-medium text-[var(--theme-text-primary)] transition-colors hover:bg-[color-mix(in_srgb,var(--theme-accent)_22%,var(--theme-surface))]"
-                          aria-label="Disable desktop control"
+                          aria-label="Exit agent mode"
                         >
                           <Brain className="h-3.5 w-3.5 text-[var(--theme-accent)]" />
                           <span>{activeAgentPillLabel}</span>
@@ -560,7 +560,7 @@ export function InputArea({
                         </button>
                       </TooltipTrigger>
                       <TooltipContent side="top" className="rounded-full">
-                        Click to disable desktop control
+                        Click to exit agent mode
                       </TooltipContent>
                     </Tooltip>
                   )}

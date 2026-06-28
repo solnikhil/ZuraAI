@@ -80,8 +80,8 @@ export interface PendingComputerAction {
 
 /**
  * Renderer-side Memory entry shape (mirrors the main-process Memory type in
- * electron/memoryStore.ts). v1 only writes `{ type: 'global' }` scopes; the
- * project variant is reserved for a future projects/folders feature.
+ * electron/memoryStore.ts). Folder chats use project scopes so memory can be
+ * recalled inside that workspace while optional global memory remains visible.
  */
 export type MemorySource = 'user' | 'model'
 

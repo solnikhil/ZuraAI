@@ -55,14 +55,14 @@ function estimateTokens(text: string): number {
 /**
  * Builds the formatted memory block injected into the system prompt.
  *
- * Filters memories by scope (v1 callers pass `{ type: 'global' }`), formats
+ * Filters memories by scope, formats
  * them as dated bullets, and truncates oldest-first when the block would
  * exceed `tokenBudget`. Returns an empty string when no memories survive
  * filtering — callers should append the result without an extra delimiter so
  * the prompt stays clean when memory is empty or disabled.
  *
  * @param memories - Array of memories (typically the full set from window.memory.list).
- * @param scope - Active memory scope (global in v1; project scope reserved for projects feature).
+ * @param scope - Active memory scope. Folder chats pass project scopes.
  */
 export function buildMemoryBlock(
   memories: Memory[],
@@ -136,9 +136,8 @@ export function buildMemoryBlock(
  * - the renderer isn't running inside Electron (no window.memory bridge),
  * - the IPC call fails.
  *
- * Forward-compat note: the current build always passes `{ type: 'global' }`.
- * Once projects/folders ship, callers should thread the active project id
- * through this helper (e.g. `loadMemoryBlock(settings, { type: 'project', projectId })`).
+ * Folder chats pass project scopes so folder memory is included with optional
+ * global memory according to the folder's memory mode.
  */
 /**
  * Default number of memories injected into the prompt. Token efficiency: we
@@ -160,7 +159,7 @@ export const MEMORY_INJECT_TOP_K = 8
  * Returns an empty string when memory is disabled, the bridge is missing, or
  * the IPC call fails.
  *
- * Forward-compat: pass a project scope once projects/folders ship.
+ * Folder chats pass a project scope so the memory block matches the active workspace.
  */
 export async function loadMemoryBlock(
   settings: {
