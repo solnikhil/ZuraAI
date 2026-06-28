@@ -465,7 +465,7 @@
 
 .theme-overlay-surface,
 .theme-modal-surface {
-    background: color-mix(in srgb, var(--theme-surface) 98%, var(--theme-background) 2%);
+    background: color-mix(in srgb, var(--theme-surface) 92%, black 8%);
     border: 1px solid var(--theme-border);
     box-shadow: var(--theme-shadow-md);
     color: var(--theme-text-primary);
