@@ -1,7 +1,7 @@
 import type { ChatSession } from '../../../chat/types'
 import type { ChatSelectedOverlayStyle } from '../../../contexts/SettingsUIContext'
 
-export type ChatRowAction = 'rename' | 'pin' | 'unpin' | 'delete' | 'duplicate'
+export type ChatRowAction = 'rename' | 'pin' | 'unpin' | 'delete' | 'duplicate' | 'removeFromFolder'
 
 interface ChatRowProps {
   session: ChatSession

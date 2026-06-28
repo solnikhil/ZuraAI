@@ -34,7 +34,6 @@ vi.mock('electron', () => ({
 
 vi.mock('electron-updater', () => {
   // Local imports inside factory are allowed (factory runs lazily).
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { EventEmitter } = require('events')
   const emitter = new EventEmitter()
 

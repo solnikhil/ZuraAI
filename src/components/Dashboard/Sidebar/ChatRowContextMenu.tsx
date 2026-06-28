@@ -5,22 +5,32 @@ import {
   ContextMenuGroup,
   ContextMenuItem,
   ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu'
-import { Copy, Edit2, Pin, Trash2 } from '../../icons'
+import { Copy, Edit2, FolderOpen, Pin, Trash2, X } from '../../icons'
 import DeleteChatAlertDialog from './DeleteChatAlertDialog'
 import type { ChatRowAction } from './ChatRow'
 import { isMacOSRuntime } from '../../../utils/platform'
+import type { Folder } from '../../../chat/types'
 
 interface ChatRowContextMenuProps {
   isPinned: boolean
+  currentFolderId?: string | null
+  folders: Folder[]
   onAction: (action: ChatRowAction) => void
+  onAssignFolder: (folderId: string) => void
   children: React.ReactNode
 }
 
 export default function ChatRowContextMenu({
   isPinned,
+  currentFolderId,
+  folders,
   onAction,
+  onAssignFolder,
   children,
 }: ChatRowContextMenuProps) {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
@@ -56,9 +66,11 @@ export default function ChatRowContextMenu({
               ? 'unpin'
               : action === 'chat-duplicate'
                 ? 'duplicate'
-                : action === 'chat-delete'
-                  ? 'delete'
-                  : null
+                : action === 'chat-remove-from-folder'
+                  ? 'removeFromFolder'
+                  : action === 'chat-delete'
+                    ? 'delete'
+                    : null
 
       if (!mappedAction) {
         return
@@ -89,6 +101,7 @@ export default function ChatRowContextMenu({
               isDev,
               kind: 'chat-row',
               isPinnedChatRow: isPinned,
+              isChatRowInFolder: Boolean(currentFolderId),
             })
           }}
         >
@@ -133,6 +146,38 @@ export default function ChatRowContextMenu({
               Duplicate
             </ContextMenuItem>
           </ContextMenuGroup>
+          {folders.length > 0 || currentFolderId ? (
+            <>
+              <ContextMenuSeparator />
+              <ContextMenuGroup>
+                {folders.length > 0 ? (
+                  <ContextMenuSub>
+                    <ContextMenuSubTrigger>
+                      <FolderOpen size={14} />
+                      Move to folder
+                    </ContextMenuSubTrigger>
+                    <ContextMenuSubContent>
+                      {folders.map((folder) => (
+                        <ContextMenuItem
+                          key={folder.id}
+                          disabled={folder.id === currentFolderId}
+                          onSelect={() => onAssignFolder(folder.id)}
+                        >
+                          {folder.name}
+                        </ContextMenuItem>
+                      ))}
+                    </ContextMenuSubContent>
+                  </ContextMenuSub>
+                ) : null}
+                {currentFolderId ? (
+                  <ContextMenuItem onSelect={() => handleAction('removeFromFolder')}>
+                    <X size={14} />
+                    Remove from folder
+                  </ContextMenuItem>
+                ) : null}
+              </ContextMenuGroup>
+            </>
+          ) : null}
           <ContextMenuSeparator />
           <ContextMenuItem onSelect={() => handleAction('delete')} variant="destructive">
             <Trash2 size={14} />

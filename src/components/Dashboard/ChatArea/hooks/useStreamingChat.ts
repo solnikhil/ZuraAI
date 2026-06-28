@@ -187,6 +187,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
 
   const {
     sessions,
+    folders,
     currentSessionId,
     addMessageToSession,
     updateStreamingMessage,
@@ -529,7 +530,7 @@ const streamingSettings: StreamingSettings = useMemo(
           content
         )
 
-        let researchMaxRounds =
+        const researchMaxRounds =
           researchConfig.maxRounds
         const forceWebSearch = researchConfig.forceWebSearch
 
@@ -538,7 +539,7 @@ const streamingSettings: StreamingSettings = useMemo(
           startResearchMode(researchMaxRounds, forceWebSearch)
         }
 
-        const memoryScope = getSessionMemoryScope(sessions, targetSessionId)
+        const memoryScope = getSessionMemoryScope(sessions, targetSessionId, folders)
         const baseSystemPrompt = getEffectiveSystemPrompt(
           settings,
           await loadMemoryBlock(settings, memoryScope, {
@@ -967,8 +968,8 @@ const streamingSettings: StreamingSettings = useMemo(
           return
         }
 
-        const memoryScope = getSessionMemoryScope(sessions, currentSessionId)
-        let systemPrompt = getEffectiveSystemPrompt(
+        const memoryScope = getSessionMemoryScope(sessions, currentSessionId, folders)
+        const systemPrompt = getEffectiveSystemPrompt(
           effectiveSettings,
           await loadMemoryBlock(effectiveSettings, memoryScope, {
             userMessage: typeof userMessage.content === 'string' ? userMessage.content : '',

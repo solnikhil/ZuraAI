@@ -290,7 +290,7 @@ function getTokenPercent(count: number, maxContext: number) {
 
 export function TokenUsageIndicator({ input, attachedFiles = [], className }: TokenUsageIndicatorProps) {
   const { animationsEnabled } = useMotionPreferences()
-  const { sessions, currentSessionId } = useChatHistory()
+  const { sessions, folders, currentSessionId } = useChatHistory()
   const streamingState = useStreamingState()
   const { settings } = useSettings()
   const { currentModel, currentName, allModels } = useModelSelector()
@@ -305,8 +305,8 @@ export function TokenUsageIndicator({ input, attachedFiles = [], className }: To
     [settings.skills, settings.memoryPrompt]
   )
   const memoryScope = useMemo(
-    () => getSessionMemoryScope(sessions, currentSessionId),
-    [currentSessionId, sessions]
+    () => getSessionMemoryScope(sessions, currentSessionId, folders),
+    [currentSessionId, folders, sessions]
   )
   const [memoryContext, setMemoryContext] = useState({
     memoryBlock: '',

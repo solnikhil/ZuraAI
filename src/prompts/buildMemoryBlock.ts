@@ -81,10 +81,8 @@ export function buildMemoryBlock(
     const trimmed = memory.content.trim()
     if (!trimmed) return false
     if (scope.type === 'global') return memory.scope.type === 'global'
-    return (
-      memory.scope.type === 'global' ||
-      (memory.scope.type === 'project' && memory.scope.projectId === scope.projectId)
-    )
+    if (memory.scope.type === 'project' && memory.scope.projectId === scope.projectId) return true
+    return scope.includeGlobal !== false && memory.scope.type === 'global'
   })
 
   // Empty list → emit nothing. With no saved memories there is no context to

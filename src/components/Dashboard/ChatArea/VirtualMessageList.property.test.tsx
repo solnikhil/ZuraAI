@@ -9,10 +9,9 @@
  *
  */
 
-import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
+import { describe, it, expect, afterEach } from 'vitest'
 import * as fc from 'fast-check'
-import React from 'react'
-import { render, cleanup, act, screen, waitFor } from '@testing-library/react'
+import { cleanup } from '@testing-library/react'
 
 // Test Utilities and Arbitraries
 
@@ -52,7 +51,7 @@ const messageArbitrary: fc.Arbitrary<Message> = fc.record({
 /**
  * Arbitrary for generating arrays of messages with specific size constraints
  */
-const messagesArrayArbitrary = (minLength: number, maxLength: number): fc.Arbitrary<Message[]> =>
+const _messagesArrayArbitrary = (minLength: number, maxLength: number): fc.Arbitrary<Message[]> =>
   fc.array(messageArbitrary, { minLength, maxLength })
 
 /**
@@ -70,7 +69,7 @@ const VIRTUAL_SCROLLING_THRESHOLD = 100
 /**
  * Mock VirtualMessageList state for testing auto-scroll safety
  */
-interface VirtualMessageListState {
+interface _VirtualMessageListState {
   atBottom: boolean
   isScrolling: boolean
 }
@@ -469,7 +468,7 @@ describe('Integration: Virtualization and Auto-Scroll Combined', () => {
       fc.property(
         fc.integer({ min: 51, max: 1000 }), // Large message count requiring virtualization
         fc.integer({ min: 1, max: 100 }), // Streaming updates per second
-        (messageCount, updatesPerSecond) => {
+        (messageCount, _updatesPerSecond) => {
           // Property: With virtualization active, only visible items need updating
           // This ensures frame rate remains stable regardless of total message count
 

@@ -18,10 +18,7 @@ vi.mock('./providerStreamClient', () => ({
 }))
 
 import { useProviderStreaming } from './useProviderStreaming'
-import {
-  DETERMINISTIC_SEARCH_SYNTHESIS_PREFIX,
-  SEARCH_SYNTHESIS_FAILURE_MESSAGE,
-} from './streamingUtils'
+import { DETERMINISTIC_SEARCH_SYNTHESIS_PREFIX } from './streamingUtils'
 import type { ToolCallingResponse } from '../../../../../tools/types'
 
 function streamFrom(events: Array<Record<string, unknown>>) {
@@ -4092,8 +4089,7 @@ describe('useProviderStreaming — research follow-up tool calls (preservation)'
       (_unused, index) => `placeholder budget facet ${index + 1}`
     )
 
-    const { capturedRequests, grantedToolRoundAfterFirstBatch, anyToolRoundAfterFirstBatch } =
-      await observeTurn({
+    const { capturedRequests } = await observeTurn({
         batches: [
           {
             toolCalls: queries.map((query) => ({ name: 'web_search', query, success: true })),
@@ -4345,7 +4341,7 @@ describe('useProviderStreaming — research follow-up tool calls (preservation)'
             { length: turn.webCount },
             (_unused, index) => `placeholder budget facet ${index + 1}`
           )
-          const { anyToolRoundAfterFirstBatch } = await observeTurn({
+          await observeTurn({
             batches: [
               {
                 toolCalls: queries.map((query) => ({ name: 'web_search', query, success: true })),

@@ -34,7 +34,9 @@ export type MemorySource = 'user' | 'model'
  */
 export type MemoryOrigin = 'tool' | 'background'
 
-export type MemoryScope = { type: 'global' } | { type: 'project'; projectId: string }
+export type MemoryScope =
+  | { type: 'global' }
+  | { type: 'project'; projectId: string; includeGlobal?: boolean }
 export type MemoryCategory = 'preference' | 'project' | 'personal' | 'workflow' | 'context'
 
 /**
@@ -139,7 +141,8 @@ function isMemoryScope(value: unknown): value is MemoryScope {
   if (
     scope.type === 'project' &&
     typeof scope.projectId === 'string' &&
-    scope.projectId.length > 0
+    scope.projectId.length > 0 &&
+    (scope.includeGlobal === undefined || typeof scope.includeGlobal === 'boolean')
   ) {
     return true
   }
@@ -288,11 +291,10 @@ export function filterMemoriesByScope(memories: Memory[], scope: MemoryScope): M
   if (scope.type === 'global') {
     return memories.filter((memory) => memory.scope.type === 'global')
   }
-  return memories.filter(
-    (memory) =>
-      memory.scope.type === 'global' ||
-      (memory.scope.type === 'project' && memory.scope.projectId === scope.projectId)
-  )
+  return memories.filter((memory) => {
+    if (memory.scope.type === 'project' && memory.scope.projectId === scope.projectId) return true
+    return scope.includeGlobal !== false && memory.scope.type === 'global'
+  })
 }
 
 /**

@@ -17,7 +17,6 @@ async function getNut() {
   if (!nut) {
     try {
       // Use require() for Electron main process compatibility
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
       nut = require('@nut-tree-fork/nut-js')
     } catch {
       throw new Error('nut.js is not installed. Run: bun add @nut-tree-fork/nut-js')

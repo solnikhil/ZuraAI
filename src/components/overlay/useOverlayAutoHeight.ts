@@ -44,7 +44,7 @@ export function readOverlayContentHeight(element: HTMLElement): number {
 
   const style = getComputedStyle(element)
   let paddingTop = Number.parseFloat(style.paddingTop) || 0
-  let paddingBottom = Number.parseFloat(style.paddingBottom) || 0
+  const paddingBottom = Number.parseFloat(style.paddingBottom) || 0
   if (element.classList.contains('zo-measure') && paddingTop === 0) {
     paddingTop = OVERLAY_DRAG_STRIP_HEIGHT
   }

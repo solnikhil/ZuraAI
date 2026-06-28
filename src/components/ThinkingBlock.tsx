@@ -457,7 +457,7 @@ function cleanToolOutputForDisplay(data: unknown): unknown {
     const cleaned = { ...obj }
     cleaned.results = (obj.results as Array<Record<string, unknown>>).map((r) => {
       // Keep favicon for nice source previews (we no longer hide them)
-      const { source, displayed_link, ...rest } = r
+      const { source: _source, displayed_link: _displayedLink, ...rest } = r
       return rest
     })
     // Strip images array (shown in carousel), and metadata fields

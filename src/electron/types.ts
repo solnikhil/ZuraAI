@@ -88,7 +88,9 @@ export type MemorySource = 'user' | 'model'
 export type MemoryOrigin = 'tool' | 'background'
 export type MemoryCategory = 'preference' | 'project' | 'personal' | 'workflow' | 'context'
 
-export type MemoryScope = { type: 'global' } | { type: 'project'; projectId: string }
+export type MemoryScope =
+  | { type: 'global' }
+  | { type: 'project'; projectId: string; includeGlobal?: boolean }
 
 export type MemoryStatus = 'active' | 'superseded'
 

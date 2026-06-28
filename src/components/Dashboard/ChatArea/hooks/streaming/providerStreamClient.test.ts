@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   generateNvidiaCompletion: vi.fn(),
   streamOpencodeCompletion: vi.fn(),
   generateOpencodeCompletion: vi.fn(),
+  extractOpencodeStreamReasoningDelta: vi.fn(),
   streamOllamaCompletion: vi.fn(),
   generateOllamaCompletion: vi.fn(),
   streamPerplexityCompletion: vi.fn(),
@@ -54,6 +55,7 @@ vi.mock('../../../../../services/nvidia', () => ({
 vi.mock('../../../../../services/opencode', () => ({
   streamOpencodeCompletion: mocks.streamOpencodeCompletion,
   generateOpencodeCompletion: mocks.generateOpencodeCompletion,
+  extractOpencodeStreamReasoningDelta: mocks.extractOpencodeStreamReasoningDelta,
 }))
 
 vi.mock('../../../../../services/ollama', () => ({
@@ -89,6 +91,10 @@ async function collect<T>(stream: AsyncIterable<T>): Promise<T[]> {
 describe('createProviderStreamClient', () => {
   beforeEach(() => {
     Object.values(mocks).forEach((mockFn) => mockFn.mockReset())
+    mocks.extractOpencodeStreamReasoningDelta.mockImplementation((delta, emittedReasoning) => {
+      const raw = delta?.reasoning_content || delta?.reasoning || ''
+      return raw ? { delta: raw, nextEmitted: emittedReasoning + raw } : null
+    })
   })
 
   it('normalizes OpenRouter streaming events into provider-neutral deltas', async () => {
@@ -490,6 +496,9 @@ describe('createProviderStreamClient', () => {
         choices: [{ delta: { content: 'Hello' } }],
       }
       yield {
+        choices: [{ delta: { reasoning_content: 'Thinking' } }],
+      }
+      yield {
         choices: [{
           delta: {
             tool_calls: [{
@@ -527,6 +536,7 @@ describe('createProviderStreamClient', () => {
     }))
 
     expect(events.some((event) => event.type === 'text-delta')).toBe(true)
+    expect(events).toContainEqual({ type: 'reasoning-delta', delta: 'Thinking' })
     expect(events).toContainEqual({
       type: 'tool-call-delta',
       delta: [{
@@ -771,6 +781,7 @@ describe('createProviderStreamClient', () => {
   it('falls back to non-streaming Ollama completion and forwards abort signals', async () => {
     const signal = new AbortController().signal
     mocks.streamOllamaCompletion.mockImplementation(async function* () {
+      yield* []
       throw new Error('stream failed')
     })
     mocks.generateOllamaCompletion.mockResolvedValue({

@@ -89,7 +89,7 @@ interface ChatHistoryContextType {
   addTag: (sessionId: string, tag: string) => void
   removeTag: (sessionId: string, tag: string) => void
 
-  createFolder: (name: string) => string
+  createFolder: (name: string, memoryMode?: Folder['memoryMode']) => string
   deleteFolder: (id: string) => void
   renameFolder: (id: string, name: string) => void
   reorderFolder: (id: string, order: number) => void
@@ -111,6 +111,8 @@ const ChatHistoryContext = createContext<ChatHistoryContextType | undefined>(und
 
 const isElectron = typeof window !== 'undefined' && Boolean(window.ipcRenderer)
 const LAST_SESSION_ID_KEY = 'zura-ui:lastChatSessionId'
+const LOCAL_CHAT_HISTORY_KEY = 'zura-chat-history'
+const LOCAL_CHAT_INDEX_KEY = 'zura-chat-index'
 const MAX_LOADED_SESSIONS = 3
 const SAVE_DEBOUNCE_MS = 500
 const INDEX_VERSION = 4
@@ -171,6 +173,30 @@ function normalizeSession(session: ChatSession): ChatSession {
     folderId: session.folderId ?? null,
     tags: Array.isArray(session.tags) ? session.tags : [],
     messageCount: session.messageCount ?? messages.length,
+  }
+}
+
+function readLocalChatIndex(): { sessions: ChatSession[]; folders: Folder[] } {
+  const savedIndex = localStorage.getItem(LOCAL_CHAT_INDEX_KEY)
+  if (savedIndex) {
+    try {
+      const parsed = JSON.parse(savedIndex) as Partial<ChatIndexData>
+      const metadata = Array.isArray(parsed.sessions) ? parsed.sessions : []
+      const folders = Array.isArray(parsed.folders) ? parsed.folders : []
+      return {
+        sessions: metadata.map((entry) => metadataToSession(entry)),
+        folders,
+      }
+    } catch (error) {
+      console.error('Failed to parse local chat index:', error)
+    }
+  }
+
+  const savedHistory = localStorage.getItem(LOCAL_CHAT_HISTORY_KEY)
+  const parsedHistory = savedHistory ? (JSON.parse(savedHistory) as ChatSession[]) : []
+  return {
+    sessions: parsedHistory.map(normalizeSession),
+    folders: [],
   }
 }
 
@@ -275,7 +301,8 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
         expectedSelfSessionStoreChangeRef.current = true
         await window.ipcRenderer.invoke('chat-store:save-index', index)
       } else {
-        localStorage.setItem('zura-chat-history', JSON.stringify(sessionsRef.current))
+        localStorage.setItem(LOCAL_CHAT_INDEX_KEY, JSON.stringify(index))
+        localStorage.setItem(LOCAL_CHAT_HISTORY_KEY, JSON.stringify(sessionsRef.current))
       }
 
       if (localSessionRevisionRef.current === revisionToSave) {
@@ -285,7 +312,8 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
       expectedSelfSessionStoreChangeRef.current = false
       console.error('Failed to save chat index:', error)
       if (!isElectron) {
-        localStorage.setItem('zura-chat-history', JSON.stringify(sessionsRef.current))
+        localStorage.setItem(LOCAL_CHAT_INDEX_KEY, JSON.stringify(index))
+        localStorage.setItem(LOCAL_CHAT_HISTORY_KEY, JSON.stringify(sessionsRef.current))
         if (localSessionRevisionRef.current === revisionToSave) {
           savedSessionRevisionRef.current = revisionToSave
         }
@@ -314,7 +342,7 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
         expectedSelfSessionStoreChangeRef.current = true
         await window.ipcRenderer.invoke('chat-store:save-session', session)
       } else {
-        localStorage.setItem('zura-chat-history', JSON.stringify(sessionsRef.current))
+        localStorage.setItem(LOCAL_CHAT_HISTORY_KEY, JSON.stringify(sessionsRef.current))
       }
     } catch (error) {
       expectedSelfSessionStoreChangeRef.current = false
@@ -379,7 +407,7 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
         const loaded = isElectron
           ? await window.ipcRenderer.invoke('chat-store:get-session', id, options)
           : (() => {
-              const saved = localStorage.getItem('zura-chat-history')
+              const saved = localStorage.getItem(LOCAL_CHAT_HISTORY_KEY)
               const parsed = saved ? (JSON.parse(saved) as ChatSession[]) : []
               const found = parsed.find((session) => session.id === id) ?? null
               if (found && options?.limit && Array.isArray(found.messages)) {
@@ -414,12 +442,12 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
         let metadata = await window.ipcRenderer.invoke('chat-store:get-metadata')
 
         if (metadata.length === 0) {
-          const localData = localStorage.getItem('zura-chat-history')
+          const localData = localStorage.getItem(LOCAL_CHAT_HISTORY_KEY)
           if (localData) {
             const parsed = JSON.parse(localData)
             if (Array.isArray(parsed) && parsed.length > 0) {
               await window.ipcRenderer.invoke('chat-store:migrate', parsed)
-              localStorage.removeItem('zura-chat-history')
+              localStorage.removeItem(LOCAL_CHAT_HISTORY_KEY)
               metadata = await window.ipcRenderer.invoke('chat-store:get-metadata')
             }
           }
@@ -428,15 +456,14 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
         setSessions(metadata.map((entry) => metadataToSession(entry)))
         setFolders(await window.ipcRenderer.invoke('chat-store:get-all-folders'))
       } else {
-        const saved = localStorage.getItem('zura-chat-history')
-        const parsed = saved ? (JSON.parse(saved) as ChatSession[]) : []
-        const normalized = parsed.map(normalizeSession)
-        normalized.forEach((session) => markLoaded(session.id))
-        setSessions(normalized)
+        const localState = readLocalChatIndex()
+        localState.sessions.forEach((session) => markLoaded(session.id))
+        setSessions(localState.sessions)
+        setFolders(localState.folders)
       }
     } catch (error) {
       console.error('Failed to load chat history:', error)
-      const saved = localStorage.getItem('zura-chat-history')
+      const saved = localStorage.getItem(LOCAL_CHAT_HISTORY_KEY)
       const parsed = saved ? (JSON.parse(saved) as ChatSession[]) : []
       setSessions(parsed.map(normalizeSession))
     } finally {
@@ -460,11 +487,10 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
           return metadata.some((session) => session.id === prev) ? prev : null
         })
       } else {
-        const saved = localStorage.getItem('zura-chat-history')
-        const parsed = saved ? (JSON.parse(saved) as ChatSession[]) : []
-        const normalized = parsed.map(normalizeSession)
-        normalized.forEach((session) => markLoaded(session.id))
-        setSessions(normalized)
+        const localState = readLocalChatIndex()
+        localState.sessions.forEach((session) => markLoaded(session.id))
+        setSessions(localState.sessions)
+        setFolders(localState.folders)
       }
 
       savedSessionRevisionRef.current = localSessionRevisionRef.current
@@ -820,7 +846,11 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
         window.ipcRenderer.invoke('chat-store:save-index', { sessions: [], folders: foldersRef.current, version: INDEX_VERSION })
       )
     } else {
-      localStorage.setItem('zura-chat-history', '[]')
+      localStorage.setItem(LOCAL_CHAT_HISTORY_KEY, '[]')
+      localStorage.setItem(
+        LOCAL_CHAT_INDEX_KEY,
+        JSON.stringify({ sessions: [], folders: foldersRef.current, version: INDEX_VERSION })
+      )
     }
   }, [markSessionsDirty])
 
@@ -1023,20 +1053,26 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
 
   const saveFoldersAndIndex = useCallback(
     (nextFolders: Folder[]) => {
+      foldersRef.current = nextFolders
       setFolders(nextFolders)
       markSessionsDirty()
-      scheduleIndexSave()
+      if (indexSaveTimerRef.current) {
+        clearTimeout(indexSaveTimerRef.current)
+        indexSaveTimerRef.current = null
+      }
+      void flushIndexSave()
     },
-    [markSessionsDirty, scheduleIndexSave]
+    [flushIndexSave, markSessionsDirty]
   )
 
   const createFolder = useCallback(
-    (name: string): string => {
+    (name: string, memoryMode: Folder['memoryMode'] = 'default'): string => {
       const newFolder: Folder = {
         id: crypto.randomUUID(),
         name,
         order: 0,
         createdAt: Date.now(),
+        memoryMode,
       }
 
       const maxOrder = foldersRef.current.reduce((max, folder) => Math.max(max, folder.order), -1)
@@ -1049,16 +1085,24 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
 
   const deleteFolder = useCallback(
     (id: string) => {
-      saveFoldersAndIndex(foldersRef.current.filter((folder) => folder.id !== id))
-      setSessions((prev) =>
-        prev.map((session) =>
-          session.folderId === id ? { ...session, folderId: null, updatedAt: Date.now() } : session
-        )
+      const now = Date.now()
+      const nextFolders = foldersRef.current.filter((folder) => folder.id !== id)
+      const nextSessions = sessionsRef.current.map((session) =>
+        session.folderId === id ? { ...session, folderId: null, updatedAt: now } : session
       )
+
+      foldersRef.current = nextFolders
+      sessionsRef.current = nextSessions
+      setFolders(nextFolders)
+      setSessions(nextSessions)
       markSessionsDirty()
-      scheduleIndexSave()
+      if (indexSaveTimerRef.current) {
+        clearTimeout(indexSaveTimerRef.current)
+        indexSaveTimerRef.current = null
+      }
+      void flushIndexSave()
     },
-    [markSessionsDirty, saveFoldersAndIndex, scheduleIndexSave]
+    [flushIndexSave, markSessionsDirty]
   )
 
   const renameFolder = useCallback(

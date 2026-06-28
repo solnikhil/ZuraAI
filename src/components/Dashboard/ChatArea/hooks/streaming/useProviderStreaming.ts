@@ -564,7 +564,7 @@ export function useProviderStreaming({
         const roundResearchState: ResearchState = roundAllowsTools ? 'search' : 'synthesize'
         let roundContent = ''
         let roundToolCalls: DeltaToolCall[] = []
-        let roundReasoningDetails: ReasoningDetail[] = []
+        const roundReasoningDetails: ReasoningDetail[] = []
         let roundFinishReason: string | null = null
         let roundUsage = emptyUsage()
         let roundFirstTokenTime: number | null = null
@@ -618,7 +618,7 @@ export function useProviderStreaming({
             throwIfAborted()
 
             switch (event.type) {
-              case 'text-delta':
+              case 'text-delta': {
                 if (!roundFirstTokenTime && event.delta) {
                   roundFirstTokenTime = performance.now()
                 }
@@ -685,6 +685,7 @@ export function useProviderStreaming({
                 }
                 persistProgress()
                 break
+              }
               case 'reasoning-delta':
                 if (
                   shouldSkipStrayReasoningDelta(
@@ -703,24 +704,26 @@ export function useProviderStreaming({
                   activeThinkingStartTime = performance.now()
                 }
                 activeThinking += event.delta
-                const thinkingDuration = activeThinkingStartTime !== null
-                  ? performance.now() - activeThinkingStartTime
-                  : undefined
-                const reasoningProgress = {
-                  phase: resolveStreamPhase('reasoning'),
-                  thinking: activeThinking,
-                  thinkingDuration,
-                  thinkingBlocks: localThinkingBlocks,
-                  files: generatedFiles,
+                {
+                  const thinkingDuration = activeThinkingStartTime !== null
+                    ? performance.now() - activeThinkingStartTime
+                    : undefined
+                  const reasoningProgress = {
+                    phase: resolveStreamPhase('reasoning'),
+                    thinking: activeThinking,
+                    thinkingDuration,
+                    thinkingBlocks: localThinkingBlocks,
+                    files: generatedFiles,
+                  }
+                  updateStreamingState(reasoningProgress)
+                  publishStreamingProgress(reasoningProgress)
                 }
-                updateStreamingState(reasoningProgress)
-                publishStreamingProgress(reasoningProgress)
                 persistProgress()
                 break
               case 'reasoning-details':
                 roundReasoningDetails.push(...event.details)
                 break
-              case 'tool-call-delta':
+              case 'tool-call-delta': {
                 let finalizedThinkingForTool: ReturnType<typeof finalizeActiveThinking> = null
                 if (activeThinking) {
                   finalizedThinkingForTool = finalizeActiveThinking()
@@ -772,6 +775,7 @@ export function useProviderStreaming({
                   })
                 }
                 break
+              }
               case 'file-delta':
                 generatedFiles = mergeGeneratedFiles(generatedFiles, event.files)
                 updateStreamingState({ files: generatedFiles })
@@ -1529,10 +1533,6 @@ export function useProviderStreaming({
                   '\n\nI made a change, but verification did not succeed after one recovery attempt, so I stopped instead of continuing blind.'
                 updateStreamingState({ content: accumulatedContent })
                 publishStreamingProgress({ content: accumulatedContent })
-                toolResult = {
-                  ...nextToolResult,
-                  needsFollowUp: false,
-                }
                 break
               }
             } else {
@@ -1572,10 +1572,6 @@ export function useProviderStreaming({
                 lastAssistantMessage,
                 nextToolResult.formattedResults
               )
-              toolResult = {
-                ...nextToolResult,
-                needsFollowUp: false,
-              }
               break
             }
 

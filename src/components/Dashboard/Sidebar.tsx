@@ -48,6 +48,10 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
     unpinSession,
     duplicateSession: duplicateSessionAction,
     assignFolder,
+    removeFromFolder,
+    createFolder,
+    deleteFolder,
+    renameFolder,
   } = useChatHistory()
   const { settingsUI } = useSettingsUI()
   const { settings } = useSettings()
@@ -55,6 +59,10 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
   const remindersEnabled = isSkillEnabled(settings.skills, 'reminders')
   const artifactsEnabled = isSkillEnabled(settings.skills, 'artifacts')
   const sidebarFooterScrollPadding = 72
+  const sortedFolders = useMemo(
+    () => [...folders].sort((a, b) => a.order - b.order || a.createdAt - b.createdAt || a.name.localeCompare(b.name)),
+    [folders]
+  )
 
   // Sidebar state
   const [focusIndex, setFocusIndex] = useState(-1)
@@ -65,12 +73,12 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
   const resizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null)
   const resizeRafRef = useRef<number | null>(null)
   // Group sessions for sidebar list
-  const groupedSessions = useMemo(() => groupSessions(sessions, folders), [sessions, folders])
+  const groupedSessions = useMemo(() => groupSessions(sessions, sortedFolders), [sessions, sortedFolders])
 
   // Flatten visible sessions for keyboard navigation (pinned + folders + time groups in display order)
   const flatVisibleSessions = useMemo(() => {
     const flat = [...groupedSessions.pinned]
-    for (const folder of folders) {
+    for (const folder of sortedFolders) {
       const folderSessions = groupedSessions.folders.get(folder.id) || []
       flat.push(...folderSessions)
     }
@@ -82,7 +90,7 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
       ...groupedSessions.older
     )
     return flat
-  }, [groupedSessions, folders])
+  }, [groupedSessions, sortedFolders])
 
   const sessionIndexMap = useMemo(() => {
     const indexMap = new Map<string, number>()
@@ -152,6 +160,13 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
     }
   }, [clearCurrentSession, dashboardView, setDashboardView])
 
+  const handleCreateFolder = useCallback(
+    (name: string) => {
+      createFolder(name)
+    },
+    [createFolder]
+  )
+
   // Keyboard navigation handler (Requirements 4.4, 4.5, 4.6, 4.7)
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -201,9 +216,12 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
         case 'duplicate':
           duplicateSessionAction(sessionId)
           break
+        case 'removeFromFolder':
+          removeFromFolder(sessionId)
+          break
       }
     },
-    [pinSession, unpinSession, deleteSession, duplicateSessionAction]
+    [pinSession, unpinSession, deleteSession, duplicateSessionAction, removeFromFolder]
   )
 
   const handleRenameConfirm = useCallback(
@@ -380,7 +398,7 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
           <SidebarChatView
             active={view === 'chat' || view === 'reminders' || view === 'artifacts'}
             groupedSessions={groupedSessions}
-            folders={folders}
+            folders={sortedFolders}
             chatSelectedOverlayStyle={chatSelectedOverlayStyle}
             currentSessionId={
               view === 'reminders' || view === 'artifacts' ? null : currentSessionId
@@ -392,11 +410,16 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
             remindersEnabled={remindersEnabled}
             artifactsEnabled={artifactsEnabled}
             onNewChat={handleNewChat}
+            onCreateFolder={handleCreateFolder}
             onOpenSearch={openSearchOverlay}
             onOpenReminders={openReminders}
             onOpenArtifacts={openArtifacts}
             onSelectSession={handleSelectSession}
             onContextAction={handleContextAction}
+            onAssignFolder={assignFolder}
+            onRemoveFromFolder={removeFromFolder}
+            onRenameFolder={renameFolder}
+            onDeleteFolder={deleteFolder}
             onRenameConfirm={handleRenameConfirm}
             onDropSessionToFolder={handleDropSessionToFolder}
             onKeyDown={handleKeyDown}

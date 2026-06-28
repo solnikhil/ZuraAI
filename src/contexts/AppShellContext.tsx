@@ -17,7 +17,7 @@ import {
   type AppShellNavigationSnapshot,
 } from './appShellNavigation'
 
-export type DashboardView = 'chat' | 'settings' | 'reminders' | 'artifacts'
+export type DashboardView = 'chat' | 'settings' | 'reminders' | 'artifacts' | 'folders'
 
 export type ProviderKey = ProviderId
 
@@ -36,6 +36,8 @@ interface AppShellContextType {
   setActiveSettingsSection: (section: string) => void
   settingsSectionParams: SettingsSectionParams | null
   setSettingsSectionParams: (params: SettingsSectionParams | null) => void
+  selectedFolderId: string | null
+  setSelectedFolderId: (folderId: string | null) => void
   hasUnsavedSettings: boolean
   setHasUnsavedSettings: (hasUnsaved: boolean) => void
   sidebarCollapsed: boolean
@@ -62,11 +64,18 @@ const STORAGE_KEYS = {
   sidebarCollapsed: 'zura-ui:sidebarCollapsed',
   sidebarWidth: 'zura-ui:sidebarWidth',
   sidebarHidden: 'zura-ui:sidebarHidden',
+  selectedFolderId: 'zura-ui:selectedFolderId',
 } as const
 
 function readStoredDashboardView(): DashboardView | null {
   const raw = localStorage.getItem(STORAGE_KEYS.dashboardView)
-  if (raw === 'chat' || raw === 'settings' || raw === 'reminders' || raw === 'artifacts') return raw
+  if (
+    raw === 'chat' ||
+    raw === 'settings' ||
+    raw === 'reminders' ||
+    raw === 'artifacts' ||
+    raw === 'folders'
+  ) return raw
   return null
 }
 
@@ -143,6 +152,11 @@ export function AppShellProvider({
 
   const [settingsSectionParams, setSettingsSectionParamsState] =
     useState<SettingsSectionParams | null>(null)
+  const [selectedFolderId, setSelectedFolderIdState] = useState<string | null>(() => {
+    if (!settings.rememberLastDashboardView) return null
+    const raw = localStorage.getItem(STORAGE_KEYS.selectedFolderId)
+    return raw && raw.trim() ? raw : null
+  })
 
   const [isResizingSidebar, setIsResizingSidebarState] = useState(false)
   const [navigationHistory, setNavigationHistory] = useState(() =>
@@ -193,6 +207,10 @@ export function AppShellProvider({
 
   const setSettingsSectionParamsCallback = useCallback((params: SettingsSectionParams | null) => {
     setSettingsSectionParamsState(params)
+  }, [])
+
+  const setSelectedFolderId = useCallback((folderId: string | null) => {
+    setSelectedFolderIdState(folderId)
   }, [])
 
   useEffect(() => {
@@ -297,6 +315,18 @@ export function AppShellProvider({
     localStorage.setItem(STORAGE_KEYS.settingsSection, activeSettingsSection)
   }, [activeSettingsSection, settings.rememberLastSettingsSection])
 
+  useEffect(() => {
+    if (!settings.rememberLastDashboardView) {
+      localStorage.removeItem(STORAGE_KEYS.selectedFolderId)
+      return
+    }
+    if (selectedFolderId) {
+      localStorage.setItem(STORAGE_KEYS.selectedFolderId, selectedFolderId)
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.selectedFolderId)
+    }
+  }, [selectedFolderId, settings.rememberLastDashboardView])
+
   const value = useMemo(
     () => ({
       dashboardView,
@@ -305,6 +335,8 @@ export function AppShellProvider({
       setActiveSettingsSection,
       settingsSectionParams,
       setSettingsSectionParams: setSettingsSectionParamsCallback,
+      selectedFolderId,
+      setSelectedFolderId,
       hasUnsavedSettings,
       setHasUnsavedSettings,
       sidebarCollapsed,
@@ -333,9 +365,11 @@ export function AppShellProvider({
       setActiveSettingsSection,
       setDashboardView,
       setIsResizingSidebar,
+      setSelectedFolderId,
       setSettingsSectionParamsCallback,
       setSidebarHidden,
       settingsSectionParams,
+      selectedFolderId,
       sidebarCollapsed,
       sidebarWidth,
       sidebarHidden,
@@ -362,6 +396,8 @@ export function useAppShell() {
         setActiveSettingsSection: () => {},
         settingsSectionParams: null,
         setSettingsSectionParams: () => {},
+        selectedFolderId: null,
+        setSelectedFolderId: () => {},
         hasUnsavedSettings: false,
         setHasUnsavedSettings: () => {},
         sidebarCollapsed: false,

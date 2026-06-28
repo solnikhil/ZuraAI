@@ -220,6 +220,12 @@
     outline: none;
 }
 
+@media (max-width: 700px) {
+    .app-titlebar__menubar {
+        display: none;
+    }
+}
+
 .app-titlebar__menu-content {
     min-width: 178px;
     padding: 5px;

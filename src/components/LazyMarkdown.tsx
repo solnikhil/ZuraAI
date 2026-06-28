@@ -527,7 +527,7 @@ const MarkdownContent = React.memo(function MarkdownContent({
         // Render file-tree view only when we have clear tree evidence.
         // This avoids false positives for normal code/config blocks (e.g. .gitignore).
         const hasVisualTreeMarkers =
-          /^(?:\s*(?:\|   )*|\s*(?:│   )*)?(?:├──|└──|\|--|\+--|\|[-─—]{2,}|\+[-─—]{2,}|├[-─—]{2,}|└[-─—]{2,})\s+/m.test(
+          /^(?:\s*(?:\| {3})*|\s*(?:│ {3})*)?(?:├──|└──|\|--|\+--|\|[-─—]{2,}|\+[-─—]{2,}|├[-─—]{2,}|└[-─—]{2,})\s+/m.test(
             codeString
           )
         const hasFolderComments = /^\s*\S+\/\s*#\s+/m.test(codeString)
@@ -956,7 +956,6 @@ const MarkdownContent = React.memo(function MarkdownContent({
         children,
         ...props
       }: ExtraProps & React.HTMLAttributes<HTMLParagraphElement>) => <p {...props}>{children}</p>,
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     }),
     [
       copiedCode,

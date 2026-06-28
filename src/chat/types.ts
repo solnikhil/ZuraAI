@@ -165,6 +165,7 @@ export interface Folder {
   name: string
   order: number
   createdAt: number
+  memoryMode?: 'default' | 'folder-only'
 }
 
 export interface ChatIndexData {

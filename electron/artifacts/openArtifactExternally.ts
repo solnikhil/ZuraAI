@@ -26,7 +26,16 @@ function safePathSegment(value: string): string {
 }
 
 function sanitizeFilename(value: string): string {
-  return value.trim().replace(/[<>:"/\\|?*\x00-\x1F]/g, '-').replace(/\s+/g, '-').slice(0, 80) || 'artifact'
+  return (
+    value
+      .trim()
+      .split('')
+      .map((char) => (char.charCodeAt(0) <= 31 ? '-' : char))
+      .join('')
+      .replace(/[<>:"/\\|?*]/g, '-')
+      .replace(/\s+/g, '-')
+      .slice(0, 80) || 'artifact'
+  )
 }
 
 function normalizePayload(payload: unknown): OpenArtifactExternallyPayload | null {

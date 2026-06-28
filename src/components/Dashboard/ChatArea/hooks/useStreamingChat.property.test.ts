@@ -42,7 +42,7 @@ describe('Property 6: Tool Calling Integration', () => {
   })
 
   // Arbitrary for generating research mode parameters
-  const researchParamsArb = fc.record({
+  const _researchParamsArb = fc.record({
     maxRounds: fc.integer({ min: 1, max: 25 }),
     mandatory: fc.boolean(),
   })

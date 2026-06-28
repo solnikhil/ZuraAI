@@ -154,6 +154,7 @@
   flex-direction: column;
   height: 100%;
   min-height: 0;
+  overflow: hidden;
   /* Hold a fixed width that matches the open width so the panel slides in/out
      (clipped by the container's overflow:hidden) instead of reflowing per frame. */
   width: var(--sidebar-inner-width, 100%);
@@ -717,6 +718,56 @@
 
 .sidebar-container--collapsed .sidebar-footer-row .sidebar-header__label {
   display: none;
+}
+
+@media (max-width: 700px) {
+  .sidebar-container--expanded:not(.sidebar-container--peek) {
+    width: 60px !important;
+    flex-basis: 60px !important;
+    --sidebar-inner-width: 60px !important;
+  }
+
+  .sidebar-container--expanded:not(.sidebar-container--peek) .sidebar-resize-handle {
+    display: none;
+  }
+
+  .sidebar-container--expanded:not(.sidebar-container--peek) .sidebar-header {
+    padding-right: 6px;
+  }
+
+  .sidebar-container--expanded:not(.sidebar-container--peek) .sidebar-header__btn {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .sidebar-container--expanded:not(.sidebar-container--peek) .sidebar-header__label,
+  .sidebar-container--expanded:not(.sidebar-container--peek) .sidebar-section-label__name,
+  .sidebar-container--expanded:not(.sidebar-container--peek) .sidebar-section-label__count,
+  .sidebar-container--expanded:not(.sidebar-container--peek) .sidebar-section-label__chevron,
+  .sidebar-container--expanded:not(.sidebar-container--peek) .sidebar-chat-row__content,
+  .sidebar-container--expanded:not(.sidebar-container--peek) .sidebar-chat-row__more-btn,
+  .sidebar-container--expanded:not(.sidebar-container--peek) .sidebar-chat-row__tags,
+  .sidebar-container--expanded:not(.sidebar-container--peek) .sidebar-footer-row .sidebar-header__label {
+    display: none;
+  }
+
+  .sidebar-container--expanded:not(.sidebar-container--peek) .sidebar-section-label,
+  .sidebar-container--expanded:not(.sidebar-container--peek) .sidebar-chat-row,
+  .sidebar-container--expanded:not(.sidebar-container--peek) .sidebar-footer-row {
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .sidebar-container--expanded:not(.sidebar-container--peek) .sidebar-chatlist__scroller,
+  .sidebar-container--expanded:not(.sidebar-container--peek) .sidebar-chatlist__viewport,
+  .sidebar-container--expanded:not(.sidebar-container--peek) .sidebar-chatlist__utility-actions,
+  .sidebar-container--expanded:not(.sidebar-container--peek) .sidebar-settings-content {
+    padding-left: 6px;
+    padding-right: 6px;
+  }
 }
 
 .sidebar-footer-row[data-state='open'] {

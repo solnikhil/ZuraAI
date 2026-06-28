@@ -3,8 +3,25 @@ import ChatRow from './ChatRow'
 import type { ChatRowAction } from './ChatRow'
 import ChatRowContextMenu from './ChatRowContextMenu'
 import DeleteChatAlertDialog from './DeleteChatAlertDialog'
+import DeleteFolderAlertDialog from './DeleteFolderAlertDialog'
+import FolderNameDialog from './FolderNameDialog'
 import RenameChatDialog from './RenameChatDialog'
-import { Bell, ChevronDown, FileText, FolderOpen, Pin } from '../../icons'
+import {
+  Bell,
+  ChevronDown,
+  Edit2,
+  FileText,
+  FolderOpen,
+  Pin,
+  Trash2,
+} from '../../icons'
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu'
 import type { GroupedSessions } from './utils/groupSessions'
 import type { ChatSession, Folder } from '../../../chat/types'
 import type { ChatSelectedOverlayStyle } from '../../../contexts/SettingsUIContext'
@@ -26,6 +43,10 @@ interface SidebarChatListProps {
   onOpenArtifacts: () => void
   onSelectSession: (id: string) => void
   onContextAction: (action: ChatRowAction, sessionId: string) => void
+  onAssignFolder: (sessionId: string, folderId: string) => void
+  onRemoveFromFolder: (sessionId: string) => void
+  onRenameFolder: (folderId: string, name: string) => void
+  onDeleteFolder: (folderId: string) => void
   onRenameConfirm: (id: string, newTitle: string) => void
   onDropSessionToFolder: (sessionId: string, folderId: string) => void
   onKeyDown: (e: React.KeyboardEvent) => void
@@ -59,6 +80,10 @@ export default function SidebarChatList({
   onOpenArtifacts,
   onSelectSession,
   onContextAction,
+  onAssignFolder,
+  onRemoveFromFolder,
+  onRenameFolder,
+  onDeleteFolder,
   onRenameConfirm,
   onDropSessionToFolder,
   onKeyDown,
@@ -66,6 +91,8 @@ export default function SidebarChatList({
   const [deleteConfirmSessionId, setDeleteConfirmSessionId] = React.useState<string | null>(null)
 
   const [renameSessionId, setRenameSessionId] = React.useState<string | null>(null)
+  const [renameFolderId, setRenameFolderId] = React.useState<string | null>(null)
+  const [deleteFolderId, setDeleteFolderId] = React.useState<string | null>(null)
   const [isPinnedOpen, setIsPinnedOpen] = React.useState(true)
   const [isYourChatsOpen, setIsYourChatsOpen] = React.useState(true)
   const [openFolderIds, setOpenFolderIds] = React.useState(() => new Set<string>())
@@ -165,6 +192,10 @@ export default function SidebarChatList({
         setRenameSessionId(sessionId)
         return
       }
+      if (action === 'removeFromFolder') {
+        onRemoveFromFolder(sessionId)
+        return
+      }
       onContextAction(action, sessionId)
     }
 
@@ -172,7 +203,10 @@ export default function SidebarChatList({
       <ChatRowContextMenu
         key={session.id}
         isPinned={session.pinned === true}
+        currentFolderId={session.folderId ?? null}
+        folders={folders}
         onAction={(action) => handleContextMenuAction(action, session.id)}
+        onAssignFolder={(folderId) => onAssignFolder(session.id, folderId)}
       >
         <div
           draggable
@@ -200,8 +234,11 @@ export default function SidebarChatList({
     chatSelectedOverlayStyle,
     currentSessionId,
     focusIndex,
+    folders,
     isFrosted,
+    onAssignFolder,
     onContextAction,
+    onRemoveFromFolder,
     onSelectSession,
     sessionIndexMap,
     streamingSessionId,
@@ -212,7 +249,7 @@ export default function SidebarChatList({
       if (item.folder) {
         const isOpen = openFolderIds.has(item.folder.id)
         const isDragOver = dragOverFolderId === item.folder.id
-        return (
+        const header = (
           <div
             onDragOver={(event) => {
               event.preventDefault()
@@ -229,7 +266,7 @@ export default function SidebarChatList({
               if (sessionId) {
                 onDropSessionToFolder(sessionId, item.folder!.id)
               }
-            }}
+              }}
             className={`sidebar-folder-dropzone ${isDragOver ? 'sidebar-folder-dropzone--over' : ''}`}
           >
             <div
@@ -247,6 +284,26 @@ export default function SidebarChatList({
               />
             </div>
           </div>
+        )
+
+        return (
+          <ContextMenu>
+            <ContextMenuTrigger asChild>{header}</ContextMenuTrigger>
+            <ContextMenuContent>
+              <ContextMenuItem onSelect={() => setRenameFolderId(item.folder!.id)}>
+                <Edit2 size={14} />
+                Rename
+              </ContextMenuItem>
+              <ContextMenuSeparator />
+              <ContextMenuItem
+                variant="destructive"
+                onSelect={() => setDeleteFolderId(item.folder!.id)}
+              >
+                <Trash2 size={14} />
+                Delete folder
+              </ContextMenuItem>
+            </ContextMenuContent>
+          </ContextMenu>
         )
       }
 
@@ -359,6 +416,39 @@ export default function SidebarChatList({
             onContextAction('delete', deleteConfirmSessionId)
           }
           setDeleteConfirmSessionId(null)
+        }}
+      />
+
+      <FolderNameDialog
+        open={renameFolderId !== null}
+        mode="rename"
+        currentName={folders.find((folder) => folder.id === renameFolderId)?.name ?? ''}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRenameFolderId(null)
+          }
+        }}
+        onConfirm={(name) => {
+          if (renameFolderId) {
+            onRenameFolder(renameFolderId, name)
+          }
+          setRenameFolderId(null)
+        }}
+      />
+
+      <DeleteFolderAlertDialog
+        open={deleteFolderId !== null}
+        folderName={folders.find((folder) => folder.id === deleteFolderId)?.name ?? ''}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteFolderId(null)
+          }
+        }}
+        onConfirm={() => {
+          if (deleteFolderId) {
+            onDeleteFolder(deleteFolderId)
+          }
+          setDeleteFolderId(null)
         }}
       />
 
