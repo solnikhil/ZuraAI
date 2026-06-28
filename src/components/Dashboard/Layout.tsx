@@ -3,6 +3,7 @@ import Sidebar from './Sidebar'
 import ChatArea from './ChatArea'
 import RemindersView from './RemindersView'
 import ArtifactsView from './ArtifactsView'
+import FoldersView from './FoldersView'
 import { useAppShell } from '../../contexts/AppShellContext'
 import { useSettings } from '../../contexts/SettingsContext'
 import { isSkillEnabled } from '../../skills'
@@ -150,6 +151,12 @@ export default function DashboardLayout() {
               style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}
             >
               <ArtifactsView />
+            </div>
+          ) : view === 'folders' ? (
+            <div
+              style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}
+            >
+              <FoldersView />
             </div>
           ) : (
             <div
