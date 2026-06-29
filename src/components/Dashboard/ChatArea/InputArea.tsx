@@ -367,7 +367,7 @@ export function InputArea({
         <DropdownMenuSub>
           <DropdownMenuSubTrigger className="zura-menu-sub-trigger--compact">
             <Wrench className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
-            <span>Desktop control</span>
+            <span>Agent Mode desktop control</span>
           </DropdownMenuSubTrigger>
           <DropdownMenuSubContent
             sideOffset={8}

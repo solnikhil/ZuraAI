@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { ThinkingBlock } from '../../../chat/types'
 import {
   TOOL_FOLLOW_UP_SPLIT_MARKER,
+  buildMessageTimelineSegments,
   createToolFollowUpSplitMarker,
   endsWithToolFollowUpSplitMarker,
   removeToolFollowUpSplitMarker,
@@ -119,6 +120,49 @@ describe('messageTimeline', () => {
       beforeBlocks: [initialThinkingBlock],
       afterBlocks: [],
     })
+  })
+
+  it('builds one interleaved segment per follow-up marker', () => {
+    const searchBlock: ThinkingBlock = {
+      type: 'searching',
+      toolName: 'web_search',
+      query: 'pricing lookup',
+      timestamp: 3,
+    }
+    const commandBlock: ThinkingBlock = {
+      type: 'tool',
+      toolName: 'system_shell',
+      timestamp: 4,
+    }
+    const content = [
+      'Good call — verify pricing.',
+      createToolFollowUpSplitMarker(1),
+      'Here is what pricing shows.',
+      createToolFollowUpSplitMarker(3),
+      'The main log file is application.log.',
+    ].join('\n\n')
+
+    expect(
+      buildMessageTimelineSegments(content, [
+        initialThinkingBlock,
+        searchBlock,
+        followUpThinkingBlock,
+        commandBlock,
+      ])
+    ).toEqual([
+      {
+        blocks: [initialThinkingBlock],
+        content: 'Good call — verify pricing.',
+      },
+      {
+        blocks: [searchBlock, followUpThinkingBlock],
+        content: 'Here is what pricing shows.',
+      },
+      {
+        blocks: [commandBlock],
+        content: 'The main log file is application.log.',
+      },
+    ])
   })
 
   it('strips residual markers from afterContent when multiple tool follow-up rounds run', () => {

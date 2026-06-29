@@ -59,10 +59,19 @@ const NATIVE_WINDOWS_AGENT_TOOLS = [
 const COMMAND_CENTER_TOOLS = [
     'system_active_window',
     'system_status',
+    'system_settings_open',
+    'system_theme_get',
+    'system_theme_set',
+    'system_mute_set',
     'system_volume_get',
     'system_volume_set',
     'system_open_path',
     'window_snap',
+    'app_find',
+    'app_list',
+    'app_launch',
+    'window_list',
+    'window_focus',
 ]
 
 const SCHEDULED_TASK_TOOLS = [
@@ -176,11 +185,14 @@ export function useToolCalling() {
         }
 
         const commandCenterSurfaceEnabled =
-            isWindowsRuntime() &&
-            isSkillEnabled(settings.skills, 'command_center')
+            settings.assistantMode === 'agent' &&
+            isWindowsRuntime()
 
         if (!commandCenterSurfaceEnabled) {
-            enabledTools = enabledTools.filter((tool) => !COMMAND_CENTER_TOOLS.includes(tool))
+            enabledTools = enabledTools.filter((tool) => (
+                !COMMAND_CENTER_TOOLS.includes(tool) ||
+                (nativeWindowsAgentToolsEnabled && NATIVE_WINDOWS_AGENT_TOOLS.includes(tool))
+            ))
         } else {
             for (const tool of COMMAND_CENTER_TOOLS) {
                 if (!enabledTools.includes(tool)) enabledTools.push(tool)

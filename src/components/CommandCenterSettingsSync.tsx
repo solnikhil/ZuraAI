@@ -3,7 +3,6 @@ import { useEffect } from 'react'
 import { useSettings } from '../contexts/SettingsContext'
 import { useQuickSend } from '../contexts/QuickSendContext'
 import type { CommandCenterCommand } from '../electron/types'
-import { isSkillEnabled } from '../skills'
 import { isWindowsRuntime } from '../utils/platform'
 
 function formatCommandCenterMessage(command: CommandCenterCommand): string {
@@ -25,9 +24,9 @@ function formatCommandCenterMessage(command: CommandCenterCommand): string {
 }
 
 export default function CommandCenterSettingsSync() {
-  const { settings } = useSettings()
+  const { settings, updateSettings } = useSettings()
   const { queueMessage } = useQuickSend()
-  const enabled = isWindowsRuntime() && isSkillEnabled(settings.skills, 'command_center')
+  const enabled = isWindowsRuntime() && settings.assistantMode === 'agent'
 
   useEffect(() => {
     void window.commandCenter?.setExtensionEnabled(enabled)
@@ -38,9 +37,12 @@ export default function CommandCenterSettingsSync() {
     return window.commandCenter.onCommand((command) => {
       const text = formatCommandCenterMessage(command)
       if (!text) return
+      if (settings.assistantMode !== 'agent') {
+        updateSettings({ assistantMode: 'agent' })
+      }
       queueMessage(text)
     })
-  }, [queueMessage])
+  }, [queueMessage, settings.assistantMode, updateSettings])
 
   return null
 }

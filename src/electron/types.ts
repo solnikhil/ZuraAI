@@ -257,12 +257,22 @@ export type CommandCenterActionId =
   | 'maximize-window'
   | 'volume-30'
   | 'volume-60'
+  | 'toggle-mute'
+  | 'system-status'
+  | 'toggle-theme'
+  | 'clipboard-to-chat'
+  | 'focus-zuraai'
+  | 'settings-display'
+  | 'settings-sound'
+  | 'settings-network'
+  | 'settings-bluetooth'
   | 'open-downloads'
 
 export interface CommandCenterAction {
   id: CommandCenterActionId
   label: string
-  kind: 'window' | 'audio' | 'filesystem'
+  kind: 'window' | 'audio' | 'system' | 'clipboard' | 'app' | 'settings' | 'filesystem'
+  aliases?: string[]
 }
 
 export interface CommandCenterSubmitResult {

@@ -1,0 +1,19 @@
+---
+pid: 2820
+cwd: "C:\Users\Nikhil\Desktop\Zura\ZuraAI"
+command: "cd \"C:\\Users\\Nikhil\\Desktop\\Zura\\ZuraAI\"; bun run typecheck; bun run test src/components/Dashboard/Sidebar.test.tsx"
+started_at: 2026-06-29T12:10:25.041Z
+running_for_ms: 19245007 
+---
+$ tsc --noEmit
+$ vitest --run src/components/Dashboard/Sidebar.test.tsx
+
+ RUN  v4.1.5 C:/Users/Nikhil/Desktop/Zura/ZuraAI
+
+ ✓ src/components/Dashboard/Sidebar.test.tsx (7 tests) 287ms
+
+ Test Files  1 passed (1)
+      Tests  7 passed (7)
+   Start at  17:40:37
+   Duration  2.94s (transform 324ms, setup 152ms, import 1.51s, tests 287ms, environment 719ms)
+

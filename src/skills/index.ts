@@ -80,19 +80,19 @@ export const BUILT_IN_SKILLS: BuiltInSkill[] = [
   {
     id: 'computer_use',
     name: 'Control This Desktop',
-    description: 'Let the assistant use screenshots, clicks, typing, scrolling, and app controls on the desktop you are currently using.',
-    note: 'Requires approval before each action. Press Esc+Esc to emergency stop.',
+    description: 'Let Agent Mode use native OS tools, Command Center, screenshots, clicks, typing, scrolling, and app controls on this desktop.',
+    note: 'Agent Mode includes native Windows tools and Ctrl+Shift+Space Command Center. Desktop control actions require approval. Press Esc+Esc to emergency stop.',
     usageGuidance: [
-      'Always take a screenshot first to see the current screen state.',
-      'Analyze the screenshot carefully before performing any action.',
-      'Verify results with a follow-up screenshot after each action.',
+      'Prefer native OS tools and Command Center context before screenshots or shell commands.',
+      'Use screenshots when visual inspection is required, then analyze before performing any action.',
+      'Verify results with the narrowest read-only native tool or a follow-up screenshot.',
     ],
   },
   {
     id: 'command_center',
     name: 'Command Center',
     description: 'Give the assistant native OS context and safe system controls for the active Windows desktop.',
-    note: 'Windows-only. Read-only context is available without approval; volume, file/folder opening, and window snap actions require approval.',
+    note: 'Windows-only. Model-callable OS actions use the normal approval path; overlay shortcuts are limited to a fixed main-process allowlist.',
     usageGuidance: [
       'Use active-window context before acting on the current app or desktop.',
       'Prefer explicit OS tools for volume, opening files/folders, and window snap layouts instead of shell commands.',
@@ -500,12 +500,13 @@ export function withSkillEnabled(skills: SkillsSettings | undefined, skillId: Sk
 
 export function buildEnabledSkillsPrompt(
   skills: SkillsSettings | undefined,
-  options?: { codeExecutionPrompt?: string; terminalPrompt?: string; computerUsePrompt?: string; chartGenerationPrompt?: string; remindersPrompt?: string; artifactsPrompt?: string },
+  options?: { codeExecutionPrompt?: string; terminalPrompt?: string; computerUsePrompt?: string; commandCenterPrompt?: string; commandCenterActive?: boolean; chartGenerationPrompt?: string; remindersPrompt?: string; artifactsPrompt?: string },
 ): string {
   if (!skills) return ''
 
   const sections: string[] = []
   const normalized = normalizeSkillsSettings(skills)
+  const commandCenterActive = normalized.command_center.enabled || options?.commandCenterActive === true
 
   const skillLines: string[] = []
 
@@ -530,9 +531,10 @@ export function buildEnabledSkillsPrompt(
     skillLines.push('- For visual desktop tasks, screenshot first, analyze before acting, and verify results with follow-up screenshots.')
   }
 
-  if (normalized.command_center.enabled) {
+  if (commandCenterActive) {
     skillLines.push('- Command Center (`command_center`): use active-window context and explicit OS tools for native desktop requests before falling back to visual Computer Use or terminal commands.')
-    skillLines.push('- Read current app/window context with `system_active_window` and local machine status with `system_status`; use `system_volume_get`, `system_volume_set`, `system_open_path`, and `window_snap` for direct OS-level actions with approval where required.')
+    skillLines.push('- Read current app/window context with `system_active_window`, find or launch installed apps with `app_find`/`app_launch`, and list or focus windows with `window_list`/`window_focus` before using screenshots or shell.')
+    skillLines.push('- Read local machine status with `system_status` and Windows theme state with `system_theme_get`; use `system_volume_get`, `system_volume_set`, `system_mute_set`, `system_theme_set`, `system_settings_open`, `system_open_path`, and `window_snap` for direct OS-level actions with approval where required.')
   }
 
   if (normalized.chart_generation.enabled) {
@@ -565,6 +567,10 @@ export function buildEnabledSkillsPrompt(
 
   if (normalized.computer_use.enabled && options?.computerUsePrompt) {
     sections.push(options.computerUsePrompt)
+  }
+
+  if (commandCenterActive && options?.commandCenterPrompt) {
+    sections.push(options.commandCenterPrompt)
   }
 
   if (normalized.chart_generation.enabled && options?.chartGenerationPrompt) {

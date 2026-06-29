@@ -3,6 +3,7 @@ import { buildEnabledExtensionsPrompt } from '../skills'
 import { CURRENT_YEAR_PLACEHOLDER } from '../prompts/defaultSystemPrompt'
 import { buildSelectedPersonalityPrompt } from '../prompts/assistantPersonalities'
 import { buildAgentSkillsCatalogPrompt } from '../agentSkills/prompt'
+import { defaultCommandCenterPrompt } from '../prompts/defaultCommandCenterPrompt'
 
 export interface EffectiveSystemPromptOptions {
     includeAgentSkillsCatalog?: boolean
@@ -23,7 +24,7 @@ export function resolveSystemPromptTemplate(systemPrompt: string): string {
  * @returns The effective system prompt to use for AI calls.
  */
 export function getEffectiveSystemPrompt(
-    settings: Pick<Settings, 'systemPrompt'> & Partial<Pick<Settings, 'assistantPersonality' | 'skills' | 'extensions' | 'agentSkills' | 'codeExecutionPrompt' | 'terminalPrompt' | 'computerUsePrompt' | 'chartGenerationPrompt' | 'remindersPrompt' | 'artifactsPrompt'>>,
+    settings: Pick<Settings, 'systemPrompt'> & Partial<Pick<Settings, 'assistantPersonality' | 'assistantMode' | 'skills' | 'extensions' | 'agentSkills' | 'codeExecutionPrompt' | 'terminalPrompt' | 'computerUsePrompt' | 'commandCenterPrompt' | 'chartGenerationPrompt' | 'remindersPrompt' | 'artifactsPrompt'>>,
     memoryBlock?: string,
     recentActivityBlock?: string,
     options: EffectiveSystemPromptOptions = {}
@@ -31,10 +32,16 @@ export function getEffectiveSystemPrompt(
     const includeAgentSkillsCatalog = options.includeAgentSkillsCatalog ?? true
     const resolvedSystemPrompt = resolveSystemPromptTemplate(settings.systemPrompt)
     const selectedPersonalityPrompt = buildSelectedPersonalityPrompt(settings.assistantPersonality)
+    const commandCenterPrompt =
+        settings.assistantMode === 'agent'
+            ? settings.commandCenterPrompt ?? defaultCommandCenterPrompt
+            : undefined
     const enabledExtensionsSection = buildEnabledExtensionsPrompt(settings.extensions ?? settings.skills, {
         codeExecutionPrompt: settings.codeExecutionPrompt,
         terminalPrompt: settings.terminalPrompt,
         computerUsePrompt: settings.computerUsePrompt,
+        commandCenterPrompt,
+        commandCenterActive: settings.assistantMode === 'agent',
         chartGenerationPrompt: settings.chartGenerationPrompt,
         remindersPrompt: settings.remindersPrompt,
         artifactsPrompt: settings.artifactsPrompt,

@@ -1,4 +1,4 @@
-import { globalShortcut, ipcMain } from 'electron'
+import { clipboard, globalShortcut, ipcMain } from 'electron'
 import os from 'os'
 import path from 'path'
 
@@ -11,19 +11,35 @@ import {
 } from './windows'
 import {
   executeSystemActiveWindow,
+  executeSystemMuteSet,
   executeSystemOpenPath,
+  executeSystemSettingsOpen,
+  executeSystemStatus,
+  executeSystemThemeGet,
+  executeSystemThemeSet,
+  executeSystemVolumeGet,
   executeSystemVolumeSet,
   executeWindowSnap,
 } from './tools/os-integration'
 
 const COMMAND_CENTER_SHORTCUT = 'CommandOrControl+Shift+Space'
+const MAX_CLIPBOARD_CONTEXT_LENGTH = 4_000
 const COMMAND_CENTER_ACTIONS = [
-  { id: 'snap-left', label: 'Snap left', kind: 'window' },
-  { id: 'snap-right', label: 'Snap right', kind: 'window' },
-  { id: 'maximize-window', label: 'Maximize', kind: 'window' },
-  { id: 'volume-30', label: 'Volume 30%', kind: 'audio' },
-  { id: 'volume-60', label: 'Volume 60%', kind: 'audio' },
-  { id: 'open-downloads', label: 'Open Downloads', kind: 'filesystem' },
+  { id: 'snap-left', label: 'Snap left', kind: 'window', aliases: ['tile left'] },
+  { id: 'snap-right', label: 'Snap right', kind: 'window', aliases: ['tile right'] },
+  { id: 'maximize-window', label: 'Maximize', kind: 'window', aliases: ['fullscreen', 'full screen'] },
+  { id: 'volume-30', label: 'Volume 30%', kind: 'audio', aliases: ['quiet', 'lower volume'] },
+  { id: 'volume-60', label: 'Volume 60%', kind: 'audio', aliases: ['medium volume'] },
+  { id: 'toggle-mute', label: 'Toggle mute', kind: 'audio', aliases: ['mute', 'unmute', 'silence'] },
+  { id: 'system-status', label: 'System status', kind: 'system', aliases: ['battery', 'disk', 'network status'] },
+  { id: 'toggle-theme', label: 'Toggle theme', kind: 'system', aliases: ['dark mode', 'light mode'] },
+  { id: 'clipboard-to-chat', label: 'Ask about clipboard', kind: 'clipboard', aliases: ['paste', 'copied text'] },
+  { id: 'focus-zuraai', label: 'Focus ZuraAI', kind: 'app', aliases: ['show zura', 'open zura'] },
+  { id: 'settings-display', label: 'Display settings', kind: 'settings', aliases: ['screen', 'monitor'] },
+  { id: 'settings-sound', label: 'Sound settings', kind: 'settings', aliases: ['audio settings', 'speaker'] },
+  { id: 'settings-network', label: 'Network settings', kind: 'settings', aliases: ['wifi', 'wi-fi', 'internet'] },
+  { id: 'settings-bluetooth', label: 'Bluetooth settings', kind: 'settings', aliases: ['devices'] },
+  { id: 'open-downloads', label: 'Open Downloads', kind: 'filesystem', aliases: ['downloads folder'] },
 ] as const
 
 let extensionEnabled = false
@@ -86,6 +102,54 @@ async function executeCommandCenterAction(actionId: CommandCenterActionId) {
       return executeSystemVolumeSet({ level: 30, autoApprove: true })
     case 'volume-60':
       return executeSystemVolumeSet({ level: 60, autoApprove: true })
+    case 'toggle-mute': {
+      const current = await executeSystemVolumeGet()
+      const muted = current.success &&
+        current.data &&
+        typeof current.data === 'object' &&
+        (current.data as Record<string, unknown>).muted === true
+      return executeSystemMuteSet({ muted: !muted, autoApprove: true })
+    }
+    case 'system-status':
+      return executeSystemStatus()
+    case 'toggle-theme': {
+      const current = await executeSystemThemeGet()
+      const appTheme = current.success &&
+        current.data &&
+        typeof current.data === 'object' &&
+        (current.data as Record<string, unknown>).appTheme === 'dark'
+        ? 'dark'
+        : 'light'
+      return executeSystemThemeSet({ theme: appTheme === 'dark' ? 'light' : 'dark', autoApprove: true })
+    }
+    case 'clipboard-to-chat': {
+      const text = clipboard.readText().trim()
+      if (!text) {
+        return { success: false, error: 'Clipboard does not contain text.' }
+      }
+      const clipped = text.length > MAX_CLIPBOARD_CONTEXT_LENGTH
+        ? `${text.slice(0, MAX_CLIPBOARD_CONTEXT_LENGTH)}\n...[clipboard truncated]`
+        : text
+      await sendCommandToMainWindow(`Help me with this clipboard text:\n\n${clipped}`)
+      hideCommandCenterWindow()
+      return { success: true, data: { queued: true, characterCount: text.length } }
+    }
+    case 'focus-zuraai': {
+      const win = getMainWindow() ?? createMainWindow()
+      if (win.isMinimized()) win.restore()
+      win.show()
+      win.focus()
+      hideCommandCenterWindow()
+      return { success: true, data: { focused: true } }
+    }
+    case 'settings-display':
+      return executeSystemSettingsOpen({ page: 'display', autoApprove: true })
+    case 'settings-sound':
+      return executeSystemSettingsOpen({ page: 'sound', autoApprove: true })
+    case 'settings-network':
+      return executeSystemSettingsOpen({ page: 'network', autoApprove: true })
+    case 'settings-bluetooth':
+      return executeSystemSettingsOpen({ page: 'bluetooth', autoApprove: true })
     case 'open-downloads':
       return executeSystemOpenPath({
         path: path.join(os.homedir(), 'Downloads'),

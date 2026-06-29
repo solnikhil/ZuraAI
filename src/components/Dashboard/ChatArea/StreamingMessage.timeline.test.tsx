@@ -92,7 +92,7 @@ describe('StreamingMessage streaming layout replay', () => {
     vi.clearAllMocks()
   })
 
-  it('keeps markdown below thinking when streamingState replays reasoning → text → tool', async () => {
+  it('interleaves follow-up thinking below the first answer segment during tool replay', async () => {
     const steps: StreamingReplayStep[] = [
       { phase: 'reasoning', thinking: 'Initial reasoning' },
       {
@@ -126,11 +126,11 @@ describe('StreamingMessage streaming layout replay', () => {
 
     await waitFor(() => {
       const sequence = getTimelineSequence(screen.getByTestId('replay-root'))
-      expect(sequence).toEqual(['thinking-block', 'markdown'])
+      expect(sequence).toEqual(['thinking-block', 'markdown', 'thinking-block'])
     })
   })
 
-  it('keeps markdown below thinking when phase flips reasoning→answering after first text (user jump symptom)', async () => {
+  it('keeps the first answer segment fixed when follow-up reasoning starts', async () => {
     const steps: StreamingReplayStep[] = [
       { phase: 'reasoning', thinking: 'Planning the response...' },
       {
@@ -163,8 +163,67 @@ describe('StreamingMessage streaming layout replay', () => {
     })
 
     await waitFor(() => {
-      const sequence = getTimelineSequence(screen.getByTestId('replay-root'))
-      expect(sequence).toEqual(['thinking-block', 'markdown'])
+      const root = screen.getByTestId('replay-root')
+      const sequence = getTimelineSequence(root)
+      expect(sequence).toEqual(['thinking-block', 'markdown', 'thinking-block'])
+
+      const markdown = root.querySelector('[data-testid="markdown"]')
+      expect(markdown).toHaveTextContent('Here is the start of the answer.')
+    })
+  })
+
+  it('renders active tool calls below answer text when tool phase has preamble content', async () => {
+    const baseMessage = {
+      id: 'message-tool-active',
+      role: 'assistant' as const,
+      content: '',
+      timestamp: 1,
+      thinkingBlocks: [
+        {
+          type: 'thinking' as const,
+          content: 'Completed reasoning',
+          duration: 900,
+          timestamp: 1,
+        },
+      ],
+    }
+
+    function ActiveToolHarness() {
+      const { startStreaming, updateStreaming } = useStreamingActions()
+
+      useEffect(() => {
+        startStreaming('session-active-tool', baseMessage.id)
+        updateStreaming({
+          phase: 'tool',
+          content: 'Answer text during tool phase.',
+          thinkingBlocks: baseMessage.thinkingBlocks,
+        })
+      }, [startStreaming, updateStreaming])
+
+      return (
+        <div data-testid="active-tool-root">
+          <StreamingMessage
+            message={baseMessage}
+            sessionId="session-active-tool"
+            activeToolCalls={[{ name: 'system_shell', arguments: { command: 'ls' } }]}
+          />
+        </div>
+      )
+    }
+
+    await act(async () => {
+      render(
+        <StreamingProvider>
+          <ActiveToolHarness />
+        </StreamingProvider>
+      )
+    })
+
+    await waitFor(() => {
+      const root = screen.getByTestId('active-tool-root')
+      const sequence = getTimelineSequence(root)
+      expect(sequence).toEqual(['thinking-block', 'markdown', 'thinking-block'])
+      expect(screen.getByText('Tool Active')).toBeInTheDocument()
     })
   })
 

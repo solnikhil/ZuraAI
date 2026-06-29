@@ -18,6 +18,71 @@ function parseActiveWindow(data: unknown): ActiveWindowContext | null {
   }
 }
 
+function formatBytes(value: unknown): string {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) return ''
+  const gib = value / 1024 / 1024 / 1024
+  return `${gib.toFixed(gib >= 10 ? 0 : 1)} GB`
+}
+
+function formatSystemStatus(data: unknown): string {
+  if (!data || typeof data !== 'object') return 'System status read.'
+  const record = data as Record<string, unknown>
+  const battery = record.battery && typeof record.battery === 'object'
+    ? record.battery as Record<string, unknown>
+    : null
+  const disks = Array.isArray(record.disks) ? record.disks : []
+  const networks = Array.isArray(record.networks) ? record.networks : []
+
+  const parts: string[] = []
+  if (typeof battery?.estimatedChargeRemaining === 'number') {
+    parts.push(`Battery ${battery.estimatedChargeRemaining}%`)
+  }
+
+  const primaryDisk = disks.find((disk): disk is Record<string, unknown> => (
+    Boolean(disk) &&
+    typeof disk === 'object' &&
+    typeof (disk as Record<string, unknown>).name === 'string'
+  ))
+  if (primaryDisk) {
+    const free = formatBytes(primaryDisk.freeBytes)
+    const size = formatBytes(primaryDisk.sizeBytes)
+    parts.push(`${primaryDisk.name}: ${free || '?'} free${size ? ` of ${size}` : ''}`)
+  }
+
+  if (networks.length > 0) {
+    parts.push(`${networks.length} active network${networks.length === 1 ? '' : 's'}`)
+  }
+
+  return parts.length > 0 ? parts.join(' - ') : 'System status read.'
+}
+
+function formatThemeStatus(data: unknown): string {
+  if (!data || typeof data !== 'object') return 'Theme updated.'
+  const theme = (data as Record<string, unknown>).appTheme
+  return theme === 'dark' || theme === 'light' ? `Theme set to ${theme}.` : 'Theme updated.'
+}
+
+function groupActions(actions: CommandCenterAction[]): Array<{ kind: string; label: string; actions: CommandCenterAction[] }> {
+  const labels: Record<string, string> = {
+    window: 'Window',
+    audio: 'Audio',
+    system: 'System',
+    clipboard: 'Clipboard',
+    app: 'App',
+    settings: 'Settings',
+    filesystem: 'Files',
+  }
+  const groups = new Map<string, CommandCenterAction[]>()
+  for (const action of actions) {
+    groups.set(action.kind, [...(groups.get(action.kind) ?? []), action])
+  }
+  return Array.from(groups.entries()).map(([kind, groupedActions]) => ({
+    kind,
+    label: labels[kind] ?? kind,
+    actions: groupedActions,
+  }))
+}
+
 export default function CommandCenterOverlay() {
   const [input, setInput] = useState('')
   const [context, setContext] = useState<ActiveWindowContext | null>(null)
@@ -26,6 +91,21 @@ export default function CommandCenterOverlay() {
   const [error, setError] = useState<string | null>(null)
   const [status, setStatus] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
+  const visibleActions = useMemo(() => {
+    const query = input.trim().toLowerCase()
+    if (!query) return actions
+    return actions.filter((action) => (
+      action.label.toLowerCase().includes(query) ||
+      action.kind.toLowerCase().includes(query) ||
+      action.id.toLowerCase().includes(query) ||
+      (action.aliases ?? []).some((alias) => alias.toLowerCase().includes(query))
+    ))
+  }, [actions, input])
+  const groupedActions = useMemo(() => groupActions(visibleActions), [visibleActions])
+  const actionShortcutIndex = useMemo(
+    () => new Map(actions.map((action, index) => [action.id, index + 1])),
+    [actions]
+  )
 
   const contextLabel = useMemo(() => {
     if (!context) return 'Desktop context unavailable'
@@ -80,7 +160,13 @@ export default function CommandCenterOverlay() {
     const result = await window.commandCenter.executeAction(action.id)
     setRunningAction(null)
     if (result.success) {
-      setStatus(`${action.label} complete.`)
+      setStatus(
+        action.id === 'system-status'
+          ? formatSystemStatus(result.data)
+          : action.id === 'toggle-theme'
+            ? formatThemeStatus(result.data)
+            : `${action.label} complete.`
+      )
       void refreshContext()
     } else {
       setError(result.error || `${action.label} failed.`)
@@ -120,6 +206,13 @@ export default function CommandCenterOverlay() {
                 event.preventDefault()
                 void submit()
               }
+              if (event.altKey && /^[1-9]$/.test(event.key)) {
+                const action = visibleActions[Number(event.key) - 1]
+                if (action) {
+                  event.preventDefault()
+                  void runAction(action)
+                }
+              }
             }}
             placeholder="Ask ZuraAI to act on this desktop..."
             aria-label="Command"
@@ -138,21 +231,37 @@ export default function CommandCenterOverlay() {
           <span>{error || status || 'Commands open in chat when they need reasoning or multi-step work.'}</span>
         </div>
 
-        {actions.length > 0 && (
+        {groupedActions.length > 0 ? (
           <div className="command-center-actions" aria-label="Quick OS actions">
-            {actions.map((action) => (
-              <button
-                key={action.id}
-                type="button"
-                className="command-center-action"
-                disabled={runningAction !== null}
-                onClick={() => void runAction(action)}
-              >
-                {runningAction === action.id ? 'Running...' : action.label}
-              </button>
+            {groupedActions.map((group) => (
+              <div key={group.kind} className="command-center-action-group">
+                <div className="command-center-action-group__label">{group.label}</div>
+                <div className="command-center-action-group__items">
+                  {group.actions.map((action) => (
+                    <button
+                      key={action.id}
+                      type="button"
+                      className="command-center-action"
+                      disabled={runningAction !== null}
+                      onClick={() => void runAction(action)}
+                    >
+                      <span className="command-center-action__label">
+                        {runningAction === action.id ? 'Running...' : action.label}
+                      </span>
+                      <span className="command-center-action__hint">
+                        Alt+{actionShortcutIndex.get(action.id)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
-        )}
+        ) : actions.length > 0 ? (
+          <div className="command-center-empty-actions">
+            No quick actions match. Press Enter to send as a command.
+          </div>
+        ) : null}
       </div>
 
       <style>{`
@@ -261,10 +370,33 @@ export default function CommandCenterOverlay() {
           font-size: 12px;
         }
         .command-center-actions {
-          display: flex;
-          gap: 8px;
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 10px 12px;
           padding: 0 14px 14px 50px;
-          overflow: hidden;
+          max-height: 94px;
+          overflow: auto;
+        }
+        .command-center-action-group {
+          min-width: 0;
+        }
+        .command-center-action-group__label {
+          margin-bottom: 5px;
+          color: #64748b;
+          font-size: 10px;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0;
+        }
+        .command-center-action-group__items {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+        }
+        .command-center-empty-actions {
+          padding: 0 16px 14px 50px;
+          color: #64748b;
+          font-size: 12px;
         }
         .command-center-action {
           height: 30px;
@@ -280,6 +412,9 @@ export default function CommandCenterOverlay() {
           overflow: hidden;
           text-overflow: ellipsis;
           cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          gap: 7px;
         }
         .command-center-action:hover:not(:disabled) {
           background: rgba(34, 211, 238, 0.16);
@@ -288,6 +423,17 @@ export default function CommandCenterOverlay() {
         .command-center-action:disabled {
           opacity: 0.6;
           cursor: default;
+        }
+        .command-center-action__label {
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .command-center-action__hint {
+          flex: 0 0 auto;
+          color: #7dd3fc;
+          opacity: 0.72;
+          font-size: 11px;
         }
       `}</style>
     </div>

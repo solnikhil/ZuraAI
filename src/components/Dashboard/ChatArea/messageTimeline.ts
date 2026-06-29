@@ -24,6 +24,57 @@ export interface FollowUpTimelineSnapshot {
   completedBlockCount: number
 }
 
+export interface MessageTimelineSegment {
+  blocks: ThinkingBlock[]
+  content: string
+}
+
+interface TimelineMarkerMatch {
+  index: number
+  length: number
+  blockCount: number | null
+}
+
+function findTimelineMarkers(content: string): TimelineMarkerMatch[] {
+  const markers: TimelineMarkerMatch[] = []
+  const pattern = new RegExp(TOOL_FOLLOW_UP_SPLIT_MARKER_PATTERN.source, 'g')
+  let match: RegExpExecArray | null = pattern.exec(content)
+
+  while (match) {
+    markers.push({
+      index: match.index,
+      length: match[0].length,
+      blockCount: match[1] !== undefined ? Number.parseInt(match[1], 10) : null,
+    })
+    match = pattern.exec(content)
+  }
+
+  return markers
+}
+
+function resolveMarkerBlockEnd(
+  blockCount: number | null,
+  completedBlocks: ThinkingBlock[],
+  blockStart: number
+): number {
+  if (blockCount !== null && Number.isFinite(blockCount)) {
+    return Math.min(Math.max(blockCount, blockStart), completedBlocks.length)
+  }
+
+  const lastThinkingIndex = completedBlocks.reduce((latestIndex, block, index) => {
+    if (index < blockStart || block.type !== 'thinking') {
+      return latestIndex
+    }
+    return index
+  }, -1)
+
+  if (lastThinkingIndex > blockStart) {
+    return lastThinkingIndex
+  }
+
+  return completedBlocks.length
+}
+
 interface ShouldCaptureFollowUpSnapshotOptions {
   isStreaming: boolean
   streamPhase?: StreamingPhase
@@ -58,6 +109,61 @@ export function shouldCaptureFollowUpSnapshot({
   )
 }
 
+export function buildMessageTimelineSegments(
+  content: string,
+  completedBlocks: ThinkingBlock[],
+  snapshot?: FollowUpTimelineSnapshot | null
+): MessageTimelineSegment[] {
+  const markers = findTimelineMarkers(content)
+
+  if (markers.length > 0) {
+    const segments: MessageTimelineSegment[] = []
+    let blockStart = 0
+    let contentStart = 0
+
+    for (const marker of markers) {
+      const blockEnd = resolveMarkerBlockEnd(marker.blockCount, completedBlocks, blockStart)
+      segments.push({
+        blocks: completedBlocks.slice(blockStart, blockEnd),
+        content: removeToolFollowUpSplitMarker(content.slice(contentStart, marker.index)),
+      })
+      blockStart = blockEnd
+      contentStart = marker.index + marker.length
+    }
+
+    segments.push({
+      blocks: completedBlocks.slice(blockStart),
+      content: removeToolFollowUpSplitMarker(content.slice(contentStart)),
+    })
+
+    return segments
+  }
+
+  if (!snapshot) {
+    return [
+      {
+        blocks: completedBlocks,
+        content: removeToolFollowUpSplitMarker(content),
+      },
+    ]
+  }
+
+  const strippedContent = removeToolFollowUpSplitMarker(content)
+  const contentLength = Math.min(Math.max(snapshot.contentLength, 0), strippedContent.length)
+  const blockCount = Math.min(Math.max(snapshot.completedBlockCount, 0), completedBlocks.length)
+
+  return [
+    {
+      blocks: completedBlocks.slice(0, blockCount),
+      content: strippedContent.slice(0, contentLength),
+    },
+    {
+      blocks: completedBlocks.slice(blockCount),
+      content: strippedContent.slice(contentLength),
+    },
+  ]
+}
+
 export function splitMessageTimeline(
   content: string,
   completedBlocks: ThinkingBlock[],
@@ -68,68 +174,28 @@ export function splitMessageTimeline(
   beforeBlocks: ThinkingBlock[]
   afterBlocks: ThinkingBlock[]
 } {
-  const markerMatch = TOOL_FOLLOW_UP_SPLIT_MARKER_PATTERN.exec(content)
-  TOOL_FOLLOW_UP_SPLIT_MARKER_PATTERN.lastIndex = 0
-  if (markerMatch) {
-    const markerIndex = markerMatch.index
-    const markerBlockCount =
-      markerMatch[1] !== undefined ? Number.parseInt(markerMatch[1], 10) : null
-    const beforeContent = removeToolFollowUpSplitMarker(content.slice(0, markerIndex))
-    // Strip any residual markers: with multiple tool follow-up rounds the
-    // content holds more than one marker, so everything after the first split
-    // still carries the remaining marker(s). They must never reach the renderer.
-    const afterContent = removeToolFollowUpSplitMarker(
-      content.slice(markerIndex + markerMatch[0].length)
-    )
-    if (markerBlockCount !== null && Number.isFinite(markerBlockCount)) {
-      const blockCount = Math.min(Math.max(markerBlockCount, 0), completedBlocks.length)
-      return {
-        beforeContent,
-        afterContent,
-        beforeBlocks: completedBlocks.slice(0, blockCount),
-        afterBlocks: completedBlocks.slice(blockCount),
-      }
-    }
+  const segments = buildMessageTimelineSegments(content, completedBlocks, snapshot)
 
-    const lastThinkingIndex = completedBlocks.reduce(
-      (latestIndex, block, index) => (block.type === 'thinking' ? index : latestIndex),
-      -1
-    )
-
-    if (lastThinkingIndex > 0) {
-      return {
-        beforeContent,
-        afterContent,
-        beforeBlocks: completedBlocks.slice(0, lastThinkingIndex),
-        afterBlocks: completedBlocks.slice(lastThinkingIndex),
-      }
-    }
-
+  if (segments.length <= 1) {
+    const [onlySegment] = segments
     return {
-      beforeContent,
-      afterContent,
-      beforeBlocks: completedBlocks,
-      afterBlocks: [],
-    }
-  }
-
-  if (!snapshot) {
-    return {
-      beforeContent: content,
+      beforeContent: onlySegment?.content ?? removeToolFollowUpSplitMarker(content),
       afterContent: '',
-      beforeBlocks: completedBlocks,
+      beforeBlocks: onlySegment?.blocks ?? completedBlocks,
       afterBlocks: [],
     }
   }
 
-  const contentLength = Math.min(Math.max(snapshot.contentLength, 0), content.length)
-  const blockCount = Math.min(Math.max(snapshot.completedBlockCount, 0), completedBlocks.length)
+  const mergedAfterContent = segments
+    .slice(1)
+    .map((segment) => segment.content)
+    .join('')
 
   return {
-    beforeContent: content.slice(0, contentLength),
-    afterContent: content.slice(contentLength),
-    beforeBlocks: completedBlocks.slice(0, blockCount),
-      afterBlocks: completedBlocks.slice(blockCount),
+    beforeContent: segments[0]?.content ?? '',
+    afterContent: mergedAfterContent,
+    beforeBlocks: segments[0]?.blocks ?? [],
+    afterBlocks: segments.slice(1).flatMap((segment) => segment.blocks),
   }
 }
 

@@ -139,7 +139,7 @@ export function ExtensionDetailSection({
               <div className="settings-list-row__meta">
                 <h3 className="settings-list-row__label">Emergency stop</h3>
                 <div className="settings-list-row__description">
-                  Press Esc twice quickly to cancel an in-progress Computer Use session.
+                  Agent Mode includes native Windows tools and Ctrl+Shift+Space Command Center. Press Esc twice quickly to cancel an in-progress Computer Use session.
                 </div>
               </div>
             </div>
@@ -152,7 +152,7 @@ export function ExtensionDetailSection({
               <div className="settings-list-row__meta">
                 <h3 className="settings-list-row__label">Global shortcut</h3>
                 <div className="settings-list-row__description">
-                  Press Ctrl+Shift+Space to open the desktop overlay from anywhere.
+                  Press Ctrl+Shift+Space to open the desktop overlay. Submitted commands include active-window context for Agent Mode.
                 </div>
               </div>
               <div className="settings-list-row__control">
@@ -174,7 +174,7 @@ export function ExtensionDetailSection({
               <div className="settings-list-row__meta">
                 <h3 className="settings-list-row__label">Quick OS actions</h3>
                 <div className="settings-list-row__description">
-                  Snap left, snap right, maximize, set volume to 30% or 60%, and open Downloads.
+                  The overlay can run only fixed shortcuts: snap left, snap right, maximize, set volume to 30% or 60%, toggle mute, toggle theme, show system status, ask about clipboard text, focus ZuraAI, open common Windows settings, and open Downloads. Model-callable OS tools still use the normal approval path where required.
                 </div>
               </div>
             </div>

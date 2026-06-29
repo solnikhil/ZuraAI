@@ -62,4 +62,22 @@ describe('SystemPromptSection', () => {
     expect(screen.getByDisplayValue(/Reminders & Lookouts Skill/i)).toBeInTheDocument()
     expect(screen.getByDisplayValue(/scheduled_task_create/i)).toHaveAttribute('readonly')
   })
+
+  it('renders the Command Center prompt viewer', () => {
+    render(
+      <SystemPromptSection
+        systemPrompt="Base prompt"
+        assistantPersonality="professional-engineer"
+        webSearchPrompt="Web prompt"
+        titleGenerationPrompt="Title prompt"
+        codeExecutionPrompt="Code prompt"
+        onChange={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /show command center prompt/i }))
+
+    expect(screen.getByDisplayValue(/Command Center Extension/i)).toBeInTheDocument()
+    expect(screen.getByDisplayValue(/system_active_window/i)).toHaveAttribute('readonly')
+  })
 })

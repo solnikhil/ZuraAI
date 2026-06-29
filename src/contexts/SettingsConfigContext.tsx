@@ -28,6 +28,7 @@ import { defaultTitleGenerationPrompt } from '../prompts/defaultTitleGenerationP
 import { defaultCodeExecutionPrompt } from '../prompts/defaultCodeExecutionPrompt'
 import { defaultTerminalPrompt } from '../prompts/defaultTerminalPrompt'
 import { defaultComputerUsePrompt } from '../prompts/defaultComputerUsePrompt'
+import { defaultCommandCenterPrompt } from '../prompts/defaultCommandCenterPrompt'
 import { defaultChartGenerationPrompt } from '../prompts/defaultChartGenerationPrompt'
 import { defaultMemoryPrompt } from '../prompts/defaultMemoryPrompt'
 import { defaultRemindersPrompt } from '../prompts/defaultRemindersPrompt'
@@ -159,6 +160,8 @@ export interface SettingsConfig {
   terminalPrompt: string
   /** Computer use instructions appended when Computer Use is enabled */
   computerUsePrompt: string
+  /** Command Center instructions appended when Command Center is enabled */
+  commandCenterPrompt: string
   /** Chart generation instructions appended when Chart Generation is enabled */
   chartGenerationPrompt: string
   /** Memory autosave instructions appended when the Memory skill is enabled */
@@ -356,6 +359,7 @@ export const defaultSettingsConfig: SettingsConfig = {
   codeExecutionPrompt: defaultCodeExecutionPrompt,
   terminalPrompt: defaultTerminalPrompt,
   computerUsePrompt: defaultComputerUsePrompt,
+  commandCenterPrompt: defaultCommandCenterPrompt,
   chartGenerationPrompt: defaultChartGenerationPrompt,
   memoryPrompt: defaultMemoryPrompt,
   remindersPrompt: defaultRemindersPrompt,
