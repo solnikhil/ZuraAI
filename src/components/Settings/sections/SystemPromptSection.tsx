@@ -11,6 +11,7 @@ import { defaultTitleGenerationPrompt } from '../../../prompts/defaultTitleGener
 import { defaultCodeExecutionPrompt } from '../../../prompts/defaultCodeExecutionPrompt'
 import { defaultTerminalPrompt } from '../../../prompts/defaultTerminalPrompt'
 import { defaultComputerUsePrompt } from '../../../prompts/defaultComputerUsePrompt'
+import { defaultCommandCenterPrompt } from '../../../prompts/defaultCommandCenterPrompt'
 import { defaultChartGenerationPrompt } from '../../../prompts/defaultChartGenerationPrompt'
 import { defaultMemoryPrompt } from '../../../prompts/defaultMemoryPrompt'
 import { defaultRemindersPrompt } from '../../../prompts/defaultRemindersPrompt'
@@ -29,6 +30,7 @@ export interface SystemPromptSectionProps {
   codeExecutionPrompt: string
   terminalPrompt?: string
   computerUsePrompt?: string
+  commandCenterPrompt?: string
   chartGenerationPrompt?: string
   memoryPrompt?: string
   remindersPrompt?: string
@@ -40,6 +42,7 @@ export interface SystemPromptSectionProps {
     codeExecutionPrompt?: string
     terminalPrompt?: string
     computerUsePrompt?: string
+    commandCenterPrompt?: string
     chartGenerationPrompt?: string
     memoryPrompt?: string
     remindersPrompt?: string
@@ -172,6 +175,15 @@ export function SystemPromptSection(props: SystemPromptSectionProps): React.Reac
         value={defaultComputerUsePrompt}
         showLabel="Show Computer Use Prompt"
         hideLabel="Hide Computer Use Prompt"
+      />
+
+      <PromptViewerCard
+        title="Command Center Prompt"
+        description="Instructions appended when Command Center is enabled in Agent Mode. Guides native OS context, app/window actions, and approved system controls."
+        note="Windows-only. This only applies when the Command Center extension is active."
+        value={defaultCommandCenterPrompt}
+        showLabel="Show Command Center Prompt"
+        hideLabel="Hide Command Center Prompt"
       />
 
       <PromptViewerCard

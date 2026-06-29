@@ -176,6 +176,71 @@ function findMidStreamMarkupStart(content: string): number | null {
   return start
 }
 
+function resolveFollowUpSplitMarkerBlockCount(
+  round: number | undefined,
+  visibleContentBlockBaseline: number | null,
+  completedBlockCount: number
+): number {
+  // The first follow-up round follows the initial preamble, which streams after
+  // the first thinking block but before the first tool/search block is appended.
+  if (round === 1) {
+    return visibleContentBlockBaseline ?? completedBlockCount
+  }
+
+  return completedBlockCount
+}
+
+function isToolFollowUpNarration(content: string): boolean {
+  const normalized = content
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLowerCase()
+
+  if (!normalized) return false
+
+  return (
+    /\blet me\b.*\b(?:search|look up|check|verify|confirm|grab|find|pull)\b/.test(normalized) ||
+    /\bi(?:'ll| will)\b.*\b(?:search|look up|check|verify|confirm|grab|find|pull)\b/.test(normalized) ||
+    /\b(?:searching|checking|verifying|confirming)\b.*\b(?:now|next|again)\b/.test(normalized)
+  )
+}
+
+function resolveCommittedRoundContent(options: {
+  isToolFollowUpRound: boolean
+  roundFinishReason: string | null
+  roundStartContent: string
+  roundContent: string
+  finalRoundContent: string
+  suppressedInlineToolMarkup: boolean
+}): string {
+  const {
+    isToolFollowUpRound,
+    roundFinishReason,
+    roundStartContent,
+    roundContent,
+    finalRoundContent,
+    suppressedInlineToolMarkup,
+  } = options
+
+  if (!isToolFollowUpRound || roundFinishReason !== 'tool_calls' || suppressedInlineToolMarkup) {
+    return finalRoundContent
+  }
+
+  const markupStart = findMidStreamMarkupStart(roundContent)
+  const cleanRoundText =
+    markupStart !== null ? roundContent.slice(0, markupStart).trimEnd() : roundContent.trimEnd()
+
+  if (!cleanRoundText) {
+    return roundStartContent
+  }
+
+  if (isToolFollowUpNarration(cleanRoundText)) {
+    return roundStartContent
+  }
+
+  return `${roundStartContent}${cleanRoundText}`
+}
+
 class MidStreamMarkupAbort extends Error {
   readonly format: 'dsml' | 'xml'
   readonly previewContent: string
@@ -551,7 +616,11 @@ export function useProviderStreaming({
         ) {
           const splitMarker = isToolFollowUpRound
             ? createToolFollowUpSplitMarker(
-                visibleContentBlockBaseline ?? localThinkingBlocks.length
+                resolveFollowUpSplitMarkerBlockCount(
+                  roundOptions.round,
+                  visibleContentBlockBaseline,
+                  localThinkingBlocks.length
+                )
               )
             : TOOL_FOLLOW_UP_SPLIT_MARKER
           accumulatedContent = `${accumulatedContent.trimEnd()}${splitMarker}`
@@ -953,10 +1022,14 @@ export function useProviderStreaming({
           }
         }
 
-        const committedVisibleContent =
-          isToolFollowUpRound && roundFinishReason === 'tool_calls'
-            ? roundStartContent
-            : finalRoundContent
+        const committedVisibleContent = resolveCommittedRoundContent({
+          isToolFollowUpRound,
+          roundFinishReason,
+          roundStartContent,
+          roundContent,
+          finalRoundContent,
+          suppressedInlineToolMarkup,
+        })
 
         const roundCommitProgress = {
           content: committedVisibleContent,

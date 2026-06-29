@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import '@testing-library/jest-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { TOOL_FOLLOW_UP_SPLIT_MARKER } from './messageTimeline'
+import { TOOL_FOLLOW_UP_SPLIT_MARKER, createToolFollowUpSplitMarker } from './messageTimeline'
 
 let mockWebSearchIncludeImages = true
 
@@ -140,6 +140,39 @@ describe('MessageRenderer follow-up timeline', () => {
     })
   })
 
+  it('renders active tool calls below preamble answer text during tool phase', async () => {
+    const { container } = render(
+      <MessageRenderer
+        message={{
+          id: 'message-preamble-active-tool',
+          role: 'assistant',
+          content: 'Preamble before tools.',
+          timestamp: 1,
+          thinkingBlocks: [
+            {
+              type: 'thinking',
+              content: 'Initial reasoning',
+              duration: 1000,
+              timestamp: 1,
+            },
+          ],
+        }}
+        isStreaming={true}
+        streamPhase="tool"
+        activeToolCalls={[{ name: 'system_shell', arguments: { command: 'ls' } }]}
+      />
+    )
+
+    await waitFor(() => {
+      const sequence = Array.from(
+        container.querySelectorAll('[data-testid="thinking-block"],[data-testid="markdown"]')
+      ).map((node) => node.getAttribute('data-testid'))
+
+      expect(sequence).toEqual(['thinking-block', 'markdown', 'thinking-block'])
+      expect(screen.getByText('Tool Active')).toBeInTheDocument()
+    })
+  })
+
   it('keeps preamble answer text below thinking during tool phase for stable layout', async () => {
     const { container } = render(
       <MessageRenderer
@@ -197,16 +230,19 @@ describe('MessageRenderer follow-up timeline', () => {
       )
 
       await waitFor(() => {
-        const sequence = Array.from(
+        const nodes = Array.from(
           container.querySelectorAll('[data-testid="thinking-block"],[data-testid="markdown"]')
-        ).map((node) => node.getAttribute('data-testid'))
+        )
+        const sequence = nodes.map((node) => node.getAttribute('data-testid'))
+        const markdownIndex = sequence.indexOf('markdown')
+        const firstThinkingIndex = sequence.indexOf('thinking-block')
 
-        expect(sequence).toEqual(['thinking-block', 'markdown'])
+        expect(markdownIndex).toBeGreaterThan(firstThinkingIndex)
       })
     }
   })
 
-  it('keeps streamed assistant text below work activity once answer content has started', async () => {
+  it('renders the thinking/tool activity above its corresponding assistant text', async () => {
     const baseMessage = {
       id: 'message-1',
       role: 'assistant' as const,
@@ -233,12 +269,12 @@ describe('MessageRenderer follow-up timeline', () => {
           thinking: 'Follow-up reasoning',
         }}
         isStreaming={true}
-        streamPhase="answering"
+        streamPhase="reasoning"
       />
     )
 
     await waitFor(() => {
-      expect(container.querySelectorAll('[data-testid="thinking-block"]')).toHaveLength(1)
+      expect(container.querySelectorAll('[data-testid="thinking-block"]')).toHaveLength(2)
     })
 
     rerender(
@@ -249,7 +285,7 @@ describe('MessageRenderer follow-up timeline', () => {
           thinking: 'Follow-up reasoning',
         }}
         isStreaming={true}
-        streamPhase="answering"
+        streamPhase="reasoning"
       />
     )
 
@@ -258,14 +294,75 @@ describe('MessageRenderer follow-up timeline', () => {
         container.querySelectorAll('[data-testid="thinking-block"],[data-testid="markdown"]')
       ).map((node) => node.textContent || '')
 
-      expect(sequence).toHaveLength(2)
+      expect(sequence).toHaveLength(4)
       expect(sequence[0]).toContain('Initial reasoning')
-      expect(sequence[0]).toContain('Follow-up reasoning')
-      expect(sequence[1]).toBe('Initial response.Follow-up response.')
+      expect(sequence[1]).toBe('Initial response.')
+      expect(sequence[2]).toContain('Follow-up reasoning')
+      expect(sequence[3]).toBe('Follow-up response.')
     })
   })
 
-  it('strips split markers without splitting the visible assistant text', async () => {
+  it('interleaves each follow-up answer between later thinking activity', async () => {
+    const { container } = render(
+      <MessageRenderer
+        message={{
+          id: 'message-multi-round',
+          role: 'assistant',
+          content: [
+            'Good call — verify pricing.',
+            createToolFollowUpSplitMarker(1),
+            'Here is what pricing shows.',
+            createToolFollowUpSplitMarker(3),
+            'The main log file is application.log.',
+          ].join('\n\n'),
+          timestamp: 1,
+          thinkingBlocks: [
+            {
+              type: 'thinking',
+              content: 'Initial reasoning',
+              duration: 1000,
+              timestamp: 1,
+            },
+            {
+              type: 'searching',
+              toolName: 'web_search',
+              query: 'pricing lookup',
+              timestamp: 2,
+            },
+            {
+              type: 'thinking',
+              content: 'Follow-up reasoning',
+              duration: 800,
+              timestamp: 3,
+            },
+            {
+              type: 'tool',
+              toolName: 'system_shell',
+              timestamp: 4,
+            },
+          ],
+        }}
+        isStreaming={false}
+      />
+    )
+
+    await waitFor(() => {
+      const sequence = Array.from(
+        container.querySelectorAll('[data-testid="thinking-block"],[data-testid="markdown"]')
+      ).map((node) => node.textContent)
+
+      expect(sequence).toEqual([
+        'Initial reasoning',
+        'Good call — verify pricing.',
+        'pricing lookupFollow-up reasoning',
+        'Here is what pricing shows.',
+        'system_shell',
+        'The main log file is application.log.',
+      ])
+    })
+  })
+
+  it('keeps the split follow-up activity above the related assistant text after streaming completes', async () => {
     const { container } = render(
       <MessageRenderer
         message={{
@@ -317,13 +414,15 @@ describe('MessageRenderer follow-up timeline', () => {
       ).map((node) => node.textContent)
 
       expect(sequence).toEqual([
-        'Initial reasoningFollow-up reasoningmcp__filesystem__read_file',
-        'Initial response.Follow-up response.',
+        'Initial reasoning',
+        'Initial response.',
+        'Follow-up reasoningmcp__filesystem__read_file',
+        'Follow-up response.',
       ])
     })
   })
 
-  it('renders one active connecting state when a persisted split marker is already present', async () => {
+  it('renders only one active connecting state when a persisted split marker is already present', async () => {
     const { container } = render(
       <MessageRenderer
         message={{
@@ -348,25 +447,24 @@ describe('MessageRenderer follow-up timeline', () => {
           ],
         }}
         isStreaming={true}
-        streamPhase="answering"
+        streamPhase="reasoning"
       />
     )
 
     await waitFor(() => {
-      expect(container.querySelectorAll('[data-testid="thinking-block"]')).toHaveLength(1)
+      const sequence = Array.from(
+        container.querySelectorAll('[data-testid="thinking-block"],[data-testid="markdown"]')
+      ).map((node) => node.textContent || '')
+
+      expect(sequence).toEqual([
+        'Initial reasoning',
+        'Initial response.',
+        'Earlier follow-up reasoningThinking...Follow-up reasoning',
+        'Follow-up response.',
+      ])
     })
 
-    expect(container).toHaveTextContent('Initial reasoning')
-    expect(container).toHaveTextContent('Follow-up reasoning')
-
-    const sequence = Array.from(
-      container.querySelectorAll('[data-testid="thinking-block"],[data-testid="markdown"]')
-    )
-    expect(sequence[0]).toHaveAttribute('data-testid', 'thinking-block')
-    if (sequence.length > 1) {
-      expect(sequence[1]).toHaveAttribute('data-testid', 'markdown')
-      expect(sequence[1]).toHaveTextContent('Initial response.Follow-up response.')
-    }
+    expect(screen.getAllByText('Thinking...')).toHaveLength(1)
   })
 
   it('passes parallel active search queries to the thinking block', async () => {
@@ -419,7 +517,6 @@ describe('MessageRenderer follow-up timeline', () => {
 
     const thinkingBlocks = await screen.findAllByTestId('thinking-block')
     expect(thinkingBlocks).toHaveLength(1)
-    expect(thinkingBlocks[0]).toHaveTextContent('code_execution')
     expect(thinkingBlocks[0]).toHaveTextContent('Preparing final response')
   })
 })

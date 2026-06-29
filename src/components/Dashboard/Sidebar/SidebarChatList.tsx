@@ -241,7 +241,7 @@ export default function SidebarChatList({
             className={`sidebar-folder-dropzone ${isDragOver ? 'sidebar-folder-dropzone--over' : ''}`}
           >
             <div
-              className={`sidebar-section-label sidebar-section-label--folder ${isActive ? 'sidebar-section-label--active' : ''}`}
+              className={`sidebar-header__btn sidebar-folder-row ${isActive ? 'sidebar-folder-row--active' : ''}`}
               onClick={() => onOpenFolder(item.folder!.id)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' || event.key === ' ') {
@@ -253,9 +253,11 @@ export default function SidebarChatList({
               tabIndex={0}
               aria-current={isActive ? 'page' : undefined}
             >
-              <FolderOpen size={12} className="sidebar-section-label__icon" />
-              <span className="sidebar-section-label__name">{item.label}</span>
-              <span className="sidebar-section-label__count">{item.count}</span>
+              <span className="sidebar-header__icon-slot" aria-hidden="true">
+                <FolderOpen size={16} className="sidebar-header__icon" />
+              </span>
+              <span className="sidebar-header__label">{item.label}</span>
+              <span className="sidebar-folder-row__count">{item.count}</span>
             </div>
           </div>
         )
@@ -305,19 +307,8 @@ export default function SidebarChatList({
     (_index: number, item: SidebarListItem) => {
       if (item.type === 'folder-heading') {
         return (
-          <div
-            className="sidebar-section-label sidebar-section-label--heading"
-            onClick={onOpenFolders}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' || event.key === ' ') {
-                event.preventDefault()
-                onOpenFolders()
-              }
-            }}
-            role="button"
-            tabIndex={0}
-          >
-            <span className="sidebar-section-label__name">{item.label}</span>
+          <div className="sidebar-header__btn sidebar-folders-heading" aria-label="Folders">
+            <span className="sidebar-folders-heading__label">{item.label}</span>
             <span className="sidebar-section-label__actions">
               <button
                 type="button"

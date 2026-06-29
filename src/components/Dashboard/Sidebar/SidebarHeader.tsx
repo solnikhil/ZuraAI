@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { FileEdit, Search } from '../../icons'
 
 interface SidebarHeaderProps {
@@ -5,47 +6,49 @@ interface SidebarHeaderProps {
   onOpenSearch: () => void
 }
 
-export default function SidebarHeader({
-  onNewChat,
-  onOpenSearch,
-}: SidebarHeaderProps) {
+function HeaderAction({
+  label,
+  icon,
+  onClick,
+}: {
+  label: string
+  icon: ReactNode
+  onClick: () => void
+}) {
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          onClick()
+        }
+      }}
+      className="sidebar-header__btn"
+    >
+      <span className="sidebar-header__icon-slot" aria-hidden="true">
+        {icon}
+      </span>
+      <span className="sidebar-header__label">{label}</span>
+    </div>
+  )
+}
+
+export default function SidebarHeader({ onNewChat, onOpenSearch }: SidebarHeaderProps) {
   return (
     <div className="sidebar-header">
-      <div
-        role="button"
-        tabIndex={0}
+      <HeaderAction
+        label="New chat"
         onClick={onNewChat}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault()
-            onNewChat()
-          }
-        }}
-        className="sidebar-header__btn"
-      >
-        <span className="sidebar-header__icon-slot" aria-hidden="true">
-          <FileEdit size={16} className="sidebar-header__icon sidebar-header__icon--new-chat" />
-        </span>
-        <span className="sidebar-header__label">New chat</span>
-      </div>
-
-      <div
-        role="button"
-        tabIndex={0}
+        icon={<FileEdit size={16} className="sidebar-header__icon sidebar-header__icon--new-chat" />}
+      />
+      <HeaderAction
+        label="Search chats"
         onClick={onOpenSearch}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault()
-            onOpenSearch()
-          }
-        }}
-        className="sidebar-header__btn"
-      >
-        <span className="sidebar-header__icon-slot" aria-hidden="true">
-          <Search size={16} className="sidebar-header__icon sidebar-header__icon--search" />
-        </span>
-        <span className="sidebar-header__label">Search chats</span>
-      </div>
+        icon={<Search size={16} className="sidebar-header__icon sidebar-header__icon--search" />}
+      />
     </div>
   )
 }

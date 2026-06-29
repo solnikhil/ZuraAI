@@ -56,6 +56,7 @@ describe('SkillsSection', () => {
     expect(screen.getByText('System')).toBeInTheDocument()
     expect(screen.getByText('Web Research')).toBeInTheDocument()
     expect(screen.getByText('Artifacts')).toBeInTheDocument()
+    expect(screen.queryByText('Command Center')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /disable web research/i })).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: /more actions for/i }).length).toBeGreaterThan(0)
   })

@@ -356,6 +356,7 @@ if (!hasSettingsChanges && !hasMcpChanges) {
                 codeExecutionPrompt={pendingSettings.codeExecutionPrompt}
                 terminalPrompt={pendingSettings.terminalPrompt}
                 computerUsePrompt={pendingSettings.computerUsePrompt}
+                commandCenterPrompt={pendingSettings.commandCenterPrompt}
                 chartGenerationPrompt={pendingSettings.chartGenerationPrompt}
                 memoryPrompt={pendingSettings.memoryPrompt}
                 remindersPrompt={pendingSettings.remindersPrompt}

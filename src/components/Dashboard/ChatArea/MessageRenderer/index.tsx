@@ -8,14 +8,18 @@
  */
 
 import React, { useState, useRef, useEffect, useMemo, memo } from 'react'
-import { Box } from 'lucide-react'
 import LazyMarkdown from '@/components/LazyMarkdown'
 import ThinkingBlockComponent from '@/components/ThinkingBlock'
 import { useSettings } from '@/contexts/SettingsContext'
 import { writeTextToClipboard } from '@/utils/clipboard'
 import { getDeepseekReasoning } from '@/utils/deepseekReasoning'
 import { serializeDomToMarkdown } from '@/utils/domToMarkdown'
-import { removeToolFollowUpSplitMarker } from '../messageTimeline'
+import {
+  buildMessageTimelineSegments,
+  removeToolFollowUpSplitMarker,
+  shouldCaptureFollowUpSnapshot,
+  type FollowUpTimelineSnapshot,
+} from '../messageTimeline'
 import { resolveStreamPhase } from '../hooks/streaming/streamingContentPlacement'
 import type { MessageRendererProps } from './types'
 import { areMessagePropsEqual } from './messagePropsComparison'
@@ -47,22 +51,25 @@ function MessageRendererComponent({
   const [displayVersionIndex, setDisplayVersionIndex] = useState(0)
   const messageRef = useRef<HTMLDivElement>(null)
 
-  // Track whether to trigger the staggered button animation.
-  // null = no animation (historical messages), true = animate in
+  const [hasContentDuringStreaming, setHasContentDuringStreaming] = useState(false)
   const [showActionButtons, setShowActionButtons] = useState<boolean | null>(null)
+  const [followUpSnapshot, setFollowUpSnapshot] = useState<FollowUpTimelineSnapshot | null>(null)
   const prevIsStreamingRef = useRef(isStreaming)
 
-  // Hooks for web data
   const { webSourceMap, processMessageContent } = useWebSources(message.toolResults)
   const { webSearchImages, webImageMode } = useWebSearchImages(
     message.toolResults,
     settings.webSearchIncludeImages
   )
 
-  // Trigger staggered button animation ONLY when streaming transitions from true → false
+  useEffect(() => {
+    if (isStreaming) {
+      setHasContentDuringStreaming(false)
+    }
+  }, [isStreaming])
+
   useEffect(() => {
     if (prevIsStreamingRef.current && !isStreaming) {
-      // Streaming just ended on this message - trigger animation
       setShowActionButtons(false)
       requestAnimationFrame(() => {
         setShowActionButtons(true)
@@ -70,6 +77,16 @@ function MessageRendererComponent({
     }
     prevIsStreamingRef.current = isStreaming
   }, [isStreaming])
+
+  useEffect(() => {
+    if (isStreaming && message.content && message.content.length > 0) {
+      setHasContentDuringStreaming(true)
+    }
+  }, [isStreaming, message.content])
+
+  useEffect(() => {
+    setFollowUpSnapshot(null)
+  }, [message.id])
 
   const versions = message.responseVersions || []
   const totalVersions = versions.length + (message.content ? 1 : 0)
@@ -79,7 +96,6 @@ function MessageRendererComponent({
       ? 'message-action-surface action-btn-animate'
       : 'message-action-surface'
 
-  // Reset display version when message changes
   useEffect(() => {
     setDisplayVersionIndex(currentVersionIndex)
   }, [message.id, currentVersionIndex])
@@ -107,37 +123,57 @@ function MessageRendererComponent({
 
   const isUser = message.role === 'user'
   const hasThinking = typeof message.thinking === 'string' && message.thinking.trim().length > 0
-  const processedDisplayContent = useMemo(
-    () => processMessageContent(displayContent),
-    [displayContent, processMessageContent]
-  )
-  const hasVisibleContent = processedDisplayContent.trim().length > 0
-  const effectiveStreamPhase = resolveStreamPhase(streamPhase ?? 'answering', hasVisibleContent)
-  const isReasoningPhase = effectiveStreamPhase === 'reasoning'
-  const isToolPhase = effectiveStreamPhase === 'tool'
-  const showThinkingSpinner = isStreaming && isReasoningPhase && !hasThinking
-  const completedThinkingCount = completedBlocks.filter((block) => block.type === 'thinking').length
-  const activeThinkingBlockKey = `${message.id}:${completedThinkingCount}`
   const hasActiveToolCalls = (activeToolCalls?.length || 0) > 0
 
-  const hasActiveThinkingState =
-    hasThinking ||
-    showThinkingSpinner ||
-    Boolean(message.researchStatus?.isSearching) ||
-    hasActiveToolCalls ||
-    isToolPhase
-  const showThinkingBlock = completedBlocks.length > 0 || hasActiveThinkingState
-  const shouldRenderDisplayContent = hasVisibleContent
+  useEffect(() => {
+    if (
+      !shouldCaptureFollowUpSnapshot({
+        isStreaming,
+        streamPhase,
+        content: displayContent,
+        isSearching: message.researchStatus?.isSearching || false,
+        activeToolCallCount: activeToolCalls?.length || 0,
+        existingSnapshot: followUpSnapshot,
+      })
+    ) {
+      return
+    }
 
-  const renderDisplayContent = () => (
-    <div className="markdown-content">
-      <LazyMarkdown
-        content={processedDisplayContent}
-        webSources={webSourceMap}
-        isStreaming={isStreaming}
-      />
-    </div>
+    setFollowUpSnapshot({
+      contentLength: displayContent.length,
+      completedBlockCount: completedBlocks.length,
+    })
+  }, [
+    activeToolCalls?.length,
+    completedBlocks.length,
+    displayContent,
+    followUpSnapshot,
+    isStreaming,
+    message.researchStatus?.isSearching,
+    streamPhase,
+  ])
+
+  const timelineSegments = useMemo(
+    () => buildMessageTimelineSegments(rawDisplayContent, completedBlocks, followUpSnapshot),
+    [completedBlocks, followUpSnapshot, rawDisplayContent]
   )
+
+  const renderedSegments = useMemo(
+    () =>
+      timelineSegments.map((segment) => {
+        const processedContent = processMessageContent(segment.content)
+        return {
+          ...segment,
+          processedContent,
+          hasVisibleContent: processedContent.trim().length > 0,
+        }
+      }),
+    [processMessageContent, timelineSegments]
+  )
+
+  const activeSegmentIndex = renderedSegments.length > 1 ? renderedSegments.length - 1 : 0
+  const completedThinkingCount = completedBlocks.filter((block) => block.type === 'thinking').length
+  const activeThinkingBlockKey = `${message.id}:${completedThinkingCount}:${streamPhase || 'idle'}`
 
   const handleCopy = async () => {
     const contentToCopy = removeToolFollowUpSplitMarker(message.content)
@@ -164,9 +200,6 @@ function MessageRendererComponent({
     })
   }
 
-  // When the user selects rendered assistant content and copies it, replace the
-  // clipboard payload with best-effort Markdown source (## headings, **bold**,
-  // list markers, fenced code) instead of the flattened rendered text.
   const handleCopyEvent = (e: React.ClipboardEvent<HTMLDivElement>) => {
     const selection = window.getSelection()
     if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
@@ -175,7 +208,6 @@ function MessageRendererComponent({
 
     const container = e.currentTarget
     const range = selection.getRangeAt(0)
-    // Only intervene when the selection is contained within this rendered block.
     if (!container.contains(range.commonAncestorContainer)) {
       return
     }
@@ -232,60 +264,103 @@ function MessageRendererComponent({
     >
       {message.files && message.files.length > 0 && <RenderImageFiles files={message.files} />}
 
-      {/* Web Search/Extract image carousel - shown after thinking ends, before message content */}
       {!isStreaming && webSearchImages.length > 0 && (
         <WebSearchImageCarousel images={webSearchImages} mode={webImageMode} />
       )}
 
-      {/* Thinking/search/tool activity stays above one continuous assistant message. */}
-      {showThinkingBlock && (
-        <div
-          style={{
-            marginBottom: hasVisibleContent ? '8px' : 0,
-          }}
-        >
-          <ThinkingBlockComponent
-            messageId={message.id}
-            activeBlockKey={activeThinkingBlockKey}
-            thinking={message.thinking || ''}
-            isThinking={
-              isStreaming &&
-              isReasoningPhase &&
-              !message.researchStatus?.isSearching &&
-              !hasActiveToolCalls
-            }
-            thinkingDuration={message.thinkingDuration}
-            isSearching={message.researchStatus?.isSearching || false}
-            searchQuery={message.researchStatus?.currentSearch}
-            searchQueries={message.researchStatus?.currentSearches}
-            completedBlocks={completedBlocks}
-            activeToolCalls={activeToolCalls || []}
-          />
-        </div>
-      )}
+      {renderedSegments.map((segment, index) => {
+        const isActiveSegment = index === activeSegmentIndex
+        const effectiveSegmentPhase = resolveStreamPhase(
+          streamPhase ?? 'answering',
+          segment.hasVisibleContent
+        )
+        const isReasoningPhase = effectiveSegmentPhase === 'reasoning'
+        const showThinkingSpinner = isStreaming && isActiveSegment && isReasoningPhase && !hasThinking
+        const shouldDeferActiveToolCalls =
+          isActiveSegment && hasActiveToolCalls && segment.hasVisibleContent
+        const hasInlineActiveToolCalls =
+          isActiveSegment && hasActiveToolCalls && !shouldDeferActiveToolCalls
+        const hasActiveThinkingState =
+          (isActiveSegment && hasThinking) ||
+          showThinkingSpinner ||
+          (isActiveSegment && Boolean(message.researchStatus?.isSearching)) ||
+          hasInlineActiveToolCalls
+        const showThinkingBlock = segment.blocks.length > 0 || hasActiveThinkingState
+        const shouldShowSegmentContent =
+          (!isStreaming ||
+            hasContentDuringStreaming ||
+            completedBlocks.length > 0 ||
+            message.researchStatus) &&
+          segment.hasVisibleContent
+        const hasEarlierSegmentContent = renderedSegments
+          .slice(0, index)
+          .some((earlierSegment) => earlierSegment.hasVisibleContent)
+        const segmentActiveToolCalls = isActiveSegment ? activeToolCalls || [] : []
 
-      {shouldRenderDisplayContent && renderDisplayContent()}
+        return (
+          <React.Fragment key={`timeline-segment-${index}`}>
+            {showThinkingBlock && (
+              <div
+                style={{
+                  marginTop: index > 0 && hasEarlierSegmentContent ? '12px' : 0,
+                  marginBottom: segment.hasVisibleContent ? '8px' : 0,
+                }}
+              >
+                <ThinkingBlockComponent
+                  messageId={message.id}
+                  activeBlockKey={
+                    isActiveSegment
+                      ? activeThinkingBlockKey
+                      : `${activeThinkingBlockKey}:segment-${index}`
+                  }
+                  thinking={isActiveSegment ? message.thinking || '' : ''}
+                  isThinking={
+                    isActiveSegment &&
+                    isStreaming &&
+                    streamPhase === 'reasoning' &&
+                    !message.researchStatus?.isSearching &&
+                    !hasActiveToolCalls
+                  }
+                  thinkingDuration={isActiveSegment ? message.thinkingDuration : undefined}
+                  isSearching={
+                    isActiveSegment ? message.researchStatus?.isSearching || false : false
+                  }
+                  searchQuery={isActiveSegment ? message.researchStatus?.currentSearch : undefined}
+                  searchQueries={
+                    isActiveSegment ? message.researchStatus?.currentSearches : undefined
+                  }
+                  completedBlocks={segment.blocks}
+                  activeToolCalls={
+                    shouldDeferActiveToolCalls ? [] : segmentActiveToolCalls
+                  }
+                />
+              </div>
+            )}
 
-      {/* Prominent, always-visible status while waiting on tool calls.
-          This prevents the "blank" / hanging response feeling after a lead-in sentence
-          like "All five, fresh versions. Let's go:". The ThinkingBlock also shows active
-          tool details, but this guarantees something is obviously happening. */}
-      {isStreaming && (isToolPhase || hasActiveToolCalls) && hasVisibleContent && (
-        <div
-          className="thinking-header tool-calling"
-          style={{ marginTop: '8px', marginBottom: '4px' }}
-          aria-live="polite"
-        >
-          <div className="thinking-label">
-            <span className="thinking-tool-calling-icon default-icon">
-              <Box size={14} />
-            </span>
-            <span className="thinking-text thinking-tool-calling">
-              Working on tools…
-            </span>
-          </div>
-        </div>
-      )}
+            {shouldShowSegmentContent && (
+              <div className="markdown-content">
+                <LazyMarkdown
+                  content={segment.processedContent}
+                  webSources={webSourceMap}
+                  isStreaming={isStreaming}
+                />
+              </div>
+            )}
+
+            {shouldDeferActiveToolCalls && (
+              <div style={{ marginTop: '8px' }}>
+                <ThinkingBlockComponent
+                  messageId={message.id}
+                  activeBlockKey={`${activeThinkingBlockKey}:deferred-tools`}
+                  thinking=""
+                  activeToolCalls={segmentActiveToolCalls}
+                  completedBlocks={[]}
+                />
+              </div>
+            )}
+          </React.Fragment>
+        )
+      })}
 
       {shouldShowActionRow && (
         <AssistantMessageActions
@@ -306,14 +381,10 @@ function MessageRendererComponent({
             finishReason: message.finishReason,
             requestedMaxTokens: message.requestedMaxTokens,
             reasoningEffort: (() => {
-              // DeepSeek: surface the per-model reasoning effort when that model
-              // has reasoning enabled and effort is not 'none'. Keyed by model code.
               const reasoning = message.model ? getDeepseekReasoning(settings, message.model) : null
               if (reasoning?.enabled && reasoning?.effort !== 'none') {
                 return reasoning.effort
               }
-              // NVIDIA: surface the per-model reasoning effort when the model
-              // supports deep thinking and effort is not 'none'.
               if (message.model) {
                 const nvidiaModel = (settings.nvidiaModels || []).find(
                   (m) => m.code === message.model
@@ -344,16 +415,8 @@ function MessageRendererComponent({
   )
 }
 
-/**
- * Memoized MessageRenderer component
- *
- * Uses React.memo() with a custom comparison function (areMessagePropsEqual)
- * to prevent unnecessary re-renders when parent components re-render with
- * unchanged message props.
- */
 export const MessageRenderer = memo(MessageRendererComponent, areMessagePropsEqual)
 
-// Set display name for debugging
 MessageRenderer.displayName = 'MessageRenderer'
 
 export default MessageRenderer

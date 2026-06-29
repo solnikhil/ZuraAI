@@ -1144,6 +1144,110 @@ describe('useProviderStreaming', () => {
     )
   })
 
+  it('keeps clean follow-up preambles when a later tool-enabled round ends with tool_calls', async () => {
+    let invocation = 0
+    mocks.createProviderStreamClient.mockReturnValue({
+      stream: async function* () {
+        invocation += 1
+        if (invocation === 1) {
+          yield { type: 'reasoning-delta', delta: 'Initial reasoning.' }
+          yield { type: 'text-delta', delta: 'Good call — verify pricing.' }
+          yield {
+            type: 'tool-call-delta',
+            delta: [{
+              index: 0,
+              id: 'call_1',
+              type: 'function',
+              function: { name: 'web_search', arguments: '{"query":"pricing"}' },
+            }],
+          }
+          yield { type: 'finish', finishReason: 'tool_calls' }
+          return
+        }
+        if (invocation === 2) {
+          yield { type: 'text-delta', delta: 'Here is what pricing shows.' }
+          yield {
+            type: 'tool-call-delta',
+            delta: [{
+              index: 0,
+              id: 'call_2',
+              type: 'function',
+              function: { name: 'web_search', arguments: '{"query":"logs"}' },
+            }],
+          }
+          yield { type: 'finish', finishReason: 'tool_calls' }
+          return
+        }
+        yield { type: 'text-delta', delta: 'The main log file is application.log.' }
+        yield { type: 'finish', finishReason: 'stop' }
+      },
+    })
+
+    const handleToolCalls = vi.fn()
+      .mockResolvedValueOnce({
+        hasTools: true,
+        toolResults: [buildWebSearchToolResult('call_1', 'pricing')],
+        formattedResults: [{ role: 'tool', tool_call_id: 'call_1', content: 'Search results' }],
+        needsFollowUp: true,
+        executionSummary: buildExecutionSummary('pricing'),
+      })
+      .mockResolvedValueOnce({
+        hasTools: true,
+        toolResults: [buildWebSearchToolResult('call_2', 'logs')],
+        formattedResults: [{ role: 'tool', tool_call_id: 'call_2', content: 'More results' }],
+        needsFollowUp: true,
+        executionSummary: buildExecutionSummary('logs'),
+      })
+
+    const { result } = renderHook(() =>
+      useProviderStreaming({
+        settings: {
+          aiModel: 'openai/gpt-4.1',
+          modelProvider: 'openrouter',
+          temperature: 0.4,
+          maxTokens: 1024,
+          streamResponses: true,
+          openRouterApiKey: 'or-key',
+        },
+        toolCalling: {
+          canUseTools: true,
+          getToolsForRequest: () => [{
+            type: 'function',
+            function: {
+              name: 'web_search',
+              description: 'Search the web',
+              parameters: { type: 'object', properties: {} },
+            },
+          }],
+          handleToolCalls,
+          getResearchContext: () => 'Research context',
+        },
+        updateStreamingMessage: vi.fn(),
+        flushThrottledUpdates: vi.fn(),
+        throttledUpdateStreamingMessage: vi.fn(),
+      })
+    )
+
+    const streamResult = await result.current.runProviderStream({
+      provider: 'openrouter',
+      model: 'openai/gpt-4.1',
+      sessionId: 'session-multi-preamble',
+      messageId: 'message-multi-preamble',
+      messages: [{ role: 'user', content: 'check pricing and logs' }],
+      startTime: performance.now() - 25,
+      researchMaxRounds: 3,
+      syncToStreamingContext: false,
+      enableTools: true,
+    })
+
+    expect(streamResult.content).toContain('Good call — verify pricing.')
+    expect(streamResult.content).toContain('Here is what pricing shows.')
+    expect(streamResult.content).toContain('The main log file is application.log.')
+    expect(streamResult.content).toMatch(
+      /Good call — verify pricing\.[\s\S]*Here is what pricing shows\.[\s\S]*The main log file is application\.log\./
+    )
+  })
+
   it('adds a verification prompt after successful mutating agent tool results', async () => {
     const streamCalls: Array<{ messages: Array<{ role: string; content?: unknown }> }> = []
     let invocation = 0

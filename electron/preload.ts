@@ -272,6 +272,10 @@ contextBridge.exposeInMainWorld(
             toolName === 'activate_skill' ||
             toolName === 'system_active_window' ||
             toolName === 'system_status' ||
+            toolName === 'system_settings_open' ||
+            toolName === 'system_theme_get' ||
+            toolName === 'system_theme_set' ||
+            toolName === 'system_mute_set' ||
             toolName === 'system_volume_get' ||
             toolName === 'system_volume_set' ||
             toolName === 'system_open_path' ||

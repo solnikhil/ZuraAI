@@ -72,10 +72,7 @@ function SidebarChatView({
 
   return (
     <div className={`sidebar-view sidebar-view--chat ${active ? 'active' : 'inactive'}`}>
-      <SidebarHeader
-        onNewChat={onNewChat}
-        onOpenSearch={onOpenSearch}
-      />
+      <SidebarHeader onNewChat={onNewChat} onOpenSearch={onOpenSearch} />
 
       <SidebarChatList
         groupedSessions={groupedSessions}

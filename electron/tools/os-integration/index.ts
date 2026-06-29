@@ -13,6 +13,17 @@ import {
 } from '../native-common'
 
 type SnapPreset = 'left' | 'right' | 'top' | 'bottom' | 'maximize' | 'center'
+type SettingsPage = 'display' | 'sound' | 'bluetooth' | 'network' | 'notifications' | 'apps' | 'privacy'
+
+const SETTINGS_PAGE_URIS: Record<SettingsPage, string> = {
+  display: 'ms-settings:display',
+  sound: 'ms-settings:sound',
+  bluetooth: 'ms-settings:bluetooth',
+  network: 'ms-settings:network',
+  notifications: 'ms-settings:notifications',
+  apps: 'ms-settings:appsfeatures',
+  privacy: 'ms-settings:privacy',
+}
 
 function psString(value: string): string {
   return `'${value.replace(/'/g, "''")}'`
@@ -46,8 +57,9 @@ $process = if ($pidValue -gt 0) { Get-Process -Id $pidValue -ErrorAction Silentl
 `
 }
 
-function volumeScript(mode: 'get' | 'set', level?: number): string {
+function volumeScript(mode: 'get' | 'set' | 'mute', level?: number, muted?: boolean): string {
   const setLevel = typeof level === 'number' ? Math.max(0, Math.min(100, Math.round(level))) : 0
+  const setMuted = muted === true ? '$true' : '$false'
   return `
 Add-Type -TypeDefinition @"
 using System;
@@ -91,6 +103,7 @@ $iid = [Guid]"5CDF2C82-841E-4546-9722-0CF74078229A"
 $endpoint = $null
 $device.Activate([ref]$iid, 23, [IntPtr]::Zero, [ref]$endpoint) | Out-Null
 ${mode === 'set' ? `$endpoint.SetMasterVolumeLevelScalar(${setLevel / 100}, [Guid]::Empty) | Out-Null` : ''}
+${mode === 'mute' ? `$endpoint.SetMute(${setMuted}, [Guid]::Empty) | Out-Null` : ''}
 $level = 0.0
 $mute = $false
 $endpoint.GetMasterVolumeLevelScalar([ref]$level) | Out-Null
@@ -185,6 +198,22 @@ $networks = Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object {
 `
 }
 
+function themeScript(mode: 'get' | 'set', theme?: 'dark' | 'light'): string {
+  const value = theme === 'dark' ? 0 : 1
+  return `
+$path = "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize"
+if (-not (Test-Path $path)) { New-Item -Path $path -Force | Out-Null }
+${mode === 'set' ? `Set-ItemProperty -Path $path -Name AppsUseLightTheme -Type DWord -Value ${value}` : ''}
+${mode === 'set' ? `Set-ItemProperty -Path $path -Name SystemUsesLightTheme -Type DWord -Value ${value}` : ''}
+$appsRaw = (Get-ItemProperty -Path $path -Name AppsUseLightTheme -ErrorAction SilentlyContinue).AppsUseLightTheme
+$systemRaw = (Get-ItemProperty -Path $path -Name SystemUsesLightTheme -ErrorAction SilentlyContinue).SystemUsesLightTheme
+@{
+  appTheme = if ([int]$appsRaw -eq 0) { "dark" } else { "light" }
+  systemTheme = if ([int]$systemRaw -eq 0) { "dark" } else { "light" }
+} | ConvertTo-Json -Compress
+`
+}
+
 export async function executeSystemActiveWindow(): Promise<ToolResult> {
   if (!isWindows()) return unsupportedWindowsOnly('system_active_window')
   try {
@@ -193,6 +222,50 @@ export async function executeSystemActiveWindow(): Promise<ToolResult> {
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : 'system_active_window failed.' }
   }
+}
+
+export async function executeSystemThemeGet(): Promise<ToolResult> {
+  if (!isWindows()) return unsupportedWindowsOnly('system_theme_get')
+  try {
+    const { stdout } = await runPowerShell(themeScript('get'))
+    return { success: true, data: parseJsonOutput<unknown>(stdout) }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'system_theme_get failed.' }
+  }
+}
+
+export async function executeSystemThemeSet(args: unknown): Promise<ToolResult> {
+  if (!isWindows()) return unsupportedWindowsOnly('system_theme_set')
+  const approval = requireApproval(args, 'system_theme_set')
+  if (approval) return approval
+  const theme = stringArg(args, 'theme')
+  if (theme !== 'dark' && theme !== 'light') {
+    return { success: false, error: 'theme must be "dark" or "light".' }
+  }
+  try {
+    const { stdout } = await runPowerShell(themeScript('set', theme))
+    return { success: true, data: parseJsonOutput<unknown>(stdout) }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'system_theme_set failed.' }
+  }
+}
+
+function parseSettingsPage(value: string): SettingsPage | null {
+  return Object.prototype.hasOwnProperty.call(SETTINGS_PAGE_URIS, value)
+    ? value as SettingsPage
+    : null
+}
+
+export async function executeSystemSettingsOpen(args: unknown): Promise<ToolResult> {
+  if (!isWindows()) return unsupportedWindowsOnly('system_settings_open')
+  const approval = requireApproval(args, 'system_settings_open')
+  if (approval) return approval
+  const page = parseSettingsPage(stringArg(args, 'page'))
+  if (!page) {
+    return { success: false, error: 'page must be one of: display, sound, bluetooth, network, notifications, apps, privacy.' }
+  }
+  await shell.openExternal(SETTINGS_PAGE_URIS[page])
+  return { success: true, data: { page } }
 }
 
 export async function executeSystemStatus(): Promise<ToolResult> {
@@ -226,6 +299,21 @@ export async function executeSystemVolumeSet(args: unknown): Promise<ToolResult>
     return { success: true, data: parseJsonOutput<unknown>(stdout) }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : 'system_volume_set failed.' }
+  }
+}
+
+export async function executeSystemMuteSet(args: unknown): Promise<ToolResult> {
+  if (!isWindows()) return unsupportedWindowsOnly('system_mute_set')
+  const approval = requireApproval(args, 'system_mute_set')
+  if (approval) return approval
+  if (!isRecord(args) || typeof args.muted !== 'boolean') {
+    return { success: false, error: 'muted is required.' }
+  }
+  try {
+    const { stdout } = await runPowerShell(volumeScript('mute', undefined, args.muted))
+    return { success: true, data: parseJsonOutput<unknown>(stdout) }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'system_mute_set failed.' }
   }
 }
 

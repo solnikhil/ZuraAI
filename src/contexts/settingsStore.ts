@@ -288,6 +288,7 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   parsed.codeExecutionPrompt = defaultSettings.codeExecutionPrompt
   parsed.terminalPrompt = defaultSettings.terminalPrompt
   parsed.computerUsePrompt = defaultSettings.computerUsePrompt
+  parsed.commandCenterPrompt = defaultSettings.commandCenterPrompt
   parsed.chartGenerationPrompt = defaultSettings.chartGenerationPrompt
   parsed.memoryPrompt = defaultSettings.memoryPrompt
   parsed.remindersPrompt = defaultSettings.remindersPrompt
@@ -710,6 +711,7 @@ export function getInitialConfigSettings(settings: Settings): Partial<SettingsCo
     codeExecutionPrompt: settings.codeExecutionPrompt,
     terminalPrompt: settings.terminalPrompt,
     computerUsePrompt: settings.computerUsePrompt,
+    commandCenterPrompt: settings.commandCenterPrompt,
     chartGenerationPrompt: settings.chartGenerationPrompt,
     memoryPrompt: settings.memoryPrompt,
     remindersPrompt: settings.remindersPrompt,

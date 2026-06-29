@@ -13,7 +13,7 @@ import { SIDEBAR_COLLAPSED_WIDTH_PX, clampSidebarWidth } from '../../constants/s
 import './Sidebar/Sidebar.css'
 import SidebarChatView from './SidebarChatView'
 import SidebarSettingsView from './SidebarSettingsView'
-import { isMacOSRuntime } from '../../utils/platform'
+import { isMacOSRuntime, isWindowsRuntime } from '../../utils/platform'
 import { WithTooltip } from '../ui/WithTooltip'
 
 interface SidebarProps {
@@ -24,6 +24,7 @@ interface SidebarProps {
 
 export default function Sidebar({ view, activeSettingsSection, onNavigateSettings }: SidebarProps) {
   const isMacOS = isMacOSRuntime()
+  const isWindows = isWindowsRuntime()
   const [searchQuery, setSearchQuery] = useState('')
   const [searchOverlayOpen, setSearchOverlayOpen] = useState(false)
   const {
@@ -368,6 +369,7 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
   const containerClasses = [
     'sidebar-container',
     isMacOS ? 'sidebar-container--macos' : '',
+    isWindows ? 'sidebar-container--windows' : '',
     sidebarHidden && !isPeekOverlay ? 'sidebar-container--hidden' : '',
     isPeekOverlay ? 'sidebar-container--peek' : '',
     isPeekClosing ? 'sidebar-container--peek-closing' : '',

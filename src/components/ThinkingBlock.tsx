@@ -955,8 +955,12 @@ function CompletedBlock({
     )
   }
 
-  // Thinking block
+  // Thinking block — skip empty finalized blocks (rapid tool loops can create <1s noise).
   const hasContent = block.content && block.content.trim().length > 0
+  if (!hasContent) {
+    return null
+  }
+
   return (
     <div className="thinking-block completed">
       <div className="thinking-header completed" onClick={() => setIsExpanded(!isExpanded)}>
