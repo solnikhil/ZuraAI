@@ -5,6 +5,8 @@ import AboutWindow from './components/AboutWindow'
 import AgentSkillsSync from './components/AgentSkillsSync'
 import NotificationSettingsSync from './components/NotificationSettingsSync'
 import MonitorSummarySync from './components/MonitorSummarySync'
+import CommandCenterOverlay from './components/CommandCenterOverlay'
+import CommandCenterSettingsSync from './components/CommandCenterSettingsSync'
 import DashboardLayout from './components/Dashboard/Layout'
 import AppShellLayout from './components/AppShellLayout'
 import AppShellRouteHost from './components/AppShellRouteHost'
@@ -119,6 +121,7 @@ function DashboardApp() {
                     <AgentSkillsSync />
                     <NotificationSettingsSync />
                     <MonitorSummarySync />
+                    <CommandCenterSettingsSync />
                     <Router>
                       <Routes>
                         <Route element={<AppShellRouteHost />}>
@@ -161,6 +164,8 @@ function App() {
   let content: ReactNode
   if (hashPath.startsWith('#/about')) {
     content = <AboutWindow />
+  } else if (hashPath.startsWith('#/command-center')) {
+    content = <CommandCenterOverlay />
   } else if (hashPath.startsWith('#/chat-debug') && ChatDebugApp) {
     content = (
       <Suspense fallback={null}>

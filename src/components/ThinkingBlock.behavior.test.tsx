@@ -378,6 +378,54 @@ describe('ThinkingBlock behavior', () => {
     expect(screen.getByText('Completed')).toBeInTheDocument()
   })
 
+  it('shortens long cwd paths, reveals the full path on hover, and supports copy actions', async () => {
+    const longCwd = 'C:\\Users\\Nikhil\\Desktop\\Zura\\ZuraAI\\packages\\zuraai'
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.assign(navigator, { clipboard: { writeText } })
+
+    const { container } = render(
+      <ThinkingBlock
+        messageId="message-shell-copy"
+        activeBlockKey="message-shell-copy:0:answering"
+        thinking=""
+        completedBlocks={[
+          {
+            type: 'tool',
+            toolName: 'system_shell',
+            timestamp: 1,
+            toolInput: { command: 'npm view zuraai', description: 'Check npm package' },
+            toolOutput: {
+              success: true,
+              data: {
+                command: 'npm view zuraai',
+                cwd: longCwd,
+                stdout: 'ok',
+                stderr: '',
+                exitCode: 0,
+              },
+              executionTime: 8,
+            },
+          },
+        ]}
+      />
+    )
+
+    fireEvent.click(container.querySelector('.thinking-header.tool-call') as HTMLElement)
+    expect(await screen.findByText('Shell')).toBeInTheDocument()
+    expect(screen.getByText('…\\packages\\zuraai')).toBeInTheDocument()
+    expect(screen.queryByText(longCwd)).not.toBeInTheDocument()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /copy command/i }))
+    })
+    expect(writeText).toHaveBeenCalledWith('npm view zuraai')
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /working directory/i }))
+    })
+    expect(writeText).toHaveBeenCalledWith(longCwd)
+  })
+
   it('renders system_shell tool output as a Codex-style terminal panel', async () => {
     const { container } = render(
       <ThinkingBlock
@@ -408,9 +456,9 @@ describe('ThinkingBlock behavior', () => {
 
     const header = container.querySelector('.thinking-header.tool-call') as HTMLElement
     expect(header).toBeTruthy()
-    // Codex-style "Ran a command" header with a green success blob.
+    // Codex-style "Ran a command" header with a run icon after the label chevron.
     expect(screen.getByText('Ran a command')).toBeInTheDocument()
-    expect(container.querySelector('.thinking-cmd-blob--success')).toBeTruthy()
+    expect(container.querySelector('.thinking-tool-calling-icon.command-run-icon')).toBeTruthy()
     fireEvent.click(header)
 
     // Terminal panel chrome + command + ANSI-stripped output + success badge.
@@ -448,10 +496,10 @@ describe('ThinkingBlock behavior', () => {
       />
     )
 
-    // One grouped header, pluralized, with an error blob (one command failed).
+    // One grouped header, pluralized, with an error-styled run icon (one command failed).
     expect(screen.getByText('Ran 3 commands')).toBeInTheDocument()
     expect(screen.queryByText('Ran a command')).not.toBeInTheDocument()
-    expect(container.querySelector('.thinking-cmd-blob--error')).toBeTruthy()
+    expect(container.querySelector('.thinking-tool-calling-icon.command-run-icon.is-error')).toBeTruthy()
 
     // Expanding the group reveals the command-name rows — not the panels yet.
     fireEvent.click(container.querySelector('.thinking-header.tool-call') as HTMLElement)

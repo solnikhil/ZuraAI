@@ -32,6 +32,14 @@ import {
   executeWindowClose,
 } from './window-management'
 import {
+  executeSystemActiveWindow,
+  executeSystemStatus,
+  executeSystemVolumeGet,
+  executeSystemVolumeSet,
+  executeSystemOpenPath,
+  executeWindowSnap,
+} from './os-integration'
+import {
   createScheduledTask,
   deleteScheduledTask,
   listRuns as listScheduledTaskRuns,
@@ -246,6 +254,12 @@ const toolHandlers: Record<BuiltinMainToolName, ToolHandler> = {
   window_focus: executeWindowFocus,
   window_move: executeWindowMove,
   window_close: executeWindowClose,
+  system_active_window: executeSystemActiveWindow,
+  system_status: executeSystemStatus,
+  system_volume_get: executeSystemVolumeGet,
+  system_volume_set: executeSystemVolumeSet,
+  system_open_path: executeSystemOpenPath,
+  window_snap: executeWindowSnap,
 }
 
 /**

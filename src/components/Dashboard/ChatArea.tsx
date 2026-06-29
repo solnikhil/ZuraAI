@@ -1,7 +1,3 @@
-/**
- * Primary dashboard chat surface.
- */
-
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -25,14 +21,10 @@ import type { AttachedFile } from './ChatArea/attachmentUtils'
 import { NORMAL_PLACEHOLDERS, GENZ_PLACEHOLDERS } from './ChatArea/placeholders'
 import { CHAT_AREA_STYLES } from './ChatArea/chatAreaStyles'
 
-/**
- * Virtualization threshold - activate virtual scrolling for lists > 20 messages.
- * Lowered to improve perceived performance even on medium-length chats.
- */
 const VIRTUALIZATION_THRESHOLD = 20
 
 export default function ChatArea() {
-  const { sessions, currentSessionId, isSessionLoaded, loadFullSession, switchSession } =
+  const { folders, sessions, currentSessionId, isSessionLoaded, loadFullSession, switchSession } =
     useChatHistory()
   const { settings } = useSettings()
   const { showToast } = useToast()
@@ -49,12 +41,34 @@ export default function ChatArea() {
 
   const currentSession = sessions.find((s) => s.id === currentSessionId)
   const messages = currentSession?.messages || []
+  const currentFolderName = currentSession?.folderId
+    ? folders.find((folder) => folder.id === currentSession.folderId)?.name
+    : undefined
   const currentSessionMessageCount = currentSession?.messageCount ?? messages.length
   const currentSessionIsLoading = Boolean(
     currentSessionId && currentSessionMessageCount > 0 && !isSessionLoaded(currentSessionId)
   )
+  const lastRenderedSessionRef = useRef<{
+    sessionId: string
+    messages: typeof messages
+  } | null>(null)
+  const fallbackSession =
+    currentSessionIsLoading && messages.length === 0 ? lastRenderedSessionRef.current : null
+  const displayedMessages = fallbackSession?.messages ?? messages
+  const displayedSessionId = fallbackSession?.sessionId ?? currentSessionId
+  const isShowingLoadingFallback = Boolean(fallbackSession)
+  const displayedSessionIsCurrent = displayedSessionId === currentSessionId
 
-  const useVirtualization = messages.length > VIRTUALIZATION_THRESHOLD
+  useEffect(() => {
+    if (currentSessionId && messages.length > 0) {
+      lastRenderedSessionRef.current = {
+        sessionId: currentSessionId,
+        messages,
+      }
+    }
+  }, [currentSessionId, messages])
+
+  const useVirtualization = displayedMessages.length > VIRTUALIZATION_THRESHOLD
 
   const { isLoading, toolState, sendMessage, regenerateMessage, stopStreaming } = useStreamingChat({
     onRegenerateStart: () => {
@@ -64,6 +78,7 @@ export default function ChatArea() {
       })
     },
   })
+  const displayedIsLoading = isLoading && displayedSessionIsCurrent
   const handledChatLinkKeysRef = useRef(new Set<string>())
 
   const vibe = useMemo(() => {
@@ -146,7 +161,6 @@ export default function ChatArea() {
 
       if (currentSessionId !== sessionId) {
         switchSession(sessionId)
-        // Ensure we have the full history for context when continuing via link
         await loadFullSession(sessionId)
         return false
       }
@@ -237,8 +251,8 @@ export default function ChatArea() {
     currentSessionId,
     streamingContent: streamingState?.content,
     streamingThinking: streamingState?.thinking,
-    messageCount: messages.length,
-    lastMessageId: messages[messages.length - 1]?.id || null,
+    messageCount: displayedMessages.length,
+    lastMessageId: displayedMessages[displayedMessages.length - 1]?.id || null,
   })
 
   const handleSendMessage = async () => {
@@ -258,34 +272,44 @@ export default function ChatArea() {
   )
 
   const visibleLiveToolResults = useMemo(
-    () => toolState.toolResults.filter((result) => !shouldHideGenericToolResultCard(result)),
-    [toolState.toolResults]
+    () =>
+      isShowingLoadingFallback
+        ? []
+        : toolState.toolResults.filter((result) => !shouldHideGenericToolResultCard(result)),
+    [isShowingLoadingFallback, toolState.toolResults]
   )
-  const displayActiveToolCalls =
-    toolState.activeToolBatch.length > 0 ? toolState.activeToolBatch : toolState.activeToolCalls
+  const displayActiveToolCalls = isShowingLoadingFallback
+    ? []
+    : toolState.activeToolBatch.length > 0
+      ? toolState.activeToolBatch
+      : toolState.activeToolCalls
 
   const renderMessage = useCallback(
-    (index: number, msg: (typeof messages)[0]) => {
-      const isLastAssistant = msg.role === 'assistant' && index === messages.length - 1
-      const isStreamingMsg = isLoading && isLastAssistant
+    (index: number, msg: (typeof displayedMessages)[0]) => {
+      const isLastAssistant = msg.role === 'assistant' && index === displayedMessages.length - 1
+      const isStreamingMsg = displayedIsLoading && isLastAssistant
 
       return (
         <div data-message-id={msg.id}>
           {isStreamingMsg ? (
             <StreamingMessage
               message={msg}
-              sessionId={currentSessionId!}
+              sessionId={displayedSessionId!}
               activeToolCalls={displayActiveToolCalls}
               onCopy={handleCopy}
-              onRegenerate={(instruction) => regenerateMessage(msg, instruction)}
+              onRegenerate={(instruction) => {
+                if (displayedSessionIsCurrent) regenerateMessage(msg, instruction)
+              }}
             />
           ) : (
             <MessageRenderer
               message={msg}
               isStreaming={false}
-              sessionId={currentSessionId || undefined}
+              sessionId={displayedSessionId || undefined}
               onCopy={handleCopy}
-              onRegenerate={(instruction) => regenerateMessage(msg, instruction)}
+              onRegenerate={(instruction) => {
+                if (displayedSessionIsCurrent) regenerateMessage(msg, instruction)
+              }}
             />
           )}
 
@@ -298,7 +322,7 @@ export default function ChatArea() {
                   result={result.result?.success ? result.result.data : undefined}
                   error={result.result?.success ? undefined : result.result?.error}
                   metadata={result.result?.metadata}
-                  sessionId={currentSessionId || undefined}
+                  sessionId={displayedSessionId || undefined}
                   messageId={msg.id}
                   toolResultIndex={i}
                 />
@@ -309,9 +333,10 @@ export default function ChatArea() {
       )
     },
     [
-      messages.length,
-      isLoading,
-      currentSessionId,
+      displayedMessages.length,
+      displayedIsLoading,
+      displayedSessionId,
+      displayedSessionIsCurrent,
       handleCopy,
       regenerateMessage,
       visibleLiveToolResults,
@@ -319,7 +344,7 @@ export default function ChatArea() {
     ]
   )
 
-  if (!currentSessionId || (messages.length === 0 && !currentSessionIsLoading)) {
+  if (!currentSessionId || (displayedMessages.length === 0 && !currentSessionIsLoading)) {
     return (
       <div
         style={{
@@ -371,6 +396,7 @@ export default function ChatArea() {
               onError={(msg) => showToast(msg, 'error')}
               showContextRing={false}
               layoutVariant="landing"
+              folderContextName={currentFolderName}
             />
           </div>
         </div>
@@ -392,9 +418,9 @@ export default function ChatArea() {
     >
       {useVirtualization ? (
         <VirtualMessageList
-          messages={messages}
-          sessionId={currentSessionId!}
-          isGenerating={isLoading}
+          messages={displayedMessages}
+          sessionId={displayedSessionId!}
+          isGenerating={displayedIsLoading}
           streamingContent={streamingState?.content || ''}
           autoScrollEnabled={true}
           renderMessage={renderMessage}
@@ -432,27 +458,31 @@ export default function ChatArea() {
               flexDirection: 'column',
             }}
           >
-            {messages.map((msg, idx) => {
-              const isLastAssistant = msg.role === 'assistant' && idx === messages.length - 1
-              const isStreamingMessage = isLoading && isLastAssistant
+            {displayedMessages.map((msg, idx) => {
+              const isLastAssistant = msg.role === 'assistant' && idx === displayedMessages.length - 1
+              const isStreamingMessage = displayedIsLoading && isLastAssistant
 
               return (
                 <div key={msg.id} data-message-id={msg.id}>
                   {isStreamingMessage ? (
                     <StreamingMessage
                       message={msg}
-                      sessionId={currentSessionId!}
+                      sessionId={displayedSessionId!}
                       activeToolCalls={displayActiveToolCalls}
                       onCopy={handleCopy}
-                      onRegenerate={(instruction) => regenerateMessage(msg, instruction)}
+                      onRegenerate={(instruction) => {
+                        if (displayedSessionIsCurrent) regenerateMessage(msg, instruction)
+                      }}
                     />
                   ) : (
                     <MessageRenderer
                       message={msg}
                       isStreaming={false}
-                      sessionId={currentSessionId || undefined}
+                      sessionId={displayedSessionId || undefined}
                       onCopy={handleCopy}
-                      onRegenerate={(instruction) => regenerateMessage(msg, instruction)}
+                      onRegenerate={(instruction) => {
+                        if (displayedSessionIsCurrent) regenerateMessage(msg, instruction)
+                      }}
                     />
                   )}
 
@@ -467,7 +497,7 @@ export default function ChatArea() {
                           metadata={result.result?.metadata}
                           toolArguments={result.toolCall.arguments}
                           executionTime={result.result?.executionTime}
-                          sessionId={currentSessionId || undefined}
+                          sessionId={displayedSessionId || undefined}
                           messageId={msg.id}
                           toolResultIndex={i}
                         />
@@ -489,7 +519,7 @@ export default function ChatArea() {
                 </div>
               ))}
 
-            {isLoading && <div style={{ minHeight: 'calc(100% - 350px)' }} />}
+            {displayedIsLoading && <div style={{ minHeight: 'calc(100% - 350px)' }} />}
 
             <div ref={messagesEndRef} />
           </div>
@@ -518,6 +548,7 @@ export default function ChatArea() {
             onFilesChange={setAttachedFiles}
             onError={(msg) => showToast(msg, 'error')}
             showContextRing={true}
+            folderContextName={currentFolderName}
             onActivity={handlePromptActivity}
             onFocusChange={handlePromptFocusChange}
             textareaRefCallback={handleTextareaRefCallback}

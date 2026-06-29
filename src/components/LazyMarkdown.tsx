@@ -38,25 +38,22 @@ export function findMatchingWebSource(
   return webSources.get(href) || webSources.get(href.replace(/\/+$/, ''))
 }
 
-/** Skeleton placeholder shown while markdown plugins are loading */
-function MarkdownSkeleton({ className }: { className?: string }) {
-  const lineWidths = ['85%', '70%', '60%', '90%']
+function PlainMarkdownFallback({
+  content,
+  className,
+}: {
+  content: string
+  className?: string
+}) {
   return (
-    <div className={className} style={{ padding: '2px 0' }}>
-      {lineWidths.map((width, i) => (
-        <div
-          key={i}
-          style={{
-            height: '14px',
-            width,
-            marginBottom: i < lineWidths.length - 1 ? '10px' : 0,
-            borderRadius: '4px',
-            background: 'var(--theme-surface-hover, rgba(255,255,255,0.06))',
-            animation: 'markdown-skeleton-pulse 1.5s ease-in-out infinite',
-            animationDelay: `${i * 0.08}s`,
-          }}
-        />
-      ))}
+    <div
+      className={className}
+      style={{
+        whiteSpace: 'pre-wrap',
+        overflowWrap: 'anywhere',
+      }}
+    >
+      {content}
     </div>
   )
 }
@@ -968,7 +965,7 @@ const MarkdownContent = React.memo(function MarkdownContent({
     ]
   )
 
-  if (!loadAttempted) return <MarkdownSkeleton />
+  if (!loadAttempted) return <PlainMarkdownFallback content={content} />
 
   return (
     <ReactMarkdown remarkPlugins={remarkPlugins} components={components}>
@@ -984,7 +981,7 @@ export default function LazyMarkdown({
   isStreaming = false,
 }: LazyMarkdownProps) {
   return (
-    <Suspense fallback={<MarkdownSkeleton className={className} />}>
+    <Suspense fallback={<PlainMarkdownFallback content={content} className={className} />}>
       <MarkdownContent content={content} webSources={webSources} isStreaming={isStreaming} />
     </Suspense>
   )

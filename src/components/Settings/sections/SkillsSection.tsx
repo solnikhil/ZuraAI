@@ -215,7 +215,7 @@ function ExtensionCatalogGroup({
       <div className={`skills-catalog-group__grid ${featured ? 'skills-catalog-group__grid--featured' : ''}`}>
         {rows.map((row) => {
           const enabled = isEnabled(row.id)
-          const logoSize = ['web_research', 'code_execution', 'terminal', 'computer_use', 'chart_generation'].includes(row.id)
+          const logoSize = ['web_research', 'code_execution', 'terminal', 'computer_use', 'command_center', 'chart_generation'].includes(row.id)
             ? 40
             : featured ? 22 : 18
 

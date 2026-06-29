@@ -233,6 +233,43 @@ export interface DiscordRpcState {
   lastError?: string
 }
 
+export interface CommandCenterState {
+  enabled: boolean
+  shortcut: string
+  shortcutRegistered: boolean
+}
+
+export interface CommandCenterCommand {
+  text: string
+  receivedAt: number
+  activeWindow?: {
+    hwnd?: number
+    title?: string
+    processId?: number
+    processName?: string
+    path?: string
+  }
+}
+
+export type CommandCenterActionId =
+  | 'snap-left'
+  | 'snap-right'
+  | 'maximize-window'
+  | 'volume-30'
+  | 'volume-60'
+  | 'open-downloads'
+
+export interface CommandCenterAction {
+  id: CommandCenterActionId
+  label: string
+  kind: 'window' | 'audio' | 'filesystem'
+}
+
+export interface CommandCenterSubmitResult {
+  accepted: boolean
+  reason?: string
+}
+
 export interface EmailNotificationSettings {
   enabled: boolean
   senderName: string
@@ -678,6 +715,18 @@ export interface ComputerUseAPI {
   resolveApproval: (requestId: string, approved: boolean) => Promise<ApprovalDecision>
   onPendingApproval: (callback: (pending: PendingComputerAction[]) => void) => () => void
   onKilled: (callback: () => void) => () => void
+}
+
+export interface CommandCenterAPI {
+  setExtensionEnabled: (enabled: boolean) => Promise<CommandCenterState>
+  show: () => Promise<boolean>
+  hide: () => Promise<boolean>
+  getContext: () => Promise<ToolResult>
+  listActions: () => Promise<CommandCenterAction[]>
+  executeAction: (actionId: CommandCenterActionId) => Promise<ToolResult>
+  submitCommand: (text: string) => Promise<CommandCenterSubmitResult>
+  onShown: (callback: () => void) => () => void
+  onCommand: (callback: (command: CommandCenterCommand) => void) => () => void
 }
 
 export interface EmailNotificationsAPI {

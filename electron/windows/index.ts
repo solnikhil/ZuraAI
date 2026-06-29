@@ -27,3 +27,10 @@ export {
     showSpotlight,
     hideSpotlight,
 } from './spotlightOverlay'
+
+export {
+    showCommandCenterWindow,
+    hideCommandCenterWindow,
+    toggleCommandCenterWindow,
+    destroyCommandCenterWindow,
+} from './commandCenterOverlay'

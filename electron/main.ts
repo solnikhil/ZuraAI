@@ -9,6 +9,7 @@ import {
   destroyTray,
   getMainWindow,
   destroyChatDebugWindow,
+  destroyCommandCenterWindow,
 } from './windows'
 import { applyDevelopmentAppIcon } from './windowIcon'
 import { registerAllHandlers } from './ipc'
@@ -51,6 +52,11 @@ import { trackAppCrash, trackStartupAnalytics } from './analytics'
 import { startMonitorRuntime, stopMonitorRuntime } from './monitors'
 import { handleZuraChatMessageUrl, registerZuraChatProtocolHandlers } from './chatLinks'
 import { log } from './startup/logger'
+import {
+  disposeCommandCenter,
+  registerCommandCenterHandlers,
+  unregisterCommandCenterHandlers,
+} from './commandCenter'
 
 // Resolve packaged asset paths consistently in both development and production.
 const DIST_PATH = process.env.DIST || path.join(__dirname, '../dist')
@@ -147,6 +153,9 @@ app.on('activate', () => {
 app.on('will-quit', () => {
   globalShortcut.unregisterAll()
   destroyChatDebugWindow()
+  destroyCommandCenterWindow()
+  disposeCommandCenter()
+  unregisterCommandCenterHandlers()
   unregisterMcpHandlers()
   disposeCodeExecutionApprovalManager()
   unregisterCodeExecutionHandlers()
@@ -226,6 +235,7 @@ if (hasSingleInstanceLock) {
     registerAllHandlers()
     registerMcpHandlers()
     registerToolHandlers()
+    registerCommandCenterHandlers()
     registerUpdaterHandlers(getMainWindow)
     setShutdownHook(() => shutdownMcpManager())
     registerCodeExecutionHandlers()

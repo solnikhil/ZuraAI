@@ -280,6 +280,43 @@ describe('scheduled task runtime notifications', () => {
     expect(storageMock.saveScheduledTaskRun).not.toHaveBeenCalled()
   })
 
+  it('runs overdue tasks when the extension is restored after startup', async () => {
+    const { __test__ } = await import('./runtime')
+    const setTimeoutImpl = vi.fn(() => 1 as unknown as ReturnType<typeof setTimeout>)
+    storageMock.task = createTask({
+      type: 'reminder',
+      reminderText: 'Review weekly launches',
+      nextRunAt: 500,
+    })
+
+    const runtime = __test__.createRuntime({
+      notificationsSupported: () => false,
+      setTimeoutImpl,
+      clearTimeoutImpl: vi.fn(),
+      now: () => 1_000,
+    })
+
+    await runtime.start()
+    expect(storageMock.saveScheduledTaskRun).not.toHaveBeenCalled()
+
+    await runtime.setExtensionEnabled(true)
+    await vi.waitFor(() => expect(storageMock.saveScheduledTaskRun).toHaveBeenCalledTimes(1))
+    runtime.stop()
+
+    expect(setTimeoutImpl).not.toHaveBeenCalled()
+    expect(storageMock.savedRuns[0]).toEqual(
+      expect.objectContaining({
+        taskId: 'task-1',
+        status: 'unchanged',
+      })
+    )
+    expect(storageMock.savedRuns[0]?.logs[0]).toEqual({
+      url: '',
+      status: 'completed',
+      message: 'Review weekly launches',
+    })
+  })
+
   it('clears scheduled timers when the extension is disabled', async () => {
     const { __test__ } = await import('./runtime')
     const timer = 1 as unknown as ReturnType<typeof setTimeout>
@@ -313,7 +350,7 @@ function createTask(patch: Partial<ScheduledTaskDefinition>): ScheduledTaskDefin
     intervalPreset: 'daily',
     createdAt: 0,
     updatedAt: 0,
-    nextRunAt: 0,
+    nextRunAt: 2_000,
     ...patch,
   }
 }

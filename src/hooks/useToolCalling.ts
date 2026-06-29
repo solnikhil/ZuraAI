@@ -56,6 +56,15 @@ const NATIVE_WINDOWS_AGENT_TOOLS = [
     'windows_uia_select',
 ]
 
+const COMMAND_CENTER_TOOLS = [
+    'system_active_window',
+    'system_status',
+    'system_volume_get',
+    'system_volume_set',
+    'system_open_path',
+    'window_snap',
+]
+
 const SCHEDULED_TASK_TOOLS = [
     'scheduled_task_create',
     'scheduled_task_update',
@@ -166,6 +175,18 @@ export function useToolCalling() {
             }
         }
 
+        const commandCenterSurfaceEnabled =
+            isWindowsRuntime() &&
+            isSkillEnabled(settings.skills, 'command_center')
+
+        if (!commandCenterSurfaceEnabled) {
+            enabledTools = enabledTools.filter((tool) => !COMMAND_CENTER_TOOLS.includes(tool))
+        } else {
+            for (const tool of COMMAND_CENTER_TOOLS) {
+                if (!enabledTools.includes(tool)) enabledTools.push(tool)
+            }
+        }
+
         // Computer Use action surface. Windows-only (mirrors the main-process +
         // preload gates), gated behind the Computer Use skill, and exposed only
         // in agent mode.
@@ -227,7 +248,7 @@ export function useToolCalling() {
             }
         }
 
-        const nativePriority = new Map(NATIVE_WINDOWS_AGENT_TOOLS.map((tool, index) => [tool, index]))
+        const nativePriority = new Map([...COMMAND_CENTER_TOOLS, ...NATIVE_WINDOWS_AGENT_TOOLS].map((tool, index) => [tool, index]))
         const computerPriorityOffset = NATIVE_WINDOWS_AGENT_TOOLS.length
         const computerPriority = new Map(COMPUTER_USE_TOOLS.map((tool, index) => [tool, computerPriorityOffset + index]))
         const prioritizedEnabledTools = [...new Set(enabledTools)].sort((a, b) => {

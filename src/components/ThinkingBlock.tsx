@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Box, BrainCircuit, ChevronRight, Search } from './icons'
+import { Box, BrainCircuit, Check, ChevronRight, Command, Copy, Search } from './icons'
 import { WithTooltip } from './ui/WithTooltip'
 import './ThinkingBlock.css'
 import { ThinkingBlock as ThinkingBlockType } from '../contexts/ChatHistoryContext'
@@ -579,8 +579,39 @@ function stripAnsiEscapes(input: string): string {
   return input.replace(/\u001b\[[0-9;]*[A-Za-z]/g, '')
 }
 
+const TERMINAL_PATH_DISPLAY_MAX = 44
+
+function shortenTerminalPath(fullPath: string): string {
+  if (fullPath.length <= TERMINAL_PATH_DISPLAY_MAX) return fullPath
+
+  const separator = fullPath.includes('\\') ? '\\' : '/'
+  const parts = fullPath.split(/[/\\]/).filter(Boolean)
+  if (parts.length <= 2) {
+    return `${fullPath.slice(0, TERMINAL_PATH_DISPLAY_MAX - 1)}…`
+  }
+
+  const tail = parts.slice(-2).join(separator)
+  const shortened = `…${separator}${tail}`
+  if (shortened.length <= TERMINAL_PATH_DISPLAY_MAX) return shortened
+
+  return `…${separator}${parts[parts.length - 1]}`
+}
+
+async function copyTerminalText(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text)
+      return true
+    }
+  } catch {
+    /* ignore clipboard failures */
+  }
+  return false
+}
+
 /** Codex-style terminal panel for system_shell tool output. */
 function TerminalToolView({ block }: { block: ThinkingBlockType }) {
+  const [copiedTarget, setCopiedTarget] = useState<'command' | 'cwd' | null>(null)
   const data = (block.toolOutput?.data ?? {}) as Record<string, unknown>
   const command =
     typeof data.command === 'string'
@@ -604,6 +635,15 @@ function TerminalToolView({ block }: { block: ThinkingBlockType }) {
     Boolean(block.toolOutput?.success) && !error && (exitCode === null || exitCode === 0)
   const hasOutput = Boolean(stdout || stderr || error)
   const statusLabel = isSuccess ? '✓ Success' : exitCode != null ? `✗ Exit ${exitCode}` : '✗ Failed'
+  const displayCwd = cwd ? shortenTerminalPath(cwd) : ''
+
+  const handleCopy = (target: 'command' | 'cwd', text: string) => {
+    void copyTerminalText(text).then((ok) => {
+      if (!ok) return
+      setCopiedTarget(target)
+      window.setTimeout(() => setCopiedTarget((current) => (current === target ? null : current)), 2000)
+    })
+  }
 
   return (
     <div className={`terminal-tool ${isSuccess ? 'is-success' : 'is-error'}`}>
@@ -612,7 +652,17 @@ function TerminalToolView({ block }: { block: ThinkingBlockType }) {
         {command && (
           <div className="terminal-tool-command">
             <span className="terminal-tool-prompt">$</span>
-            <span>{command}</span>
+            <span className="terminal-tool-command-text">{command}</span>
+            <WithTooltip tooltip={copiedTarget === 'command' ? 'Copied' : 'Copy command'}>
+              <button
+                type="button"
+                className="terminal-tool-copy-btn"
+                onClick={() => handleCopy('command', command)}
+                aria-label="Copy command"
+              >
+                {copiedTarget === 'command' ? <Check size={14} /> : <Copy size={14} />}
+              </button>
+            </WithTooltip>
           </div>
         )}
         {stdout && <pre className="terminal-tool-stream">{stdout}</pre>}
@@ -621,7 +671,18 @@ function TerminalToolView({ block }: { block: ThinkingBlockType }) {
         {!hasOutput && <div className="terminal-tool-empty">No output</div>}
       </div>
       <div className="terminal-tool-status">
-        {cwd && <span className="terminal-tool-cwd">{cwd}</span>}
+        {cwd && (
+          <WithTooltip tooltip={copiedTarget === 'cwd' ? 'Copied' : cwd}>
+            <button
+              type="button"
+              className="terminal-tool-cwd"
+              onClick={() => handleCopy('cwd', cwd)}
+              aria-label={`Working directory: ${cwd}. Click to copy.`}
+            >
+              {displayCwd}
+            </button>
+          </WithTooltip>
+        )}
         <span className="terminal-tool-status-badge">{statusLabel}</span>
       </div>
     </div>
@@ -639,6 +700,27 @@ function isShellBlockFailed(block: ThinkingBlockType): boolean {
   const data = out.data as Record<string, unknown> | undefined
   const exitCode = typeof data?.exitCode === 'number' ? data.exitCode : null
   return out.success === false || (exitCode !== null && exitCode !== 0)
+}
+
+function CommandStatusIcon({
+  failed = false,
+  running = false,
+}: {
+  failed?: boolean
+  running?: boolean
+}) {
+  const statusLabel = running ? 'Running' : failed ? 'Failed' : 'Success'
+
+  return (
+    <WithTooltip tooltip={statusLabel}>
+      <span
+        className={`thinking-tool-calling-icon command-run-icon${failed ? ' is-error' : ''}${running ? ' is-running' : ''}`}
+        aria-label={statusLabel}
+      >
+        <Command size={14} />
+      </span>
+    </WithTooltip>
+  )
 }
 
 /** A single command inside a group: shows the command name; expands to its terminal output. */
@@ -660,11 +742,9 @@ function CommandRow({ block }: { block: ThinkingBlockType }) {
         className="thinking-command-row__head clickable"
         onClick={() => setIsExpanded((prev) => !prev)}
       >
-        <WithTooltip tooltip={failed ? 'Failed' : 'Success'}>
-          <span
-            className={`thinking-cmd-blob thinking-cmd-blob--${failed ? 'error' : 'success'}`}
-            aria-label={failed ? 'Failed' : 'Success'}
-          />
+        <CommandStatusIcon failed={failed} />
+        <WithTooltip tooltip={command}>
+          <span className="thinking-command-row__name">{command}</span>
         </WithTooltip>
         <motion.div
           animate={{ rotate: isExpanded ? 90 : 0 }}
@@ -672,9 +752,6 @@ function CommandRow({ block }: { block: ThinkingBlockType }) {
         >
           <ChevronRight size={13} className="thinking-chevron" />
         </motion.div>
-        <WithTooltip tooltip={command}>
-          <span className="thinking-command-row__name">{command}</span>
-        </WithTooltip>
       </div>
       <AnimatePresence initial={false}>
         {isExpanded && (
@@ -729,19 +806,14 @@ function CommandGroupBlock({
         onClick={() => setIsExpanded((prev) => !prev)}
       >
         <div className="thinking-label">
-          <WithTooltip tooltip={failed ? 'Failed' : 'Success'}>
-            <span
-              className={`thinking-cmd-blob thinking-cmd-blob--${failed ? 'error' : 'success'}`}
-              aria-label={failed ? 'Failed' : 'Success'}
-            />
-          </WithTooltip>
+          <CommandStatusIcon failed={failed} />
+          <span className="thinking-text thinking-cmd-text">{label}</span>
           <motion.div
             animate={{ rotate: isExpanded ? 90 : 0 }}
             transition={motionSpringTransition(animationsEnabled, motionSpring.bouncy)}
           >
             <ChevronRight size={14} className="thinking-chevron" />
           </motion.div>
-          <span className="thinking-text thinking-cmd-text">{label}</span>
         </div>
       </div>
       <AnimatePresence initial={false}>
@@ -1109,17 +1181,17 @@ export default function ThinkingBlock({
                     key={`tool-calling-row:${getToolCallsAnimationKey(activeToolCalls)}`}
                     className="thinking-text thinking-tool-calling"
                   >
-                    <span
-                      className={`thinking-tool-calling-icon ${hasActiveSearches ? 'search-icon' : 'default-icon'}`}
-                    >
-                      {hasActiveSearches ? (
+                    {hasActiveSearches ? (
+                      <span className="thinking-tool-calling-icon search-icon">
                         <Search size={14} />
-                      ) : activeToolCalls[0]?.name === 'system_shell' ? (
-                        <span className="thinking-cmd-blob thinking-cmd-blob--running" />
-                      ) : (
+                      </span>
+                    ) : activeToolCalls[0]?.name === 'system_shell' ? (
+                      <CommandStatusIcon running />
+                    ) : (
+                      <span className="thinking-tool-calling-icon default-icon">
                         <Box size={14} />
-                      )}
-                    </span>
+                      </span>
+                    )}
                     <AITextLoading
                       text={
                         activeToolCalls[0]?.name === 'system_shell'

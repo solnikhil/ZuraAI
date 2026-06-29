@@ -1,5 +1,7 @@
 import React, { useEffect, useRef } from 'react'
+import { Command } from 'lucide-react'
 import { Card } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { SkillLogo } from '@/components/shared'
 import type { Settings } from '@/contexts/SettingsContext'
@@ -138,6 +140,41 @@ export function ExtensionDetailSection({
                 <h3 className="settings-list-row__label">Emergency stop</h3>
                 <div className="settings-list-row__description">
                   Press Esc twice quickly to cancel an in-progress Computer Use session.
+                </div>
+              </div>
+            </div>
+          </Card>
+        </>
+      ) : extensionId === 'command_center' ? (
+        <>
+          <Card className="settings-list-card">
+            <div className="settings-list-row">
+              <div className="settings-list-row__meta">
+                <h3 className="settings-list-row__label">Global shortcut</h3>
+                <div className="settings-list-row__description">
+                  Press Ctrl+Shift+Space to open the desktop overlay from anywhere.
+                </div>
+              </div>
+              <div className="settings-list-row__control">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={!enabled}
+                  onClick={() => void window.commandCenter?.show()}
+                >
+                  <Command size={14} />
+                  Open
+                </Button>
+              </div>
+            </div>
+          </Card>
+          <Card className="settings-list-card">
+            <div className="settings-list-row settings-list-row--stacked">
+              <div className="settings-list-row__meta">
+                <h3 className="settings-list-row__label">Quick OS actions</h3>
+                <div className="settings-list-row__description">
+                  Snap left, snap right, maximize, set volume to 30% or 60%, and open Downloads.
                 </div>
               </div>
             </div>

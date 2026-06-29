@@ -67,6 +67,15 @@ const COMPUTER_USE_TOOL_NAMES = getBuiltinToolDefinitions()
   .filter((tool) => tool.category === 'computer-use')
   .map((tool) => tool.name)
 
+const COMMAND_CENTER_TOOL_NAMES = [
+  'system_active_window',
+  'system_status',
+  'system_volume_get',
+  'system_volume_set',
+  'system_open_path',
+  'window_snap',
+]
+
 const NATIVE_WINDOWS_TOOL_NAMES = [
   'file_search',
   'file_read',
@@ -233,6 +242,52 @@ describe('useToolCalling - Computer Use tool exposure gating', () => {
       ),
       { numRuns: 100 }
     )
+  })
+})
+
+describe('useToolCalling - Command Center OS integration exposure gating', () => {
+  it('does not expose OS integration tools when Command Center is disabled', () => {
+    isWindows = true
+    mockSettings.settings = makeSettings({
+      assistantMode: 'agent',
+      skills: defaultSkillsSettings,
+    })
+
+    const names = getExposedToolNames()
+    for (const tool of COMMAND_CENTER_TOOL_NAMES) {
+      expect(names).not.toContain(tool)
+    }
+  })
+
+  it('exposes OS integration tools on Windows when Command Center is enabled', () => {
+    isWindows = true
+    mockSettings.settings = makeSettings({
+      assistantMode: 'chat',
+      skills: {
+        ...defaultSkillsSettings,
+        command_center: { enabled: true },
+      },
+    })
+
+    const names = getExposedToolNames()
+    for (const tool of COMMAND_CENTER_TOOL_NAMES) {
+      expect(names).toContain(tool)
+    }
+  })
+
+  it('does not expose OS integration tools on macOS even when Command Center is enabled', () => {
+    isWindows = false
+    mockSettings.settings = makeSettings({
+      skills: {
+        ...defaultSkillsSettings,
+        command_center: { enabled: true },
+      },
+    })
+
+    const names = getExposedToolNames()
+    for (const tool of COMMAND_CENTER_TOOL_NAMES) {
+      expect(names).not.toContain(tool)
+    }
   })
 })
 

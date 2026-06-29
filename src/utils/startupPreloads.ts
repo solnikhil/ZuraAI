@@ -1,4 +1,5 @@
 import { preloadSettings } from '../components/Settings/settingsLoader'
+import { preloadMarkdown } from './markdownPreloader'
 
 type IdleWindow = Window &
   typeof globalThis & {
@@ -26,5 +27,9 @@ export function scheduleNonCriticalPreloads(): void {
 
   scheduleWhenIdle(() => {
     void preloadSettings()
+  }, 1200)
+
+  scheduleWhenIdle(() => {
+    void preloadMarkdown()
   }, 1200)
 }

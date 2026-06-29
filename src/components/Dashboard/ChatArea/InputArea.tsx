@@ -10,6 +10,7 @@ import {
   ArrowUp,
   Square,
   Plus,
+  FolderOpen,
   Wrench,
   Brain,
   Monitor,
@@ -72,6 +73,7 @@ export interface InputAreaProps {
   /** Expose the textarea ref to the parent (for keyboard reactivation focus) */
   textareaRefCallback?: (ref: React.RefObject<HTMLTextAreaElement | null>) => void
   layoutVariant?: 'default' | 'landing'
+  folderContextName?: string
 }
 
 function isInteractiveComposerTarget(target: EventTarget | null): boolean {
@@ -110,6 +112,7 @@ export function InputArea({
   onFocusChange,
   textareaRefCallback,
   layoutVariant = 'default',
+  folderContextName,
 }: InputAreaProps) {
   const isLandingVariant = layoutVariant === 'landing'
   const MAX_ATTACHMENTS = 10
@@ -542,6 +545,23 @@ export function InputArea({
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
                   <div className={controlClusterClass}>{quickActionsMenu}</div>
+                  {folderContextName && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          onClick={(e) => e.stopPropagation()}
+                          className="theme-control-btn inline-flex h-9 w-9 items-center justify-center rounded-full p-2 text-[var(--theme-text-muted)]"
+                          aria-label={`Folder chat: ${folderContextName}`}
+                        >
+                          <FolderOpen className="h-4 w-4" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="rounded-full">
+                        {folderContextName}
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
                   {assistantMode === 'agent' && (
                     <Tooltip>
                       <TooltipTrigger asChild>

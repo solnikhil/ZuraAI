@@ -37,6 +37,10 @@ import type {
   PendingCodeApproval,
   PendingComputerAction,
   PendingTerminalApproval,
+  CommandCenterCommand,
+  CommandCenterActionId,
+  CommandCenterState,
+  CommandCenterSubmitResult,
   UpdateMemoryPatch,
 } from '../src/electron/types'
 
@@ -164,6 +168,21 @@ const DISCORD_RPC_INVOKE_CHANNELS = new Set<string>([
 
 const DISCORD_RPC_ON_CHANNELS = new Set<string>(['discord-rpc:state-changed'])
 
+const COMMAND_CENTER_INVOKE_CHANNELS = new Set<string>([
+  'command-center:set-extension-enabled',
+  'command-center:show',
+  'command-center:hide',
+  'command-center:get-context',
+  'command-center:list-actions',
+  'command-center:execute-action',
+  'command-center:submit-command',
+])
+
+const COMMAND_CENTER_ON_CHANNELS = new Set<string>([
+  'command-center:shown',
+  'command-center:command',
+])
+
 const SCHEDULED_TASKS_INVOKE_CHANNELS = new Set<string>([
   'scheduled-tasks:set-extension-enabled',
   'scheduled-tasks:list',
@@ -251,6 +270,11 @@ contextBridge.exposeInMainWorld(
             toolName.startsWith('window_') ||
             toolName.startsWith('scheduled_task_') ||
             toolName === 'activate_skill' ||
+            toolName === 'system_active_window' ||
+            toolName === 'system_status' ||
+            toolName === 'system_volume_get' ||
+            toolName === 'system_volume_set' ||
+            toolName === 'system_open_path' ||
             toolName === 'system_shell')
         if (
           toolName !== 'web_search' &&
@@ -617,6 +641,52 @@ contextBridge.exposeInMainWorld(
       const listener = () => callback()
       ipcRenderer.on('computer-use:killed', listener)
       return () => ipcRenderer.removeListener('computer-use:killed', listener)
+    },
+  })
+)
+
+contextBridge.exposeInMainWorld(
+  'commandCenter',
+  Object.freeze({
+    setExtensionEnabled: (enabled: boolean) => {
+      assertAllowed('invoke', 'command-center:set-extension-enabled', COMMAND_CENTER_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('command-center:set-extension-enabled', enabled) as Promise<CommandCenterState>
+    },
+    show: () => {
+      assertAllowed('invoke', 'command-center:show', COMMAND_CENTER_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('command-center:show') as Promise<boolean>
+    },
+    hide: () => {
+      assertAllowed('invoke', 'command-center:hide', COMMAND_CENTER_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('command-center:hide') as Promise<boolean>
+    },
+    getContext: () => {
+      assertAllowed('invoke', 'command-center:get-context', COMMAND_CENTER_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('command-center:get-context')
+    },
+    listActions: () => {
+      assertAllowed('invoke', 'command-center:list-actions', COMMAND_CENTER_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('command-center:list-actions')
+    },
+    executeAction: (actionId: CommandCenterActionId) => {
+      assertAllowed('invoke', 'command-center:execute-action', COMMAND_CENTER_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('command-center:execute-action', actionId)
+    },
+    submitCommand: (text: string) => {
+      assertAllowed('invoke', 'command-center:submit-command', COMMAND_CENTER_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('command-center:submit-command', text) as Promise<CommandCenterSubmitResult>
+    },
+    onShown: (callback: () => void) => {
+      assertAllowed('on', 'command-center:shown', COMMAND_CENTER_ON_CHANNELS)
+      const listener = () => callback()
+      ipcRenderer.on('command-center:shown', listener)
+      return () => ipcRenderer.removeListener('command-center:shown', listener)
+    },
+    onCommand: (callback: (command: CommandCenterCommand) => void) => {
+      assertAllowed('on', 'command-center:command', COMMAND_CENTER_ON_CHANNELS)
+      const listener = (_event: IpcRendererEvent, command: CommandCenterCommand) => callback(command)
+      ipcRenderer.on('command-center:command', listener)
+      return () => ipcRenderer.removeListener('command-center:command', listener)
     },
   })
 )

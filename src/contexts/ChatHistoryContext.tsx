@@ -113,6 +113,7 @@ const LAST_SESSION_ID_KEY = 'zura-ui:lastChatSessionId'
 const LOCAL_CHAT_HISTORY_KEY = 'zura-chat-history'
 const LOCAL_CHAT_INDEX_KEY = 'zura-chat-index'
 const MAX_LOADED_SESSIONS = 3
+const RECENT_TAIL_SIZE = 80
 const SAVE_DEBOUNCE_MS = 500
 const INDEX_VERSION = 4
 
@@ -121,7 +122,6 @@ function sessionToMetadata(session: ChatSession): ChatSessionMetadata {
   const messageCount = session.messages?.length ?? session.messageCount ?? 0
 
   // Mirror of main-process logic: embed recent tail for fast preview
-  const RECENT_TAIL_SIZE = 80
   const recentMessages = messages.length > 0 ? messages.slice(-RECENT_TAIL_SIZE) : undefined
 
   return {
@@ -384,7 +384,11 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
         if (keep.has(session.id)) return session
         if (!loadedSessionIdsRef.current.has(session.id)) return session
         loadedSessionIdsRef.current.delete(session.id)
-        return { ...session, messages: [], messageCount: session.messageCount ?? session.messages.length }
+        return {
+          ...session,
+          messages: session.messages.slice(-RECENT_TAIL_SIZE),
+          messageCount: session.messageCount ?? session.messages.length,
+        }
       })
     )
   }, [])

@@ -96,6 +96,12 @@ describe('tool routing through current-desktop Computer Use', () => {
       executeWindowFocus: vi.fn(async () => ({ success: false, error: 'approval required' })),
       executeWindowMove: vi.fn(async () => ({ success: false, error: 'approval required' })),
       executeWindowClose: vi.fn(async () => ({ success: false, error: 'approval required' })),
+      executeSystemActiveWindow: vi.fn(async () => ({ success: true, data: { title: 'Demo' } })),
+      executeSystemStatus: vi.fn(async () => ({ success: true, data: { disks: [] } })),
+      executeSystemVolumeGet: vi.fn(async () => ({ success: true, data: { level: 50, muted: false } })),
+      executeSystemVolumeSet: vi.fn(async () => ({ success: false, error: 'approval required' })),
+      executeSystemOpenPath: vi.fn(async () => ({ success: false, error: 'approval required' })),
+      executeWindowSnap: vi.fn(async () => ({ success: false, error: 'approval required' })),
     }
 
     vi.doMock('./computerUse', () => computerUse)
@@ -104,6 +110,7 @@ describe('tool routing through current-desktop Computer Use', () => {
     vi.doMock('./files', () => nativeMocks)
     vi.doMock('./app-management', () => nativeMocks)
     vi.doMock('./window-management', () => nativeMocks)
+    vi.doMock('./os-integration', () => nativeMocks)
     vi.doMock('./webSearch', () => ({
       executeWebSearch: vi.fn(async () => ({ success: true, data: [] })),
     }))
@@ -177,5 +184,20 @@ describe('tool routing through current-desktop Computer Use', () => {
 
     expect(result).toEqual({ success: false, error: 'approval required' })
     expect(handlers.executeSystemShell).toHaveBeenCalledTimes(1)
+  })
+
+  it('routes Command Center OS integration tools through execute-tool', async () => {
+    const { handler, handlers } = await loadToolHandler()
+
+    const activeWindow = await handler({}, 'system_active_window', {})
+    const status = await handler({}, 'system_status', {})
+    const snap = await handler({}, 'window_snap', { preset: 'left' })
+
+    expect(activeWindow).toEqual({ success: true, data: { title: 'Demo' } })
+    expect(status).toEqual({ success: true, data: { disks: [] } })
+    expect(snap).toEqual({ success: false, error: 'approval required' })
+    expect(handlers.executeSystemActiveWindow).toHaveBeenCalledTimes(1)
+    expect(handlers.executeSystemStatus).toHaveBeenCalledTimes(1)
+    expect(handlers.executeWindowSnap).toHaveBeenCalledTimes(1)
   })
 })

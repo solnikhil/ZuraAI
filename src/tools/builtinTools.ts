@@ -560,6 +560,88 @@ Use this when the user's task matches a skill listed in the Agent Skills catalog
     origin: 'builtin-main',
     requiresApproval: true,
   },
+  system_active_window: {
+    description: 'Read the current foreground Windows app/window context: hwnd, title, process id, process name, and executable path. Use this before OS-level actions that refer to "this app" or "the current window".',
+    parameters: {
+      type: 'object',
+      description: 'No arguments required.',
+      properties: {},
+      required: [],
+    },
+    category: 'system',
+    origin: 'builtin-main',
+  },
+  system_volume_get: {
+    description: 'Read the current Windows default audio output volume and mute state.',
+    parameters: {
+      type: 'object',
+      description: 'No arguments required.',
+      properties: {},
+      required: [],
+    },
+    category: 'system',
+    origin: 'builtin-main',
+  },
+  system_status: {
+    description: 'Read local Windows system status including battery, fixed disk capacity/free space, and active network adapters. Read-only.',
+    parameters: {
+      type: 'object',
+      description: 'No arguments required.',
+      properties: {},
+      required: [],
+    },
+    category: 'system',
+    origin: 'builtin-main',
+  },
+  system_volume_set: {
+    description: 'Set the Windows default audio output volume to a percentage from 0 to 100. Requires approval.',
+    parameters: {
+      type: 'object',
+      description: 'Arguments for setting system volume.',
+      properties: {
+        level: { type: 'number', description: 'Volume percentage from 0 to 100.' },
+      },
+      required: ['level'],
+    },
+    category: 'system',
+    origin: 'builtin-main',
+    requiresApproval: true,
+  },
+  system_open_path: {
+    description: 'Open a local file or folder with the OS default handler. Requires approval.',
+    parameters: {
+      type: 'object',
+      description: 'Arguments for opening a local path.',
+      properties: {
+        path: { type: 'string', description: 'Absolute local file or folder path.' },
+      },
+      required: ['path'],
+    },
+    category: 'system',
+    origin: 'builtin-main',
+    requiresApproval: true,
+  },
+  window_snap: {
+    description: 'Snap a Windows app window to a common layout preset. Targets the given hwnd/title or the current foreground window. Requires approval.',
+    parameters: {
+      type: 'object',
+      description: 'Arguments for snapping a window.',
+      properties: {
+        hwnd: { type: 'number', description: 'Optional native window handle.' },
+        title: { type: 'string', description: 'Optional fallback title substring.' },
+        preset: {
+          type: 'string',
+          description: 'Snap layout preset.',
+          enum: ['left', 'right', 'top', 'bottom', 'maximize', 'center'],
+          default: 'left',
+        },
+      },
+      required: ['preset'],
+    },
+    category: 'system',
+    origin: 'builtin-main',
+    requiresApproval: true,
+  },
 } satisfies Record<string, BuiltinMainToolManifestEntry>
 
 export type BuiltinMainToolName = keyof typeof builtInMainToolManifest

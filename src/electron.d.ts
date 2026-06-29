@@ -8,6 +8,7 @@ import type {
   ChatLinksAPI,
   CodeExecutionAPI,
   ComputerUseAPI,
+  CommandCenterAPI,
   ContextMenuAPI,
   DevToolsAPI,
   DiscordRpcAPI,
@@ -48,6 +49,7 @@ declare global {
     codeExecution: CodeExecutionAPI
     terminal: TerminalAPI
     computerUse: ComputerUseAPI
+    commandCenter: CommandCenterAPI
     chatDiagnostics?: ChatDiagnosticsAPI
     chatDebug?: ChatDebugAPI
     chatLinks?: ChatLinksAPI

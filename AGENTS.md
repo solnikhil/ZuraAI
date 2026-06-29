@@ -96,6 +96,7 @@ Renderer (React/Vite) -> Preload (allowlisted bridges) -> Electron Main
 - Main window: loads `#/dashboard`; routes `/`, `/dashboard`, `/settings`, and `/chat` under `AppShellLayout`.
 - About window: separate `BrowserWindow`, loads `#/about`, opened through `window.appInfo.openAboutWindow()`.
 - Chat debug window: dev-only separate `BrowserWindow`, loads `#/chat-debug?sessionId=<id>`, disabled in packaged builds.
+- Command Center overlay: separate frameless always-on-top `BrowserWindow`, loads `#/command-center`, opened only while the Command Center extension is enabled.
 - Unknown renderer routes render the dedicated 404 view.
 - Packaged app registers the `zura-chat` protocol for trusted local chat deep links. Debug references keep the shape `zura-chat://<sessionId>?userData=<base64urlUserData>` and may include `message=` or `messageBase64=`.
 
@@ -163,6 +164,7 @@ Dedicated preload bridges include:
 - `window.terminal`
 - `window.chatDebug`
 - `window.chatLinks`
+- `window.commandCenter`
 - `window.discordRpc`
 
 If you add, rename, or remove an IPC channel:
@@ -181,6 +183,23 @@ Scheduled tasks include a narrow `scheduled-tasks:set-extension-enabled` channel
 that accepts only a boolean Reminders & Lookouts extension state from the
 renderer settings runtime. Main uses this state to start/stop scheduling and to
 reject scheduled-task mutations/runs while the extension is disabled.
+
+Command Center is an OS-level extension that exposes explicit Windows-native
+tool primitives through the existing `execute-tool` IPC path rather than a broad
+new desktop API. Its tools are `system_active_window`, `system_volume_get`,
+`system_status`, `system_volume_set`, `system_open_path`, and `window_snap`.
+Read-only context tools return foreground-window, local machine status, or audio
+state; mutating tools require the normal tool approval path. These tools are
+Windows-only, gated by the Command Center extension in renderer tool exposure,
+and implemented in main under
+`electron/tools/os-integration/`. The root Command Center overlay is owned by
+main through `electron/commandCenter.ts` and `electron/windows/commandCenterOverlay.ts`.
+Its global shortcut is registered only after the renderer syncs the enabled
+extension state through `command-center:set-extension-enabled`; disabling the
+extension unregisters the shortcut and hides the overlay. Direct overlay actions
+are a fixed main-process allowlist (`snap-left`, `snap-right`, `maximize-window`,
+`volume-30`, `volume-60`, `open-downloads`) and must not accept renderer-provided
+commands, paths, shell strings, or arbitrary tool names.
 
 ### CORS / Provider Proxy
 
@@ -210,6 +229,7 @@ Important tool rules:
 - Agent mode should prefer native structured tools before visual Computer Use and verify mutating actions with read-only inspection where possible.
 - Terminal (`system_shell`) is Windows-only, default disabled, non-interactive PowerShell with approval, timeout, output caps, and no OS sandbox. Treat any relaxation as security-sensitive.
 - Computer Use is Windows-only, default disabled, current-desktop only. Do not reintroduce a separate virtual desktop mode, `agent_desktop` settings, or `agent-desktop:*` IPC.
+- Command Center is Windows-only, default disabled, and provides active-window context plus narrow OS actions such as volume, OS-default path opening, and snap layouts. It must not become arbitrary shell execution, input simulation, clipboard scraping, or broad OS automation.
 - MCP resources and prompts are user-visible browsing/preview surfaces only; do not merge them into model-callable tools without an explicit architecture update.
 
 ### Providers
@@ -239,6 +259,7 @@ Important tool rules:
 - Folder `memoryMode` is selected when a folder is created and controls project memory scope: `default` includes global plus folder memories, while `folder-only` excludes global memories for chats in that folder.
 - Settings -> Extensions -> Memory lists global and folder-scoped background memories together, labels folder-scoped memories with folder metadata, and provides a project-memory filter.
 - Scheduled web lookouts may fetch public `http`/`https` URLs and local loopback hosts only. Keep private LAN URLs rejected.
+- Scheduled reminders/lookouts catch up overdue enabled tasks when the Reminders extension state is restored on startup or when the monitor runtime is rescheduled; the same overdue timestamp is launched only once per runtime.
 - Email notification settings in renderer are non-secret preferences only. `brevoApiKey` stays in secure storage, and the renderer must not send arbitrary email bodies over IPC.
 - Analytics is opt-in only. Main sanitizes events and must never accept prompts, responses, file paths, clipboard data, API keys, MCP payloads, or conversation content.
 - Discord RPC is always-on in main and lazy-requires `discord-rpc`; missing optional native dependencies must not crash the app.

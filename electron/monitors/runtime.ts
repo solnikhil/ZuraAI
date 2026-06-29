@@ -147,6 +147,7 @@ function createRuntime(deps: MonitorRuntimeDeps = {}): MonitorRuntime {
   const emailSender = deps.emailSender ?? sendScheduledTaskEmail
   const timers = new Map<string, ReturnType<typeof setTimeout>>()
   const running = new Set<string>()
+  const launchedDueKeys = new Set<string>()
   const pendingSummaries = new Map<string, PendingSummary>()
   let extensionEnabled = false
 
@@ -310,6 +311,7 @@ function createRuntime(deps: MonitorRuntimeDeps = {}): MonitorRuntime {
     timers.delete(task.id)
     if (!extensionEnabled) return
     if (!task.enabled) return
+    if (task.nextRunAt <= now()) return
 
     const delay = Math.max(0, Math.min(task.nextRunAt - now(), getMonitorIntervalMs(task.intervalPreset)))
     const timer = setTimeoutFn(() => {
@@ -327,23 +329,36 @@ function createRuntime(deps: MonitorRuntimeDeps = {}): MonitorRuntime {
     timers.set(task.id, timer)
   }
 
+  const runDueTasks = (tasks: ScheduledTaskDefinition[], reason: string): void => {
+    if (!extensionEnabled) return
+    const dueAt = now()
+    for (const task of tasks) {
+      if (!task.enabled || task.nextRunAt > dueAt) continue
+      if (running.has(task.id)) continue
+      const dueKey = `${task.id}:${task.nextRunAt}`
+      if (launchedDueKeys.has(dueKey)) continue
+      launchedDueKeys.add(dueKey)
+      const timer = timers.get(task.id)
+      if (timer) clearTimeoutFn(timer)
+      timers.delete(task.id)
+      void runTask(task).catch((error) => {
+        logMonitorWarning(`${reason}: ${error instanceof Error ? error.message : String(error)}`)
+      })
+    }
+  }
+
   const reschedule = async () => {
     for (const timer of timers.values()) clearTimeoutFn(timer)
     timers.clear()
     if (!extensionEnabled) return
     const tasks = await listScheduledTasks()
     for (const task of tasks) scheduleTask(task)
+    runDueTasks(tasks, 'overdue scheduled task failed')
   }
 
   const start = async () => {
     if (!extensionEnabled) return
     await reschedule()
-    const due = (await listScheduledTasks()).filter((task) => task.enabled && task.nextRunAt <= now())
-    for (const task of due) {
-      void runTask(task).catch((error) => {
-        logMonitorWarning(`startup scheduled task failed: ${error instanceof Error ? error.message : String(error)}`)
-      })
-    }
   }
 
   const stop = () => {

@@ -1,4 +1,4 @@
-export type SkillId = 'web_research' | 'code_execution' | 'terminal' | 'computer_use' | 'chart_generation' | 'memory' | 'reminders' | 'artifacts'
+export type SkillId = 'web_research' | 'code_execution' | 'terminal' | 'computer_use' | 'command_center' | 'chart_generation' | 'memory' | 'reminders' | 'artifacts'
 export type ExtensionId = SkillId
 
 export interface SkillState {
@@ -13,6 +13,7 @@ export interface CodeExecutionSkillState extends SkillState {}
 export interface TerminalSkillState extends SkillState {}
 
 export interface ComputerUseSkillState extends SkillState {}
+export interface CommandCenterSkillState extends SkillState {}
 
 export interface ChartGenerationSkillState extends SkillState {}
 
@@ -26,6 +27,7 @@ export type SkillsSettings = Record<string, SkillState> & {
   code_execution: CodeExecutionSkillState
   terminal: TerminalSkillState
   computer_use: ComputerUseSkillState
+  command_center: CommandCenterSkillState
   chart_generation: ChartGenerationSkillState
   memory: MemorySkillState
   reminders: RemindersSkillState
@@ -84,6 +86,17 @@ export const BUILT_IN_SKILLS: BuiltInSkill[] = [
       'Always take a screenshot first to see the current screen state.',
       'Analyze the screenshot carefully before performing any action.',
       'Verify results with a follow-up screenshot after each action.',
+    ],
+  },
+  {
+    id: 'command_center',
+    name: 'Command Center',
+    description: 'Give the assistant native OS context and safe system controls for the active Windows desktop.',
+    note: 'Windows-only. Read-only context is available without approval; volume, file/folder opening, and window snap actions require approval.',
+    usageGuidance: [
+      'Use active-window context before acting on the current app or desktop.',
+      'Prefer explicit OS tools for volume, opening files/folders, and window snap layouts instead of shell commands.',
+      'Ask for approval before changing system state, then verify with read-only active window or window list context.',
     ],
   },
   {
@@ -147,6 +160,10 @@ const DEFAULT_COMPUTER_USE_SKILL: ComputerUseSkillState = {
   enabled: false,
 }
 
+const DEFAULT_COMMAND_CENTER_SKILL: CommandCenterSkillState = {
+  enabled: false,
+}
+
 const DEFAULT_CHART_GENERATION_SKILL: ChartGenerationSkillState = {
   enabled: false,
 }
@@ -169,6 +186,7 @@ export const defaultSkillsSettings: SkillsSettings = {
   code_execution: DEFAULT_CODE_EXECUTION_SKILL,
   terminal: DEFAULT_TERMINAL_SKILL,
   computer_use: DEFAULT_COMPUTER_USE_SKILL,
+  command_center: DEFAULT_COMMAND_CENTER_SKILL,
   chart_generation: DEFAULT_CHART_GENERATION_SKILL,
   memory: DEFAULT_MEMORY_SKILL,
   reminders: DEFAULT_REMINDERS_SKILL,
@@ -218,7 +236,7 @@ export function normalizeSkillsSettings(raw: unknown): SkillsSettings {
 
   if (isRecord(raw)) {
     for (const [skillId, value] of Object.entries(raw)) {
-      if (skillId === 'web_research' || skillId === 'code_execution' || skillId === 'terminal' || skillId === 'testing' || skillId === 'computer_use' || skillId === 'chart_generation' || skillId === 'memory' || skillId === 'reminders' || skillId === 'artifacts' || skillId === 'agent_desktop') continue
+      if (skillId === 'web_research' || skillId === 'code_execution' || skillId === 'terminal' || skillId === 'testing' || skillId === 'computer_use' || skillId === 'command_center' || skillId === 'chart_generation' || skillId === 'memory' || skillId === 'reminders' || skillId === 'artifacts' || skillId === 'agent_desktop') continue
       const generic = normalizeGenericSkillState(value)
       if (generic) {
         normalized[skillId] = generic
@@ -242,6 +260,10 @@ export function normalizeSkillsSettings(raw: unknown): SkillsSettings {
   normalized.computer_use = normalizeKnownSkill(
     rawRecord?.computer_use,
     defaultSkillsSettings.computer_use
+  )
+  normalized.command_center = normalizeKnownSkill(
+    rawRecord?.command_center,
+    defaultSkillsSettings.command_center
   )
   normalized.chart_generation = normalizeKnownSkill(
     rawRecord?.chart_generation,
@@ -506,6 +528,11 @@ export function buildEnabledSkillsPrompt(
     skillLines.push('- Control This Desktop (`computer_use`): prefer native Windows tools for filesystem/app/window/UIA work, and use screenshots/click/type/scroll only when native tools cannot handle the task.')
     skillLines.push('- For Desktop/file organization tasks, first inspect directories with `file_search`/`file_read`, propose changes, then use `file_move` after approval. Do not open Run/Explorer or use screenshots for simple file moves.')
     skillLines.push('- For visual desktop tasks, screenshot first, analyze before acting, and verify results with follow-up screenshots.')
+  }
+
+  if (normalized.command_center.enabled) {
+    skillLines.push('- Command Center (`command_center`): use active-window context and explicit OS tools for native desktop requests before falling back to visual Computer Use or terminal commands.')
+    skillLines.push('- Read current app/window context with `system_active_window` and local machine status with `system_status`; use `system_volume_get`, `system_volume_set`, `system_open_path`, and `window_snap` for direct OS-level actions with approval where required.')
   }
 
   if (normalized.chart_generation.enabled) {

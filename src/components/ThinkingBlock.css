@@ -631,11 +631,35 @@
 
 .terminal-tool-command {
     display: flex;
+    align-items: flex-start;
     gap: 8px;
     color: #e6edf3;
     margin-bottom: 8px;
+}
+
+.terminal-tool-command-text {
+    flex: 1;
+    min-width: 0;
     white-space: pre-wrap;
     word-break: break-word;
+}
+
+.terminal-tool-copy-btn {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 1px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.45);
+    cursor: pointer;
+    transition: color 0.15s ease, opacity 0.15s ease;
+}
+
+.terminal-tool-copy-btn:hover {
+    color: rgba(255, 255, 255, 0.8);
 }
 
 .terminal-tool-prompt {
@@ -677,11 +701,25 @@
 }
 
 .terminal-tool-cwd {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: transparent;
     color: rgba(255, 255, 255, 0.4);
+    font: inherit;
     font-size: 11px;
+    text-align: left;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    cursor: pointer;
+    transition: color 0.15s ease;
+}
+
+.terminal-tool-cwd:hover {
+    color: rgba(255, 255, 255, 0.58);
 }
 
 .terminal-tool-status-badge {
@@ -697,46 +735,42 @@
 }
 
 
-/* Codex-style status blob for system_shell ("Ran command") entries */
-.thinking-cmd-blob {
-    display: inline-block;
-    flex-shrink: 0;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    margin-right: 2px;
-    background: var(--theme-success, #22c55e);
+/* Command knot icon for system_shell ("Ran command") entries — matches other muted thinking icons. */
+.thinking-tool-calling-icon.command-run-icon {
+    color: rgba(255, 255, 255, 0.5);
 }
 
-.thinking-cmd-blob--success {
-    background: var(--theme-success, #22c55e);
-    box-shadow: 0 0 6px color-mix(in srgb, var(--theme-success, #22c55e) 55%, transparent);
+.thinking-block.completed .thinking-tool-calling-icon.command-run-icon,
+.thinking-command-group .thinking-tool-calling-icon.command-run-icon,
+.thinking-command-row__head .thinking-tool-calling-icon.command-run-icon {
+    color: rgba(255, 255, 255, 0.5);
 }
 
-.thinking-cmd-blob--error {
-    background: var(--theme-error, #ef4444);
-    box-shadow: 0 0 6px color-mix(in srgb, var(--theme-error, #ef4444) 55%, transparent);
+.thinking-tool-calling-icon.command-run-icon.is-error {
+    color: var(--theme-warning, #f0883e);
 }
 
-.thinking-cmd-blob--running {
-    background: var(--theme-warning, #f59e0b);
-    box-shadow: 0 0 6px color-mix(in srgb, var(--theme-warning, #f59e0b) 55%, transparent);
-    animation: thinking-cmd-blob-pulse 1.2s ease-in-out infinite;
+.thinking-header.tool-calling .thinking-tool-calling-icon.command-run-icon.is-running {
+    color: var(--theme-info, rgba(59, 130, 246, 0.9));
 }
 
-@keyframes thinking-cmd-blob-pulse {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.4; transform: scale(0.8); }
+.thinking-tool-calling-icon.command-run-icon.is-running {
+    animation: thinking-command-run-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes thinking-command-run-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.45; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .thinking-cmd-blob--running {
+    .thinking-tool-calling-icon.command-run-icon.is-running {
         animation: none;
     }
 }
 
 /* "Ran N commands" group: use the muted thinking-block text color, not the
-   blue tool-call color, and keep the blob + chevron aligned with the label. */
+   blue tool-call color, and keep the icon + chevron aligned with the label. */
 .thinking-command-group .thinking-header.tool-call .thinking-text.thinking-cmd-text {
     color: rgba(255, 255, 255, 0.5);
 }
