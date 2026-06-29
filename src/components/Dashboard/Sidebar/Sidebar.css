@@ -329,7 +329,7 @@
   grid-template-columns: 16px minmax(0, 1fr);
   column-gap: 8px;
   padding: 0 12px;
-  font-weight: 500;
+  font-weight: 400;
 }
 
 .sidebar-header__btn:hover {
@@ -351,6 +351,7 @@
 
 .sidebar-header__icon {
   color: currentColor;
+  stroke-width: 1.75;
   flex-shrink: 0;
   width: 16px;
   height: 16px;
@@ -377,6 +378,7 @@
 }
 
 .sidebar-header__label {
+  font-weight: 400;
   text-align: left;
   line-height: 1;
   min-width: 0;
@@ -389,7 +391,7 @@
 
 .sidebar-section-label {
   font-size: 0.78rem;
-  font-weight: 400;
+  font-weight: 350;
   color: color-mix(in srgb, var(--theme-text-muted) 72%, var(--theme-text-primary) 28%);
   padding: 6px 6px 4px;
   display: flex;
@@ -403,7 +405,7 @@
 }
 
 .sidebar-container--macos .sidebar-section-label {
-  padding: 10px 6px 4px;
+  padding: 10px 12px 4px;
   letter-spacing: 0.06em;
 }
 
@@ -414,7 +416,7 @@
 
 .sidebar-section-label--heading {
   margin-top: 6px;
-  font-weight: 400;
+  font-weight: 350;
   color: color-mix(in srgb, var(--theme-text-muted) 72%, var(--theme-text-primary) 28%);
   letter-spacing: 0;
 }
@@ -608,7 +610,7 @@
 }
 
 .sidebar-container--macos .sidebar-chat-row {
-  padding: 6px 6px;
+  padding: 6px 12px;
   border-radius: 9px;
 }
 

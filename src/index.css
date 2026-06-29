@@ -213,7 +213,7 @@ body {
     --titlebar-nav-icon-color: var(--theme-text-secondary);
     position: fixed;
     top: 6px;
-    left: 74px;
+    left: 80px;
     z-index: 70;
     display: flex;
     align-items: center;
