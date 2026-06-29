@@ -1,25 +1,40 @@
 import { useEffect, useMemo } from 'react'
-import { Outlet, useNavigate } from 'react-router-dom'
+import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAppShell } from '../contexts/AppShellContext'
 import { useChatHistory } from '../contexts/ChatHistoryContext'
 import TitleBar from './TitleBar'
+import TitleBarSidebarControls from './TitleBarSidebarControls'
 import ResizeHandles from './ResizeHandles'
 import AppContextMenu from './AppContextMenu'
 import { useToast } from './shared/Toast'
 import { useMouseNavigation } from './shell/useMouseNavigation'
 import { useResizeIndicator } from './shell/useResizeIndicator'
 import { useWindowMaximizeState } from './shell/useWindowMaximizeState'
+import { useShellRouteState } from './shell/useShellRouteState'
+import { isMacOSRuntime, isWindowsRuntime } from '../utils/platform'
 
 export default function AppShellLayout() {
   const navigate = useNavigate()
-  const { dashboardView, hasUnsavedSettings, setDashboardView } = useAppShell()
+  const location = useLocation()
+  const {
+    dashboardView,
+    hasUnsavedSettings,
+    setDashboardView,
+    sidebarHidden,
+    toggleSidebarHidden,
+    canGoBack,
+    canGoForward,
+    goBack,
+    goForward,
+  } = useAppShell()
   const { clearCurrentSession } = useChatHistory()
   const { showToast } = useToast()
   const isDev = import.meta.env.DEV
 
-  const isWindows = useMemo(() => {
-    return navigator.platform.toLowerCase().includes('win')
-  }, [])
+  const isWindows = useMemo(() => isWindowsRuntime(), [])
+  const isMacOS = useMemo(() => isMacOSRuntime(), [])
+  const { hasSidebar } = useShellRouteState(location.pathname)
+  const isSettingsView = dashboardView === 'settings'
 
   const { isMaximized } = useWindowMaximizeState()
   const resizeIndicator = useResizeIndicator(isDev)
@@ -51,10 +66,28 @@ export default function AppShellLayout() {
         className={[
           'app-frame',
           isWindows ? 'app-frame--windows' : null,
+          isMacOS ? 'app-frame--macos' : null,
           isMaximized ? 'app-frame--maximized' : null,
         ].filter(Boolean).join(' ')}
       >
-        <TitleBar />
+        {isMacOS && <div className="app-macos-drag-region" aria-hidden="true" />}
+        {isMacOS && (
+          <div className="app-macos-titlebar-controls">
+            <TitleBarSidebarControls
+              canGoBack={canGoBack}
+              canGoForward={canGoForward}
+              isMacOS={isMacOS}
+              onBack={goBack}
+              onForward={goForward}
+              hasSidebar={hasSidebar}
+              hasUnsavedSettings={hasUnsavedSettings}
+              isSettingsView={isSettingsView}
+              sidebarHidden={sidebarHidden}
+              toggleSidebarHidden={toggleSidebarHidden}
+            />
+          </div>
+        )}
+        {isWindows && <TitleBar />}
         <div className="app-content">
           <Outlet />
         </div>

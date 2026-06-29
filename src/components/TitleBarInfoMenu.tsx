@@ -26,6 +26,50 @@ function extractUpdateVersion(result: UpdateCheckInfo | null): string | null {
   return typeof version === 'string' && version.trim().length > 0 ? version : null
 }
 
+function getAppInitials(name: string): string {
+  const trimmed = name.trim()
+  if (!trimmed) return 'Z'
+
+  const words = trimmed.split(/\s+/).filter(Boolean)
+  if (words.length >= 2) {
+    return `${words[0][0] ?? ''}${words[1][0] ?? ''}`.toUpperCase()
+  }
+
+  const alnum = trimmed.replace(/[^a-zA-Z0-9]/g, '')
+  if (alnum.length >= 2) return alnum.slice(0, 2).toUpperCase()
+  return alnum.slice(0, 1).toUpperCase() || 'Z'
+}
+
+function getAppDisplayName(name: string): string {
+  if (name === 'ZuraAI') return 'Zura'
+  return name.trim() || 'Zura'
+}
+
+function SidebarSettingsProfileTrigger({
+  appName,
+  sidebarCollapsed,
+}: {
+  appName: string
+  sidebarCollapsed: boolean
+}) {
+  const displayName = getAppDisplayName(appName)
+  const initials = getAppInitials(appName)
+
+  return (
+    <>
+      <span className="sidebar-settings-profile__avatar" aria-hidden="true">
+        {initials}
+      </span>
+      {!sidebarCollapsed ? (
+        <span className="sidebar-settings-profile__text">
+          <span className="sidebar-settings-profile__name">{displayName}</span>
+          <span className="sidebar-settings-profile__subtitle">Settings</span>
+        </span>
+      ) : null}
+    </>
+  )
+}
+
 /**
  * Pure label resolver for the "Check for Updates" dropdown row.
  * Exported so tests can cover all states without driving Radix popovers in jsdom.
@@ -113,6 +157,7 @@ export default function TitleBarInfoMenu({
   }, [showToast])
 
   const isPackaged = appInfo?.isPackaged ?? false
+  const appName = appInfo?.appName ?? 'ZuraAI'
   const settingsButtonDisabled = isSettingsView && hasUnsavedSettings
   const isSidebarTrigger = triggerVariant === 'sidebar'
   const updateBusy = updateState === 'checking' || updateState === 'available'
@@ -199,13 +244,13 @@ export default function TitleBarInfoMenu({
             {isSidebarTrigger ? (
               <button
                 type="button"
-                className="sidebar-header__btn sidebar-footer-row"
+                className="sidebar-header__btn sidebar-footer-row sidebar-footer-row--profile"
                 aria-label="Open app menu"
               >
-                <span className="sidebar-header__icon-slot" aria-hidden="true">
-                  <SettingsIcon size={16} className="sidebar-header__icon" />
-                </span>
-                {!sidebarCollapsed ? <span className="sidebar-header__label">Settings</span> : null}
+                <SidebarSettingsProfileTrigger
+                  appName={appName}
+                  sidebarCollapsed={sidebarCollapsed}
+                />
               </button>
             ) : (
               <button

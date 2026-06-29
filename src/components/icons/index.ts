@@ -49,6 +49,7 @@ export {
   Paintbrush,
   Bell,
   Terminal,
+  Puzzle,
 
   Play,
   Square,

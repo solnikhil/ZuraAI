@@ -90,6 +90,7 @@ import { HardDrivesIcon as HardDrivesBase } from '@phosphor-icons/react/dist/csr
 import { ShieldCheckIcon as ShieldCheckBase } from '@phosphor-icons/react/dist/csr/ShieldCheck'
 import { ShieldIcon as ShieldBase } from '@phosphor-icons/react/dist/csr/Shield'
 import { SparkleIcon as SparkleBase } from '@phosphor-icons/react/dist/csr/Sparkle'
+import { PuzzlePieceIcon as PuzzlePieceBase } from '@phosphor-icons/react/dist/csr/PuzzlePiece'
 import { SquareIcon as SquareBase } from '@phosphor-icons/react/dist/csr/Square'
 import { StarIcon as StarBase } from '@phosphor-icons/react/dist/csr/Star'
 import { DesktopIcon as DesktopBase } from '@phosphor-icons/react/dist/csr/Desktop'
@@ -211,6 +212,7 @@ export const PencilLine = withDefaultWeight(PencilLineBase, 'duotone', 'PencilLi
 export const Pin = withDefaultWeight(PushPinBase, 'duotone', 'Pin')
 export const Play = withDefaultWeight(PlayBase, 'fill', 'Play')
 export const Plus = withDefaultWeight(PlusBase, 'duotone', 'Plus')
+export const Puzzle = withDefaultWeight(PuzzlePieceBase, 'duotone', 'Puzzle')
 export const RefreshCcw = withDefaultWeight(ArrowClockwiseBase, 'duotone', 'RefreshCcw')
 export const RotateCcw = withDefaultWeight(ArrowCounterClockwiseBase, 'duotone', 'RotateCcw')
 export const RotateCw = withDefaultWeight(ArrowClockwiseBase, 'duotone', 'RotateCw')

@@ -285,7 +285,7 @@
 /* ── Header ────────────────────────────────────────────────── */
 
 .sidebar-header {
-  padding: 8px 8px 4px 4px;
+  padding: 8px 8px 4px;
   display: flex;
   flex-direction: column;
   gap: 1px;
@@ -293,7 +293,7 @@
 }
 
 .sidebar-container--macos .sidebar-header {
-  padding: 6px 8px 2px 4px;
+  padding: 36px 8px 2px;
   gap: 0;
 }
 
@@ -583,7 +583,7 @@
 }
 
 .sidebar-chatlist__utility-action {
-  padding-left: 8px;
+  padding-left: 4px;
   padding-right: 12px;
 }
 
@@ -774,6 +774,74 @@
   box-shadow: none;
 }
 
+.sidebar-footer-row--profile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  height: auto;
+  padding: 8px 10px;
+  border-radius: 12px;
+  color: var(--theme-text-primary);
+  transition:
+    background var(--motion-duration-micro) var(--motion-ease-standard),
+    border-color var(--motion-duration-micro) var(--motion-ease-standard),
+    color var(--motion-duration-micro) var(--motion-ease-standard),
+    box-shadow var(--motion-duration-micro) var(--motion-ease-standard);
+}
+
+.sidebar-footer-row--profile:hover {
+  background: color-mix(in srgb, var(--theme-surface-hover) 90%, var(--theme-text-primary) 6%);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--theme-border) 55%, transparent);
+}
+
+.sidebar-container.frosted .sidebar-footer-row--profile:hover {
+  background: color-mix(in srgb, var(--theme-surface-hover) 72%, rgba(255, 255, 255, 0.08));
+}
+
+.sidebar-settings-profile__avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #00c4a7;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.sidebar-settings-profile__text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  text-align: left;
+}
+
+.sidebar-settings-profile__name {
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--theme-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-settings-profile__subtitle {
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.2;
+  color: var(--theme-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .sidebar-container--collapsed .sidebar-footer-row {
   justify-content: center;
   grid-template-columns: 1fr;
@@ -781,7 +849,13 @@
   padding-right: 0;
 }
 
-.sidebar-container--collapsed .sidebar-footer-row .sidebar-header__label {
+.sidebar-container--collapsed .sidebar-footer-row--profile {
+  justify-content: center;
+  padding: 8px 0;
+}
+
+.sidebar-container--collapsed .sidebar-footer-row .sidebar-header__label,
+.sidebar-container--collapsed .sidebar-footer-row .sidebar-settings-profile__text {
   display: none;
 }
 
@@ -814,7 +888,8 @@
   .sidebar-container--expanded:not(.sidebar-container--peek) .sidebar-chat-row__content,
   .sidebar-container--expanded:not(.sidebar-container--peek) .sidebar-chat-row__more-btn,
   .sidebar-container--expanded:not(.sidebar-container--peek) .sidebar-chat-row__tags,
-  .sidebar-container--expanded:not(.sidebar-container--peek) .sidebar-footer-row .sidebar-header__label {
+  .sidebar-container--expanded:not(.sidebar-container--peek) .sidebar-footer-row .sidebar-header__label,
+  .sidebar-container--expanded:not(.sidebar-container--peek) .sidebar-footer-row .sidebar-settings-profile__text {
     display: none;
   }
 
@@ -824,6 +899,10 @@
     justify-content: center;
     padding-left: 0;
     padding-right: 0;
+  }
+
+  .sidebar-container--expanded:not(.sidebar-container--peek) .sidebar-footer-row--profile {
+    padding: 8px 0;
   }
 
   .sidebar-container--expanded:not(.sidebar-container--peek) .sidebar-chatlist__scroller,
@@ -840,8 +919,17 @@
   color: var(--theme-text-primary);
 }
 
+.sidebar-footer-row--profile[data-state='open'] {
+  background: color-mix(in srgb, var(--theme-surface-hover) 90%, var(--theme-text-primary) 6%);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--theme-border) 55%, transparent);
+}
+
 .sidebar-container.frosted .sidebar-footer-row[data-state='open'] {
   background: color-mix(in srgb, var(--theme-surface-active) 72%, transparent);
+}
+
+.sidebar-container.frosted .sidebar-footer-row--profile[data-state='open'] {
+  background: color-mix(in srgb, var(--theme-surface-hover) 72%, rgba(255, 255, 255, 0.08));
 }
 
 /* ── Settings nav ──────────────────────────────────────────── */
@@ -855,6 +943,10 @@
   min-height: 0;
   padding: 10px 10px 0 6px;
   overflow: hidden;
+}
+
+.sidebar-container--macos .sidebar-settings-content {
+  padding-top: 36px;
 }
 
 .sidebar-nav-item {

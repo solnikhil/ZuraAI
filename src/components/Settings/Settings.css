@@ -3150,10 +3150,6 @@
     background: color-mix(in srgb, var(--theme-surface-hover) 62%, transparent);
 }
 
-.provider-catalog-row--needs-setup {
-    border-left: 2px solid color-mix(in srgb, var(--theme-warning) 72%, transparent);
-}
-
 .provider-catalog-row--disabled {
     opacity: 0.82;
 }
