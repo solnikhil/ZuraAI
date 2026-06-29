@@ -83,6 +83,66 @@
     --border-hover: var(--theme-border-hover);
     --accent-primary: var(--theme-accent);
     --accent-secondary: var(--theme-accent-secondary);
+
+    color-scheme: dark;
+}
+
+/* Light fallback palette used before runtime theme hydration and when .dark is absent. */
+:root:not(.dark) {
+    --theme-background: #ede7df;
+    --theme-surface: #f0ebe4;
+    --theme-surface-subtle: rgba(143, 102, 40, 0.11);
+    --theme-surface-hover: #dcd7cf;
+    --theme-surface-active: #d3cec6;
+    --theme-surface-pressed: #c9c4be;
+
+    --theme-text-primary: #1f1a14;
+    --theme-text-secondary: rgba(31, 26, 20, 0.74);
+    --theme-text-tertiary: rgba(31, 26, 20, 0.6);
+    --theme-text-muted: rgba(31, 26, 20, 0.48);
+    --theme-text-inverse: #ffffff;
+
+    --theme-border: rgba(0, 0, 0, 0.19);
+    --theme-border-hover: rgba(0, 0, 0, 0.24);
+    --theme-border-active: rgba(0, 0, 0, 0.29);
+    --theme-border-subtle: rgba(0, 0, 0, 0.11);
+
+    --theme-accent: #8f6628;
+    --theme-accent-secondary: #845e25;
+    --theme-accent-hover: #7e5a23;
+    --theme-accent-muted: rgba(143, 102, 40, 0.22);
+    --theme-favorite: #9b7220;
+
+    --theme-error: #c4382f;
+    --theme-error-bg: rgba(196, 56, 47, 0.12);
+    --theme-success: #2f7d45;
+    --theme-success-bg: rgba(47, 125, 69, 0.12);
+    --theme-warning: #986f00;
+    --theme-warning-bg: rgba(152, 111, 0, 0.12);
+    --theme-info: #256bb8;
+    --theme-info-bg: rgba(37, 107, 184, 0.12);
+
+    --theme-user-message-bg: #9b763f;
+    --theme-user-message-text: #ffffff;
+    --theme-assistant-message-bg: rgba(0, 0, 0, 0.07);
+    --theme-assistant-message-text: #1f1a14;
+    --theme-overlay-bg: rgba(0, 0, 0, 0.44);
+    --theme-dimmer-bg: rgba(0, 0, 0, 0.32);
+    --theme-selection-bg: rgba(143, 102, 40, 0.28);
+    --theme-selection-text: #ffffff;
+
+    --theme-shadow-sm: 0 1px 2px rgba(45, 35, 22, 0.08);
+    --theme-shadow-md: 0 6px 18px rgba(45, 35, 22, 0.1);
+    --theme-shadow-lg: 0 14px 34px rgba(45, 35, 22, 0.12);
+
+    --theme-scrollbar: rgba(31, 26, 20, 0.18);
+    --theme-scrollbar-hover: rgba(31, 26, 20, 0.26);
+
+    --theme-glass-border: rgba(0, 0, 0, 0.12);
+    --theme-glass-border-light: rgba(0, 0, 0, 0.1);
+    --theme-glass-gloss: linear-gradient(180deg, rgba(255, 255, 255, 0.42) 0%, rgba(255, 255, 255, 0.12) 100%);
+
+    color-scheme: light;
 }
 
 /* Theme values are applied at runtime from theme definitions. */

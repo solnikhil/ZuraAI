@@ -105,10 +105,9 @@
 * {
     box-sizing: border-box;
     scrollbar-width: thin;
-    scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+    scrollbar-color: var(--theme-scrollbar) transparent;
 }
 
-/* Global dark scrollbar for Electron/Chromium */
 ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
@@ -119,12 +118,12 @@
 }
 
 ::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.15);
+    background: var(--theme-scrollbar);
     border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.25);
+    background: var(--theme-scrollbar-hover);
 }
 
 html,
@@ -213,8 +212,8 @@ body {
 .app-macos-titlebar-controls {
     --titlebar-nav-icon-color: var(--theme-text-secondary);
     position: fixed;
-    top: 7px;
-    left: 86px;
+    top: 6px;
+    left: 74px;
     z-index: 70;
     display: flex;
     align-items: center;
@@ -224,7 +223,7 @@ body {
 }
 
 .app-macos-titlebar-controls .app-titlebar__controls {
-    min-height: 28px;
+    min-height: 26px;
 }
 
 .app-macos-titlebar-controls .app-titlebar__controls--sidebar {
@@ -237,9 +236,14 @@ body {
 }
 
 .app-macos-titlebar-controls .app-titlebar__icon-btn--nav {
-    width: 28px;
-    height: 28px;
+    width: 26px;
+    height: 26px;
     border-radius: 7px;
+}
+
+.app-macos-titlebar-controls .app-titlebar__icon-btn--nav svg {
+    width: 15px;
+    height: 15px;
 }
 
 .dashboard-main-canvas {
@@ -791,10 +795,10 @@ li .katex-inline {
     flex-direction: column;
     width: 100%;
     border-radius: 16px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(18, 18, 20, 0.96);
+    border: 1px solid var(--theme-border-hover);
+    background: color-mix(in srgb, var(--theme-surface) 94%, var(--theme-background));
     overflow: hidden;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    box-shadow: var(--theme-shadow-md);
 }
 
 .prompt-popup-textarea {
@@ -805,14 +809,14 @@ li .katex-inline {
     background: transparent;
     border: none;
     outline: none;
-    color: rgba(240, 240, 245, 0.9);
+    color: var(--theme-text-primary);
     font-size: 0.9rem;
     font-weight: 450;
     font-family: inherit;
     line-height: 1.45;
     letter-spacing: -0.008em;
     padding: 12px 14px 8px;
-    caret-color: rgba(200, 200, 210, 0.85);
+    caret-color: var(--theme-accent);
     overflow-y: auto;
     scrollbar-width: none;
 }
@@ -822,7 +826,7 @@ li .katex-inline {
 }
 
 .prompt-popup-textarea::placeholder {
-    color: rgba(150, 150, 162, 0.38);
+    color: var(--theme-text-muted);
     font-weight: 400;
 }
 
@@ -854,20 +858,20 @@ li .katex-inline {
     border: none;
     border-radius: 7px;
     background: transparent;
-    color: rgba(255, 255, 255, 0.55);
+    color: var(--theme-text-secondary);
     cursor: pointer;
     transition: background 150ms ease, color 150ms ease;
 }
 
 .prompt-popup-plus:hover {
-    background: rgba(255, 255, 255, 0.08);
-    color: rgba(255, 255, 255, 0.9);
+    background: var(--theme-surface-hover);
+    color: var(--theme-text-primary);
 }
 
 .prompt-popup-model {
     font-size: 0.7rem;
     font-weight: 500;
-    color: rgba(160, 160, 175, 0.5);
+    color: var(--theme-text-muted);
     letter-spacing: 0.04em;
     padding: 2px 6px;
     border-radius: 5px;
@@ -881,8 +885,8 @@ li .katex-inline {
 }
 
 .prompt-popup-model:hover {
-    color: rgba(200, 200, 215, 0.8);
-    background: rgba(255, 255, 255, 0.06);
+    color: var(--theme-text-secondary);
+    background: var(--theme-surface-hover);
 }
 
 .prompt-popup-send {
@@ -891,9 +895,9 @@ li .katex-inline {
     justify-content: center;
     width: 36px;
     height: 36px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    background: rgba(38, 38, 42, 0.82);
-    color: rgba(220, 220, 230, 0.85);
+    border: 1px solid var(--theme-border-hover);
+    background: var(--theme-surface-active);
+    color: var(--theme-text-primary);
     border-radius: 999px;
     cursor: pointer;
     transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
@@ -901,9 +905,9 @@ li .katex-inline {
 
 .prompt-popup-send:hover,
 .prompt-popup-send:focus-visible {
-    background: rgba(50, 50, 56, 0.9);
-    color: rgba(250, 250, 255, 0.96);
-    border-color: rgba(255, 255, 255, 0.2);
+    background: var(--theme-surface-pressed);
+    color: var(--theme-text-primary);
+    border-color: var(--theme-border-active);
     outline: none;
 }
 
@@ -917,10 +921,11 @@ li .katex-inline {
     gap: 1px;
     padding: 3px;
     border-radius: 10px;
-    background: rgba(20, 20, 24, 0.92);
+    background: color-mix(in srgb, var(--theme-surface) 92%, var(--theme-background));
     backdrop-filter: blur(16px) saturate(1.2);
     -webkit-backdrop-filter: blur(16px) saturate(1.2);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--theme-border-hover);
+    box-shadow: var(--theme-shadow-md);
     min-width: 140px;
     z-index: 100;
 }
@@ -933,7 +938,7 @@ li .katex-inline {
     border: none;
     border-radius: 7px;
     background: transparent;
-    color: rgba(200, 200, 212, 0.82);
+    color: var(--theme-text-secondary);
     font-size: 0.8rem;
     font-weight: 450;
     font-family: inherit;
@@ -943,8 +948,8 @@ li .katex-inline {
 }
 
 .prompt-popup-menu-item:hover {
-    background: rgba(255, 255, 255, 0.07);
-    color: rgba(250, 250, 255, 0.96);
+    background: var(--theme-surface-hover);
+    color: var(--theme-text-primary);
 }
 
 .prompt-popup-menu-item svg {
