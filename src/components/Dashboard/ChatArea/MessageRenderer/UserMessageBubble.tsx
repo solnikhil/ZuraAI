@@ -69,6 +69,7 @@ export function UserMessageBubble({
         alignItems: 'flex-end',
         marginBottom: '24px',
         gap: '8px',
+        minWidth: 0,
       }}
     >
       {message.files && message.files.length > 0 && (
@@ -159,7 +160,10 @@ export function UserMessageBubble({
             borderRadius: '20px 20px 6px 20px',
             fontSize: '0.95rem',
             maxWidth: '70%',
+            minWidth: 0,
             whiteSpace: 'pre-wrap',
+            overflowWrap: 'anywhere',
+            wordBreak: 'break-word',
             ...bubbleStyleByPreset[bubbleStyle],
           }}
         >

@@ -24,6 +24,7 @@ import {
   draftServerToInputPayload,
   isDraftServerEqualToLiveServer,
   mcpServerToDraftServer,
+  validateDraftServer,
   type McpDraftServer,
 } from './draft'
 
@@ -189,6 +190,15 @@ export function McpProvider({ children }: { children: React.ReactNode }): React.
   const saveDraft = useCallback(async () => {
     if (!window.mcp) {
       throw new Error('MCP bridge is unavailable in this environment.')
+    }
+
+    const validationErrors = draftServers.flatMap((draftServer) =>
+      validateDraftServer(draftServer).map(
+        (message) => `${draftServer.name.trim() || 'Untitled Server'}: ${message}`
+      )
+    )
+    if (validationErrors.length > 0) {
+      throw new Error(validationErrors.join('\n'))
     }
 
     const liveServersById = new Map(snapshot.servers.map((server) => [server.id, server]))

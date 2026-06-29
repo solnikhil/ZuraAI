@@ -411,9 +411,11 @@ export default function ChatArea() {
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
+        minWidth: 0,
         minHeight: 0,
         background: 'var(--theme-content-solid)',
         position: 'relative',
+        overflow: 'hidden',
       }}
     >
       {useVirtualization ? (
@@ -443,9 +445,14 @@ export default function ChatArea() {
         <ScrollArea
           className="flex-1"
           data-select-all-scope="chat"
-          style={{ minHeight: 0 }}
+          style={{ minWidth: 0, minHeight: 0 }}
           viewportRef={messagesContainerRef}
-          viewportStyle={{ padding: '16px 20px 112px 20px', minHeight: 0 }}
+          viewportStyle={{
+            padding: '16px clamp(12px, 3vw, 20px) 112px',
+            minWidth: 0,
+            minHeight: 0,
+            boxSizing: 'border-box',
+          }}
         >
           <div
             data-select-all-scope="chat"
@@ -453,6 +460,7 @@ export default function ChatArea() {
               width: '100%',
               maxWidth: 'min(735px, 100%)',
               margin: '0 auto',
+              minWidth: 0,
               minHeight: '100%',
               display: 'flex',
               flexDirection: 'column',

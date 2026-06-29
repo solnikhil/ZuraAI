@@ -1,20 +1,31 @@
 import React from 'react'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import '@testing-library/jest-dom'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import McpLibraryDialog from './McpLibraryDialog'
 
-const showToast = vi.fn()
-const readResource = vi.fn()
-const getPrompt = vi.fn()
+const mocks = vi.hoisted(() => ({
+  showToast: vi.fn(),
+  readResource: vi.fn(),
+  getPrompt: vi.fn(),
+  upsertDraftServer: vi.fn(),
+  fetchMcpCatalogue: vi.fn(),
+  isCatalogueEntryAdded: vi.fn(),
+}))
 
 vi.mock('@/components/shared', () => ({
-  useToast: () => ({ showToast }),
+  useToast: () => ({ showToast: mocks.showToast }),
+}))
+
+vi.mock('@/mcp/catalogue', () => ({
+  fetchMcpCatalogue: (...args: unknown[]) => mocks.fetchMcpCatalogue(...args),
+  isCatalogueEntryAdded: (...args: unknown[]) => mocks.isCatalogueEntryAdded(...args),
 }))
 
 vi.mock('@/mcp/McpContext', () => ({
   useMcp: () => ({
+    draftServers: [],
     resources: [
       {
         serverId: 'server-1',
@@ -46,21 +57,84 @@ vi.mock('@/mcp/McpContext', () => ({
         },
       },
     ],
-    readResource,
-    getPrompt,
+    readResource: mocks.readResource,
+    getPrompt: mocks.getPrompt,
+    upsertDraftServer: mocks.upsertDraftServer,
   }),
 }))
 
 describe('McpLibraryDialog', () => {
+  afterEach(() => {
+    cleanup()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
-    readResource.mockResolvedValue({
+    mocks.showToast.mockClear()
+    mocks.readResource.mockClear()
+    mocks.getPrompt.mockClear()
+    mocks.readResource.mockResolvedValue({
       contents: [{ uri: 'file:///tmp/demo.txt', text: 'Demo resource body' }],
     })
-    getPrompt.mockResolvedValue({
+    mocks.getPrompt.mockResolvedValue({
       description: 'Prompt preview',
       messages: [{ role: 'user', content: 'Prompt body' }],
     })
+    mocks.upsertDraftServer.mockReset()
+    mocks.fetchMcpCatalogue.mockReset()
+    mocks.fetchMcpCatalogue.mockResolvedValue([
+      {
+        id: 'npm-entry',
+        name: 'io.example/npm',
+        title: 'NPM Server',
+        description: 'Installable npm MCP',
+        version: '1.0.0',
+        publisher: 'Example',
+        sourceLabel: 'npm package',
+        installKind: 'npm',
+        supported: true,
+        draft: {
+          id: 'draft-npm',
+          name: 'NPM Server',
+          enabled: false,
+          trustState: 'untrusted',
+          transport: 'stdio',
+          command: 'npx',
+          argsText: '-y\n@example/mcp',
+          cwd: '',
+          url: '',
+          env: [],
+          headers: [],
+          authToken: null,
+          autoConnect: false,
+          startupTimeoutMs: '',
+          toolTimeoutMs: '',
+          reconnectAttempts: '',
+          reconnectDelayMs: '',
+          requireApproval: true,
+          toolAllowlistText: '',
+          toolBlocklistText: '',
+        },
+        secretRequirements: [],
+        fingerprints: ['npm:@example/mcp'],
+        isLatest: true,
+      },
+      {
+        id: 'unsupported-entry',
+        name: 'io.example/http',
+        title: 'HTTP Server',
+        description: 'Unsupported transport',
+        sourceLabel: 'Streamable HTTP remote',
+        installKind: 'unsupported',
+        supported: false,
+        unsupportedReason: 'ZuraAI does not support streamable-http MCP transport yet.',
+        secretRequirements: ['Authorization: Bearer token'],
+        fingerprints: ['name:io.example/http'],
+        isLatest: true,
+      },
+    ])
+    mocks.isCatalogueEntryAdded.mockReset()
+    mocks.isCatalogueEntryAdded.mockReturnValue(false)
   })
 
   it('reads a resource and inserts it into the composer draft', async () => {
@@ -73,7 +147,7 @@ describe('McpLibraryDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: /demo file/i }))
 
     await waitFor(() => {
-      expect(readResource).toHaveBeenCalledWith('server-1', 'file:///tmp/demo.txt')
+      expect(mocks.readResource).toHaveBeenCalledWith('server-1', 'file:///tmp/demo.txt')
     })
 
     fireEvent.click(screen.getByRole('button', { name: /insert into composer/i }))
@@ -98,7 +172,7 @@ describe('McpLibraryDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: /preview prompt/i }))
 
     await waitFor(() => {
-      expect(getPrompt).toHaveBeenCalledWith('server-1', 'summarize_demo', { topic: 'release notes' })
+      expect(mocks.getPrompt).toHaveBeenCalledWith('server-1', 'summarize_demo', { topic: 'release notes' })
     })
 
     fireEvent.click(screen.getByRole('button', { name: /insert into composer/i }))
@@ -114,7 +188,7 @@ describe('McpLibraryDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: /demo file/i }))
 
     await waitFor(() => {
-      expect(readResource).toHaveBeenCalledWith('server-1', 'file:///tmp/demo.txt')
+      expect(mocks.readResource).toHaveBeenCalledWith('server-1', 'file:///tmp/demo.txt')
     })
 
     expect(screen.getByRole('button', { name: /insert into composer/i })).toBeInTheDocument()
@@ -124,5 +198,57 @@ describe('McpLibraryDialog', () => {
 
     expect(screen.queryByRole('button', { name: /insert into composer/i })).not.toBeInTheDocument()
     expect(screen.getByText('Select a resource to preview its contents.')).toBeInTheDocument()
+  })
+
+  it('loads catalogue entries and adds compatible servers as drafts', async () => {
+    render(
+      <McpLibraryDialog open={true} onOpenChange={vi.fn()} initialMode="catalogue" />
+    )
+
+    await waitFor(() => {
+      expect(mocks.fetchMcpCatalogue).toHaveBeenCalled()
+    })
+
+    fireEvent.click(await screen.findByRole('button', { name: /npm server/i }))
+    fireEvent.click(screen.getByRole('button', { name: /add draft/i }))
+
+    expect(mocks.upsertDraftServer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'NPM Server',
+        enabled: false,
+        trustState: 'untrusted',
+        requireApproval: true,
+      })
+    )
+    expect(mocks.showToast).toHaveBeenCalledWith(
+      'Added NPM Server as a draft. Review and save to install.',
+      'success'
+    )
+  })
+
+  it('shows unsupported bundled entries without allowing installation', async () => {
+    render(
+      <McpLibraryDialog open={true} onOpenChange={vi.fn()} initialMode="catalogue" />
+    )
+
+    fireEvent.change(await screen.findByLabelText(/search mcp catalogue/i), {
+      target: { value: 'HTTP' },
+    })
+    fireEvent.click(await screen.findByRole('button', { name: /http server/i }))
+
+    expect(screen.getByText(/does not support streamable-http/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /add draft/i })).toBeDisabled()
+  })
+
+  it('marks already configured catalogue entries as added', async () => {
+    mocks.isCatalogueEntryAdded.mockReturnValue(true)
+
+    render(
+      <McpLibraryDialog open={true} onOpenChange={vi.fn()} initialMode="catalogue" />
+    )
+
+    await screen.findByRole('button', { name: /npm server/i })
+
+    expect(screen.getByRole('button', { name: /^added$/i })).toBeDisabled()
   })
 })

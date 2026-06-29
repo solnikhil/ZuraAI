@@ -3,6 +3,7 @@ import { describe, expect, it, beforeEach, vi } from 'vitest'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import { McpProvider, useMcp } from './McpContext'
+import { createDraftConfigValue } from './draft'
 
 let stateListener: ((snapshot: any) => void) | null = null
 const windowWithMcp = window as Window & typeof globalThis & { mcp: any }
@@ -116,6 +117,28 @@ describe('McpContext', () => {
 
     expect(windowWithMcp.mcp.getState).toHaveBeenCalledTimes(2)
   })
+
+  it('blocks saving drafts with required secrets that have not been filled', async () => {
+    render(
+      <McpProvider>
+        <Probe />
+      </McpProvider>
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('dirty-flag').textContent).toBe('clean')
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'add-secret-draft' }))
+    fireEvent.click(screen.getByRole('button', { name: 'save-draft' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('save-error').textContent).toContain(
+        'Secret Server: Auth token needs a secret value or a stored secret.'
+      )
+    })
+    expect(windowWithMcp.mcp.addServer).not.toHaveBeenCalled()
+  })
 })
 
 function Probe(): React.ReactElement {
@@ -130,6 +153,7 @@ function Probe(): React.ReactElement {
     tools,
     upsertDraftServer,
   } = useMcp()
+  const [saveError, setSaveError] = React.useState('')
 
   return (
     <div>
@@ -141,6 +165,7 @@ function Probe(): React.ReactElement {
       <div data-testid="tool-count">{tools.length}</div>
       <div data-testid="approval-count">{pendingApprovals.length}</div>
       <div data-testid="dirty-flag">{hasDraftChanges ? 'dirty' : 'clean'}</div>
+      <div data-testid="save-error">{saveError}</div>
       <button
         type="button"
         aria-label="add-draft"
@@ -158,7 +183,37 @@ function Probe(): React.ReactElement {
       >
         add-draft
       </button>
-      <button type="button" aria-label="save-draft" onClick={() => void saveDraft()}>
+      <button
+        type="button"
+        aria-label="add-secret-draft"
+        onClick={() => {
+          const nextServer = createDraftServer()
+          upsertDraftServer({
+            ...nextServer,
+            name: 'Secret Server',
+            transport: 'sse',
+            url: 'https://example.com/sse',
+            authToken: createDraftConfigValue('token', {
+              name: 'Authorization',
+              valueSource: 'secret',
+              secretValue: '',
+              secretStored: false,
+            }),
+          })
+        }}
+      >
+        add-secret-draft
+      </button>
+      <button
+        type="button"
+        aria-label="save-draft"
+        onClick={() => {
+          setSaveError('')
+          void saveDraft().catch((error: unknown) => {
+            setSaveError(error instanceof Error ? error.message : String(error))
+          })
+        }}
+      >
         save-draft
       </button>
       <button type="button" aria-label="connect" onClick={() => void connectServer('server-1')}>

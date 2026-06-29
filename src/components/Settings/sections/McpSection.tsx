@@ -97,7 +97,7 @@ export function McpSection(): React.ReactElement {
   const [serverActionState, setServerActionState] = useState<
     Record<string, 'connecting' | 'disconnecting' | 'idle'>
   >({})
-  const [libraryMode, setLibraryMode] = useState<'resources' | 'prompts' | null>(null)
+  const [libraryMode, setLibraryMode] = useState<'catalogue' | 'resources' | 'prompts' | null>(null)
   const [libraryServerId, setLibraryServerId] = useState<string | undefined>(undefined)
   const [toolsDialogServer, setToolsDialogServer] = useState<McpDraftServer | null>(null)
   const [mcpJsonDialogOpen, setMcpJsonDialogOpen] = useState(false)
@@ -295,7 +295,7 @@ export function McpSection(): React.ReactElement {
               size="sm"
               onClick={() => {
                 setLibraryServerId(undefined)
-                setLibraryMode('resources')
+                setLibraryMode('catalogue')
               }}
             >
               Browse Library
@@ -548,6 +548,7 @@ export function McpSection(): React.ReactElement {
         }}
         initialMode={libraryMode ?? 'resources'}
         serverId={libraryServerId}
+        showCatalogue
       />
 
       <Dialog

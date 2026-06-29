@@ -34,10 +34,11 @@ export const CHAT_AREA_STYLES = `
           left: 0;
           right: 0;
           bottom: 0;
-          padding: 0 20px 6px;
+          padding: 0 clamp(12px, 3vw, 20px) 6px;
           pointer-events: none;
           background: transparent;
           isolation: isolate;
+          box-sizing: border-box;
         }
         .chat-input-overlay::before {
           content: "";
@@ -55,8 +56,10 @@ export const CHAT_AREA_STYLES = `
           z-index: 1;
           width: 100%;
           max-width: min(735px, 100%);
+          min-width: 0;
           margin: 0 auto;
           pointer-events: auto;
+          box-sizing: border-box;
         }
         @keyframes spin {
           to { transform: rotate(360deg); }

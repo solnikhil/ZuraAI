@@ -179,6 +179,15 @@ MCP includes a narrow `mcp:open-config-file` channel that opens ZuraAI's own
 `mcp-servers.json` under `app.getPath('userData')` with the OS default editor.
 It must not accept renderer-provided paths.
 
+Settings -> MCP Servers -> Browse Library loads a bundled, Zura-owned MCP
+catalogue JSON in the renderer. Catalogue entries may create unsaved MCP server
+drafts only; users must review, save, trust, and connect through the existing
+MCP settings flow. The catalogue must not fetch remote catalogue metadata, must
+not introduce a main-process HTTP proxy or IPC channel, must not persist
+placeholder secrets, and must leave unsupported registry transports (such as
+streamable HTTP until implemented) visibly unavailable rather than silently
+substituting another transport.
+
 Scheduled tasks include a narrow `scheduled-tasks:set-extension-enabled` channel
 that accepts only a boolean Reminders & Lookouts extension state from the
 renderer settings runtime. Main uses this state to start/stop scheduling and to

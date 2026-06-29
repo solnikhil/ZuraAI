@@ -1,0 +1,83 @@
+[
+  {
+    "name": "io.modelcontextprotocol/sequential-thinking",
+    "title": "Sequential Thinking",
+    "description": "Break complex tasks into structured, revisable reasoning steps.",
+    "version": "2025.7.1",
+    "repositoryUrl": "https://github.com/modelcontextprotocol/servers",
+    "publisher": "Model Context Protocol",
+    "install": {
+      "type": "npm",
+      "identifier": "@modelcontextprotocol/server-sequential-thinking"
+    }
+  },
+  {
+    "name": "io.modelcontextprotocol/memory",
+    "title": "Memory",
+    "description": "Store and retrieve a local knowledge graph through MCP tools.",
+    "version": "2025.7.1",
+    "repositoryUrl": "https://github.com/modelcontextprotocol/servers",
+    "publisher": "Model Context Protocol",
+    "install": {
+      "type": "npm",
+      "identifier": "@modelcontextprotocol/server-memory"
+    }
+  },
+  {
+    "name": "io.modelcontextprotocol/github",
+    "title": "GitHub",
+    "description": "Work with GitHub repositories, issues, and pull requests through MCP tools.",
+    "version": "2025.7.1",
+    "repositoryUrl": "https://github.com/modelcontextprotocol/servers",
+    "publisher": "Model Context Protocol",
+    "install": {
+      "type": "npm",
+      "identifier": "@modelcontextprotocol/server-github"
+    },
+    "setup": [
+      {
+        "name": "GITHUB_PERSONAL_ACCESS_TOKEN",
+        "description": "GitHub personal access token",
+        "secret": true,
+        "required": true,
+        "target": "env"
+      }
+    ]
+  },
+  {
+    "name": "io.modelcontextprotocol/fetch",
+    "title": "Fetch",
+    "description": "Fetch web content and convert it into markdown for model context.",
+    "version": "2025.7.1",
+    "repositoryUrl": "https://github.com/modelcontextprotocol/servers",
+    "publisher": "Model Context Protocol",
+    "install": {
+      "type": "pypi",
+      "identifier": "mcp-server-fetch"
+    }
+  },
+  {
+    "name": "com.context7/mcp",
+    "title": "Context7",
+    "description": "Retrieve up-to-date library documentation through a remote MCP endpoint.",
+    "version": "1.0.0",
+    "repositoryUrl": "https://github.com/upstash/context7",
+    "publisher": "Upstash",
+    "install": {
+      "type": "sse",
+      "url": "https://mcp.context7.com/sse"
+    }
+  },
+  {
+    "name": "com.example/streamable-http",
+    "title": "Streamable HTTP Example",
+    "description": "Example entry for MCP servers that require streamable HTTP transport.",
+    "version": "1.0.0",
+    "publisher": "ZuraAI",
+    "install": {
+      "type": "streamable-http",
+      "url": "https://example.com/mcp",
+      "reason": "ZuraAI does not support streamable-http MCP transport yet."
+    }
+  }
+]

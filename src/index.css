@@ -143,6 +143,14 @@ body {
     transition: background-color var(--motion-duration-slow) var(--motion-ease-standard), color var(--motion-duration-slow) var(--motion-ease-standard);
 }
 
+#root {
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+}
+
 ::selection {
     background: var(--theme-selection-bg);
     color: var(--theme-selection-text);
@@ -180,6 +188,8 @@ body {
     flex-direction: column;
     width: 100%;
     height: 100%;
+    min-width: 0;
+    min-height: 0;
     overflow: hidden;
     background-color: var(--theme-background);
 }
@@ -188,6 +198,7 @@ body {
     position: relative;
     z-index: 1;
     flex: 1;
+    min-width: 0;
     min-height: 0;
     overflow: hidden;
     border-top: none;
@@ -737,11 +748,24 @@ li .katex-inline {
 /* Message content - isolate layout and paint from siblings */
 .markdown-content {
     contain: content;
+    max-width: 100%;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 
 /* Virtual list items - prevent layout thrashing during scroll */
 [data-message-id] {
     contain: layout style;
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.assistant-message-shell {
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
 }
 
 /* Code blocks - isolate heavy syntax highlighting */

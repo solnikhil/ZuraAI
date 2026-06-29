@@ -6,9 +6,15 @@ import { McpSection } from './McpSection'
 
 const mockShowToast = vi.fn()
 const mockUseMcp = vi.fn()
+const mockFetchMcpCatalogue = vi.fn()
 
 vi.mock('@/components/shared', () => ({
   useToast: () => ({ showToast: mockShowToast }),
+}))
+
+vi.mock('@/mcp/catalogue', () => ({
+  fetchMcpCatalogue: (...args: unknown[]) => mockFetchMcpCatalogue(...args),
+  isCatalogueEntryAdded: () => false,
 }))
 
 vi.mock('@/mcp/McpContext', () => ({
@@ -39,6 +45,45 @@ describe('McpSection', () => {
   beforeEach(() => {
     mockShowToast.mockReset()
     mockUseMcp.mockReset()
+    mockFetchMcpCatalogue.mockReset()
+    mockFetchMcpCatalogue.mockResolvedValue([
+      {
+        id: 'npm-entry',
+        name: 'io.example/npm',
+        title: 'NPM Server',
+        description: 'Installable npm MCP',
+        version: '1.0.0',
+        publisher: 'Example',
+        sourceLabel: 'npm package',
+        installKind: 'npm',
+        supported: true,
+        draft: {
+          id: 'draft-npm',
+          name: 'NPM Server',
+          enabled: false,
+          trustState: 'untrusted',
+          transport: 'stdio',
+          command: 'npx',
+          argsText: '-y\n@example/mcp',
+          cwd: '',
+          url: '',
+          env: [],
+          headers: [],
+          authToken: null,
+          autoConnect: false,
+          startupTimeoutMs: '',
+          toolTimeoutMs: '',
+          reconnectAttempts: '',
+          reconnectDelayMs: '',
+          requireApproval: true,
+          toolAllowlistText: '',
+          toolBlocklistText: '',
+        },
+        secretRequirements: [],
+        fingerprints: ['npm:@example/mcp'],
+        isLatest: true,
+      },
+    ])
   })
 
   it('renders configured servers with connection state and discovered tools', () => {
@@ -178,6 +223,29 @@ describe('McpSection', () => {
     fireEvent.click(screen.getByRole('button', { name: /open local file/i }))
 
     expect(openConfigFile).toHaveBeenCalled()
+  })
+
+  it('opens Browse Library in catalogue mode and adds selected servers as unsaved drafts', async () => {
+    const upsertDraftServer = vi.fn()
+    mockUseMcp.mockReturnValue(createMcpContextValue({ upsertDraftServer }))
+
+    render(<McpSection />)
+
+    fireEvent.click(screen.getByRole('button', { name: /browse library/i }))
+
+    expect(await screen.findByLabelText(/search mcp catalogue/i)).toBeTruthy()
+    expect(mockFetchMcpCatalogue).toHaveBeenCalled()
+    fireEvent.click(await screen.findByRole('button', { name: /npm server/i }))
+    fireEvent.click(screen.getByRole('button', { name: /add draft/i }))
+
+    expect(upsertDraftServer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'NPM Server',
+        enabled: false,
+        trustState: 'untrusted',
+        requireApproval: true,
+      })
+    )
   })
 })
 

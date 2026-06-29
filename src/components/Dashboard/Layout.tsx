@@ -120,6 +120,8 @@ export default function DashboardLayout() {
       <div
         style={{
           flex: 1,
+          minWidth: 0,
+          minHeight: 0,
           position: 'relative',
           overflow: 'hidden',
           backgroundColor: 'transparent',
