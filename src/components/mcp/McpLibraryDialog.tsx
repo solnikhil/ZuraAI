@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { ChevronDown, Search } from 'lucide-react'
 
 import { useToast } from '@/components/shared'
 import { Badge } from '@/components/ui/badge'
@@ -41,7 +42,6 @@ export function McpLibraryDialog({
   const [mode, setMode] = useState<McpLibraryMode>(initialMode)
   const [catalogueEntries, setCatalogueEntries] = useState<McpCatalogueEntry[]>([])
   const [catalogueQuery, setCatalogueQuery] = useState('')
-  const [selectedCatalogueId, setSelectedCatalogueId] = useState<string | null>(null)
   const [catalogueLoading, setCatalogueLoading] = useState(false)
   const [catalogueLoaded, setCatalogueLoaded] = useState(false)
   const [catalogueError, setCatalogueError] = useState<string | null>(null)
@@ -57,7 +57,6 @@ export function McpLibraryDialog({
   useEffect(() => {
     if (open) {
       setMode(initialMode)
-      setSelectedCatalogueId(null)
       setCatalogueQuery('')
       setSelectedResourceKey(null)
       setSelectedPromptKey(null)
@@ -87,7 +86,6 @@ export function McpLibraryDialog({
         if (cancelled) return
         setCatalogueEntries(entries)
         setCatalogueLoaded(true)
-        setSelectedCatalogueId(entries[0]?.id ?? null)
       })
       .catch((loadError) => {
         if (cancelled) return
@@ -139,10 +137,6 @@ export function McpLibraryDialog({
         .some((value) => value!.toLowerCase().includes(query))
     )
   }, [catalogueEntries, catalogueQuery])
-  const selectedCatalogueEntry = useMemo(
-    () => filteredCatalogueEntries.find((entry) => entry.id === selectedCatalogueId) ?? filteredCatalogueEntries[0] ?? null,
-    [filteredCatalogueEntries, selectedCatalogueId]
-  )
 
   useEffect(() => {
     if (!selectedPrompt) {
@@ -236,124 +230,81 @@ export function McpLibraryDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[88vh] w-[min(1120px,calc(100vw_-_48px))] max-w-none overflow-hidden border border-border/80 bg-card p-0 shadow-2xl ring-1 ring-white/10 sm:max-w-none">
-        <DialogHeader className="border-b border-border/70 bg-secondary/20 px-6 py-5">
+      <DialogContent className="max-h-[88vh] w-[min(1120px,calc(100vw_-_48px))] max-w-none gap-0 overflow-hidden bg-[#1f1f1f] p-0 text-foreground sm:max-w-none">
+        <DialogHeader className="bg-[#1f1f1f] px-6 py-5">
           <DialogTitle className="text-xl">MCP Library</DialogTitle>
           <DialogDescription className="max-w-3xl">
             Browse curated MCP servers, or inspect trusted resources and prompts from connected servers.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-wrap items-center gap-2 border-b border-border/60 bg-background/20 px-6 py-3">
-          {catalogueAvailable && (
+        <div className="grid gap-3 bg-[#1f1f1f] px-6 py-4 md:grid-cols-[minmax(0,1fr)_360px] md:items-center">
+          <div className="flex flex-wrap items-center gap-2">
+            {catalogueAvailable && (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className={libraryTabClassName(mode === 'catalogue')}
+                onClick={() => setMode('catalogue')}
+              >
+                Catalogue
+                <Badge variant="secondary" className="ml-2">{catalogueEntries.length}</Badge>
+              </Button>
+            )}
             <Button
               type="button"
               size="sm"
-              variant={mode === 'catalogue' ? 'default' : 'outline'}
-              onClick={() => setMode('catalogue')}
+              variant="ghost"
+              className={libraryTabClassName(mode === 'resources')}
+              onClick={() => setMode('resources')}
             >
-              Catalogue
-              <Badge variant="secondary" className="ml-2">{catalogueEntries.length}</Badge>
+              Resources
+              <Badge variant="secondary" className="ml-2">{visibleResources.length}</Badge>
             </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className={libraryTabClassName(mode === 'prompts')}
+              onClick={() => setMode('prompts')}
+            >
+              Prompts
+              <Badge variant="secondary" className="ml-2">{visiblePrompts.length}</Badge>
+            </Button>
+          </div>
+          {mode === 'catalogue' && (
+            <div className="relative w-full">
+              <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                className="h-10 w-full rounded-xl border-0 bg-[#252525] pl-10 text-sm shadow-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-white/10"
+                value={catalogueQuery}
+                onChange={(event) => setCatalogueQuery(event.target.value)}
+                placeholder="Search MCP servers..."
+                aria-label="Search MCP catalogue"
+              />
+            </div>
           )}
-          <Button
-            type="button"
-            size="sm"
-            variant={mode === 'resources' ? 'default' : 'outline'}
-            onClick={() => setMode('resources')}
-          >
-            Resources
-            <Badge variant="secondary" className="ml-2">{visibleResources.length}</Badge>
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant={mode === 'prompts' ? 'default' : 'outline'}
-            onClick={() => setMode('prompts')}
-          >
-            Prompts
-            <Badge variant="secondary" className="ml-2">{visiblePrompts.length}</Badge>
-          </Button>
         </div>
 
-        <div className="grid h-[min(680px,calc(100vh_-_220px))] min-h-[520px] gap-0 bg-[linear-gradient(180deg,color-mix(in_srgb,var(--theme-surface)_94%,var(--theme-background)),var(--theme-surface))] md:grid-cols-[minmax(320px,380px)_minmax(0,1fr)]">
-          <ScrollArea className="min-h-0 border-r border-border/60 bg-background/20">
-            <div className="space-y-3 p-4">
-              {mode === 'catalogue' ? (
-                <>
-                  <Input
-                    className="border-border/80 bg-background/35 shadow-xs"
-                    value={catalogueQuery}
-                    onChange={(event) => {
-                      setCatalogueQuery(event.target.value)
-                      setSelectedCatalogueId(null)
-                    }}
-                    placeholder="Search MCP servers..."
-                    aria-label="Search MCP catalogue"
-                  />
-                  {catalogueLoading && catalogueEntries.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-border/70 bg-card/40 p-4 text-sm text-muted-foreground">
-                      Loading MCP catalogue...
-                    </div>
-                  ) : catalogueError ? (
-                    <div className="space-y-3 rounded-xl border border-destructive/40 bg-card/40 p-4 text-sm">
-                      <div className="text-destructive">{catalogueError}</div>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setCatalogueLoaded(false)
-                          setCatalogueError(null)
-                        }}
-                      >
-                        Try again
-                      </Button>
-                    </div>
-                  ) : filteredCatalogueEntries.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-border/70 bg-card/40 p-4 text-sm text-muted-foreground">
-                      No catalogue entries match your search.
-                    </div>
-                  ) : (
-                    filteredCatalogueEntries.map((entry) => {
-                      const selected = selectedCatalogueEntry?.id === entry.id
-                      const added = isCatalogueEntryAdded(entry, draftServers)
-                      return (
-                        <button
-                          key={entry.id}
-                          type="button"
-                          onClick={() => setSelectedCatalogueId(entry.id)}
-                          className={libraryItemClassName(selected)}
-                        >
-                          {selected && <span className="absolute inset-y-3 left-0 w-1 rounded-r-full bg-primary/70" />}
-                          <div className="flex items-center gap-2">
-                            <span className="truncate font-medium text-foreground">
-                              {entry.title || entry.name}
-                            </span>
-                            {added && <Badge className="ml-auto" variant="secondary">Added</Badge>}
-                          </div>
-                          <div className="mt-1 truncate text-xs text-muted-foreground">{entry.name}</div>
-                          {entry.description && (
-                            <div className="mt-2 line-clamp-2 text-xs text-muted-foreground">
-                              {entry.description}
-                            </div>
-                          )}
-                          <div className="mt-2 flex flex-wrap gap-1">
-                            <Badge variant="outline">{entry.sourceLabel}</Badge>
-                            {entry.version && <Badge variant="outline">v{entry.version}</Badge>}
-                            {entry.publisher && <Badge variant="outline">{entry.publisher}</Badge>}
-                            {entry.secretRequirements.length > 0 && (
-                              <Badge variant="outline">Auth required</Badge>
-                            )}
-                            {!entry.supported && <Badge variant="destructive">Unsupported</Badge>}
-                          </div>
-                        </button>
-                      )
-                    })
-                  )}
-                </>
-              ) : (mode === 'resources' ? visibleResources : visiblePrompts).length === 0 ? (
-                <div className="rounded-xl border border-dashed border-border/70 bg-card/40 p-4 text-sm text-muted-foreground">
+        {mode === 'catalogue' ? (
+          <CatalogueGrid
+            entries={filteredCatalogueEntries}
+            draftServers={draftServers}
+            loading={catalogueLoading && catalogueEntries.length === 0}
+            error={catalogueError}
+            onRetry={() => {
+              setCatalogueLoaded(false)
+              setCatalogueError(null)
+            }}
+            onAddDraft={addCatalogueDraft}
+          />
+        ) : (
+          <div className="grid h-[min(680px,calc(100vh_-_220px))] min-h-[520px] gap-0 bg-[#1f1f1f] md:grid-cols-[minmax(320px,380px)_minmax(0,1fr)]">
+            <ScrollArea className="min-h-0 bg-[#1f1f1f]">
+              <div className="space-y-3 p-4">
+                {(mode === 'resources' ? visibleResources : visiblePrompts).length === 0 ? (
+                <div className="rounded-xl bg-[#1f1f1f] p-4 text-sm text-muted-foreground">
                   No {mode} are currently exposed. Servers must be enabled, connected, and trusted before this library surfaces them.
                 </div>
               ) : mode === 'resources' ? (
@@ -367,7 +318,6 @@ export function McpLibraryDialog({
                       onClick={() => void handlePreviewResource(resource)}
                       className={libraryItemClassName(selected)}
                     >
-                      {selected && <span className="absolute inset-y-3 left-0 w-1 rounded-r-full bg-primary/70" />}
                       <div className="flex items-center gap-2">
                         <span className="truncate font-medium text-foreground">
                           {resource.manifest.title || resource.manifest.name || resource.manifest.uri}
@@ -400,7 +350,6 @@ export function McpLibraryDialog({
                       }}
                       className={libraryItemClassName(selected)}
                     >
-                      {selected && <span className="absolute inset-y-3 left-0 w-1 rounded-r-full bg-primary/70" />}
                       <div className="flex items-center gap-2">
                         <span className="truncate font-medium text-foreground">
                           {prompt.manifest.title || prompt.manifest.name}
@@ -423,22 +372,12 @@ export function McpLibraryDialog({
                   )
                 })
               )}
-            </div>
-          </ScrollArea>
+              </div>
+            </ScrollArea>
 
-          <div className="flex min-h-0 min-w-0 flex-col bg-[linear-gradient(135deg,color-mix(in_srgb,var(--theme-surface)_96%,white)_0%,var(--theme-surface)_52%,color-mix(in_srgb,var(--theme-background)_82%,var(--theme-surface))_100%)]">
-            <div className="flex-1 overflow-y-auto px-7 py-6">
-              {mode === 'catalogue' ? (
-                selectedCatalogueEntry ? (
-                  <CatalogueEntryDetails
-                    entry={selectedCatalogueEntry}
-                    added={isCatalogueEntryAdded(selectedCatalogueEntry, draftServers)}
-                    onAddDraft={() => addCatalogueDraft(selectedCatalogueEntry)}
-                  />
-                ) : (
-                  <EmptyState label="Select an MCP server to review install details." />
-                )
-              ) : mode === 'resources' ? (
+            <div className="flex min-h-0 min-w-0 flex-col bg-[#1f1f1f] p-5">
+              <div className="flex-1 overflow-y-auto rounded-3xl bg-[#1f1f1f] px-7 py-6">
+                {mode === 'resources' ? (
                 selectedResource ? (
                   <div className="space-y-4">
                     <div>
@@ -465,20 +404,22 @@ export function McpLibraryDialog({
                     <div className="flex flex-wrap gap-2">
                       <Button
                         type="button"
+                        variant="ghost"
+                        className={libraryNeutralButtonClassName(false)}
                         onClick={() => void handlePreviewResource(selectedResource)}
                         disabled={loadingKey === selectedResourceKey}
                       >
                         {loadingKey === selectedResourceKey ? 'Loading...' : 'Read Resource'}
                       </Button>
                       {onInsertText && resourcePreview && (
-                        <Button type="button" variant="outline" onClick={insertResourceIntoComposer}>
+                        <Button type="button" variant="ghost" className={libraryNeutralButtonClassName(false)} onClick={insertResourceIntoComposer}>
                           Insert into composer
                         </Button>
                       )}
                     </div>
                     {error && <div className="text-sm text-destructive">{error}</div>}
                     {resourcePreview && (
-                      <pre className="max-h-[340px] overflow-auto rounded-xl border border-border/70 bg-card/50 p-4 text-sm text-foreground">
+                      <pre className="max-h-[340px] overflow-auto rounded-xl bg-[#1f1f1f] p-4 text-sm text-foreground">
                         {renderResourcePreview(resourcePreview)}
                       </pre>
                     )}
@@ -504,7 +445,7 @@ export function McpLibraryDialog({
                     <Badge variant="outline">Composer insertion only</Badge>
                   </div>
                   {(selectedPrompt.manifest.arguments?.length ?? 0) > 0 && (
-                    <div className="space-y-3 rounded-xl border border-border/70 bg-card/40 p-4">
+                    <div className="space-y-3 rounded-xl bg-[#1f1f1f] p-4">
                       <div className="text-sm font-medium text-foreground">Prompt arguments</div>
                       <div className="grid gap-3 md:grid-cols-2">
                         {(selectedPrompt.manifest.arguments ?? []).map((argument) => (
@@ -531,13 +472,15 @@ export function McpLibraryDialog({
                   <div className="flex flex-wrap gap-2">
                     <Button
                       type="button"
+                      variant="ghost"
+                      className={libraryNeutralButtonClassName(false)}
                       onClick={() => void handlePreviewPrompt(selectedPrompt)}
                       disabled={loadingKey === selectedPromptKey}
                     >
                       {loadingKey === selectedPromptKey ? 'Loading...' : 'Preview Prompt'}
                     </Button>
                     {onInsertText && promptPreview && (
-                      <Button type="button" variant="outline" onClick={insertPromptIntoComposer}>
+                      <Button type="button" variant="ghost" className={libraryNeutralButtonClassName(false)} onClick={insertPromptIntoComposer}>
                         Insert into composer
                       </Button>
                     )}
@@ -549,7 +492,7 @@ export function McpLibraryDialog({
                         <div className="text-sm text-muted-foreground">{promptPreview.description}</div>
                       )}
                       {promptPreview.messages.map((message, index) => (
-                        <div key={`${message.role}-${index}`} className="rounded-xl border border-border/70 bg-card/50 p-4">
+                        <div key={`${message.role}-${index}`} className="rounded-xl bg-[#1f1f1f] p-4">
                           <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                             {message.role}
                           </div>
@@ -564,15 +507,68 @@ export function McpLibraryDialog({
               ) : (
                 <EmptyState label="Select a prompt to preview its rendered messages." />
               )}
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </DialogContent>
     </Dialog>
   )
 }
 
-function CatalogueEntryDetails({
+function CatalogueGrid({
+  draftServers,
+  entries,
+  error,
+  loading,
+  onAddDraft,
+  onRetry,
+}: {
+  draftServers: ReturnType<typeof useMcp>['draftServers']
+  entries: McpCatalogueEntry[]
+  error: string | null
+  loading: boolean
+  onAddDraft: (entry: McpCatalogueEntry) => void
+  onRetry: () => void
+}): React.ReactElement {
+  return (
+    <div className="h-[min(680px,calc(100vh_-_220px))] min-h-[520px] bg-[#1f1f1f]">
+      <ScrollArea className="h-full">
+        <div className="space-y-4 px-5 pb-5 pt-0">
+          {loading ? (
+            <div className="rounded-2xl bg-[#1f1f1f] p-6 text-sm text-muted-foreground">
+              Loading MCP catalogue...
+            </div>
+          ) : error ? (
+            <div className="space-y-3 rounded-2xl bg-[#1f1f1f] p-6 text-sm">
+              <div className="text-destructive">{error}</div>
+              <Button type="button" size="sm" variant="ghost" onClick={onRetry}>
+                Try again
+              </Button>
+            </div>
+          ) : entries.length === 0 ? (
+            <div className="rounded-2xl bg-[#1f1f1f] p-6 text-sm text-muted-foreground">
+              No catalogue entries match your search.
+            </div>
+          ) : (
+            <div className="grid auto-rows-fr gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {entries.map((entry) => (
+                <CatalogueCard
+                  key={entry.id}
+                  added={isCatalogueEntryAdded(entry, draftServers)}
+                  entry={entry}
+                  onAddDraft={() => onAddDraft(entry)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </ScrollArea>
+    </div>
+  )
+}
+
+function CatalogueCard({
   added,
   entry,
   onAddDraft,
@@ -582,94 +578,114 @@ function CatalogueEntryDetails({
   onAddDraft: () => void
 }): React.ReactElement {
   return (
-    <div className="max-w-3xl space-y-5">
-      <div className="rounded-2xl border border-border/70 bg-background/25 p-5 shadow-sm">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="text-2xl font-semibold tracking-tight text-foreground">{entry.title || entry.name}</div>
-            <div className="mt-1 break-all text-sm text-muted-foreground">{entry.name}</div>
+    <article className="flex min-h-[336px] flex-col rounded-2xl bg-[#1f1f1f] p-4 shadow-none">
+      <div className="grid min-h-[48px] grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+        <div className="min-w-0">
+          <h3 className="truncate text-lg font-semibold text-foreground">{entry.title || entry.name}</h3>
+          <div className="mt-1 truncate text-xs text-muted-foreground">{entry.name}</div>
+        </div>
+        {added && <Badge variant="secondary" className="mt-0.5">Added</Badge>}
+      </div>
+
+      <p className="mt-3 min-h-[72px] text-sm leading-6 text-muted-foreground">
+        <span className="line-clamp-3">{entry.description || 'No description provided.'}</span>
+      </p>
+
+      <div className="mt-4 flex min-h-[52px] content-start flex-wrap gap-1.5 text-xs">
+        <Badge variant="secondary">{entry.sourceLabel}</Badge>
+        {entry.version && <Badge variant="secondary">v{entry.version}</Badge>}
+        {entry.publisher && <Badge variant="secondary">{entry.publisher}</Badge>}
+        {entry.secretRequirements.length > 0 && <Badge variant="secondary">Auth required</Badge>}
+        {!entry.supported && <Badge variant="destructive">Unsupported</Badge>}
+      </div>
+
+      <details className="group mt-4 rounded-xl bg-[#1f1f1f]">
+        <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium text-foreground outline-none transition-colors hover:text-primary focus-visible:ring-2 focus-visible:ring-primary/35">
+          <span className="inline-flex w-full items-center justify-between gap-3">
+            Details
+            <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
+          </span>
+        </summary>
+        <div className="space-y-3 px-4 py-4 text-sm">
+          {entry.repositoryUrl && (
+            <a
+              className="block break-all rounded-lg bg-[#1f1f1f] px-3 py-2 text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+              href={entry.repositoryUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {entry.repositoryUrl}
+            </a>
+          )}
+
+          <div className="rounded-lg bg-[#1f1f1f] p-3">
+            <div className="font-medium text-foreground">Install behavior</div>
+            <div className="mt-2 leading-6 text-muted-foreground">
+              Catalogue entries are added as disabled, untrusted drafts. Review the server settings, fill any required secrets, save changes, then connect manually.
+            </div>
           </div>
-          {entry.supported ? (
-            <Badge variant="outline" className="bg-background/40">Draft install</Badge>
-          ) : (
-            <Badge variant="destructive">Unsupported</Badge>
+
+          {entry.secretRequirements.length > 0 && (
+            <div className="rounded-lg bg-[#1f1f1f] p-3">
+              <div className="font-medium text-foreground">Required setup</div>
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
+                {entry.secretRequirements.map((requirement) => (
+                  <li key={requirement}>{requirement}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {!entry.supported && (
+            <div className="rounded-lg bg-[#1f1f1f] p-3 text-destructive">
+              {entry.unsupportedReason || 'This MCP catalogue entry cannot be installed by ZuraAI yet.'}
+            </div>
           )}
         </div>
+      </details>
 
-        {entry.description && (
-          <div className="mt-4 max-w-2xl text-sm leading-6 text-muted-foreground">{entry.description}</div>
-        )}
-      </div>
-
-      <div className="flex flex-wrap gap-2 text-xs">
-        <Badge variant="secondary">{entry.sourceLabel}</Badge>
-        {entry.version && <Badge variant="outline">v{entry.version}</Badge>}
-        {entry.publisher && <Badge variant="outline">{entry.publisher}</Badge>}
-        {entry.repositoryUrl && <Badge variant="outline">Repository</Badge>}
-        {entry.secretRequirements.length > 0 && <Badge variant="outline">Auth required</Badge>}
-      </div>
-
-      {entry.repositoryUrl && (
-        <a
-          className="block max-w-2xl break-all rounded-lg border border-primary/20 bg-primary/8 px-3 py-2 text-sm text-primary underline-offset-4 hover:underline"
-          href={entry.repositoryUrl}
-          target="_blank"
-          rel="noreferrer"
-        >
-          {entry.repositoryUrl}
-        </a>
-      )}
-
-      <div className="max-w-2xl rounded-xl border border-border/70 bg-background/25 p-4 text-sm shadow-sm">
-        <div className="font-medium text-foreground">Install behavior</div>
-        <div className="mt-2 leading-6 text-muted-foreground">
-          Catalogue entries are added as disabled, untrusted drafts. Review the server settings, fill any required secrets, save changes, then connect manually.
-        </div>
-      </div>
-
-      {entry.secretRequirements.length > 0 && (
-        <div className="max-w-2xl rounded-xl border border-border/70 bg-background/25 p-4 text-sm shadow-sm">
-          <div className="font-medium text-foreground">Required setup</div>
-          <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
-            {entry.secretRequirements.map((requirement) => (
-              <li key={requirement}>{requirement}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {!entry.supported && (
-        <div className="max-w-2xl rounded-xl border border-destructive/40 bg-destructive/8 p-4 text-sm text-destructive shadow-sm">
-          {entry.unsupportedReason || 'This MCP registry entry cannot be installed by ZuraAI yet.'}
-        </div>
-      )}
-
-      <div className="flex flex-wrap gap-2">
+      <div className="mt-auto pt-4">
         <Button
           type="button"
           onClick={onAddDraft}
           disabled={!entry.supported || added}
+          variant="ghost"
+          className={cn('w-full', added ? libraryNeutralButtonClassName(true) : libraryNeutralButtonClassName(false))}
         >
           {added ? 'Added' : 'Add draft'}
         </Button>
       </div>
-    </div>
+    </article>
   )
 }
 
 function libraryItemClassName(selected: boolean): string {
   return cn(
-    'relative w-full rounded-xl border px-3 py-3 text-left shadow-sm transition-[background-color,border-color,box-shadow,transform]',
-    'hover:-translate-y-px hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35',
+    'w-full rounded-xl px-3 py-3 text-left transition-[background-color,box-shadow]',
+    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35',
     selected
-      ? 'border-primary/55 bg-primary/12 shadow-[0_10px_28px_rgba(0,0,0,0.18)]'
-      : 'border-border/70 bg-background/28 hover:border-border hover:bg-background/40'
+      ? 'bg-[#1f1f1f]'
+      : 'bg-[#1f1f1f]'
+  )
+}
+
+function libraryTabClassName(active: boolean): string {
+  return cn(
+    'text-muted-foreground hover:bg-[#2a2a2a] hover:text-foreground',
+    active && 'bg-[#2a2a2a] text-foreground hover:bg-[#2a2a2a]'
+  )
+}
+
+function libraryNeutralButtonClassName(disabled: boolean): string {
+  return cn(
+    'bg-[#2a2a2a] text-foreground hover:bg-[#303030]',
+    disabled && 'bg-[#252525] text-muted-foreground hover:bg-[#252525]'
   )
 }
 
 function EmptyState({ label }: { label: string }): React.ReactElement {
   return (
-    <div className="flex h-full min-h-[320px] items-center justify-center rounded-xl border border-dashed border-border/70 bg-card/30 p-8 text-center text-sm text-muted-foreground">
+    <div className="flex h-full min-h-[320px] items-center justify-center rounded-xl bg-[#1f1f1f] p-8 text-center text-sm text-muted-foreground">
       {label}
     </div>
   )

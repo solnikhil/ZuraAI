@@ -209,8 +209,8 @@ describe('McpLibraryDialog', () => {
       expect(mocks.fetchMcpCatalogue).toHaveBeenCalled()
     })
 
-    fireEvent.click(await screen.findByRole('button', { name: /npm server/i }))
-    fireEvent.click(screen.getByRole('button', { name: /add draft/i }))
+    expect(await screen.findByText(/npm server/i)).toBeInTheDocument()
+    fireEvent.click(screen.getAllByRole('button', { name: /add draft/i })[0])
 
     expect(mocks.upsertDraftServer).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -234,7 +234,8 @@ describe('McpLibraryDialog', () => {
     fireEvent.change(await screen.findByLabelText(/search mcp catalogue/i), {
       target: { value: 'HTTP' },
     })
-    fireEvent.click(await screen.findByRole('button', { name: /http server/i }))
+    expect(await screen.findByText(/http server/i)).toBeInTheDocument()
+    fireEvent.click(screen.getByText(/^details$/i))
 
     expect(screen.getByText(/does not support streamable-http/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /add draft/i })).toBeDisabled()
@@ -247,8 +248,8 @@ describe('McpLibraryDialog', () => {
       <McpLibraryDialog open={true} onOpenChange={vi.fn()} initialMode="catalogue" />
     )
 
-    await screen.findByRole('button', { name: /npm server/i })
+    await screen.findByText(/npm server/i)
 
-    expect(screen.getByRole('button', { name: /^added$/i })).toBeDisabled()
+    expect(screen.getAllByRole('button', { name: /^added$/i }).every((button) => button.hasAttribute('disabled'))).toBe(true)
   })
 })

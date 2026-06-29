@@ -69,15 +69,14 @@
 }
 
 .artifacts-view__tabs-list {
-  display: flex !important;
-  flex-wrap: wrap;
+  display: inline-flex !important;
   align-items: center;
   gap: 4px;
-  width: 100% !important;
+  width: fit-content !important;
   max-width: 100%;
   min-width: 0;
   height: auto !important;
-  overflow: visible;
+  overflow-x: auto;
   padding: 4px;
   background: color-mix(in srgb, var(--theme-background) 44%, transparent) !important;
   border: 1px solid color-mix(in srgb, var(--theme-border) 46%, transparent);

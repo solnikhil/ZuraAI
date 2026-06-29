@@ -47,7 +47,7 @@
 }
 
 :root[data-reminders-container='flush'] .reminders-view {
-  background: var(--theme-background);
+  background: var(--theme-content-solid, var(--theme-background));
 }
 
 :root[data-reminders-container='flush'] .reminders-view__panel {

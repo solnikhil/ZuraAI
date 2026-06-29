@@ -235,7 +235,7 @@ describe('McpSection', () => {
 
     expect(await screen.findByLabelText(/search mcp catalogue/i)).toBeTruthy()
     expect(mockFetchMcpCatalogue).toHaveBeenCalled()
-    fireEvent.click(await screen.findByRole('button', { name: /npm server/i }))
+    expect(await screen.findByText(/npm server/i)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: /add draft/i }))
 
     expect(upsertDraftServer).toHaveBeenCalledWith(
