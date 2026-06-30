@@ -519,6 +519,12 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   if (parsed.rememberLastDashboardView === undefined) {
     parsed.rememberLastDashboardView = defaultSettings.rememberLastDashboardView
   }
+  if (
+    parsed.commandCenterChatPersistence !== 'temporary' &&
+    parsed.commandCenterChatPersistence !== 'always-save'
+  ) {
+    parsed.commandCenterChatPersistence = defaultSettings.commandCenterChatPersistence
+  }
   if (!parsed.emailNotifications || typeof parsed.emailNotifications !== 'object') {
     parsed.emailNotifications = defaultSettings.emailNotifications
   } else {
@@ -735,6 +741,7 @@ export function getInitialConfigSettings(settings: Settings): Partial<SettingsCo
     rememberLastChatSession: settings.rememberLastChatSession,
     rememberLastSettingsSection: settings.rememberLastSettingsSection,
     rememberLastDashboardView: settings.rememberLastDashboardView,
+    commandCenterChatPersistence: settings.commandCenterChatPersistence,
     emailNotifications: settings.emailNotifications,
     discordRpc: settings.discordRpc,
   }

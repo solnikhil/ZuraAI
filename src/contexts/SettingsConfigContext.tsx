@@ -205,6 +205,7 @@ export interface SettingsConfig {
   rememberLastChatSession: boolean
   rememberLastSettingsSection: boolean
   rememberLastDashboardView: boolean
+  commandCenterChatPersistence: 'temporary' | 'always-save'
   emailNotifications: EmailNotificationSettings
   /**
    * Discord Rich Presence preferences. Lives in the sanitized `zura-settings`
@@ -406,6 +407,7 @@ export const defaultSettingsConfig: SettingsConfig = {
   rememberLastChatSession: true,
   rememberLastSettingsSection: true,
   rememberLastDashboardView: true,
+  commandCenterChatPersistence: 'temporary',
   emailNotifications: {
     enabled: false,
     senderName: 'ZuraAI',

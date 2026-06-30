@@ -4,72 +4,147 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import CommandCenterOverlay from './CommandCenterOverlay'
 
+const createSession = vi.fn(() => 'overlay-session')
+const switchSession = vi.fn()
+const clearCurrentSession = vi.fn()
+const deleteSession = vi.fn()
+const sendMessage = vi.fn(async () => undefined)
+
+let currentSessionId: string | null = null
+let sessions: unknown[] = []
+
+vi.mock('../contexts/ChatHistoryContext', () => ({
+  useChatHistory: () => ({
+    sessions,
+    currentSessionId,
+    createSession,
+    switchSession,
+    clearCurrentSession,
+    deleteSession,
+  }),
+}))
+
+vi.mock('../contexts/SettingsContext', () => ({
+  useSettings: () => ({
+    settings: {
+      commandCenterChatPersistence: 'temporary',
+    },
+  }),
+}))
+
+vi.mock('../contexts/StreamingContext', () => ({
+  useStreamingState: () => ({ content: '' }),
+}))
+
+vi.mock('./Dashboard/ChatArea/hooks', () => ({
+  useStreamingChat: () => ({
+    isLoading: false,
+    sendMessage,
+    stopStreaming: vi.fn(),
+    regenerateMessage: vi.fn(),
+    toolState: { activeToolCalls: [], toolResults: [] },
+  }),
+}))
+
+vi.mock('./Dashboard/ChatArea/MessageRenderer', () => ({
+  MessageRenderer: ({ message }: { message: { content: string } }) => <div>{message.content}</div>,
+}))
+
+vi.mock('./Dashboard/ChatArea/StreamingMessage', () => ({
+  StreamingMessage: ({ message }: { message: { content: string } }) => <div>{message.content}</div>,
+}))
+
 describe('CommandCenterOverlay', () => {
   beforeEach(() => {
+    vi.clearAllMocks()
+    currentSessionId = null
+    sessions = []
     Object.assign(window, {
       commandCenter: {
-        getContext: vi.fn(async () => ({
-          success: true,
-          data: { title: 'Notes', processName: 'notepad' },
+        getIndex: vi.fn(async () => ({
+          workflows: [
+            {
+              id: 'workflow:morning',
+              type: 'workflow',
+              title: 'Morning startup',
+              subtitle: '2 steps',
+              hint: 'Run',
+              aliases: ['start'],
+              workflow: {
+                id: 'morning',
+                name: 'Morning startup',
+                aliases: ['start'],
+                steps: [{ type: 'app', appPath: 'C:\\Chrome.lnk' }],
+                createdAt: 1,
+                updatedAt: 2,
+              },
+            },
+          ],
+          apps: [
+            {
+              id: 'app:chrome',
+              type: 'app',
+              title: 'Chrome',
+              subtitle: 'Application',
+              hint: 'Application',
+              aliases: ['browser'],
+              appPath: 'C:\\Chrome.lnk',
+              iconDataUrl: 'data:image/png;base64,icon',
+              existingWindow: { hwnd: 12, title: 'Chrome', processName: 'chrome', processId: 5 },
+            },
+          ],
+          windows: [],
+          actions: [],
+          chats: [],
         })),
-        listActions: vi.fn(async () => [
-          { id: 'snap-left', label: 'Snap left', kind: 'window' },
-          { id: 'toggle-mute', label: 'Toggle mute', kind: 'audio' },
-          { id: 'system-status', label: 'System status', kind: 'system' },
-          { id: 'settings-network', label: 'Network settings', kind: 'settings', aliases: ['wifi'] },
-        ]),
-        executeAction: vi.fn(async () => ({
-          success: true,
-          data: { action: 'ok' },
-        })),
-        submitCommand: vi.fn(async () => ({ accepted: true })),
+        executeIndexItem: vi.fn(async () => ({ success: true })),
+        executeWorkflow: vi.fn(async () => ({ success: true })),
+        openChatSession: vi.fn(async () => true),
+        setLayout: vi.fn(async () => true),
         hide: vi.fn(async () => true),
         onShown: vi.fn(() => vi.fn()),
       },
     })
   })
 
-  it('dispatches quick actions from Alt+number shortcuts', async () => {
+  it('opens in Search mode and renders workflows before apps', async () => {
     render(<CommandCenterOverlay />)
 
-    const input = screen.getByRole('textbox', { name: /command/i })
-    await screen.findByText('Snap left')
+    expect(await screen.findByRole('textbox', { name: /search command center/i })).toBeInTheDocument()
+    const workflow = await screen.findByText('Morning startup')
+    const app = await screen.findByText('Chrome')
 
-    fireEvent.keyDown(input, { key: '2', altKey: true })
-
-    await waitFor(() => {
-      expect(window.commandCenter.executeAction).toHaveBeenCalledWith('toggle-mute')
-    })
-    expect(screen.getByText('Alt+1')).toBeInTheDocument()
-    expect(screen.getByText('Alt+2')).toBeInTheDocument()
-    expect(screen.getByText('Window')).toBeInTheDocument()
-    expect(screen.getByText('Audio')).toBeInTheDocument()
-    expect(screen.getByText('System')).toBeInTheDocument()
+    expect(workflow.compareDocumentPosition(app) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  it('filters quick actions from the command input without blocking submit', async () => {
+  it('switches to Ask AI with Tab and starts chat on submit', async () => {
     render(<CommandCenterOverlay />)
 
-    const input = screen.getByRole('textbox', { name: /command/i })
-    await screen.findByText('Snap left')
+    const input = await screen.findByRole('textbox', { name: /search command center/i })
+    fireEvent.keyDown(input, { key: 'Tab' })
 
-    fireEvent.change(input, { target: { value: 'mute' } })
+    const askInput = await screen.findByRole('textbox', { name: /ask zura/i })
+    expect(askInput).toBeInTheDocument()
 
-    expect(screen.getByText('Toggle mute')).toBeInTheDocument()
-    expect(screen.queryByText('Snap left')).not.toBeInTheDocument()
+    fireEvent.change(askInput, { target: { value: 'summarize this window' } })
+    fireEvent.keyDown(askInput, { key: 'Enter' })
 
-    fireEvent.keyDown(input, { key: '1', altKey: true })
+    expect(createSession).toHaveBeenCalledTimes(1)
+    expect(switchSession).toHaveBeenCalledWith('overlay-session')
+  })
+
+  it('requires workflow confirmation before execution', async () => {
+    render(<CommandCenterOverlay />)
+
+    await screen.findByText('Morning startup')
+    fireEvent.keyDown(screen.getByRole('textbox', { name: /search command center/i }), { key: 'Enter' })
+
+    expect(screen.getByText('Run Morning startup?')).toBeInTheDocument()
+    expect(window.commandCenter.executeWorkflow).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: /^run$/i }))
     await waitFor(() => {
-      expect(window.commandCenter.executeAction).toHaveBeenCalledWith('toggle-mute')
+      expect(window.commandCenter.executeWorkflow).toHaveBeenCalledWith('morning')
     })
-
-    fireEvent.keyDown(input, { key: 'Enter' })
-    await waitFor(() => {
-      expect(window.commandCenter.submitCommand).toHaveBeenCalledWith('mute')
-    })
-
-    fireEvent.change(input, { target: { value: 'wifi' } })
-    expect(screen.getByText('Network settings')).toBeInTheDocument()
-    expect(screen.queryByText('Toggle mute')).not.toBeInTheDocument()
   })
 })

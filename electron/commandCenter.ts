@@ -1,11 +1,20 @@
-import { clipboard, globalShortcut, ipcMain } from 'electron'
+import { app as electronApp, clipboard, globalShortcut, ipcMain } from 'electron'
 import os from 'os'
 import path from 'path'
 
+import { getSessionMetadataAsync } from './chatStore'
+import {
+  deleteCommandCenterWorkflow,
+  listCommandCenterWorkflows,
+  markCommandCenterWorkflowRun,
+  saveCommandCenterWorkflow,
+  type CommandCenterWorkflow,
+} from './commandCenterWorkflows'
 import {
   createMainWindow,
   getMainWindow,
   hideCommandCenterWindow,
+  setCommandCenterWindowLayout,
   showCommandCenterWindow,
   toggleCommandCenterWindow,
 } from './windows'
@@ -21,6 +30,8 @@ import {
   executeSystemVolumeSet,
   executeWindowSnap,
 } from './tools/os-integration'
+import { executeAppLaunch, executeAppList } from './tools/app-management'
+import { executeWindowFocus, executeWindowList } from './tools/window-management'
 
 const COMMAND_CENTER_SHORTCUT = 'CommandOrControl+Shift+Space'
 const MAX_CLIPBOARD_CONTEXT_LENGTH = 4_000
@@ -47,17 +58,215 @@ let shortcutRegistered = false
 
 type CommandCenterActionId = (typeof COMMAND_CENTER_ACTIONS)[number]['id']
 
+type CommandCenterIndexItem =
+  | {
+      id: string
+      type: 'workflow'
+      title: string
+      subtitle?: string
+      hint: 'Workflow'
+      aliases: string[]
+      workflow: CommandCenterWorkflow
+    }
+  | {
+      id: string
+      type: 'app'
+      title: string
+      subtitle?: string
+      hint: 'Application'
+      aliases: string[]
+      appPath: string
+      iconDataUrl?: string
+      existingWindow?: WindowMatch
+    }
+  | {
+      id: string
+      type: 'window'
+      title: string
+      subtitle?: string
+      hint: 'Window'
+      aliases: string[]
+      hwnd: number
+      processName: string
+      processId: number
+    }
+  | {
+      id: string
+      type: 'action'
+      title: string
+      subtitle?: string
+      hint: 'Action'
+      aliases: string[]
+      actionId: CommandCenterActionId
+    }
+  | {
+      id: string
+      type: 'chat'
+      title: string
+      subtitle?: string
+      hint: 'Chat'
+      aliases: string[]
+      sessionId: string
+    }
+
+interface CommandCenterIndex {
+  workflows: CommandCenterIndexItem[]
+  apps: CommandCenterIndexItem[]
+  windows: CommandCenterIndexItem[]
+  actions: CommandCenterIndexItem[]
+  chats: CommandCenterIndexItem[]
+}
+
+interface WindowMatch {
+  hwnd: number
+  title: string
+  processName: string
+  processId: number
+}
+
+function compactText(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, '')
+}
+
+function normalizeWindows(raw: unknown): WindowMatch[] {
+  if (!raw || typeof raw !== 'object') return []
+  const windows = (raw as Record<string, unknown>).windows
+  if (!Array.isArray(windows)) return []
+  return windows.flatMap((entry): WindowMatch[] => {
+    if (!entry || typeof entry !== 'object') return []
+    const record = entry as Record<string, unknown>
+    if (
+      typeof record.hwnd !== 'number' ||
+      typeof record.title !== 'string' ||
+      typeof record.processName !== 'string' ||
+      typeof record.processId !== 'number'
+    ) {
+      return []
+    }
+    return [{
+      hwnd: record.hwnd,
+      title: record.title,
+      processName: record.processName,
+      processId: record.processId,
+    }]
+  })
+}
+
+function findExistingAppWindow(appName: string, windows: WindowMatch[]): WindowMatch | undefined {
+  const appKey = compactText(appName)
+  return windows.find((window) => {
+    const processKey = compactText(window.processName)
+    const titleKey = compactText(window.title)
+    return processKey.includes(appKey) || appKey.includes(processKey) || titleKey.includes(appKey)
+  })
+}
+
+async function getWindowMatches(): Promise<WindowMatch[]> {
+  const result = await executeWindowList()
+  return result.success ? normalizeWindows(result.data) : []
+}
+
+async function getAppIconDataUrl(appPath: string): Promise<string | undefined> {
+  try {
+    const image = await electronApp.getFileIcon(appPath, { size: 'normal' })
+    if (image.isEmpty()) return undefined
+    return image.toDataURL()
+  } catch {
+    return undefined
+  }
+}
+
+async function buildCommandCenterIndex(): Promise<CommandCenterIndex> {
+  const [workflows, appsResult, windows, chats] = await Promise.all([
+    listCommandCenterWorkflows(),
+    executeAppList(),
+    getWindowMatches(),
+    getSessionMetadataAsync().catch(() => []),
+  ])
+
+  const appRows = appsResult.success &&
+    appsResult.data &&
+    typeof appsResult.data === 'object' &&
+    Array.isArray((appsResult.data as Record<string, unknown>).apps)
+    ? await Promise.all(((appsResult.data as Record<string, unknown>).apps as Array<Record<string, unknown>>)
+      .filter((app) => typeof app.name === 'string' && typeof app.path === 'string')
+      .slice(0, 120)
+      .map(async (app) => {
+        const name = String(app.name)
+        const appPath = String(app.path)
+        const existingWindow = findExistingAppWindow(name, windows)
+        return {
+          id: `app:${Buffer.from(appPath).toString('base64url')}`,
+          type: 'app' as const,
+          title: name,
+          subtitle: existingWindow ? existingWindow.title : 'Application',
+          hint: 'Application' as const,
+          aliases: [name],
+          appPath,
+          iconDataUrl: await getAppIconDataUrl(appPath),
+          existingWindow,
+        }
+      }))
+    : []
+
+  return {
+    workflows: workflows
+      .slice()
+      .sort((a, b) => (b.lastRunAt ?? b.updatedAt) - (a.lastRunAt ?? a.updatedAt))
+      .map((workflow) => ({
+        id: `workflow:${workflow.id}`,
+        type: 'workflow' as const,
+        title: workflow.name,
+        subtitle: workflow.description ?? `${workflow.steps.length} step${workflow.steps.length === 1 ? '' : 's'}`,
+        hint: 'Workflow' as const,
+        aliases: workflow.aliases,
+        workflow,
+      })),
+    apps: appRows,
+    windows: windows.slice(0, 80).map((window) => ({
+      id: `window:${window.hwnd}`,
+      type: 'window' as const,
+      title: window.title,
+      subtitle: window.processName,
+      hint: 'Window' as const,
+      aliases: [window.title, window.processName],
+      hwnd: window.hwnd,
+      processName: window.processName,
+      processId: window.processId,
+    })),
+    actions: COMMAND_CENTER_ACTIONS.map((action) => ({
+      id: `action:${action.id}`,
+      type: 'action' as const,
+      title: action.label,
+      subtitle: action.kind,
+      hint: 'Action' as const,
+      aliases: [...(action.aliases ?? []), action.kind],
+      actionId: action.id,
+    })),
+    chats: chats.slice(0, 40).map((chat) => ({
+      id: `chat:${chat.id}`,
+      type: 'chat' as const,
+      title: chat.title,
+      subtitle: `${chat.messageCount} message${chat.messageCount === 1 ? '' : 's'}`,
+      hint: 'Chat' as const,
+      aliases: [chat.title, ...(chat.tags ?? [])],
+      sessionId: chat.id,
+    })),
+  }
+}
+
 async function getActiveWindowContext(): Promise<unknown | undefined> {
   const result = await executeSystemActiveWindow()
   return result.success ? result.data : undefined
 }
 
-async function sendCommandToMainWindow(text: string): Promise<void> {
+async function sendCommandToMainWindow(text: string, sessionId?: string): Promise<void> {
   const win = getMainWindow() ?? createMainWindow()
   const payload = {
     text,
     receivedAt: Date.now(),
     activeWindow: await getActiveWindowContext(),
+    sessionId,
   }
 
   if (win.webContents.isLoading()) {
@@ -158,6 +367,73 @@ async function executeCommandCenterAction(actionId: CommandCenterActionId) {
   }
 }
 
+function flattenIndex(index: CommandCenterIndex): CommandCenterIndexItem[] {
+  return [
+    ...index.workflows,
+    ...index.apps,
+    ...index.windows,
+    ...index.actions,
+    ...index.chats,
+  ]
+}
+
+async function executeWorkflow(workflowId: unknown) {
+  if (typeof workflowId !== 'string' || !workflowId.trim()) {
+    return { success: false, error: 'Workflow id is required.' }
+  }
+
+  const workflow = (await listCommandCenterWorkflows()).find((entry) => entry.id === workflowId)
+  if (!workflow) return { success: false, error: 'Workflow was not found.' }
+
+  for (const step of workflow.steps) {
+    if (step.type === 'action') {
+      if (!isCommandCenterActionId(step.actionId)) {
+        return { success: false, error: `Workflow action "${step.actionId}" is not allowed.` }
+      }
+      const result = await executeCommandCenterAction(step.actionId)
+      if (!result.success) return result
+    } else if (step.type === 'app') {
+      const result = await executeAppLaunch({ nameOrPath: step.appPath, autoApprove: true })
+      if (!result.success) return result
+    } else if (step.type === 'window') {
+      const result = await executeWindowFocus({ hwnd: step.hwnd, autoApprove: true })
+      if (!result.success) return result
+    } else if (step.type === 'ai') {
+      await markCommandCenterWorkflowRun(workflow.id)
+      return { success: true, aiPrompt: step.prompt }
+    }
+  }
+
+  await markCommandCenterWorkflowRun(workflow.id)
+  return { success: true, data: { workflowId: workflow.id } }
+}
+
+async function executeIndexItem(itemId: unknown) {
+  if (typeof itemId !== 'string' || !itemId.trim()) {
+    return { success: false, error: 'Command Center item id is required.' }
+  }
+
+  const item = flattenIndex(await buildCommandCenterIndex()).find((candidate) => candidate.id === itemId)
+  if (!item) return { success: false, error: 'Command Center item was not found.' }
+
+  if (item.type === 'workflow') return executeWorkflow(item.workflow.id)
+  if (item.type === 'app') {
+    if (item.existingWindow) {
+      return executeWindowFocus({ hwnd: item.existingWindow.hwnd, autoApprove: true })
+    }
+    return executeAppLaunch({ nameOrPath: item.appPath, autoApprove: true })
+  }
+  if (item.type === 'window') return executeWindowFocus({ hwnd: item.hwnd, autoApprove: true })
+  if (item.type === 'action') return executeCommandCenterAction(item.actionId)
+  if (item.type === 'chat') {
+    await sendCommandToMainWindow('', item.sessionId)
+    hideCommandCenterWindow()
+    return { success: true, sessionId: item.sessionId }
+  }
+
+  return { success: false, error: 'Unsupported Command Center item.' }
+}
+
 function unregisterShortcut(): void {
   if (!shortcutRegistered) return
   globalShortcut.unregister(COMMAND_CENTER_SHORTCUT)
@@ -213,6 +489,18 @@ export function registerCommandCenterHandlers(): void {
     return [...COMMAND_CENTER_ACTIONS]
   })
 
+  ipcMain.handle('command-center:get-index', async () => {
+    return buildCommandCenterIndex()
+  })
+
+  ipcMain.handle('command-center:save-workflow', async (_event, workflow: unknown) => {
+    return saveCommandCenterWorkflow(workflow)
+  })
+
+  ipcMain.handle('command-center:delete-workflow', async (_event, id: unknown) => {
+    return deleteCommandCenterWorkflow(id)
+  })
+
   ipcMain.handle('command-center:execute-action', async (_event, actionId: unknown) => {
     if (!extensionEnabled) {
       return { success: false, error: 'Command Center is disabled.' }
@@ -221,6 +509,37 @@ export function registerCommandCenterHandlers(): void {
       return { success: false, error: 'Command Center action is not allowed.' }
     }
     return executeCommandCenterAction(actionId)
+  })
+
+  ipcMain.handle('command-center:execute-index-item', async (_event, itemId: unknown) => {
+    if (!extensionEnabled) {
+      return { success: false, error: 'Command Center is disabled.' }
+    }
+    return executeIndexItem(itemId)
+  })
+
+  ipcMain.handle('command-center:execute-workflow', async (_event, workflowId: unknown) => {
+    if (!extensionEnabled) {
+      return { success: false, error: 'Command Center is disabled.' }
+    }
+    return executeWorkflow(workflowId)
+  })
+
+  ipcMain.handle('command-center:open-chat-session', async (_event, sessionId: unknown) => {
+    if (!extensionEnabled || typeof sessionId !== 'string' || !sessionId.trim()) {
+      return false
+    }
+    await sendCommandToMainWindow('', sessionId.trim())
+    hideCommandCenterWindow()
+    return true
+  })
+
+  ipcMain.handle('command-center:set-layout', (_event, layout: unknown) => {
+    if (layout !== 'search' && layout !== 'chat') {
+      throw new Error('Invalid Command Center layout.')
+    }
+    setCommandCenterWindowLayout(layout)
+    return true
   })
 
   ipcMain.handle('command-center:submit-command', async (_event, text: unknown) => {
@@ -245,6 +564,13 @@ export function unregisterCommandCenterHandlers(): void {
   ipcMain.removeHandler('command-center:hide')
   ipcMain.removeHandler('command-center:get-context')
   ipcMain.removeHandler('command-center:list-actions')
+  ipcMain.removeHandler('command-center:get-index')
+  ipcMain.removeHandler('command-center:save-workflow')
+  ipcMain.removeHandler('command-center:delete-workflow')
   ipcMain.removeHandler('command-center:execute-action')
+  ipcMain.removeHandler('command-center:execute-index-item')
+  ipcMain.removeHandler('command-center:execute-workflow')
+  ipcMain.removeHandler('command-center:open-chat-session')
+  ipcMain.removeHandler('command-center:set-layout')
   ipcMain.removeHandler('command-center:submit-command')
 }

@@ -242,6 +242,7 @@ export interface CommandCenterState {
 export interface CommandCenterCommand {
   text: string
   receivedAt: number
+  sessionId?: string
   activeWindow?: {
     hwnd?: number
     title?: string
@@ -273,6 +274,95 @@ export interface CommandCenterAction {
   label: string
   kind: 'window' | 'audio' | 'system' | 'clipboard' | 'app' | 'settings' | 'filesystem'
   aliases?: string[]
+}
+
+export type CommandCenterWorkflowStep =
+  | { type: 'action'; actionId: CommandCenterActionId }
+  | { type: 'app'; appPath: string; label?: string }
+  | { type: 'window'; hwnd: number; label?: string }
+  | { type: 'ai'; prompt: string }
+
+export interface CommandCenterWorkflow {
+  id: string
+  name: string
+  description?: string
+  aliases: string[]
+  steps: CommandCenterWorkflowStep[]
+  createdAt: number
+  updatedAt: number
+  lastRunAt?: number
+}
+
+export type CommandCenterIndexItem =
+  | {
+      id: string
+      type: 'workflow'
+      title: string
+      subtitle?: string
+      hint: 'Workflow'
+      aliases: string[]
+      workflow: CommandCenterWorkflow
+    }
+  | {
+      id: string
+      type: 'app'
+      title: string
+      subtitle?: string
+      hint: 'Application'
+      aliases: string[]
+      appPath: string
+      iconDataUrl?: string
+      existingWindow?: {
+        hwnd: number
+        title: string
+        processName: string
+        processId: number
+      }
+    }
+  | {
+      id: string
+      type: 'window'
+      title: string
+      subtitle?: string
+      hint: 'Window'
+      aliases: string[]
+      hwnd: number
+      processName: string
+      processId: number
+    }
+  | {
+      id: string
+      type: 'action'
+      title: string
+      subtitle?: string
+      hint: 'Action'
+      aliases: string[]
+      actionId: CommandCenterActionId
+    }
+  | {
+      id: string
+      type: 'chat'
+      title: string
+      subtitle?: string
+      hint: 'Chat'
+      aliases: string[]
+      sessionId: string
+    }
+
+export interface CommandCenterIndex {
+  workflows: CommandCenterIndexItem[]
+  apps: CommandCenterIndexItem[]
+  windows: CommandCenterIndexItem[]
+  actions: CommandCenterIndexItem[]
+  chats: CommandCenterIndexItem[]
+}
+
+export interface CommandCenterExecuteResult {
+  success: boolean
+  error?: string
+  data?: unknown
+  aiPrompt?: string
+  sessionId?: string
 }
 
 export interface CommandCenterSubmitResult {
@@ -733,7 +823,14 @@ export interface CommandCenterAPI {
   hide: () => Promise<boolean>
   getContext: () => Promise<ToolResult>
   listActions: () => Promise<CommandCenterAction[]>
+  getIndex: () => Promise<CommandCenterIndex>
+  saveWorkflow: (workflow: Partial<CommandCenterWorkflow>) => Promise<CommandCenterWorkflow | null>
+  deleteWorkflow: (id: string) => Promise<boolean>
   executeAction: (actionId: CommandCenterActionId) => Promise<ToolResult>
+  executeIndexItem: (itemId: string) => Promise<CommandCenterExecuteResult>
+  executeWorkflow: (workflowId: string) => Promise<CommandCenterExecuteResult>
+  openChatSession: (sessionId: string) => Promise<boolean>
+  setLayout: (layout: 'search' | 'chat') => Promise<boolean>
   submitCommand: (text: string) => Promise<CommandCenterSubmitResult>
   onShown: (callback: () => void) => () => void
   onCommand: (callback: (command: CommandCenterCommand) => void) => () => void

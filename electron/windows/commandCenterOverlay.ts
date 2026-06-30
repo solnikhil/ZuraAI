@@ -8,6 +8,7 @@ const devServerUrl = process.env.VITE_DEV_SERVER_URL
 const devServerOrigin = devServerUrl ? new URL(devServerUrl).origin : null
 
 let commandCenterWindow: BrowserWindow | null = null
+let commandCenterLayout: 'search' | 'chat' = 'search'
 
 function isExternalHttpUrl(url: string): boolean {
   if (!url.startsWith('http:') && !url.startsWith('https:')) return false
@@ -15,10 +16,17 @@ function isExternalHttpUrl(url: string): boolean {
   return true
 }
 
-function centerBounds(): { x: number; y: number; width: number; height: number } {
+function centerBounds(layout: 'search' | 'chat' = commandCenterLayout): {
+  x: number
+  y: number
+  width: number
+  height: number
+} {
   const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
-  const width = Math.min(760, Math.max(560, Math.floor(display.workArea.width * 0.46)))
-  const height = 232
+  const targetWidth = layout === 'chat' ? 820 : 760
+  const targetHeight = layout === 'chat' ? 640 : 480
+  const width = Math.min(targetWidth, Math.max(640, Math.floor(display.workArea.width * 0.54)))
+  const height = Math.min(targetHeight, Math.max(420, Math.floor(display.workArea.height * 0.72)))
   return {
     x: display.workArea.x + Math.round((display.workArea.width - width) / 2),
     y: display.workArea.y + Math.round(display.workArea.height * 0.18),
@@ -40,7 +48,7 @@ function createCommandCenterWindow(): BrowserWindow {
     title: 'ZuraAI Command Center',
     icon: resolveAppIconPath(),
     frame: false,
-    transparent: true,
+    transparent: false,
     resizable: false,
     maximizable: false,
     minimizable: false,
@@ -49,7 +57,13 @@ function createCommandCenterWindow(): BrowserWindow {
     skipTaskbar: true,
     show: false,
     autoHideMenuBar: true,
-    backgroundColor: '#00000000',
+    ...(process.platform === 'win32'
+      ? {
+          backgroundMaterial: 'acrylic' as const,
+          roundedCorners: true,
+        }
+      : {}),
+    backgroundColor: '#000000',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -61,6 +75,10 @@ function createCommandCenterWindow(): BrowserWindow {
       additionalArguments: ['--process-name=ZuraAI-CommandCenter'],
     },
   })
+
+  if (process.platform === 'win32' && typeof commandCenterWindow.setBackgroundMaterial === 'function') {
+    commandCenterWindow.setBackgroundMaterial('acrylic')
+  }
 
   commandCenterWindow.removeMenu()
 
@@ -88,7 +106,7 @@ function createCommandCenterWindow(): BrowserWindow {
 
   const loadPromise = process.env.VITE_DEV_SERVER_URL
     ? commandCenterWindow.loadURL(`${process.env.VITE_DEV_SERVER_URL}#/command-center`)
-    : commandCenterWindow.loadFile(path.join(distPath, 'index.html'), { hash: 'command-center' })
+    : commandCenterWindow.loadFile(path.join(distPath, 'index.html'), { hash: '/command-center' })
 
   void loadPromise.catch((error) => {
     console.error('[MAIN] Failed to load Command Center window:', error)
@@ -99,10 +117,20 @@ function createCommandCenterWindow(): BrowserWindow {
 
 export function showCommandCenterWindow(): void {
   const win = createCommandCenterWindow()
-  win.setBounds(centerBounds())
+  commandCenterLayout = 'search'
+  const bounds = centerBounds(commandCenterLayout)
+  win.setBounds(bounds)
   win.show()
   win.focus()
   win.webContents.send('command-center:shown')
+}
+
+export function setCommandCenterWindowLayout(layout: 'search' | 'chat'): void {
+  commandCenterLayout = layout
+  if (commandCenterWindow && !commandCenterWindow.isDestroyed()) {
+    const bounds = centerBounds(layout)
+    commandCenterWindow.setBounds(bounds, true)
+  }
 }
 
 export function hideCommandCenterWindow(): void {

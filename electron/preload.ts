@@ -41,6 +41,9 @@ import type {
   CommandCenterActionId,
   CommandCenterState,
   CommandCenterSubmitResult,
+  CommandCenterWorkflow,
+  CommandCenterIndex,
+  CommandCenterExecuteResult,
   UpdateMemoryPatch,
 } from '../src/electron/types'
 
@@ -174,7 +177,14 @@ const COMMAND_CENTER_INVOKE_CHANNELS = new Set<string>([
   'command-center:hide',
   'command-center:get-context',
   'command-center:list-actions',
+  'command-center:get-index',
+  'command-center:save-workflow',
+  'command-center:delete-workflow',
   'command-center:execute-action',
+  'command-center:execute-index-item',
+  'command-center:execute-workflow',
+  'command-center:open-chat-session',
+  'command-center:set-layout',
   'command-center:submit-command',
 ])
 
@@ -672,9 +682,37 @@ contextBridge.exposeInMainWorld(
       assertAllowed('invoke', 'command-center:list-actions', COMMAND_CENTER_INVOKE_CHANNELS)
       return ipcRenderer.invoke('command-center:list-actions')
     },
+    getIndex: () => {
+      assertAllowed('invoke', 'command-center:get-index', COMMAND_CENTER_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('command-center:get-index') as Promise<CommandCenterIndex>
+    },
+    saveWorkflow: (workflow: Partial<CommandCenterWorkflow>) => {
+      assertAllowed('invoke', 'command-center:save-workflow', COMMAND_CENTER_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('command-center:save-workflow', workflow) as Promise<CommandCenterWorkflow | null>
+    },
+    deleteWorkflow: (id: string) => {
+      assertAllowed('invoke', 'command-center:delete-workflow', COMMAND_CENTER_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('command-center:delete-workflow', id) as Promise<boolean>
+    },
     executeAction: (actionId: CommandCenterActionId) => {
       assertAllowed('invoke', 'command-center:execute-action', COMMAND_CENTER_INVOKE_CHANNELS)
       return ipcRenderer.invoke('command-center:execute-action', actionId)
+    },
+    executeIndexItem: (itemId: string) => {
+      assertAllowed('invoke', 'command-center:execute-index-item', COMMAND_CENTER_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('command-center:execute-index-item', itemId) as Promise<CommandCenterExecuteResult>
+    },
+    executeWorkflow: (workflowId: string) => {
+      assertAllowed('invoke', 'command-center:execute-workflow', COMMAND_CENTER_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('command-center:execute-workflow', workflowId) as Promise<CommandCenterExecuteResult>
+    },
+    openChatSession: (sessionId: string) => {
+      assertAllowed('invoke', 'command-center:open-chat-session', COMMAND_CENTER_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('command-center:open-chat-session', sessionId) as Promise<boolean>
+    },
+    setLayout: (layout: 'search' | 'chat') => {
+      assertAllowed('invoke', 'command-center:set-layout', COMMAND_CENTER_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('command-center:set-layout', layout) as Promise<boolean>
     },
     submitCommand: (text: string) => {
       assertAllowed('invoke', 'command-center:submit-command', COMMAND_CENTER_INVOKE_CHANNELS)

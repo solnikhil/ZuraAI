@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 
 import { useSettings } from '../contexts/SettingsContext'
 import { useQuickSend } from '../contexts/QuickSendContext'
+import { useChatHistory } from '../contexts/ChatHistoryContext'
 import type { CommandCenterCommand } from '../electron/types'
 import { isWindowsRuntime } from '../utils/platform'
 
@@ -26,6 +27,7 @@ function formatCommandCenterMessage(command: CommandCenterCommand): string {
 export default function CommandCenterSettingsSync() {
   const { settings, updateSettings } = useSettings()
   const { queueMessage } = useQuickSend()
+  const { switchSession, loadFullSession } = useChatHistory()
   const enabled = isWindowsRuntime() && settings.assistantMode === 'agent'
 
   useEffect(() => {
@@ -36,13 +38,17 @@ export default function CommandCenterSettingsSync() {
     if (!window.commandCenter?.onCommand) return
     return window.commandCenter.onCommand((command) => {
       const text = formatCommandCenterMessage(command)
-      if (!text) return
+      if (command.sessionId) {
+        switchSession(command.sessionId)
+        void loadFullSession(command.sessionId)
+        if (!text) return
+      }
       if (settings.assistantMode !== 'agent') {
         updateSettings({ assistantMode: 'agent' })
       }
       queueMessage(text)
     })
-  }, [queueMessage, settings.assistantMode, updateSettings])
+  }, [loadFullSession, queueMessage, settings.assistantMode, switchSession, updateSettings])
 
   return null
 }

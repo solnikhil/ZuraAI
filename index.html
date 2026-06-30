@@ -13,6 +13,10 @@
   <script>
     (function () {
       try {
+        if (window.location.hash.indexOf('#/command-center') === 0) {
+          document.documentElement.classList.add('command-center-route')
+        }
+
         var raw = localStorage.getItem('zura-settings')
         if (!raw) return
         var parsed = JSON.parse(raw)
@@ -61,6 +65,15 @@
 
     #fallback-slow {
       color: var(--theme-text-muted);
+    }
+
+    .command-center-route,
+    .command-center-route body {
+      background: transparent;
+    }
+
+    .command-center-route #launch-fallback {
+      display: none !important;
     }
   </style>
 </head>

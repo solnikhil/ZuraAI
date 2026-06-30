@@ -1,277 +1,472 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { Command, CornerDownLeft, Monitor, X } from 'lucide-react'
-import type { CommandCenterAction, CommandCenterActionId } from '../electron/types'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
+import { Brain, Check, Command, CornerDownLeft, MessageSquare, Monitor, Sparkles, X } from 'lucide-react'
 
-interface ActiveWindowContext {
-  hwnd?: number
-  title?: string
-  processName?: string
+import { useChatHistory } from '../contexts/ChatHistoryContext'
+import { useSettings } from '../contexts/SettingsContext'
+import { useStreamingState } from '../contexts/StreamingContext'
+import { MessageRenderer } from './Dashboard/ChatArea/MessageRenderer'
+import { StreamingMessage } from './Dashboard/ChatArea/StreamingMessage'
+import { useStreamingChat } from './Dashboard/ChatArea/hooks'
+import type { CommandCenterIndex, CommandCenterIndexItem } from '../electron/types'
+
+type Mode = 'search' | 'ask'
+
+const EMPTY_INDEX: CommandCenterIndex = {
+  workflows: [],
+  apps: [],
+  windows: [],
+  actions: [],
+  chats: [],
 }
 
-function parseActiveWindow(data: unknown): ActiveWindowContext | null {
-  if (!data || typeof data !== 'object') return null
-  const record = data as Record<string, unknown>
-  return {
-    hwnd: typeof record.hwnd === 'number' ? record.hwnd : undefined,
-    title: typeof record.title === 'string' ? record.title : undefined,
-    processName: typeof record.processName === 'string' ? record.processName : undefined,
-  }
+function flattenIndex(index: CommandCenterIndex): Array<{ group: string; item: CommandCenterIndexItem }> {
+  return [
+    ...index.workflows.map((item) => ({ group: 'Saved Workflows', item })),
+    ...index.apps.map((item) => ({ group: 'Apps', item })),
+    ...index.windows.map((item) => ({ group: 'Windows', item })),
+    ...index.actions.map((item) => ({ group: 'Actions', item })),
+    ...index.chats.map((item) => ({ group: 'Chats', item })),
+  ]
 }
 
-function formatBytes(value: unknown): string {
-  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) return ''
-  const gib = value / 1024 / 1024 / 1024
-  return `${gib.toFixed(gib >= 10 ? 0 : 1)} GB`
+function matchesItem(item: CommandCenterIndexItem, query: string): boolean {
+  if (!query) return true
+  const haystack = [
+    item.title,
+    item.subtitle ?? '',
+    item.hint,
+    ...item.aliases,
+  ].join(' ').toLowerCase()
+  return haystack.includes(query.toLowerCase())
 }
 
-function formatSystemStatus(data: unknown): string {
-  if (!data || typeof data !== 'object') return 'System status read.'
-  const record = data as Record<string, unknown>
-  const battery = record.battery && typeof record.battery === 'object'
-    ? record.battery as Record<string, unknown>
-    : null
-  const disks = Array.isArray(record.disks) ? record.disks : []
-  const networks = Array.isArray(record.networks) ? record.networks : []
-
-  const parts: string[] = []
-  if (typeof battery?.estimatedChargeRemaining === 'number') {
-    parts.push(`Battery ${battery.estimatedChargeRemaining}%`)
+function iconForItem(item: CommandCenterIndexItem) {
+  if (item.type === 'workflow') return <Sparkles size={16} />
+  if (item.type === 'app' && item.iconDataUrl) {
+    return <img src={item.iconDataUrl} alt="" className="command-center-result__app-icon" />
   }
-
-  const primaryDisk = disks.find((disk): disk is Record<string, unknown> => (
-    Boolean(disk) &&
-    typeof disk === 'object' &&
-    typeof (disk as Record<string, unknown>).name === 'string'
-  ))
-  if (primaryDisk) {
-    const free = formatBytes(primaryDisk.freeBytes)
-    const size = formatBytes(primaryDisk.sizeBytes)
-    parts.push(`${primaryDisk.name}: ${free || '?'} free${size ? ` of ${size}` : ''}`)
-  }
-
-  if (networks.length > 0) {
-    parts.push(`${networks.length} active network${networks.length === 1 ? '' : 's'}`)
-  }
-
-  return parts.length > 0 ? parts.join(' - ') : 'System status read.'
-}
-
-function formatThemeStatus(data: unknown): string {
-  if (!data || typeof data !== 'object') return 'Theme updated.'
-  const theme = (data as Record<string, unknown>).appTheme
-  return theme === 'dark' || theme === 'light' ? `Theme set to ${theme}.` : 'Theme updated.'
-}
-
-function groupActions(actions: CommandCenterAction[]): Array<{ kind: string; label: string; actions: CommandCenterAction[] }> {
-  const labels: Record<string, string> = {
-    window: 'Window',
-    audio: 'Audio',
-    system: 'System',
-    clipboard: 'Clipboard',
-    app: 'App',
-    settings: 'Settings',
-    filesystem: 'Files',
-  }
-  const groups = new Map<string, CommandCenterAction[]>()
-  for (const action of actions) {
-    groups.set(action.kind, [...(groups.get(action.kind) ?? []), action])
-  }
-  return Array.from(groups.entries()).map(([kind, groupedActions]) => ({
-    kind,
-    label: labels[kind] ?? kind,
-    actions: groupedActions,
-  }))
+  if (item.type === 'app') return <Monitor size={16} />
+  if (item.type === 'window') return <Monitor size={16} />
+  if (item.type === 'chat') return <MessageSquare size={16} />
+  return <Command size={16} />
 }
 
 export default function CommandCenterOverlay() {
+  const [mode, setMode] = useState<Mode>('search')
   const [input, setInput] = useState('')
-  const [context, setContext] = useState<ActiveWindowContext | null>(null)
-  const [actions, setActions] = useState<CommandCenterAction[]>([])
-  const [runningAction, setRunningAction] = useState<CommandCenterActionId | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [index, setIndex] = useState<CommandCenterIndex>(EMPTY_INDEX)
+  const [selectedIndex, setSelectedIndex] = useState(0)
+  const [confirmingWorkflow, setConfirmingWorkflow] = useState<CommandCenterIndexItem | null>(null)
   const [status, setStatus] = useState<string | null>(null)
-  const inputRef = useRef<HTMLInputElement | null>(null)
-  const visibleActions = useMemo(() => {
-    const query = input.trim().toLowerCase()
-    if (!query) return actions
-    return actions.filter((action) => (
-      action.label.toLowerCase().includes(query) ||
-      action.kind.toLowerCase().includes(query) ||
-      action.id.toLowerCase().includes(query) ||
-      (action.aliases ?? []).some((alias) => alias.toLowerCase().includes(query))
-    ))
-  }, [actions, input])
-  const groupedActions = useMemo(() => groupActions(visibleActions), [visibleActions])
-  const actionShortcutIndex = useMemo(
-    () => new Map(actions.map((action, index) => [action.id, index + 1])),
-    [actions]
-  )
+  const [error, setError] = useState<string | null>(null)
+  const [chatSessionId, setChatSessionId] = useState<string | null>(null)
+  const [pendingPrompt, setPendingPrompt] = useState<string | null>(null)
+  const [promoted, setPromoted] = useState(false)
+  const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null)
+  const bodyRef = useRef<HTMLDivElement | null>(null)
+  const reduceMotion = useReducedMotion()
 
-  const contextLabel = useMemo(() => {
-    if (!context) return 'Desktop context unavailable'
-    const title = context.title?.trim()
-    const processName = context.processName?.trim()
-    if (title && processName) return `${processName} - ${title}`
-    return title || processName || 'Current desktop'
-  }, [context])
+  const {
+    sessions,
+    currentSessionId,
+    createSession,
+    switchSession,
+    clearCurrentSession,
+    deleteSession,
+  } = useChatHistory()
+  const { settings } = useSettings()
+  const streamingState = useStreamingState()
+  const { isLoading, sendMessage, stopStreaming, regenerateMessage, toolState } = useStreamingChat()
 
-  const refreshContext = async () => {
-    const result = await window.commandCenter.getContext()
-    if (result.success) {
-      setContext(parseActiveWindow(result.data))
-      setError(null)
-    } else {
-      setContext(null)
-      setError(result.error || 'Unable to read desktop context.')
-    }
-  }
-
-  const refreshActions = async () => {
-    setActions(await window.commandCenter.listActions())
-  }
+  const chatSession = sessions.find((session) => session.id === chatSessionId)
+  const chatMessages = chatSession?.messages ?? []
+  const isChatMode = Boolean(chatSessionId)
 
   useEffect(() => {
-    void refreshContext()
-    void refreshActions()
-    inputRef.current?.focus()
-    return window.commandCenter.onShown(() => {
-      setInput('')
+    void window.commandCenter.setLayout(isChatMode ? 'chat' : 'search')
+  }, [isChatMode])
+
+  const filteredRows = useMemo(() => {
+    const query = input.trim()
+    return flattenIndex(index).filter(({ item }) => matchesItem(item, query))
+  }, [index, input])
+
+  const groupedRows = useMemo(() => {
+    const groups = new Map<string, CommandCenterIndexItem[]>()
+    for (const row of filteredRows) {
+      groups.set(row.group, [...(groups.get(row.group) ?? []), row.item])
+    }
+    return Array.from(groups.entries())
+  }, [filteredRows])
+
+  const selectedItem = filteredRows[selectedIndex]?.item
+  const switchMode = useCallback(() => {
+    if (isChatMode) return
+    setMode((current) => (current === 'search' ? 'ask' : 'search'))
+    requestAnimationFrame(() => inputRef.current?.focus())
+  }, [isChatMode])
+
+  const refreshIndex = useCallback(async () => {
+    try {
+      const nextIndex = await window.commandCenter.getIndex()
+      setIndex(nextIndex)
       setError(null)
-      setStatus(null)
-      inputRef.current?.focus()
-      void refreshContext()
-      void refreshActions()
-    })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to load Command Center index.')
+    }
   }, [])
 
-  const submit = async () => {
-    const text = input.trim()
-    if (!text) return
-    const result = await window.commandCenter.submitCommand(text)
-    if (!result.accepted) {
-      setError(result.reason || 'Command was not accepted.')
+  const resetOverlay = useCallback(() => {
+    setMode('search')
+    setInput('')
+    setSelectedIndex(0)
+    setConfirmingWorkflow(null)
+    setStatus(null)
+    setError(null)
+    setPendingPrompt(null)
+    setPromoted(false)
+    setChatSessionId(null)
+    clearCurrentSession()
+    void refreshIndex()
+    requestAnimationFrame(() => inputRef.current?.focus())
+  }, [clearCurrentSession, refreshIndex])
+
+  useEffect(() => {
+    resetOverlay()
+    return window.commandCenter.onShown(resetOverlay)
+  }, [resetOverlay])
+
+  useEffect(() => {
+    setSelectedIndex(0)
+  }, [input, mode])
+
+  useEffect(() => {
+    if (!pendingPrompt || !chatSessionId || currentSessionId !== chatSessionId || isLoading) return
+    const prompt = pendingPrompt
+    setPendingPrompt(null)
+    void sendMessage(prompt, [])
+  }, [chatSessionId, currentSessionId, isLoading, pendingPrompt, sendMessage])
+
+  useEffect(() => {
+    bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight, behavior: 'smooth' })
+  }, [chatMessages.length, streamingState?.content])
+
+  const hideOverlay = useCallback(() => {
+    if (
+      chatSessionId &&
+      settings.commandCenterChatPersistence === 'temporary' &&
+      !promoted &&
+      !isLoading
+    ) {
+      deleteSession(chatSessionId)
+    }
+    void window.commandCenter.hide()
+  }, [chatSessionId, deleteSession, isLoading, promoted, settings.commandCenterChatPersistence])
+
+  const startChat = useCallback((prompt: string) => {
+    const trimmed = prompt.trim()
+    if (!trimmed) return
+    const sessionId = createSession()
+    setChatSessionId(sessionId)
+    switchSession(sessionId)
+    setPendingPrompt(trimmed)
+    setMode('ask')
+    setInput('')
+  }, [createSession, switchSession])
+
+  const executeItem = useCallback(async (item: CommandCenterIndexItem) => {
+    if (item.type === 'workflow') {
+      setConfirmingWorkflow(item)
+      return
+    }
+    setError(null)
+    setStatus(null)
+    const result = await window.commandCenter.executeIndexItem(item.id)
+    if (!result.success) {
+      setError(result.error || 'Command failed.')
+      return
+    }
+    if (result.aiPrompt) {
+      startChat(result.aiPrompt)
+      return
+    }
+    if (item.type !== 'chat') {
+      setStatus(`${item.title} complete.`)
+      void refreshIndex()
+    }
+  }, [refreshIndex, startChat])
+
+  const runConfirmedWorkflow = useCallback(async () => {
+    if (!confirmingWorkflow || confirmingWorkflow.type !== 'workflow') return
+    const workflow = confirmingWorkflow.workflow
+    setConfirmingWorkflow(null)
+    setError(null)
+    setStatus(null)
+    const result = await window.commandCenter.executeWorkflow(workflow.id)
+    if (!result.success) {
+      setError(result.error || 'Workflow failed.')
+      return
+    }
+    if (result.aiPrompt) {
+      startChat(result.aiPrompt)
+      return
+    }
+    setStatus(`${workflow.name} complete.`)
+    void refreshIndex()
+  }, [confirmingWorkflow, refreshIndex, startChat])
+
+  const submit = useCallback(() => {
+    if (isChatMode) {
+      if (input.trim()) {
+        const prompt = input.trim()
+        setInput('')
+        void sendMessage(prompt, [])
+      }
+      return
+    }
+
+    if (mode === 'ask') {
+      startChat(input)
+      return
+    }
+
+    if (selectedItem) {
+      void executeItem(selectedItem)
+      return
+    }
+
+    if (input.trim()) {
+      setMode('ask')
+      startChat(input)
+    }
+  }, [executeItem, input, isChatMode, mode, selectedItem, sendMessage, startChat])
+
+  const openInFullChat = useCallback(async () => {
+    if (!chatSessionId) return
+    setPromoted(true)
+    await window.commandCenter.openChatSession(chatSessionId)
+  }, [chatSessionId])
+
+  const handlePanelKeyDownCapture = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Tab') {
+      event.preventDefault()
+      switchMode()
     }
   }
 
-  const runAction = async (action: CommandCenterAction) => {
-    setRunningAction(action.id)
-    setError(null)
-    setStatus(null)
-    const result = await window.commandCenter.executeAction(action.id)
-    setRunningAction(null)
-    if (result.success) {
-      setStatus(
-        action.id === 'system-status'
-          ? formatSystemStatus(result.data)
-          : action.id === 'toggle-theme'
-            ? formatThemeStatus(result.data)
-            : `${action.label} complete.`
-      )
-      void refreshContext()
-    } else {
-      setError(result.error || `${action.label} failed.`)
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      if (confirmingWorkflow) {
+        setConfirmingWorkflow(null)
+        return
+      }
+      hideOverlay()
+      return
+    }
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault()
+      submit()
+      return
+    }
+    if (!isChatMode && mode === 'search' && event.key === 'ArrowDown') {
+      event.preventDefault()
+      setSelectedIndex((current) => Math.min(current + 1, Math.max(filteredRows.length - 1, 0)))
+    }
+    if (!isChatMode && mode === 'search' && event.key === 'ArrowUp') {
+      event.preventDefault()
+      setSelectedIndex((current) => Math.max(current - 1, 0))
     }
   }
 
   return (
     <div className="command-center-root">
-      <div className="command-center-panel">
-        <div className="command-center-context">
-          <span className="command-center-context__icon">
-            <Monitor size={14} />
-          </span>
-          <span className="command-center-context__label">{contextLabel}</span>
-          <button
-            type="button"
-            className="command-center-close"
-            onClick={() => window.commandCenter.hide()}
-            aria-label="Close Command Center"
-          >
-            <X size={15} />
-          </button>
+      <motion.div
+        className={`command-center-panel ${isChatMode ? 'is-chat' : ''}`}
+        onKeyDownCapture={handlePanelKeyDownCapture}
+        initial={{ opacity: 0, scale: 0.985, y: -8 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+      >
+        <div className="command-center-topbar">
+          <div className="command-center-brand">
+            <img className="command-center-logo" src="icon-mark.png" alt="" />
+          </div>
+          {!isChatMode && (
+            <motion.div
+              className="command-center-input-shell"
+              animate={reduceMotion ? { opacity: 1, x: 0 } : {
+                opacity: [0.76, 1],
+                x: mode === 'ask' ? 4 : 0,
+              }}
+              transition={{ duration: reduceMotion ? 0 : 0.18, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <input
+                ref={(node) => { inputRef.current = node }}
+                autoFocus
+                value={input}
+                onChange={(event) => setInput(event.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={mode === 'search' ? 'Search workflows, apps, windows, chats...' : 'Ask Zura to help with this screen...'}
+                aria-label={mode === 'search' ? 'Search Command Center' : 'Ask Zura'}
+              />
+            </motion.div>
+          )}
+          {!isChatMode && (
+            <div className="command-center-tab-hint">
+              <kbd>Tab</kbd>
+              <span>to switch</span>
+            </div>
+          )}
+          <div className="command-center-segment" aria-label="Command Center mode">
+            <button type="button" className={mode === 'search' && !isChatMode ? 'active' : ''} onClick={() => setMode('search')}>
+              Search
+            </button>
+            <button type="button" className={mode === 'ask' || isChatMode ? 'active' : ''} onClick={() => setMode('ask')}>
+              Ask AI
+            </button>
+          </div>
         </div>
 
-        <div className="command-center-input-row">
-          <Command size={22} className="command-center-command-icon" />
-          <input
-            ref={inputRef}
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Escape') {
-                event.preventDefault()
-                void window.commandCenter.hide()
-              }
-              if (event.key === 'Enter') {
-                event.preventDefault()
-                void submit()
-              }
-              if (event.altKey && /^[1-9]$/.test(event.key)) {
-                const action = visibleActions[Number(event.key) - 1]
-                if (action) {
-                  event.preventDefault()
-                  void runAction(action)
-                }
-              }
-            }}
-            placeholder="Ask ZuraAI to act on this desktop..."
-            aria-label="Command"
-          />
-          <button
-            type="button"
-            className="command-center-submit"
-            onClick={() => void submit()}
-            aria-label="Send command"
-          >
-            <CornerDownLeft size={17} />
-          </button>
-        </div>
-
-        <div className="command-center-footer">
-          <span>{error || status || 'Commands open in chat when they need reasoning or multi-step work.'}</span>
-        </div>
-
-        {groupedActions.length > 0 ? (
-          <div className="command-center-actions" aria-label="Quick OS actions">
-            {groupedActions.map((group) => (
-              <div key={group.kind} className="command-center-action-group">
-                <div className="command-center-action-group__label">{group.label}</div>
-                <div className="command-center-action-group__items">
-                  {group.actions.map((action) => (
-                    <button
-                      key={action.id}
-                      type="button"
-                      className="command-center-action"
-                      disabled={runningAction !== null}
-                      onClick={() => void runAction(action)}
-                    >
-                      <span className="command-center-action__label">
-                        {runningAction === action.id ? 'Running...' : action.label}
-                      </span>
-                      <span className="command-center-action__hint">
-                        Alt+{actionShortcutIndex.get(action.id)}
-                      </span>
-                    </button>
-                  ))}
+        <AnimatePresence mode="wait">
+          {!isChatMode ? (
+            <motion.div
+              key={mode}
+              className="command-center-body"
+              initial={reduceMotion ? { opacity: 0 } : { opacity: 0, x: mode === 'ask' ? 18 : -18, filter: 'blur(5px)' }}
+              animate={reduceMotion ? { opacity: 1 } : { opacity: 1, x: 0, filter: 'blur(0px)' }}
+              exit={reduceMotion ? { opacity: 0 } : { opacity: 0, x: mode === 'ask' ? 18 : -18, filter: 'blur(4px)' }}
+              transition={{ duration: reduceMotion ? 0.08 : 0.2, ease: [0.22, 1, 0.36, 1] }}
+            >
+              {mode === 'search' ? (
+                <div className="command-center-results" role="listbox" aria-label="Command Center results">
+                  {groupedRows.length > 0 ? groupedRows.map(([group, items]) => (
+                    <section key={group} className="command-center-group">
+                      <h2>{group}</h2>
+                      {items.map((item) => {
+                        const rowIndex = filteredRows.findIndex((row) => row.item.id === item.id)
+                        const selected = rowIndex === selectedIndex
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            className={`command-center-result ${selected ? 'selected' : ''}`}
+                            onMouseEnter={() => setSelectedIndex(rowIndex)}
+                            onClick={() => void executeItem(item)}
+                          >
+                            <span className="command-center-result__icon">{iconForItem(item)}</span>
+                            <span className="command-center-result__text">
+                              <span>{item.title}</span>
+                              {item.subtitle && <small>{item.subtitle}</small>}
+                            </span>
+                            <span className="command-center-result__hint">{item.hint}</span>
+                          </button>
+                        )
+                      })}
+                    </section>
+                  )) : (
+                    <div className="command-center-empty">No results. Press Enter to ask Zura instead.</div>
+                  )}
                 </div>
+              ) : (
+                <div className="command-center-ask-empty">
+                  <Brain size={26} />
+                  <p>Waiting for your first message.</p>
+                  <div>
+                    <button type="button" onClick={() => setInput('Summarize this window')}>Summarize this window</button>
+                    <button type="button" onClick={() => setInput('Find the next step')}>Find the next step</button>
+                    <button type="button" onClick={() => setInput('Turn clipboard into a message')}>Use clipboard</button>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          ) : (
+            <motion.div
+              key="chat"
+              className="command-center-chat"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.18 }}
+            >
+              <div className="command-center-chat-actions">
+                <button type="button" onClick={openInFullChat}>Open in Chat</button>
               </div>
-            ))}
+              <div ref={bodyRef} className="command-center-chat-scroll">
+                {chatMessages.map((message, index) => {
+                  const isLastAssistant = message.role === 'assistant' && index === chatMessages.length - 1
+                  const streaming = isLoading && isLastAssistant
+                  return (
+                    <div key={message.id} className="command-center-chat-message">
+                      {streaming ? (
+                        <StreamingMessage
+                          message={message}
+                          sessionId={chatSessionId!}
+                          activeToolCalls={toolState.activeToolCalls}
+                          onRegenerate={(instruction) => regenerateMessage(message, instruction)}
+                        />
+                      ) : (
+                        <MessageRenderer
+                          message={message}
+                          sessionId={chatSessionId!}
+                          isStreaming={false}
+                          onRegenerate={(instruction) => regenerateMessage(message, instruction)}
+                        />
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+              <div className="command-center-composer">
+                <textarea
+                  ref={(node) => { inputRef.current = node }}
+                  autoFocus
+                  value={input}
+                  onChange={(event) => setInput(event.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Ask a follow-up..."
+                  rows={1}
+                />
+                <button type="button" onClick={isLoading ? stopStreaming : submit} aria-label={isLoading ? 'Stop' : 'Send'}>
+                  {isLoading ? <X size={16} /> : <CornerDownLeft size={16} />}
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {(error || status) && (
+          <div className={`command-center-status ${error ? 'error' : ''}`}>
+            {error || status}
           </div>
-        ) : actions.length > 0 ? (
-          <div className="command-center-empty-actions">
-            No quick actions match. Press Enter to send as a command.
+        )}
+      </motion.div>
+
+      {confirmingWorkflow && confirmingWorkflow.type === 'workflow' && (
+        <div className="command-center-confirm">
+          <div>
+            <Sparkles size={18} />
+            <strong>Run {confirmingWorkflow.workflow.name}?</strong>
+            <span>{confirmingWorkflow.workflow.steps.length} step workflow</span>
           </div>
-        ) : null}
-      </div>
+          <button type="button" onClick={() => setConfirmingWorkflow(null)}>Cancel</button>
+          <button type="button" onClick={() => void runConfirmedWorkflow()}>
+            <Check size={15} />
+            Run
+          </button>
+        </div>
+      )}
 
       <style>{`
         html, body, #root {
-          margin: 0;
           width: 100%;
           height: 100%;
-          background: transparent;
+          margin: 0;
           overflow: hidden;
+          background: transparent;
         }
+
         .command-center-root {
           width: 100%;
           height: 100%;
@@ -279,161 +474,404 @@ export default function CommandCenterOverlay() {
           align-items: center;
           justify-content: center;
           font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+          color: rgba(255, 244, 248, 0.92);
         }
+
         .command-center-panel {
-          width: calc(100% - 24px);
-          border: 1px solid rgba(255, 255, 255, 0.12);
-          border-radius: 16px;
-          background: rgba(20, 20, 22, 0.94);
-          color: #f8fafc;
-          box-shadow: 0 28px 80px rgba(0, 0, 0, 0.44);
-          backdrop-filter: blur(22px);
+          position: relative;
+          width: 100vw;
+          height: 100vh;
+          border-radius: 0;
           overflow: hidden;
+          border: 1px solid rgba(255, 255, 255, 0.16);
+          background: rgba(0, 0, 0, 0.58);
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.18),
+            inset 0 -1px 0 rgba(0, 0, 0, 0.48),
+            0 28px 90px rgba(0, 0, 0, 0.52);
+          backdrop-filter: blur(34px) saturate(130%);
+          -webkit-backdrop-filter: blur(34px) saturate(130%);
+          transition: height 180ms ease, width 180ms ease;
         }
-        .command-center-context {
-          height: 36px;
+
+        .command-center-panel.is-chat {
+          height: 100vh;
+        }
+
+        .command-center-topbar {
+          position: relative;
+          z-index: 1;
+          height: 52px;
           display: flex;
           align-items: center;
           gap: 8px;
-          padding: 0 10px 0 14px;
-          color: #a7f3d0;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+          padding: 0 8px 0 12px;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.10);
         }
-        .command-center-context__icon {
-          display: inline-flex;
-          color: #38bdf8;
+
+        .command-center-brand {
+          flex: 0 0 28px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0;
+          color: rgba(255, 231, 238, 0.72);
+          font-size: 14px;
+          font-weight: 600;
         }
-        .command-center-context__label {
+
+        .command-center-logo {
+          width: 22px;
+          height: 22px;
+          object-fit: contain;
+          display: block;
+        }
+
+        .command-center-tab-hint {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          color: rgba(255, 231, 238, 0.34);
+          font-size: 11px;
+          white-space: nowrap;
+        }
+
+        .command-center-tab-hint kbd {
+          min-width: 0;
+          height: auto;
+          padding: 0;
+          border: 0;
+          border-radius: 0;
+          background: transparent;
+          color: rgba(255, 241, 246, 0.58);
+          font: inherit;
+          font-size: 11px;
+          font-weight: 700;
+        }
+
+        .command-center-segment {
+          height: 30px;
+          display: flex;
+          align-items: center;
+          padding: 2px;
+          border-radius: 6px;
+          background: rgba(255, 255, 255, 0.12);
+          border: 1px solid rgba(255, 255, 255, 0.10);
+        }
+
+        .command-center-segment button,
+        .command-center-composer button,
+        .command-center-chat-actions button,
+        .command-center-ask-empty button,
+        .command-center-confirm button {
+          border: 0;
+          color: inherit;
+          font: inherit;
+          cursor: pointer;
+        }
+
+        .command-center-segment button {
+          height: 24px;
+          padding: 0 9px;
+          border-radius: 4px;
+          background: transparent;
+          color: rgba(255, 235, 240, 0.56);
+          font-size: 13px;
+        }
+
+        .command-center-segment button.active {
+          background: rgba(255, 255, 255, 0.22);
+          color: rgba(255, 247, 250, 0.90);
+        }
+
+        .command-center-body,
+        .command-center-chat {
+          position: relative;
+          z-index: 1;
+          height: calc(100% - 52px);
+          display: flex;
+          flex-direction: column;
+          min-height: 0;
+        }
+
+        .command-center-input-shell {
+          flex: 1;
+          min-width: 180px;
+          height: 34px;
+          display: flex;
+          align-items: center;
+          gap: 0;
+          padding: 0 4px 0 10px;
+          border-radius: 0;
+          background: transparent;
+          border: 0;
+          box-shadow: none;
+          color: rgba(255, 231, 238, 0.64);
+        }
+
+        .command-center-input-shell input {
           flex: 1;
           min-width: 0;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-          font-size: 12px;
-        }
-        .command-center-close,
-        .command-center-submit {
           border: 0;
+          outline: 0;
+          background: transparent;
+          color: rgba(255, 245, 248, 0.94);
+          font-size: 14px;
+        }
+
+        .command-center-input-shell input::placeholder,
+        .command-center-composer textarea::placeholder {
+          color: rgba(255, 231, 238, 0.42);
+        }
+
+        .command-center-composer button {
+          width: 30px;
+          height: 30px;
+          border-radius: 7px;
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          color: #cbd5e1;
-          background: transparent;
-          cursor: pointer;
+          background: rgba(255, 255, 255, 0.14);
         }
-        .command-center-close {
-          width: 28px;
-          height: 28px;
-          border-radius: 8px;
-        }
-        .command-center-close:hover,
-        .command-center-submit:hover {
-          background: rgba(255, 255, 255, 0.09);
-        }
-        .command-center-input-row {
-          height: 72px;
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          padding: 0 16px;
-        }
-        .command-center-command-icon {
-          color: #22d3ee;
-          flex: 0 0 auto;
-        }
-        .command-center-input-row input {
+
+        .command-center-results {
           flex: 1;
-          min-width: 0;
-          border: 0;
-          outline: none;
-          background: transparent;
-          color: #f8fafc;
-          font-size: 20px;
-          line-height: 1.2;
-        }
-        .command-center-input-row input::placeholder {
-          color: #64748b;
-        }
-        .command-center-submit {
-          width: 38px;
-          height: 38px;
-          border-radius: 10px;
-          background: rgba(34, 211, 238, 0.11);
-          color: #67e8f9;
-        }
-        .command-center-footer {
-          min-height: 32px;
-          display: flex;
-          align-items: center;
-          padding: 0 16px 8px 50px;
-          color: #94a3b8;
-          font-size: 12px;
-        }
-        .command-center-actions {
-          display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 10px 12px;
-          padding: 0 14px 14px 50px;
-          max-height: 94px;
+          min-height: 0;
           overflow: auto;
+          padding: 16px 18px 22px;
         }
-        .command-center-action-group {
-          min-width: 0;
+
+        .command-center-group {
+          margin-bottom: 20px;
         }
-        .command-center-action-group__label {
-          margin-bottom: 5px;
-          color: #64748b;
-          font-size: 10px;
-          font-weight: 600;
-          text-transform: uppercase;
-          letter-spacing: 0;
+
+        .command-center-group h2 {
+          margin: 0 0 8px;
+          color: rgba(255, 231, 238, 0.52);
+          font-size: 14px;
+          font-weight: 500;
         }
-        .command-center-action-group__items {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 6px;
-        }
-        .command-center-empty-actions {
-          padding: 0 16px 14px 50px;
-          color: #64748b;
-          font-size: 12px;
-        }
-        .command-center-action {
-          height: 30px;
-          flex: 0 1 auto;
-          min-width: 0;
-          border: 1px solid rgba(255, 255, 255, 0.09);
-          border-radius: 8px;
+
+        .command-center-result {
+          width: 100%;
+          height: 36px;
+          display: grid;
+          grid-template-columns: 28px minmax(0, 1fr) 76px;
+          align-items: center;
+          gap: 10px;
+          border: 0;
+          border-radius: 7px;
+          background: transparent;
+          color: rgba(255, 241, 246, 0.74);
+          text-align: left;
           padding: 0 10px;
-          background: rgba(255, 255, 255, 0.06);
-          color: #dbeafe;
-          font-size: 12px;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
+          font: inherit;
           cursor: pointer;
+        }
+
+        .command-center-result.selected,
+        .command-center-result:hover {
+          background: rgba(255, 255, 255, 0.13);
+          color: rgba(255, 249, 251, 0.96);
+        }
+
+        .command-center-result__icon {
+          width: 18px;
+          height: 18px;
           display: inline-flex;
           align-items: center;
-          gap: 7px;
+          justify-content: center;
+          color: rgba(255, 221, 231, 0.58);
+          overflow: hidden;
         }
-        .command-center-action:hover:not(:disabled) {
-          background: rgba(34, 211, 238, 0.16);
-          border-color: rgba(34, 211, 238, 0.34);
+
+        .command-center-result__icon svg,
+        .command-center-result__app-icon {
+          width: 16px;
+          height: 16px;
+          display: block;
+          flex: 0 0 auto;
         }
-        .command-center-action:disabled {
-          opacity: 0.6;
-          cursor: default;
+
+        .command-center-result__app-icon {
+          object-fit: contain;
         }
-        .command-center-action__label {
+
+        .command-center-result__text {
           min-width: 0;
+          display: flex;
+          flex-direction: column;
+          line-height: 1.1;
+        }
+
+        .command-center-result__text span,
+        .command-center-result__text small {
           overflow: hidden;
           text-overflow: ellipsis;
+          white-space: nowrap;
         }
-        .command-center-action__hint {
-          flex: 0 0 auto;
-          color: #7dd3fc;
-          opacity: 0.72;
+
+        .command-center-result__text span {
+          font-size: 14px;
+        }
+
+        .command-center-result__text small {
+          margin-top: 3px;
+          color: rgba(255, 231, 238, 0.46);
           font-size: 11px;
+        }
+
+        .command-center-result__hint {
+          justify-self: end;
+          color: rgba(255, 231, 238, 0.48);
+          font-size: 12px;
+        }
+
+        .command-center-empty,
+        .command-center-ask-empty {
+          color: rgba(255, 231, 238, 0.56);
+        }
+
+        .command-center-empty {
+          padding: 32px 10px;
+          font-size: 14px;
+        }
+
+        .command-center-ask-empty {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 16px;
+          padding: 28px;
+          text-align: center;
+        }
+
+        .command-center-ask-empty p {
+          margin: 0;
+          font-size: 15px;
+        }
+
+        .command-center-ask-empty div {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          justify-content: center;
+        }
+
+        .command-center-ask-empty button,
+        .command-center-chat-actions button,
+        .command-center-confirm button {
+          min-height: 30px;
+          border-radius: 7px;
+          padding: 0 11px;
+          background: rgba(255, 255, 255, 0.13);
+          color: rgba(255, 241, 246, 0.78);
+        }
+
+        .command-center-chat-actions {
+          height: 40px;
+          display: flex;
+          justify-content: flex-end;
+          align-items: center;
+          padding: 0 18px;
+        }
+
+        .command-center-chat-scroll {
+          flex: 1;
+          min-height: 0;
+          overflow: auto;
+          padding: 10px 20px 18px;
+        }
+
+        .command-center-chat-message {
+          max-width: 690px;
+          margin: 0 auto;
+        }
+
+        .command-center-composer {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          margin: 0 18px 18px;
+          padding: 10px 12px;
+          border-radius: 8px;
+          border: 1px solid rgba(255, 255, 255, 0.13);
+          background: rgba(255, 255, 255, 0.10);
+        }
+
+        .command-center-composer textarea {
+          flex: 1;
+          min-width: 0;
+          max-height: 96px;
+          border: 0;
+          outline: 0;
+          resize: none;
+          background: transparent;
+          color: rgba(255, 245, 248, 0.94);
+          font: inherit;
+          line-height: 1.4;
+        }
+
+        .command-center-status {
+          position: absolute;
+          z-index: 2;
+          left: 18px;
+          right: 18px;
+          bottom: 12px;
+          color: rgba(211, 255, 225, 0.82);
+          font-size: 12px;
+          pointer-events: none;
+        }
+
+        .command-center-status.error {
+          color: rgba(255, 194, 205, 0.94);
+        }
+
+        .command-center-confirm {
+          position: absolute;
+          z-index: 5;
+          left: 50%;
+          bottom: 28px;
+          transform: translateX(-50%);
+          width: min(520px, calc(100vw - 44px));
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto auto;
+          gap: 10px;
+          align-items: center;
+          padding: 12px;
+          border-radius: 8px;
+          background: rgba(38, 18, 30, 0.92);
+          border: 1px solid rgba(255, 255, 255, 0.15);
+          box-shadow: 0 18px 50px rgba(0, 0, 0, 0.38);
+        }
+
+        .command-center-confirm div {
+          min-width: 0;
+          display: grid;
+          grid-template-columns: auto minmax(0, 1fr);
+          gap: 3px 9px;
+          align-items: center;
+        }
+
+        .command-center-confirm strong,
+        .command-center-confirm span {
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .command-center-confirm span {
+          grid-column: 2;
+          color: rgba(255, 231, 238, 0.54);
+          font-size: 12px;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .command-center-panel {
+            transition: none;
+          }
         }
       `}</style>
     </div>

@@ -6,6 +6,8 @@ import CommandCenterSettingsSync from './CommandCenterSettingsSync'
 
 const queueMessage = vi.fn()
 const updateSettings = vi.fn()
+const switchSession = vi.fn()
+const loadFullSession = vi.fn(async () => null)
 const setExtensionEnabled = vi.fn(async () => ({
   enabled: true,
   shortcut: 'CommandOrControl+Shift+Space',
@@ -15,6 +17,7 @@ let assistantMode: 'chat' | 'agent' = 'chat'
 let commandCallback: ((command: {
   text: string
   receivedAt: number
+  sessionId?: string
   activeWindow?: { hwnd?: number; title?: string; processName?: string }
 }) => void) | null = null
 
@@ -44,6 +47,13 @@ vi.mock('../contexts/QuickSendContext', () => ({
   }),
 }))
 
+vi.mock('../contexts/ChatHistoryContext', () => ({
+  useChatHistory: () => ({
+    switchSession,
+    loadFullSession,
+  }),
+}))
+
 vi.mock('../utils/platform', () => ({
   isWindowsRuntime: () => true,
 }))
@@ -52,6 +62,8 @@ describe('CommandCenterSettingsSync', () => {
   beforeEach(() => {
     queueMessage.mockClear()
     updateSettings.mockClear()
+    switchSession.mockClear()
+    loadFullSession.mockClear()
     setExtensionEnabled.mockClear()
     assistantMode = 'chat'
     commandCallback = null
@@ -114,5 +126,20 @@ describe('CommandCenterSettingsSync', () => {
       'Command Center desktop context (app: notepad, window: Quarterly notes, hwnd: 123):\nsnap this window left'
     )
     expect(updateSettings).not.toHaveBeenCalled()
+  })
+
+  it('opens promoted Command Center chats without queueing an empty message', () => {
+    assistantMode = 'agent'
+    render(<CommandCenterSettingsSync />)
+
+    commandCallback?.({
+      text: '',
+      sessionId: 'session-1',
+      receivedAt: Date.now(),
+    })
+
+    expect(switchSession).toHaveBeenCalledWith('session-1')
+    expect(loadFullSession).toHaveBeenCalledWith('session-1')
+    expect(queueMessage).not.toHaveBeenCalled()
   })
 })

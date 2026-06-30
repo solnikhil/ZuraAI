@@ -14,6 +14,7 @@ describe('Command Center main service', () => {
     const readText = vi.fn(() => 'clipboard sample')
     const showCommandCenterWindow = vi.fn()
     const hideCommandCenterWindow = vi.fn()
+    const setCommandCenterWindowLayout = vi.fn()
     const toggleCommandCenterWindow = vi.fn()
     const executeWindowSnap = vi.fn(async () => ({ success: true, data: { action: 'snap' } }))
     const executeSystemVolumeSet = vi.fn(async () => ({ success: true, data: { level: 60 } }))
@@ -27,6 +28,29 @@ describe('Command Center main service', () => {
     const executeSystemStatus = vi.fn(async () => ({ success: true, data: { disks: [] } }))
     const executeSystemThemeGet = vi.fn(async () => ({ success: true, data: { appTheme: 'dark' } }))
     const executeSystemThemeSet = vi.fn(async () => ({ success: true, data: { appTheme: 'light' } }))
+    const executeAppList = vi.fn(async () => ({
+      success: true,
+      data: { apps: [{ name: 'Chrome', path: 'C:\\Chrome.lnk', source: 'start-menu' }] },
+    }))
+    const executeAppLaunch = vi.fn(async () => ({ success: true, data: { launched: true } }))
+    const executeWindowList = vi.fn(async () => ({
+      success: true,
+      data: { windows: [{ hwnd: 55, title: 'Chrome - Docs', processName: 'chrome', processId: 10 }] },
+    }))
+    const executeWindowFocus = vi.fn(async () => ({ success: true, data: { focused: true } }))
+    const listCommandCenterWorkflows = vi.fn(async () => [
+      {
+        id: 'morning',
+        name: 'Morning startup',
+        aliases: ['start'],
+        steps: [{ type: 'app', appPath: 'C:\\Chrome.lnk' }],
+        createdAt: 1,
+        updatedAt: 2,
+      },
+    ])
+    const saveCommandCenterWorkflow = vi.fn(async (workflow) => workflow)
+    const deleteCommandCenterWorkflow = vi.fn(async () => true)
+    const markCommandCenterWorkflowRun = vi.fn(async () => undefined)
 
     const webContents = {
       isLoading: vi.fn(() => false),
@@ -45,6 +69,12 @@ describe('Command Center main service', () => {
     }
 
     vi.doMock('electron', () => ({
+      app: {
+        getFileIcon: vi.fn(async () => ({
+          isEmpty: () => false,
+          toDataURL: () => 'data:image/png;base64,icon',
+        })),
+      },
       globalShortcut: {
         register,
         unregister,
@@ -60,10 +90,33 @@ describe('Command Center main service', () => {
       },
     }))
 
+    vi.doMock('./chatStore', () => ({
+      getSessionMetadataAsync: vi.fn(async () => [
+        {
+          id: 'chat-1',
+          title: 'Demo chat',
+          createdAt: 1,
+          updatedAt: 2,
+          pinned: false,
+          folderId: null,
+          tags: [],
+          messageCount: 2,
+        },
+      ]),
+    }))
+
+    vi.doMock('./commandCenterWorkflows', () => ({
+      listCommandCenterWorkflows,
+      saveCommandCenterWorkflow,
+      deleteCommandCenterWorkflow,
+      markCommandCenterWorkflowRun,
+    }))
+
     vi.doMock('./windows', () => ({
       createMainWindow: vi.fn(() => mainWindow),
       getMainWindow: vi.fn(() => mainWindow),
       hideCommandCenterWindow,
+      setCommandCenterWindowLayout,
       showCommandCenterWindow,
       toggleCommandCenterWindow,
     }))
@@ -84,6 +137,16 @@ describe('Command Center main service', () => {
       executeSystemThemeSet,
     }))
 
+    vi.doMock('./tools/app-management', () => ({
+      executeAppList,
+      executeAppLaunch,
+    }))
+
+    vi.doMock('./tools/window-management', () => ({
+      executeWindowList,
+      executeWindowFocus,
+    }))
+
     const service = await import('./commandCenter')
     return {
       service,
@@ -92,6 +155,7 @@ describe('Command Center main service', () => {
       unregister,
       showCommandCenterWindow,
       hideCommandCenterWindow,
+      setCommandCenterWindowLayout,
       toggleCommandCenterWindow,
       mainWindow,
       sentEvents,
@@ -105,6 +169,12 @@ describe('Command Center main service', () => {
       executeSystemStatus,
       executeSystemThemeGet,
       executeSystemThemeSet,
+      executeAppList,
+      executeAppLaunch,
+      executeWindowList,
+      executeWindowFocus,
+      listCommandCenterWorkflows,
+      markCommandCenterWorkflowRun,
     }
   }
 
@@ -216,5 +286,29 @@ describe('Command Center main service', () => {
       typeof (event.payload as { text?: unknown }).text === 'string' &&
       ((event.payload as { text: string }).text.includes('clipboard sample'))
     ))).toBe(true)
+  })
+
+  it('builds a searchable index and focuses an existing app window by default', async () => {
+    const { service, handlers, executeWindowFocus, executeAppLaunch } = await loadService()
+    service.registerCommandCenterHandlers()
+    service.setCommandCenterExtensionEnabled(true)
+
+    const getIndex = handlers.get('command-center:get-index')
+    const executeItem = handlers.get('command-center:execute-index-item')
+    const index = await getIndex?.()
+
+    expect(index).toMatchObject({
+      workflows: [expect.objectContaining({ title: 'Morning startup' })],
+      apps: [expect.objectContaining({ title: 'Chrome', hint: 'Application', iconDataUrl: 'data:image/png;base64,icon' })],
+      windows: [expect.objectContaining({ hwnd: 55 })],
+      chats: [expect.objectContaining({ sessionId: 'chat-1' })],
+    })
+
+    await expect(executeItem?.({}, 'app:QzpcQ2hyb21lLmxuaw')).resolves.toEqual({
+      success: true,
+      data: { focused: true },
+    })
+    expect(executeWindowFocus).toHaveBeenCalledWith({ hwnd: 55, autoApprove: true })
+    expect(executeAppLaunch).not.toHaveBeenCalled()
   })
 })

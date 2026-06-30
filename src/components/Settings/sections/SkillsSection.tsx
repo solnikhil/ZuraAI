@@ -45,6 +45,7 @@ export interface SkillsSectionProps {
     codeExecutionAutoApprove?: boolean
     terminalAutoApprove?: boolean
     computerUseAutoApprove?: boolean
+    commandCenterChatPersistence?: Settings['commandCenterChatPersistence']
     memoryModel?: string
     brevoApiKey?: string
     emailNotifications?: EmailNotificationSettings

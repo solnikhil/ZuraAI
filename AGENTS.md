@@ -122,6 +122,7 @@ Main `app.getPath('userData')`:
 - Secure-storage JSON encrypted through `safeStorage`
 - Memories and memory summaries
 - Scheduled task definitions, lookout snapshots, reminder logs, and run history
+- Command Center saved workflow definitions (`command-center-workflows.json`)
 - Analytics consent/install metadata
 - Dev-only chat diagnostics JSONL
 - Artifact export files for external opening
@@ -216,6 +217,22 @@ tool names. Action aliases are search metadata only and must not affect the
 main-process execution allowlist. Clipboard content may only be read for the
 explicit `clipboard-to-chat` user action, is capped before chat handoff, and
 must not be read as background context.
+Command Center search uses narrow `window.commandCenter` bridge methods to read
+a typed index of saved workflows, Start Menu apps, live top-level windows, fixed
+actions, and recent chats. Search execution passes typed item/workflow IDs back
+to main; main resolves those IDs to allowlisted actions, Start Menu shortcut
+launches, exact `hwnd` window focus, or chat-session promotion. Saved workflows
+are non-secret userData JSON and may contain only typed OS/action/window/app
+steps plus AI prompt steps; they must not store shell strings, unrestricted
+paths, arbitrary tool names, or secrets. Workflow runs require an explicit
+renderer confirmation before main execution. Overlay AI chats use the normal
+chat providers, message model, streaming, and approval surfaces; the renderer
+setting `commandCenterChatPersistence` controls whether overlay chats are
+temporary until promoted or saved immediately, and `command-center:open-chat-session`
+is the narrow bridge for opening a promoted overlay chat in the main ZuraAI chat
+surface. The overlay may request only the fixed `search` or `chat` layout through
+`command-center:set-layout`; main owns the actual BrowserWindow bounds so the
+renderer cannot set arbitrary window geometry.
 When the assistant is in Agent Mode, the renderer may expose existing app/window
 tools for app discovery/launch and window focus
 (`app_find`, `app_list`, `app_launch`, `window_list`, `window_focus`). Chat mode

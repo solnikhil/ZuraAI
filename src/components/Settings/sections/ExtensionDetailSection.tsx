@@ -34,6 +34,7 @@ export interface ExtensionDetailSectionProps {
     codeExecutionAutoApprove?: boolean
     terminalAutoApprove?: boolean
     computerUseAutoApprove?: boolean
+    commandCenterChatPersistence?: Settings['commandCenterChatPersistence']
     memoryModel?: string
     brevoApiKey?: string
     emailNotifications?: EmailNotificationSettings
@@ -179,6 +180,16 @@ export function ExtensionDetailSection({
               </div>
             </div>
           </Card>
+          {settings ? (
+            <ExtensionToggleCard
+              label="Save overlay chats"
+              description="Store Command Center AI chats in normal chat history immediately. When off, they stay temporary until opened in Chat."
+              checked={settings.commandCenterChatPersistence === 'always-save'}
+              onCheckedChange={(checked) =>
+                onChange({ commandCenterChatPersistence: checked ? 'always-save' : 'temporary' })
+              }
+            />
+          ) : null}
         </>
       ) : skill ? (
         <ExtensionInfoCard skill={skill} />

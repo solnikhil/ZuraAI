@@ -158,6 +158,34 @@ function DashboardApp() {
   )
 }
 
+function CommandCenterApp() {
+  const macOS = isMacOSRuntime()
+
+  return (
+    <SettingsProvider>
+      <McpProvider>
+        <ChatHistoryProvider>
+          <StreamingProvider>
+            <QuickSendProvider>
+              <ComposerDraftProvider>
+                <AgentToolApprovalProvider>
+                  <ModelSelectorProvider>
+                    <CommandCenterOverlay />
+                    <McpApprovalDialog />
+                  </ModelSelectorProvider>
+                </AgentToolApprovalProvider>
+                <CodeExecutionApprovalHost />
+                <TerminalApprovalHost />
+                {!macOS && <ComputerUseApprovalDialog />}
+              </ComposerDraftProvider>
+            </QuickSendProvider>
+          </StreamingProvider>
+        </ChatHistoryProvider>
+      </McpProvider>
+    </SettingsProvider>
+  )
+}
+
 function App() {
   const hashPath = typeof window === 'undefined' ? '' : window.location.hash
 
@@ -165,7 +193,7 @@ function App() {
   if (hashPath.startsWith('#/about')) {
     content = <AboutWindow />
   } else if (hashPath.startsWith('#/command-center')) {
-    content = <CommandCenterOverlay />
+    content = <CommandCenterApp />
   } else if (hashPath.startsWith('#/chat-debug') && ChatDebugApp) {
     content = (
       <Suspense fallback={null}>
