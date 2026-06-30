@@ -749,10 +749,8 @@ export function useProviderStreaming({
                     content: frozenDisplayContent ?? accumulatedContent,
                     ...(finalizedThinkingUpdates ?? {}),
                   }
-                  updateStreamingState(answeringProgress)
                   publishStreamingProgress(answeringProgress)
                 }
-                persistProgress()
                 break
               }
               case 'reasoning-delta':
@@ -784,10 +782,8 @@ export function useProviderStreaming({
                     thinkingBlocks: localThinkingBlocks,
                     files: generatedFiles,
                   }
-                  updateStreamingState(reasoningProgress)
                   publishStreamingProgress(reasoningProgress)
                 }
-                persistProgress()
                 break
               case 'reasoning-details':
                 roundReasoningDetails.push(...event.details)

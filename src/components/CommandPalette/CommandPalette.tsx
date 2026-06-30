@@ -165,6 +165,8 @@ export default function CommandPalette() {
     hasUnsavedSettings,
     toggleSidebarCollapsed,
     toggleSidebarHidden,
+    toggleMemoryMonitor,
+    memoryMonitorVisible,
   } = useAppShell()
   const { sessions, currentSessionId, createSession } = useChatHistory()
   const { queueMessage } = useQuickSend()
@@ -225,10 +227,11 @@ export default function CommandPalette() {
       {
         hasCurrentSession: Boolean(currentSession),
         isDev: import.meta.env.DEV,
+        memoryMonitorVisible,
       },
       commandBar.maxSuggestions
     )
-  }, [commandBar.maxSuggestions, currentSession, deferredQuery])
+  }, [commandBar.maxSuggestions, currentSession, deferredQuery, memoryMonitorVisible])
 
   const recentSuggestions = useMemo<CommandBarSuggestion[]>(() => {
     if (!commandBar.showRecents) return []
@@ -403,6 +406,9 @@ export default function CommandPalette() {
         case 'toggle_sidebar_collapsed':
           toggleSidebarCollapsed()
           return true
+        case 'toggle_memory_monitor':
+          toggleMemoryMonitor()
+          return true
         case 'new_chat': {
           ensureDashboardRoute()
 
@@ -497,6 +503,7 @@ export default function CommandPalette() {
       setSettingsSectionParams,
       toggleSidebarHidden,
       toggleSidebarCollapsed,
+      toggleMemoryMonitor,
       hasUnsavedSettings,
       dashboardView,
       setDashboardView,

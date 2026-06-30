@@ -129,6 +129,28 @@ describe('commandBar suggestions', () => {
       expect(extensionsSuggestion?.title).toBe('Extensions Settings')
     })
 
+    it('offers memory monitor toggle when typing show memory', () => {
+      const suggestions = getCommandBarSuggestions('show memory', {
+        hasCurrentSession: false,
+        memoryMonitorVisible: false,
+      })
+
+      const monitorSuggestion = suggestions.find((s) => s.id === 'toggle-memory-monitor')
+      expect(monitorSuggestion).toBeDefined()
+      expect(monitorSuggestion?.title).toBe('Show Memory Monitor')
+      expect(monitorSuggestion?.action).toEqual({ type: 'toggle_memory_monitor' })
+    })
+
+    it('renames memory monitor command when the monitor is visible', () => {
+      const suggestions = getCommandBarSuggestions('memory', {
+        hasCurrentSession: false,
+        memoryMonitorVisible: true,
+      })
+
+      const monitorSuggestion = suggestions.find((s) => s.id === 'toggle-memory-monitor')
+      expect(monitorSuggestion?.title).toBe('Hide Memory Monitor')
+    })
+
     it('offers dev-only chat debug id copy when a session is active', () => {
       const suggestions = getCommandBarSuggestions('chat-id', {
         hasCurrentSession: true,

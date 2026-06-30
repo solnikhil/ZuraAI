@@ -20,6 +20,7 @@ export type CommandBarAction =
   | { type: 'open_chat_debug_panel' }
   | { type: 'export_chat'; format: 'markdown' | 'text' }
   | { type: 'send_chat_message'; content: string }
+  | { type: 'toggle_memory_monitor' }
 
 export interface CommandBarSuggestion {
   id: string
@@ -33,6 +34,7 @@ export interface CommandBarSuggestion {
 export interface CommandBarSuggestionContext {
   hasCurrentSession: boolean
   isDev?: boolean
+  memoryMonitorVisible?: boolean
 }
 
 const COMMAND_STOPWORDS = new Set(['go', 'goto', 'to', 'open', 'show', 'navigate'])
@@ -276,6 +278,22 @@ function buildBaseSuggestions(
       subtitle: 'Customize floating command palette',
       keywords: ['command', 'bar', 'commandbar', 'shortcut', 'palette', 'floating'],
       action: { type: 'open_settings_section', section: 'themes', commandPaletteTab: true },
+    },
+    {
+      id: 'toggle-memory-monitor',
+      title: ctx.memoryMonitorVisible ? 'Hide Memory Monitor' : 'Show Memory Monitor',
+      subtitle: 'Toggle FPS and renderer heap stats',
+      keywords: [
+        'show memory',
+        'hide memory',
+        'memory',
+        'fps',
+        'performance',
+        'monitor',
+        'diagnostics',
+        'heap',
+      ],
+      action: { type: 'toggle_memory_monitor' },
     },
     {
       id: 'new-chat',

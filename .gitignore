@@ -4,6 +4,9 @@ node_modules/
 .yarn/
 bun.lockb
 
+# MCP catalogue generator cache (resumable registry fetch)
+scripts/.mcp-registry-cache.json
+
 # Build output
 dist/
 dist-electron/

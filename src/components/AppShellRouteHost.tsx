@@ -2,6 +2,7 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { AppShellProvider } from '../contexts/AppShellContext'
 import { CommandPalette } from './CommandPalette'
 import { ChatLinkRouteHost } from './ChatLinkRouteHost'
+import DiagnosticsMonitor from './DiagnosticsMonitor'
 
 export default function AppShellRouteHost() {
   const navigate = useNavigate()
@@ -13,6 +14,7 @@ export default function AppShellRouteHost() {
       navigateToPath={(pathname) => navigate(pathname)}
     >
       <CommandPalette />
+      <DiagnosticsMonitor />
       <ChatLinkRouteHost />
       <Outlet />
     </AppShellProvider>

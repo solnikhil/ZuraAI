@@ -47,6 +47,9 @@ interface AppShellContextType {
   sidebarHidden: boolean
   toggleSidebarHidden: () => void
   setSidebarHidden: (hidden: boolean) => void
+  memoryMonitorVisible: boolean
+  toggleMemoryMonitor: () => void
+  setMemoryMonitorVisible: (visible: boolean) => void
   /** True while the user is actively dragging the sidebar resize handle */
   isResizingSidebar: boolean
   setIsResizingSidebar: (resizing: boolean) => void
@@ -149,6 +152,7 @@ export function AppShellProvider({
     }
     return false
   })
+  const [memoryMonitorVisible, setMemoryMonitorVisibleState] = useState(false)
 
   const [settingsSectionParams, setSettingsSectionParamsState] =
     useState<SettingsSectionParams | null>(null)
@@ -186,6 +190,14 @@ export function AppShellProvider({
 
   const setSidebarHidden = useCallback((hidden: boolean) => {
     setSidebarHiddenState(hidden)
+  }, [])
+
+  const toggleMemoryMonitor = useCallback(() => {
+    setMemoryMonitorVisibleState((prev) => !prev)
+  }, [])
+
+  const setMemoryMonitorVisible = useCallback((visible: boolean) => {
+    setMemoryMonitorVisibleState(visible)
   }, [])
 
   const setDashboardView = useCallback((view: DashboardView) => {
@@ -346,6 +358,9 @@ export function AppShellProvider({
       sidebarHidden,
       toggleSidebarHidden,
       setSidebarHidden,
+      memoryMonitorVisible,
+      toggleMemoryMonitor,
+      setMemoryMonitorVisible,
       isResizingSidebar,
       setIsResizingSidebar,
       canGoBack,
@@ -362,9 +377,11 @@ export function AppShellProvider({
       goForward,
       hasUnsavedSettings,
       isResizingSidebar,
+      memoryMonitorVisible,
       setActiveSettingsSection,
       setDashboardView,
       setIsResizingSidebar,
+      setMemoryMonitorVisible,
       setSelectedFolderId,
       setSettingsSectionParamsCallback,
       setSidebarHidden,
@@ -374,6 +391,7 @@ export function AppShellProvider({
       sidebarWidth,
       sidebarHidden,
       setSidebarWidth,
+      toggleMemoryMonitor,
       toggleSidebarCollapsed,
       toggleSidebarHidden,
     ]
@@ -407,6 +425,9 @@ export function useAppShell() {
         sidebarHidden: false,
         toggleSidebarHidden: () => {},
         setSidebarHidden: () => {},
+        memoryMonitorVisible: false,
+        toggleMemoryMonitor: () => {},
+        setMemoryMonitorVisible: () => {},
         isResizingSidebar: false,
         setIsResizingSidebar: () => {},
         canGoBack: false,

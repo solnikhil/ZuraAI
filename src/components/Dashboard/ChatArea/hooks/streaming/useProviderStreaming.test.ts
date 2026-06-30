@@ -189,6 +189,79 @@ describe('useProviderStreaming', () => {
     )
   })
 
+  it('does not bypass throttling for rapid text deltas', async () => {
+    mocks.createProviderStreamClient.mockReturnValue({
+      stream: streamFrom([
+        { type: 'text-delta', delta: 'One ' },
+        { type: 'text-delta', delta: 'two ' },
+        { type: 'text-delta', delta: 'three' },
+        { type: 'finish', finishReason: 'stop' },
+      ]),
+    })
+
+    const updateStreamingMessage = vi.fn()
+    const throttledUpdateStreamingMessage = vi.fn()
+
+    const { result } = renderHook(() =>
+      useProviderStreaming({
+        settings: {
+          aiModel: 'openai/gpt-4.1',
+          modelProvider: 'openrouter',
+          temperature: 0.4,
+          maxTokens: 1024,
+          streamResponses: true,
+          openRouterApiKey: 'or-key',
+        },
+        toolCalling: {
+          canUseTools: false,
+          getToolsForRequest: () => null,
+          handleToolCalls: vi.fn(),
+          getResearchContext: () => '',
+        },
+        updateStreamingMessage,
+        flushThrottledUpdates: vi.fn(),
+        throttledUpdateStreamingMessage,
+      })
+    )
+
+    await result.current.runProviderStream({
+      provider: 'openrouter',
+      model: 'openai/gpt-4.1',
+      sessionId: 'session-1',
+      messageId: 'message-rapid-deltas',
+      messages: [{ role: 'user', content: 'hello' }],
+      startTime: performance.now() - 25,
+      researchMaxRounds: 0,
+    })
+
+    const directContentUpdates = mocks.updateStreaming.mock.calls.filter(
+      ([update]) => typeof update.content === 'string'
+    )
+
+    expect(directContentUpdates).toHaveLength(1)
+    expect(directContentUpdates[0]?.[0]).toEqual(
+      expect.objectContaining({
+        content: 'One two three',
+        phase: 'answering',
+      })
+    )
+    expect(throttledUpdateStreamingMessage).toHaveBeenCalledWith(
+      'session-1',
+      'message-rapid-deltas',
+      expect.objectContaining({ content: 'One ' })
+    )
+    expect(throttledUpdateStreamingMessage).toHaveBeenCalledWith(
+      'session-1',
+      'message-rapid-deltas',
+      expect.objectContaining({ content: 'One two ' })
+    )
+    expect(throttledUpdateStreamingMessage).toHaveBeenCalledWith(
+      'session-1',
+      'message-rapid-deltas',
+      expect.objectContaining({ content: 'One two three' })
+    )
+  })
+
   it('stops processing provider events after the abort signal fires', async () => {
     const controller = new AbortController()
     mocks.createProviderStreamClient.mockReturnValue({

@@ -17,6 +17,7 @@ const mockSetActiveSettingsSection = vi.fn()
 const mockSetSettingsSectionParams = vi.fn()
 const mockToggleSidebarCollapsed = vi.fn()
 const mockToggleSidebarHidden = vi.fn()
+const mockToggleMemoryMonitor = vi.fn()
 const mockCreateSession = vi.fn(() => 'new-session-id')
 const mockAddMessageToSession = vi.fn()
 const mockShowToast = vi.fn()
@@ -46,6 +47,9 @@ vi.mock('../../../contexts/AppShellContext', () => ({
     sidebarHidden: false,
     toggleSidebarCollapsed: mockToggleSidebarCollapsed,
     toggleSidebarHidden: mockToggleSidebarHidden,
+    memoryMonitorVisible: false,
+    toggleMemoryMonitor: mockToggleMemoryMonitor,
+    setMemoryMonitorVisible: vi.fn(),
     isResizingSidebar: false,
     setIsResizingSidebar: vi.fn(),
   }),
@@ -519,6 +523,26 @@ describe('CommandPalette unit tests', () => {
       })
 
       expect(mockToggleSidebarCollapsed).toHaveBeenCalled()
+    })
+
+    it('executes toggle_memory_monitor action via "Show Memory"', () => {
+      const { container } = render(<CommandPalette />)
+
+      act(() => {
+        pressCtrlSpace()
+      })
+
+      const input = container.querySelector('input[role="combobox"]') as HTMLInputElement
+
+      act(() => {
+        fireEvent.change(input, { target: { value: 'Show Memory' } })
+      })
+
+      act(() => {
+        fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' })
+      })
+
+      expect(mockToggleMemoryMonitor).toHaveBeenCalled()
     })
 
     it('executes new_chat action via "New Chat"', () => {

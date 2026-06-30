@@ -1,0 +1,67 @@
+.diagnostics-monitor {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 2500;
+  display: grid;
+  gap: 8px;
+  min-width: 164px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--theme-border) 72%, transparent);
+  border-radius: 10px;
+  color: var(--theme-text-primary);
+  background: color-mix(in srgb, var(--theme-surface) 88%, var(--theme-background));
+  box-shadow: 0 14px 36px color-mix(in srgb, black 32%, transparent);
+  font-family: var(--font-mono);
+  pointer-events: none;
+  user-select: none;
+}
+
+.diagnostics-monitor__header,
+.diagnostics-monitor__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.diagnostics-monitor__header {
+  padding-bottom: 2px;
+  color: var(--theme-text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.diagnostics-monitor__status {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--theme-success, #22c55e) 82%, white 18%);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--theme-success, #22c55e) 42%, transparent);
+}
+
+.diagnostics-monitor__row {
+  font-size: 12px;
+  line-height: 1.1;
+}
+
+.diagnostics-monitor__label {
+  color: var(--theme-text-secondary);
+}
+
+.diagnostics-monitor__value {
+  color: var(--theme-text-primary);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 640px) {
+  .diagnostics-monitor {
+    right: 10px;
+    bottom: 10px;
+    min-width: 142px;
+    padding: 9px 10px;
+  }
+}

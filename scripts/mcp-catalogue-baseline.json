@@ -1,0 +1,329 @@
+[
+  {
+    "name": "io.modelcontextprotocol/sequential-thinking",
+    "title": "Sequential Thinking",
+    "description": "Break complex tasks into structured, revisable reasoning steps.",
+    "version": "2025.7.1",
+    "repositoryUrl": "https://github.com/modelcontextprotocol/servers",
+    "publisher": "Model Context Protocol",
+    "install": {
+      "type": "npm",
+      "identifier": "@modelcontextprotocol/server-sequential-thinking"
+    }
+  },
+  {
+    "name": "io.modelcontextprotocol/memory",
+    "title": "Memory",
+    "description": "Store and retrieve a local knowledge graph through MCP tools.",
+    "version": "2025.7.1",
+    "repositoryUrl": "https://github.com/modelcontextprotocol/servers",
+    "publisher": "Model Context Protocol",
+    "install": {
+      "type": "npm",
+      "identifier": "@modelcontextprotocol/server-memory"
+    }
+  },
+  {
+    "name": "io.modelcontextprotocol/github",
+    "title": "GitHub",
+    "description": "Work with GitHub repositories, issues, and pull requests through MCP tools.",
+    "version": "2025.7.1",
+    "repositoryUrl": "https://github.com/modelcontextprotocol/servers-archived/tree/main/src/github",
+    "publisher": "Model Context Protocol",
+    "install": {
+      "type": "npm",
+      "identifier": "@modelcontextprotocol/server-github"
+    },
+    "setup": [
+      {
+        "name": "GITHUB_PERSONAL_ACCESS_TOKEN",
+        "description": "GitHub personal access token",
+        "secret": true,
+        "required": true,
+        "target": "env"
+      }
+    ]
+  },
+  {
+    "name": "io.modelcontextprotocol/fetch",
+    "title": "Fetch",
+    "description": "Fetch web content and convert it into markdown for model context.",
+    "version": "2025.7.1",
+    "repositoryUrl": "https://github.com/modelcontextprotocol/servers",
+    "publisher": "Model Context Protocol",
+    "install": {
+      "type": "pypi",
+      "identifier": "mcp-server-fetch"
+    }
+  },
+  {
+    "name": "io.modelcontextprotocol/filesystem",
+    "title": "Filesystem",
+    "description": "Read, write, search, and manage files within allowed directories.",
+    "version": "2025.7.1",
+    "repositoryUrl": "https://github.com/modelcontextprotocol/servers",
+    "publisher": "Model Context Protocol",
+    "install": {
+      "type": "npm",
+      "identifier": "@modelcontextprotocol/server-filesystem"
+    }
+  },
+  {
+    "name": "io.modelcontextprotocol/git",
+    "title": "Git",
+    "description": "Read, search, and inspect Git repositories through MCP tools.",
+    "version": "2025.7.1",
+    "repositoryUrl": "https://github.com/modelcontextprotocol/servers",
+    "publisher": "Model Context Protocol",
+    "install": {
+      "type": "pypi",
+      "identifier": "mcp-server-git"
+    }
+  },
+  {
+    "name": "io.modelcontextprotocol/time",
+    "title": "Time",
+    "description": "Get current time and convert between IANA timezones.",
+    "version": "2025.7.1",
+    "repositoryUrl": "https://github.com/modelcontextprotocol/servers",
+    "publisher": "Model Context Protocol",
+    "install": {
+      "type": "pypi",
+      "identifier": "mcp-server-time"
+    }
+  },
+  {
+    "name": "io.modelcontextprotocol/everything",
+    "title": "Everything",
+    "description": "Reference MCP server that exercises prompts, tools, resources, and protocol features for client testing.",
+    "version": "2025.7.1",
+    "repositoryUrl": "https://github.com/modelcontextprotocol/servers",
+    "publisher": "Model Context Protocol",
+    "install": {
+      "type": "npm",
+      "identifier": "@modelcontextprotocol/server-everything"
+    }
+  },
+  {
+    "name": "io.modelcontextprotocol/brave-search",
+    "title": "Brave Search",
+    "description": "Search the web and local results through Brave's Search API.",
+    "version": "2025.7.1",
+    "repositoryUrl": "https://github.com/modelcontextprotocol/servers-archived/tree/main/src/brave-search",
+    "publisher": "Model Context Protocol",
+    "install": {
+      "type": "npm",
+      "identifier": "@modelcontextprotocol/server-brave-search"
+    },
+    "setup": [
+      {
+        "name": "BRAVE_API_KEY",
+        "description": "Brave Search API key",
+        "secret": true,
+        "required": true,
+        "target": "env"
+      }
+    ]
+  },
+  {
+    "name": "io.modelcontextprotocol/postgres",
+    "title": "PostgreSQL",
+    "description": "Inspect PostgreSQL schemas and run read-only SQL queries against a database.",
+    "version": "2025.7.1",
+    "repositoryUrl": "https://github.com/modelcontextprotocol/servers-archived/tree/main/src/postgres",
+    "publisher": "Model Context Protocol",
+    "install": {
+      "type": "npm",
+      "identifier": "@modelcontextprotocol/server-postgres"
+    }
+  },
+  {
+    "name": "io.modelcontextprotocol/puppeteer",
+    "title": "Puppeteer",
+    "description": "Automate browser navigation, screenshots, and page interaction through Puppeteer.",
+    "version": "2025.7.1",
+    "repositoryUrl": "https://github.com/modelcontextprotocol/servers-archived/tree/main/src/puppeteer",
+    "publisher": "Model Context Protocol",
+    "install": {
+      "type": "npm",
+      "identifier": "@modelcontextprotocol/server-puppeteer"
+    }
+  },
+  {
+    "name": "io.modelcontextprotocol/sqlite",
+    "title": "SQLite",
+    "description": "Query and inspect SQLite databases with schema exploration tools.",
+    "version": "2025.7.1",
+    "repositoryUrl": "https://github.com/modelcontextprotocol/servers-archived/tree/main/src/sqlite",
+    "publisher": "Model Context Protocol",
+    "install": {
+      "type": "npm",
+      "identifier": "@modelcontextprotocol/server-sqlite"
+    }
+  },
+  {
+    "name": "io.modelcontextprotocol/gitlab",
+    "title": "GitLab",
+    "description": "Manage GitLab projects, issues, and merge requests through MCP tools.",
+    "version": "2025.7.1",
+    "repositoryUrl": "https://github.com/modelcontextprotocol/servers-archived/tree/main/src/gitlab",
+    "publisher": "Model Context Protocol",
+    "install": {
+      "type": "npm",
+      "identifier": "@modelcontextprotocol/server-gitlab"
+    },
+    "setup": [
+      {
+        "name": "GITLAB_PERSONAL_ACCESS_TOKEN",
+        "description": "GitLab personal access token",
+        "secret": true,
+        "required": true,
+        "target": "env"
+      }
+    ]
+  },
+  {
+    "name": "io.modelcontextprotocol/google-drive",
+    "title": "Google Drive",
+    "description": "Search and read files from Google Drive.",
+    "version": "2025.7.1",
+    "repositoryUrl": "https://github.com/modelcontextprotocol/servers-archived/tree/main/src/gdrive",
+    "publisher": "Model Context Protocol",
+    "install": {
+      "type": "npm",
+      "identifier": "@modelcontextprotocol/server-gdrive"
+    }
+  },
+  {
+    "name": "io.modelcontextprotocol/google-maps",
+    "title": "Google Maps",
+    "description": "Get directions, place details, and location context from Google Maps.",
+    "version": "2025.7.1",
+    "repositoryUrl": "https://github.com/modelcontextprotocol/servers-archived/tree/main/src/google-maps",
+    "publisher": "Model Context Protocol",
+    "install": {
+      "type": "npm",
+      "identifier": "@modelcontextprotocol/server-google-maps"
+    },
+    "setup": [
+      {
+        "name": "GOOGLE_MAPS_API_KEY",
+        "description": "Google Maps API key",
+        "secret": true,
+        "required": true,
+        "target": "env"
+      }
+    ]
+  },
+  {
+    "name": "io.modelcontextprotocol/slack",
+    "title": "Slack",
+    "description": "Send messages and interact with Slack channels through MCP tools.",
+    "version": "2025.7.1",
+    "repositoryUrl": "https://github.com/modelcontextprotocol/servers-archived/tree/main/src/slack",
+    "publisher": "Model Context Protocol",
+    "install": {
+      "type": "npm",
+      "identifier": "@modelcontextprotocol/server-slack"
+    },
+    "setup": [
+      {
+        "name": "SLACK_BOT_TOKEN",
+        "description": "Slack bot token",
+        "secret": true,
+        "required": true,
+        "target": "env"
+      }
+    ]
+  },
+  {
+    "name": "io.modelcontextprotocol/redis",
+    "title": "Redis",
+    "description": "Interact with Redis key-value stores through MCP tools.",
+    "version": "2025.7.1",
+    "repositoryUrl": "https://github.com/modelcontextprotocol/servers-archived/tree/main/src/redis",
+    "publisher": "Model Context Protocol",
+    "install": {
+      "type": "npm",
+      "identifier": "@modelcontextprotocol/server-redis"
+    }
+  },
+  {
+    "name": "io.modelcontextprotocol/sentry",
+    "title": "Sentry",
+    "description": "Retrieve and analyze issues from Sentry projects.",
+    "version": "2025.7.1",
+    "repositoryUrl": "https://github.com/modelcontextprotocol/servers-archived/tree/main/src/sentry",
+    "publisher": "Model Context Protocol",
+    "install": {
+      "type": "npm",
+      "identifier": "@modelcontextprotocol/server-sentry"
+    },
+    "setup": [
+      {
+        "name": "SENTRY_AUTH_TOKEN",
+        "description": "Sentry auth token",
+        "secret": true,
+        "required": true,
+        "target": "env"
+      }
+    ]
+  },
+  {
+    "name": "io.modelcontextprotocol/everart",
+    "title": "EverArt",
+    "description": "Generate images with multiple AI models through MCP tools.",
+    "version": "2025.7.1",
+    "repositoryUrl": "https://github.com/modelcontextprotocol/servers-archived/tree/main/src/everart",
+    "publisher": "Model Context Protocol",
+    "install": {
+      "type": "npm",
+      "identifier": "@modelcontextprotocol/server-everart"
+    },
+    "setup": [
+      {
+        "name": "EVERART_API_KEY",
+        "description": "EverArt API key",
+        "secret": true,
+        "required": true,
+        "target": "env"
+      }
+    ]
+  },
+  {
+    "name": "io.modelcontextprotocol/aws-kb-retrieval",
+    "title": "AWS KB Retrieval",
+    "description": "Retrieve documents from AWS Knowledge Bases through Bedrock Agent Runtime.",
+    "version": "2025.7.1",
+    "repositoryUrl": "https://github.com/modelcontextprotocol/servers-archived/tree/main/src/aws-kb-retrieval-server",
+    "publisher": "Model Context Protocol",
+    "install": {
+      "type": "npm",
+      "identifier": "@modelcontextprotocol/server-aws-kb-retrieval"
+    }
+  },
+  {
+    "name": "com.context7/mcp",
+    "title": "Context7",
+    "description": "Retrieve up-to-date library documentation through a remote MCP endpoint.",
+    "version": "1.0.0",
+    "repositoryUrl": "https://github.com/upstash/context7",
+    "publisher": "Upstash",
+    "install": {
+      "type": "sse",
+      "url": "https://mcp.context7.com/sse"
+    }
+  },
+  {
+    "name": "com.example/streamable-http",
+    "title": "Streamable HTTP Example",
+    "description": "Example entry for MCP servers that require streamable HTTP transport.",
+    "version": "1.0.0",
+    "publisher": "ZuraAI",
+    "install": {
+      "type": "streamable-http",
+      "url": "https://example.com/mcp",
+      "reason": "ZuraAI does not support streamable-http MCP transport yet."
+    }
+  }
+]

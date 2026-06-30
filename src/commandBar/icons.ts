@@ -27,6 +27,7 @@ export function getSuggestionIcon(suggestion: CommandBarSuggestion): { Icon: Rea
   if (suggestion.id === 'new-chat') return { Icon: Plus, iconClass: 'app-titlebar__commandbar-item-icon--create' }
   if (suggestion.id === 'copy-chat-debug-id') return { Icon: Command, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
   if (suggestion.id === 'open-chat-debug-panel') return { Icon: Terminal, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
+  if (suggestion.id === 'toggle-memory-monitor') return { Icon: ChartNoAxesCombined, iconClass: 'app-titlebar__commandbar-item-icon--toggle' }
 
   // Toggle actions
   if (suggestion.id === 'toggle-sidebar-hidden' || suggestion.id === 'toggle-sidebar-collapsed') {

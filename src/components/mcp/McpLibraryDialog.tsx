@@ -2,10 +2,10 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { ChevronDown, Search } from 'lucide-react'
 
 import { useToast } from '@/components/shared'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
 import {
@@ -16,6 +16,8 @@ import {
 import { useMcp } from '@/mcp/McpContext'
 import { formatPromptForComposer, formatResourceForComposer, stringifyPromptContent } from '@/mcp/content'
 import type { McpPromptResult, McpResourceReadResult, McpRuntimePrompt, McpRuntimeResource } from '@/mcp/types'
+
+import './McpLibraryDialog.css'
 
 type McpLibraryMode = 'catalogue' | 'resources' | 'prompts'
 
@@ -230,54 +232,54 @@ export function McpLibraryDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[88vh] w-[min(1120px,calc(100vw_-_48px))] max-w-none gap-0 overflow-hidden bg-[#1f1f1f] p-0 text-foreground sm:max-w-none">
-        <DialogHeader className="bg-[#1f1f1f] px-6 py-5">
-          <DialogTitle className="text-xl">MCP Library</DialogTitle>
-          <DialogDescription className="max-w-3xl">
+      <DialogContent className="mcp-library-dialog max-h-[88vh] w-full max-w-none overflow-hidden p-0 sm:max-w-none">
+        <DialogHeader className="mcp-library-header">
+          <DialogTitle className="mcp-library-title">MCP Library</DialogTitle>
+          <DialogDescription className="mcp-library-description">
             Browse curated MCP servers, or inspect trusted resources and prompts from connected servers.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-3 bg-[#1f1f1f] px-6 py-4 md:grid-cols-[minmax(0,1fr)_360px] md:items-center">
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="mcp-library-toolbar">
+          <div className="mcp-library-tabs" role="tablist" aria-label="MCP library views">
             {catalogueAvailable && (
-              <Button
+              <button
                 type="button"
-                size="sm"
-                variant="ghost"
-                className={libraryTabClassName(mode === 'catalogue')}
+                role="tab"
+                aria-selected={mode === 'catalogue'}
+                className={cn('mcp-library-tab', mode === 'catalogue' && 'mcp-library-tab--active')}
                 onClick={() => setMode('catalogue')}
               >
                 Catalogue
-                <Badge variant="secondary" className="ml-2">{catalogueEntries.length}</Badge>
-              </Button>
+                <span className="mcp-library-tab-count">{catalogueEntries.length}</span>
+              </button>
             )}
-            <Button
+            <button
               type="button"
-              size="sm"
-              variant="ghost"
-              className={libraryTabClassName(mode === 'resources')}
+              role="tab"
+              aria-selected={mode === 'resources'}
+              className={cn('mcp-library-tab', mode === 'resources' && 'mcp-library-tab--active')}
               onClick={() => setMode('resources')}
             >
               Resources
-              <Badge variant="secondary" className="ml-2">{visibleResources.length}</Badge>
-            </Button>
-            <Button
+              <span className="mcp-library-tab-count">{visibleResources.length}</span>
+            </button>
+            <button
               type="button"
-              size="sm"
-              variant="ghost"
-              className={libraryTabClassName(mode === 'prompts')}
+              role="tab"
+              aria-selected={mode === 'prompts'}
+              className={cn('mcp-library-tab', mode === 'prompts' && 'mcp-library-tab--active')}
               onClick={() => setMode('prompts')}
             >
               Prompts
-              <Badge variant="secondary" className="ml-2">{visiblePrompts.length}</Badge>
-            </Button>
+              <span className="mcp-library-tab-count">{visiblePrompts.length}</span>
+            </button>
           </div>
           {mode === 'catalogue' && (
-            <div className="relative w-full">
-              <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <div className="mcp-library-search">
+              <Search className="mcp-library-search-icon" />
               <Input
-                className="h-10 w-full rounded-xl border-0 bg-[#252525] pl-10 text-sm shadow-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-white/10"
+                className="mcp-library-search-input"
                 value={catalogueQuery}
                 onChange={(event) => setCatalogueQuery(event.target.value)}
                 placeholder="Search MCP servers..."
@@ -300,213 +302,201 @@ export function McpLibraryDialog({
             onAddDraft={addCatalogueDraft}
           />
         ) : (
-          <div className="grid h-[min(680px,calc(100vh_-_220px))] min-h-[520px] gap-0 bg-[#1f1f1f] md:grid-cols-[minmax(320px,380px)_minmax(0,1fr)]">
-            <ScrollArea className="min-h-0 bg-[#1f1f1f]">
-              <div className="space-y-3 p-4">
+          <div className="mcp-library-split">
+            <ScrollArea className="mcp-library-list min-h-0">
+              <div className="mcp-library-list-inner">
                 {(mode === 'resources' ? visibleResources : visiblePrompts).length === 0 ? (
-                <div className="rounded-xl bg-[#1f1f1f] p-4 text-sm text-muted-foreground">
-                  No {mode} are currently exposed. Servers must be enabled, connected, and trusted before this library surfaces them.
-                </div>
-              ) : mode === 'resources' ? (
-                visibleResources.map((resource) => {
-                  const key = getResourceKey(resource)
-                  const selected = key === selectedResourceKey
-                  return (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => void handlePreviewResource(resource)}
-                      className={libraryItemClassName(selected)}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="truncate font-medium text-foreground">
-                          {resource.manifest.title || resource.manifest.name || resource.manifest.uri}
-                        </span>
-                        <Badge variant="outline" className="ml-auto">
-                          {resource.serverName}
-                        </Badge>
-                      </div>
-                      <div className="mt-1 truncate text-xs text-muted-foreground">{resource.manifest.uri}</div>
-                      {resource.manifest.description && (
-                        <div className="mt-2 line-clamp-2 text-xs text-muted-foreground">
-                          {resource.manifest.description}
+                  <div className="mcp-library-state">
+                    No {mode} are currently exposed. Servers must be enabled, connected, and trusted before this library surfaces them.
+                  </div>
+                ) : mode === 'resources' ? (
+                  visibleResources.map((resource) => {
+                    const key = getResourceKey(resource)
+                    const selected = key === selectedResourceKey
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => void handlePreviewResource(resource)}
+                        className={cn('mcp-library-list-item', selected && 'mcp-library-list-item--selected')}
+                      >
+                        <div className="mcp-library-list-item-title">
+                          <span className="truncate">
+                            {resource.manifest.title || resource.manifest.name || resource.manifest.uri}
+                          </span>
+                          <span className="mcp-library-list-item-server">{resource.serverName}</span>
                         </div>
-                      )}
-                    </button>
-                  )
-                })
-              ) : (
-                visiblePrompts.map((prompt) => {
-                  const key = getPromptKey(prompt)
-                  const selected = key === selectedPromptKey
-                  return (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => {
-                        setSelectedPromptKey(key)
-                        setPromptPreview(null)
-                        setError(null)
-                      }}
-                      className={libraryItemClassName(selected)}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="truncate font-medium text-foreground">
-                          {prompt.manifest.title || prompt.manifest.name}
-                        </span>
-                        <Badge variant="outline" className="ml-auto">
-                          {prompt.serverName}
-                        </Badge>
-                      </div>
-                      {prompt.manifest.description && (
-                        <div className="mt-2 line-clamp-2 text-xs text-muted-foreground">
-                          {prompt.manifest.description}
+                        <div className="mcp-library-list-item-uri">{resource.manifest.uri}</div>
+                        {resource.manifest.description && (
+                          <div className="mcp-library-list-item-desc">{resource.manifest.description}</div>
+                        )}
+                      </button>
+                    )
+                  })
+                ) : (
+                  visiblePrompts.map((prompt) => {
+                    const key = getPromptKey(prompt)
+                    const selected = key === selectedPromptKey
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => {
+                          setSelectedPromptKey(key)
+                          setPromptPreview(null)
+                          setError(null)
+                        }}
+                        className={cn('mcp-library-list-item', selected && 'mcp-library-list-item--selected')}
+                      >
+                        <div className="mcp-library-list-item-title">
+                          <span className="truncate">
+                            {prompt.manifest.title || prompt.manifest.name}
+                          </span>
+                          <span className="mcp-library-list-item-server">{prompt.serverName}</span>
                         </div>
-                      )}
-                      {(prompt.manifest.arguments?.length ?? 0) > 0 && (
-                        <div className="mt-2 text-xs text-muted-foreground">
-                          {(prompt.manifest.arguments ?? []).length} argument{(prompt.manifest.arguments ?? []).length === 1 ? '' : 's'}
-                        </div>
-                      )}
-                    </button>
-                  )
-                })
-              )}
+                        {prompt.manifest.description && (
+                          <div className="mcp-library-list-item-desc">{prompt.manifest.description}</div>
+                        )}
+                        {(prompt.manifest.arguments?.length ?? 0) > 0 && (
+                          <div className="mcp-library-list-item-uri">
+                            {(prompt.manifest.arguments ?? []).length} argument{(prompt.manifest.arguments ?? []).length === 1 ? '' : 's'}
+                          </div>
+                        )}
+                      </button>
+                    )
+                  })
+                )}
               </div>
             </ScrollArea>
 
-            <div className="flex min-h-0 min-w-0 flex-col bg-[#1f1f1f] p-5">
-              <div className="flex-1 overflow-y-auto rounded-3xl bg-[#1f1f1f] px-7 py-6">
+            <div className="mcp-library-preview">
+              <div className="mcp-library-preview-scroll">
                 {mode === 'resources' ? (
-                selectedResource ? (
-                  <div className="space-y-4">
+                  selectedResource ? (
                     <div>
-                      <div className="text-lg font-semibold text-foreground">
+                      <div className="mcp-library-preview-title">
                         {selectedResource.manifest.title || selectedResource.manifest.name || selectedResource.manifest.uri}
                       </div>
-                      <div className="mt-1 text-sm text-muted-foreground">
-                        {selectedResource.manifest.uri}
+                      <div className="mcp-library-preview-subtitle">{selectedResource.manifest.uri}</div>
+                      <div className="mcp-library-preview-tags">
+                        <span className="mcp-library-preview-tag">{selectedResource.serverName}</span>
+                        <span className="mcp-library-preview-tag">User visible</span>
+                        <span className="mcp-library-preview-tag">Explicit action required</span>
+                        {selectedResource.manifest.mimeType && (
+                          <span className="mcp-library-preview-tag">{selectedResource.manifest.mimeType}</span>
+                        )}
                       </div>
-                    </div>
-                    <div className="flex flex-wrap gap-2 text-xs">
-                      <Badge variant="secondary">{selectedResource.serverName}</Badge>
-                      <Badge variant="outline">User visible</Badge>
-                      <Badge variant="outline">Explicit action required</Badge>
-                      {selectedResource.manifest.mimeType && (
-                        <Badge variant="outline">{selectedResource.manifest.mimeType}</Badge>
+                      {selectedResource.manifest.description && (
+                        <div className="mcp-library-preview-desc">{selectedResource.manifest.description}</div>
+                      )}
+                      <div className="mcp-library-preview-actions">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="mcp-library-preview-action"
+                          onClick={() => void handlePreviewResource(selectedResource)}
+                          disabled={loadingKey === selectedResourceKey}
+                        >
+                          {loadingKey === selectedResourceKey ? 'Loading...' : 'Read Resource'}
+                        </Button>
+                        {onInsertText && resourcePreview && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            className="mcp-library-preview-action"
+                            onClick={insertResourceIntoComposer}
+                          >
+                            Insert into composer
+                          </Button>
+                        )}
+                      </div>
+                      {error && <div className="mcp-library-state-error">{error}</div>}
+                      {resourcePreview && (
+                        <pre className="mcp-library-preview-pre">{renderResourcePreview(resourcePreview)}</pre>
                       )}
                     </div>
-                    {selectedResource.manifest.description && (
-                      <div className="text-sm text-muted-foreground">
-                        {selectedResource.manifest.description}
+                  ) : (
+                    <EmptyState label="Select a resource to preview its contents." />
+                  )
+                ) : selectedPrompt ? (
+                  <div>
+                    <div className="mcp-library-preview-title">
+                      {selectedPrompt.manifest.title || selectedPrompt.manifest.name}
+                    </div>
+                    {selectedPrompt.manifest.description && (
+                      <div className="mcp-library-preview-desc">{selectedPrompt.manifest.description}</div>
+                    )}
+                    <div className="mcp-library-preview-tags">
+                      <span className="mcp-library-preview-tag">{selectedPrompt.serverName}</span>
+                      <span className="mcp-library-preview-tag">User visible</span>
+                      <span className="mcp-library-preview-tag">Composer insertion only</span>
+                    </div>
+                    {(selectedPrompt.manifest.arguments?.length ?? 0) > 0 && (
+                      <div className="mcp-library-prompt-args">
+                        <div className="mcp-library-prompt-args-title">Prompt arguments</div>
+                        <div className="mcp-library-prompt-args-grid">
+                          {(selectedPrompt.manifest.arguments ?? []).map((argument) => (
+                            <label key={argument.name} className="space-y-1 text-sm">
+                              <span className="text-foreground">
+                                {argument.title || argument.name}
+                                {argument.required ? ' *' : ''}
+                              </span>
+                              <Input
+                                value={promptArgs[argument.name] ?? ''}
+                                onChange={(event) =>
+                                  setPromptArgs((current) => ({
+                                    ...current,
+                                    [argument.name]: event.target.value,
+                                  }))
+                                }
+                                placeholder={argument.description || argument.name}
+                              />
+                            </label>
+                          ))}
+                        </div>
                       </div>
                     )}
-                    <div className="flex flex-wrap gap-2">
+                    <div className="mcp-library-preview-actions">
                       <Button
                         type="button"
                         variant="ghost"
-                        className={libraryNeutralButtonClassName(false)}
-                        onClick={() => void handlePreviewResource(selectedResource)}
-                        disabled={loadingKey === selectedResourceKey}
+                        className="mcp-library-preview-action"
+                        onClick={() => void handlePreviewPrompt(selectedPrompt)}
+                        disabled={loadingKey === selectedPromptKey}
                       >
-                        {loadingKey === selectedResourceKey ? 'Loading...' : 'Read Resource'}
+                        {loadingKey === selectedPromptKey ? 'Loading...' : 'Preview Prompt'}
                       </Button>
-                      {onInsertText && resourcePreview && (
-                        <Button type="button" variant="ghost" className={libraryNeutralButtonClassName(false)} onClick={insertResourceIntoComposer}>
+                      {onInsertText && promptPreview && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="mcp-library-preview-action"
+                          onClick={insertPromptIntoComposer}
+                        >
                           Insert into composer
                         </Button>
                       )}
                     </div>
-                    {error && <div className="text-sm text-destructive">{error}</div>}
-                    {resourcePreview && (
-                      <pre className="max-h-[340px] overflow-auto rounded-xl bg-[#1f1f1f] p-4 text-sm text-foreground">
-                        {renderResourcePreview(resourcePreview)}
-                      </pre>
+                    {error && <div className="mcp-library-state-error">{error}</div>}
+                    {promptPreview && (
+                      <div>
+                        {promptPreview.description && (
+                          <div className="mcp-library-preview-desc">{promptPreview.description}</div>
+                        )}
+                        {promptPreview.messages.map((message, index) => (
+                          <div key={`${message.role}-${index}`} className="mcp-library-prompt-message">
+                            <div className="mcp-library-prompt-message-role">{message.role}</div>
+                            <pre className="overflow-auto whitespace-pre-wrap text-sm text-foreground">
+                              {stringifyPromptContent(message.content)}
+                            </pre>
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </div>
                 ) : (
-                  <EmptyState label="Select a resource to preview its contents." />
-                )
-              ) : selectedPrompt ? (
-                <div className="space-y-4">
-                  <div>
-                    <div className="text-lg font-semibold text-foreground">
-                      {selectedPrompt.manifest.title || selectedPrompt.manifest.name}
-                    </div>
-                    {selectedPrompt.manifest.description && (
-                      <div className="mt-2 text-sm text-muted-foreground">
-                        {selectedPrompt.manifest.description}
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-2 text-xs">
-                    <Badge variant="secondary">{selectedPrompt.serverName}</Badge>
-                    <Badge variant="outline">User visible</Badge>
-                    <Badge variant="outline">Composer insertion only</Badge>
-                  </div>
-                  {(selectedPrompt.manifest.arguments?.length ?? 0) > 0 && (
-                    <div className="space-y-3 rounded-xl bg-[#1f1f1f] p-4">
-                      <div className="text-sm font-medium text-foreground">Prompt arguments</div>
-                      <div className="grid gap-3 md:grid-cols-2">
-                        {(selectedPrompt.manifest.arguments ?? []).map((argument) => (
-                          <label key={argument.name} className="space-y-1 text-sm">
-                            <span className="text-foreground">
-                              {argument.title || argument.name}
-                              {argument.required ? ' *' : ''}
-                            </span>
-                            <Input
-                              value={promptArgs[argument.name] ?? ''}
-                              onChange={(event) =>
-                                setPromptArgs((current) => ({
-                                  ...current,
-                                  [argument.name]: event.target.value,
-                                }))
-                              }
-                              placeholder={argument.description || argument.name}
-                            />
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      className={libraryNeutralButtonClassName(false)}
-                      onClick={() => void handlePreviewPrompt(selectedPrompt)}
-                      disabled={loadingKey === selectedPromptKey}
-                    >
-                      {loadingKey === selectedPromptKey ? 'Loading...' : 'Preview Prompt'}
-                    </Button>
-                    {onInsertText && promptPreview && (
-                      <Button type="button" variant="ghost" className={libraryNeutralButtonClassName(false)} onClick={insertPromptIntoComposer}>
-                        Insert into composer
-                      </Button>
-                    )}
-                  </div>
-                  {error && <div className="text-sm text-destructive">{error}</div>}
-                  {promptPreview && (
-                    <div className="space-y-3">
-                      {promptPreview.description && (
-                        <div className="text-sm text-muted-foreground">{promptPreview.description}</div>
-                      )}
-                      {promptPreview.messages.map((message, index) => (
-                        <div key={`${message.role}-${index}`} className="rounded-xl bg-[#1f1f1f] p-4">
-                          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                            {message.role}
-                          </div>
-                          <pre className="overflow-auto whitespace-pre-wrap text-sm text-foreground">
-                            {stringifyPromptContent(message.content)}
-                          </pre>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <EmptyState label="Select a prompt to preview its rendered messages." />
-              )}
+                  <EmptyState label="Select a prompt to preview its rendered messages." />
+                )}
               </div>
             </div>
           </div>
@@ -532,26 +522,22 @@ function CatalogueGrid({
   onRetry: () => void
 }): React.ReactElement {
   return (
-    <div className="h-[min(680px,calc(100vh_-_220px))] min-h-[520px] bg-[#1f1f1f]">
+    <div className="mcp-library-catalogue">
       <ScrollArea className="h-full">
-        <div className="space-y-4 px-5 pb-5 pt-0">
+        <div className="mcp-library-catalogue-inner">
           {loading ? (
-            <div className="rounded-2xl bg-[#1f1f1f] p-6 text-sm text-muted-foreground">
-              Loading MCP catalogue...
-            </div>
+            <div className="mcp-library-state">Loading MCP catalogue...</div>
           ) : error ? (
-            <div className="space-y-3 rounded-2xl bg-[#1f1f1f] p-6 text-sm">
-              <div className="text-destructive">{error}</div>
-              <Button type="button" size="sm" variant="ghost" onClick={onRetry}>
+            <div className="mcp-library-state mcp-library-state--error">
+              <div className="mcp-library-state-error">{error}</div>
+              <Button type="button" size="sm" variant="ghost" className="mt-3" onClick={onRetry}>
                 Try again
               </Button>
             </div>
           ) : entries.length === 0 ? (
-            <div className="rounded-2xl bg-[#1f1f1f] p-6 text-sm text-muted-foreground">
-              No catalogue entries match your search.
-            </div>
+            <div className="mcp-library-state">No catalogue entries match your search.</div>
           ) : (
-            <div className="grid auto-rows-fr gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="mcp-library-catalogue-grid">
               {entries.map((entry) => (
                 <CatalogueCard
                   key={entry.id}
@@ -577,39 +563,91 @@ function CatalogueCard({
   entry: McpCatalogueEntry
   onAddDraft: () => void
 }): React.ReactElement {
+  const metaItems = [
+    entry.sourceLabel,
+    entry.version ? `v${entry.version}` : null,
+    entry.publisher,
+    entry.secretRequirements.length > 0 ? 'Auth required' : null,
+  ].filter(Boolean) as string[]
+
   return (
-    <article className="flex min-h-[336px] flex-col rounded-2xl bg-[#1f1f1f] p-4 shadow-none">
-      <div className="grid min-h-[48px] grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+    <article className={cn('mcp-library-card', added && 'mcp-library-card--added')}>
+      <div className="mcp-library-card-header">
         <div className="min-w-0">
-          <h3 className="truncate text-lg font-semibold text-foreground">{entry.title || entry.name}</h3>
-          <div className="mt-1 truncate text-xs text-muted-foreground">{entry.name}</div>
+          <h3 className="mcp-library-card-title">{entry.title || entry.name}</h3>
+          <div className="mcp-library-card-slug">{entry.name}</div>
         </div>
-        {added && <Badge variant="secondary" className="mt-0.5">Added</Badge>}
+        {added ? (
+          <span className="mcp-library-card-status">Added</span>
+        ) : !entry.supported ? (
+          <span className="mcp-library-card-status mcp-library-card-status--unsupported">Unsupported</span>
+        ) : null}
       </div>
 
-      <p className="mt-3 min-h-[72px] text-sm leading-6 text-muted-foreground">
-        <span className="line-clamp-3">{entry.description || 'No description provided.'}</span>
+      <p className="mcp-library-card-description">
+        {entry.description || 'No description provided.'}
       </p>
 
-      <div className="mt-4 flex min-h-[52px] content-start flex-wrap gap-1.5 text-xs">
-        <Badge variant="secondary">{entry.sourceLabel}</Badge>
-        {entry.version && <Badge variant="secondary">v{entry.version}</Badge>}
-        {entry.publisher && <Badge variant="secondary">{entry.publisher}</Badge>}
-        {entry.secretRequirements.length > 0 && <Badge variant="secondary">Auth required</Badge>}
-        {!entry.supported && <Badge variant="destructive">Unsupported</Badge>}
-      </div>
+      {metaItems.length > 0 && (
+        <div className="mcp-library-card-meta">
+          {metaItems.map((item) => (
+            <span key={item} className="mcp-library-card-meta-item">
+              {item}
+            </span>
+          ))}
+        </div>
+      )}
 
-      <details className="group mt-4 rounded-xl bg-[#1f1f1f]">
-        <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium text-foreground outline-none transition-colors hover:text-primary focus-visible:ring-2 focus-visible:ring-primary/35">
-          <span className="inline-flex w-full items-center justify-between gap-3">
-            Details
-            <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
-          </span>
-        </summary>
-        <div className="space-y-3 px-4 py-4 text-sm">
+      <div className="mcp-library-card-actions">
+        <CatalogueDetailsDropdown entry={entry} />
+        <Button
+        type="button"
+        onClick={onAddDraft}
+        disabled={!entry.supported || added}
+        variant="ghost"
+        className={cn(
+          'mcp-library-card-action',
+          added ? 'mcp-library-card-action--done' : 'mcp-library-card-action--primary'
+        )}
+      >
+        {added ? 'Added' : 'Add draft'}
+        </Button>
+      </div>
+    </article>
+  )
+}
+
+function CatalogueDetailsDropdown({ entry }: { entry: McpCatalogueEntry }): React.ReactElement {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={cn('mcp-library-card-details-trigger', open && 'mcp-library-card-details-trigger--open')}
+          aria-expanded={open}
+        >
+          Details
+          <ChevronDown className="mcp-library-card-details-chevron" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        side="bottom"
+        sideOffset={8}
+        collisionPadding={16}
+        className="mcp-library-details-popover"
+        onOpenAutoFocus={(event) => event.preventDefault()}
+      >
+        <div className="mcp-library-details-popover-header">
+          <div className="mcp-library-details-popover-title">{entry.title || entry.name}</div>
+          <div className="mcp-library-details-popover-subtitle">Server details</div>
+        </div>
+        <div className="mcp-library-details-popover-body">
           {entry.repositoryUrl && (
             <a
-              className="block break-all rounded-lg bg-[#1f1f1f] px-3 py-2 text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+              className="mcp-library-card-details-link"
               href={entry.repositoryUrl}
               target="_blank"
               rel="noreferrer"
@@ -618,17 +656,17 @@ function CatalogueCard({
             </a>
           )}
 
-          <div className="rounded-lg bg-[#1f1f1f] p-3">
-            <div className="font-medium text-foreground">Install behavior</div>
-            <div className="mt-2 leading-6 text-muted-foreground">
+          <div className="mcp-library-card-details-block">
+            <div className="mcp-library-card-details-label">Install behavior</div>
+            <div className="mcp-library-card-details-text">
               Catalogue entries are added as disabled, untrusted drafts. Review the server settings, fill any required secrets, save changes, then connect manually.
             </div>
           </div>
 
           {entry.secretRequirements.length > 0 && (
-            <div className="rounded-lg bg-[#1f1f1f] p-3">
-              <div className="font-medium text-foreground">Required setup</div>
-              <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
+            <div className="mcp-library-card-details-block">
+              <div className="mcp-library-card-details-label">Required setup</div>
+              <ul className="mcp-library-card-details-text list-disc space-y-1 pl-5">
                 {entry.secretRequirements.map((requirement) => (
                   <li key={requirement}>{requirement}</li>
                 ))}
@@ -637,58 +675,18 @@ function CatalogueCard({
           )}
 
           {!entry.supported && (
-            <div className="rounded-lg bg-[#1f1f1f] p-3 text-destructive">
+            <div className="mcp-library-card-details-block mcp-library-card-details-error">
               {entry.unsupportedReason || 'This MCP catalogue entry cannot be installed by ZuraAI yet.'}
             </div>
           )}
         </div>
-      </details>
-
-      <div className="mt-auto pt-4">
-        <Button
-          type="button"
-          onClick={onAddDraft}
-          disabled={!entry.supported || added}
-          variant="ghost"
-          className={cn('w-full', added ? libraryNeutralButtonClassName(true) : libraryNeutralButtonClassName(false))}
-        >
-          {added ? 'Added' : 'Add draft'}
-        </Button>
-      </div>
-    </article>
-  )
-}
-
-function libraryItemClassName(selected: boolean): string {
-  return cn(
-    'w-full rounded-xl px-3 py-3 text-left transition-[background-color,box-shadow]',
-    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35',
-    selected
-      ? 'bg-[#1f1f1f]'
-      : 'bg-[#1f1f1f]'
-  )
-}
-
-function libraryTabClassName(active: boolean): string {
-  return cn(
-    'text-muted-foreground hover:bg-[#2a2a2a] hover:text-foreground',
-    active && 'bg-[#2a2a2a] text-foreground hover:bg-[#2a2a2a]'
-  )
-}
-
-function libraryNeutralButtonClassName(disabled: boolean): string {
-  return cn(
-    'bg-[#2a2a2a] text-foreground hover:bg-[#303030]',
-    disabled && 'bg-[#252525] text-muted-foreground hover:bg-[#252525]'
+      </PopoverContent>
+    </Popover>
   )
 }
 
 function EmptyState({ label }: { label: string }): React.ReactElement {
-  return (
-    <div className="flex h-full min-h-[320px] items-center justify-center rounded-xl bg-[#1f1f1f] p-8 text-center text-sm text-muted-foreground">
-      {label}
-    </div>
-  )
+  return <div className="mcp-library-empty mcp-library-empty--centered">{label}</div>
 }
 
 function renderResourcePreview(result: McpResourceReadResult): string {

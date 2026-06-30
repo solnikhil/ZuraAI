@@ -53,7 +53,6 @@
 :root[data-reminders-container='flush'] .reminders-view__panel {
   border-color: transparent;
   background: transparent;
-  padding-inline: 0;
 }
 
 :root[data-reminders-container='flush'] .reminders-view__stage--drawer-open .reminders-view__panel {
