@@ -355,7 +355,7 @@ Use this when the user's task matches a skill listed in the Agent Skills catalog
     requiresApproval: true,
   },
   app_find: {
-    description: 'Find installed Windows apps by Start Menu shortcut name. Prefer this before app_launch.',
+    description: 'Find installed Windows apps using the native Windows app index. Prefer this before app_launch.',
     parameters: {
       type: 'object',
       description: 'Arguments for finding an app.',
@@ -374,15 +374,16 @@ Use this when the user's task matches a skill listed in the Agent Skills catalog
       description: 'Arguments for launching an app.',
       properties: {
         nameOrPath: { type: 'string', description: 'App executable/name or .lnk path.' },
+        appUserModelId: { type: 'string', description: 'Optional Windows AppUserModelID from app_find/app_list.' },
       },
-      required: ['nameOrPath'],
+      required: [],
     },
     category: 'system',
     origin: 'builtin-main',
     requiresApproval: true,
   },
   app_list: {
-    description: 'List installed Start Menu apps without opening the Start Menu.',
+    description: 'List installed Windows apps from the native Windows app index without opening Start/Search.',
     parameters: {
       type: 'object',
       description: 'No arguments required.',

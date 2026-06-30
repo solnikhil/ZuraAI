@@ -1,7 +1,9 @@
-import { app as electronApp, clipboard, globalShortcut, ipcMain } from 'electron'
+import { clipboard, globalShortcut, ipcMain } from 'electron'
 import os from 'os'
 import path from 'path'
 
+import { scoreWindowSearch } from '../src/commandCenter/search'
+import { getCachedAppIcon, refreshAppIndex, resolveAppIndexEntry, warmAppIndex } from './appIndexService'
 import { getSessionMetadataAsync } from './chatStore'
 import {
   deleteCommandCenterWorkflow,
@@ -14,6 +16,7 @@ import {
   createMainWindow,
   getMainWindow,
   hideCommandCenterWindow,
+  preloadCommandCenterWindow,
   setCommandCenterWindowLayout,
   showCommandCenterWindow,
   toggleCommandCenterWindow,
@@ -30,11 +33,12 @@ import {
   executeSystemVolumeSet,
   executeWindowSnap,
 } from './tools/os-integration'
-import { executeAppLaunch, executeAppList } from './tools/app-management'
+import { executeAppFind, executeAppLaunch, executeAppList } from './tools/app-management'
 import { executeWindowFocus, executeWindowList } from './tools/window-management'
 
 const COMMAND_CENTER_SHORTCUT = 'CommandOrControl+Shift+Space'
 const MAX_CLIPBOARD_CONTEXT_LENGTH = 4_000
+const MAX_INDEX_QUERY_LENGTH = 120
 const COMMAND_CENTER_ACTIONS = [
   { id: 'snap-left', label: 'Snap left', kind: 'window', aliases: ['tile left'] },
   { id: 'snap-right', label: 'Snap right', kind: 'window', aliases: ['tile right'] },
@@ -56,6 +60,17 @@ const COMMAND_CENTER_ACTIONS = [
 let extensionEnabled = false
 let shortcutRegistered = false
 
+const INDEX_STATIC_CACHE_MS = 3_000
+
+interface IndexStaticCache {
+  at: number
+  workflows: Awaited<ReturnType<typeof listCommandCenterWorkflows>>
+  windows: WindowMatch[]
+  chats: Awaited<ReturnType<typeof getSessionMetadataAsync>>
+}
+
+let indexStaticCache: IndexStaticCache | null = null
+
 type CommandCenterActionId = (typeof COMMAND_CENTER_ACTIONS)[number]['id']
 
 type CommandCenterIndexItem =
@@ -75,9 +90,16 @@ type CommandCenterIndexItem =
       subtitle?: string
       hint: 'Application'
       aliases: string[]
-      appPath: string
+      appPath?: string
+      shortcutPath?: string
+      targetPath?: string
+      source?: string
+      launchStrategy?: 'appUserModelId' | 'shortcutPath'
+      appUserModelId?: string
+      iconKey?: string
       iconDataUrl?: string
       existingWindow?: WindowMatch
+      rank?: number
     }
   | {
       id: string
@@ -115,6 +137,16 @@ interface CommandCenterIndex {
   windows: CommandCenterIndexItem[]
   actions: CommandCenterIndexItem[]
   chats: CommandCenterIndexItem[]
+  diagnostics?: {
+    apps?: {
+      ok: boolean
+      stale?: boolean
+      error?: string
+      sourceCounts?: Record<string, number>
+      lastRefreshAt?: number
+      refreshDurationMs?: number
+    }
+  }
 }
 
 interface WindowMatch {
@@ -126,6 +158,15 @@ interface WindowMatch {
 
 function compactText(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, '')
+}
+
+function indexQuery(value: unknown): string {
+  return typeof value === 'string' ? value.trim().slice(0, MAX_INDEX_QUERY_LENGTH) : ''
+}
+
+function compactExecutableName(value: string | undefined): string {
+  if (!value) return ''
+  return compactText(path.basename(value, path.extname(value)))
 }
 
 function normalizeWindows(raw: unknown): WindowMatch[] {
@@ -152,12 +193,17 @@ function normalizeWindows(raw: unknown): WindowMatch[] {
   })
 }
 
-function findExistingAppWindow(appName: string, windows: WindowMatch[]): WindowMatch | undefined {
+function findExistingAppWindow(appName: string, windows: WindowMatch[], executableNames: string[] = []): WindowMatch | undefined {
   const appKey = compactText(appName)
+  const candidateKeys = Array.from(new Set([appKey, ...executableNames.map(compactExecutableName)]))
+    .filter((key) => key.length >= 3 && key !== 'update')
+
   return windows.find((window) => {
-    const processKey = compactText(window.processName)
-    const titleKey = compactText(window.title)
-    return processKey.includes(appKey) || appKey.includes(processKey) || titleKey.includes(appKey)
+    const processKey = compactExecutableName(window.processName)
+    if (processKey.length < 3) return false
+    return candidateKeys.some((candidateKey) => {
+      return processKey === candidateKey || processKey.includes(candidateKey) || candidateKey.includes(processKey)
+    })
   })
 }
 
@@ -166,48 +212,130 @@ async function getWindowMatches(): Promise<WindowMatch[]> {
   return result.success ? normalizeWindows(result.data) : []
 }
 
-async function getAppIconDataUrl(appPath: string): Promise<string | undefined> {
-  try {
-    const image = await electronApp.getFileIcon(appPath, { size: 'normal' })
-    if (image.isEmpty()) return undefined
-    return image.toDataURL()
-  } catch {
-    return undefined
+async function getIndexStaticInputs(): Promise<IndexStaticCache> {
+  const stale = !indexStaticCache || Date.now() - indexStaticCache.at > INDEX_STATIC_CACHE_MS
+  if (!stale && indexStaticCache) {
+    return indexStaticCache
   }
-}
-
-async function buildCommandCenterIndex(): Promise<CommandCenterIndex> {
-  const [workflows, appsResult, windows, chats] = await Promise.all([
+  const [workflows, windows, chats] = await Promise.all([
     listCommandCenterWorkflows(),
-    executeAppList(),
     getWindowMatches(),
     getSessionMetadataAsync().catch(() => []),
   ])
+  indexStaticCache = { at: Date.now(), workflows, windows, chats }
+  return indexStaticCache
+}
 
-  const appRows = appsResult.success &&
-    appsResult.data &&
-    typeof appsResult.data === 'object' &&
-    Array.isArray((appsResult.data as Record<string, unknown>).apps)
-    ? await Promise.all(((appsResult.data as Record<string, unknown>).apps as Array<Record<string, unknown>>)
-      .filter((app) => typeof app.name === 'string' && typeof app.path === 'string')
-      .slice(0, 120)
+function parseProcessStartExe(args: string | undefined): string | undefined {
+  const match = args?.match(/--processStart\s+(?:"([^"]+)"|([^\s]+))/i)
+  return match?.[1] || match?.[2] || undefined
+}
+
+function appsFromToolResult(result: Awaited<ReturnType<typeof executeAppList | typeof executeAppFind>>): Array<Record<string, unknown>> {
+  if (!result.success || !result.data || typeof result.data !== 'object') return []
+  const data = result.data as Record<string, unknown>
+  if (Array.isArray(data.apps)) return data.apps as Array<Record<string, unknown>>
+  if (Array.isArray(data.matches)) return data.matches as Array<Record<string, unknown>>
+  return []
+}
+
+function appDiagnosticsFromToolResult(result: Awaited<ReturnType<typeof executeAppList | typeof executeAppFind>>): CommandCenterIndex['diagnostics'] {
+  if (!result.success) {
+    console.warn('[CommandCenter] App index failed:', result.error)
+    return {
+      apps: {
+        ok: false,
+        error: result.error || 'App index failed.',
+        sourceCounts: {},
+      },
+    }
+  }
+  if (!result.data || typeof result.data !== 'object') {
+    return {
+      apps: {
+        ok: true,
+        sourceCounts: {},
+      },
+    }
+  }
+  const diagnostics = (result.data as Record<string, unknown>).diagnostics
+  if (!diagnostics || typeof diagnostics !== 'object') {
+    return {
+      apps: {
+        ok: true,
+        sourceCounts: {},
+      },
+    }
+  }
+  const record = diagnostics as Record<string, unknown>
+  const sourceCounts = record.sourceCounts && typeof record.sourceCounts === 'object'
+    ? Object.fromEntries(Object.entries(record.sourceCounts as Record<string, unknown>)
+      .filter(([, value]) => typeof value === 'number')) as Record<string, number>
+    : {}
+  const ok = record.ok !== false
+  const error = typeof record.error === 'string' ? record.error : undefined
+  if (!ok || error) {
+    console.warn('[CommandCenter] App index diagnostics:', error ?? 'partial failure')
+  }
+  return {
+    apps: {
+      ok,
+      stale: record.stale === true,
+      error,
+      sourceCounts,
+      lastRefreshAt: typeof record.lastRefreshAt === 'number' ? record.lastRefreshAt : undefined,
+      refreshDurationMs: typeof record.refreshDurationMs === 'number' ? record.refreshDurationMs : undefined,
+    },
+  }
+}
+
+async function buildCommandCenterIndex(query: unknown = ''): Promise<CommandCenterIndex> {
+  const appQuery = indexQuery(query)
+  const [staticInputs, appsResult] = await Promise.all([
+    getIndexStaticInputs(),
+    appQuery ? executeAppFind({ query: appQuery }) : executeAppList(),
+  ])
+  const { workflows, windows, chats } = staticInputs
+
+  const appRows = await Promise.all(appsFromToolResult(appsResult)
+      .filter((app) => typeof app.name === 'string' && (typeof app.path === 'string' || typeof app.appUserModelId === 'string'))
+      .slice(0, appQuery ? 40 : 120)
       .map(async (app) => {
         const name = String(app.name)
-        const appPath = String(app.path)
-        const existingWindow = findExistingAppWindow(name, windows)
+        const shortcutPath = typeof app.shortcutPath === 'string'
+          ? String(app.shortcutPath)
+          : typeof app.path === 'string'
+            ? String(app.path)
+            : undefined
+        const appPath = shortcutPath
+        const appUserModelId = typeof app.appUserModelId === 'string' ? String(app.appUserModelId) : undefined
+        const targetPath = typeof app.targetPath === 'string' ? app.targetPath : undefined
+        const args = typeof app.args === 'string' ? app.args : undefined
+        const source = typeof app.source === 'string' ? app.source : undefined
+        const iconKey = typeof app.iconKey === 'string' ? app.iconKey : undefined
+        const rank = typeof app.rank === 'number' ? app.rank : undefined
+        const processStartExe = parseProcessStartExe(args)
+        const existingWindow = findExistingAppWindow(name, windows, [targetPath ?? '', processStartExe ?? ''])
+        const launchStrategy: 'appUserModelId' | 'shortcutPath' = appUserModelId ? 'appUserModelId' : 'shortcutPath'
         return {
-          id: `app:${Buffer.from(appPath).toString('base64url')}`,
+          id: `app:${Buffer.from(appPath ?? appUserModelId ?? name).toString('base64url')}`,
           type: 'app' as const,
           title: name,
-          subtitle: existingWindow ? existingWindow.title : 'Application',
+          subtitle: existingWindow ? existingWindow.title : undefined,
           hint: 'Application' as const,
-          aliases: [name],
+          aliases: [name, appUserModelId ?? ''].filter(Boolean),
           appPath,
-          iconDataUrl: await getAppIconDataUrl(appPath),
+          shortcutPath,
+          targetPath,
+          source,
+          launchStrategy,
+          appUserModelId,
+          iconKey,
+          iconDataUrl: getCachedAppIcon(iconKey),
           existingWindow,
+          rank,
         }
       }))
-    : []
 
   return {
     workflows: workflows
@@ -223,7 +351,17 @@ async function buildCommandCenterIndex(): Promise<CommandCenterIndex> {
         workflow,
       })),
     apps: appRows,
-    windows: windows.slice(0, 80).map((window) => ({
+    windows: (appQuery
+      ? windows
+        .map((window) => ({
+          window,
+          rank: scoreWindowSearch(window.title, window.processName, appQuery),
+        }))
+        .filter((entry) => entry.rank > 0)
+        .sort((a, b) => b.rank - a.rank || a.window.title.localeCompare(b.window.title))
+        .map((entry) => entry.window)
+      : windows
+    ).slice(0, appQuery ? 20 : 80).map((window) => ({
       id: `window:${window.hwnd}`,
       type: 'window' as const,
       title: window.title,
@@ -252,6 +390,7 @@ async function buildCommandCenterIndex(): Promise<CommandCenterIndex> {
       aliases: [chat.title, ...(chat.tags ?? [])],
       sessionId: chat.id,
     })),
+    diagnostics: appDiagnosticsFromToolResult(appsResult),
   }
 }
 
@@ -408,20 +547,34 @@ async function executeWorkflow(workflowId: unknown) {
   return { success: true, data: { workflowId: workflow.id } }
 }
 
-async function executeIndexItem(itemId: unknown) {
+async function executeIndexItem(itemId: unknown, query: unknown = '') {
   if (typeof itemId !== 'string' || !itemId.trim()) {
     return { success: false, error: 'Command Center item id is required.' }
   }
 
-  const item = flattenIndex(await buildCommandCenterIndex()).find((candidate) => candidate.id === itemId)
+  const item = flattenIndex(await buildCommandCenterIndex(query)).find((candidate) => candidate.id === itemId)
   if (!item) return { success: false, error: 'Command Center item was not found.' }
 
   if (item.type === 'workflow') return executeWorkflow(item.workflow.id)
   if (item.type === 'app') {
+    const indexedApp = await resolveAppIndexEntry(item.id, typeof query === 'string' ? query : '')
+    const appItem = indexedApp
+      ? {
+          ...item,
+          shortcutPath: indexedApp.shortcutPath,
+          appPath: indexedApp.shortcutPath,
+          appUserModelId: indexedApp.appUserModelId,
+        }
+      : item
     if (item.existingWindow) {
       return executeWindowFocus({ hwnd: item.existingWindow.hwnd, autoApprove: true })
     }
-    return executeAppLaunch({ nameOrPath: item.appPath, autoApprove: true })
+    return executeAppLaunch({
+      nameOrPath: appItem.shortcutPath ?? appItem.appPath,
+      appUserModelId: appItem.appUserModelId,
+      itemId: item.id,
+      autoApprove: true,
+    })
   }
   if (item.type === 'window') return executeWindowFocus({ hwnd: item.hwnd, autoApprove: true })
   if (item.type === 'action') return executeCommandCenterAction(item.actionId)
@@ -448,6 +601,8 @@ export function setCommandCenterExtensionEnabled(enabled: boolean): {
   extensionEnabled = enabled
   if (enabled) {
     registerShortcut()
+    warmAppIndex()
+    preloadCommandCenterWindow()
   } else {
     unregisterShortcut()
     hideCommandCenterWindow()
@@ -489,8 +644,15 @@ export function registerCommandCenterHandlers(): void {
     return [...COMMAND_CENTER_ACTIONS]
   })
 
-  ipcMain.handle('command-center:get-index', async () => {
-    return buildCommandCenterIndex()
+  ipcMain.handle('command-center:get-index', async (_event, query: unknown) => {
+    return buildCommandCenterIndex(query)
+  })
+
+  ipcMain.handle('command-center:refresh-app-index', async () => {
+    if (!extensionEnabled) {
+      return { ok: false, stale: true, sourceCounts: {}, error: 'Command Center is disabled.' }
+    }
+    return refreshAppIndex()
   })
 
   ipcMain.handle('command-center:save-workflow', async (_event, workflow: unknown) => {
@@ -511,11 +673,11 @@ export function registerCommandCenterHandlers(): void {
     return executeCommandCenterAction(actionId)
   })
 
-  ipcMain.handle('command-center:execute-index-item', async (_event, itemId: unknown) => {
+  ipcMain.handle('command-center:execute-index-item', async (_event, itemId: unknown, query: unknown) => {
     if (!extensionEnabled) {
       return { success: false, error: 'Command Center is disabled.' }
     }
-    return executeIndexItem(itemId)
+    return executeIndexItem(itemId, query)
   })
 
   ipcMain.handle('command-center:execute-workflow', async (_event, workflowId: unknown) => {
@@ -565,6 +727,7 @@ export function unregisterCommandCenterHandlers(): void {
   ipcMain.removeHandler('command-center:get-context')
   ipcMain.removeHandler('command-center:list-actions')
   ipcMain.removeHandler('command-center:get-index')
+  ipcMain.removeHandler('command-center:refresh-app-index')
   ipcMain.removeHandler('command-center:save-workflow')
   ipcMain.removeHandler('command-center:delete-workflow')
   ipcMain.removeHandler('command-center:execute-action')

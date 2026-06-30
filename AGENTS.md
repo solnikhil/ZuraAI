@@ -218,10 +218,27 @@ main-process execution allowlist. Clipboard content may only be read for the
 explicit `clipboard-to-chat` user action, is capped before chat handoff, and
 must not be read as background context.
 Command Center search uses narrow `window.commandCenter` bridge methods to read
-a typed index of saved workflows, Start Menu apps, live top-level windows, fixed
-actions, and recent chats. Search execution passes typed item/workflow IDs back
-to main; main resolves those IDs to allowlisted actions, Start Menu shortcut
-launches, exact `hwnd` window focus, or chat-session promotion. Saved workflows
+a typed index of saved workflows, apps from the main-process
+`appIndexService`, live top-level windows, fixed actions, and recent chats. The
+app index service loads a non-secret persisted snapshot from
+`app.getPath('userData')/command-center-app-index.json`, serves that snapshot
+immediately on overlay open, refreshes Windows app data in the background from
+`Get-StartApps`, query-specific `Get-StartApps -Name` lookups, and
+Start Menu/Desktop shortcuts enriched with shortcut metadata where available,
+and writes refreshed snapshots atomically. App indexing is warmed at app ready
+and when Command Center is enabled; Start Menu/Desktop shortcut roots are watched
+opportunistically for debounced background refresh. App icons are loaded lazily
+through a bounded in-memory main-process cache so first overlay paint is not
+blocked by icon extraction. The app index may return non-secret diagnostics
+(`diagnostics.apps`) including stale state, source counts, refresh timing, and
+sanitized errors so renderer UI can show app-index failures without exposing
+arbitrary shell commands or renderer-supplied launch data. A narrow
+`command-center:refresh-app-index` bridge exists only for explicit/manual app
+index refresh.
+Search execution passes typed item/workflow IDs and the current search query back
+to main; main resolves those IDs against its own typed index to allowlisted
+actions, shortcut/AppUserModelID app launches, exact `hwnd` window focus, or
+chat-session promotion. Saved workflows
 are non-secret userData JSON and may contain only typed OS/action/window/app
 steps plus AI prompt steps; they must not store shell strings, unrestricted
 paths, arbitrary tool names, or secrets. Workflow runs require an explicit

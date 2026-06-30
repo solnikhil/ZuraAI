@@ -310,7 +310,13 @@ export type CommandCenterIndexItem =
       subtitle?: string
       hint: 'Application'
       aliases: string[]
-      appPath: string
+      appPath?: string
+      shortcutPath?: string
+      targetPath?: string
+      source?: string
+      launchStrategy?: 'appUserModelId' | 'shortcutPath'
+      appUserModelId?: string
+      iconKey?: string
       iconDataUrl?: string
       existingWindow?: {
         hwnd: number
@@ -318,6 +324,7 @@ export type CommandCenterIndexItem =
         processName: string
         processId: number
       }
+      rank?: number
     }
   | {
       id: string
@@ -355,7 +362,19 @@ export interface CommandCenterIndex {
   windows: CommandCenterIndexItem[]
   actions: CommandCenterIndexItem[]
   chats: CommandCenterIndexItem[]
+  diagnostics?: {
+    apps?: {
+      ok: boolean
+      stale?: boolean
+      error?: string
+      sourceCounts?: Record<string, number>
+      lastRefreshAt?: number
+      refreshDurationMs?: number
+    }
+  }
 }
+
+export type CommandCenterAppDiagnostics = NonNullable<CommandCenterIndex['diagnostics']>['apps']
 
 export interface CommandCenterExecuteResult {
   success: boolean
@@ -823,11 +842,12 @@ export interface CommandCenterAPI {
   hide: () => Promise<boolean>
   getContext: () => Promise<ToolResult>
   listActions: () => Promise<CommandCenterAction[]>
-  getIndex: () => Promise<CommandCenterIndex>
+  getIndex: (query?: string) => Promise<CommandCenterIndex>
+  refreshAppIndex: () => Promise<NonNullable<CommandCenterIndex['diagnostics']>['apps']>
   saveWorkflow: (workflow: Partial<CommandCenterWorkflow>) => Promise<CommandCenterWorkflow | null>
   deleteWorkflow: (id: string) => Promise<boolean>
   executeAction: (actionId: CommandCenterActionId) => Promise<ToolResult>
-  executeIndexItem: (itemId: string) => Promise<CommandCenterExecuteResult>
+  executeIndexItem: (itemId: string, query?: string) => Promise<CommandCenterExecuteResult>
   executeWorkflow: (workflowId: string) => Promise<CommandCenterExecuteResult>
   openChatSession: (sessionId: string) => Promise<boolean>
   setLayout: (layout: 'search' | 'chat') => Promise<boolean>

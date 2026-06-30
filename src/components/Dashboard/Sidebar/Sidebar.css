@@ -111,12 +111,6 @@
   color: var(--theme-text-primary);
 }
 
-.sidebar-folder-row__count {
-  font-size: 0.64rem;
-  opacity: 0.5;
-  margin-left: 2px;
-}
-
 .sidebar-container--resizing {
   transition: none;
 }

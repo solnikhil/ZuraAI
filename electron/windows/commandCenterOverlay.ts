@@ -9,6 +9,15 @@ const devServerOrigin = devServerUrl ? new URL(devServerUrl).origin : null
 
 let commandCenterWindow: BrowserWindow | null = null
 let commandCenterLayout: 'search' | 'chat' = 'search'
+let commandCenterReadyToShow = false
+let commandCenterShowPending = false
+
+function commandCenterRouteUrl(baseUrl: string): string {
+  const url = new URL(baseUrl)
+  url.searchParams.set('commandCenter', '1')
+  url.hash = '/command-center'
+  return url.toString()
+}
 
 function isExternalHttpUrl(url: string): boolean {
   if (!url.startsWith('http:') && !url.startsWith('https:')) return false
@@ -40,6 +49,8 @@ function createCommandCenterWindow(): BrowserWindow {
     return commandCenterWindow
   }
 
+  commandCenterReadyToShow = false
+  commandCenterShowPending = false
   const distPath = resolveDistPath(__dirname)
   const bounds = centerBounds()
 
@@ -102,11 +113,24 @@ function createCommandCenterWindow(): BrowserWindow {
 
   commandCenterWindow.on('closed', () => {
     commandCenterWindow = null
+    commandCenterReadyToShow = false
+    commandCenterShowPending = false
+  })
+
+  commandCenterWindow.once('ready-to-show', () => {
+    commandCenterReadyToShow = true
+    if (commandCenterShowPending) {
+      commandCenterShowPending = false
+      showCommandCenterWindow()
+    }
   })
 
   const loadPromise = process.env.VITE_DEV_SERVER_URL
-    ? commandCenterWindow.loadURL(`${process.env.VITE_DEV_SERVER_URL}#/command-center`)
-    : commandCenterWindow.loadFile(path.join(distPath, 'index.html'), { hash: '/command-center' })
+    ? commandCenterWindow.loadURL(commandCenterRouteUrl(process.env.VITE_DEV_SERVER_URL))
+    : commandCenterWindow.loadFile(path.join(distPath, 'index.html'), {
+        hash: '/command-center',
+        query: { commandCenter: '1' },
+      })
 
   void loadPromise.catch((error) => {
     console.error('[MAIN] Failed to load Command Center window:', error)
@@ -115,11 +139,19 @@ function createCommandCenterWindow(): BrowserWindow {
   return commandCenterWindow
 }
 
+export function preloadCommandCenterWindow(): void {
+  void createCommandCenterWindow()
+}
+
 export function showCommandCenterWindow(): void {
   const win = createCommandCenterWindow()
   commandCenterLayout = 'search'
   const bounds = centerBounds(commandCenterLayout)
   win.setBounds(bounds)
+  if (!commandCenterReadyToShow) {
+    commandCenterShowPending = true
+    return
+  }
   win.show()
   win.focus()
   win.webContents.send('command-center:shown')

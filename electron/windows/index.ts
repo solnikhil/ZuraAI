@@ -29,6 +29,7 @@ export {
 } from './spotlightOverlay'
 
 export {
+    preloadCommandCenterWindow,
     showCommandCenterWindow,
     hideCommandCenterWindow,
     setCommandCenterWindowLayout,

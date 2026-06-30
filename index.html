@@ -13,7 +13,14 @@
   <script>
     (function () {
       try {
-        if (window.location.hash.indexOf('#/command-center') === 0) {
+        var searchParams = new URLSearchParams(window.location.search || '')
+        var hash = window.location.hash || ''
+        var isCommandCenterRoute =
+          searchParams.get('commandCenter') === '1' ||
+          hash.indexOf('#/command-center') === 0 ||
+          hash.indexOf('#command-center') === 0
+
+        if (isCommandCenterRoute) {
           document.documentElement.classList.add('command-center-route')
         }
 

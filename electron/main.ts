@@ -57,6 +57,7 @@ import {
   registerCommandCenterHandlers,
   unregisterCommandCenterHandlers,
 } from './commandCenter'
+import { warmAppIndex } from './appIndexService'
 
 // Resolve packaged asset paths consistently in both development and production.
 const DIST_PATH = process.env.DIST || path.join(__dirname, '../dist')
@@ -268,6 +269,16 @@ if (hasSingleInstanceLock) {
       execute: async () => {
         await startMonitorRuntime()
         log.success('scheduled tasks initialized')
+      },
+    })
+
+    deferredInitializer.registerTask({
+      name: 'command-center-app-index',
+      priority: 'low',
+      delayMs: 0,
+      execute: async () => {
+        warmAppIndex()
+        log.success('command center app index warmed')
       },
     })
 

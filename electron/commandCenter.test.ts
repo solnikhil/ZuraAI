@@ -6,12 +6,16 @@ describe('Command Center main service', () => {
     vi.clearAllMocks()
   })
 
-  async function loadService() {
+  async function loadService(overrides: {
+    executeAppList?: ReturnType<typeof vi.fn>
+    executeAppFind?: ReturnType<typeof vi.fn>
+  } = {}) {
     const handlers = new Map<string, (...args: unknown[]) => unknown>()
     const sentEvents: Array<{ channel: string; payload: unknown }> = []
     const register = vi.fn(() => true)
     const unregister = vi.fn()
     const readText = vi.fn(() => 'clipboard sample')
+    const preloadCommandCenterWindow = vi.fn()
     const showCommandCenterWindow = vi.fn()
     const hideCommandCenterWindow = vi.fn()
     const setCommandCenterWindowLayout = vi.fn()
@@ -28,14 +32,53 @@ describe('Command Center main service', () => {
     const executeSystemStatus = vi.fn(async () => ({ success: true, data: { disks: [] } }))
     const executeSystemThemeGet = vi.fn(async () => ({ success: true, data: { appTheme: 'dark' } }))
     const executeSystemThemeSet = vi.fn(async () => ({ success: true, data: { appTheme: 'light' } }))
-    const executeAppList = vi.fn(async () => ({
+    const executeAppList = overrides.executeAppList ?? vi.fn(async () => ({
       success: true,
-      data: { apps: [{ name: 'Chrome', path: 'C:\\Chrome.lnk', source: 'start-menu' }] },
+      data: {
+        apps: [
+          { name: 'Chrome', shortcutPath: 'C:\\Chrome.lnk', path: 'C:\\Chrome.lnk', source: 'start-menu', iconKey: 'chrome-icon', rank: 10 },
+          {
+            name: 'Kiro',
+            shortcutPath: 'C:\\Users\\Nikhil\\Desktop\\Kiro.lnk',
+            path: 'C:\\Users\\Nikhil\\Desktop\\Kiro.lnk',
+            source: 'desktop',
+            targetPath: 'C:\\Users\\Nikhil\\AppData\\Local\\Programs\\Kiro\\Kiro.exe',
+            iconKey: 'kiro-icon',
+          },
+          {
+            name: 'Native App',
+            source: 'windows-search',
+            appUserModelId: 'Native.App',
+            iconKey: 'native-icon',
+          },
+        ],
+      },
+    }))
+    const executeAppFind = overrides.executeAppFind ?? vi.fn(async (args: { query?: string }) => ({
+      success: true,
+      data: {
+        query: args.query,
+        matches: args.query === 'kiro'
+          ? [
+              {
+                name: 'Kiro',
+                source: 'windows-search',
+                appUserModelId: 'Kiro',
+                iconKey: 'kiro-icon',
+              },
+            ]
+          : [],
+      },
     }))
     const executeAppLaunch = vi.fn(async () => ({ success: true, data: { launched: true } }))
     const executeWindowList = vi.fn(async () => ({
       success: true,
-      data: { windows: [{ hwnd: 55, title: 'Chrome - Docs', processName: 'chrome', processId: 10 }] },
+      data: {
+        windows: [
+          { hwnd: 55, title: 'Chrome - Docs', processName: 'chrome', processId: 10 },
+          { hwnd: 77, title: '#general | kirodotdev - Discord', processName: 'Discord', processId: 11 },
+        ],
+      },
     }))
     const executeWindowFocus = vi.fn(async () => ({ success: true, data: { focused: true } }))
     const listCommandCenterWorkflows = vi.fn(async () => [
@@ -115,6 +158,7 @@ describe('Command Center main service', () => {
     vi.doMock('./windows', () => ({
       createMainWindow: vi.fn(() => mainWindow),
       getMainWindow: vi.fn(() => mainWindow),
+      preloadCommandCenterWindow,
       hideCommandCenterWindow,
       setCommandCenterWindowLayout,
       showCommandCenterWindow,
@@ -138,8 +182,27 @@ describe('Command Center main service', () => {
     }))
 
     vi.doMock('./tools/app-management', () => ({
+      executeAppFind,
       executeAppList,
       executeAppLaunch,
+    }))
+
+    vi.doMock('./appIndexService', () => ({
+      getCachedAppIcon: vi.fn((iconKey?: string) => iconKey ? 'data:image/png;base64,icon' : undefined),
+      refreshAppIndex: vi.fn(async () => ({ ok: true, stale: false, sourceCounts: {} })),
+      resolveAppIndexEntry: vi.fn(async (itemId: string) => {
+        if (itemId === 'app:TmF0aXZlLkFwcA') {
+          return { id: itemId, name: 'Native App', appUserModelId: 'Native.App', launchStrategy: 'appUserModelId' }
+        }
+        if (itemId === 'app:QzpcQ2hyb21lLmxuaw') {
+          return { id: itemId, name: 'Chrome', shortcutPath: 'C:\\Chrome.lnk', launchStrategy: 'shortcutPath' }
+        }
+        if (itemId) {
+          return { id: itemId, name: 'Kiro', appUserModelId: 'Kiro', launchStrategy: 'appUserModelId' }
+        }
+        return undefined
+      }),
+      warmAppIndex: vi.fn(),
     }))
 
     vi.doMock('./tools/window-management', () => ({
@@ -153,6 +216,7 @@ describe('Command Center main service', () => {
       handlers,
       register,
       unregister,
+      preloadCommandCenterWindow,
       showCommandCenterWindow,
       hideCommandCenterWindow,
       setCommandCenterWindowLayout,
@@ -170,6 +234,7 @@ describe('Command Center main service', () => {
       executeSystemThemeGet,
       executeSystemThemeSet,
       executeAppList,
+      executeAppFind,
       executeAppLaunch,
       executeWindowList,
       executeWindowFocus,
@@ -179,7 +244,7 @@ describe('Command Center main service', () => {
   }
 
   it('registers and unregisters the global shortcut with extension state', async () => {
-    const { service, register, unregister, hideCommandCenterWindow } = await loadService()
+    const { service, register, unregister, hideCommandCenterWindow, preloadCommandCenterWindow } = await loadService()
 
     expect(service.setCommandCenterExtensionEnabled(true)).toEqual({
       enabled: true,
@@ -187,6 +252,7 @@ describe('Command Center main service', () => {
       shortcutRegistered: true,
     })
     expect(register).toHaveBeenCalledWith('CommandOrControl+Shift+Space', expect.any(Function))
+    expect(preloadCommandCenterWindow).toHaveBeenCalledTimes(1)
 
     service.setCommandCenterExtensionEnabled(false)
     expect(unregister).toHaveBeenCalledWith('CommandOrControl+Shift+Space')
@@ -298,11 +364,19 @@ describe('Command Center main service', () => {
     const index = await getIndex?.()
 
     expect(index).toMatchObject({
-      workflows: [expect.objectContaining({ title: 'Morning startup' })],
-      apps: [expect.objectContaining({ title: 'Chrome', hint: 'Application', iconDataUrl: 'data:image/png;base64,icon' })],
-      windows: [expect.objectContaining({ hwnd: 55 })],
-      chats: [expect.objectContaining({ sessionId: 'chat-1' })],
+      workflows: expect.arrayContaining([expect.objectContaining({ title: 'Morning startup' })]),
+      apps: expect.arrayContaining([
+        expect.objectContaining({ title: 'Chrome', hint: 'Application' }),
+      ]),
+      windows: expect.arrayContaining([expect.objectContaining({ hwnd: 55 })]),
+      chats: expect.arrayContaining([expect.objectContaining({ sessionId: 'chat-1' })]),
     })
+    expect((index as { apps: Array<{ title: string; existingWindow?: unknown }> }).apps).toContainEqual(
+      expect.objectContaining({ title: 'Kiro', existingWindow: undefined })
+    )
+    expect((index as { apps: Array<{ title: string; appUserModelId?: string }> }).apps).toContainEqual(
+      expect.objectContaining({ title: 'Native App', appUserModelId: 'Native.App' })
+    )
 
     await expect(executeItem?.({}, 'app:QzpcQ2hyb21lLmxuaw')).resolves.toEqual({
       success: true,
@@ -310,5 +384,84 @@ describe('Command Center main service', () => {
     })
     expect(executeWindowFocus).toHaveBeenCalledWith({ hwnd: 55, autoApprove: true })
     expect(executeAppLaunch).not.toHaveBeenCalled()
+
+    await expect(executeItem?.({}, 'app:TmF0aXZlLkFwcA')).resolves.toEqual({
+      success: true,
+      data: { launched: true },
+    })
+    expect(executeAppLaunch).toHaveBeenCalledWith({
+      nameOrPath: undefined,
+      appUserModelId: 'Native.App',
+      itemId: 'app:TmF0aXZlLkFwcA',
+      autoApprove: true,
+    })
+  })
+
+  it('uses the current cached app icon data when building app rows', async () => {
+    const { service, handlers } = await loadService()
+    service.registerCommandCenterHandlers()
+    service.setCommandCenterExtensionEnabled(true)
+
+    const getIndex = handlers.get('command-center:get-index')
+    const index = await getIndex?.() as { apps: Array<{ title: string; iconDataUrl?: string }> }
+
+    expect(index.apps).toContainEqual(expect.objectContaining({
+      title: 'Chrome',
+      iconDataUrl: 'data:image/png;base64,icon',
+    }))
+  })
+
+  it('uses the typed query when indexing and executing native app matches', async () => {
+    const { service, handlers, executeAppFind, executeAppLaunch } = await loadService()
+    service.registerCommandCenterHandlers()
+    service.setCommandCenterExtensionEnabled(true)
+
+    const getIndex = handlers.get('command-center:get-index')
+    const executeItem = handlers.get('command-center:execute-index-item')
+    const index = await getIndex?.({}, 'kiro') as { apps: Array<{ id: string; title: string }> }
+
+    expect(executeAppFind).toHaveBeenCalledWith({ query: 'kiro' })
+    expect(index.apps).toContainEqual(expect.objectContaining({ title: 'Kiro' }))
+
+    const kiro = index.apps.find((app) => app.title === 'Kiro')
+    expect(kiro).toBeDefined()
+
+    await expect(executeItem?.({}, kiro!.id, 'kiro')).resolves.toEqual({
+      success: true,
+      data: { launched: true },
+    })
+    expect(executeAppLaunch).toHaveBeenCalledWith({
+      nameOrPath: undefined,
+      appUserModelId: 'Kiro',
+      itemId: kiro!.id,
+      autoApprove: true,
+    })
+  })
+
+  it('surfaces app index diagnostics while keeping other result groups available', async () => {
+    const executeAppList = vi.fn(async () => ({
+      success: false,
+      error: 'Get-StartApps failed',
+    }))
+    const { service, handlers } = await loadService({ executeAppList })
+    service.registerCommandCenterHandlers()
+    service.setCommandCenterExtensionEnabled(true)
+
+    const getIndex = handlers.get('command-center:get-index')
+    const index = await getIndex?.() as {
+      apps: unknown[]
+      windows: unknown[]
+      chats: unknown[]
+      diagnostics?: { apps?: { ok: boolean; error?: string } }
+    }
+
+    expect(index.apps).toEqual([])
+    expect(index.windows).toEqual(expect.arrayContaining([expect.objectContaining({ hwnd: 55 })]))
+    expect(index.chats).toEqual(expect.arrayContaining([expect.objectContaining({ sessionId: 'chat-1' })]))
+    expect(index.diagnostics?.apps).toEqual({
+      ok: false,
+      error: 'Get-StartApps failed',
+      sourceCounts: {},
+    })
   })
 })

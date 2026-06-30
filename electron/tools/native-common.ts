@@ -5,6 +5,7 @@ import type { ToolResult } from './types'
 export const DEFAULT_NATIVE_TIMEOUT_MS = 15_000
 export const MAX_NATIVE_TIMEOUT_MS = 60_000
 export const MAX_NATIVE_OUTPUT_LENGTH = 20_000
+export const MAX_APP_INDEX_OUTPUT_LENGTH = 512_000
 
 export function isWindows(): boolean {
   return process.platform === 'win32'
@@ -69,8 +70,9 @@ export function truncateOutput(value: string, max = MAX_NATIVE_OUTPUT_LENGTH): s
 
 export function runPowerShell(
   script: string,
-  options: { cwd?: string; timeoutMs?: number } = {}
+  options: { cwd?: string; timeoutMs?: number; maxOutputLength?: number } = {}
 ): Promise<{ stdout: string; stderr: string }> {
+  const maxOutputLength = options.maxOutputLength ?? MAX_NATIVE_OUTPUT_LENGTH
   return new Promise((resolve, reject) => {
     execFile(
       'powershell.exe',
@@ -87,7 +89,7 @@ export function runPowerShell(
         cwd: options.cwd,
         timeout: options.timeoutMs ?? DEFAULT_NATIVE_TIMEOUT_MS,
         windowsHide: true,
-        maxBuffer: MAX_NATIVE_OUTPUT_LENGTH * 4,
+        maxBuffer: Math.max(maxOutputLength * 4, MAX_NATIVE_OUTPUT_LENGTH * 4),
       },
       (error, stdout, stderr) => {
         if (error) {
@@ -96,8 +98,8 @@ export function runPowerShell(
           return
         }
         resolve({
-          stdout: truncateOutput(stdout ?? ''),
-          stderr: truncateOutput(stderr ?? ''),
+          stdout: truncateOutput(stdout ?? '', maxOutputLength),
+          stderr: truncateOutput(stderr ?? '', maxOutputLength),
         })
       }
     )
@@ -110,6 +112,20 @@ export function parseJsonOutput<T>(stdout: string): T {
     throw new Error('Command returned no JSON output.')
   }
   return JSON.parse(trimmed) as T
+}
+
+export function parseNdjsonOutput<T>(stdout: string): T[] {
+  const results: T[] = []
+  for (const line of stdout.split(/\r?\n/)) {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed === '...[truncated]' || trimmed.startsWith('...[truncated]')) continue
+    try {
+      results.push(JSON.parse(trimmed) as T)
+    } catch {
+      // Skip truncated or malformed lines from oversized PowerShell output.
+    }
+  }
+  return results
 }
 
 export function normalizeJsonArray<T>(value: T | T[] | null | undefined): T[] {

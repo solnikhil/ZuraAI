@@ -178,6 +178,7 @@ const COMMAND_CENTER_INVOKE_CHANNELS = new Set<string>([
   'command-center:get-context',
   'command-center:list-actions',
   'command-center:get-index',
+  'command-center:refresh-app-index',
   'command-center:save-workflow',
   'command-center:delete-workflow',
   'command-center:execute-action',
@@ -682,9 +683,13 @@ contextBridge.exposeInMainWorld(
       assertAllowed('invoke', 'command-center:list-actions', COMMAND_CENTER_INVOKE_CHANNELS)
       return ipcRenderer.invoke('command-center:list-actions')
     },
-    getIndex: () => {
+    getIndex: (query?: string) => {
       assertAllowed('invoke', 'command-center:get-index', COMMAND_CENTER_INVOKE_CHANNELS)
-      return ipcRenderer.invoke('command-center:get-index') as Promise<CommandCenterIndex>
+      return ipcRenderer.invoke('command-center:get-index', query) as Promise<CommandCenterIndex>
+    },
+    refreshAppIndex: () => {
+      assertAllowed('invoke', 'command-center:refresh-app-index', COMMAND_CENTER_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('command-center:refresh-app-index') as Promise<NonNullable<CommandCenterIndex['diagnostics']>['apps']>
     },
     saveWorkflow: (workflow: Partial<CommandCenterWorkflow>) => {
       assertAllowed('invoke', 'command-center:save-workflow', COMMAND_CENTER_INVOKE_CHANNELS)
@@ -698,9 +703,9 @@ contextBridge.exposeInMainWorld(
       assertAllowed('invoke', 'command-center:execute-action', COMMAND_CENTER_INVOKE_CHANNELS)
       return ipcRenderer.invoke('command-center:execute-action', actionId)
     },
-    executeIndexItem: (itemId: string) => {
+    executeIndexItem: (itemId: string, query?: string) => {
       assertAllowed('invoke', 'command-center:execute-index-item', COMMAND_CENTER_INVOKE_CHANNELS)
-      return ipcRenderer.invoke('command-center:execute-index-item', itemId) as Promise<CommandCenterExecuteResult>
+      return ipcRenderer.invoke('command-center:execute-index-item', itemId, query) as Promise<CommandCenterExecuteResult>
     },
     executeWorkflow: (workflowId: string) => {
       assertAllowed('invoke', 'command-center:execute-workflow', COMMAND_CENTER_INVOKE_CHANNELS)

@@ -65,7 +65,7 @@ interface TimeGroupBucket {
 }
 
 type SidebarListItem =
-  | { type: 'section'; key: string; label: string; icon?: 'pin' | 'folder'; count?: number; folder?: Folder }
+  | { type: 'section'; key: string; label: string; icon?: 'pin' | 'folder'; folder?: Folder }
   | { type: 'folder-heading'; key: string; label: string }
   | { type: 'row'; key: string; session: ChatSession; indented?: boolean }
 
@@ -132,13 +132,11 @@ export default function SidebarChatList({
 
     items.push({ type: 'folder-heading', key: 'folders-heading', label: 'Folders' })
     folders.forEach((folder) => {
-      const folderSessions = groupedSessions.folders.get(folder.id) || []
       items.push({
         type: 'section',
         key: `folder:${folder.id}`,
         label: folder.name,
         icon: 'folder',
-        count: folderSessions.length,
         folder,
       })
     })
@@ -153,7 +151,7 @@ export default function SidebarChatList({
     }
 
     return items
-  }, [folders, groupedSessions.folders, groupedSessions.pinned, isPinnedOpen, isYourChatsOpen, timeGroups])
+  }, [folders, groupedSessions.pinned, isPinnedOpen, isYourChatsOpen, timeGroups])
 
   const renderChatRow = React.useCallback((session: ChatSession, indented = false) => {
     const flatIndex = sessionIndexMap.get(session.id) ?? -1
@@ -257,7 +255,6 @@ export default function SidebarChatList({
                 <FolderOpen size={16} className="sidebar-header__icon" />
               </span>
               <span className="sidebar-header__label">{item.label}</span>
-              <span className="sidebar-folder-row__count">{item.count}</span>
             </div>
           </div>
         )

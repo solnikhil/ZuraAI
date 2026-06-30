@@ -147,4 +147,75 @@ describe('CommandCenterOverlay', () => {
       expect(window.commandCenter.executeWorkflow).toHaveBeenCalledWith('morning')
     })
   })
+
+  it('shows matching apps immediately while main search results load', async () => {
+    window.commandCenter.getIndex = vi.fn(async (query?: string) => ({
+      workflows: [],
+      apps: query === 'kiro'
+        ? [
+            {
+              id: 'app:kiro',
+              type: 'app',
+              title: 'Kiro',
+              hint: 'Application',
+              aliases: [],
+              appUserModelId: 'Kiro',
+            },
+          ]
+        : [
+            {
+              id: 'app:kiro',
+              type: 'app',
+              title: 'Kiro',
+              hint: 'Application',
+              aliases: [],
+              appUserModelId: 'Kiro',
+            },
+            {
+              id: 'app:chrome',
+              type: 'app',
+              title: 'Chrome',
+              hint: 'Application',
+              aliases: [],
+              appPath: 'C:\\Chrome.lnk',
+            },
+          ],
+      windows: [],
+      actions: [],
+      chats: [],
+    }))
+
+    render(<CommandCenterOverlay />)
+    await screen.findByText('Chrome')
+
+    const input = await screen.findByRole('textbox', { name: /search command center/i })
+    fireEvent.change(input, { target: { value: 'kiro' } })
+
+    expect(screen.getByText('Kiro')).toBeInTheDocument()
+    expect(screen.queryByText('Chrome')).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(window.commandCenter.getIndex).toHaveBeenCalledWith('kiro')
+    })
+  })
+
+  it('shows app index diagnostics when apps are partially unavailable', async () => {
+    window.commandCenter.getIndex = vi.fn(async () => ({
+      workflows: [],
+      apps: [],
+      windows: [],
+      actions: [],
+      chats: [],
+      diagnostics: {
+        apps: {
+          ok: false,
+          error: 'Get-StartApps failed',
+          sourceCounts: {},
+        },
+      },
+    }))
+
+    render(<CommandCenterOverlay />)
+
+    expect(await screen.findByText(/Apps may be incomplete: Get-StartApps failed/i)).toBeInTheDocument()
+  })
 })

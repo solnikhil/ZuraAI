@@ -8,6 +8,11 @@ import { useStreamingState } from '../contexts/StreamingContext'
 import { MessageRenderer } from './Dashboard/ChatArea/MessageRenderer'
 import { StreamingMessage } from './Dashboard/ChatArea/StreamingMessage'
 import { useStreamingChat } from './Dashboard/ChatArea/hooks'
+import {
+  scoreAppSearch,
+  scoreGenericSearch,
+  scoreWindowSearch,
+} from '../commandCenter/search'
 import type { CommandCenterIndex, CommandCenterIndexItem } from '../electron/types'
 
 type Mode = 'search' | 'ask'
@@ -30,32 +35,46 @@ function flattenIndex(index: CommandCenterIndex): Array<{ group: string; item: C
   ]
 }
 
+function searchScore(item: CommandCenterIndexItem, query: string): number {
+  const trimmedQuery = query.trim()
+  if (!trimmedQuery) {
+    return item.type === 'app' && typeof item.rank === 'number' ? item.rank : 1
+  }
+  switch (item.type) {
+    case 'app':
+      return scoreAppSearch(item.title, item.aliases, trimmedQuery) + (item.rank ?? 0)
+    case 'window':
+      return scoreWindowSearch(item.title, item.subtitle ?? '', trimmedQuery)
+    case 'workflow':
+    case 'action':
+    case 'chat':
+      return scoreGenericSearch([item.title, ...item.aliases, item.hint], trimmedQuery)
+    default:
+      return 0
+  }
+}
+
 function matchesItem(item: CommandCenterIndexItem, query: string): boolean {
-  if (!query) return true
-  const haystack = [
-    item.title,
-    item.subtitle ?? '',
-    item.hint,
-    ...item.aliases,
-  ].join(' ').toLowerCase()
-  return haystack.includes(query.toLowerCase())
+  if (!query.trim()) return true
+  return searchScore(item, query) > 0
 }
 
 function iconForItem(item: CommandCenterIndexItem) {
-  if (item.type === 'workflow') return <Sparkles size={16} />
+  if (item.type === 'workflow') return <Sparkles size={22} />
   if (item.type === 'app' && item.iconDataUrl) {
     return <img src={item.iconDataUrl} alt="" className="command-center-result__app-icon" />
   }
-  if (item.type === 'app') return <Monitor size={16} />
-  if (item.type === 'window') return <Monitor size={16} />
-  if (item.type === 'chat') return <MessageSquare size={16} />
-  return <Command size={16} />
+  if (item.type === 'app') return <Monitor size={22} />
+  if (item.type === 'window') return <Monitor size={22} />
+  if (item.type === 'chat') return <MessageSquare size={22} />
+  return <Command size={22} />
 }
 
 export default function CommandCenterOverlay() {
   const [mode, setMode] = useState<Mode>('search')
   const [input, setInput] = useState('')
   const [index, setIndex] = useState<CommandCenterIndex>(EMPTY_INDEX)
+  const [indexLoading, setIndexLoading] = useState(true)
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [confirmingWorkflow, setConfirmingWorkflow] = useState<CommandCenterIndexItem | null>(null)
   const [status, setStatus] = useState<string | null>(null)
@@ -65,6 +84,7 @@ export default function CommandCenterOverlay() {
   const [promoted, setPromoted] = useState(false)
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null)
   const bodyRef = useRef<HTMLDivElement | null>(null)
+  const indexRequestRef = useRef(0)
   const reduceMotion = useReducedMotion()
 
   const {
@@ -93,12 +113,18 @@ export default function CommandCenterOverlay() {
   }, [index, input])
 
   const groupedRows = useMemo(() => {
+    const query = input.trim()
     const groups = new Map<string, CommandCenterIndexItem[]>()
     for (const row of filteredRows) {
       groups.set(row.group, [...(groups.get(row.group) ?? []), row.item])
     }
-    return Array.from(groups.entries())
-  }, [filteredRows])
+    return Array.from(groups.entries()).map(([group, items]) => [
+      group,
+      query
+        ? [...items].sort((a, b) => searchScore(b, query) - searchScore(a, query) || a.title.localeCompare(b.title))
+        : items,
+    ] as const)
+  }, [filteredRows, input])
 
   const selectedItem = filteredRows[selectedIndex]?.item
   const switchMode = useCallback(() => {
@@ -107,15 +133,37 @@ export default function CommandCenterOverlay() {
     requestAnimationFrame(() => inputRef.current?.focus())
   }, [isChatMode])
 
-  const refreshIndex = useCallback(async () => {
+  const refreshIndex = useCallback(async (query = '', showLoading = true) => {
+    const requestId = indexRequestRef.current + 1
+    indexRequestRef.current = requestId
+    if (showLoading) {
+      setIndexLoading(true)
+    }
     try {
-      const nextIndex = await window.commandCenter.getIndex()
-      setIndex(nextIndex)
-      setError(null)
+      const nextIndex = await window.commandCenter.getIndex(query)
+      if (requestId === indexRequestRef.current) {
+        setIndex(nextIndex)
+        setError(null)
+        if (showLoading && !query.trim()) {
+          window.setTimeout(() => {
+            void refreshIndex('', false)
+          }, 500)
+        }
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to load Command Center index.')
+      if (requestId === indexRequestRef.current) {
+        setError(err instanceof Error ? err.message : 'Unable to load Command Center index.')
+      }
+    } finally {
+      if (requestId === indexRequestRef.current) {
+        setIndexLoading(false)
+      }
     }
   }, [])
+
+  const appIndexWarning = index.diagnostics?.apps && !index.diagnostics.apps.ok
+    ? index.diagnostics.apps.error || 'App index is partially unavailable.'
+    : null
 
   const resetOverlay = useCallback(() => {
     setMode('search')
@@ -136,6 +184,16 @@ export default function CommandCenterOverlay() {
     resetOverlay()
     return window.commandCenter.onShown(resetOverlay)
   }, [resetOverlay])
+
+  useEffect(() => {
+    if (isChatMode || mode !== 'search') return undefined
+    const query = input.trim()
+    const delay = query ? 90 : 0
+    const timer = window.setTimeout(() => {
+      void refreshIndex(query, false)
+    }, delay)
+    return () => window.clearTimeout(timer)
+  }, [input, isChatMode, mode, refreshIndex])
 
   useEffect(() => {
     setSelectedIndex(0)
@@ -182,7 +240,8 @@ export default function CommandCenterOverlay() {
     }
     setError(null)
     setStatus(null)
-    const result = await window.commandCenter.executeIndexItem(item.id)
+    const query = mode === 'search' ? input.trim() : ''
+    const result = await window.commandCenter.executeIndexItem(item.id, query)
     if (!result.success) {
       setError(result.error || 'Command failed.')
       return
@@ -193,9 +252,9 @@ export default function CommandCenterOverlay() {
     }
     if (item.type !== 'chat') {
       setStatus(`${item.title} complete.`)
-      void refreshIndex()
+      void refreshIndex(query, false)
     }
-  }, [refreshIndex, startChat])
+  }, [input, mode, refreshIndex, startChat])
 
   const runConfirmedWorkflow = useCallback(async () => {
     if (!confirmingWorkflow || confirmingWorkflow.type !== 'workflow') return
@@ -341,6 +400,11 @@ export default function CommandCenterOverlay() {
             >
               {mode === 'search' ? (
                 <div className="command-center-results" role="listbox" aria-label="Command Center results">
+                  {appIndexWarning && (
+                    <div className="command-center-index-warning">
+                      Apps may be incomplete: {appIndexWarning}
+                    </div>
+                  )}
                   {groupedRows.length > 0 ? groupedRows.map(([group, items]) => (
                     <section key={group} className="command-center-group">
                       <h2>{group}</h2>
@@ -365,8 +429,12 @@ export default function CommandCenterOverlay() {
                         )
                       })}
                     </section>
-                  )) : (
-                    <div className="command-center-empty">No results. Press Enter to ask Zura instead.</div>
+                  )) : indexLoading && filteredRows.length === 0 ? (
+                    <div className="command-center-empty">Loading Command Center...</div>
+                  ) : input.trim() ? (
+                    <div className="command-center-empty">No matching results. Press Enter to ask Zura instead.</div>
+                  ) : (
+                    <div className="command-center-empty">No Command Center items found.</div>
                   )}
                 </div>
               ) : (
@@ -638,15 +706,18 @@ export default function CommandCenterOverlay() {
           flex: 1;
           min-height: 0;
           overflow: auto;
-          padding: 16px 18px 22px;
+          padding: 18px 20px 24px;
         }
 
         .command-center-group {
-          margin-bottom: 20px;
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          margin-bottom: 24px;
         }
 
         .command-center-group h2 {
-          margin: 0 0 8px;
+          margin: 0 0 6px;
           color: rgba(255, 231, 238, 0.52);
           font-size: 14px;
           font-weight: 500;
@@ -654,11 +725,11 @@ export default function CommandCenterOverlay() {
 
         .command-center-result {
           width: 100%;
-          height: 36px;
+          min-height: 48px;
           display: grid;
-          grid-template-columns: 28px minmax(0, 1fr) 76px;
+          grid-template-columns: 42px minmax(0, 1fr) 86px;
           align-items: center;
-          gap: 10px;
+          column-gap: 12px;
           border: 0;
           border-radius: 7px;
           background: transparent;
@@ -676,25 +747,28 @@ export default function CommandCenterOverlay() {
         }
 
         .command-center-result__icon {
-          width: 18px;
-          height: 18px;
+          width: 32px;
+          height: 32px;
           display: inline-flex;
           align-items: center;
           justify-content: center;
           color: rgba(255, 221, 231, 0.58);
           overflow: hidden;
+          border-radius: 8px;
+          background: rgba(255, 255, 255, 0.06);
         }
 
         .command-center-result__icon svg,
         .command-center-result__app-icon {
-          width: 16px;
-          height: 16px;
+          width: 28px;
+          height: 28px;
           display: block;
           flex: 0 0 auto;
         }
 
         .command-center-result__app-icon {
           object-fit: contain;
+          border-radius: 7px;
         }
 
         .command-center-result__text {
@@ -735,6 +809,16 @@ export default function CommandCenterOverlay() {
         .command-center-empty {
           padding: 32px 10px;
           font-size: 14px;
+        }
+
+        .command-center-index-warning {
+          margin: 0 0 14px;
+          padding: 8px 10px;
+          border-radius: 7px;
+          background: rgba(255, 194, 205, 0.10);
+          color: rgba(255, 210, 220, 0.86);
+          font-size: 12px;
+          line-height: 1.35;
         }
 
         .command-center-ask-empty {

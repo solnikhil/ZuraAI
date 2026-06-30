@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { clampTimeoutMs, requireApproval, stringArg } from './native-common'
+import { clampTimeoutMs, parseNdjsonOutput, requireApproval, stringArg } from './native-common'
 
 describe('native tool helpers', () => {
   it('requires explicit approval for mutating native actions', () => {
@@ -9,6 +9,18 @@ describe('native tool helpers', () => {
       error: 'system_shell requires user approval before it can run.',
     })
     expect(requireApproval({ autoApprove: true }, 'system_shell')).toBeNull()
+  })
+
+  it('parses ndjson output and skips malformed lines', () => {
+    expect(parseNdjsonOutput<{ name: string }>([
+      '{"name":"Alpha"}',
+      '{"name":"Beta"}',
+      '{"name":"Bro',
+      '...[truncated]',
+    ].join('\n'))).toEqual([
+      { name: 'Alpha' },
+      { name: 'Beta' },
+    ])
   })
 
   it('normalizes string args and clamps timeouts', () => {
