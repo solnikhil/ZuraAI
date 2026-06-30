@@ -2,8 +2,6 @@ import type { ThinkingBlock, ToolCallResult } from '../../../chat/types'
 import { MEMORY_TOOL_NAMES } from '../../../tools/memoryTools'
 
 const SUPPRESSED_NOISY_TOOL_RESULT_NAMES = new Set([
-  'artifact_create',
-  'artifact_update',
   'code_execution',
   'scheduled_task_create',
   'scheduled_task_update',

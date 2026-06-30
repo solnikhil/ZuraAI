@@ -48,10 +48,21 @@ describe('shouldHideGenericToolResultCard', () => {
     ).toBe(true)
   })
 
-  it('hides noisy built-in creation and execution results', () => {
+  it('keeps artifact tool results visible', () => {
+    for (const toolName of ['artifact_create', 'artifact_update']) {
+      expect(
+        shouldHideGenericToolResultCard(
+          buildToolResult({
+            toolCall: { name: toolName },
+          })
+        )
+      ).toBe(false)
+      expect(shouldSuppressNoisyToolUi(toolName)).toBe(false)
+    }
+  })
+
+  it('hides noisy built-in execution and scheduled task results', () => {
     for (const toolName of [
-      'artifact_create',
-      'artifact_update',
       'code_execution',
       'scheduled_task_create',
       'scheduled_task_update',
