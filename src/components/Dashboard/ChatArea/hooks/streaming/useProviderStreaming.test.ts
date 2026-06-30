@@ -1317,7 +1317,7 @@ describe('useProviderStreaming', () => {
     expect(streamResult.content).toContain('Here is what pricing shows.')
     expect(streamResult.content).toContain('The main log file is application.log.')
     expect(streamResult.content).toMatch(
-      /Good call — verify pricing\.[\s\S]*Here is what pricing shows\.[\s\S]*The main log file is application\.log\./
+      /Good call — verify pricing\.[\s\S]*\[\[ZURA_TOOL_FOLLOW_UP_SPLIT:blocks=1\]\][\s\S]*Here is what pricing shows\.[\s\S]*\[\[ZURA_TOOL_FOLLOW_UP_SPLIT:blocks=2\]\][\s\S]*The main log file is application\.log\./
     )
   })
 

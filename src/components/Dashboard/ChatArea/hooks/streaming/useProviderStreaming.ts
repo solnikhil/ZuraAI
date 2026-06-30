@@ -59,6 +59,7 @@ import {
   TOOL_FOLLOW_UP_SPLIT_MARKER,
   createToolFollowUpSplitMarker,
   endsWithToolFollowUpSplitMarker,
+  removeToolFollowUpSplitMarker,
 } from '../../messageTimeline'
 import type {
   HandleToolCallsOptions,
@@ -505,6 +506,7 @@ export function useProviderStreaming({
       let activeThinking = ''
       let activeThinkingStartTime: number | null = null
       let citations: string[] = []
+      let preserveToolSplitMarkers = false
 
       const throwIfAborted = () => {
         if (options.signal?.aborted) {
@@ -820,6 +822,16 @@ export function useProviderStreaming({
                   persistProgress()
                   break
                 }
+                if (
+                  roundContent.trim().length > 0 &&
+                  !endsWithToolFollowUpSplitMarker(accumulatedContent)
+                ) {
+                  const splitMarker = createToolFollowUpSplitMarker(localThinkingBlocks.length)
+                  accumulatedContent = `${accumulatedContent.trimEnd()}${splitMarker}`
+                  roundContent = `${roundContent.trimEnd()}${splitMarker}`
+                  updateStreamingState({ content: accumulatedContent })
+                  publishStreamingProgress({ content: accumulatedContent })
+                }
                 accumulateDeltaToolCalls(roundToolCalls, event.delta)
                 streamChunkCoalescer.recordToolCallDelta(
                   Array.isArray(event.delta) ? event.delta.length : 1
@@ -1052,9 +1064,10 @@ export function useProviderStreaming({
           }
         }
 
-        const returnedRoundContent = finalRoundContent.startsWith(roundStartContent)
+        const rawReturnedRoundContent = finalRoundContent.startsWith(roundStartContent)
           ? finalRoundContent.slice(roundStartContent.length)
           : finalRoundContent
+        const returnedRoundContent = removeToolFollowUpSplitMarker(rawReturnedRoundContent)
 
         streamChunkCoalescer.flush()
         logDiagnostic({
@@ -1322,6 +1335,7 @@ export function useProviderStreaming({
         }
 
         if (toolResult.needsFollowUp && toolResult.formattedResults.length > 0) {
+          preserveToolSplitMarkers = true
           let totalSearchCount = toolResult.executionSummary.executedWebSearchCount || 0
           const searchQueryHistory = [...initialExecutedSearchQueries]
           let lastAssistantMessage = reconstructedMessage
@@ -1670,8 +1684,14 @@ export function useProviderStreaming({
         basicUsage.outputTokens
       )
       const finalContent = hasSearchResults(savedToolResults)
-        ? stripStandaloneHorizontalRule(accumulatedContent)
-        : accumulatedContent
+        ? stripStandaloneHorizontalRule(
+            preserveToolSplitMarkers
+              ? accumulatedContent
+              : removeToolFollowUpSplitMarker(accumulatedContent)
+          )
+        : preserveToolSplitMarkers
+          ? accumulatedContent
+          : removeToolFollowUpSplitMarker(accumulatedContent)
       const finalFinishReason = finishReason || undefined
       const finalUsage = {
         ...basicUsage,
