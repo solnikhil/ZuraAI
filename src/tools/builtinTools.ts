@@ -124,6 +124,73 @@ Use this when the user's task matches a skill listed in the Agent Skills catalog
     category: 'utility',
     origin: 'builtin-main',
   },
+  mcp_request_add: {
+    description: `Request adding an MCP server for the user to review.
+
+Use this when the user asks to add, install, or connect an MCP server such as Gmail, GitHub, Notion, or a custom MCP endpoint.
+
+Safety rules:
+- Prefer mode="catalogue" with a concise query for known/common MCPs.
+- Use mode="custom" only when the user gave a specific command or URL.
+- Never include raw API keys, tokens, passwords, private keys, or secret values.
+- This only creates a review request; the user must approve before the MCP is added.
+- Added MCP servers stay untrusted until the user reviews and trusts discovered tools.`,
+    parameters: {
+      type: 'object',
+      description: 'Arguments for requesting an MCP server add review.',
+      properties: {
+        mode: {
+          type: 'string',
+          description: 'Use catalogue for bundled MCPs, custom for a user-provided command or URL.',
+          enum: ['catalogue', 'custom'],
+          default: 'catalogue',
+        },
+        query: {
+          type: 'string',
+          description: 'Search text such as "gmail", "github", or a short custom server name.',
+        },
+        catalogueEntryId: {
+          type: 'string',
+          description: 'Optional exact bundled catalogue entry id or name.',
+        },
+        reason: {
+          type: 'string',
+          description: 'One short sentence explaining why this MCP should be added.',
+        },
+        custom: {
+          type: 'object',
+          description: 'Custom MCP config. Do not include raw secrets.',
+          properties: {
+            name: { type: 'string' },
+            transport: { type: 'string', enum: ['stdio', 'sse', 'websocket'] },
+            command: { type: 'string' },
+            args: { type: 'array', items: { type: 'string' } },
+            cwd: { type: 'string' },
+            url: { type: 'string' },
+            env: { type: 'array', items: { type: 'string' } },
+            headers: { type: 'array', items: { type: 'string' } },
+            authMode: {
+              type: 'string',
+              enum: [
+                'none',
+                'envSecret',
+                'headerSecret',
+                'bearerToken',
+                'basicAuth',
+                'oauth2Pkce',
+                'jsonCredential',
+                'connectionString',
+              ],
+            },
+          },
+        },
+      },
+      required: ['mode', 'reason'],
+    },
+    category: 'mcp',
+    origin: 'builtin-main',
+    requiresApproval: true,
+  },
   computer_screenshot: {
     description: 'Capture visual context for Computer Use. Prefer targeting a specific app/window with window_id, window_title, or app_name when the task is about one app; use a full display capture only for desktop-wide or visual layout tasks. Returns a base64 PNG image with dimensions and coordinate metadata used by follow-up actions.',
     parameters: {

@@ -92,6 +92,10 @@ const AGENT_SKILL_TOOLS = [
     'activate_skill',
 ]
 
+const MCP_AGENT_TOOLS = [
+    'mcp_request_add',
+]
+
 export interface ToolCallState {
     activeToolCalls: ToolCall[]
     activeToolBatch: ToolCall[]
@@ -260,6 +264,15 @@ export function useToolCalling() {
             enabledTools = enabledTools.filter((tool) => !AGENT_SKILL_TOOLS.includes(tool))
         } else {
             for (const tool of AGENT_SKILL_TOOLS) {
+                if (!enabledTools.includes(tool)) enabledTools.push(tool)
+            }
+        }
+
+        const mcpAgentSurfaceEnabled = settings.assistantMode === 'agent'
+        if (!mcpAgentSurfaceEnabled) {
+            enabledTools = enabledTools.filter((tool) => !MCP_AGENT_TOOLS.includes(tool))
+        } else {
+            for (const tool of MCP_AGENT_TOOLS) {
                 if (!enabledTools.includes(tool)) enabledTools.push(tool)
             }
         }

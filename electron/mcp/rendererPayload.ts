@@ -168,7 +168,14 @@ async function prepareConfigValue(
 
   const canReuseStoredSecret = !clearSecret && Boolean(reusableExistingSecretKey)
   if (!secretValue && !canReuseStoredSecret) {
-    return null
+    return {
+      value: {
+        name,
+        valueSource: 'secret',
+        secretKey,
+      },
+      secretKey,
+    }
   }
 
   return {

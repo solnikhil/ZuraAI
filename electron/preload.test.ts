@@ -52,6 +52,9 @@ describe('preload MCP bridge', () => {
       resolveApproval: (requestId: string, approved: boolean) => Promise<unknown>
       getState: () => Promise<unknown>
       openConfigFile: () => Promise<unknown>
+      resolveAddRequest: (requestId: string) => Promise<unknown>
+      approveAddRequest: (requestId: string) => Promise<unknown>
+      cancelAddRequest: (requestId: string) => Promise<unknown>
     }>('mcp')
 
     preloadMocks.invoke
@@ -62,6 +65,9 @@ describe('preload MCP bridge', () => {
       .mockResolvedValueOnce({ requestId: 'approval-1', approved: true, outcome: 'approved' })
       .mockResolvedValueOnce({ servers: [], runtimeStates: [], tools: [], pendingApprovals: [] })
       .mockResolvedValueOnce({ ok: true, path: '/tmp/mcp-servers.json' })
+      .mockResolvedValueOnce({ requestId: 'add-1', serverName: 'Gmail' })
+      .mockResolvedValueOnce({ requestId: 'add-1', status: 'connected' })
+      .mockResolvedValueOnce({ requestId: 'add-2', status: 'cancelled' })
 
     await expect(mcp.listServers()).resolves.toEqual([{ id: 'server-1' }])
     await expect(mcp.connectServer('server-1')).resolves.toEqual({
@@ -87,6 +93,18 @@ describe('preload MCP bridge', () => {
       pendingApprovals: [],
     })
     await expect(mcp.openConfigFile()).resolves.toEqual({ ok: true, path: '/tmp/mcp-servers.json' })
+    await expect(mcp.resolveAddRequest('add-1')).resolves.toEqual({
+      requestId: 'add-1',
+      serverName: 'Gmail',
+    })
+    await expect(mcp.approveAddRequest('add-1')).resolves.toEqual({
+      requestId: 'add-1',
+      status: 'connected',
+    })
+    await expect(mcp.cancelAddRequest('add-2')).resolves.toEqual({
+      requestId: 'add-2',
+      status: 'cancelled',
+    })
 
     expect(preloadMocks.invoke).toHaveBeenNthCalledWith(1, 'mcp:list-servers')
     expect(preloadMocks.invoke).toHaveBeenNthCalledWith(2, 'mcp:connect-server', 'server-1')
@@ -105,6 +123,9 @@ describe('preload MCP bridge', () => {
     )
     expect(preloadMocks.invoke).toHaveBeenNthCalledWith(6, 'mcp:get-state')
     expect(preloadMocks.invoke).toHaveBeenNthCalledWith(7, 'mcp:open-config-file')
+    expect(preloadMocks.invoke).toHaveBeenNthCalledWith(8, 'mcp:resolve-add-request', 'add-1')
+    expect(preloadMocks.invoke).toHaveBeenNthCalledWith(9, 'mcp:approve-add-request', 'add-1')
+    expect(preloadMocks.invoke).toHaveBeenNthCalledWith(10, 'mcp:cancel-add-request', 'add-2')
   })
 
   it('subscribes to MCP snapshot updates and unregisters listeners', () => {

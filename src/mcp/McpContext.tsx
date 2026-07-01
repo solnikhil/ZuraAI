@@ -28,6 +28,10 @@ import {
   validateDraftServer,
   type McpDraftServer,
 } from './draft'
+import type {
+  McpAgentAddApproveResult,
+  McpAgentAddReview,
+} from './addRequestTypes'
 
 interface McpContextValue {
   isSupported: boolean
@@ -64,6 +68,9 @@ interface McpContextValue {
   resolveApproval: (requestId: string, approved: boolean) => Promise<void>
   startOAuth: (serverId: string) => Promise<void>
   clearOAuth: (serverId: string) => Promise<void>
+  requestAddServerFromAgent: (requestId: string) => Promise<McpAgentAddReview>
+  approvePendingAddRequest: (requestId: string) => Promise<McpAgentAddApproveResult>
+  cancelPendingAddRequest: (requestId: string) => Promise<McpAgentAddReview>
   getRuntimeState: (serverId: string) => McpServerRuntimeState | undefined
   getAuthStatus: (serverId: string) => McpAuthStatus | undefined
 }
@@ -371,6 +378,35 @@ export function McpProvider({ children }: { children: React.ReactNode }): React.
     [refresh]
   )
 
+  const requestAddServerFromAgent = useCallback(async (requestId: string) => {
+    if (!window.mcp) {
+      throw new Error('MCP bridge is unavailable in this environment.')
+    }
+
+    return window.mcp.resolveAddRequest(requestId)
+  }, [])
+
+  const approvePendingAddRequest = useCallback(
+    async (requestId: string) => {
+      if (!window.mcp) {
+        throw new Error('MCP bridge is unavailable in this environment.')
+      }
+
+      const result = await window.mcp.approveAddRequest(requestId)
+      await refresh()
+      return result
+    },
+    [refresh]
+  )
+
+  const cancelPendingAddRequest = useCallback(async (requestId: string) => {
+    if (!window.mcp) {
+      throw new Error('MCP bridge is unavailable in this environment.')
+    }
+
+    return window.mcp.cancelAddRequest(requestId)
+  }, [])
+
   const getRuntimeState = useCallback(
     (serverId: string) => snapshot.runtimeStates.find((state) => state.serverId === serverId),
     [snapshot.runtimeStates]
@@ -413,6 +449,9 @@ export function McpProvider({ children }: { children: React.ReactNode }): React.
       resolveApproval,
       startOAuth,
       clearOAuth,
+      requestAddServerFromAgent,
+      approvePendingAddRequest,
+      cancelPendingAddRequest,
       getRuntimeState,
       getAuthStatus,
     }),
@@ -447,6 +486,9 @@ export function McpProvider({ children }: { children: React.ReactNode }): React.
       snapshot.authStatuses,
       startOAuth,
       clearOAuth,
+      requestAddServerFromAgent,
+      approvePendingAddRequest,
+      cancelPendingAddRequest,
       upsertDraftServer,
     ]
   )

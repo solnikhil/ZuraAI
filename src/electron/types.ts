@@ -14,6 +14,10 @@ import type {
   McpToolExecutionResult,
 } from '../mcp/types'
 import type { McpServerInputPayload } from '../mcp/draft'
+import type {
+  McpAgentAddApproveResult,
+  McpAgentAddReview,
+} from '../mcp/addRequestTypes'
 import type { ToolResult } from '../tools/types'
 import type {
   AgentSkillActivationResult,
@@ -888,6 +892,9 @@ export interface McpAPI {
   startOAuth: (serverId: string) => Promise<{ ok: boolean; status: McpAuthStatus; error?: string }>
   clearOAuth: (serverId: string) => Promise<McpAuthStatus>
   getAuthStatus: (serverId: string) => Promise<McpAuthStatus>
+  resolveAddRequest: (requestId: string) => Promise<McpAgentAddReview>
+  approveAddRequest: (requestId: string) => Promise<McpAgentAddApproveResult>
+  cancelAddRequest: (requestId: string) => Promise<McpAgentAddReview>
   onStateChange: (callback: (snapshot: McpRuntimeSnapshot) => void) => () => void
 }
 

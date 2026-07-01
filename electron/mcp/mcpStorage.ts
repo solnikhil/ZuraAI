@@ -521,6 +521,8 @@ function configValuesToRecord(values: McpConfigValue[]): Promise<Record<string, 
         const resolved = await getSecureValueAsync(secretKey)
         if (resolved) {
           acc[entry.name] = resolved
+        } else {
+          throw new Error(`MCP secret "${entry.name}" needs a value before connecting.`)
         }
       }
       return acc

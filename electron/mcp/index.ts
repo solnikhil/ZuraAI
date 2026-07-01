@@ -12,6 +12,11 @@ import { McpApprovalManager } from './mcpApprovalManager'
 import { McpManager } from './mcpManager'
 import { clearMcpServerSecrets, prepareRendererMcpServerInput } from './rendererPayload'
 import { getMcpStoreFilePath, saveMcpServers } from './mcpStorage'
+import {
+  approvePendingMcpAddRequest,
+  cancelPendingMcpAddRequest,
+  getPendingMcpAddRequest,
+} from './mcpAddRequests'
 import { trackAnalyticsEvent } from '../analytics'
 
 const MCP_STATE_CHANGED_CHANNEL = 'mcp:state-changed'
@@ -220,6 +225,27 @@ export function registerMcpHandlers(): void {
     await manager.initialize()
     return manager.getAuthStatus(assertMcpServerId(serverId))
   })
+
+  ipcMain.handle('mcp:resolve-add-request', async (_event, requestId: string) => {
+    return getPendingMcpAddRequest(assertMcpAddRequestId(requestId))
+  })
+
+  ipcMain.handle('mcp:cancel-add-request', async (_event, requestId: string) => {
+    return cancelPendingMcpAddRequest(assertMcpAddRequestId(requestId))
+  })
+
+  ipcMain.handle('mcp:approve-add-request', async (_event, requestId: string) => {
+    await manager.initialize()
+    return approvePendingMcpAddRequest(assertMcpAddRequestId(requestId), {
+      addServer: async (payload) => {
+        const serverId = extractServerId(payload) ?? randomUUID()
+        const preparedServer = await prepareRendererMcpServerInput(payload, { serverId })
+        return manager.addServer(preparedServer)
+      },
+      connectServer: async (serverId) => manager.connectServer(assertMcpServerId(serverId)),
+      startOAuth: async (serverId) => manager.startOAuth(assertMcpServerId(serverId)),
+    })
+  })
 }
 
 export function unregisterMcpHandlers(): void {
@@ -246,6 +272,9 @@ export function unregisterMcpHandlers(): void {
   ipcMain.removeHandler('mcp:start-oauth')
   ipcMain.removeHandler('mcp:clear-oauth')
   ipcMain.removeHandler('mcp:get-auth-status')
+  ipcMain.removeHandler('mcp:resolve-add-request')
+  ipcMain.removeHandler('mcp:approve-add-request')
+  ipcMain.removeHandler('mcp:cancel-add-request')
 }
 
 function broadcastMcpSnapshot(snapshot: McpRuntimeSnapshot): void {
@@ -267,6 +296,14 @@ function assertMcpServerId(serverId: string): string {
 function assertApprovalRequestId(requestId: string): string {
   if (typeof requestId !== 'string' || !requestId.trim()) {
     throw new Error('Invalid MCP approval request id')
+  }
+
+  return requestId.trim()
+}
+
+function assertMcpAddRequestId(requestId: string): string {
+  if (typeof requestId !== 'string' || !requestId.trim()) {
+    throw new Error('Invalid MCP add request id')
   }
 
   return requestId.trim()

@@ -193,6 +193,46 @@ vi.mock('./rendererPayload', () => ({
   clearMcpServerSecrets: vi.fn(async () => undefined),
 }))
 
+vi.mock('./mcpAddRequests', () => ({
+  getPendingMcpAddRequest: vi.fn((requestId: string) => ({
+    requestId,
+    status: 'pending',
+    mode: 'catalogue',
+    serverName: 'Gmail',
+    sourceLabel: 'npm package',
+    reason: 'Add Gmail.',
+    transport: 'stdio',
+    requiredSecrets: [],
+    authMode: 'none',
+    riskNotes: [],
+    canAdd: true,
+  })),
+  cancelPendingMcpAddRequest: vi.fn((requestId: string) => ({
+    requestId,
+    status: 'cancelled',
+    mode: 'catalogue',
+    serverName: 'Gmail',
+    sourceLabel: 'npm package',
+    reason: 'Add Gmail.',
+    transport: 'stdio',
+    requiredSecrets: [],
+    authMode: 'none',
+    riskNotes: [],
+    canAdd: true,
+  })),
+  approvePendingMcpAddRequest: vi.fn(async (
+    requestId: string,
+    options: {
+      addServer: (payload: unknown) => Promise<unknown>
+      connectServer: (serverId: string) => Promise<unknown>
+    }
+  ) => {
+    const server = await options.addServer({ id: 'server-2', name: 'Gmail' })
+    const runtimeState = await options.connectServer('server-2')
+    return { requestId, status: 'connected', server, runtimeState, requiredSecrets: [] }
+  }),
+}))
+
 vi.mock('./mcpApprovalManager', () => ({
   McpApprovalManager: class {
     readonly listPendingApprovals = vi.fn(() => [])
@@ -258,6 +298,9 @@ describe('electron MCP handler registration', () => {
         'mcp:start-oauth',
         'mcp:clear-oauth',
         'mcp:get-auth-status',
+        'mcp:resolve-add-request',
+        'mcp:approve-add-request',
+        'mcp:cancel-add-request',
         'mcp:open-config-file',
         'mcp:list-tools',
         'mcp:list-resources',
@@ -294,19 +337,29 @@ describe('electron MCP handler registration', () => {
     await expect(invokeHandler('mcp:clear-oauth', {}, 'server-1')).resolves.toEqual(
       expect.objectContaining({ state: 'reauth_required' })
     )
+    await expect(invokeHandler('mcp:resolve-add-request', {}, 'add-1')).resolves.toEqual(
+      expect.objectContaining({ requestId: 'add-1', serverName: 'Gmail' })
+    )
+    await expect(invokeHandler('mcp:approve-add-request', {}, 'add-1')).resolves.toEqual(
+      expect.objectContaining({ requestId: 'add-1', status: 'connected' })
+    )
+    await expect(invokeHandler('mcp:cancel-add-request', {}, 'add-2')).resolves.toEqual(
+      expect.objectContaining({ requestId: 'add-2', status: 'cancelled' })
+    )
     await expect(invokeHandler('mcp:open-config-file')).resolves.toEqual({
       ok: true,
       path: '/tmp/zura-mcp-test/mcp-servers.json',
       error: undefined,
     })
 
-    expect(manager.initialize).toHaveBeenCalledTimes(9)
+    expect(manager.initialize).toHaveBeenCalledTimes(10)
     expect(manager.listServers).toHaveBeenCalledTimes(2)
     expect(manager.connectServer).toHaveBeenCalledWith('server-1')
     expect(manager.getServerTools).toHaveBeenCalledWith('server-1')
     expect(manager.startOAuth).toHaveBeenCalledWith('server-1')
     expect(manager.getAuthStatus).toHaveBeenCalledWith('server-1')
     expect(manager.clearOAuth).toHaveBeenCalledWith('server-1')
+    expect(manager.connectServer).toHaveBeenCalledWith('server-2')
     expect(manager.getSnapshot).toHaveBeenCalled()
     expect(indexMocks.saveMcpServers).toHaveBeenCalledWith([
       { id: 'server-1', name: 'Server', enabled: true },
@@ -344,6 +397,9 @@ describe('electron MCP handler registration', () => {
     expect(indexMocks.removeHandler).toHaveBeenCalledWith('mcp:start-oauth')
     expect(indexMocks.removeHandler).toHaveBeenCalledWith('mcp:clear-oauth')
     expect(indexMocks.removeHandler).toHaveBeenCalledWith('mcp:get-auth-status')
+    expect(indexMocks.removeHandler).toHaveBeenCalledWith('mcp:resolve-add-request')
+    expect(indexMocks.removeHandler).toHaveBeenCalledWith('mcp:approve-add-request')
+    expect(indexMocks.removeHandler).toHaveBeenCalledWith('mcp:cancel-add-request')
     expect(indexMocks.removeHandler).toHaveBeenCalledWith('mcp:open-config-file')
     expect(indexMocks.removeHandler).toHaveBeenCalledWith('mcp:list-resources')
     expect(indexMocks.removeHandler).toHaveBeenCalledWith('mcp:list-prompts')

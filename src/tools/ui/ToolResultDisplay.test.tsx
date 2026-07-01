@@ -1,10 +1,20 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import '@testing-library/jest-dom'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ToolResultDisplay from './ToolResultDisplay'
 
+const mockUseOptionalMcp = vi.fn()
+
+vi.mock('../../mcp/McpContext', () => ({
+  useOptionalMcp: () => mockUseOptionalMcp(),
+}))
+
 describe('ToolResultDisplay', () => {
+  beforeEach(() => {
+    mockUseOptionalMcp.mockReset()
+  })
+
   it('renders MCP audit metadata and formatted output for generic tool results', () => {
     render(
       <ToolResultDisplay
@@ -133,5 +143,50 @@ describe('ToolResultDisplay', () => {
     expect(screen.getByText('Documentation file')).toBeInTheDocument()
     expect(screen.getByText('package.json')).toBeInTheDocument()
     expect(screen.getByText('NPM configuration')).toBeInTheDocument()
+  })
+
+  it('renders an MCP add review and approves add/connect', async () => {
+    const approvePendingAddRequest = vi.fn(async () => ({
+      requestId: 'request-1',
+      status: 'connected',
+      requiredSecrets: [],
+      server: {
+        id: 'server-1',
+        name: 'Gmail',
+      },
+    }))
+    const cancelPendingAddRequest = vi.fn()
+    mockUseOptionalMcp.mockReturnValue({
+      approvePendingAddRequest,
+      cancelPendingAddRequest,
+    })
+
+    render(
+      <ToolResultDisplay
+        toolName="mcp_request_add"
+        result={{
+          requestId: 'request-1',
+          status: 'pending',
+          mode: 'catalogue',
+          serverName: 'Gmail',
+          sourceLabel: 'npm package',
+          reason: 'User asked to add Gmail MCP.',
+          transport: 'stdio',
+          command: 'npx',
+          args: ['-y', 'gmail-workspace-mcp-server'],
+          requiredSecrets: ['GMAIL_OAUTH_CLIENT_ID'],
+          authMode: 'envSecret',
+          riskNotes: ['Tools remain untrusted until reviewed.'],
+          canAdd: true,
+        }}
+      />
+    )
+
+    expect(screen.getByText('Add MCP: Gmail')).toBeInTheDocument()
+    expect(screen.getByText('Untrusted after connect')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /add and connect/i }))
+
+    expect(await screen.findByText(/Connected\. Review and trust/i)).toBeInTheDocument()
+    expect(approvePendingAddRequest).toHaveBeenCalledWith('request-1')
   })
 })

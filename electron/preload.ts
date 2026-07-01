@@ -148,6 +148,9 @@ const MCP_INVOKE_CHANNELS = new Set<string>([
   'mcp:start-oauth',
   'mcp:clear-oauth',
   'mcp:get-auth-status',
+  'mcp:resolve-add-request',
+  'mcp:approve-add-request',
+  'mcp:cancel-add-request',
 ])
 
 const MCP_ON_CHANNELS = new Set<string>(['mcp:state-changed'])
@@ -932,6 +935,18 @@ contextBridge.exposeInMainWorld(
     getAuthStatus: (serverId: string) => {
       assertAllowed('invoke', 'mcp:get-auth-status', MCP_INVOKE_CHANNELS)
       return ipcRenderer.invoke('mcp:get-auth-status', serverId) as Promise<McpAuthStatus>
+    },
+    resolveAddRequest: (requestId: string) => {
+      assertAllowed('invoke', 'mcp:resolve-add-request', MCP_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('mcp:resolve-add-request', requestId)
+    },
+    approveAddRequest: (requestId: string) => {
+      assertAllowed('invoke', 'mcp:approve-add-request', MCP_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('mcp:approve-add-request', requestId)
+    },
+    cancelAddRequest: (requestId: string) => {
+      assertAllowed('invoke', 'mcp:cancel-add-request', MCP_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('mcp:cancel-add-request', requestId)
     },
     onStateChange: (callback: (snapshot: McpRuntimeSnapshot) => void) => {
       assertAllowed('on', 'mcp:state-changed', MCP_ON_CHANNELS)

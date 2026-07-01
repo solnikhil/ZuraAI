@@ -245,7 +245,17 @@ describe('useToolCalling - Computer Use tool exposure gating', () => {
     for (const tool of NATIVE_WINDOWS_TOOL_NAMES) {
       expect(names).toContain(tool)
     }
+    expect(names).toContain('mcp_request_add')
     expect(names).toContain('web_search')
+  })
+
+  it('does not expose the MCP add request tool in chat mode', () => {
+    mockSettings.settings = makeSettings({
+      assistantMode: 'chat',
+      enabledTools: ['web_search', 'mcp_request_add'],
+    })
+
+    expect(getExposedToolNames()).not.toContain('mcp_request_add')
   })
 
   it('orders native Windows Agent tools before Computer Use fallback tools', () => {

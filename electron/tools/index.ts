@@ -43,6 +43,7 @@ import {
   executeSystemOpenPath,
   executeWindowSnap,
 } from './os-integration'
+import { createMcpAddRequest } from '../mcp/mcpAddRequests'
 import {
   createScheduledTask,
   deleteScheduledTask,
@@ -195,6 +196,9 @@ const toolHandlers: Record<BuiltinMainToolName, ToolHandler> = {
         : undefined,
     })
     return { success: true, data: result }
+  },
+  mcp_request_add: async (args) => {
+    return { success: true, data: createMcpAddRequest(args) }
   },
   computer_screenshot: (args) => executeScreenshot(normalizeScreenshotArgs(args)),
   computer_click: (args) => { const n = normalizeClickArgs(args); return executeClick(n.args, n.autoApprove, spotlightFn) },

@@ -149,6 +149,15 @@ describe('tool routing through current-desktop Computer Use', () => {
 
     const result = await handler({}, 'computer_screenshot', { window_title: 'Settings' })
 
+    if (process.platform === 'darwin') {
+      expect(result).toEqual({
+        success: false,
+        error: 'Computer Use is disabled on macOS for now.',
+      })
+      expect(handlers.executeScreenshot).not.toHaveBeenCalled()
+      return
+    }
+
     expect(result).toEqual({ success: true, data: { action: 'screenshot' } })
     expect(handlers.executeScreenshot).toHaveBeenCalledWith({
       display_id: undefined,

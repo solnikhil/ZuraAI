@@ -199,6 +199,18 @@ and client secrets use deterministic per-server secure-storage keys and must
 never be stored in renderer settings or shown after save. `websocket` MCP auth
 remains manual header/bearer unless an explicit compatible flow is added later.
 
+Agent Mode may expose a model-callable `mcp_request_add` built-in tool that
+creates a pending MCP add review only. The tool must not add servers directly,
+edit `mcp-servers.json`, trust tools, or accept raw secret values. Catalogue
+requests resolve only against the bundled Zura-owned catalogue; custom requests
+must show the exact command or URL for user review. Main owns pending request
+IDs and the reviewed payload. The renderer can resolve, approve, or cancel a
+pending add through narrow request-ID-only channels (`mcp:resolve-add-request`,
+`mcp:approve-add-request`, `mcp:cancel-add-request`). Approval adds the server as
+enabled, untrusted, and approval-required, then connects only when required auth
+or secrets are already satisfied. Discovered tools remain hidden from the model
+until the user explicitly trusts the server/tools through the MCP review UI.
+
 Settings -> MCP Servers -> Browse Library loads a bundled, curated, Zura-owned
 MCP catalogue JSON in the renderer. The bundled catalogue should stay small
 (currently 50 common installable entries), not mirror the full MCP registry.
