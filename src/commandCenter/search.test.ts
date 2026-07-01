@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { scoreAppSearch, scoreWindowSearch } from './search'
+import { fuzzyNameScore, scoreAppSearch, scoreWindowSearch } from './search'
 
 describe('commandCenter search scoring', () => {
   it('ranks exact and prefix app matches above weak matches', () => {
@@ -11,6 +11,12 @@ describe('commandCenter search scoring', () => {
 
   it('does not match unrelated app names on partial substrings', () => {
     expect(scoreAppSearch('Antigravity', ['Antigravity'], 'kiro')).toBe(0)
+  })
+
+  it('matches close app-name typos like kird to Kiro', () => {
+    expect(fuzzyNameScore('Kiro', 'kird')).toBeGreaterThan(0)
+    expect(scoreAppSearch('Kiro', ['Kiro'], 'kird')).toBeGreaterThan(0)
+    expect(scoreAppSearch('About Java', ['About Java'], 'kird')).toBe(0)
   })
 
   it('does not match window titles where the query is only inside a larger token', () => {

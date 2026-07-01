@@ -297,8 +297,27 @@ async function buildCommandCenterIndex(query: unknown = ''): Promise<CommandCent
   ])
   const { workflows, windows, chats } = staticInputs
 
-  const appRows = await Promise.all(appsFromToolResult(appsResult)
-      .filter((app) => typeof app.name === 'string' && (typeof app.path === 'string' || typeof app.appUserModelId === 'string'))
+  const dedupedApps = new Map<string, Record<string, unknown>>()
+  for (const app of appsFromToolResult(appsResult)) {
+    if (typeof app.name !== 'string') continue
+    if (typeof app.path !== 'string' && typeof app.appUserModelId !== 'string' && typeof app.shortcutPath !== 'string') continue
+    const appUserModelId = typeof app.appUserModelId === 'string' ? app.appUserModelId : undefined
+    const targetPath = typeof app.targetPath === 'string' ? app.targetPath : undefined
+    const shortcutPath = typeof app.shortcutPath === 'string'
+      ? app.shortcutPath
+      : typeof app.path === 'string'
+        ? app.path
+        : undefined
+    const dedupeKey = appUserModelId
+      ?? targetPath
+      ?? shortcutPath
+      ?? String(app.name)
+    if (!dedupedApps.has(dedupeKey)) {
+      dedupedApps.set(dedupeKey, app)
+    }
+  }
+
+  const appRows = (await Promise.all(Array.from(dedupedApps.values())
       .slice(0, appQuery ? 40 : 120)
       .map(async (app) => {
         const name = String(app.name)
@@ -314,11 +333,14 @@ async function buildCommandCenterIndex(query: unknown = ''): Promise<CommandCent
         const source = typeof app.source === 'string' ? app.source : undefined
         const iconKey = typeof app.iconKey === 'string' ? app.iconKey : undefined
         const rank = typeof app.rank === 'number' ? app.rank : undefined
+        const id = typeof app.id === 'string'
+          ? app.id
+          : `app:${Buffer.from(appPath ?? appUserModelId ?? name).toString('base64url')}`
         const processStartExe = parseProcessStartExe(args)
         const existingWindow = findExistingAppWindow(name, windows, [targetPath ?? '', processStartExe ?? ''])
         const launchStrategy: 'appUserModelId' | 'shortcutPath' = appUserModelId ? 'appUserModelId' : 'shortcutPath'
         return {
-          id: `app:${Buffer.from(appPath ?? appUserModelId ?? name).toString('base64url')}`,
+          id,
           type: 'app' as const,
           title: name,
           subtitle: existingWindow ? existingWindow.title : undefined,
@@ -335,7 +357,12 @@ async function buildCommandCenterIndex(query: unknown = ''): Promise<CommandCent
           existingWindow,
           rank,
         }
-      }))
+      })))
+    .sort((a, b) => {
+      const rankA = (a.rank ?? 0) + (a.existingWindow ? 50 : 0)
+      const rankB = (b.rank ?? 0) + (b.existingWindow ? 50 : 0)
+      return rankB - rankA || a.title.localeCompare(b.title)
+    })
 
   return {
     workflows: workflows

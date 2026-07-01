@@ -119,12 +119,111 @@ function powershellSingleQuotedString(value: string): string {
   return `'${value.replace(/'/g, "''")}'`
 }
 
-function appIdentityKey(app: RawAppMatch | AppIndexEntry): string {
-  return [
-    compact(app.name),
-    compact(app.appUserModelId ?? ''),
-    compact(('targetPath' in app ? app.targetPath : undefined) ?? ('shortcutPath' in app ? app.shortcutPath : undefined) ?? ('path' in app ? app.path : '') ?? ''),
-  ].filter(Boolean).join(':')
+function appDedupeKey(app: RawAppMatch | AppIndexEntry): string {
+  const appUserModelId = compact(app.appUserModelId ?? '')
+  if (appUserModelId) return `aumid:${appUserModelId}`
+
+  const targetPath = compact(('targetPath' in app ? app.targetPath : undefined) ?? '')
+  if (targetPath) return `target:${targetPath}`
+
+  const shortcutPath = compact(
+    ('shortcutPath' in app ? app.shortcutPath : undefined)
+    ?? ('path' in app ? app.path : undefined)
+    ?? ''
+  )
+  if (shortcutPath) return `shortcut:${compact(app.name)}:${shortcutPath}`
+
+  return `name:${compact(app.name)}`
+}
+
+function rawAppRichness(app: RawAppMatch): number {
+  let score = 0
+  if (app.targetPath) score += 8
+  if (app.iconPath) score += 4
+  if (app.appUserModelId) score += 2
+  if (app.workingDirectory) score += 1
+  if (app.path?.toLowerCase().includes('desktop')) score += 1
+  return score
+}
+
+function appEntryRichness(app: AppIndexEntry): number {
+  let score = 0
+  if (app.targetPath) score += 8
+  if (app.iconPath) score += 4
+  if (app.appUserModelId) score += 2
+  if (app.workingDirectory) score += 1
+  if (app.shortcutPath?.toLowerCase().includes('desktop')) score += 1
+  return score
+}
+
+function preferRawAppMatch(current: RawAppMatch | undefined, candidate: RawAppMatch): RawAppMatch {
+  if (!current) return candidate
+  return rawAppRichness(candidate) > rawAppRichness(current) ? candidate : current
+}
+
+function preferAppEntry(current: AppIndexEntry | undefined, candidate: AppIndexEntry): AppIndexEntry {
+  if (!current) return candidate
+  return appEntryRichness(candidate) > appEntryRichness(current) ? candidate : current
+}
+
+function mergedEntryId(entry: Pick<AppIndexEntry, 'appUserModelId' | 'targetPath' | 'shortcutPath' | 'name'>): string {
+  return entryIdFor({
+    appUserModelId: entry.appUserModelId,
+    targetPath: entry.targetPath,
+    path: entry.shortcutPath,
+    name: entry.name,
+  })
+}
+
+function mergeAppEntries(current: AppIndexEntry | undefined, candidate: AppIndexEntry): AppIndexEntry {
+  if (!current) return candidate
+  const preferred = preferAppEntry(current, candidate)
+  const merged: AppIndexEntry = {
+    ...preferred,
+    name: preferred.name || current.name || candidate.name,
+    normalizedName: preferred.normalizedName || current.normalizedName || candidate.normalizedName,
+    aliases: Array.from(new Set([
+      ...current.aliases,
+      ...candidate.aliases,
+      current.appUserModelId ?? '',
+      candidate.appUserModelId ?? '',
+    ].filter((alias) => alias.trim().length > 0))),
+    appUserModelId: current.appUserModelId ?? candidate.appUserModelId,
+    shortcutPath: current.shortcutPath ?? candidate.shortcutPath,
+    targetPath: current.targetPath ?? candidate.targetPath,
+    iconPath: current.iconPath ?? candidate.iconPath,
+    args: current.args ?? candidate.args,
+    workingDirectory: current.workingDirectory ?? candidate.workingDirectory,
+    launchStrategy: current.appUserModelId || candidate.appUserModelId ? 'appUserModelId' : 'shortcutPath',
+    lastSeenAt: Math.max(current.lastSeenAt, candidate.lastSeenAt),
+    launchCount: Math.max(current.launchCount ?? 0, candidate.launchCount ?? 0) || undefined,
+    lastLaunchedAt: Math.max(current.lastLaunchedAt ?? 0, candidate.lastLaunchedAt ?? 0) || undefined,
+  }
+  return {
+    ...merged,
+    id: mergedEntryId(merged),
+    iconKey: iconKeyFor(merged),
+  }
+}
+
+function entryIdFor(raw: Pick<RawAppMatch, 'appUserModelId' | 'targetPath' | 'path' | 'name'>): string {
+  const seed = raw.appUserModelId ?? raw.targetPath ?? raw.path ?? raw.name
+  return `app:${Buffer.from(seed).toString('base64url')}`
+}
+
+function dedupeAppEntries(apps: AppIndexEntry[]): AppIndexEntry[] {
+  const byKey = new Map<string, AppIndexEntry>()
+  for (const app of apps) {
+    const key = appDedupeKey(app)
+    byKey.set(key, mergeAppEntries(byKey.get(key), app))
+  }
+  const byName = new Map<string, AppIndexEntry>()
+  for (const app of byKey.values()) {
+    const key = compact(app.name)
+    if (!key) continue
+    byName.set(key, mergeAppEntries(byName.get(key), app))
+  }
+  return Array.from(byName.values())
 }
 
 function sourceCounts(apps: Array<Pick<AppIndexEntry, 'source'>>): Record<string, number> {
@@ -168,7 +267,7 @@ function createEntry(raw: RawAppMatch, existing?: AppIndexEntry): AppIndexEntry 
   const shortcutPath = raw.path
   const launchStrategy: AppLaunchStrategy = raw.appUserModelId ? 'appUserModelId' : 'shortcutPath'
   const base: AppIndexEntry = {
-    id: `app:${Buffer.from(shortcutPath ?? raw.appUserModelId ?? raw.name).toString('base64url')}`,
+    id: entryIdFor(raw),
     name: raw.name.trim(),
     normalizedName: normalizeName(raw.name),
     aliases: [raw.name, raw.appUserModelId ?? '', raw.targetPath ? path.basename(raw.targetPath, path.extname(raw.targetPath)) : '']
@@ -242,7 +341,7 @@ async function loadSnapshot(): Promise<void> {
     const raw = await fs.readFile(indexPath(), 'utf-8')
     const snapshot = sanitizeSnapshot(JSON.parse(raw))
     if (!snapshot) throw new Error('App index snapshot is invalid.')
-    memoryApps = snapshot.apps
+    memoryApps = dedupeAppEntries(snapshot.apps)
     diagnostics = {
       ok: true,
       stale: Date.now() - snapshot.updatedAt > REFRESH_STALE_MS,
@@ -346,41 +445,58 @@ Get-StartApps${nameFilter} |
 }
 
 function mergeApps(nativeApps: RawAppMatch[], shortcutApps: RawAppMatch[], previousApps: AppIndexEntry[]): AppIndexEntry[] {
-  const previousByIdentity = new Map(previousApps.map((entry) => [appIdentityKey(entry), entry]))
+  const previousByDedupeKey = new Map(previousApps.map((entry) => [appDedupeKey(entry), entry]))
+  const previousByName = new Map<string, AppIndexEntry>()
+  for (const entry of previousApps) {
+    const key = compact(entry.name)
+    previousByName.set(key, preferAppEntry(previousByName.get(key), entry))
+  }
   const shortcutsByName = new Map<string, RawAppMatch>()
+  const consumedShortcutPaths = new Set<string>()
+  const consumedShortcutNames = new Set<string>()
   for (const shortcut of shortcutApps) {
     const key = compact(shortcut.name)
-    if (!key || shortcutsByName.has(key)) continue
-    shortcutsByName.set(key, shortcut)
+    if (!key) continue
+    shortcutsByName.set(key, preferRawAppMatch(shortcutsByName.get(key), shortcut))
   }
 
-  const merged: AppIndexEntry[] = []
-  const seen = new Set<string>()
+  const rawByKey = new Map<string, RawAppMatch>()
+  const addRaw = (raw: RawAppMatch) => {
+    const key = appDedupeKey(raw)
+    if (!key) return
+    rawByKey.set(key, preferRawAppMatch(rawByKey.get(key), raw))
+  }
+
   for (const nativeApp of nativeApps) {
-    const shortcut = shortcutsByName.get(compact(nativeApp.name))
-    const raw = {
+    const nativeNameKey = compact(nativeApp.name)
+    const shortcut = shortcutsByName.get(nativeNameKey)
+    if (shortcut?.path) {
+      consumedShortcutPaths.add(compact(shortcut.path))
+    }
+    if (shortcut) {
+      consumedShortcutNames.add(nativeNameKey)
+    }
+    addRaw({
       ...shortcut,
       ...nativeApp,
-      path: shortcut?.path,
-      targetPath: shortcut?.targetPath,
-      iconPath: shortcut?.iconPath,
-      args: shortcut?.args,
-      workingDirectory: shortcut?.workingDirectory,
-      source: 'windows-search' as const,
-    }
-    const identity = appIdentityKey(raw)
-    if (!identity || seen.has(identity)) continue
-    merged.push(createEntry(raw, previousByIdentity.get(identity)))
-    seen.add(identity)
+      path: shortcut?.path ?? nativeApp.path,
+      targetPath: shortcut?.targetPath ?? nativeApp.targetPath,
+      iconPath: shortcut?.iconPath ?? nativeApp.iconPath,
+      args: shortcut?.args ?? nativeApp.args,
+      workingDirectory: shortcut?.workingDirectory ?? nativeApp.workingDirectory,
+      source: 'windows-search',
+    })
   }
 
   for (const shortcut of shortcutApps) {
-    const identity = appIdentityKey(shortcut)
-    if (!identity || seen.has(identity)) continue
-    merged.push(createEntry(shortcut, previousByIdentity.get(identity)))
-    seen.add(identity)
+    if (consumedShortcutNames.has(compact(shortcut.name))) continue
+    if (shortcut.path && consumedShortcutPaths.has(compact(shortcut.path))) continue
+    addRaw(shortcut)
   }
-  return merged.sort((a, b) => a.name.localeCompare(b.name))
+
+  return Array.from(rawByKey.values())
+    .map((raw) => createEntry(raw, previousByDedupeKey.get(appDedupeKey(raw)) ?? previousByName.get(compact(raw.name))))
+    .sort((a, b) => a.name.localeCompare(b.name))
 }
 
 async function bootstrapAppsFromShortcuts(): Promise<boolean> {
@@ -433,8 +549,9 @@ export async function refreshAppIndex(): Promise<AppIndexDiagnostics> {
     ])
     const nextApps = mergeApps(nativeApps, shortcutApps, memoryApps)
     const updatedAt = Date.now()
-    if (nextApps.length > 0 || memoryApps.length === 0) {
-      memoryApps = nextApps
+    const dedupedApps = dedupeAppEntries(nextApps)
+    if (dedupedApps.length > 0 || memoryApps.length === 0) {
+      memoryApps = dedupedApps
       await saveSnapshot(memoryApps, updatedAt).catch((error) => {
         errors.push(`snapshot: ${error instanceof Error ? error.message : 'failed'}`)
       })

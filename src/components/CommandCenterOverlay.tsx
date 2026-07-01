@@ -41,8 +41,11 @@ function searchScore(item: CommandCenterIndexItem, query: string): number {
     return item.type === 'app' && typeof item.rank === 'number' ? item.rank : 1
   }
   switch (item.type) {
-    case 'app':
-      return scoreAppSearch(item.title, item.aliases, trimmedQuery) + (item.rank ?? 0)
+    case 'app': {
+      const appScore = scoreAppSearch(item.title, item.aliases, trimmedQuery)
+      if (appScore === 0) return 0
+      return appScore + Math.min(item.rank ?? 0, 10)
+    }
     case 'window':
       return scoreWindowSearch(item.title, item.subtitle ?? '', trimmedQuery)
     case 'workflow':
@@ -74,6 +77,7 @@ export default function CommandCenterOverlay() {
   const [mode, setMode] = useState<Mode>('search')
   const [input, setInput] = useState('')
   const [index, setIndex] = useState<CommandCenterIndex>(EMPTY_INDEX)
+  const [browseApps, setBrowseApps] = useState<CommandCenterIndexItem[]>([])
   const [indexLoading, setIndexLoading] = useState(true)
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [confirmingWorkflow, setConfirmingWorkflow] = useState<CommandCenterIndexItem | null>(null)
@@ -85,6 +89,7 @@ export default function CommandCenterOverlay() {
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null)
   const bodyRef = useRef<HTMLDivElement | null>(null)
   const indexRequestRef = useRef(0)
+  const activeSearchQueryRef = useRef('')
   const reduceMotion = useReducedMotion()
 
   const {
@@ -107,10 +112,22 @@ export default function CommandCenterOverlay() {
     void window.commandCenter.setLayout(isChatMode ? 'chat' : 'search')
   }, [isChatMode])
 
+  const searchIndex = useMemo(() => {
+    const query = input.trim()
+    if (!query) return index
+    const appMatches = index.apps
+      .filter((item) => matchesItem(item, query))
+      .sort((a, b) => searchScore(b, query) - searchScore(a, query) || a.title.localeCompare(b.title))
+    const cachedMatches = browseApps
+      .filter((item) => matchesItem(item, query))
+      .sort((a, b) => searchScore(b, query) - searchScore(a, query) || a.title.localeCompare(b.title))
+    return { ...index, apps: appMatches.length > 0 ? appMatches : cachedMatches }
+  }, [browseApps, index, input])
+
   const filteredRows = useMemo(() => {
     const query = input.trim()
-    return flattenIndex(index).filter(({ item }) => matchesItem(item, query))
-  }, [index, input])
+    return flattenIndex(searchIndex).filter(({ item }) => matchesItem(item, query))
+  }, [searchIndex, input])
 
   const groupedRows = useMemo(() => {
     const query = input.trim()
@@ -136,20 +153,30 @@ export default function CommandCenterOverlay() {
   const refreshIndex = useCallback(async (query = '', showLoading = true) => {
     const requestId = indexRequestRef.current + 1
     indexRequestRef.current = requestId
+    const requestedQuery = query.trim()
     if (showLoading) {
       setIndexLoading(true)
     }
     try {
       const nextIndex = await window.commandCenter.getIndex(query)
-      if (requestId === indexRequestRef.current) {
+      if (requestId !== indexRequestRef.current) return
+      if (requestedQuery !== activeSearchQueryRef.current) return
+      if (!requestedQuery) {
+        setBrowseApps(nextIndex.apps)
         setIndex(nextIndex)
-        setError(null)
-        if (showLoading && !query.trim()) {
-          window.setTimeout(() => {
-            void refreshIndex('', false)
-          }, 500)
+      } else {
+        setIndex(nextIndex)
+        if (nextIndex.apps.length > 0) {
+          setBrowseApps((current) => {
+            const merged = new Map(current.map((app) => [app.id, app]))
+            for (const app of nextIndex.apps) {
+              merged.set(app.id, app)
+            }
+            return Array.from(merged.values())
+          })
         }
       }
+      setError(null)
     } catch (err) {
       if (requestId === indexRequestRef.current) {
         setError(err instanceof Error ? err.message : 'Unable to load Command Center index.')
@@ -168,6 +195,8 @@ export default function CommandCenterOverlay() {
   const resetOverlay = useCallback(() => {
     setMode('search')
     setInput('')
+    activeSearchQueryRef.current = ''
+    setBrowseApps([])
     setSelectedIndex(0)
     setConfirmingWorkflow(null)
     setStatus(null)
@@ -186,6 +215,7 @@ export default function CommandCenterOverlay() {
   }, [resetOverlay])
 
   useEffect(() => {
+    activeSearchQueryRef.current = input.trim()
     if (isChatMode || mode !== 'search') return undefined
     const query = input.trim()
     const delay = query ? 90 : 0

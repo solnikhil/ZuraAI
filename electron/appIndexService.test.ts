@@ -1,4 +1,4 @@
-import { mkdtemp } from 'fs/promises'
+import { mkdtemp, writeFile } from 'fs/promises'
 import os from 'os'
 import path from 'path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -149,10 +149,13 @@ describe('appIndexService', () => {
     const { service, runPowerShell } = await loadService()
 
     await service.refreshAppIndex()
-    expect((await service.listApps()).apps).toEqual(expect.arrayContaining([
+    const apps = (await service.listApps()).apps
+    expect(apps).toEqual(expect.arrayContaining([
       expect.objectContaining({ name: 'Kiro', appUserModelId: 'Kiro', shortcutPath: 'C:\\Users\\Nikhil\\Desktop\\Kiro.lnk' }),
       expect.objectContaining({ name: 'Native Only', appUserModelId: 'Native.Only' }),
     ]))
+    expect(apps.filter((app) => app.name === 'Kiro')).toHaveLength(1)
+    expect(apps.filter((app) => app.name === 'Discord')).toHaveLength(1)
 
     vi.resetModules()
     const second = await import('./appIndexService')
@@ -171,6 +174,65 @@ describe('appIndexService', () => {
     expect((await service.findApps('disc')).matches[0]).toMatchObject({ name: 'Discord' })
     expect((await service.findApps('vsc')).matches[0]).toMatchObject({ name: 'Visual Studio Code' })
     expect((await service.findApps('claude')).matches[0]).toMatchObject({ name: 'Claude' })
+  })
+
+  it('dedupes apps that share the same AppUserModelID across shortcuts', async () => {
+    const { service } = await loadService({
+      nativeApps: [
+        { name: 'Antigravity', appUserModelId: 'Antigravity.App' },
+        { name: 'Antigravity IDE', appUserModelId: 'Antigravity.IDE' },
+      ],
+    })
+    shortcutDetails.set('C:\\Users\\Nikhil\\Desktop\\Antigravity.lnk', {
+      target: 'C:\\Users\\Nikhil\\AppData\\Local\\Programs\\Antigravity\\Antigravity.exe',
+      cwd: 'C:\\Users\\Nikhil\\AppData\\Local\\Programs\\Antigravity',
+      args: '',
+      icon: '',
+      iconIndex: 0,
+      appUserModelId: 'Antigravity.App',
+      description: '',
+    })
+    shortcutDetails.set('C:\\Users\\Nikhil\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Antigravity.lnk', {
+      target: 'C:\\Users\\Nikhil\\AppData\\Local\\Programs\\Antigravity\\Antigravity.exe',
+      cwd: 'C:\\Users\\Nikhil\\AppData\\Local\\Programs\\Antigravity',
+      args: '',
+      icon: '',
+      iconIndex: 0,
+      appUserModelId: 'Antigravity.App',
+      description: '',
+    })
+
+    vi.mocked((await import('./tools/native-common')).runPowerShell).mockImplementation(async (script: string) => {
+      const apps = [
+        { name: 'Antigravity', appUserModelId: 'Antigravity.App' },
+        { name: 'Antigravity IDE', appUserModelId: 'Antigravity.IDE' },
+      ]
+      return {
+        stdout: apps.map((app) => JSON.stringify({ name: app.name, appUserModelId: app.appUserModelId })).join('\n'),
+        stderr: '',
+      }
+    })
+
+    const readdir = (await import('fs/promises')).readdir as ReturnType<typeof vi.fn>
+    readdir.mockImplementation(async (root: string) => {
+      if (root === 'C:\\Users\\Nikhil\\Desktop') {
+        return [fileEntry('Kiro.lnk'), fileEntry('Claude.lnk'), fileEntry('Antigravity.lnk')]
+      }
+      if (root.includes('Start Menu\\Programs') && !root.includes('Nested')) {
+        return [dirEntry('Nested'), fileEntry('Antigravity.lnk')]
+      }
+      if (root.includes('Nested')) return [fileEntry('Discord.lnk')]
+      return []
+    })
+
+    await service.refreshAppIndex()
+    const antigravity = (await service.findApps('ant')).matches.filter((app) => app.name.startsWith('Antigravity'))
+
+    expect(antigravity).toHaveLength(2)
+    expect(antigravity).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: 'Antigravity', appUserModelId: 'Antigravity.App' }),
+      expect.objectContaining({ name: 'Antigravity IDE', appUserModelId: 'Antigravity.IDE' }),
+    ]))
   })
 
   it('lists shortcut apps before the native refresh completes', async () => {
@@ -204,6 +266,51 @@ describe('appIndexService', () => {
     expect(diagnostics.ok).toBe(false)
     expect(diagnostics.stale).toBe(true)
     expect((await failed.service.listApps()).apps).toEqual(expect.arrayContaining([expect.objectContaining({ name: 'Kiro' })]))
+  })
+
+  it('merges duplicate native and shortcut rows from stale snapshots before rendering', async () => {
+    const sameUserDataPath = await mkdtemp(path.join(os.tmpdir(), 'zura-app-index-snapshot-'))
+    await writeFile(path.join(sameUserDataPath, 'command-center-app-index.json'), JSON.stringify({
+      version: 1,
+      updatedAt: Date.now(),
+      sourceCounts: { 'windows-search': 1, desktop: 1 },
+      apps: [
+        {
+          id: 'app:S2lybw',
+          name: 'Kiro',
+          normalizedName: 'kiro',
+          aliases: ['Kiro'],
+          source: 'windows-search',
+          appUserModelId: 'Kiro',
+          launchStrategy: 'appUserModelId',
+          lastSeenAt: 1,
+        },
+        {
+          id: 'app:QzpcVXNlcnNcTmlraGlsXERlc2t0b3BcS2lyby5sbms',
+          name: 'Kiro',
+          normalizedName: 'kiro',
+          aliases: ['Kiro'],
+          source: 'desktop',
+          shortcutPath: 'C:\\Users\\Nikhil\\Desktop\\Kiro.lnk',
+          targetPath: 'C:\\Users\\Nikhil\\AppData\\Local\\Programs\\Kiro\\Kiro.exe',
+          launchStrategy: 'shortcutPath',
+          lastSeenAt: 2,
+        },
+      ],
+    }))
+
+    const { service, runPowerShell } = await loadService({ userDataPath: sameUserDataPath })
+    const apps = (await service.listApps()).apps
+    const kiroRows = apps.filter((app) => app.name === 'Kiro')
+
+    expect(kiroRows).toHaveLength(1)
+    expect(kiroRows[0]).toMatchObject({
+      appUserModelId: 'Kiro',
+      shortcutPath: 'C:\\Users\\Nikhil\\Desktop\\Kiro.lnk',
+      targetPath: 'C:\\Users\\Nikhil\\AppData\\Local\\Programs\\Kiro\\Kiro.exe',
+      launchStrategy: 'appUserModelId',
+    })
+    expect(runPowerShell).not.toHaveBeenCalled()
   })
 
   it('requests sanitized ndjson output for windows-search refresh', async () => {

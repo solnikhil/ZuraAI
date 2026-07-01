@@ -3,7 +3,7 @@ pid: 28448
 cwd: "C:\Users\Nikhil\Desktop\Zura\ZuraAI"
 command: "cd \"C:\\Users\\Nikhil\\Desktop\\Zura\\ZuraAI\"; bun run typecheck"
 started_at: 2026-06-30T18:22:44.675Z
-running_for_ms: 2420012  
+running_for_ms: 9485015  
 ---
 $ tsc --noEmit
 electron/appIndexService.ts(222,7): error TS2322: Type 'unknown' is not assignable to type 'number'.

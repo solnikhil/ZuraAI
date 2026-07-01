@@ -148,6 +148,115 @@ describe('CommandCenterOverlay', () => {
     })
   })
 
+  it('matches close app-name typos while filtering unrelated apps', async () => {
+    window.commandCenter.getIndex = vi.fn(async () => ({
+      workflows: [],
+      apps: [
+        { id: 'app:kiro', type: 'app', title: 'Kiro', hint: 'Application', aliases: ['Kiro'], rank: 12 },
+        { id: 'app:java', type: 'app', title: 'About Java', hint: 'Application', aliases: ['About Java'], rank: 30 },
+        { id: 'app:adobe', type: 'app', title: 'Adobe Photoshop 2025', hint: 'Application', aliases: ['Adobe Photoshop 2025'], rank: 25 },
+      ],
+      windows: [],
+      actions: [],
+      chats: [],
+    }))
+
+    render(<CommandCenterOverlay />)
+    await screen.findByText('About Java')
+
+    const input = await screen.findByRole('textbox', { name: /search command center/i })
+    fireEvent.change(input, { target: { value: 'kird' } })
+
+    expect(screen.getByText('Kiro')).toBeInTheDocument()
+    expect(screen.queryByText('About Java')).not.toBeInTheDocument()
+    expect(screen.queryByText('Adobe Photoshop 2025')).not.toBeInTheDocument()
+  })
+
+  it('hides unrelated ranked apps while a search query is active', async () => {
+    window.commandCenter.getIndex = vi.fn(async () => ({
+      workflows: [],
+      apps: [
+        {
+          id: 'app:claude',
+          type: 'app',
+          title: 'Claude',
+          hint: 'Application',
+          aliases: ['Claude'],
+          rank: 35,
+        },
+        {
+          id: 'app:java',
+          type: 'app',
+          title: 'About Java',
+          hint: 'Application',
+          aliases: ['About Java'],
+          rank: 30,
+        },
+      ],
+      windows: [],
+      actions: [],
+      chats: [],
+    }))
+
+    render(<CommandCenterOverlay />)
+    await screen.findByText('About Java')
+
+    const input = await screen.findByRole('textbox', { name: /search command center/i })
+    fireEvent.change(input, { target: { value: 'claude' } })
+
+    expect(screen.getByText('Claude')).toBeInTheDocument()
+    expect(screen.queryByText('About Java')).not.toBeInTheDocument()
+  })
+
+  it('supports follow-up searches from the cached browse app list', async () => {
+    window.commandCenter.getIndex = vi.fn(async (query?: string) => ({
+      workflows: [],
+      apps: query
+        ? [{
+            id: 'app:kiro',
+            type: 'app',
+            title: 'Kiro',
+            hint: 'Application',
+            aliases: ['Kiro'],
+          }]
+        : [
+            {
+              id: 'app:kiro',
+              type: 'app',
+              title: 'Kiro',
+              hint: 'Application',
+              aliases: ['Kiro'],
+            },
+            {
+              id: 'app:claude',
+              type: 'app',
+              title: 'Claude',
+              hint: 'Application',
+              aliases: ['Claude'],
+            },
+          ],
+      windows: [],
+      actions: [],
+      chats: [],
+    }))
+
+    render(<CommandCenterOverlay />)
+    await screen.findByText('Claude')
+
+    const input = await screen.findByRole('textbox', { name: /search command center/i })
+    fireEvent.change(input, { target: { value: 'kiro' } })
+    await waitFor(() => {
+      expect(screen.getByText('Kiro')).toBeInTheDocument()
+      expect(screen.queryByText('Claude')).not.toBeInTheDocument()
+    })
+
+    fireEvent.change(input, { target: { value: 'claude' } })
+    await waitFor(() => {
+      expect(screen.getByText('Claude')).toBeInTheDocument()
+      expect(screen.queryByText('Kiro')).not.toBeInTheDocument()
+    })
+  })
+
   it('shows matching apps immediately while main search results load', async () => {
     window.commandCenter.getIndex = vi.fn(async (query?: string) => ({
       workflows: [],
