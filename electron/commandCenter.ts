@@ -154,6 +154,7 @@ interface WindowMatch {
   title: string
   processName: string
   processId: number
+  path?: string
 }
 
 function compactText(value: string): string {
@@ -189,8 +190,18 @@ function normalizeWindows(raw: unknown): WindowMatch[] {
       title: record.title,
       processName: record.processName,
       processId: record.processId,
+      path: typeof record.path === 'string' && record.path.trim() ? record.path : undefined,
     }]
   })
+}
+
+function publicWindowMatch(window: WindowMatch): Omit<WindowMatch, 'path'> {
+  return {
+    hwnd: window.hwnd,
+    title: window.title,
+    processName: window.processName,
+    processId: window.processId,
+  }
 }
 
 function findExistingAppWindow(appName: string, windows: WindowMatch[], executableNames: string[] = []): WindowMatch | undefined {
@@ -331,13 +342,14 @@ async function buildCommandCenterIndex(query: unknown = ''): Promise<CommandCent
         const targetPath = typeof app.targetPath === 'string' ? app.targetPath : undefined
         const args = typeof app.args === 'string' ? app.args : undefined
         const source = typeof app.source === 'string' ? app.source : undefined
-        const iconKey = typeof app.iconKey === 'string' ? app.iconKey : undefined
+        const indexedIconKey = typeof app.iconKey === 'string' ? app.iconKey : undefined
         const rank = typeof app.rank === 'number' ? app.rank : undefined
         const id = typeof app.id === 'string'
           ? app.id
           : `app:${Buffer.from(appPath ?? appUserModelId ?? name).toString('base64url')}`
         const processStartExe = parseProcessStartExe(args)
         const existingWindow = findExistingAppWindow(name, windows, [targetPath ?? '', processStartExe ?? ''])
+        const iconKey = indexedIconKey ?? targetPath ?? existingWindow?.path
         const launchStrategy: 'appUserModelId' | 'shortcutPath' = appUserModelId ? 'appUserModelId' : 'shortcutPath'
         return {
           id,
@@ -354,7 +366,7 @@ async function buildCommandCenterIndex(query: unknown = ''): Promise<CommandCent
           appUserModelId,
           iconKey,
           iconDataUrl: getCachedAppIcon(iconKey),
-          existingWindow,
+          existingWindow: existingWindow ? publicWindowMatch(existingWindow) : undefined,
           rank,
         }
       })))

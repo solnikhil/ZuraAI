@@ -307,6 +307,38 @@ describe('CommandCenterOverlay', () => {
     })
   })
 
+  it('refreshes app rows after lazy icon extraction has time to complete', async () => {
+    let callCount = 0
+    window.commandCenter.getIndex = vi.fn(async () => {
+      callCount += 1
+      return {
+        workflows: [],
+        apps: [
+          {
+            id: 'app:kiro',
+            type: 'app',
+            title: 'Kiro',
+            hint: 'Application',
+            aliases: ['Kiro'],
+            iconKey: 'C:\\Users\\Nikhil\\AppData\\Local\\Programs\\Kiro\\Kiro.exe',
+            iconDataUrl: callCount > 1 ? 'data:image/png;base64,kiro' : undefined,
+          },
+        ],
+        windows: [],
+        actions: [],
+        chats: [],
+      }
+    })
+
+    const { container } = render(<CommandCenterOverlay />)
+
+    await screen.findByText('Kiro')
+    await waitFor(() => {
+      expect(container.querySelector('.command-center-result__app-icon')).toHaveAttribute('src', 'data:image/png;base64,kiro')
+    })
+    expect(window.commandCenter.getIndex).toHaveBeenCalledTimes(2)
+  })
+
   it('shows app index diagnostics when apps are partially unavailable', async () => {
     window.commandCenter.getIndex = vi.fn(async () => ({
       workflows: [],

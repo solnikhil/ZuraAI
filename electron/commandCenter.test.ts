@@ -76,6 +76,13 @@ describe('Command Center main service', () => {
       data: {
         windows: [
           { hwnd: 55, title: 'Chrome - Docs', processName: 'chrome', processId: 10 },
+          {
+            hwnd: 66,
+            title: 'Codex',
+            processName: 'Code',
+            processId: 12,
+            path: 'C:\\Users\\Nikhil\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe',
+          },
           { hwnd: 77, title: '#general | kirodotdev - Discord', processName: 'Discord', processId: 11 },
         ],
       },
@@ -94,6 +101,7 @@ describe('Command Center main service', () => {
     const saveCommandCenterWorkflow = vi.fn(async (workflow) => workflow)
     const deleteCommandCenterWorkflow = vi.fn(async () => true)
     const markCommandCenterWorkflowRun = vi.fn(async () => undefined)
+    const getCachedAppIcon = vi.fn((iconKey?: string) => iconKey ? 'data:image/png;base64,icon' : undefined)
 
     const webContents = {
       isLoading: vi.fn(() => false),
@@ -188,7 +196,7 @@ describe('Command Center main service', () => {
     }))
 
     vi.doMock('./appIndexService', () => ({
-      getCachedAppIcon: vi.fn((iconKey?: string) => iconKey ? 'data:image/png;base64,icon' : undefined),
+      getCachedAppIcon,
       refreshAppIndex: vi.fn(async () => ({ ok: true, stale: false, sourceCounts: {} })),
       resolveAppIndexEntry: vi.fn(async (itemId: string) => {
         if (itemId === 'app:TmF0aXZlLkFwcA') {
@@ -240,6 +248,7 @@ describe('Command Center main service', () => {
       executeWindowFocus,
       listCommandCenterWorkflows,
       markCommandCenterWorkflowRun,
+      getCachedAppIcon,
     }
   }
 
@@ -409,6 +418,42 @@ describe('Command Center main service', () => {
       title: 'Chrome',
       iconDataUrl: 'data:image/png;base64,icon',
     }))
+  })
+
+  it('uses matching open-window process paths as app icon fallback without exposing the path', async () => {
+    const executeAppFind = vi.fn(async () => ({
+      success: true,
+      data: {
+        matches: [
+          {
+            id: 'app:TWljcm9zb2Z0LlZpc3VhbFN0dWRpb0NvZGU',
+            name: 'Visual Studio Code',
+            source: 'windows-search',
+            appUserModelId: 'Microsoft.VisualStudioCode',
+          },
+        ],
+      },
+    }))
+    const { service, handlers, getCachedAppIcon } = await loadService({ executeAppFind })
+    service.registerCommandCenterHandlers()
+    service.setCommandCenterExtensionEnabled(true)
+
+    const getIndex = handlers.get('command-center:get-index')
+    const index = await getIndex?.({}, 'visu') as {
+      apps: Array<{
+        title: string
+        iconDataUrl?: string
+        existingWindow?: { path?: string; title: string }
+      }>
+    }
+
+    expect(index.apps).toContainEqual(expect.objectContaining({
+      title: 'Visual Studio Code',
+      iconDataUrl: 'data:image/png;base64,icon',
+      existingWindow: expect.objectContaining({ title: 'Codex' }),
+    }))
+    expect(index.apps.find((app) => app.title === 'Visual Studio Code')?.existingWindow?.path).toBeUndefined()
+    expect(getCachedAppIcon).toHaveBeenCalledWith('C:\\Users\\Nikhil\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe')
   })
 
   it('uses the typed query when indexing and executing native app matches', async () => {

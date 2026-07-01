@@ -261,11 +261,18 @@ app index service loads a non-secret persisted snapshot from
 immediately on overlay open, refreshes Windows app data in the background from
 `Get-StartApps`, query-specific `Get-StartApps -Name` lookups, and
 Start Menu/Desktop shortcuts enriched with shortcut metadata where available,
-and writes refreshed snapshots atomically. App indexing is warmed at app ready
+and writes refreshed snapshots atomically. The service also records local
+Command Center app launches and reads Windows UserAssist usage metadata as a
+best-effort recency/frequency ranking signal; those signals may be stored in the
+non-secret snapshot but never act as launch authority. App indexing is warmed at app ready
 and when Command Center is enabled; Start Menu/Desktop shortcut roots are watched
 opportunistically for debounced background refresh. App icons are loaded lazily
 through a bounded in-memory main-process cache so first overlay paint is not
-blocked by icon extraction. The app index may return non-secret diagnostics
+blocked by icon extraction. For already-open apps, Command Center may use the
+main-process `window_list` process path as an internal icon candidate, but the
+Command Center renderer-facing row must expose only sanitized window identity
+(`hwnd`, title, process name, and process id), not the process path. The app
+index may return non-secret diagnostics
 (`diagnostics.apps`) including stale state, source counts, refresh timing, and
 sanitized errors so renderer UI can show app-index failures without exposing
 arbitrary shell commands or renderer-supplied launch data. A narrow

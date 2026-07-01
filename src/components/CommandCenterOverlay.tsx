@@ -17,6 +17,8 @@ import type { CommandCenterIndex, CommandCenterIndexItem } from '../electron/typ
 
 type Mode = 'search' | 'ask'
 
+const motionEase = [0.22, 1, 0.36, 1] as const
+
 const EMPTY_INDEX: CommandCenterIndex = {
   workflows: [],
   apps: [],
@@ -86,6 +88,7 @@ export default function CommandCenterOverlay() {
   const [chatSessionId, setChatSessionId] = useState<string | null>(null)
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null)
   const [promoted, setPromoted] = useState(false)
+  const [optimisticText, setOptimisticText] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null)
   const bodyRef = useRef<HTMLDivElement | null>(null)
   const indexRequestRef = useRef(0)
@@ -202,6 +205,7 @@ export default function CommandCenterOverlay() {
     setStatus(null)
     setError(null)
     setPendingPrompt(null)
+    setOptimisticText(null)
     setPromoted(false)
     setChatSessionId(null)
     clearCurrentSession()
@@ -226,6 +230,16 @@ export default function CommandCenterOverlay() {
   }, [input, isChatMode, mode, refreshIndex])
 
   useEffect(() => {
+    if (isChatMode || mode !== 'search') return undefined
+    const needsIconRefresh = index.apps.some((app) => app.type === 'app' && app.iconKey && !app.iconDataUrl)
+    if (!needsIconRefresh) return undefined
+    const timer = window.setTimeout(() => {
+      void refreshIndex(input.trim(), false)
+    }, 180)
+    return () => window.clearTimeout(timer)
+  }, [index.apps, input, isChatMode, mode, refreshIndex])
+
+  useEffect(() => {
     setSelectedIndex(0)
   }, [input, mode])
 
@@ -238,7 +252,11 @@ export default function CommandCenterOverlay() {
 
   useEffect(() => {
     bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight, behavior: 'smooth' })
-  }, [chatMessages.length, streamingState?.content])
+    // Clear optimistic text once a real user message appears in the session
+    if (optimisticText && chatMessages.some((m) => m.role === 'user')) {
+      setOptimisticText(null)
+    }
+  }, [chatMessages.length, streamingState?.content, optimisticText])
 
   const hideOverlay = useCallback(() => {
     if (
@@ -258,6 +276,7 @@ export default function CommandCenterOverlay() {
     const sessionId = createSession()
     setChatSessionId(sessionId)
     switchSession(sessionId)
+    setOptimisticText(trimmed)
     setPendingPrompt(trimmed)
     setMode('ask')
     setInput('')
@@ -309,6 +328,7 @@ export default function CommandCenterOverlay() {
     if (isChatMode) {
       if (input.trim()) {
         const prompt = input.trim()
+        setOptimisticText(prompt)
         setInput('')
         void sendMessage(prompt, [])
       }
@@ -374,22 +394,22 @@ export default function CommandCenterOverlay() {
       <motion.div
         className={`command-center-panel ${isChatMode ? 'is-chat' : ''}`}
         onKeyDownCapture={handlePanelKeyDownCapture}
-        initial={{ opacity: 0, scale: 0.985, y: -8 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+        initial={false}
       >
-        <div className="command-center-topbar">
+        <motion.div
+          className="command-center-topbar"
+          initial={reduceMotion ? false : { y: -3 }}
+          animate={reduceMotion ? undefined : { y: 0 }}
+          transition={{ duration: 0.12, ease: motionEase }}
+        >
           <div className="command-center-brand">
             <img className="command-center-logo" src="icon-mark.png" alt="" />
           </div>
           {!isChatMode && (
             <motion.div
               className="command-center-input-shell"
-              animate={reduceMotion ? { opacity: 1, x: 0 } : {
-                opacity: [0.76, 1],
-                x: mode === 'ask' ? 4 : 0,
-              }}
-              transition={{ duration: reduceMotion ? 0 : 0.18, ease: [0.22, 1, 0.36, 1] }}
+              animate={reduceMotion ? { x: 0 } : { x: mode === 'ask' ? 4 : 0 }}
+              transition={{ duration: reduceMotion ? 0 : 0.16, ease: motionEase }}
             >
               <input
                 ref={(node) => { inputRef.current = node }}
@@ -416,17 +436,17 @@ export default function CommandCenterOverlay() {
               Ask AI
             </button>
           </div>
-        </div>
+        </motion.div>
 
         <AnimatePresence mode="wait">
           {!isChatMode ? (
             <motion.div
               key={mode}
               className="command-center-body"
-              initial={reduceMotion ? { opacity: 0 } : { opacity: 0, x: mode === 'ask' ? 18 : -18, filter: 'blur(5px)' }}
-              animate={reduceMotion ? { opacity: 1 } : { opacity: 1, x: 0, filter: 'blur(0px)' }}
-              exit={reduceMotion ? { opacity: 0 } : { opacity: 0, x: mode === 'ask' ? 18 : -18, filter: 'blur(4px)' }}
-              transition={{ duration: reduceMotion ? 0.08 : 0.2, ease: [0.22, 1, 0.36, 1] }}
+              initial={reduceMotion ? false : { x: mode === 'ask' ? 6 : -6 }}
+              animate={reduceMotion ? undefined : { x: 0 }}
+              exit={reduceMotion ? undefined : { x: mode === 'ask' ? 6 : -6 }}
+              transition={{ duration: reduceMotion ? 0 : 0.13, delay: reduceMotion ? 0 : 0.025, ease: motionEase }}
             >
               {mode === 'search' ? (
                 <div className="command-center-results" role="listbox" aria-label="Command Center results">
@@ -442,12 +462,19 @@ export default function CommandCenterOverlay() {
                         const rowIndex = filteredRows.findIndex((row) => row.item.id === item.id)
                         const selected = rowIndex === selectedIndex
                         return (
-                          <button
+                          <motion.button
                             key={item.id}
                             type="button"
                             className={`command-center-result ${selected ? 'selected' : ''}`}
                             onMouseEnter={() => setSelectedIndex(rowIndex)}
                             onClick={() => void executeItem(item)}
+                            initial={reduceMotion ? false : { y: 4 }}
+                            animate={reduceMotion ? undefined : { y: 0 }}
+                            transition={{
+                              duration: 0.11,
+                              delay: 0.035 + Math.min(rowIndex, 8) * 0.01,
+                              ease: motionEase,
+                            }}
                           >
                             <span className="command-center-result__icon">{iconForItem(item)}</span>
                             <span className="command-center-result__text">
@@ -455,7 +482,7 @@ export default function CommandCenterOverlay() {
                               {item.subtitle && <small>{item.subtitle}</small>}
                             </span>
                             <span className="command-center-result__hint">{item.hint}</span>
-                          </button>
+                          </motion.button>
                         )
                       })}
                     </section>
@@ -483,15 +510,30 @@ export default function CommandCenterOverlay() {
             <motion.div
               key="chat"
               className="command-center-chat"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.18 }}
+              initial={reduceMotion ? false : { y: 6 }}
+              animate={reduceMotion ? undefined : { y: 0 }}
+              exit={reduceMotion ? undefined : { y: -6 }}
+              transition={{ duration: reduceMotion ? 0 : 0.15, ease: motionEase }}
             >
               <div className="command-center-chat-actions">
+                <span className="command-center-model-badge">{settings.aiModel || 'assistant'}</span>
                 <button type="button" onClick={openInFullChat}>Open in Chat</button>
               </div>
               <div ref={bodyRef} className="command-center-chat-scroll">
+                {/* Optimistic user message — shown instantly on submit before session syncs */}
+                {optimisticText && (
+                  <div key="optimistic-msg" className="command-center-chat-message command-center-chat-message--user">
+                    <div className="command-center-user-bubble">{optimisticText}</div>
+                  </div>
+                )}
+                {/* Thinking indicator — only for first message: no assistant messages in session, waiting for response */}
+                {optimisticText && chatMessages.filter((m) => m.role === 'assistant').length === 0 ? (
+                  <div key="thinking-indicator" className="command-center-thinking">
+                    <span className="command-center-thinking-dot" />
+                    <span className="command-center-thinking-dot" />
+                    <span className="command-center-thinking-dot" />
+                  </div>
+                ) : null}
                 {chatMessages.map((message, index) => {
                   const isLastAssistant = message.role === 'assistant' && index === chatMessages.length - 1
                   const streaming = isLoading && isLastAssistant
@@ -521,10 +563,14 @@ export default function CommandCenterOverlay() {
                   ref={(node) => { inputRef.current = node }}
                   autoFocus
                   value={input}
-                  onChange={(event) => setInput(event.target.value)}
+                  onChange={(event) => {
+                    setInput(event.target.value)
+                    // Auto-resize textarea
+                    event.target.style.height = 'auto'
+                    event.target.style.height = `${Math.min(event.target.scrollHeight, 96)}px`
+                  }}
                   onKeyDown={handleKeyDown}
                   placeholder="Ask a follow-up..."
-                  rows={1}
                 />
                 <button type="button" onClick={isLoading ? stopStreaming : submit} aria-label={isLoading ? 'Stop' : 'Send'}>
                   {isLoading ? <X size={16} /> : <CornerDownLeft size={16} />}
@@ -887,7 +933,7 @@ export default function CommandCenterOverlay() {
         .command-center-chat-actions {
           height: 40px;
           display: flex;
-          justify-content: flex-end;
+          justify-content: space-between;
           align-items: center;
           padding: 0 18px;
         }
@@ -902,6 +948,61 @@ export default function CommandCenterOverlay() {
         .command-center-chat-message {
           max-width: 690px;
           margin: 0 auto;
+        }
+
+        .command-center-chat-message--user {
+          max-width: 690px;
+          margin: 0 auto 8px;
+        }
+
+        .command-center-user-bubble {
+          background: rgba(255, 255, 255, 0.12);
+          border-radius: 8px;
+          padding: 8px 14px;
+          font-size: 14px;
+          line-height: 1.5;
+        }
+
+        .command-center-model-badge {
+          font-size: 11px;
+          color: rgba(255, 231, 238, 0.48);
+          padding: 3px 8px;
+          border-radius: 4px;
+          background: rgba(255, 255, 255, 0.08);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          max-width: 180px;
+        }
+
+        .command-center-thinking {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          max-width: 690px;
+          margin: 0 auto;
+          padding: 14px 0;
+        }
+
+        .command-center-thinking-dot {
+          width: 5px;
+          height: 5px;
+          border-radius: 50%;
+          background: rgba(255, 231, 238, 0.48);
+          animation: thinkingPulse 0.8s ease-in-out infinite;
+        }
+
+        .command-center-thinking-dot:nth-child(2) {
+          animation-delay: 0.16s;
+        }
+
+        .command-center-thinking-dot:nth-child(3) {
+          animation-delay: 0.32s;
+        }
+
+        @keyframes thinkingPulse {
+          0%, 80%, 100% { opacity: 0.2; transform: scale(0.8); }
+          40% { opacity: 1; transform: scale(1); }
         }
 
         .command-center-composer {
@@ -937,6 +1038,10 @@ export default function CommandCenterOverlay() {
           color: rgba(211, 255, 225, 0.82);
           font-size: 12px;
           pointer-events: none;
+        }
+
+        .command-center-panel.is-chat .command-center-status {
+          bottom: 72px;
         }
 
         .command-center-status.error {

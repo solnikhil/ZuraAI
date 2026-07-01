@@ -38,6 +38,8 @@ export interface AppIndexEntry {
   lastSeenAt: number
   launchCount?: number
   lastLaunchedAt?: number
+  usageCount?: number
+  lastUsedAt?: number
 }
 
 export interface AppIndexDiagnostics {
@@ -76,6 +78,12 @@ interface RawAppMatch {
   appUserModelId?: string
 }
 
+interface UserAssistUsage {
+  name: string
+  lastUsedAt?: number
+  usageCount?: number
+}
+
 let memoryApps: AppIndexEntry[] = []
 let diagnostics: AppIndexDiagnostics = {
   ok: true,
@@ -109,6 +117,10 @@ function shortcutRoots(): Array<{ path: string; source: AppIndexSource }> {
 
 function compact(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, '')
+}
+
+function compactWithoutVersion(value: string): string {
+  return compact(value.replace(/\b(19|20)\d{2}\b/g, ''))
 }
 
 function normalizeName(value: string): string {
@@ -198,6 +210,8 @@ function mergeAppEntries(current: AppIndexEntry | undefined, candidate: AppIndex
     lastSeenAt: Math.max(current.lastSeenAt, candidate.lastSeenAt),
     launchCount: Math.max(current.launchCount ?? 0, candidate.launchCount ?? 0) || undefined,
     lastLaunchedAt: Math.max(current.lastLaunchedAt ?? 0, candidate.lastLaunchedAt ?? 0) || undefined,
+    usageCount: Math.max(current.usageCount ?? 0, candidate.usageCount ?? 0) || undefined,
+    lastUsedAt: Math.max(current.lastUsedAt ?? 0, candidate.lastUsedAt ?? 0) || undefined,
   }
   return {
     ...merged,
@@ -246,21 +260,73 @@ function normalizeIconCandidatePath(candidatePath: string): string {
   return expandWindowsEnv(candidatePath.trim().replace(/^"|"$/g, '').replace(/,\s*-?\d+$/, ''))
 }
 
+function visualElementLogoCandidates(targetPath: string | undefined): string[] {
+  if (!targetPath) return []
+  const targetDir = path.dirname(targetPath)
+  return [
+    path.join(targetDir, 'resources', 'app', 'resources', 'win32', 'code_70x70.png'),
+    path.join(targetDir, 'resources', 'app', 'resources', 'win32', 'code_150x150.png'),
+  ]
+}
+
+function packagedIconCandidates(targetPath: string | undefined): string[] {
+  if (!targetPath) return []
+  const targetDir = path.dirname(targetPath)
+  return [
+    path.join(targetDir, 'icons', 'icon.ico'),
+    path.join(targetDir, 'icons', 'icon.png'),
+    path.join(targetDir, 'icons', '128x128.png'),
+    path.join(targetDir, 'icons', '64x64.png'),
+    path.join(targetDir, 'icons', 'Square150x150Logo.png'),
+    path.join(targetDir, 'icons', 'Square71x71Logo.png'),
+    path.join(targetDir, 'icon.ico'),
+    path.join(targetDir, 'icon.png'),
+  ]
+}
+
 function iconCandidates(appEntry: Pick<AppIndexEntry, 'shortcutPath' | 'targetPath' | 'iconPath' | 'args' | 'workingDirectory'>): string[] {
   const processStartExe = parseProcessStartExe(appEntry.args)
   const candidates = [
     appEntry.iconPath,
+    ...visualElementLogoCandidates(appEntry.targetPath),
+    ...packagedIconCandidates(appEntry.targetPath),
     appEntry.workingDirectory && processStartExe ? path.join(appEntry.workingDirectory, processStartExe) : undefined,
     appEntry.targetPath ? path.join(path.dirname(appEntry.targetPath), 'app.ico') : undefined,
     appEntry.targetPath,
     appEntry.shortcutPath,
   ]
-  return Array.from(new Set(candidates.filter((candidate): candidate is string => Boolean(candidate)).map(normalizeIconCandidatePath)))
+  return Array.from(new Set(candidates
+    .filter((candidate): candidate is string => Boolean(candidate))
+    .map(normalizeIconCandidatePath)
+    .filter((candidate) => candidate.length > 0)))
 }
 
 function iconKeyFor(appEntry: Pick<AppIndexEntry, 'appUserModelId' | 'shortcutPath' | 'targetPath' | 'iconPath' | 'args' | 'workingDirectory'>): string | undefined {
   const candidates = iconCandidates(appEntry)
-  return candidates.length > 0 ? candidates.join('|') : appEntry.appUserModelId
+  return candidates.length > 0 ? candidates.join('|') : undefined
+}
+
+function likelyShortcutForNative(nativeApp: RawAppMatch, shortcutsByName: Map<string, RawAppMatch>): RawAppMatch | undefined {
+  const nativeName = compact(nativeApp.name)
+  const exact = shortcutsByName.get(nativeName)
+  if (exact) return exact
+
+  const nativeNoVersion = compactWithoutVersion(nativeApp.name)
+  const versionlessExact = shortcutsByName.get(nativeNoVersion)
+  if (versionlessExact) return versionlessExact
+
+  const candidates = Array.from(shortcutsByName.entries())
+    .filter(([shortcutName]) => {
+      const shortcutNoVersion = compactWithoutVersion(shortcutName)
+      return (
+        shortcutName === nativeName ||
+        shortcutNoVersion === nativeNoVersion ||
+        (nativeName.length >= 8 && shortcutName.startsWith(nativeName)) ||
+        (nativeNoVersion.length >= 8 && shortcutNoVersion.startsWith(nativeNoVersion))
+      )
+    })
+    .map(([, shortcut]) => shortcut)
+  return candidates.length === 1 ? candidates[0] : undefined
 }
 
 function createEntry(raw: RawAppMatch, existing?: AppIndexEntry): AppIndexEntry {
@@ -283,6 +349,8 @@ function createEntry(raw: RawAppMatch, existing?: AppIndexEntry): AppIndexEntry 
     lastSeenAt: Date.now(),
     launchCount: existing?.launchCount,
     lastLaunchedAt: existing?.lastLaunchedAt,
+    usageCount: existing?.usageCount,
+    lastUsedAt: existing?.lastUsedAt,
   }
   return {
     ...base,
@@ -307,7 +375,7 @@ function sanitizeSnapshot(value: unknown): AppIndexSnapshot | null {
     ) {
       return []
     }
-    return [{
+    const sanitizedEntry: AppIndexEntry = {
       id: appEntry.id,
       name: appEntry.name,
       normalizedName: appEntry.normalizedName,
@@ -320,10 +388,15 @@ function sanitizeSnapshot(value: unknown): AppIndexSnapshot | null {
       args: typeof appEntry.args === 'string' ? appEntry.args : undefined,
       workingDirectory: typeof appEntry.workingDirectory === 'string' ? appEntry.workingDirectory : undefined,
       launchStrategy: appEntry.launchStrategy,
-      iconKey: typeof appEntry.iconKey === 'string' ? appEntry.iconKey : undefined,
       lastSeenAt: typeof appEntry.lastSeenAt === 'number' ? appEntry.lastSeenAt : updatedAt,
       launchCount: typeof appEntry.launchCount === 'number' ? appEntry.launchCount : undefined,
       lastLaunchedAt: typeof appEntry.lastLaunchedAt === 'number' ? appEntry.lastLaunchedAt : undefined,
+      usageCount: typeof appEntry.usageCount === 'number' ? appEntry.usageCount : undefined,
+      lastUsedAt: typeof appEntry.lastUsedAt === 'number' ? appEntry.lastUsedAt : undefined,
+    }
+    return [{
+      ...sanitizedEntry,
+      iconKey: iconKeyFor(sanitizedEntry),
     }]
   })
   return {
@@ -377,6 +450,25 @@ function readShortcutDetails(shortcutPath: string): Electron.ShortcutDetails | n
   }
 }
 
+function isUsefulIconPath(iconPath: string | undefined): iconPath is string {
+  return Boolean(iconPath && normalizeIconCandidatePath(iconPath).length > 0)
+}
+
+async function readVisualElementsIconPath(targetPath: string | undefined): Promise<string | undefined> {
+  if (!targetPath) return undefined
+  const targetDir = path.dirname(targetPath)
+  const manifestPath = path.join(targetDir, `${path.basename(targetPath, path.extname(targetPath))}.VisualElementsManifest.xml`)
+  try {
+    const manifest = await fs.readFile(manifestPath, 'utf-8')
+    const logo = manifest.match(/Square70x70Logo="([^"]+)"/i)?.[1] ??
+      manifest.match(/Square150x150Logo="([^"]+)"/i)?.[1]
+    if (!logo) return undefined
+    return path.resolve(targetDir, logo)
+  } catch {
+    return undefined
+  }
+}
+
 async function scanShortcutApps(root: string, source: AppIndexSource, results: RawAppMatch[]): Promise<void> {
   const entries = await fs.readdir(root, { withFileTypes: true }).catch(() => [])
   for (const entry of entries) {
@@ -388,12 +480,16 @@ async function scanShortcutApps(root: string, source: AppIndexSource, results: R
     if (path.extname(entry.name).toLowerCase() !== '.lnk') continue
     const name = path.basename(entry.name, '.lnk')
     const shortcut = readShortcutDetails(full)
+    const targetPath = shortcut?.target || undefined
+    const iconPath = isUsefulIconPath(shortcut?.icon)
+      ? shortcut?.icon
+      : await readVisualElementsIconPath(targetPath)
     results.push({
       name,
       path: full,
       source,
-      targetPath: shortcut?.target || undefined,
-      iconPath: shortcut?.icon || undefined,
+      targetPath,
+      iconPath,
       args: shortcut?.args || undefined,
       workingDirectory: shortcut?.cwd || undefined,
       appUserModelId: shortcut?.appUserModelId || undefined,
@@ -444,6 +540,61 @@ Get-StartApps${nameFilter} |
     }))
 }
 
+async function queryUserAssistUsage(): Promise<UserAssistUsage[]> {
+  const script = `
+$ErrorActionPreference = 'SilentlyContinue'
+function Decode-Rot13([string]$Value) {
+  -join ($Value.ToCharArray() | ForEach-Object {
+    $c = [int][char]$_
+    if ($c -ge 65 -and $c -le 90) { [char](((($c - 65 + 13) % 26) + 65)) }
+    elseif ($c -ge 97 -and $c -le 122) { [char](((($c - 97 + 13) % 26) + 97)) }
+    else { [char]$c }
+  })
+}
+$root = 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\UserAssist'
+if (Test-Path $root) {
+  Get-ChildItem $root | ForEach-Object {
+    $countPath = Join-Path $_.PsPath 'Count'
+    if (-not (Test-Path $countPath)) { return }
+    $props = Get-ItemProperty $countPath
+    foreach ($prop in $props.PSObject.Properties) {
+      if ($prop.Name -like 'PS*' -or $prop.Value -isnot [byte[]]) { continue }
+      $bytes = [byte[]]$prop.Value
+      $decoded = Decode-Rot13 $prop.Name
+      $lastUsedAt = $null
+      $usageCount = 0
+      if ($bytes.Length -ge 8) {
+        $usageCount = [Math]::Max(0, [BitConverter]::ToInt32($bytes, 4))
+      }
+      if ($bytes.Length -ge 68) {
+        $filetime = [BitConverter]::ToInt64($bytes, 60)
+        if ($filetime -gt 0) {
+          $lastUsedAt = [DateTime]::FromFileTimeUtc($filetime).ToString('o')
+        }
+      }
+      [pscustomobject]@{
+        name = [string]$decoded
+        usageCount = [int]$usageCount
+        lastUsedAt = $lastUsedAt
+      } | ConvertTo-Json -Compress
+    }
+  }
+}
+`
+  const { stdout } = await runPowerShell(script, { timeoutMs: 2_000, maxOutputLength: 256_000 })
+  if (!stdout.trim()) return []
+  return parseNdjsonOutput<{ name?: unknown; usageCount?: unknown; lastUsedAt?: unknown }>(stdout)
+    .flatMap((entry): UserAssistUsage[] => {
+      if (!entry || typeof entry.name !== 'string' || !entry.name.trim()) return []
+      const lastUsedAt = typeof entry.lastUsedAt === 'string' ? Date.parse(entry.lastUsedAt) : undefined
+      return [{
+        name: entry.name,
+        usageCount: typeof entry.usageCount === 'number' && Number.isFinite(entry.usageCount) ? entry.usageCount : undefined,
+        lastUsedAt: lastUsedAt && Number.isFinite(lastUsedAt) ? lastUsedAt : undefined,
+      }]
+    })
+}
+
 function mergeApps(nativeApps: RawAppMatch[], shortcutApps: RawAppMatch[], previousApps: AppIndexEntry[]): AppIndexEntry[] {
   const previousByDedupeKey = new Map(previousApps.map((entry) => [appDedupeKey(entry), entry]))
   const previousByName = new Map<string, AppIndexEntry>()
@@ -458,6 +609,10 @@ function mergeApps(nativeApps: RawAppMatch[], shortcutApps: RawAppMatch[], previ
     const key = compact(shortcut.name)
     if (!key) continue
     shortcutsByName.set(key, preferRawAppMatch(shortcutsByName.get(key), shortcut))
+    const noVersionKey = compactWithoutVersion(shortcut.name)
+    if (noVersionKey && noVersionKey !== key) {
+      shortcutsByName.set(noVersionKey, preferRawAppMatch(shortcutsByName.get(noVersionKey), shortcut))
+    }
   }
 
   const rawByKey = new Map<string, RawAppMatch>()
@@ -469,12 +624,13 @@ function mergeApps(nativeApps: RawAppMatch[], shortcutApps: RawAppMatch[], previ
 
   for (const nativeApp of nativeApps) {
     const nativeNameKey = compact(nativeApp.name)
-    const shortcut = shortcutsByName.get(nativeNameKey)
+    const shortcut = likelyShortcutForNative(nativeApp, shortcutsByName)
     if (shortcut?.path) {
       consumedShortcutPaths.add(compact(shortcut.path))
     }
     if (shortcut) {
       consumedShortcutNames.add(nativeNameKey)
+      consumedShortcutNames.add(compact(shortcut.name))
     }
     addRaw({
       ...shortcut,
@@ -497,6 +653,54 @@ function mergeApps(nativeApps: RawAppMatch[], shortcutApps: RawAppMatch[], previ
   return Array.from(rawByKey.values())
     .map((raw) => createEntry(raw, previousByDedupeKey.get(appDedupeKey(raw)) ?? previousByName.get(compact(raw.name))))
     .sort((a, b) => a.name.localeCompare(b.name))
+}
+
+function usageKeysForApp(appEntry: AppIndexEntry): string[] {
+  return Array.from(new Set([
+    compact(appEntry.name),
+    compactWithoutVersion(appEntry.name),
+    appEntry.appUserModelId ? compact(appEntry.appUserModelId) : '',
+    appEntry.targetPath ? compact(path.basename(appEntry.targetPath, path.extname(appEntry.targetPath))) : '',
+    appEntry.shortcutPath ? compact(path.basename(appEntry.shortcutPath, path.extname(appEntry.shortcutPath))) : '',
+  ].filter(Boolean)))
+}
+
+function usageKeysForUserAssist(usage: UserAssistUsage): string[] {
+  const normalized = usage.name.replace(/^.*[\\/]/, '')
+  return Array.from(new Set([
+    compact(usage.name),
+    compactWithoutVersion(usage.name),
+    compact(normalized),
+    compactWithoutVersion(normalized),
+    compact(path.basename(normalized, path.extname(normalized))),
+  ].filter(Boolean)))
+}
+
+function applyUsageSignals(apps: AppIndexEntry[], usages: UserAssistUsage[]): AppIndexEntry[] {
+  if (usages.length === 0) return apps
+  const usageByKey = new Map<string, UserAssistUsage>()
+  for (const usage of usages) {
+    for (const key of usageKeysForUserAssist(usage)) {
+      const current = usageByKey.get(key)
+      const currentTime = current?.lastUsedAt ?? 0
+      const nextTime = usage.lastUsedAt ?? 0
+      if (!current || nextTime > currentTime || (nextTime === currentTime && (usage.usageCount ?? 0) > (current.usageCount ?? 0))) {
+        usageByKey.set(key, usage)
+      }
+    }
+  }
+  return apps.map((appEntry) => {
+    const usage = usageKeysForApp(appEntry)
+      .map((key) => usageByKey.get(key))
+      .filter((entry): entry is UserAssistUsage => Boolean(entry))
+      .sort((a, b) => (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0) || (b.usageCount ?? 0) - (a.usageCount ?? 0))[0]
+    if (!usage) return appEntry
+    return {
+      ...appEntry,
+      usageCount: Math.max(appEntry.usageCount ?? 0, usage.usageCount ?? 0) || undefined,
+      lastUsedAt: Math.max(appEntry.lastUsedAt ?? 0, usage.lastUsedAt ?? 0) || undefined,
+    }
+  })
 }
 
 async function bootstrapAppsFromShortcuts(): Promise<boolean> {
@@ -537,7 +741,7 @@ export async function refreshAppIndex(): Promise<AppIndexDiagnostics> {
   refreshRequest = (async () => {
     const startedAt = Date.now()
     const errors: string[] = []
-    const [nativeApps, shortcutApps] = await Promise.all([
+    const [nativeApps, shortcutApps, userAssistUsage] = await Promise.all([
       queryNativeStartApps().catch((error) => {
         errors.push(`windows-search: ${error instanceof Error ? error.message : 'failed'}`)
         return [] as RawAppMatch[]
@@ -546,10 +750,11 @@ export async function refreshAppIndex(): Promise<AppIndexDiagnostics> {
         errors.push(`shortcuts: ${error instanceof Error ? error.message : 'failed'}`)
         return [] as RawAppMatch[]
       }),
+      queryUserAssistUsage().catch(() => [] as UserAssistUsage[]),
     ])
     const nextApps = mergeApps(nativeApps, shortcutApps, memoryApps)
     const updatedAt = Date.now()
-    const dedupedApps = dedupeAppEntries(nextApps)
+    const dedupedApps = applyUsageSignals(dedupeAppEntries(nextApps), userAssistUsage)
     if (dedupedApps.length > 0 || memoryApps.length === 0) {
       memoryApps = dedupedApps
       await saveSnapshot(memoryApps, updatedAt).catch((error) => {
@@ -607,11 +812,25 @@ function startShortcutWatchers(): void {
 
 function scoreApp(appEntry: AppIndexEntry, query: string): number {
   const normalizedQuery = normalizeName(query)
-  if (!normalizedQuery) return (appEntry.lastLaunchedAt ? 20 : 0) + Math.min(appEntry.launchCount ?? 0, 10)
+  const recentAt = Math.max(appEntry.lastLaunchedAt ?? 0, appEntry.lastUsedAt ?? 0)
+  const ageHours = recentAt > 0 ? (Date.now() - recentAt) / 3_600_000 : Number.POSITIVE_INFINITY
+  const recencyScore = recentAt <= 0
+    ? 0
+    : ageHours <= 1
+      ? 1600
+      : ageHours <= 24
+        ? 1300
+        : ageHours <= 24 * 7
+          ? 900
+          : ageHours <= 24 * 30
+            ? 450
+            : 120
+  const frequencyScore = Math.min((appEntry.launchCount ?? 0) * 30, 300) + Math.min(appEntry.usageCount ?? 0, 200)
+  if (!normalizedQuery) return recencyScore + frequencyScore
   let score = scoreAppSearch(appEntry.name, appEntry.aliases, normalizedQuery)
   if (score === 0) return 0
-  if (appEntry.lastLaunchedAt) score += 25
-  score += Math.min(appEntry.launchCount ?? 0, 10)
+  score += Math.min(recencyScore / 20, 80)
+  score += Math.min(frequencyScore / 20, 25)
   return score
 }
 

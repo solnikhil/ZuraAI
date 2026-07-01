@@ -41,6 +41,7 @@ $items = Get-Process | Where-Object {
     title = $_.MainWindowTitle
     processName = $_.ProcessName
     processId = $_.Id
+    path = [string]$_.Path
   }
 }
 $items | ConvertTo-Json -Compress
