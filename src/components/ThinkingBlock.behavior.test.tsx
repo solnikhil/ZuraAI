@@ -151,7 +151,7 @@ describe('ThinkingBlock behavior', () => {
       vi.advanceTimersByTime(5000)
     })
 
-    expect(screen.getByText('Running Tool: Filesystem - read_file: /tmp/demo.txt')).toBeInTheDocument()
+    expect(screen.getByText('MCP tool calling: Filesystem')).toBeInTheDocument()
     expect(screen.queryByText(/Thinking for/)).not.toBeInTheDocument()
   })
 
@@ -244,7 +244,7 @@ describe('ThinkingBlock behavior', () => {
     )
 
     expect(
-      await screen.findByText('Running Tool: Filesystem - read_file: /tmp/demo.txt')
+      await screen.findByText('MCP tool calling: Filesystem')
     ).toBeInTheDocument()
   })
 
@@ -268,10 +268,10 @@ describe('ThinkingBlock behavior', () => {
     )
 
     expect(
-      await screen.findByText('Running Tool: Filesystem - read_file: /tmp/demo.txt (+1 more)')
+      await screen.findByText('MCP tool calling: Filesystem (+1 more)')
     ).toBeInTheDocument()
     expect(
-      screen.getByText('2. Running Tool: Github - create_issue: Follow-up task')
+      screen.getByText('2. MCP tool calling: Github')
     ).toBeInTheDocument()
   })
 
@@ -374,8 +374,11 @@ describe('ThinkingBlock behavior', () => {
       />
     )
 
-    expect(await screen.findByText('Tool: Filesystem - read_file: /tmp/demo.txt')).toBeInTheDocument()
+    expect(await screen.findByText('MCP tool called: Filesystem')).toBeInTheDocument()
     expect(screen.getByText('Completed')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('MCP tool called: Filesystem'))
+    expect(screen.getByText('MCP tool called')).toBeInTheDocument()
+    expect(screen.getByText('read_file')).toBeInTheDocument()
   })
 
   it('shortens long cwd paths, reveals the full path on hover, and supports copy actions', async () => {

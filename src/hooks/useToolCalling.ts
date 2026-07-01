@@ -25,6 +25,7 @@ import { createMcpToolRegistry } from '../tools/mcpRegistry'
 import { getProviderModels, type ProviderId } from '../providers'
 import { isWindowsRuntime } from '../utils/platform'
 import { isSkillEnabled } from '../skills'
+import type { McpRuntimeSnapshot } from '../mcp/types'
 
 const COMPUTER_USE_TOOLS = [
     'computer_screenshot',
@@ -122,12 +123,15 @@ export function useToolCalling() {
     const mcp = useOptionalMcp()
     const [toolState, setToolState] = useState<ToolCallState>(INITIAL_TOOL_STATE)
 
+    const createRuntimeMcpTools = (snapshot?: Pick<McpRuntimeSnapshot, 'servers' | 'runtimeStates' | 'tools'>) =>
+        createMcpToolRegistry({
+            servers: snapshot?.servers ?? mcp?.servers ?? [],
+            runtimeStates: snapshot?.runtimeStates ?? mcp?.runtimeStates ?? [],
+            tools: snapshot?.tools ?? mcp?.tools ?? [],
+        })
+
     const runtimeMcpTools = useMemo(
-        () => createMcpToolRegistry({
-            servers: mcp?.servers ?? [],
-            runtimeStates: mcp?.runtimeStates ?? [],
-            tools: mcp?.tools ?? [],
-        }),
+        () => createRuntimeMcpTools(),
         [mcp?.runtimeStates, mcp?.servers, mcp?.tools]
     )
 
@@ -136,10 +140,10 @@ export function useToolCalling() {
         [runtimeMcpTools]
     )
 
-    const getEnabledToolsForProvider = () => {
+    const getEnabledToolsForProvider = (currentRuntimeMcpTools = runtimeMcpTools) => {
         const builtinToolNames = getBuiltinToolDefinitions().map((tool) => tool.name)
         const knownBuiltInTools = new Set(builtinToolNames)
-        const runtimeMcpToolNames = runtimeMcpTools.map((tool) => tool.name)
+        const runtimeMcpToolNames = currentRuntimeMcpTools.map((tool) => tool.name)
 
         let enabledTools: string[] = settings.enabledTools.length > 0
             ? settings.enabledTools.filter((tool) => knownBuiltInTools.has(tool))
@@ -297,40 +301,48 @@ export function useToolCalling() {
             : undefined
     }
 
-    const canUseToolsNow = (): boolean => {
+    const buildToolsForRequest = (currentRuntimeMcpTools = runtimeMcpTools) => {
         if (!shouldEnableTools(settings)) {
-            return false
-        }
-
-        const enabledTools = getEnabledToolsForProvider()
-        if (enabledTools.length === 0) {
-            return false
-        }
-
-        const tools = getToolsForProvider({
-            provider: settings.modelProvider,
-            model: settings.aiModel,
-            modelSupportsTools: getCurrentModelSupportsTools(),
-            enabledTools,
-            availableTools,
-        })
-
-        return Array.isArray(tools) && tools.length > 0
-    }
-
-    const getToolsForRequest = () => {
-        const enabledTools = getEnabledToolsForProvider()
-        if (enabledTools.length === 0 || !canUseToolsNow()) {
             return null
         }
+
+        const enabledTools = getEnabledToolsForProvider(currentRuntimeMcpTools)
+        if (enabledTools.length === 0) {
+            return null
+        }
+
+        const currentAvailableTools =
+            currentRuntimeMcpTools === runtimeMcpTools
+                ? availableTools
+                : getAllToolDefinitions(currentRuntimeMcpTools)
 
         return getToolsForProvider({
             provider: settings.modelProvider,
             model: settings.aiModel,
             modelSupportsTools: getCurrentModelSupportsTools(),
             enabledTools,
-            availableTools,
+            availableTools: currentAvailableTools,
         })
+    }
+
+    const canUseToolsNow = (): boolean => {
+        const tools = buildToolsForRequest()
+        return Array.isArray(tools) && tools.length > 0
+    }
+
+    const getToolsForRequest = () => {
+        return buildToolsForRequest()
+    }
+
+    const getToolsForRequestAsync = async () => {
+        if (mcp?.isSupported && (mcp.isLoading || mcp.isRefreshing)) {
+            const freshSnapshot = await mcp.refresh()
+            if (freshSnapshot) {
+                return buildToolsForRequest(createRuntimeMcpTools(freshSnapshot))
+            }
+        }
+
+        return buildToolsForRequest()
     }
 
     const handleToolCalls = async (
@@ -505,9 +517,15 @@ export function useToolCalling() {
         return `\n\nYou may use web_search for up-to-date information. Run targeted searches as needed, then synthesize the final answer.`
     }
 
+    const isMcpRegistryPending =
+        mcp?.isSupported === true &&
+        (mcp.isLoading || mcp.isRefreshing) &&
+        shouldEnableTools(settings)
+
     return {
-        canUseTools: canUseToolsNow(),
+        canUseTools: canUseToolsNow() || isMcpRegistryPending,
         getToolsForRequest,
+        getToolsForRequestAsync,
         handleToolCalls,
         toolState,
         clearToolState,

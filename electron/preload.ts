@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 
 import type {
   McpApprovalDecision,
+  McpAuthStatus,
   McpNamespacedTool,
   McpPromptResult,
   McpRuntimePrompt,
@@ -144,6 +145,9 @@ const MCP_INVOKE_CHANNELS = new Set<string>([
   'mcp:get-prompt',
   'mcp:execute-tool',
   'mcp:resolve-approval',
+  'mcp:start-oauth',
+  'mcp:clear-oauth',
+  'mcp:get-auth-status',
 ])
 
 const MCP_ON_CHANNELS = new Set<string>(['mcp:state-changed'])
@@ -912,6 +916,22 @@ contextBridge.exposeInMainWorld(
         requestId,
         approved
       ) as Promise<McpApprovalDecision>
+    },
+    startOAuth: (serverId: string) => {
+      assertAllowed('invoke', 'mcp:start-oauth', MCP_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('mcp:start-oauth', serverId) as Promise<{
+        ok: boolean
+        status: McpAuthStatus
+        error?: string
+      }>
+    },
+    clearOAuth: (serverId: string) => {
+      assertAllowed('invoke', 'mcp:clear-oauth', MCP_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('mcp:clear-oauth', serverId) as Promise<McpAuthStatus>
+    },
+    getAuthStatus: (serverId: string) => {
+      assertAllowed('invoke', 'mcp:get-auth-status', MCP_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('mcp:get-auth-status', serverId) as Promise<McpAuthStatus>
     },
     onStateChange: (callback: (snapshot: McpRuntimeSnapshot) => void) => {
       assertAllowed('on', 'mcp:state-changed', MCP_ON_CHANNELS)

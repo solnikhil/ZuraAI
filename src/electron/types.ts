@@ -2,6 +2,7 @@ import type { ChatIndexData, ChatSession, ChatSessionMetadata, Folder } from '..
 import type { ChatDiagnosticEvent } from '../diagnostics/chatDiagnostics'
 import type {
   McpApprovalDecision,
+  McpAuthStatus,
   McpNamespacedTool,
   McpPromptResult,
   McpRuntimePrompt,
@@ -884,6 +885,9 @@ export interface McpAPI {
     args: Record<string, unknown>
   ) => Promise<McpToolExecutionResult>
   resolveApproval: (requestId: string, approved: boolean) => Promise<McpApprovalDecision>
+  startOAuth: (serverId: string) => Promise<{ ok: boolean; status: McpAuthStatus; error?: string }>
+  clearOAuth: (serverId: string) => Promise<McpAuthStatus>
+  getAuthStatus: (serverId: string) => Promise<McpAuthStatus>
   onStateChange: (callback: (snapshot: McpRuntimeSnapshot) => void) => () => void
 }
 

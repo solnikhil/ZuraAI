@@ -12,7 +12,9 @@ describe('MCP catalogue normalization', () => {
     const entries = await loadMcpCatalogue()
 
     expect(entries.length).toBeGreaterThan(0)
+    expect(entries).toHaveLength(50)
     expect(entries.some((entry) => entry.installKind === 'npm')).toBe(true)
+    expect(entries.every((entry) => entry.supported)).toBe(true)
   })
 
   it('maps npm, pypi, remote, unsupported, and secret-required bundled entries', () => {
@@ -75,7 +77,7 @@ describe('MCP catalogue normalization', () => {
       sourceLabel: 'npm package',
     })
     expect(npmEntry?.draft).toMatchObject({
-      enabled: false,
+      enabled: true,
       trustState: 'untrusted',
       transport: 'stdio',
       command: 'npx',

@@ -1,4 +1,4 @@
-import type { McpConfigValue, McpServerConfig } from '../../src/mcp/types'
+import type { McpAuthConfig, McpAuthMode, McpConfigValue, McpServerConfig } from '../../src/mcp/types'
 
 import { setSecureValueAsync } from '../secureStorage'
 
@@ -49,6 +49,7 @@ export async function prepareRendererMcpServerInput(
     url: getOptionalTrimmedString(input.url),
     env: env.values,
     headers: headers.values,
+    auth: normalizeRendererAuthConfig(input.auth, options.serverId, options.existingServer?.auth),
     autoConnect: normalizeBoolean(input.autoConnect, options.existingServer?.autoConnect ?? false),
     startupTimeoutMs: normalizeOptionalInteger(input.startupTimeoutMs),
     toolTimeoutMs: normalizeOptionalInteger(input.toolTimeoutMs),
@@ -200,7 +201,92 @@ function collectServerSecretKeys(server: McpServerConfig | undefined): Set<strin
     }
   }
 
+  const oauth = server?.auth?.oauth
+  for (const key of [oauth?.accessTokenKey, oauth?.refreshTokenKey, oauth?.clientSecretKey]) {
+    if (typeof key === 'string' && key.trim()) {
+      secretKeys.add(key.trim())
+    }
+  }
+
   return secretKeys
+}
+
+function normalizeRendererAuthConfig(
+  rawAuth: unknown,
+  serverId: string,
+  existingAuth?: McpAuthConfig
+): McpAuthConfig {
+  if (!isRecord(rawAuth)) {
+    return existingAuth ?? { mode: 'none', state: 'none' }
+  }
+
+  const mode = normalizeAuthMode(rawAuth.mode)
+  const now = new Date().toISOString()
+  if (mode !== 'oauth2Pkce') {
+    return {
+      mode,
+      state: mode === 'none' ? 'none' : 'configured',
+      lastError: null,
+      updatedAt: now,
+    }
+  }
+
+  const rawOauth = isRecord(rawAuth.oauth) ? rawAuth.oauth : {}
+  const existingOauth = existingAuth?.oauth
+  return {
+    mode: 'oauth2Pkce',
+    state:
+      existingAuth?.mode === 'oauth2Pkce' && existingAuth.state === 'signed_in'
+        ? 'signed_in'
+        : 'reauth_required',
+    lastError: null,
+    updatedAt: now,
+    oauth: {
+      authorizationServer:
+        getOptionalTrimmedString(rawOauth.authorizationServer) ??
+        existingOauth?.authorizationServer,
+      resourceMetadataUrl:
+        getOptionalTrimmedString(rawOauth.resourceMetadataUrl) ??
+        existingOauth?.resourceMetadataUrl,
+      issuer: existingOauth?.issuer,
+      authorizationEndpoint: existingOauth?.authorizationEndpoint,
+      tokenEndpoint: existingOauth?.tokenEndpoint,
+      registrationEndpoint: existingOauth?.registrationEndpoint,
+      clientId: getOptionalTrimmedString(rawOauth.clientId) ?? existingOauth?.clientId,
+      clientSecretKey: safeExistingOauthSecretKey(existingOauth?.clientSecretKey, serverId),
+      accessTokenKey:
+        safeExistingOauthSecretKey(existingOauth?.accessTokenKey, serverId) ??
+        buildMcpSecretStorageKey(serverId, 'oauth-access-token'),
+      refreshTokenKey:
+        safeExistingOauthSecretKey(existingOauth?.refreshTokenKey, serverId) ??
+        buildMcpSecretStorageKey(serverId, 'oauth-refresh-token'),
+      expiresAt: existingOauth?.expiresAt,
+      scope: getOptionalTrimmedString(rawOauth.scope) ?? existingOauth?.scope,
+      tokenType: existingOauth?.tokenType,
+    },
+  }
+}
+
+function normalizeAuthMode(value: unknown): McpAuthMode {
+  if (
+    value === 'envSecret' ||
+    value === 'headerSecret' ||
+    value === 'bearerToken' ||
+    value === 'basicAuth' ||
+    value === 'oauth2Pkce' ||
+    value === 'jsonCredential' ||
+    value === 'connectionString'
+  ) {
+    return value
+  }
+
+  return 'none'
+}
+
+function safeExistingOauthSecretKey(value: unknown, serverId: string): string | undefined {
+  return typeof value === 'string' && isSafeSecretKeyForServer(value, serverId)
+    ? value
+    : undefined
 }
 
 function normalizeSecretStorageKind(

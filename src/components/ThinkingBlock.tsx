@@ -45,7 +45,10 @@ function parseMcpToolName(name: string): { serverId: string; toolId: string } | 
   return { serverId, toolId }
 }
 
-function formatMcpToolLabel(name: string, metadata?: ToolExecutionMetadata): string | null {
+function getMcpToolInfo(
+  name: string,
+  metadata?: ToolExecutionMetadata
+): { serverLabel: string; toolLabel: string } | null {
   const parsed = parseMcpToolName(name)
   if (!parsed && metadata?.origin !== 'mcp') {
     return null
@@ -61,12 +64,21 @@ function formatMcpToolLabel(name: string, metadata?: ToolExecutionMetadata): str
       ? metadata.originalToolName
       : parsed?.toolId || fallbackPresentation.toolLabel
 
-  return `Tool: ${serverLabel} - ${toolLabel}`
+  return { serverLabel, toolLabel }
+}
+
+function formatMcpToolLabel(name: string, metadata?: ToolExecutionMetadata): string | null {
+  const info = getMcpToolInfo(name, metadata)
+  return info ? `MCP tool called: ${info.serverLabel}` : null
 }
 
 function getToolCallText(tool: { name: string; arguments?: Record<string, unknown> }): string {
-  const mcpLabel = formatMcpToolLabel(tool.name)
-  const displayName = mcpLabel || formatToolDisplayName(tool.name, tool.arguments)
+  const mcpInfo = getMcpToolInfo(tool.name)
+  if (mcpInfo) {
+    return `MCP tool calling: ${mcpInfo.serverLabel}`
+  }
+
+  const displayName = formatToolDisplayName(tool.name, tool.arguments)
   if (tool.name === 'web_search' && tool.arguments?.query) {
     return `Using ${displayName}: "${String(tool.arguments.query)}"`
   }
@@ -143,6 +155,10 @@ function getCompletedToolBlockText(block: ThinkingBlockType): React.ReactNode {
 
   if (toolName === 'code_execution' && block.toolInput?.description) {
     return `${displayName}: ${String(block.toolInput.description)}`
+  }
+
+  if (mcpLabel) {
+    return mcpLabel
   }
 
   const argumentSummary = getToolArgumentSummary(block.toolInput)
@@ -310,6 +326,30 @@ function formatToolAuditLine(block: ThinkingBlockType): string | null {
             : 'Error'
 
   return `${metadata.serverName} MCP | ${approvalLabel} | ${metadata.durationMs}ms | ${outcomeLabel}`
+}
+
+function McpCalledToolDetail({
+  toolName,
+  metadata,
+}: {
+  toolName: string
+  metadata?: ToolExecutionMetadata
+}) {
+  const mcpInfo = getMcpToolInfo(toolName, metadata)
+  if (!mcpInfo) {
+    return null
+  }
+
+  return (
+    <div className="thinking-tool-json thinking-mcp-called-tool">
+      <div className="thinking-tool-json-label">MCP tool called</div>
+      <div className="thinking-mcp-called-tool__value">
+        <span>{mcpInfo.serverLabel}</span>
+        <span className="thinking-mcp-called-tool__separator">/</span>
+        <code>{mcpInfo.toolLabel}</code>
+      </div>
+    </div>
+  )
 }
 
 interface ThinkingBlockProps {
@@ -911,6 +951,12 @@ function CompletedBlock({
               style={{ overflow: 'hidden' }}
             >
               <div className="thinking-content thinking-tool-details">
+                {toolName !== 'web_search' && (
+                  <McpCalledToolDetail
+                    toolName={toolName}
+                    metadata={block.toolOutput?.metadata}
+                  />
+                )}
                 {block.toolInput &&
                   Object.keys(block.toolInput).length > 0 &&
                   toolName !== 'web_search' && (

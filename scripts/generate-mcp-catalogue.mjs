@@ -16,6 +16,85 @@ const PAGE_LIMIT = 100
 const MAX_PAGES_PER_RUN = 5
 
 const BASELINE_PATH = path.join(process.cwd(), 'scripts', 'mcp-catalogue-baseline.json')
+const CURATED_CATALOGUE_NAMES = [
+  'io.modelcontextprotocol/filesystem',
+  'io.modelcontextprotocol/git',
+  'io.modelcontextprotocol/github',
+  'io.modelcontextprotocol/gitlab',
+  'io.modelcontextprotocol/postgres',
+  'io.modelcontextprotocol/sqlite',
+  'io.modelcontextprotocol/google-drive',
+  'io.modelcontextprotocol/google-maps',
+  'io.modelcontextprotocol/brave-search',
+  'io.modelcontextprotocol/fetch',
+  'io.modelcontextprotocol/puppeteer',
+  'io.modelcontextprotocol/sequential-thinking',
+  'io.modelcontextprotocol/memory',
+  'io.modelcontextprotocol/everything',
+  'io.modelcontextprotocol/time',
+  'io.modelcontextprotocol/slack',
+  'io.modelcontextprotocol/sentry',
+  'io.modelcontextprotocol/aws-kb-retrieval',
+  'io.github.upstash/context7',
+  'io.github.infoinlet-marketplace/mcp-qdrant',
+  'app.linear/linear',
+  'com.notion/mcp',
+  'com.atlassian/atlassian-mcp-server',
+  'com.supabase/mcp',
+  'io.github.mongodb-js/mongodb-mcp-server',
+  'io.github.containers/kubernetes-mcp-server',
+  'io.github.firecrawl/firecrawl-mcp-server',
+  'io.github.browserbase/mcp-server-browserbase',
+  'io.github.tavily-ai/tavily-mcp',
+  'com.gitkraken/gk-cli',
+  'io.github.getsentry/sentry-mcp',
+  'io.github.brave/brave-search-mcp-server',
+  'io.github.domdomegg/airtable-mcp-server',
+  'io.github.domdomegg/google-drive-mcp',
+  'io.github.domdomegg/google-maps-places-mcp',
+  'io.github.domdomegg/google-cal-mcp',
+  'com.pulsemcp/gmail',
+  'com.pulsemcp/google-calendar',
+  'com.mcparmory/notion',
+  'com.mcparmory/figma',
+  'com.mcparmory/shopify-admin',
+  'com.mcparmory/atlassian-jira',
+  'com.mcparmory/atlassian-confluence',
+  'io.github.daedalus/mcp-redis-server',
+  'io.github.YawLabs/redis-mcp',
+  'io.github.GavinLucas/docker-mcp-server',
+  'io.github.aws/aws-mcp',
+  'io.github.oabolade/figma_mcp_server_actor',
+  'io.github.cyanheads/obsidian-mcp-server',
+  'com.mcparmory/pinecone',
+]
+
+const CURATED_TITLE_OVERRIDES = {
+  'app.linear/linear': 'Linear',
+  'com.notion/mcp': 'Notion',
+  'io.github.mongodb-js/mongodb-mcp-server': 'MongoDB',
+  'io.github.containers/kubernetes-mcp-server': 'Kubernetes',
+  'io.github.browserbase/mcp-server-browserbase': 'Browserbase',
+  'io.github.tavily-ai/tavily-mcp': 'Tavily',
+  'com.gitkraken/gk-cli': 'GitKraken',
+  'io.github.getsentry/sentry-mcp': 'Sentry Cloud',
+  'io.github.brave/brave-search-mcp-server': 'Brave Search Official',
+  'io.github.domdomegg/google-drive-mcp': 'Google Drive Local',
+  'io.github.domdomegg/google-cal-mcp': 'Google Calendar Local',
+  'com.pulsemcp/gmail': 'Gmail',
+  'com.pulsemcp/google-calendar': 'Google Calendar Workspace',
+  'com.mcparmory/notion': 'Notion Python',
+  'com.mcparmory/figma': 'Figma Python',
+  'com.mcparmory/shopify-admin': 'Shopify Admin',
+  'com.mcparmory/atlassian-jira': 'Jira',
+  'com.mcparmory/atlassian-confluence': 'Confluence',
+  'io.github.daedalus/mcp-redis-server': 'Redis Python',
+  'io.github.YawLabs/redis-mcp': 'Redis Node',
+  'io.github.oabolade/figma_mcp_server_actor': 'Figma Community',
+  'io.github.cyanheads/obsidian-mcp-server': 'Obsidian',
+  'com.mcparmory/pinecone': 'Pinecone',
+  'io.github.infoinlet-marketplace/mcp-qdrant': 'Qdrant',
+}
 
 function publisherFromName(name) {
   const [org] = String(name || '').split('/')
@@ -231,10 +310,18 @@ async function writeCatalogue(cache) {
     catalogueByName.set(name, entry)
   }
 
-  const catalogue = [...catalogueByName.values()].sort((left, right) => {
-    const leftTitle = (left.title || left.name).toLowerCase()
-    const rightTitle = (right.title || right.name).toLowerCase()
-    return leftTitle.localeCompare(rightTitle)
+  const missingCuratedNames = CURATED_CATALOGUE_NAMES.filter((name) => !catalogueByName.has(name))
+  if (missingCuratedNames.length > 0) {
+    console.warn(
+      `Missing ${missingCuratedNames.length} curated catalogue entries: ${missingCuratedNames.join(', ')}`
+    )
+  }
+
+  const catalogue = CURATED_CATALOGUE_NAMES.flatMap((name) => {
+    const entry = catalogueByName.get(name)
+    if (!entry) return []
+    const title = CURATED_TITLE_OVERRIDES[name]
+    return title ? [{ ...entry, title }] : [entry]
   })
 
   await fs.writeFile(OUTPUT_PATH, `${JSON.stringify(catalogue, null, 2)}\n`, 'utf8')

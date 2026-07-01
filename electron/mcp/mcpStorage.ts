@@ -10,6 +10,9 @@ const mcpLog = log.withTag('mcp')
 
 import type {
   McpConfigValue,
+  McpAuthConfig,
+  McpAuthMode,
+  McpAuthState,
   McpJsonSchema,
   McpPromptArgument,
   McpPromptManifest,
@@ -217,7 +220,7 @@ function normalizeConfigValueList(value: unknown): McpConfigValue[] {
 
 export function buildMcpSecretStorageKey(
   serverId: string,
-  kind: 'env' | 'header' | 'token',
+  kind: 'env' | 'header' | 'token' | 'oauth-access-token' | 'oauth-refresh-token' | 'oauth-client-secret',
   name?: string
 ): string {
   const safeServerId = serverId.trim()
@@ -227,7 +230,101 @@ export function buildMcpSecretStorageKey(
     return `mcp.server.${safeServerId}.token`
   }
 
+  if (kind === 'oauth-access-token') {
+    return `mcp.server.${safeServerId}.oauth.accessToken`
+  }
+
+  if (kind === 'oauth-refresh-token') {
+    return `mcp.server.${safeServerId}.oauth.refreshToken`
+  }
+
+  if (kind === 'oauth-client-secret') {
+    return `mcp.server.${safeServerId}.oauth.clientSecret`
+  }
+
   return `mcp.server.${safeServerId}.${kind}.${safeName ?? 'value'}`
+}
+
+function normalizeAuthMode(value: unknown): McpAuthMode {
+  switch (value) {
+    case 'envSecret':
+    case 'headerSecret':
+    case 'bearerToken':
+    case 'basicAuth':
+    case 'oauth2Pkce':
+    case 'jsonCredential':
+    case 'connectionString':
+      return value
+    default:
+      return 'none'
+  }
+}
+
+function normalizeAuthState(value: unknown, mode: McpAuthMode): McpAuthState {
+  if (mode === 'none') return 'none'
+  if (
+    value === 'configured' ||
+    value === 'signed_in' ||
+    value === 'reauth_required' ||
+    value === 'failed'
+  ) {
+    return value
+  }
+  return mode === 'oauth2Pkce' ? 'reauth_required' : 'configured'
+}
+
+function normalizeAuthConfig(value: unknown, serverId: string): McpAuthConfig {
+  if (!isRecord(value)) {
+    return { mode: 'none', state: 'none' }
+  }
+
+  const mode = normalizeAuthMode(value.mode)
+  const state = normalizeAuthState(value.state, mode)
+  const oauth = isRecord(value.oauth) ? value.oauth : {}
+  const auth: McpAuthConfig = {
+    mode,
+    state,
+    lastError:
+      typeof value.lastError === 'string' && value.lastError.trim()
+        ? value.lastError.trim()
+        : null,
+    updatedAt:
+      typeof value.updatedAt === 'string' && value.updatedAt.trim()
+        ? value.updatedAt.trim()
+        : undefined,
+  }
+
+  if (mode === 'oauth2Pkce') {
+    auth.oauth = {
+      authorizationServer: typeof oauth.authorizationServer === 'string' && oauth.authorizationServer.trim() ? oauth.authorizationServer.trim() : undefined,
+      resourceMetadataUrl: typeof oauth.resourceMetadataUrl === 'string' && oauth.resourceMetadataUrl.trim() ? oauth.resourceMetadataUrl.trim() : undefined,
+      issuer: typeof oauth.issuer === 'string' && oauth.issuer.trim() ? oauth.issuer.trim() : undefined,
+      authorizationEndpoint: typeof oauth.authorizationEndpoint === 'string' && oauth.authorizationEndpoint.trim() ? oauth.authorizationEndpoint.trim() : undefined,
+      tokenEndpoint: typeof oauth.tokenEndpoint === 'string' && oauth.tokenEndpoint.trim() ? oauth.tokenEndpoint.trim() : undefined,
+      registrationEndpoint: typeof oauth.registrationEndpoint === 'string' && oauth.registrationEndpoint.trim() ? oauth.registrationEndpoint.trim() : undefined,
+      clientId: typeof oauth.clientId === 'string' && oauth.clientId.trim() ? oauth.clientId.trim() : undefined,
+      clientSecretKey:
+        typeof oauth.clientSecretKey === 'string' && oauth.clientSecretKey.startsWith(`mcp.server.${serverId}.`)
+          ? oauth.clientSecretKey
+          : undefined,
+      accessTokenKey:
+        typeof oauth.accessTokenKey === 'string' && oauth.accessTokenKey.startsWith(`mcp.server.${serverId}.`)
+          ? oauth.accessTokenKey
+          : buildMcpSecretStorageKey(serverId, 'oauth-access-token'),
+      refreshTokenKey:
+        typeof oauth.refreshTokenKey === 'string' && oauth.refreshTokenKey.startsWith(`mcp.server.${serverId}.`)
+          ? oauth.refreshTokenKey
+          : buildMcpSecretStorageKey(serverId, 'oauth-refresh-token'),
+      expiresAt:
+        typeof oauth.expiresAt === 'number' && Number.isFinite(oauth.expiresAt)
+          ? Math.max(0, Math.round(oauth.expiresAt))
+          : undefined,
+      scope: typeof oauth.scope === 'string' && oauth.scope.trim() ? oauth.scope.trim() : undefined,
+      tokenType: typeof oauth.tokenType === 'string' && oauth.tokenType.trim() ? oauth.tokenType.trim() : undefined,
+    }
+  }
+
+  return auth
 }
 
 export function normalizeMcpServerConfig(
@@ -255,6 +352,7 @@ export function normalizeMcpServerConfig(
     url: typeof raw.url === 'string' && raw.url.trim() ? raw.url.trim() : undefined,
     env: normalizeConfigValueList(raw.env),
     headers: normalizeConfigValueList(raw.headers),
+    auth: normalizeAuthConfig(raw.auth, id),
     autoConnect: typeof raw.autoConnect === 'boolean' ? raw.autoConnect : false,
     startupTimeoutMs:
       typeof raw.startupTimeoutMs === 'number' && Number.isFinite(raw.startupTimeoutMs)

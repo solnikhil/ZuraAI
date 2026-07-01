@@ -180,12 +180,36 @@ MCP includes a narrow `mcp:open-config-file` channel that opens ZuraAI's own
 `mcp-servers.json` under `app.getPath('userData')` with the OS default editor.
 It must not accept renderer-provided paths.
 
-Settings -> MCP Servers -> Browse Library loads a bundled, Zura-owned MCP
-catalogue JSON in the renderer. Catalogue entries may create unsaved MCP server
-drafts only; users must review, save, trust, and connect through the existing
-MCP settings flow. The catalogue must not fetch remote catalogue metadata, must
-not introduce a main-process HTTP proxy or IPC channel, must not persist
-placeholder secrets, and must leave unsupported registry transports (such as
+MCP auth is modeled explicitly on each server as `none`, `envSecret`,
+`headerSecret`, `bearerToken`, `basicAuth`, `oauth2Pkce`, `jsonCredential`, or
+`connectionString`. Local `stdio` secrets resolve through existing secure env
+handling; remote manual secrets resolve through secure headers/tokens; JSON
+credentials and connection strings are typed secret wrappers rather than new
+transport behavior. OAuth 2.1 PKCE is owned by main and is currently used only
+for saved remote `sse` servers. The renderer may request auth actions only by
+saved server ID through narrow MCP channels (`mcp:start-oauth`,
+`mcp:clear-oauth`, `mcp:get-auth-status`) and receives sanitized status such as
+signed-in, needs sign-in, or auth failed. Renderer code must not provide OAuth
+target URLs, authorization endpoints, token endpoints, verifiers, state values,
+tokens, refresh tokens, or client secrets over IPC. Main performs protected
+resource metadata discovery, authorization server metadata discovery, dynamic
+client registration when available, loopback callback handling, code exchange,
+token refresh, and bearer header injection. OAuth access tokens, refresh tokens,
+and client secrets use deterministic per-server secure-storage keys and must
+never be stored in renderer settings or shown after save. `websocket` MCP auth
+remains manual header/bearer unless an explicit compatible flow is added later.
+
+Settings -> MCP Servers -> Browse Library loads a bundled, curated, Zura-owned
+MCP catalogue JSON in the renderer. The bundled catalogue should stay small
+(currently 50 common installable entries), not mirror the full MCP registry.
+Supported catalogue entries with complete config persist immediately as enabled,
+untrusted MCP servers through the existing preload MCP bridge; users must still
+explicitly connect them and must explicitly trust them before tools are exposed
+to chat. Catalogue entries that require secrets must not persist placeholder
+secrets; the catalogue card should collect required keys inline and persist them
+through main-process secure storage as part of the add action. The catalogue must
+not fetch remote catalogue metadata, must not introduce a main-process HTTP proxy
+or IPC channel, and must leave unsupported registry transports (such as
 streamable HTTP until implemented) visibly unavailable rather than silently
 substituting another transport.
 

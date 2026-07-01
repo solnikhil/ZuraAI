@@ -13,6 +13,7 @@ import type { AgentSkillsSettings } from '../agentSkills/types'
 import { getBuiltinToolDefinitions } from '../tools/definitions'
 
 let isWindows = true
+const mockMcpContext = vi.hoisted(() => ({ value: undefined as unknown }))
 vi.mock('../utils/platform', () => ({
   isWindowsRuntime: () => isWindows,
   isMacOSRuntime: () => !isWindows,
@@ -37,7 +38,7 @@ vi.mock('../contexts/SettingsContext', () => ({
 }))
 
 vi.mock('../mcp/McpContext', () => ({
-  useOptionalMcp: () => undefined,
+  useOptionalMcp: () => mockMcpContext.value,
 }))
 
 import { useToolCalling } from './useToolCalling'
@@ -134,14 +135,72 @@ function exposesComputerUseSurface(): boolean {
   return COMPUTER_USE_TOOL_NAMES.some((name) => names.includes(name))
 }
 
-beforeEach(() => {
-  isWindows = true
-  mockSettings.settings = makeSettings()
-})
+  beforeEach(() => {
+    isWindows = true
+    mockMcpContext.value = undefined
+    mockSettings.settings = makeSettings()
+  })
 
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+})
+
+describe('useToolCalling - MCP registry hydration', () => {
+  it('refreshes a pending MCP registry before building request tools', async () => {
+    const refresh = vi.fn(async () => ({
+      servers: [{
+        id: 'server-1',
+        name: 'Sequential Thinking',
+        enabled: true,
+        trustState: 'trusted',
+        transport: 'stdio',
+        requireApproval: true,
+        createdAt: '2026-07-01T00:00:00.000Z',
+        updatedAt: '2026-07-01T00:00:00.000Z',
+      }],
+      runtimeStates: [{
+        serverId: 'server-1',
+        status: 'connected',
+        tools: [],
+        capabilities: { tools: true, resources: false, prompts: false },
+      }],
+      tools: [{
+        namespacedName: 'mcp__sequential_thinking__sequentialthinking',
+        serverId: 'server-1',
+        serverName: 'Sequential Thinking',
+        serverSlug: 'sequential_thinking',
+        toolName: 'sequentialthinking',
+        toolSlug: 'sequentialthinking',
+        manifest: {
+          name: 'sequentialthinking',
+          description: 'Break down complex problems step by step',
+          inputSchema: { type: 'object', properties: {}, required: [] },
+        },
+      }],
+      resources: [],
+      prompts: [],
+      pendingApprovals: [],
+    }))
+
+    mockMcpContext.value = {
+      isSupported: true,
+      isLoading: true,
+      isRefreshing: false,
+      servers: [],
+      runtimeStates: [],
+      tools: [],
+      refresh,
+    }
+
+    const { result } = renderHook(() => useToolCalling())
+    const tools = await result.current.getToolsForRequestAsync()
+
+    expect(refresh).toHaveBeenCalledOnce()
+    expect((tools ?? []).map((tool) => tool.function.name)).toContain(
+      'mcp__sequential_thinking__sequentialthinking'
+    )
+  })
 })
 
 describe('useToolCalling - Computer Use tool exposure gating', () => {

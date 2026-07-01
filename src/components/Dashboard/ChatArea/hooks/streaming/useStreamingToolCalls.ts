@@ -26,6 +26,7 @@ export interface UseStreamingToolCallsOptions {
 export interface UseStreamingToolCallsReturn {
   canUseTools: boolean
   getToolsForRequest: ReturnType<typeof useToolCalling>['getToolsForRequest']
+  getToolsForRequestAsync: ReturnType<typeof useToolCalling>['getToolsForRequestAsync']
   handleToolCalls: (response: OpenRouterResponse, options?: HandleToolCallsOptions) => Promise<ToolCallProcessingResult>
   toolState: ToolCallState
   clearToolState: () => void
@@ -39,6 +40,7 @@ export function useStreamingToolCalls({ settings }: UseStreamingToolCallsOptions
   const {
     canUseTools,
     getToolsForRequest,
+    getToolsForRequestAsync,
     handleToolCalls: baseHandleToolCalls,
     toolState,
     clearToolState,
@@ -87,6 +89,7 @@ export function useStreamingToolCalls({ settings }: UseStreamingToolCallsOptions
   return {
     canUseTools,
     getToolsForRequest,
+    getToolsForRequestAsync,
     handleToolCalls,
     toolState,
     clearToolState,

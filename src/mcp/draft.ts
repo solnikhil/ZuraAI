@@ -1,4 +1,5 @@
 import type {
+  McpAuthConfig,
   McpConfigValue,
   McpConfigValueSource,
   McpServerConfig,
@@ -33,6 +34,7 @@ export interface McpDraftServer {
   env: McpDraftConfigValue[]
   headers: McpDraftConfigValue[]
   authToken: McpDraftConfigValue | null
+  auth: McpAuthConfig
   autoConnect: boolean
   startupTimeoutMs: string
   toolTimeoutMs: string
@@ -67,6 +69,7 @@ export interface McpServerInputPayload {
   url?: string
   env: McpConfigValueInputPayload[]
   headers: McpConfigValueInputPayload[]
+  auth?: McpAuthConfig
   autoConnect: boolean
   startupTimeoutMs?: number
   toolTimeoutMs?: number
@@ -99,6 +102,7 @@ interface ComparableServer {
   url?: string
   env: ComparableConfigValue[]
   headers: ComparableConfigValue[]
+  auth: McpAuthConfig
   autoConnect: boolean
   startupTimeoutMs?: number
   toolTimeoutMs?: number
@@ -146,6 +150,7 @@ export function createEmptyMcpDraftServer(): McpDraftServer {
     env: [],
     headers: [],
     authToken: null,
+    auth: { mode: 'none', state: 'none' },
     autoConnect: false,
     startupTimeoutMs: '',
     toolTimeoutMs: '',
@@ -193,6 +198,7 @@ export function mcpServerToDraftServer(server: McpServerConfig): McpDraftServer 
     env: (server.env ?? []).map((entry, index) => configValueToDraft(entry, 'env', index)),
     headers: headers.map((entry, index) => configValueToDraft(entry, 'header', index)),
     authToken,
+    auth: normalizeDraftAuth(server.auth),
     autoConnect: server.autoConnect ?? false,
     startupTimeoutMs: toNumberInput(server.startupTimeoutMs),
     toolTimeoutMs: toNumberInput(server.toolTimeoutMs),
@@ -231,6 +237,7 @@ export function draftServerToInputPayload(draft: McpDraftServer): McpServerInput
     url: normalizeOptionalString(draft.url),
     env,
     headers,
+    auth: normalizeDraftAuth(draft.auth),
     autoConnect: draft.autoConnect,
     startupTimeoutMs: normalizeOptionalInteger(draft.startupTimeoutMs),
     toolTimeoutMs: normalizeOptionalInteger(draft.toolTimeoutMs),
@@ -501,6 +508,7 @@ function toComparableServerFromDraft(draft: McpDraftServer): ComparableServer {
     url: payload.url,
     env: payload.env,
     headers: payload.headers,
+    auth: normalizeDraftAuth(payload.auth),
     autoConnect: payload.autoConnect,
     startupTimeoutMs: payload.startupTimeoutMs,
     toolTimeoutMs: payload.toolTimeoutMs,
@@ -525,6 +533,7 @@ function toComparableServerFromLive(server: McpServerConfig): ComparableServer {
     url: server.url,
     env: server.env ?? [],
     headers: server.headers ?? [],
+    auth: normalizeDraftAuth(server.auth),
     autoConnect: server.autoConnect ?? false,
     startupTimeoutMs: server.startupTimeoutMs,
     toolTimeoutMs: server.toolTimeoutMs,
@@ -545,6 +554,7 @@ function normalizeComparableServer(server: ComparableServer): ComparableServer {
     url: normalizeOptionalString(server.url),
     env: sortComparableConfigValues(server.env.map(toComparableConfigValue)),
     headers: sortComparableConfigValues(server.headers.map(toComparableConfigValue)),
+    auth: normalizeDraftAuth(server.auth),
     startupTimeoutMs: normalizeOptionalNumber(server.startupTimeoutMs),
     toolTimeoutMs: normalizeOptionalNumber(server.toolTimeoutMs),
     reconnectAttempts: normalizeOptionalNumber(server.reconnectAttempts),
@@ -586,6 +596,29 @@ function sortComparableConfigValues(values: ComparableConfigValue[]): Comparable
         [right.name, right.valueSource, right.value ?? '', right.secretKey ?? ''].join('|')
       )
   })
+}
+
+function normalizeDraftAuth(auth: McpAuthConfig | undefined): McpAuthConfig {
+  if (!auth || auth.mode === 'none') {
+    return { mode: 'none', state: 'none' }
+  }
+
+  if (auth.mode !== 'oauth2Pkce') {
+    return {
+      mode: auth.mode,
+      state: auth.state ?? 'configured',
+      lastError: auth.lastError ?? null,
+      updatedAt: auth.updatedAt,
+    }
+  }
+
+  return {
+    mode: 'oauth2Pkce',
+    state: auth.state ?? 'reauth_required',
+    lastError: auth.lastError ?? null,
+    updatedAt: auth.updatedAt,
+    oauth: auth.oauth ? { ...auth.oauth } : undefined,
+  }
 }
 
 function hasPendingSecretEdits(draft: McpDraftServer): boolean {

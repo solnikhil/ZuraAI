@@ -6,6 +6,52 @@ export type McpServerTrustState = 'untrusted' | 'trusted'
 
 export type McpConfigValueSource = 'plaintext' | 'secret'
 
+export type McpAuthMode =
+  | 'none'
+  | 'envSecret'
+  | 'headerSecret'
+  | 'bearerToken'
+  | 'basicAuth'
+  | 'oauth2Pkce'
+  | 'jsonCredential'
+  | 'connectionString'
+
+export type McpAuthState = 'none' | 'configured' | 'signed_in' | 'reauth_required' | 'failed'
+
+export interface McpOAuthConfig {
+  authorizationServer?: string
+  resourceMetadataUrl?: string
+  issuer?: string
+  authorizationEndpoint?: string
+  tokenEndpoint?: string
+  registrationEndpoint?: string
+  clientId?: string
+  clientSecretKey?: string
+  accessTokenKey?: string
+  refreshTokenKey?: string
+  expiresAt?: number
+  scope?: string
+  tokenType?: string
+}
+
+export interface McpAuthConfig {
+  mode: McpAuthMode
+  state?: McpAuthState
+  oauth?: McpOAuthConfig
+  lastError?: string | null
+  updatedAt?: string
+}
+
+export interface McpAuthStatus {
+  serverId: string
+  mode: McpAuthMode
+  state: McpAuthState
+  label: string
+  requiresSignIn: boolean
+  lastError?: string | null
+  expiresAt?: number
+}
+
 export type McpJsonRpcId = string | number
 
 export interface McpJsonSchema {
@@ -113,6 +159,7 @@ export interface McpServerConfig {
   url?: string
   env?: McpConfigValue[]
   headers?: McpConfigValue[]
+  auth?: McpAuthConfig
   autoConnect?: boolean
   startupTimeoutMs?: number
   toolTimeoutMs?: number
@@ -215,6 +262,7 @@ export interface McpRuntimeSnapshot {
   resources: McpRuntimeResource[]
   prompts: McpRuntimePrompt[]
   pendingApprovals: McpApprovalRequest[]
+  authStatuses?: McpAuthStatus[]
 }
 
 export interface McpToolLookupRecord {

@@ -139,10 +139,36 @@ describe('McpContext', () => {
     })
     expect(windowWithMcp.mcp.addServer).not.toHaveBeenCalled()
   })
+
+  it('adds a valid server immediately through the MCP bridge', async () => {
+    render(
+      <McpProvider>
+        <Probe />
+      </McpProvider>
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('dirty-flag').textContent).toBe('clean')
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'add-server-now' }))
+
+    await waitFor(() => {
+      expect(windowWithMcp.mcp.addServer).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'Immediate Server',
+          transport: 'stdio',
+          command: 'npx',
+        })
+      )
+    })
+    expect(windowWithMcp.mcp.getState).toHaveBeenCalledTimes(2)
+  })
 })
 
 function Probe(): React.ReactElement {
   const {
+    addServer,
     connectServer,
     createDraftServer,
     draftServers,
@@ -166,6 +192,23 @@ function Probe(): React.ReactElement {
       <div data-testid="approval-count">{pendingApprovals.length}</div>
       <div data-testid="dirty-flag">{hasDraftChanges ? 'dirty' : 'clean'}</div>
       <div data-testid="save-error">{saveError}</div>
+      <button
+        type="button"
+        aria-label="add-server-now"
+        onClick={() => {
+          const nextServer = createDraftServer()
+          void addServer({
+            ...nextServer,
+            name: 'Immediate Server',
+            transport: 'stdio',
+            command: 'npx',
+            argsText: '@example/mcp',
+            enabled: false,
+          })
+        }}
+      >
+        add-server-now
+      </button>
       <button
         type="button"
         aria-label="add-draft"

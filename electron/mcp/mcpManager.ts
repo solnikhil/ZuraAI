@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto'
 
 import type {
   McpNamespacedTool,
+  McpAuthStatus,
   McpPromptManifest,
   McpPromptResult,
   McpResolvedServerConfig,
@@ -47,6 +48,12 @@ import {
   resolveMcpServerSecrets,
   saveMcpServers,
 } from './mcpStorage'
+import {
+  applyOAuthAuthorizationHeader,
+  clearMcpOAuth,
+  getMcpAuthStatus,
+  startMcpOAuthFlow,
+} from './mcpOAuth'
 
 type SnapshotHandler = (snapshot: McpRuntimeSnapshot) => void
 type BoundedCacheEntry<T> = {
@@ -220,7 +227,12 @@ export class McpManager {
       resources: this.listResources(),
       prompts: this.listPrompts(),
       pendingApprovals: [],
+      authStatuses: this.listAuthStatuses(),
     }
+  }
+
+  listAuthStatuses(): McpAuthStatus[] {
+    return [...this.servers.values()].map((server) => getMcpAuthStatus(server))
   }
 
   async addServer(rawServer: unknown): Promise<McpServerConfig> {
@@ -316,7 +328,7 @@ export class McpManager {
     let connection = this.connections.get(normalizedServerId)
 
     if (!connection) {
-      const resolvedServer = await this.resolveServerSecrets(server)
+      const resolvedServer = await this.resolveServerForConnection(server)
       connection = this.connectionFactory(resolvedServer, { clientInfo: this.clientInfo })
       this.registerConnection(normalizedServerId, connection)
     }
@@ -446,6 +458,37 @@ export class McpManager {
       tool: executable.tool,
       result: await executable.connection.callTool(executable.tool.toolName, args),
     }
+  }
+
+  async startOAuth(serverId: string): Promise<{ ok: boolean; status: McpAuthStatus; error?: string }> {
+    await this.ensureInitialized()
+    const normalizedServerId = normalizeServerId(serverId)
+    const server = this.getServerOrThrow(normalizedServerId)
+    return startMcpOAuthFlow(server, async (nextServer) => {
+      this.servers.set(normalizedServerId, normalizeMcpServerConfig(nextServer, 0) ?? nextServer)
+      this.runtimeStates.set(
+        normalizedServerId,
+        mergeRuntimeStateWithServer(this.getServerOrThrow(normalizedServerId), this.runtimeStates.get(normalizedServerId))
+      )
+      await this.persistServers()
+      this.emitSnapshot()
+    })
+  }
+
+  async clearOAuth(serverId: string): Promise<McpAuthStatus> {
+    await this.ensureInitialized()
+    const normalizedServerId = normalizeServerId(serverId)
+    const server = this.getServerOrThrow(normalizedServerId)
+    const nextServer = await clearMcpOAuth(server)
+    this.servers.set(normalizedServerId, normalizeMcpServerConfig(nextServer, 0) ?? nextServer)
+    await this.persistServers()
+    this.emitSnapshot()
+    return getMcpAuthStatus(this.getServerOrThrow(normalizedServerId))
+  }
+
+  getAuthStatus(serverId: string): McpAuthStatus {
+    const normalizedServerId = normalizeServerId(serverId)
+    return getMcpAuthStatus(this.getServerOrThrow(normalizedServerId))
   }
 
   async getExecutableTool(namespacedToolName: string): Promise<{
@@ -578,6 +621,56 @@ export class McpManager {
     if (!this.initialized) {
       await this.initialize()
     }
+  }
+
+  private async resolveServerForConnection(server: McpServerConfig): Promise<McpResolvedServerConfig> {
+    const resolvedServer = await this.resolveServerSecrets(server)
+    if (server.auth?.mode !== 'oauth2Pkce') {
+      return resolvedServer
+    }
+
+    if (server.transport !== 'sse') {
+      return resolvedServer
+    }
+
+    let oauthHeaders: Record<string, string>
+    try {
+      oauthHeaders = await applyOAuthAuthorizationHeader(server)
+    } catch (error) {
+      await this.markOAuthReauthRequired(
+        server.id,
+        error instanceof Error ? error.message : String(error)
+      )
+      throw error
+    }
+    return {
+      ...resolvedServer,
+      headers: {
+        ...resolvedServer.headers,
+        ...oauthHeaders,
+      },
+    }
+  }
+
+  private async markOAuthReauthRequired(serverId: string, message: string): Promise<void> {
+    const server = this.servers.get(serverId)
+    if (!server || server.auth?.mode !== 'oauth2Pkce') {
+      return
+    }
+
+    const nextServer: McpServerConfig = {
+      ...server,
+      auth: {
+        ...server.auth,
+        state: 'reauth_required',
+        lastError: message,
+        updatedAt: new Date().toISOString(),
+      },
+      updatedAt: new Date().toISOString(),
+    }
+    this.servers.set(serverId, nextServer)
+    await this.persistServers()
+    this.emitSnapshot()
   }
 
   private getServerOrThrow(serverId: string): McpServerConfig {

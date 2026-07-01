@@ -60,7 +60,7 @@ describe('McpSection', () => {
         draft: {
           id: 'draft-npm',
           name: 'NPM Server',
-          enabled: false,
+          enabled: true,
           trustState: 'untrusted',
           transport: 'stdio',
           command: 'npx',
@@ -78,6 +78,7 @@ describe('McpSection', () => {
           requireApproval: true,
           toolAllowlistText: '',
           toolBlocklistText: '',
+          auth: { mode: 'none', state: 'none' },
         },
         secretRequirements: [],
         fingerprints: ['npm:@example/mcp'],
@@ -125,6 +126,7 @@ describe('McpSection', () => {
       requireApproval: true,
       toolBlocklistText: '',
       toolAllowlistText: '',
+      auth: { mode: 'none', state: 'none' },
     }))
 
     mockUseMcp.mockReturnValue(
@@ -225,9 +227,9 @@ describe('McpSection', () => {
     expect(openConfigFile).toHaveBeenCalled()
   })
 
-  it('opens Browse Library in catalogue mode and adds selected servers as unsaved drafts', async () => {
-    const upsertDraftServer = vi.fn()
-    mockUseMcp.mockReturnValue(createMcpContextValue({ upsertDraftServer }))
+  it('opens Browse Library in catalogue mode and adds selected servers immediately', async () => {
+    const addServer = vi.fn(async () => undefined)
+    mockUseMcp.mockReturnValue(createMcpContextValue({ addServer }))
 
     render(<McpSection />)
 
@@ -236,12 +238,12 @@ describe('McpSection', () => {
     expect(await screen.findByLabelText(/search mcp catalogue/i)).toBeTruthy()
     expect(mockFetchMcpCatalogue).toHaveBeenCalled()
     expect(await screen.findByText(/npm server/i)).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: /add draft/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^add$/i }))
 
-    expect(upsertDraftServer).toHaveBeenCalledWith(
+    expect(addServer).toHaveBeenCalledWith(
       expect.objectContaining({
         name: 'NPM Server',
-        enabled: false,
+        enabled: true,
         trustState: 'untrusted',
         requireApproval: true,
       })
@@ -271,6 +273,7 @@ function createMcpContextValue(overrides: Record<string, unknown> = {}) {
     requireApproval: true,
     toolBlocklistText: '',
     toolAllowlistText: '',
+    auth: { mode: 'none', state: 'none' },
   }
 
   return {
@@ -327,9 +330,20 @@ function createMcpContextValue(overrides: Record<string, unknown> = {}) {
       },
     ],
     pendingApprovals: [],
+    authStatuses: [
+      {
+        serverId: 'server-1',
+        mode: 'none',
+        state: 'none',
+        label: 'No auth',
+        requiresSignIn: false,
+        lastError: null,
+      },
+    ],
     draftServers: [server],
     hasDraftChanges: false,
     createDraftServer: vi.fn(() => server),
+    addServer: vi.fn(async () => undefined),
     upsertDraftServer: vi.fn(),
     removeDraftServer: vi.fn(),
     discardDraft: vi.fn(),
@@ -338,6 +352,16 @@ function createMcpContextValue(overrides: Record<string, unknown> = {}) {
     openConfigFile: vi.fn(async () => ({ ok: true, path: 'mcp-servers.json' })),
     connectServer: vi.fn(async () => undefined),
     disconnectServer: vi.fn(async () => undefined),
+    startOAuth: vi.fn(async () => undefined),
+    clearOAuth: vi.fn(async () => undefined),
+    getAuthStatus: vi.fn(() => ({
+      serverId: 'server-1',
+      mode: 'none',
+      state: 'none',
+      label: 'No auth',
+      requiresSignIn: false,
+      lastError: null,
+    })),
     resolveApproval: vi.fn(async () => undefined),
     getRuntimeState: vi.fn(() => ({
       serverId: 'server-1',

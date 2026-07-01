@@ -52,18 +52,18 @@ export function McpApprovalDialog(): React.ReactElement | null {
 
   return (
     <AlertDialog open onOpenChange={(open) => (!open && !isResolving ? void handleResolve(false) : undefined)}>
-      <AlertDialogContent className="sm:max-w-2xl">
-        <AlertDialogHeader>
-          <AlertDialogTitle className="flex items-center gap-2">
+      <AlertDialogContent className="grid max-h-[calc(100vh-2rem)] w-[min(720px,calc(100vw-2rem))] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0 sm:max-w-none">
+        <AlertDialogHeader className="border-b border-border/60 px-6 py-5">
+          <AlertDialogTitle className="flex min-w-0 items-center gap-2">
             <AlertTriangle className="h-5 w-5 text-amber-500" />
             Approve MCP tool execution
           </AlertDialogTitle>
-          <AlertDialogDescription>
+          <AlertDialogDescription className="min-w-0 break-words">
             {request.serverName} wants to run `{request.toolName}` with the arguments below.
           </AlertDialogDescription>
         </AlertDialogHeader>
 
-        <div className="space-y-4 text-sm">
+        <div className="min-w-0 space-y-4 overflow-y-auto px-6 py-5 text-sm">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary">{request.serverName}</Badge>
             <Badge variant="outline">{formatTransportLabel(request.serverTransport)}</Badge>
@@ -78,19 +78,21 @@ export function McpApprovalDialog(): React.ReactElement | null {
             {queuedCount > 0 && <Badge variant="destructive">{queuedCount} more queued</Badge>}
           </div>
 
-          <div className="rounded-xl border border-border/70 bg-muted/35 p-4 text-muted-foreground">
+          <div className="min-w-0 rounded-lg border border-border/70 bg-muted/35 p-4 text-muted-foreground">
             {getRiskNotice(request.serverTransport)}
           </div>
 
-          <div className="space-y-2">
+          <div className="min-w-0 space-y-2">
             <div className="font-medium text-foreground">Arguments</div>
-            <pre className="max-h-72 overflow-auto rounded-xl border border-border/70 bg-background/80 p-4 text-xs text-foreground">
-              {JSON.stringify(request.arguments, null, 2)}
+            <pre className="max-h-[42vh] min-w-0 overflow-auto rounded-lg border border-border/70 bg-background/80 p-4 text-xs leading-relaxed text-foreground">
+              <code className="block whitespace-pre-wrap break-words">
+                {JSON.stringify(request.arguments, null, 2)}
+              </code>
             </pre>
           </div>
         </div>
 
-        <AlertDialogFooter>
+        <AlertDialogFooter className="border-t border-border/60 px-6 py-4">
           <AlertDialogCancel disabled={isResolving}>
             Reject
           </AlertDialogCancel>

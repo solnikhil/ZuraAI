@@ -10,6 +10,7 @@ import React, {
 
 import type {
   McpApprovalRequest,
+  McpAuthStatus,
   McpNamespacedTool,
   McpPromptResult,
   McpRuntimePrompt,
@@ -39,14 +40,16 @@ interface McpContextValue {
   resources: McpRuntimeResource[]
   prompts: McpRuntimePrompt[]
   pendingApprovals: McpApprovalRequest[]
+  authStatuses: McpAuthStatus[]
   draftServers: McpDraftServer[]
   hasDraftChanges: boolean
   createDraftServer: () => McpDraftServer
+  addServer: (server: McpDraftServer) => Promise<void>
   upsertDraftServer: (server: McpDraftServer) => void
   removeDraftServer: (serverId: string) => void
   discardDraft: () => void
   saveDraft: () => Promise<void>
-  refresh: () => Promise<void>
+  refresh: () => Promise<McpRuntimeSnapshot | null>
   openConfigFile: () => Promise<{ ok: boolean; path?: string; error?: string }>
   connectServer: (serverId: string) => Promise<void>
   disconnectServer: (serverId: string) => Promise<void>
@@ -59,7 +62,10 @@ interface McpContextValue {
     args: Record<string, unknown>
   ) => Promise<McpPromptResult>
   resolveApproval: (requestId: string, approved: boolean) => Promise<void>
+  startOAuth: (serverId: string) => Promise<void>
+  clearOAuth: (serverId: string) => Promise<void>
   getRuntimeState: (serverId: string) => McpServerRuntimeState | undefined
+  getAuthStatus: (serverId: string) => McpAuthStatus | undefined
 }
 
 const emptySnapshot: McpRuntimeSnapshot = {
@@ -69,6 +75,7 @@ const emptySnapshot: McpRuntimeSnapshot = {
   resources: [],
   prompts: [],
   pendingApprovals: [],
+  authStatuses: [],
 }
 
 const McpContext = createContext<McpContextValue | undefined>(undefined)
@@ -125,15 +132,17 @@ export function McpProvider({ children }: { children: React.ReactNode }): React.
       setSnapshot(emptySnapshot)
       setDraftServers([])
       setError('MCP bridge is unavailable in this environment.')
-      return
+      return null
     }
 
     setIsRefreshing(true)
     try {
       const nextSnapshot = await window.mcp.getState()
       applySnapshot(nextSnapshot)
+      return nextSnapshot
     } catch (refreshError) {
       setError(toErrorMessage(refreshError))
+      return null
     } finally {
       setIsLoading(false)
       setIsRefreshing(false)
@@ -231,6 +240,31 @@ export function McpProvider({ children }: { children: React.ReactNode }): React.
     setIsLoading(false)
   }, [draftServers, snapshot.servers, syncDraftFromSnapshot])
 
+  const addServer = useCallback(
+    async (server: McpDraftServer) => {
+      if (!window.mcp) {
+        throw new Error('MCP bridge is unavailable in this environment.')
+      }
+      if (hasDraftChanges) {
+        throw new Error('Save or discard MCP changes before adding a catalogue server.')
+      }
+
+      const validationErrors = validateDraftServer(server)
+      if (validationErrors.length > 0) {
+        const serverName = server.name.trim() || 'Untitled Server'
+        throw new Error(validationErrors.map((message) => `${serverName}: ${message}`).join('\n'))
+      }
+
+      await window.mcp.addServer(draftServerToInputPayload(server))
+      const nextSnapshot = await window.mcp.getState()
+      setSnapshot(nextSnapshot)
+      syncDraftFromSnapshot(nextSnapshot)
+      setError(null)
+      setIsLoading(false)
+    },
+    [hasDraftChanges, syncDraftFromSnapshot]
+  )
+
   const connectServer = useCallback(
     async (serverId: string) => {
       if (!window.mcp) {
@@ -310,9 +344,41 @@ export function McpProvider({ children }: { children: React.ReactNode }): React.
     [refresh]
   )
 
+  const startOAuth = useCallback(
+    async (serverId: string) => {
+      if (!window.mcp) {
+        throw new Error('MCP bridge is unavailable in this environment.')
+      }
+
+      const result = await window.mcp.startOAuth(serverId)
+      if (!result.ok) {
+        throw new Error(result.error || result.status.lastError || 'MCP sign-in failed.')
+      }
+      await refresh()
+    },
+    [refresh]
+  )
+
+  const clearOAuth = useCallback(
+    async (serverId: string) => {
+      if (!window.mcp) {
+        throw new Error('MCP bridge is unavailable in this environment.')
+      }
+
+      await window.mcp.clearOAuth(serverId)
+      await refresh()
+    },
+    [refresh]
+  )
+
   const getRuntimeState = useCallback(
     (serverId: string) => snapshot.runtimeStates.find((state) => state.serverId === serverId),
     [snapshot.runtimeStates]
+  )
+
+  const getAuthStatus = useCallback(
+    (serverId: string) => snapshot.authStatuses?.find((status) => status.serverId === serverId),
+    [snapshot.authStatuses]
   )
 
   const value = useMemo<McpContextValue>(
@@ -327,9 +393,11 @@ export function McpProvider({ children }: { children: React.ReactNode }): React.
       resources: snapshot.resources,
       prompts: snapshot.prompts,
       pendingApprovals: snapshot.pendingApprovals,
+      authStatuses: snapshot.authStatuses ?? [],
       draftServers,
       hasDraftChanges,
       createDraftServer: createEmptyMcpDraftServer,
+      addServer,
       upsertDraftServer,
       removeDraftServer,
       discardDraft,
@@ -343,15 +411,20 @@ export function McpProvider({ children }: { children: React.ReactNode }): React.
       listPrompts,
       getPrompt,
       resolveApproval,
+      startOAuth,
+      clearOAuth,
       getRuntimeState,
+      getAuthStatus,
     }),
     [
+      addServer,
       connectServer,
       disconnectServer,
       discardDraft,
       draftServers,
       error,
       getPrompt,
+      getAuthStatus,
       getRuntimeState,
       hasDraftChanges,
       isLoading,
@@ -371,6 +444,9 @@ export function McpProvider({ children }: { children: React.ReactNode }): React.
       snapshot.servers,
       snapshot.tools,
       snapshot.pendingApprovals,
+      snapshot.authStatuses,
+      startOAuth,
+      clearOAuth,
       upsertDraftServer,
     ]
   )

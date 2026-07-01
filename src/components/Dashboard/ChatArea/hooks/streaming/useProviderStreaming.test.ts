@@ -129,6 +129,69 @@ describe('useProviderStreaming', () => {
     )
   })
 
+  it('awaits the fresh tool snapshot and tells the model which MCP tools are loaded', async () => {
+    const streamRequests: Array<{ messages: Array<{ role: string; content: string }>; tools?: unknown[] }> = []
+    mocks.createProviderStreamClient.mockReturnValue({
+      stream: async function* (request: { messages: Array<{ role: string; content: string }>; tools?: unknown[] }) {
+        streamRequests.push(request)
+        yield { type: 'text-delta', delta: 'Sequential Thinking is loaded.' }
+        yield { type: 'finish', finishReason: 'stop' }
+      },
+    })
+
+    const getToolsForRequest = vi.fn(() => null)
+    const getToolsForRequestAsync = vi.fn(async () => [{
+      type: 'function' as const,
+      function: {
+        name: 'mcp__sequential_thinking__sequentialthinking',
+        description: 'Break down complex problems step by step',
+        parameters: { type: 'object', properties: {} },
+      },
+    }])
+
+    const { result } = renderHook(() =>
+      useProviderStreaming({
+        settings: {
+          aiModel: 'openai/gpt-4.1',
+          modelProvider: 'openrouter',
+          temperature: 0.4,
+          maxTokens: 1024,
+          streamResponses: true,
+          openRouterApiKey: 'or-key',
+        },
+        toolCalling: {
+          canUseTools: true,
+          getToolsForRequest,
+          getToolsForRequestAsync,
+          handleToolCalls: vi.fn(),
+          getResearchContext: () => '',
+        },
+        updateStreamingMessage: vi.fn(),
+        flushThrottledUpdates: vi.fn(),
+        throttledUpdateStreamingMessage: vi.fn(),
+      })
+    )
+
+    await result.current.runProviderStream({
+      provider: 'openrouter',
+      model: 'openai/gpt-4.1',
+      sessionId: 'session-1',
+      messageId: 'message-1',
+      messages: [{ role: 'user', content: "what mcp's are currently loaded?" }],
+      startTime: 0,
+      researchMaxRounds: 0,
+      enableTools: true,
+    })
+
+    expect(getToolsForRequestAsync).toHaveBeenCalledOnce()
+    expect(getToolsForRequest).not.toHaveBeenCalled()
+    expect(streamRequests[0]?.tools).toHaveLength(1)
+    expect(streamRequests[0]?.messages[0]?.role).toBe('system')
+    expect(streamRequests[0]?.messages[0]?.content).toContain('Current tool inventory')
+    expect(streamRequests[0]?.messages[0]?.content).toContain('mcp__sequential_thinking__sequentialthinking')
+    expect(streamRequests[0]?.messages[0]?.content).toContain('MCP tool')
+  })
+
   it('pushes fast plain-text responses into the isolated streaming state for non-thinking models', async () => {
     mocks.createProviderStreamClient.mockReturnValue({
       stream: streamFrom([

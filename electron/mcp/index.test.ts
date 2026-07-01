@@ -66,7 +66,35 @@ class MockMcpManager {
     tools: [{ namespacedName: 'mcp__server__read_file' }],
     resources: [],
     prompts: [],
+    authStatuses: [],
     pendingApprovals: [],
+  }))
+  readonly startOAuth = vi.fn(async (serverId: string) => ({
+    ok: true,
+    status: {
+      serverId,
+      mode: 'oauth2Pkce',
+      state: 'signed_in',
+      label: 'Signed in',
+      requiresSignIn: false,
+      lastError: null,
+    },
+  }))
+  readonly clearOAuth = vi.fn(async (serverId: string) => ({
+    serverId,
+    mode: 'oauth2Pkce',
+    state: 'reauth_required',
+    label: 'Needs sign-in',
+    requiresSignIn: true,
+    lastError: null,
+  }))
+  readonly getAuthStatus = vi.fn((serverId: string) => ({
+    serverId,
+    mode: 'none',
+    state: 'none',
+    label: 'No auth',
+    requiresSignIn: false,
+    lastError: null,
   }))
   readonly listTools = vi.fn(() => [{ namespacedName: 'mcp__server__read_file' }])
   readonly listResources = vi.fn(() => [])
@@ -227,6 +255,9 @@ describe('electron MCP handler registration', () => {
         'mcp:connect-server',
         'mcp:disconnect-server',
         'mcp:get-state',
+        'mcp:start-oauth',
+        'mcp:clear-oauth',
+        'mcp:get-auth-status',
         'mcp:open-config-file',
         'mcp:list-tools',
         'mcp:list-resources',
@@ -251,16 +282,31 @@ describe('electron MCP handler registration', () => {
       invokeHandler('mcp:execute-tool', {}, 'mcp__server__read_file', { path: 'demo.txt' })
     ).resolves.toEqual(expect.objectContaining({ success: true }))
     await expect(invokeHandler('mcp:get-state')).resolves.toEqual(manager.getSnapshot())
+    await expect(invokeHandler('mcp:start-oauth', {}, 'server-1')).resolves.toEqual(
+      expect.objectContaining({
+        ok: true,
+        status: expect.objectContaining({ state: 'signed_in' }),
+      })
+    )
+    await expect(invokeHandler('mcp:get-auth-status', {}, 'server-1')).resolves.toEqual(
+      expect.objectContaining({ label: 'No auth' })
+    )
+    await expect(invokeHandler('mcp:clear-oauth', {}, 'server-1')).resolves.toEqual(
+      expect.objectContaining({ state: 'reauth_required' })
+    )
     await expect(invokeHandler('mcp:open-config-file')).resolves.toEqual({
       ok: true,
       path: '/tmp/zura-mcp-test/mcp-servers.json',
       error: undefined,
     })
 
-    expect(manager.initialize).toHaveBeenCalledTimes(6)
+    expect(manager.initialize).toHaveBeenCalledTimes(9)
     expect(manager.listServers).toHaveBeenCalledTimes(2)
     expect(manager.connectServer).toHaveBeenCalledWith('server-1')
     expect(manager.getServerTools).toHaveBeenCalledWith('server-1')
+    expect(manager.startOAuth).toHaveBeenCalledWith('server-1')
+    expect(manager.getAuthStatus).toHaveBeenCalledWith('server-1')
+    expect(manager.clearOAuth).toHaveBeenCalledWith('server-1')
     expect(manager.getSnapshot).toHaveBeenCalled()
     expect(indexMocks.saveMcpServers).toHaveBeenCalledWith([
       { id: 'server-1', name: 'Server', enabled: true },
@@ -295,6 +341,9 @@ describe('electron MCP handler registration', () => {
     expect(manager.getUnsubscribeMock()).toHaveBeenCalledTimes(1)
     expect(indexMocks.removeHandler).toHaveBeenCalledWith('mcp:list-servers')
     expect(indexMocks.removeHandler).toHaveBeenCalledWith('mcp:list-tools')
+    expect(indexMocks.removeHandler).toHaveBeenCalledWith('mcp:start-oauth')
+    expect(indexMocks.removeHandler).toHaveBeenCalledWith('mcp:clear-oauth')
+    expect(indexMocks.removeHandler).toHaveBeenCalledWith('mcp:get-auth-status')
     expect(indexMocks.removeHandler).toHaveBeenCalledWith('mcp:open-config-file')
     expect(indexMocks.removeHandler).toHaveBeenCalledWith('mcp:list-resources')
     expect(indexMocks.removeHandler).toHaveBeenCalledWith('mcp:list-prompts')
@@ -309,6 +358,9 @@ describe('electron MCP handler registration', () => {
     mcpIndex.registerMcpHandlers()
 
     await expect(invokeHandler('mcp:connect-server', {}, '   ')).rejects.toThrow(
+      'Invalid MCP server id'
+    )
+    await expect(invokeHandler('mcp:start-oauth', {}, '   ')).rejects.toThrow(
       'Invalid MCP server id'
     )
     await expect(invokeHandler('mcp:disconnect-server', {}, '')).rejects.toThrow(

@@ -161,6 +161,11 @@
     border-color: color-mix(in srgb, var(--theme-accent) 18%, var(--theme-border) 82%);
 }
 
+.mcp-library-card--setup-open {
+    border-color: color-mix(in srgb, var(--theme-accent) 24%, var(--theme-border) 76%);
+    background: color-mix(in srgb, var(--theme-surface-hover) 40%, var(--theme-surface) 60%);
+}
+
 .mcp-library-card-header {
     display: flex;
     align-items: flex-start;
@@ -377,6 +382,72 @@
     border: 1px solid color-mix(in srgb, var(--theme-border) 72%, transparent);
     background: transparent;
     color: color-mix(in srgb, var(--theme-text-muted) 92%, transparent);
+}
+
+.mcp-library-card-setup {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 2px;
+    padding: 12px;
+    border-radius: 10px;
+    border: 1px solid color-mix(in srgb, var(--theme-border) 76%, transparent);
+    background: color-mix(in srgb, var(--theme-background) 64%, var(--theme-surface) 36%);
+}
+
+.mcp-library-card-setup-header {
+    display: grid;
+    gap: 3px;
+}
+
+.mcp-library-card-setup-title {
+    font-size: 0.86rem;
+    font-weight: 620;
+    color: var(--theme-text-primary);
+}
+
+.mcp-library-card-setup-desc {
+    font-size: 0.76rem;
+    line-height: 1.4;
+    color: var(--theme-text-muted);
+}
+
+.mcp-library-card-setup-fields {
+    display: grid;
+    gap: 10px;
+}
+
+.mcp-library-card-setup-field {
+    display: grid;
+    gap: 5px;
+    font-size: 0.76rem;
+    font-weight: 560;
+    color: color-mix(in srgb, var(--theme-text-secondary) 90%, transparent);
+}
+
+.mcp-library-card-setup-field input {
+    height: 34px;
+    border-radius: 9px;
+    background: color-mix(in srgb, var(--theme-surface-hover) 40%, transparent);
+}
+
+.mcp-library-card-setup-actions {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 8px;
+}
+
+.mcp-library-card-setup-cancel,
+.mcp-library-card-setup-submit {
+    height: 34px;
+    border-radius: 9px;
+    font-size: 0.82rem;
+    font-weight: 560;
+}
+
+.mcp-library-card-setup-submit {
+    background: color-mix(in srgb, var(--theme-accent) 78%, var(--theme-surface) 22%);
+    color: var(--theme-background);
 }
 
 .mcp-library-split {

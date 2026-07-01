@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
   showToast: vi.fn(),
   readResource: vi.fn(),
   getPrompt: vi.fn(),
-  upsertDraftServer: vi.fn(),
+  addServer: vi.fn(),
   fetchMcpCatalogue: vi.fn(),
   isCatalogueEntryAdded: vi.fn(),
 }))
@@ -59,7 +59,7 @@ vi.mock('@/mcp/McpContext', () => ({
     ],
     readResource: mocks.readResource,
     getPrompt: mocks.getPrompt,
-    upsertDraftServer: mocks.upsertDraftServer,
+    addServer: mocks.addServer,
   }),
 }))
 
@@ -80,7 +80,8 @@ describe('McpLibraryDialog', () => {
       description: 'Prompt preview',
       messages: [{ role: 'user', content: 'Prompt body' }],
     })
-    mocks.upsertDraftServer.mockReset()
+    mocks.addServer.mockReset()
+    mocks.addServer.mockResolvedValue(undefined)
     mocks.fetchMcpCatalogue.mockReset()
     mocks.fetchMcpCatalogue.mockResolvedValue([
       {
@@ -96,7 +97,7 @@ describe('McpLibraryDialog', () => {
         draft: {
           id: 'draft-npm',
           name: 'NPM Server',
-          enabled: false,
+          enabled: true,
           trustState: 'untrusted',
           transport: 'stdio',
           command: 'npx',
@@ -130,6 +131,52 @@ describe('McpLibraryDialog', () => {
         unsupportedReason: 'ZuraAI does not support streamable-http MCP transport yet.',
         secretRequirements: ['Authorization: Bearer token'],
         fingerprints: ['name:io.example/http'],
+        isLatest: true,
+      },
+      {
+        id: 'secret-entry',
+        name: 'io.example/context7',
+        title: 'Context7',
+        description: 'Docs MCP with an API key',
+        version: '1.0.0',
+        publisher: 'Example',
+        sourceLabel: 'npm package',
+        installKind: 'npm',
+        supported: true,
+        draft: {
+          id: 'draft-context7',
+          name: 'Context7',
+          enabled: true,
+          trustState: 'untrusted',
+          transport: 'stdio',
+          command: 'npx',
+          argsText: '-y\n@upstash/context7-mcp',
+          cwd: '',
+          url: '',
+          env: [
+            {
+              id: 'env-context7',
+              name: 'CONTEXT7_API_KEY',
+              valueSource: 'secret',
+              value: '',
+              secretValue: '',
+              secretStored: false,
+              secretStorageKind: 'env',
+            },
+          ],
+          headers: [],
+          authToken: null,
+          autoConnect: false,
+          startupTimeoutMs: '',
+          toolTimeoutMs: '',
+          reconnectAttempts: '',
+          reconnectDelayMs: '',
+          requireApproval: true,
+          toolAllowlistText: '',
+          toolBlocklistText: '',
+        },
+        secretRequirements: ['CONTEXT7_API_KEY'],
+        fingerprints: ['npm:@upstash/context7-mcp'],
         isLatest: true,
       },
     ])
@@ -200,7 +247,7 @@ describe('McpLibraryDialog', () => {
     expect(screen.getByText('Select a resource to preview its contents.')).toBeInTheDocument()
   })
 
-  it('loads catalogue entries and adds compatible servers as drafts', async () => {
+  it('loads catalogue entries and adds compatible servers immediately', async () => {
     render(
       <McpLibraryDialog open={true} onOpenChange={vi.fn()} initialMode="catalogue" />
     )
@@ -210,20 +257,53 @@ describe('McpLibraryDialog', () => {
     })
 
     expect(await screen.findByText(/npm server/i)).toBeInTheDocument()
-    fireEvent.click(screen.getAllByRole('button', { name: /add draft/i })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: /^add$/i })[0])
 
-    expect(mocks.upsertDraftServer).toHaveBeenCalledWith(
-      expect.objectContaining({
-        name: 'NPM Server',
-        enabled: false,
-        trustState: 'untrusted',
-        requireApproval: true,
-      })
+    await waitFor(() => {
+      expect(mocks.addServer).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'NPM Server',
+          enabled: true,
+          trustState: 'untrusted',
+          requireApproval: true,
+        })
+      )
+    })
+    expect(mocks.showToast).toHaveBeenCalledWith('Added NPM Server to MCP servers.', 'success')
+  })
+
+  it('opens inline key setup for catalogue entries with required secrets', async () => {
+    render(
+      <McpLibraryDialog open={true} onOpenChange={vi.fn()} initialMode="catalogue" />
     )
-    expect(mocks.showToast).toHaveBeenCalledWith(
-      'Added NPM Server as a draft. Review and save to install.',
-      'success'
-    )
+
+    fireEvent.change(await screen.findByLabelText(/search mcp catalogue/i), {
+      target: { value: 'Context7' },
+    })
+    expect(await screen.findByText(/^context7$/i)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /^add$/i }))
+
+    expect(mocks.addServer).not.toHaveBeenCalled()
+    expect(screen.getByText(/enter required keys/i)).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('CONTEXT7_API_KEY'), {
+      target: { value: 'ctx-secret' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /add server/i }))
+
+    await waitFor(() => {
+      expect(mocks.addServer).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'Context7',
+          env: [
+            expect.objectContaining({
+              name: 'CONTEXT7_API_KEY',
+              secretValue: 'ctx-secret',
+            }),
+          ],
+        })
+      )
+    })
   })
 
   it('shows unsupported bundled entries without allowing installation', async () => {
@@ -238,7 +318,7 @@ describe('McpLibraryDialog', () => {
     fireEvent.click(screen.getByText(/^details$/i))
 
     expect(screen.getByText(/does not support streamable-http/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /add draft/i })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /^add$/i })).toBeDisabled()
   })
 
   it('marks already configured catalogue entries as added', async () => {

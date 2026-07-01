@@ -142,6 +142,7 @@ export interface HandleToolCallsOptions {
 export interface ToolCallingHook {
   canUseTools: boolean
   getToolsForRequest: () => ToolDefinition[] | null
+  getToolsForRequestAsync?: () => Promise<ToolDefinition[] | null>
   handleToolCalls: (
     response: ToolCallingResponse,
     options?: HandleToolCallsOptions

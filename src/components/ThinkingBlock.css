@@ -126,6 +126,34 @@
     color: rgba(255, 255, 255, 0.4);
 }
 
+.thinking-mcp-called-tool {
+    margin-bottom: 10px;
+}
+
+.thinking-mcp-called-tool__value {
+    display: inline-flex;
+    min-width: 0;
+    max-width: 100%;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 9px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.045);
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.thinking-mcp-called-tool__value code {
+    color: rgba(255, 255, 255, 0.82);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    overflow-wrap: anywhere;
+}
+
+.thinking-mcp-called-tool__separator {
+    color: rgba(255, 255, 255, 0.36);
+}
+
 .thinking-tool-status {
     display: inline-flex;
     align-items: center;

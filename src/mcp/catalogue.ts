@@ -50,7 +50,14 @@ interface CatalogueSetupRequirement {
   target?: unknown
 }
 
-type SetupTarget = 'authToken' | 'header' | 'env'
+type SetupTarget =
+  | 'authToken'
+  | 'header'
+  | 'env'
+  | 'oauth2Pkce'
+  | 'basicAuth'
+  | 'jsonCredential'
+  | 'connectionString'
 
 type InstallTarget =
   | {
@@ -227,13 +234,14 @@ function createDraftForInstallTarget(options: {
   const draft = {
     ...createEmptyMcpDraftServer(),
     name: options.name,
-    enabled: false,
+    enabled: true,
     trustState: 'untrusted' as const,
     autoConnect: false,
     requireApproval: true,
   }
 
   const setupPlaceholders = createSetupPlaceholders(options.installTarget.requirements)
+  const auth = setupPlaceholders.auth
 
   if (options.installTarget.kind === 'npm') {
     return {
@@ -244,6 +252,7 @@ function createDraftForInstallTarget(options: {
       env: setupPlaceholders.env,
       headers: setupPlaceholders.headers,
       authToken: setupPlaceholders.authToken,
+      auth,
     }
   }
 
@@ -256,6 +265,7 @@ function createDraftForInstallTarget(options: {
       env: setupPlaceholders.env,
       headers: setupPlaceholders.headers,
       authToken: setupPlaceholders.authToken,
+      auth,
     }
   }
 
@@ -267,6 +277,7 @@ function createDraftForInstallTarget(options: {
       env: setupPlaceholders.env,
       headers: setupPlaceholders.headers,
       authToken: setupPlaceholders.authToken,
+      auth,
     }
   }
 
@@ -277,12 +288,26 @@ function createSetupPlaceholders(requirements: NormalizedSetupRequirement[]): {
   authToken: McpDraftConfigValue | null
   env: McpDraftConfigValue[]
   headers: McpDraftConfigValue[]
+  auth: McpDraftServer['auth']
 } {
   let authToken: McpDraftConfigValue | null = null
   const env: McpDraftConfigValue[] = []
   const headers: McpDraftConfigValue[] = []
+  let auth: McpDraftServer['auth'] = { mode: 'none', state: 'none' }
 
   for (const requirement of requirements) {
+    if (requirement.target === 'oauth2Pkce') {
+      auth = { mode: 'oauth2Pkce', state: 'reauth_required' }
+      continue
+    }
+    if (requirement.target === 'basicAuth') {
+      auth = { mode: 'basicAuth', state: 'configured' }
+    } else if (requirement.target === 'jsonCredential') {
+      auth = { mode: 'jsonCredential', state: 'configured' }
+    } else if (requirement.target === 'connectionString') {
+      auth = { mode: 'connectionString', state: 'configured' }
+    }
+
     if (!requirement.secret) continue
 
     const entry = createDraftConfigValue(
@@ -299,12 +324,12 @@ function createSetupPlaceholders(requirements: NormalizedSetupRequirement[]): {
       authToken = entry
     } else if (requirement.target === 'env') {
       env.push(entry)
-    } else {
+    } else if (requirement.target === 'header') {
       headers.push(entry)
     }
   }
 
-  return { authToken, env, headers }
+  return { authToken, env, headers, auth }
 }
 
 function normalizeSetupRequirements(value: unknown): NormalizedSetupRequirement[] {
@@ -331,7 +356,15 @@ function normalizeSetupRequirements(value: unknown): NormalizedSetupRequirement[
 
 function normalizeSetupTarget(value: unknown): SetupTarget {
   const target = getTrimmedString(value)
-  if (target === 'env' || target === 'header' || target === 'authToken') {
+  if (
+    target === 'env' ||
+    target === 'header' ||
+    target === 'authToken' ||
+    target === 'oauth2Pkce' ||
+    target === 'basicAuth' ||
+    target === 'jsonCredential' ||
+    target === 'connectionString'
+  ) {
     return target
   }
   return 'header'

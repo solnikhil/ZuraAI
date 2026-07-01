@@ -5,7 +5,7 @@ import type {
   ThinkingBlock,
   ToolCallResult,
 } from '../../../../../chat/types'
-import type { ReasoningDetail, ServiceAssistantMessage } from '../../../../../services/types'
+import type { ReasoningDetail, ServiceAssistantMessage, ToolDefinition } from '../../../../../services/types'
 import { cleanSonarResponse } from '../../../../../services/perplexity'
 import {
   providerSupportsTools,
@@ -72,6 +72,45 @@ import type {
 import type { ChatDiagnosticRequestShape } from '../../../../../diagnostics/chatDiagnostics'
 import { createStreamChunkCoalescer } from '../../../../../diagnostics/streamChunkCoalescer'
 import type { ResearchState } from '../../../../../research/types'
+
+function buildToolInventoryMessage(tools: ToolDefinition[] | null): ServiceAssistantMessage | null {
+  if (!Array.isArray(tools) || tools.length === 0) return null
+
+  const lines = tools.map((tool) => {
+    const name = tool.function.name
+    const description = tool.function.description?.trim()
+    const prefix = name.startsWith('mcp__') ? 'MCP tool' : 'Built-in tool'
+    return `- ${name} (${prefix})${description ? `: ${description}` : ''}`
+  })
+
+  return {
+    role: 'system',
+    content: [
+      'Current tool inventory for this request:',
+      ...lines,
+      'Use this inventory when the user asks which tools or MCP servers are loaded.',
+    ].join('\n'),
+  }
+}
+
+function addToolInventoryMessage(
+  messages: ServiceAssistantMessage[],
+  tools: ToolDefinition[] | null
+): ServiceAssistantMessage[] {
+  const inventoryMessage = buildToolInventoryMessage(tools)
+  if (!inventoryMessage) return messages
+
+  const firstSystemIndex = messages.findIndex((message) => message.role === 'system')
+  if (firstSystemIndex < 0) {
+    return [inventoryMessage, ...messages]
+  }
+
+  return [
+    ...messages.slice(0, firstSystemIndex + 1),
+    inventoryMessage,
+    ...messages.slice(firstSystemIndex + 1),
+  ]
+}
 
 export interface ProviderStreamingRunOptions {
   provider: ActiveProviderId
@@ -403,7 +442,12 @@ export function useProviderStreaming({
       const client = createProviderStreamClient(runtimeSettings, provider)
       const supportsExternalTools = providerSupportsTools(provider)
       const toolsAvailable = options.enableTools !== false && toolCalling.canUseTools && supportsExternalTools
-      const tools = toolsAvailable ? toolCalling.getToolsForRequest() : null
+      const tools = toolsAvailable
+        ? toolCalling.getToolsForRequestAsync
+          ? await toolCalling.getToolsForRequestAsync()
+          : toolCalling.getToolsForRequest()
+        : null
+      const requestMessages = addToolInventoryMessage(options.messages, tools)
       const effectiveSearchBudget = getEffectiveSearchBudget(
         options.researchMaxRounds,
         SAFETY_CAP,
@@ -1141,7 +1185,7 @@ export function useProviderStreaming({
           noToolsResearchContext,
           baseRound,
           totalSearchCount,
-          options.messages,
+          requestMessages,
           lastAssistantMessage,
           formattedResults
         )
@@ -1175,7 +1219,7 @@ export function useProviderStreaming({
                 noToolsResearchContext,
                 baseRound + 1,
                 totalSearchCount,
-                options.messages,
+                requestMessages,
                 lastAssistantMessage,
                 formattedResults
               )
@@ -1183,7 +1227,7 @@ export function useProviderStreaming({
                 noToolsResearchContext,
                 baseRound + 1,
                 totalSearchCount,
-                options.messages,
+                requestMessages,
                 lastAssistantMessage,
                 formattedResults
               )
@@ -1209,7 +1253,7 @@ export function useProviderStreaming({
           noToolsResearchContext,
           baseRound + 2,
           totalSearchCount,
-          options.messages,
+          requestMessages,
           lastAssistantMessage,
           formattedResults
         )
@@ -1241,8 +1285,8 @@ export function useProviderStreaming({
 
       logDiagnostic({
         phase: 'request-start',
-        messageCount: options.messages.length,
-        messages: summarizeDiagnosticMessages(options.messages),
+        messageCount: requestMessages.length,
+        messages: summarizeDiagnosticMessages(requestMessages),
       })
       if (options.contextTrace) {
         logDiagnostic({
@@ -1252,12 +1296,12 @@ export function useProviderStreaming({
       }
 
       throwIfAborted()
-      const initialRound = await runRound(options.messages, {
+      const initialRound = await runRound(requestMessages, {
         round: 0,
         toolChoice: initialToolChoice,
       })
       throwIfAborted()
-      const userContextText = getUserContextText(options.messages)
+      const userContextText = getUserContextText(requestMessages)
 
       if (
         toolsAvailable &&
@@ -1280,7 +1324,7 @@ export function useProviderStreaming({
         let toolResult = await toolCalling.handleToolCalls(
           buildResponseWithFallback(
             reconstructedMessage,
-            options.messages,
+            requestMessages,
             getThinkingTranscript(localThinkingBlocks)
           ),
           {
@@ -1423,7 +1467,7 @@ export function useProviderStreaming({
                   researchContextMsg,
                   researchRound,
                   totalSearchCount,
-                  options.messages,
+                  requestMessages,
                   lastAssistantMessage,
                   toolResult.formattedResults,
                   { recoveryAttempt: verificationRecoveryUsed }
@@ -1432,7 +1476,7 @@ export function useProviderStreaming({
                   researchContextMsg,
                   researchRound,
                   totalSearchCount,
-                  options.messages,
+                  requestMessages,
                   lastAssistantMessage,
                   toolResult.formattedResults
                 )
@@ -1531,7 +1575,7 @@ export function useProviderStreaming({
             const nextToolResult = await toolCalling.handleToolCalls(
               buildResponseWithFallback(
                 reconstructedFollowUp,
-                options.messages,
+                requestMessages,
                 getThinkingTranscript(localThinkingBlocks)
               ),
               {

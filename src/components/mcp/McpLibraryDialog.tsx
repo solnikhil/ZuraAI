@@ -15,6 +15,7 @@ import {
 } from '@/mcp/catalogue'
 import { useMcp } from '@/mcp/McpContext'
 import { formatPromptForComposer, formatResourceForComposer, stringifyPromptContent } from '@/mcp/content'
+import type { McpDraftConfigValue, McpDraftServer } from '@/mcp/draft'
 import type { McpPromptResult, McpResourceReadResult, McpRuntimePrompt, McpRuntimeResource } from '@/mcp/types'
 
 import './McpLibraryDialog.css'
@@ -38,7 +39,7 @@ export function McpLibraryDialog({
   onInsertText,
   showCatalogue = false,
 }: McpLibraryDialogProps): React.ReactElement {
-  const { draftServers, getPrompt, prompts, readResource, resources, upsertDraftServer } = useMcp()
+  const { addServer, draftServers, getPrompt, prompts, readResource, resources } = useMcp()
   const { showToast } = useToast()
 
   const [mode, setMode] = useState<McpLibraryMode>(initialMode)
@@ -47,6 +48,7 @@ export function McpLibraryDialog({
   const [catalogueLoading, setCatalogueLoading] = useState(false)
   const [catalogueLoaded, setCatalogueLoaded] = useState(false)
   const [catalogueError, setCatalogueError] = useState<string | null>(null)
+  const [addingCatalogueEntryId, setAddingCatalogueEntryId] = useState<string | null>(null)
   const [selectedResourceKey, setSelectedResourceKey] = useState<string | null>(null)
   const [selectedPromptKey, setSelectedPromptKey] = useState<string | null>(null)
   const [resourcePreview, setResourcePreview] = useState<McpResourceReadResult | null>(null)
@@ -222,12 +224,19 @@ export function McpLibraryDialog({
     onOpenChange(false)
   }
 
-  const addCatalogueDraft = (entry: McpCatalogueEntry) => {
-    if (!entry.supported || !entry.draft) return
+  const addCatalogueServer = async (entry: McpCatalogueEntry, draft: McpDraftServer) => {
+    if (!entry.supported) return
     if (isCatalogueEntryAdded(entry, draftServers)) return
 
-    upsertDraftServer(entry.draft)
-    showToast(`Added ${entry.title || entry.name} as a draft. Review and save to install.`, 'success')
+    setAddingCatalogueEntryId(entry.id)
+    try {
+      await addServer(draft)
+      showToast(`Added ${entry.title || entry.name} to MCP servers.`, 'success')
+    } catch (addError) {
+      showToast(toErrorMessage(addError), 'error')
+    } finally {
+      setAddingCatalogueEntryId(null)
+    }
   }
 
   return (
@@ -294,12 +303,13 @@ export function McpLibraryDialog({
             entries={filteredCatalogueEntries}
             draftServers={draftServers}
             loading={catalogueLoading && catalogueEntries.length === 0}
+            addingEntryId={addingCatalogueEntryId}
             error={catalogueError}
             onRetry={() => {
               setCatalogueLoaded(false)
               setCatalogueError(null)
             }}
-            onAddDraft={addCatalogueDraft}
+            onAddServer={(entry, draft) => void addCatalogueServer(entry, draft)}
           />
         ) : (
           <div className="mcp-library-split">
@@ -509,16 +519,18 @@ export function McpLibraryDialog({
 function CatalogueGrid({
   draftServers,
   entries,
+  addingEntryId,
   error,
   loading,
-  onAddDraft,
+  onAddServer,
   onRetry,
 }: {
   draftServers: ReturnType<typeof useMcp>['draftServers']
   entries: McpCatalogueEntry[]
+  addingEntryId: string | null
   error: string | null
   loading: boolean
-  onAddDraft: (entry: McpCatalogueEntry) => void
+  onAddServer: (entry: McpCatalogueEntry, draft: McpDraftServer) => void
   onRetry: () => void
 }): React.ReactElement {
   return (
@@ -542,8 +554,9 @@ function CatalogueGrid({
                 <CatalogueCard
                   key={entry.id}
                   added={isCatalogueEntryAdded(entry, draftServers)}
+                  adding={addingEntryId === entry.id}
                   entry={entry}
-                  onAddDraft={() => onAddDraft(entry)}
+                  onAddServer={(draft) => onAddServer(entry, draft)}
                 />
               ))}
             </div>
@@ -556,13 +569,19 @@ function CatalogueGrid({
 
 function CatalogueCard({
   added,
+  adding,
   entry,
-  onAddDraft,
+  onAddServer,
 }: {
   added: boolean
+  adding: boolean
   entry: McpCatalogueEntry
-  onAddDraft: () => void
+  onAddServer: (draft: McpDraftServer) => void
 }): React.ReactElement {
+  const [setupOpen, setSetupOpen] = useState(false)
+  const [secretValues, setSecretValues] = useState<Record<string, string>>({})
+  const secretFields = useMemo(() => getDraftSecretFields(entry.draft), [entry.draft])
+  const needsSecretSetup = secretFields.length > 0
   const metaItems = [
     entry.sourceLabel,
     entry.version ? `v${entry.version}` : null,
@@ -570,8 +589,27 @@ function CatalogueCard({
     entry.secretRequirements.length > 0 ? 'Auth required' : null,
   ].filter(Boolean) as string[]
 
+  const handleAddClick = () => {
+    if (!entry.draft) return
+    if (needsSecretSetup) {
+      setSetupOpen(true)
+      return
+    }
+    onAddServer(entry.draft)
+  }
+
+  const handleSecretSubmit = () => {
+    if (!entry.draft) return
+    const missingField = secretFields.find((field) => !secretValues[field.key]?.trim())
+    if (missingField) {
+      setSetupOpen(true)
+      return
+    }
+    onAddServer(applyDraftSecretValues(entry.draft, secretValues))
+  }
+
   return (
-    <article className={cn('mcp-library-card', added && 'mcp-library-card--added')}>
+    <article className={cn('mcp-library-card', added && 'mcp-library-card--added', setupOpen && 'mcp-library-card--setup-open')}>
       <div className="mcp-library-card-header">
         <div className="min-w-0">
           <h3 className="mcp-library-card-title">{entry.title || entry.name}</h3>
@@ -601,20 +639,135 @@ function CatalogueCard({
       <div className="mcp-library-card-actions">
         <CatalogueDetailsDropdown entry={entry} />
         <Button
-        type="button"
-        onClick={onAddDraft}
-        disabled={!entry.supported || added}
-        variant="ghost"
-        className={cn(
-          'mcp-library-card-action',
-          added ? 'mcp-library-card-action--done' : 'mcp-library-card-action--primary'
-        )}
-      >
-        {added ? 'Added' : 'Add draft'}
+          type="button"
+          onClick={handleAddClick}
+          disabled={!entry.supported || added || adding}
+          variant="ghost"
+          className={cn(
+            'mcp-library-card-action',
+            added ? 'mcp-library-card-action--done' : 'mcp-library-card-action--primary'
+          )}
+        >
+          {added ? 'Added' : adding ? 'Adding...' : 'Add'}
         </Button>
       </div>
+      {setupOpen && !added && needsSecretSetup && (
+        <div className="mcp-library-card-setup">
+          <div className="mcp-library-card-setup-header">
+            <div className="mcp-library-card-setup-title">Add {entry.title || entry.name}</div>
+            <div className="mcp-library-card-setup-desc">
+              Enter required keys to store this MCP server securely.
+            </div>
+          </div>
+          <div className="mcp-library-card-setup-fields">
+            {secretFields.map((field) => (
+              <label key={field.key} className="mcp-library-card-setup-field">
+                <span>{field.label}</span>
+                <Input
+                  type="password"
+                  value={secretValues[field.key] ?? ''}
+                  onChange={(event) =>
+                    setSecretValues((current) => ({
+                      ...current,
+                      [field.key]: event.target.value,
+                    }))
+                  }
+                  placeholder={field.placeholder}
+                  aria-label={field.label}
+                />
+              </label>
+            ))}
+          </div>
+          <div className="mcp-library-card-setup-actions">
+            <Button type="button" variant="ghost" className="mcp-library-card-setup-cancel" onClick={() => setSetupOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="mcp-library-card-setup-submit"
+              disabled={adding || secretFields.some((field) => !secretValues[field.key]?.trim())}
+              onClick={handleSecretSubmit}
+            >
+              {adding ? 'Adding...' : 'Add server'}
+            </Button>
+          </div>
+        </div>
+      )}
     </article>
   )
+}
+
+interface CatalogueSecretField {
+  key: string
+  label: string
+  placeholder: string
+}
+
+function getDraftSecretFields(draft: McpDraftServer | undefined): CatalogueSecretField[] {
+  if (!draft) return []
+  const fields: CatalogueSecretField[] = []
+
+  if (isMissingSecretValue(draft.authToken)) {
+    fields.push({
+      key: 'authToken',
+      label: 'Authorization token',
+      placeholder: 'Paste token',
+    })
+  }
+
+  for (const entry of draft.env) {
+    if (!isMissingSecretValue(entry)) continue
+    fields.push({
+      key: `env:${entry.name}`,
+      label: entry.name,
+      placeholder: `Paste ${entry.name}`,
+    })
+  }
+
+  for (const entry of draft.headers) {
+    if (!isMissingSecretValue(entry)) continue
+    fields.push({
+      key: `header:${entry.name}`,
+      label: entry.name,
+      placeholder: `Paste ${entry.name}`,
+    })
+  }
+
+  return fields
+}
+
+function isMissingSecretValue(entry: McpDraftConfigValue | null): boolean {
+  return Boolean(
+    entry &&
+      entry.valueSource === 'secret' &&
+      !entry.secretStored &&
+      entry.secretValue.trim().length === 0
+  )
+}
+
+function applyDraftSecretValues(
+  draft: McpDraftServer,
+  values: Record<string, string>
+): McpDraftServer {
+  return {
+    ...draft,
+    authToken: fillSecretValue(draft.authToken, values.authToken),
+    env: draft.env.map((entry) => fillSecretValue(entry, values[`env:${entry.name}`])),
+    headers: draft.headers.map((entry) => fillSecretValue(entry, values[`header:${entry.name}`])),
+  }
+}
+
+function fillSecretValue<T extends McpDraftConfigValue | null>(
+  entry: T,
+  value: string | undefined
+): T {
+  if (!entry || entry.valueSource !== 'secret' || !value?.trim()) {
+    return entry
+  }
+  return {
+    ...entry,
+    secretValue: value.trim(),
+  }
 }
 
 function CatalogueDetailsDropdown({ entry }: { entry: McpCatalogueEntry }): React.ReactElement {
@@ -659,7 +812,7 @@ function CatalogueDetailsDropdown({ entry }: { entry: McpCatalogueEntry }): Reac
           <div className="mcp-library-card-details-block">
             <div className="mcp-library-card-details-label">Install behavior</div>
             <div className="mcp-library-card-details-text">
-              Catalogue entries are added as disabled, untrusted drafts. Review the server settings, fill any required secrets, save changes, then connect manually.
+              Catalogue entries are added as enabled, untrusted servers. Connect manually, then trust only servers whose tools you want exposed to chat.
             </div>
           </div>
 

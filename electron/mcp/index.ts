@@ -205,6 +205,21 @@ export function registerMcpHandlers(): void {
   ipcMain.handle('mcp:resolve-approval', async (_event, requestId: string, approved: boolean) => {
     return approvals.resolveApproval(assertApprovalRequestId(requestId), approved === true)
   })
+
+  ipcMain.handle('mcp:start-oauth', async (_event, serverId: string) => {
+    await manager.initialize()
+    return manager.startOAuth(assertMcpServerId(serverId))
+  })
+
+  ipcMain.handle('mcp:clear-oauth', async (_event, serverId: string) => {
+    await manager.initialize()
+    return manager.clearOAuth(assertMcpServerId(serverId))
+  })
+
+  ipcMain.handle('mcp:get-auth-status', async (_event, serverId: string) => {
+    await manager.initialize()
+    return manager.getAuthStatus(assertMcpServerId(serverId))
+  })
 }
 
 export function unregisterMcpHandlers(): void {
@@ -228,6 +243,9 @@ export function unregisterMcpHandlers(): void {
   ipcMain.removeHandler('mcp:get-prompt')
   ipcMain.removeHandler('mcp:execute-tool')
   ipcMain.removeHandler('mcp:resolve-approval')
+  ipcMain.removeHandler('mcp:start-oauth')
+  ipcMain.removeHandler('mcp:clear-oauth')
+  ipcMain.removeHandler('mcp:get-auth-status')
 }
 
 function broadcastMcpSnapshot(snapshot: McpRuntimeSnapshot): void {

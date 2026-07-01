@@ -75,6 +75,7 @@ export function McpSection(): React.ReactElement {
     disconnectServer,
     draftServers,
     error,
+    getAuthStatus,
     getRuntimeState,
     hasDraftChanges,
     isLoading,
@@ -86,6 +87,7 @@ export function McpSection(): React.ReactElement {
     runtimeStates,
     servers,
     tools,
+    startOAuth,
     upsertDraftServer,
   } = useMcp()
   const { showToast } = useToast()
@@ -95,7 +97,7 @@ export function McpSection(): React.ReactElement {
   const [dialogErrors, setDialogErrors] = useState<string[]>([])
   const [deleteTarget, setDeleteTarget] = useState<McpDraftServer | null>(null)
   const [serverActionState, setServerActionState] = useState<
-    Record<string, 'connecting' | 'disconnecting' | 'idle'>
+    Record<string, 'connecting' | 'disconnecting' | 'signing-in' | 'idle'>
   >({})
   const [libraryMode, setLibraryMode] = useState<'catalogue' | 'resources' | 'prompts' | null>(null)
   const [libraryServerId, setLibraryServerId] = useState<string | undefined>(undefined)
@@ -164,6 +166,23 @@ export function McpSection(): React.ReactElement {
       }
     } catch (actionError) {
       showToast(toErrorMessage(actionError), 'error')
+    } finally {
+      setServerActionState((current) => ({ ...current, [server.id]: 'idle' }))
+    }
+  }
+
+  const handleOAuthSignIn = async (server: McpDraftServer) => {
+    if (hasDraftChanges) {
+      showToast('Save or discard MCP changes before signing in.', 'warning')
+      return
+    }
+
+    setServerActionState((current) => ({ ...current, [server.id]: 'signing-in' }))
+    try {
+      await startOAuth(server.id)
+      showToast(`Signed in to ${server.name}.`, 'success')
+    } catch (authError) {
+      showToast(toErrorMessage(authError), 'error')
     } finally {
       setServerActionState((current) => ({ ...current, [server.id]: 'idle' }))
     }
@@ -258,7 +277,7 @@ export function McpSection(): React.ReactElement {
         </div>
       </div>
 
-      <Card className="settings-section-card p-0">
+      <Card className="settings-section-card mcp-section-card p-0">
         <div className="mcp-header-row">
           <div className="mcp-stats">
             <span className="mcp-stat">
@@ -386,6 +405,23 @@ export function McpSection(): React.ReactElement {
               const isDirty = !liveServer || !isDraftServerEqualToLiveServer(server, liveServer)
               const isBusy = serverActionState[server.id] && serverActionState[server.id] !== 'idle'
               const status = runtimeState?.status ?? 'disconnected'
+              const serverAuth = server.auth ?? { mode: 'none' as const, state: 'none' as const }
+              const authStatus = getAuthStatus(server.id) ?? {
+                serverId: server.id,
+                mode: serverAuth.mode,
+                state: serverAuth.state ?? (serverAuth.mode === 'none' ? 'none' : 'configured'),
+                label:
+                  serverAuth.mode === 'none'
+                    ? 'No auth'
+                    : serverAuth.mode === 'oauth2Pkce'
+                      ? 'Needs sign-in'
+                      : 'Key saved',
+                requiresSignIn: serverAuth.mode === 'oauth2Pkce',
+                lastError: serverAuth.lastError,
+                expiresAt: serverAuth.oauth?.expiresAt,
+              }
+              const needsOAuthSignIn =
+                authStatus.mode === 'oauth2Pkce' && authStatus.state !== 'signed_in'
 
               const discoveredTools = runtimeState?.tools ?? liveServer?.lastKnownTools ?? []
               const blockedToolsSet = new Set(
@@ -417,120 +453,125 @@ export function McpSection(): React.ReactElement {
 
               return (
                 <div key={server.id} className="mcp-server-row">
-                  <div className="mcp-server-main">
+                  <div className="mcp-server-identity">
                     <div className="mcp-server-icon">
                       {server.transport === 'stdio' ? <HardDrive size={18} /> : <Cloud size={18} />}
                     </div>
-                    <div className="mcp-server-content">
-                      <div className="mcp-server-title-row">
-                        <div className="mcp-server-title-group">
-                          <h3 className="mcp-server-title">{server.name || 'Untitled Server'}</h3>
-                          <div className="mcp-server-badges">
-                            <span className={`mcp-status-badge mcp-status-badge--${status}`}>
-                              {status === 'connected'
-                                ? 'Connected'
-                                : status === 'connecting'
-                                  ? 'Connecting...'
-                                  : status === 'error'
-                                    ? 'Error'
-                                    : 'Disconnected'}
-                            </span>
-                            {server.trustState === 'trusted' && (
-                              <span className="mcp-trust-badge">Trusted</span>
-                            )}
-                            {!server.enabled && (
-                              <span className="mcp-disabled-badge">Disabled</span>
-                            )}
-                            {isDraftOnly && <span className="mcp-new-badge">New</span>}
-                            {isDirty && !isDraftOnly && (
-                              <span className="mcp-edited-badge">Edited</span>
-                            )}
-                          </div>
-                        </div>
-                        <div className="mcp-server-controls">
-                          <div className="mcp-server-stats">
-                            <span className="mcp-server-stat">
-                              <span className="mcp-server-stat-label">Tools</span>
-                              <span className="mcp-server-stat-active">{activeToolCount}</span>
-                              <span className="mcp-server-stat-total"> / {toolCount} tools</span>
-                            </span>
-                            <span className="mcp-server-stat">
-                              <span className="mcp-server-stat-label">Resources</span>
-                              <span className="mcp-server-stat-value">{resourceCount}</span>
-                            </span>
-                            <span className="mcp-server-stat">
-                              <span className="mcp-server-stat-label">Prompts</span>
-                              <span className="mcp-server-stat-value">{promptCount}</span>
-                            </span>
-                          </div>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <button
-                                type="button"
-                                className="mcp-server-menu-trigger"
-                                aria-label={`Open actions for ${server.name || 'Untitled Server'}`}
-                              >
-                                <MoreHorizontal size={16} />
-                              </button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent
-                              align="end"
-                              sideOffset={8}
-                              className="settings-menu-surface mcp-server-menu-content zura-menu-surface--compact w-48"
-                            >
-                              <DropdownMenuItem
-                                className="zura-menu-item--compact cursor-pointer"
-                                disabled={!canManageTools}
-                                onSelect={() => openToolsDialog(server)}
-                              >
-                                <Wrench className="h-4 w-4" />
-                                Manage Tools
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                className="zura-menu-item--compact cursor-pointer"
-                                disabled={
-                                  isBusy ||
-                                  hasDraftChanges ||
-                                  isDraftOnly ||
-                                  !server.enabled ||
-                                  !isSupported
-                                }
-                                onSelect={() => {
-                                  void handleConnectToggle(server)
-                                }}
-                              >
-                                {isBusy ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <Cable className="h-4 w-4" />
-                                )}
-                                {status === 'connected' ? 'Disconnect' : 'Connect'}
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                className="zura-menu-item--compact cursor-pointer"
-                                onSelect={() => openEditDialog(server)}
-                              >
-                                <PencilLine className="h-4 w-4" />
-                                Edit
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                className="zura-menu-item--compact cursor-pointer"
-                                variant="destructive"
-                                onSelect={() => setDeleteTarget(server)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                                Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
+                    <div className="mcp-server-title-group">
+                      <div className="mcp-server-title">{server.name || 'Untitled Server'}</div>
+                      <div className="mcp-server-badges">
+                        <span className={`mcp-status-badge mcp-status-badge--${status}`}>
+                          {status === 'connected'
+                            ? 'Connected'
+                            : status === 'connecting'
+                              ? 'Connecting...'
+                              : status === 'error'
+                                ? 'Error'
+                                : 'Disconnected'}
+                        </span>
+                        {server.trustState === 'trusted' && (
+                          <span className="mcp-trust-badge">Trusted</span>
+                        )}
+                        {!server.enabled && <span className="mcp-disabled-badge">Disabled</span>}
+                        {authStatus.mode !== 'none' && (
+                          <span
+                            className={`mcp-auth-badge mcp-auth-badge--${authStatus.state}`}
+                            title={authStatus.lastError || authStatus.label}
+                          >
+                            {authStatus.label}
+                          </span>
+                        )}
+                        {isDraftOnly && <span className="mcp-new-badge">New</span>}
+                        {isDirty && !isDraftOnly && <span className="mcp-edited-badge">Edited</span>}
                       </div>
-                      {runtimeState?.error && (
-                        <div className="mcp-server-error">{runtimeState.error}</div>
-                      )}
                     </div>
                   </div>
+                  <div className="mcp-server-stats">
+                    <span className="mcp-server-stat">
+                      <span className="mcp-server-stat-label">Tools</span>
+                      <span className="mcp-server-stat-active">{activeToolCount}</span>
+                      <span className="mcp-server-stat-total"> / {toolCount} tools</span>
+                    </span>
+                    <span className="mcp-server-stat">
+                      <span className="mcp-server-stat-label">Resources</span>
+                      <span className="mcp-server-stat-value">{resourceCount}</span>
+                    </span>
+                    <span className="mcp-server-stat">
+                      <span className="mcp-server-stat-label">Prompts</span>
+                      <span className="mcp-server-stat-value">{promptCount}</span>
+                    </span>
+                  </div>
+                  <Button
+                    type="button"
+                    variant={status === 'connected' || needsOAuthSignIn ? 'outline' : 'default'}
+                    size="sm"
+                    className="mcp-server-connect-btn"
+                    disabled={
+                      Boolean(isBusy) ||
+                      hasDraftChanges ||
+                      isDraftOnly ||
+                      !server.enabled ||
+                      !isSupported
+                    }
+                    onClick={() => {
+                      if (needsOAuthSignIn) {
+                        void handleOAuthSignIn(server)
+                      } else {
+                        void handleConnectToggle(server)
+                      }
+                    }}
+                  >
+                    {isBusy ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Cable className="mr-2 h-4 w-4" />
+                    )}
+                    {needsOAuthSignIn ? 'Sign in' : status === 'connected' ? 'Disconnect' : 'Connect'}
+                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        className="mcp-server-menu-trigger"
+                        aria-label={`Open actions for ${server.name || 'Untitled Server'}`}
+                      >
+                        <MoreHorizontal size={16} />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align="end"
+                      sideOffset={8}
+                      className="settings-menu-surface mcp-server-menu-content zura-menu-surface--compact w-48"
+                    >
+                      <DropdownMenuItem
+                        className="zura-menu-item--compact cursor-pointer"
+                        disabled={!canManageTools}
+                        onSelect={() => openToolsDialog(server)}
+                      >
+                        <Wrench className="h-4 w-4" />
+                        Manage Tools
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="zura-menu-item--compact cursor-pointer"
+                        onSelect={() => openEditDialog(server)}
+                      >
+                        <PencilLine className="h-4 w-4" />
+                        Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="zura-menu-item--compact cursor-pointer"
+                        variant="destructive"
+                        onSelect={() => setDeleteTarget(server)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  {runtimeState?.error && (
+                    <div className="mcp-server-error">{runtimeState.error}</div>
+                  )}
                 </div>
               )
             })
@@ -642,8 +683,7 @@ export function McpSection(): React.ReactElement {
               {dialogServer && liveServersById.has(dialogServer.id) ? 'Edit Server' : 'Add Server'}
             </DialogTitle>
             <DialogDescription>
-              Configure how ZuraAI connects to this MCP server. Secrets are stored securely and
-              never saved to config files.
+              Set up this MCP server. Secrets are stored securely and never saved to config files.
             </DialogDescription>
           </DialogHeader>
 
@@ -663,232 +703,290 @@ export function McpSection(): React.ReactElement {
                 </div>
               )}
 
-              <FieldGroup>
-                <div className="mcp-dialog-row">
-                  <Field className="mcp-dialog-field">
-                    <FieldLabel>Server name</FieldLabel>
-                    <Input
-                      value={dialogServer.name}
-                      onChange={(event) =>
-                        setDialogServer({ ...dialogServer, name: event.target.value })
-                      }
-                      placeholder="Filesystem"
-                    />
-                  </Field>
+              <div className="mcp-dialog-simple">
+                <Field>
+                  <FieldLabel>Server name</FieldLabel>
+                  <Input
+                    value={dialogServer.name}
+                    onChange={(event) =>
+                      setDialogServer({ ...dialogServer, name: event.target.value })
+                    }
+                    placeholder="Filesystem"
+                  />
+                </Field>
 
-                  <Field className="mcp-dialog-field">
-                    <FieldLabel>Transport</FieldLabel>
-                    <Select
-                      value={dialogServer.transport}
-                      onValueChange={(value) =>
-                        setDialogServer({
-                          ...dialogServer,
-                          transport: value as McpDraftServer['transport'],
-                        })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select transport" />
-                      </SelectTrigger>
-                      <SelectContent className="settings-menu-surface">
-                        <SelectItem value="stdio">Stdio</SelectItem>
-                        <SelectItem value="sse">SSE</SelectItem>
-                        <SelectItem value="websocket">WebSocket</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                </div>
+                <McpQuickSecretEditor
+                  server={dialogServer}
+                  onChange={(nextServer) => setDialogServer(nextServer)}
+                />
+
+                <Field>
+                  <FieldLabel>Authentication</FieldLabel>
+                  <Select
+                    value={dialogServer.auth?.mode ?? 'none'}
+                    onValueChange={(value) =>
+                      setDialogServer({
+                        ...dialogServer,
+                        auth: {
+                          mode: value as McpDraftServer['auth']['mode'],
+                          state: value === 'none' ? 'none' : value === 'oauth2Pkce' ? 'reauth_required' : 'configured',
+                          lastError: null,
+                          updatedAt: new Date().toISOString(),
+                          oauth:
+                            value === 'oauth2Pkce'
+                              ? dialogServer.auth?.oauth ?? {
+                                  accessTokenKey: undefined,
+                                  refreshTokenKey: undefined,
+                                }
+                              : undefined,
+                        },
+                      })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select authentication" />
+                    </SelectTrigger>
+                    <SelectContent className="settings-menu-surface">
+                      <SelectItem value="none">No auth</SelectItem>
+                      <SelectItem value="envSecret">Environment secret</SelectItem>
+                      <SelectItem value="headerSecret">Header secret</SelectItem>
+                      <SelectItem value="bearerToken">Bearer token</SelectItem>
+                      <SelectItem value="basicAuth">Basic auth</SelectItem>
+                      <SelectItem value="oauth2Pkce">OAuth 2.1 sign-in</SelectItem>
+                      <SelectItem value="jsonCredential">JSON credential</SelectItem>
+                      <SelectItem value="connectionString">Connection string</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FieldDescription>
+                    OAuth sign-in is handled by the desktop app; other modes use secure env or header values.
+                  </FieldDescription>
+                </Field>
 
                 <div className="mcp-dialog-row">
                   <ToggleField
-                    label="Enable this server"
-                    description="When off, the server won't connect and its tools won't appear in chat."
+                    label="Enable"
+                    description="Allow this server to connect."
                     checked={dialogServer.enabled}
                     onCheckedChange={(checked) =>
                       setDialogServer({ ...dialogServer, enabled: checked })
                     }
                   />
-                  <ToggleField
-                    label="Connect on startup"
-                    description="Automatically connect when ZuraAI launches."
-                    checked={dialogServer.autoConnect}
-                    onCheckedChange={(checked) =>
-                      setDialogServer({ ...dialogServer, autoConnect: checked })
-                    }
-                  />
+                  <Field className="mcp-dialog-field">
+                    <FieldLabel>Tool access</FieldLabel>
+                    <Select
+                      value={dialogServer.trustState}
+                      onValueChange={(value) =>
+                        setDialogServer({
+                          ...dialogServer,
+                          trustState: value as McpDraftServer['trustState'],
+                        })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select access" />
+                      </SelectTrigger>
+                      <SelectContent className="settings-menu-surface">
+                        <SelectItem value="untrusted">Ask first</SelectItem>
+                        <SelectItem value="trusted">Trusted</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FieldDescription>Trusted servers can expose tools to chat.</FieldDescription>
+                  </Field>
                 </div>
+              </div>
 
-                <Field>
-                  <FieldLabel>Trust level</FieldLabel>
-                  <Select
-                    value={dialogServer.trustState}
-                    onValueChange={(value) =>
-                      setDialogServer({
-                        ...dialogServer,
-                        trustState: value as McpDraftServer['trustState'],
-                      })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select trust level" />
-                    </SelectTrigger>
-                    <SelectContent className="settings-menu-surface">
-                      <SelectItem value="untrusted">Untrusted</SelectItem>
-                      <SelectItem value="trusted">Trusted</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FieldDescription>
-                    Untrusted servers can connect but their tools stay hidden from the model until
-                    approved.
-                  </FieldDescription>
-                </Field>
-              </FieldGroup>
+              <details
+                className="mcp-dialog-advanced"
+                open={dialogServer ? !liveServersById.has(dialogServer.id) : false}
+              >
+                <summary>Advanced connection details</summary>
+                <div className="mcp-dialog-advanced-body">
+                  <FieldGroup>
+                    <div className="mcp-dialog-row">
+                      <Field className="mcp-dialog-field">
+                        <FieldLabel>Transport</FieldLabel>
+                        <Select
+                          value={dialogServer.transport}
+                          onValueChange={(value) =>
+                            setDialogServer({
+                              ...dialogServer,
+                              transport: value as McpDraftServer['transport'],
+                            })
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select transport" />
+                          </SelectTrigger>
+                          <SelectContent className="settings-menu-surface">
+                            <SelectItem value="stdio">Stdio</SelectItem>
+                            <SelectItem value="sse">SSE</SelectItem>
+                            <SelectItem value="websocket">WebSocket</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </Field>
 
-              <Separator />
+                      <ToggleField
+                        label="Connect on startup"
+                        description="Automatically connect when ZuraAI launches."
+                        checked={dialogServer.autoConnect}
+                        onCheckedChange={(checked) =>
+                          setDialogServer({ ...dialogServer, autoConnect: checked })
+                        }
+                      />
+                    </div>
+                  </FieldGroup>
 
-              {dialogServer.transport === 'stdio' ? (
-                <FieldGroup>
-                  <div className="mcp-dialog-section-header">
-                    <HardDrive className="h-4 w-4" />
-                    <span>Local stdio process</span>
-                  </div>
+                  <Separator />
 
-                  <Field>
-                    <FieldLabel>Command</FieldLabel>
-                    <Input
-                      value={dialogServer.command}
-                      onChange={(event) =>
-                        setDialogServer({ ...dialogServer, command: event.target.value })
-                      }
-                      placeholder="npx"
-                    />
-                  </Field>
+                  {dialogServer.transport === 'stdio' ? (
+                    <FieldGroup>
+                      <div className="mcp-dialog-section-header">
+                        <HardDrive className="h-4 w-4" />
+                        <span>Local process</span>
+                      </div>
 
-                  <Field>
-                    <FieldLabel>Arguments</FieldLabel>
-                    <Textarea
-                      value={dialogServer.argsText}
-                      onChange={(event) =>
-                        setDialogServer({ ...dialogServer, argsText: event.target.value })
-                      }
-                      placeholder={'-y\n@modelcontextprotocol/server-filesystem\nC:\\Projects'}
-                      className="min-h-24"
-                    />
-                    <FieldDescription>One argument per line.</FieldDescription>
-                  </Field>
+                      <Field>
+                        <FieldLabel>Command</FieldLabel>
+                        <Input
+                          value={dialogServer.command}
+                          onChange={(event) =>
+                            setDialogServer({ ...dialogServer, command: event.target.value })
+                          }
+                          placeholder="npx"
+                        />
+                      </Field>
 
-                  <Field>
-                    <FieldLabel>Working directory</FieldLabel>
-                    <Input
-                      value={dialogServer.cwd}
-                      onChange={(event) =>
-                        setDialogServer({ ...dialogServer, cwd: event.target.value })
-                      }
-                      placeholder="C:\\Projects"
-                    />
-                  </Field>
-                </FieldGroup>
-              ) : (
-                <FieldGroup>
-                  <div className="mcp-dialog-section-header">
-                    <Cloud className="h-4 w-4" />
-                    <span>Remote endpoint</span>
-                  </div>
+                      <Field>
+                        <FieldLabel>Arguments</FieldLabel>
+                        <Textarea
+                          value={dialogServer.argsText}
+                          onChange={(event) =>
+                            setDialogServer({ ...dialogServer, argsText: event.target.value })
+                          }
+                          placeholder={'-y\n@modelcontextprotocol/server-filesystem\nC:\\Projects'}
+                          className="min-h-24"
+                        />
+                        <FieldDescription>One argument per line.</FieldDescription>
+                      </Field>
 
-                  <Field>
-                    <FieldLabel>URL</FieldLabel>
-                    <Input
-                      value={dialogServer.url}
-                      onChange={(event) =>
-                        setDialogServer({ ...dialogServer, url: event.target.value })
-                      }
-                      placeholder={
-                        dialogServer.transport === 'sse'
-                          ? 'https://example.com/mcp'
-                          : 'wss://example.com/mcp'
-                      }
-                    />
-                  </Field>
+                      <Field>
+                        <FieldLabel>Working directory</FieldLabel>
+                        <Input
+                          value={dialogServer.cwd}
+                          onChange={(event) =>
+                            setDialogServer({ ...dialogServer, cwd: event.target.value })
+                          }
+                          placeholder="C:\\Projects"
+                        />
+                      </Field>
+                    </FieldGroup>
+                  ) : (
+                    <FieldGroup>
+                      <div className="mcp-dialog-section-header">
+                        <Cloud className="h-4 w-4" />
+                        <span>Remote endpoint</span>
+                      </div>
 
-                  <SecretTokenEditor
-                    value={dialogServer.authToken}
-                    onChange={(nextValue) =>
-                      setDialogServer({ ...dialogServer, authToken: nextValue })
-                    }
-                  />
+                      <Field>
+                        <FieldLabel>URL</FieldLabel>
+                        <Input
+                          value={dialogServer.url}
+                          onChange={(event) =>
+                            setDialogServer({ ...dialogServer, url: event.target.value })
+                          }
+                          placeholder={
+                            dialogServer.transport === 'sse'
+                              ? 'https://example.com/mcp'
+                              : 'wss://example.com/mcp'
+                          }
+                        />
+                      </Field>
+
+                      <SecretTokenEditor
+                        value={dialogServer.authToken}
+                        onChange={(nextValue) =>
+                          setDialogServer({ ...dialogServer, authToken: nextValue })
+                        }
+                      />
+
+                      <ConfigValueEditor
+                        title="Headers"
+                        description="Additional request headers."
+                        entries={dialogServer.headers}
+                        kind="header"
+                        onChange={(nextEntries) =>
+                          setDialogServer({ ...dialogServer, headers: nextEntries })
+                        }
+                      />
+                    </FieldGroup>
+                  )}
+
+                  <Separator />
 
                   <ConfigValueEditor
-                    title="Headers"
-                    description="Additional request headers."
-                    entries={dialogServer.headers}
-                    kind="header"
+                    title="Environment variables"
+                    description="Pass environment variables to the local server process."
+                    entries={dialogServer.env}
+                    kind="env"
                     onChange={(nextEntries) =>
-                      setDialogServer({ ...dialogServer, headers: nextEntries })
+                      setDialogServer({ ...dialogServer, env: nextEntries })
                     }
                   />
-                </FieldGroup>
-              )}
 
-              <Separator />
+                  <Separator />
 
-              <ConfigValueEditor
-                title="Environment variables"
-                description="Pass environment variables to the local server process (like API keys or config paths)."
-                entries={dialogServer.env}
-                kind="env"
-                onChange={(nextEntries) => setDialogServer({ ...dialogServer, env: nextEntries })}
-              />
+                  <FieldGroup>
+                    <div className="mcp-dialog-section-header">
+                      <KeyRound className="h-4 w-4" />
+                      <span>Connection behavior</span>
+                    </div>
 
-              <Separator />
+                    <div className="mcp-dialog-row mcp-dialog-row--4">
+                      <NumberInputField
+                        label="Startup timeout"
+                        value={dialogServer.startupTimeoutMs}
+                        onChange={(value) =>
+                          setDialogServer({ ...dialogServer, startupTimeoutMs: value })
+                        }
+                        placeholder="10000"
+                      />
+                      <NumberInputField
+                        label="Tool timeout"
+                        value={dialogServer.toolTimeoutMs}
+                        onChange={(value) =>
+                          setDialogServer({ ...dialogServer, toolTimeoutMs: value })
+                        }
+                        placeholder="30000"
+                      />
+                      <NumberInputField
+                        label="Retries"
+                        value={dialogServer.reconnectAttempts}
+                        onChange={(value) =>
+                          setDialogServer({ ...dialogServer, reconnectAttempts: value })
+                        }
+                        placeholder="3"
+                      />
+                      <NumberInputField
+                        label="Retry delay"
+                        value={dialogServer.reconnectDelayMs}
+                        onChange={(value) =>
+                          setDialogServer({ ...dialogServer, reconnectDelayMs: value })
+                        }
+                        placeholder="1000"
+                      />
+                    </div>
 
-              <FieldGroup>
-                <div className="mcp-dialog-section-header">
-                  <KeyRound className="h-4 w-4" />
-                  <span>Connection settings</span>
+                    <ToggleField
+                      label="Ask before running tools"
+                      description="Show a confirmation dialog each time this server wants to run a tool."
+                      checked={dialogServer.requireApproval}
+                      onCheckedChange={(checked) =>
+                        setDialogServer({ ...dialogServer, requireApproval: checked })
+                      }
+                    />
+                  </FieldGroup>
                 </div>
-
-                <div className="mcp-dialog-row mcp-dialog-row--4">
-                  <NumberInputField
-                    label="Startup timeout (ms)"
-                    value={dialogServer.startupTimeoutMs}
-                    onChange={(value) =>
-                      setDialogServer({ ...dialogServer, startupTimeoutMs: value })
-                    }
-                    placeholder="10000"
-                  />
-                  <NumberInputField
-                    label="Tool timeout (ms)"
-                    value={dialogServer.toolTimeoutMs}
-                    onChange={(value) => setDialogServer({ ...dialogServer, toolTimeoutMs: value })}
-                    placeholder="30000"
-                  />
-                  <NumberInputField
-                    label="Reconnect attempts"
-                    value={dialogServer.reconnectAttempts}
-                    onChange={(value) =>
-                      setDialogServer({ ...dialogServer, reconnectAttempts: value })
-                    }
-                    placeholder="3"
-                  />
-                  <NumberInputField
-                    label="Reconnect delay (ms)"
-                    value={dialogServer.reconnectDelayMs}
-                    onChange={(value) =>
-                      setDialogServer({ ...dialogServer, reconnectDelayMs: value })
-                    }
-                    placeholder="1000"
-                  />
-                </div>
-
-                <ToggleField
-                  label="Ask before running tools"
-                  description="Show a confirmation dialog each time this server wants to run a tool."
-                  checked={dialogServer.requireApproval}
-                  onCheckedChange={(checked) =>
-                    setDialogServer({ ...dialogServer, requireApproval: checked })
-                  }
-                />
-              </FieldGroup>
+              </details>
             </div>
           )}
 
@@ -988,6 +1086,100 @@ function ToggleField(props: {
         onCheckedChange={props.onCheckedChange}
         aria-label={props.label}
       />
+    </div>
+  )
+}
+
+function McpQuickSecretEditor(props: {
+  server: McpDraftServer
+  onChange: (server: McpDraftServer) => void
+}): React.ReactElement | null {
+  const secretEnv = props.server.env.filter((entry) => entry.valueSource === 'secret')
+  const secretHeaders = props.server.headers.filter((entry) => entry.valueSource === 'secret')
+  const hasAuthToken = props.server.authToken?.valueSource === 'secret'
+
+  if (!hasAuthToken && secretEnv.length === 0 && secretHeaders.length === 0) {
+    return null
+  }
+
+  const updateAuthToken = (value: string) => {
+    if (!props.server.authToken || props.server.authToken.valueSource !== 'secret') return
+    props.onChange({
+      ...props.server,
+      authToken: {
+        ...props.server.authToken,
+        secretValue: value,
+        clearSecret: false,
+      },
+    })
+  }
+
+  const updateConfigSecret = (
+    kind: 'env' | 'header',
+    entryId: string,
+    value: string
+  ) => {
+    const key = kind === 'env' ? 'env' : 'headers'
+    props.onChange({
+      ...props.server,
+      [key]: props.server[key].map((entry) =>
+        entry.id === entryId
+          ? {
+              ...entry,
+              secretValue: value,
+              clearSecret: false,
+            }
+          : entry
+      ),
+    })
+  }
+
+  return (
+    <div className="mcp-quick-secrets">
+      <div className="mcp-quick-secrets-header">
+        <div className="mcp-quick-secrets-title">Required keys</div>
+        <div className="mcp-quick-secrets-desc">Stored securely in the desktop app.</div>
+      </div>
+
+      <div className="mcp-quick-secrets-grid">
+        {hasAuthToken && props.server.authToken && (
+          <Field>
+            <FieldLabel>Authorization token</FieldLabel>
+            <Input
+              type="password"
+              value={props.server.authToken.secretValue}
+              onChange={(event) => updateAuthToken(event.target.value)}
+              placeholder={
+                props.server.authToken.secretStored ? 'Stored - type to replace' : 'Paste token'
+              }
+            />
+          </Field>
+        )}
+
+        {secretEnv.map((entry) => (
+          <Field key={entry.id}>
+            <FieldLabel>{entry.name || 'Environment key'}</FieldLabel>
+            <Input
+              type="password"
+              value={entry.secretValue}
+              onChange={(event) => updateConfigSecret('env', entry.id, event.target.value)}
+              placeholder={entry.secretStored ? 'Stored - type to replace' : `Paste ${entry.name}`}
+            />
+          </Field>
+        ))}
+
+        {secretHeaders.map((entry) => (
+          <Field key={entry.id}>
+            <FieldLabel>{entry.name || 'Header key'}</FieldLabel>
+            <Input
+              type="password"
+              value={entry.secretValue}
+              onChange={(event) => updateConfigSecret('header', entry.id, event.target.value)}
+              placeholder={entry.secretStored ? 'Stored - type to replace' : `Paste ${entry.name}`}
+            />
+          </Field>
+        ))}
+      </div>
     </div>
   )
 }

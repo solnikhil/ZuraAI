@@ -393,6 +393,7 @@ const streamingSettings: StreamingSettings = useMemo(
   const {
     canUseTools,
     getToolsForRequest,
+    getToolsForRequestAsync,
     handleToolCalls,
     toolState,
     clearToolState,
@@ -404,10 +405,11 @@ const streamingSettings: StreamingSettings = useMemo(
     () => ({
       canUseTools,
       getToolsForRequest,
+      getToolsForRequestAsync,
       handleToolCalls,
       getResearchContext,
     }),
-    [canUseTools, getToolsForRequest, handleToolCalls, getResearchContext]
+    [canUseTools, getToolsForRequest, getToolsForRequestAsync, handleToolCalls, getResearchContext]
   )
 
   const { calculateResearchConfig } = useResearchMode({ canUseTools })

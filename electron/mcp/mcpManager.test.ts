@@ -2,6 +2,11 @@
 
 import { describe, expect, it, vi } from 'vitest'
 
+vi.mock('../secureStorage', () => ({
+  getSecureValueAsync: vi.fn(async () => ''),
+  setSecureValueAsync: vi.fn(async () => true),
+}))
+
 vi.mock('electron', () => ({
   app: {
     getPath: vi.fn(() => process.cwd()),
@@ -171,6 +176,49 @@ describe('McpManager', () => {
     await manager.readResource('server-1', 'file:///tmp/demo.txt')
 
     expect(readResourceSpy).toHaveBeenCalledTimes(2)
+  })
+
+  it('marks OAuth servers as needing sign-in when bearer preparation fails', async () => {
+    const savedServerBatches: McpServerConfig[][] = []
+    const manager = new McpManager({
+      loadServers: async () => [
+        createServerConfig({
+          id: 'oauth-server',
+          transport: 'sse',
+          command: undefined,
+          url: 'https://mcp.example.com/sse',
+          auth: {
+            mode: 'oauth2Pkce',
+            state: 'signed_in',
+            oauth: {
+              accessTokenKey: 'mcp.server.oauth-server.oauth.accessToken',
+              refreshTokenKey: 'mcp.server.oauth-server.oauth.refreshToken',
+            },
+          },
+        }),
+      ],
+      saveServers: async (servers) => {
+        savedServerBatches.push(servers)
+      },
+      resolveServerSecrets: async (server) => createResolvedServerConfig(server),
+      connectionFactory: (resolvedServer) => new FakeMcpConnection(resolvedServer.id),
+    })
+
+    await manager.initialize({ autoConnect: false })
+
+    await expect(manager.connectServer('oauth-server')).rejects.toThrow('needs sign-in')
+    expect(manager.getAuthStatus('oauth-server')).toEqual(
+      expect.objectContaining({
+        state: 'reauth_required',
+        requiresSignIn: true,
+      })
+    )
+    expect(savedServerBatches.at(-1)?.[0]?.auth).toEqual(
+      expect.objectContaining({
+        mode: 'oauth2Pkce',
+        state: 'reauth_required',
+      })
+    )
   })
 })
 
