@@ -16,7 +16,6 @@ import {
   createMainWindow,
   getMainWindow,
   hideCommandCenterWindow,
-  preloadCommandCenterWindow,
   setCommandCenterWindowLayout,
   showCommandCenterWindow,
   toggleCommandCenterWindow,
@@ -469,6 +468,7 @@ function registerShortcut(): boolean {
   shortcutRegistered = globalShortcut.register(COMMAND_CENTER_SHORTCUT, () => {
     if (!extensionEnabled) return
     toggleCommandCenterWindow()
+    warmAppIndex()
   })
   return shortcutRegistered
 }
@@ -640,8 +640,6 @@ export function setCommandCenterExtensionEnabled(enabled: boolean): {
   extensionEnabled = enabled
   if (enabled) {
     registerShortcut()
-    warmAppIndex()
-    preloadCommandCenterWindow()
   } else {
     unregisterShortcut()
     hideCommandCenterWindow()
@@ -667,6 +665,7 @@ export function registerCommandCenterHandlers(): void {
   ipcMain.handle('command-center:show', () => {
     if (!extensionEnabled) return false
     showCommandCenterWindow()
+    warmAppIndex()
     return true
   })
 

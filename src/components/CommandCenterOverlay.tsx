@@ -82,6 +82,7 @@ export default function CommandCenterOverlay() {
   const [browseApps, setBrowseApps] = useState<CommandCenterIndexItem[]>([])
   const [indexLoading, setIndexLoading] = useState(true)
   const [selectedIndex, setSelectedIndex] = useState(0)
+  const [selectionVisible, setSelectionVisible] = useState(false)
   const [confirmingWorkflow, setConfirmingWorkflow] = useState<CommandCenterIndexItem | null>(null)
   const [status, setStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -201,6 +202,7 @@ export default function CommandCenterOverlay() {
     activeSearchQueryRef.current = ''
     setBrowseApps([])
     setSelectedIndex(0)
+    setSelectionVisible(false)
     setConfirmingWorkflow(null)
     setStatus(null)
     setError(null)
@@ -241,6 +243,7 @@ export default function CommandCenterOverlay() {
 
   useEffect(() => {
     setSelectedIndex(0)
+    setSelectionVisible(false)
   }, [input, mode])
 
   useEffect(() => {
@@ -381,10 +384,12 @@ export default function CommandCenterOverlay() {
     }
     if (!isChatMode && mode === 'search' && event.key === 'ArrowDown') {
       event.preventDefault()
+      setSelectionVisible(true)
       setSelectedIndex((current) => Math.min(current + 1, Math.max(filteredRows.length - 1, 0)))
     }
     if (!isChatMode && mode === 'search' && event.key === 'ArrowUp') {
       event.preventDefault()
+      setSelectionVisible(true)
       setSelectedIndex((current) => Math.max(current - 1, 0))
     }
   }
@@ -398,30 +403,43 @@ export default function CommandCenterOverlay() {
       >
         <motion.div
           className="command-center-topbar"
-          initial={reduceMotion ? false : { y: -3 }}
-          animate={reduceMotion ? undefined : { y: 0 }}
-          transition={{ duration: 0.12, ease: motionEase }}
+          initial={false}
         >
           <div className="command-center-brand">
             <img className="command-center-logo" src="icon-mark.png" alt="" />
           </div>
-          {!isChatMode && (
-            <motion.div
-              className="command-center-input-shell"
-              animate={reduceMotion ? { x: 0 } : { x: mode === 'ask' ? 4 : 0 }}
-              transition={{ duration: reduceMotion ? 0 : 0.16, ease: motionEase }}
-            >
-              <input
-                ref={(node) => { inputRef.current = node }}
-                autoFocus
-                value={input}
-                onChange={(event) => setInput(event.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder={mode === 'search' ? 'Search workflows, apps, windows, chats...' : 'Ask Zura to help with this screen...'}
-                aria-label={mode === 'search' ? 'Search Command Center' : 'Ask Zura'}
-              />
-            </motion.div>
-          )}
+          <motion.div
+            className="command-center-input-shell"
+            animate={reduceMotion ? { x: 0 } : { x: mode === 'ask' ? 4 : 0 }}
+            transition={{ duration: reduceMotion ? 0 : 0.16, ease: motionEase }}
+          >
+            <input
+              ref={(node) => { inputRef.current = node }}
+              autoFocus
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={
+                isChatMode
+                  ? 'Ask a follow-up...'
+                  : mode === 'search'
+                    ? 'Search workflows, apps, windows, chats...'
+                    : 'Ask Zura to help with this screen...'
+              }
+              aria-label={
+                isChatMode
+                  ? 'Ask a follow-up'
+                  : mode === 'search'
+                    ? 'Search Command Center'
+                    : 'Ask Zura'
+              }
+            />
+            {isChatMode && (
+              <button type="button" onClick={isLoading ? stopStreaming : submit} aria-label={isLoading ? 'Stop' : 'Send'}>
+                {isLoading ? <X size={16} /> : <CornerDownLeft size={16} />}
+              </button>
+            )}
+          </motion.div>
           {!isChatMode && (
             <div className="command-center-tab-hint">
               <kbd>Tab</kbd>
@@ -438,7 +456,7 @@ export default function CommandCenterOverlay() {
           </div>
         </motion.div>
 
-        <AnimatePresence mode="wait">
+        <AnimatePresence mode="wait" initial={false}>
           {!isChatMode ? (
             <motion.div
               key={mode}
@@ -460,21 +478,19 @@ export default function CommandCenterOverlay() {
                       <h2>{group}</h2>
                       {items.map((item) => {
                         const rowIndex = filteredRows.findIndex((row) => row.item.id === item.id)
-                        const selected = rowIndex === selectedIndex
+                        const selected = selectionVisible && rowIndex === selectedIndex
                         return (
                           <motion.button
                             key={item.id}
                             type="button"
                             className={`command-center-result ${selected ? 'selected' : ''}`}
-                            onMouseEnter={() => setSelectedIndex(rowIndex)}
-                            onClick={() => void executeItem(item)}
-                            initial={reduceMotion ? false : { y: 4 }}
-                            animate={reduceMotion ? undefined : { y: 0 }}
-                            transition={{
-                              duration: 0.11,
-                              delay: 0.035 + Math.min(rowIndex, 8) * 0.01,
-                              ease: motionEase,
+                            onMouseEnter={() => {
+                              setSelectionVisible(true)
+                              setSelectedIndex(rowIndex)
                             }}
+                            onMouseLeave={() => setSelectionVisible(false)}
+                            onClick={() => void executeItem(item)}
+                            initial={false}
                           >
                             <span className="command-center-result__icon">{iconForItem(item)}</span>
                             <span className="command-center-result__text">
@@ -558,24 +574,6 @@ export default function CommandCenterOverlay() {
                   )
                 })}
               </div>
-              <div className="command-center-composer">
-                <textarea
-                  ref={(node) => { inputRef.current = node }}
-                  autoFocus
-                  value={input}
-                  onChange={(event) => {
-                    setInput(event.target.value)
-                    // Auto-resize textarea
-                    event.target.style.height = 'auto'
-                    event.target.style.height = `${Math.min(event.target.scrollHeight, 96)}px`
-                  }}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Ask a follow-up..."
-                />
-                <button type="button" onClick={isLoading ? stopStreaming : submit} aria-label={isLoading ? 'Stop' : 'Send'}>
-                  {isLoading ? <X size={16} /> : <CornerDownLeft size={16} />}
-                </button>
-              </div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -608,7 +606,16 @@ export default function CommandCenterOverlay() {
           height: 100%;
           margin: 0;
           overflow: hidden;
+        }
+
+        html, body {
           background: transparent;
+        }
+
+        #root {
+          background: rgba(0, 0, 0, 0.32);
+          backdrop-filter: blur(26px) saturate(118%);
+          -webkit-backdrop-filter: blur(26px) saturate(118%);
         }
 
         .command-center-root {
@@ -628,13 +635,11 @@ export default function CommandCenterOverlay() {
           border-radius: 0;
           overflow: hidden;
           border: 1px solid rgba(255, 255, 255, 0.16);
-          background: rgba(0, 0, 0, 0.58);
+          background: transparent;
           box-shadow:
             inset 0 1px 0 rgba(255, 255, 255, 0.18),
             inset 0 -1px 0 rgba(0, 0, 0, 0.48),
             0 28px 90px rgba(0, 0, 0, 0.52);
-          backdrop-filter: blur(34px) saturate(130%);
-          -webkit-backdrop-filter: blur(34px) saturate(130%);
           transition: height 180ms ease, width 180ms ease;
         }
 
@@ -665,10 +670,11 @@ export default function CommandCenterOverlay() {
         }
 
         .command-center-logo {
-          width: 22px;
-          height: 22px;
+          width: 21px;
+          height: 21px;
           object-fit: contain;
           display: block;
+          transform: translateY(1px);
         }
 
         .command-center-tab-hint {
@@ -704,7 +710,7 @@ export default function CommandCenterOverlay() {
         }
 
         .command-center-segment button,
-        .command-center-composer button,
+        .command-center-input-shell button,
         .command-center-chat-actions button,
         .command-center-ask-empty button,
         .command-center-confirm button {
@@ -744,13 +750,18 @@ export default function CommandCenterOverlay() {
           height: 34px;
           display: flex;
           align-items: center;
-          gap: 0;
+          gap: 8px;
           padding: 0 4px 0 10px;
-          border-radius: 0;
+          border-radius: 7px;
           background: transparent;
-          border: 0;
+          border: 1px solid transparent;
           box-shadow: none;
           color: rgba(255, 231, 238, 0.64);
+        }
+
+        .command-center-panel.is-chat .command-center-input-shell {
+          background: rgba(255, 255, 255, 0.10);
+          border-color: rgba(255, 255, 255, 0.13);
         }
 
         .command-center-input-shell input {
@@ -763,12 +774,11 @@ export default function CommandCenterOverlay() {
           font-size: 14px;
         }
 
-        .command-center-input-shell input::placeholder,
-        .command-center-composer textarea::placeholder {
+        .command-center-input-shell input::placeholder {
           color: rgba(255, 231, 238, 0.42);
         }
 
-        .command-center-composer button {
+        .command-center-input-shell button {
           width: 30px;
           height: 30px;
           border-radius: 7px;
@@ -783,6 +793,31 @@ export default function CommandCenterOverlay() {
           min-height: 0;
           overflow: auto;
           padding: 18px 20px 24px;
+          scrollbar-width: thin;
+          scrollbar-color: rgba(255, 255, 255, 0.34) transparent;
+        }
+
+        .command-center-results::-webkit-scrollbar,
+        .command-center-chat-scroll::-webkit-scrollbar {
+          width: 4px;
+          height: 4px;
+        }
+
+        .command-center-results::-webkit-scrollbar-track,
+        .command-center-chat-scroll::-webkit-scrollbar-track {
+          background: transparent;
+        }
+
+        .command-center-results::-webkit-scrollbar-thumb,
+        .command-center-chat-scroll::-webkit-scrollbar-thumb {
+          min-height: 28px;
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.28);
+        }
+
+        .command-center-results::-webkit-scrollbar-thumb:hover,
+        .command-center-chat-scroll::-webkit-scrollbar-thumb:hover {
+          background: rgba(255, 255, 255, 0.42);
         }
 
         .command-center-group {
@@ -801,24 +836,25 @@ export default function CommandCenterOverlay() {
 
         .command-center-result {
           width: 100%;
-          min-height: 48px;
+          min-height: 45px;
           display: grid;
           grid-template-columns: 42px minmax(0, 1fr) 86px;
           align-items: center;
           column-gap: 12px;
           border: 0;
-          border-radius: 7px;
+          border-radius: 6px;
           background: transparent;
           color: rgba(255, 241, 246, 0.74);
           text-align: left;
-          padding: 0 10px;
+          padding: 0 9px;
           font: inherit;
           cursor: pointer;
+          transition: background-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
         }
 
         .command-center-result.selected,
         .command-center-result:hover {
-          background: rgba(255, 255, 255, 0.13);
+          background: rgba(255, 255, 255, 0.085);
           color: rgba(255, 249, 251, 0.96);
         }
 
@@ -942,7 +978,9 @@ export default function CommandCenterOverlay() {
           flex: 1;
           min-height: 0;
           overflow: auto;
-          padding: 10px 20px 18px;
+          padding: 10px 20px 22px;
+          scrollbar-width: thin;
+          scrollbar-color: rgba(255, 255, 255, 0.34) transparent;
         }
 
         .command-center-chat-message {
@@ -953,14 +991,18 @@ export default function CommandCenterOverlay() {
         .command-center-chat-message--user {
           max-width: 690px;
           margin: 0 auto 8px;
+          display: flex;
+          justify-content: flex-end;
         }
 
         .command-center-user-bubble {
           background: rgba(255, 255, 255, 0.12);
           border-radius: 8px;
           padding: 8px 14px;
+          max-width: min(74%, 520px);
           font-size: 14px;
           line-height: 1.5;
+          overflow-wrap: anywhere;
         }
 
         .command-center-model-badge {
@@ -1005,30 +1047,6 @@ export default function CommandCenterOverlay() {
           40% { opacity: 1; transform: scale(1); }
         }
 
-        .command-center-composer {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          margin: 0 18px 18px;
-          padding: 10px 12px;
-          border-radius: 8px;
-          border: 1px solid rgba(255, 255, 255, 0.13);
-          background: rgba(255, 255, 255, 0.10);
-        }
-
-        .command-center-composer textarea {
-          flex: 1;
-          min-width: 0;
-          max-height: 96px;
-          border: 0;
-          outline: 0;
-          resize: none;
-          background: transparent;
-          color: rgba(255, 245, 248, 0.94);
-          font: inherit;
-          line-height: 1.4;
-        }
-
         .command-center-status {
           position: absolute;
           z-index: 2;
@@ -1038,10 +1056,6 @@ export default function CommandCenterOverlay() {
           color: rgba(211, 255, 225, 0.82);
           font-size: 12px;
           pointer-events: none;
-        }
-
-        .command-center-panel.is-chat .command-center-status {
-          bottom: 72px;
         }
 
         .command-center-status.error {

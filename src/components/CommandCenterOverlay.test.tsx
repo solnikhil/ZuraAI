@@ -118,7 +118,7 @@ describe('CommandCenterOverlay', () => {
   })
 
   it('switches to Ask AI with Tab and starts chat on submit', async () => {
-    render(<CommandCenterOverlay />)
+    const { container } = render(<CommandCenterOverlay />)
 
     const input = await screen.findByRole('textbox', { name: /search command center/i })
     fireEvent.keyDown(input, { key: 'Tab' })
@@ -131,6 +131,8 @@ describe('CommandCenterOverlay', () => {
 
     expect(createSession).toHaveBeenCalledTimes(1)
     expect(switchSession).toHaveBeenCalledWith('overlay-session')
+    expect(await screen.findByRole('textbox', { name: /ask a follow-up/i })).toBeInTheDocument()
+    expect(container.querySelector('.command-center-composer')).not.toBeInTheDocument()
   })
 
   it('requires workflow confirmation before execution', async () => {

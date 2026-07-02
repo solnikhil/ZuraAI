@@ -261,7 +261,7 @@ describe('Command Center main service', () => {
       shortcutRegistered: true,
     })
     expect(register).toHaveBeenCalledWith('CommandOrControl+Shift+Space', expect.any(Function))
-    expect(preloadCommandCenterWindow).toHaveBeenCalledTimes(1)
+    expect(preloadCommandCenterWindow).not.toHaveBeenCalled()
 
     service.setCommandCenterExtensionEnabled(false)
     expect(unregister).toHaveBeenCalledWith('CommandOrControl+Shift+Space')

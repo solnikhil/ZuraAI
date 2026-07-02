@@ -27,9 +27,9 @@ export function scheduleNonCriticalPreloads(): void {
 
   scheduleWhenIdle(() => {
     void preloadSettings()
-  }, 1200)
+  }, 1800)
 
   scheduleWhenIdle(() => {
     void preloadMarkdown()
-  }, 1200)
+  }, 4500)
 }

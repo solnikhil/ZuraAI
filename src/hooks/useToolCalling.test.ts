@@ -90,7 +90,17 @@ describe('Tool Definitions Validation', () => {
    * Verify that all tools have valid categories
    */
   it('All tools have valid categories', () => {
-    const validCategories = ['search', 'utility', 'file', 'system', 'computer', 'app', 'browser', 'computer-use']
+    const validCategories = [
+      'search',
+      'utility',
+      'file',
+      'system',
+      'computer',
+      'app',
+      'browser',
+      'computer-use',
+      'mcp',
+    ]
 
     for (const tool of toolDefinitions) {
       expect(validCategories).toContain(tool.category)

@@ -114,10 +114,21 @@ async function loadService(options: {
 
   vi.doMock('fs/promises', async () => {
     const actual = await vi.importActual<typeof import('fs/promises')>('fs/promises')
+    const accessImplementation = vi.fn(async (filePath: string) => {
+      if (
+        filePath.includes('GitHub Copilot\\icons\\icon.ico') ||
+        filePath.includes('Microsoft VS Code\\stable\\resources\\app\\resources\\win32\\code.ico') ||
+        filePath === 'C:\\Program Files\\paint.net\\paintdotnet.ico'
+      ) {
+        return undefined
+      }
+      return actual.access(filePath)
+    })
     return {
       ...actual,
       default: {
         ...actual,
+        access: accessImplementation,
         readdir: vi.fn(async (root: string, options?: unknown) => {
           if (root.includes('Nested')) return [fileEntry('Discord.lnk')]
           if (root === 'C:\\Users\\Nikhil\\Desktop') return [fileEntry('Kiro.lnk'), fileEntry('Claude.lnk')]
@@ -131,6 +142,7 @@ async function loadService(options: {
           return actual.readFile(filePath, options as never)
         }),
       },
+      access: accessImplementation,
       readdir: vi.fn(async (root: string, options?: unknown) => {
         if (root.includes('Nested')) return [fileEntry('Discord.lnk')]
         if (root === 'C:\\Users\\Nikhil\\Desktop') return [fileEntry('Kiro.lnk'), fileEntry('Claude.lnk')]
@@ -428,6 +440,71 @@ describe('appIndexService', () => {
     })
   })
 
+  it('finds VS Code icons from versioned win32 resource folders when shortcut icon is empty', async () => {
+    const { service } = await loadService({
+      nativeApps: [
+        { name: 'Visual Studio Code', appUserModelId: 'Microsoft.VisualStudioCode' },
+      ],
+    })
+    shortcutDetails.set('C:\\Users\\Nikhil\\Desktop\\Visual Studio Code.lnk', {
+      target: 'C:\\Users\\Nikhil\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe',
+      cwd: 'C:\\Users\\Nikhil\\AppData\\Local\\Programs\\Microsoft VS Code',
+      args: '',
+      icon: ',0',
+      iconIndex: 0,
+      appUserModelId: '',
+      description: '',
+    })
+    const fsPromises = await import('fs/promises')
+    const readdirImplementation = vi.fn(async (root: string) => {
+      if (root === 'C:\\Users\\Nikhil\\Desktop') return [fileEntry('Visual Studio Code.lnk')]
+      if (root === 'C:\\Users\\Nikhil\\AppData\\Local\\Programs\\Microsoft VS Code') return [dirEntry('stable')]
+      return []
+    })
+    vi.mocked(fsPromises.readdir).mockImplementation(readdirImplementation)
+    vi.mocked(fsPromises.default.readdir).mockImplementation(readdirImplementation)
+
+    await service.refreshAppIndex()
+
+    expect((await service.findApps('vscode')).matches[0]).toMatchObject({
+      name: 'Visual Studio Code',
+      targetPath: 'C:\\Users\\Nikhil\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe',
+      iconKey: expect.stringContaining('Microsoft VS Code\\*\\resources\\app\\resources\\win32\\code.ico'),
+    })
+  })
+
+  it('finds paint.net sibling ico when shortcut icon is empty', async () => {
+    const { service } = await loadService({
+      nativeApps: [
+        { name: 'paint.net', appUserModelId: 'paint.net' },
+      ],
+    })
+    shortcutDetails.set('C:\\Users\\Nikhil\\Desktop\\paint.net.lnk', {
+      target: 'C:\\Program Files\\paint.net\\paintdotnet.exe',
+      cwd: 'C:\\Program Files\\paint.net',
+      args: '',
+      icon: ',0',
+      iconIndex: 0,
+      appUserModelId: '',
+      description: '',
+    })
+    const fsPromises = await import('fs/promises')
+    const readdirImplementation = vi.fn(async (root: string) => {
+      if (root === 'C:\\Users\\Nikhil\\Desktop') return [fileEntry('paint.net.lnk')]
+      return []
+    })
+    vi.mocked(fsPromises.readdir).mockImplementation(readdirImplementation)
+    vi.mocked(fsPromises.default.readdir).mockImplementation(readdirImplementation)
+
+    await service.refreshAppIndex()
+
+    expect((await service.findApps('paint')).matches[0]).toMatchObject({
+      name: 'paint.net',
+      targetPath: 'C:\\Program Files\\paint.net\\paintdotnet.exe',
+      iconKey: expect.stringContaining('C:\\Program Files\\paint.net\\paintdotnet.ico'),
+    })
+  })
+
   it('lists shortcut apps before the native refresh completes', async () => {
     const { service, runPowerShell } = await loadService()
     runPowerShell.mockImplementation(() => new Promise((resolve) => {
@@ -498,11 +575,9 @@ describe('appIndexService', () => {
 
     expect(kiroRows).toHaveLength(1)
     expect(kiroRows[0]).toMatchObject({
-      appUserModelId: 'Kiro',
       shortcutPath: 'C:\\Users\\Nikhil\\Desktop\\Kiro.lnk',
       targetPath: 'C:\\Users\\Nikhil\\AppData\\Local\\Programs\\Kiro\\Kiro.exe',
       iconKey: expect.stringContaining('resources\\app\\resources\\win32\\code_70x70.png'),
-      launchStrategy: 'appUserModelId',
     })
     expect(runPowerShell).not.toHaveBeenCalled()
   })

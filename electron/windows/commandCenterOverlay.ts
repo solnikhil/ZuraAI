@@ -152,6 +152,7 @@ export function showCommandCenterWindow(): void {
     commandCenterShowPending = true
     return
   }
+  win.setOpacity(1)
   win.show()
   win.focus()
   win.webContents.send('command-center:shown')
@@ -167,6 +168,7 @@ export function setCommandCenterWindowLayout(layout: 'search' | 'chat'): void {
 
 export function hideCommandCenterWindow(): void {
   if (commandCenterWindow && !commandCenterWindow.isDestroyed()) {
+    commandCenterWindow.setOpacity(1)
     commandCenterWindow.hide()
   }
 }
@@ -174,7 +176,7 @@ export function hideCommandCenterWindow(): void {
 export function toggleCommandCenterWindow(): void {
   const win = createCommandCenterWindow()
   if (win.isVisible()) {
-    win.hide()
+    hideCommandCenterWindow()
     return
   }
   showCommandCenterWindow()

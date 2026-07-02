@@ -1,6 +1,15 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ScrollArea } from '@/components/ui/scroll-area'
+import {
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+  useMessageScroller,
+  useMessageScrollerVisibility,
+} from '@/components/ui/message-scroller'
 import { useToast } from '../shared/Toast'
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
 import { useStreamingState } from '../../contexts/StreamingContext'
@@ -12,7 +21,6 @@ import { writeTextToClipboard } from '../../utils/clipboard'
 
 import { MessageRenderer } from './ChatArea/MessageRenderer'
 import { StreamingMessage } from './ChatArea/StreamingMessage'
-import { VirtualMessageList } from './ChatArea/VirtualMessageList'
 import { InputArea } from './ChatArea/InputArea'
 import { shouldHideGenericToolResultCard } from './ChatArea/toolResultVisibility'
 import { useStreamingChat, usePromptAutoHide } from './ChatArea/hooks'
@@ -21,7 +29,60 @@ import type { AttachedFile } from './ChatArea/attachmentUtils'
 import { NORMAL_PLACEHOLDERS, GENZ_PLACEHOLDERS } from './ChatArea/placeholders'
 import { CHAT_AREA_STYLES } from './ChatArea/chatAreaStyles'
 
-const VIRTUALIZATION_THRESHOLD = 20
+type NavigationTrailMessage = {
+  id: string
+  role: 'user' | 'assistant' | 'system'
+  content: string
+}
+
+function summarizeTrailMessage(message: NavigationTrailMessage): string {
+  const trimmed = message.content.replace(/\s+/g, ' ').trim()
+  if (!trimmed) return message.role === 'user' ? 'Your message' : 'Assistant reply'
+  return trimmed.length > 54 ? `${trimmed.slice(0, 51)}...` : trimmed
+}
+
+function ChatScrollTrail({ messages }: { messages: NavigationTrailMessage[] }) {
+  const { currentAnchorId, visibleMessageIds } = useMessageScrollerVisibility()
+  const { scrollToMessage } = useMessageScroller()
+
+  const messageById = useMemo(
+    () => new Map(messages.map((message, index) => [message.id, { message, index }])),
+    [messages]
+  )
+  const visibleSet = useMemo(() => new Set(visibleMessageIds), [visibleMessageIds])
+
+  if (messages.length < 3) return null
+
+  return (
+    <nav className="chat-scroll-trail" aria-label="Chat scroll trail">
+      {messages.map((message, index) => {
+        const isCurrent = message.id === currentAnchorId
+        const isVisible = visibleSet.has(message.id)
+        const entry = messageById.get(message.id)
+        const label = entry
+          ? `Message ${entry.index + 1}, ${message.role}: ${summarizeTrailMessage(message)}`
+          : summarizeTrailMessage(message)
+
+        return (
+          <button
+            key={message.id}
+            type="button"
+            className={[
+              'chat-scroll-trail__mark',
+              isVisible ? 'is-visible' : '',
+              isCurrent ? 'is-current' : '',
+              message.role === 'user' ? 'is-user' : '',
+            ].filter(Boolean).join(' ')}
+            onClick={() => scrollToMessage(message.id, { align: 'start', behavior: 'smooth' })}
+            title={label}
+            aria-label={label}
+            style={{ top: `${messages.length === 1 ? 0 : (index / (messages.length - 1)) * 100}%` }}
+          />
+        )
+      })}
+    </nav>
+  )
+}
 
 export default function ChatArea() {
   const { folders, sessions, currentSessionId, isSessionLoaded, loadFullSession, switchSession } =
@@ -67,8 +128,6 @@ export default function ChatArea() {
       }
     }
   }, [currentSessionId, messages])
-
-  const useVirtualization = displayedMessages.length > VIRTUALIZATION_THRESHOLD
 
   const { isLoading, toolState, sendMessage, regenerateMessage, stopStreaming } = useStreamingChat({
     onRegenerateStart: () => {
@@ -284,66 +343,6 @@ export default function ChatArea() {
       ? toolState.activeToolBatch
       : toolState.activeToolCalls
 
-  const renderMessage = useCallback(
-    (index: number, msg: (typeof displayedMessages)[0]) => {
-      const isLastAssistant = msg.role === 'assistant' && index === displayedMessages.length - 1
-      const isStreamingMsg = displayedIsLoading && isLastAssistant
-
-      return (
-        <div data-message-id={msg.id}>
-          {isStreamingMsg ? (
-            <StreamingMessage
-              message={msg}
-              sessionId={displayedSessionId!}
-              activeToolCalls={displayActiveToolCalls}
-              onCopy={handleCopy}
-              onRegenerate={(instruction) => {
-                if (displayedSessionIsCurrent) regenerateMessage(msg, instruction)
-              }}
-            />
-          ) : (
-            <MessageRenderer
-              message={msg}
-              isStreaming={false}
-              sessionId={displayedSessionId || undefined}
-              onCopy={handleCopy}
-              onRegenerate={(instruction) => {
-                if (displayedSessionIsCurrent) regenerateMessage(msg, instruction)
-              }}
-            />
-          )}
-
-          {isLastAssistant && !msg.agentRun && visibleLiveToolResults.length > 0 && (
-            <div style={{ marginTop: '8px', marginBottom: '24px' }}>
-              {visibleLiveToolResults.map((result, i) => (
-                <ToolResultDisplay
-                  key={i}
-                  toolName={result.toolCall.name}
-                  result={result.result?.success ? result.result.data : undefined}
-                  error={result.result?.success ? undefined : result.result?.error}
-                  metadata={result.result?.metadata}
-                  sessionId={displayedSessionId || undefined}
-                  messageId={msg.id}
-                  toolResultIndex={i}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      )
-    },
-    [
-      displayedMessages.length,
-      displayedIsLoading,
-      displayedSessionId,
-      displayedSessionIsCurrent,
-      handleCopy,
-      regenerateMessage,
-      visibleLiveToolResults,
-      displayActiveToolCalls,
-    ]
-  )
-
   if (!currentSessionId || (displayedMessages.length === 0 && !currentSessionIsLoading)) {
     return (
       <div
@@ -418,19 +417,75 @@ export default function ChatArea() {
         overflow: 'hidden',
       }}
     >
-      {useVirtualization ? (
-        <VirtualMessageList
-          messages={displayedMessages}
-          sessionId={displayedSessionId!}
-          isGenerating={displayedIsLoading}
-          streamingContent={streamingState?.content || ''}
-          autoScrollEnabled={true}
-          renderMessage={renderMessage}
-          footer={
-            <>
+      <MessageScrollerProvider autoScroll defaultScrollPosition="end" scrollMargin={16}>
+        <MessageScroller data-select-all-scope="chat" className="flex-1">
+          <ChatScrollTrail messages={displayedMessages} />
+          <MessageScrollerViewport
+            ref={messagesContainerRef}
+            data-select-all-scope="chat"
+            className="chat-message-scroller-viewport"
+          >
+            <MessageScrollerContent className="chat-message-scroller-content">
+              {displayedMessages.map((msg, idx) => {
+                const isLastAssistant = msg.role === 'assistant' && idx === displayedMessages.length - 1
+                const isStreamingMessage = displayedIsLoading && isLastAssistant
+
+                return (
+                  <MessageScrollerItem
+                    key={msg.id}
+                    messageId={msg.id}
+                    scrollAnchor={msg.role === 'user'}
+                    className="chat-message-scroller-item"
+                  >
+                    <div data-message-id={msg.id}>
+                      {isStreamingMessage ? (
+                        <StreamingMessage
+                          message={msg}
+                          sessionId={displayedSessionId!}
+                          activeToolCalls={displayActiveToolCalls}
+                          onCopy={handleCopy}
+                          onRegenerate={(instruction) => {
+                            if (displayedSessionIsCurrent) regenerateMessage(msg, instruction)
+                          }}
+                        />
+                      ) : (
+                        <MessageRenderer
+                          message={msg}
+                          isStreaming={false}
+                          sessionId={displayedSessionId || undefined}
+                          onCopy={handleCopy}
+                          onRegenerate={(instruction) => {
+                            if (displayedSessionIsCurrent) regenerateMessage(msg, instruction)
+                          }}
+                        />
+                      )}
+
+                      {isLastAssistant && visibleLiveToolResults.length > 0 && (
+                        <div style={{ marginTop: '8px', marginBottom: '24px' }}>
+                          {visibleLiveToolResults.map((result, i) => (
+                            <ToolResultDisplay
+                              key={i}
+                              toolName={result.toolCall.name}
+                              result={result.result.success ? result.result.data : undefined}
+                              error={result.result.success ? undefined : result.result.error}
+                              metadata={result.result?.metadata}
+                              toolArguments={result.toolCall.arguments}
+                              executionTime={result.result?.executionTime}
+                              sessionId={displayedSessionId || undefined}
+                              messageId={msg.id}
+                              toolResultIndex={i}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </MessageScrollerItem>
+                )
+              })}
+
               {!isLoading &&
                 displayActiveToolCalls.map((toolCall, i) => (
-                  <div key={`tool-active-${i}`} style={{ marginBottom: '12px', padding: '0 20px' }}>
+                  <div key={`tool-active-${i}`} style={{ marginBottom: '12px' }}>
                     <ToolCallIndicator
                       toolName={toolCall.name}
                       status="executing"
@@ -438,101 +493,15 @@ export default function ChatArea() {
                     />
                   </div>
                 ))}
-            </>
-          }
-        />
-      ) : (
-        <ScrollArea
-          className="flex-1"
-          data-select-all-scope="chat"
-          style={{ minWidth: 0, minHeight: 0 }}
-          viewportRef={messagesContainerRef}
-          viewportStyle={{
-            padding: '16px clamp(12px, 3vw, 20px) 112px',
-            minWidth: 0,
-            minHeight: 0,
-            boxSizing: 'border-box',
-          }}
-        >
-          <div
-            data-select-all-scope="chat"
-            style={{
-              width: '100%',
-              maxWidth: 'min(735px, 100%)',
-              margin: '0 auto',
-              minWidth: 0,
-              minHeight: '100%',
-              display: 'flex',
-              flexDirection: 'column',
-            }}
-          >
-            {displayedMessages.map((msg, idx) => {
-              const isLastAssistant = msg.role === 'assistant' && idx === displayedMessages.length - 1
-              const isStreamingMessage = displayedIsLoading && isLastAssistant
 
-              return (
-                <div key={msg.id} data-message-id={msg.id}>
-                  {isStreamingMessage ? (
-                    <StreamingMessage
-                      message={msg}
-                      sessionId={displayedSessionId!}
-                      activeToolCalls={displayActiveToolCalls}
-                      onCopy={handleCopy}
-                      onRegenerate={(instruction) => {
-                        if (displayedSessionIsCurrent) regenerateMessage(msg, instruction)
-                      }}
-                    />
-                  ) : (
-                    <MessageRenderer
-                      message={msg}
-                      isStreaming={false}
-                      sessionId={displayedSessionId || undefined}
-                      onCopy={handleCopy}
-                      onRegenerate={(instruction) => {
-                        if (displayedSessionIsCurrent) regenerateMessage(msg, instruction)
-                      }}
-                    />
-                  )}
+              {displayedIsLoading && <div style={{ minHeight: 'calc(100% - 350px)' }} />}
 
-                  {isLastAssistant && visibleLiveToolResults.length > 0 && (
-                    <div style={{ marginTop: '8px', marginBottom: '24px' }}>
-                      {visibleLiveToolResults.map((result, i) => (
-                        <ToolResultDisplay
-                          key={i}
-                          toolName={result.toolCall.name}
-                          result={result.result.success ? result.result.data : undefined}
-                          error={result.result.success ? undefined : result.result.error}
-                          metadata={result.result?.metadata}
-                          toolArguments={result.toolCall.arguments}
-                          executionTime={result.result?.executionTime}
-                          sessionId={displayedSessionId || undefined}
-                          messageId={msg.id}
-                          toolResultIndex={i}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-
-            {!isLoading &&
-              displayActiveToolCalls.map((toolCall, i) => (
-                <div key={`tool-active-${i}`} style={{ marginBottom: '12px' }}>
-                  <ToolCallIndicator
-                    toolName={toolCall.name}
-                    status="executing"
-                    arguments={toolCall.arguments}
-                  />
-                </div>
-              ))}
-
-            {displayedIsLoading && <div style={{ minHeight: 'calc(100% - 350px)' }} />}
-
-            <div ref={messagesEndRef} />
-          </div>
-        </ScrollArea>
-      )}
+              <div ref={messagesEndRef} />
+            </MessageScrollerContent>
+          </MessageScrollerViewport>
+          <MessageScrollerButton />
+        </MessageScroller>
+      </MessageScrollerProvider>
 
       <motion.div
         className="chat-input-overlay"

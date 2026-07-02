@@ -200,13 +200,13 @@ function mergeAppEntries(current: AppIndexEntry | undefined, candidate: AppIndex
       current.appUserModelId ?? '',
       candidate.appUserModelId ?? '',
     ].filter((alias) => alias.trim().length > 0))),
-    appUserModelId: current.appUserModelId ?? candidate.appUserModelId,
+    appUserModelId: candidate.appUserModelId ?? current.appUserModelId,
     shortcutPath: current.shortcutPath ?? candidate.shortcutPath,
     targetPath: current.targetPath ?? candidate.targetPath,
     iconPath: current.iconPath ?? candidate.iconPath,
     args: current.args ?? candidate.args,
     workingDirectory: current.workingDirectory ?? candidate.workingDirectory,
-    launchStrategy: current.appUserModelId || candidate.appUserModelId ? 'appUserModelId' : 'shortcutPath',
+    launchStrategy: candidate.appUserModelId || current.appUserModelId ? 'appUserModelId' : 'shortcutPath',
     lastSeenAt: Math.max(current.lastSeenAt, candidate.lastSeenAt),
     launchCount: Math.max(current.launchCount ?? 0, candidate.launchCount ?? 0) || undefined,
     lastLaunchedAt: Math.max(current.lastLaunchedAt ?? 0, candidate.lastLaunchedAt ?? 0) || undefined,
@@ -235,7 +235,16 @@ function dedupeAppEntries(apps: AppIndexEntry[]): AppIndexEntry[] {
   for (const app of byKey.values()) {
     const key = compact(app.name)
     if (!key) continue
-    byName.set(key, mergeAppEntries(byName.get(key), app))
+    const current = byName.get(key)
+    const merged = mergeAppEntries(current, app)
+    const appUserModelId = merged.appUserModelId ?? current?.appUserModelId ?? app.appUserModelId
+    byName.set(key, {
+      ...merged,
+      appUserModelId,
+      launchStrategy: appUserModelId ? 'appUserModelId' : merged.launchStrategy,
+      id: appUserModelId ? mergedEntryId({ ...merged, appUserModelId }) : merged.id,
+      iconKey: iconKeyFor({ ...merged, appUserModelId }),
+    })
   }
   return Array.from(byName.values())
 }
@@ -269,9 +278,20 @@ function visualElementLogoCandidates(targetPath: string | undefined): string[] {
   ]
 }
 
+function versionedAppIconCandidates(targetPath: string | undefined): string[] {
+  if (!targetPath) return []
+  const targetDir = path.dirname(targetPath)
+  return [
+    path.join(targetDir, '*', 'resources', 'app', 'resources', 'win32', 'code.ico'),
+    path.join(targetDir, '*', 'resources', 'app', 'resources', 'win32', 'code_70x70.png'),
+    path.join(targetDir, '*', 'resources', 'app', 'resources', 'win32', 'code_150x150.png'),
+  ]
+}
+
 function packagedIconCandidates(targetPath: string | undefined): string[] {
   if (!targetPath) return []
   const targetDir = path.dirname(targetPath)
+  const targetBase = path.basename(targetPath, path.extname(targetPath))
   return [
     path.join(targetDir, 'icons', 'icon.ico'),
     path.join(targetDir, 'icons', 'icon.png'),
@@ -279,6 +299,8 @@ function packagedIconCandidates(targetPath: string | undefined): string[] {
     path.join(targetDir, 'icons', '64x64.png'),
     path.join(targetDir, 'icons', 'Square150x150Logo.png'),
     path.join(targetDir, 'icons', 'Square71x71Logo.png'),
+    path.join(targetDir, `${targetBase}.ico`),
+    path.join(targetDir, `${targetBase}.png`),
     path.join(targetDir, 'icon.ico'),
     path.join(targetDir, 'icon.png'),
   ]
@@ -289,6 +311,7 @@ function iconCandidates(appEntry: Pick<AppIndexEntry, 'shortcutPath' | 'targetPa
   const candidates = [
     appEntry.iconPath,
     ...visualElementLogoCandidates(appEntry.targetPath),
+    ...versionedAppIconCandidates(appEntry.targetPath),
     ...packagedIconCandidates(appEntry.targetPath),
     appEntry.workingDirectory && processStartExe ? path.join(appEntry.workingDirectory, processStartExe) : undefined,
     appEntry.targetPath ? path.join(path.dirname(appEntry.targetPath), 'app.ico') : undefined,
@@ -469,6 +492,45 @@ async function readVisualElementsIconPath(targetPath: string | undefined): Promi
   }
 }
 
+async function readPackagedIconPath(targetPath: string | undefined): Promise<string | undefined> {
+  if (!targetPath) return undefined
+  const targetDir = path.dirname(targetPath)
+  for (const candidate of packagedIconCandidates(targetPath)) {
+    try {
+      await fs.access(candidate)
+      return candidate
+    } catch {
+      // Continue to the next known packaged icon location.
+    }
+  }
+
+  try {
+    const children = await fs.readdir(targetDir, { withFileTypes: true })
+    const versionDirs = children
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => path.join(targetDir, entry.name))
+      .slice(0, 12)
+    for (const versionDir of versionDirs) {
+      for (const candidate of [
+        path.join(versionDir, 'resources', 'app', 'resources', 'win32', 'code.ico'),
+        path.join(versionDir, 'resources', 'app', 'resources', 'win32', 'code_70x70.png'),
+        path.join(versionDir, 'resources', 'app', 'resources', 'win32', 'code_150x150.png'),
+      ]) {
+        try {
+          await fs.access(candidate)
+          return candidate
+        } catch {
+          // Continue through versioned app asset candidates.
+        }
+      }
+    }
+  } catch {
+    return undefined
+  }
+
+  return undefined
+}
+
 async function scanShortcutApps(root: string, source: AppIndexSource, results: RawAppMatch[]): Promise<void> {
   const entries = await fs.readdir(root, { withFileTypes: true }).catch(() => [])
   for (const entry of entries) {
@@ -483,7 +545,7 @@ async function scanShortcutApps(root: string, source: AppIndexSource, results: R
     const targetPath = shortcut?.target || undefined
     const iconPath = isUsefulIconPath(shortcut?.icon)
       ? shortcut?.icon
-      : await readVisualElementsIconPath(targetPath)
+      : await readVisualElementsIconPath(targetPath) ?? await readPackagedIconPath(targetPath)
     results.push({
       name,
       path: full,
@@ -922,15 +984,35 @@ async function getImageFileDataUrl(candidatePath: string): Promise<string | unde
   }
 }
 
+async function expandIconCandidate(candidatePath: string): Promise<string[]> {
+  if (!candidatePath.includes('*')) return [candidatePath]
+  const parts = candidatePath.split(/[\\/]/)
+  const wildcardIndex = parts.indexOf('*')
+  if (wildcardIndex < 1) return []
+  const root = parts.slice(0, wildcardIndex).join(path.sep)
+  const tail = parts.slice(wildcardIndex + 1)
+  try {
+    const children = await fs.readdir(root, { withFileTypes: true })
+    return children
+      .filter((entry) => entry.isDirectory())
+      .slice(0, 16)
+      .map((entry) => path.join(root, entry.name, ...tail))
+  } catch {
+    return []
+  }
+}
+
 async function loadIcon(iconKey: string): Promise<string | undefined> {
   for (const candidatePath of iconKey.split('|')) {
-    const fileIcon = await getImageFileDataUrl(candidatePath)
-    if (fileIcon) return fileIcon
-    try {
-      const image = await app.getFileIcon(candidatePath, { size: 'normal' })
-      if (!image.isEmpty()) return image.toDataURL()
-    } catch {
-      // Continue to the next candidate.
+    for (const expandedPath of await expandIconCandidate(candidatePath)) {
+      const fileIcon = await getImageFileDataUrl(expandedPath)
+      if (fileIcon) return fileIcon
+      try {
+        const image = await app.getFileIcon(expandedPath, { size: 'normal' })
+        if (!image.isEmpty()) return image.toDataURL()
+      } catch {
+        // Continue to the next candidate.
+      }
     }
   }
   return undefined

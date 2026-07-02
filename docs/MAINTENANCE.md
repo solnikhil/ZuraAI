@@ -151,7 +151,6 @@ Flip `Lint / lint`, `Knip / knip`, the cross-platform matrix, and the package-sm
 
 - **ESLint:** ~136 errors, ~94 warnings on `src/` + `electron/`.
 - **Prettier:** ~294 unformatted files.
-- **Knip:** unused deps `rehype-katex`, `remark-math`.
 - **`license-audit.yml`** triggers on `bun.lockb` but the actual lockfile is `bun.lock`. The other new workflows use `bun.lock` correctly; the audit workflow needs a one-line fix in a follow-up PR.
 
 These are tracked here so the next person to touch CI knows what's outstanding without spelunking through workflow logs.

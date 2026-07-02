@@ -1,45 +1,12 @@
-import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
+import { lazy, Suspense, type ReactNode } from 'react'
 import { MotionConfig } from 'framer-motion'
-import { HashRouter as Router, Routes, Route } from 'react-router-dom'
-import AboutWindow from './components/AboutWindow'
-import AgentSkillsSync from './components/AgentSkillsSync'
-import NotificationSettingsSync from './components/NotificationSettingsSync'
-import MonitorSummarySync from './components/MonitorSummarySync'
-import CommandCenterOverlay from './components/CommandCenterOverlay'
-import CommandCenterSettingsSync from './components/CommandCenterSettingsSync'
-import DashboardLayout from './components/Dashboard/Layout'
-import AppShellLayout from './components/AppShellLayout'
-import AppShellRouteHost from './components/AppShellRouteHost'
-import NotFound404 from './components/ui/demo'
-import { SettingsProvider } from './contexts/SettingsContext'
-import { ChatHistoryProvider } from './contexts/ChatHistoryContext'
-import { StreamingProvider } from './contexts/StreamingContext'
-import { QuickSendProvider } from './contexts/QuickSendContext'
-import { ComposerDraftProvider } from './contexts/ComposerDraftContext'
-import { ModelSelectorProvider } from './contexts/ModelSelectorContext'
-import { McpProvider } from './mcp/McpContext'
 import { ToastProvider, ErrorBoundary } from './components/shared'
 import { TooltipProvider } from './components/ui/tooltip'
-import { McpApprovalDialog } from './components/mcp/McpApprovalDialog'
-import { ComputerUseApprovalDialog } from './components/ComputerUseApprovalDialog'
-import { AnalyticsConsentPrompt } from './components/AnalyticsConsentPrompt'
-import { AgentToolApprovalProvider } from './agent/AgentToolApprovalContext'
-import { isMacOSRuntime } from './utils/platform'
-import type { PendingCodeApproval, PendingTerminalApproval } from './electron/types'
+import AppLoadingFallback from './components/AppLoadingFallback'
 
-import { loadSettingsModule } from './components/Settings/settingsLoader'
-
-const Settings = lazy(loadSettingsModule)
-const CodeExecutionApprovalDialog = lazy(() =>
-  import('./components/CodeExecutionApprovalDialog').then((module) => ({
-    default: module.CodeExecutionApprovalDialog,
-  }))
-)
-const TerminalApprovalDialog = lazy(() =>
-  import('./components/TerminalApprovalDialog').then((module) => ({
-    default: module.TerminalApprovalDialog,
-  }))
-)
+const AboutWindow = lazy(() => import('./components/AboutWindow'))
+const DashboardApp = lazy(() => import('./components/DashboardApp'))
+const CommandCenterApp = lazy(() => import('./components/CommandCenterApp'))
 // Loaded only inside the dev-only `#/chat-debug` BrowserWindow. Wrapped in
 // `import.meta.env.DEV` so the chunk is dropped from production bundles.
 const ChatDebugApp = import.meta.env.DEV
@@ -49,142 +16,6 @@ const ChatDebugApp = import.meta.env.DEV
       }))
     )
   : null
-
-function SettingsLoadingFallback() {
-  return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: '100%',
-        width: '100%',
-        color: 'var(--theme-text-muted)',
-        backgroundColor: 'var(--theme-background)',
-      }}
-    >
-      Loading Settings...
-    </div>
-  )
-}
-
-function CodeExecutionApprovalHost() {
-  const [pendingApprovals, setPendingApprovals] = useState<PendingCodeApproval[] | null>(null)
-
-  useEffect(() => {
-    if (!window.codeExecution?.onPendingApproval) return
-    return window.codeExecution.onPendingApproval((pending) => {
-      setPendingApprovals(pending.length > 0 ? pending : null)
-    })
-  }, [])
-
-  if (!pendingApprovals) return null
-
-  return (
-    <Suspense fallback={null}>
-      <CodeExecutionApprovalDialog initialPending={pendingApprovals} />
-    </Suspense>
-  )
-}
-
-function TerminalApprovalHost() {
-  const [pendingApprovals, setPendingApprovals] = useState<PendingTerminalApproval[] | null>(null)
-
-  useEffect(() => {
-    if (!window.terminal?.onPendingApproval) return
-    return window.terminal.onPendingApproval((pending) => {
-      setPendingApprovals(pending.length > 0 ? pending : null)
-    })
-  }, [])
-
-  if (!pendingApprovals) return null
-
-  return (
-    <Suspense fallback={null}>
-      <TerminalApprovalDialog initialPending={pendingApprovals} />
-    </Suspense>
-  )
-}
-
-function DashboardApp() {
-  const macOS = isMacOSRuntime()
-
-  return (
-    <SettingsProvider>
-      <McpProvider>
-        <ChatHistoryProvider>
-          <StreamingProvider>
-            <QuickSendProvider>
-              <ComposerDraftProvider>
-                <AgentToolApprovalProvider>
-                  <ModelSelectorProvider>
-                    <AgentSkillsSync />
-                    <NotificationSettingsSync />
-                    <MonitorSummarySync />
-                    <CommandCenterSettingsSync />
-                    <Router>
-                      <Routes>
-                        <Route element={<AppShellRouteHost />}>
-                          <Route element={<AppShellLayout />}>
-                            <Route path="/" element={<DashboardLayout />} />
-                            <Route path="/dashboard" element={<DashboardLayout />} />
-                            <Route
-                              path="/settings"
-                              element={
-                                <Suspense fallback={<SettingsLoadingFallback />}>
-                                  <Settings />
-                                </Suspense>
-                              }
-                            />
-                            <Route path="/chat" element={<DashboardLayout />} />
-                          </Route>
-                          <Route path="*" element={<NotFound404 />} />
-                        </Route>
-                      </Routes>
-                    </Router>
-                    <McpApprovalDialog />
-                    <AnalyticsConsentPrompt />
-                  </ModelSelectorProvider>
-                </AgentToolApprovalProvider>
-                <CodeExecutionApprovalHost />
-                <TerminalApprovalHost />
-                {!macOS && <ComputerUseApprovalDialog />}
-              </ComposerDraftProvider>
-            </QuickSendProvider>
-          </StreamingProvider>
-        </ChatHistoryProvider>
-      </McpProvider>
-    </SettingsProvider>
-  )
-}
-
-function CommandCenterApp() {
-  const macOS = isMacOSRuntime()
-
-  return (
-    <SettingsProvider>
-      <McpProvider>
-        <ChatHistoryProvider>
-          <StreamingProvider>
-            <QuickSendProvider>
-              <ComposerDraftProvider>
-                <AgentToolApprovalProvider>
-                  <ModelSelectorProvider>
-                    <CommandCenterOverlay />
-                    <McpApprovalDialog />
-                  </ModelSelectorProvider>
-                </AgentToolApprovalProvider>
-                <CodeExecutionApprovalHost />
-                <TerminalApprovalHost />
-                {!macOS && <ComputerUseApprovalDialog />}
-              </ComposerDraftProvider>
-            </QuickSendProvider>
-          </StreamingProvider>
-        </ChatHistoryProvider>
-      </McpProvider>
-    </SettingsProvider>
-  )
-}
 
 function App() {
   const hashPath = typeof window === 'undefined' ? '' : window.location.hash
@@ -208,7 +39,9 @@ function App() {
     <ErrorBoundary>
       <MotionConfig reducedMotion="user">
         <ToastProvider>
-          <TooltipProvider>{content}</TooltipProvider>
+          <TooltipProvider>
+            <Suspense fallback={<AppLoadingFallback />}>{content}</Suspense>
+          </TooltipProvider>
         </ToastProvider>
       </MotionConfig>
     </ErrorBoundary>

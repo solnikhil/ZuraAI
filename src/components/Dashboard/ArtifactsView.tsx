@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import {
   ChevronRight,
   Copy,
@@ -14,7 +14,6 @@ import {
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import LazyMarkdown from '../LazyMarkdown'
-import MermaidDiagram from '../MermaidDiagram'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { TooltipIconButton } from '@/components/ui/TooltipIconButton'
@@ -32,6 +31,8 @@ import type { ArtifactDocument, ArtifactKind, ArtifactSummary } from '@/artifact
 import type { ChatSession, ChatSessionMetadata } from '@/chat/types'
 import { downloadFile } from '@/utils/chatExport'
 import './ArtifactsView.css'
+
+const MermaidDiagram = lazy(() => import('../MermaidDiagram'))
 
 type ArtifactFilter = 'all' | ArtifactKind
 
@@ -481,7 +482,13 @@ export default function ArtifactsView(): React.ReactElement {
     if (!effectiveArtifact || !selectedVersion) return null
     const artifact = effectiveArtifact
     if (artifact.kind === 'markdown') return <LazyMarkdown content={selectedVersion.content} />
-    if (artifact.kind === 'mermaid') return <MermaidDiagram code={selectedVersion.content} />
+    if (artifact.kind === 'mermaid') {
+      return (
+        <Suspense fallback={<pre>{selectedVersion.content}</pre>}>
+          <MermaidDiagram code={selectedVersion.content} />
+        </Suspense>
+      )
+    }
     if (artifact.kind === 'html') {
       return <iframe title={artifact.title} sandbox="" srcDoc={selectedVersion.content} />
     }

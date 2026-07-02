@@ -53,6 +53,7 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { ComposerAttachments } from './ComposerAttachments'
 import McpLibraryDialog from '@/components/mcp/McpLibraryDialog'
+import PerformanceReportButton from '@/components/dev/PerformanceReportButton'
 import { isSkillEnabled, withComputerUseEnabled } from '@/skills'
 import { isWindowsRuntime } from '@/utils/platform'
 
@@ -545,6 +546,7 @@ export function InputArea({
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
                   <div className={controlClusterClass}>{quickActionsMenu}</div>
+                  {import.meta.env.DEV && <PerformanceReportButton />}
                   {folderContextName && (
                     <Tooltip>
                       <TooltipTrigger asChild>

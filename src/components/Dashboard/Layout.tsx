@@ -1,9 +1,6 @@
 import { useState, useCallback, useEffect, lazy, Suspense } from 'react'
 import Sidebar from './Sidebar'
 import ChatArea from './ChatArea'
-import RemindersView from './RemindersView'
-import ArtifactsView from './ArtifactsView'
-import FoldersView from './FoldersView'
 import { useAppShell } from '../../contexts/AppShellContext'
 import { useSettings } from '../../contexts/SettingsContext'
 import { isSkillEnabled } from '../../skills'
@@ -13,6 +10,9 @@ import { resolveSettingsNavigation } from '../../constants/settingsSections'
 // Lazy load Settings component for memory optimization
 // Only loads when user actually opens Settings
 const Settings = lazy(loadSettingsModule)
+const RemindersView = lazy(() => import('./RemindersView'))
+const ArtifactsView = lazy(() => import('./ArtifactsView'))
+const FoldersView = lazy(() => import('./FoldersView'))
 
 function SettingsLoadingFallback() {
   return (
@@ -146,19 +146,25 @@ export default function DashboardLayout() {
             <div
               style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}
             >
-              <RemindersView />
+              <Suspense fallback={<SettingsLoadingFallback />}>
+                <RemindersView />
+              </Suspense>
             </div>
           ) : view === 'artifacts' && artifactsEnabled ? (
             <div
               style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}
             >
-              <ArtifactsView />
+              <Suspense fallback={<SettingsLoadingFallback />}>
+                <ArtifactsView />
+              </Suspense>
             </div>
           ) : view === 'folders' ? (
             <div
               style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}
             >
-              <FoldersView />
+              <Suspense fallback={<SettingsLoadingFallback />}>
+                <FoldersView />
+              </Suspense>
             </div>
           ) : (
             <div
