@@ -1,6 +1,7 @@
 import type {
   AppInfoAPI,
   AppMenuAPI,
+  AgentApprovalAPI,
   AgentSkillsAPI,
   AnalyticsAPI,
   ChatDebugAPI,
@@ -34,6 +35,7 @@ declare global {
     updater: UpdaterAPI
     providerProxy: ProviderProxyAPI
     appInfo: AppInfoAPI
+    agentApproval?: AgentApprovalAPI
     agentSkills: AgentSkillsAPI
     windowControls: WindowControlsAPI
     shell: ShellAPI

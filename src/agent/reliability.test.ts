@@ -50,6 +50,48 @@ describe('agent reliability helpers', () => {
     ).toBeNull()
   })
 
+  it('does not force mutation verification for explicitly read-only shell inspection', () => {
+    expect(
+      selectVerificationStrategy([
+        {
+          toolCall: {
+            id: 'shell-1',
+            name: 'system_shell',
+            arguments: {
+              command: 'Get-ComputerInfo',
+              description: 'Check Windows version',
+              mutatesState: false,
+            },
+          },
+          result: { success: true },
+        },
+      ])
+    ).toBeNull()
+  })
+
+  it('keeps shell commands conservative when mutation intent is missing', () => {
+    const strategy = selectVerificationStrategy([
+      {
+        toolCall: {
+          id: 'shell-1',
+          name: 'system_shell',
+          arguments: {
+            command: 'Set-Content example.txt hi',
+            description: 'Write a file',
+          },
+        },
+        result: { success: true },
+      },
+    ])
+
+    expect(strategy).toEqual(
+      expect.objectContaining({
+        category: 'shell',
+        mutatingToolNames: ['system_shell'],
+      })
+    )
+  })
+
   it('builds a bounded recovery verification instruction', () => {
     const prompt = buildAgentVerificationPrompt(
       {

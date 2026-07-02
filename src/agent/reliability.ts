@@ -66,7 +66,7 @@ function isSuccessfulMutatingResult(result: ToolCallResult): boolean {
   if (READ_ONLY_TOOL_NAMES.has(toolName)) return false
   if (FILE_MUTATION_TOOLS.has(toolName)) return true
   if (VISUAL_MUTATION_TOOLS.has(toolName)) return true
-  if (toolName === 'system_shell' || toolName === 'code_execution') return true
+  if (toolName === 'system_shell') return result.toolCall.arguments?.mutatesState !== false
   if (isAppWindowMutation(toolName)) return true
   if (toolName.startsWith('mcp__')) return true
   return false
@@ -109,7 +109,7 @@ export function selectVerificationStrategy(
     }
   }
 
-  if (mutatingToolNames.some((name) => name === 'system_shell' || name === 'code_execution')) {
+  if (mutatingToolNames.some((name) => name === 'system_shell')) {
     return {
       category: 'shell',
       reason: 'A shell or code action changed state and needs output review or a read-only check.',

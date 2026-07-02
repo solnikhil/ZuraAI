@@ -84,12 +84,15 @@ describe('zura chat links', () => {
     expect(request).toBeNull()
   })
 
-  it('rejects links without a message', async () => {
+  it('accepts session-only links without a message', async () => {
     const { parseZuraChatMessageUrl } = await import('./chatLinks')
     const userData = encodeBase64Url(electronMock.userDataPath)
 
     const request = parseZuraChatMessageUrl(`zura-chat://session-1?userData=${userData}`)
 
-    expect(request).toBeNull()
+    expect(request).toMatchObject({
+      sessionId: 'session-1',
+    })
+    expect(request?.message).toBeUndefined()
   })
 })

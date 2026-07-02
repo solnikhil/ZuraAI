@@ -100,6 +100,10 @@ Best practices:
           type: 'string',
           description: 'A brief one-line summary of what this code does (e.g. "Calculate factorial of 20").',
         },
+        mutatesState: {
+          type: 'boolean',
+          description: 'Whether this sandboxed code is intended to mutate external state. For this remote sandbox, this should normally be false.',
+        },
       },
       required: ['code', 'language', 'description'],
     },
@@ -348,7 +352,7 @@ Safety rules:
     requiresApproval: true,
   },
   system_shell: {
-    description: 'Run a bounded PowerShell command for system inspection or automation. Use native file/app/window tools first when possible. Requires approval.',
+    description: 'Run a bounded PowerShell command for system inspection or automation. Use native file/app/window tools first when possible. Requires approval. Set mutatesState=false for read-only inspection commands such as Get-ComputerInfo, Get-ItemProperty, or directory listings; set mutatesState=true for commands that create, edit, delete, install, launch, stop, configure, or otherwise change local state.',
     parameters: {
       type: 'object',
       description: 'Arguments for running PowerShell.',
@@ -357,6 +361,7 @@ Safety rules:
         cwd: { type: 'string', description: 'Optional working directory.' },
         timeoutMs: { type: 'number', description: 'Optional timeout in milliseconds, capped at 60000.' },
         description: { type: 'string', description: 'One-line explanation of why this command is needed.' },
+        mutatesState: { type: 'boolean', description: 'Whether the command is intended to change local system, file, app, process, or configuration state. Use false for read-only inspection.' },
       },
       required: ['command', 'description'],
     },

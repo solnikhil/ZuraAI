@@ -31,6 +31,34 @@ import { useWebSources, useWebSearchImages } from './useWebSourceData'
 
 export type { MessageRendererProps } from './types'
 
+function normalizeThinkingForComparison(content: string): string {
+  return content.replace(/\s+/g, ' ').trim()
+}
+
+function isDuplicateCompletedThinking(
+  thinking: string | undefined,
+  completedBlocks: NonNullable<MessageRendererProps['message']['thinkingBlocks']>
+): boolean {
+  const normalizedThinking = normalizeThinkingForComparison(thinking || '')
+  if (!normalizedThinking) return false
+
+  const completedThinking = completedBlocks
+    .filter((block) => block.type === 'thinking' && block.content)
+    .map((block) => normalizeThinkingForComparison(block.content || ''))
+    .filter(Boolean)
+
+  if (completedThinking.length === 0) return false
+
+  const completedTranscript = completedThinking.join(' ')
+
+  return (
+    completedThinking.includes(normalizedThinking) ||
+    completedTranscript === normalizedThinking ||
+    completedThinking.some((completed) => completed.startsWith(normalizedThinking)) ||
+    completedTranscript.startsWith(normalizedThinking)
+  )
+}
+
 /**
  * Main MessageRenderer component
  *
@@ -122,7 +150,10 @@ function MessageRendererComponent({
   }, [message.thinkingBlocks])
 
   const isUser = message.role === 'user'
-  const hasThinking = typeof message.thinking === 'string' && message.thinking.trim().length > 0
+  const displayThinking = isDuplicateCompletedThinking(message.thinking, completedBlocks)
+    ? ''
+    : message.thinking || ''
+  const hasThinking = displayThinking.trim().length > 0
   const hasActiveToolCalls = (activeToolCalls?.length || 0) > 0
 
   useEffect(() => {
@@ -313,7 +344,7 @@ function MessageRendererComponent({
                       ? activeThinkingBlockKey
                       : `${activeThinkingBlockKey}:segment-${index}`
                   }
-                  thinking={isActiveSegment ? message.thinking || '' : ''}
+                  thinking={isActiveSegment ? displayThinking : ''}
                   isThinking={
                     isActiveSegment &&
                     isStreaming &&

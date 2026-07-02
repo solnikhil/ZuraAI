@@ -97,8 +97,9 @@ Renderer (React/Vite) -> Preload (allowlisted bridges) -> Electron Main
 - About window: separate `BrowserWindow`, loads `#/about`, opened through `window.appInfo.openAboutWindow()`.
 - Chat debug window: dev-only separate `BrowserWindow`, loads `#/chat-debug?sessionId=<id>`, disabled in packaged builds.
 - Command Center overlay: separate frameless always-on-top `BrowserWindow`, loads `#/command-center`, opened only while Agent Mode is active.
+- Agent approval overlay: separate small frameless always-on-top `BrowserWindow` owned by main for Agent Mode tool-call approvals while ZuraAI is not focused. It loads sanitized inline approval HTML only, resolves approve/reject/always-allow-exact-repeat decisions back to the requesting renderer, and does not execute tools or expose general desktop APIs.
 - Unknown renderer routes render the dedicated 404 view.
-- Packaged app registers the `zura-chat` protocol for trusted local chat deep links. Debug references keep the shape `zura-chat://<sessionId>?userData=<base64urlUserData>` and may include `message=` or `messageBase64=`.
+- Packaged app registers the `zura-chat` protocol for trusted local chat deep links. Debug references keep the shape `zura-chat://<sessionId>?userData=<base64urlUserData>`; session-only links open/switch to that chat, while continuation links may include `message=` or `messageBase64=`.
 
 All BrowserWindows must use `nodeIntegration: false`, `contextIsolation: true`, and `sandbox: true` unless a change is explicitly justified in this file.
 
@@ -151,6 +152,7 @@ Dedicated preload bridges include:
 - `window.appInfo`
 - `window.appMenu`
 - `window.analytics`
+- `window.agentApproval`
 - `window.agentSkills`
 - `window.shell`
 - `window.devTools`
@@ -293,6 +295,14 @@ is the narrow bridge for opening a promoted overlay chat in the main ZuraAI chat
 surface. The overlay may request only the fixed `search` or `chat` layout through
 `command-center:set-layout`; main owns the actual BrowserWindow bounds so the
 renderer cannot set arbitrary window geometry.
+Agent Mode renderer-local tool-call approvals use the narrow
+`agent-approval:request` channel to show a main-owned always-on-top approval
+overlay near the active desktop. The renderer sends only sanitized display
+metadata for the pending tool call (`id`, title, summary, tool name, kind, and
+formatted argument rows). Main returns only an approval decision and optional
+exact-repeat trust flag; it must not execute the tool, persist trust, accept raw
+commands for execution, or expose a generic notification/overlay API. Exact
+tool-call trust remains renderer-owned localStorage state.
 When the assistant is in Agent Mode, the renderer may expose existing app/window
 tools for app discovery/launch and window focus
 (`app_find`, `app_list`, `app_launch`, `window_list`, `window_focus`). Chat mode

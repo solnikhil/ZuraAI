@@ -13,7 +13,6 @@ import {
   FolderOpen,
   Wrench,
   Brain,
-  Monitor,
   X,
 } from 'lucide-react'
 import ModelSelector from '../ModelSelector/index'
@@ -53,7 +52,6 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { ComposerAttachments } from './ComposerAttachments'
 import McpLibraryDialog from '@/components/mcp/McpLibraryDialog'
-import PerformanceReportButton from '@/components/dev/PerformanceReportButton'
 import { isSkillEnabled, withComputerUseEnabled } from '@/skills'
 import { isWindowsRuntime } from '@/utils/platform'
 
@@ -365,39 +363,27 @@ export function InputArea({
 
         <DropdownMenuSeparator />
 
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger className="zura-menu-sub-trigger--compact">
-            <Wrench className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
-            <span>Agent Mode desktop control</span>
-          </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent
-            sideOffset={8}
-            collisionPadding={12}
-            className="zura-menu-surface--compact w-[220px]"
+        {isWindowsRuntime() && (
+          <DropdownMenuItem
+            onSelect={(event) => event.preventDefault()}
+            className="zura-menu-item--compact"
           >
-            {isWindowsRuntime() && (
-              <DropdownMenuItem
-                onSelect={(event) => event.preventDefault()}
-                className="zura-menu-item--compact"
-              >
-                <Brain className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
-                <span className="flex-1">Control this desktop</span>
-                <Switch
-                  checked={computerUseEnabled}
-                  onCheckedChange={setComputerUseMode}
-                  className="scale-75 [&_[data-slot=switch-thumb]]:!bg-white"
-                  aria-label="Toggle control this desktop"
-                />
-              </DropdownMenuItem>
-            )}
-            {!isWindowsRuntime() && (
-              <DropdownMenuItem disabled className="zura-menu-item--compact">
-                <Monitor className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
-                <span>Desktop control requires Windows</span>
-              </DropdownMenuItem>
-            )}
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
+            <Brain className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
+            <span className="flex-1">Agent Mode</span>
+            <Switch
+              checked={computerUseEnabled}
+              onCheckedChange={setComputerUseMode}
+              className="scale-75 [&_[data-slot=switch-thumb]]:!bg-white"
+              aria-label="Toggle Agent Mode"
+            />
+          </DropdownMenuItem>
+        )}
+        {!isWindowsRuntime() && (
+          <DropdownMenuItem disabled className="zura-menu-item--compact">
+            <Brain className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
+            <span>Agent Mode requires Windows</span>
+          </DropdownMenuItem>
+        )}
 
         <DropdownMenuSeparator />
 
@@ -546,7 +532,6 @@ export function InputArea({
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
                   <div className={controlClusterClass}>{quickActionsMenu}</div>
-                  {import.meta.env.DEV && <PerformanceReportButton />}
                   {folderContextName && (
                     <Tooltip>
                       <TooltipTrigger asChild>

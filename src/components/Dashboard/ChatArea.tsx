@@ -44,17 +44,52 @@ function summarizeRailMessage(message: NavigationRailMessage): string {
 function ChatScrollRail({ messages }: { messages: NavigationRailMessage[] }) {
   const { currentAnchorId, visibleMessageIds } = useMessageScrollerVisibility()
   const { scrollToMessage } = useMessageScroller()
+  const [railHover, setRailHover] = useState<{ index: number; yPercent: number } | null>(null)
   const visibleSet = useMemo(() => new Set(visibleMessageIds), [visibleMessageIds])
 
   if (messages.length < 3) return null
 
+  const handleRailPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect()
+    const markerSlotHeight = rect.height / messages.length
+    if (markerSlotHeight <= 0) return
+
+    const pointerY = Math.min(rect.height, Math.max(0, event.clientY - rect.top))
+    const nextIndex = Math.min(
+      messages.length - 1,
+      Math.max(0, pointerY / markerSlotHeight - 0.5)
+    )
+    setRailHover({
+      index: nextIndex,
+      yPercent: (pointerY / rect.height) * 100,
+    })
+  }
+
   return (
     <nav className="chat-scroll-rail" aria-label="Message map">
-      <div className="chat-scroll-rail__track">
+      <div
+        className="chat-scroll-rail__track"
+        style={
+          {
+            '--rail-lens-y': railHover ? `${railHover.yPercent.toFixed(2)}%` : '50%',
+          } as React.CSSProperties
+        }
+        onPointerMove={handleRailPointerMove}
+        onPointerLeave={() => setRailHover(null)}
+      >
         {messages.map((message, index) => {
           const isCurrent = message.id === currentAnchorId
           const isVisible = visibleSet.has(message.id)
           const label = `Message ${index + 1}, ${message.role}: ${summarizeRailMessage(message)}`
+          const cursorProximity =
+            railHover === null ? 0 : Math.max(0, 1 - Math.abs(index - railHover.index) / 5)
+          const cursorInfluence = cursorProximity * cursorProximity * (3 - 2 * cursorProximity)
+          const markerStyle = {
+            '--rail-marker-translate-x': `${(cursorInfluence * 7).toFixed(2)}px`,
+            '--rail-marker-scale-y': (1 + cursorInfluence * 0.55).toFixed(3),
+            '--rail-marker-scale-x': (1 + cursorInfluence * 1.25).toFixed(3),
+            '--rail-marker-hover-opacity': (0.48 + cursorInfluence * 0.52).toFixed(3),
+          } as React.CSSProperties
 
           return (
             <button
@@ -70,6 +105,7 @@ function ChatScrollRail({ messages }: { messages: NavigationRailMessage[] }) {
               aria-current={isCurrent ? 'location' : undefined}
               aria-label={label}
               title={label}
+              style={markerStyle}
               onClick={() => scrollToMessage(message.id, { block: 'start', behavior: 'smooth' })}
             />
           )
@@ -194,10 +230,10 @@ export default function ChatArea() {
   }, [currentSessionId, currentSessionIsLoading, loadFullSession])
 
   const handleChatLinkRequest = useCallback(
-    async (request: { sessionId: string; message: string; receivedAt: number }) => {
+    async (request: { sessionId: string; message?: string; receivedAt: number }) => {
       const sessionId = request.sessionId.trim()
-      const message = request.message.trim()
-      if (!sessionId || !message || isLoading) return false
+      const message = request.message?.trim() ?? ''
+      if (!sessionId || isLoading) return false
 
       const dedupeKey = `${sessionId}:${request.receivedAt}:${message}`
       if (handledChatLinkKeysRef.current.has(dedupeKey)) return true
@@ -216,7 +252,14 @@ export default function ChatArea() {
       if (currentSessionId !== sessionId) {
         switchSession(sessionId)
         await loadFullSession(sessionId)
-        return false
+        if (message) return false
+        handledChatLinkKeysRef.current.add(dedupeKey)
+        return true
+      }
+
+      if (!message) {
+        handledChatLinkKeysRef.current.add(dedupeKey)
+        return true
       }
 
       if (currentSessionIsLoading) return false
@@ -253,7 +296,7 @@ export default function ChatArea() {
       if (!active) return
       const remaining = await window.chatLinks!.peekPending()
       const unhandled = remaining.filter((request) => {
-        const key = `${request.sessionId}:${request.receivedAt}:${request.message.trim()}`
+        const key = `${request.sessionId}:${request.receivedAt}:${request.message?.trim() ?? ''}`
         return !handledChatLinkKeysRef.current.has(key)
       })
       if (unhandled.length === 0 && remaining.length > 0) {

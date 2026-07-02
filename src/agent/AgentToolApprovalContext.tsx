@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react'
-import { AlertTriangle, CheckCircle2, TimerReset, Wrench, XCircle } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, ShieldCheck, TimerReset, Wrench, XCircle } from 'lucide-react'
 
 import { useToast } from '@/components/shared'
 import {
@@ -44,6 +44,41 @@ export function AgentToolApprovalProvider({ children }: { children: React.ReactN
       return Promise.resolve(true)
     }
 
+    if (typeof window !== 'undefined' && window.agentApproval?.requestApproval) {
+      const description = describeToolCall(toolCall)
+      const kind = getToolStepKind(toolCall.name)
+      const id = `agent-approval-${toolCall.id}-${Date.now()}`
+
+      return window.agentApproval
+        .requestApproval({
+          id,
+          title: description.title,
+          summary: description.summary,
+          toolName: toolCall.name,
+          kind,
+          arguments: getReadableArgumentRows(toolCall.arguments).map(({ label, value }) => ({
+            label,
+            value,
+          })),
+        })
+        .then((decision) => {
+          if (decision.approved && decision.trusted) {
+            trustedSignaturesRef.current.add(trustSignature)
+            saveTrustedSignatures(trustedSignaturesRef.current)
+          }
+          showToast(
+            decision.approved
+              ? decision.trusted
+                ? 'Tool call trusted.'
+                : 'Tool call approved.'
+              : 'Tool call rejected.',
+            decision.approved ? 'success' : 'warning'
+          )
+          return decision.approved
+        })
+        .catch(() => false)
+    }
+
     return new Promise<boolean>((resolve) => {
       setPending((prev) => [
         ...prev,
@@ -56,7 +91,7 @@ export function AgentToolApprovalProvider({ children }: { children: React.ReactN
         },
       ])
     })
-  }, [])
+  }, [showToast])
 
   const active = useMemo(
     () => [...pending].sort((left, right) => left.requestedAt - right.requestedAt)[0] ?? null,
@@ -123,6 +158,7 @@ function AgentToolApprovalDialog({
 
   const description = describeToolCall(request.toolCall)
   const kind = getToolStepKind(request.toolCall.name)
+  const argumentRows = getReadableArgumentRows(request.toolCall.arguments)
 
   return (
     <AlertDialog open onOpenChange={(open) => (!open ? onResolve(false) : undefined)}>
@@ -130,9 +166,12 @@ function AgentToolApprovalDialog({
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2">
             <Wrench className="h-5 w-5 text-[var(--theme-accent)]" />
-            Approve tool call
+            Approve Agent Mode action
           </AlertDialogTitle>
-          <AlertDialogDescription>{description.title}: {description.summary}</AlertDialogDescription>
+          <AlertDialogDescription>
+            {description.title}
+            {description.summary ? ` - ${description.summary}` : ''}
+          </AlertDialogDescription>
         </AlertDialogHeader>
 
         <div className="min-w-0 space-y-4 text-sm">
@@ -146,16 +185,31 @@ function AgentToolApprovalDialog({
             {queuedCount > 0 && <Badge variant="destructive">{queuedCount} queued</Badge>}
           </div>
 
-          <div className="rounded-xl border border-border/70 bg-muted/35 p-4 text-muted-foreground">
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-amber-950 dark:text-amber-100">
             <AlertTriangle className="mr-1.5 inline h-3.5 w-3.5 text-amber-500" />
-            This action can change system state. Approve once, reject, or trust this exact tool call so matching future calls run without asking.
+            Review the action before continuing. Approve once for this run, or always allow this exact same call only if you expect it to repeat unchanged.
           </div>
 
           <div className="space-y-2">
-            <div className="font-medium text-foreground">Arguments</div>
-            <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-xl border border-border/70 bg-background/80 p-4 text-xs text-foreground">
-              {JSON.stringify(request.toolCall.arguments, null, 2)}
-            </pre>
+            <div className="font-medium text-foreground">What Agent Mode will send</div>
+            <div className="max-h-72 overflow-auto rounded-lg border border-border/70 bg-background/80">
+              {argumentRows.length > 0 ? (
+                <dl className="divide-y divide-border/60">
+                  {argumentRows.map((row) => (
+                    <div key={row.key} className="grid gap-1 p-3 sm:grid-cols-[9rem_1fr] sm:gap-3">
+                      <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        {row.label}
+                      </dt>
+                      <dd className="min-w-0 whitespace-pre-wrap break-words text-xs text-foreground">
+                        {row.value}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              ) : (
+                <div className="p-3 text-xs text-muted-foreground">No arguments</div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -164,13 +218,13 @@ function AgentToolApprovalDialog({
             <XCircle className="mr-1.5 h-4 w-4" />
             Reject
           </AlertDialogCancel>
-          <AlertDialogAction onClick={() => onResolve(true, true)}>
-            <CheckCircle2 className="mr-1.5 h-4 w-4" />
-            Trust
+          <AlertDialogAction variant="outline" onClick={() => onResolve(true, true)}>
+            <ShieldCheck className="mr-1.5 h-4 w-4" />
+            Always allow exact repeat
           </AlertDialogAction>
           <AlertDialogAction onClick={() => onResolve(true)}>
             <CheckCircle2 className="mr-1.5 h-4 w-4" />
-            Approve
+            Approve once
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
@@ -196,6 +250,38 @@ function stableStringify(value: unknown): string {
 
 function getToolTrustSignature(toolCall: ToolCall): string {
   return `${toolCall.name}:${stableStringify(toolCall.arguments || {})}`
+}
+
+function getReadableArgumentRows(args: ToolCall['arguments']): Array<{ key: string; label: string; value: string }> {
+  if (!args || typeof args !== 'object') return []
+
+  return Object.entries(args)
+    .filter(([, value]) => value !== undefined)
+    .map(([key, value]) => ({
+      key,
+      label: formatArgumentLabel(key),
+      value: formatArgumentValue(value),
+    }))
+}
+
+function formatArgumentLabel(key: string): string {
+  return key
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, (letter) => letter.toUpperCase())
+}
+
+function formatArgumentValue(value: unknown): string {
+  if (value === null) return 'null'
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+
+  try {
+    return JSON.stringify(value, null, 2)
+  } catch {
+    return String(value)
+  }
 }
 
 function loadTrustedSignatures(): Set<string> {

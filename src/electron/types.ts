@@ -48,6 +48,20 @@ export interface ApprovalDecision {
   outcome: 'approved' | 'rejected' | 'timed_out' | 'cancelled'
 }
 
+export interface AgentApprovalOverlayRequest {
+  id: string
+  title: string
+  summary: string
+  toolName: string
+  kind: string
+  arguments: Array<{ label: string; value: string }>
+}
+
+export interface AgentApprovalOverlayDecision {
+  approved: boolean
+  trusted?: boolean
+}
+
 /**
  * Pending code execution approval request shape (mirrors PendingCodeApproval from main).
  */
@@ -839,6 +853,10 @@ export interface ComputerUseAPI {
   resolveApproval: (requestId: string, approved: boolean) => Promise<ApprovalDecision>
   onPendingApproval: (callback: (pending: PendingComputerAction[]) => void) => () => void
   onKilled: (callback: () => void) => () => void
+}
+
+export interface AgentApprovalAPI {
+  requestApproval: (request: AgentApprovalOverlayRequest) => Promise<AgentApprovalOverlayDecision>
 }
 
 export interface CommandCenterAPI {

@@ -6,7 +6,7 @@ import { getMainWindow, createMainWindow } from './windows'
 
 export interface ExternalChatMessageRequest {
   sessionId: string
-  message: string
+  message?: string
   receivedAt: number
 }
 
@@ -98,15 +98,11 @@ export function parseZuraChatMessageUrl(input: string): ExternalChatMessageReque
     ? decodeBase64Url(encodedMessage)
     : parsed.searchParams.get('message')
   const message = typeof rawMessage === 'string' ? rawMessage.trim() : ''
-  if (!message) {
-    traceChatLinkEvent('parse-rejected', { reason: 'missing-message', sessionId })
-    return null
-  }
 
   traceChatLinkEvent('parse-accepted', { sessionId, messageLength: message.length })
   return {
     sessionId,
-    message: message.slice(0, MAX_DEEP_LINK_MESSAGE_LENGTH),
+    ...(message ? { message: message.slice(0, MAX_DEEP_LINK_MESSAGE_LENGTH) } : {}),
     receivedAt: Date.now(),
   }
 }

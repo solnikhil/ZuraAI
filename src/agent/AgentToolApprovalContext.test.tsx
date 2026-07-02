@@ -45,9 +45,10 @@ describe('AgentToolApprovalProvider', () => {
     )
 
     fireEvent.click(screen.getByText('request'))
-    expect(await screen.findByText('Approve tool call')).toBeInTheDocument()
+    expect(await screen.findByText('Approve Agent Mode action')).toBeInTheDocument()
+    expect(screen.getByText('Approve once')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByText('Trust'))
+    fireEvent.click(screen.getByText('Always allow exact repeat'))
     await waitFor(() => {
       expect(document.body.dataset.approval).toBe('approved')
     })
@@ -57,6 +58,6 @@ describe('AgentToolApprovalProvider', () => {
     await waitFor(() => {
       expect(document.body.dataset.approval).toBe('approved')
     })
-    expect(screen.queryByText('Approve tool call')).not.toBeInTheDocument()
+    expect(screen.queryByText('Approve Agent Mode action')).not.toBeInTheDocument()
   })
 })

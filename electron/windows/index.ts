@@ -36,3 +36,9 @@ export {
     toggleCommandCenterWindow,
     destroyCommandCenterWindow,
 } from './commandCenterOverlay'
+
+export {
+    destroyAgentApprovalOverlay,
+    registerAgentApprovalOverlayHandlers,
+    unregisterAgentApprovalOverlayHandlers,
+} from './agentApprovalOverlay'

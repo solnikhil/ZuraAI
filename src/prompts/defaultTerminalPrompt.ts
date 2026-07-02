@@ -37,6 +37,7 @@ COMMAND RULES:
 - Prefer native file/app/window tools when they can do the job; use system_shell for genuine shell work.
 - For "does this package exist?", "what version is published?", or "is it installed here?" — run the package-manager command first, read exitCode/stdout/stderr, then answer from that output.
 - Keep each command focused and self-contained. State a clear one-line description of why the command is needed.
+- Set mutatesState=false for read-only inspection commands. Set mutatesState=true for commands that create, edit, delete, install, launch, stop, configure, or otherwise change local state.
 - Combine dependent steps into one command (e.g. with ; or &&-style chaining) since state does not persist.
 - Read the returned exitCode: a non-zero exit means the command failed — inspect stderr, fix the command, and retry rather than assuming success.
 - Never run destructive commands (deleting data, mass changes, system modification) without making the intent explicit so the user can review it before approving.`

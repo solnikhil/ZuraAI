@@ -108,7 +108,7 @@ describe('InputArea skills menu', () => {
     mockSettings.settings.assistantMode = 'chat'
   })
 
-  it('shows only current-desktop control in the composer plus menu', () => {
+  it('shows Agent Mode as the current-desktop control in the composer plus menu', () => {
     render(
       <InputArea
         input=""
@@ -120,8 +120,8 @@ describe('InputArea skills menu', () => {
       />
     )
 
-    expect(screen.getByRole('button', { name: /desktop control/i })).toBeInTheDocument()
-    expect(screen.getByRole('switch', { name: /control this desktop/i })).toBeInTheDocument()
+    expect(screen.getByText('Agent Mode')).toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: /agent mode/i })).toBeInTheDocument()
     expect(screen.queryByRole('switch', { name: /control separate desktop/i })).not.toBeInTheDocument()
   })
 
@@ -137,7 +137,7 @@ describe('InputArea skills menu', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('switch', { name: /control this desktop/i }))
+    fireEvent.click(screen.getByRole('switch', { name: /agent mode/i }))
 
     expect(updateSettings).toHaveBeenCalledWith(
       expect.objectContaining({

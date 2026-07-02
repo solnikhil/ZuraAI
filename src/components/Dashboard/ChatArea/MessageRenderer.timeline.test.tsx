@@ -519,4 +519,69 @@ describe('MessageRenderer follow-up timeline', () => {
     expect(thinkingBlocks).toHaveLength(1)
     expect(thinkingBlocks[0]).toHaveTextContent('Preparing final response')
   })
+
+  it('does not render legacy active thinking when it duplicates a completed thinking block', async () => {
+    render(
+      <MessageRenderer
+        message={{
+          id: 'message-duplicate-thinking',
+          role: 'assistant',
+          content: '',
+          thinking: 'The user is asking whether Triple T is the best person in the world.',
+          timestamp: 1,
+          thinkingBlocks: [
+            {
+              type: 'thinking',
+              content: 'The user is asking whether Triple T is the best person in the world.',
+              duration: 3000,
+              timestamp: 1,
+            },
+          ],
+        }}
+        isStreaming={true}
+        streamPhase="answering"
+      />
+    )
+
+    const thinkingBlocks = await screen.findAllByTestId('thinking-block')
+    const duplicatedText = 'The user is asking whether Triple T is the best person in the world.'
+    expect(thinkingBlocks).toHaveLength(1)
+    expect(thinkingBlocks[0]).toHaveTextContent(duplicatedText)
+    expect((thinkingBlocks[0].textContent || '').split(duplicatedText)).toHaveLength(2)
+  })
+
+  it('does not render DeepSeek active thinking when it replays a completed thinking prefix', async () => {
+    const completedThinking =
+      'The text was pasted successfully into Notepad. The screenshot shows the Notepad window with a good amount of text. The text looks good - it is well-formatted and substantial. Let me confirm to the user that everything is done.'
+    const replayedPrefix =
+      'The text was pasted successfully into Notepad. The screenshot shows the Notepad window with a good amount of text. The text looks good - it is well-formatted and substantial. Let me confirm to the user that'
+
+    render(
+      <MessageRenderer
+        message={{
+          id: 'message-deepseek-prefix-duplicate-thinking',
+          role: 'assistant',
+          content: '',
+          thinking: replayedPrefix,
+          timestamp: 1,
+          thinkingBlocks: [
+            {
+              type: 'thinking',
+              content: completedThinking,
+              duration: 1000,
+              timestamp: 1,
+            },
+          ],
+        }}
+        isStreaming={true}
+        streamPhase="answering"
+      />
+    )
+
+    const thinkingBlocks = await screen.findAllByTestId('thinking-block')
+    expect(thinkingBlocks).toHaveLength(1)
+    expect(thinkingBlocks[0]).toHaveTextContent(completedThinking)
+    expect(thinkingBlocks[0]).not.toHaveTextContent(`${completedThinking}${replayedPrefix}`)
+    expect((thinkingBlocks[0].textContent || '').split(replayedPrefix)).toHaveLength(2)
+  })
 })

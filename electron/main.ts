@@ -10,6 +10,9 @@ import {
   getMainWindow,
   destroyChatDebugWindow,
   destroyCommandCenterWindow,
+  destroyAgentApprovalOverlay,
+  registerAgentApprovalOverlayHandlers,
+  unregisterAgentApprovalOverlayHandlers,
 } from './windows'
 import { applyDevelopmentAppIcon } from './windowIcon'
 import { registerAllHandlers } from './ipc'
@@ -154,6 +157,8 @@ app.on('will-quit', () => {
   globalShortcut.unregisterAll()
   destroyChatDebugWindow()
   destroyCommandCenterWindow()
+  destroyAgentApprovalOverlay()
+  unregisterAgentApprovalOverlayHandlers()
   disposeCommandCenter()
   unregisterCommandCenterHandlers()
   unregisterMcpHandlers()
@@ -235,6 +240,7 @@ if (hasSingleInstanceLock) {
     registerAllHandlers()
     registerMcpHandlers()
     registerToolHandlers()
+    registerAgentApprovalOverlayHandlers()
     registerCommandCenterHandlers()
     registerUpdaterHandlers(getMainWindow)
     setShutdownHook(() => shutdownMcpManager())

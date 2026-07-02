@@ -12,12 +12,6 @@ import { injectLazyImageStyles } from './components/shared/LazyImage'
 import { scheduleNonCriticalPreloads } from './utils/startupPreloads'
 import './index.css'
 
-if (import.meta.env.DEV) {
-  void import('./dev/reactScanDiagnostics').then(({ initializeReactScanDiagnostics }) => {
-    initializeReactScanDiagnostics()
-  })
-}
-
 initializeRendererPerformance()
 
 injectLazyImageStyles()

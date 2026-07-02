@@ -99,7 +99,9 @@ export const CHAT_AREA_STYLES = `
           opacity: 1;
         }
         .chat-scroll-rail__track {
+          --rail-lens-y: 50%;
           display: flex;
+          position: relative;
           width: 100%;
           max-height: min(52vh, 420px);
           flex-direction: column;
@@ -110,6 +112,10 @@ export const CHAT_AREA_STYLES = `
           transition: none;
         }
         .chat-scroll-rail__marker {
+          --rail-marker-translate-x: 0px;
+          --rail-marker-scale-y: 1;
+          --rail-marker-scale-x: 1;
+          --rail-marker-hover-opacity: 0.48;
           display: grid;
           place-items: center start;
           width: 56px;
@@ -121,6 +127,10 @@ export const CHAT_AREA_STYLES = `
           background: transparent;
           cursor: pointer;
           pointer-events: auto;
+          transform: translateX(var(--rail-marker-translate-x)) scaleY(var(--rail-marker-scale-y));
+          transform-origin: left center;
+          transition: transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
+          will-change: transform;
         }
         .chat-scroll-rail__marker::before {
           content: "";
@@ -129,11 +139,13 @@ export const CHAT_AREA_STYLES = `
           border-radius: 999px;
           background: color-mix(in srgb, var(--theme-text-muted) 48%, transparent);
           box-shadow: none;
+          transform: scaleX(var(--rail-marker-scale-x));
+          transform-origin: left center;
           transition:
-            width 140ms ease,
-            height 120ms ease,
-            background-color 120ms ease,
-            opacity 120ms ease;
+            transform 130ms cubic-bezier(0.22, 1, 0.36, 1),
+            background-color 120ms cubic-bezier(0.22, 1, 0.36, 1),
+            opacity 120ms cubic-bezier(0.22, 1, 0.36, 1),
+            box-shadow 120ms cubic-bezier(0.22, 1, 0.36, 1);
         }
         .chat-scroll-rail__marker.is-user::before {
           width: 10px;
@@ -142,6 +154,9 @@ export const CHAT_AREA_STYLES = `
         .chat-scroll-rail__marker.is-assistant::before {
           width: 20px;
           opacity: 0.78;
+        }
+        .chat-scroll-rail__track:hover .chat-scroll-rail__marker::before {
+          opacity: var(--rail-marker-hover-opacity);
         }
         .chat-scroll-rail__marker:hover::before,
         .chat-scroll-rail__marker.is-visible::before {
@@ -165,6 +180,12 @@ export const CHAT_AREA_STYLES = `
         .chat-scroll-rail__marker:focus-visible {
           outline: 2px solid var(--theme-focus);
           outline-offset: 2px;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .chat-scroll-rail__marker,
+          .chat-scroll-rail__marker::before {
+            transition-duration: 0.01ms;
+          }
         }
         [data-slot='message-scroller-button'] {
           border-color: var(--theme-border) !important;

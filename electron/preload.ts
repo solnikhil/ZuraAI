@@ -20,6 +20,8 @@ import type {
   IpcOnChannel,
   IpcSendChannel,
   AddMemoryInput,
+  AgentApprovalOverlayDecision,
+  AgentApprovalOverlayRequest,
   AgentSkillsQuery,
   AnalyticsEventName,
   AnalyticsProperties,
@@ -239,6 +241,8 @@ const AGENT_SKILLS_INVOKE_CHANNELS = new Set<string>([
   'agent-skills:search',
   'agent-skills:install',
 ])
+
+const AGENT_APPROVAL_INVOKE_CHANNELS = new Set<string>(['agent-approval:request'])
 
 function assertAllowed<TChannel extends string>(
   kind: 'send' | 'invoke' | 'on' | 'off',
@@ -644,6 +648,16 @@ contextBridge.exposeInMainWorld(
       ) => callback(request)
       ipcRenderer.on('chat-links:message', listener)
       return () => ipcRenderer.removeListener('chat-links:message', listener)
+    },
+  })
+)
+
+contextBridge.exposeInMainWorld(
+  'agentApproval',
+  Object.freeze({
+    requestApproval: (request: AgentApprovalOverlayRequest) => {
+      assertAllowed('invoke', 'agent-approval:request', AGENT_APPROVAL_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('agent-approval:request', request) as Promise<AgentApprovalOverlayDecision>
     },
   })
 )
