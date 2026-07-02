@@ -53,7 +53,11 @@ import {
 } from './discordRpc'
 import { trackAppCrash, trackStartupAnalytics } from './analytics'
 import { startMonitorRuntime, stopMonitorRuntime } from './monitors'
-import { handleZuraChatMessageUrl, registerZuraChatProtocolHandlers } from './chatLinks'
+import {
+  handleZuraAppUrl,
+  handleZuraChatMessageUrl,
+  registerZuraChatProtocolHandlers,
+} from './chatLinks'
 import { log } from './startup/logger'
 import {
   disposeCommandCenter,
@@ -296,6 +300,11 @@ if (hasSingleInstanceLock) {
     log.startPhase('main-window')
     createMainWindow()
     log.endPhase('main-window')
+
+    const initialAppLink = process.argv.find((arg) => arg.startsWith('zuraai://'))
+    if (initialAppLink) {
+      handleZuraAppUrl(initialAppLink)
+    }
 
     const initialChatLink = process.argv.find((arg) => arg.startsWith('zura-chat://'))
     if (initialChatLink) {

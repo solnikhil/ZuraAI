@@ -459,7 +459,8 @@ export interface ProviderProxyAPI {
 
 export interface ExternalChatMessageRequest {
   sessionId: string
-  message: string
+  message?: string
+  createIfMissing?: boolean
   receivedAt: number
 }
 

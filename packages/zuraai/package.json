@@ -1,7 +1,7 @@
 {
   "name": "zuraai",
-  "version": "0.0.0",
-  "description": "Coming soon. Visit zuraai.in for ZuraAI.",
+  "version": "0.0.6",
+  "description": "Command-line launcher for the ZuraAI desktop app.",
   "license": "MIT",
   "author": "Nikhil",
   "homepage": "https://zuraai.in",
@@ -13,8 +13,12 @@
   "bugs": {
     "url": "https://github.com/solnikhil/ZuraAI/issues"
   },
+  "bin": {
+    "zuraai": "bin/zuraai.cjs"
+  },
   "files": [
-    "README.md"
+    "README.md",
+    "bin/zuraai.cjs"
   ],
   "publishConfig": {
     "access": "public"

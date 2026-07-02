@@ -116,8 +116,15 @@ function ChatScrollRail({ messages }: { messages: NavigationRailMessage[] }) {
 }
 
 export default function ChatArea() {
-  const { folders, sessions, currentSessionId, isSessionLoaded, loadFullSession, switchSession } =
-    useChatHistory()
+  const {
+    folders,
+    sessions,
+    currentSessionId,
+    isSessionLoaded,
+    createSession,
+    loadFullSession,
+    switchSession,
+  } = useChatHistory()
   const { settings } = useSettings()
   const { showToast } = useToast()
 
@@ -230,7 +237,12 @@ export default function ChatArea() {
   }, [currentSessionId, currentSessionIsLoading, loadFullSession])
 
   const handleChatLinkRequest = useCallback(
-    async (request: { sessionId: string; message?: string; receivedAt: number }) => {
+    async (request: {
+      sessionId: string
+      message?: string
+      createIfMissing?: boolean
+      receivedAt: number
+    }) => {
       const sessionId = request.sessionId.trim()
       const message = request.message?.trim() ?? ''
       if (!sessionId || isLoading) return false
@@ -244,6 +256,12 @@ export default function ChatArea() {
         targetSession = await loadFullSession(sessionId)
       }
       if (!targetSession) {
+        if (request.createIfMissing) {
+          createSession(undefined, null, sessionId)
+          if (message) return false
+          handledChatLinkKeysRef.current.add(dedupeKey)
+          return true
+        }
         showToast('Could not continue chat: session not found.', 'error')
         handledChatLinkKeysRef.current.add(dedupeKey)
         return true
@@ -271,6 +289,7 @@ export default function ChatArea() {
     [
       currentSessionId,
       currentSessionIsLoading,
+      createSession,
       isLoading,
       loadFullSession,
       sendMessage,

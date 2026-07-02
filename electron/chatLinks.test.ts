@@ -95,4 +95,30 @@ describe('zura chat links', () => {
     })
     expect(request?.message).toBeUndefined()
   })
+
+  it('accepts CLI-created chat links with constrained session ids', async () => {
+    const { parseZuraChatMessageUrl } = await import('./chatLinks')
+    const userData = encodeBase64Url(electronMock.userDataPath)
+
+    const request = parseZuraChatMessageUrl(
+      `zura-chat://cli-mabc123-xyz?userData=${userData}&createIfMissing=1&message=hello`
+    )
+
+    expect(request).toMatchObject({
+      sessionId: 'cli-mabc123-xyz',
+      message: 'hello',
+      createIfMissing: true,
+    })
+  })
+
+  it('rejects createIfMissing links without CLI-shaped session ids', async () => {
+    const { parseZuraChatMessageUrl } = await import('./chatLinks')
+    const userData = encodeBase64Url(electronMock.userDataPath)
+
+    const request = parseZuraChatMessageUrl(
+      `zura-chat://..%2Fsession?userData=${userData}&createIfMissing=1&message=hello`
+    )
+
+    expect(request).toBeNull()
+  })
 })

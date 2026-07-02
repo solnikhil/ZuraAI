@@ -149,6 +149,10 @@
       {
         "name": "ZuraAI Chat Link",
         "schemes": ["zura-chat"]
+      },
+      {
+        "name": "ZuraAI App Launcher",
+        "schemes": ["zuraai"]
       }
     ],
     "nsis": {

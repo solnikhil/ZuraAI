@@ -75,7 +75,7 @@ Prereqs: Bun `>= 1.1`, Node.js `>= 18`.
 | `src/mcp/`                            | Shared MCP contracts and renderer context                                                                         |
 | `src/prompts/`                        | Code-owned prompt defaults                                                                                        |
 | `dist/`, `dist-electron/`, `release/` | Generated build outputs; do not hand edit                                                                         |
-| `packages/zuraai/`                    | npm package reserved for ZuraAI; currently `zuraai@0.0.0` README-only placeholder pointing to `https://zuraai.in` |
+| `packages/zuraai/`                    | npm package for the `zuraai` terminal launcher; opens the desktop app through registered local protocols          |
 
 ---
 
@@ -99,7 +99,7 @@ Renderer (React/Vite) -> Preload (allowlisted bridges) -> Electron Main
 - Command Center overlay: separate frameless always-on-top `BrowserWindow`, loads `#/command-center`, opened only while Agent Mode is active.
 - Agent approval overlay: separate small frameless always-on-top `BrowserWindow` owned by main for Agent Mode tool-call approvals while ZuraAI is not focused. It loads sanitized inline approval HTML only, resolves approve/reject/always-allow-exact-repeat decisions back to the requesting renderer, and does not execute tools or expose general desktop APIs.
 - Unknown renderer routes render the dedicated 404 view.
-- Packaged app registers the `zura-chat` protocol for trusted local chat deep links. Debug references keep the shape `zura-chat://<sessionId>?userData=<base64urlUserData>`; session-only links open/switch to that chat, while continuation links may include `message=` or `messageBase64=`.
+- Packaged app registers `zuraai` for terminal/app-launch handoff and `zura-chat` for trusted local chat deep links. `zuraai://open` may only focus/create the main window. Debug and CLI chat references keep the shape `zura-chat://<sessionId>?userData=<base64urlUserData>`; session-only links open/switch to that chat, while continuation links may include `message=` or `messageBase64=`. CLI-created new-chat links may include `createIfMissing=1`, but must still pass the userData path validation before the renderer creates a new chat and sends the message.
 
 All BrowserWindows must use `nodeIntegration: false`, `contextIsolation: true`, and `sandbox: true` unless a change is explicitly justified in this file.
 
@@ -406,27 +406,19 @@ Windows artifacts:
 
 ### npm Package
 
-- `zuraai@0.0.0` is published on npm as a README-only placeholder.
-- It has no `bin`, includes only `README.md` plus `package.json`, and points to `https://zuraai.in`.
+- `zuraai` is the npm package for the macOS/Windows terminal launcher.
+- It exposes the `zuraai` bin, includes only the launcher script plus README/package metadata, and points to `https://zuraai.in`.
 - `zura` is not available on npm (`zura@6.6.7` was already published by another owner when checked).
 
-Placeholder publish checklist:
+Launcher publish checklist:
 
-1. Keep `packages/zuraai/package.json` free of `bin`.
-2. Keep `files` limited to `README.md`.
-3. Run `cd packages/zuraai && npm pack --dry-run --json`.
-4. Publish with `npm publish --access public`.
-5. If using a token, pass it through the environment for one command; never commit `.npmrc` tokens.
-6. Verify with `npm view zuraai name version homepage description --json`.
-
-Future launcher release checklist:
-
-1. Add `bin` only when the launcher is working.
-2. Keep npm package small; do not embed Electron binaries.
-3. Align package version with GitHub app release tag (`0.0.6` -> `v0.0.6`).
-4. Upload desktop artifacts and `checksums.txt` to GitHub first.
-5. Publish npm only after release URLs are live.
-6. Verify `bunx zuraai --version` and `bunx zuraai`.
+1. Keep npm package small; do not embed Electron binaries.
+2. Align package version with GitHub app release tag (`0.0.6` -> `v0.0.6`).
+3. Upload desktop artifacts and `checksums.txt` to GitHub first.
+4. Run `cd packages/zuraai && npm pack --dry-run --json`.
+5. Publish with `npm publish --access public`.
+6. If using a token, pass it through the environment for one command; never commit `.npmrc` tokens.
+7. Verify `bunx zuraai --version`, `bunx zuraai --help`, and `npm view zuraai name version homepage description bin --json`.
 
 ---
 
@@ -474,4 +466,4 @@ Don't:
 ## Known Gaps / Watchpoints
 
 - User-configured global shortcut strings in settings are still not fully wired to `globalShortcut.register(...)`.
-- Package-manager launcher support is planned but not active in the published npm package; `zuraai@0.0.0` is currently only a placeholder.
+- The npm launcher opens installed desktop apps through registered local protocols; it does not install the Electron app itself.
