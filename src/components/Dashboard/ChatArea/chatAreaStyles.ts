@@ -81,53 +81,90 @@ export const CHAT_AREA_STYLES = `
           max-width: 100%;
           min-width: 0;
         }
-        .chat-scroll-trail {
-          position: absolute;
-          top: 18px;
-          bottom: 178px;
-          left: 10px;
-          z-index: 12;
-          width: 28px;
-          pointer-events: none;
-        }
-        .chat-scroll-trail::before {
-          content: "";
+        .chat-scroll-rail {
           position: absolute;
           top: 0;
           bottom: 0;
-          left: 6px;
-          width: 1px;
-          background: color-mix(in srgb, var(--theme-border) 42%, transparent);
+          left: 18px;
+          z-index: 8;
+          display: flex;
+          align-items: center;
+          width: 72px;
+          pointer-events: none;
+          opacity: 0.64;
+          transition: opacity 140ms ease;
         }
-        .chat-scroll-trail__mark {
-          position: absolute;
-          left: 3px;
-          width: 7px;
-          height: 2px;
+        .chat-scroll-rail:hover,
+        .chat-scroll-rail:focus-within {
+          opacity: 1;
+        }
+        .chat-scroll-rail__track {
+          display: flex;
+          width: 100%;
+          max-height: min(52vh, 420px);
+          flex-direction: column;
+          justify-content: center;
+          align-items: flex-start;
+          gap: 0;
+          overflow: hidden;
+          transition: none;
+        }
+        .chat-scroll-rail__marker {
+          display: grid;
+          place-items: center start;
+          width: 56px;
+          height: 10px;
+          min-height: 10px;
           padding: 0;
           border: 0;
-          border-radius: 999px;
-          background: color-mix(in srgb, var(--theme-text-muted) 64%, transparent);
-          transform: translateY(-50%);
-          opacity: 0.74;
-          pointer-events: auto;
+          border-radius: 0;
+          background: transparent;
           cursor: pointer;
-          transition: width 120ms ease, background-color 120ms ease, opacity 120ms ease;
+          pointer-events: auto;
         }
-        .chat-scroll-trail__mark:hover,
-        .chat-scroll-trail__mark.is-visible {
-          width: 13px;
-          opacity: 0.95;
-          background: color-mix(in srgb, var(--theme-text-secondary) 86%, transparent);
+        .chat-scroll-rail__marker::before {
+          content: "";
+          width: 20px;
+          height: 2px;
+          border-radius: 999px;
+          background: color-mix(in srgb, var(--theme-text-muted) 48%, transparent);
+          box-shadow: none;
+          transition:
+            width 140ms ease,
+            height 120ms ease,
+            background-color 120ms ease,
+            opacity 120ms ease;
         }
-        .chat-scroll-trail__mark.is-current {
-          width: 22px;
+        .chat-scroll-rail__marker.is-user::before {
+          width: 10px;
+          opacity: 0.68;
+        }
+        .chat-scroll-rail__marker.is-assistant::before {
+          width: 20px;
+          opacity: 0.78;
+        }
+        .chat-scroll-rail__marker:hover::before,
+        .chat-scroll-rail__marker.is-visible::before {
           height: 2px;
           opacity: 1;
-          background: var(--theme-text-primary);
+          background: color-mix(in srgb, var(--theme-text-secondary) 88%, transparent);
         }
-        .chat-scroll-trail__mark.is-user {
-          left: 2px;
+        .chat-scroll-rail__marker.is-user:hover::before,
+        .chat-scroll-rail__marker.is-user:focus-visible::before {
+          width: 14px;
+        }
+        .chat-scroll-rail__marker.is-assistant:hover::before,
+        .chat-scroll-rail__marker.is-assistant:focus-visible::before {
+          width: 30px;
+        }
+        .chat-scroll-rail__marker.is-current::before {
+          height: 3px;
+          background: var(--theme-text-primary);
+          opacity: 1;
+        }
+        .chat-scroll-rail__marker:focus-visible {
+          outline: 2px solid var(--theme-focus);
+          outline-offset: 2px;
         }
         [data-slot='message-scroller-button'] {
           border-color: var(--theme-border) !important;
@@ -138,8 +175,8 @@ export const CHAT_AREA_STYLES = `
         @keyframes spin {
           to { transform: rotate(360deg); }
         }
-        @media (max-width: 720px) {
-          .chat-scroll-trail {
+        @media (max-width: 900px) {
+          .chat-scroll-rail {
             display: none;
           }
         }

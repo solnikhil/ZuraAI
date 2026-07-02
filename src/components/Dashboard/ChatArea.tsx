@@ -29,57 +29,52 @@ import type { AttachedFile } from './ChatArea/attachmentUtils'
 import { NORMAL_PLACEHOLDERS, GENZ_PLACEHOLDERS } from './ChatArea/placeholders'
 import { CHAT_AREA_STYLES } from './ChatArea/chatAreaStyles'
 
-type NavigationTrailMessage = {
+type NavigationRailMessage = {
   id: string
   role: 'user' | 'assistant' | 'system'
   content: string
 }
 
-function summarizeTrailMessage(message: NavigationTrailMessage): string {
+function summarizeRailMessage(message: NavigationRailMessage): string {
   const trimmed = message.content.replace(/\s+/g, ' ').trim()
   if (!trimmed) return message.role === 'user' ? 'Your message' : 'Assistant reply'
-  return trimmed.length > 54 ? `${trimmed.slice(0, 51)}...` : trimmed
+  return trimmed.length > 64 ? `${trimmed.slice(0, 61)}...` : trimmed
 }
 
-function ChatScrollTrail({ messages }: { messages: NavigationTrailMessage[] }) {
+function ChatScrollRail({ messages }: { messages: NavigationRailMessage[] }) {
   const { currentAnchorId, visibleMessageIds } = useMessageScrollerVisibility()
   const { scrollToMessage } = useMessageScroller()
-
-  const messageById = useMemo(
-    () => new Map(messages.map((message, index) => [message.id, { message, index }])),
-    [messages]
-  )
   const visibleSet = useMemo(() => new Set(visibleMessageIds), [visibleMessageIds])
 
   if (messages.length < 3) return null
 
   return (
-    <nav className="chat-scroll-trail" aria-label="Chat scroll trail">
-      {messages.map((message, index) => {
-        const isCurrent = message.id === currentAnchorId
-        const isVisible = visibleSet.has(message.id)
-        const entry = messageById.get(message.id)
-        const label = entry
-          ? `Message ${entry.index + 1}, ${message.role}: ${summarizeTrailMessage(message)}`
-          : summarizeTrailMessage(message)
+    <nav className="chat-scroll-rail" aria-label="Message map">
+      <div className="chat-scroll-rail__track">
+        {messages.map((message, index) => {
+          const isCurrent = message.id === currentAnchorId
+          const isVisible = visibleSet.has(message.id)
+          const label = `Message ${index + 1}, ${message.role}: ${summarizeRailMessage(message)}`
 
-        return (
-          <button
-            key={message.id}
-            type="button"
-            className={[
-              'chat-scroll-trail__mark',
-              isVisible ? 'is-visible' : '',
-              isCurrent ? 'is-current' : '',
-              message.role === 'user' ? 'is-user' : '',
-            ].filter(Boolean).join(' ')}
-            onClick={() => scrollToMessage(message.id, { align: 'start', behavior: 'smooth' })}
-            title={label}
-            aria-label={label}
-            style={{ top: `${messages.length === 1 ? 0 : (index / (messages.length - 1)) * 100}%` }}
-          />
-        )
-      })}
+          return (
+            <button
+              key={message.id}
+              type="button"
+              className={[
+                'chat-scroll-rail__marker',
+                isVisible ? 'is-visible' : '',
+                isCurrent ? 'is-current' : '',
+                message.role === 'user' ? 'is-user' : '',
+                message.role === 'assistant' ? 'is-assistant' : '',
+              ].filter(Boolean).join(' ')}
+              aria-current={isCurrent ? 'location' : undefined}
+              aria-label={label}
+              title={label}
+              onClick={() => scrollToMessage(message.id, { block: 'start', behavior: 'smooth' })}
+            />
+          )
+        })}
+      </div>
     </nav>
   )
 }
@@ -419,7 +414,7 @@ export default function ChatArea() {
     >
       <MessageScrollerProvider autoScroll defaultScrollPosition="end" scrollMargin={16}>
         <MessageScroller data-select-all-scope="chat" className="flex-1">
-          <ChatScrollTrail messages={displayedMessages} />
+          <ChatScrollRail messages={displayedMessages} />
           <MessageScrollerViewport
             ref={messagesContainerRef}
             data-select-all-scope="chat"
