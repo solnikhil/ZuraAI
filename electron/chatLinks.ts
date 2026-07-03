@@ -7,12 +7,15 @@ import { getMainWindow, createMainWindow } from './windows'
 export interface ExternalChatMessageRequest {
   sessionId: string
   message?: string
+  createIfMissing?: boolean
   receivedAt: number
 }
 
 const CHAT_LINK_MESSAGE_CHANNEL = 'chat-links:message'
 const MAX_DEEP_LINK_MESSAGE_LENGTH = 20_000
+const CLI_SESSION_ID_PATTERN = /^cli-[a-z0-9-]{1,80}$/i
 const TRACE_FILE_NAME = 'chat-link-events.jsonl'
+const ZURA_PROTOCOLS = ['zura-chat', 'zuraai'] as const
 
 const pendingRequests: ExternalChatMessageRequest[] = []
 let deliveryRetryScheduled = false
@@ -98,11 +101,17 @@ export function parseZuraChatMessageUrl(input: string): ExternalChatMessageReque
     ? decodeBase64Url(encodedMessage)
     : parsed.searchParams.get('message')
   const message = typeof rawMessage === 'string' ? rawMessage.trim() : ''
+  const createIfMissing = parsed.searchParams.get('createIfMissing') === '1'
+  if (createIfMissing && !CLI_SESSION_ID_PATTERN.test(sessionId)) {
+    traceChatLinkEvent('parse-rejected', { reason: 'invalid-create-session-id', sessionId })
+    return null
+  }
 
   traceChatLinkEvent('parse-accepted', { sessionId, messageLength: message.length })
   return {
     sessionId,
     ...(message ? { message: message.slice(0, MAX_DEEP_LINK_MESSAGE_LENGTH) } : {}),
+    ...(createIfMissing ? { createIfMissing: true } : {}),
     receivedAt: Date.now(),
   }
 }
@@ -184,32 +193,77 @@ export function handleZuraChatMessageUrl(url: string): boolean {
   return true
 }
 
+export function handleZuraAppUrl(url: string): boolean {
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    traceChatLinkEvent('app-url-rejected', { reason: 'invalid-url' })
+    return false
+  }
+
+  if (parsed.protocol !== 'zuraai:') {
+    traceChatLinkEvent('app-url-rejected', { reason: 'wrong-protocol', protocol: parsed.protocol })
+    return false
+  }
+
+  const action = `${parsed.host}${parsed.pathname || ''}`.replace(/^\/+|\/+$/g, '').trim()
+  if (action && action !== 'open') {
+    traceChatLinkEvent('app-url-rejected', { reason: 'unsupported-action', action })
+    return false
+  }
+
+  traceChatLinkEvent('app-url-open')
+  if (!app.isReady()) {
+    void app.whenReady().then(showMainWindowAndDeliver)
+    return true
+  }
+
+  showMainWindowAndDeliver()
+  return true
+}
+
+function handleRegisteredProtocolUrl(url: string): boolean {
+  if (url.startsWith('zura-chat://')) {
+    return handleZuraChatMessageUrl(url)
+  }
+  if (url.startsWith('zuraai://')) {
+    return handleZuraAppUrl(url)
+  }
+  return false
+}
+
 export function registerZuraChatProtocolHandlers(): void {
-  if (process.defaultApp && process.argv.length >= 2) {
-    const appArg = path.resolve(process.argv[1])
-    const registered = app.setAsDefaultProtocolClient('zura-chat', process.execPath, [appArg])
-    traceChatLinkEvent('protocol-register', {
-      mode: 'default-app',
-      registered,
-      execPath: process.execPath,
-      appArg,
-    })
-  } else {
-    const registered = app.setAsDefaultProtocolClient('zura-chat')
-    traceChatLinkEvent('protocol-register', { mode: 'packaged', registered })
+  for (const protocol of ZURA_PROTOCOLS) {
+    if (process.defaultApp && process.argv.length >= 2) {
+      const appArg = path.resolve(process.argv[1])
+      const registered = app.setAsDefaultProtocolClient(protocol, process.execPath, [appArg])
+      traceChatLinkEvent('protocol-register', {
+        protocol,
+        mode: 'default-app',
+        registered,
+        execPath: process.execPath,
+        appArg,
+      })
+    } else {
+      const registered = app.setAsDefaultProtocolClient(protocol)
+      traceChatLinkEvent('protocol-register', { protocol, mode: 'packaged', registered })
+    }
   }
 
   app.on('open-url', (event, url) => {
     event.preventDefault()
     traceChatLinkEvent('open-url')
-    handleZuraChatMessageUrl(url)
+    handleRegisteredProtocolUrl(url)
   })
 
   app.on('second-instance', (_event, commandLine) => {
-    const url = commandLine.find((arg) => arg.startsWith('zura-chat://'))
+    const url = commandLine.find(
+      (arg) => arg.startsWith('zura-chat://') || arg.startsWith('zuraai://')
+    )
     traceChatLinkEvent('second-instance', { hasUrl: Boolean(url), argCount: commandLine.length })
     if (url) {
-      handleZuraChatMessageUrl(url)
+      handleRegisteredProtocolUrl(url)
       return
     }
 

@@ -23,14 +23,6 @@ vi.mock('@/contexts/ChatHistoryContext', () => ({
   }),
 }))
 
-vi.mock('../LazyMarkdown', () => ({
-  default: ({ content }: { content: string }) => <div data-testid="markdown-preview">{content}</div>,
-}))
-
-vi.mock('../MermaidDiagram', () => ({
-  default: ({ code }: { code: string }) => <div data-testid="mermaid-preview">{code}</div>,
-}))
-
 const mockOpenArtifactInExternalApp = vi.fn(async () => ({ ok: true }))
 
 vi.mock('@/artifacts/openArtifactExternally', () => ({
@@ -80,35 +72,24 @@ describe('ArtifactsView', () => {
     })
   })
 
-  it('lists artifacts and opens the detail drawer', () => {
+  it('lists artifacts and opens one externally from the card', () => {
     render(<ArtifactsView />)
 
     expect(screen.getByRole('heading', { name: 'Artifacts' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /preview launch plan/i }))
+    fireEvent.click(screen.getAllByRole('button', { name: /open in default editor: launch plan/i })[0])
 
-    expect(screen.getAllByText('Source chat').length).toBeGreaterThan(0)
-    expect(screen.getByTestId('markdown-preview')).toHaveTextContent('# Launch')
-  })
-
-  it('jumps to the source chat from the drawer', () => {
-    render(<ArtifactsView />)
-
-    fireEvent.click(screen.getByRole('button', { name: /preview launch plan/i }))
-    fireEvent.click(screen.getByRole('button', { name: /open chat/i }))
-
-    expect(mockSwitchSession).toHaveBeenCalledWith('session-1')
-    expect(mockSetDashboardView).toHaveBeenCalledWith('chat')
+    expect(mockOpenArtifactInExternalApp).toHaveBeenCalledWith('session-1', 'artifact-1', expect.any(Array))
   })
 
   it('opens an artifact externally from the chevron action', () => {
     render(<ArtifactsView />)
 
-    fireEvent.click(screen.getByRole('button', { name: /open in default editor: launch plan/i }))
+    fireEvent.click(screen.getAllByRole('button', { name: /open in default editor: launch plan/i })[1])
 
     expect(mockOpenArtifactInExternalApp).toHaveBeenCalledWith('session-1', 'artifact-1', expect.any(Array))
   })
 
-  it('lists metadata-only artifacts and loads full content when opened', async () => {
+  it('lists metadata-only artifacts and opens them externally', async () => {
     mockSessions = []
     const fullSession = {
       id: 'session-2',
@@ -168,9 +149,11 @@ describe('ArtifactsView', () => {
 
     render(<ArtifactsView />)
 
-    expect(await screen.findByRole('button', { name: /preview historical plan/i })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /preview historical plan/i }))
+    const historicalButtons = await screen.findAllByRole('button', {
+      name: /open in default editor: historical plan/i,
+    })
+    fireEvent.click(historicalButtons[0])
 
-    expect(await screen.findByTestId('markdown-preview')).toHaveTextContent('# Historical')
+    expect(mockOpenArtifactInExternalApp).toHaveBeenCalledWith('session-2', 'artifact-2', expect.any(Array))
   })
 })

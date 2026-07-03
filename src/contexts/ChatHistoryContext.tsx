@@ -59,7 +59,7 @@ interface ChatHistoryContextType {
   folders: Folder[]
   currentSessionId: string | null
   isLoading: boolean
-  createSession: (firstMessage?: string, folderId?: string | null) => string
+  createSession: (firstMessage?: string, folderId?: string | null, idOverride?: string) => string
   switchSession: (id: string) => void
   addMessageToSession: (sessionId: string, message: Omit<Message, 'id' | 'timestamp'>) => string
   updateStreamingMessage: (sessionId: string, messageId: string, updates: Partial<Message>) => void
@@ -624,12 +624,14 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
   )
 
   const createSession = useCallback(
-    (firstMessage?: string, folderId?: string | null) => {
+    (firstMessage?: string, folderId?: string | null, idOverride?: string) => {
       const now = Date.now()
       const normalizedFirstMessage = typeof firstMessage === 'string' ? firstMessage.trim() : ''
       const normalizedFolderId = folderId || null
+      const normalizedIdOverride =
+        typeof idOverride === 'string' && idOverride.trim() ? idOverride.trim() : ''
       const existingReusable =
-        !normalizedFirstMessage
+        !normalizedIdOverride && !normalizedFirstMessage
           ? sessionsRef.current.find(
               (session) =>
                 session.title === 'New Chat' &&
@@ -662,7 +664,7 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
         : []
 
       const newSession: ChatSession = normalizeSession({
-        id: crypto.randomUUID(),
+        id: normalizedIdOverride || crypto.randomUUID(),
         title: normalizedFirstMessage
           ? normalizedFirstMessage.slice(0, 30) +
             (normalizedFirstMessage.length > 30 ? '...' : '')

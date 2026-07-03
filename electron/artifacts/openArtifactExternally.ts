@@ -1,6 +1,7 @@
 import fs from 'fs/promises'
 import path from 'path'
-import { app, shell } from 'electron'
+import { execFile } from 'child_process'
+import { app, dialog, shell } from 'electron'
 import { getArtifactExtension, isArtifactKind } from '../../src/artifacts/artifactStore'
 import type { ArtifactKind } from '../../src/artifacts/artifactTypes'
 
@@ -61,6 +62,40 @@ function normalizePayload(payload: unknown): OpenArtifactExternallyPayload | nul
   }
 }
 
+function execFileAsync(command: string, args: string[]): Promise<void> {
+  return new Promise((resolve, reject) => {
+    execFile(command, args, (error) => {
+      if (error) {
+        reject(error)
+        return
+      }
+      resolve()
+    })
+  })
+}
+
+async function openWithMacOSAppChooser(filePath: string): Promise<OpenArtifactExternallyResult> {
+  const result = await dialog.showOpenDialog({
+    title: 'Open Artifact With',
+    buttonLabel: 'Open',
+    defaultPath: '/Applications',
+    properties: ['openFile'],
+    filters: [{ name: 'Applications', extensions: ['app'] }],
+  })
+
+  if (result.canceled || result.filePaths.length !== 1) {
+    return { ok: false, error: 'Open With was canceled.', path: filePath }
+  }
+
+  const appPath = result.filePaths[0]
+  if (!appPath.toLowerCase().endsWith('.app')) {
+    return { ok: false, error: 'Select a macOS application bundle.', path: filePath }
+  }
+
+  await execFileAsync('/usr/bin/open', ['-a', appPath, filePath])
+  return { ok: true, path: filePath }
+}
+
 export async function openArtifactExternally(payload: unknown): Promise<OpenArtifactExternallyResult> {
   const normalized = normalizePayload(payload)
   if (!normalized) {
@@ -82,6 +117,10 @@ export async function openArtifactExternally(payload: unknown): Promise<OpenArti
   try {
     await fs.mkdir(exportDir, { recursive: true })
     await fs.writeFile(filePath, normalized.content, 'utf8')
+
+    if (process.platform === 'darwin') {
+      return await openWithMacOSAppChooser(filePath)
+    }
 
     const openError = await shell.openPath(filePath)
     if (openError) {

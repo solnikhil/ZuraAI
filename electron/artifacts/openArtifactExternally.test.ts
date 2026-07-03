@@ -4,6 +4,13 @@ const mocks = vi.hoisted(() => ({
   mkdir: vi.fn(async () => undefined),
   writeFile: vi.fn(async () => undefined),
   openPath: vi.fn(async () => ''),
+  showOpenDialog: vi.fn(async () => ({
+    canceled: false,
+    filePaths: ['/Applications/TextEdit.app'],
+  })),
+  execFile: vi.fn((command: string, args: string[], callback: (error: Error | null) => void) => {
+    callback(null)
+  }),
   getPath: vi.fn(() => '/tmp/zura-user-data'),
 }))
 
@@ -18,8 +25,18 @@ vi.mock('electron', () => ({
   app: {
     getPath: mocks.getPath,
   },
+  dialog: {
+    showOpenDialog: mocks.showOpenDialog,
+  },
   shell: {
     openPath: mocks.openPath,
+  },
+}))
+
+vi.mock('child_process', () => ({
+  execFile: mocks.execFile,
+  default: {
+    execFile: mocks.execFile,
   },
 }))
 
@@ -27,10 +44,13 @@ import { openArtifactExternally } from './openArtifactExternally'
 
 describe('openArtifactExternally', () => {
   beforeEach(() => {
+    vi.restoreAllMocks()
     vi.clearAllMocks()
   })
 
   it('writes the artifact and opens it with the OS default app', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
+
     const result = await openArtifactExternally({
       sessionId: 'session-1',
       artifactId: 'artifact-1',
@@ -57,6 +77,7 @@ describe('openArtifactExternally', () => {
 
   it('surfaces shell.openPath failures', async () => {
     mocks.openPath.mockResolvedValueOnce('No application found')
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
 
     const result = await openArtifactExternally({
       sessionId: 'session-1',
@@ -68,5 +89,29 @@ describe('openArtifactExternally', () => {
 
     expect(result.ok).toBe(false)
     expect(result.error).toBe('No application found')
+  })
+
+  it('shows a macOS app chooser and opens the artifact with the selected app', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('darwin')
+
+    const result = await openArtifactExternally({
+      sessionId: 'session-1',
+      artifactId: 'artifact-3',
+      title: 'Diagram',
+      kind: 'mermaid',
+      content: 'graph TD; A-->B;',
+    })
+
+    expect(result.ok).toBe(true)
+    expect(mocks.openPath).not.toHaveBeenCalled()
+    expect(mocks.showOpenDialog).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'Open Artifact With',
+      filters: [{ name: 'Applications', extensions: ['app'] }],
+    }))
+    expect(mocks.execFile).toHaveBeenCalledWith(
+      '/usr/bin/open',
+      ['-a', '/Applications/TextEdit.app', expect.stringContaining('Diagram.mmd')],
+      expect.any(Function)
+    )
   })
 })
