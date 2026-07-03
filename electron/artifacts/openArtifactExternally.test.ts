@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   mkdir: vi.fn(async () => undefined),
   writeFile: vi.fn(async () => undefined),
   openPath: vi.fn(async () => ''),
+  showOpenDialog: vi.fn(async () => ({
     canceled: false,
     filePaths: ['/Applications/TextEdit.app'],
   })),
