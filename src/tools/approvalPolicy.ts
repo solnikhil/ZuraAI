@@ -6,6 +6,13 @@ import {
 } from './types'
 
 const COMPUTER_TOOLS_REQUIRING_APPROVAL = new Set([
+  'ui_click',
+  'ui_type_text',
+  'ui_set_value',
+  'ui_select',
+  'ui_scroll',
+  'ui_focus',
+  'ui_key',
   'computer_click',
   'computer_type',
   'computer_key',

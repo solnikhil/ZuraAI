@@ -21,15 +21,25 @@ const READ_ONLY_TOOL_NAMES = new Set([
   'app_find',
   'app_list',
   'window_list',
+  'ui_get_app_state',
+  'ui_find',
+  'ui_wait_for',
   'windows_uia_snapshot',
   'computer_screenshot',
   'computer_list_windows',
 ])
 
 const FILE_MUTATION_TOOLS = new Set(['file_write', 'file_move'])
-const APP_WINDOW_MUTATION_PREFIXES = ['app_', 'window_', 'windows_uia_']
-const APP_WINDOW_READ_ONLY_TOOLS = new Set(['app_find', 'app_list', 'window_list', 'windows_uia_snapshot'])
+const APP_WINDOW_MUTATION_PREFIXES = ['app_', 'window_', 'ui_', 'windows_uia_']
+const APP_WINDOW_READ_ONLY_TOOLS = new Set(['app_find', 'app_list', 'window_list', 'ui_get_app_state', 'ui_find', 'ui_wait_for', 'windows_uia_snapshot'])
 const VISUAL_MUTATION_TOOLS = new Set([
+  'ui_click',
+  'ui_type_text',
+  'ui_set_value',
+  'ui_select',
+  'ui_scroll',
+  'ui_focus',
+  'ui_key',
   'computer_click',
   'computer_type',
   'computer_key',
@@ -95,7 +105,7 @@ export function selectVerificationStrategy(
     return {
       category: 'app-window',
       reason: 'App, window, or UI Automation state changed and needs a structured state check.',
-      preferredTools: ['window_list', 'windows_uia_snapshot'],
+      preferredTools: ['ui_get_app_state', 'ui_find', 'window_list'],
       mutatingToolNames,
     }
   }
@@ -113,7 +123,7 @@ export function selectVerificationStrategy(
     return {
       category: 'shell',
       reason: 'A shell or code action changed state and needs output review or a read-only check.',
-      preferredTools: ['file_search', 'file_read', 'window_list', 'windows_uia_snapshot'],
+      preferredTools: ['file_search', 'file_read', 'window_list', 'ui_get_app_state'],
       mutatingToolNames,
     }
   }
@@ -121,7 +131,7 @@ export function selectVerificationStrategy(
   return {
     category: 'generic',
     reason: 'A mutating tool ran and needs an explicit verification pass.',
-    preferredTools: ['file_search', 'file_read', 'window_list', 'windows_uia_snapshot', 'computer_screenshot'],
+    preferredTools: ['file_search', 'file_read', 'window_list', 'ui_get_app_state', 'computer_screenshot'],
     mutatingToolNames,
   }
 }

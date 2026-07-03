@@ -24,6 +24,7 @@ function getTimeoutForTool(toolName: string): number {
 function isNativeWindowsToolName(toolName: string): boolean {
     return (
         toolName === 'system_shell' ||
+        toolName.startsWith('ui_') ||
         toolName.startsWith('windows_uia_') ||
         toolName.startsWith('file_') ||
         toolName.startsWith('app_') ||

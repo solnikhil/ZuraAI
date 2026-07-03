@@ -15,7 +15,9 @@ describe('requiresManualToolApproval', () => {
       'app_find',
       'app_list',
       'window_list',
-      'windows_uia_snapshot',
+      'ui_get_app_state',
+      'ui_find',
+      'ui_wait_for',
       'web_search',
     ]) {
       expect(
@@ -43,9 +45,13 @@ describe('requiresManualToolApproval', () => {
       'window_focus',
       'window_move',
       'window_close',
-      'windows_uia_invoke',
-      'windows_uia_set_value',
-      'windows_uia_select',
+      'ui_click',
+      'ui_type_text',
+      'ui_set_value',
+      'ui_select',
+      'ui_scroll',
+      'ui_focus',
+      'ui_key',
       'code_execution',
       'mcp__filesystem__write_file',
     ]) {

@@ -16,6 +16,18 @@ import {
   executeWindowsUiaSetValue,
   executeWindowsUiaSelect,
 } from './windows-uia'
+import {
+  executeUiGetAppState,
+  executeUiFind,
+  executeUiWaitFor,
+  executeUiClick,
+  executeUiTypeText,
+  executeUiSetValue,
+  executeUiSelect,
+  executeUiScroll,
+  executeUiFocus,
+  executeUiKey,
+} from './ui-automation'
 import { executeSystemShell } from './system-shell'
 import { executeFileRead, executeFileWrite, executeFileSearch, executeFileMove } from './files'
 import {
@@ -202,6 +214,16 @@ const toolHandlers: Record<BuiltinMainToolName, ToolHandler> = {
   computer_scroll: (args) => { const n = normalizeScrollArgs(args); return executeScroll(n.args, n.autoApprove, spotlightFn) },
   computer_cursor_position: (args) => { const n = normalizeCursorArgs(args); return executeCursorPosition(n.args, n.autoApprove, spotlightFn) },
   computer_list_windows: () => executeListWindows(),
+  ui_get_app_state: executeUiGetAppState,
+  ui_find: executeUiFind,
+  ui_wait_for: executeUiWaitFor,
+  ui_click: executeUiClick,
+  ui_type_text: executeUiTypeText,
+  ui_set_value: executeUiSetValue,
+  ui_select: executeUiSelect,
+  ui_scroll: executeUiScroll,
+  ui_focus: executeUiFocus,
+  ui_key: executeUiKey,
   windows_uia_snapshot: executeWindowsUiaSnapshot,
   windows_uia_invoke: executeWindowsUiaInvoke,
   windows_uia_set_value: executeWindowsUiaSetValue,

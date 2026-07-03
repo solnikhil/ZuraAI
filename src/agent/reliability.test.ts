@@ -39,11 +39,27 @@ describe('agent reliability helpers', () => {
     )
   })
 
+  it('selects structured state verification for ui element actions', () => {
+    const strategy = selectVerificationStrategy([
+      {
+        toolCall: { id: 'ui-click-1', name: 'ui_click', arguments: { element_id: 'uie_123' } },
+        result: { success: true },
+      },
+    ])
+
+    expect(strategy).toEqual(
+      expect.objectContaining({
+        category: 'app-window',
+        preferredTools: ['ui_get_app_state', 'ui_find', 'window_list'],
+      })
+    )
+  })
+
   it('does not force verification for read-only inspection tools', () => {
     expect(
       selectVerificationStrategy([
         {
-          toolCall: { id: 'search-1', name: 'file_search', arguments: { query: '*.png' } },
+          toolCall: { id: 'search-1', name: 'ui_get_app_state', arguments: {} },
           result: { success: true },
         },
       ])

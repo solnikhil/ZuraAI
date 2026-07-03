@@ -19,15 +19,21 @@ describe('builtInMainToolManifest', () => {
   })
 
   it('exposes native Windows agent tools with approval metadata for mutating actions', () => {
-    expect(builtInMainToolManifest.windows_uia_snapshot.requiresApproval).toBeUndefined()
+    expect(builtInMainToolManifest.ui_get_app_state.requiresApproval).toBeUndefined()
+    expect(builtInMainToolManifest.ui_find.requiresApproval).toBeUndefined()
+    expect(builtInMainToolManifest.ui_wait_for.requiresApproval).toBeUndefined()
     expect(builtInMainToolManifest.file_read.requiresApproval).toBeUndefined()
     expect(builtInMainToolManifest.app_find.requiresApproval).toBeUndefined()
     expect(builtInMainToolManifest.window_list.requiresApproval).toBeUndefined()
 
     for (const name of [
-      'windows_uia_invoke',
-      'windows_uia_set_value',
-      'windows_uia_select',
+      'ui_click',
+      'ui_type_text',
+      'ui_set_value',
+      'ui_select',
+      'ui_scroll',
+      'ui_focus',
+      'ui_key',
       'system_shell',
       'file_write',
       'file_move',

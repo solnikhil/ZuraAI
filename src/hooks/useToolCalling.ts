@@ -28,6 +28,16 @@ import { isSkillEnabled } from '../skills'
 import type { McpRuntimeSnapshot } from '../mcp/types'
 
 const COMPUTER_USE_TOOLS = [
+    'ui_get_app_state',
+    'ui_find',
+    'ui_wait_for',
+    'ui_click',
+    'ui_type_text',
+    'ui_set_value',
+    'ui_select',
+    'ui_scroll',
+    'ui_focus',
+    'ui_key',
     'computer_screenshot',
     'computer_click',
     'computer_type',
@@ -51,6 +61,9 @@ const NATIVE_WINDOWS_AGENT_TOOLS = [
     'window_focus',
     'window_move',
     'window_close',
+]
+
+const LEGACY_WINDOWS_UIA_TOOLS = [
     'windows_uia_snapshot',
     'windows_uia_invoke',
     'windows_uia_set_value',
@@ -147,6 +160,8 @@ export function useToolCalling() {
         let enabledTools: string[] = settings.enabledTools.length > 0
             ? settings.enabledTools.filter((tool) => knownBuiltInTools.has(tool))
             : builtinToolNames
+
+        enabledTools = enabledTools.filter((tool) => !LEGACY_WINDOWS_UIA_TOOLS.includes(tool))
 
         const webResearchSurfaceEnabled = isSkillEnabled(settings.skills, 'web_research')
         if (!webResearchSurfaceEnabled) {

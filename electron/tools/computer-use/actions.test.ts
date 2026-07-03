@@ -1,6 +1,14 @@
-import { describe, expect, it, vi, beforeEach, afterAll } from 'vitest'
+import { describe, expect, it, vi, beforeEach } from 'vitest'
 
 const clipboardStore = { text: '' }
+const { execFileMock } = vi.hoisted(() => ({
+  execFileMock: vi.fn((_file, _args, _options, cb) => cb(null, '', '')),
+}))
+
+vi.mock('node:child_process', () => ({
+  execFile: execFileMock,
+  default: { execFile: execFileMock },
+}))
 
 vi.mock('electron', () => ({
   screen: { getAllDisplays: () => [] },
@@ -12,49 +20,32 @@ vi.mock('electron', () => ({
   },
 }))
 
-const keyboard = {
-  type: vi.fn(async () => {}),
-  pressKey: vi.fn(async () => {}),
-  releaseKey: vi.fn(async () => {}),
-}
-const Key = { LeftControl: 1, LeftSuper: 2, V: 3 }
-const fakeNut = { keyboard, Key } as unknown as typeof import('@nut-tree-fork/nut-js')
+import { performKeyPress, performType } from './actions'
 
-import { performType, __setNutForTesting } from './actions'
-
-describe('performType', () => {
+describe('computer-use actions', () => {
   beforeEach(() => {
-    __setNutForTesting(fakeNut)
     clipboardStore.text = 'original'
-    keyboard.type.mockReset()
-    keyboard.pressKey.mockReset()
-    keyboard.releaseKey.mockReset()
-  })
-
-  afterAll(() => {
-    __setNutForTesting(null)
+    execFileMock.mockClear()
   })
 
   it('pastes text via the clipboard and restores prior contents', async () => {
-    let writtenDuringPaste = ''
-    keyboard.pressKey.mockImplementationOnce(async () => {
-      writtenDuringPaste = clipboardStore.text
-    })
-
     await performType({ text: 'hello world' })
 
-    expect(writtenDuringPaste).toBe('hello world')
-    expect(keyboard.pressKey).toHaveBeenCalled()
-    expect(keyboard.releaseKey).toHaveBeenCalled()
+    expect(execFileMock).toHaveBeenCalledWith(
+      'powershell.exe',
+      expect.arrayContaining(['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command']),
+      expect.objectContaining({ windowsHide: true }),
+      expect.any(Function),
+    )
     expect(clipboardStore.text).toBe('original')
   })
 
-  it('falls back to keystroke typing when paste fails', async () => {
-    keyboard.pressKey.mockRejectedValueOnce(new Error('paste blocked'))
+  it('maps key combinations to virtual-key User32 calls', async () => {
+    await performKeyPress({ key: 'ctrl+shift+s' })
 
-    await performType({ text: 'fallback text' })
-
-    expect(keyboard.type).toHaveBeenCalledWith('fallback text')
-    expect(clipboardStore.text).toBe('original')
+    const script = execFileMock.mock.calls[0][1].at(-1)
+    expect(script).toContain('[byte]17')
+    expect(script).toContain('[byte]16')
+    expect(script).toContain('[byte]83')
   })
 })

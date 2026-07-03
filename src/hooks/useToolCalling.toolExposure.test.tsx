@@ -103,7 +103,6 @@ const NATIVE_WINDOWS_TOOL_NAMES = [
   'app_launch',
   'window_list',
   'window_focus',
-  'windows_uia_snapshot',
 ]
 
 const SCHEDULED_TASK_TOOL_NAMES = [
@@ -201,6 +200,8 @@ describe('useToolCalling - MCP registry hydration', () => {
 describe('useToolCalling - Computer Use tool exposure gating', () => {
   it('sanity: derives a non-empty Computer Use surface from the manifest', () => {
     expect(COMPUTER_USE_TOOL_NAMES.length).toBeGreaterThan(0)
+    expect(COMPUTER_USE_TOOL_NAMES).toContain('ui_get_app_state')
+    expect(COMPUTER_USE_TOOL_NAMES).toContain('ui_click')
     expect(COMPUTER_USE_TOOL_NAMES).toContain('computer_screenshot')
     expect(COMPUTER_USE_TOOL_NAMES).toContain('computer_click')
   })
@@ -240,6 +241,10 @@ describe('useToolCalling - Computer Use tool exposure gating', () => {
     for (const tool of NATIVE_WINDOWS_TOOL_NAMES) {
       expect(names).toContain(tool)
     }
+    expect(names).not.toContain('windows_uia_snapshot')
+    expect(names).not.toContain('windows_uia_invoke')
+    expect(names).not.toContain('windows_uia_set_value')
+    expect(names).not.toContain('windows_uia_select')
     expect(names).toContain('mcp_request_add')
     expect(names).toContain('web_search')
   })

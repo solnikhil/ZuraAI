@@ -286,7 +286,8 @@ contextBridge.exposeInMainWorld(
         const toolName = args[0]
         const isNativeWindowsTool =
           typeof toolName === 'string' &&
-          (toolName.startsWith('windows_uia_') ||
+          (toolName.startsWith('ui_') ||
+            toolName.startsWith('windows_uia_') ||
             toolName.startsWith('file_') ||
             toolName.startsWith('app_') ||
             toolName.startsWith('window_') ||
