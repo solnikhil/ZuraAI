@@ -235,11 +235,9 @@ reject scheduled-task mutations/runs while the extension is disabled.
 Command Center is an internal Agent Mode OS overlay/capability that exposes
 explicit Windows-native tool primitives through the existing `execute-tool` IPC
 path rather than a broad new desktop API. Its tools are `system_active_window`,
-`system_volume_get`,
-`system_status`, `system_settings_open`, `system_theme_get`, `system_theme_set`,
-`system_mute_set`, `system_volume_set`, `system_open_path`, and `window_snap`.
-Read-only context tools return foreground-window, local machine status, or audio
-state; mutating tools require the normal tool approval path. These tools are
+`system_status`, `system_settings_open`, `system_open_path`, and `window_snap`.
+Read-only context tools return foreground-window or local machine status;
+mutating tools require the normal tool approval path. These tools are
 Windows-only, gated by Agent Mode in renderer tool exposure, and implemented in main under
 `electron/tools/os-integration/`. The root Command Center overlay is owned by
 main through `electron/commandCenter.ts` and `electron/windows/commandCenterOverlay.ts`.
@@ -247,9 +245,8 @@ Its global shortcut is registered only after the renderer syncs Agent Mode state
 through `command-center:set-extension-enabled`; leaving Agent Mode unregisters
 the shortcut and hides the overlay. Direct overlay actions
 are a fixed main-process allowlist (`snap-left`, `snap-right`, `maximize-window`,
-`volume-30`, `volume-60`, `toggle-mute`, `system-status`, `toggle-theme`,
-`clipboard-to-chat`, `focus-zuraai`, `settings-display`, `settings-sound`,
-`settings-network`, `settings-bluetooth`, `open-downloads`) and must not accept
+`system-status`, `clipboard-to-chat`, `focus-zuraai`, `settings-display`,
+`settings-sound`, `settings-network`, `settings-bluetooth`, `open-downloads`) and must not accept
 renderer-provided commands, paths, protocol URIs, shell strings, or arbitrary
 tool names. Action aliases are search metadata only and must not affect the
 main-process execution allowlist. Clipboard content may only be read for the
@@ -346,7 +343,7 @@ Important tool rules:
 - Agent mode should prefer native structured tools before visual Computer Use and verify mutating actions with read-only inspection where possible.
 - Terminal (`system_shell`) is Windows-only, default disabled, non-interactive PowerShell with approval, timeout, output caps, and no OS sandbox. Treat any relaxation as security-sensitive.
 - Computer Use is Windows-only, default disabled, current-desktop only. Do not reintroduce a separate virtual desktop mode, `agent_desktop` settings, or `agent-desktop:*` IPC.
-- Command Center is Windows-only, activated by Agent Mode, and provides active-window context plus narrow OS actions such as volume, OS-default path opening, and snap layouts. It must not become arbitrary shell execution, input simulation, clipboard scraping, or broad OS automation.
+- Command Center is Windows-only, activated by Agent Mode, and provides active-window context plus narrow OS actions such as OS-default path opening and snap layouts. It must not become arbitrary shell execution, input simulation, clipboard scraping, or broad OS automation.
 - MCP resources and prompts are user-visible browsing/preview surfaces only; do not merge them into model-callable tools without an explicit architecture update.
 
 ### Providers

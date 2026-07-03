@@ -35,11 +35,6 @@ import {
   executeSystemActiveWindow,
   executeSystemStatus,
   executeSystemSettingsOpen,
-  executeSystemThemeGet,
-  executeSystemThemeSet,
-  executeSystemMuteSet,
-  executeSystemVolumeGet,
-  executeSystemVolumeSet,
   executeSystemOpenPath,
   executeWindowSnap,
 } from './os-integration'
@@ -265,11 +260,6 @@ const toolHandlers: Record<BuiltinMainToolName, ToolHandler> = {
   system_active_window: executeSystemActiveWindow,
   system_status: executeSystemStatus,
   system_settings_open: executeSystemSettingsOpen,
-  system_theme_get: executeSystemThemeGet,
-  system_theme_set: executeSystemThemeSet,
-  system_mute_set: executeSystemMuteSet,
-  system_volume_get: executeSystemVolumeGet,
-  system_volume_set: executeSystemVolumeSet,
   system_open_path: executeSystemOpenPath,
   window_snap: executeWindowSnap,
 }

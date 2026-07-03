@@ -21,17 +21,12 @@ describe('Command Center main service', () => {
     const setCommandCenterWindowLayout = vi.fn()
     const toggleCommandCenterWindow = vi.fn()
     const executeWindowSnap = vi.fn(async () => ({ success: true, data: { action: 'snap' } }))
-    const executeSystemVolumeSet = vi.fn(async () => ({ success: true, data: { level: 60 } }))
-    const executeSystemVolumeGet = vi.fn(async () => ({ success: true, data: { level: 60, muted: false } }))
-    const executeSystemMuteSet = vi.fn(async () => ({ success: true, data: { muted: true } }))
     const executeSystemOpenPath = vi.fn(async () => ({ success: true, data: { opened: true } }))
     const executeSystemSettingsOpen = vi.fn(async (args: Record<string, unknown>) => ({
       success: true,
       data: { page: args.page },
     }))
     const executeSystemStatus = vi.fn(async () => ({ success: true, data: { disks: [] } }))
-    const executeSystemThemeGet = vi.fn(async () => ({ success: true, data: { appTheme: 'dark' } }))
-    const executeSystemThemeSet = vi.fn(async () => ({ success: true, data: { appTheme: 'light' } }))
     const executeAppList = overrides.executeAppList ?? vi.fn(async () => ({
       success: true,
       data: {
@@ -179,14 +174,9 @@ describe('Command Center main service', () => {
         data: { title: 'Demo', processName: 'notepad' },
       })),
       executeWindowSnap,
-      executeSystemVolumeSet,
-      executeSystemVolumeGet,
-      executeSystemMuteSet,
       executeSystemOpenPath,
       executeSystemSettingsOpen,
       executeSystemStatus,
-      executeSystemThemeGet,
-      executeSystemThemeSet,
     }))
 
     vi.doMock('./tools/app-management', () => ({
@@ -233,14 +223,9 @@ describe('Command Center main service', () => {
       sentEvents,
       readText,
       executeWindowSnap,
-      executeSystemVolumeSet,
-      executeSystemVolumeGet,
-      executeSystemMuteSet,
       executeSystemOpenPath,
       executeSystemSettingsOpen,
       executeSystemStatus,
-      executeSystemThemeGet,
-      executeSystemThemeSet,
       executeAppList,
       executeAppFind,
       executeAppLaunch,
@@ -298,11 +283,6 @@ describe('Command Center main service', () => {
       sentEvents,
       mainWindow,
       executeWindowSnap,
-      executeSystemVolumeSet,
-      executeSystemVolumeGet,
-      executeSystemMuteSet,
-      executeSystemThemeGet,
-      executeSystemThemeSet,
       readText,
       executeSystemSettingsOpen,
     } = await loadService()
@@ -315,10 +295,7 @@ describe('Command Center main service', () => {
     expect(await list?.()).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ id: 'snap-left', label: 'Snap left' }),
-        expect.objectContaining({ id: 'volume-60', label: 'Volume 60%' }),
-        expect.objectContaining({ id: 'toggle-mute', label: 'Toggle mute' }),
         expect.objectContaining({ id: 'system-status', label: 'System status' }),
-        expect.objectContaining({ id: 'toggle-theme', label: 'Toggle theme' }),
         expect.objectContaining({ id: 'clipboard-to-chat', label: 'Ask about clipboard' }),
         expect.objectContaining({ id: 'focus-zuraai', label: 'Focus ZuraAI' }),
         expect.objectContaining({ id: 'settings-display', label: 'Display settings' }),
@@ -329,10 +306,7 @@ describe('Command Center main service', () => {
     )
 
     await expect(execute?.({}, 'snap-left')).resolves.toEqual({ success: true, data: { action: 'snap' } })
-    await expect(execute?.({}, 'volume-60')).resolves.toEqual({ success: true, data: { level: 60 } })
-    await expect(execute?.({}, 'toggle-mute')).resolves.toEqual({ success: true, data: { muted: true } })
     await expect(execute?.({}, 'system-status')).resolves.toEqual({ success: true, data: { disks: [] } })
-    await expect(execute?.({}, 'toggle-theme')).resolves.toEqual({ success: true, data: { appTheme: 'light' } })
     await expect(execute?.({}, 'clipboard-to-chat')).resolves.toEqual({
       success: true,
       data: { queued: true, characterCount: 16 },
@@ -346,11 +320,6 @@ describe('Command Center main service', () => {
     })
 
     expect(executeWindowSnap).toHaveBeenCalledWith({ preset: 'left', autoApprove: true })
-    expect(executeSystemVolumeSet).toHaveBeenCalledWith({ level: 60, autoApprove: true })
-    expect(executeSystemVolumeGet).toHaveBeenCalledTimes(1)
-    expect(executeSystemMuteSet).toHaveBeenCalledWith({ muted: true, autoApprove: true })
-    expect(executeSystemThemeGet).toHaveBeenCalledTimes(1)
-    expect(executeSystemThemeSet).toHaveBeenCalledWith({ theme: 'light', autoApprove: true })
     expect(readText).toHaveBeenCalledTimes(1)
     expect(mainWindow.show).toHaveBeenCalled()
     expect(mainWindow.focus).toHaveBeenCalled()

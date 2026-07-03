@@ -22,14 +22,9 @@ import {
 } from './windows'
 import {
   executeSystemActiveWindow,
-  executeSystemMuteSet,
   executeSystemOpenPath,
   executeSystemSettingsOpen,
   executeSystemStatus,
-  executeSystemThemeGet,
-  executeSystemThemeSet,
-  executeSystemVolumeGet,
-  executeSystemVolumeSet,
   executeWindowSnap,
 } from './tools/os-integration'
 import { executeAppFind, executeAppLaunch, executeAppList } from './tools/app-management'
@@ -42,11 +37,7 @@ const COMMAND_CENTER_ACTIONS = [
   { id: 'snap-left', label: 'Snap left', kind: 'window', aliases: ['tile left'] },
   { id: 'snap-right', label: 'Snap right', kind: 'window', aliases: ['tile right'] },
   { id: 'maximize-window', label: 'Maximize', kind: 'window', aliases: ['fullscreen', 'full screen'] },
-  { id: 'volume-30', label: 'Volume 30%', kind: 'audio', aliases: ['quiet', 'lower volume'] },
-  { id: 'volume-60', label: 'Volume 60%', kind: 'audio', aliases: ['medium volume'] },
-  { id: 'toggle-mute', label: 'Toggle mute', kind: 'audio', aliases: ['mute', 'unmute', 'silence'] },
   { id: 'system-status', label: 'System status', kind: 'system', aliases: ['battery', 'disk', 'network status'] },
-  { id: 'toggle-theme', label: 'Toggle theme', kind: 'system', aliases: ['dark mode', 'light mode'] },
   { id: 'clipboard-to-chat', label: 'Ask about clipboard', kind: 'clipboard', aliases: ['paste', 'copied text'] },
   { id: 'focus-zuraai', label: 'Focus ZuraAI', kind: 'app', aliases: ['show zura', 'open zura'] },
   { id: 'settings-display', label: 'Display settings', kind: 'settings', aliases: ['screen', 'monitor'] },
@@ -485,30 +476,8 @@ async function executeCommandCenterAction(actionId: CommandCenterActionId) {
       return executeWindowSnap({ preset: 'right', autoApprove: true })
     case 'maximize-window':
       return executeWindowSnap({ preset: 'maximize', autoApprove: true })
-    case 'volume-30':
-      return executeSystemVolumeSet({ level: 30, autoApprove: true })
-    case 'volume-60':
-      return executeSystemVolumeSet({ level: 60, autoApprove: true })
-    case 'toggle-mute': {
-      const current = await executeSystemVolumeGet()
-      const muted = current.success &&
-        current.data &&
-        typeof current.data === 'object' &&
-        (current.data as Record<string, unknown>).muted === true
-      return executeSystemMuteSet({ muted: !muted, autoApprove: true })
-    }
     case 'system-status':
       return executeSystemStatus()
-    case 'toggle-theme': {
-      const current = await executeSystemThemeGet()
-      const appTheme = current.success &&
-        current.data &&
-        typeof current.data === 'object' &&
-        (current.data as Record<string, unknown>).appTheme === 'dark'
-        ? 'dark'
-        : 'light'
-      return executeSystemThemeSet({ theme: appTheme === 'dark' ? 'light' : 'dark', autoApprove: true })
-    }
     case 'clipboard-to-chat': {
       const text = clipboard.readText().trim()
       if (!text) {

@@ -99,11 +99,6 @@ describe('tool routing through current-desktop Computer Use', () => {
       executeSystemActiveWindow: vi.fn(async () => ({ success: true, data: { title: 'Demo' } })),
       executeSystemStatus: vi.fn(async () => ({ success: true, data: { disks: [] } })),
       executeSystemSettingsOpen: vi.fn(async () => ({ success: false, error: 'approval required' })),
-      executeSystemThemeGet: vi.fn(async () => ({ success: true, data: { appTheme: 'dark' } })),
-      executeSystemThemeSet: vi.fn(async () => ({ success: false, error: 'approval required' })),
-      executeSystemMuteSet: vi.fn(async () => ({ success: false, error: 'approval required' })),
-      executeSystemVolumeGet: vi.fn(async () => ({ success: true, data: { level: 50, muted: false } })),
-      executeSystemVolumeSet: vi.fn(async () => ({ success: false, error: 'approval required' })),
       executeSystemOpenPath: vi.fn(async () => ({ success: false, error: 'approval required' })),
       executeWindowSnap: vi.fn(async () => ({ success: false, error: 'approval required' })),
     }
@@ -205,24 +200,18 @@ describe('tool routing through current-desktop Computer Use', () => {
     const activeWindow = await handler({}, 'system_active_window', {})
     const status = await handler({}, 'system_status', {})
     const settingsOpen = await handler({}, 'system_settings_open', { page: 'display' })
-    const theme = await handler({}, 'system_theme_get', {})
-    const themeSet = await handler({}, 'system_theme_set', { theme: 'dark' })
-    const mute = await handler({}, 'system_mute_set', { muted: true })
+    const openPath = await handler({}, 'system_open_path', { path: 'C:\\Users\\Nikhil\\Downloads' })
     const snap = await handler({}, 'window_snap', { preset: 'left' })
 
     expect(activeWindow).toEqual({ success: true, data: { title: 'Demo' } })
     expect(status).toEqual({ success: true, data: { disks: [] } })
     expect(settingsOpen).toEqual({ success: false, error: 'approval required' })
-    expect(theme).toEqual({ success: true, data: { appTheme: 'dark' } })
-    expect(themeSet).toEqual({ success: false, error: 'approval required' })
-    expect(mute).toEqual({ success: false, error: 'approval required' })
+    expect(openPath).toEqual({ success: false, error: 'approval required' })
     expect(snap).toEqual({ success: false, error: 'approval required' })
     expect(handlers.executeSystemActiveWindow).toHaveBeenCalledTimes(1)
     expect(handlers.executeSystemStatus).toHaveBeenCalledTimes(1)
     expect(handlers.executeSystemSettingsOpen).toHaveBeenCalledTimes(1)
-    expect(handlers.executeSystemThemeGet).toHaveBeenCalledTimes(1)
-    expect(handlers.executeSystemThemeSet).toHaveBeenCalledTimes(1)
-    expect(handlers.executeSystemMuteSet).toHaveBeenCalledTimes(1)
+    expect(handlers.executeSystemOpenPath).toHaveBeenCalledTimes(1)
     expect(handlers.executeWindowSnap).toHaveBeenCalledTimes(1)
   })
 })

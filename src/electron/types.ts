@@ -275,11 +275,7 @@ export type CommandCenterActionId =
   | 'snap-left'
   | 'snap-right'
   | 'maximize-window'
-  | 'volume-30'
-  | 'volume-60'
-  | 'toggle-mute'
   | 'system-status'
-  | 'toggle-theme'
   | 'clipboard-to-chat'
   | 'focus-zuraai'
   | 'settings-display'
@@ -291,7 +287,7 @@ export type CommandCenterActionId =
 export interface CommandCenterAction {
   id: CommandCenterActionId
   label: string
-  kind: 'window' | 'audio' | 'system' | 'clipboard' | 'app' | 'settings' | 'filesystem'
+  kind: 'window' | 'system' | 'clipboard' | 'app' | 'settings' | 'filesystem'
   aliases?: string[]
 }
 

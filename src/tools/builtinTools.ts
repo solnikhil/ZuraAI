@@ -644,17 +644,6 @@ Safety rules:
     category: 'system',
     origin: 'builtin-main',
   },
-  system_volume_get: {
-    description: 'Read the current Windows default audio output volume and mute state.',
-    parameters: {
-      type: 'object',
-      description: 'No arguments required.',
-      properties: {},
-      required: [],
-    },
-    category: 'system',
-    origin: 'builtin-main',
-  },
   system_status: {
     description: 'Read local Windows system status including battery, fixed disk capacity/free space, and active network adapters. Read-only.',
     parameters: {
@@ -665,31 +654,6 @@ Safety rules:
     },
     category: 'system',
     origin: 'builtin-main',
-  },
-  system_theme_get: {
-    description: 'Read the current Windows app/system light or dark theme setting. Read-only.',
-    parameters: {
-      type: 'object',
-      description: 'No arguments required.',
-      properties: {},
-      required: [],
-    },
-    category: 'system',
-    origin: 'builtin-main',
-  },
-  system_theme_set: {
-    description: 'Set the Windows app/system theme to dark or light. Requires approval.',
-    parameters: {
-      type: 'object',
-      description: 'Arguments for setting Windows theme.',
-      properties: {
-        theme: { type: 'string', description: 'Theme mode.', enum: ['dark', 'light'] },
-      },
-      required: ['theme'],
-    },
-    category: 'system',
-    origin: 'builtin-main',
-    requiresApproval: true,
   },
   system_settings_open: {
     description: 'Open an allowlisted Windows Settings page. Requires approval.',
@@ -704,34 +668,6 @@ Safety rules:
         },
       },
       required: ['page'],
-    },
-    category: 'system',
-    origin: 'builtin-main',
-    requiresApproval: true,
-  },
-  system_volume_set: {
-    description: 'Set the Windows default audio output volume to a percentage from 0 to 100. Requires approval.',
-    parameters: {
-      type: 'object',
-      description: 'Arguments for setting system volume.',
-      properties: {
-        level: { type: 'number', description: 'Volume percentage from 0 to 100.' },
-      },
-      required: ['level'],
-    },
-    category: 'system',
-    origin: 'builtin-main',
-    requiresApproval: true,
-  },
-  system_mute_set: {
-    description: 'Set the Windows default audio output mute state. Requires approval.',
-    parameters: {
-      type: 'object',
-      description: 'Arguments for setting system mute state.',
-      properties: {
-        muted: { type: 'boolean', description: 'True to mute, false to unmute.' },
-      },
-      required: ['muted'],
     },
     category: 'system',
     origin: 'builtin-main',

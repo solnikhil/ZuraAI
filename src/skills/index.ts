@@ -95,7 +95,7 @@ export const BUILT_IN_SKILLS: BuiltInSkill[] = [
     note: 'Windows-only. Model-callable OS actions use the normal approval path; overlay shortcuts are limited to a fixed main-process allowlist.',
     usageGuidance: [
       'Use active-window context before acting on the current app or desktop.',
-      'Prefer explicit OS tools for volume, opening files/folders, and window snap layouts instead of shell commands.',
+      'Prefer explicit OS tools for opening files/folders and window snap layouts instead of shell commands.',
       'Ask for approval before changing system state, then verify with read-only active window or window list context.',
     ],
   },
@@ -534,7 +534,7 @@ export function buildEnabledSkillsPrompt(
   if (commandCenterActive) {
     skillLines.push('- Command Center (`command_center`): use active-window context and explicit OS tools for native desktop requests before falling back to visual Computer Use or terminal commands.')
     skillLines.push('- Read current app/window context with `system_active_window`, find or launch installed apps with `app_find`/`app_launch`, and list or focus windows with `window_list`/`window_focus` before using screenshots or shell.')
-    skillLines.push('- Read local machine status with `system_status` and Windows theme state with `system_theme_get`; use `system_volume_get`, `system_volume_set`, `system_mute_set`, `system_theme_set`, `system_settings_open`, `system_open_path`, and `window_snap` for direct OS-level actions with approval where required.')
+    skillLines.push('- Read local machine status with `system_status`; use `system_settings_open`, `system_open_path`, and `window_snap` for direct OS-level actions with approval where required.')
   }
 
   if (normalized.chart_generation.enabled) {
