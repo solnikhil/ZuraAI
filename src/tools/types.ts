@@ -96,6 +96,7 @@ export interface ToolCallResult {
 
 export interface ToolExecutionPolicy {
     remainingWebSearchBudget?: number
+    remainingToolCallBudget?: number
     priorWebSearchQueries?: string[]
     userContextText?: string
     /**

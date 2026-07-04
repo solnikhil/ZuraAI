@@ -73,8 +73,10 @@ describe('RemindersView', () => {
       listRuns: vi.fn().mockResolvedValue([run]),
       getRun: vi.fn(),
       resolveSummary: vi.fn(),
+      resolveAutomationRun: vi.fn(),
       onChanged: vi.fn(() => vi.fn()),
       onSummaryRequest: vi.fn(() => vi.fn()),
+      onAutomationRunRequest: vi.fn(() => vi.fn()),
     }
   })
 
@@ -96,7 +98,7 @@ describe('RemindersView', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Ask agent' }))
 
-    expect(mockSetDraftText).toHaveBeenCalledWith('Help me create a reminder or lookout.')
+    expect(mockSetDraftText).toHaveBeenCalledWith('Help me create a reminder, lookout, or AI automation.')
     expect(mockSetDashboardView).toHaveBeenCalledWith('chat')
   })
 
@@ -130,7 +132,7 @@ describe('RemindersView', () => {
     expect(within(detailsDrawer).getByRole('heading', { name: 'Review weekly launches' })).toBeInTheDocument()
     expect(within(detailsDrawer).getByText('Type')).toBeInTheDocument()
     expect(within(detailsDrawer).getByText('Status')).toBeInTheDocument()
-    expect(within(detailsDrawer).getByText('Repeats')).toBeInTheDocument()
+    expect(within(detailsDrawer).getByText('Schedule')).toBeInTheDocument()
     expect(within(detailsDrawer).getByText('Next run')).toBeInTheDocument()
     expect(within(detailsDrawer).getByText('Reminder text')).toBeInTheDocument()
     expect(within(detailsDrawer).getByText('Review launch notes')).toBeInTheDocument()
@@ -160,7 +162,7 @@ describe('RemindersView', () => {
     render(<RemindersView />)
 
     expect(await screen.findByText('No matching tasks')).toBeInTheDocument()
-    expect(screen.getByText('Ask the agent to create a reminder or monitor a page.')).toBeInTheDocument()
+    expect(screen.getByText('Ask the agent to create a reminder, lookout, or AI automation.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Remind me tomorrow at 9 AM' })).toBeInTheDocument()
   })
 })

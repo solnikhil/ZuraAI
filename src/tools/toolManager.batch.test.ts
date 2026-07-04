@@ -294,6 +294,39 @@ describe('toolManager web search batch policy', () => {
     ])
   })
 
+  it('enforces the overall tool call budget before execution', async () => {
+    mocks.executeToolCalls.mockImplementation(async ([toolCall]) => [
+      {
+        toolCall,
+        result: {
+          success: true,
+          data: { ok: true },
+          metadata: { origin: 'builtin-main' as const },
+        },
+      },
+    ])
+
+    const response = buildToolResponse([
+      { id: 'search-1', name: 'web_search', arguments: { query: 'alpha' } },
+      { id: 'search-2', name: 'web_search', arguments: { query: 'beta' } },
+    ])
+
+    const processed = await processToolCalls(response, {
+      provider: 'openrouter',
+      model: 'openai/gpt-4.1',
+      executionPolicy: {
+        remainingWebSearchBudget: 5,
+        remainingToolCallBudget: 1,
+      },
+    })
+
+    expect(mocks.executeToolCalls).toHaveBeenCalledTimes(1)
+    expect(mocks.executeToolCalls.mock.calls[0]?.[0]).toHaveLength(1)
+    expect(processed.results[0]?.result.success).toBe(true)
+    expect(processed.results[1]?.result.success).toBe(false)
+    expect(processed.results[1]?.result.error).toContain('Tool call budget')
+  })
+
   it('rewrites inferred web_search years to a single current year unless the user asked for another year', async () => {
     mocks.executeToolCalls.mockImplementation(async ([toolCall]) => [
       {

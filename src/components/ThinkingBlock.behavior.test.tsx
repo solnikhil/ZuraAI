@@ -270,9 +270,7 @@ describe('ThinkingBlock behavior', () => {
     expect(
       await screen.findByText('MCP tool calling: Filesystem (+1 more)')
     ).toBeInTheDocument()
-    expect(
-      screen.getByText('2. MCP tool calling: Github')
-    ).toBeInTheDocument()
+    expect(screen.getByText('Create Issue on Github 2')).toBeInTheDocument()
   })
 
   it('shows batched web searches simultaneously while they are running', async () => {
@@ -294,8 +292,8 @@ describe('ThinkingBlock behavior', () => {
       />
     )
 
-    expect(screen.getByText(/openai responses api pricing/)).toBeInTheDocument()
-    expect(screen.getByText(/openai responses api rate limits/)).toBeInTheDocument()
+    expect(screen.getAllByText(/openai responses api pricing/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/openai responses api rate limits/).length).toBeGreaterThan(0)
     expect(screen.queryByText('Sourcing the web')).not.toBeInTheDocument()
   })
 

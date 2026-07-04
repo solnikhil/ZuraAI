@@ -323,6 +323,10 @@ export async function processToolCalls(
     0,
     Math.floor(config.executionPolicy?.remainingWebSearchBudget ?? Number.MAX_SAFE_INTEGER)
   )
+  let remainingToolCallBudget = Math.max(
+    0,
+    Math.floor(config.executionPolicy?.remainingToolCallBudget ?? Number.MAX_SAFE_INTEGER)
+  )
   const userContextText = config.executionPolicy?.userContextText
 
   for (const [index, toolCall] of toolCalls.entries()) {
@@ -368,6 +372,20 @@ export async function processToolCalls(
       }
       executionSummary.executedWebSearchCount += 1
     }
+
+    if (remainingToolCallBudget <= 0) {
+      const budgetResult = createSyntheticToolResult(
+        coercedToolCall,
+        'Tool call budget for this response has been reached. No additional tools were executed.',
+        'budget'
+      )
+      config.onToolStart?.(coercedToolCall)
+      resultsByIndex[index] = budgetResult
+      config.onToolComplete?.(budgetResult)
+      trackToolResult(budgetResult)
+      continue
+    }
+    remainingToolCallBudget -= 1
 
     executableCalls.push({ index, toolCall: coercedToolCall })
   }

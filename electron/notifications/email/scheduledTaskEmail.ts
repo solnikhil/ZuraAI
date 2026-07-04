@@ -31,6 +31,16 @@ function buildLookoutBody(task: ScheduledTaskDefinition, run: ScheduledTaskRun):
   ])
 }
 
+function buildAutomationBody(task: ScheduledTaskDefinition, run: ScheduledTaskRun): string {
+  return stripEmptyLines([
+    `AI automation: ${task.title}`,
+    '',
+    run.changeVerdict?.summary || run.outputText || run.aiSummary || run.error || 'The automation finished.',
+    '',
+    run.resolvedContextSummary ? `Context: ${run.resolvedContextSummary}` : undefined,
+  ])
+}
+
 function getChangedUrls(run: ScheduledTaskRun): string[] {
   return run.logs
     .filter((log) => log.status === 'changed' && log.url)
@@ -61,6 +71,25 @@ function buildHtmlContent(
     })
   }
 
+  if (task.type === 'ai_automation') {
+    return buildNotificationEmailHtml({
+      notificationType: run.status === 'error' ? 'Automation failed' : 'AI automation',
+      title: subject,
+      summary: run.changeVerdict?.summary || run.outputText || run.aiSummary || run.error || 'The automation finished.',
+      notificationMessage: textContent,
+      detailTitle: 'Automation details',
+      detailItems: [
+        `Mode: ${task.automationMode ?? 'prompt'}`,
+        `Notify policy: ${task.notifyPolicy ?? 'every_run'}`,
+        `Schedule: ${task.schedule?.kind ?? task.intervalPreset}`,
+      ],
+      metadata: [
+        { label: 'automation status', value: run.status === 'changed' ? 'Changed' : run.status === 'error' ? 'Error' : 'Completed' },
+        { label: 'notification', value: 'Email' },
+      ],
+    })
+  }
+
   const changedUrls = getChangedUrls(run)
   return buildNotificationEmailHtml({
     notificationType: 'Lookout changed',
@@ -86,15 +115,26 @@ export async function sendScheduledTaskEmail(
   if (task.type === 'web_lookout' && run.status !== 'changed') {
     return { ok: true, skipped: true }
   }
+  if (task.type === 'ai_automation') {
+    const destinations = task.outputDestinations ?? ['log']
+    if (!destinations.includes('email')) return { ok: true, skipped: true }
+    const notifyPolicy = task.notifyPolicy ?? 'every_run'
+    if (notifyPolicy === 'error_only' && run.status !== 'error') return { ok: true, skipped: true }
+    if (notifyPolicy === 'meaningful_change' && run.status !== 'changed') return { ok: true, skipped: true }
+  }
 
   const subject =
     task.type === 'reminder'
       ? `Reminder: ${task.title}`
-      : `Lookout changed: ${task.title}`
+      : task.type === 'ai_automation'
+        ? `AI automation: ${task.title}`
+        : `Lookout changed: ${task.title}`
   const textContent =
     task.type === 'reminder'
       ? buildReminderBody(task)
-      : buildLookoutBody(task, run)
+      : task.type === 'ai_automation'
+        ? buildAutomationBody(task, run)
+        : buildLookoutBody(task, run)
 
   return sendBrevoEmail({
     ...settings,

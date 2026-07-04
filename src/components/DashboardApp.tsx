@@ -4,6 +4,7 @@ import { HashRouter as Router, Routes, Route } from 'react-router-dom'
 import AgentSkillsSync from './AgentSkillsSync'
 import NotificationSettingsSync from './NotificationSettingsSync'
 import MonitorSummarySync from './MonitorSummarySync'
+import AutomationRunSync from './AutomationRunSync'
 import CommandCenterSettingsSync from './CommandCenterSettingsSync'
 import DashboardLayout from './Dashboard/Layout'
 import AppShellLayout from './AppShellLayout'
@@ -42,6 +43,7 @@ export default function DashboardApp() {
                     <AgentSkillsSync />
                     <NotificationSettingsSync />
                     <MonitorSummarySync />
+                    <AutomationRunSync />
                     <CommandCenterSettingsSync />
                     <Router>
                       <Routes>

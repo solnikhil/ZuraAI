@@ -12,10 +12,13 @@ import { getMonitorIntervalMs } from './schedule'
 import {
   getScheduledTask,
   getSnapshotsForTask,
+  listRuns,
   listScheduledTasks,
   saveScheduledTaskRun,
 } from './storage'
 import type {
+  ScheduledAutomationRunRequest,
+  ScheduledAutomationRunResponse,
   ScheduledTaskDefinition,
   ScheduledTaskRun,
   ScheduledTaskSnapshot,
@@ -35,6 +38,12 @@ function logMonitorWarning(message: string): void {
 
 interface PendingSummary {
   resolve: (value: string) => void
+  reject: (error: Error) => void
+  timer: ReturnType<typeof setTimeout>
+}
+
+interface PendingAutomationRun {
+  resolve: (value: ScheduledAutomationRunResponse) => void
   reject: (error: Error) => void
   timer: ReturnType<typeof setTimeout>
 }
@@ -99,6 +108,8 @@ function findSummaryTarget(): WebContents | null {
   return null
 }
 
+const findAutomationRunTarget = findSummaryTarget
+
 function compactNotificationBody(value: string | undefined): string {
   return (value || '').replace(/\s+/g, ' ').trim().slice(0, NOTIFICATION_BODY_LIMIT)
 }
@@ -128,7 +139,148 @@ function buildNotificationOptions(
     }
   }
 
+  if (task.type === 'ai_automation') {
+    const notifyPolicy = task.notifyPolicy ?? 'every_run'
+    const destinations = task.outputDestinations ?? ['log']
+    if (!destinations.includes('notification')) return null
+    if (notifyPolicy === 'error_only' && run.status !== 'error') return null
+    if (notifyPolicy === 'meaningful_change' && run.status !== 'changed') return null
+    const body =
+      compactNotificationBody(run.changeVerdict?.summary || run.aiSummary || run.outputText || run.error) ||
+      'Scheduled AI automation finished.'
+    return {
+      title: `${run.status === 'error' ? 'Automation failed' : 'Automation'}: ${task.title}`,
+      body,
+    }
+  }
+
   return null
+}
+
+function compactAutomationText(value: string | undefined, limit = 12000): string | undefined {
+  const text = (value || '').trim()
+  return text ? text.slice(0, limit) : undefined
+}
+
+function sanitizeGeneratedFiles(
+  files: ScheduledAutomationRunResponse['generatedFiles']
+): ScheduledAutomationRunResponse['generatedFiles'] | undefined {
+  if (!Array.isArray(files)) return undefined
+  const sanitized = files
+    .map((file) => {
+      if (!file || typeof file !== 'object') return null
+      return {
+        id: compactAutomationText(typeof file.id === 'string' ? file.id : undefined, 120) || '',
+        name: compactAutomationText(typeof file.name === 'string' ? file.name : undefined, 200) || '',
+        ...(typeof file.type === 'string' && compactAutomationText(file.type, 80)
+          ? { type: compactAutomationText(file.type, 80) }
+          : {}),
+      }
+    })
+    .filter((file): file is { id: string; name: string; type?: string } => Boolean(file?.id && file.name))
+    .slice(0, 20)
+  return sanitized.length > 0 ? sanitized : undefined
+}
+
+function sanitizeToolCallSummaries(
+  summaries: ScheduledAutomationRunResponse['toolCallSummaries']
+): ScheduledAutomationRunResponse['toolCallSummaries'] | undefined {
+  if (!Array.isArray(summaries)) return undefined
+  const sanitized = summaries
+    .map((summary) => {
+      if (!summary || typeof summary !== 'object') return null
+      const name = compactAutomationText(typeof summary.name === 'string' ? summary.name : undefined, 120)
+      if (!name) return null
+      return {
+        name,
+        success: summary.success === true,
+        ...(typeof summary.error === 'string' && compactAutomationText(summary.error, 1000)
+          ? { error: compactAutomationText(summary.error, 1000) }
+          : {}),
+      }
+    })
+    .filter((summary): summary is { name: string; success: boolean; error?: string } => Boolean(summary))
+    .slice(0, 100)
+  return sanitized.length > 0 ? sanitized : undefined
+}
+
+function sanitizeUsage(usage: ScheduledAutomationRunResponse['usage']): ScheduledAutomationRunResponse['usage'] | undefined {
+  if (!usage || typeof usage !== 'object') return undefined
+  const sanitized: NonNullable<ScheduledAutomationRunResponse['usage']> = {}
+  const inputTokens = Number(usage.inputTokens)
+  if (Number.isFinite(inputTokens) && inputTokens >= 0) sanitized.inputTokens = Math.round(inputTokens)
+  const outputTokens = Number(usage.outputTokens)
+  if (Number.isFinite(outputTokens) && outputTokens >= 0) sanitized.outputTokens = Math.round(outputTokens)
+  const totalTokens = Number(usage.totalTokens)
+  if (Number.isFinite(totalTokens) && totalTokens >= 0) sanitized.totalTokens = Math.round(totalTokens)
+  const cost = Number(usage.cost)
+  if (Number.isFinite(cost) && cost >= 0) sanitized.cost = cost
+  return Object.keys(sanitized).length > 0 ? sanitized : undefined
+}
+
+function sanitizeDeliveryStatus(
+  status: ScheduledAutomationRunResponse['deliveryStatus']
+): ScheduledAutomationRunResponse['deliveryStatus'] | undefined {
+  if (!status || typeof status !== 'object') return undefined
+  const sanitized: NonNullable<ScheduledAutomationRunResponse['deliveryStatus']> = {}
+  for (const destination of ['log', 'notification', 'email', 'chat', 'artifact'] as const) {
+    const value = status[destination]
+    if (value === 'sent' || value === 'skipped' || value === 'error') {
+      sanitized[destination] = value
+    }
+  }
+  return Object.keys(sanitized).length > 0 ? sanitized : undefined
+}
+
+function buildAutomationRequest(
+  task: ScheduledTaskDefinition,
+  previousOutput?: string
+): ScheduledAutomationRunRequest {
+  return {
+    requestId: randomUUID(),
+    taskId: task.id,
+    taskTitle: task.title,
+    prompt: task.prompt || task.instructions || task.title,
+    instructions: task.instructions,
+    automationMode: task.automationMode ?? 'prompt',
+    contextSources: task.contextSources ?? [],
+    allowedTools: task.allowedTools ?? [],
+    approvalMode: task.approvalMode ?? 'read_only',
+    outputDestinations: task.outputDestinations ?? ['log'],
+    notifyPolicy: task.notifyPolicy ?? 'every_run',
+    budgets: task.budgets ?? {},
+    ...(previousOutput ? { previousOutput } : {}),
+  }
+}
+
+function sanitizeAutomationResponse(response: ScheduledAutomationRunResponse): ScheduledAutomationRunResponse {
+  const generatedFiles = sanitizeGeneratedFiles(response.generatedFiles)
+  const toolCallSummaries = sanitizeToolCallSummaries(response.toolCallSummaries)
+  const usage = sanitizeUsage(response.usage)
+  const deliveryStatus = sanitizeDeliveryStatus(response.deliveryStatus)
+  return {
+    requestId: response.requestId,
+    ...(compactAutomationText(response.outputText) ? { outputText: compactAutomationText(response.outputText) } : {}),
+    ...(compactAutomationText(response.resolvedContextSummary, 4000) ? { resolvedContextSummary: compactAutomationText(response.resolvedContextSummary, 4000) } : {}),
+    ...(compactAutomationText(response.model, 200) ? { model: compactAutomationText(response.model, 200) } : {}),
+    ...(compactAutomationText(response.provider, 80) ? { provider: compactAutomationText(response.provider, 80) } : {}),
+    ...(Array.isArray(response.artifactIds) ? { artifactIds: response.artifactIds.filter((id): id is string => typeof id === 'string').slice(0, 20) } : {}),
+    ...(generatedFiles ? { generatedFiles } : {}),
+    ...(toolCallSummaries ? { toolCallSummaries } : {}),
+    ...(usage ? { usage } : {}),
+    ...(response.changeVerdict && typeof response.changeVerdict === 'object'
+      ? {
+          changeVerdict: {
+            changed: response.changeVerdict.changed === true,
+            ...(compactAutomationText(response.changeVerdict.summary, 1000)
+              ? { summary: compactAutomationText(response.changeVerdict.summary, 1000) }
+              : {}),
+          },
+        }
+      : {}),
+    ...(deliveryStatus ? { deliveryStatus } : {}),
+    ...(compactAutomationText(response.error, 2000) ? { error: compactAutomationText(response.error, 2000) } : {}),
+  }
 }
 
 function focusAppWindow(): void {
@@ -155,6 +307,7 @@ function createRuntime(deps: MonitorRuntimeDeps = {}): MonitorRuntime {
   const running = new Set<string>()
   const launchedDueKeys = new Set<string>()
   const pendingSummaries = new Map<string, PendingSummary>()
+  const pendingAutomationRuns = new Map<string, PendingAutomationRun>()
   let extensionEnabled = false
   let hasScheduledStartupCatchUp = false
   let startupCatchUpTimer: ReturnType<typeof setTimeout> | null = null
@@ -172,6 +325,23 @@ function createRuntime(deps: MonitorRuntimeDeps = {}): MonitorRuntime {
       }, SUMMARY_TIMEOUT_MS)
       pendingSummaries.set(request.requestId, { resolve, reject, timer })
       target.send('scheduled-tasks:summary-request', request)
+    })
+  }
+
+  const requestAutomationRun = (request: ScheduledAutomationRunRequest): Promise<ScheduledAutomationRunResponse> => {
+    const target = findAutomationRunTarget()
+    if (!target) {
+      return Promise.reject(new Error('No renderer is available to run AI automation.'))
+    }
+
+    const timeoutMs = Math.max(10_000, Math.min(15 * 60_000, request.budgets.timeoutMs ?? 120_000))
+    return new Promise((resolve, reject) => {
+      const timer = setTimeoutFn(() => {
+        pendingAutomationRuns.delete(request.requestId)
+        reject(new Error('AI automation timed out.'))
+      }, timeoutMs)
+      pendingAutomationRuns.set(request.requestId, { resolve, reject, timer })
+      target.send('scheduled-tasks:automation-run-request', request)
     })
   }
 
@@ -193,6 +363,59 @@ function createRuntime(deps: MonitorRuntimeDeps = {}): MonitorRuntime {
           status: 'completed',
           message: task.reminderText || task.instructions || task.title,
         })
+      }
+
+      if (task.type === 'ai_automation') {
+        const previousRun = (await listRuns(task.id)).find((run) => typeof run.outputText === 'string' && run.outputText.trim())
+        let automationResponse: ScheduledAutomationRunResponse | undefined
+        let automationError: string | undefined
+        try {
+          automationResponse = sanitizeAutomationResponse(
+            await requestAutomationRun(buildAutomationRequest(task, previousRun?.outputText))
+          )
+        } catch (error) {
+          automationError = error instanceof Error ? error.message : String(error)
+        }
+
+        const finishedAt = now()
+        const changed =
+          task.automationMode === 'watch'
+            ? automationResponse?.changeVerdict?.changed === true
+            : false
+        const run: ScheduledTaskRun = {
+          id: randomUUID(),
+          taskId: task.id,
+          startedAt,
+          finishedAt,
+          status: automationError || automationResponse?.error ? 'error' : changed ? 'changed' : 'unchanged',
+          logs: [
+            {
+              url: '',
+              status: automationError || automationResponse?.error ? 'error' : 'completed',
+              ...(automationError || automationResponse?.error
+                ? { error: automationError || automationResponse?.error || 'AI automation failed.' }
+                : { message: 'AI automation completed.' }),
+            },
+          ],
+          promptSnapshot: task.prompt || task.instructions || task.title,
+          ...(automationResponse?.resolvedContextSummary ? { resolvedContextSummary: automationResponse.resolvedContextSummary } : {}),
+          ...(automationResponse?.model ? { model: automationResponse.model } : {}),
+          ...(automationResponse?.provider ? { provider: automationResponse.provider } : {}),
+          ...(automationResponse?.outputText ? { outputText: automationResponse.outputText, aiSummary: automationResponse.outputText.slice(0, 1000) } : {}),
+          ...(automationResponse?.artifactIds ? { artifactIds: automationResponse.artifactIds } : {}),
+          ...(automationResponse?.generatedFiles ? { generatedFiles: automationResponse.generatedFiles } : {}),
+          ...(automationResponse?.toolCallSummaries ? { toolCallSummaries: automationResponse.toolCallSummaries } : {}),
+          ...(automationResponse?.usage ? { usage: automationResponse.usage } : {}),
+          ...(automationResponse?.changeVerdict ? { changeVerdict: automationResponse.changeVerdict } : {}),
+          ...(automationResponse?.deliveryStatus ? { deliveryStatus: automationResponse.deliveryStatus } : {}),
+          ...(automationError || automationResponse?.error ? { error: automationError || automationResponse?.error } : {}),
+        }
+        await appendEmailNotificationLog(task, run)
+        showRunNotification(task, run)
+        await saveScheduledTaskRun(task, run, [])
+        void reschedule()
+        broadcastChanged()
+        return run
       }
 
       for (const url of task.type === 'web_lookout' ? task.urls : []) {
@@ -260,10 +483,10 @@ function createRuntime(deps: MonitorRuntimeDeps = {}): MonitorRuntime {
           : {}),
       }
       await appendEmailNotificationLog(task, run)
+      showRunNotification(task, run)
       await saveScheduledTaskRun(task, run, nextSnapshots)
       void reschedule()
       broadcastChanged()
-      showRunNotification(task, run)
       return run
     } finally {
       running.delete(task.id)
@@ -278,6 +501,9 @@ function createRuntime(deps: MonitorRuntimeDeps = {}): MonitorRuntime {
       const result = await emailSender(task, run)
       if (result.skipped) return
       if (result.ok) {
+        if (task.type === 'ai_automation') {
+          run.deliveryStatus = { ...run.deliveryStatus, email: 'sent' }
+        }
         run.logs.push({
           url: '',
           status: 'completed',
@@ -285,12 +511,18 @@ function createRuntime(deps: MonitorRuntimeDeps = {}): MonitorRuntime {
         })
         return
       }
+      if (task.type === 'ai_automation') {
+        run.deliveryStatus = { ...run.deliveryStatus, email: 'error' }
+      }
       run.logs.push({
         url: '',
         status: 'error',
         error: result.error || 'Email notification failed.',
       })
     } catch (error) {
+      if (task.type === 'ai_automation') {
+        run.deliveryStatus = { ...run.deliveryStatus, email: 'error' }
+      }
       run.logs.push({
         url: '',
         status: 'error',
@@ -301,14 +533,30 @@ function createRuntime(deps: MonitorRuntimeDeps = {}): MonitorRuntime {
 
   const showRunNotification = (task: ScheduledTaskDefinition, run: ScheduledTaskRun): void => {
     const options = buildNotificationOptions(task, run)
-    if (!options) return
+    if (!options) {
+      if (task.type === 'ai_automation' && task.outputDestinations?.includes('notification')) {
+        run.deliveryStatus = { ...run.deliveryStatus, notification: 'skipped' }
+      }
+      return
+    }
 
     try {
-      if (!notificationsSupported()) return
+      if (!notificationsSupported()) {
+        if (task.type === 'ai_automation') {
+          run.deliveryStatus = { ...run.deliveryStatus, notification: 'skipped' }
+        }
+        return
+      }
       const notification = notificationFactory(options)
       notification.on('click', focusAppWindow)
       notification.show()
+      if (task.type === 'ai_automation') {
+        run.deliveryStatus = { ...run.deliveryStatus, notification: 'sent' }
+      }
     } catch (error) {
+      if (task.type === 'ai_automation') {
+        run.deliveryStatus = { ...run.deliveryStatus, notification: 'error' }
+      }
       logMonitorWarning(`notification failed: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
@@ -409,6 +657,11 @@ function createRuntime(deps: MonitorRuntimeDeps = {}): MonitorRuntime {
       pending.reject(new Error('Monitor runtime stopped.'))
       pendingSummaries.delete(requestId)
     }
+    for (const [requestId, pending] of pendingAutomationRuns) {
+      clearTimeoutFn(pending.timer)
+      pending.reject(new Error('Monitor runtime stopped.'))
+      pendingAutomationRuns.delete(requestId)
+    }
   }
 
   const runNow = async (taskId: string): Promise<ScheduledTaskRun> => {
@@ -453,6 +706,18 @@ function createRuntime(deps: MonitorRuntimeDeps = {}): MonitorRuntime {
     return true
   })
 
+  ipcMain.handle('scheduled-tasks:resolve-automation-run', (_event, response: ScheduledAutomationRunResponse) => {
+    if (!response || typeof response !== 'object' || typeof response.requestId !== 'string') {
+      return false
+    }
+    const pending = pendingAutomationRuns.get(response.requestId)
+    if (!pending) return false
+    pendingAutomationRuns.delete(response.requestId)
+    clearTimeoutFn(pending.timer)
+    pending.resolve(sanitizeAutomationResponse(response))
+    return true
+  })
+
   return { start, stop, reschedule, runNow, setExtensionEnabled, isExtensionEnabled }
 }
 
@@ -490,6 +755,7 @@ export function stopMonitorRuntime(ipc: IpcMain = ipcMain): void {
   activeRuntime.stop()
   activeRuntime = null
   ipc.removeHandler('scheduled-tasks:resolve-summary')
+  ipc.removeHandler('scheduled-tasks:resolve-automation-run')
 }
 
 export const __test__ = {

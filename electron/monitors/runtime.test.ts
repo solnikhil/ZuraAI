@@ -24,6 +24,7 @@ const storageMock = vi.hoisted(() => ({
   getScheduledTask: vi.fn(async (id: string) => (storageMock.task?.id === id ? storageMock.task : null)),
   getSnapshotsForTask: vi.fn(async () => storageMock.snapshots),
   listScheduledTasks: vi.fn(async () => (storageMock.task ? [storageMock.task] : [])),
+  listRuns: vi.fn(async () => storageMock.savedRuns),
   saveScheduledTaskRun: vi.fn(async (_task: ScheduledTaskDefinition, run: ScheduledTaskRun) => {
     storageMock.savedRuns.push(run)
   }),
@@ -58,6 +59,7 @@ vi.mock('./storage', () => ({
   getScheduledTask: storageMock.getScheduledTask,
   getSnapshotsForTask: storageMock.getSnapshotsForTask,
   listScheduledTasks: storageMock.listScheduledTasks,
+  listRuns: storageMock.listRuns,
   saveScheduledTaskRun: storageMock.saveScheduledTaskRun,
 }))
 
@@ -347,6 +349,83 @@ describe('scheduled task runtime notifications', () => {
 
     expect(setTimeoutImpl).toHaveBeenCalledTimes(1)
     expect(clearTimeoutImpl).toHaveBeenCalledWith(timer)
+  })
+
+  it('requests renderer execution for AI automations and records the returned output', async () => {
+    const { __test__ } = await import('./runtime')
+    const webContents = { isDestroyed: vi.fn(() => false), send: vi.fn() }
+    electronMock.windows = [
+      {
+        isDestroyed: vi.fn(() => false),
+        isMinimized: vi.fn(() => false),
+        restore: vi.fn(),
+        show: vi.fn(),
+        focus: vi.fn(),
+        webContents,
+      },
+    ]
+    storageMock.task = createTask({
+      type: 'ai_automation',
+      prompt: 'Summarize my day',
+      automationMode: 'watch',
+      outputDestinations: ['log', 'notification'],
+      notifyPolicy: 'meaningful_change',
+    })
+
+    const runtime = __test__.createRuntime({
+      notificationsSupported: () => false,
+      setTimeoutImpl: vi.fn(() => 1 as unknown as ReturnType<typeof setTimeout>),
+      clearTimeoutImpl: vi.fn(),
+      now: () => 1_000,
+    })
+
+    await runtime.setExtensionEnabled(true)
+    const runPromise = runtime.runNow('task-1')
+    await vi.waitFor(() => expect(webContents.send).toHaveBeenCalledWith(
+      'scheduled-tasks:automation-run-request',
+      expect.objectContaining({ taskId: 'task-1', prompt: 'Summarize my day' })
+    ))
+    const request = webContents.send.mock.calls[0][1]
+    const resolveHandler = electronMock.ipcHandle.mock.calls.find(([channel]) => channel === 'scheduled-tasks:resolve-automation-run')?.[1]
+    expect(resolveHandler).toBeDefined()
+    resolveHandler({}, {
+      requestId: request.requestId,
+      outputText: 'Briefing output',
+      model: 'openrouter/fake-model',
+      provider: 'openrouter',
+      changeVerdict: { changed: true, summary: 'Important change' },
+    })
+
+    await expect(runPromise).resolves.toEqual(expect.objectContaining({
+      taskId: 'task-1',
+      status: 'changed',
+      outputText: 'Briefing output',
+    }))
+    runtime.stop()
+  })
+
+  it('records an error run when no renderer is available for AI automations', async () => {
+    const { __test__ } = await import('./runtime')
+    storageMock.task = createTask({
+      type: 'ai_automation',
+      prompt: 'Summarize my day',
+      automationMode: 'prompt',
+    })
+
+    const runtime = __test__.createRuntime({
+      notificationsSupported: () => false,
+      setTimeoutImpl: vi.fn(() => 1 as unknown as ReturnType<typeof setTimeout>),
+      clearTimeoutImpl: vi.fn(),
+      now: () => 1_000,
+    })
+
+    await runtime.setExtensionEnabled(true)
+    const run = await runtime.runNow('task-1')
+    runtime.stop()
+
+    expect(run.status).toBe('error')
+    expect(run.error).toBe('No renderer is available to run AI automation.')
+    expect(storageMock.saveScheduledTaskRun).toHaveBeenCalledTimes(1)
   })
 })
 

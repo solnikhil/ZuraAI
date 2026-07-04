@@ -18,6 +18,8 @@ export {
 export type {
   MonitorIntervalPreset,
   ScheduledTaskDefinition,
+  ScheduledAutomationRunRequest,
+  ScheduledAutomationRunResponse,
   ScheduledTaskInput,
   ScheduledTaskRun,
   ScheduledTaskSummaryRequest,

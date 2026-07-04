@@ -356,6 +356,43 @@ describe('preload MCP bridge', () => {
       'Blocked IPC invoke channel: memory:summaries-delete'
     )
   })
+
+  it('exposes AI automation run callbacks only through the scheduled tasks bridge', async () => {
+    const scheduledTasks = getExposedBridge<{
+      resolveAutomationRun: (response: { requestId: string; outputText?: string }) => Promise<boolean>
+      onAutomationRunRequest: (callback: (request: { requestId: string; taskId: string }) => void) => () => void
+    }>('scheduledTasks')
+    const ipcRenderer = getExposedBridge<{
+      invoke: (channel: string, ...args: unknown[]) => Promise<unknown>
+    }>('ipcRenderer')
+    const callback = vi.fn()
+
+    preloadMocks.invoke.mockResolvedValueOnce(true)
+    await expect(scheduledTasks.resolveAutomationRun({
+      requestId: 'run-1',
+      outputText: 'done',
+    })).resolves.toBe(true)
+    expect(preloadMocks.invoke).toHaveBeenCalledWith('scheduled-tasks:resolve-automation-run', {
+      requestId: 'run-1',
+      outputText: 'done',
+    })
+
+    const unsubscribe = scheduledTasks.onAutomationRunRequest(callback)
+    const listener = preloadMocks.on.mock.calls.find(
+      (call) => call[0] === 'scheduled-tasks:automation-run-request'
+    )?.[1]
+    listener?.({}, { requestId: 'run-1', taskId: 'task-1' })
+    expect(callback).toHaveBeenCalledWith({ requestId: 'run-1', taskId: 'task-1' })
+    unsubscribe()
+    expect(preloadMocks.removeListener).toHaveBeenCalledWith(
+      'scheduled-tasks:automation-run-request',
+      listener
+    )
+
+    expect(() => ipcRenderer.invoke('scheduled-tasks:resolve-automation-run' as never, {})).toThrow(
+      'Blocked IPC invoke channel: scheduled-tasks:resolve-automation-run'
+    )
+  })
 })
 
 describe('preload updater bridge', () => {

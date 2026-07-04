@@ -31,6 +31,8 @@ import type {
   EmailNotificationSettings,
   Memory,
   MemoryScope,
+  ScheduledAutomationRunRequest,
+  ScheduledAutomationRunResponse,
   ScheduledTaskInput,
   ScheduledTaskSummaryRequest,
   ScheduledTaskSummaryResponse,
@@ -213,11 +215,13 @@ const SCHEDULED_TASKS_INVOKE_CHANNELS = new Set<string>([
   'scheduled-tasks:list-runs',
   'scheduled-tasks:get-run',
   'scheduled-tasks:resolve-summary',
+  'scheduled-tasks:resolve-automation-run',
 ])
 
 const SCHEDULED_TASKS_ON_CHANNELS = new Set<string>([
   'scheduled-tasks:changed',
   'scheduled-tasks:summary-request',
+  'scheduled-tasks:automation-run-request',
 ])
 
 const ANALYTICS_INVOKE_CHANNELS = new Set<string>([
@@ -444,6 +448,10 @@ contextBridge.exposeInMainWorld(
       assertAllowed('invoke', 'scheduled-tasks:resolve-summary', SCHEDULED_TASKS_INVOKE_CHANNELS)
       return ipcRenderer.invoke('scheduled-tasks:resolve-summary', response)
     },
+    resolveAutomationRun: (response: ScheduledAutomationRunResponse) => {
+      assertAllowed('invoke', 'scheduled-tasks:resolve-automation-run', SCHEDULED_TASKS_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('scheduled-tasks:resolve-automation-run', response)
+    },
     onChanged: (callback: () => void) => {
       assertAllowed('on', 'scheduled-tasks:changed', SCHEDULED_TASKS_ON_CHANNELS)
       const listener = () => callback()
@@ -456,6 +464,13 @@ contextBridge.exposeInMainWorld(
         callback(request)
       ipcRenderer.on('scheduled-tasks:summary-request', listener)
       return () => ipcRenderer.removeListener('scheduled-tasks:summary-request', listener)
+    },
+    onAutomationRunRequest: (callback: (request: ScheduledAutomationRunRequest) => void) => {
+      assertAllowed('on', 'scheduled-tasks:automation-run-request', SCHEDULED_TASKS_ON_CHANNELS)
+      const listener = (_event: IpcRendererEvent, request: ScheduledAutomationRunRequest) =>
+        callback(request)
+      ipcRenderer.on('scheduled-tasks:automation-run-request', listener)
+      return () => ipcRenderer.removeListener('scheduled-tasks:automation-run-request', listener)
     },
   })
 )
