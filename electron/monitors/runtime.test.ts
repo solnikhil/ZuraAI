@@ -280,9 +280,13 @@ describe('scheduled task runtime notifications', () => {
     expect(storageMock.saveScheduledTaskRun).not.toHaveBeenCalled()
   })
 
-  it('runs overdue tasks when the extension is restored after startup', async () => {
+  it('runs overdue tasks once after the startup catch-up delay when the extension is restored', async () => {
     const { __test__ } = await import('./runtime')
-    const setTimeoutImpl = vi.fn(() => 1 as unknown as ReturnType<typeof setTimeout>)
+    let startupCatchUp: (() => void) | null = null
+    const setTimeoutImpl = vi.fn((callback: () => void) => {
+      startupCatchUp = callback
+      return 1 as unknown as ReturnType<typeof setTimeout>
+    })
     storageMock.task = createTask({
       type: 'reminder',
       reminderText: 'Review weekly launches',
@@ -300,10 +304,17 @@ describe('scheduled task runtime notifications', () => {
     expect(storageMock.saveScheduledTaskRun).not.toHaveBeenCalled()
 
     await runtime.setExtensionEnabled(true)
+    expect(storageMock.saveScheduledTaskRun).not.toHaveBeenCalled()
+    expect(setTimeoutImpl).toHaveBeenCalledTimes(1)
+    expect(setTimeoutImpl).toHaveBeenCalledWith(expect.any(Function), 180_000)
+
+    startupCatchUp?.()
     await vi.waitFor(() => expect(storageMock.saveScheduledTaskRun).toHaveBeenCalledTimes(1))
+    startupCatchUp?.()
+    await new Promise((resolve) => setTimeout(resolve, 0))
     runtime.stop()
 
-    expect(setTimeoutImpl).not.toHaveBeenCalled()
+    expect(storageMock.saveScheduledTaskRun).toHaveBeenCalledTimes(1)
     expect(storageMock.savedRuns[0]).toEqual(
       expect.objectContaining({
         taskId: 'task-1',

@@ -2,91 +2,91 @@
 
 /* Container for all thinking blocks */
 .thinking-blocks-container {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .thinking-block {
-    margin-bottom: 0;
+  margin-bottom: 0;
 }
 
 /* Completed blocks styling */
 .thinking-block.completed .thinking-header {
-    opacity: 0.6;
+  opacity: 0.6;
 }
 
 .thinking-block.completed .thinking-header:hover {
-    opacity: 0.8;
+  opacity: 0.8;
 }
 
 .thinking-block.completed .thinking-text {
-    color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.5);
 }
 
 /* Web Search / tool call inside thinking block */
 .thinking-block.thinking-tool-call .thinking-header.tool-call {
-    opacity: 0.75;
+  opacity: 0.75;
 }
 
 .thinking-block.thinking-tool-call .thinking-tool-calling-icon {
-    color: var(--theme-info, rgba(59, 130, 246, 0.85));
+  color: var(--theme-info, rgba(59, 130, 246, 0.85));
 }
 
 /* Completed tool/search rows match regular completed styling for uniformity */
 .thinking-block.completed .thinking-header.tool-call {
-    opacity: 0.6;
+  opacity: 0.6;
 }
 
 .thinking-block.completed.thinking-tool-call .thinking-header.tool-call .thinking-text {
-    color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.5);
 }
 
 /* Typography-focused web search completed row (no icon) */
 .search-query {
-    font-weight: 400;
-    color: inherit;
+  font-weight: 400;
+  color: inherit;
 }
 
 .thinking-block.completed .search-query {
-    color: rgba(255, 255, 255, 0.7);
+  color: rgba(255, 255, 255, 0.7);
 }
 
 /* Active sourcing list items use the same muted treatment for uniformity with Sourced/Thought rows */
 .thinking-active-search-batch .search-query,
 .thinking-active-tool-item .search-query {
-    color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.5);
 }
 
 .search-count {
-    color: rgba(255, 255, 255, 0.45);
-    font-size: 0.85em;
-    white-space: nowrap;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 0.85em;
+  white-space: nowrap;
 }
 
 /* Inline Web Search tool call - dropdown, follows thinking block style */
 .thinking-inline-tool-call {
-    margin: 8px 0;
-    display: block;
+  margin: 8px 0;
+  display: block;
 }
 
 .thinking-inline-tool-call .thinking-header {
-    display: inline-flex;
-    padding: 6px 0;
+  display: inline-flex;
+  padding: 6px 0;
 }
 
 .thinking-inline-tool-call .thinking-header.clickable,
 .thinking-block.thinking-tool-call .thinking-header.tool-call.clickable {
-    cursor: pointer;
+  cursor: pointer;
 }
 
 .thinking-inline-tool-call .thinking-header.tool-call {
-    color: var(--theme-info, rgba(59, 130, 246, 0.95));
+  color: var(--theme-info, rgba(59, 130, 246, 0.95));
 }
 
 .thinking-inline-tool-call .thinking-tool-calling-icon {
-    color: var(--theme-info, rgba(59, 130, 246, 0.9));
-    flex-shrink: 0;
+  color: var(--theme-info, rgba(59, 130, 246, 0.9));
+  flex-shrink: 0;
 }
 
 .thinking-inline-tool-call .thinking-tool-calling-icon.search-icon {
@@ -94,153 +94,152 @@
 }
 
 .thinking-content .thinking-segment {
-    display: block;
+  display: block;
 }
 
 /* Tool details - JSON input/output, matches thinking-content style */
 .thinking-tool-details {
-    padding: 8px 0 12px 0;
-    padding-left: 16px;
-    margin-left: 4px;
-    border-left: 2px solid rgba(255, 255, 255, 0.1);
-    font-size: 14px;
+  padding: 8px 0 12px 0;
+  padding-left: 16px;
+  margin-left: 4px;
+  border-left: 2px solid rgba(255, 255, 255, 0.1);
+  font-size: 14px;
 }
 
 .thinking-tool-json {
-    margin-bottom: 12px;
+  margin-bottom: 12px;
 }
 
 .thinking-tool-json:last-child {
-    margin-bottom: 0;
+  margin-bottom: 0;
 }
 
 .thinking-tool-json-label {
-    font-size: 13px;
-    font-weight: 500;
-    color: rgba(255, 255, 255, 0.6);
-    margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 6px;
 }
 
 .thinking-tool-meta {
-    font-weight: 400;
-    color: rgba(255, 255, 255, 0.4);
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.4);
 }
 
 .thinking-mcp-called-tool {
-    margin-bottom: 10px;
+  margin-bottom: 10px;
 }
 
 .thinking-mcp-called-tool__value {
-    display: inline-flex;
-    min-width: 0;
-    max-width: 100%;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 9px;
-    border-radius: 6px;
-    background: rgba(255, 255, 255, 0.045);
-    color: rgba(255, 255, 255, 0.72);
-    font-size: 12px;
-    line-height: 1.4;
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 9px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.045);
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .thinking-mcp-called-tool__value code {
-    color: rgba(255, 255, 255, 0.82);
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    overflow-wrap: anywhere;
+  color: rgba(255, 255, 255, 0.82);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  overflow-wrap: anywhere;
 }
 
 .thinking-mcp-called-tool__separator {
-    color: rgba(255, 255, 255, 0.36);
+  color: rgba(255, 255, 255, 0.36);
 }
 
 .thinking-tool-status {
-    display: inline-flex;
-    align-items: center;
-    padding: 2px 8px;
-    border-radius: 999px;
-    font-size: 11px;
-    font-weight: 600;
-    line-height: 1.2;
-    margin-left: 6px;
-    margin-top: 1px;
-    border: 1px solid transparent;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  margin-left: 6px;
+  margin-top: 1px;
+  border: 1px solid transparent;
 }
 
 .thinking-tool-status-success {
-    color: var(--theme-success, #22c55e);
-    background: color-mix(in srgb, var(--theme-success, #22c55e) 14%, transparent);
-    border-color: color-mix(in srgb, var(--theme-success, #22c55e) 28%, transparent);
+  color: var(--theme-success, #22c55e);
+  background: color-mix(in srgb, var(--theme-success, #22c55e) 14%, transparent);
+  border-color: color-mix(in srgb, var(--theme-success, #22c55e) 28%, transparent);
 }
 
 .thinking-tool-status-warning {
-    color: var(--theme-warning, #f59e0b);
-    background: color-mix(in srgb, var(--theme-warning, #f59e0b) 14%, transparent);
-    border-color: color-mix(in srgb, var(--theme-warning, #f59e0b) 28%, transparent);
+  color: var(--theme-warning, #f59e0b);
+  background: color-mix(in srgb, var(--theme-warning, #f59e0b) 14%, transparent);
+  border-color: color-mix(in srgb, var(--theme-warning, #f59e0b) 28%, transparent);
 }
 
 .thinking-tool-status-error {
-    color: var(--theme-error, #ef4444);
-    background: color-mix(in srgb, var(--theme-error, #ef4444) 14%, transparent);
-    border-color: color-mix(in srgb, var(--theme-error, #ef4444) 28%, transparent);
+  color: var(--theme-error, #ef4444);
+  background: color-mix(in srgb, var(--theme-error, #ef4444) 14%, transparent);
+  border-color: color-mix(in srgb, var(--theme-error, #ef4444) 28%, transparent);
 }
 
 .thinking-tool-status-neutral {
-    color: rgba(255, 255, 255, 0.72);
-    background: rgba(255, 255, 255, 0.06);
-    border-color: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
 .thinking-tool-json pre {
-    margin: 0;
-    padding: 10px 12px;
-    background: rgba(0, 0, 0, 0.25);
-    border-radius: 6px;
-    font-size: 12px;
-    line-height: 1.5;
-    color: rgba(255, 255, 255, 0.75);
-    overflow-x: auto;
-    overflow-y: visible;
-    max-height: none;
-    white-space: pre-wrap;
-    word-break: break-word;
+  margin: 0;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.75);
+  overflow-x: auto;
+  overflow-y: visible;
+  max-height: none;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .thinking-tool-audit-line {
-    margin-top: 8px;
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.5);
+  margin-top: 8px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
 }
-
 
 /* ==== THINKING HEADER ==== */
 
 .thinking-header {
-    display: inline-flex;
-    align-items: center;
-    gap: 12px;
-    padding: 6px 0;
-    user-select: none;
-    transition: opacity 0.2s ease;
-    cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0;
+  user-select: none;
+  transition: opacity 0.2s ease;
+  cursor: pointer;
 }
 
 .thinking-header:hover {
-    opacity: 0.8;
+  opacity: 0.8;
 }
 
 .thinking-label {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    flex-wrap: wrap;
-    font-size: 14px;
-    font-weight: 400;
-    color: rgba(255, 255, 255, 0.7);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 14px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.7);
 }
 
 .thinking-text {
-    color: rgba(255, 255, 255, 0.7);
+  color: rgba(255, 255, 255, 0.7);
 }
 
 /* Wrapper for active pure thinking state to guarantee proper spacing and alignment
@@ -258,7 +257,7 @@
 
 /* Searching state text - uses theme info color */
 .thinking-header.searching .thinking-text {
-    color: var(--theme-info, rgba(59, 130, 246, 0.95));
+  color: var(--theme-info, rgba(59, 130, 246, 0.95));
 }
 
 /* For individual sourcing attributions (single query), use the same muted color as completed "Sourced" for uniformity */
@@ -271,7 +270,7 @@
 }
 
 .thinking-header.searching .thinking-tool-calling-icon {
-    color: var(--theme-info, rgba(59, 130, 246, 0.9));
+  color: var(--theme-info, rgba(59, 130, 246, 0.9));
 }
 
 /* Web search icons use the muted color of "Sourced" text (and sourcing attributions),
@@ -323,24 +322,24 @@
 }
 
 .thinking-header.search-batch {
-    padding-bottom: 4px;
+  padding-bottom: 4px;
 }
 
 /* Tool calling state - distinct styling with pulse animation */
 .thinking-header.tool-calling .thinking-text {
-    color: var(--theme-info, rgba(59, 130, 246, 0.95));
+  color: var(--theme-info, rgba(59, 130, 246, 0.95));
 }
 
 .thinking-tool-calling {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .thinking-tool-calling-icon {
-    display: inline-flex;
-    align-items: center;
-    flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
 }
 
 /* BrainCircuit icon for thinking/thought states.
@@ -356,167 +355,262 @@
 }
 
 .tool-call-spinner {
-    animation: toolCallSpin 1s linear infinite;
+  animation: toolCallSpin 1s linear infinite;
 }
 
 @keyframes toolCallSpin {
-    from {
-        transform: rotate(0deg);
-    }
-    to {
-        transform: rotate(360deg);
-    }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .thinking-header.tool-calling .thinking-label {
-    animation: toolCallPulse 2s ease-in-out infinite;
+  animation: toolCallPulse 2s ease-in-out infinite;
 }
 
 @keyframes toolCallPulse {
-    0%, 100% {
-        opacity: 1;
-    }
-    50% {
-        opacity: 0.85;
-    }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.85;
+  }
 }
 
 /* ==== COPY BUTTON ==== */
 
 .thinking-copy-btn {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: 4px 8px;
-    background: transparent;
-    border: none;
-    border-radius: 4px;
-    color: rgba(255, 255, 255, 0.5);
-    cursor: pointer;
-    transition: all 0.2s ease;
-    position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
 }
 
 .thinking-copy-btn:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.8);
 }
 
 .thinking-copy-btn svg {
-    transition: transform 0.2s ease;
+  transition: transform 0.2s ease;
 }
 
 .thinking-copy-btn:active svg {
-    transform: scale(0.9);
+  transform: scale(0.9);
 }
 
 .copy-tooltip {
-    position: absolute;
-    top: -24px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(0, 0, 0, 0.9);
-    color: white;
-    padding: 2px 8px;
-    border-radius: 4px;
-    font-size: 12px;
-    white-space: nowrap;
-    animation: tooltipFadeIn 0.2s ease;
+  position: absolute;
+  top: -24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.9);
+  color: white;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+  animation: tooltipFadeIn 0.2s ease;
 }
 
 @keyframes tooltipFadeIn {
-    from {
-        opacity: 0;
-        transform: translateX(-50%) translateY(4px);
-    }
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(4px);
+  }
 
-    to {
-        opacity: 1;
-        transform: translateX(-50%) translateY(0);
-    }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
 }
-
 
 /* ==== AI TEXT LOADING (replaces dots) ==== */
 /* Animation is handled by the AITextLoading component using framer-motion */
 
-
 /* ==== CHEVRON ICON ==== */
 
 .thinking-chevron {
-    color: rgba(255, 255, 255, 0.65);
+  color: rgba(255, 255, 255, 0.65);
 }
-
 
 /* ==== THINKING CONTENT ==== */
 
 .thinking-content {
-    padding: 8px 0 12px 0;
-    font-size: 14px;
-    line-height: 1.7;
-    color: rgba(255, 255, 255, 0.6);
-    white-space: pre-wrap;
-    word-wrap: break-word;
-    border-left: 2px solid rgba(255, 255, 255, 0.1);
-    padding-left: 16px;
-    margin-left: 4px;
+  padding: 8px 0 12px 0;
+  font-size: 14px;
+  line-height: 1.7;
+  color: rgba(255, 255, 255, 0.6);
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  border-left: 2px solid rgba(255, 255, 255, 0.1);
+  padding-left: 16px;
+  margin-left: 4px;
 }
-
 
 /* ==== THINKING CONTENT MARKDOWN ==== */
 
 .thinking-content p {
-    margin: 0 0 8px 0;
+  margin: 0 0 8px 0;
 }
 
 .thinking-content p:last-child {
-    margin-bottom: 0;
+  margin-bottom: 0;
 }
 
 .thinking-content ul,
 .thinking-content ol {
-    margin: 0 0 8px 0;
-    padding-left: 20px;
+  margin: 0 0 8px 0;
+  padding-left: 20px;
 }
 
 .thinking-content li {
-    margin-bottom: 4px;
+  margin-bottom: 4px;
 }
 
 .thinking-content strong {
-    color: rgba(255, 255, 255, 0.8);
+  color: rgba(255, 255, 255, 0.8);
 }
 
 .thinking-content code {
-    background: rgba(255, 255, 255, 0.1);
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-family: var(--font-mono);
-    font-size: 0.9em;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.9em;
 }
 
 .thinking-active-tool-list {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.thinking-active-tool-previews {
+  gap: 10px;
+}
+
+.thinking-active-tool-preview {
+  min-width: 0;
+}
+
+.thinking-active-tool-preview__header {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 2px 0 8px;
+  color: var(--thinking-muted);
+}
+
+.thinking-active-tool-preview__header.clickable {
+  cursor: pointer;
+}
+
+.thinking-active-tool-preview__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--thinking-muted);
+}
+
+.thinking-active-tool-preview__kind {
+  color: var(--thinking-quiet);
+}
+
+.thinking-active-tool-preview__status {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border: 1px solid color-mix(in srgb, var(--theme-info, #3b82f6) 28%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--theme-info, #3b82f6) 12%, transparent);
+  color: var(--theme-info, #3b82f6);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.thinking-active-tool-preview__body {
+  padding-bottom: 2px;
+}
+
+.thinking-active-tool-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--theme-border);
+  border-radius: 8px;
+  background: linear-gradient(
+    90deg,
+    var(--theme-surface-subtle),
+    var(--theme-surface-hover),
+    var(--theme-surface-subtle)
+  );
+  background-size: 220% 100%;
+  animation: activeToolSkeleton 1.6s ease-in-out infinite;
+}
+
+.thinking-active-tool-skeleton span {
+  display: block;
+  height: 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--theme-text-muted) 22%, transparent);
+}
+
+.thinking-active-tool-skeleton span:nth-child(1) {
+  width: min(52rem, 58%);
+}
+
+.thinking-active-tool-skeleton span:nth-child(2) {
+  width: min(42rem, 44%);
+}
+
+.thinking-active-tool-skeleton span:nth-child(3) {
+  width: min(28rem, 28%);
+}
+
+@keyframes activeToolSkeleton {
+  0% {
+    background-position: 120% 0;
+  }
+  100% {
+    background-position: -120% 0;
+  }
 }
 
 .thinking-active-search-batch {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    opacity: 0.6;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  opacity: 0.6;
 }
 
 .thinking-active-tool-item {
-    color: rgba(255, 255, 255, 0.5);
-    font-size: 14px;
-    font-weight: 400;
-    padding: 6px 0;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 14px;
+  font-weight: 400;
+  padding: 6px 0;
 }
 
 .thinking-active-search-batch .thinking-active-tool-item {
-    color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.5);
 }
 
 .thinking-active-search-batch .thinking-text,
@@ -608,265 +702,294 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .tool-call-spinner {
-        animation: none;
-    }
+  .tool-call-spinner {
+    animation: none;
+  }
 
-    .thinking-header.tool-calling .thinking-label {
-        animation: none;
-    }
+  .thinking-active-tool-skeleton {
+    animation: none;
+  }
 
-    .thinking-copy-btn {
-        transition: none;
-    }
+  .thinking-header.tool-calling .thinking-label {
+    animation: none;
+  }
 
-    .thinking-copy-btn svg {
-        transition: none;
-    }
+  .thinking-copy-btn {
+    transition: none;
+  }
 
-    .thinking-header {
-        transition: none;
-    }
+  .thinking-copy-btn svg {
+    transition: none;
+  }
+
+  .thinking-header {
+    transition: none;
+  }
 }
 
 /* Codex-style terminal panel for system_shell tool output */
 .terminal-tool {
-    margin-top: 4px;
-    border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.1));
-    border-radius: 10px;
-    overflow: hidden;
-    background: #0d1117;
-    font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace);
-    font-size: 12px;
-    line-height: 1.55;
+  margin-top: 4px;
+  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.1));
+  border-radius: 10px;
+  overflow: hidden;
+  background: #0d1117;
+  font-family: var(
+    --font-mono,
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Consolas,
+    'Liberation Mono',
+    monospace
+  );
+  font-size: 12px;
+  line-height: 1.55;
 }
 
 .terminal-tool-bar {
-    padding: 6px 12px;
-    background: rgba(255, 255, 255, 0.04);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-    color: rgba(255, 255, 255, 0.55);
-    font-size: 11px;
-    letter-spacing: 0.03em;
-    text-transform: none;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  text-transform: none;
 }
 
 .terminal-tool-body {
-    padding: 10px 12px;
-    max-height: 360px;
-    overflow: auto;
+  padding: 10px 12px;
+  max-height: 360px;
+  overflow: auto;
 }
 
 .terminal-tool-command {
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    color: #e6edf3;
-    margin-bottom: 8px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: #e6edf3;
+  margin-bottom: 8px;
 }
 
 .terminal-tool-command-text {
-    flex: 1;
-    min-width: 0;
-    white-space: pre-wrap;
-    word-break: break-word;
+  flex: 1;
+  min-width: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .terminal-tool-copy-btn {
-    flex-shrink: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    margin-top: 1px;
-    padding: 0;
-    border: none;
-    background: transparent;
-    color: rgba(255, 255, 255, 0.45);
-    cursor: pointer;
-    transition: color 0.15s ease, opacity 0.15s ease;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.45);
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    opacity 0.15s ease;
 }
 
 .terminal-tool-copy-btn:hover {
-    color: rgba(255, 255, 255, 0.8);
+  color: rgba(255, 255, 255, 0.8);
 }
 
 .terminal-tool-prompt {
-    color: #5ec27e;
-    font-weight: 600;
-    flex-shrink: 0;
+  color: #5ec27e;
+  font-weight: 600;
+  flex-shrink: 0;
 }
 
 .terminal-tool-stream {
-    margin: 0;
-    white-space: pre-wrap;
-    word-break: break-word;
-    color: #c9d1d9;
-    font-family: inherit;
-    font-size: inherit;
-    line-height: 1.55;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #c9d1d9;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: 1.55;
 }
 
 .terminal-tool-stream + .terminal-tool-stream {
-    margin-top: 8px;
+  margin-top: 8px;
 }
 
 .terminal-tool-stream-err {
-    color: var(--theme-warning, #f0883e);
+  color: var(--theme-warning, #f0883e);
 }
 
 .terminal-tool-empty {
-    color: rgba(255, 255, 255, 0.4);
-    font-style: italic;
+  color: rgba(255, 255, 255, 0.4);
+  font-style: italic;
 }
 
 .terminal-tool-status {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 6px 12px;
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
-    background: rgba(255, 255, 255, 0.02);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.02);
 }
 
 .terminal-tool-cwd {
-    flex: 1;
-    min-width: 0;
-    margin: 0;
-    padding: 0;
-    border: none;
-    background: transparent;
-    color: rgba(255, 255, 255, 0.4);
-    font: inherit;
-    font-size: 11px;
-    text-align: left;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    cursor: pointer;
-    transition: color 0.15s ease;
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.4);
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.15s ease;
 }
 
 .terminal-tool-cwd:hover {
-    color: rgba(255, 255, 255, 0.58);
+  color: rgba(255, 255, 255, 0.58);
 }
 
 .terminal-tool-status-badge {
-    margin-left: auto;
-    flex-shrink: 0;
-    font-size: 11px;
-    font-weight: 600;
-    color: #5ec27e;
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: #5ec27e;
 }
 
 .terminal-tool.is-error .terminal-tool-status-badge {
-    color: var(--theme-warning, #f0883e);
+  color: var(--theme-warning, #f0883e);
 }
-
 
 /* Command knot icon for system_shell ("Ran command") entries — matches other muted thinking icons. */
 .thinking-tool-calling-icon.command-run-icon {
-    color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.5);
 }
 
 .thinking-block.completed .thinking-tool-calling-icon.command-run-icon,
 .thinking-command-group .thinking-tool-calling-icon.command-run-icon,
 .thinking-command-row__head .thinking-tool-calling-icon.command-run-icon {
-    color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.5);
 }
 
 .thinking-tool-calling-icon.command-run-icon.is-error {
-    color: var(--theme-warning, #f0883e);
+  color: var(--theme-warning, #f0883e);
 }
 
 .thinking-header.tool-calling .thinking-tool-calling-icon.command-run-icon.is-running {
-    color: var(--theme-info, rgba(59, 130, 246, 0.9));
+  color: var(--theme-info, rgba(59, 130, 246, 0.9));
 }
 
 .thinking-tool-calling-icon.command-run-icon.is-running {
-    animation: thinking-command-run-pulse 1.2s ease-in-out infinite;
+  animation: thinking-command-run-pulse 1.2s ease-in-out infinite;
 }
 
 @keyframes thinking-command-run-pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.45; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .thinking-tool-calling-icon.command-run-icon.is-running {
-        animation: none;
-    }
+  .thinking-tool-calling-icon.command-run-icon.is-running {
+    animation: none;
+  }
 }
 
 /* "Ran N commands" group: use the muted thinking-block text color, not the
    blue tool-call color, and keep the icon + chevron aligned with the label. */
 .thinking-command-group .thinking-header.tool-call .thinking-text.thinking-cmd-text {
-    color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.5);
 }
 
 .thinking-command-group .thinking-label {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .thinking-command-group .thinking-chevron {
-    flex-shrink: 0;
-    color: rgba(255, 255, 255, 0.5);
+  flex-shrink: 0;
+  color: rgba(255, 255, 255, 0.5);
 }
 
 /* Stack multiple terminal panels inside an expanded command group. */
 .thinking-command-group-body {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 /* Per-command rows: name first, expand to reveal that command's terminal. */
 .thinking-command-row {
-    display: flex;
-    flex-direction: column;
+  display: flex;
+  flex-direction: column;
 }
 
 .thinking-command-row__head {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 3px 0;
-    cursor: pointer;
-    opacity: 0.7;
-    transition: opacity 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.15s ease;
 }
 
 .thinking-command-row__head:hover {
-    opacity: 1;
+  opacity: 1;
 }
 
 .thinking-command-row__name {
-    font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace);
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.6);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 100%;
+  font-family: var(
+    --font-mono,
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Consolas,
+    'Liberation Mono',
+    monospace
+  );
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .thinking-command-row__body {
-    padding: 4px 0 6px 0;
+  padding: 4px 0 6px 0;
 }
 
 /* Keep late command-group rules readable in light mode too. */
-.thinking-blocks-container .thinking-command-group .thinking-header.tool-call .thinking-text.thinking-cmd-text,
+.thinking-blocks-container
+  .thinking-command-group
+  .thinking-header.tool-call
+  .thinking-text.thinking-cmd-text,
 .thinking-blocks-container .thinking-command-group .thinking-chevron,
 .thinking-blocks-container .thinking-command-row__name {
-    color: var(--theme-text-muted) !important;
+  color: var(--theme-text-muted) !important;
 }
 
 /* Final light-mode pass: completed reasoning/search rows must stay legible on paper backgrounds. */
 :root:not(.dark) .thinking-blocks-container {
-    --thinking-text: color-mix(in srgb, var(--theme-text-primary) 72%, transparent);
-    --thinking-muted: color-mix(in srgb, var(--theme-text-primary) 62%, transparent);
-    --thinking-quiet: color-mix(in srgb, var(--theme-text-primary) 52%, transparent);
+  --thinking-text: color-mix(in srgb, var(--theme-text-primary) 72%, transparent);
+  --thinking-muted: color-mix(in srgb, var(--theme-text-primary) 62%, transparent);
+  --thinking-quiet: color-mix(in srgb, var(--theme-text-primary) 52%, transparent);
 }
 
 :root:not(.dark) .thinking-block.completed .thinking-header,
@@ -874,7 +997,7 @@
 :root:not(.dark) .thinking-header.search-sourcing,
 :root:not(.dark) .thinking-active-search-batch,
 :root:not(.dark) .thinking-command-row__head {
-    opacity: 1 !important;
+  opacity: 1 !important;
 }
 
 :root:not(.dark) .thinking-blocks-container .thinking-label,
@@ -883,16 +1006,16 @@
 :root:not(.dark) .thinking-blocks-container .search-count,
 :root:not(.dark) .thinking-blocks-container .thinking-chevron,
 :root:not(.dark) .thinking-blocks-container .thinking-command-row__name {
-    color: var(--thinking-muted) !important;
+  color: var(--thinking-muted) !important;
 }
 
 :root:not(.dark) .thinking-blocks-container .thinking-content {
-    color: var(--thinking-text) !important;
-    border-left-color: color-mix(in srgb, var(--theme-text-primary) 18%, transparent) !important;
+  color: var(--thinking-text) !important;
+  border-left-color: color-mix(in srgb, var(--theme-text-primary) 18%, transparent) !important;
 }
 
 :root:not(.dark) .thinking-blocks-container .thinking-tool-calling-icon,
 :root:not(.dark) .thinking-blocks-container .thinking-tool-calling-icon svg {
-    color: var(--thinking-muted) !important;
-    opacity: 1 !important;
+  color: var(--thinking-muted) !important;
+  opacity: 1 !important;
 }

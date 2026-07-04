@@ -27,6 +27,7 @@ import { sendScheduledTaskEmail } from '../notifications/email'
 
 const SUMMARY_TIMEOUT_MS = 45_000
 const NOTIFICATION_BODY_LIMIT = 240
+const STARTUP_OVERDUE_CATCH_UP_DELAY_MS = 180_000
 
 function logMonitorWarning(message: string): void {
   console.warn(`[scheduled-tasks] ${message}`)
@@ -46,6 +47,7 @@ interface MonitorRuntimeDeps {
   notificationsSupported?: () => boolean
   notificationFactory?: (options: NotificationConstructorOptions) => ScheduledTaskNotification
   emailSender?: (task: ScheduledTaskDefinition, run: ScheduledTaskRun) => Promise<{ ok: boolean; error?: string; skipped?: boolean }>
+  startupOverdueCatchUpDelayMs?: number
 }
 
 interface ScheduledTaskNotification {
@@ -145,11 +147,17 @@ function createRuntime(deps: MonitorRuntimeDeps = {}): MonitorRuntime {
   const notificationsSupported = deps.notificationsSupported ?? (() => Notification.isSupported())
   const notificationFactory = deps.notificationFactory ?? ((options) => new Notification(options))
   const emailSender = deps.emailSender ?? sendScheduledTaskEmail
+  const startupOverdueCatchUpDelayMs = Math.max(
+    0,
+    deps.startupOverdueCatchUpDelayMs ?? STARTUP_OVERDUE_CATCH_UP_DELAY_MS
+  )
   const timers = new Map<string, ReturnType<typeof setTimeout>>()
   const running = new Set<string>()
   const launchedDueKeys = new Set<string>()
   const pendingSummaries = new Map<string, PendingSummary>()
   let extensionEnabled = false
+  let hasScheduledStartupCatchUp = false
+  let startupCatchUpTimer: ReturnType<typeof setTimeout> | null = null
 
   const requestAiSummary = (request: ScheduledTaskSummaryRequest): Promise<string> => {
     const target = findSummaryTarget()
@@ -347,13 +355,44 @@ function createRuntime(deps: MonitorRuntimeDeps = {}): MonitorRuntime {
     }
   }
 
-  const reschedule = async () => {
+  const clearStartupCatchUpTimer = (): void => {
+    if (!startupCatchUpTimer) return
+    clearTimeoutFn(startupCatchUpTimer)
+    startupCatchUpTimer = null
+  }
+
+  const hasDueTasks = (tasks: ScheduledTaskDefinition[]): boolean => {
+    const dueAt = now()
+    return tasks.some((task) => task.enabled && task.nextRunAt <= dueAt)
+  }
+
+  const scheduleStartupOverdueCatchUp = (tasks: ScheduledTaskDefinition[]): void => {
+    if (hasScheduledStartupCatchUp || startupCatchUpTimer) return
+    hasScheduledStartupCatchUp = true
+    if (!hasDueTasks(tasks)) return
+    startupCatchUpTimer = setTimeoutFn(() => {
+      startupCatchUpTimer = null
+      if (!extensionEnabled) return
+      void listScheduledTasks()
+        .then((tasks) => runDueTasks(tasks, 'startup overdue scheduled task failed'))
+        .catch((error) => {
+          logMonitorWarning(`startup overdue catch-up failed: ${error instanceof Error ? error.message : String(error)}`)
+        })
+    }, startupOverdueCatchUpDelayMs)
+  }
+
+  const reschedule = async (options?: { runOverdue?: boolean }) => {
     for (const timer of timers.values()) clearTimeoutFn(timer)
     timers.clear()
-    if (!extensionEnabled) return
+    if (!extensionEnabled) {
+      clearStartupCatchUpTimer()
+      return
+    }
     const tasks = await listScheduledTasks()
     for (const task of tasks) scheduleTask(task)
-    runDueTasks(tasks, 'overdue scheduled task failed')
+    if (options?.runOverdue !== false) {
+      runDueTasks(tasks, 'overdue scheduled task failed')
+    }
   }
 
   const start = async () => {
@@ -364,6 +403,7 @@ function createRuntime(deps: MonitorRuntimeDeps = {}): MonitorRuntime {
   const stop = () => {
     for (const timer of timers.values()) clearTimeoutFn(timer)
     timers.clear()
+    clearStartupCatchUpTimer()
     for (const [requestId, pending] of pendingSummaries) {
       clearTimeoutFn(pending.timer)
       pending.reject(new Error('Monitor runtime stopped.'))
@@ -382,7 +422,17 @@ function createRuntime(deps: MonitorRuntimeDeps = {}): MonitorRuntime {
     const nextEnabled = enabled === true
     if (extensionEnabled === nextEnabled) return
     extensionEnabled = nextEnabled
-    await reschedule()
+    if (!nextEnabled) {
+      clearStartupCatchUpTimer()
+      await reschedule()
+      return
+    }
+    const shouldDelayStartupCatchUp = !hasScheduledStartupCatchUp
+    await reschedule({ runOverdue: !shouldDelayStartupCatchUp })
+    if (shouldDelayStartupCatchUp) {
+      const tasks = await listScheduledTasks()
+      scheduleStartupOverdueCatchUp(tasks)
+    }
   }
 
   const isExtensionEnabled = (): boolean => extensionEnabled

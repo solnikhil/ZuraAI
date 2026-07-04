@@ -119,6 +119,94 @@ function getToolCallHeaderText(
     : baseText
 }
 
+function getToolKindLabel(toolName: string, args?: Record<string, unknown>): string | null {
+  if (toolName === 'artifact_create' || toolName === 'artifact_update') {
+    const kind = typeof args?.kind === 'string' ? args.kind.trim() : ''
+    return kind || null
+  }
+
+  if (toolName === 'web_search') {
+    return inferWebToolModeFromArgs(args) === 'extract' ? 'extract' : 'search'
+  }
+
+  return null
+}
+
+function ActiveToolCallPreview({
+  toolCall,
+  index,
+  total,
+}: {
+  toolCall: { name: string; arguments?: Record<string, unknown> }
+  index: number
+  total: number
+}) {
+  const [isExpanded, setIsExpanded] = useState(true)
+  const { animationsEnabled } = useMotionPreferences()
+  const displayName = formatToolDisplayName(toolCall.name, toolCall.arguments)
+  const kindLabel = getToolKindLabel(toolCall.name, toolCall.arguments)
+  const title = total > 1 ? `${displayName} ${index + 1}` : displayName
+  const input =
+    toolCall.arguments && Object.keys(toolCall.arguments).length > 0
+      ? JSON.stringify(toolCall.arguments, null, 2)
+      : '{}'
+
+  return (
+    <div className="thinking-active-tool-preview">
+      <div
+        className="thinking-active-tool-preview__header clickable"
+        onClick={() => setIsExpanded((expanded) => !expanded)}
+      >
+        <span className="thinking-active-tool-preview__title">
+          {title}
+          {kindLabel ? (
+            <span className="thinking-active-tool-preview__kind">: {kindLabel}</span>
+          ) : null}
+        </span>
+        <span className="thinking-active-tool-preview__status">Running</span>
+        <motion.div
+          animate={{ rotate: isExpanded ? 90 : 0 }}
+          transition={motionSpringTransition(animationsEnabled, motionSpring.bouncy)}
+        >
+          <ChevronRight size={13} className="thinking-chevron" />
+        </motion.div>
+      </div>
+      <AnimatePresence initial={false}>
+        {isExpanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{
+              height: motionSpringTransition(animationsEnabled, motionSpring.settle),
+              opacity: {
+                duration: motionDuration(animationsEnabled, motionDurations.fast),
+                ease: motionEasing.standard,
+              },
+            }}
+            style={{ overflow: 'hidden' }}
+          >
+            <div className="thinking-active-tool-preview__body">
+              <div className="thinking-tool-json">
+                <div className="thinking-tool-json-label">Input</div>
+                <pre>{input}</pre>
+              </div>
+              <div className="thinking-tool-json">
+                <div className="thinking-tool-json-label">Output</div>
+                <div className="thinking-active-tool-skeleton" aria-label="Tool output loading">
+                  <span />
+                  <span />
+                  <span />
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
 function getActiveSearchItemText(query: string): React.ReactNode {
   return (
     <span className="thinking-text">
@@ -681,7 +769,10 @@ function TerminalToolView({ block }: { block: ThinkingBlockType }) {
     void copyTerminalText(text).then((ok) => {
       if (!ok) return
       setCopiedTarget(target)
-      window.setTimeout(() => setCopiedTarget((current) => (current === target ? null : current)), 2000)
+      window.setTimeout(
+        () => setCopiedTarget((current) => (current === target ? null : current)),
+        2000
+      )
     })
   }
 
@@ -740,6 +831,11 @@ function isShellBlockFailed(block: ThinkingBlockType): boolean {
   const data = out.data as Record<string, unknown> | undefined
   const exitCode = typeof data?.exitCode === 'number' ? data.exitCode : null
   return out.success === false || (exitCode !== null && exitCode !== 0)
+}
+
+function isToolBlockFailed(block: ThinkingBlockType): boolean {
+  const output = block.toolOutput
+  return Boolean(output && (output.success === false || output.error))
 }
 
 function CommandStatusIcon({
@@ -895,7 +991,7 @@ function CompletedBlock({
   block: ThinkingBlockType
   defaultExpanded?: boolean
 }) {
-  const shouldExpand = defaultExpanded !== undefined ? defaultExpanded : false
+  const shouldExpand = defaultExpanded !== undefined ? defaultExpanded : isToolBlockFailed(block)
   const [isExpanded, setIsExpanded] = useState(shouldExpand)
   const { animationsEnabled } = useMotionPreferences()
 
@@ -952,10 +1048,7 @@ function CompletedBlock({
             >
               <div className="thinking-content thinking-tool-details">
                 {toolName !== 'web_search' && (
-                  <McpCalledToolDetail
-                    toolName={toolName}
-                    metadata={block.toolOutput?.metadata}
-                  />
+                  <McpCalledToolDetail toolName={toolName} metadata={block.toolOutput?.metadata} />
                 )}
                 {block.toolInput &&
                   Object.keys(block.toolInput).length > 0 &&
@@ -1084,7 +1177,7 @@ function CompletedBlocksList({ blocks }: { blocks: ThinkingBlockType[] }) {
           <CompletedBlock
             key={`completed-${item.index}-${item.block.timestamp}`}
             block={item.block}
-            defaultExpanded={false}
+            defaultExpanded={isToolBlockFailed(item.block)}
           />
         )
       )}
@@ -1109,7 +1202,6 @@ export default function ThinkingBlock({
     return !shouldSuppressNoisyToolUi(block.toolName)
   })
   const hasActiveToolCalls = activeToolCalls && activeToolCalls.length > 0
-  const extraActiveToolCalls = hasActiveToolCalls ? activeToolCalls.slice(1) : []
   const { animationsEnabled } = useMotionPreferences()
   const [isExpanded, setIsExpanded] = useState(isThinking || isSearching || hasActiveToolCalls)
   const [isSearchBatchExpanded, setIsSearchBatchExpanded] = useState(true)
@@ -1152,7 +1244,9 @@ export default function ThinkingBlock({
 
   // When thinking contains --- and we have search blocks, show them inline (don't duplicate above)
   const searchBlocks = visibleCompletedBlocks.filter((b) => b.type === 'searching')
-  const hasCompletedThinkingBlocks = visibleCompletedBlocks.some((block) => block.type === 'thinking')
+  const hasCompletedThinkingBlocks = visibleCompletedBlocks.some(
+    (block) => block.type === 'thinking'
+  )
   const hasLegacyInlineThinkingWithToolCalls =
     hasThinkingContent &&
     !hasCompletedThinkingBlocks &&
@@ -1337,7 +1431,7 @@ export default function ThinkingBlock({
                 </div>
               </motion.div>
             )}
-            {isExpanded && !isActiveSearchBatch && extraActiveToolCalls.length > 0 && (
+            {isExpanded && hasActiveToolCalls && (
               <motion.div
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: 'auto', opacity: 1 }}
@@ -1351,21 +1445,15 @@ export default function ThinkingBlock({
                 }}
                 style={{ overflow: 'hidden' }}
               >
-                <div className="thinking-content thinking-active-tool-list">
-                  {isActiveSearchBatch
-                    ? activeSearchBatchQueries.map((query, index) => (
-                        <div key={`${query}-${index}`} className="thinking-active-tool-item">
-                          {getActiveSearchItemText(query)}
-                        </div>
-                      ))
-                    : extraActiveToolCalls.map((toolCall, index) => (
-                        <div
-                          key={`${toolCall.name}-${index}`}
-                          className="thinking-active-tool-item"
-                        >
-                          {index + 2}. {getToolCallText(toolCall)}
-                        </div>
-                      ))}
+                <div className="thinking-content thinking-active-tool-list thinking-active-tool-previews">
+                  {activeToolCalls.map((toolCall, index) => (
+                    <ActiveToolCallPreview
+                      key={`${toolCall.name}-${index}-${JSON.stringify(toolCall.arguments ?? {})}`}
+                      toolCall={toolCall}
+                      index={index}
+                      total={activeToolCalls.length}
+                    />
+                  ))}
                 </div>
               </motion.div>
             )}

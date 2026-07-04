@@ -374,7 +374,7 @@ Important tool rules:
 - Folder `memoryMode` is selected when a folder is created and controls project memory scope: `default` includes global plus folder memories, while `folder-only` excludes global memories for chats in that folder.
 - Settings -> Extensions -> Memory lists global and folder-scoped background memories together, labels folder-scoped memories with folder metadata, and provides a project-memory filter.
 - Scheduled web lookouts may fetch public `http`/`https` URLs and local loopback hosts only. Keep private LAN URLs rejected.
-- Scheduled reminders/lookouts catch up overdue enabled tasks when the Reminders extension state is restored on startup or when the monitor runtime is rescheduled; the same overdue timestamp is launched only once per runtime.
+- Scheduled reminders/lookouts catch up overdue enabled tasks when the Reminders extension state is restored on startup after a one-shot startup delay of about three minutes, or immediately when the monitor runtime is rescheduled later; the same overdue timestamp is launched only once per runtime.
 - Email notification settings in renderer are non-secret preferences only. `brevoApiKey` stays in secure storage, and the renderer must not send arbitrary email bodies over IPC.
 - Analytics is opt-in only. Main sanitizes events and must never accept prompts, responses, file paths, clipboard data, API keys, MCP payloads, or conversation content.
 - Discord RPC is always-on in main and lazy-requires `discord-rpc`; missing optional native dependencies must not crash the app.
