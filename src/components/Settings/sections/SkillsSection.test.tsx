@@ -76,13 +76,15 @@ describe('SkillsSection', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /disable web research/i }))
 
-    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({
-      skills: expect.objectContaining({
-        web_research: expect.objectContaining({
-          enabled: false,
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        skills: expect.objectContaining({
+          web_research: expect.objectContaining({
+            enabled: false,
+          }),
         }),
-      }),
-    }))
+      })
+    )
   })
 
   it('opens an extension settings view when clicking the row', () => {
@@ -161,11 +163,13 @@ describe('SkillsSection', () => {
     expect(screen.getByText('Terminal')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /enable terminal/i }))
 
-    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({
-      skills: expect.objectContaining({
-        terminal: expect.objectContaining({ enabled: true }),
-      }),
-    }))
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        skills: expect.objectContaining({
+          terminal: expect.objectContaining({ enabled: true }),
+        }),
+      })
+    )
   })
 
   it('hides the Terminal skill on macOS', () => {

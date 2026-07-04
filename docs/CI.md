@@ -16,19 +16,19 @@ If you need to bump Bun, see `docs/MAINTENANCE.md` → "Rust-Bun upgrade".
 
 ## PR-time checks (run on every pull request to `main`)
 
-| Workflow | File | Triggers | Path filter | Required? |
-| --- | --- | --- | --- | --- |
-| **CI** (`test`) | `ci.yml` | PR + push to main | none | yes |
-| **Lint** (`lint`) | `lint.yml` | PR + push to main | excludes `**.md`, `LICENSE`, `images/**`, `docs/**`, `research/**` | informational (currently `continue-on-error: true`) |
-| **Knip** (`knip`) | `knip.yml` | PR + push to main | same as Lint | informational (currently `continue-on-error: true`) |
-| **Validate PR Title** (`validate`) | `pr-title.yml` | PR (`opened`/`edited`/`synchronize`/`reopened`) | n/a | yes |
-| **Dependency Review** (`review`) | `dependency-review.yml` | PR | only `package.json`, `bun.lock`, `package-lock.json` | yes when triggered |
-| **CI Cross-Platform** (`test (matrix)`) | `ci-cross-platform.yml` | PR | `electron/**`, `src/**`, `scripts/**`, `vite.config.ts`, `vitest.config.ts`, `tsconfig.json`, `package.json`, `bun.lock`, this workflow, `setup-bun` composite | informational (Mac/Windows are extra coverage; Ubuntu duplicates `CI / test`) |
-| **Package Smoke** (`build (matrix)`) | `ci-package-smoke.yml` | PR | `electron/**`, `installer/**`, `build/**`, `scripts/generate-icons.mjs`, `package.json`, `vite.config.ts`, this workflow, `setup-bun` composite | informational |
-| **Pinned Actions** (`ensure-pinned`) | `actions-pinned.yml` | PR | `.github/workflows/**`, `.github/actions/**` | yes when triggered |
-| **CodeQL** (`Analyze`) | `codeql.yml` | PR + push to main + weekly cron | none | yes |
-| **Secret Scan** (`gitleaks`) | `secret-scan.yml` | PR + push to main + weekly cron | none | yes |
-| **License Audit** (`audit`) | `license-audit.yml` | PR | `package.json`, `bun.lockb` (note: stale path; should be `bun.lock`) | yes when triggered |
+| Workflow                                | File                    | Triggers                                        | Path filter                                                                                                                                                    | Required?                                                                     |
+| --------------------------------------- | ----------------------- | ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| **CI** (`test`)                         | `ci.yml`                | PR + push to main                               | none                                                                                                                                                           | yes                                                                           |
+| **Lint** (`lint`)                       | `lint.yml`              | PR + push to main                               | excludes `**.md`, `LICENSE`, `images/**`, `docs/**`, `research/**`                                                                                             | informational (currently `continue-on-error: true`)                           |
+| **Knip** (`knip`)                       | `knip.yml`              | PR + push to main                               | same as Lint                                                                                                                                                   | informational (currently `continue-on-error: true`)                           |
+| **Validate PR Title** (`validate`)      | `pr-title.yml`          | PR (`opened`/`edited`/`synchronize`/`reopened`) | n/a                                                                                                                                                            | yes                                                                           |
+| **Dependency Review** (`review`)        | `dependency-review.yml` | PR                                              | only `package.json`, `bun.lock`, `package-lock.json`                                                                                                           | yes when triggered                                                            |
+| **CI Cross-Platform** (`test (matrix)`) | `ci-cross-platform.yml` | PR                                              | `electron/**`, `src/**`, `scripts/**`, `vite.config.ts`, `vitest.config.ts`, `tsconfig.json`, `package.json`, `bun.lock`, this workflow, `setup-bun` composite | informational (Mac/Windows are extra coverage; Ubuntu duplicates `CI / test`) |
+| **Package Smoke** (`build (matrix)`)    | `ci-package-smoke.yml`  | PR                                              | `electron/**`, `installer/**`, `build/**`, `scripts/generate-icons.mjs`, `package.json`, `vite.config.ts`, this workflow, `setup-bun` composite                | informational                                                                 |
+| **Pinned Actions** (`ensure-pinned`)    | `actions-pinned.yml`    | PR                                              | `.github/workflows/**`, `.github/actions/**`                                                                                                                   | yes when triggered                                                            |
+| **CodeQL** (`Analyze`)                  | `codeql.yml`            | PR + push to main + weekly cron                 | none                                                                                                                                                           | yes                                                                           |
+| **Secret Scan** (`gitleaks`)            | `secret-scan.yml`       | PR + push to main + weekly cron                 | none                                                                                                                                                           | yes                                                                           |
+| **License Audit** (`audit`)             | `license-audit.yml`     | PR                                              | `package.json`, `bun.lockb` (note: stale path; should be `bun.lock`)                                                                                           | yes when triggered                                                            |
 
 Total worst-case per substantive PR: ~5 lightweight jobs (~3 min each) + 3-OS matrix (~5 min wall) + 2-OS package smoke (~8 min wall). Doc-only PRs skip Lint, Knip, the matrix, and the package smoke via `paths-ignore` / `paths` filters.
 
@@ -43,11 +43,11 @@ Total worst-case per substantive PR: ~5 lightweight jobs (~3 min each) + 3-OS ma
 
 ## Bots and automation
 
-| Workflow | File | When it runs |
-| --- | --- | --- |
-| **Labeler** (`label`) | `labeler.yml` | Every PR (uses `pull_request_target` so PRs from forks still get labeled) |
-| **Stale** (`stale`) | `stale.yml` | Daily cron at 01:00 UTC + manual `workflow_dispatch` |
-| **Scorecard** (`Scorecard analysis`) | `scorecard.yml` | Branch-protection rule changes + weekly Monday cron + push to main |
+| Workflow                             | File            | When it runs                                                              |
+| ------------------------------------ | --------------- | ------------------------------------------------------------------------- |
+| **Labeler** (`label`)                | `labeler.yml`   | Every PR (uses `pull_request_target` so PRs from forks still get labeled) |
+| **Stale** (`stale`)                  | `stale.yml`     | Daily cron at 01:00 UTC + manual `workflow_dispatch`                      |
+| **Scorecard** (`Scorecard analysis`) | `scorecard.yml` | Branch-protection rule changes + weekly Monday cron + push to main        |
 
 `Labeler` reads `.github/labeler.yml` and applies area labels (`area: ui`, `area: mcp`, `area: providers`, `dependencies`, ...) based on which files the PR touches.
 
@@ -61,8 +61,8 @@ Total worst-case per substantive PR: ~5 lightweight jobs (~3 min each) + 3-OS ma
 
 ## Release workflow
 
-| Workflow | File | When it runs |
-| --- | --- | --- |
+| Workflow    | File          | When it runs                      |
+| ----------- | ------------- | --------------------------------- |
 | **Release** | `release.yml` | Push of `v*` tags (e.g. `v0.1.0`) |
 
 This is unchanged by the recent CI hardening. It still validates that the tag matches `package.json` version, builds Windows + macOS artifacts, generates the changelog via `scripts/generate-changelog.mjs`, computes SHA-256 checksums, and uses `softprops/action-gh-release@<sha>` to publish a GitHub Release.
@@ -81,7 +81,7 @@ bun run format:check   # Prettier (check-only, no write)
 bun run knip           # unused deps / exports
 ```
 
-If your PR adds *new* lint errors, please fix them in your branch even though the workflow is technically informational right now. We'll flip these to required gates after the cleanup PR lands.
+If your PR adds _new_ lint errors, please fix them in your branch even though the workflow is technically informational right now. We'll flip these to required gates after the cleanup PR lands.
 
 ### `Validate PR Title / validate` failed
 

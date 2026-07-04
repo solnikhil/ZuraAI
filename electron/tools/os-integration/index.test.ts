@@ -17,13 +17,18 @@ describe('os-integration tools', () => {
 
     const tools = await import('./index')
 
-    await expect(tools.executeSystemSettingsOpen({ page: 'display', autoApprove: true })).resolves.toEqual({
+    await expect(
+      tools.executeSystemSettingsOpen({ page: 'display', autoApprove: true })
+    ).resolves.toEqual({
       success: true,
       data: { page: 'display' },
     })
-    await expect(tools.executeSystemSettingsOpen({ page: 'ms-settings:privacy-webcam', autoApprove: true })).resolves.toEqual({
+    await expect(
+      tools.executeSystemSettingsOpen({ page: 'ms-settings:privacy-webcam', autoApprove: true })
+    ).resolves.toEqual({
       success: false,
-      error: 'page must be one of: display, sound, bluetooth, network, notifications, apps, privacy.',
+      error:
+        'page must be one of: display, sound, bluetooth, network, notifications, apps, privacy.',
     })
 
     expect(openExternal).toHaveBeenCalledWith('ms-settings:display')

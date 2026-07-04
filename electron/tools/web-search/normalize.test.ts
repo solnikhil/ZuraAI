@@ -93,7 +93,8 @@ describe('parseTavilyExtractResult', () => {
   it('returns SearchResult with inferred title and snippet from raw_content', () => {
     const input = {
       url: 'https://docs.example.com/guide',
-      raw_content: '# Getting Started\n\nThis is the guide content that explains how to use the system effectively.',
+      raw_content:
+        '# Getting Started\n\nThis is the guide content that explains how to use the system effectively.',
     }
 
     const result = parseTavilyExtractResult(input)
@@ -102,9 +103,7 @@ describe('parseTavilyExtractResult', () => {
     expect(result!.url).toBe('https://docs.example.com/guide')
     expect(result!.title).toBe('Getting Started')
     expect(result!.snippet).toContain('Getting Started')
-    expect(result!.favicon).toBe(
-      'https://www.google.com/s2/favicons?domain=docs.example.com&sz=32'
-    )
+    expect(result!.favicon).toBe('https://www.google.com/s2/favicons?domain=docs.example.com&sz=32')
     expect(result!.source).toBe('docs.example.com')
     expect(result!.displayed_link).toBe('docs.example.com > guide')
     expect(result!.raw_content).toBe(input.raw_content)
@@ -282,7 +281,13 @@ describe('extractTavilyImages', () => {
   })
 
   it('skips non-record entries in the results array', () => {
-    const input = [null, undefined, 42, 'string', { url: 'https://page.com', images: ['https://img.com/a.png'] }]
+    const input = [
+      null,
+      undefined,
+      42,
+      'string',
+      { url: 'https://page.com', images: ['https://img.com/a.png'] },
+    ]
 
     const images = extractTavilyImages(input as unknown[])
 

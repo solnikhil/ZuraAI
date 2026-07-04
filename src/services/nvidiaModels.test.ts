@@ -33,10 +33,7 @@ describe('nvidiaModels', () => {
         'Content-Type': 'application/json',
       },
     })
-    expect(models.map((model) => model.id)).toEqual([
-      'minimaxai/minimax-m3',
-      'nvidia/llama-chat',
-    ])
+    expect(models.map((model) => model.id)).toEqual(['minimaxai/minimax-m3', 'nvidia/llama-chat'])
   })
 
   it('maps MiniMax M3 to configured model capabilities', () => {

@@ -6,12 +6,12 @@ import { buildAgentSkillsCatalogPrompt } from '../agentSkills/prompt'
 import { defaultCommandCenterPrompt } from '../prompts/defaultCommandCenterPrompt'
 
 export interface EffectiveSystemPromptOptions {
-    includeAgentSkillsCatalog?: boolean
+  includeAgentSkillsCatalog?: boolean
 }
 
 export function resolveSystemPromptTemplate(systemPrompt: string): string {
-    const currentYear = String(new Date().getFullYear())
-    return systemPrompt.replaceAll(CURRENT_YEAR_PLACEHOLDER, currentYear)
+  const currentYear = String(new Date().getFullYear())
+  return systemPrompt.replaceAll(CURRENT_YEAR_PLACEHOLDER, currentYear)
 }
 
 /**
@@ -24,37 +24,57 @@ export function resolveSystemPromptTemplate(systemPrompt: string): string {
  * @returns The effective system prompt to use for AI calls.
  */
 export function getEffectiveSystemPrompt(
-    settings: Pick<Settings, 'systemPrompt'> & Partial<Pick<Settings, 'assistantPersonality' | 'assistantMode' | 'skills' | 'extensions' | 'agentSkills' | 'codeExecutionPrompt' | 'terminalPrompt' | 'computerUsePrompt' | 'commandCenterPrompt' | 'chartGenerationPrompt' | 'remindersPrompt' | 'artifactsPrompt'>>,
-    memoryBlock?: string,
-    recentActivityBlock?: string,
-    options: EffectiveSystemPromptOptions = {}
+  settings: Pick<Settings, 'systemPrompt'> &
+    Partial<
+      Pick<
+        Settings,
+        | 'assistantPersonality'
+        | 'assistantMode'
+        | 'skills'
+        | 'extensions'
+        | 'agentSkills'
+        | 'codeExecutionPrompt'
+        | 'terminalPrompt'
+        | 'computerUsePrompt'
+        | 'commandCenterPrompt'
+        | 'chartGenerationPrompt'
+        | 'remindersPrompt'
+        | 'artifactsPrompt'
+      >
+    >,
+  memoryBlock?: string,
+  recentActivityBlock?: string,
+  options: EffectiveSystemPromptOptions = {}
 ): string {
-    const includeAgentSkillsCatalog = options.includeAgentSkillsCatalog ?? true
-    const resolvedSystemPrompt = resolveSystemPromptTemplate(settings.systemPrompt)
-    const selectedPersonalityPrompt = buildSelectedPersonalityPrompt(settings.assistantPersonality)
-    const commandCenterPrompt =
-        settings.assistantMode === 'agent'
-            ? settings.commandCenterPrompt ?? defaultCommandCenterPrompt
-            : undefined
-    const enabledExtensionsSection = buildEnabledExtensionsPrompt(settings.extensions ?? settings.skills, {
-        codeExecutionPrompt: settings.codeExecutionPrompt,
-        terminalPrompt: settings.terminalPrompt,
-        computerUsePrompt: settings.computerUsePrompt,
-        commandCenterPrompt,
-        commandCenterActive: settings.assistantMode === 'agent',
-        chartGenerationPrompt: settings.chartGenerationPrompt,
-        remindersPrompt: settings.remindersPrompt,
-        artifactsPrompt: settings.artifactsPrompt,
-    })
-    const sections = [resolvedSystemPrompt, selectedPersonalityPrompt]
-    if (enabledExtensionsSection) sections.push(enabledExtensionsSection)
-    if (includeAgentSkillsCatalog) {
-        const agentSkillsCatalog = buildAgentSkillsCatalogPrompt(settings.agentSkills)
-        if (agentSkillsCatalog) sections.push(agentSkillsCatalog)
+  const includeAgentSkillsCatalog = options.includeAgentSkillsCatalog ?? true
+  const resolvedSystemPrompt = resolveSystemPromptTemplate(settings.systemPrompt)
+  const selectedPersonalityPrompt = buildSelectedPersonalityPrompt(settings.assistantPersonality)
+  const commandCenterPrompt =
+    settings.assistantMode === 'agent'
+      ? (settings.commandCenterPrompt ?? defaultCommandCenterPrompt)
+      : undefined
+  const enabledExtensionsSection = buildEnabledExtensionsPrompt(
+    settings.extensions ?? settings.skills,
+    {
+      codeExecutionPrompt: settings.codeExecutionPrompt,
+      terminalPrompt: settings.terminalPrompt,
+      computerUsePrompt: settings.computerUsePrompt,
+      commandCenterPrompt,
+      commandCenterActive: settings.assistantMode === 'agent',
+      chartGenerationPrompt: settings.chartGenerationPrompt,
+      remindersPrompt: settings.remindersPrompt,
+      artifactsPrompt: settings.artifactsPrompt,
     }
-    if (recentActivityBlock && recentActivityBlock.trim()) sections.push(recentActivityBlock.trim())
-    if (memoryBlock && memoryBlock.trim()) sections.push(memoryBlock.trim())
-    return sections.join('\n\n')
+  )
+  const sections = [resolvedSystemPrompt, selectedPersonalityPrompt]
+  if (enabledExtensionsSection) sections.push(enabledExtensionsSection)
+  if (includeAgentSkillsCatalog) {
+    const agentSkillsCatalog = buildAgentSkillsCatalogPrompt(settings.agentSkills)
+    if (agentSkillsCatalog) sections.push(agentSkillsCatalog)
+  }
+  if (recentActivityBlock && recentActivityBlock.trim()) sections.push(recentActivityBlock.trim())
+  if (memoryBlock && memoryBlock.trim()) sections.push(memoryBlock.trim())
+  return sections.join('\n\n')
 }
 
 /**
@@ -64,6 +84,6 @@ export function getEffectiveSystemPrompt(
  * @returns Whether tools should be available
  */
 export function shouldEnableTools(settings: Pick<Settings, 'toolsEnabled'>): boolean {
-    // The master tools toggle gates all tool execution.
-    return settings.toolsEnabled
+  // The master tools toggle gates all tool execution.
+  return settings.toolsEnabled
 }

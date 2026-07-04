@@ -51,7 +51,11 @@ function createMacApplicationMenu(): Menu {
     {
       label: 'File',
       submenu: [
-        { label: 'New Chat', accelerator: 'CommandOrControl+N', click: () => showMainWindowAndStartNewChat() },
+        {
+          label: 'New Chat',
+          accelerator: 'CommandOrControl+N',
+          click: () => showMainWindowAndStartNewChat(),
+        },
         { type: 'separator' },
         { label: 'Show ZuraAI', accelerator: 'Command+0', click: () => showMainWindow() },
         { type: 'separator' },
@@ -78,12 +82,7 @@ function createMacApplicationMenu(): Menu {
     },
     {
       label: 'Window',
-      submenu: [
-        { role: 'minimize' },
-        { role: 'zoom' },
-        { type: 'separator' },
-        { role: 'front' },
-      ],
+      submenu: [{ role: 'minimize' }, { role: 'zoom' }, { type: 'separator' }, { role: 'front' }],
     },
     {
       role: 'help',

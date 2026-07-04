@@ -150,7 +150,9 @@ async function postNvidiaCompletion(
     )
 
     if (response.status === 429) {
-      throw new Error(`Rate limited by NVIDIA NIM (429). Please try again in a moment. ${errorMessage}`)
+      throw new Error(
+        `Rate limited by NVIDIA NIM (429). Please try again in a moment. ${errorMessage}`
+      )
     }
 
     throw new Error(errorMessage)

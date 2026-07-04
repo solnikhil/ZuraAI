@@ -1,8 +1,4 @@
-import type {
-    McpJsonSchema,
-    McpToolExecutionMetadata,
-    McpToolLookupRecord,
-} from '../mcp/types'
+import type { McpJsonSchema, McpToolExecutionMetadata, McpToolLookupRecord } from '../mcp/types'
 import type { ReasoningDetail, ServiceToolCall } from '../services/types'
 
 export type ToolOrigin = 'builtin-main' | 'builtin-renderer' | 'mcp'
@@ -10,57 +6,55 @@ export type ToolOrigin = 'builtin-main' | 'builtin-renderer' | 'mcp'
 export type ToolCategory = 'search' | 'utility' | 'system' | 'browser' | 'mcp' | 'computer-use'
 
 export interface BuiltinToolExecutionMetadata {
-    origin: 'builtin-main' | 'builtin-renderer'
-    executionDisposition?: 'executed' | 'skipped'
-    skippedReason?: 'budget'
+  origin: 'builtin-main' | 'builtin-renderer'
+  executionDisposition?: 'executed' | 'skipped'
+  skippedReason?: 'budget'
 }
 
 export type ToolExecutionMetadata = BuiltinToolExecutionMetadata | McpToolExecutionMetadata
 
-export function isSkippedBuiltinToolResult(
-    metadata?: ToolExecutionMetadata
-): boolean {
-    return Boolean(
-        metadata &&
-        (metadata.origin === 'builtin-main' || metadata.origin === 'builtin-renderer') &&
-        metadata.executionDisposition === 'skipped'
-    )
+export function isSkippedBuiltinToolResult(metadata?: ToolExecutionMetadata): boolean {
+  return Boolean(
+    metadata &&
+    (metadata.origin === 'builtin-main' || metadata.origin === 'builtin-renderer') &&
+    metadata.executionDisposition === 'skipped'
+  )
 }
 
 export interface ToolInputSchema extends McpJsonSchema {
-    type: 'object'
-    properties: Record<string, McpJsonSchema>
-    required?: string[]
+  type: 'object'
+  properties: Record<string, McpJsonSchema>
+  required?: string[]
 }
 
 interface BaseToolDescriptor {
-    name: string
-    description: string
-    parameters: ToolInputSchema
-    category: ToolCategory
-    origin: ToolOrigin
-    requiresApproval?: boolean
+  name: string
+  description: string
+  parameters: ToolInputSchema
+  category: ToolCategory
+  origin: ToolOrigin
+  requiresApproval?: boolean
 }
 
 export interface BuiltinToolDescriptor extends BaseToolDescriptor {
-    origin: 'builtin-main' | 'builtin-renderer'
+  origin: 'builtin-main' | 'builtin-renderer'
 }
 
 export type ToolDescriptor = BuiltinToolDescriptor | McpToolDescriptor
 
 export interface McpToolDescriptor extends BaseToolDescriptor {
-    origin: 'mcp'
-    mcp: McpToolLookupRecord & {
-        serverName: string
-    }
+  origin: 'mcp'
+  mcp: McpToolLookupRecord & {
+    serverName: string
+  }
 }
 
 export function isMcpToolDescriptor(tool: ToolDescriptor): tool is McpToolDescriptor {
-    return tool.origin === 'mcp'
+  return tool.origin === 'mcp'
 }
 
 export function isMcpNamespacedToolName(toolName: string): boolean {
-    return /^mcp__([a-z0-9_]+)__([a-z0-9_]+)$/.test(toolName)
+  return /^mcp__([a-z0-9_]+)__([a-z0-9_]+)$/.test(toolName)
 }
 
 // Tool System Types
@@ -70,48 +64,48 @@ export function isMcpNamespacedToolName(toolName: string): boolean {
  * Result of a tool execution
  */
 export interface ToolResult {
-    success: boolean
-    data?: unknown
-    error?: string
-    executionTime?: number
-    metadata?: ToolExecutionMetadata
+  success: boolean
+  data?: unknown
+  error?: string
+  executionTime?: number
+  metadata?: ToolExecutionMetadata
 }
 
 /**
  * A tool call request
  */
 export interface ToolCall {
-    id: string
-    name: string
-    arguments: Record<string, unknown>
+  id: string
+  name: string
+  arguments: Record<string, unknown>
 }
 
 /**
  * Result of executing a tool call
  */
 export interface ToolCallResult {
-    toolCall: ToolCall
-    result: ToolResult
+  toolCall: ToolCall
+  result: ToolResult
 }
 
 export interface ToolExecutionPolicy {
-    remainingWebSearchBudget?: number
-    remainingToolCallBudget?: number
-    priorWebSearchQueries?: string[]
-    userContextText?: string
-    /**
-     * Active chat session id. Threaded down to memory tools so model-saved
-     * memories can record `sessionId` for traceability.
-     */
+  remainingWebSearchBudget?: number
+  remainingToolCallBudget?: number
+  priorWebSearchQueries?: string[]
+  userContextText?: string
+  /**
+   * Active chat session id. Threaded down to memory tools so model-saved
+   * memories can record `sessionId` for traceability.
+   */
   sessionId?: string
   /** Active assistant message id, used by renderer tools such as artifacts. */
   messageId?: string
 }
 
 export interface ToolExecutionSummary {
-    attemptedWebSearchCount: number
-    executedWebSearchCount: number
-    executedWebSearchQueries: string[]
+  attemptedWebSearchCount: number
+  executedWebSearchCount: number
+  executedWebSearchQueries: string[]
 }
 
 // Provider-specific response types
@@ -127,21 +121,21 @@ export type OpenRouterToolCall = ServiceToolCall
  * OpenRouter/OpenAI message format
  */
 export interface OpenRouterMessage {
-    role: string
-    content: string | null
-    tool_calls?: OpenRouterToolCall[]
-    reasoning?: string
-    reasoning_details?: ReasoningDetail[]
+  role: string
+  content: string | null
+  tool_calls?: OpenRouterToolCall[]
+  reasoning?: string
+  reasoning_details?: ReasoningDetail[]
 }
 
 /**
  * OpenRouter/OpenAI API response format
  */
 export interface OpenRouterResponse {
-    choices: Array<{
-        message: OpenRouterMessage
-        finish_reason?: string | null
-    }>
+  choices: Array<{
+    message: OpenRouterMessage
+    finish_reason?: string | null
+  }>
 }
 
 /**
@@ -155,7 +149,7 @@ export type ToolCallingResponse = OpenRouterResponse
  * OpenRouter tool result message format
  */
 export interface OpenRouterToolResultMessage {
-    role: 'tool'
-    tool_call_id: string
-    content: string
+  role: 'tool'
+  tool_call_id: string
+  content: string
 }

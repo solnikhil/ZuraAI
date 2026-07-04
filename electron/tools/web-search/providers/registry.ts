@@ -47,7 +47,7 @@ export function resolveProvider(id?: SearchProviderId): SearchProvider {
     const active = providers.get(activeProviderId)
     if (!active) {
       throw new Error(
-        `Active search provider "${activeProviderId}" is not registered; cannot resolve it.`,
+        `Active search provider "${activeProviderId}" is not registered; cannot resolve it.`
       )
     }
     return active

@@ -58,9 +58,7 @@ function readPersistedState(): PersistedAnalyticsState {
   try {
     const raw = fs.readFileSync(getStoragePath(), 'utf8')
     const parsed = JSON.parse(raw)
-    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
-      ? parsed
-      : {}
+    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed) ? parsed : {}
   } catch {
     return {}
   }
@@ -78,7 +76,9 @@ function writePersistedState(nextState: AnalyticsState): void {
     }
     fs.writeFileSync(getStoragePath(), JSON.stringify(persisted, null, 2), 'utf8')
   } catch (error) {
-    analyticsLog.warn(`failed to persist analytics state: ${error instanceof Error ? error.message : String(error)}`)
+    analyticsLog.warn(
+      `failed to persist analytics state: ${error instanceof Error ? error.message : String(error)}`
+    )
   }
 }
 
@@ -87,8 +87,7 @@ function normalizeState(persisted: PersistedAnalyticsState): AnalyticsState {
     persisted.consentState === 'accepted' || persisted.consentState === 'declined'
       ? persisted.consentState
       : 'undecided'
-  const analyticsEnabled =
-    consentState === 'accepted' && persisted.analyticsEnabled === true
+  const analyticsEnabled = consentState === 'accepted' && persisted.analyticsEnabled === true
 
   return {
     analyticsEnabled,
@@ -97,8 +96,7 @@ function normalizeState(persisted: PersistedAnalyticsState): AnalyticsState {
         ? persisted.anonymousInstallId.trim()
         : randomUUID(),
     firstLaunchSent: persisted.firstLaunchSent === true,
-    lastSeenVersion:
-      typeof persisted.lastSeenVersion === 'string' ? persisted.lastSeenVersion : '',
+    lastSeenVersion: typeof persisted.lastSeenVersion === 'string' ? persisted.lastSeenVersion : '',
     consentState,
     hasProjectKey: Boolean(getProjectKey()),
   }
@@ -147,7 +145,10 @@ export async function setAnalyticsEnabled(enabled: boolean): Promise<AnalyticsSt
   return getAnalyticsState()
 }
 
-async function sendToPostHog(eventName: AnalyticsEventName, properties: AnalyticsProperties): Promise<boolean> {
+async function sendToPostHog(
+  eventName: AnalyticsEventName,
+  properties: AnalyticsProperties
+): Promise<boolean> {
   const projectKey = getProjectKey()
   if (!projectKey) {
     return false
@@ -182,7 +183,9 @@ async function sendToPostHog(eventName: AnalyticsEventName, properties: Analytic
 
     return response.ok
   } catch (error) {
-    analyticsLog.warn(`failed to send analytics event: ${error instanceof Error ? error.message : String(error)}`)
+    analyticsLog.warn(
+      `failed to send analytics event: ${error instanceof Error ? error.message : String(error)}`
+    )
     return false
   }
 }

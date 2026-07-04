@@ -16,13 +16,10 @@ describe('appShellNavigation', () => {
   }
 
   it('records committed shell navigation snapshots', () => {
-    const history = pushShellNavigationSnapshot(
-      createShellNavigationHistory(baseSnapshot),
-      {
-        ...baseSnapshot,
-        dashboardView: 'settings',
-      }
-    )
+    const history = pushShellNavigationSnapshot(createShellNavigationHistory(baseSnapshot), {
+      ...baseSnapshot,
+      dashboardView: 'settings',
+    })
 
     expect(history.entries).toHaveLength(2)
     expect(history.index).toBe(1)

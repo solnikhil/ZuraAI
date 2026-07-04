@@ -220,17 +220,19 @@ vi.mock('./mcpAddRequests', () => ({
     riskNotes: [],
     canAdd: true,
   })),
-  approvePendingMcpAddRequest: vi.fn(async (
-    requestId: string,
-    options: {
-      addServer: (payload: unknown) => Promise<unknown>
-      connectServer: (serverId: string) => Promise<unknown>
+  approvePendingMcpAddRequest: vi.fn(
+    async (
+      requestId: string,
+      options: {
+        addServer: (payload: unknown) => Promise<unknown>
+        connectServer: (serverId: string) => Promise<unknown>
+      }
+    ) => {
+      const server = await options.addServer({ id: 'server-2', name: 'Gmail' })
+      const runtimeState = await options.connectServer('server-2')
+      return { requestId, status: 'connected', server, runtimeState, requiredSecrets: [] }
     }
-  ) => {
-    const server = await options.addServer({ id: 'server-2', name: 'Gmail' })
-    const runtimeState = await options.connectServer('server-2')
-    return { requestId, status: 'connected', server, runtimeState, requiredSecrets: [] }
-  }),
+  ),
 }))
 
 vi.mock('./mcpApprovalManager', () => ({

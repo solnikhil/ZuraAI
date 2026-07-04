@@ -35,9 +35,7 @@ const browserWindowMocks = vi.hoisted(() => {
   const send = vi.fn()
   return {
     send,
-    getAllWindows: vi.fn(() => [
-      { isDestroyed: () => false, webContents: { send } },
-    ]),
+    getAllWindows: vi.fn(() => [{ isDestroyed: () => false, webContents: { send } }]),
   }
 })
 
@@ -86,14 +84,17 @@ describe('registerMemoryStoreHandlers', () => {
     registerMemoryStoreHandlers()
 
     const handler = ipcMainMocks.handlers.get('memory:add')!
-    const result = await handler({}, {
-      content: 'hello',
-      source: 'model',
-      sessionId: 'chat-1',
-      category: 'project',
-      scope: { type: 'project', projectId: 'p1' },
-      junk: 'ignored',
-    })
+    const result = await handler(
+      {},
+      {
+        content: 'hello',
+        source: 'model',
+        sessionId: 'chat-1',
+        category: 'project',
+        scope: { type: 'project', projectId: 'p1' },
+        junk: 'ignored',
+      }
+    )
 
     expect(memoryStoreMocks.addMemoryAsync).toHaveBeenCalledWith({
       content: 'hello',
@@ -112,12 +113,15 @@ describe('registerMemoryStoreHandlers', () => {
     registerMemoryStoreHandlers()
 
     const handler = ipcMainMocks.handlers.get('memory:add')!
-    await handler({}, {
-      content: 'extracted fact',
-      source: 'model',
-      sessionId: 'chat-1',
-      origin: 'background',
-    })
+    await handler(
+      {},
+      {
+        content: 'extracted fact',
+        source: 'model',
+        sessionId: 'chat-1',
+        origin: 'background',
+      }
+    )
 
     expect(memoryStoreMocks.addMemoryAsync).toHaveBeenCalledWith({
       content: 'extracted fact',
@@ -190,7 +194,9 @@ describe('registerMemoryStoreHandlers', () => {
 
     await handler({}, 'hello', 999, { type: 'global' })
     // Limit is clamped to 50 max.
-    expect(memoryStoreMocks.searchMemoriesAsync).toHaveBeenCalledWith('hello', 50, { type: 'global' })
+    expect(memoryStoreMocks.searchMemoriesAsync).toHaveBeenCalledWith('hello', 50, {
+      type: 'global',
+    })
 
     await handler({}, 'hello')
     // Default limit is 10 when not specified.
@@ -203,11 +209,14 @@ describe('registerMemoryStoreHandlers', () => {
     registerMemoryStoreHandlers()
 
     const handler = ipcMainMocks.handlers.get('memory:add')!
-    await handler({}, {
-      content: 'extracted fact',
-      source: 'model',
-      category: 'invented',
-    })
+    await handler(
+      {},
+      {
+        content: 'extracted fact',
+        source: 'model',
+        category: 'invented',
+      }
+    )
 
     expect(memoryStoreMocks.addMemoryAsync).toHaveBeenCalledWith({
       content: 'extracted fact',
@@ -251,9 +260,8 @@ describe('registerMemoryStoreHandlers', () => {
   })
 
   it('unregister removes all handlers', async () => {
-    const { registerMemoryStoreHandlers, unregisterMemoryStoreHandlers } = await import(
-      './memoryStoreHandlers'
-    )
+    const { registerMemoryStoreHandlers, unregisterMemoryStoreHandlers } =
+      await import('./memoryStoreHandlers')
     registerMemoryStoreHandlers()
     unregisterMemoryStoreHandlers()
     expect(ipcMainMocks.handlers.size).toBe(0)

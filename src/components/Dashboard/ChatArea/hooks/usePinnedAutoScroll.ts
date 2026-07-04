@@ -37,8 +37,7 @@ export function usePinnedAutoScroll({
     const container = containerRef.current
     if (!container) return true
     return (
-      container.scrollHeight - container.scrollTop - container.clientHeight <
-      NEAR_BOTTOM_THRESHOLD
+      container.scrollHeight - container.scrollTop - container.clientHeight < NEAR_BOTTOM_THRESHOLD
     )
   }, [containerRef])
 

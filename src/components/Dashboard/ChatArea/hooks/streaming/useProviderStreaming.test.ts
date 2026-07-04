@@ -130,9 +130,15 @@ describe('useProviderStreaming', () => {
   })
 
   it('awaits the fresh tool snapshot and tells the model which MCP tools are loaded', async () => {
-    const streamRequests: Array<{ messages: Array<{ role: string; content: string }>; tools?: unknown[] }> = []
+    const streamRequests: Array<{
+      messages: Array<{ role: string; content: string }>
+      tools?: unknown[]
+    }> = []
     mocks.createProviderStreamClient.mockReturnValue({
-      stream: async function* (request: { messages: Array<{ role: string; content: string }>; tools?: unknown[] }) {
+      stream: async function* (request: {
+        messages: Array<{ role: string; content: string }>
+        tools?: unknown[]
+      }) {
         streamRequests.push(request)
         yield { type: 'text-delta', delta: 'Sequential Thinking is loaded.' }
         yield { type: 'finish', finishReason: 'stop' }
@@ -140,14 +146,16 @@ describe('useProviderStreaming', () => {
     })
 
     const getToolsForRequest = vi.fn(() => null)
-    const getToolsForRequestAsync = vi.fn(async () => [{
-      type: 'function' as const,
-      function: {
-        name: 'mcp__sequential_thinking__sequentialthinking',
-        description: 'Break down complex problems step by step',
-        parameters: { type: 'object', properties: {} },
+    const getToolsForRequestAsync = vi.fn(async () => [
+      {
+        type: 'function' as const,
+        function: {
+          name: 'mcp__sequential_thinking__sequentialthinking',
+          description: 'Break down complex problems step by step',
+          parameters: { type: 'object', properties: {} },
+        },
       },
-    }])
+    ])
 
     const { result } = renderHook(() =>
       useProviderStreaming({
@@ -188,7 +196,9 @@ describe('useProviderStreaming', () => {
     expect(streamRequests[0]?.tools).toHaveLength(1)
     expect(streamRequests[0]?.messages[0]?.role).toBe('system')
     expect(streamRequests[0]?.messages[0]?.content).toContain('Current tool inventory')
-    expect(streamRequests[0]?.messages[0]?.content).toContain('mcp__sequential_thinking__sequentialthinking')
+    expect(streamRequests[0]?.messages[0]?.content).toContain(
+      'mcp__sequential_thinking__sequentialthinking'
+    )
     expect(streamRequests[0]?.messages[0]?.content).toContain('MCP tool')
   })
 
@@ -614,12 +624,14 @@ describe('useProviderStreaming', () => {
         yield { type: 'reasoning-delta', delta: 'Need to check a source.' }
         yield {
           type: 'tool-call-delta',
-          delta: [{
-            index: 0,
-            id: 'call_1',
-            type: 'function',
-            function: { name: 'web_search', arguments: '{"query":"zura"}' },
-          }],
+          delta: [
+            {
+              index: 0,
+              id: 'call_1',
+              type: 'function',
+              function: { name: 'web_search', arguments: '{"query":"zura"}' },
+            },
+          ],
         }
         yield { type: 'finish', finishReason: 'tool_calls' }
       },
@@ -647,14 +659,16 @@ describe('useProviderStreaming', () => {
         },
         toolCalling: {
           canUseTools: true,
-          getToolsForRequest: () => [{
-            type: 'function',
-            function: {
-              name: 'web_search',
-              description: 'Search the web',
-              parameters: { type: 'object', properties: {} },
+          getToolsForRequest: () => [
+            {
+              type: 'function',
+              function: {
+                name: 'web_search',
+                description: 'Search the web',
+                parameters: { type: 'object', properties: {} },
+              },
             },
-          }],
+          ],
           handleToolCalls,
           getResearchContext: () => '',
         },
@@ -779,12 +793,14 @@ describe('useProviderStreaming', () => {
           yield { type: 'text-delta', delta: 'Preamble ' }
           yield {
             type: 'tool-call-delta',
-            delta: [{
-              index: 0,
-              id: 'call_1',
-              type: 'function',
-              function: { name: 'web_search', arguments: '{"query":"zura"}' },
-            }],
+            delta: [
+              {
+                index: 0,
+                id: 'call_1',
+                type: 'function',
+                function: { name: 'web_search', arguments: '{"query":"zura"}' },
+              },
+            ],
           }
           yield { type: 'finish', finishReason: 'tool_calls' }
           return
@@ -816,14 +832,16 @@ describe('useProviderStreaming', () => {
         },
         toolCalling: {
           canUseTools: true,
-          getToolsForRequest: () => [{
-            type: 'function',
-            function: {
-              name: 'web_search',
-              description: 'Search the web',
-              parameters: { type: 'object', properties: {} },
+          getToolsForRequest: () => [
+            {
+              type: 'function',
+              function: {
+                name: 'web_search',
+                description: 'Search the web',
+                parameters: { type: 'object', properties: {} },
+              },
             },
-          }],
+          ],
           handleToolCalls,
           getResearchContext: () => 'Research context',
         },
@@ -867,12 +885,14 @@ describe('useProviderStreaming', () => {
         now = 1100
         yield {
           type: 'tool-call-delta',
-          delta: [{
-            index: 0,
-            id: 'call_1',
-            type: 'function',
-            function: { name: 'web_search', arguments: '{"query":"zura ai docs"}' },
-          }],
+          delta: [
+            {
+              index: 0,
+              id: 'call_1',
+              type: 'function',
+              function: { name: 'web_search', arguments: '{"query":"zura ai docs"}' },
+            },
+          ],
         }
         yield { type: 'finish', finishReason: 'tool_calls' }
       },
@@ -902,14 +922,16 @@ describe('useProviderStreaming', () => {
         },
         toolCalling: {
           canUseTools: true,
-          getToolsForRequest: () => [{
-            type: 'function',
-            function: {
-              name: 'web_search',
-              description: 'Search the web',
-              parameters: { type: 'object', properties: {} },
+          getToolsForRequest: () => [
+            {
+              type: 'function',
+              function: {
+                name: 'web_search',
+                description: 'Search the web',
+                parameters: { type: 'object', properties: {} },
+              },
             },
-          }],
+          ],
           handleToolCalls,
           getResearchContext: () => 'Research context',
         },
@@ -961,19 +983,24 @@ describe('useProviderStreaming', () => {
     let invocation = 0
 
     mocks.createProviderStreamClient.mockReturnValue({
-      stream: async function* (request: { messages: Array<{ role: string }>; toolChoice?: unknown }) {
+      stream: async function* (request: {
+        messages: Array<{ role: string }>
+        toolChoice?: unknown
+      }) {
         streamCalls.push({ messages: request.messages, toolChoice: request.toolChoice })
         invocation += 1
 
         if (invocation === 1) {
           yield {
             type: 'tool-call-delta',
-            delta: [{
-              index: 0,
-              id: 'call_1',
-              type: 'function',
-              function: { name: 'web_search', arguments: '{"query":"zura"}' },
-            }],
+            delta: [
+              {
+                index: 0,
+                id: 'call_1',
+                type: 'function',
+                function: { name: 'web_search', arguments: '{"query":"zura"}' },
+              },
+            ],
           }
           yield { type: 'usage', usage: { inputTokens: 11, outputTokens: 4, totalTokens: 15 } }
           yield { type: 'finish', finishReason: 'tool_calls' }
@@ -998,15 +1025,13 @@ describe('useProviderStreaming', () => {
         data: { results: [{ title: 'Zura' }] },
       },
     }
-    const handleToolCalls = vi
-      .fn()
-      .mockResolvedValueOnce({
-        hasTools: true,
-        toolResults: [toolResult],
-        formattedResults: [{ role: 'tool', tool_call_id: 'call_1', content: 'Search results' }],
-        needsFollowUp: true,
-        executionSummary: buildExecutionSummary('zura'),
-      })
+    const handleToolCalls = vi.fn().mockResolvedValueOnce({
+      hasTools: true,
+      toolResults: [toolResult],
+      formattedResults: [{ role: 'tool', tool_call_id: 'call_1', content: 'Search results' }],
+      needsFollowUp: true,
+      executionSummary: buildExecutionSummary('zura'),
+    })
 
     const { result } = renderHook(() =>
       useProviderStreaming({
@@ -1020,14 +1045,16 @@ describe('useProviderStreaming', () => {
         },
         toolCalling: {
           canUseTools: true,
-          getToolsForRequest: () => [{
-            type: 'function',
-            function: {
-              name: 'web_search',
-              description: 'Search the web',
-              parameters: { type: 'object', properties: {} },
+          getToolsForRequest: () => [
+            {
+              type: 'function',
+              function: {
+                name: 'web_search',
+                description: 'Search the web',
+                parameters: { type: 'object', properties: {} },
+              },
             },
-          }],
+          ],
           handleToolCalls,
           getResearchContext: () => 'Research context',
         },
@@ -1088,12 +1115,14 @@ describe('useProviderStreaming', () => {
         if (invocation === 1) {
           yield {
             type: 'tool-call-delta',
-            delta: [{
-              index: 0,
-              id: 'call_1',
-              type: 'function',
-              function: { name: 'web_search', arguments: '{"query":"zura"}' },
-            }],
+            delta: [
+              {
+                index: 0,
+                id: 'call_1',
+                type: 'function',
+                function: { name: 'web_search', arguments: '{"query":"zura"}' },
+              },
+            ],
           }
           yield { type: 'finish', finishReason: 'tool_calls' }
           return
@@ -1128,14 +1157,16 @@ describe('useProviderStreaming', () => {
         },
         toolCalling: {
           canUseTools: true,
-          getToolsForRequest: () => [{
-            type: 'function',
-            function: {
-              name: 'web_search',
-              description: 'Search the web',
-              parameters: { type: 'object', properties: {} },
+          getToolsForRequest: () => [
+            {
+              type: 'function',
+              function: {
+                name: 'web_search',
+                description: 'Search the web',
+                parameters: { type: 'object', properties: {} },
+              },
             },
-          }],
+          ],
           handleToolCalls,
           getResearchContext: () => 'Research context',
         },
@@ -1207,12 +1238,14 @@ describe('useProviderStreaming', () => {
           yield { type: 'text-delta', delta: "let's run some fun python:" }
           yield {
             type: 'tool-call-delta',
-            delta: [{
-              index: 0,
-              id: 'call_1',
-              type: 'function',
-              function: { name: 'web_search', arguments: '{"query":"zura"}' },
-            }],
+            delta: [
+              {
+                index: 0,
+                id: 'call_1',
+                type: 'function',
+                function: { name: 'web_search', arguments: '{"query":"zura"}' },
+              },
+            ],
           }
           yield { type: 'finish', finishReason: 'tool_calls' }
           return
@@ -1243,14 +1276,16 @@ describe('useProviderStreaming', () => {
         },
         toolCalling: {
           canUseTools: true,
-          getToolsForRequest: () => [{
-            type: 'function',
-            function: {
-              name: 'web_search',
-              description: 'Search the web',
-              parameters: { type: 'object', properties: {} },
+          getToolsForRequest: () => [
+            {
+              type: 'function',
+              function: {
+                name: 'web_search',
+                description: 'Search the web',
+                parameters: { type: 'object', properties: {} },
+              },
             },
-          }],
+          ],
           handleToolCalls,
           getResearchContext: () => 'Research context',
         },
@@ -1290,12 +1325,14 @@ describe('useProviderStreaming', () => {
           yield { type: 'text-delta', delta: 'Good call — verify pricing.' }
           yield {
             type: 'tool-call-delta',
-            delta: [{
-              index: 0,
-              id: 'call_1',
-              type: 'function',
-              function: { name: 'web_search', arguments: '{"query":"pricing"}' },
-            }],
+            delta: [
+              {
+                index: 0,
+                id: 'call_1',
+                type: 'function',
+                function: { name: 'web_search', arguments: '{"query":"pricing"}' },
+              },
+            ],
           }
           yield { type: 'finish', finishReason: 'tool_calls' }
           return
@@ -1304,12 +1341,14 @@ describe('useProviderStreaming', () => {
           yield { type: 'text-delta', delta: 'Here is what pricing shows.' }
           yield {
             type: 'tool-call-delta',
-            delta: [{
-              index: 0,
-              id: 'call_2',
-              type: 'function',
-              function: { name: 'web_search', arguments: '{"query":"logs"}' },
-            }],
+            delta: [
+              {
+                index: 0,
+                id: 'call_2',
+                type: 'function',
+                function: { name: 'web_search', arguments: '{"query":"logs"}' },
+              },
+            ],
           }
           yield { type: 'finish', finishReason: 'tool_calls' }
           return
@@ -1319,7 +1358,8 @@ describe('useProviderStreaming', () => {
       },
     })
 
-    const handleToolCalls = vi.fn()
+    const handleToolCalls = vi
+      .fn()
       .mockResolvedValueOnce({
         hasTools: true,
         toolResults: [buildWebSearchToolResult('call_1', 'pricing')],
@@ -1347,14 +1387,16 @@ describe('useProviderStreaming', () => {
         },
         toolCalling: {
           canUseTools: true,
-          getToolsForRequest: () => [{
-            type: 'function',
-            function: {
-              name: 'web_search',
-              description: 'Search the web',
-              parameters: { type: 'object', properties: {} },
+          getToolsForRequest: () => [
+            {
+              type: 'function',
+              function: {
+                name: 'web_search',
+                description: 'Search the web',
+                parameters: { type: 'object', properties: {} },
+              },
             },
-          }],
+          ],
           handleToolCalls,
           getResearchContext: () => 'Research context',
         },
@@ -1396,15 +1438,17 @@ describe('useProviderStreaming', () => {
         if (invocation === 1) {
           yield {
             type: 'tool-call-delta',
-            delta: [{
-              index: 0,
-              id: 'move_1',
-              type: 'function',
-              function: {
-                name: 'file_move',
-                arguments: '{"source":"Desktop/a.png","destination":"Desktop/Images/a.png"}',
+            delta: [
+              {
+                index: 0,
+                id: 'move_1',
+                type: 'function',
+                function: {
+                  name: 'file_move',
+                  arguments: '{"source":"Desktop/a.png","destination":"Desktop/Images/a.png"}',
+                },
               },
-            }],
+            ],
           }
           yield { type: 'finish', finishReason: 'tool_calls' }
           return
@@ -1413,15 +1457,17 @@ describe('useProviderStreaming', () => {
         if (invocation === 2) {
           yield {
             type: 'tool-call-delta',
-            delta: [{
-              index: 0,
-              id: 'verify_1',
-              type: 'function',
-              function: {
-                name: 'file_search',
-                arguments: '{"root":"Desktop/Images","query":"a.png"}',
+            delta: [
+              {
+                index: 0,
+                id: 'verify_1',
+                type: 'function',
+                function: {
+                  name: 'file_search',
+                  arguments: '{"root":"Desktop/Images","query":"a.png"}',
+                },
               },
-            }],
+            ],
           }
           yield { type: 'finish', finishReason: 'tool_calls' }
           return
@@ -1527,9 +1573,7 @@ describe('useProviderStreaming', () => {
     expect(streamCalls).toHaveLength(3)
     expect(String(streamCalls[1]?.messages[0]?.content)).toContain('AGENT VERIFICATION REQUIRED')
     expect(String(streamCalls[1]?.messages[0]?.content)).toContain('file_search, file_read')
-    expect(onVerificationStart).toHaveBeenCalledWith(
-      expect.objectContaining({ category: 'file' })
-    )
+    expect(onVerificationStart).toHaveBeenCalledWith(expect.objectContaining({ category: 'file' }))
     expect(onVerificationComplete).toHaveBeenCalledWith(
       expect.objectContaining({ category: 'file' }),
       true
@@ -1549,21 +1593,25 @@ describe('useProviderStreaming', () => {
         },
         {
           type: 'reasoning-details',
-          details: [{
-            id: 'reasoning-1',
-            format: 'anthropic-claude-v1',
-            type: 'reasoning.summary',
-            summary: 'Need a current source.',
-          }],
+          details: [
+            {
+              id: 'reasoning-1',
+              format: 'anthropic-claude-v1',
+              type: 'reasoning.summary',
+              summary: 'Need a current source.',
+            },
+          ],
         },
         {
           type: 'tool-call-delta',
-          delta: [{
-            index: 0,
-            id: 'call_1',
-            type: 'function',
-            function: { name: 'web_search', arguments: '{"query":"zura ai latest docs"}' },
-          }],
+          delta: [
+            {
+              index: 0,
+              id: 'call_1',
+              type: 'function',
+              function: { name: 'web_search', arguments: '{"query":"zura ai latest docs"}' },
+            },
+          ],
         },
         { type: 'finish', finishReason: 'tool_calls' },
       ]),
@@ -1593,14 +1641,16 @@ describe('useProviderStreaming', () => {
         },
         toolCalling: {
           canUseTools: true,
-          getToolsForRequest: () => [{
-            type: 'function',
-            function: {
-              name: 'web_search',
-              description: 'Search the web',
-              parameters: { type: 'object', properties: {} },
+          getToolsForRequest: () => [
+            {
+              type: 'function',
+              function: {
+                name: 'web_search',
+                description: 'Search the web',
+                parameters: { type: 'object', properties: {} },
+              },
             },
-          }],
+          ],
           handleToolCalls,
           getResearchContext: () => 'Research context',
         },
@@ -1646,12 +1696,17 @@ describe('useProviderStreaming', () => {
         { type: 'text-delta', delta: 'Let me check the docs.' },
         {
           type: 'tool-call-delta',
-          delta: [{
-            index: 0,
-            id: 'call_prelude',
-            type: 'function',
-            function: { name: 'web_search', arguments: '{"query":"kimi k2.5 turbo thinking model"}' },
-          }],
+          delta: [
+            {
+              index: 0,
+              id: 'call_prelude',
+              type: 'function',
+              function: {
+                name: 'web_search',
+                arguments: '{"query":"kimi k2.5 turbo thinking model"}',
+              },
+            },
+          ],
         },
         { type: 'finish', finishReason: 'tool_calls' },
       ]),
@@ -1660,9 +1715,7 @@ describe('useProviderStreaming', () => {
     const updateStreamingMessage = vi.fn()
     const handleToolCalls = vi.fn().mockResolvedValueOnce({
       hasTools: true,
-      toolResults: [
-        buildWebSearchToolResult('call_prelude', 'kimi k2.5 turbo thinking model'),
-      ],
+      toolResults: [buildWebSearchToolResult('call_prelude', 'kimi k2.5 turbo thinking model')],
       formattedResults: [],
       needsFollowUp: false,
       executionSummary: buildExecutionSummary('kimi k2.5 turbo thinking model'),
@@ -1680,14 +1733,16 @@ describe('useProviderStreaming', () => {
         },
         toolCalling: {
           canUseTools: true,
-          getToolsForRequest: () => [{
-            type: 'function',
-            function: {
-              name: 'web_search',
-              description: 'Search the web',
-              parameters: { type: 'object', properties: {} },
+          getToolsForRequest: () => [
+            {
+              type: 'function',
+              function: {
+                name: 'web_search',
+                description: 'Search the web',
+                parameters: { type: 'object', properties: {} },
+              },
             },
-          }],
+          ],
           handleToolCalls,
           getResearchContext: () => 'Research context',
         },
@@ -1753,7 +1808,10 @@ describe('useProviderStreaming', () => {
     const handleToolCalls = vi.fn().mockResolvedValueOnce({
       hasTools: true,
       toolResults: [
-        buildWebSearchToolResult('content-tool-call-1', 'global gay population percentage statistics'),
+        buildWebSearchToolResult(
+          'content-tool-call-1',
+          'global gay population percentage statistics'
+        ),
       ],
       formattedResults: [],
       needsFollowUp: false,
@@ -1773,14 +1831,16 @@ describe('useProviderStreaming', () => {
         },
         toolCalling: {
           canUseTools: true,
-          getToolsForRequest: () => [{
-            type: 'function',
-            function: {
-              name: 'web_search',
-              description: 'Search the web',
-              parameters: { type: 'object', properties: {} },
+          getToolsForRequest: () => [
+            {
+              type: 'function',
+              function: {
+                name: 'web_search',
+                description: 'Search the web',
+                parameters: { type: 'object', properties: {} },
+              },
             },
-          }],
+          ],
           handleToolCalls,
           getResearchContext: () => 'Research context',
         },
@@ -1806,7 +1866,10 @@ describe('useProviderStreaming', () => {
     expect(handleToolCalls.mock.calls[0]?.[0]?.choices?.[0]?.message?.content).toBe('')
     expect(streamResult.content).toBe('')
     expect(streamResult.toolResults).toEqual([
-      buildWebSearchToolResult('content-tool-call-1', 'global gay population percentage statistics'),
+      buildWebSearchToolResult(
+        'content-tool-call-1',
+        'global gay population percentage statistics'
+      ),
     ])
     expect(updateStreamingMessage).toHaveBeenLastCalledWith(
       'session-1',
@@ -1814,7 +1877,10 @@ describe('useProviderStreaming', () => {
       expect.objectContaining({
         content: '',
         toolResults: [
-          buildWebSearchToolResult('content-tool-call-1', 'global gay population percentage statistics'),
+          buildWebSearchToolResult(
+            'content-tool-call-1',
+            'global gay population percentage statistics'
+          ),
         ],
       })
     )
@@ -1859,7 +1925,9 @@ describe('useProviderStreaming', () => {
     const updateStreamingMessage = vi.fn()
     const handleToolCalls = vi.fn().mockResolvedValueOnce({
       hasTools: true,
-      toolResults: [buildWebSearchToolResult('content-tool-call-1', 'JEE Main registration count 2026')],
+      toolResults: [
+        buildWebSearchToolResult('content-tool-call-1', 'JEE Main registration count 2026'),
+      ],
       formattedResults: [],
       needsFollowUp: false,
       executionSummary: buildExecutionSummary('JEE Main registration count 2026'),
@@ -1877,14 +1945,16 @@ describe('useProviderStreaming', () => {
         },
         toolCalling: {
           canUseTools: true,
-          getToolsForRequest: () => [{
-            type: 'function',
-            function: {
-              name: 'web_search',
-              description: 'Search the web',
-              parameters: { type: 'object', properties: {} },
+          getToolsForRequest: () => [
+            {
+              type: 'function',
+              function: {
+                name: 'web_search',
+                description: 'Search the web',
+                parameters: { type: 'object', properties: {} },
+              },
             },
-          }],
+          ],
           handleToolCalls,
           getResearchContext: () => 'Research context',
         },
@@ -1979,7 +2049,10 @@ describe('useProviderStreaming', () => {
             return
           }
 
-          yield { type: 'text-delta', delta: 'Cursor pricing starts at $20 per month on the Pro plan.' }
+          yield {
+            type: 'text-delta',
+            delta: 'Cursor pricing starts at $20 per month on the Pro plan.',
+          }
           yield { type: 'finish', finishReason: 'stop' }
           return
         }
@@ -2013,14 +2086,16 @@ describe('useProviderStreaming', () => {
         },
         toolCalling: {
           canUseTools: true,
-          getToolsForRequest: () => [{
-            type: 'function',
-            function: {
-              name: 'web_search',
-              description: 'Search the web',
-              parameters: { type: 'object', properties: {} },
+          getToolsForRequest: () => [
+            {
+              type: 'function',
+              function: {
+                name: 'web_search',
+                description: 'Search the web',
+                parameters: { type: 'object', properties: {} },
+              },
             },
-          }],
+          ],
           handleToolCalls,
           getResearchContext: () => 'Research context',
         },
@@ -2200,14 +2275,16 @@ describe('useProviderStreaming', () => {
         },
         toolCalling: {
           canUseTools: true,
-          getToolsForRequest: () => [{
-            type: 'function',
-            function: {
-              name: 'web_search',
-              description: 'Search the web',
-              parameters: { type: 'object', properties: {} },
+          getToolsForRequest: () => [
+            {
+              type: 'function',
+              function: {
+                name: 'web_search',
+                description: 'Search the web',
+                parameters: { type: 'object', properties: {} },
+              },
             },
-          }],
+          ],
           handleToolCalls,
           getResearchContext: () => 'Research context',
         },
@@ -2248,7 +2325,9 @@ describe('useProviderStreaming', () => {
     let invocation = 0
 
     mocks.createProviderStreamClient.mockReturnValue({
-      stream: async function* (request: { messages: Array<{ role: string; tool_call_id?: string }> }) {
+      stream: async function* (request: {
+        messages: Array<{ role: string; tool_call_id?: string }>
+      }) {
         streamRequests.push(request)
         invocation += 1
 
@@ -2336,14 +2415,16 @@ describe('useProviderStreaming', () => {
         },
         toolCalling: {
           canUseTools: true,
-          getToolsForRequest: () => [{
-            type: 'function',
-            function: {
-              name: 'web_search',
-              description: 'Search the web',
-              parameters: { type: 'object', properties: {} },
+          getToolsForRequest: () => [
+            {
+              type: 'function',
+              function: {
+                name: 'web_search',
+                description: 'Search the web',
+                parameters: { type: 'object', properties: {} },
+              },
             },
-          }],
+          ],
           handleToolCalls,
           getResearchContext: () => 'Research context',
         },
@@ -2449,15 +2530,17 @@ describe('useProviderStreaming', () => {
         if (invocation === 1) {
           yield {
             type: 'tool-call-delta',
-            delta: [{
-              index: 0,
-              id: 'call_1',
-              type: 'function',
-              function: {
-                name: 'web_search',
-                arguments: '{"query":"MrBeast subscribers 2026"}',
+            delta: [
+              {
+                index: 0,
+                id: 'call_1',
+                type: 'function',
+                function: {
+                  name: 'web_search',
+                  arguments: '{"query":"MrBeast subscribers 2026"}',
+                },
               },
-            }],
+            ],
           }
           yield { type: 'finish', finishReason: 'tool_calls' }
           return
@@ -2470,15 +2553,17 @@ describe('useProviderStreaming', () => {
           // forced straight into no-tools synthesis.
           yield {
             type: 'tool-call-delta',
-            delta: [{
-              index: 0,
-              id: 'call_2',
-              type: 'function',
-              function: {
-                name: 'web_search',
-                arguments: '{"query":"best YouTuber ranking 2026"}',
+            delta: [
+              {
+                index: 0,
+                id: 'call_2',
+                type: 'function',
+                function: {
+                  name: 'web_search',
+                  arguments: '{"query":"best YouTuber ranking 2026"}',
+                },
               },
-            }],
+            ],
           }
           yield { type: 'finish', finishReason: 'tool_calls' }
           return
@@ -2486,7 +2571,10 @@ describe('useProviderStreaming', () => {
 
         // The model stops requesting tools after the second batch and returns a
         // final answer, which terminates the loop and produces the synthesis.
-        yield { type: 'text-delta', delta: '2027 has not happened yet, but MrBeast is the current leading candidate.' }
+        yield {
+          type: 'text-delta',
+          delta: '2027 has not happened yet, but MrBeast is the current leading candidate.',
+        }
         yield { type: 'finish', finishReason: 'stop' }
       },
     })
@@ -2497,7 +2585,9 @@ describe('useProviderStreaming', () => {
       .mockResolvedValueOnce({
         hasTools: true,
         toolResults: [buildWebSearchToolResult('call_1', 'MrBeast subscribers 2026')],
-        formattedResults: [{ role: 'tool', tool_call_id: 'call_1', content: 'first batch results' }],
+        formattedResults: [
+          { role: 'tool', tool_call_id: 'call_1', content: 'first batch results' },
+        ],
         needsFollowUp: true,
         shouldContinueResearch: false,
         executionSummary: buildExecutionSummary('MrBeast subscribers 2026'),
@@ -2505,7 +2595,9 @@ describe('useProviderStreaming', () => {
       .mockResolvedValueOnce({
         hasTools: true,
         toolResults: [buildWebSearchToolResult('call_2', 'best YouTuber ranking 2026')],
-        formattedResults: [{ role: 'tool', tool_call_id: 'call_2', content: 'second batch results' }],
+        formattedResults: [
+          { role: 'tool', tool_call_id: 'call_2', content: 'second batch results' },
+        ],
         needsFollowUp: true,
         shouldContinueResearch: false,
         executionSummary: buildExecutionSummary('best YouTuber ranking 2026'),
@@ -2523,14 +2615,16 @@ describe('useProviderStreaming', () => {
         },
         toolCalling: {
           canUseTools: true,
-          getToolsForRequest: () => [{
-            type: 'function',
-            function: {
-              name: 'web_search',
-              description: 'Search the web',
-              parameters: { type: 'object', properties: {} },
+          getToolsForRequest: () => [
+            {
+              type: 'function',
+              function: {
+                name: 'web_search',
+                description: 'Search the web',
+                parameters: { type: 'object', properties: {} },
+              },
             },
-          }],
+          ],
           handleToolCalls,
           getResearchContext: () => 'Research context',
         },
@@ -2557,8 +2651,12 @@ describe('useProviderStreaming', () => {
     // The granted follow-up round is tool-enabled: tools are passed with a
     // non-`none` tool choice so the model can issue its next web_search batch.
     expect(streamCalls[1]?.toolChoice).not.toBe('none')
-    expect(Array.isArray(streamCalls[1]?.tools) && (streamCalls[1]?.tools as unknown[]).length > 0).toBe(true)
-    expect(streamResult.content).toBe('2027 has not happened yet, but MrBeast is the current leading candidate.')
+    expect(
+      Array.isArray(streamCalls[1]?.tools) && (streamCalls[1]?.tools as unknown[]).length > 0
+    ).toBe(true)
+    expect(streamResult.content).toBe(
+      '2027 has not happened yet, but MrBeast is the current leading candidate.'
+    )
   })
 
   it('reaches final synthesized answer after explicit research budget is exhausted (via normal tool result flow when model emits over-budget call)', async () => {
@@ -2573,15 +2671,17 @@ describe('useProviderStreaming', () => {
         if (invocation <= 8) {
           yield {
             type: 'tool-call-delta',
-            delta: [{
-              index: 0,
-              id: `call_${invocation}`,
-              type: 'function',
-              function: {
-                name: 'web_search',
-                arguments: JSON.stringify({ query: `research angle ${invocation}` }),
+            delta: [
+              {
+                index: 0,
+                id: `call_${invocation}`,
+                type: 'function',
+                function: {
+                  name: 'web_search',
+                  arguments: JSON.stringify({ query: `research angle ${invocation}` }),
+                },
               },
-            }],
+            ],
           }
           yield { type: 'finish', finishReason: 'tool_calls' }
           return
@@ -2593,20 +2693,18 @@ describe('useProviderStreaming', () => {
     })
 
     const updateStreamingMessage = vi.fn()
-    const handleToolCalls = vi
-      .fn()
-      .mockImplementation(async (_response, _options) => {
-        const index = handleToolCalls.mock.calls.length
-        const query = `research angle ${index}`
-        const toolResult = buildWebSearchToolResult(`call_${index}`, query)
-        return {
-          hasTools: true,
-          toolResults: [toolResult],
-          formattedResults: [{ role: 'tool', tool_call_id: `call_${index}`, content: query }],
-          needsFollowUp: true,
-          executionSummary: buildExecutionSummary(query),
-        }
-      })
+    const handleToolCalls = vi.fn().mockImplementation(async (_response, _options) => {
+      const index = handleToolCalls.mock.calls.length
+      const query = `research angle ${index}`
+      const toolResult = buildWebSearchToolResult(`call_${index}`, query)
+      return {
+        hasTools: true,
+        toolResults: [toolResult],
+        formattedResults: [{ role: 'tool', tool_call_id: `call_${index}`, content: query }],
+        needsFollowUp: true,
+        executionSummary: buildExecutionSummary(query),
+      }
+    })
 
     const { result } = renderHook(() =>
       useProviderStreaming({
@@ -2620,14 +2718,16 @@ describe('useProviderStreaming', () => {
         },
         toolCalling: {
           canUseTools: true,
-          getToolsForRequest: () => [{
-            type: 'function',
-            function: {
-              name: 'web_search',
-              description: 'Search the web',
-              parameters: { type: 'object', properties: {} },
+          getToolsForRequest: () => [
+            {
+              type: 'function',
+              function: {
+                name: 'web_search',
+                description: 'Search the web',
+                parameters: { type: 'object', properties: {} },
+              },
             },
-          }],
+          ],
           handleToolCalls,
           getResearchContext: () => 'Research context',
         },
@@ -2669,17 +2769,22 @@ describe('useProviderStreaming', () => {
         if (invocation <= 2) {
           yield {
             type: 'tool-call-delta',
-            delta: [{
-              index: 0,
-              id: `dup_${invocation}`,
-              type: 'function',
-              function: {
-                name: 'web_search',
-                arguments: JSON.stringify({
-                  query: invocation === 1 ? 'cursor pricing plans enterprise' : 'cursor team pricing costs',
-                }),
+            delta: [
+              {
+                index: 0,
+                id: `dup_${invocation}`,
+                type: 'function',
+                function: {
+                  name: 'web_search',
+                  arguments: JSON.stringify({
+                    query:
+                      invocation === 1
+                        ? 'cursor pricing plans enterprise'
+                        : 'cursor team pricing costs',
+                  }),
+                },
               },
-            }],
+            ],
           }
           yield { type: 'finish', finishReason: 'tool_calls' }
           return
@@ -2720,14 +2825,16 @@ describe('useProviderStreaming', () => {
         },
         toolCalling: {
           canUseTools: true,
-          getToolsForRequest: () => [{
-            type: 'function',
-            function: {
-              name: 'web_search',
-              description: 'Search the web',
-              parameters: { type: 'object', properties: {} },
+          getToolsForRequest: () => [
+            {
+              type: 'function',
+              function: {
+                name: 'web_search',
+                description: 'Search the web',
+                parameters: { type: 'object', properties: {} },
+              },
             },
-          }],
+          ],
           handleToolCalls,
           getResearchContext: () => 'Research context',
         },
@@ -2765,25 +2872,31 @@ describe('useProviderStreaming', () => {
         if (invocation === 1) {
           yield {
             type: 'text-delta',
-            delta: "I'll search for information about Cursor - I assume you're asking about the AI-powered code editor that's been",
+            delta:
+              "I'll search for information about Cursor - I assume you're asking about the AI-powered code editor that's been",
           }
           yield {
             type: 'tool-call-delta',
-            delta: [{
-              index: 0,
-              id: 'call_cursor',
-              type: 'function',
-              function: {
-                name: 'web_search',
-                arguments: '{"query":"Cursor code editor history"}',
+            delta: [
+              {
+                index: 0,
+                id: 'call_cursor',
+                type: 'function',
+                function: {
+                  name: 'web_search',
+                  arguments: '{"query":"Cursor code editor history"}',
+                },
               },
-            }],
+            ],
           }
           yield { type: 'finish', finishReason: 'tool_calls' }
           return
         }
 
-        yield { type: 'text-delta', delta: 'Cursor is an AI-powered code editor created by Anysphere.' }
+        yield {
+          type: 'text-delta',
+          delta: 'Cursor is an AI-powered code editor created by Anysphere.',
+        }
         yield { type: 'finish', finishReason: 'stop' }
       },
     })
@@ -2809,14 +2922,16 @@ describe('useProviderStreaming', () => {
         },
         toolCalling: {
           canUseTools: true,
-          getToolsForRequest: () => [{
-            type: 'function',
-            function: {
-              name: 'web_search',
-              description: 'Search the web',
-              parameters: { type: 'object', properties: {} },
+          getToolsForRequest: () => [
+            {
+              type: 'function',
+              function: {
+                name: 'web_search',
+                description: 'Search the web',
+                parameters: { type: 'object', properties: {} },
+              },
             },
-          }],
+          ],
           handleToolCalls,
           getResearchContext: () => 'Research context',
         },
@@ -2839,7 +2954,9 @@ describe('useProviderStreaming', () => {
     })
 
     expect(streamResult.content).toContain("I'll search for information about Cursor")
-    expect(streamResult.content).toContain('Cursor is an AI-powered code editor created by Anysphere.')
+    expect(streamResult.content).toContain(
+      'Cursor is an AI-powered code editor created by Anysphere.'
+    )
   })
 
   it('keeps follow-up tool-call narration out of the visible answer while preserving tool transcripts', async () => {
@@ -2851,15 +2968,23 @@ describe('useProviderStreaming', () => {
         invocation += 1
 
         if (invocation === 1) {
-          yield { type: 'text-delta', delta: "Yeah, I already mentioned that -- zero new hardware. I'll verify." }
+          yield {
+            type: 'text-delta',
+            delta: "Yeah, I already mentioned that -- zero new hardware. I'll verify.",
+          }
           yield {
             type: 'tool-call-delta',
-            delta: [{
-              index: 0,
-              id: 'call_initial',
-              type: 'function',
-              function: { name: 'web_search', arguments: '{"query":"WWDC 2026 no new hardware"}' },
-            }],
+            delta: [
+              {
+                index: 0,
+                id: 'call_initial',
+                type: 'function',
+                function: {
+                  name: 'web_search',
+                  arguments: '{"query":"WWDC 2026 no new hardware"}',
+                },
+              },
+            ],
           }
           yield { type: 'finish', finishReason: 'tool_calls' }
           return
@@ -2869,55 +2994,75 @@ describe('useProviderStreaming', () => {
           yield { type: 'text-delta', delta: 'Let me grab a proper keynote recap to confirm:' }
           yield {
             type: 'tool-call-delta',
-            delta: [{
-              index: 0,
-              id: 'call_recap',
-              type: 'function',
-              function: { name: 'web_search', arguments: '{"query":"WWDC 2026 keynote recap no hardware"}' },
-            }],
+            delta: [
+              {
+                index: 0,
+                id: 'call_recap',
+                type: 'function',
+                function: {
+                  name: 'web_search',
+                  arguments: '{"query":"WWDC 2026 keynote recap no hardware"}',
+                },
+              },
+            ],
           }
           yield { type: 'finish', finishReason: 'tool_calls' }
           return
         }
 
         if (invocation === 3) {
-          yield { type: 'text-delta', delta: 'These are mostly pre-keynote articles. Let me grab a proper post-keynote recap to confirm:' }
+          yield {
+            type: 'text-delta',
+            delta:
+              'These are mostly pre-keynote articles. Let me grab a proper post-keynote recap to confirm:',
+          }
           yield {
             type: 'tool-call-delta',
-            delta: [{
-              index: 0,
-              id: 'call_post_keynote',
-              type: 'function',
-              function: { name: 'web_search', arguments: '{"query":"WWDC 2026 post keynote recap no hardware"}' },
-            }],
+            delta: [
+              {
+                index: 0,
+                id: 'call_post_keynote',
+                type: 'function',
+                function: {
+                  name: 'web_search',
+                  arguments: '{"query":"WWDC 2026 post keynote recap no hardware"}',
+                },
+              },
+            ],
           }
           yield { type: 'finish', finishReason: 'tool_calls' }
           return
         }
 
-        yield { type: 'text-delta', delta: 'Yeah, confirmed -- zero new hardware at WWDC 2026. It was a pure software show.' }
+        yield {
+          type: 'text-delta',
+          delta: 'Yeah, confirmed -- zero new hardware at WWDC 2026. It was a pure software show.',
+        }
         yield { type: 'usage', usage: { inputTokens: 8, outputTokens: 12, totalTokens: 20 } }
         yield { type: 'finish', finishReason: 'stop' }
       },
     })
 
     const updateStreamingMessage = vi.fn()
-    const handleToolCalls = vi
-      .fn((response: ToolCallingResponse) => {
-        toolCallMessageContents.push(String(response.choices[0].message.content || ''))
-        const toolCall = response.choices[0].message.tool_calls?.[0]
-        const query = toolCall?.function?.arguments
-          ? JSON.parse(toolCall.function.arguments).query
-          : 'unknown'
+    const handleToolCalls = vi.fn((response: ToolCallingResponse) => {
+      toolCallMessageContents.push(String(response.choices[0].message.content || ''))
+      const toolCall = response.choices[0].message.tool_calls?.[0]
+      const query = toolCall?.function?.arguments
+        ? JSON.parse(toolCall.function.arguments).query
+        : 'unknown'
 
-        return Promise.resolve({
-          hasTools: true,
-          toolResults: [buildWebSearchToolResult(toolCall?.id || `call_${toolCallMessageContents.length}`, query)],
-          formattedResults: [{ role: 'tool', tool_call_id: toolCall?.id, content: `results for ${query}` }],
-          needsFollowUp: true,
-          executionSummary: buildExecutionSummary(query),
-        })
+      return Promise.resolve({
+        hasTools: true,
+        toolResults: [
+          buildWebSearchToolResult(toolCall?.id || `call_${toolCallMessageContents.length}`, query),
+        ],
+        formattedResults: [
+          { role: 'tool', tool_call_id: toolCall?.id, content: `results for ${query}` },
+        ],
+        needsFollowUp: true,
+        executionSummary: buildExecutionSummary(query),
       })
+    })
 
     const { result } = renderHook(() =>
       useProviderStreaming({
@@ -2931,14 +3076,16 @@ describe('useProviderStreaming', () => {
         },
         toolCalling: {
           canUseTools: true,
-          getToolsForRequest: () => [{
-            type: 'function',
-            function: {
-              name: 'web_search',
-              description: 'Search the web',
-              parameters: { type: 'object', properties: {} },
+          getToolsForRequest: () => [
+            {
+              type: 'function',
+              function: {
+                name: 'web_search',
+                description: 'Search the web',
+                parameters: { type: 'object', properties: {} },
+              },
             },
-          }],
+          ],
           handleToolCalls,
           getResearchContext: () => 'Research context',
         },
@@ -2990,12 +3137,14 @@ describe('useProviderStreaming', () => {
         if (invocation === 1) {
           yield {
             type: 'tool-call-delta',
-            delta: [{
-              index: 0,
-              id: 'call_1',
-              type: 'function',
-              function: { name: 'web_search', arguments: '{"query":"latest ipl result"}' },
-            }],
+            delta: [
+              {
+                index: 0,
+                id: 'call_1',
+                type: 'function',
+                function: { name: 'web_search', arguments: '{"query":"latest ipl result"}' },
+              },
+            ],
           }
           yield { type: 'finish', finishReason: 'tool_calls' }
           return
@@ -3032,14 +3181,16 @@ describe('useProviderStreaming', () => {
         },
         toolCalling: {
           canUseTools: true,
-          getToolsForRequest: () => [{
-            type: 'function',
-            function: {
-              name: 'web_search',
-              description: 'Search the web',
-              parameters: { type: 'object', properties: {} },
+          getToolsForRequest: () => [
+            {
+              type: 'function',
+              function: {
+                name: 'web_search',
+                description: 'Search the web',
+                parameters: { type: 'object', properties: {} },
+              },
             },
-          }],
+          ],
           handleToolCalls,
           getResearchContext: () => 'Research context',
         },
@@ -3078,12 +3229,14 @@ describe('useProviderStreaming', () => {
         if (invocation === 1) {
           yield {
             type: 'tool-call-delta',
-            delta: [{
-              index: 0,
-              id: 'call_1',
-              type: 'function',
-              function: { name: 'web_search', arguments: '{"query":"anthropic capybara model"}' },
-            }],
+            delta: [
+              {
+                index: 0,
+                id: 'call_1',
+                type: 'function',
+                function: { name: 'web_search', arguments: '{"query":"anthropic capybara model"}' },
+              },
+            ],
           }
           yield { type: 'finish', finishReason: 'tool_calls' }
           return
@@ -3096,7 +3249,8 @@ describe('useProviderStreaming', () => {
 
         yield {
           type: 'text-delta',
-          delta: 'I could not verify any official Anthropic model named Capybara from the search results.',
+          delta:
+            'I could not verify any official Anthropic model named Capybara from the search results.',
         }
         yield { type: 'finish', finishReason: 'stop' }
       },
@@ -3123,14 +3277,16 @@ describe('useProviderStreaming', () => {
         },
         toolCalling: {
           canUseTools: true,
-          getToolsForRequest: () => [{
-            type: 'function',
-            function: {
-              name: 'web_search',
-              description: 'Search the web',
-              parameters: { type: 'object', properties: {} },
+          getToolsForRequest: () => [
+            {
+              type: 'function',
+              function: {
+                name: 'web_search',
+                description: 'Search the web',
+                parameters: { type: 'object', properties: {} },
+              },
             },
-          }],
+          ],
           handleToolCalls,
           getResearchContext: () => 'Research context',
         },
@@ -3171,12 +3327,17 @@ describe('useProviderStreaming', () => {
         if (invocation === 1) {
           yield {
             type: 'tool-call-delta',
-            delta: [{
-              index: 0,
-              id: 'call_1',
-              type: 'function',
-              function: { name: 'web_search', arguments: '{"query":"epstein files latest findings 2026"}' },
-            }],
+            delta: [
+              {
+                index: 0,
+                id: 'call_1',
+                type: 'function',
+                function: {
+                  name: 'web_search',
+                  arguments: '{"query":"epstein files latest findings 2026"}',
+                },
+              },
+            ],
           }
           yield { type: 'finish', finishReason: 'tool_calls' }
           return
@@ -3222,14 +3383,16 @@ describe('useProviderStreaming', () => {
         },
         toolCalling: {
           canUseTools: true,
-          getToolsForRequest: () => [{
-            type: 'function',
-            function: {
-              name: 'web_search',
-              description: 'Search the web',
-              parameters: { type: 'object', properties: {} },
+          getToolsForRequest: () => [
+            {
+              type: 'function',
+              function: {
+                name: 'web_search',
+                description: 'Search the web',
+                parameters: { type: 'object', properties: {} },
+              },
             },
-          }],
+          ],
           handleToolCalls,
           getResearchContext: () => 'Research context',
         },
@@ -3271,12 +3434,17 @@ describe('useProviderStreaming', () => {
         if (invocation === 1) {
           yield {
             type: 'tool-call-delta',
-            delta: [{
-              index: 0,
-              id: 'call_1',
-              type: 'function',
-              function: { name: 'web_search', arguments: '{"query":"kimi k2 turbo coding benchmarks"}' },
-            }],
+            delta: [
+              {
+                index: 0,
+                id: 'call_1',
+                type: 'function',
+                function: {
+                  name: 'web_search',
+                  arguments: '{"query":"kimi k2 turbo coding benchmarks"}',
+                },
+              },
+            ],
           }
           yield { type: 'finish', finishReason: 'tool_calls' }
           return
@@ -3284,7 +3452,8 @@ describe('useProviderStreaming', () => {
 
         yield {
           type: 'text-delta',
-          delta: 'Kimi K2 Turbo appears competitive on coding-oriented benchmarks, but the strongest conclusion depends on which benchmark suite and recency window you trust most.',
+          delta:
+            'Kimi K2 Turbo appears competitive on coding-oriented benchmarks, but the strongest conclusion depends on which benchmark suite and recency window you trust most.',
         }
         yield { type: 'finish', finishReason: 'stop' }
       },
@@ -3311,14 +3480,16 @@ describe('useProviderStreaming', () => {
         },
         toolCalling: {
           canUseTools: true,
-          getToolsForRequest: () => [{
-            type: 'function',
-            function: {
-              name: 'web_search',
-              description: 'Search the web',
-              parameters: { type: 'object', properties: {} },
+          getToolsForRequest: () => [
+            {
+              type: 'function',
+              function: {
+                name: 'web_search',
+                description: 'Search the web',
+                parameters: { type: 'object', properties: {} },
+              },
             },
-          }],
+          ],
           handleToolCalls,
           getResearchContext: () => 'Research context',
         },
@@ -3369,12 +3540,17 @@ describe('useProviderStreaming', () => {
         if (invocation === 1) {
           yield {
             type: 'tool-call-delta',
-            delta: [{
-              index: 0,
-              id: 'call_1',
-              type: 'function',
-              function: { name: 'web_search', arguments: '{"query":"Kiro ambassador welcome kit 2026"}' },
-            }],
+            delta: [
+              {
+                index: 0,
+                id: 'call_1',
+                type: 'function',
+                function: {
+                  name: 'web_search',
+                  arguments: '{"query":"Kiro ambassador welcome kit 2026"}',
+                },
+              },
+            ],
           }
           yield { type: 'finish', finishReason: 'tool_calls' }
           return
@@ -3400,16 +3576,16 @@ describe('useProviderStreaming', () => {
     })
 
     const updateStreamingMessage = vi.fn()
-    const handleToolCalls = vi
-      .fn()
-      .mockResolvedValueOnce({
-        hasTools: true,
-        toolResults: [buildWebSearchToolResult('call_1', 'Kiro ambassador welcome kit 2026')],
-        formattedResults: [{ role: 'tool', tool_call_id: 'call_1', content: 'initial search results' }],
-        needsFollowUp: true,
-        shouldContinueResearch: false,
-        executionSummary: buildExecutionSummary('Kiro ambassador welcome kit 2026'),
-      })
+    const handleToolCalls = vi.fn().mockResolvedValueOnce({
+      hasTools: true,
+      toolResults: [buildWebSearchToolResult('call_1', 'Kiro ambassador welcome kit 2026')],
+      formattedResults: [
+        { role: 'tool', tool_call_id: 'call_1', content: 'initial search results' },
+      ],
+      needsFollowUp: true,
+      shouldContinueResearch: false,
+      executionSummary: buildExecutionSummary('Kiro ambassador welcome kit 2026'),
+    })
 
     const { result } = renderHook(() =>
       useProviderStreaming({
@@ -3423,14 +3599,16 @@ describe('useProviderStreaming', () => {
         },
         toolCalling: {
           canUseTools: true,
-          getToolsForRequest: () => [{
-            type: 'function',
-            function: {
-              name: 'web_search',
-              description: 'Search the web',
-              parameters: { type: 'object', properties: {} },
+          getToolsForRequest: () => [
+            {
+              type: 'function',
+              function: {
+                name: 'web_search',
+                description: 'Search the web',
+                parameters: { type: 'object', properties: {} },
+              },
             },
-          }],
+          ],
           handleToolCalls,
           getResearchContext: () => 'Research context',
         },
@@ -3445,7 +3623,9 @@ describe('useProviderStreaming', () => {
       model: 'deepseek-v4-pro',
       sessionId: 'session-1',
       messageId: 'message-1',
-      messages: [{ role: 'user', content: 'what should I expect in the Kiro ambassador welcome kit?' }],
+      messages: [
+        { role: 'user', content: 'what should I expect in the Kiro ambassador welcome kit?' },
+      ],
       startTime: performance.now() - 25,
       // Budget of 1 is reached by the single executed search, so the loop
       // legitimately forces the no-tools synthesis pass (reason: 'budget')
@@ -3477,12 +3657,17 @@ describe('useProviderStreaming', () => {
         if (invocation === 1) {
           yield {
             type: 'tool-call-delta',
-            delta: [{
-              index: 0,
-              id: 'call_1',
-              type: 'function',
-              function: { name: 'web_search', arguments: '{"query":"diddy 50 cent hit allegation"}' },
-            }],
+            delta: [
+              {
+                index: 0,
+                id: 'call_1',
+                type: 'function',
+                function: {
+                  name: 'web_search',
+                  arguments: '{"query":"diddy 50 cent hit allegation"}',
+                },
+              },
+            ],
           }
           yield { type: 'finish', finishReason: 'tool_calls' }
           return
@@ -3495,24 +3680,27 @@ describe('useProviderStreaming', () => {
     const updateStreamingMessage = vi.fn()
     const handleToolCalls = vi.fn().mockResolvedValueOnce({
       hasTools: true,
-      toolResults: [{
-        toolCall: {
-          id: 'call_1',
-          name: 'web_search',
-          arguments: { query: 'diddy 50 cent hit allegation' },
-        },
-        result: {
-          success: true,
-          data: {
-            results: [
-              {
-                title: 'No verified evidence of a murder-for-hire plot',
-                snippet: 'Coverage describes allegations and lawsuits, but no verified court finding tied Combs to a hit on 50 Cent.',
-              },
-            ],
+      toolResults: [
+        {
+          toolCall: {
+            id: 'call_1',
+            name: 'web_search',
+            arguments: { query: 'diddy 50 cent hit allegation' },
+          },
+          result: {
+            success: true,
+            data: {
+              results: [
+                {
+                  title: 'No verified evidence of a murder-for-hire plot',
+                  snippet:
+                    'Coverage describes allegations and lawsuits, but no verified court finding tied Combs to a hit on 50 Cent.',
+                },
+              ],
+            },
           },
         },
-      }],
+      ],
       formattedResults: [{ role: 'tool', tool_call_id: 'call_1', content: 'search results' }],
       needsFollowUp: true,
       executionSummary: buildExecutionSummary('diddy 50 cent hit allegation'),
@@ -3530,14 +3718,16 @@ describe('useProviderStreaming', () => {
         },
         toolCalling: {
           canUseTools: true,
-          getToolsForRequest: () => [{
-            type: 'function',
-            function: {
-              name: 'web_search',
-              description: 'Search the web',
-              parameters: { type: 'object', properties: {} },
+          getToolsForRequest: () => [
+            {
+              type: 'function',
+              function: {
+                name: 'web_search',
+                description: 'Search the web',
+                parameters: { type: 'object', properties: {} },
+              },
             },
-          }],
+          ],
           handleToolCalls,
           getResearchContext: () => 'Research context',
         },
@@ -3599,12 +3789,17 @@ describe('useProviderStreaming', () => {
         if (invocation === 1) {
           yield {
             type: 'tool-call-delta',
-            delta: [{
-              index: 0,
-              id: 'call_1',
-              type: 'function',
-              function: { name: 'web_search', arguments: '{"query":"qwen 3.6 plus thinking mode"}' },
-            }],
+            delta: [
+              {
+                index: 0,
+                id: 'call_1',
+                type: 'function',
+                function: {
+                  name: 'web_search',
+                  arguments: '{"query":"qwen 3.6 plus thinking mode"}',
+                },
+              },
+            ],
           }
           yield { type: 'finish', finishReason: 'tool_calls' }
           return
@@ -3640,14 +3835,16 @@ describe('useProviderStreaming', () => {
         },
         toolCalling: {
           canUseTools: true,
-          getToolsForRequest: () => [{
-            type: 'function',
-            function: {
-              name: 'web_search',
-              description: 'Search the web',
-              parameters: { type: 'object', properties: {} },
+          getToolsForRequest: () => [
+            {
+              type: 'function',
+              function: {
+                name: 'web_search',
+                description: 'Search the web',
+                parameters: { type: 'object', properties: {} },
+              },
             },
-          }],
+          ],
           handleToolCalls,
           getResearchContext: () => 'Research context',
         },
@@ -3701,12 +3898,17 @@ describe('useProviderStreaming', () => {
         if (invocation <= 4) {
           yield {
             type: 'tool-call-delta',
-            delta: [{
-              index: 0,
-              id: `call_${invocation}`,
-              type: 'function',
-              function: { name: 'web_search', arguments: '{"query":"qwen plus model studio docs"}' },
-            }],
+            delta: [
+              {
+                index: 0,
+                id: `call_${invocation}`,
+                type: 'function',
+                function: {
+                  name: 'web_search',
+                  arguments: '{"query":"qwen plus model studio docs"}',
+                },
+              },
+            ],
           }
           yield { type: 'finish', finishReason: 'tool_calls' }
           return
@@ -3735,14 +3937,16 @@ describe('useProviderStreaming', () => {
         },
         toolCalling: {
           canUseTools: true,
-          getToolsForRequest: () => [{
-            type: 'function',
-            function: {
-              name: 'web_search',
-              description: 'Search the web',
-              parameters: { type: 'object', properties: {} },
+          getToolsForRequest: () => [
+            {
+              type: 'function',
+              function: {
+                name: 'web_search',
+                description: 'Search the web',
+                parameters: { type: 'object', properties: {} },
+              },
             },
-          }],
+          ],
           handleToolCalls,
           getResearchContext: () => 'Research context',
         },
@@ -3860,12 +4064,7 @@ describe('useProviderStreaming — research follow-up tool calls (bug condition)
   }
 
   const isToolEnabledRound = (req?: { tools: unknown; toolChoice: unknown }) =>
-    Boolean(
-      req &&
-        Array.isArray(req.tools) &&
-        req.tools.length > 0 &&
-        req.toolChoice !== 'none'
-    )
+    Boolean(req && Array.isArray(req.tools) && req.tools.length > 0 && req.toolChoice !== 'none')
 
   /**
    * Drives `runProviderStream` through a research turn where the model issues
@@ -3892,9 +4091,7 @@ describe('useProviderStreaming — research follow-up tool calls (bug condition)
         capturedRequests.push({ tools: request.tools, toolChoice: request.toolChoice })
 
         const toolsEnabled =
-          Array.isArray(request.tools) &&
-          request.tools.length > 0 &&
-          request.toolChoice !== 'none'
+          Array.isArray(request.tools) && request.tools.length > 0 && request.toolChoice !== 'none'
 
         if (toolsEnabled && toolEnabledRoundsWithBatch < batches.length) {
           const queries = batches[toolEnabledRoundsWithBatch]
@@ -3970,44 +4167,41 @@ describe('useProviderStreaming — research follow-up tool calls (bug condition)
   // Scoped to concrete failing cases (web-only batch, all `ok`, executed count
   // strictly below the budget, finishReason `tool_calls`) so failures are
   // reproducible. Property 1 must hold for every executed count below budget.
-  it(
-    'grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)',
-    async () => {
-      await fc.assert(
-        fc.asyncProperty(
-          // Executed search count strictly below the test budget.
-          fc.integer({ min: 1, max: EFFECTIVE_SEARCH_BUDGET - 1 }),
-          async (searchCount) => {
-            const queries = Array.from(
-              { length: searchCount },
-              (_unused, index) => `placeholder facet ${index + 1} provider comparison`
-            )
+  it('grants a follow-up tool-enabled round after a fully successful first web_search batch (budget remaining)', async () => {
+    await fc.assert(
+      fc.asyncProperty(
+        // Executed search count strictly below the test budget.
+        fc.integer({ min: 1, max: EFFECTIVE_SEARCH_BUDGET - 1 }),
+        async (searchCount) => {
+          const queries = Array.from(
+            { length: searchCount },
+            (_unused, index) => `placeholder facet ${index + 1} provider comparison`
+          )
 
-            const { capturedRequests } = await runResearchTurn({ batches: [queries] })
+          const { capturedRequests } = await runResearchTurn({ batches: [queries] })
 
-            // The first round (round 0) is the initial tool-enabled request.
-            // After a fully successful first batch with budget remaining and
-            // the model still requesting tools, the orchestrator must grant a
-            // SECOND tool-enabled round rather than forcing no-tools synthesis.
-            const secondRound = capturedRequests[1]
-            const grantedAdditionalToolEnabledRound = isToolEnabledRound(secondRound)
-            const forcedNoToolsSynthesisImmediatelyAfterFirstBatch =
-              Boolean(secondRound) && !isToolEnabledRound(secondRound)
+          // The first round (round 0) is the initial tool-enabled request.
+          // After a fully successful first batch with budget remaining and
+          // the model still requesting tools, the orchestrator must grant a
+          // SECOND tool-enabled round rather than forcing no-tools synthesis.
+          const secondRound = capturedRequests[1]
+          const grantedAdditionalToolEnabledRound = isToolEnabledRound(secondRound)
+          const forcedNoToolsSynthesisImmediatelyAfterFirstBatch =
+            Boolean(secondRound) && !isToolEnabledRound(secondRound)
 
-            // Property 1 assertions (match the design's Expected Behavior).
-            expect(grantedAdditionalToolEnabledRound).toBe(true)
-            expect(forcedNoToolsSynthesisImmediatelyAfterFirstBatch).toBe(false)
-          }
-        ),
-        {
-          numRuns: 40,
-          // Design test cases: (1) 3 searches, (2) 6 searches, (4) boundary
-          // executed count = budget - 1 (7 searches).
-          examples: [[3], [6], [EFFECTIVE_SEARCH_BUDGET - 1]],
+          // Property 1 assertions (match the design's Expected Behavior).
+          expect(grantedAdditionalToolEnabledRound).toBe(true)
+          expect(forcedNoToolsSynthesisImmediatelyAfterFirstBatch).toBe(false)
         }
-      )
-    }
-  )
+      ),
+      {
+        numRuns: 40,
+        // Design test cases: (1) 3 searches, (2) 6 searches, (4) boundary
+        // executed count = budget - 1 (7 searches).
+        examples: [[3], [6], [EFFECTIVE_SEARCH_BUDGET - 1]],
+      }
+    )
+  })
 
   // Test case (2) made explicit: observed multi-facet comparison — 6 successful
   // searches against a test budget of 8, model wants more (debug session
@@ -4033,15 +4227,17 @@ describe('useProviderStreaming — research follow-up tool calls (bug condition)
     // A second tool-enabled round must be granted (only 6 of 8 searches used).
     expect(isToolEnabledRound(capturedRequests[1])).toBe(true)
     // And synthesis must NOT be forced immediately after the first batch.
-    expect(
-      Boolean(capturedRequests[1]) && !isToolEnabledRound(capturedRequests[1])
-    ).toBe(false)
+    expect(Boolean(capturedRequests[1]) && !isToolEnabledRound(capturedRequests[1])).toBe(false)
   })
 
   // Test case (3): follow-up batch all-success with budget remaining — a THIRD
   // tool-enabled round must be granted after a successful SECOND batch.
   it('grants a third tool-enabled round after a successful follow-up batch (budget remaining)', async () => {
-    const firstBatch = ['placeholder overview a', 'placeholder overview b', 'placeholder overview c']
+    const firstBatch = [
+      'placeholder overview a',
+      'placeholder overview b',
+      'placeholder overview c',
+    ]
     const secondBatch = ['placeholder docs a', 'placeholder docs b']
 
     const { capturedRequests } = await runResearchTurn({
@@ -4107,12 +4303,7 @@ describe('useProviderStreaming — research follow-up tool calls (preservation)'
   }
 
   const isToolEnabledRound = (req?: { tools: unknown; toolChoice: unknown }) =>
-    Boolean(
-      req &&
-        Array.isArray(req.tools) &&
-        req.tools.length > 0 &&
-        req.toolChoice !== 'none'
-    )
+    Boolean(req && Array.isArray(req.tools) && req.tools.length > 0 && req.toolChoice !== 'none')
 
   interface ToolCallSpec {
     name: string
@@ -4222,9 +4413,7 @@ describe('useProviderStreaming — research follow-up tool calls (preservation)'
         capturedRequests.push({ tools: request.tools, toolChoice: request.toolChoice })
 
         const toolsEnabled =
-          Array.isArray(request.tools) &&
-          request.tools.length > 0 &&
-          request.toolChoice !== 'none'
+          Array.isArray(request.tools) && request.tools.length > 0 && request.toolChoice !== 'none'
 
         if (!modelDoneImmediately && toolsEnabled && toolEnabledRoundsWithBatch < batches.length) {
           const batch = batches[toolEnabledRoundsWithBatch]
@@ -4242,12 +4431,14 @@ describe('useProviderStreaming — research follow-up tool calls (preservation)'
     })
 
     let toolCallInvocation = 0
-    const handleToolCalls = vi.fn(async (_response: unknown, optionsArg: Record<string, unknown>) => {
-      handleToolCallsOptions.push(optionsArg)
-      const batch = batches[toolCallInvocation]
-      toolCallInvocation += 1
-      return makeToolResult(batch)
-    })
+    const handleToolCalls = vi.fn(
+      async (_response: unknown, optionsArg: Record<string, unknown>) => {
+        handleToolCallsOptions.push(optionsArg)
+        const batch = batches[toolCallInvocation]
+        toolCallInvocation += 1
+        return makeToolResult(batch)
+      }
+    )
 
     const { result } = renderHook(() =>
       useProviderStreaming({
@@ -4330,17 +4521,17 @@ describe('useProviderStreaming — research follow-up tool calls (preservation)'
     )
 
     const { capturedRequests } = await observeTurn({
-        batches: [
-          {
-            toolCalls: queries.map((query) => ({ name: 'web_search', query, success: true })),
-            needsFollowUp: true,
-            // Every search succeeded -> result-quality heuristic says "don't retry".
-            shouldContinueResearch: false,
-            executedWebSearchCount: EFFECTIVE_SEARCH_BUDGET,
-          },
-        ],
-        researchMaxRounds: EFFECTIVE_SEARCH_BUDGET,
-      })
+      batches: [
+        {
+          toolCalls: queries.map((query) => ({ name: 'web_search', query, success: true })),
+          needsFollowUp: true,
+          // Every search succeeded -> result-quality heuristic says "don't retry".
+          shouldContinueResearch: false,
+          executedWebSearchCount: EFFECTIVE_SEARCH_BUDGET,
+        },
+      ],
+      researchMaxRounds: EFFECTIVE_SEARCH_BUDGET,
+    })
 
     // Round 0 is the initial tool-enabled request.
     expect(isToolEnabledRound(capturedRequests[0])).toBe(true)
@@ -4416,9 +4607,7 @@ describe('useProviderStreaming — research follow-up tool calls (preservation)'
         {
           // A failed search keeps this turn out of the bug condition
           // (shouldContinueResearch === true) and enters the loop.
-          toolCalls: [
-            { name: 'web_search', query: 'placeholder primary query', success: false },
-          ],
+          toolCalls: [{ name: 'web_search', query: 'placeholder primary query', success: false }],
           needsFollowUp: true,
           shouldContinueResearch: true,
           executedWebSearchCount: 1,
@@ -4621,7 +4810,11 @@ describe('useProviderStreaming — research follow-up tool calls (preservation)'
           const webCalls = Array.from(
             { length: turn.webCount },
             (_unused, index) =>
-              ({ name: 'web_search', query: `placeholder facet ${index + 1}`, success: true }) as ToolCallSpec
+              ({
+                name: 'web_search',
+                query: `placeholder facet ${index + 1}`,
+                success: true,
+              }) as ToolCallSpec
           )
           const { grantedToolRoundAfterFirstBatch } = await observeTurn({
             batches: [

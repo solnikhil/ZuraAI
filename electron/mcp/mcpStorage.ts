@@ -73,7 +73,7 @@ function normalizeStringArray(value: unknown): string[] {
 }
 
 function normalizeJsonSchema(value: unknown): McpJsonSchema {
-  return isRecord(value) ? { ...value } as McpJsonSchema : {}
+  return isRecord(value) ? ({ ...value } as McpJsonSchema) : {}
 }
 
 function normalizeToolManifest(value: unknown): McpToolManifest | null {
@@ -98,9 +98,7 @@ function normalizeToolManifestList(value: unknown): McpToolManifest[] {
     return []
   }
 
-  return value
-    .map(normalizeToolManifest)
-    .filter((tool): tool is McpToolManifest => tool !== null)
+  return value.map(normalizeToolManifest).filter((tool): tool is McpToolManifest => tool !== null)
 }
 
 function normalizeResourceManifest(value: unknown): McpResourceManifest | null {
@@ -117,9 +115,13 @@ function normalizeResourceManifest(value: unknown): McpResourceManifest | null {
         ? value.description.trim()
         : undefined,
     mimeType:
-      typeof value.mimeType === 'string' && value.mimeType.trim() ? value.mimeType.trim() : undefined,
+      typeof value.mimeType === 'string' && value.mimeType.trim()
+        ? value.mimeType.trim()
+        : undefined,
     size:
-      typeof value.size === 'number' && Number.isFinite(value.size) ? Math.max(0, value.size) : undefined,
+      typeof value.size === 'number' && Number.isFinite(value.size)
+        ? Math.max(0, value.size)
+        : undefined,
     annotations: isRecord(value.annotations) ? { ...value.annotations } : undefined,
   }
 }
@@ -213,14 +215,18 @@ function normalizeConfigValueList(value: unknown): McpConfigValue[] {
     return []
   }
 
-  return value
-    .map(normalizeConfigValue)
-    .filter((entry): entry is McpConfigValue => entry !== null)
+  return value.map(normalizeConfigValue).filter((entry): entry is McpConfigValue => entry !== null)
 }
 
 export function buildMcpSecretStorageKey(
   serverId: string,
-  kind: 'env' | 'header' | 'token' | 'oauth-access-token' | 'oauth-refresh-token' | 'oauth-client-secret',
+  kind:
+    | 'env'
+    | 'header'
+    | 'token'
+    | 'oauth-access-token'
+    | 'oauth-refresh-token'
+    | 'oauth-client-secret',
   name?: string
 ): string {
   const safeServerId = serverId.trim()
@@ -285,9 +291,7 @@ function normalizeAuthConfig(value: unknown, serverId: string): McpAuthConfig {
     mode,
     state,
     lastError:
-      typeof value.lastError === 'string' && value.lastError.trim()
-        ? value.lastError.trim()
-        : null,
+      typeof value.lastError === 'string' && value.lastError.trim() ? value.lastError.trim() : null,
     updatedAt:
       typeof value.updatedAt === 'string' && value.updatedAt.trim()
         ? value.updatedAt.trim()
@@ -296,23 +300,45 @@ function normalizeAuthConfig(value: unknown, serverId: string): McpAuthConfig {
 
   if (mode === 'oauth2Pkce') {
     auth.oauth = {
-      authorizationServer: typeof oauth.authorizationServer === 'string' && oauth.authorizationServer.trim() ? oauth.authorizationServer.trim() : undefined,
-      resourceMetadataUrl: typeof oauth.resourceMetadataUrl === 'string' && oauth.resourceMetadataUrl.trim() ? oauth.resourceMetadataUrl.trim() : undefined,
-      issuer: typeof oauth.issuer === 'string' && oauth.issuer.trim() ? oauth.issuer.trim() : undefined,
-      authorizationEndpoint: typeof oauth.authorizationEndpoint === 'string' && oauth.authorizationEndpoint.trim() ? oauth.authorizationEndpoint.trim() : undefined,
-      tokenEndpoint: typeof oauth.tokenEndpoint === 'string' && oauth.tokenEndpoint.trim() ? oauth.tokenEndpoint.trim() : undefined,
-      registrationEndpoint: typeof oauth.registrationEndpoint === 'string' && oauth.registrationEndpoint.trim() ? oauth.registrationEndpoint.trim() : undefined,
-      clientId: typeof oauth.clientId === 'string' && oauth.clientId.trim() ? oauth.clientId.trim() : undefined,
+      authorizationServer:
+        typeof oauth.authorizationServer === 'string' && oauth.authorizationServer.trim()
+          ? oauth.authorizationServer.trim()
+          : undefined,
+      resourceMetadataUrl:
+        typeof oauth.resourceMetadataUrl === 'string' && oauth.resourceMetadataUrl.trim()
+          ? oauth.resourceMetadataUrl.trim()
+          : undefined,
+      issuer:
+        typeof oauth.issuer === 'string' && oauth.issuer.trim() ? oauth.issuer.trim() : undefined,
+      authorizationEndpoint:
+        typeof oauth.authorizationEndpoint === 'string' && oauth.authorizationEndpoint.trim()
+          ? oauth.authorizationEndpoint.trim()
+          : undefined,
+      tokenEndpoint:
+        typeof oauth.tokenEndpoint === 'string' && oauth.tokenEndpoint.trim()
+          ? oauth.tokenEndpoint.trim()
+          : undefined,
+      registrationEndpoint:
+        typeof oauth.registrationEndpoint === 'string' && oauth.registrationEndpoint.trim()
+          ? oauth.registrationEndpoint.trim()
+          : undefined,
+      clientId:
+        typeof oauth.clientId === 'string' && oauth.clientId.trim()
+          ? oauth.clientId.trim()
+          : undefined,
       clientSecretKey:
-        typeof oauth.clientSecretKey === 'string' && oauth.clientSecretKey.startsWith(`mcp.server.${serverId}.`)
+        typeof oauth.clientSecretKey === 'string' &&
+        oauth.clientSecretKey.startsWith(`mcp.server.${serverId}.`)
           ? oauth.clientSecretKey
           : undefined,
       accessTokenKey:
-        typeof oauth.accessTokenKey === 'string' && oauth.accessTokenKey.startsWith(`mcp.server.${serverId}.`)
+        typeof oauth.accessTokenKey === 'string' &&
+        oauth.accessTokenKey.startsWith(`mcp.server.${serverId}.`)
           ? oauth.accessTokenKey
           : buildMcpSecretStorageKey(serverId, 'oauth-access-token'),
       refreshTokenKey:
-        typeof oauth.refreshTokenKey === 'string' && oauth.refreshTokenKey.startsWith(`mcp.server.${serverId}.`)
+        typeof oauth.refreshTokenKey === 'string' &&
+        oauth.refreshTokenKey.startsWith(`mcp.server.${serverId}.`)
           ? oauth.refreshTokenKey
           : buildMcpSecretStorageKey(serverId, 'oauth-refresh-token'),
       expiresAt:
@@ -320,7 +346,10 @@ function normalizeAuthConfig(value: unknown, serverId: string): McpAuthConfig {
           ? Math.max(0, Math.round(oauth.expiresAt))
           : undefined,
       scope: typeof oauth.scope === 'string' && oauth.scope.trim() ? oauth.scope.trim() : undefined,
-      tokenType: typeof oauth.tokenType === 'string' && oauth.tokenType.trim() ? oauth.tokenType.trim() : undefined,
+      tokenType:
+        typeof oauth.tokenType === 'string' && oauth.tokenType.trim()
+          ? oauth.tokenType.trim()
+          : undefined,
     }
   }
 
@@ -393,7 +422,10 @@ export function normalizeMcpServerConfig(
   }
 }
 
-export function normalizeMcpStore(raw: unknown, now = new Date().toISOString()): McpServerStoreFile {
+export function normalizeMcpStore(
+  raw: unknown,
+  now = new Date().toISOString()
+): McpServerStoreFile {
   const input = isRecord(raw) ? raw : {}
   const version =
     typeof input.version === 'number' && Number.isFinite(input.version)
@@ -451,7 +483,9 @@ async function readMcpStoreInternal(): Promise<McpServerStoreFile> {
     return migrated
   } catch (error) {
     await quarantineCorruptMcpStore(filePath)
-    mcpLog.error(`failed to read MCP server config: ${error instanceof Error ? error.message : String(error)}`)
+    mcpLog.error(
+      `failed to read MCP server config: ${error instanceof Error ? error.message : String(error)}`
+    )
     const emptyStore = getDefaultStore()
     cachedStore = emptyStore
     cachedStoreFilePath = filePath
@@ -470,7 +504,9 @@ async function quarantineCorruptMcpStore(filePath: string): Promise<void> {
     await fs.rename(filePath, quarantinePath)
     mcpLog.warn(`quarantined unreadable MCP store to ${quarantinePath}`)
   } catch (quarantineError) {
-    mcpLog.error(`failed to quarantine unreadable MCP store: ${quarantineError instanceof Error ? quarantineError.message : String(quarantineError)}`)
+    mcpLog.error(
+      `failed to quarantine unreadable MCP store: ${quarantineError instanceof Error ? quarantineError.message : String(quarantineError)}`
+    )
   }
 }
 
@@ -502,7 +538,6 @@ export async function loadMcpServers(): Promise<McpServerConfig[]> {
   const store = await readMcpStoreInternal()
   return store.servers
 }
-
 
 export async function saveMcpServers(servers: McpServerConfig[]): Promise<void> {
   await writeMcpStoreInternal({

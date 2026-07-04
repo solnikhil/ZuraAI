@@ -5,8 +5,7 @@ const EXPLICIT_YEAR_PATTERN = /\b20\d{2}\b/g
 const URL_PATTERN = /https?:\/\//i
 const RELATIVE_YEAR_RANGE_PATTERN =
   /\b(?:past|last|previous|prior|recent|latest|across|over)\s+(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+years?\b/i
-const YEAR_RANGE_PATTERN =
-  /\b(?:from|between)?\s*20\d{2}\s*(?:-|to|through|thru|and)\s*20\d{2}\b/i
+const YEAR_RANGE_PATTERN = /\b(?:from|between)?\s*20\d{2}\s*(?:-|to|through|thru|and)\s*20\d{2}\b/i
 
 const SEARCH_DEPTH_PREFERENCES = new Set<TavilySearchDepthPreference>([
   'auto',
@@ -16,19 +15,15 @@ const SEARCH_DEPTH_PREFERENCES = new Set<TavilySearchDepthPreference>([
   'advanced',
 ])
 
-const SEARCH_DEPTH_VALUES = new Set<TavilySearchDepth>([
-  'ultra-fast',
-  'fast',
-  'basic',
-  'advanced',
-])
+const SEARCH_DEPTH_VALUES = new Set<TavilySearchDepth>(['ultra-fast', 'fast', 'basic', 'advanced'])
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 export function coerceSearchDepthPreference(value: unknown): TavilySearchDepthPreference {
-  return typeof value === 'string' && SEARCH_DEPTH_PREFERENCES.has(value as TavilySearchDepthPreference)
+  return typeof value === 'string' &&
+    SEARCH_DEPTH_PREFERENCES.has(value as TavilySearchDepthPreference)
     ? (value as TavilySearchDepthPreference)
     : 'auto'
 }
@@ -151,7 +146,12 @@ export function resolveWebSearchArgsForExecution(
 
   const resolvedArgs: Record<string, unknown> = { ...args }
   const explicitDepth = args.search_depth
-  if (!(typeof explicitDepth === 'string' && SEARCH_DEPTH_VALUES.has(explicitDepth as TavilySearchDepth))) {
+  if (
+    !(
+      typeof explicitDepth === 'string' &&
+      SEARCH_DEPTH_VALUES.has(explicitDepth as TavilySearchDepth)
+    )
+  ) {
     const preference = getStoredSearchDepthPreference()
     resolvedArgs.search_depth = preference === 'auto' ? resolveAutoSearchDepth(args) : preference
   }

@@ -3,8 +3,8 @@ name: License Audit
 on:
   pull_request:
     paths:
-      - "package.json"
-      - "bun.lockb"
+      - 'package.json'
+      - 'bun.lockb'
 
 permissions:
   contents: read

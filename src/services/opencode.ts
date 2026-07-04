@@ -319,9 +319,9 @@ function parseOpencodeModelList(body: string): OpencodeModel[] {
   return models.filter((model): model is OpencodeModel => {
     return Boolean(
       model &&
-        typeof model === 'object' &&
-        typeof model.id === 'string' &&
-        model.id.trim().length > 0
+      typeof model === 'object' &&
+      typeof model.id === 'string' &&
+      model.id.trim().length > 0
     )
   })
 }
@@ -444,9 +444,7 @@ export function mapOpencodeModelToConfiguredModel(
 ): import('../contexts/SettingsConfigContext').ConfiguredModel {
   const displayName =
     OPENCODE_MODEL_DISPLAY_NAMES[model.id] ??
-    model.id
-      .replace(/-/g, ' ')
-      .replace(/\b\w/g, (char) => char.toUpperCase())
+    model.id.replace(/-/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase())
 
   const isReasoning = isOpencodeReasoningModel(model.id)
 

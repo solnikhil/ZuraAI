@@ -1,8 +1,0 @@
----
-pid: 9308
-cwd: "C:\Users\Nikhil\Desktop\Zura\ZuraAI"
-command: "bun run typecheck"
-started_at: 2026-06-30T18:36:10.714Z
-running_for_ms: 8679999  
----
-$ tsc --noEmit

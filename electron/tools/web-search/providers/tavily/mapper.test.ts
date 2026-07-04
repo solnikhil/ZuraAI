@@ -19,9 +19,7 @@ import type { ProviderSearchRequest, ProviderExtractRequest } from '../../types'
 // Minimal fixtures
 // ---------------------------------------------------------------------------
 
-function buildSearchRequest(
-  overrides: Partial<ProviderSearchRequest> = {}
-): ProviderSearchRequest {
+function buildSearchRequest(overrides: Partial<ProviderSearchRequest> = {}): ProviderSearchRequest {
   return {
     query: 'test query',
     numResults: 4,
@@ -182,9 +180,7 @@ describe('mapTavilyExtractPayload', () => {
 
   it('partial extract: 3 URLs requested, 1 result, 2 in failed_results → data.message contains "2"', () => {
     const payload = {
-      results: [
-        { url: 'https://a.com', raw_content: 'Content A is here for testing purposes' },
-      ],
+      results: [{ url: 'https://a.com', raw_content: 'Content A is here for testing purposes' }],
       failed_results: [
         { url: 'https://b.com', error: 'Timeout' },
         { url: 'https://c.com', error: 'Not found' },

@@ -110,7 +110,9 @@ describe('CommandCenterOverlay', () => {
   it('opens in Search mode and renders workflows before apps', async () => {
     render(<CommandCenterOverlay />)
 
-    expect(await screen.findByRole('textbox', { name: /search command center/i })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('textbox', { name: /search command center/i })
+    ).toBeInTheDocument()
     const workflow = await screen.findByText('Morning startup')
     const app = await screen.findByText('Chrome')
 
@@ -139,7 +141,9 @@ describe('CommandCenterOverlay', () => {
     render(<CommandCenterOverlay />)
 
     await screen.findByText('Morning startup')
-    fireEvent.keyDown(screen.getByRole('textbox', { name: /search command center/i }), { key: 'Enter' })
+    fireEvent.keyDown(screen.getByRole('textbox', { name: /search command center/i }), {
+      key: 'Enter',
+    })
 
     expect(screen.getByText('Run Morning startup?')).toBeInTheDocument()
     expect(window.commandCenter.executeWorkflow).not.toHaveBeenCalled()
@@ -154,9 +158,30 @@ describe('CommandCenterOverlay', () => {
     window.commandCenter.getIndex = vi.fn(async () => ({
       workflows: [],
       apps: [
-        { id: 'app:kiro', type: 'app', title: 'Kiro', hint: 'Application', aliases: ['Kiro'], rank: 12 },
-        { id: 'app:java', type: 'app', title: 'About Java', hint: 'Application', aliases: ['About Java'], rank: 30 },
-        { id: 'app:adobe', type: 'app', title: 'Adobe Photoshop 2025', hint: 'Application', aliases: ['Adobe Photoshop 2025'], rank: 25 },
+        {
+          id: 'app:kiro',
+          type: 'app',
+          title: 'Kiro',
+          hint: 'Application',
+          aliases: ['Kiro'],
+          rank: 12,
+        },
+        {
+          id: 'app:java',
+          type: 'app',
+          title: 'About Java',
+          hint: 'Application',
+          aliases: ['About Java'],
+          rank: 30,
+        },
+        {
+          id: 'app:adobe',
+          type: 'app',
+          title: 'Adobe Photoshop 2025',
+          hint: 'Application',
+          aliases: ['Adobe Photoshop 2025'],
+          rank: 25,
+        },
       ],
       windows: [],
       actions: [],
@@ -214,13 +239,15 @@ describe('CommandCenterOverlay', () => {
     window.commandCenter.getIndex = vi.fn(async (query?: string) => ({
       workflows: [],
       apps: query
-        ? [{
-            id: 'app:kiro',
-            type: 'app',
-            title: 'Kiro',
-            hint: 'Application',
-            aliases: ['Kiro'],
-          }]
+        ? [
+            {
+              id: 'app:kiro',
+              type: 'app',
+              title: 'Kiro',
+              hint: 'Application',
+              aliases: ['Kiro'],
+            },
+          ]
         : [
             {
               id: 'app:kiro',
@@ -262,35 +289,36 @@ describe('CommandCenterOverlay', () => {
   it('shows matching apps immediately while main search results load', async () => {
     window.commandCenter.getIndex = vi.fn(async (query?: string) => ({
       workflows: [],
-      apps: query === 'kiro'
-        ? [
-            {
-              id: 'app:kiro',
-              type: 'app',
-              title: 'Kiro',
-              hint: 'Application',
-              aliases: [],
-              appUserModelId: 'Kiro',
-            },
-          ]
-        : [
-            {
-              id: 'app:kiro',
-              type: 'app',
-              title: 'Kiro',
-              hint: 'Application',
-              aliases: [],
-              appUserModelId: 'Kiro',
-            },
-            {
-              id: 'app:chrome',
-              type: 'app',
-              title: 'Chrome',
-              hint: 'Application',
-              aliases: [],
-              appPath: 'C:\\Chrome.lnk',
-            },
-          ],
+      apps:
+        query === 'kiro'
+          ? [
+              {
+                id: 'app:kiro',
+                type: 'app',
+                title: 'Kiro',
+                hint: 'Application',
+                aliases: [],
+                appUserModelId: 'Kiro',
+              },
+            ]
+          : [
+              {
+                id: 'app:kiro',
+                type: 'app',
+                title: 'Kiro',
+                hint: 'Application',
+                aliases: [],
+                appUserModelId: 'Kiro',
+              },
+              {
+                id: 'app:chrome',
+                type: 'app',
+                title: 'Chrome',
+                hint: 'Application',
+                aliases: [],
+                appPath: 'C:\\Chrome.lnk',
+              },
+            ],
       windows: [],
       actions: [],
       chats: [],
@@ -336,7 +364,10 @@ describe('CommandCenterOverlay', () => {
 
     await screen.findByText('Kiro')
     await waitFor(() => {
-      expect(container.querySelector('.command-center-result__app-icon')).toHaveAttribute('src', 'data:image/png;base64,kiro')
+      expect(container.querySelector('.command-center-result__app-icon')).toHaveAttribute(
+        'src',
+        'data:image/png;base64,kiro'
+      )
     })
     expect(window.commandCenter.getIndex).toHaveBeenCalledTimes(2)
   })
@@ -359,6 +390,8 @@ describe('CommandCenterOverlay', () => {
 
     render(<CommandCenterOverlay />)
 
-    expect(await screen.findByText(/Apps may be incomplete: Get-StartApps failed/i)).toBeInTheDocument()
+    expect(
+      await screen.findByText(/Apps may be incomplete: Get-StartApps failed/i)
+    ).toBeInTheDocument()
   })
 })

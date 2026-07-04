@@ -109,7 +109,11 @@ function publisherFromName(name) {
 
 function setupTargetForSecret(name) {
   const normalized = String(name || '').toLowerCase()
-  if (normalized === 'authorization' || normalized === 'x-api-key' || normalized.startsWith('bearer')) {
+  if (
+    normalized === 'authorization' ||
+    normalized === 'x-api-key' ||
+    normalized.startsWith('bearer')
+  ) {
     return 'authToken'
   }
   return 'header'
@@ -172,7 +176,9 @@ function pickInstall(server) {
     return { type: 'sse', url: sseRemote.url.trim() }
   }
 
-  const websocketRemote = remotes.find((remote) => remote.type === 'websocket' && remote.url?.trim())
+  const websocketRemote = remotes.find(
+    (remote) => remote.type === 'websocket' && remote.url?.trim()
+  )
   if (websocketRemote) {
     return { type: 'websocket', url: websocketRemote.url.trim() }
   }
@@ -354,6 +360,9 @@ async function main() {
 }
 
 main().catch(async (error) => {
-  console.error('[generate-mcp-catalogue] Failed:', error instanceof Error ? error.message : String(error))
+  console.error(
+    '[generate-mcp-catalogue] Failed:',
+    error instanceof Error ? error.message : String(error)
+  )
   process.exitCode = 1
 })

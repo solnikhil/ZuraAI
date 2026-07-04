@@ -359,8 +359,13 @@ describe('preload MCP bridge', () => {
 
   it('exposes AI automation run callbacks only through the scheduled tasks bridge', async () => {
     const scheduledTasks = getExposedBridge<{
-      resolveAutomationRun: (response: { requestId: string; outputText?: string }) => Promise<boolean>
-      onAutomationRunRequest: (callback: (request: { requestId: string; taskId: string }) => void) => () => void
+      resolveAutomationRun: (response: {
+        requestId: string
+        outputText?: string
+      }) => Promise<boolean>
+      onAutomationRunRequest: (
+        callback: (request: { requestId: string; taskId: string }) => void
+      ) => () => void
     }>('scheduledTasks')
     const ipcRenderer = getExposedBridge<{
       invoke: (channel: string, ...args: unknown[]) => Promise<unknown>
@@ -368,10 +373,12 @@ describe('preload MCP bridge', () => {
     const callback = vi.fn()
 
     preloadMocks.invoke.mockResolvedValueOnce(true)
-    await expect(scheduledTasks.resolveAutomationRun({
-      requestId: 'run-1',
-      outputText: 'done',
-    })).resolves.toBe(true)
+    await expect(
+      scheduledTasks.resolveAutomationRun({
+        requestId: 'run-1',
+        outputText: 'done',
+      })
+    ).resolves.toBe(true)
     expect(preloadMocks.invoke).toHaveBeenCalledWith('scheduled-tasks:resolve-automation-run', {
       requestId: 'run-1',
       outputText: 'done',

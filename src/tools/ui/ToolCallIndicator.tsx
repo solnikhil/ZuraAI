@@ -1,5 +1,13 @@
 import React from 'react'
-import { Box, Loader2, Globe, Search, Terminal, Monitor, MousePointer } from '../../components/icons'
+import {
+  Box,
+  Loader2,
+  Globe,
+  Search,
+  Terminal,
+  Monitor,
+  MousePointer,
+} from '../../components/icons'
 import { getWebToolLabel, inferWebToolModeFromArgs } from './webToolDisplay'
 import { getToolArgumentSummary, getToolPresentation } from './toolPresentation'
 
@@ -74,11 +82,14 @@ export default function ToolCallIndicator({
         }
         if (toolName === 'computer_screenshot') return 'Taking screenshot…'
         if (toolName === 'computer_list_windows') return 'Listing open windows…'
-        if (toolName === 'computer_click') return `Clicking at (${args?.x ?? '?'}, ${args?.y ?? '?'})…`
-        if (toolName === 'computer_type') return `Typing "${String(args?.text ?? '').slice(0, 30)}"…`
+        if (toolName === 'computer_click')
+          return `Clicking at (${args?.x ?? '?'}, ${args?.y ?? '?'})…`
+        if (toolName === 'computer_type')
+          return `Typing "${String(args?.text ?? '').slice(0, 30)}"…`
         if (toolName === 'computer_key') return `Pressing ${args?.key ?? '?'}…`
         if (toolName === 'computer_scroll') return `Scrolling ${args?.direction ?? '?'}…`
-        if (toolName === 'computer_cursor_position') return `Moving cursor to (${args?.x ?? '?'}, ${args?.y ?? '?'})…`
+        if (toolName === 'computer_cursor_position')
+          return `Moving cursor to (${args?.x ?? '?'}, ${args?.y ?? '?'})…`
         return argumentSummary
           ? `Running ${displayName}: ${argumentSummary}`
           : `Running ${displayName}...`

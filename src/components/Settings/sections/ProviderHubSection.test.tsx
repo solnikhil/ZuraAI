@@ -624,13 +624,14 @@ describe('ProviderHubSection', () => {
     const onChange = vi.fn()
     vi.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,
-      text: async () => JSON.stringify({
-        object: 'list',
-        data: [
-          { id: 'deepseek-v4-pro', object: 'model', owned_by: 'opencode' },
-          { id: 'kimi-k2.7-code', object: 'model', owned_by: 'opencode' },
-        ],
-      }),
+      text: async () =>
+        JSON.stringify({
+          object: 'list',
+          data: [
+            { id: 'deepseek-v4-pro', object: 'model', owned_by: 'opencode' },
+            { id: 'kimi-k2.7-code', object: 'model', owned_by: 'opencode' },
+          ],
+        }),
     } as Response)
 
     render(<ProviderHubSection {...baseProps} opencodeGoApiKey="" onChange={onChange} />)
@@ -735,7 +736,9 @@ describe('ProviderHubSection', () => {
     openProviderCatalog('OpenRouter')
 
     expect(screen.getByText('Reasoning detected')).toBeInTheDocument()
-    expect(screen.queryByLabelText('Toggle OpenRouter reasoning for Kimi K2 Thinking')).not.toBeInTheDocument()
+    expect(
+      screen.queryByLabelText('Toggle OpenRouter reasoning for Kimi K2 Thinking')
+    ).not.toBeInTheDocument()
     expect(screen.queryByRole('combobox', { name: /reasoning/i })).not.toBeInTheDocument()
   })
 

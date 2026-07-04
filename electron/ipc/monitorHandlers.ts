@@ -30,14 +30,18 @@ export function registerMonitorHandlers(): void {
   ipcMain.handle('scheduled-tasks:list', async () => listScheduledTasks())
 
   ipcMain.handle('scheduled-tasks:create', async (_event, payload: unknown) => {
-    if (!isMonitorRuntimeExtensionEnabled()) throw new Error('Reminders & Lookouts extension is disabled')
-    const monitor = await createScheduledTask(sanitizeScheduledTaskInput(payload) as ScheduledTaskInput)
+    if (!isMonitorRuntimeExtensionEnabled())
+      throw new Error('Reminders & Lookouts extension is disabled')
+    const monitor = await createScheduledTask(
+      sanitizeScheduledTaskInput(payload) as ScheduledTaskInput
+    )
     await getMonitorRuntime()?.reschedule()
     return monitor
   })
 
   ipcMain.handle('scheduled-tasks:update', async (_event, id: unknown, patch: unknown) => {
-    if (!isMonitorRuntimeExtensionEnabled()) throw new Error('Reminders & Lookouts extension is disabled')
+    if (!isMonitorRuntimeExtensionEnabled())
+      throw new Error('Reminders & Lookouts extension is disabled')
     const monitor = await updateScheduledTask(
       validateId(id, 'monitor id'),
       sanitizeScheduledTaskInput(patch, true) as ScheduledTaskUpdateInput
@@ -47,7 +51,8 @@ export function registerMonitorHandlers(): void {
   })
 
   ipcMain.handle('scheduled-tasks:delete', async (_event, id: unknown) => {
-    if (!isMonitorRuntimeExtensionEnabled()) throw new Error('Reminders & Lookouts extension is disabled')
+    if (!isMonitorRuntimeExtensionEnabled())
+      throw new Error('Reminders & Lookouts extension is disabled')
     const deleted = await deleteScheduledTask(validateId(id, 'monitor id'))
     await getMonitorRuntime()?.reschedule()
     return deleted

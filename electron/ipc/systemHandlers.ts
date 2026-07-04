@@ -429,8 +429,7 @@ export function registerSystemHandlers(): void {
       kind,
       isPinnedChatRow,
       isChatRowInFolder,
-    } =
-      sanitizedRequest
+    } = sanitizedRequest
 
     const showEditActions = isEditable || isContentEditable
     const safeLinkUrl = hasLink ? maybeGetSafeHttpUrl(linkUrl) : null
@@ -444,7 +443,12 @@ export function registerSystemHandlers(): void {
         },
         { label: 'Duplicate', click: () => sendContextMenuAction(win, 'chat-duplicate') },
         ...(isChatRowInFolder
-          ? [{ label: 'Remove from Space', click: () => sendContextMenuAction(win, 'chat-remove-from-folder') }]
+          ? [
+              {
+                label: 'Remove from Space',
+                click: () => sendContextMenuAction(win, 'chat-remove-from-folder'),
+              },
+            ]
           : []),
         { type: 'separator' },
         { label: 'Delete', click: () => sendContextMenuAction(win, 'chat-delete') }
@@ -531,9 +535,10 @@ export function registerSystemHandlers(): void {
       noLink: true,
     }
 
-    const result = win && !win.isDestroyed()
-      ? await dialog.showMessageBox(win, options)
-      : await dialog.showMessageBox(options)
+    const result =
+      win && !win.isDestroyed()
+        ? await dialog.showMessageBox(win, options)
+        : await dialog.showMessageBox(options)
 
     return result.response === 0
   })
@@ -597,7 +602,6 @@ export function registerSystemHandlers(): void {
 
     win.setBounds(clampedBounds)
   })
-
 }
 
 /**

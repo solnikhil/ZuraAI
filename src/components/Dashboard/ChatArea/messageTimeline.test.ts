@@ -60,10 +60,14 @@ describe('messageTimeline', () => {
 
   it('splits completed blocks and content around the follow-up snapshot', () => {
     expect(
-      splitMessageTimeline('Drafted proposal. Here is why.', [initialThinkingBlock, followUpThinkingBlock], {
-        contentLength: 'Drafted proposal.'.length,
-        completedBlockCount: 1,
-      })
+      splitMessageTimeline(
+        'Drafted proposal. Here is why.',
+        [initialThinkingBlock, followUpThinkingBlock],
+        {
+          contentLength: 'Drafted proposal.'.length,
+          completedBlockCount: 1,
+        }
+      )
     ).toEqual({
       beforeContent: 'Drafted proposal.',
       afterContent: ' Here is why.',
@@ -95,25 +99,28 @@ describe('messageTimeline', () => {
     }
     const content = `Initial visible text.${createToolFollowUpSplitMarker(1)}Final answer.`
 
-    expect(splitMessageTimeline(content, [initialThinkingBlock, followUpThinkingBlock, searchBlock])).toEqual({
+    expect(
+      splitMessageTimeline(content, [initialThinkingBlock, followUpThinkingBlock, searchBlock])
+    ).toEqual({
       beforeContent: 'Initial visible text.',
       afterContent: 'Final answer.',
       beforeBlocks: [initialThinkingBlock],
       afterBlocks: [followUpThinkingBlock, searchBlock],
     })
-    expect(endsWithToolFollowUpSplitMarker(`Initial visible text.${createToolFollowUpSplitMarker(1)}`)).toBe(true)
+    expect(
+      endsWithToolFollowUpSplitMarker(`Initial visible text.${createToolFollowUpSplitMarker(1)}`)
+    ).toBe(true)
   })
 
   it('removes leaked follow-up markers even when bracket/whitespace shape varies', () => {
-    expect(
-      removeToolFollowUpSplitMarker('Before\n\n[[ZURA_TOOL_FOLLOW_UP_SPLIT]]]\n\nAfter')
-    ).toBe('BeforeAfter')
+    expect(removeToolFollowUpSplitMarker('Before\n\n[[ZURA_TOOL_FOLLOW_UP_SPLIT]]]\n\nAfter')).toBe(
+      'BeforeAfter'
+    )
 
     expect(
-      splitMessageTimeline(
-        'Before\n\n[[ZURA_TOOL_FOLLOW_UP_SPLIT]]]\n\nAfter',
-        [initialThinkingBlock]
-      )
+      splitMessageTimeline('Before\n\n[[ZURA_TOOL_FOLLOW_UP_SPLIT]]]\n\nAfter', [
+        initialThinkingBlock,
+      ])
     ).toEqual({
       beforeContent: 'Before',
       afterContent: 'After',

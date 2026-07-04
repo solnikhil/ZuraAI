@@ -9,16 +9,16 @@ on:
       - synchronize
       - reopened
     paths:
-      - "electron/**"
-      - "src/**"
-      - "scripts/**"
-      - "vite.config.ts"
-      - "vitest.config.ts"
-      - "tsconfig.json"
-      - "package.json"
-      - "bun.lock"
-      - ".github/workflows/ci-cross-platform.yml"
-      - ".github/actions/setup-bun/**"
+      - 'electron/**'
+      - 'src/**'
+      - 'scripts/**'
+      - 'vite.config.ts'
+      - 'vitest.config.ts'
+      - 'tsconfig.json'
+      - 'package.json'
+      - 'bun.lock'
+      - '.github/workflows/ci-cross-platform.yml'
+      - '.github/actions/setup-bun/**'
 
 permissions:
   contents: read

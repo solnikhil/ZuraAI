@@ -9,14 +9,14 @@ on:
       - synchronize
       - reopened
     paths:
-      - "electron/**"
-      - "installer/**"
-      - "build/**"
-      - "scripts/generate-icons.mjs"
-      - "package.json"
-      - "vite.config.ts"
-      - ".github/workflows/ci-package-smoke.yml"
-      - ".github/actions/setup-bun/**"
+      - 'electron/**'
+      - 'installer/**'
+      - 'build/**'
+      - 'scripts/generate-icons.mjs'
+      - 'package.json'
+      - 'vite.config.ts'
+      - '.github/workflows/ci-package-smoke.yml'
+      - '.github/actions/setup-bun/**'
 
 permissions:
   contents: read
@@ -44,7 +44,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       # Required for unsigned macOS smoke builds; mirrors release.yml.
-      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
     steps:
       - name: Checkout
         uses: actions/checkout@v6

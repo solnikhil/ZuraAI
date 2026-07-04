@@ -397,7 +397,8 @@ export default function ChatArea() {
           >
             <MessageScrollerContent className="chat-message-scroller-content">
               {displayedMessages.map((msg, idx) => {
-                const isLastAssistant = msg.role === 'assistant' && idx === displayedMessages.length - 1
+                const isLastAssistant =
+                  msg.role === 'assistant' && idx === displayedMessages.length - 1
                 const isStreamingMessage = displayedIsLoading && isLastAssistant
 
                 return (

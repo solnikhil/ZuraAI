@@ -9,9 +9,9 @@ on:
       - synchronize
       - reopened
     paths:
-      - "package.json"
-      - "bun.lock"
-      - "package-lock.json"
+      - 'package.json'
+      - 'bun.lock'
+      - 'package-lock.json'
 
 permissions:
   contents: read

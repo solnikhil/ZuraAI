@@ -77,7 +77,9 @@ async function readSecureDataAsync(): Promise<SecureData> {
     for (const [key, value] of Object.entries(parsed)) {
       if (typeof value === 'string' && value) {
         try {
-          decrypted[key as keyof SecureData] = safeStorage.decryptString(Buffer.from(value, 'base64'))
+          decrypted[key as keyof SecureData] = safeStorage.decryptString(
+            Buffer.from(value, 'base64')
+          )
         } catch {
           if (isLikelyLegacyPlaintextSecret(value)) {
             decrypted[key as keyof SecureData] = value
@@ -105,7 +107,9 @@ async function readSecureDataAsync(): Promise<SecureData> {
   }
 }
 
-export async function getSecureValuePresenceAsync(keys: readonly string[]): Promise<Record<string, boolean>> {
+export async function getSecureValuePresenceAsync(
+  keys: readonly string[]
+): Promise<Record<string, boolean>> {
   const presence: Record<string, boolean> = {}
   for (const key of keys) {
     presence[key] = false

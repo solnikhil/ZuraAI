@@ -38,60 +38,63 @@ export function AgentToolApprovalProvider({ children }: { children: React.ReactN
   const resolvedIdsRef = useRef(new Set<string>())
   const trustedSignaturesRef = useRef(loadTrustedSignatures())
 
-  const requestApproval = useCallback((toolCall: ToolCall) => {
-    const trustSignature = getToolTrustSignature(toolCall)
-    if (trustedSignaturesRef.current.has(trustSignature)) {
-      return Promise.resolve(true)
-    }
+  const requestApproval = useCallback(
+    (toolCall: ToolCall) => {
+      const trustSignature = getToolTrustSignature(toolCall)
+      if (trustedSignaturesRef.current.has(trustSignature)) {
+        return Promise.resolve(true)
+      }
 
-    if (typeof window !== 'undefined' && window.agentApproval?.requestApproval) {
-      const description = describeToolCall(toolCall)
-      const kind = getToolStepKind(toolCall.name)
-      const id = `agent-approval-${toolCall.id}-${Date.now()}`
+      if (typeof window !== 'undefined' && window.agentApproval?.requestApproval) {
+        const description = describeToolCall(toolCall)
+        const kind = getToolStepKind(toolCall.name)
+        const id = `agent-approval-${toolCall.id}-${Date.now()}`
 
-      return window.agentApproval
-        .requestApproval({
-          id,
-          title: description.title,
-          summary: description.summary,
-          toolName: toolCall.name,
-          kind,
-          arguments: getReadableArgumentRows(toolCall.arguments).map(({ label, value }) => ({
-            label,
-            value,
-          })),
-        })
-        .then((decision) => {
-          if (decision.approved && decision.trusted) {
-            trustedSignaturesRef.current.add(trustSignature)
-            saveTrustedSignatures(trustedSignaturesRef.current)
-          }
-          showToast(
-            decision.approved
-              ? decision.trusted
-                ? 'Tool call trusted.'
-                : 'Tool call approved.'
-              : 'Tool call rejected.',
-            decision.approved ? 'success' : 'warning'
-          )
-          return decision.approved
-        })
-        .catch(() => false)
-    }
+        return window.agentApproval
+          .requestApproval({
+            id,
+            title: description.title,
+            summary: description.summary,
+            toolName: toolCall.name,
+            kind,
+            arguments: getReadableArgumentRows(toolCall.arguments).map(({ label, value }) => ({
+              label,
+              value,
+            })),
+          })
+          .then((decision) => {
+            if (decision.approved && decision.trusted) {
+              trustedSignaturesRef.current.add(trustSignature)
+              saveTrustedSignatures(trustedSignaturesRef.current)
+            }
+            showToast(
+              decision.approved
+                ? decision.trusted
+                  ? 'Tool call trusted.'
+                  : 'Tool call approved.'
+                : 'Tool call rejected.',
+              decision.approved ? 'success' : 'warning'
+            )
+            return decision.approved
+          })
+          .catch(() => false)
+      }
 
-    return new Promise<boolean>((resolve) => {
-      setPending((prev) => [
-        ...prev,
-        {
-          id: `agent-approval-${toolCall.id}-${Date.now()}`,
-          toolCall,
-          trustSignature,
-          requestedAt: Date.now(),
-          resolve,
-        },
-      ])
-    })
-  }, [showToast])
+      return new Promise<boolean>((resolve) => {
+        setPending((prev) => [
+          ...prev,
+          {
+            id: `agent-approval-${toolCall.id}-${Date.now()}`,
+            toolCall,
+            trustSignature,
+            requestedAt: Date.now(),
+            resolve,
+          },
+        ])
+      })
+    },
+    [showToast]
+  )
 
   const active = useMemo(
     () => [...pending].sort((left, right) => left.requestedAt - right.requestedAt)[0] ?? null,
@@ -110,11 +113,7 @@ export function AgentToolApprovalProvider({ children }: { children: React.ReactN
       active.resolve(approved)
       setPending((prev) => prev.filter((request) => request.id !== active.id))
       showToast(
-        approved
-          ? trust
-            ? 'Tool call trusted.'
-            : 'Tool call approved.'
-          : 'Tool call rejected.',
+        approved ? (trust ? 'Tool call trusted.' : 'Tool call approved.') : 'Tool call rejected.',
         approved ? 'success' : 'warning'
       )
     },
@@ -187,7 +186,8 @@ function AgentToolApprovalDialog({
 
           <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-amber-950 dark:text-amber-100">
             <AlertTriangle className="mr-1.5 inline h-3.5 w-3.5 text-amber-500" />
-            Review the action before continuing. Approve once for this run, or always allow this exact same call only if you expect it to repeat unchanged.
+            Review the action before continuing. Approve once for this run, or always allow this
+            exact same call only if you expect it to repeat unchanged.
           </div>
 
           <div className="space-y-2">
@@ -252,7 +252,9 @@ function getToolTrustSignature(toolCall: ToolCall): string {
   return `${toolCall.name}:${stableStringify(toolCall.arguments || {})}`
 }
 
-function getReadableArgumentRows(args: ToolCall['arguments']): Array<{ key: string; label: string; value: string }> {
+function getReadableArgumentRows(
+  args: ToolCall['arguments']
+): Array<{ key: string; label: string; value: string }> {
   if (!args || typeof args !== 'object') return []
 
   return Object.entries(args)
@@ -289,7 +291,9 @@ function loadTrustedSignatures(): Set<string> {
   try {
     const raw = window.localStorage.getItem(TRUSTED_AGENT_TOOL_SIGNATURES_KEY)
     const parsed = raw ? JSON.parse(raw) : []
-    return new Set(Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : [])
+    return new Set(
+      Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : []
+    )
   } catch {
     return new Set()
   }

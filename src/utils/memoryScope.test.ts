@@ -12,11 +12,9 @@ describe('getSessionMemoryScope', () => {
 
   it('returns project-only scope for folder-only memory mode', () => {
     expect(
-      getSessionMemoryScope(
-        [{ id: 'chat-1', folderId: 'space-1' }],
-        'chat-1',
-        [{ id: 'space-1', memoryMode: 'folder-only' }]
-      )
+      getSessionMemoryScope([{ id: 'chat-1', folderId: 'space-1' }], 'chat-1', [
+        { id: 'space-1', memoryMode: 'folder-only' },
+      ])
     ).toEqual({
       type: 'project',
       projectId: 'space-1',

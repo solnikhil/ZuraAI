@@ -31,12 +31,7 @@ const ALIBABA_MODEL_CATALOG_URL =
   getProviderEndpoint('alibaba', 'modelCatalogUrl') ?? 'https://modelstudio.alibabacloud.com/'
 
 const NEXT_FLIGHT_PAYLOAD_PATTERN = /self\.__next_f\.push\(\[1,"([\s\S]*?)"\]\)/g
-const QWEN_REASONING_PATTERNS = [
-  /\breason(?:ing)?\b/i,
-  /\bthinking\b/i,
-  /\bmax\b/i,
-  /\bqwq\b/i,
-]
+const QWEN_REASONING_PATTERNS = [/\breason(?:ing)?\b/i, /\bthinking\b/i, /\bmax\b/i, /\bqwq\b/i]
 
 function decodeNextFlightPayload(payload: string): unknown {
   try {
@@ -64,9 +59,8 @@ function parseCatalogPayload(html: string): AlibabaCatalogPageModel[] {
 
     const pageModels = Object.values(groupedData)
       .flat()
-      .filter(
-        (model): model is AlibabaCatalogPageModel =>
-          Boolean(model && typeof model === 'object' && model.modelId && model.name)
+      .filter((model): model is AlibabaCatalogPageModel =>
+        Boolean(model && typeof model === 'object' && model.modelId && model.name)
       )
 
     if (pageModels.length > 0) {
@@ -113,7 +107,9 @@ function uniqueModalities(...groups: Array<string[] | undefined>): string[] {
   return [...new Set(groups.flat().filter((value): value is string => Boolean(value)))]
 }
 
-function inferCapabilities(model: AlibabaCatalogPageModel): Omit<
+function inferCapabilities(
+  model: AlibabaCatalogPageModel
+): Omit<
   AlibabaCatalogModel,
   'id' | 'displayName' | 'description' | 'category' | 'launchDate' | 'maxContext'
 > {
@@ -258,17 +254,12 @@ export function searchAlibabaModels(
     )
 
     return (
-      haystack.includes(normalizedQuery) ||
-      queryTokens.every((token) => haystack.includes(token))
+      haystack.includes(normalizedQuery) || queryTokens.every((token) => haystack.includes(token))
     )
   })
 }
 
-const ALIBABA_THINKING_MODEL_PATTERNS = [
-  /\bqwq[-_]/i,
-  /\bqwen3\.5[-_]/i,
-  /\bqwen3[-_]/i,
-]
+const ALIBABA_THINKING_MODEL_PATTERNS = [/\bqwq[-_]/i, /\bqwen3\.5[-_]/i, /\bqwen3[-_]/i]
 
 export function inferAlibabaSupportsDeepThinking(
   model:

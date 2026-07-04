@@ -11,137 +11,137 @@ import '@testing-library/jest-dom'
 
 // Mock the context hooks
 const mockAppShell = {
-    dashboardView: 'chat' as const,
-    setDashboardView: vi.fn(),
-    activeSettingsSection: 'usage',
-    setActiveSettingsSection: vi.fn(),
-    hasUnsavedSettings: false,
-    setHasUnsavedSettings: vi.fn(),
-    sidebarCollapsed: false,
-    toggleSidebarCollapsed: vi.fn(),
-    sidebarHidden: false,
-    toggleSidebarHidden: vi.fn(),
-    isResizingSidebar: false,
-    setIsResizingSidebar: vi.fn(),
+  dashboardView: 'chat' as const,
+  setDashboardView: vi.fn(),
+  activeSettingsSection: 'usage',
+  setActiveSettingsSection: vi.fn(),
+  hasUnsavedSettings: false,
+  setHasUnsavedSettings: vi.fn(),
+  sidebarCollapsed: false,
+  toggleSidebarCollapsed: vi.fn(),
+  sidebarHidden: false,
+  toggleSidebarHidden: vi.fn(),
+  isResizingSidebar: false,
+  setIsResizingSidebar: vi.fn(),
 }
 
 const mockChatHistory = {
-    sessions: [],
-    currentSessionId: null,
-    isLoading: false,
-    createSession: vi.fn(),
-    switchSession: vi.fn(),
-    addMessageToSession: vi.fn(),
-    updateStreamingMessage: vi.fn(),
-    deleteMessageFromSession: vi.fn(),
-    deleteSession: vi.fn(),
-    clearAllSessions: vi.fn(),
-    updateSessionTitle: vi.fn(),
-    refreshSessions: vi.fn(),
-    clearCurrentSession: vi.fn(),
-    loadFullSession: vi.fn(),
-    getSessionMetadata: vi.fn(),
-    isSessionLoaded: vi.fn(),
+  sessions: [],
+  currentSessionId: null,
+  isLoading: false,
+  createSession: vi.fn(),
+  switchSession: vi.fn(),
+  addMessageToSession: vi.fn(),
+  updateStreamingMessage: vi.fn(),
+  deleteMessageFromSession: vi.fn(),
+  deleteSession: vi.fn(),
+  clearAllSessions: vi.fn(),
+  updateSessionTitle: vi.fn(),
+  refreshSessions: vi.fn(),
+  clearCurrentSession: vi.fn(),
+  loadFullSession: vi.fn(),
+  getSessionMetadata: vi.fn(),
+  isSessionLoaded: vi.fn(),
 }
 
 const mockSettingsUI = {
-    settingsUI: {
-        theme: 'dark',
-        activeTheme: 'dark-default',
-        titleBarDensity: 'compact' as const,
-        titleBarShowAppName: true,
-        titleBarShowChatTitle: true,
-        titleBarShowModel: true,
-        commandBar: {
-            enabled: true,
-            size: 'medium' as const,
-            maxSuggestions: 5,
-            showRecents: true,
-            maxRecents: 3,
-            enableTabAutocomplete: true,
-            overlayOpacity: 45,
-            paletteWidth: 'default' as const,
-            palettePosition: 'center' as const,
-        },
+  settingsUI: {
+    theme: 'dark',
+    activeTheme: 'dark-default',
+    titleBarDensity: 'compact' as const,
+    titleBarShowAppName: true,
+    titleBarShowChatTitle: true,
+    titleBarShowModel: true,
+    commandBar: {
+      enabled: true,
+      size: 'medium' as const,
+      maxSuggestions: 5,
+      showRecents: true,
+      maxRecents: 3,
+      enableTabAutocomplete: true,
+      overlayOpacity: 45,
+      paletteWidth: 'default' as const,
+      palettePosition: 'center' as const,
     },
-    updateSettingsUI: vi.fn(),
+  },
+  updateSettingsUI: vi.fn(),
 }
 
 const mockSettings = {
-    settings: {
-        aiModel: 'test-model',
-        modelProvider: 'openrouter',
-    },
-    updateSettings: vi.fn(),
-    resetSettings: vi.fn(),
+  settings: {
+    aiModel: 'test-model',
+    modelProvider: 'openrouter',
+  },
+  updateSettings: vi.fn(),
+  resetSettings: vi.fn(),
 }
 
 vi.mock('../../contexts/AppShellContext', () => ({
-    useAppShell: () => mockAppShell,
+  useAppShell: () => mockAppShell,
 }))
 
 vi.mock('../../contexts/ChatHistoryContext', () => ({
-    useChatHistory: () => mockChatHistory,
+  useChatHistory: () => mockChatHistory,
 }))
 
 vi.mock('../../contexts/SettingsUIContext', () => ({
-    useSettingsUI: () => mockSettingsUI,
+  useSettingsUI: () => mockSettingsUI,
 }))
 
 vi.mock('../../contexts/SettingsContext', () => ({
-    useSettings: () => mockSettings,
+  useSettings: () => mockSettings,
 }))
 
 // Mock child components to isolate Layout testing
 vi.mock('./Sidebar', () => ({
-    default: () => <div data-testid="mock-sidebar">Sidebar</div>,
+  default: () => <div data-testid="mock-sidebar">Sidebar</div>,
 }))
 
 vi.mock('./ChatArea', () => ({
-    default: () => <div data-testid="mock-chat-area">ChatArea</div>,
+  default: () => <div data-testid="mock-chat-area">ChatArea</div>,
 }))
 
 describe('DashboardLayout', () => {
-    beforeEach(() => {
-        vi.clearAllMocks()
-        mockAppShell.dashboardView = 'chat'
-    })
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockAppShell.dashboardView = 'chat'
+  })
 
-    it('renders sidebar and chat area', async () => {
-        const { default: DashboardLayout } = await import('./Layout')
-        const { getByTestId } = render(<DashboardLayout />)
+  it('renders sidebar and chat area', async () => {
+    const { default: DashboardLayout } = await import('./Layout')
+    const { getByTestId } = render(<DashboardLayout />)
 
-        expect(getByTestId('mock-sidebar')).toBeInTheDocument()
-        expect(getByTestId('mock-chat-area')).toBeInTheDocument()
-    }, 15_000)
+    expect(getByTestId('mock-sidebar')).toBeInTheDocument()
+    expect(getByTestId('mock-chat-area')).toBeInTheDocument()
+  }, 15_000)
 
-    it('renders root container with flex layout', async () => {
-        const { default: DashboardLayout } = await import('./Layout')
-        const { container } = render(<DashboardLayout />)
-        const root = container.firstChild as HTMLElement
+  it('renders root container with flex layout', async () => {
+    const { default: DashboardLayout } = await import('./Layout')
+    const { container } = render(<DashboardLayout />)
+    const root = container.firstChild as HTMLElement
 
-        expect(root.style.display).toBe('flex')
-        expect(root.style.width).toBe('100%')
-        expect(root.style.height).toBe('100%')
-        expect(root.style.overflow).toBe('hidden')
-    })
+    expect(root.style.display).toBe('flex')
+    expect(root.style.width).toBe('100%')
+    expect(root.style.height).toBe('100%')
+    expect(root.style.overflow).toBe('hidden')
+  })
 
-    it('does not render any frost overlay element', async () => {
-        const { default: DashboardLayout } = await import('./Layout')
-        const { container } = render(<DashboardLayout />)
-        const overlay = container.querySelector('[data-testid="frost-overlay"]')
+  it('does not render any frost overlay element', async () => {
+    const { default: DashboardLayout } = await import('./Layout')
+    const { container } = render(<DashboardLayout />)
+    const overlay = container.querySelector('[data-testid="frost-overlay"]')
 
-        expect(overlay).not.toBeInTheDocument()
-    })
+    expect(overlay).not.toBeInTheDocument()
+  })
 
-    it('main content area has z-index 1 for proper stacking', async () => {
-        const { default: DashboardLayout } = await import('./Layout')
-        const { container } = render(<DashboardLayout />)
+  it('main content area has z-index 1 for proper stacking', async () => {
+    const { default: DashboardLayout } = await import('./Layout')
+    const { container } = render(<DashboardLayout />)
 
-        // Main content area is the second child of the root flex container
-        const root = container.firstChild as HTMLElement
-        const contentArea = root.children[1] as HTMLElement
+    // Main content area is the second child of the root flex container
+    const root = container.firstChild as HTMLElement
+    const contentArea = root.children[1] as HTMLElement
 
-        expect(contentArea.style.zIndex).toBe('1')
-    })
+    expect(contentArea.style.zIndex).toBe('1')
+  })
 })

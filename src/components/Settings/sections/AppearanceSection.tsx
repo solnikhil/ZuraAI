@@ -30,10 +30,7 @@ import {
   FONT_SCALE_STEP,
   normalizeFontScale,
 } from '../../../themes/themeUtils'
-import {
-  getAvailableTitleModelOptions,
-  getProviderDefinition,
-} from '../../../providers'
+import { getAvailableTitleModelOptions, getProviderDefinition } from '../../../providers'
 
 import { ProviderLogo } from '@/components/shared'
 import { Zap, Settings as SettingsIcon } from 'lucide-react'
@@ -195,7 +192,11 @@ function AppearanceModePreviewWorkspace(): React.ReactElement {
   )
 }
 
-function AppearanceModePreview({ mode }: { mode: 'system' | 'light' | 'dark' }): React.ReactElement {
+function AppearanceModePreview({
+  mode,
+}: {
+  mode: 'system' | 'light' | 'dark'
+}): React.ReactElement {
   if (mode === 'system') {
     return (
       <span
@@ -395,7 +396,11 @@ export function AppearanceSection({
               </div>
             </div>
             <div className="settings-list-row__control settings-list-row__control--stretch">
-              <div className="appearance-mode-picker" role="radiogroup" aria-label="Appearance mode">
+              <div
+                className="appearance-mode-picker"
+                role="radiogroup"
+                aria-label="Appearance mode"
+              >
                 {appearanceModeOptions.map((option) => {
                   const isActive = activeThemeMode === option.mode
 
@@ -529,7 +534,10 @@ export function AppearanceSection({
             <SettingsSelect
               value={String(maxRecents)}
               onValueChange={(value) => updateCommandBar({ maxRecents: Number(value) })}
-              options={[0, 1, 2, 3].map((count) => ({ value: String(count), label: String(count) }))}
+              options={[0, 1, 2, 3].map((count) => ({
+                value: String(count),
+                label: String(count),
+              }))}
               disabled={!commandBar.showRecents}
               aria-label="Max recent commands in command palette"
             />
@@ -643,7 +651,10 @@ export function AppearanceSection({
         className="settings-section-card settings-section-card--style-gallery"
         aria-labelledby="appearance-chat-styles-heading"
       >
-        <section className="appearance-chat-styles" aria-labelledby="appearance-chat-styles-heading">
+        <section
+          className="appearance-chat-styles"
+          aria-labelledby="appearance-chat-styles-heading"
+        >
           <h4 id="appearance-chat-styles-heading" className="appearance-chat-styles__title">
             Message appearance
           </h4>
@@ -657,7 +668,11 @@ export function AppearanceSection({
               Choose how your user messages are rendered in dashboard chat.
             </p>
 
-            <div className="appearance-style-picker" role="radiogroup" aria-label="Chat bubble style">
+            <div
+              className="appearance-style-picker"
+              role="radiogroup"
+              aria-label="Chat bubble style"
+            >
               {chatBubblePresets.map((preset) => {
                 const isActive = currentChatBubbleStyle === preset.id
                 return (
@@ -684,58 +699,63 @@ export function AppearanceSection({
             </div>
           </div>
 
-        <div className="appearance-style-subsection">
-          <h4 className="appearance-style-subsection__title">Chat Selected Overlay</h4>
-          <p className="appearance-style-subsection__description">
-            Choose the selected chat highlight style in the sidebar.
-          </p>
+          <div className="appearance-style-subsection">
+            <h4 className="appearance-style-subsection__title">Chat Selected Overlay</h4>
+            <p className="appearance-style-subsection__description">
+              Choose the selected chat highlight style in the sidebar.
+            </p>
 
-          <div
-            className="appearance-style-picker"
-            role="radiogroup"
-            aria-label="Chat selected overlay style"
-          >
-            {chatSelectedOverlayPresets.map((preset) => {
-              const isActive = currentChatSelectedOverlayStyle === preset.id
-              return (
-                <button
-                  key={preset.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={isActive}
-                  data-active={isActive ? 'true' : 'false'}
-                  className="appearance-style-picker__card"
-                  onClick={() => updateSettings({ chatSelectedOverlayStyle: preset.id })}
-                >
-                  <div className="appearance-style-picker__overlay-preview" style={preset.previewStyle}>
-                    <span className="appearance-style-picker__overlay-preview-label">Opensource</span>
-                    <span className="appearance-style-picker__overlay-preview-meta">...</span>
-                  </div>
-                  <div className="appearance-style-picker__label">{preset.label}</div>
-                  <div className="appearance-style-picker__description">{preset.description}</div>
-                </button>
-              )
-            })}
+            <div
+              className="appearance-style-picker"
+              role="radiogroup"
+              aria-label="Chat selected overlay style"
+            >
+              {chatSelectedOverlayPresets.map((preset) => {
+                const isActive = currentChatSelectedOverlayStyle === preset.id
+                return (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={isActive}
+                    data-active={isActive ? 'true' : 'false'}
+                    className="appearance-style-picker__card"
+                    onClick={() => updateSettings({ chatSelectedOverlayStyle: preset.id })}
+                  >
+                    <div
+                      className="appearance-style-picker__overlay-preview"
+                      style={preset.previewStyle}
+                    >
+                      <span className="appearance-style-picker__overlay-preview-label">
+                        Opensource
+                      </span>
+                      <span className="appearance-style-picker__overlay-preview-meta">...</span>
+                    </div>
+                    <div className="appearance-style-picker__label">{preset.label}</div>
+                    <div className="appearance-style-picker__description">{preset.description}</div>
+                  </button>
+                )
+              })}
+            </div>
           </div>
-        </div>
 
-        <div className="appearance-style-subsection">
-          <h4 className="appearance-style-subsection__title">Empty State Placeholder</h4>
-          <p className="appearance-style-subsection__description">
-            Choose the style of placeholder text shown in an empty chat.
-          </p>
-          <SettingsSelect
-            value={settings.placeholderStyle || 'genz'}
-            onValueChange={(value) =>
-              updateSettings({ placeholderStyle: value as 'normal' | 'genz' })
-            }
-            options={[
-              { value: 'normal', label: 'Normal' },
-              { value: 'genz', label: 'Gen Z' },
-            ]}
-            aria-label="Empty state placeholder style"
-          />
-        </div>
+          <div className="appearance-style-subsection">
+            <h4 className="appearance-style-subsection__title">Empty State Placeholder</h4>
+            <p className="appearance-style-subsection__description">
+              Choose the style of placeholder text shown in an empty chat.
+            </p>
+            <SettingsSelect
+              value={settings.placeholderStyle || 'genz'}
+              onValueChange={(value) =>
+                updateSettings({ placeholderStyle: value as 'normal' | 'genz' })
+              }
+              options={[
+                { value: 'normal', label: 'Normal' },
+                { value: 'genz', label: 'Gen Z' },
+              ]}
+              aria-label="Empty state placeholder style"
+            />
+          </div>
         </section>
       </Card>
 

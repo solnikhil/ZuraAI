@@ -31,12 +31,10 @@ function createAlibabaCatalogHtml(modelId = 'qwen3-max', name = 'Qwen3-Max'): st
 
 describe('AlibabaModelSearchDialog', () => {
   it('refreshes the catalog on open and via the manual refresh button', async () => {
-    const fetchMock = vi
-      .spyOn(global, 'fetch')
-      .mockResolvedValue({
-        ok: true,
-        text: async () => createAlibabaCatalogHtml(),
-      } as Response)
+    const fetchMock = vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      text: async () => createAlibabaCatalogHtml(),
+    } as Response)
 
     const onAddModel = vi.fn()
     const onOpenChange = vi.fn()

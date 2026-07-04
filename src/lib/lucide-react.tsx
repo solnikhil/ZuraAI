@@ -133,7 +133,11 @@ export const Brain = withDefaultWeight(BrainBase, 'duotone', 'Brain')
 export { BrainBase as BrainCircuit }
 export const Cable = withDefaultWeight(PlugsConnectedBase, 'duotone', 'Cable')
 export const Calendar = withDefaultWeight(CalendarBase, 'duotone', 'Calendar')
-export const ChartNoAxesCombined = withDefaultWeight(ChartLineUpBase, 'duotone', 'ChartNoAxesCombined')
+export const ChartNoAxesCombined = withDefaultWeight(
+  ChartLineUpBase,
+  'duotone',
+  'ChartNoAxesCombined'
+)
 export const Check = withDefaultWeight(CheckBase, 'duotone', 'Check')
 export const CheckCircle = withDefaultWeight(CheckCircleBase, 'duotone', 'CheckCircle')
 export const CheckCircle2 = withDefaultWeight(CheckCircleBase, 'duotone', 'CheckCircle2')

@@ -10,7 +10,9 @@ vi.mock('./executor', () => ({
   executeToolCalls: mocks.executeToolCalls,
 }))
 
-function buildToolResponse(toolCalls: Array<{ id: string; name: string; arguments: Record<string, unknown> }>) {
+function buildToolResponse(
+  toolCalls: Array<{ id: string; name: string; arguments: Record<string, unknown> }>
+) {
   return {
     choices: [
       {
@@ -49,7 +51,11 @@ describe('toolManager web search batch policy', () => {
     ])
 
     const response = buildToolResponse([
-      { id: 'file-search-1', name: 'file_search', arguments: { query: 'desktop', root: 'C:\\Users\\Nikhil\\Desktop' } },
+      {
+        id: 'file-search-1',
+        name: 'file_search',
+        arguments: { query: 'desktop', root: 'C:\\Users\\Nikhil\\Desktop' },
+      },
     ])
     const requestToolApproval = vi.fn(async () => false)
     const onToolApprovalStart = vi.fn()
@@ -107,7 +113,10 @@ describe('toolManager web search batch policy', () => {
           toolCall,
           result: {
             success: true,
-            data: { query: toolCall.arguments.query, results: [{ title: String(toolCall.arguments.query) }] },
+            data: {
+              query: toolCall.arguments.query,
+              results: [{ title: String(toolCall.arguments.query) }],
+            },
             metadata: { origin: 'builtin-main' as const },
           },
         },
@@ -138,13 +147,15 @@ describe('toolManager web search batch policy', () => {
     await vi.waitFor(() => {
       expect(startedQueries).toHaveLength(5)
     })
-    expect(batchQueries).toEqual([[
-      'AI market size 2021',
-      'AI market size 2022',
-      'AI market size 2023',
-      'AI market size 2024',
-      'AI market size 2025',
-    ]])
+    expect(batchQueries).toEqual([
+      [
+        'AI market size 2021',
+        'AI market size 2022',
+        'AI market size 2023',
+        'AI market size 2024',
+        'AI market size 2025',
+      ],
+    ])
     expect(resolvers).toHaveLength(5)
     resolvers.forEach((resolve) => resolve())
 
@@ -340,7 +351,11 @@ describe('toolManager web search batch policy', () => {
     ])
 
     const response = buildToolResponse([
-      { id: 'search-1', name: 'web_search', arguments: { query: 'Claude code leak Anthropic 2024 2025' } },
+      {
+        id: 'search-1',
+        name: 'web_search',
+        arguments: { query: 'Claude code leak Anthropic 2024 2025' },
+      },
     ])
 
     const processed = await processToolCalls(response, {
@@ -364,7 +379,9 @@ describe('toolManager web search batch policy', () => {
       { userContextText: 'give me info about the latest claude code leak' }
     )
     expect(processed.results[0]?.toolCall.arguments.query).toBe('Claude code leak Anthropic 2026')
-    expect(processed.executionSummary.executedWebSearchQueries).toEqual(['Claude code leak Anthropic 2026'])
+    expect(processed.executionSummary.executedWebSearchQueries).toEqual([
+      'Claude code leak Anthropic 2026',
+    ])
   })
 
   it('rejects whitespace-only required string arguments before execution', async () => {

@@ -20,7 +20,9 @@ export function loadCommandBarHistory(): CommandBarHistoryEntry[] {
     if (!Array.isArray(parsed)) return []
 
     return (parsed as unknown[])
-      .filter((entry): entry is Record<string, unknown> => entry != null && typeof entry === 'object')
+      .filter(
+        (entry): entry is Record<string, unknown> => entry != null && typeof entry === 'object'
+      )
       .filter((entry) => typeof entry.suggestionId === 'string')
       .filter((entry) => typeof entry.title === 'string')
       .filter((entry) => entry.action != null && typeof entry.action === 'object')
@@ -30,7 +32,7 @@ export function loadCommandBarHistory(): CommandBarHistoryEntry[] {
         subtitle: typeof entry.subtitle === 'string' ? entry.subtitle : undefined,
         input: typeof entry.input === 'string' ? entry.input : '',
         action: entry.action as CommandBarAction,
-        lastUsedAt: typeof entry.lastUsedAt === 'number' ? entry.lastUsedAt : Date.now()
+        lastUsedAt: typeof entry.lastUsedAt === 'number' ? entry.lastUsedAt : Date.now(),
       }))
       .slice(0, HISTORY_MAX)
   } catch {
@@ -58,7 +60,7 @@ export function recordCommandHistory(
     subtitle: suggestion.subtitle,
     input: trimmed || suggestion.title,
     action: suggestion.action,
-    lastUsedAt: Date.now()
+    lastUsedAt: Date.now(),
   }
 
   // Deduplication: remove existing entry with same suggestionId, then prepend

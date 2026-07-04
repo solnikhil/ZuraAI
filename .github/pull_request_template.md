@@ -17,8 +17,7 @@
 - [ ] `bun run typecheck`
 - [ ] `bun run test`
 - [ ] `bun run build` (required for packaging, Electron, or release-flow changes)
-- Manual verification:
-  -
+- ## Manual verification:
 
 ## UI notes
 

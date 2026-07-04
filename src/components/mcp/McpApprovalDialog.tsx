@@ -22,7 +22,8 @@ export function McpApprovalDialog(): React.ReactElement | null {
   const [isResolving, setIsResolving] = useState(false)
 
   const request = useMemo(
-    () => [...pendingApprovals].sort((left, right) => left.requestedAt - right.requestedAt)[0] ?? null,
+    () =>
+      [...pendingApprovals].sort((left, right) => left.requestedAt - right.requestedAt)[0] ?? null,
     [pendingApprovals]
   )
 
@@ -51,7 +52,10 @@ export function McpApprovalDialog(): React.ReactElement | null {
   }
 
   return (
-    <AlertDialog open onOpenChange={(open) => (!open && !isResolving ? void handleResolve(false) : undefined)}>
+    <AlertDialog
+      open
+      onOpenChange={(open) => (!open && !isResolving ? void handleResolve(false) : undefined)}
+    >
       <AlertDialogContent className="grid max-h-[calc(100vh-2rem)] w-[min(720px,calc(100vw-2rem))] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0 sm:max-w-none">
         <AlertDialogHeader className="border-b border-border/60 px-6 py-5">
           <AlertDialogTitle className="flex min-w-0 items-center gap-2">
@@ -93,9 +97,7 @@ export function McpApprovalDialog(): React.ReactElement | null {
         </div>
 
         <AlertDialogFooter className="border-t border-border/60 px-6 py-4">
-          <AlertDialogCancel disabled={isResolving}>
-            Reject
-          </AlertDialogCancel>
+          <AlertDialogCancel disabled={isResolving}>Reject</AlertDialogCancel>
           <AlertDialogAction disabled={isResolving} onClick={() => void handleResolve(true)}>
             Approve
           </AlertDialogAction>

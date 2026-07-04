@@ -52,9 +52,7 @@ export default function RenameChatDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle className="theme-overlay-title">
-            Rename chat
-          </DialogTitle>
+          <DialogTitle className="theme-overlay-title">Rename chat</DialogTitle>
           <DialogDescription className="theme-overlay-description">
             Enter a new name for this conversation.
           </DialogDescription>
@@ -86,9 +84,7 @@ export default function RenameChatDialog({
           >
             Cancel
           </Button>
-          <Button onClick={handleConfirm}>
-            Rename
-          </Button>
+          <Button onClick={handleConfirm}>Rename</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

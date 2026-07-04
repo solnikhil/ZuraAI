@@ -15,7 +15,11 @@ describe('TerminalApprovalManager', () => {
   })
 
   it('resolves with approved when user approves', async () => {
-    const promise = manager.requestApproval({ command: 'Get-Process', cwd: 'C:\\', description: 'list processes' })
+    const promise = manager.requestApproval({
+      command: 'Get-Process',
+      cwd: 'C:\\',
+      description: 'list processes',
+    })
     const pending = manager.listPending()
     expect(pending).toHaveLength(1)
     expect(pending[0].command).toBe('Get-Process')

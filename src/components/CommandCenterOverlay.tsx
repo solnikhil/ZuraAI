@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
-import { Brain, Check, Command, CornerDownLeft, MessageSquare, Monitor, Sparkles, X } from 'lucide-react'
+import {
+  Brain,
+  Check,
+  Command,
+  CornerDownLeft,
+  MessageSquare,
+  Monitor,
+  Sparkles,
+  X,
+} from 'lucide-react'
 
 import { useChatHistory } from '../contexts/ChatHistoryContext'
 import { useSettings } from '../contexts/SettingsContext'
@@ -8,11 +17,7 @@ import { useStreamingState } from '../contexts/StreamingContext'
 import { MessageRenderer } from './Dashboard/ChatArea/MessageRenderer'
 import { StreamingMessage } from './Dashboard/ChatArea/StreamingMessage'
 import { useStreamingChat } from './Dashboard/ChatArea/hooks'
-import {
-  scoreAppSearch,
-  scoreGenericSearch,
-  scoreWindowSearch,
-} from '../commandCenter/search'
+import { scoreAppSearch, scoreGenericSearch, scoreWindowSearch } from '../commandCenter/search'
 import type { CommandCenterIndex, CommandCenterIndexItem } from '../electron/types'
 
 type Mode = 'search' | 'ask'
@@ -27,7 +32,9 @@ const EMPTY_INDEX: CommandCenterIndex = {
   chats: [],
 }
 
-function flattenIndex(index: CommandCenterIndex): Array<{ group: string; item: CommandCenterIndexItem }> {
+function flattenIndex(
+  index: CommandCenterIndex
+): Array<{ group: string; item: CommandCenterIndexItem }> {
   return [
     ...index.workflows.map((item) => ({ group: 'Saved Workflows', item })),
     ...index.apps.map((item) => ({ group: 'Apps', item })),
@@ -121,10 +128,14 @@ export default function CommandCenterOverlay() {
     if (!query) return index
     const appMatches = index.apps
       .filter((item) => matchesItem(item, query))
-      .sort((a, b) => searchScore(b, query) - searchScore(a, query) || a.title.localeCompare(b.title))
+      .sort(
+        (a, b) => searchScore(b, query) - searchScore(a, query) || a.title.localeCompare(b.title)
+      )
     const cachedMatches = browseApps
       .filter((item) => matchesItem(item, query))
-      .sort((a, b) => searchScore(b, query) - searchScore(a, query) || a.title.localeCompare(b.title))
+      .sort(
+        (a, b) => searchScore(b, query) - searchScore(a, query) || a.title.localeCompare(b.title)
+      )
     return { ...index, apps: appMatches.length > 0 ? appMatches : cachedMatches }
   }, [browseApps, index, input])
 
@@ -139,12 +150,18 @@ export default function CommandCenterOverlay() {
     for (const row of filteredRows) {
       groups.set(row.group, [...(groups.get(row.group) ?? []), row.item])
     }
-    return Array.from(groups.entries()).map(([group, items]) => [
-      group,
-      query
-        ? [...items].sort((a, b) => searchScore(b, query) - searchScore(a, query) || a.title.localeCompare(b.title))
-        : items,
-    ] as const)
+    return Array.from(groups.entries()).map(
+      ([group, items]) =>
+        [
+          group,
+          query
+            ? [...items].sort(
+                (a, b) =>
+                  searchScore(b, query) - searchScore(a, query) || a.title.localeCompare(b.title)
+              )
+            : items,
+        ] as const
+    )
   }, [filteredRows, input])
 
   const selectedItem = filteredRows[selectedIndex]?.item
@@ -192,9 +209,10 @@ export default function CommandCenterOverlay() {
     }
   }, [])
 
-  const appIndexWarning = index.diagnostics?.apps && !index.diagnostics.apps.ok
-    ? index.diagnostics.apps.error || 'App index is partially unavailable.'
-    : null
+  const appIndexWarning =
+    index.diagnostics?.apps && !index.diagnostics.apps.ok
+      ? index.diagnostics.apps.error || 'App index is partially unavailable.'
+      : null
 
   const resetOverlay = useCallback(() => {
     setMode('search')
@@ -233,7 +251,9 @@ export default function CommandCenterOverlay() {
 
   useEffect(() => {
     if (isChatMode || mode !== 'search') return undefined
-    const needsIconRefresh = index.apps.some((app) => app.type === 'app' && app.iconKey && !app.iconDataUrl)
+    const needsIconRefresh = index.apps.some(
+      (app) => app.type === 'app' && app.iconKey && !app.iconDataUrl
+    )
     if (!needsIconRefresh) return undefined
     const timer = window.setTimeout(() => {
       void refreshIndex(input.trim(), false)
@@ -273,40 +293,46 @@ export default function CommandCenterOverlay() {
     void window.commandCenter.hide()
   }, [chatSessionId, deleteSession, isLoading, promoted, settings.commandCenterChatPersistence])
 
-  const startChat = useCallback((prompt: string) => {
-    const trimmed = prompt.trim()
-    if (!trimmed) return
-    const sessionId = createSession()
-    setChatSessionId(sessionId)
-    switchSession(sessionId)
-    setOptimisticText(trimmed)
-    setPendingPrompt(trimmed)
-    setMode('ask')
-    setInput('')
-  }, [createSession, switchSession])
+  const startChat = useCallback(
+    (prompt: string) => {
+      const trimmed = prompt.trim()
+      if (!trimmed) return
+      const sessionId = createSession()
+      setChatSessionId(sessionId)
+      switchSession(sessionId)
+      setOptimisticText(trimmed)
+      setPendingPrompt(trimmed)
+      setMode('ask')
+      setInput('')
+    },
+    [createSession, switchSession]
+  )
 
-  const executeItem = useCallback(async (item: CommandCenterIndexItem) => {
-    if (item.type === 'workflow') {
-      setConfirmingWorkflow(item)
-      return
-    }
-    setError(null)
-    setStatus(null)
-    const query = mode === 'search' ? input.trim() : ''
-    const result = await window.commandCenter.executeIndexItem(item.id, query)
-    if (!result.success) {
-      setError(result.error || 'Command failed.')
-      return
-    }
-    if (result.aiPrompt) {
-      startChat(result.aiPrompt)
-      return
-    }
-    if (item.type !== 'chat') {
-      setStatus(`${item.title} complete.`)
-      void refreshIndex(query, false)
-    }
-  }, [input, mode, refreshIndex, startChat])
+  const executeItem = useCallback(
+    async (item: CommandCenterIndexItem) => {
+      if (item.type === 'workflow') {
+        setConfirmingWorkflow(item)
+        return
+      }
+      setError(null)
+      setStatus(null)
+      const query = mode === 'search' ? input.trim() : ''
+      const result = await window.commandCenter.executeIndexItem(item.id, query)
+      if (!result.success) {
+        setError(result.error || 'Command failed.')
+        return
+      }
+      if (result.aiPrompt) {
+        startChat(result.aiPrompt)
+        return
+      }
+      if (item.type !== 'chat') {
+        setStatus(`${item.title} complete.`)
+        void refreshIndex(query, false)
+      }
+    },
+    [input, mode, refreshIndex, startChat]
+  )
 
   const runConfirmedWorkflow = useCallback(async () => {
     if (!confirmingWorkflow || confirmingWorkflow.type !== 'workflow') return
@@ -401,10 +427,7 @@ export default function CommandCenterOverlay() {
         onKeyDownCapture={handlePanelKeyDownCapture}
         initial={false}
       >
-        <motion.div
-          className="command-center-topbar"
-          initial={false}
-        >
+        <motion.div className="command-center-topbar" initial={false}>
           <div className="command-center-brand">
             <img className="command-center-logo" src="icon-mark.png" alt="" />
           </div>
@@ -414,7 +437,9 @@ export default function CommandCenterOverlay() {
             transition={{ duration: reduceMotion ? 0 : 0.16, ease: motionEase }}
           >
             <input
-              ref={(node) => { inputRef.current = node }}
+              ref={(node) => {
+                inputRef.current = node
+              }}
               autoFocus
               value={input}
               onChange={(event) => setInput(event.target.value)}
@@ -435,7 +460,11 @@ export default function CommandCenterOverlay() {
               }
             />
             {isChatMode && (
-              <button type="button" onClick={isLoading ? stopStreaming : submit} aria-label={isLoading ? 'Stop' : 'Send'}>
+              <button
+                type="button"
+                onClick={isLoading ? stopStreaming : submit}
+                aria-label={isLoading ? 'Stop' : 'Send'}
+              >
                 {isLoading ? <X size={16} /> : <CornerDownLeft size={16} />}
               </button>
             )}
@@ -447,10 +476,18 @@ export default function CommandCenterOverlay() {
             </div>
           )}
           <div className="command-center-segment" aria-label="Command Center mode">
-            <button type="button" className={mode === 'search' && !isChatMode ? 'active' : ''} onClick={() => setMode('search')}>
+            <button
+              type="button"
+              className={mode === 'search' && !isChatMode ? 'active' : ''}
+              onClick={() => setMode('search')}
+            >
               Search
             </button>
-            <button type="button" className={mode === 'ask' || isChatMode ? 'active' : ''} onClick={() => setMode('ask')}>
+            <button
+              type="button"
+              className={mode === 'ask' || isChatMode ? 'active' : ''}
+              onClick={() => setMode('ask')}
+            >
               Ask AI
             </button>
           </div>
@@ -464,48 +501,62 @@ export default function CommandCenterOverlay() {
               initial={reduceMotion ? false : { x: mode === 'ask' ? 6 : -6 }}
               animate={reduceMotion ? undefined : { x: 0 }}
               exit={reduceMotion ? undefined : { x: mode === 'ask' ? 6 : -6 }}
-              transition={{ duration: reduceMotion ? 0 : 0.13, delay: reduceMotion ? 0 : 0.025, ease: motionEase }}
+              transition={{
+                duration: reduceMotion ? 0 : 0.13,
+                delay: reduceMotion ? 0 : 0.025,
+                ease: motionEase,
+              }}
             >
               {mode === 'search' ? (
-                <div className="command-center-results" role="listbox" aria-label="Command Center results">
+                <div
+                  className="command-center-results"
+                  role="listbox"
+                  aria-label="Command Center results"
+                >
                   {appIndexWarning && (
                     <div className="command-center-index-warning">
                       Apps may be incomplete: {appIndexWarning}
                     </div>
                   )}
-                  {groupedRows.length > 0 ? groupedRows.map(([group, items]) => (
-                    <section key={group} className="command-center-group">
-                      <h2>{group}</h2>
-                      {items.map((item) => {
-                        const rowIndex = filteredRows.findIndex((row) => row.item.id === item.id)
-                        const selected = selectionVisible && rowIndex === selectedIndex
-                        return (
-                          <motion.button
-                            key={item.id}
-                            type="button"
-                            className={`command-center-result ${selected ? 'selected' : ''}`}
-                            onMouseEnter={() => {
-                              setSelectionVisible(true)
-                              setSelectedIndex(rowIndex)
-                            }}
-                            onMouseLeave={() => setSelectionVisible(false)}
-                            onClick={() => void executeItem(item)}
-                            initial={false}
-                          >
-                            <span className="command-center-result__icon">{iconForItem(item)}</span>
-                            <span className="command-center-result__text">
-                              <span>{item.title}</span>
-                              {item.subtitle && <small>{item.subtitle}</small>}
-                            </span>
-                            <span className="command-center-result__hint">{item.hint}</span>
-                          </motion.button>
-                        )
-                      })}
-                    </section>
-                  )) : indexLoading && filteredRows.length === 0 ? (
+                  {groupedRows.length > 0 ? (
+                    groupedRows.map(([group, items]) => (
+                      <section key={group} className="command-center-group">
+                        <h2>{group}</h2>
+                        {items.map((item) => {
+                          const rowIndex = filteredRows.findIndex((row) => row.item.id === item.id)
+                          const selected = selectionVisible && rowIndex === selectedIndex
+                          return (
+                            <motion.button
+                              key={item.id}
+                              type="button"
+                              className={`command-center-result ${selected ? 'selected' : ''}`}
+                              onMouseEnter={() => {
+                                setSelectionVisible(true)
+                                setSelectedIndex(rowIndex)
+                              }}
+                              onMouseLeave={() => setSelectionVisible(false)}
+                              onClick={() => void executeItem(item)}
+                              initial={false}
+                            >
+                              <span className="command-center-result__icon">
+                                {iconForItem(item)}
+                              </span>
+                              <span className="command-center-result__text">
+                                <span>{item.title}</span>
+                                {item.subtitle && <small>{item.subtitle}</small>}
+                              </span>
+                              <span className="command-center-result__hint">{item.hint}</span>
+                            </motion.button>
+                          )
+                        })}
+                      </section>
+                    ))
+                  ) : indexLoading && filteredRows.length === 0 ? (
                     <div className="command-center-empty">Loading Command Center...</div>
                   ) : input.trim() ? (
-                    <div className="command-center-empty">No matching results. Press Enter to ask Zura instead.</div>
+                    <div className="command-center-empty">
+                      No matching results. Press Enter to ask Zura instead.
+                    </div>
                   ) : (
                     <div className="command-center-empty">No Command Center items found.</div>
                   )}
@@ -515,9 +566,15 @@ export default function CommandCenterOverlay() {
                   <Brain size={26} />
                   <p>Waiting for your first message.</p>
                   <div>
-                    <button type="button" onClick={() => setInput('Summarize this window')}>Summarize this window</button>
-                    <button type="button" onClick={() => setInput('Find the next step')}>Find the next step</button>
-                    <button type="button" onClick={() => setInput('Turn clipboard into a message')}>Use clipboard</button>
+                    <button type="button" onClick={() => setInput('Summarize this window')}>
+                      Summarize this window
+                    </button>
+                    <button type="button" onClick={() => setInput('Find the next step')}>
+                      Find the next step
+                    </button>
+                    <button type="button" onClick={() => setInput('Turn clipboard into a message')}>
+                      Use clipboard
+                    </button>
                   </div>
                 </div>
               )}
@@ -532,18 +589,26 @@ export default function CommandCenterOverlay() {
               transition={{ duration: reduceMotion ? 0 : 0.15, ease: motionEase }}
             >
               <div className="command-center-chat-actions">
-                <span className="command-center-model-badge">{settings.aiModel || 'assistant'}</span>
-                <button type="button" onClick={openInFullChat}>Open in Chat</button>
+                <span className="command-center-model-badge">
+                  {settings.aiModel || 'assistant'}
+                </span>
+                <button type="button" onClick={openInFullChat}>
+                  Open in Chat
+                </button>
               </div>
               <div ref={bodyRef} className="command-center-chat-scroll">
                 {/* Optimistic user message — shown instantly on submit before session syncs */}
                 {optimisticText && (
-                  <div key="optimistic-msg" className="command-center-chat-message command-center-chat-message--user">
+                  <div
+                    key="optimistic-msg"
+                    className="command-center-chat-message command-center-chat-message--user"
+                  >
                     <div className="command-center-user-bubble">{optimisticText}</div>
                   </div>
                 )}
                 {/* Thinking indicator — only for first message: no assistant messages in session, waiting for response */}
-                {optimisticText && chatMessages.filter((m) => m.role === 'assistant').length === 0 ? (
+                {optimisticText &&
+                chatMessages.filter((m) => m.role === 'assistant').length === 0 ? (
                   <div key="thinking-indicator" className="command-center-thinking">
                     <span className="command-center-thinking-dot" />
                     <span className="command-center-thinking-dot" />
@@ -551,7 +616,8 @@ export default function CommandCenterOverlay() {
                   </div>
                 ) : null}
                 {chatMessages.map((message, index) => {
-                  const isLastAssistant = message.role === 'assistant' && index === chatMessages.length - 1
+                  const isLastAssistant =
+                    message.role === 'assistant' && index === chatMessages.length - 1
                   const streaming = isLoading && isLastAssistant
                   return (
                     <div key={message.id} className="command-center-chat-message">
@@ -579,9 +645,7 @@ export default function CommandCenterOverlay() {
         </AnimatePresence>
 
         {(error || status) && (
-          <div className={`command-center-status ${error ? 'error' : ''}`}>
-            {error || status}
-          </div>
+          <div className={`command-center-status ${error ? 'error' : ''}`}>{error || status}</div>
         )}
       </motion.div>
 
@@ -592,7 +656,9 @@ export default function CommandCenterOverlay() {
             <strong>Run {confirmingWorkflow.workflow.name}?</strong>
             <span>{confirmingWorkflow.workflow.steps.length} step workflow</span>
           </div>
-          <button type="button" onClick={() => setConfirmingWorkflow(null)}>Cancel</button>
+          <button type="button" onClick={() => setConfirmingWorkflow(null)}>
+            Cancel
+          </button>
           <button type="button" onClick={() => void runConfirmedWorkflow()}>
             <Check size={15} />
             Run

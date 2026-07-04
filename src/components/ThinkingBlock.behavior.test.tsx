@@ -243,9 +243,7 @@ describe('ThinkingBlock behavior', () => {
       />
     )
 
-    expect(
-      await screen.findByText('MCP tool calling: Filesystem')
-    ).toBeInTheDocument()
+    expect(await screen.findByText('MCP tool calling: Filesystem')).toBeInTheDocument()
   })
 
   it('shows additional active MCP tool calls when multiple tools are running', async () => {
@@ -267,9 +265,7 @@ describe('ThinkingBlock behavior', () => {
       />
     )
 
-    expect(
-      await screen.findByText('MCP tool calling: Filesystem (+1 more)')
-    ).toBeInTheDocument()
+    expect(await screen.findByText('MCP tool calling: Filesystem (+1 more)')).toBeInTheDocument()
     expect(screen.getByText('Create Issue on Github 2')).toBeInTheDocument()
   })
 
@@ -489,18 +485,16 @@ describe('ThinkingBlock behavior', () => {
         messageId="message-batch"
         activeBlockKey="message-batch:0:answering"
         thinking=""
-        completedBlocks={[
-          makeShell(1, 'cmd-a'),
-          makeShell(2, 'cmd-b'),
-          makeShell(3, 'cmd-c', 1),
-        ]}
+        completedBlocks={[makeShell(1, 'cmd-a'), makeShell(2, 'cmd-b'), makeShell(3, 'cmd-c', 1)]}
       />
     )
 
     // One grouped header, pluralized, with an error-styled run icon (one command failed).
     expect(screen.getByText('Ran 3 commands')).toBeInTheDocument()
     expect(screen.queryByText('Ran a command')).not.toBeInTheDocument()
-    expect(container.querySelector('.thinking-tool-calling-icon.command-run-icon.is-error')).toBeTruthy()
+    expect(
+      container.querySelector('.thinking-tool-calling-icon.command-run-icon.is-error')
+    ).toBeTruthy()
 
     // Expanding the group reveals the command-name rows — not the panels yet.
     fireEvent.click(container.querySelector('.thinking-header.tool-call') as HTMLElement)

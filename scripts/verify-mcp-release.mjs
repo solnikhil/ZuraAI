@@ -16,7 +16,9 @@ async function main() {
 async function verifyPackageConfig() {
   const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf8'))
   if (packageJson?.build?.nsis?.deleteAppDataOnUninstall !== false) {
-    throw new Error('Expected package.json to preserve app data on uninstall for MCP persistence safety.')
+    throw new Error(
+      'Expected package.json to preserve app data on uninstall for MCP persistence safety.'
+    )
   }
 }
 
@@ -79,6 +81,9 @@ async function walkReleaseDir(currentPath, discoveredForbiddenPaths) {
 }
 
 main().catch((error) => {
-  console.error('[verify-mcp-release] Failed:', error instanceof Error ? error.message : String(error))
+  console.error(
+    '[verify-mcp-release] Failed:',
+    error instanceof Error ? error.message : String(error)
+  )
   process.exitCode = 1
 })

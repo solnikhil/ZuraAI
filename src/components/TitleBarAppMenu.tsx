@@ -33,7 +33,12 @@ const MENU_DEFINITIONS: MenuDefinition[] = [
       { label: 'New Chat', shortcut: 'Ctrl+N', appCommand: 'new-chat' },
       { label: 'Settings', shortcut: 'Ctrl+,', appCommand: 'open-settings' },
       { label: 'About', appCommand: 'open-about' },
-      { label: 'Close Window', shortcut: 'Alt+F4', appCommand: 'close-window', separatorBefore: true },
+      {
+        label: 'Close Window',
+        shortcut: 'Alt+F4',
+        appCommand: 'close-window',
+        separatorBefore: true,
+      },
     ],
   },
   {
@@ -51,11 +56,21 @@ const MENU_DEFINITIONS: MenuDefinition[] = [
     label: 'View',
     items: [
       { label: 'Reload', shortcut: 'Ctrl+R', appCommand: 'reload' },
-      { label: 'Toggle DevTools', shortcut: 'Ctrl+Shift+I', appCommand: 'toggle-devtools', devOnly: true },
+      {
+        label: 'Toggle DevTools',
+        shortcut: 'Ctrl+Shift+I',
+        appCommand: 'toggle-devtools',
+        devOnly: true,
+      },
       { label: 'Reset Zoom', shortcut: 'Ctrl+0', appCommand: 'reset-zoom', separatorBefore: true },
       { label: 'Zoom In', shortcut: 'Ctrl++', appCommand: 'zoom-in' },
       { label: 'Zoom Out', shortcut: 'Ctrl+-', appCommand: 'zoom-out' },
-      { label: 'Toggle Full Screen', shortcut: 'F11', appCommand: 'toggle-fullscreen', separatorBefore: true },
+      {
+        label: 'Toggle Full Screen',
+        shortcut: 'F11',
+        appCommand: 'toggle-fullscreen',
+        separatorBefore: true,
+      },
     ],
   },
   {
@@ -149,29 +164,29 @@ export function TitleBarAppMenu() {
     <Menubar className="app-titlebar__menubar no-drag" aria-label="Application menu">
       {MENU_DEFINITIONS.map((menu) => (
         <MenubarMenu key={menu.label}>
-          <MenubarTrigger className="app-titlebar__menu-trigger">
-            {menu.label}
-          </MenubarTrigger>
+          <MenubarTrigger className="app-titlebar__menu-trigger">{menu.label}</MenubarTrigger>
           <MenubarContent align="start" sideOffset={6} className="app-titlebar__menu-content">
-            {groupMenuItems(menu.items.filter((item) => !item.devOnly || isDev)).map((group, groupIndex) => (
-              <MenubarGroup key={`${menu.label}-${groupIndex}`}>
-                {groupIndex > 0 && <MenubarSeparator />}
-                {group.map((item) => (
-                  <MenubarItem
-                    key={item.label}
-                    className="app-titlebar__menu-item"
-                    onSelect={() => handleSelect(item)}
-                  >
-                    <span>{item.label}</span>
-                    {item.shortcut && (
-                      <MenubarShortcut className="app-titlebar__menu-shortcut">
-                        {item.shortcut}
-                      </MenubarShortcut>
-                    )}
-                  </MenubarItem>
-                ))}
-              </MenubarGroup>
-            ))}
+            {groupMenuItems(menu.items.filter((item) => !item.devOnly || isDev)).map(
+              (group, groupIndex) => (
+                <MenubarGroup key={`${menu.label}-${groupIndex}`}>
+                  {groupIndex > 0 && <MenubarSeparator />}
+                  {group.map((item) => (
+                    <MenubarItem
+                      key={item.label}
+                      className="app-titlebar__menu-item"
+                      onSelect={() => handleSelect(item)}
+                    >
+                      <span>{item.label}</span>
+                      {item.shortcut && (
+                        <MenubarShortcut className="app-titlebar__menu-shortcut">
+                          {item.shortcut}
+                        </MenubarShortcut>
+                      )}
+                    </MenubarItem>
+                  ))}
+                </MenubarGroup>
+              )
+            )}
           </MenubarContent>
         </MenubarMenu>
       ))}

@@ -4,9 +4,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import {
-  removeEmojis,
-} from './textUtils'
+import { removeEmojis } from './textUtils'
 
 describe('textUtils', () => {
   describe('removeEmojis', () => {

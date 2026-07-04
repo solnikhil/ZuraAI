@@ -22,7 +22,7 @@ const checkpoints = [
 console.log('ZuraAI memory scenario')
 console.log('')
 console.log('Collect a baseline and then one report after each checkpoint:')
-console.log("  await window.appInfo.getMemoryReport()")
+console.log('  await window.appInfo.getMemoryReport()')
 console.log('')
 for (const [index, checkpoint] of checkpoints.entries()) {
   console.log(`${index + 1}. ${checkpoint}`)

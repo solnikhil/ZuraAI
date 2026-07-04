@@ -117,9 +117,15 @@ export async function executeWindowsUiaSnapshot(args: unknown): Promise<ToolResu
   if (!isWindows()) return unsupportedWindowsOnly('windows_uia_snapshot')
   try {
     const { stdout } = await runPowerShell(snapshotScript(args))
-    return { success: true, data: { windows: normalizeJsonArray(parseJsonOutput<unknown | unknown[]>(stdout)) } }
+    return {
+      success: true,
+      data: { windows: normalizeJsonArray(parseJsonOutput<unknown | unknown[]>(stdout)) },
+    }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : 'UIA snapshot failed.' }
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'UIA snapshot failed.',
+    }
   }
 }
 
@@ -137,7 +143,10 @@ async function executeUiaAction(action: UiaAction, args: unknown): Promise<ToolR
     const { stdout } = await runPowerShell(actionScript(action, args))
     return { success: true, data: parseJsonOutput<unknown>(stdout) }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : `UIA ${action} failed.` }
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : `UIA ${action} failed.`,
+    }
   }
 }
 

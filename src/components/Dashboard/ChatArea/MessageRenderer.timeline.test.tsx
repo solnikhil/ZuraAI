@@ -225,9 +225,7 @@ describe('MessageRenderer follow-up timeline', () => {
     )
 
     for (const phase of ['tool', 'reasoning', 'searching'] as const) {
-      rerender(
-        <MessageRenderer message={baseMessage} isStreaming={true} streamPhase={phase} />
-      )
+      rerender(<MessageRenderer message={baseMessage} isStreaming={true} streamPhase={phase} />)
 
       await waitFor(() => {
         const nodes = Array.from(
@@ -489,7 +487,9 @@ describe('MessageRenderer follow-up timeline', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByText('zura ai overview | zura ai pricing | zura ai docs')).toBeInTheDocument()
+      expect(
+        screen.getByText('zura ai overview | zura ai pricing | zura ai docs')
+      ).toBeInTheDocument()
     })
   })
 

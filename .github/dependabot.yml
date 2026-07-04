@@ -11,62 +11,62 @@ updates:
   # ---------------------------------------------------------------------------
   # npm: weekly grouped runtime + dev dep updates.
   # ---------------------------------------------------------------------------
-  - package-ecosystem: "npm"
-    directory: "/"
+  - package-ecosystem: 'npm'
+    directory: '/'
     schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "06:00"
-      timezone: "Etc/UTC"
+      interval: 'weekly'
+      day: 'monday'
+      time: '06:00'
+      timezone: 'Etc/UTC'
     open-pull-requests-limit: 5
     labels:
-      - "dependencies"
+      - 'dependencies'
     commit-message:
-      prefix: "build(deps)"
-      prefix-development: "build(deps-dev)"
-      include: "scope"
+      prefix: 'build(deps)'
+      prefix-development: 'build(deps-dev)'
+      include: 'scope'
     groups:
       radix-ui:
         patterns:
-          - "@radix-ui/*"
+          - '@radix-ui/*'
       electron:
         patterns:
-          - "electron"
-          - "electron-*"
-          - "@electron/*"
+          - 'electron'
+          - 'electron-*'
+          - '@electron/*'
       production-dependencies:
-        dependency-type: "production"
+        dependency-type: 'production'
         exclude-patterns:
-          - "@radix-ui/*"
-          - "electron"
-          - "electron-*"
-          - "@electron/*"
+          - '@radix-ui/*'
+          - 'electron'
+          - 'electron-*'
+          - '@electron/*'
       development-dependencies:
-        dependency-type: "development"
+        dependency-type: 'development'
         exclude-patterns:
-          - "@radix-ui/*"
-          - "electron"
-          - "electron-*"
-          - "@electron/*"
+          - '@radix-ui/*'
+          - 'electron'
+          - 'electron-*'
+          - '@electron/*'
 
   # ---------------------------------------------------------------------------
   # github-actions: weekly grouped action version bumps.
   # ---------------------------------------------------------------------------
-  - package-ecosystem: "github-actions"
-    directory: "/"
+  - package-ecosystem: 'github-actions'
+    directory: '/'
     schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "06:00"
-      timezone: "Etc/UTC"
+      interval: 'weekly'
+      day: 'monday'
+      time: '06:00'
+      timezone: 'Etc/UTC'
     open-pull-requests-limit: 3
     labels:
-      - "dependencies"
-      - "area: ci"
+      - 'dependencies'
+      - 'area: ci'
     commit-message:
-      prefix: "ci(deps)"
-      include: "scope"
+      prefix: 'ci(deps)'
+      include: 'scope'
     groups:
       actions:
         patterns:
-          - "*"
+          - '*'

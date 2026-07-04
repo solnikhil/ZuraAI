@@ -116,7 +116,9 @@ export class McpConnection {
       })
     })
     this.transport.onClose(() => {
-      this.rejectAllPendingRequests(new Error(`MCP connection closed for server "${this.server.name}"`))
+      this.rejectAllPendingRequests(
+        new Error(`MCP connection closed for server "${this.server.name}"`)
+      )
       if (!this.manualDisconnect && this.shouldAttemptReconnect()) {
         void this.attemptReconnect()
         return
@@ -154,7 +156,9 @@ export class McpConnection {
       ...this.runtimeState,
       tools: [...this.runtimeState.tools],
       capabilities: { ...this.runtimeState.capabilities },
-      connectionInfo: this.runtimeState.connectionInfo ? { ...this.runtimeState.connectionInfo } : undefined,
+      connectionInfo: this.runtimeState.connectionInfo
+        ? { ...this.runtimeState.connectionInfo }
+        : undefined,
     }
   }
 
@@ -201,7 +205,9 @@ export class McpConnection {
 
   async disconnect(): Promise<void> {
     this.manualDisconnect = true
-    this.rejectAllPendingRequests(new Error(`MCP connection closed for server "${this.server.name}"`))
+    this.rejectAllPendingRequests(
+      new Error(`MCP connection closed for server "${this.server.name}"`)
+    )
     await this.transport.disconnect()
     this.updateRuntimeState({
       status: 'disconnected',
@@ -210,7 +216,9 @@ export class McpConnection {
   }
 
   async listTools(): Promise<McpToolManifest[]> {
-    const result = parseListToolsResult(await this.request('tools/list', undefined, this.requestTimeoutMs))
+    const result = parseListToolsResult(
+      await this.request('tools/list', undefined, this.requestTimeoutMs)
+    )
     const tools = result.tools ?? []
     this.updateRuntimeState({ tools })
     return [...tools]
@@ -259,7 +267,10 @@ export class McpConnection {
     )
   }
 
-  async callTool(toolName: string, args: Record<string, unknown>): Promise<McpNormalizedToolCallResult> {
+  async callTool(
+    toolName: string,
+    args: Record<string, unknown>
+  ): Promise<McpNormalizedToolCallResult> {
     return parseToolCallResult(
       await this.request(
         'tools/call',
@@ -272,7 +283,11 @@ export class McpConnection {
     )
   }
 
-  async request(method: string, params?: unknown, timeoutMs = this.requestTimeoutMs): Promise<unknown> {
+  async request(
+    method: string,
+    params?: unknown,
+    timeoutMs = this.requestTimeoutMs
+  ): Promise<unknown> {
     if (!this.transport.isConnected()) {
       throw new Error(`MCP server "${this.server.name}" is not connected`)
     }
@@ -447,7 +462,8 @@ export class McpConnection {
       maxDelayMs: Math.max(1000, (this.server.reconnectDelayMs ?? 1000) * 8),
       backoffMultiplier: 2,
     }
-    let lastError = this.lastConnectionError ?? `MCP connection closed for server "${this.server.name}"`
+    let lastError =
+      this.lastConnectionError ?? `MCP connection closed for server "${this.server.name}"`
 
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       this.updateRuntimeState({
@@ -522,9 +538,7 @@ function parseListPromptsResult(result: unknown): McpListPromptsResult {
     throw new Error('MCP prompts/list response is invalid')
   }
 
-  const prompts = Array.isArray(result.prompts)
-    ? result.prompts.filter(isMcpPromptManifest)
-    : []
+  const prompts = Array.isArray(result.prompts) ? result.prompts.filter(isMcpPromptManifest) : []
 
   return {
     ...result,
@@ -585,16 +599,21 @@ export function createMcpTransportForServer(server: McpResolvedServerConfig): Mc
   })
 }
 
-function normalizeClientInfo(clientInfo: McpConnectionClientInfo | undefined): McpConnectionClientInfo {
+function normalizeClientInfo(
+  clientInfo: McpConnectionClientInfo | undefined
+): McpConnectionClientInfo {
   return {
     name: clientInfo?.name?.trim() || 'ZuraAI',
     version: clientInfo?.version?.trim() || 'unknown',
   }
 }
 
-
 function parseInitializeResult(result: unknown): McpInitializeResult {
-  if (!isRecord(result) || typeof result.protocolVersion !== 'string' || !result.protocolVersion.trim()) {
+  if (
+    !isRecord(result) ||
+    typeof result.protocolVersion !== 'string' ||
+    !result.protocolVersion.trim()
+  ) {
     throw new Error('MCP initialize response is invalid')
   }
 
@@ -610,9 +629,7 @@ function parseListToolsResult(result: unknown): McpListToolsResult {
     throw new Error('MCP tools/list response is invalid')
   }
 
-  const tools = Array.isArray(result.tools)
-    ? result.tools.filter(isMcpToolManifest)
-    : []
+  const tools = Array.isArray(result.tools) ? result.tools.filter(isMcpToolManifest) : []
 
   return {
     ...result,
@@ -620,7 +637,9 @@ function parseListToolsResult(result: unknown): McpListToolsResult {
   }
 }
 
-function parseServerCapabilities(capabilities: McpInitializeResult['capabilities']): McpServerCapabilities {
+function parseServerCapabilities(
+  capabilities: McpInitializeResult['capabilities']
+): McpServerCapabilities {
   return {
     tools: isRecord(capabilities?.tools),
     resources: isRecord(capabilities?.resources),
@@ -663,17 +682,26 @@ function isMcpPromptManifest(value: unknown): value is McpPromptManifest {
   return isRecord(value) && typeof value.name === 'string' && value.name.trim().length > 0
 }
 
-function isMcpResourceContentItem(value: unknown): value is McpResourceReadResult['contents'][number] {
+function isMcpResourceContentItem(
+  value: unknown
+): value is McpResourceReadResult['contents'][number] {
   return (
     isRecord(value) &&
     typeof value.uri === 'string' &&
     value.uri.trim().length > 0 &&
-    (typeof value.text === 'string' || typeof value.blob === 'string' || value.text == null || value.blob == null)
+    (typeof value.text === 'string' ||
+      typeof value.blob === 'string' ||
+      value.text == null ||
+      value.blob == null)
   )
 }
 
 function isMcpPromptMessage(value: unknown): value is McpPromptResult['messages'][number] {
-  return isRecord(value) && typeof value.role === 'string' && Object.prototype.hasOwnProperty.call(value, 'content')
+  return (
+    isRecord(value) &&
+    typeof value.role === 'string' &&
+    Object.prototype.hasOwnProperty.call(value, 'content')
+  )
 }
 
 function nonEmptyString(value: unknown): string | undefined {

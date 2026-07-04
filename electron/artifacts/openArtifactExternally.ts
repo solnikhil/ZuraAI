@@ -96,7 +96,9 @@ async function openWithMacOSAppChooser(filePath: string): Promise<OpenArtifactEx
   return { ok: true, path: filePath }
 }
 
-export async function openArtifactExternally(payload: unknown): Promise<OpenArtifactExternallyResult> {
+export async function openArtifactExternally(
+  payload: unknown
+): Promise<OpenArtifactExternallyResult> {
   const normalized = normalizePayload(payload)
   if (!normalized) {
     return { ok: false, error: 'Invalid artifact open request.' }

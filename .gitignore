@@ -83,6 +83,9 @@ $RECYCLE.BIN/
 
 # CLI files
 .opencode/
+.commandcode/
+agent-tools/
+terminals/
 
 
 # Tools

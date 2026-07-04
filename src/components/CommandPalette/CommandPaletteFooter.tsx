@@ -85,25 +85,25 @@ function getFooterStyle(size: CommandPaletteSize): React.CSSProperties {
 }
 
 export default function CommandPaletteFooter({ size = 'medium' }: { size?: CommandPaletteSize }) {
-    return (
-        <div style={getFooterStyle(size)} aria-hidden="true">
-            <span style={getGroupStyle(size)}>
-                <kbd style={getKeyBadgeStyle(size)}>↑↓</kbd>
-                <span style={getLabelStyle(size)}>Navigate</span>
-            </span>
-            <span style={getGroupStyle(size)}>
-                <kbd style={getKeyBadgeStyle(size)}>↵</kbd>
-                <span style={getLabelStyle(size)}>Select</span>
-            </span>
-            <span style={getGroupStyle(size)}>
-                <kbd style={getKeyBadgeStyle(size)}>Shift</kbd>
-                <kbd style={getKeyBadgeStyle(size)}>↵</kbd>
-                <span style={getLabelStyle(size)}>Send</span>
-            </span>
-            <span style={getGroupStyle(size)}>
-                <kbd style={getKeyBadgeStyle(size)}>Esc</kbd>
-                <span style={getLabelStyle(size)}>Close</span>
-            </span>
-        </div>
-    )
+  return (
+    <div style={getFooterStyle(size)} aria-hidden="true">
+      <span style={getGroupStyle(size)}>
+        <kbd style={getKeyBadgeStyle(size)}>↑↓</kbd>
+        <span style={getLabelStyle(size)}>Navigate</span>
+      </span>
+      <span style={getGroupStyle(size)}>
+        <kbd style={getKeyBadgeStyle(size)}>↵</kbd>
+        <span style={getLabelStyle(size)}>Select</span>
+      </span>
+      <span style={getGroupStyle(size)}>
+        <kbd style={getKeyBadgeStyle(size)}>Shift</kbd>
+        <kbd style={getKeyBadgeStyle(size)}>↵</kbd>
+        <span style={getLabelStyle(size)}>Send</span>
+      </span>
+      <span style={getGroupStyle(size)}>
+        <kbd style={getKeyBadgeStyle(size)}>Esc</kbd>
+        <span style={getLabelStyle(size)}>Close</span>
+      </span>
+    </div>
+  )
 }

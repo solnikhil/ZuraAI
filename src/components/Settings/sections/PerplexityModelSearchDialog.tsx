@@ -80,7 +80,11 @@ export function PerplexityModelSearchDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="provider-catalog-dialog p-0" showCloseButton={false} overlayClassName="catalog-modal-backdrop">
+      <DialogContent
+        className="provider-catalog-dialog p-0"
+        showCloseButton={false}
+        overlayClassName="catalog-modal-backdrop"
+      >
         <CatalogHeader
           provider="perplexity"
           title="Add Model from Perplexity Catalog"

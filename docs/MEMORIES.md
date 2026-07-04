@@ -57,13 +57,13 @@ Both default to `true`. Manual memory management always works as long as
 
 ```ts
 interface Memory {
-  id: string                  // uuid
-  content: string             // ≤ 1000 chars
+  id: string // uuid
+  content: string // ≤ 1000 chars
   createdAt: number
   updatedAt: number
   source: 'user' | 'model'
   scope: { type: 'global' } | { type: 'project'; projectId: string }
-  sessionId?: string          // chat where the model saved it
+  sessionId?: string // chat where the model saved it
 }
 ```
 
@@ -112,7 +112,7 @@ They can be layered in later without breaking changes:
 
 All memories are written to a single JSON file under
 `app.getPath('userData')/memory-index.json` and never transmitted anywhere on
-their own. Memories *are* injected into the system prompt of every chat
+their own. Memories _are_ injected into the system prompt of every chat
 request, which means they are sent to whichever AI provider the user is
 chatting with. This is the same trust model as the existing system prompt and
 chat history. Users can review, edit, or wipe the entire store from the

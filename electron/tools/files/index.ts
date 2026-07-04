@@ -42,13 +42,20 @@ export async function executeFileWrite(args: unknown): Promise<ToolResult> {
     }
     await fs.mkdir(path.dirname(filePath), { recursive: true })
     await fs.writeFile(filePath, content, 'utf8')
-    return { success: true, data: { path: filePath, bytesWritten: Buffer.byteLength(content, 'utf8') } }
+    return {
+      success: true,
+      data: { path: filePath, bytesWritten: Buffer.byteLength(content, 'utf8') },
+    }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : 'file_write failed.' }
   }
 }
 
-async function walkSearch(root: string, query: string, results: Array<{ path: string; type: string }>): Promise<void> {
+async function walkSearch(
+  root: string,
+  query: string,
+  results: Array<{ path: string; type: string }>
+): Promise<void> {
   if (results.length >= MAX_SEARCH_RESULTS) return
   const entries = await fs.readdir(root, { withFileTypes: true }).catch(() => [])
   for (const entry of entries) {
@@ -86,6 +93,9 @@ export async function executeFileMove(args: unknown): Promise<ToolResult> {
     await fs.rename(source, destination)
     return { success: true, data: { source, destination } }
   } catch (error) {
-    return { success: false, error: truncateOutput(error instanceof Error ? error.message : 'file_move failed.') }
+    return {
+      success: false,
+      error: truncateOutput(error instanceof Error ? error.message : 'file_move failed.'),
+    }
   }
 }

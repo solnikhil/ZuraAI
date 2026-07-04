@@ -1,9 +1,6 @@
-export const ASSISTANT_PERSONALITY_IDS = [
-  'professional-engineer',
-  'gen-z',
-] as const
+export const ASSISTANT_PERSONALITY_IDS = ['professional-engineer', 'gen-z'] as const
 
-export type AssistantPersonalityId = typeof ASSISTANT_PERSONALITY_IDS[number]
+export type AssistantPersonalityId = (typeof ASSISTANT_PERSONALITY_IDS)[number]
 
 export interface AssistantPersonality {
   id: AssistantPersonalityId
@@ -42,17 +39,13 @@ const ASSISTANT_PERSONALITY_MAP = new Map(
   ASSISTANT_PERSONALITIES.map((personality) => [personality.id, personality])
 )
 
-export function normalizeAssistantPersonalityId(
-  value: unknown
-): AssistantPersonalityId {
+export function normalizeAssistantPersonalityId(value: unknown): AssistantPersonalityId {
   return typeof value === 'string' && ASSISTANT_PERSONALITY_MAP.has(value as AssistantPersonalityId)
     ? (value as AssistantPersonalityId)
     : DEFAULT_ASSISTANT_PERSONALITY
 }
 
-export function getAssistantPersonality(
-  value: unknown
-): AssistantPersonality {
+export function getAssistantPersonality(value: unknown): AssistantPersonality {
   return ASSISTANT_PERSONALITY_MAP.get(normalizeAssistantPersonalityId(value))!
 }
 

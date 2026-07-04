@@ -43,9 +43,7 @@ const emptyGroups: GroupedModels = {
   perplexity: [],
 }
 
-function renderOpen(
-  props: Partial<React.ComponentProps<typeof ModelSelectorDropdown>> = {}
-) {
+function renderOpen(props: Partial<React.ComponentProps<typeof ModelSelectorDropdown>> = {}) {
   const onModelSelect = props.onModelSelect ?? vi.fn()
   const onReasoningEffortChange = props.onReasoningEffortChange ?? vi.fn()
   render(
@@ -122,7 +120,9 @@ describe('ModelSelectorDropdown', () => {
 
     const modelRow = screen.getByText('DeepSeek V4 Pro')
     const reasoningRow = screen.getByText('Medium')
-    expect(modelRow.compareDocumentPosition(reasoningRow) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(
+      modelRow.compareDocumentPosition(reasoningRow) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
   })
 
   it('shows the reasoning effort submenu and allows selecting None when reasoning is off', () => {
@@ -170,5 +170,3 @@ describe('ModelSelectorDropdown', () => {
     expect(onReasoningEffortChange).toHaveBeenCalledWith('xhigh')
   })
 })
-
-

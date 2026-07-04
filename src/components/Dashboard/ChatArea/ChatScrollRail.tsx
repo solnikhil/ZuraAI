@@ -1,9 +1,7 @@
 import React, { useMemo, useState } from 'react'
 
-import {
-  useMessageScroller,
-  useMessageScrollerVisibility,
-} from '@/components/ui/message-scroller'
+import { useMessageScroller, useMessageScrollerVisibility } from '@/components/ui/message-scroller'
+import { WithTooltip } from '@/components/ui/WithTooltip'
 
 export type NavigationRailMessage = {
   id: string
@@ -31,10 +29,7 @@ export function ChatScrollRail({ messages }: { messages: NavigationRailMessage[]
     if (markerSlotHeight <= 0) return
 
     const pointerY = Math.min(rect.height, Math.max(0, event.clientY - rect.top))
-    const nextIndex = Math.min(
-      messages.length - 1,
-      Math.max(0, pointerY / markerSlotHeight - 0.5)
-    )
+    const nextIndex = Math.min(messages.length - 1, Math.max(0, pointerY / markerSlotHeight - 0.5))
     setRailHover({
       index: nextIndex,
       yPercent: (pointerY / rect.height) * 100,
@@ -68,22 +63,24 @@ export function ChatScrollRail({ messages }: { messages: NavigationRailMessage[]
           } as React.CSSProperties
 
           return (
-            <button
-              key={message.id}
-              type="button"
-              className={[
-                'chat-scroll-rail__marker',
-                isVisible ? 'is-visible' : '',
-                isCurrent ? 'is-current' : '',
-                message.role === 'user' ? 'is-user' : '',
-                message.role === 'assistant' ? 'is-assistant' : '',
-              ].filter(Boolean).join(' ')}
-              aria-current={isCurrent ? 'location' : undefined}
-              aria-label={label}
-              title={label}
-              style={markerStyle}
-              onClick={() => scrollToMessage(message.id, { block: 'start', behavior: 'smooth' })}
-            />
+            <WithTooltip key={message.id} tooltip={label}>
+              <button
+                type="button"
+                className={[
+                  'chat-scroll-rail__marker',
+                  isVisible ? 'is-visible' : '',
+                  isCurrent ? 'is-current' : '',
+                  message.role === 'user' ? 'is-user' : '',
+                  message.role === 'assistant' ? 'is-assistant' : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
+                aria-current={isCurrent ? 'location' : undefined}
+                aria-label={label}
+                style={markerStyle}
+                onClick={() => scrollToMessage(message.id, { block: 'start', behavior: 'smooth' })}
+              />
+            </WithTooltip>
           )
         })}
       </div>

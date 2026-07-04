@@ -5,10 +5,7 @@ import {
   type McpConfigValueInputPayload,
   type McpServerInputPayload,
 } from '../../src/mcp/draft'
-import {
-  loadMcpCatalogue,
-  type McpCatalogueEntry,
-} from '../../src/mcp/catalogue'
+import { loadMcpCatalogue, type McpCatalogueEntry } from '../../src/mcp/catalogue'
 import type {
   McpAgentAddApproveResult,
   McpAgentAddCustomConfig,
@@ -200,7 +197,8 @@ function resolveCatalogueAddRequest(
       mode: 'catalogue',
       serverName: payload.name || entry.title || entry.name,
       sourceLabel: entry.sourceLabel,
-      reason: input.reason?.trim() || `Add ${entry.title || entry.name} from the bundled MCP catalogue.`,
+      reason:
+        input.reason?.trim() || `Add ${entry.title || entry.name} from the bundled MCP catalogue.`,
       transport: payload.transport,
       command: payload.command,
       args: payload.args,
@@ -227,16 +225,20 @@ function resolveCustomAddRequest(
   const transport = normalizeTransport(custom.transport)
   const name = normalizeString(custom.name) || normalizeString(input.query) || 'Custom MCP Server'
   const now = new Date().toISOString()
-  const envPayload: McpConfigValueInputPayload[] = normalizeSecretNames(custom.env).map((envName) => ({
-    name: envName,
-    valueSource: 'secret',
-    secretStorageKind: 'env',
-  }))
-  const headerPayload: McpConfigValueInputPayload[] = normalizeSecretNames(custom.headers).map((headerName) => ({
-    name: headerName,
-    valueSource: 'secret',
-    secretStorageKind: 'header',
-  }))
+  const envPayload: McpConfigValueInputPayload[] = normalizeSecretNames(custom.env).map(
+    (envName) => ({
+      name: envName,
+      valueSource: 'secret',
+      secretStorageKind: 'env',
+    })
+  )
+  const headerPayload: McpConfigValueInputPayload[] = normalizeSecretNames(custom.headers).map(
+    (headerName) => ({
+      name: headerName,
+      valueSource: 'secret',
+      secretStorageKind: 'header',
+    })
+  )
 
   const rawServer = {
     id: `agent-mcp-${randomUUID()}`,
@@ -342,7 +344,7 @@ function parseRequestInput(value: unknown): McpAgentAddRequestInput {
     query: normalizeString(value.query),
     catalogueEntryId: normalizeString(value.catalogueEntryId),
     reason: normalizeString(value.reason),
-    custom: isRecord(value.custom) ? value.custom as McpAgentAddCustomConfig : undefined,
+    custom: isRecord(value.custom) ? (value.custom as McpAgentAddCustomConfig) : undefined,
   }
 }
 
@@ -394,7 +396,11 @@ function normalizeTransport(value: unknown): McpTransportType {
   if (value === 'stdio' || value === 'sse' || value === 'websocket') {
     return value
   }
-  if (typeof value === 'string' && value.trim() && !SUPPORTED_TRANSPORTS.has(value as McpTransportType)) {
+  if (
+    typeof value === 'string' &&
+    value.trim() &&
+    !SUPPORTED_TRANSPORTS.has(value as McpTransportType)
+  ) {
     throw new Error(`Unsupported MCP transport: ${value}`)
   }
   return 'stdio'
@@ -414,9 +420,7 @@ function inferAuthModeFromSecrets(secretRequirements: string[]): McpAuthMode {
 
 function normalizeSecretNames(values: unknown): string[] {
   if (!Array.isArray(values)) return []
-  return [...new Set(values
-    .map((value) => normalizeString(value))
-    .filter(Boolean))]
+  return [...new Set(values.map((value) => normalizeString(value)).filter(Boolean))]
 }
 
 function normalizeStringArray(values: unknown): string[] {

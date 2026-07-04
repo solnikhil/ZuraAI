@@ -192,7 +192,14 @@ function buildBaseSuggestions(
       id: 'go-settings-extensions',
       title: 'Extensions Settings',
       subtitle: 'Built-in extensions, artifacts, and modes',
-      keywords: ['extensions', 'skills', 'artifacts', 'web research', 'research mode', 'capabilities'],
+      keywords: [
+        'extensions',
+        'skills',
+        'artifacts',
+        'web research',
+        'research mode',
+        'capabilities',
+      ],
       action: { type: 'open_settings_section', section: 'extensions' },
     },
     {

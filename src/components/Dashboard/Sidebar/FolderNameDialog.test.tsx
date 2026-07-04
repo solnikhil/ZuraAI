@@ -12,12 +12,7 @@ describe('FolderNameDialog', () => {
 
   it('opens folder settings from the gear button', () => {
     render(
-      <FolderNameDialog
-        open={true}
-        mode="create"
-        onOpenChange={vi.fn()}
-        onConfirm={vi.fn()}
-      />
+      <FolderNameDialog open={true} mode="create" onOpenChange={vi.fn()} onConfirm={vi.fn()} />
     )
 
     expect(screen.queryByText('Choose memory access')).not.toBeInTheDocument()
@@ -33,12 +28,7 @@ describe('FolderNameDialog', () => {
 
   it('opens folder settings from keyboard activation', () => {
     render(
-      <FolderNameDialog
-        open={true}
-        mode="create"
-        onOpenChange={vi.fn()}
-        onConfirm={vi.fn()}
-      />
+      <FolderNameDialog open={true} mode="create" onOpenChange={vi.fn()} onConfirm={vi.fn()} />
     )
 
     fireEvent.keyDown(screen.getByRole('button', { name: /folder settings/i }), {
@@ -52,12 +42,7 @@ describe('FolderNameDialog', () => {
     vi.useFakeTimers()
 
     render(
-      <FolderNameDialog
-        open={true}
-        mode="create"
-        onOpenChange={vi.fn()}
-        onConfirm={vi.fn()}
-      />
+      <FolderNameDialog open={true} mode="create" onOpenChange={vi.fn()} onConfirm={vi.fn()} />
     )
 
     const trigger = screen.getByRole('button', { name: /folder settings/i })
@@ -84,12 +69,7 @@ describe('FolderNameDialog', () => {
     vi.useFakeTimers()
 
     render(
-      <FolderNameDialog
-        open={true}
-        mode="create"
-        onOpenChange={vi.fn()}
-        onConfirm={vi.fn()}
-      />
+      <FolderNameDialog open={true} mode="create" onOpenChange={vi.fn()} onConfirm={vi.fn()} />
     )
 
     fireEvent.pointerDown(screen.getByRole('button', { name: /folder settings/i }))

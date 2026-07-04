@@ -38,14 +38,15 @@ function normalizeChildren(input: unknown, parentId: string): FileTreeNode[] {
       const id = reserveUniqueId(safeString(raw.id) || joinPath(parentId, name), usedIds)
       const children = normalizeChildren(raw.children, id)
       const explicitType = raw.type === 'file' || raw.type === 'folder' ? raw.type : undefined
-      const inferredType: FileTreeNode['type'] = explicitType || (children.length > 0 ? 'folder' : 'file')
+      const inferredType: FileTreeNode['type'] =
+        explicitType || (children.length > 0 ? 'folder' : 'file')
 
       const node: FileTreeNode = {
         id,
         name,
         ...(description ? { description } : {}),
         type: inferredType,
-        ...(children.length > 0 ? { children } : {})
+        ...(children.length > 0 ? { children } : {}),
       }
       return node
     })
@@ -59,8 +60,14 @@ export function parseZuraTreeJson(content: string): FileTreeNode[] {
   const parsed = JSON.parse(trimmed)
   if (Array.isArray(parsed)) return normalizeChildren(parsed, '')
   if (parsed && typeof parsed === 'object') {
-    if (Array.isArray((parsed as Record<string, unknown>).nodes)) return normalizeChildren((parsed as Record<string, unknown>).nodes, '')
-    const name = safeString((parsed as Record<string, unknown>).name || (parsed as Record<string, unknown>).label || (parsed as Record<string, unknown>).title) || 'root'
+    if (Array.isArray((parsed as Record<string, unknown>).nodes))
+      return normalizeChildren((parsed as Record<string, unknown>).nodes, '')
+    const name =
+      safeString(
+        (parsed as Record<string, unknown>).name ||
+          (parsed as Record<string, unknown>).label ||
+          (parsed as Record<string, unknown>).title
+      ) || 'root'
     const rootId = safeString((parsed as Record<string, unknown>).id) || name
     const children = normalizeChildren((parsed as Record<string, unknown>).children, rootId)
     if (children.length > 0) {
@@ -110,7 +117,9 @@ function parseTreeLine(line: string): ParsedLine | null {
     }
 
     // Support both standard tree markers (──) and simple markers (─)
-    const marker = rest.match(/^(├──\s*|└──\s*|├─\s*|└─\s*|\+--\s*|\|--\s*|\|[-─—]{1,}\s*|\+[-─—]{1,}\s*|├[-─—]{1,}\s*|└[-─—]{1,}\s*)/)?.[0]
+    const marker = rest.match(
+      /^(├──\s*|└──\s*|├─\s*|└─\s*|\+--\s*|\|--\s*|\|[-─—]{1,}\s*|\+[-─—]{1,}\s*|├[-─—]{1,}\s*|└[-─—]{1,}\s*)/
+    )?.[0]
     if (marker) {
       // Branch marker indicates one level under the current prefix.
       depth += 1
@@ -131,7 +140,12 @@ function parseTreeLine(line: string): ParsedLine | null {
   const name = rawName.replace(/\/+$/, '')
   if (!name) return null
 
-  return { depth, name, ...(description ? { description } : {}), ...(folderHint ? { folderHint } : {}) }
+  return {
+    depth,
+    name,
+    ...(description ? { description } : {}),
+    ...(folderHint ? { folderHint } : {}),
+  }
 }
 
 export function parseTreeText(content: string): FileTreeNode[] {
@@ -146,7 +160,7 @@ export function parseTreeText(content: string): FileTreeNode[] {
   let startIdx = 0
   const firstLine = lines[0]!
   const firstLineHasTreeMarkers = /[├└│┌┐┤┴┼]/.test(firstLine) || /^\s*[|+]\s*[-─—]/.test(firstLine)
-  
+
   if (!firstLineHasTreeMarkers && firstLine.includes('/')) {
     // First line looks like a root folder name
     const { name, description: _description } = splitInlineComment(firstLine.trim())
@@ -197,7 +211,7 @@ export function parseTreeText(content: string): FileTreeNode[] {
       name,
       ...(description ? { description } : {}),
       type: hasChildren || folderHint ? 'folder' : 'file',
-      ...(hasChildren ? { children: [] as FileTreeNode[] } : {})
+      ...(hasChildren ? { children: [] as FileTreeNode[] } : {}),
     }
 
     if (parent) {
@@ -212,12 +226,14 @@ export function parseTreeText(content: string): FileTreeNode[] {
 
   // If we have a root name, wrap all nodes under it
   if (rootName && root.length > 0) {
-    return [{
-      id: rootName,
-      name: rootName,
-      type: 'folder',
-      children: root
-    }]
+    return [
+      {
+        id: rootName,
+        name: rootName,
+        type: 'folder',
+        children: root,
+      },
+    ]
   }
 
   return root

@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { normalizeClickArgs, normalizeCursorArgs, normalizeScrollArgs } from './computer-use/normalize'
+import {
+  normalizeClickArgs,
+  normalizeCursorArgs,
+  normalizeScrollArgs,
+} from './computer-use/normalize'
 
 describe('computer-use argument normalization', () => {
   it('accepts numeric strings for click coordinates', () => {
@@ -29,7 +33,9 @@ describe('computer-use argument normalization', () => {
       amount: 4,
     })
     expect(normalizeCursorArgs({ x: '30', y: '40' }).args).toEqual({ x: 30, y: 40 })
-    expect(() => normalizeScrollArgs({ x: 10, y: Number.NaN, direction: 'down' })).toThrow('Invalid y coordinate')
+    expect(() => normalizeScrollArgs({ x: 10, y: Number.NaN, direction: 'down' })).toThrow(
+      'Invalid y coordinate'
+    )
   })
 })
 
@@ -45,9 +51,8 @@ describe('tool routing through current-desktop Computer Use', () => {
     handler: (event: unknown, toolName: string, args: unknown) => Promise<unknown>
     handlers: Record<string, ReturnType<typeof vi.fn>>
   }> {
-    let handler:
-      | ((event: unknown, toolName: string, args: unknown) => Promise<unknown>)
-      | null = null
+    let handler: ((event: unknown, toolName: string, args: unknown) => Promise<unknown>) | null =
+      null
 
     vi.doMock('electron', () => ({
       app: {
@@ -80,7 +85,10 @@ describe('tool routing through current-desktop Computer Use', () => {
     const nativeMocks = {
       executeWindowsUiaSnapshot: vi.fn(async () => ({ success: true, data: { windows: [] } })),
       executeWindowsUiaInvoke: vi.fn(async () => ({ success: false, error: 'approval required' })),
-      executeWindowsUiaSetValue: vi.fn(async () => ({ success: false, error: 'approval required' })),
+      executeWindowsUiaSetValue: vi.fn(async () => ({
+        success: false,
+        error: 'approval required',
+      })),
       executeWindowsUiaSelect: vi.fn(async () => ({ success: false, error: 'approval required' })),
       executeSystemShell: vi.fn(async () => ({ success: false, error: 'approval required' })),
       executeFileRead: vi.fn(async () => ({ success: true, data: { content: 'ok' } })),
@@ -98,7 +106,10 @@ describe('tool routing through current-desktop Computer Use', () => {
       executeWindowClose: vi.fn(async () => ({ success: false, error: 'approval required' })),
       executeSystemActiveWindow: vi.fn(async () => ({ success: true, data: { title: 'Demo' } })),
       executeSystemStatus: vi.fn(async () => ({ success: true, data: { disks: [] } })),
-      executeSystemSettingsOpen: vi.fn(async () => ({ success: false, error: 'approval required' })),
+      executeSystemSettingsOpen: vi.fn(async () => ({
+        success: false,
+        error: 'approval required',
+      })),
       executeSystemOpenPath: vi.fn(async () => ({ success: false, error: 'approval required' })),
       executeWindowSnap: vi.fn(async () => ({ success: false, error: 'approval required' })),
     }
@@ -136,7 +147,10 @@ describe('tool routing through current-desktop Computer Use', () => {
     tools.registerToolHandlers()
 
     expect(handler).not.toBeNull()
-    return { handler: handler as NonNullable<typeof handler>, handlers: { ...computerUse, ...nativeMocks } }
+    return {
+      handler: handler as NonNullable<typeof handler>,
+      handlers: { ...computerUse, ...nativeMocks },
+    }
   }
 
   it('routes computer_screenshot directly to the current-desktop handler', async () => {

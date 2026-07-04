@@ -60,9 +60,7 @@ function getTimelineSequence(root: HTMLElement): string[] {
   ).map((node) => node.getAttribute('data-testid') || '')
 }
 
-type StreamingReplayStep = Parameters<
-  ReturnType<typeof useStreamingActions>['updateStreaming']
->[0]
+type StreamingReplayStep = Parameters<ReturnType<typeof useStreamingActions>['updateStreaming']>[0]
 
 function StreamingReplayHarness({ steps }: { steps: StreamingReplayStep[] }) {
   const { startStreaming, updateStreaming } = useStreamingActions()

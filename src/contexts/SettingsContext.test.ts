@@ -114,23 +114,29 @@ describe('SettingsContext Provider Integration', () => {
       expect(missing.extensions.artifacts.enabled).toBe(false)
       expect(missing.skills).toEqual(missing.extensions)
 
-      const legacySkills = normalizeStoredSettings(JSON.stringify({
-        skills: { artifacts: { enabled: false }, web_research: { enabled: true } },
-      }))
+      const legacySkills = normalizeStoredSettings(
+        JSON.stringify({
+          skills: { artifacts: { enabled: false }, web_research: { enabled: true } },
+        })
+      )
       expect(legacySkills.extensions.artifacts.enabled).toBe(false)
       expect(legacySkills.skills).toEqual(legacySkills.extensions)
 
-      const explicitExtensions = normalizeStoredSettings(JSON.stringify({
-        skills: { artifacts: { enabled: false } },
-        extensions: { artifacts: { enabled: true }, web_research: { enabled: false } },
-      }))
+      const explicitExtensions = normalizeStoredSettings(
+        JSON.stringify({
+          skills: { artifacts: { enabled: false } },
+          extensions: { artifacts: { enabled: true }, web_research: { enabled: false } },
+        })
+      )
       expect(explicitExtensions.extensions.artifacts.enabled).toBe(false)
       expect(explicitExtensions.extensions.web_research.enabled).toBe(false)
 
-      const versionedExtensions = normalizeStoredSettings(JSON.stringify({
-        extensionDefaultsVersion: 2,
-        extensions: { artifacts: { enabled: true }, web_research: { enabled: false } },
-      }))
+      const versionedExtensions = normalizeStoredSettings(
+        JSON.stringify({
+          extensionDefaultsVersion: 2,
+          extensions: { artifacts: { enabled: true }, web_research: { enabled: false } },
+        })
+      )
       expect(versionedExtensions.extensions.artifacts.enabled).toBe(true)
       expect(versionedExtensions.extensionDefaultsVersion).toBe(2)
     })
@@ -141,7 +147,9 @@ describe('SettingsContext Provider Integration', () => {
 Rules:
 - Return ONLY the title text. No quotes, no prefix, no explanation.`
 
-      const normalized = normalizeStoredSettings(JSON.stringify({ titleGenerationPrompt: legacyPrompt }))
+      const normalized = normalizeStoredSettings(
+        JSON.stringify({ titleGenerationPrompt: legacyPrompt })
+      )
 
       expect(normalized.titleGenerationPrompt).toContain('Hard bans:')
       expect(normalized.titleGenerationPrompt).toContain('Do not explain your reasoning.')
@@ -440,14 +448,22 @@ SEARCH STRATEGY:
 
     it('clears legacy pre-seeded Fireworks model defaults from persisted settings', () => {
       const legacyFireworksSeededModels = [
-        { code: 'accounts/fireworks/models/deepseek-v3p2', displayName: 'DeepSeek V3.2', enabled: true },
+        {
+          code: 'accounts/fireworks/models/deepseek-v3p2',
+          displayName: 'DeepSeek V3.2',
+          enabled: true,
+        },
         { code: 'accounts/fireworks/models/kimi-k2p5', displayName: 'Kimi K2.5', enabled: true },
         {
           code: 'accounts/fireworks/routers/kimi-k2p5-turbo',
           displayName: 'Kimi K2.5 Turbo',
           enabled: true,
         },
-        { code: 'accounts/fireworks/models/deepseek-r1', displayName: 'DeepSeek R1', enabled: true },
+        {
+          code: 'accounts/fireworks/models/deepseek-r1',
+          displayName: 'DeepSeek R1',
+          enabled: true,
+        },
         {
           code: 'accounts/fireworks/models/llama-v3p1-405b-instruct',
           displayName: 'Llama 3.1 405B',

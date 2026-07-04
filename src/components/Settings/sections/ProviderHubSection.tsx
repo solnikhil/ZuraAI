@@ -545,25 +545,26 @@ export function ProviderHubSection({
       }
     ).providerProxy
 
-    const response = providerProxy?.fetchOpencode && canUseOpencodeProxy
-      ? await providerProxy.fetchOpencode({
-          url,
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body,
-        })
-      : await fetch(url, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body,
-          signal,
-        })
+    const response =
+      providerProxy?.fetchOpencode && canUseOpencodeProxy
+        ? await providerProxy.fetchOpencode({
+            url,
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              'Content-Type': 'application/json',
+            },
+            body,
+          })
+        : await fetch(url, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              'Content-Type': 'application/json',
+            },
+            body,
+            signal,
+          })
 
     if (!response.ok && response.status !== 400) {
       throw new Error(`OpenCode Go check failed (${response.status}).`)
@@ -1674,10 +1675,7 @@ function ProviderCatalogStats({
     { id: 'disabled', label: 'Disabled', value: stats.disabled },
   ]
 
-  const summaryParts = [
-    `${stats.configured}/${stats.total} configured`,
-    `${stats.active} active`,
-  ]
+  const summaryParts = [`${stats.configured}/${stats.total} configured`, `${stats.active} active`]
   if (stats.needsSetup > 0) {
     summaryParts.push(`${stats.needsSetup} need setup`)
   }
@@ -1693,7 +1691,9 @@ function ProviderCatalogStats({
             key={chip.id}
             type="button"
             className={`provider-hub-stat ${filter === chip.id ? 'is-active' : ''}`}
-            onClick={() => onFilterChange(filter === chip.id && chip.id !== 'all' ? 'all' : chip.id)}
+            onClick={() =>
+              onFilterChange(filter === chip.id && chip.id !== 'all' ? 'all' : chip.id)
+            }
             aria-pressed={filter === chip.id}
           >
             <span className="provider-hub-stat__label">{chip.label}</span>
@@ -1856,7 +1856,10 @@ function ProviderCatalogRow({
               <MoreVertical size={15} />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="settings-menu-surface zura-menu-surface--compact">
+          <DropdownMenuContent
+            align="end"
+            className="settings-menu-surface zura-menu-surface--compact"
+          >
             <DropdownMenuItem className="zura-menu-item--compact" onClick={onOpen}>
               Configure
             </DropdownMenuItem>
@@ -2049,7 +2052,10 @@ function ModelGroup({
                     <MoreVertical size={14} />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="settings-menu-surface zura-menu-surface--compact">
+                <DropdownMenuContent
+                  align="end"
+                  className="settings-menu-surface zura-menu-surface--compact"
+                >
                   <DropdownMenuItem
                     className="zura-menu-item--compact"
                     onSelect={(e) => {
@@ -2175,9 +2181,7 @@ function SearchApiSection({
               api.key === 'tavily'
                 ? `Search speed: ${getDepthSummary(tavilySearchDepthPreference)}`
                 : null
-            const statusLine = hasKey
-              ? speedSummary || 'Key set'
-              : 'API key not set'
+            const statusLine = hasKey ? speedSummary || 'Key set' : 'API key not set'
 
             return (
               <div
@@ -2210,7 +2214,9 @@ function SearchApiSection({
                     <span
                       className={`provider-catalog-row__status provider-catalog-row__status--${setupState}`}
                     >
-                      {hasKey && <span className="provider-catalog-row__status-dot" aria-hidden="true" />}
+                      {hasKey && (
+                        <span className="provider-catalog-row__status-dot" aria-hidden="true" />
+                      )}
                       {statusLine}
                     </span>
                   </span>
@@ -2252,7 +2258,10 @@ function SearchApiSection({
                       align="end"
                       className="settings-menu-surface zura-menu-surface--compact"
                     >
-                      <DropdownMenuItem className="zura-menu-item--compact" onClick={() => onCardClick(api)}>
+                      <DropdownMenuItem
+                        className="zura-menu-item--compact"
+                        onClick={() => onCardClick(api)}
+                      >
                         Configure
                       </DropdownMenuItem>
                       {api.learnMoreUrl ? (

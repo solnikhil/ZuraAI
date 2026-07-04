@@ -40,9 +40,7 @@ export function ComposerDraftProvider({ children }: { children: ReactNode }) {
   )
 
   return (
-    <ComposerDraftContext.Provider value={contextValue}>
-      {children}
-    </ComposerDraftContext.Provider>
+    <ComposerDraftContext.Provider value={contextValue}>{children}</ComposerDraftContext.Provider>
   )
 }
 

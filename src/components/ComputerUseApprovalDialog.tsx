@@ -17,18 +17,26 @@ import type { PendingComputerAction } from '@/electron/types'
 
 function describeAction(action: string, args: Record<string, unknown>): string {
   switch (action) {
-    case 'click': return `Click at (${args.x}, ${args.y})${args.button && args.button !== 'left' ? ` [${args.button}]` : ''}`
-    case 'type': return `Type: "${String(args.text ?? '').slice(0, 60)}${String(args.text ?? '').length > 60 ? '…' : ''}"`
-    case 'key': return `Press: ${args.key}`
-    case 'scroll': return `Scroll ${args.direction} at (${args.x}, ${args.y})`
-    case 'cursor_position': return `Move cursor to (${args.x}, ${args.y})`
-    default: return action
+    case 'click':
+      return `Click at (${args.x}, ${args.y})${args.button && args.button !== 'left' ? ` [${args.button}]` : ''}`
+    case 'type':
+      return `Type: "${String(args.text ?? '').slice(0, 60)}${String(args.text ?? '').length > 60 ? '…' : ''}"`
+    case 'key':
+      return `Press: ${args.key}`
+    case 'scroll':
+      return `Scroll ${args.direction} at (${args.x}, ${args.y})`
+    case 'cursor_position':
+      return `Move cursor to (${args.x}, ${args.y})`
+    default:
+      return action
   }
 }
 
 function actionIcon(action: string) {
-  if (action === 'type' || action === 'key') return <Keyboard className="h-5 w-5 text-emerald-500" />
-  if (action === 'click' || action === 'cursor_position') return <MousePointer className="h-5 w-5 text-emerald-500" />
+  if (action === 'type' || action === 'key')
+    return <Keyboard className="h-5 w-5 text-emerald-500" />
+  if (action === 'click' || action === 'cursor_position')
+    return <MousePointer className="h-5 w-5 text-emerald-500" />
   return <Monitor className="h-5 w-5 text-emerald-500" />
 }
 
@@ -60,18 +68,21 @@ export function ComputerUseApprovalDialog(): React.ReactElement | null {
     return sorted[0] ?? null
   }, [pending])
 
-  const handleResolve = useCallback(async (approved: boolean) => {
-    if (!request || !window.computerUse?.resolveApproval || resolvedRef.current) return
-    resolvedRef.current = true
-    setIsResolving(true)
-    try {
-      await window.computerUse.resolveApproval(request.id, approved)
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : String(error), 'error')
-    } finally {
-      setIsResolving(false)
-    }
-  }, [request, showToast])
+  const handleResolve = useCallback(
+    async (approved: boolean) => {
+      if (!request || !window.computerUse?.resolveApproval || resolvedRef.current) return
+      resolvedRef.current = true
+      setIsResolving(true)
+      try {
+        await window.computerUse.resolveApproval(request.id, approved)
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : String(error), 'error')
+      } finally {
+        setIsResolving(false)
+      }
+    },
+    [request, showToast]
+  )
 
   if (!request) return null
 
@@ -79,7 +90,10 @@ export function ComputerUseApprovalDialog(): React.ReactElement | null {
   const secondsRemaining = Math.max(0, Math.ceil((request.expiresAt - Date.now()) / 1000))
 
   return (
-    <AlertDialog open onOpenChange={(open) => (!open && !isResolving ? void handleResolve(false) : undefined)}>
+    <AlertDialog
+      open
+      onOpenChange={(open) => (!open && !isResolving ? void handleResolve(false) : undefined)}
+    >
       <AlertDialogContent className="sm:max-w-2xl">
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2">
@@ -113,7 +127,9 @@ export function ComputerUseApprovalDialog(): React.ReactElement | null {
           )}
 
           <div className="rounded-xl border border-border/70 bg-muted/35 p-3 text-muted-foreground text-xs">
-            Press <kbd className="rounded bg-muted px-1 py-0.5 font-mono text-xs">Esc</kbd>+<kbd className="rounded bg-muted px-1 py-0.5 font-mono text-xs">Esc</kbd> to emergency stop all actions
+            Press <kbd className="rounded bg-muted px-1 py-0.5 font-mono text-xs">Esc</kbd>+
+            <kbd className="rounded bg-muted px-1 py-0.5 font-mono text-xs">Esc</kbd> to emergency
+            stop all actions
           </div>
         </div>
 

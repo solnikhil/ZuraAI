@@ -45,7 +45,9 @@ export function unregisterKillSwitch(): void {
   if (!registered) return
   try {
     globalShortcut.unregister('Escape')
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   registered = false
   lastEscapeTime = 0
 }

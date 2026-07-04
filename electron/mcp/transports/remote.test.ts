@@ -23,9 +23,9 @@ describe('remote MCP transport helpers', () => {
       'MCP sse transport URL must use http: or https:'
     )
 
-    expect(() => validateMcpRemoteUrl('wss://user:pass@example.com', 'websocket', ['ws:', 'wss:'])).toThrow(
-      'must not embed credentials'
-    )
+    expect(() =>
+      validateMcpRemoteUrl('wss://user:pass@example.com', 'websocket', ['ws:', 'wss:'])
+    ).toThrow('must not embed credentials')
   })
 
   it('keeps SSE endpoint overrides on the original origin', () => {
@@ -57,28 +57,40 @@ describe('remote MCP transport helpers', () => {
       backoffMultiplier: 2,
     })
 
-    expect(buildMcpReconnectDelay({
-      enabled: true,
-      maxAttempts: 3,
-      initialDelayMs: 500,
-      maxDelayMs: 2000,
-      backoffMultiplier: 2,
-    }, 0)).toBe(500)
+    expect(
+      buildMcpReconnectDelay(
+        {
+          enabled: true,
+          maxAttempts: 3,
+          initialDelayMs: 500,
+          maxDelayMs: 2000,
+          backoffMultiplier: 2,
+        },
+        0
+      )
+    ).toBe(500)
 
-    expect(buildMcpReconnectDelay({
-      enabled: true,
-      maxAttempts: 3,
-      initialDelayMs: 500,
-      maxDelayMs: 2000,
-      backoffMultiplier: 2,
-    }, 3)).toBe(2000)
+    expect(
+      buildMcpReconnectDelay(
+        {
+          enabled: true,
+          maxAttempts: 3,
+          initialDelayMs: 500,
+          maxDelayMs: 2000,
+          backoffMultiplier: 2,
+        },
+        3
+      )
+    ).toBe(2000)
   })
 
   it('redacts sensitive headers before diagnostics are surfaced', () => {
-    expect(redactMcpHeaders({
-      Authorization: 'Bearer super-secret-token',
-      'X-Trace-Id': 'trace-123',
-    })).toEqual({
+    expect(
+      redactMcpHeaders({
+        Authorization: 'Bearer super-secret-token',
+        'X-Trace-Id': 'trace-123',
+      })
+    ).toEqual({
       Authorization: 'Bear...[redacted]...en',
       'X-Trace-Id': 'trace-123',
     })

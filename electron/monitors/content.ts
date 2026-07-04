@@ -8,7 +8,11 @@ const BLOCKED_LOCAL_HOSTS = new Set(['0.0.0.0'])
 
 function isLoopbackIpv4(hostname: string): boolean {
   const parts = hostname.split('.').map((part) => Number(part))
-  return parts.length === 4 && parts.every((part) => Number.isInteger(part) && part >= 0 && part <= 255) && parts[0] === 127
+  return (
+    parts.length === 4 &&
+    parts.every((part) => Number.isInteger(part) && part >= 0 && part <= 255) &&
+    parts[0] === 127
+  )
 }
 
 function isLoopbackIpv6(hostname: string): boolean {
@@ -17,7 +21,10 @@ function isLoopbackIpv6(hostname: string): boolean {
 
 function isPrivateIpv4(hostname: string): boolean {
   const parts = hostname.split('.').map((part) => Number(part))
-  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) {
+  if (
+    parts.length !== 4 ||
+    parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)
+  ) {
     return false
   }
   const [a, b] = parts
@@ -57,7 +64,10 @@ export function validateMonitorUrl(rawUrl: unknown): string {
     return parsed.toString()
   }
   const ipVersion = net.isIP(hostname)
-  if ((ipVersion === 4 && isPrivateIpv4(hostname)) || (ipVersion === 6 && isPrivateIpv6(hostname))) {
+  if (
+    (ipVersion === 4 && isPrivateIpv4(hostname)) ||
+    (ipVersion === 6 && isPrivateIpv6(hostname))
+  ) {
     throw new Error('Monitor URL cannot target private network addresses')
   }
   parsed.hash = ''
@@ -97,7 +107,10 @@ export function normalizePageContent(rawContent: string, contentType = 'text/htm
       line
         .replace(/\b\d{1,2}:\d{2}(?::\d{2})?\s?(?:AM|PM)?\b/gi, '')
         .replace(/\b\d{4}-\d{2}-\d{2}(?:[T\s]\d{2}:\d{2}:\d{2}(?:\.\d+)?Z?)?\b/g, '')
-        .replace(/\b(cookie|cookies|privacy policy|terms of service|subscribe to newsletter)\b/gi, '')
+        .replace(
+          /\b(cookie|cookies|privacy policy|terms of service|subscribe to newsletter)\b/gi,
+          ''
+        )
         .replace(/\s+/g, ' ')
         .trim()
     )
@@ -111,12 +124,20 @@ export function hashNormalizedContent(content: string): string {
 }
 
 export function buildChangedExcerpt(previous: string | undefined, current: string): string {
-  const previousLines = new Set((previous || '').split('\n').map((line) => line.trim()).filter(Boolean))
+  const previousLines = new Set(
+    (previous || '')
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+  )
   const newLines = current
     .split('\n')
     .map((line) => line.trim())
     .filter((line) => line.length > 0 && !previousLines.has(line))
-  return (newLines.length > 0 ? newLines : current.split('\n')).slice(0, 8).join('\n').slice(0, 2000)
+  return (newLines.length > 0 ? newLines : current.split('\n'))
+    .slice(0, 8)
+    .join('\n')
+    .slice(0, 2000)
 }
 
 export async function fetchMonitorPage(

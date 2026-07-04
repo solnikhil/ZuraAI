@@ -1,10 +1,7 @@
 import { useMemo } from 'react'
 
 import { Badge } from '@/components/ui/badge'
-import type {
-  ChatDiagnosticEvent,
-  ChatDiagnosticPhase,
-} from '@/diagnostics/chatDiagnostics'
+import type { ChatDiagnosticEvent, ChatDiagnosticPhase } from '@/diagnostics/chatDiagnostics'
 
 export type ChatDebugCategoryId = 'request' | 'tools' | 'streaming' | 'usage' | 'memory' | 'errors'
 
@@ -79,7 +76,11 @@ function pairToolEvents(events: ChatDiagnosticEvent[]): ToolPair[] {
     if (!tool) continue
     const id = tool.id
     if (!id) {
-      orphans.push({ id: undefined, name: tool.name, [event.phase === 'tool-start' ? 'start' : 'complete']: event } as ToolPair)
+      orphans.push({
+        id: undefined,
+        name: tool.name,
+        [event.phase === 'tool-start' ? 'start' : 'complete']: event,
+      } as ToolPair)
       continue
     }
     let pair = byId.get(id)
@@ -187,11 +188,14 @@ export function ChatDebugCategorized({ events, category }: ChatDebugCategorizedP
               {event.streamChunk?.cumulativeTextLength ?? 0} chars cumulative
             </span>
             {event.streamChunk?.toolCallDeltaCount ? (
-              <span className="chat-debug-cat__row-stat">+{event.streamChunk.toolCallDeltaCount} tool deltas</span>
+              <span className="chat-debug-cat__row-stat">
+                +{event.streamChunk.toolCallDeltaCount} tool deltas
+              </span>
             ) : null}
             {event.streamChunk?.smoothingPieceCount ? (
               <span className="chat-debug-cat__row-stat">
-                smooth {event.streamChunk.smoothingPieceCount}p/{event.streamChunk.smoothingSourceLength ?? '?'} chars
+                smooth {event.streamChunk.smoothingPieceCount}p/
+                {event.streamChunk.smoothingSourceLength ?? '?'} chars
               </span>
             ) : null}
             {event.streamChunk?.textDelta && (
@@ -259,7 +263,7 @@ export function ChatDebugCategorized({ events, category }: ChatDebugCategorizedP
           } else {
             detail = event.memoryErrorCode
               ? `[${event.memoryErrorCode}] ${event.error ?? 'unknown error'}`
-              : event.error ?? 'unknown error'
+              : (event.error ?? 'unknown error')
           }
           return (
             <div

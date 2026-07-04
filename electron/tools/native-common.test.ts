@@ -12,15 +12,11 @@ describe('native tool helpers', () => {
   })
 
   it('parses ndjson output and skips malformed lines', () => {
-    expect(parseNdjsonOutput<{ name: string }>([
-      '{"name":"Alpha"}',
-      '{"name":"Beta"}',
-      '{"name":"Bro',
-      '...[truncated]',
-    ].join('\n'))).toEqual([
-      { name: 'Alpha' },
-      { name: 'Beta' },
-    ])
+    expect(
+      parseNdjsonOutput<{ name: string }>(
+        ['{"name":"Alpha"}', '{"name":"Beta"}', '{"name":"Bro', '...[truncated]'].join('\n')
+      )
+    ).toEqual([{ name: 'Alpha' }, { name: 'Beta' }])
   })
 
   it('normalizes string args and clamps timeouts', () => {

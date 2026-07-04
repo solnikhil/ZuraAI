@@ -99,7 +99,9 @@ describe('providers/registry', () => {
   describe('re-registering same id updates the provider object', () => {
     it('updates the provider but does not change the active provider', () => {
       const originalProvider = createMockProvider()
-      const updatedProvider = createMockProvider({ id: originalProvider.id } as Partial<SearchProvider>)
+      const updatedProvider = createMockProvider({
+        id: originalProvider.id,
+      } as Partial<SearchProvider>)
       // Force same id
       ;(updatedProvider as { id: SearchProvider['id'] }).id = originalProvider.id
 

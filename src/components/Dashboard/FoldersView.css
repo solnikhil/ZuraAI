@@ -372,12 +372,11 @@
   width: min(336px, calc(100% - 36px));
   border: 1px solid color-mix(in srgb, var(--theme-border-hover) 70%, transparent);
   border-radius: 14px;
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--theme-surface-hover) 72%, var(--theme-surface)) 0%,
-      color-mix(in srgb, var(--theme-surface) 94%, var(--theme-content-solid)) 100%
-    );
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--theme-surface-hover) 72%, var(--theme-surface)) 0%,
+    color-mix(in srgb, var(--theme-surface) 94%, var(--theme-content-solid)) 100%
+  );
   box-shadow:
     0 22px 58px color-mix(in srgb, #000 34%, transparent),
     0 8px 18px color-mix(in srgb, #000 18%, transparent),
@@ -562,12 +561,11 @@
 
 .folder-name-dialog__memory-option--active {
   border-color: color-mix(in srgb, var(--theme-accent) 34%, var(--theme-border));
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--theme-accent-muted) 18%, var(--theme-surface-hover)) 0%,
-      color-mix(in srgb, var(--theme-surface-active) 78%, transparent) 100%
-    );
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--theme-accent-muted) 18%, var(--theme-surface-hover)) 0%,
+    color-mix(in srgb, var(--theme-surface-active) 78%, transparent) 100%
+  );
   box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 7%, transparent);
 }
 

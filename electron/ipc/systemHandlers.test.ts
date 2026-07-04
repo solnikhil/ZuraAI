@@ -284,7 +284,9 @@ describe('registerSystemHandlers context menu', () => {
     expect(systemHandlerMocks.maximize).toHaveBeenCalledTimes(1)
 
     await expect(handler?.({ sender }, 'open-help')).resolves.toBe(true)
-    expect(systemHandlerMocks.shellOpenExternal).toHaveBeenCalledWith('https://github.com/solnikhil/ZuraAI')
+    expect(systemHandlerMocks.shellOpenExternal).toHaveBeenCalledWith(
+      'https://github.com/solnikhil/ZuraAI'
+    )
   })
 
   it('disables app-menu DevTools command in packaged builds', async () => {

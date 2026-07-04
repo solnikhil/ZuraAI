@@ -230,7 +230,10 @@ describe('themeUtils', () => {
       expect(lightResolved.baseColors.background).toBe('#d6c9b8')
       expect(lightResolved.colors.background).toBe(
         getLightContentBackground(
-          getLightChromeBackground(lightResolved.baseColors.background, lightResolved.baseColors.accent)
+          getLightChromeBackground(
+            lightResolved.baseColors.background,
+            lightResolved.baseColors.accent
+          )
         )
       )
     })

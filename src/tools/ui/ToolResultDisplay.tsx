@@ -15,10 +15,7 @@ import {
 import { getWebToolLabel, inferWebToolModeFromResultData } from './webToolDisplay'
 import { getToolPresentation, stringifyToolValue } from './toolPresentation'
 import { useOptionalMcp } from '../../mcp/McpContext'
-import type {
-  McpAgentAddApproveResult,
-  McpAgentAddReview,
-} from '../../mcp/addRequestTypes'
+import type { McpAgentAddApproveResult, McpAgentAddReview } from '../../mcp/addRequestTypes'
 
 import './ToolResultDisplay.css'
 
@@ -74,9 +71,9 @@ export default function ToolResultDisplay({
   toolResultIndex: _toolResultIndex,
 }: ToolResultDisplayProps) {
   const [isExpanded, setIsExpanded] = useState(false)
-  const [mcpAddActionState, setMcpAddActionState] = useState<
-    'idle' | 'approving' | 'cancelling'
-  >('idle')
+  const [mcpAddActionState, setMcpAddActionState] = useState<'idle' | 'approving' | 'cancelling'>(
+    'idle'
+  )
   const [mcpAddResult, setMcpAddResult] = useState<McpAgentAddApproveResult | null>(null)
   const [mcpAddError, setMcpAddError] = useState<string | null>(null)
   const mcp = useOptionalMcp()
@@ -220,11 +217,14 @@ export default function ToolResultDisplay({
 
   if (toolName === 'artifact_create' || toolName === 'artifact_update') {
     const data = result as Record<string, unknown> | undefined
-    const title = typeof data?.title === 'string' ? data.title : String(toolArguments?.title || 'Artifact')
+    const title =
+      typeof data?.title === 'string' ? data.title : String(toolArguments?.title || 'Artifact')
     const kind = typeof data?.kind === 'string' ? data.kind : 'artifact'
     const versionId = typeof data?.versionId === 'string' ? data.versionId : ''
     return (
-      <div className={`tool-result tool-result-mcp tool-result-mcp-status-${error ? 'error' : 'success'}`}>
+      <div
+        className={`tool-result tool-result-mcp tool-result-mcp-status-${error ? 'error' : 'success'}`}
+      >
         <div className="tool-result-header">
           <div className="tool-result-heading">
             <span className="tool-result-leading-icon">
@@ -235,11 +235,14 @@ export default function ToolResultDisplay({
                 {toolName === 'artifact_create' ? 'Artifact created' : 'Artifact updated'}
               </span>
               <span className="tool-result-subtitle">
-                {title} · {kind}{versionId ? ` · ${versionId.slice(0, 8)}` : ''}
+                {title} · {kind}
+                {versionId ? ` · ${versionId.slice(0, 8)}` : ''}
               </span>
             </div>
           </div>
-          <span className={`tool-result-mcp-status tool-result-mcp-status-${error ? 'error' : 'success'}`}>
+          <span
+            className={`tool-result-mcp-status tool-result-mcp-status-${error ? 'error' : 'success'}`}
+          >
             {error ? 'Failed' : 'Saved'}
           </span>
         </div>
@@ -285,7 +288,9 @@ export default function ToolResultDisplay({
     }
 
     return (
-      <div className={`tool-result tool-result-mcp tool-result-mcp-status-${mcpAddTone(currentStatus, error || mcpAddError)}`}>
+      <div
+        className={`tool-result tool-result-mcp tool-result-mcp-status-${mcpAddTone(currentStatus, error || mcpAddError)}`}
+      >
         <div className="tool-result-header">
           <div className="tool-result-heading">
             <span className="tool-result-leading-icon">
@@ -300,7 +305,9 @@ export default function ToolResultDisplay({
               </span>
             </div>
           </div>
-          <span className={`tool-result-mcp-status tool-result-mcp-status-${mcpAddTone(currentStatus, error || mcpAddError)}`}>
+          <span
+            className={`tool-result-mcp-status tool-result-mcp-status-${mcpAddTone(currentStatus, error || mcpAddError)}`}
+          >
             {formatMcpAddStatus(currentStatus)}
           </span>
         </div>
@@ -328,9 +335,7 @@ export default function ToolResultDisplay({
             </div>
             {(review.command || review.url) && (
               <pre className="mcp-add-command">
-                {review.command
-                  ? [review.command, ...(review.args ?? [])].join(' ')
-                  : review.url}
+                {review.command ? [review.command, ...(review.args ?? [])].join(' ') : review.url}
               </pre>
             )}
             {review.requiredSecrets.length > 0 && (
@@ -685,7 +690,10 @@ function formatMcpAddStatus(status: string): string {
   }
 }
 
-function mcpAddTone(status: string, error?: string | null): 'success' | 'warning' | 'error' | 'neutral' {
+function mcpAddTone(
+  status: string,
+  error?: string | null
+): 'success' | 'warning' | 'error' | 'neutral' {
   if (error || status === 'failed') return 'error'
   if (status === 'connected') return 'success'
   if (status === 'needs_setup' || status === 'cancelled') return 'warning'

@@ -32,15 +32,12 @@ function createMockProvider(id: string): SearchProvider {
     id: id as SearchProviderId,
     credentialKey: `${id}ApiKey` as any,
     capabilities: { search: true, extract: true },
-    async search(
-      _request: ProviderSearchRequest,
-      _ctx: ProviderContext,
-    ): Promise<ProviderResult> {
+    async search(_request: ProviderSearchRequest, _ctx: ProviderContext): Promise<ProviderResult> {
       return { ok: false, error: 'mock: not implemented' }
     },
     async extract(
       _request: ProviderExtractRequest,
-      _ctx: ProviderContext,
+      _ctx: ProviderContext
     ): Promise<ProviderResult> {
       return { ok: false, error: 'mock: not implemented' }
     },
@@ -51,9 +48,7 @@ function createMockProvider(id: string): SearchProvider {
  * Arbitrary for non-empty provider ids (strings with minLength 1).
  * Filters out whitespace-only strings for meaningfulness.
  */
-const arbProviderId = fc
-  .string({ minLength: 1, maxLength: 30 })
-  .filter((s) => s.trim().length > 0)
+const arbProviderId = fc.string({ minLength: 1, maxLength: 30 }).filter((s) => s.trim().length > 0)
 
 describe('Provider registry — seam isolation (property)', () => {
   // NOTE: The registry module uses module-level mutable state. Since there is
@@ -65,27 +60,24 @@ describe('Provider registry — seam isolation (property)', () => {
   // becomes the default.
   it('registering a provider makes it resolvable via resolveProvider(id); first registered is the default', () => {
     fc.assert(
-      fc.property(
-        fc.uniqueArray(arbProviderId, { minLength: 1, maxLength: 5 }),
-        (ids) => {
-          // Prefix ids to avoid collision with other test runs or the real Tavily provider
-          const prefixed = ids.map((id) => `__test_prop81_${id}_${Date.now()}`)
-          const providers = prefixed.map((id) => createMockProvider(id))
+      fc.property(fc.uniqueArray(arbProviderId, { minLength: 1, maxLength: 5 }), (ids) => {
+        // Prefix ids to avoid collision with other test runs or the real Tavily provider
+        const prefixed = ids.map((id) => `__test_prop81_${id}_${Date.now()}`)
+        const providers = prefixed.map((id) => createMockProvider(id))
 
-          // Register all providers
-          for (const p of providers) {
-            registerProvider(p)
-          }
+        // Register all providers
+        for (const p of providers) {
+          registerProvider(p)
+        }
 
-          // Each registered provider is resolvable by id
-          for (let i = 0; i < providers.length; i++) {
-            const resolved = resolveProvider(providers[i].id)
-            expect(resolved).toBe(providers[i])
-            expect(resolved.id).toBe(prefixed[i])
-          }
-        },
-      ),
-      { numRuns: 50 },
+        // Each registered provider is resolvable by id
+        for (let i = 0; i < providers.length; i++) {
+          const resolved = resolveProvider(providers[i].id)
+          expect(resolved).toBe(providers[i])
+          expect(resolved.id).toBe(prefixed[i])
+        }
+      }),
+      { numRuns: 50 }
     )
   })
 
@@ -93,29 +85,26 @@ describe('Provider registry — seam isolation (property)', () => {
   // provider — resolveProvider() still returns the first registered.
   it('registering additional providers does NOT change the active provider', () => {
     fc.assert(
-      fc.property(
-        fc.uniqueArray(arbProviderId, { minLength: 2, maxLength: 6 }),
-        (ids) => {
-          const prefixed = ids.map((id) => `__test_prop82_${id}_${Date.now()}`)
-          const providers = prefixed.map((id) => createMockProvider(id))
+      fc.property(fc.uniqueArray(arbProviderId, { minLength: 2, maxLength: 6 }), (ids) => {
+        const prefixed = ids.map((id) => `__test_prop82_${id}_${Date.now()}`)
+        const providers = prefixed.map((id) => createMockProvider(id))
 
-          // Register the first one and capture the default
-          registerProvider(providers[0])
-          const defaultAfterFirst = resolveProvider()
+        // Register the first one and capture the default
+        registerProvider(providers[0])
+        const defaultAfterFirst = resolveProvider()
 
-          // Register additional providers
-          for (let i = 1; i < providers.length; i++) {
-            registerProvider(providers[i])
-          }
+        // Register additional providers
+        for (let i = 1; i < providers.length; i++) {
+          registerProvider(providers[i])
+        }
 
-          // The default has NOT changed — still the overall first registered
-          // (which might be from a prior test or the Tavily import, but crucially
-          // is NOT changed by later registrations in this test block)
-          const defaultAfterAll = resolveProvider()
-          expect(defaultAfterAll).toBe(defaultAfterFirst)
-        },
-      ),
-      { numRuns: 50 },
+        // The default has NOT changed — still the overall first registered
+        // (which might be from a prior test or the Tavily import, but crucially
+        // is NOT changed by later registrations in this test block)
+        const defaultAfterAll = resolveProvider()
+        expect(defaultAfterAll).toBe(defaultAfterFirst)
+      }),
+      { numRuns: 50 }
     )
   })
 
@@ -124,34 +113,29 @@ describe('Provider registry — seam isolation (property)', () => {
     fc.assert(
       fc.property(arbProviderId, (id) => {
         const unknownId = `__test_prop83_unknown_${id}_${Date.now()}`
-        expect(() => resolveProvider(unknownId as SearchProviderId)).toThrow(
-          /not registered/i,
-        )
+        expect(() => resolveProvider(unknownId as SearchProviderId)).toThrow(/not registered/i)
       }),
-      { numRuns: 50 },
+      { numRuns: 50 }
     )
   })
 
   // Property 8.4: listProviders() always includes all registered providers.
   it('listProviders() includes all registered providers', () => {
     fc.assert(
-      fc.property(
-        fc.uniqueArray(arbProviderId, { minLength: 1, maxLength: 5 }),
-        (ids) => {
-          const prefixed = ids.map((id) => `__test_prop84_${id}_${Date.now()}`)
-          const providers = prefixed.map((id) => createMockProvider(id))
+      fc.property(fc.uniqueArray(arbProviderId, { minLength: 1, maxLength: 5 }), (ids) => {
+        const prefixed = ids.map((id) => `__test_prop84_${id}_${Date.now()}`)
+        const providers = prefixed.map((id) => createMockProvider(id))
 
-          for (const p of providers) {
-            registerProvider(p)
-          }
+        for (const p of providers) {
+          registerProvider(p)
+        }
 
-          const listed = listProviders()
-          for (const p of providers) {
-            expect(listed).toContain(p)
-          }
-        },
-      ),
-      { numRuns: 50 },
+        const listed = listProviders()
+        for (const p of providers) {
+          expect(listed).toContain(p)
+        }
+      }),
+      { numRuns: 50 }
     )
   })
 })

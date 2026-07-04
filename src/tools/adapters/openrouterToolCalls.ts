@@ -100,9 +100,7 @@ function extractFallbackArgs(toolName: string, rawArgs: string): Record<string, 
   }
 
   const keyPattern = escapeRegExp(key)
-  const quotedMatch = trimmed.match(
-    new RegExp(`["']${keyPattern}["']\\s*:\\s*["']([^"']*)`, 'i')
-  )
+  const quotedMatch = trimmed.match(new RegExp(`["']${keyPattern}["']\\s*:\\s*["']([^"']*)`, 'i'))
   if (quotedMatch?.[1]?.trim()) {
     return { [key]: quotedMatch[1].trim() }
   }
@@ -133,7 +131,10 @@ function getSyntheticErrorArgs(toolName: string): Record<string, unknown> {
   return Object.fromEntries(toolDef.parameters.required.map((param) => [param, '']))
 }
 
-function parseXmlToolCallArgs(toolName: string, innerContent: string): Record<string, unknown> | null {
+function parseXmlToolCallArgs(
+  toolName: string,
+  innerContent: string
+): Record<string, unknown> | null {
   const toolDef = getToolByName(toolName)
   const requiredParams = toolDef?.parameters.required || []
 
@@ -253,11 +254,17 @@ function extractXmlToolCalls(
     format: 'xml',
     hadMarkup: true,
     recoveredToolNames: toolCalls.map((toolCall) => toolCall.name),
-    rawPreview: matches.map((match) => match[0]).join('\n').slice(0, 240),
+    rawPreview: matches
+      .map((match) => match[0])
+      .join('\n')
+      .slice(0, 240),
   }
 }
 
-function parseDsmlToolCallArgs(toolName: string, innerContent: string): Record<string, unknown> | null {
+function parseDsmlToolCallArgs(
+  toolName: string,
+  innerContent: string
+): Record<string, unknown> | null {
   const args: Record<string, unknown> = {}
   const parameterPattern =
     /<\s*\|\s*\|\s*DSML\s*\|\s*\|\s*parameter\s+name="([^"]+)"(?:\s+string="(?:true|false)")?\s*>([\s\S]*?)<\s*\/\s*\|\s*\|\s*DSML\s*\|\s*\|\s*parameter\s*>/gi
@@ -335,7 +342,10 @@ function extractDsmlToolCalls(
     format: 'dsml',
     hadMarkup: true,
     recoveredToolNames: toolCalls.map((toolCall) => toolCall.name),
-    rawPreview: matches.map((match) => match[0]).join('\n').slice(0, 240),
+    rawPreview: matches
+      .map((match) => match[0])
+      .join('\n')
+      .slice(0, 240),
   }
 }
 

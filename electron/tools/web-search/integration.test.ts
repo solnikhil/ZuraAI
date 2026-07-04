@@ -83,7 +83,8 @@ const TAVILY_EXTRACT_RESPONSE = {
 
 function createSearchFetchMock(): typeof fetch {
   return vi.fn(async (input: RequestInfo | URL): Promise<Response> => {
-    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as Request).url
+    const url =
+      typeof input === 'string' ? input : input instanceof URL ? input.href : (input as Request).url
     if (url.includes('/search')) {
       return new Response(JSON.stringify(TAVILY_SEARCH_RESPONSE), {
         status: 200,

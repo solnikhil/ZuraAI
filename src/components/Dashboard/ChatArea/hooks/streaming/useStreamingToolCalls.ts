@@ -27,14 +27,19 @@ export interface UseStreamingToolCallsReturn {
   canUseTools: boolean
   getToolsForRequest: ReturnType<typeof useToolCalling>['getToolsForRequest']
   getToolsForRequestAsync: ReturnType<typeof useToolCalling>['getToolsForRequestAsync']
-  handleToolCalls: (response: OpenRouterResponse, options?: HandleToolCallsOptions) => Promise<ToolCallProcessingResult>
+  handleToolCalls: (
+    response: OpenRouterResponse,
+    options?: HandleToolCallsOptions
+  ) => Promise<ToolCallProcessingResult>
   toolState: ToolCallState
   clearToolState: () => void
   startResearchMode: (maxRounds: number, forceWebSearch?: boolean) => void
   getResearchContext: (searchCount: number, maxRounds: number) => string
 }
 
-export function useStreamingToolCalls({ settings }: UseStreamingToolCallsOptions): UseStreamingToolCallsReturn {
+export function useStreamingToolCalls({
+  settings,
+}: UseStreamingToolCallsOptions): UseStreamingToolCallsReturn {
   const { showToast } = useToast()
 
   const {
@@ -51,40 +56,43 @@ export function useStreamingToolCalls({ settings }: UseStreamingToolCallsOptions
     webSearchPrompt: settings.webSearchPrompt,
   })
 
-  const handleToolCalls = useCallback(async (
-    response: OpenRouterResponse,
-    options?: HandleToolCallsOptions
-  ): Promise<ToolCallProcessingResult> => {
-    try {
-      return await baseHandleToolCalls(
-        response,
-        options?.onToolStart,
-        options?.onToolComplete,
-        options?.executionPolicy,
-        {
-          onToolApprovalStart: options?.onToolApprovalStart,
-          onToolApprovalResolved: options?.onToolApprovalResolved,
-          requestToolApproval: options?.requestToolApproval,
+  const handleToolCalls = useCallback(
+    async (
+      response: OpenRouterResponse,
+      options?: HandleToolCallsOptions
+    ): Promise<ToolCallProcessingResult> => {
+      try {
+        return await baseHandleToolCalls(
+          response,
+          options?.onToolStart,
+          options?.onToolComplete,
+          options?.executionPolicy,
+          {
+            onToolApprovalStart: options?.onToolApprovalStart,
+            onToolApprovalResolved: options?.onToolApprovalResolved,
+            requestToolApproval: options?.requestToolApproval,
+          }
+        )
+      } catch (toolError: unknown) {
+        const message = toolError instanceof Error ? toolError.message : 'Unknown error'
+        console.error('Tool calls processing error:', toolError)
+        showToast(`Tool execution error: ${message}`, 'error')
+        return {
+          hasTools: false,
+          toolResults: [],
+          formattedResults: [],
+          needsFollowUp: false,
+          shouldContinueResearch: false,
+          executionSummary: {
+            attemptedWebSearchCount: 0,
+            executedWebSearchCount: 0,
+            executedWebSearchQueries: [],
+          },
         }
-      )
-    } catch (toolError: unknown) {
-      const message = toolError instanceof Error ? toolError.message : 'Unknown error'
-      console.error('Tool calls processing error:', toolError)
-      showToast(`Tool execution error: ${message}`, 'error')
-      return {
-        hasTools: false,
-        toolResults: [],
-        formattedResults: [],
-        needsFollowUp: false,
-        shouldContinueResearch: false,
-        executionSummary: {
-          attemptedWebSearchCount: 0,
-          executedWebSearchCount: 0,
-          executedWebSearchQueries: [],
-        },
       }
-    }
-  }, [baseHandleToolCalls, showToast])
+    },
+    [baseHandleToolCalls, showToast]
+  )
 
   return {
     canUseTools,

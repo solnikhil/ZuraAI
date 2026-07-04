@@ -6,9 +6,7 @@
 import { normalizeSafeHttpUrl } from '@/utils/urlSafety'
 
 function isReferenceHeading(block: string): boolean {
-  return /^(?:#{1,4}\s*)?(?:\*{1,2})?(?:References|Sources)(?:\*{1,2})?:?\s*$/i.test(
-    block.trim()
-  )
+  return /^(?:#{1,4}\s*)?(?:\*{1,2})?(?:References|Sources)(?:\*{1,2})?:?\s*$/i.test(block.trim())
 }
 
 function getInlineReferenceSectionBody(block: string): string | null {
@@ -234,7 +232,9 @@ export function convertNumericCitationsToMarkdownLinks(
           return match
         }
 
-        const safeLinks = refNumbers.map((n) => normalizeSafeHttpUrl(orderedSourceUrls[n - 1] || ''))
+        const safeLinks = refNumbers.map((n) =>
+          normalizeSafeHttpUrl(orderedSourceUrls[n - 1] || '')
+        )
         if (safeLinks.some((link) => !link)) {
           return match
         }

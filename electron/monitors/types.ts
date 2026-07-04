@@ -14,7 +14,12 @@ export type ScheduledAutomationMode = 'prompt' | 'watch' | 'agent'
 
 export type ScheduledAutomationApprovalMode = 'read_only' | 'ask_each_run' | 'trusted_repeat'
 
-export type ScheduledAutomationOutputDestination = 'log' | 'notification' | 'email' | 'chat' | 'artifact'
+export type ScheduledAutomationOutputDestination =
+  | 'log'
+  | 'notification'
+  | 'email'
+  | 'chat'
+  | 'artifact'
 
 export type ScheduledAutomationNotifyPolicy = 'every_run' | 'meaningful_change' | 'error_only'
 
@@ -115,7 +120,9 @@ export interface ScheduledTaskRun {
     changed: boolean
     summary?: string
   }
-  deliveryStatus?: Partial<Record<ScheduledAutomationOutputDestination, 'sent' | 'skipped' | 'error'>>
+  deliveryStatus?: Partial<
+    Record<ScheduledAutomationOutputDestination, 'sent' | 'skipped' | 'error'>
+  >
   error?: string
 }
 
@@ -202,7 +209,9 @@ export interface ScheduledAutomationRunResponse {
     changed: boolean
     summary?: string
   }
-  deliveryStatus?: Partial<Record<ScheduledAutomationOutputDestination, 'sent' | 'skipped' | 'error'>>
+  deliveryStatus?: Partial<
+    Record<ScheduledAutomationOutputDestination, 'sent' | 'skipped' | 'error'>
+  >
   error?: string
 }
 

@@ -31,5 +31,12 @@ export interface ArtifactSummary {
   versionCount: number
 }
 
-export const ARTIFACT_KINDS: ArtifactKind[] = ['text', 'markdown', 'code', 'html', 'json', 'svg', 'mermaid']
-
+export const ARTIFACT_KINDS: ArtifactKind[] = [
+  'text',
+  'markdown',
+  'code',
+  'html',
+  'json',
+  'svg',
+  'mermaid',
+]

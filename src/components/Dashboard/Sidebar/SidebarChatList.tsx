@@ -24,6 +24,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu'
+import { TooltipIconButton } from '@/components/ui/TooltipIconButton'
 import type { GroupedSessions } from './utils/groupSessions'
 import type { ChatSession, Folder } from '../../../chat/types'
 import type { ChatSelectedOverlayStyle } from '../../../contexts/SettingsUIContext'
@@ -153,65 +154,68 @@ export default function SidebarChatList({
     return items
   }, [folders, groupedSessions.pinned, isPinnedOpen, isYourChatsOpen, timeGroups])
 
-  const renderChatRow = React.useCallback((session: ChatSession, indented = false) => {
-    const flatIndex = sessionIndexMap.get(session.id) ?? -1
+  const renderChatRow = React.useCallback(
+    (session: ChatSession, indented = false) => {
+      const flatIndex = sessionIndexMap.get(session.id) ?? -1
 
-    const handleContextMenuAction = (action: ChatRowAction, sessionId: string) => {
-      if (action === 'rename') {
-        setRenameSessionId(sessionId)
-        return
+      const handleContextMenuAction = (action: ChatRowAction, sessionId: string) => {
+        if (action === 'rename') {
+          setRenameSessionId(sessionId)
+          return
+        }
+        if (action === 'removeFromFolder') {
+          onRemoveFromFolder(sessionId)
+          return
+        }
+        onContextAction(action, sessionId)
       }
-      if (action === 'removeFromFolder') {
-        onRemoveFromFolder(sessionId)
-        return
-      }
-      onContextAction(action, sessionId)
-    }
 
-    return (
-      <ChatRowContextMenu
-        key={session.id}
-        isPinned={session.pinned === true}
-        currentFolderId={session.folderId ?? null}
-        folders={folders}
-        onAction={(action) => handleContextMenuAction(action, session.id)}
-        onAssignFolder={(folderId) => onAssignFolder(session.id, folderId)}
-      >
-        <div
-          draggable
-          onDragStart={(e) => {
-            e.dataTransfer.setData('text/plain', session.id)
-            e.dataTransfer.effectAllowed = 'move'
-          }}
-          style={{
-            paddingLeft: indented ? 8 : 0,
-          }}
+      return (
+        <ChatRowContextMenu
+          key={session.id}
+          isPinned={session.pinned === true}
+          currentFolderId={session.folderId ?? null}
+          folders={folders}
+          onAction={(action) => handleContextMenuAction(action, session.id)}
+          onAssignFolder={(folderId) => onAssignFolder(session.id, folderId)}
         >
-          <ChatRow
-            session={session}
-            selectedOverlayStyle={chatSelectedOverlayStyle}
-            isFrosted={isFrosted}
-            isActive={currentSessionId === session.id}
-            isFocused={flatIndex === focusIndex}
-            isStreaming={streamingSessionId === session.id}
-            onSelect={onSelectSession}
-          />
-        </div>
-      </ChatRowContextMenu>
-    )
-  }, [
-    chatSelectedOverlayStyle,
-    currentSessionId,
-    focusIndex,
-    folders,
-    isFrosted,
-    onAssignFolder,
-    onContextAction,
-    onRemoveFromFolder,
-    onSelectSession,
-    sessionIndexMap,
-    streamingSessionId,
-  ])
+          <div
+            draggable
+            onDragStart={(e) => {
+              e.dataTransfer.setData('text/plain', session.id)
+              e.dataTransfer.effectAllowed = 'move'
+            }}
+            style={{
+              paddingLeft: indented ? 8 : 0,
+            }}
+          >
+            <ChatRow
+              session={session}
+              selectedOverlayStyle={chatSelectedOverlayStyle}
+              isFrosted={isFrosted}
+              isActive={currentSessionId === session.id}
+              isFocused={flatIndex === focusIndex}
+              isStreaming={streamingSessionId === session.id}
+              onSelect={onSelectSession}
+            />
+          </div>
+        </ChatRowContextMenu>
+      )
+    },
+    [
+      chatSelectedOverlayStyle,
+      currentSessionId,
+      focusIndex,
+      folders,
+      isFrosted,
+      onAssignFolder,
+      onContextAction,
+      onRemoveFromFolder,
+      onSelectSession,
+      sessionIndexMap,
+      streamingSessionId,
+    ]
+  )
 
   const renderSectionHeader = React.useCallback(
     (item: Extract<SidebarListItem, { type: 'section' }>) => {
@@ -235,7 +239,7 @@ export default function SidebarChatList({
               if (sessionId) {
                 onDropSessionToFolder(sessionId, item.folder!.id)
               }
-              }}
+            }}
             className={`sidebar-folder-dropzone ${isDragOver ? 'sidebar-folder-dropzone--over' : ''}`}
           >
             <div
@@ -287,7 +291,12 @@ export default function SidebarChatList({
           : () => setIsYourChatsOpen((prev) => !prev)
 
       return (
-        <div className="sidebar-section-label" onClick={toggleOpen} role="button" aria-expanded={isOpen}>
+        <div
+          className="sidebar-section-label"
+          onClick={toggleOpen}
+          role="button"
+          aria-expanded={isOpen}
+        >
           {item.icon === 'pin' && <Pin size={11} className="sidebar-section-label__icon" />}
           <span className="sidebar-section-label__name">{item.label}</span>
           <ChevronDown
@@ -297,7 +306,14 @@ export default function SidebarChatList({
         </div>
       )
     },
-    [dragOverFolderId, isPinnedOpen, isYourChatsOpen, onDropSessionToFolder, onOpenFolder, selectedFolderId]
+    [
+      dragOverFolderId,
+      isPinnedOpen,
+      isYourChatsOpen,
+      onDropSessionToFolder,
+      onOpenFolder,
+      selectedFolderId,
+    ]
   )
 
   const renderItem = React.useCallback(
@@ -307,11 +323,9 @@ export default function SidebarChatList({
           <div className="sidebar-header__btn sidebar-folders-heading" aria-label="Folders">
             <span className="sidebar-folders-heading__label">{item.label}</span>
             <span className="sidebar-section-label__actions">
-              <button
-                type="button"
+              <TooltipIconButton
                 className="sidebar-section-label__action"
-                aria-label="New folder"
-                title="New folder"
+                tooltip="New folder"
                 onClick={(event) => {
                   event.preventDefault()
                   event.stopPropagation()
@@ -319,12 +333,10 @@ export default function SidebarChatList({
                 }}
               >
                 <Plus size={12} />
-              </button>
-              <button
-                type="button"
+              </TooltipIconButton>
+              <TooltipIconButton
                 className="sidebar-section-label__action"
-                aria-label="View folders"
-                title="View folders"
+                tooltip="View folders"
                 onClick={(event) => {
                   event.preventDefault()
                   event.stopPropagation()
@@ -332,7 +344,7 @@ export default function SidebarChatList({
                 }}
               >
                 <SettingsIcon size={12} />
-              </button>
+              </TooltipIconButton>
             </span>
           </div>
         )
@@ -347,11 +359,7 @@ export default function SidebarChatList({
     [onCreateFolder, onOpenFolders, renderChatRow, renderSectionHeader]
   )
 
-  const renderUtilityAction = (
-    label: string,
-    icon: React.ReactNode,
-    onClick: () => void
-  ) => (
+  const renderUtilityAction = (label: string, icon: React.ReactNode, onClick: () => void) => (
     <div
       role="button"
       tabIndex={0}
@@ -380,10 +388,7 @@ export default function SidebarChatList({
           tabIndex={0}
           onKeyDown={onKeyDown}
         >
-          <div
-            className="sidebar-chatlist__listbox"
-            style={{ paddingBottom: bottomPadding }}
-          >
+          <div className="sidebar-chatlist__listbox" style={{ paddingBottom: bottomPadding }}>
             {(remindersEnabled || artifactsEnabled) && (
               <div className="sidebar-chatlist__utility-actions">
                 {remindersEnabled

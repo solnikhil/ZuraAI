@@ -14,22 +14,26 @@ describe('openArtifactInExternalApp', () => {
       configurable: true,
     })
 
-    const sessions: ChatSession[] = [{
-      id: 'session-1',
-      title: 'Source chat',
-      createdAt: 1,
-      updatedAt: 2,
-      messages: [],
-      artifacts: [{
-        id: 'artifact-1',
-        title: 'Launch plan',
-        kind: 'markdown',
+    const sessions: ChatSession[] = [
+      {
+        id: 'session-1',
+        title: 'Source chat',
         createdAt: 1,
         updatedAt: 2,
-        currentVersionId: 'version-1',
-        versions: [{ id: 'version-1', content: '# Launch', createdAt: 1 }],
-      }],
-    }]
+        messages: [],
+        artifacts: [
+          {
+            id: 'artifact-1',
+            title: 'Launch plan',
+            kind: 'markdown',
+            createdAt: 1,
+            updatedAt: 2,
+            currentVersionId: 'version-1',
+            versions: [{ id: 'version-1', content: '# Launch', createdAt: 1 }],
+          },
+        ],
+      },
+    ]
 
     const result = await openArtifactInExternalApp('session-1', 'artifact-1', sessions)
 

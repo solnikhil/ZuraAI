@@ -78,7 +78,13 @@ describe('mcpStorage', () => {
       { name: 'TOKEN', valueSource: 'secret', secretKey: 'secret.key' },
     ])
     expect(store.servers[0].lastKnownTools).toEqual([
-      { name: 'read_file', inputSchema: { type: 'object' }, title: undefined, description: undefined, annotations: undefined },
+      {
+        name: 'read_file',
+        inputSchema: { type: 'object' },
+        title: undefined,
+        description: undefined,
+        annotations: undefined,
+      },
     ])
   })
 
@@ -118,7 +124,9 @@ describe('mcpStorage', () => {
     const directoryEntries = await fs.readdir(path.dirname(storePath))
 
     expect(loaded).toEqual({ version: MCP_SERVER_STORE_VERSION, servers: [] })
-    expect(directoryEntries.some((entry) => entry.startsWith('mcp-servers.json.corrupt-'))).toBe(true)
+    expect(directoryEntries.some((entry) => entry.startsWith('mcp-servers.json.corrupt-'))).toBe(
+      true
+    )
     expect(directoryEntries.includes('mcp-servers.json')).toBe(false)
   })
 

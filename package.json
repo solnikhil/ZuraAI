@@ -123,7 +123,9 @@
     "npmRebuild": false,
     "compression": "maximum",
     "electronDist": "node_modules/electron/dist",
-    "electronLanguages": ["en-US"],
+    "electronLanguages": [
+      "en-US"
+    ],
     "directories": {
       "buildResources": "build",
       "output": "release"
@@ -156,11 +158,15 @@
     "protocols": [
       {
         "name": "ZuraAI Chat Link",
-        "schemes": ["zura-chat"]
+        "schemes": [
+          "zura-chat"
+        ]
       },
       {
         "name": "ZuraAI App Launcher",
-        "schemes": ["zuraai"]
+        "schemes": [
+          "zuraai"
+        ]
       }
     ],
     "nsis": {

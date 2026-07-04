@@ -28,26 +28,37 @@ export async function executeCode(args: CodeExecutionArgs): Promise<ToolResult> 
   }
 
   if (code.length > EXEC_MAX_CODE_LENGTH) {
-    return { success: false, error: `Code exceeds maximum length of ${EXEC_MAX_CODE_LENGTH} characters.` }
+    return {
+      success: false,
+      error: `Code exceeds maximum length of ${EXEC_MAX_CODE_LENGTH} characters.`,
+    }
   }
 
   const compilerEntry = COMPILER_MAP[language]
   if (!compilerEntry) {
-    return { success: false, error: `Unsupported language: ${String(language)}. Use "javascript" or "python".` }
+    return {
+      success: false,
+      error: `Unsupported language: ${String(language)}. Use "javascript" or "python".`,
+    }
   }
 
   const apiKey = await getSecureValueAsync('onlineCompilerApiKey')
   if (!apiKey) {
-    return { success: false, error: 'OnlineCompiler API key required. Add one in Settings → Provider Hub (free at onlinecompiler.io).' }
+    return {
+      success: false,
+      error:
+        'OnlineCompiler API key required. Add one in Settings → Provider Hub (free at onlinecompiler.io).',
+    }
   }
 
   // Approval gate — blocks until user approves, rejects, or timeout
   if (approvalManager && !args.autoApprove) {
     const decision = await approvalManager.requestApproval({ code, language })
     if (!decision.approved) {
-      const reason = decision.outcome === 'timed_out'
-        ? 'Code execution approval timed out.'
-        : 'Code execution was rejected by the user.'
+      const reason =
+        decision.outcome === 'timed_out'
+          ? 'Code execution approval timed out.'
+          : 'Code execution was rejected by the user.'
       return { success: false, error: reason }
     }
   }
@@ -66,23 +77,33 @@ export async function executeCode(args: CodeExecutionArgs): Promise<ToolResult> 
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': apiKey,
+        Authorization: apiKey,
       },
       body: JSON.stringify(body),
       signal: controller.signal,
     })
 
     if (response.status === 401) {
-      return { success: false, error: 'Invalid OnlineCompiler API key. Check your key in Settings → Provider Hub.' }
+      return {
+        success: false,
+        error: 'Invalid OnlineCompiler API key. Check your key in Settings → Provider Hub.',
+      }
     }
 
     if (response.status === 429) {
-      return { success: false, error: 'OnlineCompiler rate limit reached. Try again later or check your plan at onlinecompiler.io.' }
+      return {
+        success: false,
+        error:
+          'OnlineCompiler rate limit reached. Try again later or check your plan at onlinecompiler.io.',
+      }
     }
 
     if (!response.ok) {
       const text = await response.text().catch(() => '')
-      return { success: false, error: `OnlineCompiler API error: ${response.status} ${text.slice(0, 200)}` }
+      return {
+        success: false,
+        error: `OnlineCompiler API error: ${response.status} ${text.slice(0, 200)}`,
+      }
     }
 
     const result = (await response.json()) as OnlineCompilerResponse
@@ -104,7 +125,10 @@ export async function executeCode(args: CodeExecutionArgs): Promise<ToolResult> 
     }
   } catch (error: unknown) {
     if (error instanceof Error && error.name === 'AbortError') {
-      return { success: false, error: 'Code execution request timed out. The OnlineCompiler API did not respond in time.' }
+      return {
+        success: false,
+        error: 'Code execution request timed out. The OnlineCompiler API did not respond in time.',
+      }
     }
     return {
       success: false,

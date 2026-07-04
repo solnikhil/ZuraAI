@@ -21,13 +21,7 @@ vi.mock('@/components/ui/select', () => {
       onValueChange?: (value: string) => void
     }) => <SelectContext.Provider value={onValueChange}>{children}</SelectContext.Provider>,
     SelectContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-    SelectItem: ({
-      children,
-      value,
-    }: {
-      children: React.ReactNode
-      value?: string
-    }) => {
+    SelectItem: ({ children, value }: { children: React.ReactNode; value?: string }) => {
       const onValueChange = React.useContext(SelectContext)
       return (
         <button type="button" onClick={() => value && onValueChange?.(value)}>
@@ -107,15 +101,21 @@ describe('AppearanceSection', () => {
   })
 
   it('renders appearance mode preview radio cards', () => {
-    const { container } = render(<AppearanceSection settings={defaultSettings} onChange={vi.fn()} />)
+    const { container } = render(
+      <AppearanceSection settings={defaultSettings} onChange={vi.fn()} />
+    )
 
     expect(screen.getByRole('radiogroup', { name: 'Appearance mode' })).toBeInTheDocument()
     expect(container.querySelector('.appearance-mode-picker__preview--light')).toBeInTheDocument()
     expect(container.querySelector('.appearance-mode-picker__preview--dark')).toBeInTheDocument()
     expect(container.querySelector('.appearance-mode-picker__preview--system')).toBeInTheDocument()
     expect(container.querySelector('.appearance-mode-picker__preview-duo')).toBeInTheDocument()
-    expect(container.querySelector('.appearance-mode-picker__preview-pane--light')).toBeInTheDocument()
-    expect(container.querySelector('.appearance-mode-picker__preview-pane--dark')).toBeInTheDocument()
+    expect(
+      container.querySelector('.appearance-mode-picker__preview-pane--light')
+    ).toBeInTheDocument()
+    expect(
+      container.querySelector('.appearance-mode-picker__preview-pane--dark')
+    ).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: /System/ })).toHaveAttribute('aria-checked', 'false')
     expect(screen.getByRole('radio', { name: /Light/ })).toHaveAttribute('aria-checked', 'false')
     expect(screen.getByRole('radio', { name: /Dark/ })).toHaveAttribute('aria-checked', 'true')
@@ -159,7 +159,9 @@ describe('AppearanceSection', () => {
 
     expect(screen.queryByLabelText('Reminders and Lookouts theme preview')).not.toBeInTheDocument()
     expect(
-      screen.queryByText('Tune the container, Ask agent button, task card, and status badges used in the reminders view')
+      screen.queryByText(
+        'Tune the container, Ask agent button, task card, and status badges used in the reminders view'
+      )
     ).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Reminders container style')).not.toBeInTheDocument()
   })

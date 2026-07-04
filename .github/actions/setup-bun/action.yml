@@ -4,7 +4,7 @@ inputs:
   bun-version:
     description: Bun version to install (defaults to the version pinned by docs/MAINTENANCE.md)
     required: false
-    default: "1.3.14"
+    default: '1.3.14'
 runs:
   using: composite
   steps:

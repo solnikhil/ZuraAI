@@ -94,7 +94,8 @@ describe('shouldContinueToolResearch', () => {
           },
           result: {
             success: false,
-            error: 'Skipped web_search call because the per-response search budget has been reached.',
+            error:
+              'Skipped web_search call because the per-response search budget has been reached.',
             metadata: {
               origin: 'builtin-main',
               executionDisposition: 'skipped',

@@ -48,13 +48,19 @@ $items | ConvertTo-Json -Compress
 `
   try {
     const { stdout } = await runPowerShell(script)
-    return { success: true, data: { windows: normalizeJsonArray(parseJsonOutput<unknown | unknown[]>(stdout)) } }
+    return {
+      success: true,
+      data: { windows: normalizeJsonArray(parseJsonOutput<unknown | unknown[]>(stdout)) },
+    }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : 'window_list failed.' }
   }
 }
 
-async function runWindowAction(args: unknown, action: 'focus' | 'move' | 'close'): Promise<ToolResult> {
+async function runWindowAction(
+  args: unknown,
+  action: 'focus' | 'move' | 'close'
+): Promise<ToolResult> {
   if (!isWindows()) return unsupportedWindowsOnly(`window_${action}`)
   const approval = requireApproval(args, `window_${action}`)
   if (approval) return approval
@@ -101,7 +107,10 @@ ${actionCall}
     const { stdout } = await runPowerShell(script)
     return { success: true, data: parseJsonOutput<unknown>(stdout) }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : `window_${action} failed.` }
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : `window_${action} failed.`,
+    }
   }
 }
 

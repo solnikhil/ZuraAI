@@ -98,7 +98,9 @@ describe('RemindersView', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Ask agent' }))
 
-    expect(mockSetDraftText).toHaveBeenCalledWith('Help me create a reminder, lookout, or AI automation.')
+    expect(mockSetDraftText).toHaveBeenCalledWith(
+      'Help me create a reminder, lookout, or AI automation.'
+    )
     expect(mockSetDashboardView).toHaveBeenCalledWith('chat')
   })
 
@@ -110,7 +112,9 @@ describe('RemindersView', () => {
     expect(row).not.toBeNull()
     fireEvent.click(within(row as HTMLElement).getByRole('button', { name: 'Logs' }))
 
-    expect(screen.getByRole('complementary', { name: /logs for watch changelog/i })).toBeInTheDocument()
+    expect(
+      screen.getByRole('complementary', { name: /logs for watch changelog/i })
+    ).toBeInTheDocument()
     expect(document.querySelector('.reminders-view__drawer-divider')).toBeInTheDocument()
     expect(screen.getByText('The changelog added a new API release.')).toBeInTheDocument()
     expect(screen.getByText('New API release notes')).toBeInTheDocument()
@@ -127,9 +131,13 @@ describe('RemindersView', () => {
     fireEvent.keyDown(menuTrigger, { key: 'ArrowDown' })
     fireEvent.click(await screen.findByRole('menuitem', { name: /edit/i }))
 
-    const detailsDrawer = screen.getByRole('complementary', { name: /details for review weekly launches/i })
+    const detailsDrawer = screen.getByRole('complementary', {
+      name: /details for review weekly launches/i,
+    })
     expect(within(detailsDrawer).getByText('Task details')).toBeInTheDocument()
-    expect(within(detailsDrawer).getByRole('heading', { name: 'Review weekly launches' })).toBeInTheDocument()
+    expect(
+      within(detailsDrawer).getByRole('heading', { name: 'Review weekly launches' })
+    ).toBeInTheDocument()
     expect(within(detailsDrawer).getByText('Type')).toBeInTheDocument()
     expect(within(detailsDrawer).getByText('Status')).toBeInTheDocument()
     expect(within(detailsDrawer).getByText('Schedule')).toBeInTheDocument()
@@ -162,7 +170,9 @@ describe('RemindersView', () => {
     render(<RemindersView />)
 
     expect(await screen.findByText('No matching tasks')).toBeInTheDocument()
-    expect(screen.getByText('Ask the agent to create a reminder, lookout, or AI automation.')).toBeInTheDocument()
+    expect(
+      screen.getByText('Ask the agent to create a reminder, lookout, or AI automation.')
+    ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Remind me tomorrow at 9 AM' })).toBeInTheDocument()
   })
 })

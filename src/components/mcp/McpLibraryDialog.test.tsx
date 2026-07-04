@@ -187,9 +187,7 @@ describe('McpLibraryDialog', () => {
   it('reads a resource and inserts it into the composer draft', async () => {
     const onInsertText = vi.fn()
 
-    render(
-      <McpLibraryDialog open={true} onOpenChange={vi.fn()} onInsertText={onInsertText} />
-    )
+    render(<McpLibraryDialog open={true} onOpenChange={vi.fn()} onInsertText={onInsertText} />)
 
     fireEvent.click(screen.getByRole('button', { name: /demo file/i }))
 
@@ -219,7 +217,9 @@ describe('McpLibraryDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: /preview prompt/i }))
 
     await waitFor(() => {
-      expect(mocks.getPrompt).toHaveBeenCalledWith('server-1', 'summarize_demo', { topic: 'release notes' })
+      expect(mocks.getPrompt).toHaveBeenCalledWith('server-1', 'summarize_demo', {
+        topic: 'release notes',
+      })
     })
 
     fireEvent.click(screen.getByRole('button', { name: /insert into composer/i }))
@@ -248,9 +248,7 @@ describe('McpLibraryDialog', () => {
   })
 
   it('loads catalogue entries and adds compatible servers immediately', async () => {
-    render(
-      <McpLibraryDialog open={true} onOpenChange={vi.fn()} initialMode="catalogue" />
-    )
+    render(<McpLibraryDialog open={true} onOpenChange={vi.fn()} initialMode="catalogue" />)
 
     await waitFor(() => {
       expect(mocks.fetchMcpCatalogue).toHaveBeenCalled()
@@ -273,9 +271,7 @@ describe('McpLibraryDialog', () => {
   })
 
   it('opens inline key setup for catalogue entries with required secrets', async () => {
-    render(
-      <McpLibraryDialog open={true} onOpenChange={vi.fn()} initialMode="catalogue" />
-    )
+    render(<McpLibraryDialog open={true} onOpenChange={vi.fn()} initialMode="catalogue" />)
 
     fireEvent.change(await screen.findByLabelText(/search mcp catalogue/i), {
       target: { value: 'Context7' },
@@ -307,9 +303,7 @@ describe('McpLibraryDialog', () => {
   })
 
   it('shows unsupported bundled entries without allowing installation', async () => {
-    render(
-      <McpLibraryDialog open={true} onOpenChange={vi.fn()} initialMode="catalogue" />
-    )
+    render(<McpLibraryDialog open={true} onOpenChange={vi.fn()} initialMode="catalogue" />)
 
     fireEvent.change(await screen.findByLabelText(/search mcp catalogue/i), {
       target: { value: 'HTTP' },
@@ -324,12 +318,14 @@ describe('McpLibraryDialog', () => {
   it('marks already configured catalogue entries as added', async () => {
     mocks.isCatalogueEntryAdded.mockReturnValue(true)
 
-    render(
-      <McpLibraryDialog open={true} onOpenChange={vi.fn()} initialMode="catalogue" />
-    )
+    render(<McpLibraryDialog open={true} onOpenChange={vi.fn()} initialMode="catalogue" />)
 
     await screen.findByText(/npm server/i)
 
-    expect(screen.getAllByRole('button', { name: /^added$/i }).every((button) => button.hasAttribute('disabled'))).toBe(true)
+    expect(
+      screen
+        .getAllByRole('button', { name: /^added$/i })
+        .every((button) => button.hasAttribute('disabled'))
+    ).toBe(true)
   })
 })

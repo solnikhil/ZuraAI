@@ -1,7 +1,4 @@
-import {
-  BaseApprovalManager,
-  type BaseApprovalDecision,
-} from '../../utils/baseApprovalManager'
+import { BaseApprovalManager, type BaseApprovalDecision } from '../../utils/baseApprovalManager'
 import type { ComputerActionType } from './types'
 
 export interface PendingComputerAction {

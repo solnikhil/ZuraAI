@@ -26,7 +26,9 @@ function normalizeTarget(raw: unknown): AgentSkillScope {
 }
 
 export function registerAgentSkillsHandlers(): void {
-  ipcMain.handle('agent-skills:list', (_event, query: unknown) => listAgentSkills(normalizeQuery(query)))
+  ipcMain.handle('agent-skills:list', (_event, query: unknown) =>
+    listAgentSkills(normalizeQuery(query))
+  )
   ipcMain.handle('agent-skills:activate', (_event, name: unknown) =>
     activateAgentSkill(typeof name === 'string' ? name : '')
   )
@@ -35,12 +37,14 @@ export function registerAgentSkillsHandlers(): void {
   ipcMain.handle('agent-skills:search', (_event, query: unknown) =>
     searchAgentSkills(typeof query === 'string' ? query : '')
   )
-  ipcMain.handle('agent-skills:install', (_event, packageRef: unknown, target: unknown, projectRoot: unknown) =>
-    installAgentSkill(
-      typeof packageRef === 'string' ? packageRef : '',
-      normalizeTarget(target),
-      typeof projectRoot === 'string' ? projectRoot : undefined
-    )
+  ipcMain.handle(
+    'agent-skills:install',
+    (_event, packageRef: unknown, target: unknown, projectRoot: unknown) =>
+      installAgentSkill(
+        typeof packageRef === 'string' ? packageRef : '',
+        normalizeTarget(target),
+        typeof projectRoot === 'string' ? projectRoot : undefined
+      )
   )
 }
 

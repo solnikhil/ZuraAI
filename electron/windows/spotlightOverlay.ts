@@ -9,7 +9,10 @@ function getOrCreateWindow(): BrowserWindow {
   const { x, y, width, height } = primary.bounds
 
   spotlightWindow = new BrowserWindow({
-    x, y, width, height,
+    x,
+    y,
+    width,
+    height,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
@@ -23,7 +26,9 @@ function getOrCreateWindow(): BrowserWindow {
   })
 
   spotlightWindow.setIgnoreMouseEvents(true)
-  spotlightWindow.on('closed', () => { spotlightWindow = null })
+  spotlightWindow.on('closed', () => {
+    spotlightWindow = null
+  })
 
   return spotlightWindow
 }
@@ -37,20 +42,20 @@ body{overflow:hidden;background:transparent}
 .overlay{
   position:fixed;inset:0;
   background:rgba(0,0,0,0.45);
-  mask-image:radial-gradient(circle ${radius}px at ${x}px ${y}px,transparent ${radius}px,black ${radius+2}px);
-  -webkit-mask-image:radial-gradient(circle ${radius}px at ${x}px ${y}px,transparent ${radius}px,black ${radius+2}px);
+  mask-image:radial-gradient(circle ${radius}px at ${x}px ${y}px,transparent ${radius}px,black ${radius + 2}px);
+  -webkit-mask-image:radial-gradient(circle ${radius}px at ${x}px ${y}px,transparent ${radius}px,black ${radius + 2}px);
   animation:fade ${duration}ms ease-in-out forwards;
 }
 .ring{
   position:fixed;
-  left:${x-radius-4}px;top:${y-radius-4}px;
-  width:${(radius+4)*2}px;height:${(radius+4)*2}px;
+  left:${x - radius - 4}px;top:${y - radius - 4}px;
+  width:${(radius + 4) * 2}px;height:${(radius + 4) * 2}px;
   border:2px solid rgba(255,255,255,0.7);border-radius:50%;
   animation:fade ${duration}ms ease-in-out forwards;
   pointer-events:none;
 }
 .label{
-  position:fixed;left:${x}px;top:${y+radius+12}px;
+  position:fixed;left:${x}px;top:${y + radius + 12}px;
   transform:translateX(-50%);
   color:#fff;font:500 13px/1 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
   background:rgba(0,0,0,0.7);padding:4px 10px;border-radius:6px;
@@ -100,4 +105,3 @@ export async function showSpotlight(options: SpotlightOptions): Promise<void> {
 export function hideSpotlight(): void {
   if (spotlightWindow && !spotlightWindow.isDestroyed()) spotlightWindow.hide()
 }
-

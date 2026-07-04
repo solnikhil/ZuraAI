@@ -27,11 +27,7 @@ import {
   SEARCH_FETCH_TIMEOUT_MS,
   SEARCH_MAX_EXTRACT_URLS,
 } from '../../constants'
-import type {
-  ProviderContext,
-  ProviderExtractRequest,
-  ProviderSearchRequest,
-} from '../../types'
+import type { ProviderContext, ProviderExtractRequest, ProviderSearchRequest } from '../../types'
 
 /** Tavily REST endpoints. */
 const TAVILY_SEARCH_URL = 'https://api.tavily.com/search'
@@ -64,7 +60,7 @@ export type TavilyTransportResult =
 async function fetchWithTimeout(
   url: string,
   options: RequestInit,
-  timeoutMs: number,
+  timeoutMs: number
 ): Promise<Response> {
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
@@ -104,7 +100,7 @@ function messageOf(error: unknown, fallback: string): string {
  */
 export async function tavilySearch(
   request: ProviderSearchRequest,
-  ctx: ProviderContext,
+  ctx: ProviderContext
 ): Promise<TavilyTransportResult> {
   const body: Record<string, unknown> = {
     api_key: ctx.apiKey,
@@ -134,7 +130,7 @@ export async function tavilySearch(
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       },
-      SEARCH_FETCH_TIMEOUT_MS,
+      SEARCH_FETCH_TIMEOUT_MS
     )
 
     if (!response.ok) {
@@ -167,13 +163,13 @@ export async function tavilySearch(
  */
 export async function tavilyExtract(
   request: ProviderExtractRequest,
-  ctx: ProviderContext,
+  ctx: ProviderContext
 ): Promise<TavilyTransportResult> {
   const normalizedUrls = [
     ...new Set(
       request.urls
         .map((url) => (typeof url === 'string' ? url.trim() : ''))
-        .filter((url) => url.length > 0),
+        .filter((url) => url.length > 0)
     ),
   ].slice(0, SEARCH_MAX_EXTRACT_URLS)
 
@@ -210,7 +206,7 @@ export async function tavilyExtract(
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       },
-      SEARCH_EXTRACT_FETCH_TIMEOUT_MS,
+      SEARCH_EXTRACT_FETCH_TIMEOUT_MS
     )
 
     if (!response.ok) {

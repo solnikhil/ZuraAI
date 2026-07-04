@@ -26,7 +26,7 @@ function EmptyHeader({ className, ...props }: React.ComponentProps<'div'>) {
 }
 
 const emptyMediaVariants = cva(
-  "flex shrink-0 items-center justify-center [&_svg]:pointer-events-none [&_svg]:shrink-0",
+  'flex shrink-0 items-center justify-center [&_svg]:pointer-events-none [&_svg]:shrink-0',
   {
     variants: {
       variant: {
@@ -47,7 +47,12 @@ function EmptyMedia({
   ...props
 }: React.ComponentProps<'div'> & VariantProps<typeof emptyMediaVariants>) {
   return (
-    <div data-slot="empty-media" data-variant={variant} className={cn('relative mb-6', className)} {...props}>
+    <div
+      data-slot="empty-media"
+      data-variant={variant}
+      className={cn('relative mb-6', className)}
+      {...props}
+    >
       {variant === 'icon' && (
         <>
           <div

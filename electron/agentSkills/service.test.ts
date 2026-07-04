@@ -35,7 +35,10 @@ describe('Agent Skills service', () => {
   })
 
   it('discovers valid SKILL.md files and parses optional frontmatter fields', async () => {
-    await writeSkill(mockHome, 'design', `---
+    await writeSkill(
+      mockHome,
+      'design',
+      `---
 name: design-review
 description: Review UI quality
 license: MIT
@@ -45,7 +48,8 @@ metadata:
   owner: design
 ---
 Use this for interface review.
-`)
+`
+    )
 
     const { listAgentSkills } = await import('./service')
     const result = await listAgentSkills()
@@ -63,68 +67,98 @@ Use this for interface review.
   })
 
   it('reports malformed or incomplete SKILL.md files without crashing discovery', async () => {
-    await writeSkill(mockHome, 'missing-description', `---
+    await writeSkill(
+      mockHome,
+      'missing-description',
+      `---
 name: incomplete
 ---
 No description.
-`)
-    await writeSkill(mockHome, 'bad-frontmatter', `---
+`
+    )
+    await writeSkill(
+      mockHome,
+      'bad-frontmatter',
+      `---
 name: broken
 description: Broken skill
 not yaml
 ---
 Body.
-`)
+`
+    )
 
     const { listAgentSkills } = await import('./service')
     const result = await listAgentSkills()
 
     expect(result.skills.map((skill) => skill.name)).toEqual(['broken'])
     expect(result.skills[0].diagnostics?.[0].message).toContain('Unsupported frontmatter line')
-    expect(result.diagnostics.some((diagnostic) => diagnostic.message.includes('name and description'))).toBe(true)
+    expect(
+      result.diagnostics.some((diagnostic) => diagnostic.message.includes('name and description'))
+    ).toBe(true)
   })
 
   it('lets project skills override user skills by name and filters disabled skills', async () => {
     const projectRoot = await mkdtemp(path.join(tmpdir(), 'zura-skills-project-'))
-    await writeSkill(mockHome, 'shared', `---
+    await writeSkill(
+      mockHome,
+      'shared',
+      `---
 name: shared
 description: User copy
 ---
 User body.
-`)
-    await writeSkill(projectRoot, 'shared', `---
+`
+    )
+    await writeSkill(
+      projectRoot,
+      'shared',
+      `---
 name: shared
 description: Project copy
 ---
 Project body.
-`)
-    await writeSkill(mockHome, 'disabled', `---
+`
+    )
+    await writeSkill(
+      mockHome,
+      'disabled',
+      `---
 name: disabled
 description: Hidden copy
 ---
 Hidden body.
-`)
+`
+    )
 
     const { listAgentSkills } = await import('./service')
     const result = await listAgentSkills({ projectRoot, disabledSkillNames: ['disabled'] })
 
-    expect(result.skills.map((skill) => `${skill.name}:${skill.scope}:${skill.description}`)).toEqual([
-      'shared:project:Project copy',
-    ])
+    expect(
+      result.skills.map((skill) => `${skill.name}:${skill.scope}:${skill.description}`)
+    ).toEqual(['shared:project:Project copy'])
   })
 
   it('activates a skill with body-only instructions and capped relative resource paths', async () => {
-    const skillDir = await writeSkill(mockHome, 'writer', `---
+    const skillDir = await writeSkill(
+      mockHome,
+      'writer',
+      `---
 name: writer
 description: Write with house style
 ---
 # Instructions
 Use the house style.
-`)
+`
+    )
     await mkdir(path.join(skillDir, 'references'), { recursive: true })
     await mkdir(path.join(skillDir, 'scripts'), { recursive: true })
     for (let index = 0; index < 90; index += 1) {
-      await writeFile(path.join(skillDir, 'scripts', `tool-${index}.js`), 'console.log("skip")', 'utf8')
+      await writeFile(
+        path.join(skillDir, 'scripts', `tool-${index}.js`),
+        'console.log("skip")',
+        'utf8'
+      )
     }
     await writeFile(path.join(skillDir, 'references', 'style.md'), 'Style guide', 'utf8')
 

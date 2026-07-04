@@ -8,7 +8,13 @@ import type { WebSearchArgs } from './webSearch'
 import { executeCode } from './codeExecution'
 import type { CodeExecutionArgs } from './codeExecution'
 import {
-  executeScreenshot, executeClick, executeType, executeKey, executeScroll, executeCursorPosition, executeListWindows,
+  executeScreenshot,
+  executeClick,
+  executeType,
+  executeKey,
+  executeScroll,
+  executeCursorPosition,
+  executeListWindows,
 } from './computerUse'
 import {
   executeWindowsUiaSnapshot,
@@ -65,7 +71,11 @@ import type { ScheduledTaskInput, ScheduledTaskUpdateInput } from '../monitors'
 import type { ScreenshotArgs, TypeArgs, KeyArgs } from './computerUse'
 import { showSpotlight } from '../windows/spotlightOverlay'
 import { isBuiltinMainToolName, type BuiltinMainToolName } from '../../src/tools/builtinTools'
-import { normalizeClickArgs, normalizeCursorArgs, normalizeScrollArgs } from './computer-use/normalize'
+import {
+  normalizeClickArgs,
+  normalizeCursorArgs,
+  normalizeScrollArgs,
+} from './computer-use/normalize'
 import { activateAgentSkill } from '../agentSkills/service'
 
 import type { ToolResult, ToolHandler } from './types'
@@ -105,9 +115,7 @@ function normalizeWebSearchArgsInput(args: unknown): WebSearchArgs {
     return undefined
   }
 
-  const parseSearchDepth = (
-    value: unknown
-  ): WebSearchArgs['search_depth'] | undefined => {
+  const parseSearchDepth = (value: unknown): WebSearchArgs['search_depth'] | undefined => {
     if (value === 'ultra-fast' || value === 'fast' || value === 'basic' || value === 'advanced') {
       return value
     }
@@ -166,7 +174,7 @@ function normalizeCodeExecutionArgsInput(args: unknown): CodeExecutionArgs {
  */
 
 function normalizeScreenshotArgs(args: unknown): ScreenshotArgs {
-  const r = (typeof args === 'object' && args !== null) ? args as Record<string, unknown> : {}
+  const r = typeof args === 'object' && args !== null ? (args as Record<string, unknown>) : {}
   return {
     display_id: typeof r.display_id === 'string' ? r.display_id : undefined,
     window_id: typeof r.window_id === 'string' ? r.window_id : undefined,
@@ -176,13 +184,19 @@ function normalizeScreenshotArgs(args: unknown): ScreenshotArgs {
 }
 
 function normalizeTypeArgs(args: unknown): { args: TypeArgs; autoApprove: boolean } {
-  const r = (typeof args === 'object' && args !== null) ? args as Record<string, unknown> : {}
-  return { args: { text: typeof r.text === 'string' ? r.text : '' }, autoApprove: r.autoApprove === true }
+  const r = typeof args === 'object' && args !== null ? (args as Record<string, unknown>) : {}
+  return {
+    args: { text: typeof r.text === 'string' ? r.text : '' },
+    autoApprove: r.autoApprove === true,
+  }
 }
 
 function normalizeKeyArgs(args: unknown): { args: KeyArgs; autoApprove: boolean } {
-  const r = (typeof args === 'object' && args !== null) ? args as Record<string, unknown> : {}
-  return { args: { key: typeof r.key === 'string' ? r.key : '' }, autoApprove: r.autoApprove === true }
+  const r = typeof args === 'object' && args !== null ? (args as Record<string, unknown>) : {}
+  return {
+    args: { key: typeof r.key === 'string' ? r.key : '' },
+    autoApprove: r.autoApprove === true,
+  }
 }
 
 const spotlightFn = (opts: { x: number; y: number; label?: string }) => showSpotlight(opts)
@@ -191,11 +205,12 @@ const toolHandlers: Record<BuiltinMainToolName, ToolHandler> = {
   web_search: (args) => executeWebSearch(normalizeWebSearchArgsInput(args)),
   code_execution: (args) => executeCode(normalizeCodeExecutionArgsInput(args)),
   activate_skill: async (args) => {
-    const r = (typeof args === 'object' && args !== null) ? args as Record<string, unknown> : {}
+    const r = typeof args === 'object' && args !== null ? (args as Record<string, unknown>) : {}
     const name = typeof r.name === 'string' ? r.name : ''
-    const settings = (typeof r._agentSkills === 'object' && r._agentSkills !== null)
-      ? r._agentSkills as Record<string, unknown>
-      : {}
+    const settings =
+      typeof r._agentSkills === 'object' && r._agentSkills !== null
+        ? (r._agentSkills as Record<string, unknown>)
+        : {}
     const result = await activateAgentSkill(name, {
       projectRoot: typeof settings.projectRoot === 'string' ? settings.projectRoot : undefined,
       disabledSkillNames: Array.isArray(settings.disabledSkillNames)
@@ -208,11 +223,26 @@ const toolHandlers: Record<BuiltinMainToolName, ToolHandler> = {
     return { success: true, data: createMcpAddRequest(args) }
   },
   computer_screenshot: (args) => executeScreenshot(normalizeScreenshotArgs(args)),
-  computer_click: (args) => { const n = normalizeClickArgs(args); return executeClick(n.args, n.autoApprove, spotlightFn) },
-  computer_type: (args) => { const n = normalizeTypeArgs(args); return executeType(n.args, n.autoApprove) },
-  computer_key: (args) => { const n = normalizeKeyArgs(args); return executeKey(n.args, n.autoApprove) },
-  computer_scroll: (args) => { const n = normalizeScrollArgs(args); return executeScroll(n.args, n.autoApprove, spotlightFn) },
-  computer_cursor_position: (args) => { const n = normalizeCursorArgs(args); return executeCursorPosition(n.args, n.autoApprove, spotlightFn) },
+  computer_click: (args) => {
+    const n = normalizeClickArgs(args)
+    return executeClick(n.args, n.autoApprove, spotlightFn)
+  },
+  computer_type: (args) => {
+    const n = normalizeTypeArgs(args)
+    return executeType(n.args, n.autoApprove)
+  },
+  computer_key: (args) => {
+    const n = normalizeKeyArgs(args)
+    return executeKey(n.args, n.autoApprove)
+  },
+  computer_scroll: (args) => {
+    const n = normalizeScrollArgs(args)
+    return executeScroll(n.args, n.autoApprove, spotlightFn)
+  },
+  computer_cursor_position: (args) => {
+    const n = normalizeCursorArgs(args)
+    return executeCursorPosition(n.args, n.autoApprove, spotlightFn)
+  },
   computer_list_windows: () => executeListWindows(),
   ui_get_app_state: executeUiGetAppState,
   ui_find: executeUiFind,
@@ -244,34 +274,44 @@ const toolHandlers: Record<BuiltinMainToolName, ToolHandler> = {
     return { success: true, data: task }
   },
   scheduled_task_update: async (args) => {
-    const r = (typeof args === 'object' && args !== null) ? args as Record<string, unknown> : {}
+    const r = typeof args === 'object' && args !== null ? (args as Record<string, unknown>) : {}
     const id = typeof r.id === 'string' ? r.id.trim() : ''
     if (!id) return { success: false, error: 'Scheduled task id is required.' }
     const patch = { ...r }
     delete patch.id
-    const task = await updateScheduledTask(id, sanitizeScheduledTaskInput(patch, true) as ScheduledTaskUpdateInput)
+    const task = await updateScheduledTask(
+      id,
+      sanitizeScheduledTaskInput(patch, true) as ScheduledTaskUpdateInput
+    )
     await getMonitorRuntime()?.reschedule()
-    return task ? { success: true, data: task } : { success: false, error: 'Scheduled task not found.' }
+    return task
+      ? { success: true, data: task }
+      : { success: false, error: 'Scheduled task not found.' }
   },
   scheduled_task_delete: async (args) => {
-    const r = (typeof args === 'object' && args !== null) ? args as Record<string, unknown> : {}
+    const r = typeof args === 'object' && args !== null ? (args as Record<string, unknown>) : {}
     const id = typeof r.id === 'string' ? r.id.trim() : ''
     if (!id) return { success: false, error: 'Scheduled task id is required.' }
     const deleted = await deleteScheduledTask(id)
     await getMonitorRuntime()?.reschedule()
-    return deleted ? { success: true, data: { deleted: true, id } } : { success: false, error: 'Scheduled task not found.' }
+    return deleted
+      ? { success: true, data: { deleted: true, id } }
+      : { success: false, error: 'Scheduled task not found.' }
   },
   scheduled_task_list: async (args) => {
-    const r = (typeof args === 'object' && args !== null) ? args as Record<string, unknown> : {}
+    const r = typeof args === 'object' && args !== null ? (args as Record<string, unknown>) : {}
     const type = r.type === 'reminder' || r.type === 'web_lookout' ? r.type : undefined
     const tasks = await listScheduledTasks()
     return { success: true, data: type ? tasks.filter((task) => task.type === type) : tasks }
   },
   scheduled_task_get_logs: async (args) => {
-    const r = (typeof args === 'object' && args !== null) ? args as Record<string, unknown> : {}
+    const r = typeof args === 'object' && args !== null ? (args as Record<string, unknown>) : {}
     const id = typeof r.id === 'string' ? r.id.trim() : ''
     if (!id) return { success: false, error: 'Scheduled task id is required.' }
-    const limit = typeof r.limit === 'number' && Number.isFinite(r.limit) ? Math.min(Math.max(1, Math.floor(r.limit)), 50) : 20
+    const limit =
+      typeof r.limit === 'number' && Number.isFinite(r.limit)
+        ? Math.min(Math.max(1, Math.floor(r.limit)), 50)
+        : 20
     const runs = (await listScheduledTaskRuns(id)).slice(0, limit)
     return { success: true, data: runs }
   },
@@ -291,44 +331,50 @@ const toolHandlers: Record<BuiltinMainToolName, ToolHandler> = {
  * Call this from main.ts during app initialization
  */
 export function registerToolHandlers(): void {
-  ipcMain.handle('execute-tool', async (_event, toolName: string, args: unknown): Promise<ToolResult> => {
-    if (!isBuiltinMainToolName(toolName)) {
-      return {
-        success: false,
-        error: `Tool "${String(toolName)}" is disabled.`
+  ipcMain.handle(
+    'execute-tool',
+    async (_event, toolName: string, args: unknown): Promise<ToolResult> => {
+      if (!isBuiltinMainToolName(toolName)) {
+        return {
+          success: false,
+          error: `Tool "${String(toolName)}" is disabled.`,
+        }
+      }
+
+      if (process.platform === 'darwin' && isComputerUseToolName(toolName)) {
+        return {
+          success: false,
+          error: 'Computer Use is disabled on macOS for now.',
+        }
+      }
+
+      if (SCHEDULED_TASK_TOOL_NAMES.has(toolName) && !isMonitorRuntimeExtensionEnabled()) {
+        return {
+          success: false,
+          error: 'Reminders & Lookouts extension is disabled.',
+        }
+      }
+
+      const handler = toolHandlers[toolName]
+
+      if (!handler) {
+        return {
+          success: false,
+          error: `Tool "${String(toolName)}" is disabled.`,
+        }
+      }
+
+      try {
+        return await handler(args)
+      } catch (error: unknown) {
+        return {
+          success: false,
+          error:
+            error instanceof Error && error.message
+              ? error.message
+              : 'Unknown error during tool execution',
+        }
       }
     }
-
-    if (process.platform === 'darwin' && isComputerUseToolName(toolName)) {
-      return {
-        success: false,
-        error: 'Computer Use is disabled on macOS for now.',
-      }
-    }
-
-    if (SCHEDULED_TASK_TOOL_NAMES.has(toolName) && !isMonitorRuntimeExtensionEnabled()) {
-      return {
-        success: false,
-        error: 'Reminders & Lookouts extension is disabled.',
-      }
-    }
-
-    const handler = toolHandlers[toolName]
-
-    if (!handler) {
-      return {
-        success: false,
-        error: `Tool "${String(toolName)}" is disabled.`
-      }
-    }
-
-    try {
-      return await handler(args)
-    } catch (error: unknown) {
-      return {
-        success: false,
-        error: error instanceof Error && error.message ? error.message : 'Unknown error during tool execution',
-      }
-    }
-  })
+  )
 }

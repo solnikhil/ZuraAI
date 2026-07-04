@@ -75,7 +75,10 @@
   color: var(--theme-text-muted);
   cursor: pointer;
   font-family: inherit;
-  transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease,
+    border-color 120ms ease;
 }
 
 .chat-debug-panel__chip:hover,
@@ -194,7 +197,6 @@
   color: var(--theme-text-primary);
 }
 
-
 .chat-debug-panel__tabs {
   display: flex;
   gap: 4px;
@@ -212,7 +214,10 @@
   border-radius: 6px;
   cursor: pointer;
   font-family: inherit;
-  transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease,
+    border-color 120ms ease;
 }
 
 .chat-debug-panel__tab:hover {
@@ -294,7 +299,6 @@
   height: auto;
   padding: 24px;
 }
-
 
 .chat-debug-page {
   display: flex;

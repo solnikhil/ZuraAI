@@ -7,14 +7,8 @@
 
 import { ipcMain } from 'electron'
 import type { BrowserWindow } from 'electron'
-import {
-  getDiscordRpcClient,
-  disposeDiscordRpcClient,
-} from './rpcClient'
-import type {
-  DiscordRpcActivity,
-  DiscordRpcState,
-} from './types'
+import { getDiscordRpcClient, disposeDiscordRpcClient } from './rpcClient'
+import type { DiscordRpcActivity, DiscordRpcState } from './types'
 
 let stateBroadcastHandler: ((state: DiscordRpcState) => void) | null = null
 
@@ -34,13 +28,10 @@ export function registerDiscordRpcHandlers(getWindow: () => BrowserWindow | null
     return client.getState()
   })
 
-  ipcMain.handle(
-    'discord-rpc:set-activity',
-    (_event, activity: DiscordRpcActivity) => {
-      client.setActivity(activity)
-      return client.getState()
-    }
-  )
+  ipcMain.handle('discord-rpc:set-activity', (_event, activity: DiscordRpcActivity) => {
+    client.setActivity(activity)
+    return client.getState()
+  })
 }
 
 export function unregisterDiscordRpcHandlers(): void {

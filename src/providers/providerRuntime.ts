@@ -13,11 +13,7 @@ import {
   streamFireworksCompletion,
   type FireworksResponse,
 } from '../services/fireworks'
-import {
-  generateGroqCompletion,
-  streamGroqCompletion,
-  type GroqResponse,
-} from '../services/groq'
+import { generateGroqCompletion, streamGroqCompletion, type GroqResponse } from '../services/groq'
 import {
   generateNvidiaCompletion,
   streamNvidiaCompletion,
@@ -133,7 +129,6 @@ type TitleGenerationSettings = Pick<
   | 'perplexityApiKey'
 >
 
-
 export function extractTitleTextFromMessage(message: unknown): string {
   if (!message || typeof message !== 'object') return ''
   const record = message as Record<string, unknown>
@@ -167,7 +162,6 @@ export function extractTitleTextFromMessage(message: unknown): string {
 
   return ''
 }
-
 
 function inferMimeTypeFromDataUrl(dataUrl: string): string {
   const match = dataUrl.match(/^data:([^;,]+)[;,]/i)
@@ -216,7 +210,9 @@ function normalizeToolCalls(
 }
 
 function normalizeReasoningDetails(details: ReasoningDetail[] | undefined): ReasoningDetail[] {
-  return Array.isArray(details) ? details.filter((detail) => detail && typeof detail === 'object') : []
+  return Array.isArray(details)
+    ? details.filter((detail) => detail && typeof detail === 'object')
+    : []
 }
 
 function normalizeUsage(
@@ -232,7 +228,11 @@ function normalizeUsage(
         cache_creation_input_tokens?: number
         cache_write_input_tokens?: number
         prompt_tokens_details?: { cached_tokens?: number }
-        completion_tokens_details?: { reasoning_tokens?: number; image_tokens?: number; audio_tokens?: number }
+        completion_tokens_details?: {
+          reasoning_tokens?: number
+          image_tokens?: number
+          audio_tokens?: number
+        }
         reasoning_tokens?: number
         input_tokens?: number
         output_tokens?: number
@@ -248,9 +248,7 @@ function normalizeUsage(
     usage.prompt_cache_tokens ??
     usage.prompt_cache_hit_tokens ??
     usage.prompt_tokens_details?.cached_tokens
-  const cacheWriteInputTokens =
-    usage.cache_write_input_tokens ??
-    usage.cache_creation_input_tokens
+  const cacheWriteInputTokens = usage.cache_write_input_tokens ?? usage.cache_creation_input_tokens
   return {
     inputTokens,
     outputTokens,
@@ -345,13 +343,15 @@ async function* emitOpenAiCompatibleResponse(
   }
 
   const toolCalls = normalizeToolCalls(
-    (message as {
-      tool_calls?: Array<{
-        id?: string
-        type?: 'function'
-        function?: { name?: string; arguments?: string }
-      }>
-    })?.tool_calls
+    (
+      message as {
+        tool_calls?: Array<{
+          id?: string
+          type?: 'function'
+          function?: { name?: string; arguments?: string }
+        }>
+      }
+    )?.tool_calls
   )
   if (toolCalls.length > 0) {
     yield { type: 'tool-call-delta', delta: toolCalls }
@@ -369,7 +369,11 @@ async function* emitOpenAiCompatibleResponse(
     yield { type: 'usage', usage: normalizeUsage(response.usage), rawUsage: response.usage }
   }
 
-  if ('citations' in response && Array.isArray(response.citations) && response.citations.length > 0) {
+  if (
+    'citations' in response &&
+    Array.isArray(response.citations) &&
+    response.citations.length > 0
+  ) {
     yield { type: 'citation', citations: response.citations }
   }
 
@@ -501,7 +505,11 @@ export async function generateProviderTitleText(
       return extractTitleTextFromMessage(result.choices?.[0]?.message)
     }
     case 'ollama': {
-      const options = { think: false, signal: generationOptions.signal, max_tokens: generationOptions.maxTokens }
+      const options = {
+        think: false,
+        signal: generationOptions.signal,
+        max_tokens: generationOptions.maxTokens,
+      }
       const result = await generateOllamaCompletion(
         getProviderCredential(resolvedSettings, provider),
         normalizedModel,
@@ -511,7 +519,11 @@ export async function generateProviderTitleText(
       return extractTitleTextFromMessage(result.message)
     }
     case 'alibaba': {
-      const options = { enableThinking: false, signal: generationOptions.signal, max_tokens: generationOptions.maxTokens }
+      const options = {
+        enableThinking: false,
+        signal: generationOptions.signal,
+        max_tokens: generationOptions.maxTokens,
+      }
       const result = await generateAlibabaCompletion(
         getProviderCredential(resolvedSettings, provider),
         normalizedModel,
@@ -611,7 +623,13 @@ export async function generateTitleTextForModel(
     throw new Error('Title model not found')
   }
 
-  return generateProviderTitleText(settings, resolvedModel.provider, resolvedModel.id, prompt, generationOptions)
+  return generateProviderTitleText(
+    settings,
+    resolvedModel.provider,
+    resolvedModel.id,
+    prompt,
+    generationOptions
+  )
 }
 
 export async function* streamProviderEvents(
@@ -636,17 +654,22 @@ export async function* streamProviderEvents(
         sessionId: request.sessionId,
       })
 
-      for await (const chunk of streamOpenRouterCompletion(apiKey, normalizedModel, cacheRequest.messages, {
-        temperature: request.temperature,
-        maxTokens: request.maxTokens,
-        tools: request.tools || undefined,
-        toolChoice: request.toolChoice,
-        modalities: request.modalities,
-        imageConfig: request.imageConfig,
-        reasoning: request.reasoning,
-        debug: settings.openRouterDebug,
-        signal: request.signal,
-      })) {
+      for await (const chunk of streamOpenRouterCompletion(
+        apiKey,
+        normalizedModel,
+        cacheRequest.messages,
+        {
+          temperature: request.temperature,
+          maxTokens: request.maxTokens,
+          tools: request.tools || undefined,
+          toolChoice: request.toolChoice,
+          modalities: request.modalities,
+          imageConfig: request.imageConfig,
+          reasoning: request.reasoning,
+          debug: settings.openRouterDebug,
+          signal: request.signal,
+        }
+      )) {
         const delta = chunk.choices?.[0]?.delta?.content || ''
         if (delta) {
           yield* yieldProgressiveTextDeltas(delta)
@@ -711,23 +734,29 @@ export async function* streamProviderEvents(
         if (chunk.choices?.[0]?.delta?.tool_calls?.length) {
           yield { type: 'tool-call-delta', delta: chunk.choices[0].delta.tool_calls }
         }
-        if (chunk.usage) yield { type: 'usage', usage: normalizeUsage(chunk.usage), rawUsage: chunk.usage }
+        if (chunk.usage)
+          yield { type: 'usage', usage: normalizeUsage(chunk.usage), rawUsage: chunk.usage }
         if (chunk.choices?.[0]?.finish_reason) {
           yield { type: 'finish', finishReason: chunk.choices[0].finish_reason }
         }
       }
       return
     }
-case 'opencode': {
+    case 'opencode': {
       const apiKey = getProviderCredential(settings, 'opencode')
       if (request.streamResponses === false) {
-        const response = await generateOpencodeCompletion(apiKey, normalizedModel, request.messages, {
-          temperature: request.temperature,
-          max_tokens: request.maxTokens,
-          tools: request.tools || undefined,
-          toolChoice: request.toolChoice,
-          signal: request.signal,
-        })
+        const response = await generateOpencodeCompletion(
+          apiKey,
+          normalizedModel,
+          request.messages,
+          {
+            temperature: request.temperature,
+            max_tokens: request.maxTokens,
+            tools: request.tools || undefined,
+            toolChoice: request.toolChoice,
+            signal: request.signal,
+          }
+        )
         yield* emitOpenAiCompatibleResponse(response, {
           includeReasoning: true,
           reasoningContentField: 'reasoning_content',
@@ -736,13 +765,18 @@ case 'opencode': {
       }
 
       let emittedOpencodeReasoning = ''
-      for await (const chunk of streamOpencodeCompletion(apiKey, normalizedModel, request.messages, {
-        temperature: request.temperature,
-        max_tokens: request.maxTokens,
-        tools: request.tools || undefined,
-        toolChoice: request.toolChoice,
-        signal: request.signal,
-      })) {
+      for await (const chunk of streamOpencodeCompletion(
+        apiKey,
+        normalizedModel,
+        request.messages,
+        {
+          temperature: request.temperature,
+          max_tokens: request.maxTokens,
+          tools: request.tools || undefined,
+          toolChoice: request.toolChoice,
+          signal: request.signal,
+        }
+      )) {
         const reasoningEvent = extractOpencodeStreamReasoningDelta(
           chunk.choices?.[0]?.delta,
           emittedOpencodeReasoning
@@ -757,7 +791,8 @@ case 'opencode': {
         if (chunk.choices?.[0]?.delta?.tool_calls?.length) {
           yield { type: 'tool-call-delta', delta: chunk.choices[0].delta.tool_calls }
         }
-        if (chunk.usage) yield { type: 'usage', usage: normalizeUsage(chunk.usage), rawUsage: chunk.usage }
+        if (chunk.usage)
+          yield { type: 'usage', usage: normalizeUsage(chunk.usage), rawUsage: chunk.usage }
         if (chunk.choices?.[0]?.finish_reason) {
           yield { type: 'finish', finishReason: chunk.choices[0].finish_reason }
         }
@@ -775,7 +810,10 @@ case 'opencode': {
           signal: request.signal,
           enableThinking: request.enableThinking,
         })
-        yield* emitOpenAiCompatibleResponse(response, { includeReasoning: true, reasoningContentField: 'reasoning_content' })
+        yield* emitOpenAiCompatibleResponse(response, {
+          includeReasoning: true,
+          reasoningContentField: 'reasoning_content',
+        })
         return
       }
 
@@ -798,7 +836,8 @@ case 'opencode': {
         if (chunk.choices?.[0]?.delta?.tool_calls?.length) {
           yield { type: 'tool-call-delta', delta: chunk.choices[0].delta.tool_calls }
         }
-        if (chunk.usage) yield { type: 'usage', usage: normalizeUsage(chunk.usage), rawUsage: chunk.usage }
+        if (chunk.usage)
+          yield { type: 'usage', usage: normalizeUsage(chunk.usage), rawUsage: chunk.usage }
         if (chunk.choices?.[0]?.finish_reason) {
           yield { type: 'finish', finishReason: chunk.choices[0].finish_reason }
         }
@@ -808,15 +847,23 @@ case 'opencode': {
     case 'alibaba': {
       const apiKey = getProviderCredential(settings, 'alibaba')
       if (request.streamResponses === false) {
-        const response = await generateAlibabaCompletion(apiKey, normalizedModel, request.messages, {
-          temperature: request.temperature,
-          max_tokens: request.maxTokens,
-          tools: request.tools || undefined,
-          toolChoice: request.toolChoice,
-          signal: request.signal,
-          enableThinking: request.enableThinking,
+        const response = await generateAlibabaCompletion(
+          apiKey,
+          normalizedModel,
+          request.messages,
+          {
+            temperature: request.temperature,
+            max_tokens: request.maxTokens,
+            tools: request.tools || undefined,
+            toolChoice: request.toolChoice,
+            signal: request.signal,
+            enableThinking: request.enableThinking,
+          }
+        )
+        yield* emitOpenAiCompatibleResponse(response, {
+          includeReasoning: true,
+          reasoningContentField: 'reasoning_content',
         })
-        yield* emitOpenAiCompatibleResponse(response, { includeReasoning: true, reasoningContentField: 'reasoning_content' })
         return
       }
 
@@ -827,14 +874,19 @@ case 'opencode': {
         sessionId: request.sessionId,
       })
 
-      for await (const chunk of streamAlibabaCompletion(apiKey, normalizedModel, cacheRequest.messages, {
-        temperature: request.temperature,
-        max_tokens: request.maxTokens,
-        tools: request.tools || undefined,
-        toolChoice: request.toolChoice,
-        signal: request.signal,
-        enableThinking: request.enableThinking,
-      })) {
+      for await (const chunk of streamAlibabaCompletion(
+        apiKey,
+        normalizedModel,
+        cacheRequest.messages,
+        {
+          temperature: request.temperature,
+          max_tokens: request.maxTokens,
+          tools: request.tools || undefined,
+          toolChoice: request.toolChoice,
+          signal: request.signal,
+          enableThinking: request.enableThinking,
+        }
+      )) {
         const reasoningDelta = chunk.choices?.[0]?.delta?.reasoning_content
         if (reasoningDelta) {
           yield { type: 'reasoning-delta', delta: reasoningDelta }
@@ -845,7 +897,8 @@ case 'opencode': {
         if (chunk.choices?.[0]?.delta?.tool_calls?.length) {
           yield { type: 'tool-call-delta', delta: chunk.choices[0].delta.tool_calls }
         }
-        if (chunk.usage) yield { type: 'usage', usage: normalizeUsage(chunk.usage), rawUsage: chunk.usage }
+        if (chunk.usage)
+          yield { type: 'usage', usage: normalizeUsage(chunk.usage), rawUsage: chunk.usage }
         if (chunk.choices?.[0]?.finish_reason) {
           yield { type: 'finish', finishReason: chunk.choices[0].finish_reason }
         }
@@ -857,7 +910,32 @@ case 'opencode': {
       // Note: DeepSeek thinking mode silently ignores temperature/top_p/penalties,
       // so passing temperature here is harmless when reasoning is enabled.
       if (request.streamResponses === false) {
-        const response = await generateDeepSeekCompletion(apiKey, normalizedModel, request.messages, {
+        const response = await generateDeepSeekCompletion(
+          apiKey,
+          normalizedModel,
+          request.messages,
+          {
+            temperature: request.temperature,
+            max_tokens: request.maxTokens,
+            tools: request.tools || undefined,
+            toolChoice: request.toolChoice,
+            signal: request.signal,
+            enableThinking: request.enableThinking,
+            reasoningEffort: request.reasoningEffort,
+          }
+        )
+        yield* emitOpenAiCompatibleResponse(response, {
+          includeReasoning: true,
+          reasoningContentField: 'reasoning_content',
+        })
+        return
+      }
+
+      for await (const chunk of streamDeepSeekCompletion(
+        apiKey,
+        normalizedModel,
+        request.messages,
+        {
           temperature: request.temperature,
           max_tokens: request.maxTokens,
           tools: request.tools || undefined,
@@ -865,20 +943,8 @@ case 'opencode': {
           signal: request.signal,
           enableThinking: request.enableThinking,
           reasoningEffort: request.reasoningEffort,
-        })
-        yield* emitOpenAiCompatibleResponse(response, { includeReasoning: true, reasoningContentField: 'reasoning_content' })
-        return
-      }
-
-      for await (const chunk of streamDeepSeekCompletion(apiKey, normalizedModel, request.messages, {
-        temperature: request.temperature,
-        max_tokens: request.maxTokens,
-        tools: request.tools || undefined,
-        toolChoice: request.toolChoice,
-        signal: request.signal,
-        enableThinking: request.enableThinking,
-        reasoningEffort: request.reasoningEffort,
-      })) {
+        }
+      )) {
         const reasoningDelta = chunk.choices?.[0]?.delta?.reasoning_content
         if (reasoningDelta) {
           yield { type: 'reasoning-delta', delta: reasoningDelta }
@@ -889,7 +955,8 @@ case 'opencode': {
         if (chunk.choices?.[0]?.delta?.tool_calls?.length) {
           yield { type: 'tool-call-delta', delta: chunk.choices[0].delta.tool_calls }
         }
-        if (chunk.usage) yield { type: 'usage', usage: normalizeUsage(chunk.usage), rawUsage: chunk.usage }
+        if (chunk.usage)
+          yield { type: 'usage', usage: normalizeUsage(chunk.usage), rawUsage: chunk.usage }
         if (chunk.choices?.[0]?.finish_reason) {
           yield { type: 'finish', finishReason: chunk.choices[0].finish_reason }
         }
@@ -899,13 +966,18 @@ case 'opencode': {
     case 'fireworks': {
       const apiKey = getProviderCredential(settings, 'fireworks')
       if (request.streamResponses === false) {
-        const response = await generateFireworksCompletion(apiKey, normalizedModel, request.messages, {
-          temperature: request.temperature,
-          max_tokens: request.maxTokens,
-          tools: request.tools || undefined,
-          toolChoice: request.toolChoice,
-          signal: request.signal,
-        })
+        const response = await generateFireworksCompletion(
+          apiKey,
+          normalizedModel,
+          request.messages,
+          {
+            temperature: request.temperature,
+            max_tokens: request.maxTokens,
+            tools: request.tools || undefined,
+            toolChoice: request.toolChoice,
+            signal: request.signal,
+          }
+        )
         yield* emitOpenAiCompatibleResponse(response)
         return
       }
@@ -917,20 +989,26 @@ case 'opencode': {
         sessionId: request.sessionId,
       })
 
-      for await (const chunk of streamFireworksCompletion(apiKey, normalizedModel, cacheRequest.messages, {
-        temperature: request.temperature,
-        max_tokens: request.maxTokens,
-        tools: request.tools || undefined,
-        toolChoice: request.toolChoice,
-        extraHeaders: cacheRequest.headers,
-        signal: request.signal,
-      })) {
+      for await (const chunk of streamFireworksCompletion(
+        apiKey,
+        normalizedModel,
+        cacheRequest.messages,
+        {
+          temperature: request.temperature,
+          max_tokens: request.maxTokens,
+          tools: request.tools || undefined,
+          toolChoice: request.toolChoice,
+          extraHeaders: cacheRequest.headers,
+          signal: request.signal,
+        }
+      )) {
         const delta = chunk.choices?.[0]?.delta?.content || ''
         if (delta) yield* yieldProgressiveTextDeltas(delta)
         if (chunk.choices?.[0]?.delta?.tool_calls?.length) {
           yield { type: 'tool-call-delta', delta: chunk.choices[0].delta.tool_calls }
         }
-        if (chunk.usage) yield { type: 'usage', usage: normalizeUsage(chunk.usage), rawUsage: chunk.usage }
+        if (chunk.usage)
+          yield { type: 'usage', usage: normalizeUsage(chunk.usage), rawUsage: chunk.usage }
         if (chunk.choices?.[0]?.finish_reason) {
           yield { type: 'finish', finishReason: chunk.choices[0].finish_reason }
         }
@@ -941,23 +1019,33 @@ case 'opencode': {
       const baseUrl = getProviderCredential(settings, 'ollama')
 
       if (request.streamResponses === false) {
-        const response = await generateOllamaCompletion(baseUrl, normalizedModel, request.messages, {
-          temperature: request.temperature,
-          think: true,
-          tools: request.tools || undefined,
-          signal: request.signal,
-        })
+        const response = await generateOllamaCompletion(
+          baseUrl,
+          normalizedModel,
+          request.messages,
+          {
+            temperature: request.temperature,
+            think: true,
+            tools: request.tools || undefined,
+            signal: request.signal,
+          }
+        )
         yield* emitOllamaResponse(response)
         return
       }
 
       try {
-        for await (const chunk of streamOllamaCompletion(baseUrl, normalizedModel, request.messages, {
-          temperature: request.temperature,
-          think: true,
-          tools: request.tools || undefined,
-          signal: request.signal,
-        })) {
+        for await (const chunk of streamOllamaCompletion(
+          baseUrl,
+          normalizedModel,
+          request.messages,
+          {
+            temperature: request.temperature,
+            think: true,
+            tools: request.tools || undefined,
+            signal: request.signal,
+          }
+        )) {
           const thinkingDelta = chunk.message?.thinking || ''
           if (thinkingDelta) yield { type: 'reasoning-delta', delta: thinkingDelta }
 
@@ -979,28 +1067,33 @@ case 'opencode': {
           if (chunk.done) {
             yield {
               type: 'usage',
-            usage: {
-              inputTokens: chunk.prompt_eval_count || 0,
-              outputTokens: chunk.eval_count || 0,
-              totalTokens: (chunk.prompt_eval_count || 0) + (chunk.eval_count || 0),
-            },
-            rawUsage: {
-              prompt_eval_count: chunk.prompt_eval_count,
-              eval_count: chunk.eval_count,
-            },
-          }
+              usage: {
+                inputTokens: chunk.prompt_eval_count || 0,
+                outputTokens: chunk.eval_count || 0,
+                totalTokens: (chunk.prompt_eval_count || 0) + (chunk.eval_count || 0),
+              },
+              rawUsage: {
+                prompt_eval_count: chunk.prompt_eval_count,
+                eval_count: chunk.eval_count,
+              },
+            }
             yield { type: 'finish', finishReason: 'stop' }
           }
         }
       } catch (error) {
         if ((error as Error).name === 'AbortError') throw error
 
-        const response = await generateOllamaCompletion(baseUrl, normalizedModel, request.messages, {
-          temperature: request.temperature,
-          think: true,
-          tools: request.tools || undefined,
-          signal: request.signal,
-        })
+        const response = await generateOllamaCompletion(
+          baseUrl,
+          normalizedModel,
+          request.messages,
+          {
+            temperature: request.temperature,
+            think: true,
+            tools: request.tools || undefined,
+            signal: request.signal,
+          }
+        )
         yield* emitOllamaResponse(response)
       }
       return
@@ -1008,20 +1101,30 @@ case 'opencode': {
     case 'perplexity': {
       const apiKey = getProviderCredential(settings, 'perplexity')
       if (request.streamResponses === false) {
-        const response = await generatePerplexityCompletion(apiKey, normalizedModel, request.messages, {
-          temperature: request.temperature,
-          max_tokens: request.maxTokens,
-          signal: request.signal,
-        })
+        const response = await generatePerplexityCompletion(
+          apiKey,
+          normalizedModel,
+          request.messages,
+          {
+            temperature: request.temperature,
+            max_tokens: request.maxTokens,
+            signal: request.signal,
+          }
+        )
         yield* emitOpenAiCompatibleResponse(response)
         return
       }
 
-      for await (const chunk of streamPerplexityCompletion(apiKey, normalizedModel, request.messages, {
-        temperature: request.temperature,
-        max_tokens: request.maxTokens,
-        signal: request.signal,
-      })) {
+      for await (const chunk of streamPerplexityCompletion(
+        apiKey,
+        normalizedModel,
+        request.messages,
+        {
+          temperature: request.temperature,
+          max_tokens: request.maxTokens,
+          signal: request.signal,
+        }
+      )) {
         const citations = (chunk as { citations?: string[] }).citations
         if (Array.isArray(citations) && citations.length > 0) {
           yield { type: 'citation', citations }

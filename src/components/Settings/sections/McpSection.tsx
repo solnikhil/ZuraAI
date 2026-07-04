@@ -55,6 +55,7 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { WithTooltip } from '@/components/ui/WithTooltip'
 import McpLibraryDialog from '@/components/mcp/McpLibraryDialog'
 import McpToolsDialog from '@/components/mcp/McpToolsDialog'
 import { useMcp } from '@/mcp/McpContext'
@@ -474,15 +475,16 @@ export function McpSection(): React.ReactElement {
                         )}
                         {!server.enabled && <span className="mcp-disabled-badge">Disabled</span>}
                         {authStatus.mode !== 'none' && (
-                          <span
-                            className={`mcp-auth-badge mcp-auth-badge--${authStatus.state}`}
-                            title={authStatus.lastError || authStatus.label}
-                          >
-                            {authStatus.label}
-                          </span>
+                          <WithTooltip tooltip={authStatus.lastError || authStatus.label}>
+                            <span className={`mcp-auth-badge mcp-auth-badge--${authStatus.state}`}>
+                              {authStatus.label}
+                            </span>
+                          </WithTooltip>
                         )}
                         {isDraftOnly && <span className="mcp-new-badge">New</span>}
-                        {isDirty && !isDraftOnly && <span className="mcp-edited-badge">Edited</span>}
+                        {isDirty && !isDraftOnly && (
+                          <span className="mcp-edited-badge">Edited</span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -526,7 +528,11 @@ export function McpSection(): React.ReactElement {
                     ) : (
                       <Cable className="mr-2 h-4 w-4" />
                     )}
-                    {needsOAuthSignIn ? 'Sign in' : status === 'connected' ? 'Disconnect' : 'Connect'}
+                    {needsOAuthSignIn
+                      ? 'Sign in'
+                      : status === 'connected'
+                        ? 'Disconnect'
+                        : 'Connect'}
                   </Button>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -729,15 +735,20 @@ export function McpSection(): React.ReactElement {
                         ...dialogServer,
                         auth: {
                           mode: value as McpDraftServer['auth']['mode'],
-                          state: value === 'none' ? 'none' : value === 'oauth2Pkce' ? 'reauth_required' : 'configured',
+                          state:
+                            value === 'none'
+                              ? 'none'
+                              : value === 'oauth2Pkce'
+                                ? 'reauth_required'
+                                : 'configured',
                           lastError: null,
                           updatedAt: new Date().toISOString(),
                           oauth:
                             value === 'oauth2Pkce'
-                              ? dialogServer.auth?.oauth ?? {
+                              ? (dialogServer.auth?.oauth ?? {
                                   accessTokenKey: undefined,
                                   refreshTokenKey: undefined,
-                                }
+                                })
                               : undefined,
                         },
                       })
@@ -758,7 +769,8 @@ export function McpSection(): React.ReactElement {
                     </SelectContent>
                   </Select>
                   <FieldDescription>
-                    OAuth sign-in is handled by the desktop app; other modes use secure env or header values.
+                    OAuth sign-in is handled by the desktop app; other modes use secure env or
+                    header values.
                   </FieldDescription>
                 </Field>
 
@@ -1114,11 +1126,7 @@ function McpQuickSecretEditor(props: {
     })
   }
 
-  const updateConfigSecret = (
-    kind: 'env' | 'header',
-    entryId: string,
-    value: string
-  ) => {
+  const updateConfigSecret = (kind: 'env' | 'header', entryId: string, value: string) => {
     const key = kind === 'env' ? 'env' : 'headers'
     props.onChange({
       ...props.server,

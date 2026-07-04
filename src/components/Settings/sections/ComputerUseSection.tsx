@@ -3,11 +3,7 @@ import React from 'react'
 import { Card } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 
-import {
-  isSkillEnabled,
-  withComputerUseEnabled,
-  type SkillsSettings,
-} from '@/skills'
+import { isSkillEnabled, withComputerUseEnabled, type SkillsSettings } from '@/skills'
 import { Monitor } from '../../icons'
 
 export interface ComputerUseSectionProps {
@@ -32,8 +28,8 @@ export function ComputerUseSection({
       <div className="page-header">
         <h2 className="page-title">Computer Use</h2>
         <div className="page-subtitle">
-          Let Agent mode use screenshots, clicks, typing, scrolling, and app controls on the
-          desktop you are currently using.
+          Let Agent mode use screenshots, clicks, typing, scrolling, and app controls on the desktop
+          you are currently using.
         </div>
       </div>
 
@@ -49,8 +45,8 @@ export function ComputerUseSection({
           </div>
 
           <p className="max-w-[70ch] text-sm leading-6 text-muted-foreground">
-            Computer Use controls the current Windows desktop only. Actions still use the
-            existing approval dialog, auto-approval setting, and Esc+Esc kill switch.
+            Computer Use controls the current Windows desktop only. Actions still use the existing
+            approval dialog, auto-approval setting, and Esc+Esc kill switch.
           </p>
 
           <DetailField

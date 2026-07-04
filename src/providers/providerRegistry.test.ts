@@ -73,7 +73,9 @@ describe('providerRegistry', () => {
       configuredModels: [{ code: 'openai/gpt-4.1', displayName: 'GPT-4.1', enabled: true }],
       groqModels: [{ code: 'llama-3.1-8b-instant', displayName: 'Llama Instant', enabled: true }],
       alibabaModels: [{ code: 'qwen-max', displayName: 'Qwen Max', enabled: true }],
-      deepseekModels: [{ code: 'deepseek-v4-flash', displayName: 'DeepSeek V4 Flash', enabled: true }],
+      deepseekModels: [
+        { code: 'deepseek-v4-flash', displayName: 'DeepSeek V4 Flash', enabled: true },
+      ],
       perplexityModels: [{ code: 'sonar', displayName: 'Sonar', enabled: true }],
       nvidiaModels: [{ code: 'minimaxai/minimax-m3', displayName: 'MiniMax M3', enabled: true }],
       ollamaModels: [{ code: 'llama3.2', displayName: 'Llama 3.2', enabled: true }],
@@ -108,8 +110,18 @@ describe('providerRegistry', () => {
       groqApiKey: 'groq-key',
       ollamaUrl: DEFAULT_OLLAMA_URL,
       configuredModels: [
-        { code: 'openai/gpt-4.1-mini', displayName: 'GPT-4.1 Mini', enabled: true, outputModalities: ['text'] },
-        { code: 'openai/gpt-image', displayName: 'GPT Image', enabled: true, outputModalities: ['image'] },
+        {
+          code: 'openai/gpt-4.1-mini',
+          displayName: 'GPT-4.1 Mini',
+          enabled: true,
+          outputModalities: ['text'],
+        },
+        {
+          code: 'openai/gpt-image',
+          displayName: 'GPT Image',
+          enabled: true,
+          outputModalities: ['image'],
+        },
       ],
       groqModels: [{ code: 'llama-3.1-8b-instant', displayName: 'Llama Instant', enabled: true }],
       ollamaModels: [{ code: 'llama3.2', displayName: 'Llama 3.2', enabled: false }],

@@ -132,7 +132,9 @@ export function initializeAutoUpdater(getMainWindow: () => BrowserWindow | null)
     const percent = typeof progress.percent === 'number' ? progress.percent : 0
     const transferred = typeof progress.transferred === 'number' ? progress.transferred : 0
     const total = typeof progress.total === 'number' ? progress.total : 0
-    updaterLog.debug(`download progress: ${percent.toFixed(1)}% (${(transferred / 1_048_576).toFixed(1)}/${(total / 1_048_576).toFixed(1)} MB)`)
+    updaterLog.debug(
+      `download progress: ${percent.toFixed(1)}% (${(transferred / 1_048_576).toFixed(1)}/${(total / 1_048_576).toFixed(1)} MB)`
+    )
     sendToMainWindow(getMainWindow, 'update-download-progress', {
       percent,
       transferred,
@@ -190,7 +192,9 @@ export function registerUpdaterHandlers(getMainWindow: () => BrowserWindow | nul
       try {
         await shutdownHook()
       } catch (err) {
-        updaterLog.error(`shutdown hook failed before install: ${err instanceof Error ? err.message : String(err)}`)
+        updaterLog.error(
+          `shutdown hook failed before install: ${err instanceof Error ? err.message : String(err)}`
+        )
         // Continue with install anyway — a failed shutdown is recoverable on
         // restart, but a failed install would leave the user stuck on an old
         // version.

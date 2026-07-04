@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import * as fc from 'fast-check'
 import { mapScreenshotPointToDesktop, type ScreenshotCoordinateContext } from './coordinates'
 
-function context(overrides: Partial<ScreenshotCoordinateContext> = {}): ScreenshotCoordinateContext {
+function context(
+  overrides: Partial<ScreenshotCoordinateContext> = {}
+): ScreenshotCoordinateContext {
   return {
     displayId: '1',
     displayLabel: 'Display 1',
@@ -65,13 +67,15 @@ describe('computer-use coordinate mapping', () => {
   })
 
   it('rejects out-of-bounds screenshot coordinates before desktop conversion', () => {
-    expect(() => mapScreenshotPointToDesktop({ x: 1280, y: 100 }, context()))
-      .toThrow('outside the latest screen bounds')
+    expect(() => mapScreenshotPointToDesktop({ x: 1280, y: 100 }, context())).toThrow(
+      'outside the latest screen bounds'
+    )
   })
 
   it('rejects invalid coordinate values', () => {
-    expect(() => mapScreenshotPointToDesktop({ x: Number.NaN, y: 100 }, context()))
-      .toThrow('Invalid x coordinate')
+    expect(() => mapScreenshotPointToDesktop({ x: Number.NaN, y: 100 }, context())).toThrow(
+      'Invalid x coordinate'
+    )
   })
 })
 

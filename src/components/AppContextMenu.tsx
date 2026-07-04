@@ -9,7 +9,17 @@ import {
   ContextMenuShortcut,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu'
-import { Copy, ExternalLink, Link2, Scissors, Clipboard, RotateCcw, RotateCw, Code, CheckSquare } from 'lucide-react'
+import {
+  Copy,
+  ExternalLink,
+  Link2,
+  Scissors,
+  Clipboard,
+  RotateCcw,
+  RotateCw,
+  Code,
+  CheckSquare,
+} from 'lucide-react'
 import type { NativeContextMenuAction } from '../electron/types'
 import { isMacOSRuntime } from '../utils/platform'
 
@@ -29,7 +39,16 @@ interface ContextInfo {
 function isElementEditable(element: HTMLElement): boolean {
   if (element.tagName === 'INPUT') {
     const inputType = (element as HTMLInputElement).type?.toLowerCase()
-    return !inputType || inputType === 'text' || inputType === 'search' || inputType === 'email' || inputType === 'password' || inputType === 'url' || inputType === 'tel' || inputType === 'number'
+    return (
+      !inputType ||
+      inputType === 'text' ||
+      inputType === 'search' ||
+      inputType === 'email' ||
+      inputType === 'password' ||
+      inputType === 'url' ||
+      inputType === 'tel' ||
+      inputType === 'number'
+    )
   }
   if (element.tagName === 'TEXTAREA') {
     return true
@@ -41,7 +60,11 @@ function isElementEditable(element: HTMLElement): boolean {
   return closestEditable !== null
 }
 
-function findAncestorLink(element: HTMLElement): { hasLink: boolean; linkUrl: string; linkText: string } {
+function findAncestorLink(element: HTMLElement): {
+  hasLink: boolean
+  linkUrl: string
+  linkText: string
+} {
   let current: HTMLElement | null = element
   while (current) {
     if (current.tagName === 'A') {
@@ -67,7 +90,10 @@ function getSelectAllScope(element: HTMLElement | null): HTMLElement | null {
 }
 
 function getNativeValueSetter(element: HTMLInputElement | HTMLTextAreaElement) {
-  const proto = element.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype
+  const proto =
+    element.tagName === 'TEXTAREA'
+      ? window.HTMLTextAreaElement.prototype
+      : window.HTMLInputElement.prototype
   return Object.getOwnPropertyDescriptor(proto, 'value')?.set
 }
 
@@ -81,7 +107,8 @@ function getContextInfo(target: HTMLElement, mouseX: number, mouseY: number): Co
     hasSelection: selectionText.length > 0,
     selectionText,
     isEditable: editable,
-    isContentEditable: target.isContentEditable || target.closest('[contenteditable="true"]') !== null,
+    isContentEditable:
+      target.isContentEditable || target.closest('[contenteditable="true"]') !== null,
     hasLink: linkInfo.hasLink,
     linkUrl: linkInfo.linkUrl,
     linkText: linkInfo.linkText,
@@ -168,30 +195,33 @@ export default function AppContextMenu({ children }: { children: React.ReactNode
   const isMacOS = isMacOSRuntime()
   const supportsNativeMacContextMenu = isMacOS && Boolean(window.contextMenu?.show)
 
-  const handleContextMenu = useCallback((event: React.MouseEvent) => {
-    const info = getContextInfo(event.target as HTMLElement, event.clientX, event.clientY)
-    targetElementRef.current = info.targetElement
-    flushSync(() => {
-      setContextInfo(info)
-    })
+  const handleContextMenu = useCallback(
+    (event: React.MouseEvent) => {
+      const info = getContextInfo(event.target as HTMLElement, event.clientX, event.clientY)
+      targetElementRef.current = info.targetElement
+      flushSync(() => {
+        setContextInfo(info)
+      })
 
-    if (!supportsNativeMacContextMenu) {
-      return
-    }
+      if (!supportsNativeMacContextMenu) {
+        return
+      }
 
-    event.preventDefault()
+      event.preventDefault()
 
-    void window.contextMenu.show({
-      hasSelection: info.hasSelection,
-      isEditable: info.isEditable,
-      isContentEditable: info.isContentEditable,
-      hasLink: info.hasLink,
-      linkUrl: info.linkUrl,
-      mouseX: info.mouseX,
-      mouseY: info.mouseY,
-      isDev,
-    })
-  }, [isDev, supportsNativeMacContextMenu])
+      void window.contextMenu.show({
+        hasSelection: info.hasSelection,
+        isEditable: info.isEditable,
+        isContentEditable: info.isContentEditable,
+        hasLink: info.hasLink,
+        linkUrl: info.linkUrl,
+        mouseX: info.mouseX,
+        mouseY: info.mouseY,
+        isDev,
+      })
+    },
+    [isDev, supportsNativeMacContextMenu]
+  )
 
   const handleCopy = useCallback(() => {
     if (contextInfo.selectionText) {
@@ -411,12 +441,20 @@ export default function AppContextMenu({ children }: { children: React.ReactNode
             </ContextMenuGroup>
             <ContextMenuSeparator />
             <ContextMenuGroup>
-              <ContextMenuItem onSelect={handleCut} disabled={!showSelectionActions} className="group/menu-item">
+              <ContextMenuItem
+                onSelect={handleCut}
+                disabled={!showSelectionActions}
+                className="group/menu-item"
+              >
                 <Scissors className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
                 <span>Cut</span>
                 <ContextMenuShortcut>Ctrl+X</ContextMenuShortcut>
               </ContextMenuItem>
-              <ContextMenuItem onSelect={handleCopy} disabled={!showSelectionActions} className="group/menu-item">
+              <ContextMenuItem
+                onSelect={handleCopy}
+                disabled={!showSelectionActions}
+                className="group/menu-item"
+              >
                 <Copy className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
                 <span>Copy</span>
                 <ContextMenuShortcut>Ctrl+C</ContextMenuShortcut>

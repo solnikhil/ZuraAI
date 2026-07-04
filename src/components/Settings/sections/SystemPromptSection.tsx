@@ -83,9 +83,7 @@ function PromptViewerCard({
         </div>
         <div className="settings-prompt-metrics" aria-live="polite">
           <span className="settings-prompt-badge">{value.length.toLocaleString()} chars</span>
-          <span className="settings-prompt-badge">
-            ~{tokenCount.toLocaleString()} tokens input
-          </span>
+          <span className="settings-prompt-badge">~{tokenCount.toLocaleString()} tokens input</span>
         </div>
       </div>
 

@@ -44,7 +44,12 @@ export function mapScreenshotPointToDesktop(
   assertPositiveDimension('displayBounds.width', context.displayBounds.width)
   assertPositiveDimension('displayBounds.height', context.displayBounds.height)
 
-  if (point.x < 0 || point.x >= context.renderedWidth || point.y < 0 || point.y >= context.renderedHeight) {
+  if (
+    point.x < 0 ||
+    point.x >= context.renderedWidth ||
+    point.y < 0 ||
+    point.y >= context.renderedHeight
+  ) {
     throw new Error(
       `Screen coordinates (${point.x}, ${point.y}) are outside the latest screen bounds (${context.renderedWidth}x${context.renderedHeight})`
     )

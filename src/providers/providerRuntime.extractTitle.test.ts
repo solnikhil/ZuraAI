@@ -3,9 +3,9 @@ import { extractTitleTextFromMessage } from './providerRuntime'
 
 describe('extractTitleTextFromMessage', () => {
   it('prefers content when present', () => {
-    expect(
-      extractTitleTextFromMessage({ content: '{"facts":[],"summary":""}' })
-    ).toBe('{"facts":[],"summary":""}')
+    expect(extractTitleTextFromMessage({ content: '{"facts":[],"summary":""}' })).toBe(
+      '{"facts":[],"summary":""}'
+    )
   })
 
   it('joins array content parts', () => {

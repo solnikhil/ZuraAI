@@ -8,9 +8,7 @@ export interface CatalogExtensionEntry {
   description: string
 }
 
-export function getCatalogExtension(
-  id: CatalogExtensionId
-): CatalogExtensionEntry | undefined {
+export function getCatalogExtension(id: CatalogExtensionId): CatalogExtensionEntry | undefined {
   const skill = BUILT_IN_SKILLS.find((entry) => entry.id === id)
   if (!skill) return undefined
 

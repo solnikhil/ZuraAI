@@ -4,10 +4,7 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ChatDiagnosticEvent } from './chatDiagnostics'
-import {
-  CHAT_DIAGNOSTICS_BUFFER_LIMIT,
-  useChatDiagnosticsStream,
-} from './useChatDiagnosticsStream'
+import { CHAT_DIAGNOSTICS_BUFFER_LIMIT, useChatDiagnosticsStream } from './useChatDiagnosticsStream'
 
 interface ChatDiagnosticsBridgeStub {
   listEvents: ReturnType<typeof vi.fn>
@@ -16,7 +13,11 @@ interface ChatDiagnosticsBridgeStub {
 
 let listeners: Array<(event: ChatDiagnosticEvent) => void> = []
 
-function makeEvent(sessionId: string, messageId: string, phase: ChatDiagnosticEvent['phase']): ChatDiagnosticEvent {
+function makeEvent(
+  sessionId: string,
+  messageId: string,
+  phase: ChatDiagnosticEvent['phase']
+): ChatDiagnosticEvent {
   return {
     sessionId,
     messageId,

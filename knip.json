@@ -1,7 +1,13 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
   "entry": ["electron/main.ts", "electron/preload.ts", "remotion/index.ts"],
-  "project": ["src/**/*.ts", "src/**/*.tsx", "electron/**/*.ts", "remotion/**/*.ts", "remotion/**/*.tsx"],
+  "project": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "electron/**/*.ts",
+    "remotion/**/*.ts",
+    "remotion/**/*.tsx"
+  ],
   "exclude": ["exports", "types", "duplicates", "files"],
   "ignoreDependencies": ["tailwindcss"],
   "treatConfigHintsAsErrors": false

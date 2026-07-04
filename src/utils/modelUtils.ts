@@ -616,7 +616,8 @@ export function getModelDescription(model: {
   }
 
   if (model.provider === 'deepseek') {
-    if (name.includes('reasoner') || code.includes('reasoner')) return 'Advanced reasoning with deep thinking'
+    if (name.includes('reasoner') || code.includes('reasoner'))
+      return 'Advanced reasoning with deep thinking'
     if (name.includes('chat') || code.includes('chat')) return 'General-purpose chat model'
     return 'DeepSeek AI model'
   }

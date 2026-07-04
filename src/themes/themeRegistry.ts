@@ -18,7 +18,8 @@ function parseHex(hex: string): { r: number; g: number; b: number } {
 }
 
 function toHex(r: number, g: number, b: number): string {
-  const toChannel = (value: number) => clamp(Math.round(value), 0, 255).toString(16).padStart(2, '0')
+  const toChannel = (value: number) =>
+    clamp(Math.round(value), 0, 255).toString(16).padStart(2, '0')
   return `#${toChannel(r)}${toChannel(g)}${toChannel(b)}`
 }
 
@@ -74,7 +75,7 @@ export function derivePaletteFromBase(
     ? mixHex(background, surfaceMixTarget, 0.16 + 0.06 * contrastScale)
     : mixHex(paletteBackground, surfaceMixTarget, 0.07 + 0.04 * contrastScale)
   const surfacePressed = isDark
-    ? mixHex(background, surfaceMixTarget, 0.20 + 0.07 * contrastScale)
+    ? mixHex(background, surfaceMixTarget, 0.2 + 0.07 * contrastScale)
     : mixHex(paletteBackground, surfaceMixTarget, 0.1 + 0.05 * contrastScale)
   const surfaceSubtle = alpha(
     isDark ? '#ffffff' : accent,
@@ -82,19 +83,43 @@ export function derivePaletteFromBase(
   )
 
   const textPrimary = foreground
-  const textSecondary = alpha(foreground, isDark ? 0.5 + 0.12 * contrastScale : 0.62 + 0.12 * contrastScale)
-  const textTertiary = alpha(foreground, isDark ? 0.4 + 0.08 * contrastScale : 0.5 + 0.1 * contrastScale)
-  const textMuted = alpha(foreground, isDark ? 0.26 + 0.09 * contrastScale : 0.38 + 0.1 * contrastScale)
+  const textSecondary = alpha(
+    foreground,
+    isDark ? 0.5 + 0.12 * contrastScale : 0.62 + 0.12 * contrastScale
+  )
+  const textTertiary = alpha(
+    foreground,
+    isDark ? 0.4 + 0.08 * contrastScale : 0.5 + 0.1 * contrastScale
+  )
+  const textMuted = alpha(
+    foreground,
+    isDark ? 0.26 + 0.09 * contrastScale : 0.38 + 0.1 * contrastScale
+  )
 
   const borderBase = isDark ? '#ffffff' : '#000000'
-  const border = alpha(borderBase, isDark ? 0.06 + 0.02 * contrastScale : 0.14 + 0.05 * contrastScale)
-  const borderHover = alpha(borderBase, isDark ? 0.09 + 0.03 * contrastScale : 0.18 + 0.06 * contrastScale)
-  const borderActive = alpha(borderBase, isDark ? 0.12 + 0.04 * contrastScale : 0.22 + 0.07 * contrastScale)
-  const borderSubtle = alpha(borderBase, isDark ? 0.035 + 0.02 * contrastScale : 0.08 + 0.03 * contrastScale)
+  const border = alpha(
+    borderBase,
+    isDark ? 0.06 + 0.02 * contrastScale : 0.14 + 0.05 * contrastScale
+  )
+  const borderHover = alpha(
+    borderBase,
+    isDark ? 0.09 + 0.03 * contrastScale : 0.18 + 0.06 * contrastScale
+  )
+  const borderActive = alpha(
+    borderBase,
+    isDark ? 0.12 + 0.04 * contrastScale : 0.22 + 0.07 * contrastScale
+  )
+  const borderSubtle = alpha(
+    borderBase,
+    isDark ? 0.035 + 0.02 * contrastScale : 0.08 + 0.03 * contrastScale
+  )
 
   const accentSecondary = mixHex(accent, isDark ? '#ffffff' : '#000000', isDark ? 0.12 : 0.08)
   const accentHover = mixHex(accent, isDark ? '#ffffff' : '#000000', isDark ? 0.18 : 0.12)
-  const accentMuted = alpha(accent, isDark ? 0.14 + 0.06 * contrastScale : 0.14 + 0.08 * contrastScale)
+  const accentMuted = alpha(
+    accent,
+    isDark ? 0.14 + 0.06 * contrastScale : 0.14 + 0.08 * contrastScale
+  )
 
   const assistantMessageBg = alpha(
     isDark ? '#ffffff' : '#000000',
@@ -278,10 +303,7 @@ function buildTheme(definition: ThemeDefinition, isDark: boolean): Theme {
 
 export type ThemeMode = 'light' | 'dark' | 'system'
 
-export function resolveEffectiveIsDark(
-  themeMode: ThemeMode,
-  systemPrefersDark = false
-): boolean {
+export function resolveEffectiveIsDark(themeMode: ThemeMode, systemPrefersDark = false): boolean {
   if (themeMode === 'light') return false
   if (themeMode === 'dark') return true
   return systemPrefersDark

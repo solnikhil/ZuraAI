@@ -31,7 +31,15 @@ const READ_ONLY_TOOL_NAMES = new Set([
 
 const FILE_MUTATION_TOOLS = new Set(['file_write', 'file_move'])
 const APP_WINDOW_MUTATION_PREFIXES = ['app_', 'window_', 'ui_', 'windows_uia_']
-const APP_WINDOW_READ_ONLY_TOOLS = new Set(['app_find', 'app_list', 'window_list', 'ui_get_app_state', 'ui_find', 'ui_wait_for', 'windows_uia_snapshot'])
+const APP_WINDOW_READ_ONLY_TOOLS = new Set([
+  'app_find',
+  'app_list',
+  'window_list',
+  'ui_get_app_state',
+  'ui_find',
+  'ui_wait_for',
+  'windows_uia_snapshot',
+])
 const VISUAL_MUTATION_TOOLS = new Set([
   'ui_click',
   'ui_type_text',
@@ -131,7 +139,13 @@ export function selectVerificationStrategy(
   return {
     category: 'generic',
     reason: 'A mutating tool ran and needs an explicit verification pass.',
-    preferredTools: ['file_search', 'file_read', 'window_list', 'ui_get_app_state', 'computer_screenshot'],
+    preferredTools: [
+      'file_search',
+      'file_read',
+      'window_list',
+      'ui_get_app_state',
+      'computer_screenshot',
+    ],
     mutatingToolNames,
   }
 }

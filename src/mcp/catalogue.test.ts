@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  isCatalogueEntryAdded,
-  loadMcpCatalogue,
-  normalizeMcpCatalogueEntries,
-} from './catalogue'
+import { isCatalogueEntryAdded, loadMcpCatalogue, normalizeMcpCatalogueEntries } from './catalogue'
 import type { McpDraftServer } from './draft'
 
 describe('MCP catalogue normalization', () => {

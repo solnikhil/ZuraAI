@@ -78,7 +78,8 @@ beforeEach(() => {
   memoryAPI.summaries.list.mockResolvedValue([])
   memoryAPI.summaries.delete.mockResolvedValue(true)
   memoryAPI.summaries.clear.mockResolvedValue(true)
-  ;(globalThis as unknown as { window: Window & { memory: typeof memoryAPI } }).window.memory = memoryAPI
+  ;(globalThis as unknown as { window: Window & { memory: typeof memoryAPI } }).window.memory =
+    memoryAPI
 })
 
 describe('MemorySection', () => {
@@ -101,9 +102,7 @@ describe('MemorySection', () => {
     await waitFor(() => expect(memoryAPI.list).toHaveBeenCalled())
 
     // Background-management toggle is exposed only in the managed (onChange) variant.
-    expect(
-      screen.getByRole('switch', { name: /manage memory automatically/i })
-    ).toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: /manage memory automatically/i })).toBeInTheDocument()
 
     // The count reflects the one extracted background memory.
     await screen.findByText('1 fact · 0 activity items')
@@ -193,15 +192,21 @@ describe('MemorySection', () => {
     render(<MemorySection onChange={onChange} />)
 
     expect(await screen.findByText('User prefers concise answers')).toBeInTheDocument()
-    expect(screen.getByText('User wants to be reminded tomorrow to submit the report')).toBeInTheDocument()
+    expect(
+      screen.getByText('User wants to be reminded tomorrow to submit the report')
+    ).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('tab', { name: /Preferences 1/i }))
     expect(screen.getByText('User prefers concise answers')).toBeInTheDocument()
-    expect(screen.queryByText('User wants to be reminded tomorrow to submit the report')).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('User wants to be reminded tomorrow to submit the report')
+    ).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('tab', { name: /Needs review 1/i }))
     expect(screen.queryByText('User prefers concise answers')).not.toBeInTheDocument()
-    expect(screen.getByText('User wants to be reminded tomorrow to submit the report')).toBeInTheDocument()
+    expect(
+      screen.getByText('User wants to be reminded tomorrow to submit the report')
+    ).toBeInTheDocument()
   })
 
   it('shows simple filter counts for facts, activity, and review items', async () => {

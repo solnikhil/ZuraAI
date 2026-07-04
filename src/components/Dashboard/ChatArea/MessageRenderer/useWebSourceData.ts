@@ -54,7 +54,10 @@ export function useWebSources(toolResults?: ToolCallResult[]) {
       }
 
       const withUrlLinks = convertUrlsToMarkdownLinks(content)
-      const withCitations = convertNumericCitationsToMarkdownLinks(withUrlLinks, orderedWebSourceUrls)
+      const withCitations = convertNumericCitationsToMarkdownLinks(
+        withUrlLinks,
+        orderedWebSourceUrls
+      )
       return orderedWebSourceUrls.length > 0 ? stripReferencesSection(withCitations) : withCitations
     },
     [orderedWebSourceUrls]
@@ -66,10 +69,7 @@ export function useWebSources(toolResults?: ToolCallResult[]) {
 /**
  * Extracts images from web_search tool results.
  */
-export function useWebSearchImages(
-  toolResults?: ToolCallResult[],
-  includeImages?: boolean
-) {
+export function useWebSearchImages(toolResults?: ToolCallResult[], includeImages?: boolean) {
   return useMemo(() => {
     const images: Array<{ url: string; description?: string; mode: 'search' | 'extract' }> = []
     if (includeImages === false || !toolResults) {

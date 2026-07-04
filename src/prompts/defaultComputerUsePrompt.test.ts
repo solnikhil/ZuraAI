@@ -7,9 +7,15 @@ describe('defaultComputerUsePrompt', () => {
     expect(defaultComputerUsePrompt).not.toContain('ALWAYS call computer_screenshot first')
     expect(defaultComputerUsePrompt).not.toContain('Always start here')
     expect(defaultComputerUsePrompt).toContain('Prefer native structured tools')
-    expect(defaultComputerUsePrompt).toContain('file_*, app_*, window_*, and ui_get_app_state/ui_find')
-    expect(defaultComputerUsePrompt).toContain('Use ui_get_app_state as the primary UI observation primitive')
-    expect(defaultComputerUsePrompt).toContain('computer_screenshot with window_id, window_title, or app_name')
+    expect(defaultComputerUsePrompt).toContain(
+      'file_*, app_*, window_*, and ui_get_app_state/ui_find'
+    )
+    expect(defaultComputerUsePrompt).toContain(
+      'Use ui_get_app_state as the primary UI observation primitive'
+    )
+    expect(defaultComputerUsePrompt).toContain(
+      'computer_screenshot with window_id, window_title, or app_name'
+    )
     expect(defaultComputerUsePrompt).toContain('full-screen computer_screenshot only')
   })
 })

@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - "v*"
+      - 'v*'
 
 permissions:
   contents: write
@@ -118,7 +118,7 @@ jobs:
       - name: Build macOS artifacts
         # Disable signing; we have no Apple Developer ID secrets configured.
         env:
-          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
         run: bun run build
 
       - name: Verify packaged release artifacts

@@ -21,7 +21,9 @@ const storageMock = vi.hoisted(() => ({
   task: null as ScheduledTaskDefinition | null,
   snapshots: [] as ScheduledTaskSnapshot[],
   savedRuns: [] as ScheduledTaskRun[],
-  getScheduledTask: vi.fn(async (id: string) => (storageMock.task?.id === id ? storageMock.task : null)),
+  getScheduledTask: vi.fn(async (id: string) =>
+    storageMock.task?.id === id ? storageMock.task : null
+  ),
   getSnapshotsForTask: vi.fn(async () => storageMock.snapshots),
   listScheduledTasks: vi.fn(async () => (storageMock.task ? [storageMock.task] : [])),
   listRuns: vi.fn(async () => storageMock.savedRuns),
@@ -195,10 +197,13 @@ describe('scheduled task runtime notifications', () => {
     await runtime.runNow('task-1')
     runtime.stop()
 
-    expect(emailSender).toHaveBeenCalledWith(storageMock.task, expect.objectContaining({
-      taskId: 'task-1',
-      status: 'unchanged',
-    }))
+    expect(emailSender).toHaveBeenCalledWith(
+      storageMock.task,
+      expect.objectContaining({
+        taskId: 'task-1',
+        status: 'unchanged',
+      })
+    )
     expect(storageMock.savedRuns[0]?.logs).toContainEqual({
       url: '',
       status: 'completed',
@@ -208,7 +213,10 @@ describe('scheduled task runtime notifications', () => {
 
   it('records email failures without blocking a scheduled task run', async () => {
     const { __test__ } = await import('./runtime')
-    const emailSender = vi.fn(async () => ({ ok: false, error: 'Brevo email request failed (401)' }))
+    const emailSender = vi.fn(async () => ({
+      ok: false,
+      error: 'Brevo email request failed (401)',
+    }))
     storageMock.task = createTask({
       type: 'reminder',
       reminderText: 'Review weekly launches',
@@ -223,9 +231,11 @@ describe('scheduled task runtime notifications', () => {
     })
 
     await runtime.setExtensionEnabled(true)
-    await expect(runtime.runNow('task-1')).resolves.toEqual(expect.objectContaining({
-      taskId: 'task-1',
-    }))
+    await expect(runtime.runNow('task-1')).resolves.toEqual(
+      expect.objectContaining({
+        taskId: 'task-1',
+      })
+    )
     runtime.stop()
 
     expect(storageMock.saveScheduledTaskRun).toHaveBeenCalledTimes(1)
@@ -275,7 +285,9 @@ describe('scheduled task runtime notifications', () => {
     })
 
     await runtime.reschedule()
-    await expect(runtime.runNow('task-1')).rejects.toThrow('Reminders & Lookouts extension is disabled')
+    await expect(runtime.runNow('task-1')).rejects.toThrow(
+      'Reminders & Lookouts extension is disabled'
+    )
     runtime.stop()
 
     expect(setTimeoutImpl).not.toHaveBeenCalled()
@@ -381,26 +393,35 @@ describe('scheduled task runtime notifications', () => {
 
     await runtime.setExtensionEnabled(true)
     const runPromise = runtime.runNow('task-1')
-    await vi.waitFor(() => expect(webContents.send).toHaveBeenCalledWith(
-      'scheduled-tasks:automation-run-request',
-      expect.objectContaining({ taskId: 'task-1', prompt: 'Summarize my day' })
-    ))
+    await vi.waitFor(() =>
+      expect(webContents.send).toHaveBeenCalledWith(
+        'scheduled-tasks:automation-run-request',
+        expect.objectContaining({ taskId: 'task-1', prompt: 'Summarize my day' })
+      )
+    )
     const request = webContents.send.mock.calls[0][1]
-    const resolveHandler = electronMock.ipcHandle.mock.calls.find(([channel]) => channel === 'scheduled-tasks:resolve-automation-run')?.[1]
+    const resolveHandler = electronMock.ipcHandle.mock.calls.find(
+      ([channel]) => channel === 'scheduled-tasks:resolve-automation-run'
+    )?.[1]
     expect(resolveHandler).toBeDefined()
-    resolveHandler({}, {
-      requestId: request.requestId,
-      outputText: 'Briefing output',
-      model: 'openrouter/fake-model',
-      provider: 'openrouter',
-      changeVerdict: { changed: true, summary: 'Important change' },
-    })
+    resolveHandler(
+      {},
+      {
+        requestId: request.requestId,
+        outputText: 'Briefing output',
+        model: 'openrouter/fake-model',
+        provider: 'openrouter',
+        changeVerdict: { changed: true, summary: 'Important change' },
+      }
+    )
 
-    await expect(runPromise).resolves.toEqual(expect.objectContaining({
-      taskId: 'task-1',
-      status: 'changed',
-      outputText: 'Briefing output',
-    }))
+    await expect(runPromise).resolves.toEqual(
+      expect.objectContaining({
+        taskId: 'task-1',
+        status: 'changed',
+        outputText: 'Briefing output',
+      })
+    )
     runtime.stop()
   })
 

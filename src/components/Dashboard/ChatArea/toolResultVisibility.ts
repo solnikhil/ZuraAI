@@ -54,7 +54,6 @@ export function shouldHideGenericToolResultCard(result: ToolCallResult): boolean
     return true
   }
 
-
   if (/^mcp__/.test(result.toolCall.name)) {
     return true
   }

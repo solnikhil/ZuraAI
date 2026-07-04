@@ -1,4 +1,9 @@
-import type { McpAuthConfig, McpAuthMode, McpConfigValue, McpServerConfig } from '../../src/mcp/types'
+import type {
+  McpAuthConfig,
+  McpAuthMode,
+  McpConfigValue,
+  McpServerConfig,
+} from '../../src/mcp/types'
 
 import { setSecureValueAsync } from '../secureStorage'
 
@@ -25,10 +30,7 @@ export async function prepareRendererMcpServerInput(
     existingValues: options.existingServer?.headers ?? [],
   })
 
-  const nextSecretKeys = new Set<string>([
-    ...env.usedSecretKeys,
-    ...headers.usedSecretKeys,
-  ])
+  const nextSecretKeys = new Set<string>([...env.usedSecretKeys, ...headers.usedSecretKeys])
   const previousSecretKeys = collectServerSecretKeys(options.existingServer)
 
   await Promise.all(
@@ -41,7 +43,10 @@ export async function prepareRendererMcpServerInput(
     id: options.serverId,
     name: getOptionalTrimmedString(input.name),
     enabled: normalizeBoolean(input.enabled, options.existingServer?.enabled ?? false),
-    trustState: normalizeTrustState(input.trustState, options.existingServer?.trustState ?? 'untrusted'),
+    trustState: normalizeTrustState(
+      input.trustState,
+      options.existingServer?.trustState ?? 'untrusted'
+    ),
     transport: normalizeTransport(input.transport, options.existingServer?.transport),
     command: getOptionalTrimmedString(input.command),
     args: normalizeStringArray(input.args),
@@ -55,7 +60,10 @@ export async function prepareRendererMcpServerInput(
     toolTimeoutMs: normalizeOptionalInteger(input.toolTimeoutMs),
     reconnectAttempts: normalizeOptionalInteger(input.reconnectAttempts),
     reconnectDelayMs: normalizeOptionalInteger(input.reconnectDelayMs),
-    requireApproval: normalizeBoolean(input.requireApproval, options.existingServer?.requireApproval ?? true),
+    requireApproval: normalizeBoolean(
+      input.requireApproval,
+      options.existingServer?.requireApproval ?? true
+    ),
     toolAllowlist: normalizeStringArray(input.toolAllowlist),
     toolBlocklist: normalizeStringArray(input.toolBlocklist),
   }
@@ -66,7 +74,9 @@ export async function clearMcpServerSecrets(server: McpServerConfig | undefined)
     return
   }
 
-  await Promise.all([...collectServerSecretKeys(server)].map((secretKey) => setSecureValueAsync(secretKey, '')))
+  await Promise.all(
+    [...collectServerSecretKeys(server)].map((secretKey) => setSecureValueAsync(secretKey, ''))
+  )
 }
 
 async function prepareConfigValueList(
@@ -153,7 +163,7 @@ async function prepareConfigValue(
   const secretKey =
     rendererProvidedSecretKey === expectedSecretKey
       ? rendererProvidedSecretKey
-      : reusableExistingSecretKey ?? expectedSecretKey
+      : (reusableExistingSecretKey ?? expectedSecretKey)
 
   const clearSecret = rawValue.clearSecret === true
   const secretValue = typeof rawValue.secretValue === 'string' ? rawValue.secretValue.trim() : ''
@@ -291,9 +301,7 @@ function normalizeAuthMode(value: unknown): McpAuthMode {
 }
 
 function safeExistingOauthSecretKey(value: unknown, serverId: string): string | undefined {
-  return typeof value === 'string' && isSafeSecretKeyForServer(value, serverId)
-    ? value
-    : undefined
+  return typeof value === 'string' && isSafeSecretKeyForServer(value, serverId) ? value : undefined
 }
 
 function normalizeSecretStorageKind(

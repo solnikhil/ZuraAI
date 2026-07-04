@@ -2,7 +2,6 @@ import React from 'react'
 import { SETTINGS_SECTIONS, type SettingsSectionId } from '../../constants/settingsSections'
 import { Box, ChartNoAxesCombined, Cloud, Paintbrush, FileText, Puzzle } from '../icons'
 
-
 interface SidebarSettingsViewProps {
   active: boolean
   activeSettingsSection: string
@@ -19,10 +18,10 @@ const settingsIcons: Record<SettingsSectionId, React.ReactNode> = {
 }
 
 const navItems = SETTINGS_SECTIONS.map((section) => ({
-    id: section.id,
-    label: section.navLabel,
-    icon: settingsIcons[section.id],
-  }))
+  id: section.id,
+  label: section.navLabel,
+  icon: settingsIcons[section.id],
+}))
 
 function SidebarSettingsView({
   active,

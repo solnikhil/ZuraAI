@@ -3,10 +3,7 @@ import { preloadMarkdown } from './markdownPreloader'
 
 type IdleWindow = Window &
   typeof globalThis & {
-    requestIdleCallback?: (
-      callback: () => void,
-      options?: { timeout?: number }
-    ) => number
+    requestIdleCallback?: (callback: () => void, options?: { timeout?: number }) => number
   }
 
 function scheduleWhenIdle(task: () => void, timeout: number): void {

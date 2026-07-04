@@ -449,7 +449,11 @@ contextBridge.exposeInMainWorld(
       return ipcRenderer.invoke('scheduled-tasks:resolve-summary', response)
     },
     resolveAutomationRun: (response: ScheduledAutomationRunResponse) => {
-      assertAllowed('invoke', 'scheduled-tasks:resolve-automation-run', SCHEDULED_TASKS_INVOKE_CHANNELS)
+      assertAllowed(
+        'invoke',
+        'scheduled-tasks:resolve-automation-run',
+        SCHEDULED_TASKS_INVOKE_CHANNELS
+      )
       return ipcRenderer.invoke('scheduled-tasks:resolve-automation-run', response)
     },
     onChanged: (callback: () => void) => {
@@ -668,7 +672,10 @@ contextBridge.exposeInMainWorld(
   Object.freeze({
     requestApproval: (request: AgentApprovalOverlayRequest) => {
       assertAllowed('invoke', 'agent-approval:request', AGENT_APPROVAL_INVOKE_CHANNELS)
-      return ipcRenderer.invoke('agent-approval:request', request) as Promise<AgentApprovalOverlayDecision>
+      return ipcRenderer.invoke(
+        'agent-approval:request',
+        request
+      ) as Promise<AgentApprovalOverlayDecision>
     },
   })
 )
@@ -696,8 +703,15 @@ contextBridge.exposeInMainWorld(
   'commandCenter',
   Object.freeze({
     setExtensionEnabled: (enabled: boolean) => {
-      assertAllowed('invoke', 'command-center:set-extension-enabled', COMMAND_CENTER_INVOKE_CHANNELS)
-      return ipcRenderer.invoke('command-center:set-extension-enabled', enabled) as Promise<CommandCenterState>
+      assertAllowed(
+        'invoke',
+        'command-center:set-extension-enabled',
+        COMMAND_CENTER_INVOKE_CHANNELS
+      )
+      return ipcRenderer.invoke(
+        'command-center:set-extension-enabled',
+        enabled
+      ) as Promise<CommandCenterState>
     },
     show: () => {
       assertAllowed('invoke', 'command-center:show', COMMAND_CENTER_INVOKE_CHANNELS)
@@ -721,11 +735,16 @@ contextBridge.exposeInMainWorld(
     },
     refreshAppIndex: () => {
       assertAllowed('invoke', 'command-center:refresh-app-index', COMMAND_CENTER_INVOKE_CHANNELS)
-      return ipcRenderer.invoke('command-center:refresh-app-index') as Promise<NonNullable<CommandCenterIndex['diagnostics']>['apps']>
+      return ipcRenderer.invoke('command-center:refresh-app-index') as Promise<
+        NonNullable<CommandCenterIndex['diagnostics']>['apps']
+      >
     },
     saveWorkflow: (workflow: Partial<CommandCenterWorkflow>) => {
       assertAllowed('invoke', 'command-center:save-workflow', COMMAND_CENTER_INVOKE_CHANNELS)
-      return ipcRenderer.invoke('command-center:save-workflow', workflow) as Promise<CommandCenterWorkflow | null>
+      return ipcRenderer.invoke(
+        'command-center:save-workflow',
+        workflow
+      ) as Promise<CommandCenterWorkflow | null>
     },
     deleteWorkflow: (id: string) => {
       assertAllowed('invoke', 'command-center:delete-workflow', COMMAND_CENTER_INVOKE_CHANNELS)
@@ -737,11 +756,18 @@ contextBridge.exposeInMainWorld(
     },
     executeIndexItem: (itemId: string, query?: string) => {
       assertAllowed('invoke', 'command-center:execute-index-item', COMMAND_CENTER_INVOKE_CHANNELS)
-      return ipcRenderer.invoke('command-center:execute-index-item', itemId, query) as Promise<CommandCenterExecuteResult>
+      return ipcRenderer.invoke(
+        'command-center:execute-index-item',
+        itemId,
+        query
+      ) as Promise<CommandCenterExecuteResult>
     },
     executeWorkflow: (workflowId: string) => {
       assertAllowed('invoke', 'command-center:execute-workflow', COMMAND_CENTER_INVOKE_CHANNELS)
-      return ipcRenderer.invoke('command-center:execute-workflow', workflowId) as Promise<CommandCenterExecuteResult>
+      return ipcRenderer.invoke(
+        'command-center:execute-workflow',
+        workflowId
+      ) as Promise<CommandCenterExecuteResult>
     },
     openChatSession: (sessionId: string) => {
       assertAllowed('invoke', 'command-center:open-chat-session', COMMAND_CENTER_INVOKE_CHANNELS)
@@ -753,7 +779,10 @@ contextBridge.exposeInMainWorld(
     },
     submitCommand: (text: string) => {
       assertAllowed('invoke', 'command-center:submit-command', COMMAND_CENTER_INVOKE_CHANNELS)
-      return ipcRenderer.invoke('command-center:submit-command', text) as Promise<CommandCenterSubmitResult>
+      return ipcRenderer.invoke(
+        'command-center:submit-command',
+        text
+      ) as Promise<CommandCenterSubmitResult>
     },
     onShown: (callback: () => void) => {
       assertAllowed('on', 'command-center:shown', COMMAND_CENTER_ON_CHANNELS)
@@ -763,7 +792,8 @@ contextBridge.exposeInMainWorld(
     },
     onCommand: (callback: (command: CommandCenterCommand) => void) => {
       assertAllowed('on', 'command-center:command', COMMAND_CENTER_ON_CHANNELS)
-      const listener = (_event: IpcRendererEvent, command: CommandCenterCommand) => callback(command)
+      const listener = (_event: IpcRendererEvent, command: CommandCenterCommand) =>
+        callback(command)
       ipcRenderer.on('command-center:command', listener)
       return () => ipcRenderer.removeListener('command-center:command', listener)
     },

@@ -32,8 +32,7 @@ Query formulation best practices:
       properties: {
         query: {
           type: 'string',
-          description:
-            `Search query. For URL tasks, include the URL directly (with optional instruction). Examples: "https://foo.com/article" or "summarize this https://foo.com/article". For general search, use concise keywords (e.g. "X market size ${new Date().getFullYear()}", "latest AI developments"). If you include a year without user guidance, use only ${new Date().getFullYear()}. If the user asks for a relative range such as "past 5 years", emit one focused query per year in the same turn. For verification, include the claim's unique names, terms, source type, and timeframe.`,
+          description: `Search query. For URL tasks, include the URL directly (with optional instruction). Examples: "https://foo.com/article" or "summarize this https://foo.com/article". For general search, use concise keywords (e.g. "X market size ${new Date().getFullYear()}", "latest AI developments"). If you include a year without user guidance, use only ${new Date().getFullYear()}. If the user asks for a relative range such as "past 5 years", emit one focused query per year in the same turn. For verification, include the claim's unique names, terms, source type, and timeframe.`,
         },
         num_results: {
           type: 'number',
@@ -49,7 +48,8 @@ Query formulation best practices:
         },
         time_range: {
           type: 'string',
-          description: 'Filter by recency. Use for time-sensitive queries (news, recent events, latest data).',
+          description:
+            'Filter by recency. Use for time-sensitive queries (news, recent events, latest data).',
           enum: ['day', 'week', 'month', 'year'],
         },
         topic: {
@@ -89,7 +89,8 @@ Best practices:
       properties: {
         code: {
           type: 'string',
-          description: 'The source code to execute. Must use print() (Python) or console.log() (JavaScript) to produce output.',
+          description:
+            'The source code to execute. Must use print() (Python) or console.log() (JavaScript) to produce output.',
         },
         language: {
           type: 'string',
@@ -98,11 +99,13 @@ Best practices:
         },
         description: {
           type: 'string',
-          description: 'A brief one-line summary of what this code does (e.g. "Calculate factorial of 20").',
+          description:
+            'A brief one-line summary of what this code does (e.g. "Calculate factorial of 20").',
         },
         mutatesState: {
           type: 'boolean',
-          description: 'Whether this sandboxed code is intended to mutate external state. For this remote sandbox, this should normally be false.',
+          description:
+            'Whether this sandboxed code is intended to mutate external state. For this remote sandbox, this should normally be false.',
         },
       },
       required: ['code', 'language', 'description'],
@@ -196,15 +199,30 @@ Safety rules:
     requiresApproval: true,
   },
   computer_screenshot: {
-    description: 'Capture visual context for Computer Use. Prefer targeting a specific app/window with window_id, window_title, or app_name when the task is about one app; use a full display capture only for desktop-wide or visual layout tasks. Returns a base64 PNG image with dimensions and coordinate metadata used by follow-up actions.',
+    description:
+      'Capture visual context for Computer Use. Prefer targeting a specific app/window with window_id, window_title, or app_name when the task is about one app; use a full display capture only for desktop-wide or visual layout tasks. Returns a base64 PNG image with dimensions and coordinate metadata used by follow-up actions.',
     parameters: {
       type: 'object',
       description: 'Arguments for capturing a display or a specific app/window.',
       properties: {
-        display_id: { type: 'string', description: 'Optional display ID for multi-monitor setups. Defaults to primary display.' },
-        window_id: { type: 'string', description: 'Optional window source id from computer_list_windows, such as window:123:0.' },
-        window_title: { type: 'string', description: 'Optional case-insensitive substring of the target window title.' },
-        app_name: { type: 'string', description: 'Optional case-insensitive app/title substring to target a visible app window.' },
+        display_id: {
+          type: 'string',
+          description: 'Optional display ID for multi-monitor setups. Defaults to primary display.',
+        },
+        window_id: {
+          type: 'string',
+          description:
+            'Optional window source id from computer_list_windows, such as window:123:0.',
+        },
+        window_title: {
+          type: 'string',
+          description: 'Optional case-insensitive substring of the target window title.',
+        },
+        app_name: {
+          type: 'string',
+          description:
+            'Optional case-insensitive app/title substring to target a visible app window.',
+        },
       },
       required: [],
     },
@@ -212,14 +230,20 @@ Safety rules:
     origin: 'builtin-main',
   },
   computer_click: {
-    description: 'Click at specific pixel coordinates from the latest screen image returned by computer_screenshot. Requires a prior computer_screenshot in the current action sequence; computer_list_windows is not enough. Use the screen dimensions exactly and click the center of the intended target. The app maps screen coordinates to the real desktop. Returns an updated screen image.',
+    description:
+      'Click at specific pixel coordinates from the latest screen image returned by computer_screenshot. Requires a prior computer_screenshot in the current action sequence; computer_list_windows is not enough. Use the screen dimensions exactly and click the center of the intended target. The app maps screen coordinates to the real desktop. Returns an updated screen image.',
     parameters: {
       type: 'object',
       description: 'Arguments for clicking.',
       properties: {
         x: { type: 'number', description: 'X coordinate in pixels from the latest screen image.' },
         y: { type: 'number', description: 'Y coordinate in pixels from the latest screen image.' },
-        button: { type: 'string', description: 'Mouse button.', enum: ['left', 'right', 'middle'], default: 'left' },
+        button: {
+          type: 'string',
+          description: 'Mouse button.',
+          enum: ['left', 'right', 'middle'],
+          default: 'left',
+        },
       },
       required: ['x', 'y'],
     },
@@ -227,7 +251,8 @@ Safety rules:
     origin: 'builtin-main',
   },
   computer_type: {
-    description: 'Type text at the current cursor position. Click the target input field first before typing.',
+    description:
+      'Type text at the current cursor position. Click the target input field first before typing.',
     parameters: {
       type: 'object',
       description: 'Arguments for typing text.',
@@ -240,12 +265,16 @@ Safety rules:
     origin: 'builtin-main',
   },
   computer_key: {
-    description: 'Press a key or key combination. Use for keyboard shortcuts, Enter, Tab, Escape, arrow keys, etc. Format: "enter", "ctrl+c", "alt+tab", "shift+ctrl+s".',
+    description:
+      'Press a key or key combination. Use for keyboard shortcuts, Enter, Tab, Escape, arrow keys, etc. Format: "enter", "ctrl+c", "alt+tab", "shift+ctrl+s".',
     parameters: {
       type: 'object',
       description: 'Arguments for pressing keys.',
       properties: {
-        key: { type: 'string', description: 'Key or combo string, e.g. "enter", "ctrl+c", "alt+tab".' },
+        key: {
+          type: 'string',
+          description: 'Key or combo string, e.g. "enter", "ctrl+c", "alt+tab".',
+        },
       },
       required: ['key'],
     },
@@ -253,14 +282,25 @@ Safety rules:
     origin: 'builtin-main',
   },
   computer_scroll: {
-    description: 'Scroll at specific coordinates from the latest screen image returned by computer_screenshot. Requires a prior computer_screenshot in the current action sequence; computer_list_windows is not enough. Move the cursor to the screen position first, then scroll.',
+    description:
+      'Scroll at specific coordinates from the latest screen image returned by computer_screenshot. Requires a prior computer_screenshot in the current action sequence; computer_list_windows is not enough. Move the cursor to the screen position first, then scroll.',
     parameters: {
       type: 'object',
       description: 'Arguments for scrolling.',
       properties: {
-        x: { type: 'number', description: 'X coordinate from the latest screen image to scroll at.' },
-        y: { type: 'number', description: 'Y coordinate from the latest screen image to scroll at.' },
-        direction: { type: 'string', description: 'Scroll direction.', enum: ['up', 'down', 'left', 'right'] },
+        x: {
+          type: 'number',
+          description: 'X coordinate from the latest screen image to scroll at.',
+        },
+        y: {
+          type: 'number',
+          description: 'Y coordinate from the latest screen image to scroll at.',
+        },
+        direction: {
+          type: 'string',
+          description: 'Scroll direction.',
+          enum: ['up', 'down', 'left', 'right'],
+        },
         amount: { type: 'number', description: 'Scroll amount in clicks (default 3).', default: 3 },
       },
       required: ['x', 'y', 'direction'],
@@ -269,7 +309,8 @@ Safety rules:
     origin: 'builtin-main',
   },
   computer_cursor_position: {
-    description: 'Move the cursor to specific coordinates from the latest screen image returned by computer_screenshot without clicking. Requires a prior computer_screenshot in the current action sequence; computer_list_windows is not enough. Use to hover over elements.',
+    description:
+      'Move the cursor to specific coordinates from the latest screen image returned by computer_screenshot without clicking. Requires a prior computer_screenshot in the current action sequence; computer_list_windows is not enough. Use to hover over elements.',
     parameters: {
       type: 'object',
       description: 'Arguments for moving the cursor.',
@@ -283,7 +324,8 @@ Safety rules:
     origin: 'builtin-main',
   },
   computer_list_windows: {
-    description: 'List currently open application windows. Returns window titles and source ids that can be passed to computer_screenshot.window_id for app-specific visual capture. This is metadata, not visual screen context, and does not provide valid coordinates by itself.',
+    description:
+      'List currently open application windows. Returns window titles and source ids that can be passed to computer_screenshot.window_id for app-specific visual capture. This is metadata, not visual screen context, and does not provide valid coordinates by itself.',
     parameters: {
       type: 'object',
       description: 'No arguments required.',
@@ -294,16 +336,29 @@ Safety rules:
     origin: 'builtin-main',
   },
   ui_get_app_state: {
-    description: 'Inspect the current Windows desktop/app state for reliable Agent Mode UI automation. Returns a fresh screenshot, active window metadata, a compact accessibility tree, stable element_id values, supported element actions, bounds, and truncation metadata. Use this before UI actions and prefer element_id actions over coordinates.',
+    description:
+      'Inspect the current Windows desktop/app state for reliable Agent Mode UI automation. Returns a fresh screenshot, active window metadata, a compact accessibility tree, stable element_id values, supported element actions, bounds, and truncation metadata. Use this before UI actions and prefer element_id actions over coordinates.',
     parameters: {
       type: 'object',
       description: 'Optional filters and compactness controls for state capture.',
       properties: {
-        windowTitle: { type: 'string', description: 'Optional substring of the target window title.' },
-        processName: { type: 'string', description: 'Optional process name filter, such as notepad or explorer.' },
+        windowTitle: {
+          type: 'string',
+          description: 'Optional substring of the target window title.',
+        },
+        processName: {
+          type: 'string',
+          description: 'Optional process name filter, such as notepad or explorer.',
+        },
         hwnd: { type: 'number', description: 'Optional native window handle.' },
-        max_depth: { type: 'number', description: 'Maximum accessibility tree depth. Defaults to 4.' },
-        max_elements: { type: 'number', description: 'Maximum number of elements. Defaults to 120, capped at 300.' },
+        max_depth: {
+          type: 'number',
+          description: 'Maximum accessibility tree depth. Defaults to 4.',
+        },
+        max_elements: {
+          type: 'number',
+          description: 'Maximum number of elements. Defaults to 120, capped at 300.',
+        },
       },
       required: [],
     },
@@ -311,22 +366,38 @@ Safety rules:
     origin: 'builtin-main',
   },
   ui_find: {
-    description: 'Search the latest or requested ui_get_app_state accessibility tree for elements by role, label/name, value, text, enabled/visible/focused state, or parent element_id. Use this instead of manually parsing a large tree.',
+    description:
+      'Search the latest or requested ui_get_app_state accessibility tree for elements by role, label/name, value, text, enabled/visible/focused state, or parent element_id. Use this instead of manually parsing a large tree.',
     parameters: {
       type: 'object',
       description: 'Search filters for the accessibility tree.',
       properties: {
-        state_id: { type: 'string', description: 'Optional state_id from ui_get_app_state. Defaults to the latest state.' },
-        query: { type: 'string', description: 'Text substring to match across name, value, automation id, or role.' },
-        role: { type: 'string', description: 'Exact role/control type, such as Button, Edit, MenuItem, or CheckBox.' },
+        state_id: {
+          type: 'string',
+          description: 'Optional state_id from ui_get_app_state. Defaults to the latest state.',
+        },
+        query: {
+          type: 'string',
+          description: 'Text substring to match across name, value, automation id, or role.',
+        },
+        role: {
+          type: 'string',
+          description: 'Exact role/control type, such as Button, Edit, MenuItem, or CheckBox.',
+        },
         name: { type: 'string', description: 'Substring of the element label/name.' },
         value: { type: 'string', description: 'Substring of the element value.' },
-        text: { type: 'string', description: 'Text substring to match across accessible text fields.' },
+        text: {
+          type: 'string',
+          description: 'Text substring to match across accessible text fields.',
+        },
         enabled: { type: 'boolean', description: 'Optional enabled-state filter.' },
         visible: { type: 'boolean', description: 'Optional visible-state filter.' },
         focused: { type: 'boolean', description: 'Optional focused-state filter.' },
         parent_element_id: { type: 'string', description: 'Optional parent element_id scope.' },
-        limit: { type: 'number', description: 'Maximum matches to return. Defaults to 20, capped at 50.' },
+        limit: {
+          type: 'number',
+          description: 'Maximum matches to return. Defaults to 20, capped at 50.',
+        },
       },
       required: [],
     },
@@ -334,7 +405,8 @@ Safety rules:
     origin: 'builtin-main',
   },
   ui_wait_for: {
-    description: 'Wait for a Windows UI condition, such as an element/text/focus/window match, then return the fresh app state and matches. Use this for loading states, dialogs, toasts, and window changes instead of blind polling or sleeps.',
+    description:
+      'Wait for a Windows UI condition, such as an element/text/focus/window match, then return the fresh app state and matches. Use this for loading states, dialogs, toasts, and window changes instead of blind polling or sleeps.',
     parameters: {
       type: 'object',
       description: 'Wait condition filters. Same matching fields as ui_find.',
@@ -348,8 +420,14 @@ Safety rules:
         visible: { type: 'boolean', description: 'Optional visible-state filter.' },
         focused: { type: 'boolean', description: 'Optional focused-state filter.' },
         parent_element_id: { type: 'string', description: 'Optional parent element_id scope.' },
-        timeout_ms: { type: 'number', description: 'Timeout in milliseconds. Defaults to 5000, capped at 30000.' },
-        interval_ms: { type: 'number', description: 'Polling interval in milliseconds. Defaults to 250.' },
+        timeout_ms: {
+          type: 'number',
+          description: 'Timeout in milliseconds. Defaults to 5000, capped at 30000.',
+        },
+        interval_ms: {
+          type: 'number',
+          description: 'Polling interval in milliseconds. Defaults to 250.',
+        },
       },
       required: [],
     },
@@ -357,13 +435,20 @@ Safety rules:
     origin: 'builtin-main',
   },
   ui_click: {
-    description: 'Click a Windows UI element by element_id. Uses UI Automation InvokePattern when available, otherwise clicks the element bounds center. Coordinates are supported only as an explicit fallback. Requires approval and returns fresh app state.',
+    description:
+      'Click a Windows UI element by element_id. Uses UI Automation InvokePattern when available, otherwise clicks the element bounds center. Coordinates are supported only as an explicit fallback. Requires approval and returns fresh app state.',
     parameters: {
       type: 'object',
       properties: {
         element_id: { type: 'string', description: 'element_id from ui_get_app_state or ui_find.' },
-        x: { type: 'number', description: 'Fallback desktop X coordinate when no element_id is available.' },
-        y: { type: 'number', description: 'Fallback desktop Y coordinate when no element_id is available.' },
+        x: {
+          type: 'number',
+          description: 'Fallback desktop X coordinate when no element_id is available.',
+        },
+        y: {
+          type: 'number',
+          description: 'Fallback desktop Y coordinate when no element_id is available.',
+        },
         button: { type: 'string', enum: ['left', 'right', 'middle'], default: 'left' },
       },
       required: [],
@@ -373,11 +458,15 @@ Safety rules:
     requiresApproval: true,
   },
   ui_type_text: {
-    description: 'Type text into a target UI element by element_id. Focuses or clicks the target first, types text, and returns fresh app state. Requires approval.',
+    description:
+      'Type text into a target UI element by element_id. Focuses or clicks the target first, types text, and returns fresh app state. Requires approval.',
     parameters: {
       type: 'object',
       properties: {
-        element_id: { type: 'string', description: 'Optional target element_id from ui_get_app_state or ui_find.' },
+        element_id: {
+          type: 'string',
+          description: 'Optional target element_id from ui_get_app_state or ui_find.',
+        },
         text: { type: 'string', description: 'Text to type.' },
       },
       required: ['text'],
@@ -387,7 +476,8 @@ Safety rules:
     requiresApproval: true,
   },
   ui_set_value: {
-    description: 'Set a UI element value by element_id using UI Automation ValuePattern only. Requires approval and returns fresh app state.',
+    description:
+      'Set a UI element value by element_id using UI Automation ValuePattern only. Requires approval and returns fresh app state.',
     parameters: {
       type: 'object',
       properties: {
@@ -401,7 +491,8 @@ Safety rules:
     requiresApproval: true,
   },
   ui_select: {
-    description: 'Select or toggle a UI element by element_id using UI Automation SelectionItemPattern or TogglePattern. Requires approval and returns fresh app state.',
+    description:
+      'Select or toggle a UI element by element_id using UI Automation SelectionItemPattern or TogglePattern. Requires approval and returns fresh app state.',
     parameters: {
       type: 'object',
       properties: {
@@ -414,13 +505,20 @@ Safety rules:
     requiresApproval: true,
   },
   ui_scroll: {
-    description: 'Scroll a UI element by element_id. Uses UI Automation ScrollPattern when available, otherwise scrolls at the element bounds center. Coordinates are fallback only. Requires approval and returns fresh app state.',
+    description:
+      'Scroll a UI element by element_id. Uses UI Automation ScrollPattern when available, otherwise scrolls at the element bounds center. Coordinates are fallback only. Requires approval and returns fresh app state.',
     parameters: {
       type: 'object',
       properties: {
         element_id: { type: 'string', description: 'element_id from ui_get_app_state or ui_find.' },
-        x: { type: 'number', description: 'Fallback desktop X coordinate when no element_id is available.' },
-        y: { type: 'number', description: 'Fallback desktop Y coordinate when no element_id is available.' },
+        x: {
+          type: 'number',
+          description: 'Fallback desktop X coordinate when no element_id is available.',
+        },
+        y: {
+          type: 'number',
+          description: 'Fallback desktop Y coordinate when no element_id is available.',
+        },
         direction: { type: 'string', enum: ['up', 'down', 'left', 'right'], default: 'down' },
         amount: { type: 'number', description: 'Scroll amount. Defaults to 3.' },
       },
@@ -431,7 +529,8 @@ Safety rules:
     requiresApproval: true,
   },
   ui_focus: {
-    description: 'Focus a UI element by element_id through UI Automation. Requires approval and returns fresh app state.',
+    description:
+      'Focus a UI element by element_id through UI Automation. Requires approval and returns fresh app state.',
     parameters: {
       type: 'object',
       properties: {
@@ -444,7 +543,8 @@ Safety rules:
     requiresApproval: true,
   },
   ui_key: {
-    description: 'Press a key or keyboard shortcut, such as enter, escape, tab, ctrl+c, alt+tab, or ctrl+shift+s. Requires approval and returns fresh app state.',
+    description:
+      'Press a key or keyboard shortcut, such as enter, escape, tab, ctrl+c, alt+tab, or ctrl+shift+s. Requires approval and returns fresh app state.',
     parameters: {
       type: 'object',
       properties: {
@@ -457,13 +557,20 @@ Safety rules:
     requiresApproval: true,
   },
   windows_uia_snapshot: {
-    description: 'Inspect Windows desktop app controls through Microsoft UI Automation. Prefer this before computer_screenshot/click/type for native Windows apps because it returns controls, supported patterns, and stable elementRef values.',
+    description:
+      'Inspect Windows desktop app controls through Microsoft UI Automation. Prefer this before computer_screenshot/click/type for native Windows apps because it returns controls, supported patterns, and stable elementRef values.',
     parameters: {
       type: 'object',
       description: 'Optional window filters for UI Automation inspection.',
       properties: {
-        windowTitle: { type: 'string', description: 'Optional substring of the target window title.' },
-        processName: { type: 'string', description: 'Optional process name filter, such as notepad or explorer.' },
+        windowTitle: {
+          type: 'string',
+          description: 'Optional substring of the target window title.',
+        },
+        processName: {
+          type: 'string',
+          description: 'Optional process name filter, such as notepad or explorer.',
+        },
         hwnd: { type: 'number', description: 'Optional native window handle.' },
       },
       required: [],
@@ -472,7 +579,8 @@ Safety rules:
     origin: 'builtin-main',
   },
   windows_uia_invoke: {
-    description: 'Invoke a Windows UI Automation element that supports InvokePattern. Prefer this over computer_click for buttons and menu items. Requires approval.',
+    description:
+      'Invoke a Windows UI Automation element that supports InvokePattern. Prefer this over computer_click for buttons and menu items. Requires approval.',
     parameters: {
       type: 'object',
       description: 'Arguments for invoking a UIA control.',
@@ -486,7 +594,8 @@ Safety rules:
     requiresApproval: true,
   },
   windows_uia_set_value: {
-    description: 'Set text/value on a Windows UI Automation element that supports ValuePattern. Prefer this over computer_type for supported text fields. Requires approval.',
+    description:
+      'Set text/value on a Windows UI Automation element that supports ValuePattern. Prefer this over computer_type for supported text fields. Requires approval.',
     parameters: {
       type: 'object',
       description: 'Arguments for setting a UIA value.',
@@ -501,7 +610,8 @@ Safety rules:
     requiresApproval: true,
   },
   windows_uia_select: {
-    description: 'Select or toggle a Windows UI Automation element that supports SelectionItemPattern or TogglePattern. Requires approval.',
+    description:
+      'Select or toggle a Windows UI Automation element that supports SelectionItemPattern or TogglePattern. Requires approval.',
     parameters: {
       type: 'object',
       description: 'Arguments for selecting/toggling a UIA control.',
@@ -515,16 +625,27 @@ Safety rules:
     requiresApproval: true,
   },
   system_shell: {
-    description: 'Run a bounded PowerShell command for system inspection or automation. Use native file/app/window tools first when possible. Requires approval. Set mutatesState=false for read-only inspection commands such as Get-ComputerInfo, Get-ItemProperty, or directory listings; set mutatesState=true for commands that create, edit, delete, install, launch, stop, configure, or otherwise change local state.',
+    description:
+      'Run a bounded PowerShell command for system inspection or automation. Use native file/app/window tools first when possible. Requires approval. Set mutatesState=false for read-only inspection commands such as Get-ComputerInfo, Get-ItemProperty, or directory listings; set mutatesState=true for commands that create, edit, delete, install, launch, stop, configure, or otherwise change local state.',
     parameters: {
       type: 'object',
       description: 'Arguments for running PowerShell.',
       properties: {
         command: { type: 'string', description: 'PowerShell command to execute.' },
         cwd: { type: 'string', description: 'Optional working directory.' },
-        timeoutMs: { type: 'number', description: 'Optional timeout in milliseconds, capped at 60000.' },
-        description: { type: 'string', description: 'One-line explanation of why this command is needed.' },
-        mutatesState: { type: 'boolean', description: 'Whether the command is intended to change local system, file, app, process, or configuration state. Use false for read-only inspection.' },
+        timeoutMs: {
+          type: 'number',
+          description: 'Optional timeout in milliseconds, capped at 60000.',
+        },
+        description: {
+          type: 'string',
+          description: 'One-line explanation of why this command is needed.',
+        },
+        mutatesState: {
+          type: 'boolean',
+          description:
+            'Whether the command is intended to change local system, file, app, process, or configuration state. Use false for read-only inspection.',
+        },
       },
       required: ['command', 'description'],
     },
@@ -546,7 +667,8 @@ Safety rules:
     origin: 'builtin-main',
   },
   file_write: {
-    description: 'Write a local text file directly without using the desktop UI. Requires approval.',
+    description:
+      'Write a local text file directly without using the desktop UI. Requires approval.',
     parameters: {
       type: 'object',
       description: 'Arguments for writing a file.',
@@ -567,7 +689,10 @@ Safety rules:
       description: 'Arguments for filename search.',
       properties: {
         query: { type: 'string', description: 'Case-insensitive filename substring.' },
-        root: { type: 'string', description: 'Optional root directory. Defaults to app working directory.' },
+        root: {
+          type: 'string',
+          description: 'Optional root directory. Defaults to app working directory.',
+        },
       },
       required: ['query'],
     },
@@ -590,7 +715,8 @@ Safety rules:
     requiresApproval: true,
   },
   app_find: {
-    description: 'Find installed Windows apps using the native Windows app index. Prefer this before app_launch.',
+    description:
+      'Find installed Windows apps using the native Windows app index. Prefer this before app_launch.',
     parameters: {
       type: 'object',
       description: 'Arguments for finding an app.',
@@ -603,13 +729,17 @@ Safety rules:
     origin: 'builtin-main',
   },
   app_launch: {
-    description: 'Launch a Windows app by name or path using native app launching. Requires approval.',
+    description:
+      'Launch a Windows app by name or path using native app launching. Requires approval.',
     parameters: {
       type: 'object',
       description: 'Arguments for launching an app.',
       properties: {
         nameOrPath: { type: 'string', description: 'App executable/name or .lnk path.' },
-        appUserModelId: { type: 'string', description: 'Optional Windows AppUserModelID from app_find/app_list.' },
+        appUserModelId: {
+          type: 'string',
+          description: 'Optional Windows AppUserModelID from app_find/app_list.',
+        },
       },
       required: [],
     },
@@ -618,7 +748,8 @@ Safety rules:
     requiresApproval: true,
   },
   app_list: {
-    description: 'List installed Windows apps from the native Windows app index without opening Start/Search.',
+    description:
+      'List installed Windows apps from the native Windows app index without opening Start/Search.',
     parameters: {
       type: 'object',
       description: 'No arguments required.',
@@ -657,19 +788,44 @@ Safety rules:
     requiresApproval: true,
   },
   scheduled_task_create: {
-    description: 'Create a local reminder or web lookout. Use this when the user asks to remind them, check something later, watch a page, monitor a URL, or set up a recurring lookout. After creating, tell the user it is visible in the Reminders sidebar.',
+    description:
+      'Create a local reminder or web lookout. Use this when the user asks to remind them, check something later, watch a page, monitor a URL, or set up a recurring lookout. After creating, tell the user it is visible in the Reminders sidebar.',
     parameters: {
       type: 'object',
       description: 'Arguments for creating a scheduled task.',
       properties: {
         type: { type: 'string', description: 'Task type.', enum: ['reminder', 'web_lookout'] },
         title: { type: 'string', description: 'Short user-visible title.' },
-        reminderText: { type: 'string', description: 'Reminder/checklist text. Required for reminder tasks.' },
-        urls: { type: 'array', description: 'http/https URLs to watch. Public URLs and local loopback URLs are supported. Required for web_lookout tasks.', items: { type: 'string' } },
-        instructions: { type: 'string', description: 'What matters for this reminder/lookout and what to ignore.' },
-        intervalPreset: { type: 'string', description: 'Repeat interval after the first run. Optional; defaults to 30m when omitted.', enum: ['1m', '30m', '1h', '6h', '12h', 'daily', 'weekly'] },
-        dueAt: { type: 'number', description: 'First/next run time as Unix epoch milliseconds. Required for requests like "in 1 minute", "tomorrow at 9", or any concrete due time.' },
-        enabled: { type: 'boolean', description: 'Whether the task should start enabled.', default: true },
+        reminderText: {
+          type: 'string',
+          description: 'Reminder/checklist text. Required for reminder tasks.',
+        },
+        urls: {
+          type: 'array',
+          description:
+            'http/https URLs to watch. Public URLs and local loopback URLs are supported. Required for web_lookout tasks.',
+          items: { type: 'string' },
+        },
+        instructions: {
+          type: 'string',
+          description: 'What matters for this reminder/lookout and what to ignore.',
+        },
+        intervalPreset: {
+          type: 'string',
+          description:
+            'Repeat interval after the first run. Optional; defaults to 30m when omitted.',
+          enum: ['1m', '30m', '1h', '6h', '12h', 'daily', 'weekly'],
+        },
+        dueAt: {
+          type: 'number',
+          description:
+            'First/next run time as Unix epoch milliseconds. Required for requests like "in 1 minute", "tomorrow at 9", or any concrete due time.',
+        },
+        enabled: {
+          type: 'boolean',
+          description: 'Whether the task should start enabled.',
+          default: true,
+        },
       },
       required: ['type', 'title'],
     },
@@ -685,10 +841,21 @@ Safety rules:
         id: { type: 'string', description: 'Scheduled task id.' },
         title: { type: 'string', description: 'New title.' },
         reminderText: { type: 'string', description: 'New reminder text.' },
-        urls: { type: 'array', description: 'Replacement URLs for a web lookout.', items: { type: 'string' } },
+        urls: {
+          type: 'array',
+          description: 'Replacement URLs for a web lookout.',
+          items: { type: 'string' },
+        },
         instructions: { type: 'string', description: 'New instructions.' },
-        intervalPreset: { type: 'string', description: 'New interval.', enum: ['1m', '30m', '1h', '6h', '12h', 'daily', 'weekly'] },
-        dueAt: { type: 'number', description: 'Optional next run time as Unix epoch milliseconds.' },
+        intervalPreset: {
+          type: 'string',
+          description: 'New interval.',
+          enum: ['1m', '30m', '1h', '6h', '12h', 'daily', 'weekly'],
+        },
+        dueAt: {
+          type: 'number',
+          description: 'Optional next run time as Unix epoch milliseconds.',
+        },
         enabled: { type: 'boolean', description: 'Set false to pause, true to resume.' },
       },
       required: ['id'],
@@ -715,7 +882,11 @@ Safety rules:
       type: 'object',
       description: 'Optional filters for scheduled tasks.',
       properties: {
-        type: { type: 'string', description: 'Optional task type filter.', enum: ['reminder', 'web_lookout'] },
+        type: {
+          type: 'string',
+          description: 'Optional task type filter.',
+          enum: ['reminder', 'web_lookout'],
+        },
       },
       required: [],
     },
@@ -797,7 +968,8 @@ Safety rules:
     requiresApproval: true,
   },
   system_active_window: {
-    description: 'Read the current foreground Windows app/window context: hwnd, title, process id, process name, and executable path. Use this before OS-level actions that refer to "this app" or "the current window".',
+    description:
+      'Read the current foreground Windows app/window context: hwnd, title, process id, process name, and executable path. Use this before OS-level actions that refer to "this app" or "the current window".',
     parameters: {
       type: 'object',
       description: 'No arguments required.',
@@ -808,7 +980,8 @@ Safety rules:
     origin: 'builtin-main',
   },
   system_status: {
-    description: 'Read local Windows system status including battery, fixed disk capacity/free space, and active network adapters. Read-only.',
+    description:
+      'Read local Windows system status including battery, fixed disk capacity/free space, and active network adapters. Read-only.',
     parameters: {
       type: 'object',
       description: 'No arguments required.',
@@ -851,7 +1024,8 @@ Safety rules:
     requiresApproval: true,
   },
   window_snap: {
-    description: 'Snap a Windows app window to a common layout preset. Targets the given hwnd/title or the current foreground window. Requires approval.',
+    description:
+      'Snap a Windows app window to a common layout preset. Targets the given hwnd/title or the current foreground window. Requires approval.',
     parameters: {
       type: 'object',
       description: 'Arguments for snapping a window.',
@@ -875,9 +1049,7 @@ Safety rules:
 
 export type BuiltinMainToolName = keyof typeof builtInMainToolManifest
 
-const BUILTIN_MAIN_TOOL_NAMES = Object.keys(
-  builtInMainToolManifest
-) as BuiltinMainToolName[]
+const BUILTIN_MAIN_TOOL_NAMES = Object.keys(builtInMainToolManifest) as BuiltinMainToolName[]
 
 export const builtInMainToolDefinitions: ToolDescriptor[] = BUILTIN_MAIN_TOOL_NAMES.map((name) => ({
   name,

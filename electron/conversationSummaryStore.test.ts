@@ -69,11 +69,7 @@ describe('conversationSummaryStore', () => {
       path.join(electronMock.userDataPath, 'conversation-summaries.json'),
       JSON.stringify({
         version: 1,
-        summaries: [
-          { sessionId: 'ok', summary: 'kept', updatedAt: 1 },
-          { sessionId: 'bad' },
-          null,
-        ],
+        summaries: [{ sessionId: 'ok', summary: 'kept', updatedAt: 1 }, { sessionId: 'bad' }, null],
       })
     )
     const store = await import('./conversationSummaryStore')

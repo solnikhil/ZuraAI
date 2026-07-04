@@ -54,9 +54,7 @@ function mockFetchOkSearch(): ReturnType<typeof vi.fn> {
       { title: 'Vitest', url: 'https://vitest.dev', content: 'A fast test runner' },
       { title: 'Vitest docs', url: 'https://vitest.dev/guide', content: 'Getting started' },
     ],
-    images: [
-      { url: 'https://vitest.dev/logo.png' },
-    ],
+    images: [{ url: 'https://vitest.dev/logo.png' }],
   }
   return vi.fn().mockResolvedValue({
     ok: true,
@@ -68,9 +66,7 @@ function mockFetchOkSearch(): ReturnType<typeof vi.fn> {
 
 function mockFetchOkExtract(): ReturnType<typeof vi.fn> {
   const payload = {
-    results: [
-      { url: 'https://example.com/docs', raw_content: '# Documentation\nContent here' },
-    ],
+    results: [{ url: 'https://example.com/docs', raw_content: '# Documentation\nContent here' }],
     failed_results: [],
   }
   return vi.fn().mockResolvedValue({

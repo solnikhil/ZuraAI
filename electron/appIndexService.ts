@@ -106,7 +106,15 @@ function indexPath(): string {
 function shortcutRoots(): Array<{ path: string; source: AppIndexSource }> {
   return [
     {
-      path: path.join(os.homedir(), 'AppData', 'Roaming', 'Microsoft', 'Windows', 'Start Menu', 'Programs'),
+      path: path.join(
+        os.homedir(),
+        'AppData',
+        'Roaming',
+        'Microsoft',
+        'Windows',
+        'Start Menu',
+        'Programs'
+      ),
       source: 'start-menu',
     },
     { path: 'C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs', source: 'start-menu' },
@@ -139,9 +147,9 @@ function appDedupeKey(app: RawAppMatch | AppIndexEntry): string {
   if (targetPath) return `target:${targetPath}`
 
   const shortcutPath = compact(
-    ('shortcutPath' in app ? app.shortcutPath : undefined)
-    ?? ('path' in app ? app.path : undefined)
-    ?? ''
+    ('shortcutPath' in app ? app.shortcutPath : undefined) ??
+      ('path' in app ? app.path : undefined) ??
+      ''
   )
   if (shortcutPath) return `shortcut:${compact(app.name)}:${shortcutPath}`
 
@@ -173,12 +181,17 @@ function preferRawAppMatch(current: RawAppMatch | undefined, candidate: RawAppMa
   return rawAppRichness(candidate) > rawAppRichness(current) ? candidate : current
 }
 
-function preferAppEntry(current: AppIndexEntry | undefined, candidate: AppIndexEntry): AppIndexEntry {
+function preferAppEntry(
+  current: AppIndexEntry | undefined,
+  candidate: AppIndexEntry
+): AppIndexEntry {
   if (!current) return candidate
   return appEntryRichness(candidate) > appEntryRichness(current) ? candidate : current
 }
 
-function mergedEntryId(entry: Pick<AppIndexEntry, 'appUserModelId' | 'targetPath' | 'shortcutPath' | 'name'>): string {
+function mergedEntryId(
+  entry: Pick<AppIndexEntry, 'appUserModelId' | 'targetPath' | 'shortcutPath' | 'name'>
+): string {
   return entryIdFor({
     appUserModelId: entry.appUserModelId,
     targetPath: entry.targetPath,
@@ -187,29 +200,38 @@ function mergedEntryId(entry: Pick<AppIndexEntry, 'appUserModelId' | 'targetPath
   })
 }
 
-function mergeAppEntries(current: AppIndexEntry | undefined, candidate: AppIndexEntry): AppIndexEntry {
+function mergeAppEntries(
+  current: AppIndexEntry | undefined,
+  candidate: AppIndexEntry
+): AppIndexEntry {
   if (!current) return candidate
   const preferred = preferAppEntry(current, candidate)
   const merged: AppIndexEntry = {
     ...preferred,
     name: preferred.name || current.name || candidate.name,
     normalizedName: preferred.normalizedName || current.normalizedName || candidate.normalizedName,
-    aliases: Array.from(new Set([
-      ...current.aliases,
-      ...candidate.aliases,
-      current.appUserModelId ?? '',
-      candidate.appUserModelId ?? '',
-    ].filter((alias) => alias.trim().length > 0))),
+    aliases: Array.from(
+      new Set(
+        [
+          ...current.aliases,
+          ...candidate.aliases,
+          current.appUserModelId ?? '',
+          candidate.appUserModelId ?? '',
+        ].filter((alias) => alias.trim().length > 0)
+      )
+    ),
     appUserModelId: candidate.appUserModelId ?? current.appUserModelId,
     shortcutPath: current.shortcutPath ?? candidate.shortcutPath,
     targetPath: current.targetPath ?? candidate.targetPath,
     iconPath: current.iconPath ?? candidate.iconPath,
     args: current.args ?? candidate.args,
     workingDirectory: current.workingDirectory ?? candidate.workingDirectory,
-    launchStrategy: candidate.appUserModelId || current.appUserModelId ? 'appUserModelId' : 'shortcutPath',
+    launchStrategy:
+      candidate.appUserModelId || current.appUserModelId ? 'appUserModelId' : 'shortcutPath',
     lastSeenAt: Math.max(current.lastSeenAt, candidate.lastSeenAt),
     launchCount: Math.max(current.launchCount ?? 0, candidate.launchCount ?? 0) || undefined,
-    lastLaunchedAt: Math.max(current.lastLaunchedAt ?? 0, candidate.lastLaunchedAt ?? 0) || undefined,
+    lastLaunchedAt:
+      Math.max(current.lastLaunchedAt ?? 0, candidate.lastLaunchedAt ?? 0) || undefined,
     usageCount: Math.max(current.usageCount ?? 0, candidate.usageCount ?? 0) || undefined,
     lastUsedAt: Math.max(current.lastUsedAt ?? 0, candidate.lastUsedAt ?? 0) || undefined,
   }
@@ -220,7 +242,9 @@ function mergeAppEntries(current: AppIndexEntry | undefined, candidate: AppIndex
   }
 }
 
-function entryIdFor(raw: Pick<RawAppMatch, 'appUserModelId' | 'targetPath' | 'path' | 'name'>): string {
+function entryIdFor(
+  raw: Pick<RawAppMatch, 'appUserModelId' | 'targetPath' | 'path' | 'name'>
+): string {
   const seed = raw.appUserModelId ?? raw.targetPath ?? raw.path ?? raw.name
   return `app:${Buffer.from(seed).toString('base64url')}`
 }
@@ -266,7 +290,12 @@ function expandWindowsEnv(value: string): string {
 }
 
 function normalizeIconCandidatePath(candidatePath: string): string {
-  return expandWindowsEnv(candidatePath.trim().replace(/^"|"$/g, '').replace(/,\s*-?\d+$/, ''))
+  return expandWindowsEnv(
+    candidatePath
+      .trim()
+      .replace(/^"|"$/g, '')
+      .replace(/,\s*-?\d+$/, '')
+  )
 }
 
 function visualElementLogoCandidates(targetPath: string | undefined): string[] {
@@ -306,30 +335,49 @@ function packagedIconCandidates(targetPath: string | undefined): string[] {
   ]
 }
 
-function iconCandidates(appEntry: Pick<AppIndexEntry, 'shortcutPath' | 'targetPath' | 'iconPath' | 'args' | 'workingDirectory'>): string[] {
+function iconCandidates(
+  appEntry: Pick<
+    AppIndexEntry,
+    'shortcutPath' | 'targetPath' | 'iconPath' | 'args' | 'workingDirectory'
+  >
+): string[] {
   const processStartExe = parseProcessStartExe(appEntry.args)
   const candidates = [
     appEntry.iconPath,
     ...visualElementLogoCandidates(appEntry.targetPath),
     ...versionedAppIconCandidates(appEntry.targetPath),
     ...packagedIconCandidates(appEntry.targetPath),
-    appEntry.workingDirectory && processStartExe ? path.join(appEntry.workingDirectory, processStartExe) : undefined,
+    appEntry.workingDirectory && processStartExe
+      ? path.join(appEntry.workingDirectory, processStartExe)
+      : undefined,
     appEntry.targetPath ? path.join(path.dirname(appEntry.targetPath), 'app.ico') : undefined,
     appEntry.targetPath,
     appEntry.shortcutPath,
   ]
-  return Array.from(new Set(candidates
-    .filter((candidate): candidate is string => Boolean(candidate))
-    .map(normalizeIconCandidatePath)
-    .filter((candidate) => candidate.length > 0)))
+  return Array.from(
+    new Set(
+      candidates
+        .filter((candidate): candidate is string => Boolean(candidate))
+        .map(normalizeIconCandidatePath)
+        .filter((candidate) => candidate.length > 0)
+    )
+  )
 }
 
-function iconKeyFor(appEntry: Pick<AppIndexEntry, 'appUserModelId' | 'shortcutPath' | 'targetPath' | 'iconPath' | 'args' | 'workingDirectory'>): string | undefined {
+function iconKeyFor(
+  appEntry: Pick<
+    AppIndexEntry,
+    'appUserModelId' | 'shortcutPath' | 'targetPath' | 'iconPath' | 'args' | 'workingDirectory'
+  >
+): string | undefined {
   const candidates = iconCandidates(appEntry)
   return candidates.length > 0 ? candidates.join('|') : undefined
 }
 
-function likelyShortcutForNative(nativeApp: RawAppMatch, shortcutsByName: Map<string, RawAppMatch>): RawAppMatch | undefined {
+function likelyShortcutForNative(
+  nativeApp: RawAppMatch,
+  shortcutsByName: Map<string, RawAppMatch>
+): RawAppMatch | undefined {
   const nativeName = compact(nativeApp.name)
   const exact = shortcutsByName.get(nativeName)
   if (exact) return exact
@@ -359,8 +407,11 @@ function createEntry(raw: RawAppMatch, existing?: AppIndexEntry): AppIndexEntry 
     id: entryIdFor(raw),
     name: raw.name.trim(),
     normalizedName: normalizeName(raw.name),
-    aliases: [raw.name, raw.appUserModelId ?? '', raw.targetPath ? path.basename(raw.targetPath, path.extname(raw.targetPath)) : '']
-      .filter((alias) => alias.trim().length > 0),
+    aliases: [
+      raw.name,
+      raw.appUserModelId ?? '',
+      raw.targetPath ? path.basename(raw.targetPath, path.extname(raw.targetPath)) : '',
+    ].filter((alias) => alias.trim().length > 0),
     source: raw.source,
     appUserModelId: raw.appUserModelId,
     shortcutPath,
@@ -384,7 +435,12 @@ function createEntry(raw: RawAppMatch, existing?: AppIndexEntry): AppIndexEntry 
 function sanitizeSnapshot(value: unknown): AppIndexSnapshot | null {
   if (!value || typeof value !== 'object') return null
   const record = value as Record<string, unknown>
-  if (record.version !== SNAPSHOT_VERSION || typeof record.updatedAt !== 'number' || !Array.isArray(record.apps)) return null
+  if (
+    record.version !== SNAPSHOT_VERSION ||
+    typeof record.updatedAt !== 'number' ||
+    !Array.isArray(record.apps)
+  )
+    return null
   const updatedAt = record.updatedAt
   const apps = record.apps.flatMap((entry): AppIndexEntry[] => {
     if (!entry || typeof entry !== 'object') return []
@@ -393,7 +449,9 @@ function sanitizeSnapshot(value: unknown): AppIndexSnapshot | null {
       typeof appEntry.id !== 'string' ||
       typeof appEntry.name !== 'string' ||
       typeof appEntry.normalizedName !== 'string' ||
-      (appEntry.source !== 'windows-search' && appEntry.source !== 'start-menu' && appEntry.source !== 'desktop') ||
+      (appEntry.source !== 'windows-search' &&
+        appEntry.source !== 'start-menu' &&
+        appEntry.source !== 'desktop') ||
       (appEntry.launchStrategy !== 'appUserModelId' && appEntry.launchStrategy !== 'shortcutPath')
     ) {
       return []
@@ -402,25 +460,32 @@ function sanitizeSnapshot(value: unknown): AppIndexSnapshot | null {
       id: appEntry.id,
       name: appEntry.name,
       normalizedName: appEntry.normalizedName,
-      aliases: Array.isArray(appEntry.aliases) ? appEntry.aliases.filter((alias): alias is string => typeof alias === 'string') : [appEntry.name],
+      aliases: Array.isArray(appEntry.aliases)
+        ? appEntry.aliases.filter((alias): alias is string => typeof alias === 'string')
+        : [appEntry.name],
       source: appEntry.source,
-      appUserModelId: typeof appEntry.appUserModelId === 'string' ? appEntry.appUserModelId : undefined,
+      appUserModelId:
+        typeof appEntry.appUserModelId === 'string' ? appEntry.appUserModelId : undefined,
       shortcutPath: typeof appEntry.shortcutPath === 'string' ? appEntry.shortcutPath : undefined,
       targetPath: typeof appEntry.targetPath === 'string' ? appEntry.targetPath : undefined,
       iconPath: typeof appEntry.iconPath === 'string' ? appEntry.iconPath : undefined,
       args: typeof appEntry.args === 'string' ? appEntry.args : undefined,
-      workingDirectory: typeof appEntry.workingDirectory === 'string' ? appEntry.workingDirectory : undefined,
+      workingDirectory:
+        typeof appEntry.workingDirectory === 'string' ? appEntry.workingDirectory : undefined,
       launchStrategy: appEntry.launchStrategy,
       lastSeenAt: typeof appEntry.lastSeenAt === 'number' ? appEntry.lastSeenAt : updatedAt,
       launchCount: typeof appEntry.launchCount === 'number' ? appEntry.launchCount : undefined,
-      lastLaunchedAt: typeof appEntry.lastLaunchedAt === 'number' ? appEntry.lastLaunchedAt : undefined,
+      lastLaunchedAt:
+        typeof appEntry.lastLaunchedAt === 'number' ? appEntry.lastLaunchedAt : undefined,
       usageCount: typeof appEntry.usageCount === 'number' ? appEntry.usageCount : undefined,
       lastUsedAt: typeof appEntry.lastUsedAt === 'number' ? appEntry.lastUsedAt : undefined,
     }
-    return [{
-      ...sanitizedEntry,
-      iconKey: iconKeyFor(sanitizedEntry),
-    }]
+    return [
+      {
+        ...sanitizedEntry,
+        iconKey: iconKeyFor(sanitizedEntry),
+      },
+    ]
   })
   return {
     version: SNAPSHOT_VERSION,
@@ -477,13 +542,19 @@ function isUsefulIconPath(iconPath: string | undefined): iconPath is string {
   return Boolean(iconPath && normalizeIconCandidatePath(iconPath).length > 0)
 }
 
-async function readVisualElementsIconPath(targetPath: string | undefined): Promise<string | undefined> {
+async function readVisualElementsIconPath(
+  targetPath: string | undefined
+): Promise<string | undefined> {
   if (!targetPath) return undefined
   const targetDir = path.dirname(targetPath)
-  const manifestPath = path.join(targetDir, `${path.basename(targetPath, path.extname(targetPath))}.VisualElementsManifest.xml`)
+  const manifestPath = path.join(
+    targetDir,
+    `${path.basename(targetPath, path.extname(targetPath))}.VisualElementsManifest.xml`
+  )
   try {
     const manifest = await fs.readFile(manifestPath, 'utf-8')
-    const logo = manifest.match(/Square70x70Logo="([^"]+)"/i)?.[1] ??
+    const logo =
+      manifest.match(/Square70x70Logo="([^"]+)"/i)?.[1] ??
       manifest.match(/Square150x150Logo="([^"]+)"/i)?.[1]
     if (!logo) return undefined
     return path.resolve(targetDir, logo)
@@ -531,7 +602,11 @@ async function readPackagedIconPath(targetPath: string | undefined): Promise<str
   return undefined
 }
 
-async function scanShortcutApps(root: string, source: AppIndexSource, results: RawAppMatch[]): Promise<void> {
+async function scanShortcutApps(
+  root: string,
+  source: AppIndexSource,
+  results: RawAppMatch[]
+): Promise<void> {
   const entries = await fs.readdir(root, { withFileTypes: true }).catch(() => [])
   for (const entry of entries) {
     const full = path.join(root, entry.name)
@@ -545,7 +620,7 @@ async function scanShortcutApps(root: string, source: AppIndexSource, results: R
     const targetPath = shortcut?.target || undefined
     const iconPath = isUsefulIconPath(shortcut?.icon)
       ? shortcut?.icon
-      : await readVisualElementsIconPath(targetPath) ?? await readPackagedIconPath(targetPath)
+      : ((await readVisualElementsIconPath(targetPath)) ?? (await readPackagedIconPath(targetPath)))
     results.push({
       name,
       path: full,
@@ -567,7 +642,9 @@ async function collectShortcutApps(): Promise<RawAppMatch[]> {
 
 async function queryNativeStartApps(query = '', timeoutMs = 10_000): Promise<RawAppMatch[]> {
   const trimmedQuery = query.trim()
-  const nameFilter = trimmedQuery ? ` -Name ${powershellSingleQuotedString(`*${trimmedQuery}*`)}` : ''
+  const nameFilter = trimmedQuery
+    ? ` -Name ${powershellSingleQuotedString(`*${trimmedQuery}*`)}`
+    : ''
   const script = `
 $ErrorActionPreference = 'Stop'
 function Remove-ControlChars([string]$Value) {
@@ -589,12 +666,13 @@ Get-StartApps${nameFilter} |
   })
   if (!stdout.trim()) return []
   return parseNdjsonOutput<NativeStartApp>(stdout)
-    .filter((nativeApp): nativeApp is Required<Pick<NativeStartApp, 'name' | 'appUserModelId'>> => (
-      typeof nativeApp.name === 'string' &&
-      nativeApp.name.trim().length > 0 &&
-      typeof nativeApp.appUserModelId === 'string' &&
-      nativeApp.appUserModelId.trim().length > 0
-    ))
+    .filter(
+      (nativeApp): nativeApp is Required<Pick<NativeStartApp, 'name' | 'appUserModelId'>> =>
+        typeof nativeApp.name === 'string' &&
+        nativeApp.name.trim().length > 0 &&
+        typeof nativeApp.appUserModelId === 'string' &&
+        nativeApp.appUserModelId.trim().length > 0
+    )
     .map((nativeApp) => ({
       name: nativeApp.name.trim(),
       source: 'windows-search' as const,
@@ -645,19 +723,30 @@ if (Test-Path $root) {
 `
   const { stdout } = await runPowerShell(script, { timeoutMs: 2_000, maxOutputLength: 256_000 })
   if (!stdout.trim()) return []
-  return parseNdjsonOutput<{ name?: unknown; usageCount?: unknown; lastUsedAt?: unknown }>(stdout)
-    .flatMap((entry): UserAssistUsage[] => {
-      if (!entry || typeof entry.name !== 'string' || !entry.name.trim()) return []
-      const lastUsedAt = typeof entry.lastUsedAt === 'string' ? Date.parse(entry.lastUsedAt) : undefined
-      return [{
+  return parseNdjsonOutput<{ name?: unknown; usageCount?: unknown; lastUsedAt?: unknown }>(
+    stdout
+  ).flatMap((entry): UserAssistUsage[] => {
+    if (!entry || typeof entry.name !== 'string' || !entry.name.trim()) return []
+    const lastUsedAt =
+      typeof entry.lastUsedAt === 'string' ? Date.parse(entry.lastUsedAt) : undefined
+    return [
+      {
         name: entry.name,
-        usageCount: typeof entry.usageCount === 'number' && Number.isFinite(entry.usageCount) ? entry.usageCount : undefined,
+        usageCount:
+          typeof entry.usageCount === 'number' && Number.isFinite(entry.usageCount)
+            ? entry.usageCount
+            : undefined,
         lastUsedAt: lastUsedAt && Number.isFinite(lastUsedAt) ? lastUsedAt : undefined,
-      }]
-    })
+      },
+    ]
+  })
 }
 
-function mergeApps(nativeApps: RawAppMatch[], shortcutApps: RawAppMatch[], previousApps: AppIndexEntry[]): AppIndexEntry[] {
+function mergeApps(
+  nativeApps: RawAppMatch[],
+  shortcutApps: RawAppMatch[],
+  previousApps: AppIndexEntry[]
+): AppIndexEntry[] {
   const previousByDedupeKey = new Map(previousApps.map((entry) => [appDedupeKey(entry), entry]))
   const previousByName = new Map<string, AppIndexEntry>()
   for (const entry of previousApps) {
@@ -673,7 +762,10 @@ function mergeApps(nativeApps: RawAppMatch[], shortcutApps: RawAppMatch[], previ
     shortcutsByName.set(key, preferRawAppMatch(shortcutsByName.get(key), shortcut))
     const noVersionKey = compactWithoutVersion(shortcut.name)
     if (noVersionKey && noVersionKey !== key) {
-      shortcutsByName.set(noVersionKey, preferRawAppMatch(shortcutsByName.get(noVersionKey), shortcut))
+      shortcutsByName.set(
+        noVersionKey,
+        preferRawAppMatch(shortcutsByName.get(noVersionKey), shortcut)
+      )
     }
   }
 
@@ -713,29 +805,46 @@ function mergeApps(nativeApps: RawAppMatch[], shortcutApps: RawAppMatch[], previ
   }
 
   return Array.from(rawByKey.values())
-    .map((raw) => createEntry(raw, previousByDedupeKey.get(appDedupeKey(raw)) ?? previousByName.get(compact(raw.name))))
+    .map((raw) =>
+      createEntry(
+        raw,
+        previousByDedupeKey.get(appDedupeKey(raw)) ?? previousByName.get(compact(raw.name))
+      )
+    )
     .sort((a, b) => a.name.localeCompare(b.name))
 }
 
 function usageKeysForApp(appEntry: AppIndexEntry): string[] {
-  return Array.from(new Set([
-    compact(appEntry.name),
-    compactWithoutVersion(appEntry.name),
-    appEntry.appUserModelId ? compact(appEntry.appUserModelId) : '',
-    appEntry.targetPath ? compact(path.basename(appEntry.targetPath, path.extname(appEntry.targetPath))) : '',
-    appEntry.shortcutPath ? compact(path.basename(appEntry.shortcutPath, path.extname(appEntry.shortcutPath))) : '',
-  ].filter(Boolean)))
+  return Array.from(
+    new Set(
+      [
+        compact(appEntry.name),
+        compactWithoutVersion(appEntry.name),
+        appEntry.appUserModelId ? compact(appEntry.appUserModelId) : '',
+        appEntry.targetPath
+          ? compact(path.basename(appEntry.targetPath, path.extname(appEntry.targetPath)))
+          : '',
+        appEntry.shortcutPath
+          ? compact(path.basename(appEntry.shortcutPath, path.extname(appEntry.shortcutPath)))
+          : '',
+      ].filter(Boolean)
+    )
+  )
 }
 
 function usageKeysForUserAssist(usage: UserAssistUsage): string[] {
   const normalized = usage.name.replace(/^.*[\\/]/, '')
-  return Array.from(new Set([
-    compact(usage.name),
-    compactWithoutVersion(usage.name),
-    compact(normalized),
-    compactWithoutVersion(normalized),
-    compact(path.basename(normalized, path.extname(normalized))),
-  ].filter(Boolean)))
+  return Array.from(
+    new Set(
+      [
+        compact(usage.name),
+        compactWithoutVersion(usage.name),
+        compact(normalized),
+        compactWithoutVersion(normalized),
+        compact(path.basename(normalized, path.extname(normalized))),
+      ].filter(Boolean)
+    )
+  )
 }
 
 function applyUsageSignals(apps: AppIndexEntry[], usages: UserAssistUsage[]): AppIndexEntry[] {
@@ -746,7 +855,11 @@ function applyUsageSignals(apps: AppIndexEntry[], usages: UserAssistUsage[]): Ap
       const current = usageByKey.get(key)
       const currentTime = current?.lastUsedAt ?? 0
       const nextTime = usage.lastUsedAt ?? 0
-      if (!current || nextTime > currentTime || (nextTime === currentTime && (usage.usageCount ?? 0) > (current.usageCount ?? 0))) {
+      if (
+        !current ||
+        nextTime > currentTime ||
+        (nextTime === currentTime && (usage.usageCount ?? 0) > (current.usageCount ?? 0))
+      ) {
         usageByKey.set(key, usage)
       }
     }
@@ -755,7 +868,10 @@ function applyUsageSignals(apps: AppIndexEntry[], usages: UserAssistUsage[]): Ap
     const usage = usageKeysForApp(appEntry)
       .map((key) => usageByKey.get(key))
       .filter((entry): entry is UserAssistUsage => Boolean(entry))
-      .sort((a, b) => (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0) || (b.usageCount ?? 0) - (a.usageCount ?? 0))[0]
+      .sort(
+        (a, b) =>
+          (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0) || (b.usageCount ?? 0) - (a.usageCount ?? 0)
+      )[0]
     if (!usage) return appEntry
     return {
       ...appEntry,
@@ -795,7 +911,12 @@ async function ensureAppsAvailable(): Promise<void> {
 
 export async function refreshAppIndex(): Promise<AppIndexDiagnostics> {
   if (!isWindows()) {
-    diagnostics = { ok: false, stale: true, error: 'App index is only supported on Windows.', sourceCounts: {} }
+    diagnostics = {
+      ok: false,
+      stale: true,
+      error: 'App index is only supported on Windows.',
+      sourceCounts: {},
+    }
     return diagnostics
   }
   await loadSnapshot()
@@ -876,18 +997,20 @@ function scoreApp(appEntry: AppIndexEntry, query: string): number {
   const normalizedQuery = normalizeName(query)
   const recentAt = Math.max(appEntry.lastLaunchedAt ?? 0, appEntry.lastUsedAt ?? 0)
   const ageHours = recentAt > 0 ? (Date.now() - recentAt) / 3_600_000 : Number.POSITIVE_INFINITY
-  const recencyScore = recentAt <= 0
-    ? 0
-    : ageHours <= 1
-      ? 1600
-      : ageHours <= 24
-        ? 1300
-        : ageHours <= 24 * 7
-          ? 900
-          : ageHours <= 24 * 30
-            ? 450
-            : 120
-  const frequencyScore = Math.min((appEntry.launchCount ?? 0) * 30, 300) + Math.min(appEntry.usageCount ?? 0, 200)
+  const recencyScore =
+    recentAt <= 0
+      ? 0
+      : ageHours <= 1
+        ? 1600
+        : ageHours <= 24
+          ? 1300
+          : ageHours <= 24 * 7
+            ? 900
+            : ageHours <= 24 * 30
+              ? 450
+              : 120
+  const frequencyScore =
+    Math.min((appEntry.launchCount ?? 0) * 30, 300) + Math.min(appEntry.usageCount ?? 0, 200)
   if (!normalizedQuery) return recencyScore + frequencyScore
   let score = scoreAppSearch(appEntry.name, appEntry.aliases, normalizedQuery)
   if (score === 0) return 0
@@ -896,7 +1019,9 @@ function scoreApp(appEntry: AppIndexEntry, query: string): number {
   return score
 }
 
-export async function listApps(limit = 300): Promise<{ apps: RankedAppIndexEntry[]; diagnostics: AppIndexDiagnostics; count: number }> {
+export async function listApps(
+  limit = 300
+): Promise<{ apps: RankedAppIndexEntry[]; diagnostics: AppIndexDiagnostics; count: number }> {
   await ensureAppsAvailable()
   const ranked = memoryApps
     .map((entry) => ({ ...entry, rank: scoreApp(entry, '') }))
@@ -904,7 +1029,10 @@ export async function listApps(limit = 300): Promise<{ apps: RankedAppIndexEntry
   return { apps: ranked.slice(0, limit), diagnostics, count: memoryApps.length }
 }
 
-export async function findApps(query: string, limit = 40): Promise<{ matches: RankedAppIndexEntry[]; diagnostics: AppIndexDiagnostics }> {
+export async function findApps(
+  query: string,
+  limit = 40
+): Promise<{ matches: RankedAppIndexEntry[]; diagnostics: AppIndexDiagnostics }> {
   await ensureAppsAvailable()
   const trimmedQuery = query.trim()
   if (!trimmedQuery) return { matches: [], diagnostics }
@@ -912,16 +1040,20 @@ export async function findApps(query: string, limit = 40): Promise<{ matches: Ra
   void queryNativeStartApps(trimmedQuery, 1_000)
     .then((nativeMatches) => {
       if (nativeMatches.length === 0) return
-      memoryApps = mergeApps(nativeMatches, memoryApps.map((entry) => ({
-        name: entry.name,
-        source: entry.source,
-        path: entry.shortcutPath,
-        targetPath: entry.targetPath,
-        iconPath: entry.iconPath,
-        args: entry.args,
-        workingDirectory: entry.workingDirectory,
-        appUserModelId: entry.appUserModelId,
-      })), memoryApps)
+      memoryApps = mergeApps(
+        nativeMatches,
+        memoryApps.map((entry) => ({
+          name: entry.name,
+          source: entry.source,
+          path: entry.shortcutPath,
+          targetPath: entry.targetPath,
+          iconPath: entry.iconPath,
+          args: entry.args,
+          workingDirectory: entry.workingDirectory,
+          appUserModelId: entry.appUserModelId,
+        })),
+        memoryApps
+      )
       diagnostics = {
         ...diagnostics,
         sourceCounts: sourceCounts(memoryApps),
@@ -938,7 +1070,10 @@ export async function findApps(query: string, limit = 40): Promise<{ matches: Ra
   return { matches, diagnostics }
 }
 
-export async function resolveAppIndexEntry(itemId: string, query = ''): Promise<AppIndexEntry | undefined> {
+export async function resolveAppIndexEntry(
+  itemId: string,
+  query = ''
+): Promise<AppIndexEntry | undefined> {
   const source = query.trim() ? (await findApps(query, 80)).matches : (await listApps(300)).apps
   return source.find((entry) => entry.id === itemId)
 }
@@ -974,7 +1109,14 @@ function runIconJob<T>(job: () => Promise<T>): Promise<T> {
 
 async function getImageFileDataUrl(candidatePath: string): Promise<string | undefined> {
   const ext = path.extname(candidatePath).toLowerCase()
-  const mime = ext === '.ico' ? 'image/x-icon' : ext === '.png' ? 'image/png' : ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : null
+  const mime =
+    ext === '.ico'
+      ? 'image/x-icon'
+      : ext === '.png'
+        ? 'image/png'
+        : ext === '.jpg' || ext === '.jpeg'
+          ? 'image/jpeg'
+          : null
   if (!mime) return undefined
   try {
     const data = await fs.readFile(candidatePath)

@@ -231,7 +231,10 @@ export function useSettings() {
   if (context === undefined) {
     // During HMR, the context may temporarily be undefined
     if (import.meta.hot) {
-      warnOnceDuringHmr('SettingsContext', '[SettingsContext] Context undefined during HMR, using defaults')
+      warnOnceDuringHmr(
+        'SettingsContext',
+        '[SettingsContext] Context undefined during HMR, using defaults'
+      )
       return {
         settings: defaultSettings,
         updateSettings: () => {},

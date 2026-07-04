@@ -118,15 +118,20 @@ export class SseMcpTransport extends BaseMcpTransport {
 
       if (!response.ok) {
         const responseText = await safeReadResponseText(response)
-        throw this.createError('send', `MCP SSE POST failed with ${response.status} ${response.statusText}`, undefined, {
-          details: {
-            endpoint: endpoint.toString(),
-            status: response.status,
-            statusText: response.statusText,
-            retryable: isRetryableHttpStatus(response.status),
-            bodyPreview: responseText,
-          },
-        })
+        throw this.createError(
+          'send',
+          `MCP SSE POST failed with ${response.status} ${response.statusText}`,
+          undefined,
+          {
+            details: {
+              endpoint: endpoint.toString(),
+              status: response.status,
+              statusText: response.statusText,
+              retryable: isRetryableHttpStatus(response.status),
+              bodyPreview: responseText,
+            },
+          }
+        )
       }
     } finally {
       this.pendingSendControllers.delete(controller)
@@ -159,25 +164,35 @@ export class SseMcpTransport extends BaseMcpTransport {
 
     if (!response.ok) {
       const responseText = await safeReadResponseText(response)
-      throw this.createError('connect', `MCP SSE stream failed with ${response.status} ${response.statusText}`, undefined, {
-        details: {
-          ...summarizeMcpRemoteTarget(this.url, this.headers),
-          status: response.status,
-          statusText: response.statusText,
-          retryable: isRetryableHttpStatus(response.status),
-          bodyPreview: responseText,
-        },
-      })
+      throw this.createError(
+        'connect',
+        `MCP SSE stream failed with ${response.status} ${response.statusText}`,
+        undefined,
+        {
+          details: {
+            ...summarizeMcpRemoteTarget(this.url, this.headers),
+            status: response.status,
+            statusText: response.statusText,
+            retryable: isRetryableHttpStatus(response.status),
+            bodyPreview: responseText,
+          },
+        }
+      )
     }
 
     const contentType = response.headers.get('content-type') || ''
     if (!contentType.toLowerCase().includes('text/event-stream')) {
-      throw this.createError('connect', 'MCP SSE endpoint did not return an event stream', undefined, {
-        details: {
-          ...summarizeMcpRemoteTarget(this.url, this.headers),
-          contentType,
-        },
-      })
+      throw this.createError(
+        'connect',
+        'MCP SSE endpoint did not return an event stream',
+        undefined,
+        {
+          details: {
+            ...summarizeMcpRemoteTarget(this.url, this.headers),
+            contentType,
+          },
+        }
+      )
     }
 
     if (!response.body) {
@@ -189,7 +204,10 @@ export class SseMcpTransport extends BaseMcpTransport {
     this.streamPromise = this.consumeStream(response.body, controller)
   }
 
-  private async consumeStream(body: ReadableStream<Uint8Array>, controller: AbortController): Promise<void> {
+  private async consumeStream(
+    body: ReadableStream<Uint8Array>,
+    controller: AbortController
+  ): Promise<void> {
     const reader = body.getReader()
     const decoder = new TextDecoder()
     let buffer = ''
@@ -236,9 +254,15 @@ export class SseMcpTransport extends BaseMcpTransport {
 
     if (eventType === 'endpoint') {
       try {
-        this.messageEndpoint = resolveValidatedMcpRemoteUrl(payload, this.url, 'sse', ['http:', 'https:'], {
-          requireSameOrigin: true,
-        })
+        this.messageEndpoint = resolveValidatedMcpRemoteUrl(
+          payload,
+          this.url,
+          'sse',
+          ['http:', 'https:'],
+          {
+            requireSameOrigin: true,
+          }
+        )
       } catch (error) {
         this.markDisconnectedFromRemote(
           this.createError('receive', 'MCP SSE endpoint event was invalid', error, {

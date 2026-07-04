@@ -22,21 +22,19 @@ function formatRelativeDate(value: number): string {
 
 export default function FoldersView() {
   const { selectedFolderId, setSelectedFolderId, setDashboardView } = useAppShell()
-  const {
-    folders,
-    sessions,
-    createFolder,
-    createSession,
-    switchSession,
-  } = useChatHistory()
+  const { folders, sessions, createFolder, createSession, switchSession } = useChatHistory()
   const [createOpen, setCreateOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<FolderTab>('chats')
 
   const sortedFolders = useMemo(
-    () => [...folders].sort((a, b) => a.order - b.order || a.createdAt - b.createdAt || a.name.localeCompare(b.name)),
+    () =>
+      [...folders].sort(
+        (a, b) => a.order - b.order || a.createdAt - b.createdAt || a.name.localeCompare(b.name)
+      ),
     [folders]
   )
-  const selectedFolder = sortedFolders.find((folder) => folder.id === selectedFolderId) ?? sortedFolders[0] ?? null
+  const selectedFolder =
+    sortedFolders.find((folder) => folder.id === selectedFolderId) ?? sortedFolders[0] ?? null
   const folderSessions = useMemo(
     () =>
       selectedFolder
@@ -71,7 +69,8 @@ export default function FoldersView() {
   }
 
   const chatCount = folderSessions.length
-  const memoryModeLabel = selectedFolder?.memoryMode === 'folder-only' ? 'Folder-only memory' : 'Default memory'
+  const memoryModeLabel =
+    selectedFolder?.memoryMode === 'folder-only' ? 'Folder-only memory' : 'Default memory'
 
   return (
     <section className="folders-view" aria-labelledby="folders-title">
@@ -110,7 +109,11 @@ export default function FoldersView() {
                 <FolderOpen size={30} />
                 <div>
                   <h2 id="folders-title">{selectedFolder.name}</h2>
-                  <p>{chatCount === 0 ? 'No chats yet' : `${chatCount} chat${chatCount === 1 ? '' : 's'} in this folder`}</p>
+                  <p>
+                    {chatCount === 0
+                      ? 'No chats yet'
+                      : `${chatCount} chat${chatCount === 1 ? '' : 's'} in this folder`}
+                  </p>
                 </div>
               </div>
               <div className="folders-view__hero-actions">
@@ -136,17 +139,28 @@ export default function FoldersView() {
               <span>New chat in {selectedFolder.name}</span>
             </div>
 
-            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as FolderTab)} className="folders-view__tabs">
+            <Tabs
+              value={activeTab}
+              onValueChange={(value) => setActiveTab(value as FolderTab)}
+              className="folders-view__tabs"
+            >
               <TabsList variant="line" className="folders-view__tabs-list">
                 {[
                   { id: 'chats' as const, label: 'Chats', count: chatCount },
-                  { id: 'context' as const, label: 'Context', count: selectedFolder.memoryMode === 'folder-only' ? 1 : 2 },
+                  {
+                    id: 'context' as const,
+                    label: 'Context',
+                    count: selectedFolder.memoryMode === 'folder-only' ? 1 : 2,
+                  },
                 ].map((tab) => (
                   <TabsTrigger key={tab.id} value={tab.id} className="folders-view__tabs-trigger">
                     <span>{tab.label}</span>
                     <span className="folders-view__tabs-count">{tab.count}</span>
                     {activeTab === tab.id && (
-                      <motion.div layoutId="folders-active-tab" className="folders-view__tabs-indicator" />
+                      <motion.div
+                        layoutId="folders-active-tab"
+                        className="folders-view__tabs-indicator"
+                      />
                     )}
                   </TabsTrigger>
                 ))}
@@ -167,11 +181,21 @@ export default function FoldersView() {
               ) : (
                 <div className="folders-view__rows">
                   {folderSessions.map((session, index) => (
-                    <button key={session.id} type="button" className="folders-view__row" onClick={() => openChat(session.id)}>
-                      <span className="folders-view__row-number">{String(index + 1).padStart(2, '0')}</span>
+                    <button
+                      key={session.id}
+                      type="button"
+                      className="folders-view__row"
+                      onClick={() => openChat(session.id)}
+                    >
+                      <span className="folders-view__row-number">
+                        {String(index + 1).padStart(2, '0')}
+                      </span>
                       <span className="folders-view__row-main">
                         <strong>{session.title}</strong>
-                        <small>{session.messageCount ?? session.messages.length} messages / updated {formatRelativeDate(session.updatedAt)}</small>
+                        <small>
+                          {session.messageCount ?? session.messages.length} messages / updated{' '}
+                          {formatRelativeDate(session.updatedAt)}
+                        </small>
                       </span>
                     </button>
                   ))}

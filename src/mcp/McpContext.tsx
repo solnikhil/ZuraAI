@@ -28,10 +28,7 @@ import {
   validateDraftServer,
   type McpDraftServer,
 } from './draft'
-import type {
-  McpAgentAddApproveResult,
-  McpAgentAddReview,
-} from './addRequestTypes'
+import type { McpAgentAddApproveResult, McpAgentAddReview } from './addRequestTypes'
 
 interface McpContextValue {
   isSupported: boolean

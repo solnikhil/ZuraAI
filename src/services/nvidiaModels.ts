@@ -76,8 +76,7 @@ export function mapNvidiaModelToConfiguredModel(apiModel: NvidiaModel): Configur
   const id = apiModel.id.trim()
   const lowerId = id.toLowerCase()
   const isMiniMaxM3 = lowerId === 'minimaxai/minimax-m3'
-  const supportsVision =
-    isMiniMaxM3 || /\b(vl|vision|visual|multimodal|m3|vila|llava)\b/i.test(id)
+  const supportsVision = isMiniMaxM3 || /\b(vl|vision|visual|multimodal|m3|vila|llava)\b/i.test(id)
   const supportsVideo = isMiniMaxM3 || /\b(video|m3)\b/i.test(id)
   const supportsReasoning =
     isMiniMaxM3 || /\b(reason|reasoning|thinking|r1|qwq|nemotron|m3)\b/i.test(id)
@@ -96,7 +95,9 @@ export function mapNvidiaModelToConfiguredModel(apiModel: NvidiaModel): Configur
     code: id,
     displayName: isMiniMaxM3 ? 'MiniMax M3' : titleCaseModelId(id),
     maxContext: isMiniMaxM3 ? 1048576 : undefined,
-    inputModalities: supportsVision ? ['text', 'image', ...(supportsVideo ? ['video'] : [])] : ['text'],
+    inputModalities: supportsVision
+      ? ['text', 'image', ...(supportsVideo ? ['video'] : [])]
+      : ['text'],
     outputModalities: ['text'],
     modelType,
     supportsToolCall: true,
@@ -115,6 +116,8 @@ export function searchNvidiaModels(models: NvidiaModel[], query: string): Nvidia
 
   return models.filter((model) => {
     const haystack = normalizeSearchText([model.id, model.owned_by].filter(Boolean).join(' '))
-    return haystack.includes(normalizedQuery) || queryTokens.every((token) => haystack.includes(token))
+    return (
+      haystack.includes(normalizedQuery) || queryTokens.every((token) => haystack.includes(token))
+    )
   })
 }

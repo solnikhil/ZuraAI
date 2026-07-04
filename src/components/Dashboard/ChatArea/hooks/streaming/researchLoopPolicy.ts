@@ -1,7 +1,4 @@
-import {
-  STREAM_MAX_RESEARCH_ROUNDS,
-  STREAM_RESEARCH_SAFETY_CAP,
-} from '../../../../../providers'
+import { STREAM_MAX_RESEARCH_ROUNDS, STREAM_RESEARCH_SAFETY_CAP } from '../../../../../providers'
 
 export interface ResearchProgressPromptOptions {
   searchCount: number
@@ -149,9 +146,10 @@ export function buildResearchProgressPrompt({
   }
 
   const remainingPractical = Math.max(0, effectiveBudget - searchCount)
-  const practicalWarning = remainingPractical <= 2
-    ? ` You are close to the practical ceiling of ${effectiveBudget} searches; do not search again unless a named critical gap remains.`
-    : ''
+  const practicalWarning =
+    remainingPractical <= 2
+      ? ` You are close to the practical ceiling of ${effectiveBudget} searches; do not search again unless a named critical gap remains.`
+      : ''
 
   return `${prefix}\n\n*** WEB SEARCH PROGRESS ***\nYou have already searched ${searchCount} time(s). Use the returned evidence to decide whether a named critical gap still blocks the answer. Prefer synthesis once you have enough coverage; do not continue just because more searches are possible.${practicalWarning}${FOLLOW_UP_DECISION_GUIDANCE}`
 }

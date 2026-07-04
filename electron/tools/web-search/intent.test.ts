@@ -142,16 +142,12 @@ describe('classifyWebInput — non-http schemes not treated as URL', () => {
 
 describe('classifyWebInput — duplicate URL de-duplication', () => {
   it('deduplicates same URL appearing twice in query', () => {
-    const result = classifyWebInput(
-      'https://example.com/page https://example.com/page',
-    )
+    const result = classifyWebInput('https://example.com/page https://example.com/page')
     expect(result.urls).toHaveLength(1)
   })
 
   it('deduplicates case-insensitive URLs', () => {
-    const result = classifyWebInput(
-      'https://Example.Com/Page https://example.com/page',
-    )
+    const result = classifyWebInput('https://Example.Com/Page https://example.com/page')
     expect(result.urls).toHaveLength(1)
   })
 
@@ -167,19 +163,17 @@ describe('classifyWebInput — duplicate URL de-duplication', () => {
 
 describe('classifyWebInput — URL first-occurrence order', () => {
   it('preserves first-occurrence order from explicit urls then query', () => {
-    const result = classifyWebInput(
-      'check https://third.com content',
-      ['https://first.com', 'https://second.com'],
-    )
+    const result = classifyWebInput('check https://third.com content', [
+      'https://first.com',
+      'https://second.com',
+    ])
     expect(result.urls[0]).toContain('first.com')
     expect(result.urls[1]).toContain('second.com')
     expect(result.urls[2]).toContain('third.com')
   })
 
   it('preserves order of URLs within query text', () => {
-    const result = classifyWebInput(
-      'https://alpha.com https://beta.com https://gamma.com',
-    )
+    const result = classifyWebInput('https://alpha.com https://beta.com https://gamma.com')
     expect(result.urls[0]).toContain('alpha.com')
     expect(result.urls[1]).toContain('beta.com')
     expect(result.urls[2]).toContain('gamma.com')

@@ -1,57 +1,57 @@
 # Mapping of file globs to PR labels for actions/labeler.
 # See https://github.com/actions/labeler#create-labeleryml for syntax.
 
-"area: main-process":
+'area: main-process':
   - changed-files:
       - any-glob-to-any-file:
-          - "electron/**"
+          - 'electron/**'
 
-"area: ui":
+'area: ui':
   - changed-files:
       - any-glob-to-any-file:
-          - "src/components/**"
-          - "src/styles/**"
-          - "src/index.css"
+          - 'src/components/**'
+          - 'src/styles/**'
+          - 'src/index.css'
 
-"area: providers":
+'area: providers':
   - changed-files:
       - any-glob-to-any-file:
-          - "src/services/**"
-          - "src/providers/**"
+          - 'src/services/**'
+          - 'src/providers/**'
 
-"area: tools":
+'area: tools':
   - changed-files:
       - any-glob-to-any-file:
-          - "src/tools/**"
-          - "electron/tools/**"
+          - 'src/tools/**'
+          - 'electron/tools/**'
 
-"area: mcp":
+'area: mcp':
   - changed-files:
       - any-glob-to-any-file:
-          - "electron/mcp/**"
-          - "src/mcp/**"
+          - 'electron/mcp/**'
+          - 'src/mcp/**'
 
-"area: ci":
+'area: ci':
   - changed-files:
       - any-glob-to-any-file:
-          - ".github/**"
+          - '.github/**'
 
-"area: docs":
+'area: docs':
   - changed-files:
       - any-glob-to-any-file:
-          - "docs/**"
-          - "**/*.md"
+          - 'docs/**'
+          - '**/*.md'
 
-"area: tests":
+'area: tests':
   - changed-files:
       - any-glob-to-any-file:
-          - "**/__tests__/**"
-          - "**/*.test.*"
-          - "**/*.spec.*"
+          - '**/__tests__/**'
+          - '**/*.test.*'
+          - '**/*.spec.*'
 
 dependencies:
   - changed-files:
       - any-glob-to-any-file:
-          - "package.json"
-          - "bun.lock"
-          - "package-lock.json"
+          - 'package.json'
+          - 'bun.lock'
+          - 'package-lock.json'

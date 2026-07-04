@@ -77,7 +77,7 @@ describe('orchestration routing — search dispatch', () => {
       new Response(JSON.stringify(tavilyResponse), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
-      }),
+      })
     )
 
     const result = await executeWebSearch({ query: 'typescript handbook' })
@@ -118,7 +118,7 @@ describe('orchestration routing — extract dispatch', () => {
       new Response(JSON.stringify(tavilyExtractResponse), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
-      }),
+      })
     )
 
     const result = await executeWebSearch({ query: 'https://example.com/article' })
@@ -161,9 +161,7 @@ describe('orchestration routing — missing key path', () => {
 
 describe('orchestration routing — provider failure pass-through', () => {
   it('fetch returns 500 → success:false, error from the provider (contains "500" or "Tavily API error")', async () => {
-    fetchMock.mockResolvedValueOnce(
-      new Response('Internal Server Error', { status: 500 }),
-    )
+    fetchMock.mockResolvedValueOnce(new Response('Internal Server Error', { status: 500 }))
 
     const result = await executeWebSearch({ query: 'test query' })
 

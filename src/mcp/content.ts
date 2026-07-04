@@ -60,7 +60,12 @@ export function stringifyPromptContent(content: unknown): string {
           return item.trim()
         }
 
-        if (typeof item === 'object' && item !== null && 'text' in item && typeof item.text === 'string') {
+        if (
+          typeof item === 'object' &&
+          item !== null &&
+          'text' in item &&
+          typeof item.text === 'string'
+        ) {
           return item.text.trim()
         }
 

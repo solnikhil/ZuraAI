@@ -8,10 +8,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import {
-  ChatSessionManager,
-  createChatSessionManager,
-} from './ChatSessionManager'
+import { ChatSessionManager, createChatSessionManager } from './ChatSessionManager'
 import type { ChatSession, Message } from '../chat/types'
 
 // Helper to create mock messages

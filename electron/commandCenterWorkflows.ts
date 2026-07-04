@@ -72,15 +72,21 @@ function normalizeWorkflow(raw: unknown): CommandCenterWorkflow | null {
   const id = typeof raw.id === 'string' ? raw.id.trim() : ''
   const name = typeof raw.name === 'string' ? raw.name.trim() : ''
   const steps = Array.isArray(raw.steps)
-    ? raw.steps.map(normalizeStep).filter((step): step is CommandCenterWorkflowStep => Boolean(step))
+    ? raw.steps
+        .map(normalizeStep)
+        .filter((step): step is CommandCenterWorkflowStep => Boolean(step))
     : []
   if (!id || !name || steps.length === 0) return null
   return {
     id,
     name,
-    description: typeof raw.description === 'string' ? raw.description.trim() || undefined : undefined,
+    description:
+      typeof raw.description === 'string' ? raw.description.trim() || undefined : undefined,
     aliases: Array.isArray(raw.aliases)
-      ? raw.aliases.filter((alias): alias is string => typeof alias === 'string').map((alias) => alias.trim()).filter(Boolean)
+      ? raw.aliases
+          .filter((alias): alias is string => typeof alias === 'string')
+          .map((alias) => alias.trim())
+          .filter(Boolean)
       : [],
     steps,
     createdAt: typeof raw.createdAt === 'number' ? raw.createdAt : Date.now(),
@@ -94,7 +100,9 @@ function normalizeStore(raw: unknown): WorkflowStoreData {
   return {
     version: STORE_VERSION,
     workflows: Array.isArray(raw.workflows)
-      ? raw.workflows.map(normalizeWorkflow).filter((workflow): workflow is CommandCenterWorkflow => Boolean(workflow))
+      ? raw.workflows
+          .map(normalizeWorkflow)
+          .filter((workflow): workflow is CommandCenterWorkflow => Boolean(workflow))
       : [],
   }
 }
@@ -117,11 +125,14 @@ async function writeWorkflows(workflows: CommandCenterWorkflow[]): Promise<void>
   )
 }
 
-export async function saveCommandCenterWorkflow(input: unknown): Promise<CommandCenterWorkflow | null> {
+export async function saveCommandCenterWorkflow(
+  input: unknown
+): Promise<CommandCenterWorkflow | null> {
   const now = Date.now()
   const normalized = normalizeWorkflow({
     ...(isRecord(input) ? input : {}),
-    id: isRecord(input) && typeof input.id === 'string' && input.id.trim() ? input.id : randomUUID(),
+    id:
+      isRecord(input) && typeof input.id === 'string' && input.id.trim() ? input.id : randomUUID(),
     createdAt: isRecord(input) && typeof input.createdAt === 'number' ? input.createdAt : now,
     updatedAt: now,
   })

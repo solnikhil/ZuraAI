@@ -82,16 +82,20 @@ const searchRequestArb = (includeImages: boolean): fc.Arbitrary<ProviderSearchRe
   fc.record({
     query: fc.string({ minLength: 1, maxLength: 100 }),
     numResults: fc.integer({ min: 1, max: 4 }),
-    searchDepth: fc.constantFrom('ultra-fast' as const, 'fast' as const, 'basic' as const, 'advanced' as const),
+    searchDepth: fc.constantFrom(
+      'ultra-fast' as const,
+      'fast' as const,
+      'basic' as const,
+      'advanced' as const
+    ),
     includeImages: fc.constant(includeImages),
     timeRange: fc.option(
       fc.constantFrom('day' as const, 'week' as const, 'month' as const, 'year' as const),
       { nil: undefined }
     ),
-    topic: fc.option(
-      fc.constantFrom('general' as const, 'news' as const, 'finance' as const),
-      { nil: undefined }
-    ),
+    topic: fc.option(fc.constantFrom('general' as const, 'news' as const, 'finance' as const), {
+      nil: undefined,
+    }),
   })
 
 /** A minimal valid ProviderExtractRequest with `includeImages` toggled. */
@@ -120,20 +124,16 @@ describe('mapTavilySearchPayload — Property 6: Images gated', () => {
    */
   it('when includeImages is false: data.images is empty and data.imageCount is 0', () => {
     fc.assert(
-      fc.property(
-        tavilySearchPayloadArb,
-        searchRequestArb(false),
-        (payload, request) => {
-          const result = mapTavilySearchPayload(payload, request)
+      fc.property(tavilySearchPayloadArb, searchRequestArb(false), (payload, request) => {
+        const result = mapTavilySearchPayload(payload, request)
 
-          if (result.ok) {
-            expect(result.data.images).toHaveLength(0)
-            expect(result.data.imageCount).toBe(0)
-          }
-          // If result is not ok (no parseable results), the property still holds
-          // trivially since there's no data.images to check.
+        if (result.ok) {
+          expect(result.data.images).toHaveLength(0)
+          expect(result.data.imageCount).toBe(0)
         }
-      ),
+        // If result is not ok (no parseable results), the property still holds
+        // trivially since there's no data.images to check.
+      }),
       PROPERTY_TEST_CONFIG
     )
   })
@@ -147,20 +147,16 @@ describe('mapTavilySearchPayload — Property 6: Images gated', () => {
    */
   it('when includeImages is true: data.imageCount equals data.images.length', () => {
     fc.assert(
-      fc.property(
-        tavilySearchPayloadArb,
-        searchRequestArb(true),
-        (payload, request) => {
-          const result = mapTavilySearchPayload(payload, request)
+      fc.property(tavilySearchPayloadArb, searchRequestArb(true), (payload, request) => {
+        const result = mapTavilySearchPayload(payload, request)
 
-          if (result.ok) {
-            expect(result.data.imageCount).toBe(result.data.images.length)
-            // Since payload has images with valid URLs, images should be non-empty.
-            // (All generated images have valid URLs per our generator.)
-            expect(result.data.images.length).toBeGreaterThanOrEqual(1)
-          }
+        if (result.ok) {
+          expect(result.data.imageCount).toBe(result.data.images.length)
+          // Since payload has images with valid URLs, images should be non-empty.
+          // (All generated images have valid URLs per our generator.)
+          expect(result.data.images.length).toBeGreaterThanOrEqual(1)
         }
-      ),
+      }),
       PROPERTY_TEST_CONFIG
     )
   })
@@ -198,18 +194,14 @@ describe('mapTavilyExtractPayload — Property 6: Images gated', () => {
    */
   it('when includeImages is false: data.images is empty and data.imageCount is 0', () => {
     fc.assert(
-      fc.property(
-        tavilyExtractPayloadArb,
-        extractRequestArb(false),
-        (payload, request) => {
-          const result = mapTavilyExtractPayload(payload, request)
+      fc.property(tavilyExtractPayloadArb, extractRequestArb(false), (payload, request) => {
+        const result = mapTavilyExtractPayload(payload, request)
 
-          if (result.ok) {
-            expect(result.data.images).toHaveLength(0)
-            expect(result.data.imageCount).toBe(0)
-          }
+        if (result.ok) {
+          expect(result.data.images).toHaveLength(0)
+          expect(result.data.imageCount).toBe(0)
         }
-      ),
+      }),
       PROPERTY_TEST_CONFIG
     )
   })
@@ -223,19 +215,15 @@ describe('mapTavilyExtractPayload — Property 6: Images gated', () => {
    */
   it('when includeImages is true: data.imageCount equals data.images.length', () => {
     fc.assert(
-      fc.property(
-        tavilyExtractPayloadArb,
-        extractRequestArb(true),
-        (payload, request) => {
-          const result = mapTavilyExtractPayload(payload, request)
+      fc.property(tavilyExtractPayloadArb, extractRequestArb(true), (payload, request) => {
+        const result = mapTavilyExtractPayload(payload, request)
 
-          if (result.ok) {
-            expect(result.data.imageCount).toBe(result.data.images.length)
-            // Generated extract results all have images with valid URLs.
-            expect(result.data.images.length).toBeGreaterThanOrEqual(1)
-          }
+        if (result.ok) {
+          expect(result.data.imageCount).toBe(result.data.images.length)
+          // Generated extract results all have images with valid URLs.
+          expect(result.data.images.length).toBeGreaterThanOrEqual(1)
         }
-      ),
+      }),
       PROPERTY_TEST_CONFIG
     )
   })

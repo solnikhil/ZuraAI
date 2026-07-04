@@ -38,7 +38,7 @@ export function CatalogDialogBody<T>({
 }: CatalogDialogBodyProps<T>): React.ReactElement {
   const [filters, setFilters] = useState<CatalogFilters>(DEFAULT_CATALOG_FILTERS)
   const [limit, setLimit] = useState(visibleLimit)
-  const effectiveLimit = visibleLimit != null ? limit ?? visibleLimit : undefined
+  const effectiveLimit = visibleLimit != null ? (limit ?? visibleLimit) : undefined
 
   const { visible, totalCount, availableCaps, limited } = useCatalogFilters<T>(
     items,

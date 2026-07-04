@@ -25,16 +25,17 @@ function base64Url(value) {
     .replace(/=+$/g, '')
 }
 
-function getDefaultUserDataPath(platform = process.platform, env = process.env, homeDir = os.homedir()) {
+function getDefaultUserDataPath(
+  platform = process.platform,
+  env = process.env,
+  homeDir = os.homedir()
+) {
   if (platform === 'darwin') {
     return path.join(homeDir, 'Library', 'Application Support', 'ZuraAI')
   }
 
   if (platform === 'win32') {
-    return path.win32.join(
-      env.APPDATA || path.win32.join(homeDir, 'AppData', 'Roaming'),
-      'ZuraAI'
-    )
+    return path.win32.join(env.APPDATA || path.win32.join(homeDir, 'AppData', 'Roaming'), 'ZuraAI')
   }
 
   throw new Error('The ZuraAI launcher currently supports macOS and Windows.')

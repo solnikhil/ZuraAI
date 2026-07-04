@@ -221,8 +221,7 @@ export function MemorySection({
         (item.kind === 'memory' &&
           (formatCategoryLabel(item.category).toLowerCase().includes(query) ||
             (item.folderName?.toLowerCase().includes(query) ?? false) ||
-            (item.scope.type === 'project' &&
-              item.scope.projectId.toLowerCase().includes(query))))
+            (item.scope.type === 'project' && item.scope.projectId.toLowerCase().includes(query))))
       )
     })
   }, [backgroundViewerItems, libraryFilter, librarySearch])
@@ -355,7 +354,10 @@ export function MemorySection({
                         )}
                       </button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="settings-menu-surface zura-menu-surface--model w-[205px]">
+                    <DropdownMenuContent
+                      align="end"
+                      className="settings-menu-surface zura-menu-surface--model w-[205px]"
+                    >
                       <DropdownMenuItem
                         onClick={() => onChange({ memoryModel: '' })}
                         className="zura-menu-item--model"

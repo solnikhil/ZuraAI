@@ -31,12 +31,15 @@ export function registerCodeExecutionHandlers(): void {
     broadcastPendingApprovals(pending)
   })
 
-  ipcMain.handle('code-execution:resolve-approval', (_event, requestId: unknown, approved: unknown) => {
-    if (typeof requestId !== 'string' || !requestId.trim()) {
-      throw new Error('Invalid approval request ID')
+  ipcMain.handle(
+    'code-execution:resolve-approval',
+    (_event, requestId: unknown, approved: unknown) => {
+      if (typeof requestId !== 'string' || !requestId.trim()) {
+        throw new Error('Invalid approval request ID')
+      }
+      return manager.resolveApproval(requestId.trim(), approved === true)
     }
-    return manager.resolveApproval(requestId.trim(), approved === true)
-  })
+  )
 }
 
 export function unregisterCodeExecutionHandlers(): void {

@@ -35,31 +35,31 @@ export function TerminalApprovalDialog({
     return unsubscribe
   }, [])
 
-  const request = useMemo(
-    () => {
-      resolvedRef.current = false
-      const sorted = [...pending].sort((a, b) => a.requestedAt - b.requestedAt)
-      return sorted[0] ?? null
-    },
-    [pending]
-  )
+  const request = useMemo(() => {
+    resolvedRef.current = false
+    const sorted = [...pending].sort((a, b) => a.requestedAt - b.requestedAt)
+    return sorted[0] ?? null
+  }, [pending])
 
-  const handleResolve = useCallback(async (approved: boolean) => {
-    if (!request || !window.terminal?.resolveApproval || resolvedRef.current) return
-    resolvedRef.current = true
-    setIsResolving(true)
-    try {
-      await window.terminal.resolveApproval(request.id, approved)
-      showToast(
-        approved ? 'Terminal command approved.' : 'Terminal command rejected.',
-        approved ? 'success' : 'warning'
-      )
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : String(error), 'error')
-    } finally {
-      setIsResolving(false)
-    }
-  }, [request, showToast])
+  const handleResolve = useCallback(
+    async (approved: boolean) => {
+      if (!request || !window.terminal?.resolveApproval || resolvedRef.current) return
+      resolvedRef.current = true
+      setIsResolving(true)
+      try {
+        await window.terminal.resolveApproval(request.id, approved)
+        showToast(
+          approved ? 'Terminal command approved.' : 'Terminal command rejected.',
+          approved ? 'success' : 'warning'
+        )
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : String(error), 'error')
+      } finally {
+        setIsResolving(false)
+      }
+    },
+    [request, showToast]
+  )
 
   if (!request) return null
 
@@ -67,7 +67,10 @@ export function TerminalApprovalDialog({
   const secondsRemaining = Math.max(0, Math.ceil((request.expiresAt - Date.now()) / 1000))
 
   return (
-    <AlertDialog open onOpenChange={(open) => (!open && !isResolving ? void handleResolve(false) : undefined)}>
+    <AlertDialog
+      open
+      onOpenChange={(open) => (!open && !isResolving ? void handleResolve(false) : undefined)}
+    >
       <AlertDialogContent className="sm:max-w-2xl">
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2">
@@ -129,9 +132,7 @@ export function TerminalApprovalDialog({
         </div>
 
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={isResolving}>
-            Reject
-          </AlertDialogCancel>
+          <AlertDialogCancel disabled={isResolving}>Reject</AlertDialogCancel>
           <AlertDialogAction disabled={isResolving} onClick={() => void handleResolve(true)}>
             Approve
           </AlertDialogAction>

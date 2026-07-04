@@ -8,7 +8,11 @@
 
 .sidebar-container {
   --sidebar-resize-gutter: 10px;
-  --sidebar-chat-text-color: color-mix(in srgb, var(--theme-text-primary) 58%, var(--theme-text-muted) 42%);
+  --sidebar-chat-text-color: color-mix(
+    in srgb,
+    var(--theme-text-primary) 58%,
+    var(--theme-text-muted) 42%
+  );
   --sidebar-header-action-color: var(--sidebar-chat-text-color);
   --sidebar-font-size-xs: 0.74rem;
   --sidebar-font-size-sm: 0.9rem;
@@ -102,7 +106,9 @@
   cursor: pointer;
   box-sizing: border-box;
   outline: none;
-  transition: background var(--motion-duration-micro) var(--motion-ease-standard), color var(--motion-duration-micro) var(--motion-ease-standard);
+  transition:
+    background var(--motion-duration-micro) var(--motion-ease-standard),
+    color var(--motion-duration-micro) var(--motion-ease-standard);
 }
 
 .sidebar-folder-row:hover,
@@ -385,7 +391,10 @@
   font-size: 13.5px;
   font-weight: 400;
   cursor: pointer;
-  transition: background var(--motion-duration-micro) var(--motion-ease-standard), border-color var(--motion-duration-micro) var(--motion-ease-standard), color var(--motion-duration-micro) var(--motion-ease-standard);
+  transition:
+    background var(--motion-duration-micro) var(--motion-ease-standard),
+    border-color var(--motion-duration-micro) var(--motion-ease-standard),
+    color var(--motion-duration-micro) var(--motion-ease-standard);
   box-sizing: border-box;
   outline: none;
 }
@@ -468,7 +477,9 @@
   user-select: none;
   letter-spacing: 0.05em;
   opacity: 0.86;
-  transition: opacity 0.12s ease, color 0.12s ease;
+  transition:
+    opacity 0.12s ease,
+    color 0.12s ease;
 }
 
 .sidebar-container--windows .sidebar-section-label {
@@ -585,12 +596,14 @@
   opacity: 1;
 }
 
-
 .sidebar-section-label__chevron {
   margin-left: 2px;
   opacity: 0;
   color: color-mix(in srgb, var(--theme-text-muted) 55%, var(--theme-text-primary) 45%);
-  transition: opacity 0.12s ease, transform 0.15s ease, color 0.12s ease;
+  transition:
+    opacity 0.12s ease,
+    transform 0.15s ease,
+    color 0.12s ease;
   flex-shrink: 0;
 }
 
@@ -792,7 +805,10 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  transition: opacity 0.15s ease, background 0.1s ease, color 0.1s ease;
+  transition:
+    opacity 0.15s ease,
+    background 0.1s ease,
+    color 0.1s ease;
 }
 
 .sidebar-chat-row__more-btn:hover {
@@ -923,7 +939,9 @@
   .sidebar-container--expanded:not(.sidebar-container--peek) .sidebar-chat-row__content,
   .sidebar-container--expanded:not(.sidebar-container--peek) .sidebar-chat-row__more-btn,
   .sidebar-container--expanded:not(.sidebar-container--peek) .sidebar-chat-row__tags,
-  .sidebar-container--expanded:not(.sidebar-container--peek) .sidebar-footer-row .sidebar-header__label {
+  .sidebar-container--expanded:not(.sidebar-container--peek)
+    .sidebar-footer-row
+    .sidebar-header__label {
     display: none;
   }
 
@@ -983,7 +1001,10 @@
   text-align: left;
   font-size: var(--sidebar-font-size-md);
   font-weight: 500;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
   width: 100%;
   box-sizing: border-box;
 }
@@ -1003,7 +1024,11 @@
 }
 
 .sidebar-nav-item--settings {
-  transition: transform 0.12s cubic-bezier(0.2, 0.7, 0.3, 1), background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    transform 0.12s cubic-bezier(0.2, 0.7, 0.3, 1),
+    background 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
   will-change: transform;
 }
 
@@ -1040,8 +1065,16 @@
 /* ── Animations ────────────────────────────────────────────── */
 
 @keyframes sidebar-blur-in-up {
-  0% { opacity: 0; transform: translateY(10px); filter: blur(5px); }
-  100% { opacity: 1; transform: translateY(0); filter: blur(0); }
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+    filter: blur(5px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
 }
 
 .sidebar-animate-item {
@@ -1049,8 +1082,13 @@
 }
 
 @keyframes sidebar-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
 }
 
 /* ── Reduced motion ────────────────────────────────────────── */
@@ -1064,7 +1102,9 @@
     animation: none !important;
   }
   .sidebar-nav-item--settings {
-    transition: background 0.15s ease, color 0.15s ease;
+    transition:
+      background 0.15s ease,
+      color 0.15s ease;
   }
   .sidebar-nav-item--settings:active {
     transform: none;

@@ -82,7 +82,11 @@ describe('attachmentUtils', () => {
     )
 
     expect(Array.isArray(messages[0].content)).toBe(true)
-    const parts = messages[0].content as Array<{ type: string; text?: string; image_url?: { url: string } }>
+    const parts = messages[0].content as Array<{
+      type: string
+      text?: string
+      image_url?: { url: string }
+    }>
     expect(parts[0]).toEqual(
       expect.objectContaining({
         type: 'text',

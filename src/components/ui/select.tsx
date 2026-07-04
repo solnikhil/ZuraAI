@@ -4,8 +4,7 @@ import { Check, ChevronDown, ChevronUp } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 
-const selectItemClassName =
-  'zura-menu-item w-full cursor-pointer pr-8 pl-2.5'
+const selectItemClassName = 'zura-menu-item w-full cursor-pointer pr-8 pl-2.5'
 
 function Select({
   ...props
@@ -92,8 +91,8 @@ const SelectContent = React.forwardRef<
     <SelectPrimitive.Portal>
       <SelectPrimitive.Content
         ref={ref}
-      data-slot="select-content"
-      className={cn(
+        data-slot="select-content"
+        className={cn(
           'zura-menu-surface relative z-50 max-h-96 min-w-[8rem] overflow-hidden p-1.5',
           'origin-(--radix-select-content-transform-origin)',
           'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',

@@ -1,11 +1,5 @@
-import {
-  defaultSettingsUI,
-  type SettingsUI,
-} from './SettingsUIContext'
-import {
-  defaultSettingsConfig,
-  type SettingsConfig,
-} from './SettingsConfigContext'
+import { defaultSettingsUI, type SettingsUI } from './SettingsUIContext'
+import { defaultSettingsConfig, type SettingsConfig } from './SettingsConfigContext'
 import { getAllToolDefinitions } from '../tools/definitions'
 import { migrateExtensionsFromLegacySettings, normalizeExtensionsSettings } from '../skills'
 import {
@@ -41,7 +35,7 @@ export const UI_SETTING_KEYS: (keyof SettingsUI)[] = [
   'titleBarShowChatTitle',
   'titleBarShowModel',
   'commandBar',
-  
+
   'chatBubbleStyle',
   'chatSelectedOverlayStyle',
   'placeholderStyle',
@@ -61,7 +55,8 @@ const PROVIDER_ENABLED_DEFAULTS = getProviderEnabledDefaults()
 const PROVIDER_MODEL_LIST_FIELDS = getProviderModelListFields()
 const LEGACY_FIREWORKS_MODEL_ID_MAP: Record<string, string> = {
   'accounts/fireworks/models/kimi-k2p5-turbo': 'accounts/fireworks/routers/kimi-k2p5-turbo',
-  'accounts/fireworks/models/kimi-k2p5-turbo-instruct': 'accounts/fireworks/routers/kimi-k2p5-turbo',
+  'accounts/fireworks/models/kimi-k2p5-turbo-instruct':
+    'accounts/fireworks/routers/kimi-k2p5-turbo',
 }
 const LEGACY_OPENCODE_MODEL_ID_MAP: Record<string, string> = {
   'kimi-k2.7': 'kimi-k2.7-code',
@@ -106,7 +101,11 @@ function normalizeAgentSkillSummary(raw: unknown): AgentSkillSummary | null {
     compatibility: typeof raw.compatibility === 'string' ? raw.compatibility : undefined,
     allowedTools: typeof raw.allowedTools === 'string' ? raw.allowedTools : undefined,
     metadata: isRecord(raw.metadata)
-      ? Object.fromEntries(Object.entries(raw.metadata).filter((entry): entry is [string, string] => typeof entry[1] === 'string'))
+      ? Object.fromEntries(
+          Object.entries(raw.metadata).filter(
+            (entry): entry is [string, string] => typeof entry[1] === 'string'
+          )
+        )
       : undefined,
   }
 }
@@ -120,7 +119,9 @@ function normalizeAgentSkillsSettings(raw: unknown): AgentSkillsSettings {
       ? record.disabledSkillNames.filter((name): name is string => typeof name === 'string')
       : [],
     catalog: Array.isArray(record.catalog)
-      ? record.catalog.map(normalizeAgentSkillSummary).filter((skill): skill is AgentSkillSummary => Boolean(skill))
+      ? record.catalog
+          .map(normalizeAgentSkillSummary)
+          .filter((skill): skill is AgentSkillSummary => Boolean(skill))
       : [],
   }
 }
@@ -167,11 +168,17 @@ function mergeProviderModelsWithDefaults<T extends { code: string; enabled?: boo
   }
 
   const mergedDefaults = defaultModels.map((defaultModel) => {
-    const existing = storedModels.find((model: { code: string }) => model.code === defaultModel.code)
-    return existing ? { ...defaultModel, enabled: existing.enabled ?? defaultModel.enabled } : defaultModel
+    const existing = storedModels.find(
+      (model: { code: string }) => model.code === defaultModel.code
+    )
+    return existing
+      ? { ...defaultModel, enabled: existing.enabled ?? defaultModel.enabled }
+      : defaultModel
   })
   const defaultCodes = new Set(defaultModels.map((model) => model.code))
-  const customModels = storedModels.filter((model: { code: string }) => !defaultCodes.has(model.code))
+  const customModels = storedModels.filter(
+    (model: { code: string }) => !defaultCodes.has(model.code)
+  )
 
   return [...mergedDefaults, ...customModels]
 }
@@ -210,10 +217,7 @@ export function migrateConfiguredModelCode<
   return {
     ...model,
     code: mappedCode,
-    displayName:
-      model.displayName === 'Kimi K2.5 Turbo'
-        ? 'Kimi K2.5 Turbo'
-        : model.displayName,
+    displayName: model.displayName === 'Kimi K2.5 Turbo' ? 'Kimi K2.5 Turbo' : model.displayName,
   }
 }
 
@@ -255,7 +259,9 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   if (
     typeof parsed.systemPrompt === 'string' &&
     parsed.systemPrompt.includes("Today's year is 2026.") &&
-    parsed.systemPrompt.includes('research-oriented AI assistant with a friendly, slightly nerdy persona')
+    parsed.systemPrompt.includes(
+      'research-oriented AI assistant with a friendly, slightly nerdy persona'
+    )
   ) {
     parsed.systemPrompt = defaultSettings.systemPrompt
   }
@@ -295,7 +301,7 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   parsed.artifactsPrompt = defaultSettings.artifactsPrompt
 
   if (!parsed.modelProvider) parsed.modelProvider = defaultSettings.modelProvider
-  if (!PROVIDER_IDS.includes(parsed.modelProvider as typeof PROVIDER_IDS[number])) {
+  if (!PROVIDER_IDS.includes(parsed.modelProvider as (typeof PROVIDER_IDS)[number])) {
     parsed.modelProvider = 'openrouter'
   }
 
@@ -352,11 +358,7 @@ export function normalizeStoredSettings(raw: string | null): Settings {
     'mixtral-8x7b-32768': 'llama-3.1-8b-instant',
     'gemma2-9b-it': 'llama-3.1-8b-instant',
   }
-  if (
-    parsed.modelProvider === 'groq' &&
-    parsed.aiModel &&
-    deprecatedGroqModelMap[parsed.aiModel]
-  ) {
+  if (parsed.modelProvider === 'groq' && parsed.aiModel && deprecatedGroqModelMap[parsed.aiModel]) {
     parsed.aiModel = deprecatedGroqModelMap[parsed.aiModel]
   }
 
@@ -409,10 +411,7 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   if ((parsed as Record<string, unknown>).assistantMode === 'research') {
     parsed.assistantMode = 'chat'
   }
-  if (
-    parsed.assistantMode !== 'chat' &&
-    parsed.assistantMode !== 'agent'
-  ) {
+  if (parsed.assistantMode !== 'chat' && parsed.assistantMode !== 'agent') {
     parsed.assistantMode = defaultSettings.assistantMode
   }
   if (parsed.toolsEnabled === undefined) parsed.toolsEnabled = defaultSettings.toolsEnabled
@@ -435,9 +434,7 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   if (!Array.isArray(parsed.enabledTools) || parsed.enabledTools.length === 0) {
     parsed.enabledTools = defaultSettings.enabledTools
   } else {
-    parsed.enabledTools = parsed.enabledTools.filter((tool: string) =>
-      availableToolNames.has(tool)
-    )
+    parsed.enabledTools = parsed.enabledTools.filter((tool: string) => availableToolNames.has(tool))
     if (parsed.enabledTools.length === 0) {
       parsed.enabledTools = defaultSettings.enabledTools
     }
@@ -479,7 +476,9 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   }
   parsed.extensionDefaultsVersion = defaultSettings.extensionDefaultsVersion
   parsed.skills = parsed.extensions
-  parsed.agentSkills = normalizeAgentSkillsSettings((parsedFromStorage as Record<string, unknown>).agentSkills)
+  parsed.agentSkills = normalizeAgentSkillsSettings(
+    (parsedFromStorage as Record<string, unknown>).agentSkills
+  )
   delete legacySettingsRecord.deepResearchEnabled
   delete legacySettingsRecord.webSearchEnabled
   delete legacySettingsRecord.structuredResearchEnabled
@@ -497,8 +496,6 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   if (typeof parsed.computerUseAutoApprove !== 'boolean') {
     parsed.computerUseAutoApprove = defaultSettings.computerUseAutoApprove
   }
-
-
 
   parsed.titleBarDensity = 'compact'
   if (parsed.titleBarShowAppName === undefined) {
@@ -532,15 +529,16 @@ export function normalizeStoredSettings(raw: string | null): Settings {
     parsed.emailNotifications = {
       ...defaultSettings.emailNotifications,
       enabled: emailNotifications.enabled === true,
-      senderName: typeof emailNotifications.senderName === 'string'
-        ? emailNotifications.senderName
-        : defaultSettings.emailNotifications.senderName,
-      senderEmail: typeof emailNotifications.senderEmail === 'string'
-        ? emailNotifications.senderEmail
-        : '',
-      recipientEmail: typeof emailNotifications.recipientEmail === 'string'
-        ? emailNotifications.recipientEmail
-        : '',
+      senderName:
+        typeof emailNotifications.senderName === 'string'
+          ? emailNotifications.senderName
+          : defaultSettings.emailNotifications.senderName,
+      senderEmail:
+        typeof emailNotifications.senderEmail === 'string' ? emailNotifications.senderEmail : '',
+      recipientEmail:
+        typeof emailNotifications.recipientEmail === 'string'
+          ? emailNotifications.recipientEmail
+          : '',
     }
   }
 
@@ -570,17 +568,27 @@ export function normalizeStoredSettings(raw: string | null): Settings {
     const remindersAppearance = parsed.remindersAppearance as unknown as Record<string, unknown>
     parsed.remindersAppearance = {
       ...defaultSettings.remindersAppearance!,
-      containerStyle: ['panel', 'flush', 'framed'].includes(String(remindersAppearance.containerStyle))
-        ? remindersAppearance.containerStyle as NonNullable<SettingsUI['remindersAppearance']>['containerStyle']
+      containerStyle: ['panel', 'flush', 'framed'].includes(
+        String(remindersAppearance.containerStyle)
+      )
+        ? (remindersAppearance.containerStyle as NonNullable<
+            SettingsUI['remindersAppearance']
+          >['containerStyle'])
         : defaultSettings.remindersAppearance!.containerStyle,
       cardStyle: ['solid', 'subtle', 'outline'].includes(String(remindersAppearance.cardStyle))
-        ? remindersAppearance.cardStyle as NonNullable<SettingsUI['remindersAppearance']>['cardStyle']
+        ? (remindersAppearance.cardStyle as NonNullable<
+            SettingsUI['remindersAppearance']
+          >['cardStyle'])
         : defaultSettings.remindersAppearance!.cardStyle,
       actionStyle: ['pill', 'soft', 'minimal'].includes(String(remindersAppearance.actionStyle))
-        ? remindersAppearance.actionStyle as NonNullable<SettingsUI['remindersAppearance']>['actionStyle']
+        ? (remindersAppearance.actionStyle as NonNullable<
+            SettingsUI['remindersAppearance']
+          >['actionStyle'])
         : defaultSettings.remindersAppearance!.actionStyle,
       badgeStyle: ['soft', 'filled', 'outline'].includes(String(remindersAppearance.badgeStyle))
-        ? remindersAppearance.badgeStyle as NonNullable<SettingsUI['remindersAppearance']>['badgeStyle']
+        ? (remindersAppearance.badgeStyle as NonNullable<
+            SettingsUI['remindersAppearance']
+          >['badgeStyle'])
         : defaultSettings.remindersAppearance!.badgeStyle,
       useAccentTint:
         typeof remindersAppearance.useAccentTint === 'boolean'

@@ -27,7 +27,9 @@ describe('nvidia service', () => {
         object: 'chat.completion',
         created: 1,
         model: 'minimaxai/minimax-m3',
-        choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
+        choices: [
+          { index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' },
+        ],
       }),
     } as Response)
 
@@ -95,7 +97,9 @@ describe('nvidia service', () => {
         object: 'chat.completion',
         created: 1,
         model: 'meta/llama-3.1-8b-instruct',
-        choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
+        choices: [
+          { index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' },
+        ],
       }),
     } as Response)
 
@@ -127,7 +131,9 @@ describe('nvidia service', () => {
         object: 'chat.completion',
         created: 1,
         model: 'meta/llama-3.1-8b-instruct',
-        choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
+        choices: [
+          { index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' },
+        ],
       }),
     } as Response)
 

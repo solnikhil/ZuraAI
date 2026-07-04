@@ -44,7 +44,11 @@ type FormattedToolResults = OpenRouterToolResultMessage[]
  * Validate that all required parameters are present in tool arguments
  * Returns an error message if validation fails, null if valid
  */
-function isMissingRequiredParameterValue(value: unknown, toolDef: ToolDescriptor, param: string): boolean {
+function isMissingRequiredParameterValue(
+  value: unknown,
+  toolDef: ToolDescriptor,
+  param: string
+): boolean {
   if (value === undefined || value === null) {
     return true
   }
@@ -57,13 +61,14 @@ function isMissingRequiredParameterValue(value: unknown, toolDef: ToolDescriptor
   return value === ''
 }
 
-function validateRequiredParameters(toolCall: ToolCall, availableTools: ToolDescriptor[]): string | null {
+function validateRequiredParameters(
+  toolCall: ToolCall,
+  availableTools: ToolDescriptor[]
+): string | null {
   const toolDef = getToolByName(toolCall.name, availableTools)
 
   if (!toolDef) {
-    const availableToolNames = availableTools
-      .map((t) => t.name)
-      .join(', ')
+    const availableToolNames = availableTools.map((t) => t.name).join(', ')
     return `Unknown tool "${toolCall.name}". Available tools: ${availableToolNames}`
   }
 
@@ -247,7 +252,11 @@ export function getToolsForProvider(config: ToolManagerConfig) {
     const order = new Map(config.enabledTools.map((name, index) => [name, index]))
     tools = tools
       .filter((t) => order.has(t.name))
-      .sort((a, b) => (order.get(a.name) ?? Number.MAX_SAFE_INTEGER) - (order.get(b.name) ?? Number.MAX_SAFE_INTEGER))
+      .sort(
+        (a, b) =>
+          (order.get(a.name) ?? Number.MAX_SAFE_INTEGER) -
+          (order.get(b.name) ?? Number.MAX_SAFE_INTEGER)
+      )
   }
 
   return convertToolsForProvider(tools, config.provider)
@@ -412,9 +421,8 @@ export async function processToolCalls(
             executionSummary.executedWebSearchCount - 1
           )
           const query = getWebSearchQuery(executableToolCall)
-          executionSummary.executedWebSearchQueries = executionSummary.executedWebSearchQueries.filter(
-            (candidate) => candidate !== query
-          )
+          executionSummary.executedWebSearchQueries =
+            executionSummary.executedWebSearchQueries.filter((candidate) => candidate !== query)
         }
         const rejectedResult: ToolCallResult = {
           toolCall: executableToolCall,
@@ -435,28 +443,41 @@ export async function processToolCalls(
 
   const approvedExecutableCalls = executableCalls.filter(({ index }) => !resultsByIndex[index])
 
-  const executionPromises = approvedExecutableCalls.map(async ({ index, toolCall: executableToolCall }) => {
-    try {
-      const executeOptions = config.requestToolApproval
-        ? { userContextText, bypassNativeApproval: true, sessionId: config.executionPolicy?.sessionId, messageId: config.executionPolicy?.messageId }
-        : { userContextText, sessionId: config.executionPolicy?.sessionId, messageId: config.executionPolicy?.messageId }
-      const result = await executeToolCalls([executableToolCall], executeOptions)
-      resultsByIndex[index] = result[0]
-      config.onToolComplete?.(result[0])
-      trackToolResult(result[0])
-    } catch (execError: unknown) {
-      const errorMessage =
-        execError instanceof Error ? execError.message : `Failed to execute ${executableToolCall.name}`
-      console.error(`Tool execution error for ${executableToolCall.name}:`, execError)
-      const errorResult: ToolCallResult = {
-        toolCall: executableToolCall,
-        result: { success: false, error: errorMessage },
+  const executionPromises = approvedExecutableCalls.map(
+    async ({ index, toolCall: executableToolCall }) => {
+      try {
+        const executeOptions = config.requestToolApproval
+          ? {
+              userContextText,
+              bypassNativeApproval: true,
+              sessionId: config.executionPolicy?.sessionId,
+              messageId: config.executionPolicy?.messageId,
+            }
+          : {
+              userContextText,
+              sessionId: config.executionPolicy?.sessionId,
+              messageId: config.executionPolicy?.messageId,
+            }
+        const result = await executeToolCalls([executableToolCall], executeOptions)
+        resultsByIndex[index] = result[0]
+        config.onToolComplete?.(result[0])
+        trackToolResult(result[0])
+      } catch (execError: unknown) {
+        const errorMessage =
+          execError instanceof Error
+            ? execError.message
+            : `Failed to execute ${executableToolCall.name}`
+        console.error(`Tool execution error for ${executableToolCall.name}:`, execError)
+        const errorResult: ToolCallResult = {
+          toolCall: executableToolCall,
+          result: { success: false, error: errorMessage },
+        }
+        resultsByIndex[index] = errorResult
+        config.onToolComplete?.(errorResult)
+        trackToolResult(errorResult)
       }
-      resultsByIndex[index] = errorResult
-      config.onToolComplete?.(errorResult)
-      trackToolResult(errorResult)
     }
-  })
+  )
 
   await Promise.all(executionPromises)
   const results = resultsByIndex.filter((result): result is ToolCallResult => Boolean(result))

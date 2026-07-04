@@ -131,9 +131,7 @@ export default function DashboardLayout() {
       >
         <div className="dashboard-main-canvas">
           {view === 'settings' ? (
-            <div
-              style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}
-            >
+            <div style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}>
               <Suspense fallback={<SettingsLoadingFallback />}>
                 <Settings
                   activeSection={activeSettingsSection}
@@ -143,33 +141,25 @@ export default function DashboardLayout() {
               </Suspense>
             </div>
           ) : view === 'reminders' && remindersEnabled ? (
-            <div
-              style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}
-            >
+            <div style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}>
               <Suspense fallback={<SettingsLoadingFallback />}>
                 <RemindersView />
               </Suspense>
             </div>
           ) : view === 'artifacts' && artifactsEnabled ? (
-            <div
-              style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}
-            >
+            <div style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}>
               <Suspense fallback={<SettingsLoadingFallback />}>
                 <ArtifactsView />
               </Suspense>
             </div>
           ) : view === 'folders' ? (
-            <div
-              style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}
-            >
+            <div style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}>
               <Suspense fallback={<SettingsLoadingFallback />}>
                 <FoldersView />
               </Suspense>
             </div>
           ) : (
-            <div
-              style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}
-            >
+            <div style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}>
               <ChatArea />
             </div>
           )}

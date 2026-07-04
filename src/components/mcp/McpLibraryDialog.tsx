@@ -3,20 +3,31 @@ import { ChevronDown, Search } from 'lucide-react'
 
 import { useToast } from '@/components/shared'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
-import {
-  fetchMcpCatalogue,
-  isCatalogueEntryAdded,
-  type McpCatalogueEntry,
-} from '@/mcp/catalogue'
+import { fetchMcpCatalogue, isCatalogueEntryAdded, type McpCatalogueEntry } from '@/mcp/catalogue'
 import { useMcp } from '@/mcp/McpContext'
-import { formatPromptForComposer, formatResourceForComposer, stringifyPromptContent } from '@/mcp/content'
+import {
+  formatPromptForComposer,
+  formatResourceForComposer,
+  stringifyPromptContent,
+} from '@/mcp/content'
 import type { McpDraftConfigValue, McpDraftServer } from '@/mcp/draft'
-import type { McpPromptResult, McpResourceReadResult, McpRuntimePrompt, McpRuntimeResource } from '@/mcp/types'
+import type {
+  McpPromptResult,
+  McpResourceReadResult,
+  McpRuntimePrompt,
+  McpRuntimeResource,
+} from '@/mcp/types'
 
 import './McpLibraryDialog.css'
 
@@ -116,7 +127,8 @@ export function McpLibraryDialog({
   )
 
   const selectedResource = useMemo(
-    () => visibleResources.find((resource) => getResourceKey(resource) === selectedResourceKey) ?? null,
+    () =>
+      visibleResources.find((resource) => getResourceKey(resource) === selectedResourceKey) ?? null,
     [selectedResourceKey, visibleResources]
   )
   const selectedPrompt = useMemo(
@@ -203,12 +215,18 @@ export function McpLibraryDialog({
       resourcePreview
     )
     if (!formatted) {
-      showToast('This resource does not expose text content that can be inserted into the composer.', 'warning')
+      showToast(
+        'This resource does not expose text content that can be inserted into the composer.',
+        'warning'
+      )
       return
     }
 
     onInsertText(formatted)
-    showToast(`Inserted ${selectedResource.manifest.title || selectedResource.manifest.uri} into the composer.`, 'success')
+    showToast(
+      `Inserted ${selectedResource.manifest.title || selectedResource.manifest.uri} into the composer.`,
+      'success'
+    )
     onOpenChange(false)
   }
 
@@ -218,9 +236,16 @@ export function McpLibraryDialog({
     }
 
     onInsertText(
-      formatPromptForComposer(selectedPrompt.serverName, selectedPrompt.manifest.name, promptPreview)
+      formatPromptForComposer(
+        selectedPrompt.serverName,
+        selectedPrompt.manifest.name,
+        promptPreview
+      )
     )
-    showToast(`Inserted ${selectedPrompt.manifest.title || selectedPrompt.manifest.name} into the composer.`, 'success')
+    showToast(
+      `Inserted ${selectedPrompt.manifest.title || selectedPrompt.manifest.name} into the composer.`,
+      'success'
+    )
     onOpenChange(false)
   }
 
@@ -245,7 +270,8 @@ export function McpLibraryDialog({
         <DialogHeader className="mcp-library-header">
           <DialogTitle className="mcp-library-title">MCP Library</DialogTitle>
           <DialogDescription className="mcp-library-description">
-            Browse curated MCP servers, or inspect trusted resources and prompts from connected servers.
+            Browse curated MCP servers, or inspect trusted resources and prompts from connected
+            servers.
           </DialogDescription>
         </DialogHeader>
 
@@ -317,7 +343,8 @@ export function McpLibraryDialog({
               <div className="mcp-library-list-inner">
                 {(mode === 'resources' ? visibleResources : visiblePrompts).length === 0 ? (
                   <div className="mcp-library-state">
-                    No {mode} are currently exposed. Servers must be enabled, connected, and trusted before this library surfaces them.
+                    No {mode} are currently exposed. Servers must be enabled, connected, and trusted
+                    before this library surfaces them.
                   </div>
                 ) : mode === 'resources' ? (
                   visibleResources.map((resource) => {
@@ -328,17 +355,26 @@ export function McpLibraryDialog({
                         key={key}
                         type="button"
                         onClick={() => void handlePreviewResource(resource)}
-                        className={cn('mcp-library-list-item', selected && 'mcp-library-list-item--selected')}
+                        className={cn(
+                          'mcp-library-list-item',
+                          selected && 'mcp-library-list-item--selected'
+                        )}
                       >
                         <div className="mcp-library-list-item-title">
                           <span className="truncate">
-                            {resource.manifest.title || resource.manifest.name || resource.manifest.uri}
+                            {resource.manifest.title ||
+                              resource.manifest.name ||
+                              resource.manifest.uri}
                           </span>
-                          <span className="mcp-library-list-item-server">{resource.serverName}</span>
+                          <span className="mcp-library-list-item-server">
+                            {resource.serverName}
+                          </span>
                         </div>
                         <div className="mcp-library-list-item-uri">{resource.manifest.uri}</div>
                         {resource.manifest.description && (
-                          <div className="mcp-library-list-item-desc">{resource.manifest.description}</div>
+                          <div className="mcp-library-list-item-desc">
+                            {resource.manifest.description}
+                          </div>
                         )}
                       </button>
                     )
@@ -356,7 +392,10 @@ export function McpLibraryDialog({
                           setPromptPreview(null)
                           setError(null)
                         }}
-                        className={cn('mcp-library-list-item', selected && 'mcp-library-list-item--selected')}
+                        className={cn(
+                          'mcp-library-list-item',
+                          selected && 'mcp-library-list-item--selected'
+                        )}
                       >
                         <div className="mcp-library-list-item-title">
                           <span className="truncate">
@@ -365,11 +404,14 @@ export function McpLibraryDialog({
                           <span className="mcp-library-list-item-server">{prompt.serverName}</span>
                         </div>
                         {prompt.manifest.description && (
-                          <div className="mcp-library-list-item-desc">{prompt.manifest.description}</div>
+                          <div className="mcp-library-list-item-desc">
+                            {prompt.manifest.description}
+                          </div>
                         )}
                         {(prompt.manifest.arguments?.length ?? 0) > 0 && (
                           <div className="mcp-library-list-item-uri">
-                            {(prompt.manifest.arguments ?? []).length} argument{(prompt.manifest.arguments ?? []).length === 1 ? '' : 's'}
+                            {(prompt.manifest.arguments ?? []).length} argument
+                            {(prompt.manifest.arguments ?? []).length === 1 ? '' : 's'}
                           </div>
                         )}
                       </button>
@@ -385,19 +427,29 @@ export function McpLibraryDialog({
                   selectedResource ? (
                     <div>
                       <div className="mcp-library-preview-title">
-                        {selectedResource.manifest.title || selectedResource.manifest.name || selectedResource.manifest.uri}
+                        {selectedResource.manifest.title ||
+                          selectedResource.manifest.name ||
+                          selectedResource.manifest.uri}
                       </div>
-                      <div className="mcp-library-preview-subtitle">{selectedResource.manifest.uri}</div>
+                      <div className="mcp-library-preview-subtitle">
+                        {selectedResource.manifest.uri}
+                      </div>
                       <div className="mcp-library-preview-tags">
-                        <span className="mcp-library-preview-tag">{selectedResource.serverName}</span>
+                        <span className="mcp-library-preview-tag">
+                          {selectedResource.serverName}
+                        </span>
                         <span className="mcp-library-preview-tag">User visible</span>
                         <span className="mcp-library-preview-tag">Explicit action required</span>
                         {selectedResource.manifest.mimeType && (
-                          <span className="mcp-library-preview-tag">{selectedResource.manifest.mimeType}</span>
+                          <span className="mcp-library-preview-tag">
+                            {selectedResource.manifest.mimeType}
+                          </span>
                         )}
                       </div>
                       {selectedResource.manifest.description && (
-                        <div className="mcp-library-preview-desc">{selectedResource.manifest.description}</div>
+                        <div className="mcp-library-preview-desc">
+                          {selectedResource.manifest.description}
+                        </div>
                       )}
                       <div className="mcp-library-preview-actions">
                         <Button
@@ -422,7 +474,9 @@ export function McpLibraryDialog({
                       </div>
                       {error && <div className="mcp-library-state-error">{error}</div>}
                       {resourcePreview && (
-                        <pre className="mcp-library-preview-pre">{renderResourcePreview(resourcePreview)}</pre>
+                        <pre className="mcp-library-preview-pre">
+                          {renderResourcePreview(resourcePreview)}
+                        </pre>
                       )}
                     </div>
                   ) : (
@@ -434,7 +488,9 @@ export function McpLibraryDialog({
                       {selectedPrompt.manifest.title || selectedPrompt.manifest.name}
                     </div>
                     {selectedPrompt.manifest.description && (
-                      <div className="mcp-library-preview-desc">{selectedPrompt.manifest.description}</div>
+                      <div className="mcp-library-preview-desc">
+                        {selectedPrompt.manifest.description}
+                      </div>
                     )}
                     <div className="mcp-library-preview-tags">
                       <span className="mcp-library-preview-tag">{selectedPrompt.serverName}</span>
@@ -491,10 +547,15 @@ export function McpLibraryDialog({
                     {promptPreview && (
                       <div>
                         {promptPreview.description && (
-                          <div className="mcp-library-preview-desc">{promptPreview.description}</div>
+                          <div className="mcp-library-preview-desc">
+                            {promptPreview.description}
+                          </div>
                         )}
                         {promptPreview.messages.map((message, index) => (
-                          <div key={`${message.role}-${index}`} className="mcp-library-prompt-message">
+                          <div
+                            key={`${message.role}-${index}`}
+                            className="mcp-library-prompt-message"
+                          >
                             <div className="mcp-library-prompt-message-role">{message.role}</div>
                             <pre className="overflow-auto whitespace-pre-wrap text-sm text-foreground">
                               {stringifyPromptContent(message.content)}
@@ -609,7 +670,13 @@ function CatalogueCard({
   }
 
   return (
-    <article className={cn('mcp-library-card', added && 'mcp-library-card--added', setupOpen && 'mcp-library-card--setup-open')}>
+    <article
+      className={cn(
+        'mcp-library-card',
+        added && 'mcp-library-card--added',
+        setupOpen && 'mcp-library-card--setup-open'
+      )}
+    >
       <div className="mcp-library-card-header">
         <div className="min-w-0">
           <h3 className="mcp-library-card-title">{entry.title || entry.name}</h3>
@@ -618,7 +685,9 @@ function CatalogueCard({
         {added ? (
           <span className="mcp-library-card-status">Added</span>
         ) : !entry.supported ? (
-          <span className="mcp-library-card-status mcp-library-card-status--unsupported">Unsupported</span>
+          <span className="mcp-library-card-status mcp-library-card-status--unsupported">
+            Unsupported
+          </span>
         ) : null}
       </div>
 
@@ -679,7 +748,12 @@ function CatalogueCard({
             ))}
           </div>
           <div className="mcp-library-card-setup-actions">
-            <Button type="button" variant="ghost" className="mcp-library-card-setup-cancel" onClick={() => setSetupOpen(false)}>
+            <Button
+              type="button"
+              variant="ghost"
+              className="mcp-library-card-setup-cancel"
+              onClick={() => setSetupOpen(false)}
+            >
               Cancel
             </Button>
             <Button
@@ -739,9 +813,9 @@ function getDraftSecretFields(draft: McpDraftServer | undefined): CatalogueSecre
 function isMissingSecretValue(entry: McpDraftConfigValue | null): boolean {
   return Boolean(
     entry &&
-      entry.valueSource === 'secret' &&
-      !entry.secretStored &&
-      entry.secretValue.trim().length === 0
+    entry.valueSource === 'secret' &&
+    !entry.secretStored &&
+    entry.secretValue.trim().length === 0
   )
 }
 
@@ -778,7 +852,10 @@ function CatalogueDetailsDropdown({ entry }: { entry: McpCatalogueEntry }): Reac
       <PopoverTrigger asChild>
         <button
           type="button"
-          className={cn('mcp-library-card-details-trigger', open && 'mcp-library-card-details-trigger--open')}
+          className={cn(
+            'mcp-library-card-details-trigger',
+            open && 'mcp-library-card-details-trigger--open'
+          )}
           aria-expanded={open}
         >
           Details
@@ -812,7 +889,8 @@ function CatalogueDetailsDropdown({ entry }: { entry: McpCatalogueEntry }): Reac
           <div className="mcp-library-card-details-block">
             <div className="mcp-library-card-details-label">Install behavior</div>
             <div className="mcp-library-card-details-text">
-              Catalogue entries are added as enabled, untrusted servers. Connect manually, then trust only servers whose tools you want exposed to chat.
+              Catalogue entries are added as enabled, untrusted servers. Connect manually, then
+              trust only servers whose tools you want exposed to chat.
             </div>
           </div>
 
@@ -829,7 +907,8 @@ function CatalogueDetailsDropdown({ entry }: { entry: McpCatalogueEntry }): Reac
 
           {!entry.supported && (
             <div className="mcp-library-card-details-block mcp-library-card-details-error">
-              {entry.unsupportedReason || 'This MCP catalogue entry cannot be installed by ZuraAI yet.'}
+              {entry.unsupportedReason ||
+                'This MCP catalogue entry cannot be installed by ZuraAI yet.'}
             </div>
           )}
         </div>

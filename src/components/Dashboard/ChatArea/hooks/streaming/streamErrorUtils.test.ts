@@ -4,11 +4,7 @@ import { formatProviderStreamError } from './streamErrorUtils'
 
 describe('formatProviderStreamError', () => {
   it('translates OpenRouter 502 gateway errors into an upstream warning', () => {
-    const formatted = formatProviderStreamError(
-      new Error('[502] Bad Gateway'),
-      'openrouter',
-      {}
-    )
+    const formatted = formatProviderStreamError(new Error('[502] Bad Gateway'), 'openrouter', {})
 
     expect(formatted).toEqual({
       message:

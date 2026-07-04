@@ -19,9 +19,9 @@ export function isServerContentVisible(
 ): runtimeState is McpServerRuntimeState {
   return Boolean(
     runtimeState &&
-      runtimeState.status === 'connected' &&
-      server.enabled === true &&
-      server.trustState === 'trusted'
+    runtimeState.status === 'connected' &&
+    server.enabled === true &&
+    server.trustState === 'trusted'
   )
 }
 

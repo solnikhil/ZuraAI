@@ -1,6 +1,9 @@
 import { ipcMain } from 'electron'
 import * as secureStorage from '../secureStorage'
-import { getProviderSecretFields, type ProviderSecretField } from '../../src/providers/providerSettingsRegistry'
+import {
+  getProviderSecretFields,
+  type ProviderSecretField,
+} from '../../src/providers/providerSettingsRegistry'
 
 /**
  * Explicit allowlist of secrets that the renderer is permitted to read/write
@@ -64,7 +67,9 @@ export function registerSecureStorageHandlers(): void {
    */
   ipcMain.handle('secure-storage:get-all', async () => {
     const entries = await Promise.all(
-      ALLOWED_SECURE_STORAGE_KEY_LIST.map(async (key) => [key, await secureStorage.getSecureValueAsync(key)] as const)
+      ALLOWED_SECURE_STORAGE_KEY_LIST.map(
+        async (key) => [key, await secureStorage.getSecureValueAsync(key)] as const
+      )
     )
 
     return Object.fromEntries(entries)

@@ -24,11 +24,7 @@ export function setApprovalManager(manager: TerminalApprovalManager): void {
  */
 function clampTerminalTimeoutMs(value: unknown, fallback = TERMINAL_DEFAULT_TIMEOUT_MS): number {
   const parsed =
-    typeof value === 'number'
-      ? value
-      : typeof value === 'string'
-        ? Number(value)
-        : fallback
+    typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : fallback
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback
   return Math.min(TERMINAL_MAX_TIMEOUT_MS, Math.max(1_000, Math.round(parsed)))
 }
@@ -72,7 +68,11 @@ function runPowerShellWithExitCode(
         const err = truncateOutput(stderr ?? '')
 
         if (error) {
-          const errWithMeta = error as NodeJS.ErrnoException & { code?: number | string; killed?: boolean; signal?: string }
+          const errWithMeta = error as NodeJS.ErrnoException & {
+            code?: number | string
+            killed?: boolean
+            signal?: string
+          }
           // execFile sets `killed` true and signal on timeout.
           if (errWithMeta.killed) {
             resolve({ stdout: out, stderr: err, exitCode: null, timedOut: true })
@@ -116,9 +116,10 @@ export async function executeSystemShell(args: unknown): Promise<ToolResult> {
       timeoutMs: TERMINAL_APPROVAL_TIMEOUT_MS,
     })
     if (!decision.approved) {
-      const reason = decision.outcome === 'timed_out'
-        ? 'Terminal command approval timed out.'
-        : 'Terminal command was rejected by the user.'
+      const reason =
+        decision.outcome === 'timed_out'
+          ? 'Terminal command approval timed out.'
+          : 'Terminal command was rejected by the user.'
       return { success: false, error: reason }
     }
   }

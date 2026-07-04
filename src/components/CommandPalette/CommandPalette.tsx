@@ -321,10 +321,7 @@ export default function CommandPalette() {
     const handleKeyDown = (event: KeyboardEvent) => {
       const key = event.key.toLowerCase()
       const isPaletteShortcut =
-        key === 'k' ||
-        event.code === 'KeyK' ||
-        event.key === ' ' ||
-        event.code === 'Space'
+        key === 'k' || event.code === 'KeyK' || event.key === ' ' || event.code === 'Space'
       if (!isPaletteShortcut) return
       if (!(event.ctrlKey || event.metaKey)) return
       if (event.shiftKey || event.altKey) return
@@ -428,8 +425,10 @@ export default function CommandPalette() {
           }
 
           void (async () => {
-            const debugReference =
-              await window.ipcRenderer?.invoke('chat-diagnostics:get-debug-reference', currentSessionId)
+            const debugReference = await window.ipcRenderer?.invoke(
+              'chat-diagnostics:get-debug-reference',
+              currentSessionId
+            )
             const copied = await writeTextToClipboard(debugReference || currentSessionId)
             showToast(
               copied ? 'Copied chat debug ID' : 'Could not copy chat debug ID',
@@ -645,7 +644,10 @@ export default function CommandPalette() {
           </DialogPrimitive.Description>
 
           <div style={dynamicSearchWrapStyle}>
-            <Search size={sizeStyleMap[paletteSize]?.searchIconSize ?? 16} style={searchIconStyle} />
+            <Search
+              size={sizeStyleMap[paletteSize]?.searchIconSize ?? 16}
+              style={searchIconStyle}
+            />
             <input
               ref={inputRef}
               style={dynamicSearchInputStyle}

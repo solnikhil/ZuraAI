@@ -157,11 +157,7 @@ describe('chat diagnostics persistence', () => {
       })
     }
 
-    const filePath = path.join(
-      electronMock.userDataPath,
-      'debug-sessions',
-      'session-rolling.jsonl'
-    )
+    const filePath = path.join(electronMock.userDataPath, 'debug-sessions', 'session-rolling.jsonl')
     const raw = await readFile(filePath, 'utf8')
     const lines = raw.trim().split('\n')
     const fileStat = await stat(filePath)
@@ -191,11 +187,7 @@ describe('chat diagnostics persistence', () => {
     })
 
     expect(appended).toBe(true)
-    const filePath = path.join(
-      electronMock.userDataPath,
-      'debug-sessions',
-      'session-stream.jsonl'
-    )
+    const filePath = path.join(electronMock.userDataPath, 'debug-sessions', 'session-stream.jsonl')
     const event = JSON.parse((await readFile(filePath, 'utf8')).trim())
 
     expect(event.phase).toBe('stream-chunk')

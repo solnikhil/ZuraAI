@@ -10,7 +10,10 @@ export default function AgentSkillsSync(): null {
     [settings.agentSkills.disabledSkillNames]
   )
   const catalogKey = useMemo(
-    () => settings.agentSkills.catalog.map((skill) => `${skill.scope}:${skill.name}:${skill.description}`).join('\n'),
+    () =>
+      settings.agentSkills.catalog
+        .map((skill) => `${skill.scope}:${skill.name}:${skill.description}`)
+        .join('\n'),
     [settings.agentSkills.catalog]
   )
 
@@ -39,7 +42,9 @@ export default function AgentSkillsSync(): null {
       })
       .then((result) => {
         if (cancelled || inFlightKeyRef.current !== requestKey) return
-        const nextCatalogKey = result.skills.map((skill) => `${skill.scope}:${skill.name}:${skill.description}`).join('\n')
+        const nextCatalogKey = result.skills
+          .map((skill) => `${skill.scope}:${skill.name}:${skill.description}`)
+          .join('\n')
         if (nextCatalogKey === catalogKey) return
         updateSettings({
           agentSkills: {

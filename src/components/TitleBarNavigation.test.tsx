@@ -7,14 +7,7 @@ describe('TitleBarNavigation', () => {
     const onBack = vi.fn()
     const onForward = vi.fn()
 
-    render(
-      <TitleBarNavigation
-        canGoBack
-        canGoForward
-        onBack={onBack}
-        onForward={onForward}
-      />
-    )
+    render(<TitleBarNavigation canGoBack canGoForward onBack={onBack} onForward={onForward} />)
 
     fireEvent.click(screen.getByLabelText('Go back'))
     fireEvent.click(screen.getByLabelText('Go forward'))

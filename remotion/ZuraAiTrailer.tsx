@@ -428,7 +428,11 @@ const ChatWindow = () => {
           ))}
         </div>
         <div style={{ padding: 30 }}>
-          <MessageBubble delay={18} speaker="You" text="Compare providers for a fast research task." />
+          <MessageBubble
+            delay={18}
+            speaker="You"
+            text="Compare providers for a fast research task."
+          />
           <MessageBubble
             delay={34}
             speaker="ZuraAI"
@@ -456,7 +460,10 @@ const WindowTopBar = ({ title }: { title: string }) => {
     >
       <div style={{ display: 'flex', gap: 9 }}>
         {[colors.red, colors.amber, colors.green].map((color) => (
-          <div key={color} style={{ background: color, borderRadius: 999, height: 12, width: 12 }} />
+          <div
+            key={color}
+            style={{ background: color, borderRadius: 999, height: 12, width: 12 }}
+          />
         ))}
       </div>
       <div style={{ color: colors.muted, fontFamily: 'Inter, Arial, sans-serif', fontSize: 18 }}>
@@ -467,7 +474,15 @@ const WindowTopBar = ({ title }: { title: string }) => {
   )
 }
 
-const SidebarPill = ({ active, delay, label }: { active: boolean; delay: number; label: string }) => {
+const SidebarPill = ({
+  active,
+  delay,
+  label,
+}: {
+  active: boolean
+  delay: number
+  label: string
+}) => {
   const frame = useCurrentFrame()
   const enter = beat(frame, 12 + delay, 32 + delay)
 

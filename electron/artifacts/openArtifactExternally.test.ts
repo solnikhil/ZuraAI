@@ -104,10 +104,12 @@ describe('openArtifactExternally', () => {
 
     expect(result.ok).toBe(true)
     expect(mocks.openPath).not.toHaveBeenCalled()
-    expect(mocks.showOpenDialog).toHaveBeenCalledWith(expect.objectContaining({
-      title: 'Open Artifact With',
-      filters: [{ name: 'Applications', extensions: ['app'] }],
-    }))
+    expect(mocks.showOpenDialog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Open Artifact With',
+        filters: [{ name: 'Applications', extensions: ['app'] }],
+      })
+    )
     expect(mocks.execFile).toHaveBeenCalledWith(
       '/usr/bin/open',
       ['-a', '/Applications/TextEdit.app', expect.stringContaining('Diagram.mmd')],

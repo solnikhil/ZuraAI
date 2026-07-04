@@ -52,17 +52,21 @@ describe('providerRuntime opencode dispatch', () => {
         object: 'chat.completion.chunk',
         created: 1,
         model: 'glm-5.2',
-        choices: [{
-          index: 0,
-          delta: {
-            tool_calls: [{
-              index: 0,
-              id: 'call_1',
-              type: 'function',
-              function: { name: 'web_search', arguments: '{"query":"zura"}' },
-            }],
+        choices: [
+          {
+            index: 0,
+            delta: {
+              tool_calls: [
+                {
+                  index: 0,
+                  id: 'call_1',
+                  type: 'function',
+                  function: { name: 'web_search', arguments: '{"query":"zura"}' },
+                },
+              ],
+            },
           },
-        }],
+        ],
       }
       yield {
         id: 'chunk-3',
@@ -86,14 +90,16 @@ describe('providerRuntime opencode dispatch', () => {
         model: 'opencode-go/glm-5.2',
         messages: [{ role: 'user', content: 'search zura' }],
         streamResponses: true,
-        tools: [{
-          type: 'function',
-          function: {
-            name: 'web_search',
-            description: 'Search the web',
-            parameters: { type: 'object', properties: { query: { type: 'string' } } },
+        tools: [
+          {
+            type: 'function',
+            function: {
+              name: 'web_search',
+              description: 'Search the web',
+              parameters: { type: 'object', properties: { query: { type: 'string' } } },
+            },
           },
-        }],
+        ],
       }
     )
 
@@ -111,12 +117,14 @@ describe('providerRuntime opencode dispatch', () => {
     expect(events.some((event) => event.type === 'text-delta' && event.delta.length > 0)).toBe(true)
     expect(events).toContainEqual({
       type: 'tool-call-delta',
-      delta: [{
-        index: 0,
-        id: 'call_1',
-        type: 'function',
-        function: { name: 'web_search', arguments: '{"query":"zura"}' },
-      }],
+      delta: [
+        {
+          index: 0,
+          id: 'call_1',
+          type: 'function',
+          function: { name: 'web_search', arguments: '{"query":"zura"}' },
+        },
+      ],
     })
     expect(events).toContainEqual({
       type: 'usage',
@@ -193,15 +201,17 @@ describe('providerRuntime opencode dispatch', () => {
       object: 'chat.completion',
       created: 1,
       model: 'deepseek-v4-pro',
-      choices: [{
-        index: 0,
-        message: {
-          role: 'assistant',
-          content: 'Final',
-          reasoning_content: 'Because reasons',
+      choices: [
+        {
+          index: 0,
+          message: {
+            role: 'assistant',
+            content: 'Final',
+            reasoning_content: 'Because reasons',
+          },
+          finish_reason: 'stop',
         },
-        finish_reason: 'stop',
-      }],
+      ],
       usage: { prompt_tokens: 1, completion_tokens: 2, total_tokens: 3 },
     })
 
@@ -229,10 +239,12 @@ describe('providerRuntime opencode dispatch', () => {
         object: 'chat.completion.chunk',
         created: 1,
         model: 'glm-5.2',
-        choices: [{
-          index: 0,
-          delta: { reasoning_content: 'The user just said hello.' },
-        }],
+        choices: [
+          {
+            index: 0,
+            delta: { reasoning_content: 'The user just said hello.' },
+          },
+        ],
       }
       yield {
         id: 'chunk-r2',
@@ -279,19 +291,23 @@ describe('providerRuntime opencode dispatch', () => {
       object: 'chat.completion',
       created: 1,
       model: 'deepseek-v4-pro',
-      choices: [{
-        index: 0,
-        message: {
-          role: 'assistant',
-          content: 'Done',
-          tool_calls: [{
-            id: 'call_2',
-            type: 'function',
-            function: { name: 'web_search', arguments: '{"query":"done"}' },
-          }],
+      choices: [
+        {
+          index: 0,
+          message: {
+            role: 'assistant',
+            content: 'Done',
+            tool_calls: [
+              {
+                id: 'call_2',
+                type: 'function',
+                function: { name: 'web_search', arguments: '{"query":"done"}' },
+              },
+            ],
+          },
+          finish_reason: 'tool_calls',
         },
-        finish_reason: 'tool_calls',
-      }],
+      ],
       usage: { prompt_tokens: 3, completion_tokens: 5, total_tokens: 8 },
     })
 

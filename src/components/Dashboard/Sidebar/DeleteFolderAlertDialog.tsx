@@ -26,11 +26,10 @@ export default function DeleteFolderAlertDialog({
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle className="theme-overlay-title">
-            Delete folder?
-          </AlertDialogTitle>
+          <AlertDialogTitle className="theme-overlay-title">Delete folder?</AlertDialogTitle>
           <AlertDialogDescription className="theme-overlay-description">
-            Chats in {folderName || 'this folder'} will move back to Recents. The chats will not be deleted.
+            Chats in {folderName || 'this folder'} will move back to Recents. The chats will not be
+            deleted.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

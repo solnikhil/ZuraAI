@@ -59,7 +59,9 @@ describe('mcpStorage property checks', () => {
       )
     )
 
-    await saveMcpServers(servers.filter((server): server is NonNullable<typeof server> => server !== null))
+    await saveMcpServers(
+      servers.filter((server): server is NonNullable<typeof server> => server !== null)
+    )
     const loaded = await loadMcpServerStore()
 
     expect(loaded.servers).toHaveLength(5)

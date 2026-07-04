@@ -14,12 +14,14 @@ const setExtensionEnabled = vi.fn(async () => ({
   shortcutRegistered: true,
 }))
 let assistantMode: 'chat' | 'agent' = 'chat'
-let commandCallback: ((command: {
-  text: string
-  receivedAt: number
-  sessionId?: string
-  activeWindow?: { hwnd?: number; title?: string; processName?: string }
-}) => void) | null = null
+let commandCallback:
+  | ((command: {
+      text: string
+      receivedAt: number
+      sessionId?: string
+      activeWindow?: { hwnd?: number; title?: string; processName?: string }
+    }) => void)
+  | null = null
 
 vi.mock('../contexts/SettingsContext', () => ({
   useSettings: () => ({

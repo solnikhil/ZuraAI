@@ -35,9 +35,9 @@ if (savedSettings) {
       parsed.theme ?? 'dark',
       systemPrefersDark
     )
-    
+
     const contrast = parsed.themeContrast
-    
+
     applyThemeToDocument(theme || getDefaultTheme(), {
       contrast: contrast !== undefined && contrast < 100 ? contrast : undefined,
     })

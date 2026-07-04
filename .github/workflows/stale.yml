@@ -3,7 +3,7 @@ name: Stale
 on:
   schedule:
     # Daily at 01:00 UTC. Off-peak so it doesn't compete with PR CI.
-    - cron: "0 1 * * *"
+    - cron: '0 1 * * *'
   workflow_dispatch:
 
 permissions:
@@ -35,7 +35,7 @@ jobs:
           days-before-issue-stale: 60
           days-before-issue-close: 14
           stale-issue-label: stale
-          exempt-issue-labels: "pinned,security,bug,help wanted"
+          exempt-issue-labels: 'pinned,security,bug,help wanted'
           stale-issue-message: |
             This issue has been inactive for 60 days. If it is still relevant,
             please add a comment so it stays open. Otherwise it will be closed
@@ -52,7 +52,7 @@ jobs:
           days-before-pr-stale: 30
           days-before-pr-close: 14
           stale-pr-label: stale
-          exempt-pr-labels: "pinned,wip,security"
+          exempt-pr-labels: 'pinned,wip,security'
           stale-pr-message: |
             This pull request has been inactive for 30 days. Please rebase on
             `main` and address open review comments to keep it open. Otherwise

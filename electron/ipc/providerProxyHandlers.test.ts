@@ -42,14 +42,17 @@ describe('provider proxy handlers', () => {
     const handler = ipcMocks.handlers.get('provider-proxy:opencode-fetch')
 
     await expect(
-      handler?.({}, {
-        url: 'https://opencode.ai/zen/go/v1/models',
-        method: 'GET',
-        headers: {
-          Authorization: 'Bearer test',
-          'X-Not-Allowed': 'drop-me',
-        },
-      })
+      handler?.(
+        {},
+        {
+          url: 'https://opencode.ai/zen/go/v1/models',
+          method: 'GET',
+          headers: {
+            Authorization: 'Bearer test',
+            'X-Not-Allowed': 'drop-me',
+          },
+        }
+      )
     ).resolves.toEqual(
       expect.objectContaining({
         ok: true,
@@ -72,10 +75,13 @@ describe('provider proxy handlers', () => {
     const handler = ipcMocks.handlers.get('provider-proxy:opencode-fetch')
 
     await expect(
-      handler?.({}, {
-        url: 'https://example.com/zen/go/v1/models',
-        method: 'GET',
-      })
+      handler?.(
+        {},
+        {
+          url: 'https://example.com/zen/go/v1/models',
+          method: 'GET',
+        }
+      )
     ).rejects.toThrow('OpenCode Go proxy only allows')
 
     expect(fetchMock).not.toHaveBeenCalled()

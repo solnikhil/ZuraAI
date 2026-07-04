@@ -59,8 +59,7 @@ export function createStreamChunkCoalescer(
     options.schedule ??
     ((fn: () => void, ms: number) => setTimeout(fn, ms) as unknown as ReturnType<typeof setTimeout>)
   const cancel =
-    options.cancel ??
-    ((handle: unknown) => clearTimeout(handle as ReturnType<typeof setTimeout>))
+    options.cancel ?? ((handle: unknown) => clearTimeout(handle as ReturnType<typeof setTimeout>))
 
   let pendingTextDelta = ''
   let pendingToolCallDeltaCount = 0

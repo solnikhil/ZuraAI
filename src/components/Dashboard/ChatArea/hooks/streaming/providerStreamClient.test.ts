@@ -100,29 +100,35 @@ describe('createProviderStreamClient', () => {
   it('normalizes OpenRouter streaming events into provider-neutral deltas', async () => {
     mocks.streamOpenRouterCompletion.mockImplementation(async function* () {
       yield {
-        choices: [{
-          delta: {
-            content: 'Hi',
-            reasoning: 'Think',
-            reasoning_details: [{
-              id: 'r1',
-              format: 'text',
-              type: 'reasoning.text',
-              text: 'Think',
-            }],
-            tool_calls: [{
-              index: 0,
-              id: 'call_1',
-              type: 'function',
-              function: {
-                name: 'web_search',
-                arguments: '{"query":"zura"}',
-              },
-            }],
-            images: [{ image_url: { url: 'data:image/png;base64,abc' } }],
+        choices: [
+          {
+            delta: {
+              content: 'Hi',
+              reasoning: 'Think',
+              reasoning_details: [
+                {
+                  id: 'r1',
+                  format: 'text',
+                  type: 'reasoning.text',
+                  text: 'Think',
+                },
+              ],
+              tool_calls: [
+                {
+                  index: 0,
+                  id: 'call_1',
+                  type: 'function',
+                  function: {
+                    name: 'web_search',
+                    arguments: '{"query":"zura"}',
+                  },
+                },
+              ],
+              images: [{ image_url: { url: 'data:image/png;base64,abc' } }],
+            },
+            finish_reason: 'tool_calls',
           },
-          finish_reason: 'tool_calls',
-        }],
+        ],
         usage: {
           prompt_tokens: 10,
           completion_tokens: 4,
@@ -148,43 +154,51 @@ describe('createProviderStreamClient', () => {
       'openrouter'
     )
 
-    const events = await collect(client.stream({
-      provider: 'openrouter',
-      model: 'openai/gpt-4.1',
-      messages: [{ role: 'user', content: 'hello' }],
-      temperature: 0.4,
-      maxTokens: 2048,
-      streamResponses: true,
-      tools: [{
-        type: 'function',
-        function: {
-          name: 'web_search',
-          description: 'Search the web',
-          parameters: { type: 'object', properties: {} },
-        },
-      }],
-    }))
+    const events = await collect(
+      client.stream({
+        provider: 'openrouter',
+        model: 'openai/gpt-4.1',
+        messages: [{ role: 'user', content: 'hello' }],
+        temperature: 0.4,
+        maxTokens: 2048,
+        streamResponses: true,
+        tools: [
+          {
+            type: 'function',
+            function: {
+              name: 'web_search',
+              description: 'Search the web',
+              parameters: { type: 'object', properties: {} },
+            },
+          },
+        ],
+      })
+    )
 
     expect(events).toEqual([
       { type: 'text-delta', delta: 'Hi' },
       { type: 'reasoning-delta', delta: 'Think' },
       {
         type: 'reasoning-details',
-        details: [{
-          id: 'r1',
-          format: 'text',
-          type: 'reasoning.text',
-          text: 'Think',
-        }],
+        details: [
+          {
+            id: 'r1',
+            format: 'text',
+            type: 'reasoning.text',
+            text: 'Think',
+          },
+        ],
       },
       {
         type: 'tool-call-delta',
-        delta: [{
-          index: 0,
-          id: 'call_1',
-          type: 'function',
-          function: { name: 'web_search', arguments: '{"query":"zura"}' },
-        }],
+        delta: [
+          {
+            index: 0,
+            id: 'call_1',
+            type: 'function',
+            function: { name: 'web_search', arguments: '{"query":"zura"}' },
+          },
+        ],
       },
       {
         type: 'file-delta',
@@ -247,14 +261,16 @@ describe('createProviderStreamClient', () => {
       'deepseek'
     )
 
-    const events = await collect(client.stream({
-      provider: 'deepseek',
-      model: 'deepseek-reasoner',
-      messages: [{ role: 'user', content: 'hello' }],
-      temperature: 0.4,
-      maxTokens: 2048,
-      streamResponses: true,
-    }))
+    const events = await collect(
+      client.stream({
+        provider: 'deepseek',
+        model: 'deepseek-reasoner',
+        messages: [{ role: 'user', content: 'hello' }],
+        temperature: 0.4,
+        maxTokens: 2048,
+        streamResponses: true,
+      })
+    )
 
     expect(events).toContainEqual({
       type: 'usage',
@@ -301,12 +317,14 @@ describe('createProviderStreamClient', () => {
       'groq'
     )
 
-    const events = await collect(client.stream({
-      provider: 'groq',
-      model: 'llama-3.3-70b-versatile',
-      messages: [{ role: 'user', content: 'hello' }],
-      streamResponses: true,
-    }))
+    const events = await collect(
+      client.stream({
+        provider: 'groq',
+        model: 'llama-3.3-70b-versatile',
+        messages: [{ role: 'user', content: 'hello' }],
+        streamResponses: true,
+      })
+    )
 
     expect(events).toContainEqual({
       type: 'usage',
@@ -345,17 +363,19 @@ describe('createProviderStreamClient', () => {
       'openrouter'
     )
 
-    await collect(client.stream({
-      provider: 'openrouter',
-      model: 'anthropic/claude-sonnet-4.5',
-      messages: [
-        { role: 'system', content: 'Base system prompt' },
-        { role: 'system', content: 'Dynamic research context' },
-        { role: 'user', content: 'Latest question' },
-      ],
-      streamResponses: true,
-      sessionId: 'session-1',
-    }))
+    await collect(
+      client.stream({
+        provider: 'openrouter',
+        model: 'anthropic/claude-sonnet-4.5',
+        messages: [
+          { role: 'system', content: 'Base system prompt' },
+          { role: 'system', content: 'Dynamic research context' },
+          { role: 'user', content: 'Latest question' },
+        ],
+        streamResponses: true,
+        sessionId: 'session-1',
+      })
+    )
 
     expect(mocks.streamOpenRouterCompletion).toHaveBeenCalledWith(
       'or-key',
@@ -363,7 +383,9 @@ describe('createProviderStreamClient', () => {
       [
         {
           role: 'system',
-          content: [{ type: 'text', text: 'Base system prompt', cache_control: { type: 'ephemeral' } }],
+          content: [
+            { type: 'text', text: 'Base system prompt', cache_control: { type: 'ephemeral' } },
+          ],
         },
         { role: 'system', content: 'Dynamic research context' },
         { role: 'user', content: 'Latest question' },
@@ -389,15 +411,17 @@ describe('createProviderStreamClient', () => {
       'alibaba'
     )
 
-    await collect(client.stream({
-      provider: 'alibaba',
-      model: 'qwen3-max',
-      messages: [
-        { role: 'system', content: 'Base system prompt' },
-        { role: 'user', content: 'Latest question' },
-      ],
-      streamResponses: true,
-    }))
+    await collect(
+      client.stream({
+        provider: 'alibaba',
+        model: 'qwen3-max',
+        messages: [
+          { role: 'system', content: 'Base system prompt' },
+          { role: 'user', content: 'Latest question' },
+        ],
+        streamResponses: true,
+      })
+    )
 
     expect(mocks.streamAlibabaCompletion).toHaveBeenCalledWith(
       'alibaba-key',
@@ -405,7 +429,9 @@ describe('createProviderStreamClient', () => {
       [
         {
           role: 'system',
-          content: [{ type: 'text', text: 'Base system prompt', cache_control: { type: 'ephemeral' } }],
+          content: [
+            { type: 'text', text: 'Base system prompt', cache_control: { type: 'ephemeral' } },
+          ],
         },
         { role: 'user', content: 'Latest question' },
       ],
@@ -430,13 +456,15 @@ describe('createProviderStreamClient', () => {
       'fireworks'
     )
 
-    await collect(client.stream({
-      provider: 'fireworks',
-      model: 'accounts/fireworks/models/deepseek-v3p2',
-      messages: [{ role: 'user', content: 'hello' }],
-      streamResponses: true,
-      sessionId: 'session-123',
-    }))
+    await collect(
+      client.stream({
+        provider: 'fireworks',
+        model: 'accounts/fireworks/models/deepseek-v3p2',
+        messages: [{ role: 'user', content: 'hello' }],
+        streamResponses: true,
+        sessionId: 'session-123',
+      })
+    )
 
     expect(mocks.streamFireworksCompletion).toHaveBeenCalledWith(
       'fw-key',
@@ -467,13 +495,15 @@ describe('createProviderStreamClient', () => {
       'nvidia'
     )
 
-    const events = await collect(client.stream({
-      provider: 'nvidia',
-      model: 'minimaxai/minimax-m3',
-      messages: [{ role: 'user', content: 'hello' }],
-      streamResponses: true,
-      enableThinking: true,
-    }))
+    const events = await collect(
+      client.stream({
+        provider: 'nvidia',
+        model: 'minimaxai/minimax-m3',
+        messages: [{ role: 'user', content: 'hello' }],
+        streamResponses: true,
+        enableThinking: true,
+      })
+    )
 
     expect(events).toContainEqual({ type: 'text-delta', delta: 'hello' })
     expect(mocks.streamNvidiaCompletion).toHaveBeenCalledWith(
@@ -499,16 +529,20 @@ describe('createProviderStreamClient', () => {
         choices: [{ delta: { reasoning_content: 'Thinking' } }],
       }
       yield {
-        choices: [{
-          delta: {
-            tool_calls: [{
-              index: 0,
-              id: 'call_1',
-              type: 'function',
-              function: { name: 'web_search', arguments: '{"query":"zura"}' },
-            }],
+        choices: [
+          {
+            delta: {
+              tool_calls: [
+                {
+                  index: 0,
+                  id: 'call_1',
+                  type: 'function',
+                  function: { name: 'web_search', arguments: '{"query":"zura"}' },
+                },
+              ],
+            },
           },
-        }],
+        ],
       }
       yield {
         choices: [{ finish_reason: 'tool_calls' }],
@@ -528,23 +562,27 @@ describe('createProviderStreamClient', () => {
       'opencode'
     )
 
-    const events = await collect(client.stream({
-      provider: 'opencode',
-      model: 'opencode-go/glm-5.2',
-      messages: [{ role: 'user', content: 'hello' }],
-      streamResponses: true,
-    }))
+    const events = await collect(
+      client.stream({
+        provider: 'opencode',
+        model: 'opencode-go/glm-5.2',
+        messages: [{ role: 'user', content: 'hello' }],
+        streamResponses: true,
+      })
+    )
 
     expect(events.some((event) => event.type === 'text-delta')).toBe(true)
     expect(events).toContainEqual({ type: 'reasoning-delta', delta: 'Thinking' })
     expect(events).toContainEqual({
       type: 'tool-call-delta',
-      delta: [{
-        index: 0,
-        id: 'call_1',
-        type: 'function',
-        function: { name: 'web_search', arguments: '{"query":"zura"}' },
-      }],
+      delta: [
+        {
+          index: 0,
+          id: 'call_1',
+          type: 'function',
+          function: { name: 'web_search', arguments: '{"query":"zura"}' },
+        },
+      ],
     })
     expect(events).toContainEqual({
       type: 'usage',
@@ -570,17 +608,21 @@ describe('createProviderStreamClient', () => {
   it('extracts OpenRouter reasoning summaries when text reasoning is not present', async () => {
     mocks.streamOpenRouterCompletion.mockImplementation(async function* () {
       yield {
-        choices: [{
-          delta: {
-            reasoning_details: [{
-              id: 'r2',
-              format: 'anthropic-claude-v1',
-              type: 'reasoning.summary',
-              summary: 'Planned the answer in two steps.',
-            }],
+        choices: [
+          {
+            delta: {
+              reasoning_details: [
+                {
+                  id: 'r2',
+                  format: 'anthropic-claude-v1',
+                  type: 'reasoning.summary',
+                  summary: 'Planned the answer in two steps.',
+                },
+              ],
+            },
+            finish_reason: 'stop',
           },
-          finish_reason: 'stop',
-        }],
+        ],
       }
     })
 
@@ -596,25 +638,29 @@ describe('createProviderStreamClient', () => {
       'openrouter'
     )
 
-    const events = await collect(client.stream({
-      provider: 'openrouter',
-      model: 'anthropic/claude-sonnet-4.5',
-      messages: [{ role: 'user', content: 'hello' }],
-      temperature: 0.4,
-      maxTokens: 2048,
-      streamResponses: true,
-    }))
+    const events = await collect(
+      client.stream({
+        provider: 'openrouter',
+        model: 'anthropic/claude-sonnet-4.5',
+        messages: [{ role: 'user', content: 'hello' }],
+        temperature: 0.4,
+        maxTokens: 2048,
+        streamResponses: true,
+      })
+    )
 
     expect(events).toEqual([
       { type: 'reasoning-delta', delta: 'Planned the answer in two steps.' },
       {
         type: 'reasoning-details',
-        details: [{
-          id: 'r2',
-          format: 'anthropic-claude-v1',
-          type: 'reasoning.summary',
-          summary: 'Planned the answer in two steps.',
-        }],
+        details: [
+          {
+            id: 'r2',
+            format: 'anthropic-claude-v1',
+            type: 'reasoning.summary',
+            summary: 'Planned the answer in two steps.',
+          },
+        ],
       },
       { type: 'finish', finishReason: 'stop' },
     ])
@@ -623,12 +669,14 @@ describe('createProviderStreamClient', () => {
   it('forces OpenRouter chat requests through the streaming path even when streamResponses is false', async () => {
     mocks.streamOpenRouterCompletion.mockImplementation(async function* () {
       yield {
-        choices: [{
-          delta: {
-            content: 'Streamed anyway',
+        choices: [
+          {
+            delta: {
+              content: 'Streamed anyway',
+            },
+            finish_reason: 'stop',
           },
-          finish_reason: 'stop',
-        }],
+        ],
       }
     })
 
@@ -644,12 +692,14 @@ describe('createProviderStreamClient', () => {
       'openrouter'
     )
 
-    const events = await collect(client.stream({
-      provider: 'openrouter',
-      model: 'openai/gpt-4.1',
-      messages: [{ role: 'user', content: 'hello' }],
-      streamResponses: false,
-    }))
+    const events = await collect(
+      client.stream({
+        provider: 'openrouter',
+        model: 'openai/gpt-4.1',
+        messages: [{ role: 'user', content: 'hello' }],
+        streamResponses: false,
+      })
+    )
 
     expect(mocks.generateOpenRouterCompletion).not.toHaveBeenCalled()
     expect(mocks.streamOpenRouterCompletion).toHaveBeenCalled()
@@ -662,12 +712,14 @@ describe('createProviderStreamClient', () => {
   it('breaks large OpenRouter text chunks into progressive deltas for smoother token streaming', async () => {
     mocks.streamOpenRouterCompletion.mockImplementation(async function* () {
       yield {
-        choices: [{
-          delta: {
-            content: 'This response arrived as one large buffered chunk.',
+        choices: [
+          {
+            delta: {
+              content: 'This response arrived as one large buffered chunk.',
+            },
+            finish_reason: 'stop',
           },
-          finish_reason: 'stop',
-        }],
+        ],
       }
     })
 
@@ -683,12 +735,14 @@ describe('createProviderStreamClient', () => {
       'openrouter'
     )
 
-    const events = await collect(client.stream({
-      provider: 'openrouter',
-      model: 'openai/gpt-4.1',
-      messages: [{ role: 'user', content: 'hello' }],
-      streamResponses: true,
-    }))
+    const events = await collect(
+      client.stream({
+        provider: 'openrouter',
+        model: 'openai/gpt-4.1',
+        messages: [{ role: 'user', content: 'hello' }],
+        streamResponses: true,
+      })
+    )
 
     const textDeltas = events.filter((event) => event.type === 'text-delta')
     expect(textDeltas.length).toBeGreaterThan(1)
@@ -702,12 +756,14 @@ describe('createProviderStreamClient', () => {
     const bufferedAnswer = 'Buffered final synthesis arrived as one large chunk.'
     mocks.streamDeepSeekCompletion.mockImplementation(async function* () {
       yield {
-        choices: [{
-          delta: {
-            content: bufferedAnswer,
+        choices: [
+          {
+            delta: {
+              content: bufferedAnswer,
+            },
+            finish_reason: 'stop',
           },
-          finish_reason: 'stop',
-        }],
+        ],
       }
     })
 
@@ -723,12 +779,14 @@ describe('createProviderStreamClient', () => {
       'deepseek'
     )
 
-    const events = await collect(client.stream({
-      provider: 'deepseek',
-      model: 'deepseek-v4-pro',
-      messages: [{ role: 'user', content: 'synthesize the results' }],
-      streamResponses: true,
-    }))
+    const events = await collect(
+      client.stream({
+        provider: 'deepseek',
+        model: 'deepseek-v4-pro',
+        messages: [{ role: 'user', content: 'synthesize the results' }],
+        streamResponses: true,
+      })
+    )
 
     const textDeltas = events.filter((event) => event.type === 'text-delta')
     expect(textDeltas.length).toBeGreaterThan(1)
@@ -743,14 +801,16 @@ describe('createProviderStreamClient', () => {
       object: 'chat.completion',
       created: 1,
       model: 'llama-3.3-70b-versatile',
-      choices: [{
-        index: 0,
-        finish_reason: 'stop',
-        message: {
-          role: 'assistant',
-          content: bufferedAnswer,
+      choices: [
+        {
+          index: 0,
+          finish_reason: 'stop',
+          message: {
+            role: 'assistant',
+            content: bufferedAnswer,
+          },
         },
-      }],
+      ],
     })
 
     const client = createProviderStreamClient(
@@ -765,12 +825,14 @@ describe('createProviderStreamClient', () => {
       'groq'
     )
 
-    const events = await collect(client.stream({
-      provider: 'groq',
-      model: 'llama-3.3-70b-versatile',
-      messages: [{ role: 'user', content: 'hello' }],
-      streamResponses: false,
-    }))
+    const events = await collect(
+      client.stream({
+        provider: 'groq',
+        model: 'llama-3.3-70b-versatile',
+        messages: [{ role: 'user', content: 'hello' }],
+        streamResponses: false,
+      })
+    )
 
     const textDeltas = events.filter((event) => event.type === 'text-delta')
     expect(textDeltas.length).toBeGreaterThan(1)
@@ -809,12 +871,14 @@ describe('createProviderStreamClient', () => {
       'ollama'
     )
 
-    const events = await collect(client.stream({
-      provider: 'ollama',
-      model: 'llama3.2',
-      messages: [{ role: 'user', content: 'hello' }],
-      signal,
-    }))
+    const events = await collect(
+      client.stream({
+        provider: 'ollama',
+        model: 'llama3.2',
+        messages: [{ role: 'user', content: 'hello' }],
+        signal,
+      })
+    )
 
     expect(mocks.generateOllamaCompletion).toHaveBeenCalledWith(
       'http://localhost:11434',
@@ -837,21 +901,25 @@ describe('createProviderStreamClient', () => {
   it('normalizes Fireworks tool-calling chunks into shared stream events', async () => {
     mocks.streamFireworksCompletion.mockImplementation(async function* () {
       yield {
-        choices: [{
-          delta: {
-            content: 'Fireworks reply',
-            tool_calls: [{
-              index: 0,
-              id: 'fw_call_1',
-              type: 'function',
-              function: {
-                name: 'web_search',
-                arguments: '{"query":"fireworks"}',
-              },
-            }],
+        choices: [
+          {
+            delta: {
+              content: 'Fireworks reply',
+              tool_calls: [
+                {
+                  index: 0,
+                  id: 'fw_call_1',
+                  type: 'function',
+                  function: {
+                    name: 'web_search',
+                    arguments: '{"query":"fireworks"}',
+                  },
+                },
+              ],
+            },
+            finish_reason: 'tool_calls',
           },
-          finish_reason: 'tool_calls',
-        }],
+        ],
         usage: {
           prompt_tokens: 9,
           completion_tokens: 5,
@@ -872,31 +940,37 @@ describe('createProviderStreamClient', () => {
       'fireworks'
     )
 
-    const events = await collect(client.stream({
-      provider: 'fireworks',
-      model: 'accounts/fireworks/models/deepseek-v3p2',
-      messages: [{ role: 'user', content: 'hello' }],
-      streamResponses: true,
-      tools: [{
-        type: 'function',
-        function: {
-          name: 'web_search',
-          description: 'Search the web',
-          parameters: { type: 'object', properties: {} },
-        },
-      }],
-    }))
+    const events = await collect(
+      client.stream({
+        provider: 'fireworks',
+        model: 'accounts/fireworks/models/deepseek-v3p2',
+        messages: [{ role: 'user', content: 'hello' }],
+        streamResponses: true,
+        tools: [
+          {
+            type: 'function',
+            function: {
+              name: 'web_search',
+              description: 'Search the web',
+              parameters: { type: 'object', properties: {} },
+            },
+          },
+        ],
+      })
+    )
 
     expect(events).toEqual([
       { type: 'text-delta', delta: 'Fireworks reply' },
       {
         type: 'tool-call-delta',
-        delta: [{
-          index: 0,
-          id: 'fw_call_1',
-          type: 'function',
-          function: { name: 'web_search', arguments: '{"query":"fireworks"}' },
-        }],
+        delta: [
+          {
+            index: 0,
+            id: 'fw_call_1',
+            type: 'function',
+            function: { name: 'web_search', arguments: '{"query":"fireworks"}' },
+          },
+        ],
       },
       {
         type: 'usage',
@@ -924,14 +998,16 @@ describe('createProviderStreamClient', () => {
       'deepseek'
     )
 
-    await collect(client.stream({
-      provider: 'deepseek',
-      model: 'deepseek-v4-pro',
-      messages: [{ role: 'user', content: 'hello' }],
-      streamResponses: true,
-      enableThinking: true,
-      reasoningEffort: 'xhigh',
-    }))
+    await collect(
+      client.stream({
+        provider: 'deepseek',
+        model: 'deepseek-v4-pro',
+        messages: [{ role: 'user', content: 'hello' }],
+        streamResponses: true,
+        enableThinking: true,
+        reasoningEffort: 'xhigh',
+      })
+    )
 
     expect(mocks.streamDeepSeekCompletion).toHaveBeenCalledWith(
       'deepseek-key',
@@ -946,14 +1022,16 @@ describe('createProviderStreamClient', () => {
       id: 'resp_1',
       model: 'sonar',
       created: 1,
-      choices: [{
-        index: 0,
-        finish_reason: 'stop',
-        message: {
-          role: 'assistant',
-          content: 'Answer [1]',
+      choices: [
+        {
+          index: 0,
+          finish_reason: 'stop',
+          message: {
+            role: 'assistant',
+            content: 'Answer [1]',
+          },
         },
-      }],
+      ],
       usage: {
         prompt_tokens: 3,
         completion_tokens: 2,
@@ -974,12 +1052,14 @@ describe('createProviderStreamClient', () => {
       'perplexity'
     )
 
-    const events = await collect(client.stream({
-      provider: 'perplexity',
-      model: 'sonar',
-      messages: [{ role: 'user', content: 'hello' }],
-      streamResponses: false,
-    }))
+    const events = await collect(
+      client.stream({
+        provider: 'perplexity',
+        model: 'sonar',
+        messages: [{ role: 'user', content: 'hello' }],
+        streamResponses: false,
+      })
+    )
 
     expect(events).toEqual([
       { type: 'text-delta', delta: 'Answer [1]' },

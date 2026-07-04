@@ -42,7 +42,9 @@ export default function SidebarHeader({ onNewChat, onOpenSearch }: SidebarHeader
       <HeaderAction
         label="New chat"
         onClick={onNewChat}
-        icon={<FileEdit size={16} className="sidebar-header__icon sidebar-header__icon--new-chat" />}
+        icon={
+          <FileEdit size={16} className="sidebar-header__icon sidebar-header__icon--new-chat" />
+        }
       />
       <HeaderAction
         label="Search chats"

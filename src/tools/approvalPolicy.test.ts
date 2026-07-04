@@ -21,10 +21,7 @@ describe('requiresManualToolApproval', () => {
       'web_search',
     ]) {
       expect(
-        requiresManualToolApproval(
-          { id: `${name}-1`, name, arguments: {} },
-          availableTools
-        )
+        requiresManualToolApproval({ id: `${name}-1`, name, arguments: {} }, availableTools)
       ).toBe(false)
     }
   })
@@ -56,10 +53,7 @@ describe('requiresManualToolApproval', () => {
       'mcp__filesystem__write_file',
     ]) {
       expect(
-        requiresManualToolApproval(
-          { id: `${name}-1`, name, arguments: {} },
-          availableTools
-        )
+        requiresManualToolApproval({ id: `${name}-1`, name, arguments: {} }, availableTools)
       ).toBe(true)
     }
   })

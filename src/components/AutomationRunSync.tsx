@@ -19,7 +19,9 @@ function createAutomationMessageId(): string {
   return `automation-message-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
 
-function summarizeToolResults(results?: ToolCallResult[]): ScheduledAutomationRunResponse['toolCallSummaries'] {
+function summarizeToolResults(
+  results?: ToolCallResult[]
+): ScheduledAutomationRunResponse['toolCallSummaries'] {
   return (results || []).map((result) => ({
     name: result.toolCall.name,
     success: result.result.success === true,
@@ -27,7 +29,9 @@ function summarizeToolResults(results?: ToolCallResult[]): ScheduledAutomationRu
   }))
 }
 
-function summarizeFiles(files?: FileAttachment[]): ScheduledAutomationRunResponse['generatedFiles'] {
+function summarizeFiles(
+  files?: FileAttachment[]
+): ScheduledAutomationRunResponse['generatedFiles'] {
   return (files || []).map((file) => ({
     id: file.id,
     name: file.name,
@@ -59,10 +63,15 @@ function buildPrompt(request: ScheduledAutomationRunRequest, contextText: string
       : '',
     '',
     'Return a concise, useful result. Do not mention internal scheduling mechanics unless relevant.',
-  ].filter(Boolean).join('\n')
+  ]
+    .filter(Boolean)
+    .join('\n')
 }
 
-function buildChangeVerdict(outputText: string, previousOutput?: string): ScheduledAutomationRunResponse['changeVerdict'] {
+function buildChangeVerdict(
+  outputText: string,
+  previousOutput?: string
+): ScheduledAutomationRunResponse['changeVerdict'] {
   const previous = (previousOutput || '').replace(/\s+/g, ' ').trim()
   const next = outputText.replace(/\s+/g, ' ').trim()
   if (!previous) {
@@ -105,80 +114,92 @@ export function AutomationRunSync(): null {
     throttledUpdateStreamingMessage: () => undefined,
   })
 
-  const resolveContext = useCallback(async (request: ScheduledAutomationRunRequest): Promise<string> => {
-    const lines: string[] = []
-    for (const source of request.contextSources) {
-      if (source.type === 'current_datetime') {
-        lines.push(`Current date/time: ${new Date().toLocaleString()}`)
-      } else if (source.type === 'chat' && source.id) {
-        const session = await chatHistory.loadFullSession(source.id, { limit: 40 })
-        const messages = session?.messages?.slice(-12) ?? []
-        if (messages.length > 0) {
-          lines.push([
-            `Chat context${source.label ? ` (${source.label})` : ''}:`,
-            ...messages.map((message) => `${message.role}: ${String(message.content).slice(0, 1000)}`),
-          ].join('\n'))
+  const resolveContext = useCallback(
+    async (request: ScheduledAutomationRunRequest): Promise<string> => {
+      const lines: string[] = []
+      for (const source of request.contextSources) {
+        if (source.type === 'current_datetime') {
+          lines.push(`Current date/time: ${new Date().toLocaleString()}`)
+        } else if (source.type === 'chat' && source.id) {
+          const session = await chatHistory.loadFullSession(source.id, { limit: 40 })
+          const messages = session?.messages?.slice(-12) ?? []
+          if (messages.length > 0) {
+            lines.push(
+              [
+                `Chat context${source.label ? ` (${source.label})` : ''}:`,
+                ...messages.map(
+                  (message) => `${message.role}: ${String(message.content).slice(0, 1000)}`
+                ),
+              ].join('\n')
+            )
+          }
+        } else if (source.type === 'folder_memory' && source.id && window.memory?.search) {
+          const memories = await window.memory.search(request.prompt, 8, {
+            type: 'project',
+            projectId: source.id,
+            includeGlobal: true,
+          })
+          if (memories.length > 0) {
+            lines.push(
+              [
+                `Folder memory${source.label ? ` (${source.label})` : ''}:`,
+                ...memories.map((memory) => `- ${memory.content}`),
+              ].join('\n')
+            )
+          }
+        } else if (source.value || source.label) {
+          lines.push(`${source.label || source.type}: ${source.value || source.id || ''}`)
         }
-      } else if (source.type === 'folder_memory' && source.id && window.memory?.search) {
-        const memories = await window.memory.search(request.prompt, 8, {
-          type: 'project',
-          projectId: source.id,
-          includeGlobal: true,
-        })
-        if (memories.length > 0) {
-          lines.push([
-            `Folder memory${source.label ? ` (${source.label})` : ''}:`,
-            ...memories.map((memory) => `- ${memory.content}`),
-          ].join('\n'))
+      }
+      return lines.join('\n\n').slice(0, 12000)
+    },
+    [chatHistory]
+  )
+
+  const deliverToChatAndArtifacts = useCallback(
+    (
+      request: ScheduledAutomationRunRequest,
+      outputText: string
+    ): Pick<ScheduledAutomationRunResponse, 'artifactIds' | 'deliveryStatus'> => {
+      const deliveryStatus: ScheduledAutomationRunResponse['deliveryStatus'] = {}
+      const destinations = request.outputDestinations
+      let sessionId = `${AUTOMATION_SESSION_PREFIX}${request.taskId}`
+      if (destinations.includes('chat') || destinations.includes('artifact')) {
+        const existing = chatHistory.sessions.find((session) => session.id === sessionId)
+        if (!existing) {
+          sessionId = chatHistory.createSession(undefined, null, sessionId)
+          chatHistory.updateSessionTitle(sessionId, `Automation: ${request.taskTitle}`)
         }
-      } else if (source.value || source.label) {
-        lines.push(`${source.label || source.type}: ${source.value || source.id || ''}`)
-      }
-    }
-    return lines.join('\n\n').slice(0, 12000)
-  }, [chatHistory])
-
-  const deliverToChatAndArtifacts = useCallback((
-    request: ScheduledAutomationRunRequest,
-    outputText: string
-  ): Pick<ScheduledAutomationRunResponse, 'artifactIds' | 'deliveryStatus'> => {
-    const deliveryStatus: ScheduledAutomationRunResponse['deliveryStatus'] = {}
-    const destinations = request.outputDestinations
-    let sessionId = `${AUTOMATION_SESSION_PREFIX}${request.taskId}`
-    if (destinations.includes('chat') || destinations.includes('artifact')) {
-      const existing = chatHistory.sessions.find((session) => session.id === sessionId)
-      if (!existing) {
-        sessionId = chatHistory.createSession(undefined, null, sessionId)
-        chatHistory.updateSessionTitle(sessionId, `Automation: ${request.taskTitle}`)
-      }
-      const userMessageId = chatHistory.addMessageToSession(sessionId, {
-        role: 'user',
-        content: request.prompt,
-      } as Omit<Message, 'id' | 'timestamp'>)
-      chatHistory.addMessageToSession(sessionId, {
-        role: 'assistant',
-        content: outputText,
-        model: `${settings.modelProvider}/${settings.aiModel}`,
-      } as Omit<Message, 'id' | 'timestamp'>)
-      deliveryStatus.chat = 'sent'
-
-      if (destinations.includes('artifact')) {
-        const artifact = chatHistory.createArtifact(sessionId, {
-          title: request.taskTitle,
-          kind: 'markdown',
-          language: 'markdown',
+        const userMessageId = chatHistory.addMessageToSession(sessionId, {
+          role: 'user',
+          content: request.prompt,
+        } as Omit<Message, 'id' | 'timestamp'>)
+        chatHistory.addMessageToSession(sessionId, {
+          role: 'assistant',
           content: outputText,
-          sourceMessageId: userMessageId,
-        })
-        deliveryStatus.artifact = artifact ? 'sent' : 'error'
-        return {
-          artifactIds: artifact ? [artifact.id] : [],
-          deliveryStatus,
+          model: `${settings.modelProvider}/${settings.aiModel}`,
+        } as Omit<Message, 'id' | 'timestamp'>)
+        deliveryStatus.chat = 'sent'
+
+        if (destinations.includes('artifact')) {
+          const artifact = chatHistory.createArtifact(sessionId, {
+            title: request.taskTitle,
+            kind: 'markdown',
+            language: 'markdown',
+            content: outputText,
+            sourceMessageId: userMessageId,
+          })
+          deliveryStatus.artifact = artifact ? 'sent' : 'error'
+          return {
+            artifactIds: artifact ? [artifact.id] : [],
+            deliveryStatus,
+          }
         }
       }
-    }
-    return { deliveryStatus }
-  }, [chatHistory, settings.aiModel, settings.modelProvider])
+      return { deliveryStatus }
+    },
+    [chatHistory, settings.aiModel, settings.modelProvider]
+  )
 
   useEffect(() => {
     if (!window.scheduledTasks?.onAutomationRunRequest) return undefined
@@ -219,7 +240,8 @@ export function AutomationRunSync(): null {
                 toolEventCallbacks: {
                   executionPolicy: {
                     remainingWebSearchBudget: request.budgets.maxWebSearches ?? 0,
-                    remainingToolCallBudget: request.budgets.maxToolCalls ?? Number.MAX_SAFE_INTEGER,
+                    remainingToolCallBudget:
+                      request.budgets.maxToolCalls ?? Number.MAX_SAFE_INTEGER,
                     userContextText: prompt,
                   },
                   requestToolApproval:
@@ -279,7 +301,13 @@ export function AutomationRunSync(): null {
         }
       })()
     })
-  }, [approval.requestApproval, deliverToChatAndArtifacts, resolveContext, runProviderStream, settings])
+  }, [
+    approval.requestApproval,
+    deliverToChatAndArtifacts,
+    resolveContext,
+    runProviderStream,
+    settings,
+  ])
 
   return null
 }

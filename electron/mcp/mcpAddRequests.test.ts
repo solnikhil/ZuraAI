@@ -14,10 +14,7 @@ vi.mock('electron', () => ({
   },
 }))
 
-import {
-  approvePendingMcpAddRequest,
-  createMcpAddRequest,
-} from './mcpAddRequests'
+import { approvePendingMcpAddRequest, createMcpAddRequest } from './mcpAddRequests'
 import type { McpServerConfig, McpServerRuntimeState } from '../../src/mcp/types'
 
 describe('mcpAddRequests', () => {
@@ -103,21 +100,27 @@ describe('mcpAddRequests', () => {
         args: ['-y', '@example/mcp'],
       },
     })
-    const addServer = vi.fn(async (payload: unknown) => ({
-      ...(payload as Record<string, unknown>),
-      id: 'server-1',
-      name: 'Demo MCP',
-      trustState: 'untrusted',
-      requireApproval: true,
-    }) as McpServerConfig)
-    const connectServer = vi.fn(async (serverId: string) => ({
-      serverId,
-      status: 'connected',
-      tools: [],
-      resources: [],
-      prompts: [],
-      capabilities: { tools: true, resources: false, prompts: false },
-    }) as McpServerRuntimeState)
+    const addServer = vi.fn(
+      async (payload: unknown) =>
+        ({
+          ...(payload as Record<string, unknown>),
+          id: 'server-1',
+          name: 'Demo MCP',
+          trustState: 'untrusted',
+          requireApproval: true,
+        }) as McpServerConfig
+    )
+    const connectServer = vi.fn(
+      async (serverId: string) =>
+        ({
+          serverId,
+          status: 'connected',
+          tools: [],
+          resources: [],
+          prompts: [],
+          capabilities: { tools: true, resources: false, prompts: false },
+        }) as McpServerRuntimeState
+    )
 
     await expect(
       approvePendingMcpAddRequest(review.requestId, {

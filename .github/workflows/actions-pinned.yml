@@ -9,8 +9,8 @@ on:
       - synchronize
       - reopened
     paths:
-      - ".github/workflows/**"
-      - ".github/actions/**"
+      - '.github/workflows/**'
+      - '.github/actions/**'
 
 permissions:
   contents: read

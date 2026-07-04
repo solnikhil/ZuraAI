@@ -71,7 +71,13 @@ function isNotifyPolicy(value: unknown): value is ScheduledAutomationNotifyPolic
 }
 
 function isOutputDestination(value: unknown): value is ScheduledAutomationOutputDestination {
-  return value === 'log' || value === 'notification' || value === 'email' || value === 'chat' || value === 'artifact'
+  return (
+    value === 'log' ||
+    value === 'notification' ||
+    value === 'email' ||
+    value === 'chat' ||
+    value === 'artifact'
+  )
 }
 
 function isContextSourceType(value: unknown): value is ScheduledAutomationContextSource['type'] {
@@ -113,7 +119,10 @@ function getScheduleTimezone(schedule?: ScheduledAutomationSchedule): string | u
   return schedule?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone
 }
 
-function getZonedDateParts(timeZone: string, utcMs: number): {
+function getZonedDateParts(
+  timeZone: string,
+  utcMs: number
+): {
   year: number
   month: number
   day: number
@@ -144,7 +153,14 @@ function getZonedDateParts(timeZone: string, utcMs: number): {
 
 function getTimeZoneOffsetMs(timeZone: string, utcMs: number): number {
   const parts = getZonedDateParts(timeZone, utcMs)
-  const localAsUtc = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second)
+  const localAsUtc = Date.UTC(
+    parts.year,
+    parts.month - 1,
+    parts.day,
+    parts.hour,
+    parts.minute,
+    parts.second
+  )
   return localAsUtc - utcMs
 }
 
@@ -156,7 +172,15 @@ function zonedLocalTimeToUtcMs(
   timeOfDay: string
 ): number {
   const targetMinutes = minutesFromTimeOfDay(timeOfDay)
-  const localAsUtc = Date.UTC(year, month - 1, day, Math.floor(targetMinutes / 60), targetMinutes % 60, 0, 0)
+  const localAsUtc = Date.UTC(
+    year,
+    month - 1,
+    day,
+    Math.floor(targetMinutes / 60),
+    targetMinutes % 60,
+    0,
+    0
+  )
   let guess = localAsUtc
   for (let index = 0; index < 3; index += 1) {
     guess = localAsUtc - getTimeZoneOffsetMs(timeZone, guess)
@@ -164,7 +188,12 @@ function zonedLocalTimeToUtcMs(
   return guess
 }
 
-function addDaysToYmd(year: number, month: number, day: number, offsetDays: number): {
+function addDaysToYmd(
+  year: number,
+  month: number,
+  day: number,
+  offsetDays: number
+): {
   year: number
   month: number
   day: number
@@ -181,10 +210,7 @@ function weekdayForYmd(year: number, month: number, day: number): number {
   return new Date(Date.UTC(year, month - 1, day)).getUTCDay()
 }
 
-function applyWorkHoursWindow(
-  utcMs: number,
-  schedule?: ScheduledAutomationSchedule
-): number {
+function applyWorkHoursWindow(utcMs: number, schedule?: ScheduledAutomationSchedule): number {
   if (!schedule?.workHours?.enabled) return utcMs
   const timeZone = getScheduleTimezone(schedule)
   if (!timeZone) return utcMs
@@ -194,7 +220,13 @@ function applyWorkHoursWindow(
   const parts = getZonedDateParts(timeZone, utcMs)
   const current = parts.hour * 60 + parts.minute
   if (current < start) {
-    return zonedLocalTimeToUtcMs(timeZone, parts.year, parts.month, parts.day, formatTimeOfDay(start))
+    return zonedLocalTimeToUtcMs(
+      timeZone,
+      parts.year,
+      parts.month,
+      parts.day,
+      formatTimeOfDay(start)
+    )
   }
   if (current > end) {
     const next = addDaysToYmd(parts.year, parts.month, parts.day, 1)
@@ -229,7 +261,8 @@ function normalizeSchedule(
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined
   const record = raw as Record<string, unknown>
   const kind = record.kind
-  if (kind !== 'interval' && kind !== 'daily' && kind !== 'weekly' && kind !== 'once') return undefined
+  if (kind !== 'interval' && kind !== 'daily' && kind !== 'weekly' && kind !== 'once')
+    return undefined
   const schedule: ScheduledAutomationSchedule = { kind }
   if (isMonitorIntervalPreset(record.intervalPreset)) {
     schedule.intervalPreset = record.intervalPreset
@@ -246,10 +279,17 @@ function normalizeSchedule(
     if (!isValidTimeZone(timezone)) return undefined
     schedule.timezone = timezone
   }
-  if (record.workHours && typeof record.workHours === 'object' && !Array.isArray(record.workHours)) {
+  if (
+    record.workHours &&
+    typeof record.workHours === 'object' &&
+    !Array.isArray(record.workHours)
+  ) {
     const workHours = record.workHours as Record<string, unknown>
     if (isTimeOfDay(workHours.start) && isTimeOfDay(workHours.end)) {
-      if (workHours.enabled === true && minutesFromTimeOfDay(workHours.start) >= minutesFromTimeOfDay(workHours.end)) {
+      if (
+        workHours.enabled === true &&
+        minutesFromTimeOfDay(workHours.start) >= minutesFromTimeOfDay(workHours.end)
+      ) {
         return undefined
       }
       schedule.workHours = {
@@ -291,21 +331,42 @@ function calculateScheduledNextRunAt(
       const local = addDaysToYmd(baseDate.year, baseDate.month, baseDate.day, offset)
       const candidate = timeZone
         ? zonedLocalTimeToUtcMs(timeZone, local.year, local.month, local.day, timeOfDay)
-        : new Date(local.year, local.month - 1, local.day, Math.floor(minutesFromTimeOfDay(timeOfDay) / 60), minutesFromTimeOfDay(timeOfDay) % 60, 0, 0).getTime()
+        : new Date(
+            local.year,
+            local.month - 1,
+            local.day,
+            Math.floor(minutesFromTimeOfDay(timeOfDay) / 60),
+            minutesFromTimeOfDay(timeOfDay) % 60,
+            0,
+            0
+          ).getTime()
       if (candidate > fromMs) return applyWorkHoursWindow(candidate, schedule)
     }
     return applyWorkHoursWindow(calculateNextRunAt(fromMs, 'daily'), schedule)
   }
 
-  const weekdays = schedule.weekdays && schedule.weekdays.length > 0
-    ? schedule.weekdays
-    : [timeZone && zonedNow ? weekdayForYmd(zonedNow.year, zonedNow.month, zonedNow.day) : new Date(fromMs).getDay()]
+  const weekdays =
+    schedule.weekdays && schedule.weekdays.length > 0
+      ? schedule.weekdays
+      : [
+          timeZone && zonedNow
+            ? weekdayForYmd(zonedNow.year, zonedNow.month, zonedNow.day)
+            : new Date(fromMs).getDay(),
+        ]
   for (let offset = 0; offset <= 14; offset += 1) {
     const local = addDaysToYmd(baseDate.year, baseDate.month, baseDate.day, offset)
     if (!weekdays.includes(weekdayForYmd(local.year, local.month, local.day))) continue
     const candidate = timeZone
       ? zonedLocalTimeToUtcMs(timeZone, local.year, local.month, local.day, timeOfDay)
-      : new Date(local.year, local.month - 1, local.day, Math.floor(minutesFromTimeOfDay(timeOfDay) / 60), minutesFromTimeOfDay(timeOfDay) % 60, 0, 0).getTime()
+      : new Date(
+          local.year,
+          local.month - 1,
+          local.day,
+          Math.floor(minutesFromTimeOfDay(timeOfDay) / 60),
+          minutesFromTimeOfDay(timeOfDay) % 60,
+          0,
+          0
+        ).getTime()
     if (candidate > fromMs) return applyWorkHoursWindow(candidate, schedule)
   }
   return applyWorkHoursWindow(calculateNextRunAt(fromMs, 'weekly'), schedule)
@@ -321,9 +382,15 @@ function normalizeContextSources(raw: unknown): ScheduledAutomationContextSource
       if (!isContextSourceType(record.type)) return null
       return {
         type: record.type,
-        ...(typeof record.id === 'string' && record.id.trim() ? { id: record.id.trim().slice(0, 200) } : {}),
-        ...(typeof record.label === 'string' && record.label.trim() ? { label: record.label.trim().slice(0, 200) } : {}),
-        ...(typeof record.value === 'string' && record.value.trim() ? { value: record.value.trim().slice(0, 2000) } : {}),
+        ...(typeof record.id === 'string' && record.id.trim()
+          ? { id: record.id.trim().slice(0, 200) }
+          : {}),
+        ...(typeof record.label === 'string' && record.label.trim()
+          ? { label: record.label.trim().slice(0, 200) }
+          : {}),
+        ...(typeof record.value === 'string' && record.value.trim()
+          ? { value: record.value.trim().slice(0, 2000) }
+          : {}),
       }
     })
     .filter((source): source is ScheduledAutomationContextSource => Boolean(source))
@@ -331,14 +398,21 @@ function normalizeContextSources(raw: unknown): ScheduledAutomationContextSource
 
 function normalizeAllowedTools(raw: unknown): string[] | undefined {
   if (!Array.isArray(raw)) return undefined
-  return Array.from(new Set(
-    raw
-      .filter((tool): tool is string => typeof tool === 'string' && /^[a-zA-Z0-9_.:-]+$/.test(tool.trim()))
-      .map((tool) => tool.trim())
-  )).slice(0, MAX_ALLOWED_TOOLS)
+  return Array.from(
+    new Set(
+      raw
+        .filter(
+          (tool): tool is string =>
+            typeof tool === 'string' && /^[a-zA-Z0-9_.:-]+$/.test(tool.trim())
+        )
+        .map((tool) => tool.trim())
+    )
+  ).slice(0, MAX_ALLOWED_TOOLS)
 }
 
-function normalizeOutputDestinations(raw: unknown): ScheduledAutomationOutputDestination[] | undefined {
+function normalizeOutputDestinations(
+  raw: unknown
+): ScheduledAutomationOutputDestination[] | undefined {
   if (!Array.isArray(raw)) return undefined
   const destinations = Array.from(new Set(raw.filter(isOutputDestination)))
   return destinations.length > 0 ? destinations : undefined
@@ -349,13 +423,17 @@ function normalizeBudgets(raw: unknown): ScheduledAutomationBudgets | undefined 
   const record = raw as Record<string, unknown>
   const budgets: ScheduledAutomationBudgets = {}
   const timeoutMs = Number(record.timeoutMs)
-  if (Number.isFinite(timeoutMs)) budgets.timeoutMs = Math.min(15 * 60_000, Math.max(10_000, Math.round(timeoutMs)))
+  if (Number.isFinite(timeoutMs))
+    budgets.timeoutMs = Math.min(15 * 60_000, Math.max(10_000, Math.round(timeoutMs)))
   const maxToolCalls = Number(record.maxToolCalls)
-  if (Number.isFinite(maxToolCalls)) budgets.maxToolCalls = Math.min(50, Math.max(0, Math.round(maxToolCalls)))
+  if (Number.isFinite(maxToolCalls))
+    budgets.maxToolCalls = Math.min(50, Math.max(0, Math.round(maxToolCalls)))
   const maxWebSearches = Number(record.maxWebSearches)
-  if (Number.isFinite(maxWebSearches)) budgets.maxWebSearches = Math.min(20, Math.max(0, Math.round(maxWebSearches)))
+  if (Number.isFinite(maxWebSearches))
+    budgets.maxWebSearches = Math.min(20, Math.max(0, Math.round(maxWebSearches)))
   const maxTokens = Number(record.maxTokens)
-  if (Number.isFinite(maxTokens)) budgets.maxTokens = Math.min(16_000, Math.max(256, Math.round(maxTokens)))
+  if (Number.isFinite(maxTokens))
+    budgets.maxTokens = Math.min(16_000, Math.max(256, Math.round(maxTokens)))
   return Object.keys(budgets).length > 0 ? budgets : undefined
 }
 
@@ -363,7 +441,11 @@ function normalizeTask(input: unknown): ScheduledTaskDefinition | null {
   if (!input || typeof input !== 'object') return null
   const raw = input as Partial<ScheduledTaskDefinition> & { name?: string; monitorId?: string }
   if (typeof raw.id !== 'string' || !raw.id) return null
-  const type = isScheduledTaskType(raw.type) ? raw.type : raw.type === 'reminder' ? 'reminder' : 'web_lookout'
+  const type = isScheduledTaskType(raw.type)
+    ? raw.type
+    : raw.type === 'reminder'
+      ? 'reminder'
+      : 'web_lookout'
   const title = typeof raw.title === 'string' ? raw.title : raw.name
   if (typeof title !== 'string' || !title.trim()) return null
   if (type === 'web_lookout' && (!Array.isArray(raw.urls) || raw.urls.length === 0)) return null
@@ -377,19 +459,29 @@ function normalizeTask(input: unknown): ScheduledTaskDefinition | null {
     type,
     title: title.slice(0, MAX_NAME_LENGTH),
     enabled: raw.enabled !== false,
-    urls: Array.isArray(raw.urls) ? raw.urls.filter((url): url is string => typeof url === 'string') : [],
-    ...(typeof raw.reminderText === 'string' ? { reminderText: raw.reminderText.slice(0, MAX_INSTRUCTIONS_LENGTH) } : {}),
-    instructions: typeof raw.instructions === 'string' ? raw.instructions.slice(0, MAX_INSTRUCTIONS_LENGTH) : '',
+    urls: Array.isArray(raw.urls)
+      ? raw.urls.filter((url): url is string => typeof url === 'string')
+      : [],
+    ...(typeof raw.reminderText === 'string'
+      ? { reminderText: raw.reminderText.slice(0, MAX_INSTRUCTIONS_LENGTH) }
+      : {}),
+    instructions:
+      typeof raw.instructions === 'string'
+        ? raw.instructions.slice(0, MAX_INSTRUCTIONS_LENGTH)
+        : '',
     intervalPreset: raw.intervalPreset,
     ...(schedule ? { schedule } : {}),
     ...(type === 'ai_automation'
       ? {
           prompt: (raw.prompt || '').slice(0, MAX_PROMPT_LENGTH),
-          automationMode: isAutomationMode(raw.automationMode) ? raw.automationMode : DEFAULT_AUTOMATION_MODE,
+          automationMode: isAutomationMode(raw.automationMode)
+            ? raw.automationMode
+            : DEFAULT_AUTOMATION_MODE,
           contextSources: normalizeContextSources(raw.contextSources) ?? [],
           allowedTools: normalizeAllowedTools(raw.allowedTools) ?? [],
           approvalMode: isApprovalMode(raw.approvalMode) ? raw.approvalMode : DEFAULT_APPROVAL_MODE,
-          outputDestinations: normalizeOutputDestinations(raw.outputDestinations) ?? DEFAULT_OUTPUT_DESTINATIONS,
+          outputDestinations:
+            normalizeOutputDestinations(raw.outputDestinations) ?? DEFAULT_OUTPUT_DESTINATIONS,
           notifyPolicy: isNotifyPolicy(raw.notifyPolicy) ? raw.notifyPolicy : DEFAULT_NOTIFY_POLICY,
           ...(budgets ? { budgets } : {}),
           ...(typeof raw.automationChatSessionId === 'string' && raw.automationChatSessionId.trim()
@@ -412,7 +504,8 @@ function normalizeSnapshot(input: unknown): ScheduledTaskSnapshot | null {
   const raw = input as Partial<ScheduledTaskSnapshot> & { monitorId?: string }
   const taskId = raw.taskId ?? raw.monitorId
   if (typeof taskId !== 'string' || typeof raw.url !== 'string') return null
-  if (typeof raw.contentHash !== 'string' || typeof raw.normalizedTextExcerpt !== 'string') return null
+  if (typeof raw.contentHash !== 'string' || typeof raw.normalizedTextExcerpt !== 'string')
+    return null
   if (typeof raw.capturedAt !== 'number') return null
   return {
     taskId,
@@ -425,7 +518,10 @@ function normalizeSnapshot(input: unknown): ScheduledTaskSnapshot | null {
 
 function normalizeRun(input: unknown): ScheduledTaskRun | null {
   if (!input || typeof input !== 'object') return null
-  const raw = input as Partial<ScheduledTaskRun> & { monitorId?: string; urlResults?: ScheduledTaskRun['logs'] }
+  const raw = input as Partial<ScheduledTaskRun> & {
+    monitorId?: string
+    urlResults?: ScheduledTaskRun['logs']
+  }
   const taskId = raw.taskId ?? raw.monitorId
   if (typeof raw.id !== 'string' || typeof taskId !== 'string') return null
   if (typeof raw.startedAt !== 'number' || typeof raw.finishedAt !== 'number') return null
@@ -439,19 +535,42 @@ function normalizeRun(input: unknown): ScheduledTaskRun | null {
     logs: Array.isArray(raw.logs) ? raw.logs : Array.isArray(raw.urlResults) ? raw.urlResults : [],
     ...(typeof raw.diffSummary === 'string' ? { diffSummary: raw.diffSummary } : {}),
     ...(typeof raw.aiSummary === 'string' ? { aiSummary: raw.aiSummary } : {}),
-    ...(typeof raw.promptSnapshot === 'string' ? { promptSnapshot: raw.promptSnapshot.slice(0, MAX_PROMPT_LENGTH) } : {}),
-    ...(typeof raw.resolvedContextSummary === 'string' ? { resolvedContextSummary: raw.resolvedContextSummary.slice(0, 4000) } : {}),
+    ...(typeof raw.promptSnapshot === 'string'
+      ? { promptSnapshot: raw.promptSnapshot.slice(0, MAX_PROMPT_LENGTH) }
+      : {}),
+    ...(typeof raw.resolvedContextSummary === 'string'
+      ? { resolvedContextSummary: raw.resolvedContextSummary.slice(0, 4000) }
+      : {}),
     ...(typeof raw.model === 'string' ? { model: raw.model.slice(0, 200) } : {}),
     ...(typeof raw.provider === 'string' ? { provider: raw.provider.slice(0, 80) } : {}),
     ...(typeof raw.outputText === 'string' ? { outputText: raw.outputText.slice(0, 12000) } : {}),
     ...(Array.isArray(raw.artifactIds)
-      ? { artifactIds: raw.artifactIds.filter((id): id is string => typeof id === 'string').slice(0, 20) }
+      ? {
+          artifactIds: raw.artifactIds
+            .filter((id): id is string => typeof id === 'string')
+            .slice(0, 20),
+        }
       : {}),
-    ...(Array.isArray(raw.generatedFiles) ? { generatedFiles: raw.generatedFiles.slice(0, 20) as ScheduledTaskRun['generatedFiles'] } : {}),
-    ...(Array.isArray(raw.toolCallSummaries) ? { toolCallSummaries: raw.toolCallSummaries.slice(0, 100) as ScheduledTaskRun['toolCallSummaries'] } : {}),
-    ...(raw.usage && typeof raw.usage === 'object' ? { usage: raw.usage as ScheduledTaskRun['usage'] } : {}),
-    ...(raw.changeVerdict && typeof raw.changeVerdict === 'object' ? { changeVerdict: raw.changeVerdict as ScheduledTaskRun['changeVerdict'] } : {}),
-    ...(raw.deliveryStatus && typeof raw.deliveryStatus === 'object' ? { deliveryStatus: raw.deliveryStatus as ScheduledTaskRun['deliveryStatus'] } : {}),
+    ...(Array.isArray(raw.generatedFiles)
+      ? { generatedFiles: raw.generatedFiles.slice(0, 20) as ScheduledTaskRun['generatedFiles'] }
+      : {}),
+    ...(Array.isArray(raw.toolCallSummaries)
+      ? {
+          toolCallSummaries: raw.toolCallSummaries.slice(
+            0,
+            100
+          ) as ScheduledTaskRun['toolCallSummaries'],
+        }
+      : {}),
+    ...(raw.usage && typeof raw.usage === 'object'
+      ? { usage: raw.usage as ScheduledTaskRun['usage'] }
+      : {}),
+    ...(raw.changeVerdict && typeof raw.changeVerdict === 'object'
+      ? { changeVerdict: raw.changeVerdict as ScheduledTaskRun['changeVerdict'] }
+      : {}),
+    ...(raw.deliveryStatus && typeof raw.deliveryStatus === 'object'
+      ? { deliveryStatus: raw.deliveryStatus as ScheduledTaskRun['deliveryStatus'] }
+      : {}),
     ...(typeof raw.error === 'string' ? { error: raw.error } : {}),
   }
 }
@@ -459,14 +578,25 @@ function normalizeRun(input: unknown): ScheduledTaskRun | null {
 function normalizeIndex(data: unknown): ScheduledTaskIndex {
   if (!data || typeof data !== 'object') return createEmptyIndex()
   const raw = data as Partial<ScheduledTaskIndex> & { monitors?: unknown[] }
-  const rawTasks = Array.isArray(raw.tasks) ? raw.tasks : Array.isArray(raw.monitors) ? raw.monitors : []
+  const rawTasks = Array.isArray(raw.tasks)
+    ? raw.tasks
+    : Array.isArray(raw.monitors)
+      ? raw.monitors
+      : []
   return {
-    tasks: rawTasks.map(normalizeTask).filter((item): item is ScheduledTaskDefinition => Boolean(item)),
+    tasks: rawTasks
+      .map(normalizeTask)
+      .filter((item): item is ScheduledTaskDefinition => Boolean(item)),
     snapshots: Array.isArray(raw.snapshots)
-      ? raw.snapshots.map(normalizeSnapshot).filter((item): item is ScheduledTaskSnapshot => Boolean(item))
+      ? raw.snapshots
+          .map(normalizeSnapshot)
+          .filter((item): item is ScheduledTaskSnapshot => Boolean(item))
       : [],
     runs: Array.isArray(raw.runs)
-      ? raw.runs.map(normalizeRun).filter((item): item is ScheduledTaskRun => Boolean(item)).slice(0, MAX_RUNS)
+      ? raw.runs
+          .map(normalizeRun)
+          .filter((item): item is ScheduledTaskRun => Boolean(item))
+          .slice(0, MAX_RUNS)
       : [],
     version: INDEX_VERSION,
   }
@@ -510,7 +640,9 @@ async function persistIndex(index: ScheduledTaskIndex): Promise<ScheduledTaskInd
   return normalized
 }
 
-async function withWriteLock<T>(operation: (index: ScheduledTaskIndex) => Promise<T> | T): Promise<T> {
+async function withWriteLock<T>(
+  operation: (index: ScheduledTaskIndex) => Promise<T> | T
+): Promise<T> {
   const run = async () => {
     cachedIndex = null
     cacheTimestamp = 0
@@ -524,7 +656,10 @@ async function withWriteLock<T>(operation: (index: ScheduledTaskIndex) => Promis
   return next
 }
 
-export function sanitizeScheduledTaskInput(raw: unknown, partial = false): ScheduledTaskInput | ScheduledTaskUpdateInput {
+export function sanitizeScheduledTaskInput(
+  raw: unknown,
+  partial = false
+): ScheduledTaskInput | ScheduledTaskUpdateInput {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     throw new Error('Invalid monitor payload')
   }
@@ -534,26 +669,37 @@ export function sanitizeScheduledTaskInput(raw: unknown, partial = false): Sched
     if (!isScheduledTaskType(record.type)) throw new Error('Invalid scheduled task type')
     input.type = record.type
   }
-  const taskType = input.type ?? (isScheduledTaskType(record.type) ? record.type : record.type === 'reminder' ? 'reminder' : 'web_lookout')
+  const taskType =
+    input.type ??
+    (isScheduledTaskType(record.type)
+      ? record.type
+      : record.type === 'reminder'
+        ? 'reminder'
+        : 'web_lookout')
   if (!partial || record.title !== undefined || record.name !== undefined) {
     const rawTitle = record.title ?? record.name
-    if (typeof rawTitle !== 'string' || !rawTitle.trim()) throw new Error('Scheduled task title is required')
+    if (typeof rawTitle !== 'string' || !rawTitle.trim())
+      throw new Error('Scheduled task title is required')
     input.title = rawTitle.trim().slice(0, MAX_NAME_LENGTH)
   }
   if (taskType === 'web_lookout' && (!partial || record.urls !== undefined)) {
-    if (!Array.isArray(record.urls) || record.urls.length === 0) throw new Error('At least one URL is required for a lookout')
-    if (record.urls.length > MAX_URLS_PER_MONITOR) throw new Error(`A monitor can watch at most ${MAX_URLS_PER_MONITOR} URLs`)
+    if (!Array.isArray(record.urls) || record.urls.length === 0)
+      throw new Error('At least one URL is required for a lookout')
+    if (record.urls.length > MAX_URLS_PER_MONITOR)
+      throw new Error(`A monitor can watch at most ${MAX_URLS_PER_MONITOR} URLs`)
     input.urls = Array.from(new Set(record.urls.map(validateMonitorUrl)))
   } else if (record.urls !== undefined) {
     if (!Array.isArray(record.urls)) throw new Error('Scheduled task URLs must be an array')
     input.urls = Array.from(new Set(record.urls.map(validateMonitorUrl)))
   }
   if (taskType === 'reminder' && (!partial || record.reminderText !== undefined)) {
-    if (typeof record.reminderText !== 'string' || !record.reminderText.trim()) throw new Error('Reminder text is required')
+    if (typeof record.reminderText !== 'string' || !record.reminderText.trim())
+      throw new Error('Reminder text is required')
     input.reminderText = record.reminderText.trim().slice(0, MAX_INSTRUCTIONS_LENGTH)
   }
   if (taskType === 'ai_automation' && (!partial || record.prompt !== undefined)) {
-    if (typeof record.prompt !== 'string' || !record.prompt.trim()) throw new Error('Automation prompt is required')
+    if (typeof record.prompt !== 'string' || !record.prompt.trim())
+      throw new Error('Automation prompt is required')
     input.prompt = record.prompt.trim().slice(0, MAX_PROMPT_LENGTH)
   }
   if (record.enabled !== undefined) {
@@ -562,7 +708,8 @@ export function sanitizeScheduledTaskInput(raw: unknown, partial = false): Sched
     input.enabled = true
   }
   if (record.instructions !== undefined) {
-    if (typeof record.instructions !== 'string') throw new Error('Monitor instructions must be a string')
+    if (typeof record.instructions !== 'string')
+      throw new Error('Monitor instructions must be a string')
     input.instructions = record.instructions.trim().slice(0, MAX_INSTRUCTIONS_LENGTH)
   } else if (!partial) {
     input.instructions = ''
@@ -604,7 +751,8 @@ export function sanitizeScheduledTaskInput(raw: unknown, partial = false): Sched
     input.approvalMode = DEFAULT_APPROVAL_MODE
   }
   if (record.outputDestinations !== undefined) {
-    input.outputDestinations = normalizeOutputDestinations(record.outputDestinations) ?? DEFAULT_OUTPUT_DESTINATIONS
+    input.outputDestinations =
+      normalizeOutputDestinations(record.outputDestinations) ?? DEFAULT_OUTPUT_DESTINATIONS
   } else if (!partial && taskType === 'ai_automation') {
     input.outputDestinations = DEFAULT_OUTPUT_DESTINATIONS
   }
@@ -616,19 +764,28 @@ export function sanitizeScheduledTaskInput(raw: unknown, partial = false): Sched
   }
   if (record.budgets !== undefined) input.budgets = normalizeBudgets(record.budgets) ?? {}
   if (record.automationChatSessionId !== undefined) {
-    if (typeof record.automationChatSessionId !== 'string') throw new Error('Automation chat session id must be a string')
+    if (typeof record.automationChatSessionId !== 'string')
+      throw new Error('Automation chat session id must be a string')
     input.automationChatSessionId = record.automationChatSessionId.trim().slice(0, 200)
   }
   if (record.dueAt !== undefined) {
-    const rawDueAt = typeof record.dueAt === 'number' ? record.dueAt : Date.parse(String(record.dueAt))
-    const dueAt = typeof record.dueAt === 'number' && rawDueAt < 10_000_000_000 ? rawDueAt * 1000 : rawDueAt
-    if (!Number.isFinite(dueAt) || dueAt < Date.now() - 60_000) throw new Error('Invalid scheduled task due time')
+    const rawDueAt =
+      typeof record.dueAt === 'number' ? record.dueAt : Date.parse(String(record.dueAt))
+    const dueAt =
+      typeof record.dueAt === 'number' && rawDueAt < 10_000_000_000 ? rawDueAt * 1000 : rawDueAt
+    if (!Number.isFinite(dueAt) || dueAt < Date.now() - 60_000)
+      throw new Error('Invalid scheduled task due time')
     input.dueAt = dueAt
     if (taskType === 'ai_automation' && record.schedule === undefined) {
       input.schedule = { kind: 'once' }
     }
   }
-  if (taskType === 'ai_automation' && input.schedule?.kind === 'once' && input.dueAt === undefined && !partial) {
+  if (
+    taskType === 'ai_automation' &&
+    input.schedule?.kind === 'once' &&
+    input.dueAt === undefined &&
+    !partial
+  ) {
     throw new Error('One-off automations require a due time')
   }
   return input
@@ -657,18 +814,21 @@ export async function getScheduledTask(id: string): Promise<ScheduledTaskDefinit
 
 export const getMonitor = getScheduledTask
 
-export async function createScheduledTask(input: ScheduledTaskInput): Promise<ScheduledTaskDefinition> {
+export async function createScheduledTask(
+  input: ScheduledTaskInput
+): Promise<ScheduledTaskDefinition> {
   return withWriteLock(async (index) => {
-    if (index.tasks.length >= MAX_TASKS) throw new Error(`At most ${MAX_TASKS} scheduled tasks are supported`)
+    if (index.tasks.length >= MAX_TASKS)
+      throw new Error(`At most ${MAX_TASKS} scheduled tasks are supported`)
     const now = Date.now()
     const intervalPreset = input.intervalPreset ?? DEFAULT_INTERVAL_PRESET
-    const schedule = input.schedule ?? (
-      input.type === 'ai_automation'
+    const schedule =
+      input.schedule ??
+      (input.type === 'ai_automation'
         ? input.dueAt
           ? { kind: 'once' as const }
           : { kind: 'interval' as const, intervalPreset }
-        : undefined
-    )
+        : undefined)
     const task: ScheduledTaskDefinition = {
       id: randomUUID(),
       type: input.type,
@@ -689,7 +849,9 @@ export async function createScheduledTask(input: ScheduledTaskInput): Promise<Sc
             outputDestinations: input.outputDestinations ?? DEFAULT_OUTPUT_DESTINATIONS,
             notifyPolicy: input.notifyPolicy ?? DEFAULT_NOTIFY_POLICY,
             ...(input.budgets ? { budgets: input.budgets } : {}),
-            ...(input.automationChatSessionId ? { automationChatSessionId: input.automationChatSessionId } : {}),
+            ...(input.automationChatSessionId
+              ? { automationChatSessionId: input.automationChatSessionId }
+              : {}),
           }
         : {}),
       createdAt: now,
@@ -703,17 +865,25 @@ export async function createScheduledTask(input: ScheduledTaskInput): Promise<Sc
 
 export const createMonitor = createScheduledTask
 
-export async function updateScheduledTask(id: string, patch: ScheduledTaskUpdateInput): Promise<ScheduledTaskDefinition | null> {
+export async function updateScheduledTask(
+  id: string,
+  patch: ScheduledTaskUpdateInput
+): Promise<ScheduledTaskDefinition | null> {
   return withWriteLock(async (index) => {
     const existing = index.tasks.find((task) => task.id === id)
     if (!existing) return null
     const now = Date.now()
     const { dueAt, ...definitionPatch } = patch
     const intervalPreset = patch.intervalPreset ?? existing.intervalPreset
-    const schedule = patch.dueAt !== undefined && existing.type === 'ai_automation'
-      ? { kind: 'once' as const }
-      : patch.schedule ?? existing.schedule
-    const nextRunAt = dueAt ?? (patch.intervalPreset || patch.schedule ? calculateScheduledNextRunAt(now, intervalPreset, schedule) : existing.nextRunAt)
+    const schedule =
+      patch.dueAt !== undefined && existing.type === 'ai_automation'
+        ? { kind: 'once' as const }
+        : (patch.schedule ?? existing.schedule)
+    const nextRunAt =
+      dueAt ??
+      (patch.intervalPreset || patch.schedule
+        ? calculateScheduledNextRunAt(now, intervalPreset, schedule)
+        : existing.nextRunAt)
     const task: ScheduledTaskDefinition = {
       ...existing,
       ...definitionPatch,
@@ -757,7 +927,9 @@ export async function saveScheduledTaskRun(
     const snapshotKeys = new Set(snapshots.map((snapshot) => `${snapshot.taskId}:${snapshot.url}`))
     const nextSnapshots = [
       ...snapshots,
-      ...index.snapshots.filter((snapshot) => !snapshotKeys.has(`${snapshot.taskId}:${snapshot.url}`)),
+      ...index.snapshots.filter(
+        (snapshot) => !snapshotKeys.has(`${snapshot.taskId}:${snapshot.url}`)
+      ),
     ]
     await persistIndex({
       tasks: index.tasks.map((item) =>
@@ -766,7 +938,11 @@ export async function saveScheduledTaskRun(
               ...item,
               enabled: item.schedule?.kind === 'once' ? false : item.enabled,
               lastRunAt: run.finishedAt,
-              nextRunAt: calculateScheduledNextRunAt(run.finishedAt, item.intervalPreset, item.schedule),
+              nextRunAt: calculateScheduledNextRunAt(
+                run.finishedAt,
+                item.intervalPreset,
+                item.schedule
+              ),
             }
           : item
       ),

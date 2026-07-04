@@ -24,9 +24,8 @@ function getPlatformLabel(platform: NodeJS.Platform, version?: string): string {
 }
 
 export function getAppRuntimeInfo(): AppRuntimeInfo {
-  const systemVersion = typeof process.getSystemVersion === 'function'
-    ? process.getSystemVersion()
-    : os.release()
+  const systemVersion =
+    typeof process.getSystemVersion === 'function' ? process.getSystemVersion() : os.release()
 
   return {
     appName: app.getName(),

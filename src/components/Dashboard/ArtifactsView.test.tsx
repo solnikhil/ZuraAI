@@ -76,17 +76,29 @@ describe('ArtifactsView', () => {
     render(<ArtifactsView />)
 
     expect(screen.getByRole('heading', { name: 'Artifacts' })).toBeInTheDocument()
-    fireEvent.click(screen.getAllByRole('button', { name: /open in default editor: launch plan/i })[0])
+    fireEvent.click(
+      screen.getAllByRole('button', { name: /open in default editor: launch plan/i })[0]
+    )
 
-    expect(mockOpenArtifactInExternalApp).toHaveBeenCalledWith('session-1', 'artifact-1', expect.any(Array))
+    expect(mockOpenArtifactInExternalApp).toHaveBeenCalledWith(
+      'session-1',
+      'artifact-1',
+      expect.any(Array)
+    )
   })
 
   it('opens an artifact externally from the chevron action', () => {
     render(<ArtifactsView />)
 
-    fireEvent.click(screen.getAllByRole('button', { name: /open in default editor: launch plan/i })[1])
+    fireEvent.click(
+      screen.getAllByRole('button', { name: /open in default editor: launch plan/i })[1]
+    )
 
-    expect(mockOpenArtifactInExternalApp).toHaveBeenCalledWith('session-1', 'artifact-1', expect.any(Array))
+    expect(mockOpenArtifactInExternalApp).toHaveBeenCalledWith(
+      'session-1',
+      'artifact-1',
+      expect.any(Array)
+    )
   })
 
   it('lists metadata-only artifacts and opens them externally', async () => {
@@ -114,25 +126,29 @@ describe('ArtifactsView', () => {
       value: {
         invoke: vi.fn(async (channel: string, ...args: unknown[]) => {
           if (channel === 'chat-store:get-metadata') {
-            return [{
-              id: 'session-2',
-              title: 'Historical chat',
-              createdAt: 10,
-              updatedAt: 20,
-              pinned: false,
-              folderId: null,
-              tags: [],
-              messageCount: 0,
-              artifactCount: 1,
-              artifactSummaries: [{
-                id: 'artifact-2',
-                title: 'Historical plan',
-                kind: 'markdown',
+            return [
+              {
+                id: 'session-2',
+                title: 'Historical chat',
+                createdAt: 10,
                 updatedAt: 20,
-                currentVersionId: 'version-2',
-                versionCount: 1,
-              }],
-            }]
+                pinned: false,
+                folderId: null,
+                tags: [],
+                messageCount: 0,
+                artifactCount: 1,
+                artifactSummaries: [
+                  {
+                    id: 'artifact-2',
+                    title: 'Historical plan',
+                    kind: 'markdown',
+                    updatedAt: 20,
+                    currentVersionId: 'version-2',
+                    versionCount: 1,
+                  },
+                ],
+              },
+            ]
           }
           if (channel === 'chat-store:get-session') {
             expect(args[0]).toBe('session-2')
@@ -154,6 +170,10 @@ describe('ArtifactsView', () => {
     })
     fireEvent.click(historicalButtons[0])
 
-    expect(mockOpenArtifactInExternalApp).toHaveBeenCalledWith('session-2', 'artifact-2', expect.any(Array))
+    expect(mockOpenArtifactInExternalApp).toHaveBeenCalledWith(
+      'session-2',
+      'artifact-2',
+      expect.any(Array)
+    )
   })
 })

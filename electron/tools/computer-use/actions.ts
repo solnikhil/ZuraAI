@@ -27,7 +27,7 @@ async function runUser32Script(script: string): Promise<void> {
   await execFileAsync(
     'powershell.exe',
     ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script],
-    { windowsHide: true, timeout: 10_000, maxBuffer: 64 * 1024 },
+    { windowsHide: true, timeout: 10_000, maxBuffer: 64 * 1024 }
   )
 }
 
@@ -53,17 +53,38 @@ function mouseFlags(button: MouseButton): { down: number; up: number } {
 
 function virtualKeyForName(part: string): number | null {
   const map: Record<string, number> = {
-    ctrl: 0x11, control: 0x11,
-    alt: 0x12, option: 0x12,
+    ctrl: 0x11,
+    control: 0x11,
+    alt: 0x12,
+    option: 0x12,
     shift: 0x10,
-    meta: 0x5b, cmd: 0x5b, command: 0x5b, win: 0x5b,
-    enter: 0x0d, return: 0x0d,
-    tab: 0x09, escape: 0x1b, esc: 0x1b,
-    space: 0x20, backspace: 0x08, delete: 0x2e,
-    up: 0x26, down: 0x28, left: 0x25, right: 0x27,
-    home: 0x24, end: 0x23, pageup: 0x21, pagedown: 0x22,
-    insert: 0x2d, capslock: 0x14, numlock: 0x90,
-    pause: 0x13, print: 0x2c, scrolllock: 0x91, menu: 0x5d,
+    meta: 0x5b,
+    cmd: 0x5b,
+    command: 0x5b,
+    win: 0x5b,
+    enter: 0x0d,
+    return: 0x0d,
+    tab: 0x09,
+    escape: 0x1b,
+    esc: 0x1b,
+    space: 0x20,
+    backspace: 0x08,
+    delete: 0x2e,
+    up: 0x26,
+    down: 0x28,
+    left: 0x25,
+    right: 0x27,
+    home: 0x24,
+    end: 0x23,
+    pageup: 0x21,
+    pagedown: 0x22,
+    insert: 0x2d,
+    capslock: 0x14,
+    numlock: 0x90,
+    pause: 0x13,
+    print: 0x2c,
+    scrolllock: 0x91,
+    menu: 0x5d,
   }
 
   if (map[part] !== undefined) return map[part]
@@ -77,7 +98,9 @@ function virtualKeyForName(part: string): number | null {
 async function pressVirtualKeys(keys: number[]): Promise<void> {
   if (keys.length === 0) throw new Error('No valid keys parsed')
 
-  const keyDown = keys.map((vk) => `[ZuraUser32]::keybd_event([byte]${vk}, 0, 0, [UIntPtr]::Zero)`).join('\n')
+  const keyDown = keys
+    .map((vk) => `[ZuraUser32]::keybd_event([byte]${vk}, 0, 0, [UIntPtr]::Zero)`)
+    .join('\n')
   const keyUp = [...keys]
     .reverse()
     .map((vk) => `[ZuraUser32]::keybd_event([byte]${vk}, 0, 2, [UIntPtr]::Zero)`)
@@ -121,7 +144,10 @@ export async function performKeyPress(args: KeyArgs): Promise<void> {
   const { key } = args
   if (!key) throw new Error('Key is required')
 
-  const parts = key.toLowerCase().split('+').map((k) => k.trim())
+  const parts = key
+    .toLowerCase()
+    .split('+')
+    .map((k) => k.trim())
   const resolved: number[] = []
   for (const part of parts) {
     const vk = virtualKeyForName(part)

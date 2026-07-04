@@ -112,5 +112,4 @@ describe('AppShellRouteHost command palette routing', () => {
 
     expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
-
 })

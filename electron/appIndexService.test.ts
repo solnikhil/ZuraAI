@@ -16,14 +16,16 @@ function dirEntry(name: string) {
   return { name, isDirectory: () => true }
 }
 
-async function loadService(options: {
-  nativeApps?: Array<{ name: string; appUserModelId: string }>
-  userAssistEntries?: Array<{ name: string; usageCount?: number; lastUsedAt?: string }>
-  runPowerShellError?: Error
-  iconDelayMs?: number
-  userDataPath?: string
-} = {}) {
-  userDataPath = options.userDataPath ?? await mkdtemp(path.join(os.tmpdir(), 'zura-app-index-'))
+async function loadService(
+  options: {
+    nativeApps?: Array<{ name: string; appUserModelId: string }>
+    userAssistEntries?: Array<{ name: string; usageCount?: number; lastUsedAt?: string }>
+    runPowerShellError?: Error
+    iconDelayMs?: number
+    userDataPath?: string
+  } = {}
+) {
+  userDataPath = options.userDataPath ?? (await mkdtemp(path.join(os.tmpdir(), 'zura-app-index-')))
   shortcutDetails.clear()
   iconActive = 0
   iconMaxActive = 0
@@ -59,9 +61,7 @@ async function loadService(options: {
     if (options.runPowerShellError) throw options.runPowerShellError
     if (script.includes('Explorer\\UserAssist') || script.includes('Decode-Rot13')) {
       return {
-        stdout: (options.userAssistEntries ?? [])
-          .map((entry) => JSON.stringify(entry))
-          .join('\n'),
+        stdout: (options.userAssistEntries ?? []).map((entry) => JSON.stringify(entry)).join('\n'),
         stderr: '',
       }
     }
@@ -100,15 +100,18 @@ async function loadService(options: {
       }),
     },
     shell: {
-      readShortcutLink: vi.fn((shortcutPath: string) => shortcutDetails.get(shortcutPath) ?? {
-        target: `C:\\Apps\\${shortcutPath.split('\\').pop()?.replace('.lnk', '.exe')}`,
-        cwd: 'C:\\Apps',
-        args: '',
-        icon: '',
-        iconIndex: 0,
-        appUserModelId: '',
-        description: '',
-      }),
+      readShortcutLink: vi.fn(
+        (shortcutPath: string) =>
+          shortcutDetails.get(shortcutPath) ?? {
+            target: `C:\\Apps\\${shortcutPath.split('\\').pop()?.replace('.lnk', '.exe')}`,
+            cwd: 'C:\\Apps',
+            args: '',
+            icon: '',
+            iconIndex: 0,
+            appUserModelId: '',
+            description: '',
+          }
+      ),
     },
   }))
 
@@ -117,7 +120,9 @@ async function loadService(options: {
     const accessImplementation = vi.fn(async (filePath: string) => {
       if (
         filePath.includes('GitHub Copilot\\icons\\icon.ico') ||
-        filePath.includes('Microsoft VS Code\\stable\\resources\\app\\resources\\win32\\code.ico') ||
+        filePath.includes(
+          'Microsoft VS Code\\stable\\resources\\app\\resources\\win32\\code.ico'
+        ) ||
         filePath === 'C:\\Program Files\\paint.net\\paintdotnet.ico'
       ) {
         return undefined
@@ -131,12 +136,16 @@ async function loadService(options: {
         access: accessImplementation,
         readdir: vi.fn(async (root: string, options?: unknown) => {
           if (root.includes('Nested')) return [fileEntry('Discord.lnk')]
-          if (root === 'C:\\Users\\Nikhil\\Desktop') return [fileEntry('Kiro.lnk'), fileEntry('Claude.lnk')]
+          if (root === 'C:\\Users\\Nikhil\\Desktop')
+            return [fileEntry('Kiro.lnk'), fileEntry('Claude.lnk')]
           if (root.includes('Start Menu\\Programs')) return [dirEntry('Nested')]
           return actual.readdir(root, options as never)
         }),
         readFile: vi.fn(async (filePath: string, options?: unknown) => {
-          if (filePath === 'C:\\Users\\Nikhil\\AppData\\Local\\Programs\\Kiro\\Kiro.VisualElementsManifest.xml') {
+          if (
+            filePath ===
+            'C:\\Users\\Nikhil\\AppData\\Local\\Programs\\Kiro\\Kiro.VisualElementsManifest.xml'
+          ) {
             return '<Application><VisualElements Square70x70Logo="resources\\app\\resources\\win32\\code_70x70.png" Square150x150Logo="resources\\app\\resources\\win32\\code_150x150.png" /></Application>'
           }
           return actual.readFile(filePath, options as never)
@@ -145,12 +154,16 @@ async function loadService(options: {
       access: accessImplementation,
       readdir: vi.fn(async (root: string, options?: unknown) => {
         if (root.includes('Nested')) return [fileEntry('Discord.lnk')]
-        if (root === 'C:\\Users\\Nikhil\\Desktop') return [fileEntry('Kiro.lnk'), fileEntry('Claude.lnk')]
+        if (root === 'C:\\Users\\Nikhil\\Desktop')
+          return [fileEntry('Kiro.lnk'), fileEntry('Claude.lnk')]
         if (root.includes('Start Menu\\Programs')) return [dirEntry('Nested')]
         return actual.readdir(root, options as never)
       }),
       readFile: vi.fn(async (filePath: string, options?: unknown) => {
-        if (filePath === 'C:\\Users\\Nikhil\\AppData\\Local\\Programs\\Kiro\\Kiro.VisualElementsManifest.xml') {
+        if (
+          filePath ===
+          'C:\\Users\\Nikhil\\AppData\\Local\\Programs\\Kiro\\Kiro.VisualElementsManifest.xml'
+        ) {
           return '<Application><VisualElements Square70x70Logo="resources\\app\\resources\\win32\\code_70x70.png" Square150x150Logo="resources\\app\\resources\\win32\\code_150x150.png" /></Application>'
         }
         return actual.readFile(filePath, options as never)
@@ -159,7 +172,8 @@ async function loadService(options: {
   })
 
   vi.doMock('./tools/native-common', async () => {
-    const actual = await vi.importActual<typeof import('./tools/native-common')>('./tools/native-common')
+    const actual =
+      await vi.importActual<typeof import('./tools/native-common')>('./tools/native-common')
     return {
       ...actual,
       isWindows: () => true,
@@ -173,7 +187,8 @@ async function loadService(options: {
 }
 
 function startAppsCallCount(runPowerShell: ReturnType<typeof vi.fn>): number {
-  return runPowerShell.mock.calls.filter(([script]) => String(script).includes('Get-StartApps')).length
+  return runPowerShell.mock.calls.filter(([script]) => String(script).includes('Get-StartApps'))
+    .length
 }
 
 describe('appIndexService', () => {
@@ -187,15 +202,17 @@ describe('appIndexService', () => {
 
     await service.refreshAppIndex()
     const apps = (await service.listApps()).apps
-    expect(apps).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        name: 'Kiro',
-        appUserModelId: 'Kiro',
-        shortcutPath: 'C:\\Users\\Nikhil\\Desktop\\Kiro.lnk',
-        iconKey: expect.stringContaining('resources\\app\\resources\\win32\\code_70x70.png'),
-      }),
-      expect.objectContaining({ name: 'Native Only', appUserModelId: 'Native.Only' }),
-    ]))
+    expect(apps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'Kiro',
+          appUserModelId: 'Kiro',
+          shortcutPath: 'C:\\Users\\Nikhil\\Desktop\\Kiro.lnk',
+          iconKey: expect.stringContaining('resources\\app\\resources\\win32\\code_70x70.png'),
+        }),
+        expect.objectContaining({ name: 'Native Only', appUserModelId: 'Native.Only' }),
+      ])
+    )
     expect(apps.filter((app) => app.name === 'Kiro')).toHaveLength(1)
     expect(apps.filter((app) => app.name === 'Discord')).toHaveLength(1)
 
@@ -266,9 +283,9 @@ describe('appIndexService', () => {
     const matches = (await service.findApps('kiro')).matches
 
     expect(matches[0]).toMatchObject({ name: 'Kiro' })
-    expect(matches).not.toEqual(expect.arrayContaining([
-      expect.objectContaining({ name: 'Recent App' }),
-    ]))
+    expect(matches).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: 'Recent App' })])
+    )
   })
 
   it('uses local command center launches as a recency signal', async () => {
@@ -327,26 +344,33 @@ describe('appIndexService', () => {
       appUserModelId: 'Antigravity.App',
       description: '',
     })
-    shortcutDetails.set('C:\\Users\\Nikhil\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Antigravity.lnk', {
-      target: 'C:\\Users\\Nikhil\\AppData\\Local\\Programs\\Antigravity\\Antigravity.exe',
-      cwd: 'C:\\Users\\Nikhil\\AppData\\Local\\Programs\\Antigravity',
-      args: '',
-      icon: '',
-      iconIndex: 0,
-      appUserModelId: 'Antigravity.App',
-      description: '',
-    })
-
-    vi.mocked((await import('./tools/native-common')).runPowerShell).mockImplementation(async (script: string) => {
-      const apps = [
-        { name: 'Antigravity', appUserModelId: 'Antigravity.App' },
-        { name: 'Antigravity IDE', appUserModelId: 'Antigravity.IDE' },
-      ]
-      return {
-        stdout: apps.map((app) => JSON.stringify({ name: app.name, appUserModelId: app.appUserModelId })).join('\n'),
-        stderr: '',
+    shortcutDetails.set(
+      'C:\\Users\\Nikhil\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Antigravity.lnk',
+      {
+        target: 'C:\\Users\\Nikhil\\AppData\\Local\\Programs\\Antigravity\\Antigravity.exe',
+        cwd: 'C:\\Users\\Nikhil\\AppData\\Local\\Programs\\Antigravity',
+        args: '',
+        icon: '',
+        iconIndex: 0,
+        appUserModelId: 'Antigravity.App',
+        description: '',
       }
-    })
+    )
+
+    vi.mocked((await import('./tools/native-common')).runPowerShell).mockImplementation(
+      async (_script: string) => {
+        const apps = [
+          { name: 'Antigravity', appUserModelId: 'Antigravity.App' },
+          { name: 'Antigravity IDE', appUserModelId: 'Antigravity.IDE' },
+        ]
+        return {
+          stdout: apps
+            .map((app) => JSON.stringify({ name: app.name, appUserModelId: app.appUserModelId }))
+            .join('\n'),
+          stderr: '',
+        }
+      }
+    )
 
     const readdir = (await import('fs/promises')).readdir as ReturnType<typeof vi.fn>
     readdir.mockImplementation(async (root: string) => {
@@ -361,23 +385,26 @@ describe('appIndexService', () => {
     })
 
     await service.refreshAppIndex()
-    const antigravity = (await service.findApps('ant')).matches.filter((app) => app.name.startsWith('Antigravity'))
+    const antigravity = (await service.findApps('ant')).matches.filter((app) =>
+      app.name.startsWith('Antigravity')
+    )
 
     expect(antigravity).toHaveLength(2)
-    expect(antigravity).toEqual(expect.arrayContaining([
-      expect.objectContaining({ name: 'Antigravity', appUserModelId: 'Antigravity.App' }),
-      expect.objectContaining({ name: 'Antigravity IDE', appUserModelId: 'Antigravity.IDE' }),
-    ]))
+    expect(antigravity).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'Antigravity', appUserModelId: 'Antigravity.App' }),
+        expect.objectContaining({ name: 'Antigravity IDE', appUserModelId: 'Antigravity.IDE' }),
+      ])
+    )
   })
 
   it('enriches native app rows from versioned shortcut names for better icon candidates', async () => {
     const { service } = await loadService({
-      nativeApps: [
-        { name: 'Visual Studio', appUserModelId: 'VisualStudio.7c18beda' },
-      ],
+      nativeApps: [{ name: 'Visual Studio', appUserModelId: 'VisualStudio.7c18beda' }],
     })
     shortcutDetails.set('C:\\Users\\Nikhil\\Desktop\\Visual Studio 2022.lnk', {
-      target: 'C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\Common7\\IDE\\devenv.exe',
+      target:
+        'C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\Common7\\IDE\\devenv.exe',
       cwd: 'C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\Common7\\IDE',
       args: '',
       icon: '',
@@ -395,22 +422,23 @@ describe('appIndexService', () => {
 
     await service.refreshAppIndex()
 
-    expect((await service.findApps('visual')).matches).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        name: 'Visual Studio',
-        appUserModelId: 'VisualStudio.7c18beda',
-        shortcutPath: 'C:\\Users\\Nikhil\\Desktop\\Visual Studio 2022.lnk',
-        targetPath: 'C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\Common7\\IDE\\devenv.exe',
-        iconKey: expect.stringContaining('devenv.exe'),
-      }),
-    ]))
+    expect((await service.findApps('visual')).matches).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'Visual Studio',
+          appUserModelId: 'VisualStudio.7c18beda',
+          shortcutPath: 'C:\\Users\\Nikhil\\Desktop\\Visual Studio 2022.lnk',
+          targetPath:
+            'C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\Common7\\IDE\\devenv.exe',
+          iconKey: expect.stringContaining('devenv.exe'),
+        }),
+      ])
+    )
   })
 
   it('prefers packaged icons folder assets before executable fallback', async () => {
     const { service } = await loadService({
-      nativeApps: [
-        { name: 'GitHub Copilot', appUserModelId: 'com.github.githubapp' },
-      ],
+      nativeApps: [{ name: 'GitHub Copilot', appUserModelId: 'com.github.githubapp' }],
     })
     shortcutDetails.set('C:\\Users\\Nikhil\\Desktop\\GitHub Copilot.lnk', {
       target: 'C:\\Users\\Nikhil\\AppData\\Local\\Programs\\GitHub Copilot\\github.exe',
@@ -442,9 +470,7 @@ describe('appIndexService', () => {
 
   it('finds VS Code icons from versioned win32 resource folders when shortcut icon is empty', async () => {
     const { service } = await loadService({
-      nativeApps: [
-        { name: 'Visual Studio Code', appUserModelId: 'Microsoft.VisualStudioCode' },
-      ],
+      nativeApps: [{ name: 'Visual Studio Code', appUserModelId: 'Microsoft.VisualStudioCode' }],
     })
     shortcutDetails.set('C:\\Users\\Nikhil\\Desktop\\Visual Studio Code.lnk', {
       target: 'C:\\Users\\Nikhil\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe',
@@ -458,7 +484,8 @@ describe('appIndexService', () => {
     const fsPromises = await import('fs/promises')
     const readdirImplementation = vi.fn(async (root: string) => {
       if (root === 'C:\\Users\\Nikhil\\Desktop') return [fileEntry('Visual Studio Code.lnk')]
-      if (root === 'C:\\Users\\Nikhil\\AppData\\Local\\Programs\\Microsoft VS Code') return [dirEntry('stable')]
+      if (root === 'C:\\Users\\Nikhil\\AppData\\Local\\Programs\\Microsoft VS Code')
+        return [dirEntry('stable')]
       return []
     })
     vi.mocked(fsPromises.readdir).mockImplementation(readdirImplementation)
@@ -469,15 +496,15 @@ describe('appIndexService', () => {
     expect((await service.findApps('vscode')).matches[0]).toMatchObject({
       name: 'Visual Studio Code',
       targetPath: 'C:\\Users\\Nikhil\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe',
-      iconKey: expect.stringContaining('Microsoft VS Code\\*\\resources\\app\\resources\\win32\\code.ico'),
+      iconKey: expect.stringContaining(
+        'Microsoft VS Code\\*\\resources\\app\\resources\\win32\\code.ico'
+      ),
     })
   })
 
   it('finds paint.net sibling ico when shortcut icon is empty', async () => {
     const { service } = await loadService({
-      nativeApps: [
-        { name: 'paint.net', appUserModelId: 'paint.net' },
-      ],
+      nativeApps: [{ name: 'paint.net', appUserModelId: 'paint.net' }],
     })
     shortcutDetails.set('C:\\Users\\Nikhil\\Desktop\\paint.net.lnk', {
       target: 'C:\\Program Files\\paint.net\\paintdotnet.exe',
@@ -507,22 +534,31 @@ describe('appIndexService', () => {
 
   it('lists shortcut apps before the native refresh completes', async () => {
     const { service, runPowerShell } = await loadService()
-    runPowerShell.mockImplementation(() => new Promise((resolve) => {
-      setTimeout(() => resolve({
-        stdout: JSON.stringify({ name: 'Native Only', appUserModelId: 'Native.Only' }),
-        stderr: '',
-      }), 500)
-    }))
+    runPowerShell.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          setTimeout(
+            () =>
+              resolve({
+                stdout: JSON.stringify({ name: 'Native Only', appUserModelId: 'Native.Only' }),
+                stderr: '',
+              }),
+            500
+          )
+        })
+    )
 
     const startedAt = Date.now()
     const listed = await service.listApps()
     const elapsed = Date.now() - startedAt
 
     expect(elapsed).toBeLessThan(250)
-    expect(listed.apps).toEqual(expect.arrayContaining([
-      expect.objectContaining({ name: 'Kiro' }),
-      expect.objectContaining({ name: 'Claude' }),
-    ]))
+    expect(listed.apps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'Kiro' }),
+        expect.objectContaining({ name: 'Claude' }),
+      ])
+    )
   })
 
   it('keeps a stale snapshot available when refresh fails', async () => {
@@ -530,44 +566,52 @@ describe('appIndexService', () => {
     await service.refreshAppIndex()
 
     vi.resetModules()
-    const failed = await loadService({ runPowerShellError: new Error('Get-StartApps failed'), userDataPath })
+    const failed = await loadService({
+      runPowerShellError: new Error('Get-StartApps failed'),
+      userDataPath,
+    })
     const diagnostics = await failed.service.refreshAppIndex()
 
     expect(diagnostics.ok).toBe(false)
     expect(diagnostics.stale).toBe(true)
-    expect((await failed.service.listApps()).apps).toEqual(expect.arrayContaining([expect.objectContaining({ name: 'Kiro' })]))
+    expect((await failed.service.listApps()).apps).toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: 'Kiro' })])
+    )
   })
 
   it('merges duplicate native and shortcut rows from stale snapshots before rendering', async () => {
     const sameUserDataPath = await mkdtemp(path.join(os.tmpdir(), 'zura-app-index-snapshot-'))
-    await writeFile(path.join(sameUserDataPath, 'command-center-app-index.json'), JSON.stringify({
-      version: 1,
-      updatedAt: Date.now(),
-      sourceCounts: { 'windows-search': 1, desktop: 1 },
-      apps: [
-        {
-          id: 'app:S2lybw',
-          name: 'Kiro',
-          normalizedName: 'kiro',
-          aliases: ['Kiro'],
-          source: 'windows-search',
-          appUserModelId: 'Kiro',
-          launchStrategy: 'appUserModelId',
-          lastSeenAt: 1,
-        },
-        {
-          id: 'app:QzpcVXNlcnNcTmlraGlsXERlc2t0b3BcS2lyby5sbms',
-          name: 'Kiro',
-          normalizedName: 'kiro',
-          aliases: ['Kiro'],
-          source: 'desktop',
-          shortcutPath: 'C:\\Users\\Nikhil\\Desktop\\Kiro.lnk',
-          targetPath: 'C:\\Users\\Nikhil\\AppData\\Local\\Programs\\Kiro\\Kiro.exe',
-          launchStrategy: 'shortcutPath',
-          lastSeenAt: 2,
-        },
-      ],
-    }))
+    await writeFile(
+      path.join(sameUserDataPath, 'command-center-app-index.json'),
+      JSON.stringify({
+        version: 1,
+        updatedAt: Date.now(),
+        sourceCounts: { 'windows-search': 1, desktop: 1 },
+        apps: [
+          {
+            id: 'app:S2lybw',
+            name: 'Kiro',
+            normalizedName: 'kiro',
+            aliases: ['Kiro'],
+            source: 'windows-search',
+            appUserModelId: 'Kiro',
+            launchStrategy: 'appUserModelId',
+            lastSeenAt: 1,
+          },
+          {
+            id: 'app:QzpcVXNlcnNcTmlraGlsXERlc2t0b3BcS2lyby5sbms',
+            name: 'Kiro',
+            normalizedName: 'kiro',
+            aliases: ['Kiro'],
+            source: 'desktop',
+            shortcutPath: 'C:\\Users\\Nikhil\\Desktop\\Kiro.lnk',
+            targetPath: 'C:\\Users\\Nikhil\\AppData\\Local\\Programs\\Kiro\\Kiro.exe',
+            launchStrategy: 'shortcutPath',
+            lastSeenAt: 2,
+          },
+        ],
+      })
+    )
 
     const { service, runPowerShell } = await loadService({ userDataPath: sameUserDataPath })
     const apps = (await service.listApps()).apps
@@ -585,7 +629,9 @@ describe('appIndexService', () => {
   it('requests sanitized ndjson output for windows-search refresh', async () => {
     const { service, runPowerShell } = await loadService()
     await service.refreshAppIndex()
-    const startAppsCall = runPowerShell.mock.calls.find(([script]) => String(script).includes('Get-StartApps'))
+    const startAppsCall = runPowerShell.mock.calls.find(([script]) =>
+      String(script).includes('Get-StartApps')
+    )
     const script = String(startAppsCall?.[0] ?? '')
     expect(script).toContain('Remove-ControlChars')
     expect(script).toContain('ConvertTo-Json -Compress')
@@ -596,7 +642,9 @@ describe('appIndexService', () => {
 
   it('keeps partial app results when ndjson output is truncated', async () => {
     const { service } = await loadService()
-    const runPowerShell = (await import('./tools/native-common')).runPowerShell as ReturnType<typeof vi.fn>
+    const runPowerShell = (await import('./tools/native-common')).runPowerShell as ReturnType<
+      typeof vi.fn
+    >
     runPowerShell.mockResolvedValueOnce({
       stdout: [
         '{"name":"First App","appUserModelId":"First.App"}',
@@ -609,15 +657,21 @@ describe('appIndexService', () => {
     const diagnostics = await service.refreshAppIndex()
 
     expect(diagnostics.ok).toBe(true)
-    expect((await service.listApps()).apps).toEqual(expect.arrayContaining([
-      expect.objectContaining({ name: 'First App', appUserModelId: 'First.App' }),
-    ]))
+    expect((await service.listApps()).apps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'First App', appUserModelId: 'First.App' }),
+      ])
+    )
   })
 
   it('shares concurrent refresh calls and bounds icon jobs', async () => {
     const { service, runPowerShell } = await loadService({ iconDelayMs: 20 })
 
-    await Promise.all([service.refreshAppIndex(), service.refreshAppIndex(), service.refreshAppIndex()])
+    await Promise.all([
+      service.refreshAppIndex(),
+      service.refreshAppIndex(),
+      service.refreshAppIndex(),
+    ])
     expect(startAppsCallCount(runPowerShell)).toBe(1)
 
     const apps = (await service.listApps()).apps.slice(0, 8)

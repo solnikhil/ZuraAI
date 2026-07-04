@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest'
 
 import { getToolByName } from '../definitions'
 import { convertToOpenRouterFormat, formatToolResultsForOpenRouter } from './openrouter'
-import { extractInlineToolCallsFromContent, extractXmlToolCallsFromContent } from './openrouterToolCalls'
+import {
+  extractInlineToolCallsFromContent,
+  extractXmlToolCallsFromContent,
+} from './openrouterToolCalls'
 
 describe('convertToOpenRouterFormat', () => {
   it('preserves web search schemas during conversion', () => {

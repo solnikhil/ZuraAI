@@ -22,13 +22,18 @@ export { refreshAppIndex, warmAppIndex }
 
 function runWinget(args: string[]): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
-    execFile('winget.exe', args, { windowsHide: true, timeout: 60_000 }, (error, stdout, stderr) => {
-      if (error) {
-        reject(new Error(stderr?.trim() || error.message))
-        return
+    execFile(
+      'winget.exe',
+      args,
+      { windowsHide: true, timeout: 60_000 },
+      (error, stdout, stderr) => {
+        if (error) {
+          reject(new Error(stderr?.trim() || error.message))
+          return
+        }
+        resolve({ stdout: truncateOutput(stdout ?? ''), stderr: truncateOutput(stderr ?? '') })
       }
-      resolve({ stdout: truncateOutput(stdout ?? ''), stderr: truncateOutput(stderr ?? '') })
-    })
+    )
   })
 }
 
@@ -81,11 +86,16 @@ export async function executeAppLaunch(args: unknown): Promise<ToolResult> {
   const nameOrPath = stringArg(args, 'nameOrPath')
   const appUserModelId = stringArg(args, 'appUserModelId')
   const itemId = stringArg(args, 'itemId')
-  if (!nameOrPath && !appUserModelId) return { success: false, error: 'nameOrPath or appUserModelId is required.' }
+  if (!nameOrPath && !appUserModelId)
+    return { success: false, error: 'nameOrPath or appUserModelId is required.' }
   try {
     if (appUserModelId) {
       await runPowerShell(`Start-Process ${JSON.stringify(`shell:AppsFolder\\${appUserModelId}`)}`)
-    } else if (nameOrPath.includes('\\') || nameOrPath.includes('/') || nameOrPath.endsWith('.lnk')) {
+    } else if (
+      nameOrPath.includes('\\') ||
+      nameOrPath.includes('/') ||
+      nameOrPath.endsWith('.lnk')
+    ) {
       const error = await shell.openPath(nameOrPath)
       if (error) {
         refreshAppIndex().catch(() => undefined)
@@ -111,7 +121,14 @@ export async function executeAppInstall(args: unknown): Promise<ToolResult> {
   const packageId = stringArg(args, 'packageId')
   if (!packageId) return { success: false, error: 'packageId is required.' }
   try {
-    const result = await runWinget(['install', '--id', packageId, '--silent', '--accept-package-agreements', '--accept-source-agreements'])
+    const result = await runWinget([
+      'install',
+      '--id',
+      packageId,
+      '--silent',
+      '--accept-package-agreements',
+      '--accept-source-agreements',
+    ])
     refreshAppIndex().catch(() => undefined)
     return { success: true, data: { packageId, ...result } }
   } catch (error) {
@@ -126,10 +143,19 @@ export async function executeAppUninstall(args: unknown): Promise<ToolResult> {
   const packageId = stringArg(args, 'packageId')
   if (!packageId) return { success: false, error: 'packageId is required.' }
   try {
-    const result = await runWinget(['uninstall', '--id', packageId, '--silent', '--accept-source-agreements'])
+    const result = await runWinget([
+      'uninstall',
+      '--id',
+      packageId,
+      '--silent',
+      '--accept-source-agreements',
+    ])
     refreshAppIndex().catch(() => undefined)
     return { success: true, data: { packageId, ...result } }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : 'app_uninstall failed.' }
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'app_uninstall failed.',
+    }
   }
 }

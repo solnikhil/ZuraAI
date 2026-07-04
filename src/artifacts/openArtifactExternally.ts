@@ -47,7 +47,10 @@ export async function resolveArtifactContent(
 
   if (!window.ipcRenderer) return null
 
-  const fullSession = await window.ipcRenderer.invoke('chat-store:get-session', sessionId) as ChatSession | null
+  const fullSession = (await window.ipcRenderer.invoke(
+    'chat-store:get-session',
+    sessionId
+  )) as ChatSession | null
   const artifact = fullSession?.artifacts?.find((entry) => entry.id === artifactId) ?? null
   if (!artifact) return null
 

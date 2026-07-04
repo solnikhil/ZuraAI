@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  buildAgentVerificationPrompt,
-  selectVerificationStrategy,
-} from './reliability'
+import { buildAgentVerificationPrompt, selectVerificationStrategy } from './reliability'
 
 describe('agent reliability helpers', () => {
   it('selects file verification for successful file mutations', () => {

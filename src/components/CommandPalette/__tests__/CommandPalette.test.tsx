@@ -24,7 +24,13 @@ const mockShowToast = vi.fn()
 const commandPaletteTestState = vi.hoisted(() => ({
   writeTextToClipboard: vi.fn(async () => true),
   invoke: vi.fn(async () => null),
-  sessions: [] as Array<{ id: string; title: string; messages: unknown[]; createdAt: number; updatedAt: number }>,
+  sessions: [] as Array<{
+    id: string
+    title: string
+    messages: unknown[]
+    createdAt: number
+    updatedAt: number
+  }>,
   currentSessionId: null as string | null,
 }))
 
@@ -287,7 +293,6 @@ describe('CommandPalette unit tests', () => {
       expect(listbox?.textContent).toContain('Commands')
     })
   })
-
 
   describe('non-empty query flat list', () => {
     it('shows flat list without group headers when query is non-empty', () => {

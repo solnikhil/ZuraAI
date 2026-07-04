@@ -35,16 +35,18 @@ function buildAutomationBody(task: ScheduledTaskDefinition, run: ScheduledTaskRu
   return stripEmptyLines([
     `AI automation: ${task.title}`,
     '',
-    run.changeVerdict?.summary || run.outputText || run.aiSummary || run.error || 'The automation finished.',
+    run.changeVerdict?.summary ||
+      run.outputText ||
+      run.aiSummary ||
+      run.error ||
+      'The automation finished.',
     '',
     run.resolvedContextSummary ? `Context: ${run.resolvedContextSummary}` : undefined,
   ])
 }
 
 function getChangedUrls(run: ScheduledTaskRun): string[] {
-  return run.logs
-    .filter((log) => log.status === 'changed' && log.url)
-    .map((log) => log.url)
+  return run.logs.filter((log) => log.status === 'changed' && log.url).map((log) => log.url)
 }
 
 function buildHtmlContent(
@@ -60,10 +62,7 @@ function buildHtmlContent(
       summary: task.reminderText || task.instructions || 'A reminder is due now.',
       notificationMessage: task.reminderText || task.instructions || textContent,
       detailTitle: 'Reminder details',
-      detailItems: [
-        `Title: ${task.title}`,
-        `Schedule: ${task.intervalPreset}`,
-      ],
+      detailItems: [`Title: ${task.title}`, `Schedule: ${task.intervalPreset}`],
       metadata: [
         { label: 'automation status', value: 'Triggered' },
         { label: 'notification', value: 'Email' },
@@ -75,7 +74,12 @@ function buildHtmlContent(
     return buildNotificationEmailHtml({
       notificationType: run.status === 'error' ? 'Automation failed' : 'AI automation',
       title: subject,
-      summary: run.changeVerdict?.summary || run.outputText || run.aiSummary || run.error || 'The automation finished.',
+      summary:
+        run.changeVerdict?.summary ||
+        run.outputText ||
+        run.aiSummary ||
+        run.error ||
+        'The automation finished.',
       notificationMessage: textContent,
       detailTitle: 'Automation details',
       detailItems: [
@@ -84,7 +88,11 @@ function buildHtmlContent(
         `Schedule: ${task.schedule?.kind ?? task.intervalPreset}`,
       ],
       metadata: [
-        { label: 'automation status', value: run.status === 'changed' ? 'Changed' : run.status === 'error' ? 'Error' : 'Completed' },
+        {
+          label: 'automation status',
+          value:
+            run.status === 'changed' ? 'Changed' : run.status === 'error' ? 'Error' : 'Completed',
+        },
         { label: 'notification', value: 'Email' },
       ],
     })
@@ -120,7 +128,8 @@ export async function sendScheduledTaskEmail(
     if (!destinations.includes('email')) return { ok: true, skipped: true }
     const notifyPolicy = task.notifyPolicy ?? 'every_run'
     if (notifyPolicy === 'error_only' && run.status !== 'error') return { ok: true, skipped: true }
-    if (notifyPolicy === 'meaningful_change' && run.status !== 'changed') return { ok: true, skipped: true }
+    if (notifyPolicy === 'meaningful_change' && run.status !== 'changed')
+      return { ok: true, skipped: true }
   }
 
   const subject =

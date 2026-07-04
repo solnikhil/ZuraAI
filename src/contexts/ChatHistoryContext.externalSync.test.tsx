@@ -57,7 +57,6 @@ describe('ChatHistoryContext external sync', () => {
     ]
     persistedFolders = []
     ipcListeners.clear()
-
     ;(window as typeof window & { ipcRenderer: IElectronAPI }).ipcRenderer = {
       invoke: vi.fn(async (channel: string, ...args: unknown[]) => {
         if (channel === 'chat-store:get-metadata') return persistedSessions.map(sessionMetadata)
@@ -79,11 +78,15 @@ describe('ChatHistoryContext external sync', () => {
           return true
         }
         if (channel === 'chat-store:save-index') {
-          const index = args[0] as { sessions: ReturnType<typeof sessionMetadata>[]; folders: Folder[] }
+          const index = args[0] as {
+            sessions: ReturnType<typeof sessionMetadata>[]
+            folders: Folder[]
+          }
           persistedFolders = index.folders
           persistedSessions = index.sessions.map((metadata) => ({
             ...metadata,
-            messages: persistedSessions.find((session) => session.id === metadata.id)?.messages ?? [],
+            messages:
+              persistedSessions.find((session) => session.id === metadata.id)?.messages ?? [],
           }))
           ipcListeners.get('chat-store:changed')?.({})
           return true
@@ -137,9 +140,12 @@ describe('ChatHistoryContext external sync', () => {
       </ChatHistoryProvider>
     )
 
-    await waitFor(() => {
-      expect(screen.getByTestId('session-count').textContent).toBe('1')
-    }, { timeout: 1000 })
+    await waitFor(
+      () => {
+        expect(screen.getByTestId('session-count').textContent).toBe('1')
+      },
+      { timeout: 1000 }
+    )
 
     await act(async () => {
       await Promise.resolve()
@@ -147,10 +153,13 @@ describe('ChatHistoryContext external sync', () => {
 
     fireEvent.click(screen.getByText('switch-session-1'))
 
-    await waitFor(() => {
-      expect(screen.getByTestId('current-session-id').textContent).toBe('session-1')
-      expect(screen.getByTestId('current-title').textContent).toBe('Original chat')
-    }, { timeout: 1000 })
+    await waitFor(
+      () => {
+        expect(screen.getByTestId('current-session-id').textContent).toBe('session-1')
+        expect(screen.getByTestId('current-title').textContent).toBe('Original chat')
+      },
+      { timeout: 1000 }
+    )
 
     persistedSessions = [
       {
@@ -179,23 +188,21 @@ describe('ChatHistoryContext external sync', () => {
 
     fireEvent.click(screen.getByText('refresh-sessions'))
 
-    await waitFor(() => {
-      expect(screen.getByTestId('session-count').textContent).toBe('2')
-      expect(screen.getByTestId('current-session-id').textContent).toBe('session-1')
-      expect(screen.getByTestId('current-title').textContent).toBe('Updated from overlay')
-    }, { timeout: 1000 })
+    await waitFor(
+      () => {
+        expect(screen.getByTestId('session-count').textContent).toBe('2')
+        expect(screen.getByTestId('current-session-id').textContent).toBe('session-1')
+        expect(screen.getByTestId('current-title').textContent).toBe('Updated from overlay')
+      },
+      { timeout: 1000 }
+    )
   })
 
   it('keeps active-session optimistic messages when a stale external reload is signaled before save', async () => {
     const { ChatHistoryProvider, useChatHistory } = await import('./ChatHistoryContext')
 
     function Probe() {
-      const {
-        sessions,
-        currentSessionId,
-        switchSession,
-        addMessageToSession,
-      } = useChatHistory()
+      const { sessions, currentSessionId, switchSession, addMessageToSession } = useChatHistory()
       const currentSession = sessions.find((session) => session.id === currentSessionId)
 
       return (
@@ -239,7 +246,7 @@ describe('ChatHistoryContext external sync', () => {
     })
 
     await waitFor(() => {
-      expect((window.ipcRenderer.invoke as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith(
+      expect(window.ipcRenderer.invoke as unknown as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
         'chat-store:get-metadata'
       )
     })
@@ -283,9 +290,9 @@ describe('ChatHistoryContext external sync', () => {
     vi.useRealTimers()
 
     await waitFor(() => {
-      expect(persistedSessions[0].messages.some((message) => message.content === 'new user message')).toBe(
-        true
-      )
+      expect(
+        persistedSessions[0].messages.some((message) => message.content === 'new user message')
+      ).toBe(true)
     })
   })
 

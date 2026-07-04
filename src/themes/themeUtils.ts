@@ -1,9 +1,5 @@
 import { ColorPalette, Theme } from './themeDefinitions'
-import {
-  derivePaletteFromBase,
-  getLightChromeBackground,
-  mixHex,
-} from './themeRegistry'
+import { derivePaletteFromBase, getLightChromeBackground, mixHex } from './themeRegistry'
 
 const THEME_CSS_VAR_MAP = {
   background: '--theme-background',
@@ -90,8 +86,6 @@ function resolveTheme(theme: Theme, options?: ApplyThemeOptions): Theme {
     colors: derivePaletteFromBase(accent, background, foreground, contrast, theme.isDark),
   }
 }
-
-
 
 export function getThemeCssVariables(theme: Theme): Record<ThemeCssVar, string> {
   const cssVars = {} as Record<ThemeCssVar, string>

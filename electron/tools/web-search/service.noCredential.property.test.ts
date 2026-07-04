@@ -51,9 +51,7 @@ const VALID_TOPICS = ['general', 'news', 'finance'] as const
 // ---------------------------------------------------------------------------
 
 /** A non-empty query string (at least one non-whitespace char). */
-const arbValidQuery = fc
-  .string({ minLength: 1, maxLength: 200 })
-  .filter((s) => s.trim().length > 0)
+const arbValidQuery = fc.string({ minLength: 1, maxLength: 200 }).filter((s) => s.trim().length > 0)
 
 /** A valid search_depth or undefined. */
 const arbValidSearchDepth = fc.oneof(
@@ -62,22 +60,13 @@ const arbValidSearchDepth = fc.oneof(
 )
 
 /** A valid time_range or undefined. */
-const arbValidTimeRange = fc.oneof(
-  fc.constantFrom(...VALID_TIME_RANGES),
-  fc.constant(undefined)
-)
+const arbValidTimeRange = fc.oneof(fc.constantFrom(...VALID_TIME_RANGES), fc.constant(undefined))
 
 /** A valid topic or undefined. */
-const arbValidTopic = fc.oneof(
-  fc.constantFrom(...VALID_TOPICS),
-  fc.constant(undefined)
-)
+const arbValidTopic = fc.oneof(fc.constantFrom(...VALID_TOPICS), fc.constant(undefined))
 
 /** Arbitrary num_results: valid range or undefined. */
-const arbNumResults = fc.oneof(
-  fc.integer({ min: 1, max: 4 }),
-  fc.constant(undefined)
-)
+const arbNumResults = fc.oneof(fc.integer({ min: 1, max: 4 }), fc.constant(undefined))
 
 /** Arbitrary include_images: boolean or undefined. */
 const arbIncludeImages = fc.oneof(fc.boolean(), fc.constant(undefined))

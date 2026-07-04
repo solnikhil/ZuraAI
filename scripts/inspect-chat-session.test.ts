@@ -17,7 +17,10 @@ function encodeBase64Url(value: string) {
     .replace(/=+$/g, '')
 }
 
-function runInspector(args: string[], env: Record<string, string | undefined> = { ZURA_USER_DATA_DIR: userDataDir }) {
+function runInspector(
+  args: string[],
+  env: Record<string, string | undefined> = { ZURA_USER_DATA_DIR: userDataDir }
+) {
   return spawnSync(process.execPath, [scriptPath, ...args], {
     env: {
       ...process.env,
@@ -149,7 +152,9 @@ describe('inspect-chat-session script', () => {
           model: 'deepseek-v4-pro',
           usage: { inputTokens: 10, outputTokens: 2, totalTokens: 12, cachedInputTokens: 4 },
         },
-      ].map((event) => JSON.stringify(event)).join('\n') + '\n'
+      ]
+        .map((event) => JSON.stringify(event))
+        .join('\n') + '\n'
     )
   })
 
@@ -213,7 +218,9 @@ describe('inspect-chat-session script', () => {
 
   it('resolves zura-chat debug references before environment overrides', () => {
     const reference = `zura-chat://session-1?userData=${encodeBase64Url(userDataDir)}`
-    const result = runInspector([reference], { ZURA_USER_DATA_DIR: path.join(os.tmpdir(), 'wrong-zura-dir') })
+    const result = runInspector([reference], {
+      ZURA_USER_DATA_DIR: path.join(os.tmpdir(), 'wrong-zura-dir'),
+    })
 
     expect(result.status).toBe(0)
     expect(result.stdout).toContain(`- User data: \`${userDataDir}\``)

@@ -47,9 +47,11 @@ function buildTavilySuccessResponse(): Response {
   return new Response(body, { status: 200, headers: { 'Content-Type': 'application/json' } })
 }
 
-const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit): Promise<Response> => {
-  return buildTavilySuccessResponse()
-}) as unknown as typeof fetch
+const fetchMock = vi.fn(
+  async (_input: RequestInfo | URL, _init?: RequestInit): Promise<Response> => {
+    return buildTavilySuccessResponse()
+  }
+) as unknown as typeof fetch
 
 vi.stubGlobal('fetch', fetchMock)
 
@@ -85,16 +87,10 @@ const arbValidArgs = fc.record({
   num_results: fc.oneof(fc.integer({ min: 1, max: 10 }), fc.constant(undefined)),
   search_depth: fc.oneof(
     fc.constantFrom('ultra-fast', 'fast', 'basic', 'advanced'),
-    fc.constant(undefined),
+    fc.constant(undefined)
   ),
-  time_range: fc.oneof(
-    fc.constantFrom('day', 'week', 'month', 'year'),
-    fc.constant(undefined),
-  ),
-  topic: fc.oneof(
-    fc.constantFrom('general', 'news', 'finance'),
-    fc.constant(undefined),
-  ),
+  time_range: fc.oneof(fc.constantFrom('day', 'week', 'month', 'year'), fc.constant(undefined)),
+  topic: fc.oneof(fc.constantFrom('general', 'news', 'finance'), fc.constant(undefined)),
   urls: fc.constant(undefined),
   include_images: fc.oneof(fc.boolean(), fc.constant(undefined)),
 })
@@ -128,7 +124,7 @@ describe('executeWebSearch — Property 1: Contract preservation', () => {
         // Must resolve to a defined value
         expect(result).toBeDefined()
       }),
-      PROPERTY_TEST_CONFIG,
+      PROPERTY_TEST_CONFIG
     )
   })
 
@@ -141,7 +137,7 @@ describe('executeWebSearch — Property 1: Contract preservation', () => {
         expect(result).toHaveProperty('success')
         expect(typeof result.success).toBe('boolean')
       }),
-      PROPERTY_TEST_CONFIG,
+      PROPERTY_TEST_CONFIG
     )
   })
 
@@ -177,7 +173,7 @@ describe('executeWebSearch — Property 1: Contract preservation', () => {
         // source: string
         expect(typeof data.source).toBe('string')
       }),
-      PROPERTY_TEST_CONFIG,
+      PROPERTY_TEST_CONFIG
     )
   })
 })

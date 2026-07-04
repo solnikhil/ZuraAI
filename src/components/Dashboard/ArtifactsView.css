@@ -130,7 +130,9 @@
   text-align: center;
   font-size: 11px;
   font-weight: 650;
-  transition: background 0.14s ease, color 0.14s ease;
+  transition:
+    background 0.14s ease,
+    color 0.14s ease;
 }
 
 .artifacts-view__tabs-trigger[data-state='active'] .artifacts-view__tabs-count {
@@ -156,7 +158,9 @@
   border-radius: 12px;
   background: color-mix(in srgb, var(--theme-surface-active) 76%, var(--theme-background));
   overflow: hidden;
-  transition: background 0.16s ease, border-color 0.16s ease;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease;
 }
 
 .artifacts-view__row-card:hover,

@@ -110,7 +110,10 @@ function boolFilterArg(args: unknown, key: string): boolean | undefined {
   return isRecord(args) && typeof args[key] === 'boolean' ? args[key] : undefined
 }
 
-function stableElementId(hwnd: number, raw: Pick<RawElement, 'runtimeId' | 'automationId' | 'controlType' | 'name'>): string {
+function stableElementId(
+  hwnd: number,
+  raw: Pick<RawElement, 'runtimeId' | 'automationId' | 'controlType' | 'name'>
+): string {
   const fingerprint = `${hwnd}|${raw.runtimeId}|${raw.automationId || ''}|${raw.controlType || ''}|${raw.name || ''}`
   return `uie_${createHash('sha256').update(fingerprint).digest('hex').slice(0, 24)}`
 }
@@ -360,7 +363,13 @@ if ($null -ne $activeWindow) {
 `
 }
 
-function runtimeActionScript(action: 'invoke' | 'setValue' | 'select' | 'focus' | 'scroll', entry: ElementCacheEntry, value?: string, direction?: string, amount?: number): string {
+function runtimeActionScript(
+  action: 'invoke' | 'setValue' | 'select' | 'focus' | 'scroll',
+  entry: ElementCacheEntry,
+  value?: string,
+  direction?: string,
+  amount?: number
+): string {
   return `
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
@@ -416,8 +425,14 @@ switch (${psString(action)}) {
 `
 }
 
-async function runSnapshot(args: unknown, maxDepth: number, maxElements: number): Promise<RawSnapshot> {
-  const { stdout } = await runPowerShell(snapshotScript(args, maxDepth, maxElements), { maxOutputLength: 512_000 })
+async function runSnapshot(
+  args: unknown,
+  maxDepth: number,
+  maxElements: number
+): Promise<RawSnapshot> {
+  const { stdout } = await runPowerShell(snapshotScript(args, maxDepth, maxElements), {
+    maxOutputLength: 512_000,
+  })
   return parseJsonOutput<RawSnapshot>(stdout)
 }
 
@@ -443,7 +458,8 @@ async function buildAppState(args: unknown = {}): Promise<UiAppState> {
       ? {
           hwnd: typeof raw.activeWindow.hwnd === 'number' ? raw.activeWindow.hwnd : 0,
           title: raw.activeWindow.title || '',
-          process_id: typeof raw.activeWindow.processId === 'number' ? raw.activeWindow.processId : 0,
+          process_id:
+            typeof raw.activeWindow.processId === 'number' ? raw.activeWindow.processId : 0,
           process_name: raw.activeWindow.processName || '',
         }
       : undefined,
@@ -458,7 +474,16 @@ async function buildAppState(args: unknown = {}): Promise<UiAppState> {
     truncation: {
       max_depth: maxDepth,
       max_elements: maxElements,
-      element_count: typeof raw.elementCount === 'number' ? raw.elementCount : flattenWindows({ state_id: '', captured_at: now, screenshot: {} as UiAppState['screenshot'], windows, truncation: {} as UiAppState['truncation'] }).length,
+      element_count:
+        typeof raw.elementCount === 'number'
+          ? raw.elementCount
+          : flattenWindows({
+              state_id: '',
+              captured_at: now,
+              screenshot: {} as UiAppState['screenshot'],
+              windows,
+              truncation: {} as UiAppState['truncation'],
+            }).length,
       truncated: raw.truncated === true,
     },
   }
@@ -485,7 +510,13 @@ function matchElement(element: UiAutomationElement, args: UiFindArgs): boolean {
   if (args.name && !textMatches(element.name, args.name)) return false
   if (args.value && !textMatches(element.value, args.value)) return false
   const text = args.text || args.query
-  if (text && ![element.name, element.value, element.automation_id, element.role].some((candidate) => textMatches(candidate, text))) return false
+  if (
+    text &&
+    ![element.name, element.value, element.automation_id, element.role].some((candidate) =>
+      textMatches(candidate, text)
+    )
+  )
+    return false
   if (typeof args.enabled === 'boolean' && element.enabled !== args.enabled) return false
   if (typeof args.visible === 'boolean' && element.visible !== args.visible) return false
   if (typeof args.focused === 'boolean' && element.focused !== args.focused) return false
@@ -501,7 +532,9 @@ export function findElementsInState(state: UiAppState, args: UiFindArgs): UiAuto
         let current: UiAutomationElement | undefined = element
         while (current?.parent_element_id) {
           if (current.parent_element_id === args.parent_element_id) return true
-          current = allElements.find((candidate) => candidate.element_id === current?.parent_element_id)
+          current = allElements.find(
+            (candidate) => candidate.element_id === current?.parent_element_id
+          )
         }
         return false
       })
@@ -552,7 +585,13 @@ async function returnFreshState(args: unknown): Promise<ToolResult> {
   return { success: true, data: { state } }
 }
 
-async function runUiaAction(action: 'invoke' | 'setValue' | 'select' | 'focus' | 'scroll', entry: ElementCacheEntry, value?: string, direction?: string, amount?: number): Promise<void> {
+async function runUiaAction(
+  action: 'invoke' | 'setValue' | 'select' | 'focus' | 'scroll',
+  entry: ElementCacheEntry,
+  value?: string,
+  direction?: string,
+  amount?: number
+): Promise<void> {
   await runPowerShell(runtimeActionScript(action, entry, value, direction, amount))
 }
 
@@ -562,7 +601,10 @@ export async function executeUiGetAppState(args: unknown): Promise<ToolResult> {
     const state = await buildAppState(args)
     return { success: true, data: { state } }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : 'ui_get_app_state failed.' }
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'ui_get_app_state failed.',
+    }
   }
 }
 
@@ -570,8 +612,11 @@ export async function executeUiFind(args: unknown): Promise<ToolResult> {
   if (!isWindows()) return unsupportedWindowsOnly('ui_find')
   try {
     const findArgs = parseFindArgs(args)
-    const state = getState(findArgs.state_id) || await buildAppState(args)
-    return { success: true, data: { state_id: state.state_id, matches: findElementsInState(state, findArgs) } }
+    const state = getState(findArgs.state_id) || (await buildAppState(args))
+    return {
+      success: true,
+      data: { state_id: state.state_id, matches: findElementsInState(state, findArgs) },
+    }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : 'ui_find failed.' }
   }
@@ -580,8 +625,21 @@ export async function executeUiFind(args: unknown): Promise<ToolResult> {
 export async function executeUiWaitFor(args: unknown): Promise<ToolResult> {
   if (!isWindows()) return unsupportedWindowsOnly('ui_wait_for')
   const waitArgs = parseFindArgs(args) as UiWaitForArgs
-  const timeoutMs = Math.min(clampTimeoutMs(isRecord(args) ? args.timeout_ms : undefined, DEFAULT_WAIT_TIMEOUT_MS), MAX_WAIT_TIMEOUT_MS)
-  const intervalMs = Math.min(Math.max(100, Math.floor(isRecord(args) && typeof args.interval_ms === 'number' ? args.interval_ms : DEFAULT_WAIT_INTERVAL_MS)), 2_000)
+  const timeoutMs = Math.min(
+    clampTimeoutMs(isRecord(args) ? args.timeout_ms : undefined, DEFAULT_WAIT_TIMEOUT_MS),
+    MAX_WAIT_TIMEOUT_MS
+  )
+  const intervalMs = Math.min(
+    Math.max(
+      100,
+      Math.floor(
+        isRecord(args) && typeof args.interval_ms === 'number'
+          ? args.interval_ms
+          : DEFAULT_WAIT_INTERVAL_MS
+      )
+    ),
+    2_000
+  )
   const startedAt = Date.now()
 
   try {
@@ -609,11 +667,21 @@ export async function executeUiClick(args: unknown): Promise<ToolResult> {
       await runUiaAction('invoke', entry)
     } else if (entry) {
       const point = centerOf(entry.bounds)
-      await performClick({ ...point, button: isRecord(args) && args.button === 'right' ? 'right' : 'left' })
+      await performClick({
+        ...point,
+        button: isRecord(args) && args.button === 'right' ? 'right' : 'left',
+      })
     } else if (isRecord(args) && typeof args.x === 'number' && typeof args.y === 'number') {
-      await performClick({ x: args.x, y: args.y, button: args.button === 'right' ? 'right' : 'left' })
+      await performClick({
+        x: args.x,
+        y: args.y,
+        button: args.button === 'right' ? 'right' : 'left',
+      })
     } else {
-      return { success: false, error: 'element_id is required unless x and y fallback coordinates are provided.' }
+      return {
+        success: false,
+        error: 'element_id is required unless x and y fallback coordinates are provided.',
+      }
     }
     return returnFreshState(args)
   } catch (error) {
@@ -630,7 +698,9 @@ export async function executeUiTypeText(args: unknown): Promise<ToolResult> {
   try {
     const entry = getElementEntry(args)
     if (entry) {
-      try { await runUiaAction('focus', entry) } catch {
+      try {
+        await runUiaAction('focus', entry)
+      } catch {
         const point = centerOf(entry.bounds)
         await performClick(point)
       }
@@ -638,7 +708,10 @@ export async function executeUiTypeText(args: unknown): Promise<ToolResult> {
     await performType({ text })
     return returnFreshState(args)
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : 'ui_type_text failed.' }
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'ui_type_text failed.',
+    }
   }
 }
 
@@ -653,7 +726,10 @@ export async function executeUiSetValue(args: unknown): Promise<ToolResult> {
     await runUiaAction('setValue', entry, value)
     return returnFreshState(args)
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : 'ui_set_value failed.' }
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'ui_set_value failed.',
+    }
   }
 }
 
@@ -675,7 +751,10 @@ export async function executeUiScroll(args: unknown): Promise<ToolResult> {
   if (!isWindows()) return unsupportedWindowsOnly('ui_scroll')
   const approval = requireApproval(args, 'ui_scroll')
   if (approval) return approval
-  const direction = isRecord(args) && ['up', 'down', 'left', 'right'].includes(String(args.direction)) ? String(args.direction) as 'up' | 'down' | 'left' | 'right' : 'down'
+  const direction =
+    isRecord(args) && ['up', 'down', 'left', 'right'].includes(String(args.direction))
+      ? (String(args.direction) as 'up' | 'down' | 'left' | 'right')
+      : 'down'
   const amount = isRecord(args) && typeof args.amount === 'number' ? args.amount : 3
   try {
     const entry = getElementEntry(args)
@@ -687,7 +766,10 @@ export async function executeUiScroll(args: unknown): Promise<ToolResult> {
     } else if (isRecord(args) && typeof args.x === 'number' && typeof args.y === 'number') {
       await performScroll({ x: args.x, y: args.y, direction, amount })
     } else {
-      return { success: false, error: 'element_id is required unless x and y fallback coordinates are provided.' }
+      return {
+        success: false,
+        error: 'element_id is required unless x and y fallback coordinates are provided.',
+      }
     }
     return returnFreshState(args)
   } catch (error) {

@@ -162,17 +162,20 @@ export function registerMemoryStoreHandlers(): void {
     return summaryStore.getAllSummariesAsync()
   })
 
-  ipcMain.handle('memory:summaries-upsert', async (_event, sessionId: unknown, summary: unknown) => {
-    if (typeof sessionId !== 'string' || !sessionId.trim()) {
-      throw new Error('Invalid conversation summary sessionId')
+  ipcMain.handle(
+    'memory:summaries-upsert',
+    async (_event, sessionId: unknown, summary: unknown) => {
+      if (typeof sessionId !== 'string' || !sessionId.trim()) {
+        throw new Error('Invalid conversation summary sessionId')
+      }
+      if (typeof summary !== 'string') {
+        throw new Error('Conversation summary must be a string')
+      }
+      const result = await summaryStore.upsertSummaryAsync(sessionId, summary)
+      broadcastMemoryStoreChanged()
+      return result
     }
-    if (typeof summary !== 'string') {
-      throw new Error('Conversation summary must be a string')
-    }
-    const result = await summaryStore.upsertSummaryAsync(sessionId, summary)
-    broadcastMemoryStoreChanged()
-    return result
-  })
+  )
 
   ipcMain.handle('memory:summaries-delete', async (_event, sessionId: unknown) => {
     if (typeof sessionId !== 'string' || !sessionId.trim()) {

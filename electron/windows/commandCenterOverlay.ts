@@ -87,7 +87,10 @@ function createCommandCenterWindow(): BrowserWindow {
     },
   })
 
-  if (process.platform === 'win32' && typeof commandCenterWindow.setBackgroundMaterial === 'function') {
+  if (
+    process.platform === 'win32' &&
+    typeof commandCenterWindow.setBackgroundMaterial === 'function'
+  ) {
     commandCenterWindow.setBackgroundMaterial('acrylic')
   }
 

@@ -174,9 +174,16 @@ export class WebSocketMcpTransport extends BaseMcpTransport {
             cleanup()
             reject(error)
           }
-          const handleUnexpectedResponse = (_request: unknown, response: { statusCode?: number; statusMessage?: string }) => {
+          const handleUnexpectedResponse = (
+            _request: unknown,
+            response: { statusCode?: number; statusMessage?: string }
+          ) => {
             cleanup()
-            reject(new Error(`Unexpected WebSocket response: ${response.statusCode ?? 'unknown'} ${response.statusMessage ?? ''}`.trim()))
+            reject(
+              new Error(
+                `Unexpected WebSocket response: ${response.statusCode ?? 'unknown'} ${response.statusMessage ?? ''}`.trim()
+              )
+            )
           }
 
           nextSocket.once('open', handleOpen)

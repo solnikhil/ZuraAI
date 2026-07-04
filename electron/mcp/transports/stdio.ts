@@ -24,11 +24,12 @@ function resolveWindowsSpawnCommand(command: string): ResolvedSpawnCommand {
     return { command, useShell: false }
   }
 
-  const basename = command.includes('/') || command.includes('\\')
-    ? command.split(/[/\\]/).pop()?.toLowerCase() ?? ''
-    : command.toLowerCase()
+  const basename =
+    command.includes('/') || command.includes('\\')
+      ? (command.split(/[/\\]/).pop()?.toLowerCase() ?? '')
+      : command.toLowerCase()
 
-  if (WINDOWS_SHELL_SCRIPT_EXTENSIONS.some(ext => basename.endsWith(ext))) {
+  if (WINDOWS_SHELL_SCRIPT_EXTENSIONS.some((ext) => basename.endsWith(ext))) {
     return { command, useShell: true }
   }
 
@@ -94,10 +95,14 @@ export class StdioMcpTransport extends BaseMcpTransport {
     this.command = resolved.command
     this.useShell = resolved.useShell
     this.args = normalizeArgs(options.args)
-    this.cwd = typeof options.cwd === 'string' && options.cwd.trim() ? options.cwd.trim() : undefined
+    this.cwd =
+      typeof options.cwd === 'string' && options.cwd.trim() ? options.cwd.trim() : undefined
     this.env = normalizeEnv(options.env)
     this.startupTimeoutMs = normalizeTimeout(options.startupTimeoutMs, DEFAULT_STARTUP_TIMEOUT_MS)
-    this.shutdownTimeoutMs = normalizeTimeout(options.shutdownTimeoutMs, DEFAULT_SHUTDOWN_TIMEOUT_MS)
+    this.shutdownTimeoutMs = normalizeTimeout(
+      options.shutdownTimeoutMs,
+      DEFAULT_SHUTDOWN_TIMEOUT_MS
+    )
     this.maxDiagnosticBufferSize = normalizeTimeout(
       options.maxDiagnosticBufferSize,
       DEFAULT_DIAGNOSTIC_BUFFER_SIZE
@@ -309,7 +314,6 @@ function normalizeEnv(env: Record<string, string> | undefined): Record<string, s
       .map(([key, value]) => [key, value])
   )
 }
-
 
 function appendDiagnosticChunk(current: string, chunk: string, maxLength: number): string {
   const next = current + chunk

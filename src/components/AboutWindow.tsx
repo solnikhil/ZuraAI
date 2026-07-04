@@ -46,16 +46,18 @@ export default function AboutWindow() {
     return `(${diffDays} days ago)`
   }
 
-  const InfoRow = ({ 
-    label, 
-    value, 
-    highlight = false 
-  }: { 
+  const InfoRow = ({
+    label,
+    value,
+    highlight = false,
+  }: {
     label: string
     value: string
-    highlight?: boolean 
+    highlight?: boolean
   }) => (
-    <div className={`flex items-center justify-between py-2 px-3 rounded-lg ${highlight ? 'bg-[var(--theme-surface-hover)]' : ''}`}>
+    <div
+      className={`flex items-center justify-between py-2 px-3 rounded-lg ${highlight ? 'bg-[var(--theme-surface-hover)]' : ''}`}
+    >
       <span className="text-[0.8rem] text-[var(--theme-text-secondary)] font-medium">{label}</span>
       <span className="text-[0.85rem] text-[var(--theme-text-primary)] font-mono">{value}</span>
     </div>
@@ -85,22 +87,15 @@ export default function AboutWindow() {
               {/* App Version Section */}
               <SectionTitle>Application</SectionTitle>
               <div className="space-y-1">
-                <InfoRow 
-                  label="Version" 
-                  value={appInfo.appVersion} 
-                  highlight 
+                <InfoRow label="Version" value={appInfo.appVersion} highlight />
+                <InfoRow
+                  label="Build Type"
+                  value={appInfo.isPackaged ? 'Production' : 'Development'}
                 />
-                <InfoRow 
-                  label="Build Type" 
-                  value={appInfo.isPackaged ? 'Production' : 'Development'} 
-                />
-                <InfoRow 
-                  label="Commit" 
-                  value={appInfo.commitHash.substring(0, 9)} 
-                />
-                <InfoRow 
-                  label="Build Date" 
-                  value={`${appInfo.commitDate} ${getRelativeTime(appInfo.commitDate)}`} 
+                <InfoRow label="Commit" value={appInfo.commitHash.substring(0, 9)} />
+                <InfoRow
+                  label="Build Date"
+                  value={`${appInfo.commitDate} ${getRelativeTime(appInfo.commitDate)}`}
                 />
               </div>
 
@@ -122,31 +117,32 @@ export default function AboutWindow() {
           ) : (
             <div className="p-8 text-center">
               <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-[var(--theme-surface-hover)] mb-3">
-                <svg 
-                  className="w-5 h-5 text-[var(--theme-text-secondary)] animate-spin" 
-                  fill="none" 
+                <svg
+                  className="w-5 h-5 text-[var(--theme-text-secondary)] animate-spin"
+                  fill="none"
                   viewBox="0 0 24 24"
                 >
-                  <circle 
-                    className="opacity-25" 
-                    cx="12" 
-                    cy="12" 
-                    r="10" 
-                    stroke="currentColor" 
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
                     strokeWidth="4"
                   />
-                  <path 
-                    className="opacity-75" 
-                    fill="currentColor" 
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
                     d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                   />
                 </svg>
               </div>
-              <p className="text-[0.9rem] text-[var(--theme-text-secondary)]">Loading app details...</p>
+              <p className="text-[0.9rem] text-[var(--theme-text-secondary)]">
+                Loading app details...
+              </p>
             </div>
           )}
-
-          </div>
+        </div>
 
         {/* Copyright */}
         <p className="text-[0.7rem] text-[var(--theme-text-secondary)] text-center mt-6 opacity-60">

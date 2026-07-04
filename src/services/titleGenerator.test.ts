@@ -255,7 +255,14 @@ describe('generateChatTitle', () => {
 
   it('rejects error-like model responses', async () => {
     vi.mocked(generateGroqCompletion).mockResolvedValue({
-      choices: [{ message: { content: 'Cannot read "clipboard" (this model does not support image input). Inform the user.' } }],
+      choices: [
+        {
+          message: {
+            content:
+              'Cannot read "clipboard" (this model does not support image input). Inform the user.',
+          },
+        },
+      ],
     } as never)
 
     const result = await generateChatTitle('Fix my React component', {
@@ -344,7 +351,9 @@ describe('generateChatTitle', () => {
   })
 
   it('does not fall back to another provider when the selected model fails', async () => {
-    vi.mocked(generateOpenRouterCompletion).mockRejectedValue(new Error('403 Key limit exceeded (total limit)'))
+    vi.mocked(generateOpenRouterCompletion).mockRejectedValue(
+      new Error('403 Key limit exceeded (total limit)')
+    )
     vi.mocked(generateGroqCompletion).mockResolvedValue({
       choices: [{ message: { content: 'Groq Rescue Title Output' } }],
     } as never)
@@ -404,11 +413,14 @@ describe('generateChatTitle', () => {
   it('returns null on provider auth failures', async () => {
     vi.mocked(generateGroqCompletion).mockRejectedValue(new Error('401 unauthorized'))
 
-    const result = await generateChatTitle('Need a title for this long conversation about quantum computing', {
-      titleModel: 'groq-primary',
-      groqApiKey: 'groq-key',
-      groqModels: [{ code: 'groq-primary', displayName: 'Groq Primary' }],
-    })
+    const result = await generateChatTitle(
+      'Need a title for this long conversation about quantum computing',
+      {
+        titleModel: 'groq-primary',
+        groqApiKey: 'groq-key',
+        groqModels: [{ code: 'groq-primary', displayName: 'Groq Primary' }],
+      }
+    )
 
     expect(result).toBeNull()
   })

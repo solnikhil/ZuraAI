@@ -51,7 +51,6 @@ const PBT_CONFIG = { numRuns: 50, seed: 42 }
 // ── Tests ──────────────────────────────────────────────────────────────────
 
 describe('Property 2: Preservation — Runtime Behavior Unchanged After Build Config Changes', () => {
-
   // ── 1. Radix UI scoped packages in dependencies ──────────────────────────
 
   it('scoped @radix-ui/react-* packages used by the app are listed in package.json dependencies', () => {
@@ -82,13 +81,10 @@ describe('Property 2: Preservation — Runtime Behavior Unchanged After Build Co
     ]
 
     fc.assert(
-      fc.property(
-        fc.constantFrom(...usedRadixPrimitives),
-        (primitive: string) => {
-          const scopedPkg = `@radix-ui/react-${primitive}`
-          expect(deps).toHaveProperty(scopedPkg)
-        }
-      ),
+      fc.property(fc.constantFrom(...usedRadixPrimitives), (primitive: string) => {
+        const scopedPkg = `@radix-ui/react-${primitive}`
+        expect(deps).toHaveProperty(scopedPkg)
+      }),
       PBT_CONFIG
     )
   })
@@ -108,25 +104,42 @@ describe('Property 2: Preservation — Runtime Behavior Unchanged After Build Co
 
     // Commonly-used languages that must remain supported
     const commonLanguages = [
-      'typescript', 'javascript', 'python', 'java', 'go', 'rust',
-      'sql', 'bash', 'json', 'yaml', 'html', 'css', 'markdown',
-      'cpp', 'csharp', 'ruby', 'php', 'swift', 'kotlin', 'xml',
-      'diff', 'docker', 'graphql', 'toml',
+      'typescript',
+      'javascript',
+      'python',
+      'java',
+      'go',
+      'rust',
+      'sql',
+      'bash',
+      'json',
+      'yaml',
+      'html',
+      'css',
+      'markdown',
+      'cpp',
+      'csharp',
+      'ruby',
+      'php',
+      'swift',
+      'kotlin',
+      'xml',
+      'diff',
+      'docker',
+      'graphql',
+      'toml',
     ]
 
     // react-syntax-highlighter must be a dependency
     expect(deps).toHaveProperty('react-syntax-highlighter')
 
     fc.assert(
-      fc.property(
-        fc.constantFrom(...commonLanguages),
-        (lang: string) => {
-          // Language names must be non-empty lowercase alphanumeric strings
-          expect(lang).toMatch(/^[a-z][a-z0-9+#]*$/)
-          // Language must be in our known supported set
-          expect(commonLanguages).toContain(lang)
-        }
-      ),
+      fc.property(fc.constantFrom(...commonLanguages), (lang: string) => {
+        // Language names must be non-empty lowercase alphanumeric strings
+        expect(lang).toMatch(/^[a-z][a-z0-9+#]*$/)
+        // Language must be in our known supported set
+        expect(commonLanguages).toContain(lang)
+      }),
       PBT_CONFIG
     )
   })
@@ -181,20 +194,17 @@ describe('Property 2: Preservation — Runtime Behavior Unchanged After Build Co
     expect(phosphorImports.length).toBeGreaterThan(0)
 
     fc.assert(
-      fc.property(
-        fc.constantFrom(...primaryExports),
-        (exportName: string) => {
-          // Each primary export must be created via withDefaultWeight which
-          // wraps a Phosphor icon base component. Verify the export line
-          // references withDefaultWeight.
-          const exportLine = lucideBarrelSource
-            .split('\n')
-            .find((line) => line.startsWith(`export const ${exportName} =`))
+      fc.property(fc.constantFrom(...primaryExports), (exportName: string) => {
+        // Each primary export must be created via withDefaultWeight which
+        // wraps a Phosphor icon base component. Verify the export line
+        // references withDefaultWeight.
+        const exportLine = lucideBarrelSource
+          .split('\n')
+          .find((line) => line.startsWith(`export const ${exportName} =`))
 
-          expect(exportLine).toBeDefined()
-          expect(exportLine).toContain('withDefaultWeight(')
-        }
-      ),
+        expect(exportLine).toBeDefined()
+        expect(exportLine).toContain('withDefaultWeight(')
+      }),
       PBT_CONFIG
     )
   })
@@ -212,7 +222,7 @@ describe('Property 2: Preservation — Runtime Behavior Unchanged After Build Co
     fc.assert(
       fc.property(fc.constant(viteConfigSource), (source: string) => {
         // Must contain the lucide-react alias
-        expect(source).toContain('"lucide-react"')
+        expect(source).toMatch(/['"]lucide-react['"]/)
 
         // Must point to the barrel file path
         expect(source).toMatch(/lucide-react.*src\/lib\/lucide-react\.tsx/)
@@ -272,14 +282,11 @@ describe('Property 2: Preservation — Runtime Behavior Unchanged After Build Co
     const filesGlob = pkg.build?.files as string[] | undefined
 
     fc.assert(
-      fc.property(
-        fc.constantFrom('dist/**/*', 'dist-electron/**/*'),
-        (requiredGlob: string) => {
-          expect(filesGlob).toBeDefined()
-          expect(Array.isArray(filesGlob)).toBe(true)
-          expect(filesGlob).toContain(requiredGlob)
-        }
-      ),
+      fc.property(fc.constantFrom('dist/**/*', 'dist-electron/**/*'), (requiredGlob: string) => {
+        expect(filesGlob).toBeDefined()
+        expect(Array.isArray(filesGlob)).toBe(true)
+        expect(filesGlob).toContain(requiredGlob)
+      }),
       PBT_CONFIG
     )
   })

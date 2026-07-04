@@ -63,7 +63,10 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
   const artifactsEnabled = isSkillEnabled(settings.skills, 'artifacts')
   const sidebarFooterScrollPadding = 72
   const sortedFolders = useMemo(
-    () => [...folders].sort((a, b) => a.order - b.order || a.createdAt - b.createdAt || a.name.localeCompare(b.name)),
+    () =>
+      [...folders].sort(
+        (a, b) => a.order - b.order || a.createdAt - b.createdAt || a.name.localeCompare(b.name)
+      ),
     [folders]
   )
 
@@ -76,7 +79,10 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
   const resizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null)
   const resizeRafRef = useRef<number | null>(null)
   // Group sessions for sidebar list
-  const groupedSessions = useMemo(() => groupSessions(sessions, sortedFolders), [sessions, sortedFolders])
+  const groupedSessions = useMemo(
+    () => groupSessions(sessions, sortedFolders),
+    [sessions, sortedFolders]
+  )
 
   // Flatten visible sessions for keyboard navigation (pinned + folders + time groups in display order)
   const flatVisibleSessions = useMemo(() => {
@@ -157,7 +163,11 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
   const handleSelectSession = useCallback(
     (sessionId: string) => {
       switchSession(sessionId)
-      if (dashboardView === 'reminders' || dashboardView === 'artifacts' || dashboardView === 'folders') {
+      if (
+        dashboardView === 'reminders' ||
+        dashboardView === 'artifacts' ||
+        dashboardView === 'folders'
+      ) {
         setDashboardView('chat')
       }
     },
@@ -166,7 +176,11 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
 
   const handleNewChat = useCallback(() => {
     clearCurrentSession()
-    if (dashboardView === 'reminders' || dashboardView === 'artifacts' || dashboardView === 'folders') {
+    if (
+      dashboardView === 'reminders' ||
+      dashboardView === 'artifacts' ||
+      dashboardView === 'folders'
+    ) {
       setDashboardView('chat')
     }
   }, [clearCurrentSession, dashboardView, setDashboardView])
@@ -409,15 +423,21 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
       >
         <div className="sidebar__inner">
           <SidebarChatView
-            active={view === 'chat' || view === 'reminders' || view === 'artifacts' || view === 'folders'}
+            active={
+              view === 'chat' || view === 'reminders' || view === 'artifacts' || view === 'folders'
+            }
             groupedSessions={groupedSessions}
             folders={sortedFolders}
             selectedFolderId={selectedFolderId}
             chatSelectedOverlayStyle={chatSelectedOverlayStyle}
             currentSessionId={
-              view === 'reminders' || view === 'artifacts' || view === 'folders' ? null : currentSessionId
+              view === 'reminders' || view === 'artifacts' || view === 'folders'
+                ? null
+                : currentSessionId
             }
-            focusIndex={view === 'reminders' || view === 'artifacts' || view === 'folders' ? -1 : focusIndex}
+            focusIndex={
+              view === 'reminders' || view === 'artifacts' || view === 'folders' ? -1 : focusIndex
+            }
             flatVisibleSessions={flatVisibleSessions}
             sessionIndexMap={sessionIndexMap}
             bottomPadding={sidebarFooterScrollPadding}

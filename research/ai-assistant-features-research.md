@@ -1,4 +1,5 @@
 # Modern AI Assistant Features Research Report
+
 ## For ZuraAI - Desktop AI Assistant Competitive Analysis
 
 **Research Date:** March 28, 2026  
@@ -11,6 +12,7 @@
 Based on extensive research of 15+ web sources, this report identifies **75+ features** across major AI assistants that could enhance ZuraAI's competitive position. The analysis categorizes features by technical complexity and strategic priority for ZuraAI.
 
 ### ZuraAI Current Position
+
 ✅ **Strong Foundation:** Multi-provider AI (OpenRouter, Ollama, Perplexity, Groq, Alibaba), MCP support, web search, chat history, skills system, command palette, theme customization  
 ⚠️ **Gaps Identified:** Voice capabilities, deep IDE integration, agentic workflows, computer use, long-term memory, file system access, advanced voice/video modes
 
@@ -21,9 +23,11 @@ Based on extensive research of 15+ web sources, this report identifies **75+ fea
 ### 1. 🤖 AGENTIC & AUTONOMOUS WORKFLOWS
 
 #### 1.1 Claude Cowork (Agentic Desktop AI)
+
 **What it does:** Autonomous agent that can complete multi-step tasks on desktop - organize files, create reports, analyze documents, schedule tasks
 
 **Key Capabilities:**
+
 - **Scheduled Tasks:** Set recurring tasks (e.g., "Check email every morning, pull metrics, run weekly Slack digest")
 - **File Organization:** Automatically sorts Downloads folder by type, renames files with conventions
 - **Document Creation:** Generates branded reports, PowerPoints, Excel sheets from scattered notes
@@ -35,6 +39,7 @@ Based on extensive research of 15+ web sources, this report identifies **75+ fea
 **Priority for ZuraAI:** 🔴 **CRITICAL** - Major competitive differentiator
 
 **Implementation Notes for ZuraAI:**
+
 - Leverage existing Electron architecture for desktop control
 - Build permission system before file access (security-first)
 - Start with file organization and simple document creation
@@ -43,9 +48,11 @@ Based on extensive research of 15+ web sources, this report identifies **75+ fea
 ---
 
 #### 1.2 Cursor Composer 2 / Agent Mode
+
 **What it does:** AI agent that writes code across multiple files with understanding of entire codebase
 
 **Key Capabilities:**
+
 - **Codebase Indexing:** Custom embedding model for semantic search across large repos
 - **Parallel Subagents:** Multiple agents explore codebase simultaneously using different models
 - **Plan Mode:** Asks clarifying questions, builds execution plan, runs in background
@@ -58,6 +65,7 @@ Based on extensive research of 15+ web sources, this report identifies **75+ fea
 **Priority for ZuraAI:** 🔴 **CRITICAL** for coding workflows
 
 **Implementation Notes for ZuraAI:**
+
 - ZuraAI already has code context awareness - extend to multi-file editing
 - Add AST parsing for better code understanding
 - Implement safe terminal execution sandbox
@@ -66,9 +74,11 @@ Based on extensive research of 15+ web sources, this report identifies **75+ fea
 ---
 
 #### 1.3 GitHub Copilot Coding Agent
+
 **What it does:** Assigns issues to AI agents (Copilot, Claude, Codex) that autonomously write code, create PRs, respond to feedback
 
 **Key Capabilities:**
+
 - **Background Execution:** Agents work while you do other tasks
 - **Multi-agent Collaboration:** Different agents for different tasks
 - **IDE Integration:** VS Code, JetBrains, Visual Studio, Xcode, Neovim
@@ -84,9 +94,11 @@ Based on extensive research of 15+ web sources, this report identifies **75+ fea
 ### 2. 🎙️ VOICE & MULTIMODAL INTERACTION
 
 #### 2.1 ChatGPT Advanced Voice Mode (Desktop)
+
 **What it does:** Real-time voice conversation with AI, hands-free operation
 
 **Key Capabilities:**
+
 - **Real-time Voice Chat:** Natural conversation without typing
 - **Screen Awareness:** Can discuss what's on your screen
 - **Emotion & Tone:** Responds with appropriate emotion and tone
@@ -98,6 +110,7 @@ Based on extensive research of 15+ web sources, this report identifies **75+ fea
 **Priority for ZuraAI:** 🟡 **IMPORTANT** - Significant UX improvement
 
 **Implementation Notes for ZuraAI:**
+
 - Many providers (OpenRouter, Groq) now support voice APIs
 - Could start with push-to-talk voice input
 - Use Web Speech API or Whisper for transcription
@@ -106,9 +119,11 @@ Based on extensive research of 15+ web sources, this report identifies **75+ fea
 ---
 
 #### 2.2 ChatGPT Voice with Video
+
 **What it does:** Video calls with AI that can see you and your surroundings
 
 **Key Capabilities:**
+
 - **Video Understanding:** AI sees your face, gestures, environment
 - **Screen Sharing:** Share screen during voice call
 - **Visual Context:** Discuss what AI sees through camera
@@ -121,9 +136,11 @@ Based on extensive research of 15+ web sources, this report identifies **75+ fea
 ---
 
 #### 2.3 Gemini Multimodal (Vision + Audio)
+
 **What it does:** Native understanding of images, audio, video, and text together
 
 **Key Capabilities:**
+
 - **Video Analysis:** Understand video content in real-time
 - **Audio Understanding:** Process music, speech, environmental sounds
 - **Cross-modal Reasoning:** Connect information across modalities
@@ -137,9 +154,11 @@ Based on extensive research of 15+ web sources, this report identifies **75+ fea
 ### 3. 🔧 DEEP INTEGRATION & CONTEXT
 
 #### 3.1 Pieces OS - Long-Term Memory
+
 **What it does:** OS-level AI companion that captures context from all apps automatically
 
 **Key Capabilities:**
+
 - **Automatic Context Capture:** Saves tabs, messages, snippets, code without manual action
 - **Time-Based Queries:** "What was I working on 3 days ago?"
 - **Cross-App Memory:** Remembers context across Chrome, VS Code, Slack, etc.
@@ -152,6 +171,7 @@ Based on extensive research of 15+ web sources, this report identifies **75+ fea
 **Priority for ZuraAI:** 🟡 **IMPORTANT** - Major UX differentiator
 
 **Implementation Notes for ZuraAI:**
+
 - Start with manual memory capture (copy/paste important context)
 - Build searchable chat history with semantic search
 - Could integrate with existing MCP architecture
@@ -160,9 +180,11 @@ Based on extensive research of 15+ web sources, this report identifies **75+ fea
 ---
 
 #### 3.2 Claude Desktop Extensions & Connectors
+
 **What it does:** Native integrations with popular tools (Slack, Chrome, Excel, PowerPoint, Google Drive)
 
 **Key Capabilities:**
+
 - **Chrome Extension:** Claude navigates browser, fills forms, extracts data
 - **Slack Integration:** Answers questions in channels, searches history
 - **Excel/PowerPoint:** Creates formatted documents with company templates
@@ -175,6 +197,7 @@ Based on extensive research of 15+ web sources, this report identifies **75+ fea
 **Priority for ZuraAI:** 🟡 **IMPORTANT** - MCP already provides foundation
 
 **Implementation Notes for ZuraAI:**
+
 - **ZuraAI already has MCP support** - extend with popular connectors
 - Add OAuth flows for Google Drive, Notion, Slack
 - Build Chrome extension for web context
@@ -183,9 +206,11 @@ Based on extensive research of 15+ web sources, this report identifies **75+ fea
 ---
 
 #### 3.3 Zed - Native Editor Integration
+
 **What it does:** AI deeply integrated into code editor (not just autocomplete)
 
 **Key Capabilities:**
+
 - **Agentic Editing:** AI collaborates on code changes inline
 - **Edit Prediction:** AI predicts next edits using Zeta2 model (30% better than before)
 - **Inline Assistant:** Transform selected code with AI
@@ -202,9 +227,11 @@ Based on extensive research of 15+ web sources, this report identifies **75+ fea
 ### 4. 📝 ADVANCED CONTENT CREATION
 
 #### 4.1 Claude Skills System
+
 **What it does:** Reusable templates for consistent outputs across documents, analysis, workflows
 
 **Key Capabilities:**
+
 - **SKILL.md Files:** Markdown-based skill definitions with instructions
 - **Domain Knowledge:** Package company procedures and best practices
 - **Multi-Platform:** Same skill works in Claude.ai, Claude Code, API
@@ -217,6 +244,7 @@ Based on extensive research of 15+ web sources, this report identifies **75+ fea
 **Priority for ZuraAI:** 🔴 **CRITICAL** - ZuraAI already has skills foundation!
 
 **Implementation Notes for ZuraAI:**
+
 - **ZuraAI already has skills system** - expand SKILL.md support
 - Add skill marketplace/directory
 - Build skill creator UI for non-technical users
@@ -225,9 +253,11 @@ Based on extensive research of 15+ web sources, this report identifies **75+ fea
 ---
 
 #### 4.2 ChatGPT Canvas
+
 **What it does:** Collaborative writing and coding space separate from chat
 
 **Key Capabilities:**
+
 - **Dedicated Workspace:** Large text/code editor area
 - **Collaborative Editing:** AI and human edit together in real-time
 - **Version History:** Track changes and revert
@@ -242,9 +272,11 @@ Based on extensive research of 15+ web sources, this report identifies **75+ fea
 ---
 
 #### 4.3 Cursor Tab Predictions
+
 **What it does:** Specialized model predicts next code edits with high accuracy
 
 **Key Capabilities:**
+
 - **Context-Aware:** Predicts based on surrounding code
 - **Multi-Line Suggestions:** Not just single line completions
 - **Smart Bracket Handling:** Properly closes brackets and quotes
@@ -260,9 +292,11 @@ Based on extensive research of 15+ web sources, this report identifies **75+ fea
 ### 5. 🔍 SEARCH & RESEARCH CAPABILITIES
 
 #### 5.1 ChatGPT Deep Research
+
 **What it does:** Multi-step research agent that searches web, analyzes sources, synthesizes findings
 
 **Key Capabilities:**
+
 - **Autonomous Search:** Plans and executes multiple searches
 - **Source Analysis:** Reads and evaluates credibility of sources
 - **Citation Tracking:** Provides sources with citations
@@ -275,6 +309,7 @@ Based on extensive research of 15+ web sources, this report identifies **75+ fea
 **Priority for ZuraAI:** 🟡 **IMPORTANT** - Extend existing web search
 
 **Implementation Notes for ZuraAI:**
+
 - **ZuraAI already has web search** - extend with multi-step research
 - Add source credibility scoring
 - Implement iterative search loop
@@ -283,9 +318,11 @@ Based on extensive research of 15+ web sources, this report identifies **75+ fea
 ---
 
 #### 5.2 Claude Computer Use (Screen Control)
+
 **What it does:** AI can see and interact with your computer screen
 
 **Key Capabilities:**
+
 - **Screen Capture:** AI sees what's on your screen
 - **Click/Type Actions:** Can interact with applications
 - **Visual Understanding:** Interprets UI elements, buttons, text
@@ -299,9 +336,11 @@ Based on extensive research of 15+ web sources, this report identifies **75+ fea
 ---
 
 #### 5.3 Perplexity-Style Search (Already Partial in ZuraAI)
+
 **What it does:** Real-time web search with cited answers
 
 **Key Capabilities:**
+
 - **Live Search:** Queries search engines in real-time
 - **Citation Cards:** Shows sources with snippets
 - **Follow-up Questions:** Suggests related queries
@@ -317,9 +356,11 @@ Based on extensive research of 15+ web sources, this report identifies **75+ fea
 ### 6. 🎨 UI/UX INNOVATIONS
 
 #### 6.1 Command Palette + Quick Actions (Partial in ZuraAI)
+
 **What it does:** Keyboard-driven interface for all AI actions
 
 **Key Capabilities:**
+
 - **Universal Shortcut:** Ctrl+K or Cmd+K from anywhere
 - **Context-Aware:** Different actions based on current view
 - **Fuzzy Search:** Find commands quickly
@@ -334,9 +375,11 @@ Based on extensive research of 15+ web sources, this report identifies **75+ fea
 ---
 
 #### 6.2 ChatGPT Desktop Quick Entry
+
 **What it does:** Global keyboard shortcut (Alt+Space / Option+Space) opens AI from anywhere
 
 **Key Capabilities:**
+
 - **System-Wide Hotkey:** Works from any application
 - **Screenshot on Open:** Automatically captures current screen
 - **Quick Mode:** Brief interactions without full app open
@@ -347,6 +390,7 @@ Based on extensive research of 15+ web sources, this report identifies **75+ fea
 **Priority for ZuraAI:** 🔴 **CRITICAL** - Easy to implement, huge UX gain
 
 **Implementation Notes for ZuraAI:**
+
 - Register global shortcut in Electron main process
 - Add system tray icon with quick menu
 - Implement quick input overlay window
@@ -354,9 +398,11 @@ Based on extensive research of 15+ web sources, this report identifies **75+ fea
 ---
 
 #### 6.3 Windsurf Cascade - Natural Language IDE
+
 **What it does:** Conversational interface for entire development workflow
 
 **Key Capabilities:**
+
 - **Natural Language Commands:** "Create a landing page based on these docs"
 - **Turbo Mode:** Auto-executes terminal commands without confirmation
 - **Continue My Work:** AI remembers what you were doing and continues
@@ -374,9 +420,11 @@ Based on extensive research of 15+ web sources, this report identifies **75+ fea
 ### 7. 🔄 WORKFLOW AUTOMATION
 
 #### 7.1 Scheduled Tasks & Recurring Actions
+
 **What it does:** Set up AI to perform tasks on schedule
 
 **Key Capabilities:**
+
 - **Cron-like Scheduling:** Daily, weekly, monthly triggers
 - **Conditional Execution:** Run based on events or conditions
 - **Report Generation:** Weekly summaries, daily briefings
@@ -390,9 +438,11 @@ Based on extensive research of 15+ web sources, this report identifies **75+ fea
 ---
 
 #### 7.2 GitHub Copilot Autofix
+
 **What it does:** Automatically fixes security vulnerabilities in code
 
 **Key Capabilities:**
+
 - **Vulnerability Detection:** Scans code for security issues
 - **Automated Fixes:** Suggests and applies security patches
 - **Contextual Explanations:** Explains why fix is needed
@@ -408,9 +458,11 @@ Based on extensive research of 15+ web sources, this report identifies **75+ fea
 ### 8. 🤝 COLLABORATION FEATURES
 
 #### 8.1 Claude for Teams - Shared Workspaces
+
 **What it does:** Team collaboration with shared AI context
 
 **Key Capabilities:**
+
 - **Shared Projects:** Team access to same AI conversations
 - **Knowledge Base:** Team-specific skills and connectors
 - **Usage Analytics:** Track team AI usage and ROI
@@ -424,9 +476,11 @@ Based on extensive research of 15+ web sources, this report identifies **75+ fea
 ---
 
 #### 8.2 Multiplayer Editing (Cursor/Zed)
+
 **What it does:** Real-time collaborative editing with AI
 
 **Key Capabilities:**
+
 - **Cursor Presence:** See team members' cursors
 - **Live Editing:** Edit same document simultaneously
 - **AI as Collaborator:** AI suggestions appear as suggestions
@@ -442,9 +496,11 @@ Based on extensive research of 15+ web sources, this report identifies **75+ fea
 ### 9. 🛡️ SAFETY, PRIVACY & CONTROL
 
 #### 9.1 Claude Cowork Safety Features
+
 **What it does:** Comprehensive safety controls for autonomous AI
 
 **Key Capabilities:**
+
 - **Permission System:** Granular folder/file access controls
 - **Approval Workflow:** Requires confirmation before significant actions
 - **Activity Logging:** Track all AI actions for audit
@@ -459,9 +515,11 @@ Based on extensive research of 15+ web sources, this report identifies **75+ fea
 ---
 
 #### 9.2 Pieces Privacy Architecture
+
 **What it does:** Local-first AI with optional cloud
 
 **Key Capabilities:**
+
 - **On-Device Processing:** No data leaves local machine
 - **Optional Cloud Sync:** User controls what syncs
 - **End-to-End Encryption:** Secure data transmission
@@ -478,9 +536,11 @@ Based on extensive research of 15+ web sources, this report identifies **75+ fea
 ### 10. 🎯 SPECIALIZED MODES
 
 #### 10.1 Study Mode (ChatGPT)
+
 **What it does:** Specialized mode for learning and education
 
 **Key Capabilities:**
+
 - **Socratic Method:** Guides learning through questions
 - **Step-by-Step Explanations:** Breaks complex topics down
 - **Practice Problems:** Generates exercises
@@ -495,9 +555,11 @@ Based on extensive research of 15+ web sources, this report identifies **75+ fea
 ---
 
 #### 10.2 Shopping Research Mode
+
 **What it does:** AI assistant for product research and comparison
 
 **Key Capabilities:**
+
 - **Product Search:** Finds products across web
 - **Price Comparison:** Compares prices across retailers
 - **Review Analysis:** Summarizes user reviews
@@ -593,23 +655,27 @@ Based on extensive research of 15+ web sources, this report identifies **75+ fea
 ### Differentiation Strategy
 
 **Against ChatGPT Desktop:**
+
 - ✅ Multi-provider (not locked to OpenAI)
 - ✅ Local model support (Ollama)
 - ✅ Better MCP integration
 - 🎯 Add: Global hotkey, voice mode, system tray
 
 **Against Claude Desktop:**
+
 - ✅ More provider options
 - ✅ Better developer focus with MCP
 - 🎯 Add: Cowork-like agentic features, computer use
 
 **Against Cursor/Windsurf:**
+
 - ✅ General-purpose (not just coding)
 - ✅ Multi-provider
 - ✅ Better chat/conversation
 - 🎯 Add: Deep IDE integration, codebase understanding
 
 **Against Pieces:**
+
 - ✅ Full AI assistant (not just memory)
 - ✅ Better conversation/chat
 - 🎯 Add: OS-level context capture, LTM features
@@ -619,24 +685,28 @@ Based on extensive research of 15+ web sources, this report identifies **75+ fea
 ## 📋 IMMEDIATE ACTION ITEMS
 
 ### Week 1-2: Quick Wins
+
 - [ ] Implement global hotkey (Alt+Space) for quick access
 - [ ] Add system tray with context menu
 - [ ] Build skill management UI for existing skills system
 - [ ] Add semantic search to chat history
 
 ### Month 1: Foundation for Agentic
+
 - [ ] Design permission system for file access
 - [ ] Implement file system MCP connector
 - [ ] Add scheduled tasks infrastructure
 - [ ] Build SKILL.md parser and executor
 
 ### Month 2-3: Enhanced Features
+
 - [ ] Voice input mode (push-to-talk)
 - [ ] Google Drive / Notion connectors
 - [ ] Canvas/Workspace editing mode
 - [ ] Cross-session memory retention
 
 ### Month 4-6: Advanced Features
+
 - [ ] Full agentic workflow system
 - [ ] Team collaboration features
 - [ ] Advanced voice mode (real-time)
@@ -647,6 +717,7 @@ Based on extensive research of 15+ web sources, this report identifies **75+ fea
 ## 📚 DATA SOURCES
 
 This report compiled data from:
+
 1. OpenAI ChatGPT Desktop documentation
 2. Anthropic Claude Desktop & Cowork pages
 3. Cursor AI product documentation
@@ -679,5 +750,5 @@ ZuraAI has a **strong foundation** with its multi-provider architecture and MCP 
 
 ---
 
-*Report prepared for ZuraAI product team*  
-*Date: March 28, 2026*
+_Report prepared for ZuraAI product team_
+_Date: March 28, 2026_

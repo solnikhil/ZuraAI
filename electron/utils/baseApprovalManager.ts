@@ -48,12 +48,16 @@ export abstract class BaseApprovalManager<
 
   onPendingChange(handler: (requests: TRequest[]) => void): () => void {
     this.handlers.add(handler)
-    return () => { this.handlers.delete(handler) }
+    return () => {
+      this.handlers.delete(handler)
+    }
   }
 
   requestApproval(options: TOptions & { timeoutMs?: number }): Promise<TDecision> {
     const timeoutMs =
-      typeof options.timeoutMs === 'number' && Number.isFinite(options.timeoutMs) && options.timeoutMs > 0
+      typeof options.timeoutMs === 'number' &&
+      Number.isFinite(options.timeoutMs) &&
+      options.timeoutMs > 0
         ? Math.round(options.timeoutMs)
         : this.defaultTimeoutMs
     const requestedAt = Date.now()

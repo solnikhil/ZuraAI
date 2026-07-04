@@ -118,7 +118,9 @@ export function buildMemoryBlock(
   }
   if (droppedCount > 0) {
     const log = options.warn ?? ((message: string) => console.warn(message))
-    log(`buildMemoryBlock: dropped ${droppedCount} oldest memor${droppedCount === 1 ? 'y' : 'ies'} to fit token budget (${budget})`)
+    log(
+      `buildMemoryBlock: dropped ${droppedCount} oldest memor${droppedCount === 1 ? 'y' : 'ies'} to fit token budget (${budget})`
+    )
   }
   if (accepted.length === 0) {
     return ''

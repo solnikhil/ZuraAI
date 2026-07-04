@@ -19,7 +19,9 @@ export function isArtifactKind(value: unknown): value is ArtifactKind {
   )
 }
 
-export function getArtifactExtension(artifact: Pick<ArtifactDocument, 'kind' | 'language'>): string {
+export function getArtifactExtension(
+  artifact: Pick<ArtifactDocument, 'kind' | 'language'>
+): string {
   if (artifact.kind === 'markdown') return 'md'
   if (artifact.kind === 'html') return 'html'
   if (artifact.kind === 'json') return 'json'
@@ -42,7 +44,11 @@ function normalizeCodeExtension(language?: string): string {
 }
 
 export function getCurrentArtifactVersion(artifact: ArtifactDocument) {
-  return artifact.versions.find((version) => version.id === artifact.currentVersionId) ?? artifact.versions[artifact.versions.length - 1] ?? null
+  return (
+    artifact.versions.find((version) => version.id === artifact.currentVersionId) ??
+    artifact.versions[artifact.versions.length - 1] ??
+    null
+  )
 }
 
 export function createArtifactDocument(input: {
@@ -65,12 +71,14 @@ export function createArtifactDocument(input: {
     createdByMessageId: input.sourceMessageId,
     updatedByMessageId: input.sourceMessageId,
     currentVersionId: versionId,
-    versions: [{
-      id: versionId,
-      content: input.content,
-      createdAt: now,
-      sourceMessageId: input.sourceMessageId,
-    }],
+    versions: [
+      {
+        id: versionId,
+        content: input.content,
+        createdAt: now,
+        sourceMessageId: input.sourceMessageId,
+      },
+    ],
   }
 }
 
@@ -90,7 +98,8 @@ export function updateArtifactDocument(
   return {
     ...artifact,
     title: input.title ? normalizeTitle(input.title) : artifact.title,
-    language: input.language !== undefined ? normalizeOptionalText(input.language) : artifact.language,
+    language:
+      input.language !== undefined ? normalizeOptionalText(input.language) : artifact.language,
     updatedAt: now,
     updatedByMessageId: input.sourceMessageId ?? artifact.updatedByMessageId,
     currentVersionId: versionId,
@@ -123,7 +132,10 @@ export function restoreArtifactVersion(
   }
 }
 
-export function renameArtifactDocument(artifact: ArtifactDocument, title: string): ArtifactDocument {
+export function renameArtifactDocument(
+  artifact: ArtifactDocument,
+  title: string
+): ArtifactDocument {
   return {
     ...artifact,
     title: normalizeTitle(title),
@@ -145,17 +157,30 @@ export function summarizeArtifact(artifact: ArtifactDocument): ArtifactSummary {
 
 export function normalizeArtifacts(raw: unknown): ArtifactDocument[] {
   if (!Array.isArray(raw)) return []
-  return raw.map(normalizeArtifact).filter((artifact): artifact is ArtifactDocument => Boolean(artifact))
+  return raw
+    .map(normalizeArtifact)
+    .filter((artifact): artifact is ArtifactDocument => Boolean(artifact))
 }
 
 function normalizeArtifact(raw: unknown): ArtifactDocument | null {
   if (!raw || typeof raw !== 'object') return null
   const record = raw as Partial<ArtifactDocument>
-  if (!record.id || !record.title || !isArtifactKind(record.kind) || !Array.isArray(record.versions)) return null
-  const versions = record.versions
-    .filter((version): version is ArtifactDocument['versions'][number] =>
-      Boolean(version && typeof version.id === 'string' && typeof version.content === 'string' && typeof version.createdAt === 'number')
-    )
+  if (
+    !record.id ||
+    !record.title ||
+    !isArtifactKind(record.kind) ||
+    !Array.isArray(record.versions)
+  )
+    return null
+  const versions = record.versions.filter(
+    (version): version is ArtifactDocument['versions'][number] =>
+      Boolean(
+        version &&
+        typeof version.id === 'string' &&
+        typeof version.content === 'string' &&
+        typeof version.createdAt === 'number'
+      )
+  )
   if (versions.length === 0) return null
   const currentVersionId = versions.some((version) => version.id === record.currentVersionId)
     ? record.currentVersionId!
@@ -166,7 +191,10 @@ function normalizeArtifact(raw: unknown): ArtifactDocument | null {
     kind: record.kind,
     language: normalizeOptionalText(record.language),
     createdAt: typeof record.createdAt === 'number' ? record.createdAt : versions[0].createdAt,
-    updatedAt: typeof record.updatedAt === 'number' ? record.updatedAt : versions[versions.length - 1].createdAt,
+    updatedAt:
+      typeof record.updatedAt === 'number'
+        ? record.updatedAt
+        : versions[versions.length - 1].createdAt,
     createdByMessageId: normalizeOptionalText(record.createdByMessageId),
     updatedByMessageId: normalizeOptionalText(record.updatedByMessageId),
     currentVersionId,
@@ -182,4 +210,3 @@ function normalizeTitle(value: string): string {
 function normalizeOptionalText(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
-

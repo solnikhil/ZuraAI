@@ -92,7 +92,9 @@ describe('McpManager', () => {
 
   it('requires trusted servers before surfacing or executing MCP tools', async () => {
     const manager = new McpManager({
-      loadServers: async () => [createServerConfig({ id: 'server-1', enabled: true, trustState: 'untrusted' })],
+      loadServers: async () => [
+        createServerConfig({ id: 'server-1', enabled: true, trustState: 'untrusted' }),
+      ],
       saveServers: async () => undefined,
       resolveServerSecrets: async (server) => createResolvedServerConfig(server),
       connectionFactory: (resolvedServer) => new FakeMcpConnection(resolvedServer.id),
@@ -102,14 +104,16 @@ describe('McpManager', () => {
     await manager.connectServer('server-1')
 
     expect(manager.listTools()).toEqual([])
-    await expect(manager.executeTool('mcp__server__read_file', { path: '/tmp/demo.txt' })).rejects.toThrow(
-      'Unknown or unavailable MCP tool'
-    )
+    await expect(
+      manager.executeTool('mcp__server__read_file', { path: '/tmp/demo.txt' })
+    ).rejects.toThrow('Unknown or unavailable MCP tool')
   })
 
   it('executes a connected trusted MCP tool through the managed connection', async () => {
     const manager = new McpManager({
-      loadServers: async () => [createServerConfig({ id: 'server-1', enabled: true, trustState: 'trusted' })],
+      loadServers: async () => [
+        createServerConfig({ id: 'server-1', enabled: true, trustState: 'trusted' }),
+      ],
       saveServers: async () => undefined,
       resolveServerSecrets: async (server) => createResolvedServerConfig(server),
       connectionFactory: (resolvedServer) => new FakeMcpConnection(resolvedServer.id),
@@ -118,7 +122,9 @@ describe('McpManager', () => {
     await manager.initialize({ autoConnect: false })
     await manager.connectServer('server-1')
 
-    await expect(manager.executeTool('mcp__server__read_file', { path: '/tmp/demo.txt' })).resolves.toMatchObject({
+    await expect(
+      manager.executeTool('mcp__server__read_file', { path: '/tmp/demo.txt' })
+    ).resolves.toMatchObject({
       server: { id: 'server-1' },
       tool: { toolName: 'read_file' },
       result: {
@@ -144,7 +150,11 @@ describe('McpManager', () => {
     })
 
     await manager.initialize({ autoConnect: false })
-    const created = await manager.addServer({ name: 'Filesystem', transport: 'stdio', command: 'node' })
+    const created = await manager.addServer({
+      name: 'Filesystem',
+      transport: 'stdio',
+      command: 'node',
+    })
     expect(created.name).toBe('Filesystem')
 
     const updated = await manager.updateServer(created.id, { enabled: true, autoConnect: true })
@@ -158,12 +168,14 @@ describe('McpManager', () => {
 
   it('does not retain oversized MCP resource payloads in cache', async () => {
     const connection = new FakeMcpConnection('server-1')
-    const readResourceSpy = vi
-      .spyOn(connection, 'readResource')
-      .mockResolvedValue({ contents: [{ uri: 'file:///tmp/demo.txt', text: 'x'.repeat(600 * 1024) }] })
+    const readResourceSpy = vi.spyOn(connection, 'readResource').mockResolvedValue({
+      contents: [{ uri: 'file:///tmp/demo.txt', text: 'x'.repeat(600 * 1024) }],
+    })
 
     const manager = new McpManager({
-      loadServers: async () => [createServerConfig({ id: 'server-1', enabled: true, trustState: 'trusted' })],
+      loadServers: async () => [
+        createServerConfig({ id: 'server-1', enabled: true, trustState: 'trusted' }),
+      ],
       saveServers: async () => undefined,
       resolveServerSecrets: async (server) => createResolvedServerConfig(server),
       connectionFactory: () => connection,
@@ -313,7 +325,10 @@ class FakeMcpConnection implements McpManagedConnection {
     this.emit()
   }
 
-  async callTool(toolName: string, args: Record<string, unknown>): Promise<{ content: unknown[]; structuredContent?: unknown; isError: boolean }> {
+  async callTool(
+    toolName: string,
+    args: Record<string, unknown>
+  ): Promise<{ content: unknown[]; structuredContent?: unknown; isError: boolean }> {
     this.callToolCalls.push({ toolName, args })
     return {
       content: [
@@ -429,7 +444,9 @@ function cloneRuntimeState(runtimeState: McpServerRuntimeState): McpServerRuntim
     })),
     prompts: (runtimeState.prompts ?? []).map((prompt) => ({
       ...prompt,
-      arguments: prompt.arguments ? prompt.arguments.map((argument) => ({ ...argument })) : undefined,
+      arguments: prompt.arguments
+        ? prompt.arguments.map((argument) => ({ ...argument }))
+        : undefined,
     })),
     capabilities: { ...runtimeState.capabilities },
     connectionInfo: runtimeState.connectionInfo ? { ...runtimeState.connectionInfo } : undefined,

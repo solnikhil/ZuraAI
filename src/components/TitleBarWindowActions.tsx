@@ -20,7 +20,10 @@ export default function TitleBarWindowActions({
           ?.isMaximized()
           .then(setIsMaximized)
           .catch((error) => {
-            console.warn('[TitleBarWindowActions] Failed to read maximize state after toggle', error)
+            console.warn(
+              '[TitleBarWindowActions] Failed to read maximize state after toggle',
+              error
+            )
           })
       })
       .catch((error) => {

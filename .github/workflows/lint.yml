@@ -9,20 +9,20 @@ on:
       - synchronize
       - reopened
     paths-ignore:
-      - "**.md"
-      - "LICENSE"
-      - "images/**"
-      - "docs/**"
-      - "research/**"
+      - '**.md'
+      - 'LICENSE'
+      - 'images/**'
+      - 'docs/**'
+      - 'research/**'
   push:
     branches:
       - main
     paths-ignore:
-      - "**.md"
-      - "LICENSE"
-      - "images/**"
-      - "docs/**"
-      - "research/**"
+      - '**.md'
+      - 'LICENSE'
+      - 'images/**'
+      - 'docs/**'
+      - 'research/**'
 
 permissions:
   contents: read

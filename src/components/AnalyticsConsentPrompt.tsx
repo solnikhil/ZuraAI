@@ -14,8 +14,7 @@ import type { AnalyticsState } from '@/electron/types'
 function isUtilityRoute(): boolean {
   if (typeof window === 'undefined') return true
   return (
-    window.location.hash.startsWith('#/about') ||
-    window.location.hash.startsWith('#/chat-debug')
+    window.location.hash.startsWith('#/about') || window.location.hash.startsWith('#/chat-debug')
   )
 }
 
@@ -60,8 +59,8 @@ export function AnalyticsConsentPrompt(): ReactElement | null {
         <DialogHeader>
           <DialogTitle>Share anonymous app stats?</DialogTitle>
           <DialogDescription>
-            Help improve ZuraAI with basic usage and reliability events. Prompts, responses,
-            file paths, API keys, clipboard data, and conversation content are never collected.
+            Help improve ZuraAI with basic usage and reliability events. Prompts, responses, file
+            paths, API keys, clipboard data, and conversation content are never collected.
           </DialogDescription>
         </DialogHeader>
 
@@ -78,11 +77,7 @@ export function AnalyticsConsentPrompt(): ReactElement | null {
           >
             Not now
           </Button>
-          <Button
-            type="button"
-            onClick={() => void resolveConsent(true)}
-            disabled={isResolving}
-          >
+          <Button type="button" onClick={() => void resolveConsent(true)} disabled={isResolving}>
             Enable anonymous analytics
           </Button>
         </DialogFooter>

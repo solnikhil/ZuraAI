@@ -70,7 +70,9 @@ export function CreateCustomModelDialog({
   const [supportsWebSearch, setSupportsWebSearch] = useState(false)
   const [supportsImageGeneration, setSupportsImageGeneration] = useState(false)
   const [supportsVideoRecognition, setSupportsVideoRecognition] = useState(false)
-  const [autoFillState, setAutoFillState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
+  const [autoFillState, setAutoFillState] = useState<'idle' | 'loading' | 'success' | 'error'>(
+    'idle'
+  )
   const [autoFillMessage, setAutoFillMessage] = useState('')
 
   const isEditMode = Boolean(initialModel)
@@ -136,7 +138,9 @@ export function CreateCustomModelDialog({
 
   const toggleExtendedParameter = (name: string, checked: boolean) => {
     if (checked) {
-      setExtendedParameters((previous) => (previous.includes(name) ? previous : [...previous, name]))
+      setExtendedParameters((previous) =>
+        previous.includes(name) ? previous : [...previous, name]
+      )
       return
     }
     setExtendedParameters((previous) => previous.filter((item) => item !== name))
@@ -261,8 +265,12 @@ export function CreateCustomModelDialog({
             >
               <FormRow
                 label="* Model ID"
-                description={isEditMode ? 'Model ID cannot be changed.' : 'This cannot be modified after creation and will be used as the model ID when calling AI.'}
-                control={(
+                description={
+                  isEditMode
+                    ? 'Model ID cannot be changed.'
+                    : 'This cannot be modified after creation and will be used as the model ID when calling AI.'
+                }
+                control={
                   <Input
                     id="custom-model-id"
                     placeholder="Please enter the model ID, e.g., gpt-4o or claude-3.5-sonnet"
@@ -280,7 +288,7 @@ export function CreateCustomModelDialog({
                     readOnly={isEditMode}
                     className="border-border bg-secondary"
                   />
-                )}
+                }
               />
               {provider === 'openrouter' && !isEditMode ? (
                 <div className="px-4 pt-1 md:px-5">
@@ -294,7 +302,8 @@ export function CreateCustomModelDialog({
                           : 'text-muted-foreground'
                     )}
                   >
-                    {autoFillMessage || 'Paste an OpenRouter model ID and tab out to auto-fill supported specs.'}
+                    {autoFillMessage ||
+                      'Paste an OpenRouter model ID and tab out to auto-fill supported specs.'}
                   </p>
                 </div>
               ) : null}
@@ -302,7 +311,7 @@ export function CreateCustomModelDialog({
               <FormRow
                 label="Model Display Name"
                 description="A friendly model name shown in model selectors."
-                control={(
+                control={
                   <Input
                     id="custom-model-display-name"
                     placeholder="Please enter the display name of the model, e.g., ChatGPT, GPT-4"
@@ -310,13 +319,13 @@ export function CreateCustomModelDialog({
                     onChange={(e) => setDisplayName(e.target.value)}
                     className="border-border bg-secondary"
                   />
-                )}
+                }
               />
 
               <FormRow
                 label="Maximum Context"
                 description="Set the maximum number of tokens supported by the model."
-                control={(
+                control={
                   <div className="space-y-3">
                     <div className="flex items-center gap-3">
                       <div className="min-w-0 flex-1 space-y-2">
@@ -362,15 +371,17 @@ export function CreateCustomModelDialog({
                       />
                     </div>
                   </div>
-                )}
+                }
               />
 
               <FormRow
                 label="Model Type"
                 description="Different model types have distinct use cases and capabilities."
-                control={(
+                control={
                   <>
-                    <Label htmlFor="custom-model-type" className="sr-only">Model Type</Label>
+                    <Label htmlFor="custom-model-type" className="sr-only">
+                      Model Type
+                    </Label>
                     <Select
                       value={modelType}
                       onValueChange={(value) => setModelType(value as ConfiguredModel['modelType'])}
@@ -392,7 +403,7 @@ export function CreateCustomModelDialog({
                       </SelectContent>
                     </Select>
                   </>
-                )}
+                }
               />
             </SectionBlock>
 
@@ -403,7 +414,7 @@ export function CreateCustomModelDialog({
               <FormRow
                 label="Extended Parameters"
                 description="Choose extended parameters supported by the model. Incorrect configs may cause request failures."
-                control={(
+                control={
                   <div className="space-y-3 rounded-xl border border-border bg-secondary/45 p-3.5">
                     <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
                       Select parameters to enable
@@ -427,7 +438,7 @@ export function CreateCustomModelDialog({
                       })}
                     </div>
                   </div>
-                )}
+                }
               />
             </SectionBlock>
 
@@ -487,10 +498,12 @@ export function CreateCustomModelDialog({
             Profiles affect model selection and feature gating only.
           </p>
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={handleSubmit} disabled={!modelId.trim()}>
-            {isEditMode ? 'Save' : 'Add Model'}
-          </Button>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSubmit} disabled={!modelId.trim()}>
+              {isEditMode ? 'Save' : 'Add Model'}
+            </Button>
           </div>
         </div>
       </DialogContent>

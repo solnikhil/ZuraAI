@@ -14,7 +14,10 @@ function usage() {
 }
 
 function decodeBase64Url(value) {
-  const padded = value.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(value.length / 4) * 4, '=')
+  const padded = value
+    .replace(/-/g, '+')
+    .replace(/_/g, '/')
+    .padEnd(Math.ceil(value.length / 4) * 4, '=')
   return Buffer.from(padded, 'base64').toString('utf8')
 }
 
@@ -47,7 +50,9 @@ function getDefaultUserDataDir(appName = 'ZuraAI') {
 }
 
 function hasSessionFile(userDataDir, sessionId) {
-  return existsSync(path.join(userDataDir, 'chat-sessions', `${encodeURIComponent(sessionId)}.json`))
+  return existsSync(
+    path.join(userDataDir, 'chat-sessions', `${encodeURIComponent(sessionId)}.json`)
+  )
 }
 
 function resolveUserDataDir(sessionId, referenceUserDataDir) {
@@ -97,7 +102,9 @@ function formatDate(value) {
 }
 
 function truncate(text, limit = 280) {
-  const normalized = String(text ?? '').replace(/\s+/g, ' ').trim()
+  const normalized = String(text ?? '')
+    .replace(/\s+/g, ' ')
+    .trim()
   return normalized.length > limit ? `${normalized.slice(0, limit)}...[truncated]` : normalized
 }
 
@@ -171,7 +178,9 @@ function renderMarkdown(report) {
       if (message.finishReason) lines.push(`- Finish: ${message.finishReason}`)
       if (message.usage) lines.push(`- Usage: ${formatUsage(message.usage)}`)
       if (message.toolResults?.length) {
-        lines.push(`- Tool results: ${message.toolResults.map((result) => `${result.toolCall?.name}:${result.result?.success ? 'ok' : 'error'}`).join(', ')}`)
+        lines.push(
+          `- Tool results: ${message.toolResults.map((result) => `${result.toolCall?.name}:${result.result?.success ? 'ok' : 'error'}`).join(', ')}`
+        )
       }
       lines.push('')
       lines.push(truncate(message.content || '', 1_200) || '_empty_')
@@ -187,13 +196,21 @@ function renderMarkdown(report) {
   } else {
     const context = contextEvent.context
     lines.push(`- Model: ${context.model ?? 'unknown'}`)
-    lines.push(`- Window: max=${context.maxTokens ?? 'unknown'}, reserve=${context.reserveForResponse ?? 'unknown'}, available=${context.availableTokens ?? 'unknown'}`)
-    lines.push(`- Tokens: original=${context.originalTokens ?? 'unknown'}, final=${context.finalTokens ?? 'unknown'}`)
-    lines.push(`- Messages: original=${context.originalMessageCount ?? 'unknown'}, final=${context.finalMessageCount ?? 'unknown'}`)
+    lines.push(
+      `- Window: max=${context.maxTokens ?? 'unknown'}, reserve=${context.reserveForResponse ?? 'unknown'}, available=${context.availableTokens ?? 'unknown'}`
+    )
+    lines.push(
+      `- Tokens: original=${context.originalTokens ?? 'unknown'}, final=${context.finalTokens ?? 'unknown'}`
+    )
+    lines.push(
+      `- Messages: original=${context.originalMessageCount ?? 'unknown'}, final=${context.finalMessageCount ?? 'unknown'}`
+    )
     lines.push(`- Truncated: ${context.wasTruncated ? 'yes' : 'no'}`)
     lines.push(`- Synthetic summary inserted: ${context.insertedSummary ? 'yes' : 'no'}`)
-    if (context.keptMessageIds?.length) lines.push(`- Kept IDs: ${context.keptMessageIds.join(', ')}`)
-    if (context.droppedMessageIds?.length) lines.push(`- Dropped IDs: ${context.droppedMessageIds.join(', ')}`)
+    if (context.keptMessageIds?.length)
+      lines.push(`- Kept IDs: ${context.keptMessageIds.join(', ')}`)
+    if (context.droppedMessageIds?.length)
+      lines.push(`- Dropped IDs: ${context.droppedMessageIds.join(', ')}`)
   }
 
   const requestEvent = latestEvent(diagnostics, 'request-shape')
@@ -204,17 +221,23 @@ function renderMarkdown(report) {
     lines.push('_No request-shape trace found._')
   } else {
     const shape = requestEvent.requestShape
-    lines.push(`- Round: ${requestEvent.round ?? 'unknown'} (${requestEvent.roundType ?? 'unknown'})`)
+    lines.push(
+      `- Round: ${requestEvent.round ?? 'unknown'} (${requestEvent.roundType ?? 'unknown'})`
+    )
     lines.push(`- Roles: ${(shape.roleOrder || []).join(' -> ')}`)
     lines.push(`- Text lengths: ${(shape.textLengths || []).join(', ')}`)
     lines.push(`- Content types: ${(shape.contentTypes || []).join(', ')}`)
     lines.push(`- Part types: ${formatPartTypes(shape.partTypes)}`)
     lines.push(`- Reasoning fields: ${(shape.hasReasoning || []).filter(Boolean).length}`)
     lines.push(`- Thinking fields: ${(shape.hasThinking || []).filter(Boolean).length}`)
-    lines.push(`- Tools: ${shape.toolCount ?? 0}; choice=${shape.toolChoice ?? 'default'}; cache markers=${shape.cacheMarkerCount ?? 0}`)
+    lines.push(
+      `- Tools: ${shape.toolCount ?? 0}; choice=${shape.toolChoice ?? 'default'}; cache markers=${shape.cacheMarkerCount ?? 0}`
+    )
   }
 
-  const roundEvents = diagnostics.filter((event) => event.phase === 'round-start' || event.phase === 'round-finish')
+  const roundEvents = diagnostics.filter(
+    (event) => event.phase === 'round-start' || event.phase === 'round-finish'
+  )
   lines.push('')
   lines.push(`## Round Trace`)
   if (roundEvents.length === 0) {
@@ -222,7 +245,9 @@ function renderMarkdown(report) {
     lines.push('_No round trace found._')
   } else {
     for (const event of roundEvents.slice(-20)) {
-      lines.push(`- ${formatDate(event.timestamp)} \`${event.phase}\` round=${event.round ?? 'unknown'} type=${event.roundType ?? 'unknown'}${event.finishReason ? ` finish=${event.finishReason}` : ''}${event.usage ? ` usage=[${formatUsage(event.usage)}]` : ''}`)
+      lines.push(
+        `- ${formatDate(event.timestamp)} \`${event.phase}\` round=${event.round ?? 'unknown'} type=${event.roundType ?? 'unknown'}${event.finishReason ? ` finish=${event.finishReason}` : ''}${event.usage ? ` usage=[${formatUsage(event.usage)}]` : ''}`
+      )
     }
   }
 
@@ -247,16 +272,22 @@ function renderMarkdown(report) {
   lines.push(`## Diagnostic Trace`)
   if (diagnostics.length === 0) {
     lines.push('')
-    lines.push('_No diagnostics found. Run a new chat in development mode after this feature is enabled._')
+    lines.push(
+      '_No diagnostics found. Run a new chat in development mode after this feature is enabled._'
+    )
   } else {
     for (const event of diagnostics.slice(-80)) {
       const parts = [
         `- ${formatDate(event.timestamp)} \`${event.phase}\``,
-        event.provider || event.model ? `(${[event.provider, event.model].filter(Boolean).join('/')})` : '',
+        event.provider || event.model
+          ? `(${[event.provider, event.model].filter(Boolean).join('/')})`
+          : '',
         event.finishReason ? `finish=${event.finishReason}` : '',
         event.latency != null ? `latency=${Math.round(event.latency)}ms` : '',
         event.usage ? `usage=[${formatUsage(event.usage)}]` : '',
-        event.tool ? `tool=${event.tool.name}:${event.tool.success === false ? 'error' : event.tool.success === true ? 'ok' : 'start'}` : '',
+        event.tool
+          ? `tool=${event.tool.name}:${event.tool.success === false ? 'error' : event.tool.success === true ? 'ok' : 'start'}`
+          : '',
         event.error ? `error=${truncate(event.error, 180)}` : '',
       ].filter(Boolean)
       lines.push(parts.join(' '))
@@ -275,7 +306,11 @@ const { sessionId, userDataDir: referenceUserDataDir } = parseSessionReference(s
 const userDataDir = resolveUserDataDir(sessionId, referenceUserDataDir)
 const indexPath = path.join(userDataDir, 'chat-index.json')
 const sessionPath = path.join(userDataDir, 'chat-sessions', `${encodeURIComponent(sessionId)}.json`)
-const diagnosticsPath = path.join(userDataDir, 'debug-sessions', `${encodeURIComponent(sessionId)}.jsonl`)
+const diagnosticsPath = path.join(
+  userDataDir,
+  'debug-sessions',
+  `${encodeURIComponent(sessionId)}.jsonl`
+)
 
 if (!existsSync(sessionPath)) {
   console.error(`Chat session not found: ${sessionId}`)

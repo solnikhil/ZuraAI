@@ -8,7 +8,9 @@ import type { McpResolvedServerConfig } from '../../src/mcp/types'
 import type { McpTransport } from './transports/base'
 import { McpConnection, createMcpTransportForServer } from './mcpConnection'
 
-const MOCK_STDIO_SERVER_PATH = fileURLToPath(new URL('./testUtils/mockStdioServer.cjs', import.meta.url))
+const MOCK_STDIO_SERVER_PATH = fileURLToPath(
+  new URL('./testUtils/mockStdioServer.cjs', import.meta.url)
+)
 
 describe('McpConnection', () => {
   it('completes initialize handshake and caches discovered tools', async () => {

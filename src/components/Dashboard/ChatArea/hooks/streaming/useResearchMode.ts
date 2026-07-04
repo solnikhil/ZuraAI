@@ -153,8 +153,7 @@ export function useResearchMode({
   const getResearchContext = useCallback(
     (actualSearchCount?: number, maxRoundsOverride?: number): string => {
       const maxRounds = maxRoundsOverride ?? researchState.maxRounds
-      const isActive =
-        maxRoundsOverride !== undefined ? maxRounds >= 0 : researchState.isActive
+      const isActive = maxRoundsOverride !== undefined ? maxRounds >= 0 : researchState.isActive
 
       if (!isActive || maxRounds < 0) {
         return ''

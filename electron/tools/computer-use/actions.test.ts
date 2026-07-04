@@ -33,9 +33,15 @@ describe('computer-use actions', () => {
 
     expect(execFileMock).toHaveBeenCalledWith(
       'powershell.exe',
-      expect.arrayContaining(['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command']),
+      expect.arrayContaining([
+        '-NoProfile',
+        '-NonInteractive',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-Command',
+      ]),
       expect.objectContaining({ windowsHide: true }),
-      expect.any(Function),
+      expect.any(Function)
     )
     expect(clipboardStore.text).toBe('original')
   })

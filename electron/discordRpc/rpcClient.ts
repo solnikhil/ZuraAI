@@ -126,7 +126,7 @@ class DiscordRpcClient {
       this.emitState()
 
       if (this.currentActivity) {
-client.setActivity(this.normalizeActivity(this.currentActivity)).catch(() => {
+        client.setActivity(this.normalizeActivity(this.currentActivity)).catch(() => {
           discordLog.warn('setActivity failed')
         })
       } else {
@@ -181,7 +181,9 @@ client.setActivity(this.normalizeActivity(this.currentActivity)).catch(() => {
         this.client = null
       }
       const message = error instanceof Error ? error.message : String(error)
-      discordLog.warn(`connection failed: ${message}; reconnecting in ${(RECONNECT_INTERVAL_MS / 1000).toFixed(0)}s`)
+      discordLog.warn(
+        `connection failed: ${message}; reconnecting in ${(RECONNECT_INTERVAL_MS / 1000).toFixed(0)}s`
+      )
       this.setErrorState(message)
       this.scheduleReconnect()
     }

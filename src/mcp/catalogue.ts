@@ -311,7 +311,11 @@ function createSetupPlaceholders(requirements: NormalizedSetupRequirement[]): {
     if (!requirement.secret) continue
 
     const entry = createDraftConfigValue(
-      requirement.target === 'env' ? 'env' : requirement.target === 'authToken' ? 'token' : 'header',
+      requirement.target === 'env'
+        ? 'env'
+        : requirement.target === 'authToken'
+          ? 'token'
+          : 'header',
       {
         name: requirement.name,
         valueSource: 'secret',
@@ -377,7 +381,10 @@ function buildCatalogueFingerprints(name: string, installTarget: InstallTarget):
     fingerprints.push(`${installTarget.kind}:${installTarget.identifier.toLowerCase()}`)
   }
 
-  if (installTarget.supported && (installTarget.kind === 'sse' || installTarget.kind === 'websocket')) {
+  if (
+    installTarget.supported &&
+    (installTarget.kind === 'sse' || installTarget.kind === 'websocket')
+  ) {
     fingerprints.push(`url:${installTarget.url.toLowerCase()}`)
   }
 

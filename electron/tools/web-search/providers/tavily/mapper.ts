@@ -118,20 +118,18 @@ export function mapTavilyExtractPayload(
   }
 
   // Req 10.x: gate images on includeImages; extract images are nested per result.
-  const images: ImageResult[] = request.includeImages
-    ? extractTavilyImages(rawResults)
-    : []
+  const images: ImageResult[] = request.includeImages ? extractTavilyImages(rawResults) : []
 
   // Req 8.4: partial-extract count. Prefer the provider-reported failed_results
   // length; otherwise infer from the requested-vs-parsed difference.
   const requestedUrlCount = request.urls.length
-  const failedCount = failedResults.length > 0
-    ? failedResults.length
-    : Math.max(0, requestedUrlCount - results.length)
+  const failedCount =
+    failedResults.length > 0
+      ? failedResults.length
+      : Math.max(0, requestedUrlCount - results.length)
 
-  const partialFailureMessage = failedCount > 0
-    ? `${failedCount} URL(s) could not be extracted.`
-    : undefined
+  const partialFailureMessage =
+    failedCount > 0 ? `${failedCount} URL(s) could not be extracted.` : undefined
 
   // Derive extractDepth consistently with the request shape: an attached query
   // means an advanced extract, otherwise a basic extract.

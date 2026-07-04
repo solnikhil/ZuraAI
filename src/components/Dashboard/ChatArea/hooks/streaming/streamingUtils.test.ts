@@ -47,10 +47,17 @@ describe('streamingUtils final synthesis helpers', () => {
       'budget'
     )
 
-    expect(messages[0]).toEqual({ role: 'system', content: FINAL_SYNTHESIS_BUDGET_EXHAUSTED_PROMPT })
+    expect(messages[0]).toEqual({
+      role: 'system',
+      content: FINAL_SYNTHESIS_BUDGET_EXHAUSTED_PROMPT,
+    })
     expect(String(messages[0].content)).toContain('WEB SEARCH BUDGET EXHAUSTED')
-    expect(String(messages[0].content)).toContain('Produce the best supported answer from the gathered evidence')
-    expect(String(messages[0].content)).toContain('state what could not be verified instead of searching again')
+    expect(String(messages[0].content)).toContain(
+      'Produce the best supported answer from the gathered evidence'
+    )
+    expect(String(messages[0].content)).toContain(
+      'state what could not be verified instead of searching again'
+    )
   })
 
   it('tells the model when final synthesis is required because no executable search query remained', () => {
@@ -66,8 +73,12 @@ describe('streamingUtils final synthesis helpers', () => {
 
     expect(messages[0]).toEqual({ role: 'system', content: FINAL_SYNTHESIS_EMPTY_BATCH_PROMPT })
     expect(String(messages[0].content)).toContain('NO EXECUTABLE WEB SEARCH REMAINED')
-    expect(String(messages[0].content)).toContain('Produce the best supported answer from the gathered evidence')
-    expect(String(messages[0].content)).toContain('state what could not be verified instead of searching again')
+    expect(String(messages[0].content)).toContain(
+      'Produce the best supported answer from the gathered evidence'
+    )
+    expect(String(messages[0].content)).toContain(
+      'state what could not be verified instead of searching again'
+    )
   })
 
   it('builds a recovery synthesis instruction when the first synthesis returns empty', () => {
@@ -112,15 +123,9 @@ describe('streamingUtils final synthesis helpers', () => {
       },
     ]
 
-    expect(
-      shouldSkipStrayReasoningDelta('The', completedBlocks, '', true)
-    ).toBe(true)
-    expect(
-      shouldSkipStrayReasoningDelta(' more detail', completedBlocks, '', true)
-    ).toBe(false)
-    expect(
-      shouldSkipStrayReasoningDelta('The', completedBlocks, '', false)
-    ).toBe(false)
+    expect(shouldSkipStrayReasoningDelta('The', completedBlocks, '', true)).toBe(true)
+    expect(shouldSkipStrayReasoningDelta(' more detail', completedBlocks, '', true)).toBe(false)
+    expect(shouldSkipStrayReasoningDelta('The', completedBlocks, '', false)).toBe(false)
   })
 
   it('builds fallback reasoning transcripts from completed blocks and the active segment', () => {
@@ -171,12 +176,7 @@ describe('streamingUtils final synthesis helpers', () => {
       },
     ]
 
-    publishStreamingToolResults(
-      updateStreaming,
-      publishProgress,
-      toolResults,
-      thinkingBlocks
-    )
+    publishStreamingToolResults(updateStreaming, publishProgress, toolResults, thinkingBlocks)
 
     expect(updateStreaming).toHaveBeenCalledWith({
       toolResults,
@@ -428,7 +428,9 @@ describe('streamingUtils final synthesis helpers', () => {
 
     expect(synthesis).toContain('no official vendor source was retrieved')
     expect(synthesis).toContain('third-party search evidence rather than confirmed')
-    expect(synthesis).toContain('[Claude Fable 5 pricing rumor](https://example-news.test/claude-fable-pricing)')
+    expect(synthesis).toContain(
+      '[Claude Fable 5 pricing rumor](https://example-news.test/claude-fable-pricing)'
+    )
   })
 
   it('prioritizes official vendor evidence in deterministic search synthesis', () => {

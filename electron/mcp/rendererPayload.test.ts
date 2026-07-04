@@ -100,7 +100,10 @@ describe('prepareRendererMcpServerInput', () => {
       'mcp.server.server-1.env.API_KEY',
       ''
     )
-    expect(secureStorageMocks.setSecureValueAsync).toHaveBeenCalledWith('mcp.server.server-1.token', '')
+    expect(secureStorageMocks.setSecureValueAsync).toHaveBeenCalledWith(
+      'mcp.server.server-1.token',
+      ''
+    )
   })
 
   it('respects input values for new servers and regenerates foreign secret keys', async () => {
@@ -153,7 +156,11 @@ describe('prepareRendererMcpServerInput', () => {
         { name: 'API_KEY', valueSource: 'secret', secretKey: 'mcp.server.server-1.env.API_KEY' },
       ],
       headers: [
-        { name: 'X-Api-Key', valueSource: 'secret', secretKey: 'mcp.server.server-1.header.X-Api-Key' },
+        {
+          name: 'X-Api-Key',
+          valueSource: 'secret',
+          secretKey: 'mcp.server.server-1.header.X-Api-Key',
+        },
       ],
     })
 

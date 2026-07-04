@@ -28,7 +28,10 @@ export function inferWebToolModeFromArgs(args?: Record<string, unknown>): WebToo
   if (!args) return 'search'
 
   const explicitUrls = args.urls
-  if (Array.isArray(explicitUrls) && explicitUrls.some((url) => typeof url === 'string' && isLikelyUrlToken(url))) {
+  if (
+    Array.isArray(explicitUrls) &&
+    explicitUrls.some((url) => typeof url === 'string' && isLikelyUrlToken(url))
+  ) {
     return 'extract'
   }
 
@@ -60,7 +63,11 @@ export function inferWebToolModeFromResultData(data: unknown): WebToolMode | nul
   }
 
   const intent = obj.intent
-  if (intent === 'url_extract' || intent === 'url_extract_with_query' || intent === 'site_exploration') {
+  if (
+    intent === 'url_extract' ||
+    intent === 'url_extract_with_query' ||
+    intent === 'site_exploration'
+  ) {
     return 'extract'
   }
   if (intent === 'query_search') {

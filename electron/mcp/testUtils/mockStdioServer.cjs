@@ -15,22 +15,19 @@ const capabilities = {
   ...(process.env.MCP_MOCK_PROMPTS_CAPABILITY === 'true' ? { prompts: {} } : {}),
 }
 
-const tools = safeJsonParse(
-  process.env.MCP_MOCK_TOOLS_JSON,
-  [
-    {
-      name: 'read_file',
-      description: 'Read a file from disk',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          path: { type: 'string' },
-        },
-        required: ['path'],
+const tools = safeJsonParse(process.env.MCP_MOCK_TOOLS_JSON, [
+  {
+    name: 'read_file',
+    description: 'Read a file from disk',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string' },
       },
+      required: ['path'],
     },
-  ]
-)
+  },
+])
 
 if (stderrLine) {
   process.stderr.write(`${stderrLine}\n`)
@@ -56,22 +53,26 @@ rl.on('line', (line) => {
   }
 
   if (message.method === 'initialize') {
-    return delayedWrite(initializeDelayMs, {
-      jsonrpc: '2.0',
-      id: message.id,
-      result: {
-        protocolVersion,
-        capabilities,
-        serverInfo: {
-          name: serverName,
-          version: serverVersion,
+    return delayedWrite(
+      initializeDelayMs,
+      {
+        jsonrpc: '2.0',
+        id: message.id,
+        result: {
+          protocolVersion,
+          capabilities,
+          serverInfo: {
+            name: serverName,
+            version: serverVersion,
+          },
         },
       },
-    }, () => {
-      if (exitAfterInitialize) {
-        process.exit(0)
+      () => {
+        if (exitAfterInitialize) {
+          process.exit(0)
+        }
       }
-    })
+    )
   }
 
   if (message.method === 'notifications/initialized') {

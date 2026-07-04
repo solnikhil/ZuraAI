@@ -38,12 +38,14 @@ describe('sendScheduledTaskEmail', () => {
 
     await expect(sendScheduledTaskEmail(task, run)).resolves.toEqual({ ok: true })
 
-    expect(serviceMock.sendBrevoEmail).toHaveBeenCalledWith(expect.objectContaining({
-      apiKey: 'xkeysib-demo',
-      subject: 'Reminder: Review weekly launches',
-      textContent: expect.stringContaining('Review launch notes'),
-      htmlContent: expect.stringContaining('ZuraAI'),
-    }))
+    expect(serviceMock.sendBrevoEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        apiKey: 'xkeysib-demo',
+        subject: 'Reminder: Review weekly launches',
+        textContent: expect.stringContaining('Review launch notes'),
+        htmlContent: expect.stringContaining('ZuraAI'),
+      })
+    )
     const payload = serviceMock.sendBrevoEmail.mock.calls[0]?.[0] as { htmlContent: string }
     expect(payload.htmlContent).toContain('border-radius:999px')
     expect(payload.htmlContent).toContain('Automation alert')
@@ -69,7 +71,10 @@ describe('sendScheduledTaskEmail', () => {
 
     await expect(sendScheduledTaskEmail(task, run)).resolves.toEqual({ ok: true })
 
-    const payload = serviceMock.sendBrevoEmail.mock.calls[0]?.[0] as { htmlContent: string; subject: string }
+    const payload = serviceMock.sendBrevoEmail.mock.calls[0]?.[0] as {
+      htmlContent: string
+      subject: string
+    }
     expect(payload.subject).toBe('Lookout changed: Review weekly launches')
     expect(payload.htmlContent).toContain('Lookout changed')
     expect(payload.htmlContent).toContain('https://example.com/pricing')

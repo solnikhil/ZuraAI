@@ -43,7 +43,7 @@ function messageOf(error: unknown, fallback: string): string {
  */
 async function search(
   request: ProviderSearchRequest,
-  ctx: ProviderContext,
+  ctx: ProviderContext
 ): Promise<ProviderResult> {
   try {
     const transport = await tavilySearch(request, ctx)
@@ -64,7 +64,7 @@ async function search(
  */
 async function extract(
   request: ProviderExtractRequest,
-  ctx: ProviderContext,
+  ctx: ProviderContext
 ): Promise<ProviderResult> {
   try {
     const transport = await tavilyExtract(request, ctx)

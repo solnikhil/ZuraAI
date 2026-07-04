@@ -72,7 +72,11 @@ export function computeNewBounds(
       y = y + (height - MIN_HEIGHT)
       height = MIN_HEIGHT
     }
-  } else if (direction === 'bottom' || direction === 'bottom-left' || direction === 'bottom-right') {
+  } else if (
+    direction === 'bottom' ||
+    direction === 'bottom-left' ||
+    direction === 'bottom-right'
+  ) {
     // Bottom edge: moving down increases height
     height = Math.max(MIN_HEIGHT, height + deltaY)
   }
@@ -93,10 +97,22 @@ const HANDLES: HandleDef[] = [
   { direction: 'left', className: 'resize-handle resize-handle--left' },
   { direction: 'right', className: 'resize-handle resize-handle--right' },
   // Corners
-  { direction: 'top-left', className: 'resize-handle resize-handle--corner resize-handle--top-left' },
-  { direction: 'top-right', className: 'resize-handle resize-handle--corner resize-handle--top-right' },
-  { direction: 'bottom-left', className: 'resize-handle resize-handle--corner resize-handle--bottom-left' },
-  { direction: 'bottom-right', className: 'resize-handle resize-handle--corner resize-handle--bottom-right' },
+  {
+    direction: 'top-left',
+    className: 'resize-handle resize-handle--corner resize-handle--top-left',
+  },
+  {
+    direction: 'top-right',
+    className: 'resize-handle resize-handle--corner resize-handle--top-right',
+  },
+  {
+    direction: 'bottom-left',
+    className: 'resize-handle resize-handle--corner resize-handle--bottom-left',
+  },
+  {
+    direction: 'bottom-right',
+    className: 'resize-handle resize-handle--corner resize-handle--bottom-right',
+  },
 ]
 
 /**
@@ -183,10 +199,12 @@ export default function ResizeHandles({ disabled }: ResizeHandlesProps) {
         <div
           key={direction}
           className={className}
-          style={{
-            cursor: CURSOR_MAP[direction],
-            WebkitAppRegion: 'no-drag',
-          } as React.CSSProperties}
+          style={
+            {
+              cursor: CURSOR_MAP[direction],
+              WebkitAppRegion: 'no-drag',
+            } as React.CSSProperties
+          }
           data-direction={direction}
           onPointerDown={(e) => handlePointerDown(direction, e)}
           onPointerMove={handlePointerMove}

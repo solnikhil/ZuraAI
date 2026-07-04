@@ -22,9 +22,7 @@ describe('serializeDomToMarkdown', () => {
     const frag = fragmentFromHtml(
       '<ul><li><strong>Plan</strong> hides messages</li><li>Attachments disappear</li></ul>'
     )
-    expect(serializeDomToMarkdown(frag)).toBe(
-      '- **Plan** hides messages\n- Attachments disappear'
-    )
+    expect(serializeDomToMarkdown(frag)).toBe('- **Plan** hides messages\n- Attachments disappear')
   })
 
   it('serializes ordered lists with numbers and start offset', () => {
@@ -33,9 +31,7 @@ describe('serializeDomToMarkdown', () => {
   })
 
   it('handles nested lists with indentation', () => {
-    const frag = fragmentFromHtml(
-      '<ul><li>parent<ul><li>child</li></ul></li></ul>'
-    )
+    const frag = fragmentFromHtml('<ul><li>parent<ul><li>child</li></ul></li></ul>')
     expect(serializeDomToMarkdown(frag)).toBe('- parent\n  - child')
   })
 
@@ -43,9 +39,7 @@ describe('serializeDomToMarkdown', () => {
     const inline = fragmentFromHtml('<p>use <code>npm test</code></p>')
     expect(serializeDomToMarkdown(inline)).toBe('use `npm test`')
 
-    const block = fragmentFromHtml(
-      '<pre><code class="language-ts">const a = 1\n</code></pre>'
-    )
+    const block = fragmentFromHtml('<pre><code class="language-ts">const a = 1\n</code></pre>')
     expect(serializeDomToMarkdown(block)).toBe('```ts\nconst a = 1\n```')
   })
 

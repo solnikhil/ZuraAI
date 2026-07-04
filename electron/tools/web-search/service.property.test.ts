@@ -60,33 +60,22 @@ const VALID_TOPICS = ['general', 'news', 'finance'] as const
 // ---------------------------------------------------------------------------
 
 /** A non-empty query string (at least one non-whitespace char, no URL). */
-const arbNonUrlQuery = fc
-  .stringMatching(/^[a-zA-Z0-9 ]{1,100}$/)
-  .filter((s) => s.trim().length > 0)
+const arbNonUrlQuery = fc.stringMatching(/^[a-zA-Z0-9 ]{1,100}$/).filter((s) => s.trim().length > 0)
 
 /** A valid search_depth or undefined. */
 const arbValidSearchDepth = fc.oneof(
   fc.constantFrom(...VALID_SEARCH_DEPTHS),
-  fc.constant(undefined),
+  fc.constant(undefined)
 )
 
 /** A valid time_range or undefined. */
-const arbValidTimeRange = fc.oneof(
-  fc.constantFrom(...VALID_TIME_RANGES),
-  fc.constant(undefined),
-)
+const arbValidTimeRange = fc.oneof(fc.constantFrom(...VALID_TIME_RANGES), fc.constant(undefined))
 
 /** A valid topic or undefined. */
-const arbValidTopic = fc.oneof(
-  fc.constantFrom(...VALID_TOPICS),
-  fc.constant(undefined),
-)
+const arbValidTopic = fc.oneof(fc.constantFrom(...VALID_TOPICS), fc.constant(undefined))
 
 /** A valid num_results: integer or undefined. */
-const arbNumResults = fc.oneof(
-  fc.integer({ min: 1, max: 10 }),
-  fc.constant(undefined),
-)
+const arbNumResults = fc.oneof(fc.integer({ min: 1, max: 10 }), fc.constant(undefined))
 
 /** A valid WebSearchArgs that should pass validation (query_search intent). */
 const arbValidSearchArgs: fc.Arbitrary<WebSearchArgs> = fc.record({
@@ -106,17 +95,14 @@ const arbValidExtractArgs: fc.Arbitrary<WebSearchArgs> = fc.record({
   search_depth: arbValidSearchDepth as fc.Arbitrary<WebSearchArgs['search_depth']>,
   time_range: arbValidTimeRange as fc.Arbitrary<WebSearchArgs['time_range']>,
   topic: arbValidTopic as fc.Arbitrary<WebSearchArgs['topic']>,
-  urls: fc.oneof(
-    fc.constant(undefined),
-    fc.constant(['https://example.com']),
-  ),
+  urls: fc.oneof(fc.constant(undefined), fc.constant(['https://example.com'])),
   include_images: fc.oneof(fc.boolean(), fc.constant(undefined)),
 })
 
 /** Any valid args (search or extract). */
 const arbAnyValidArgs: fc.Arbitrary<WebSearchArgs> = fc.oneof(
   arbValidSearchArgs,
-  arbValidExtractArgs,
+  arbValidExtractArgs
 )
 
 // ---------------------------------------------------------------------------
@@ -130,7 +116,7 @@ const arbFetchOutcome: fc.Arbitrary<FetchOutcome> = fc.constantFrom(
   'success',
   'error-status',
   'network-error',
-  'timeout',
+  'timeout'
 )
 
 /** Build a Tavily-like success response for /search or /extract. */
@@ -212,7 +198,7 @@ describe('executeWebSearch — Property 2: No fallback', () => {
 
         expect(callCount()).toBeLessThanOrEqual(1)
       }),
-      PROPERTY_TEST_CONFIG,
+      PROPERTY_TEST_CONFIG
     )
   })
 
@@ -231,7 +217,7 @@ describe('executeWebSearch — Property 2: No fallback', () => {
         // On error-status, the result should be a failure (no fallback to another provider)
         expect(result.success).toBe(false)
       }),
-      PROPERTY_TEST_CONFIG,
+      PROPERTY_TEST_CONFIG
     )
   })
 
@@ -257,7 +243,7 @@ describe('executeWebSearch — Property 2: No fallback', () => {
           expect(result.success).toBe(false)
         }
       }),
-      PROPERTY_TEST_CONFIG,
+      PROPERTY_TEST_CONFIG
     )
   })
 })

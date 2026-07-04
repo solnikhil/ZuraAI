@@ -12,10 +12,14 @@ vi.mock('../ActivityGraph', () => ({
 
 vi.mock('recharts', async () => {
   return {
-    ResponsiveContainer: ({ children }: { children: ReactNode }) => <div data-testid="responsive-container">{children}</div>,
+    ResponsiveContainer: ({ children }: { children: ReactNode }) => (
+      <div data-testid="responsive-container">{children}</div>
+    ),
     Tooltip: () => <div data-testid="chart-tooltip" />,
     Legend: () => <div data-testid="chart-legend" />,
-    PieChart: ({ children }: { children: ReactNode }) => <div data-testid="model-mix-pie-chart">{children}</div>,
+    PieChart: ({ children }: { children: ReactNode }) => (
+      <div data-testid="model-mix-pie-chart">{children}</div>
+    ),
     Pie: () => <div data-testid="model-mix-pie" />,
   }
 })
@@ -102,9 +106,7 @@ describe('UsageSection analytics settings', () => {
   })
 
   it('toggles anonymous analytics through the dedicated bridge', async () => {
-    render(
-      <UsageSection stats={emptyStats} />
-    )
+    render(<UsageSection stats={emptyStats} />)
 
     const toggle = await screen.findByRole('switch', { name: 'Enable anonymous analytics' })
     fireEvent.click(toggle)
@@ -144,9 +146,7 @@ describe('UsageSection analytics settings', () => {
     expect(usageRoot).not.toBeNull()
     expect(
       Array.from((usageRoot as HTMLElement).querySelectorAll('*')).indexOf(graph)
-    ).toBeLessThan(
-      Array.from((usageRoot as HTMLElement).querySelectorAll('*')).indexOf(modelMix)
-    )
+    ).toBeLessThan(Array.from((usageRoot as HTMLElement).querySelectorAll('*')).indexOf(modelMix))
     expect(screen.queryByText('Activity Streak')).not.toBeInTheDocument()
     expect(screen.queryByText('Model Details')).not.toBeInTheDocument()
   })
@@ -208,9 +208,7 @@ describe('UsageSection analytics settings', () => {
   })
 
   it('renders compact model mix empty state when there is no model usage', async () => {
-    render(
-      <UsageSection stats={emptyStats} />
-    )
+    render(<UsageSection stats={emptyStats} />)
 
     const modelMixRegion = await screen.findByRole('region', { name: 'Model Mix' })
     expect(within(modelMixRegion).getByRole('heading', { name: 'Model Mix' })).toBeInTheDocument()

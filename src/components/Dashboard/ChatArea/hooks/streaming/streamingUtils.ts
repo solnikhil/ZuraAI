@@ -6,14 +6,8 @@
  * hook only contains provider-specific stream invocation and options.
  */
 
-import type {
-  ThinkingBlock,
-  ToolCallResult,
-} from '../../../../../chat/types'
-import type {
-  ReasoningDetail,
-  ServiceAssistantMessage,
-} from '../../../../../services/types'
+import type { ThinkingBlock, ToolCallResult } from '../../../../../chat/types'
+import type { ReasoningDetail, ServiceAssistantMessage } from '../../../../../services/types'
 import type { ToolCallingResponse } from '../../../../../tools/types'
 import { isSkippedBuiltinToolResult } from '../../../../../tools/types'
 import type { AgentVerificationStrategy } from '../../../../../agent/reliability'
@@ -237,10 +231,7 @@ export function buildThinkingBlocksFromResults(
 }
 
 /** Create a persisted reasoning block from a completed active thinking segment. */
-function createThinkingBlock(
-  content: string | undefined,
-  duration?: number
-): ThinkingBlock | null {
+function createThinkingBlock(content: string | undefined, duration?: number): ThinkingBlock | null {
   const normalizedContent = content?.trim()
   if (!normalizedContent) return null
 
@@ -361,8 +352,7 @@ function extractSearchQuery(webSearchCalls: ToolCallResult[]): string {
 
 function isExecutedWebSearchResult(result: ToolCallResult): boolean {
   return (
-    result.toolCall.name === 'web_search' &&
-    !isSkippedBuiltinToolResult(result.result?.metadata)
+    result.toolCall.name === 'web_search' && !isSkippedBuiltinToolResult(result.result?.metadata)
   )
 }
 
@@ -392,9 +382,10 @@ export function processInitialToolResults(
   const executedWebSearchCalls = webSearchCalls.filter((tr) => isExecutedWebSearchResult(tr))
   const hasSearchCalls = executedWebSearchCalls.length > 0
   const searchQuery = hasSearchCalls ? extractSearchQuery(executedWebSearchCalls) : ''
-  const updatedThinkingBlocks = toolResults.length > 0
-    ? buildThinkingBlocksFromResults(toolResults, localThinkingBlocks)
-    : localThinkingBlocks
+  const updatedThinkingBlocks =
+    toolResults.length > 0
+      ? buildThinkingBlocksFromResults(toolResults, localThinkingBlocks)
+      : localThinkingBlocks
   const savedToolResults = mapToolResultsForStorage(toolResults)
 
   return { updatedThinkingBlocks, savedToolResults, hasSearchCalls, searchQuery }
@@ -561,14 +552,12 @@ export function extractSearchEvidenceItems(
       const item = raw as Record<string, unknown>
       const title = typeof item.title === 'string' ? item.title.trim() : ''
       const url = typeof item.url === 'string' ? item.url.trim() : ''
-      const snippet = typeof item.snippet === 'string'
-        ? item.snippet.replace(/\s+/g, ' ').trim()
-        : ''
+      const snippet =
+        typeof item.snippet === 'string' ? item.snippet.replace(/\s+/g, ' ').trim() : ''
       const source = typeof item.source === 'string' ? item.source.trim() : ''
       const date = typeof item.date === 'string' ? item.date.trim() : ''
-      const score = typeof item.score === 'number' && Number.isFinite(item.score)
-        ? item.score
-        : undefined
+      const score =
+        typeof item.score === 'number' && Number.isFinite(item.score) ? item.score : undefined
       if (!title && !snippet) continue
       const key = `${query}\n${url || title}\n${snippet.slice(0, 80)}`
       if (seen.has(key)) continue
@@ -614,11 +603,13 @@ function getOfficialSourceHints(query: string): string[] {
 
   if (/\b(anthropic|claude)\b/.test(normalized)) hints.push('anthropic.com', 'claude.com')
   if (/\b(openai|gpt)\b/.test(normalized)) hints.push('openai.com', 'platform.openai.com')
-  if (/\b(google|gemini)\b/.test(normalized)) hints.push('google.com', 'ai.google.dev', 'deepmind.google')
+  if (/\b(google|gemini)\b/.test(normalized))
+    hints.push('google.com', 'ai.google.dev', 'deepmind.google')
   if (/\b(deepseek)\b/.test(normalized)) hints.push('deepseek.com', 'api-docs.deepseek.com')
   if (/\b(meta|llama)\b/.test(normalized)) hints.push('meta.com', 'ai.meta.com', 'llama.com')
   if (/\b(mistral)\b/.test(normalized)) hints.push('mistral.ai', 'docs.mistral.ai')
-  if (/\b(qwen|alibaba)\b/.test(normalized)) hints.push('alibaba.com', 'aliyun.com', 'qwenlm.github.io')
+  if (/\b(qwen|alibaba)\b/.test(normalized))
+    hints.push('alibaba.com', 'aliyun.com', 'qwenlm.github.io')
 
   return [...new Set(hints)]
 }
@@ -672,9 +663,10 @@ export function buildDeterministicSearchSynthesis(
     queryCount += 1
     const officialHints = getOfficialSourceHints(query)
     const officialItems = items.filter((item) => isOfficialEvidence(item, officialHints))
-    const displayItems = officialItems.length > 0
-      ? [...officialItems, ...items.filter((item) => !isOfficialEvidence(item, officialHints))]
-      : items
+    const displayItems =
+      officialItems.length > 0
+        ? [...officialItems, ...items.filter((item) => !isOfficialEvidence(item, officialHints))]
+        : items
     lines.push('', `For "${query}":`)
 
     if (officialHints.length > 0 && officialItems.length === 0) {
@@ -684,7 +676,9 @@ export function buildDeterministicSearchSynthesis(
     }
 
     for (const item of displayItems) {
-      const snippet = item.snippet ? truncateEvidenceSnippet(item.snippet) : 'No snippet was returned.'
+      const snippet = item.snippet
+        ? truncateEvidenceSnippet(item.snippet)
+        : 'No snippet was returned.'
       const source = item.source ? ` (${item.source})` : ''
       lines.push(`- ${formatEvidenceSource(item)}${source}: ${snippet}`)
     }

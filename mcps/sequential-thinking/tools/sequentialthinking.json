@@ -50,11 +50,6 @@
         "type": "boolean"
       }
     },
-    "required": [
-      "thought",
-      "nextThoughtNeeded",
-      "thoughtNumber",
-      "totalThoughts"
-    ]
+    "required": ["thought", "nextThoughtNeeded", "thoughtNumber", "totalThoughts"]
   }
 }

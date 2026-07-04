@@ -1,4 +1,13 @@
-export type SkillId = 'web_research' | 'code_execution' | 'terminal' | 'computer_use' | 'command_center' | 'chart_generation' | 'memory' | 'reminders' | 'artifacts'
+export type SkillId =
+  | 'web_research'
+  | 'code_execution'
+  | 'terminal'
+  | 'computer_use'
+  | 'command_center'
+  | 'chart_generation'
+  | 'memory'
+  | 'reminders'
+  | 'artifacts'
 export type ExtensionId = SkillId
 
 export interface SkillState {
@@ -59,7 +68,8 @@ export const BUILT_IN_SKILLS: BuiltInSkill[] = [
   {
     id: 'code_execution',
     name: 'Code Execution',
-    description: 'Run JavaScript and Python code to perform calculations, data analysis, and other computational tasks.',
+    description:
+      'Run JavaScript and Python code to perform calculations, data analysis, and other computational tasks.',
     note: 'Requires user approval before each execution. Code runs on a remote sandbox.',
     usageGuidance: [
       'Use code_execution for calculations, data transforms, and logic the model cannot do reliably in-context.',
@@ -69,7 +79,8 @@ export const BUILT_IN_SKILLS: BuiltInSkill[] = [
   {
     id: 'terminal',
     name: 'Terminal',
-    description: 'Run bounded PowerShell commands for system inspection and automation. Windows-only.',
+    description:
+      'Run bounded PowerShell commands for system inspection and automation. Windows-only.',
     note: 'Windows-only. Requires user approval before each command. Commands are non-interactive and bounded by a timeout and output cap.',
     usageGuidance: [
       'Prefer native file/app/window tools before shell commands when they can do the job.',
@@ -80,7 +91,8 @@ export const BUILT_IN_SKILLS: BuiltInSkill[] = [
   {
     id: 'computer_use',
     name: 'Control This Desktop',
-    description: 'Let Agent Mode use native OS tools, Command Center, screenshots, clicks, typing, scrolling, and app controls on this desktop.',
+    description:
+      'Let Agent Mode use native OS tools, Command Center, screenshots, clicks, typing, scrolling, and app controls on this desktop.',
     note: 'Agent Mode includes native Windows tools and Ctrl+Shift+Space Command Center. Desktop control actions require approval. Press Esc+Esc to emergency stop.',
     usageGuidance: [
       'Prefer native OS tools and Command Center context before screenshots or shell commands.',
@@ -91,7 +103,8 @@ export const BUILT_IN_SKILLS: BuiltInSkill[] = [
   {
     id: 'command_center',
     name: 'Command Center',
-    description: 'Give the assistant native OS context and safe system controls for the active Windows desktop.',
+    description:
+      'Give the assistant native OS context and safe system controls for the active Windows desktop.',
     note: 'Windows-only. Model-callable OS actions use the normal approval path; overlay shortcuts are limited to a fixed main-process allowlist.',
     usageGuidance: [
       'Use active-window context before acting on the current app or desktop.',
@@ -102,7 +115,8 @@ export const BUILT_IN_SKILLS: BuiltInSkill[] = [
   {
     id: 'chart_generation',
     name: 'Chart Generation',
-    description: 'Automatically generate bar, line, and pie charts using Mermaid when data is present in the conversation.',
+    description:
+      'Automatically generate bar, line, and pie charts using Mermaid when data is present in the conversation.',
     note: 'Uses Mermaid syntax — no additional dependencies required.',
     usageGuidance: [
       'Generate charts proactively when data is present.',
@@ -112,7 +126,8 @@ export const BUILT_IN_SKILLS: BuiltInSkill[] = [
   {
     id: 'memory',
     name: 'Memory',
-    description: 'Remember durable facts about the user (preferences, projects, name, etc.) and reuse them across chats. Stored locally only.',
+    description:
+      'Remember durable facts about the user (preferences, projects, name, etc.) and reuse them across chats. Stored locally only.',
     note: 'Inject saved memories into the system prompt and let the assistant call save/update/delete/search memory tools.',
     usageGuidance: [
       'Save short, durable facts about the user the first time they mention them.',
@@ -134,7 +149,8 @@ export const BUILT_IN_SKILLS: BuiltInSkill[] = [
   {
     id: 'reminders',
     name: 'Reminders & Lookouts',
-    description: 'Let the assistant create local reminders and scheduled web lookouts that appear in the Reminders sidebar.',
+    description:
+      'Let the assistant create local reminders and scheduled web lookouts that appear in the Reminders sidebar.',
     note: 'Runs only while ZuraAI is open. Web lookouts support public pages and local loopback URLs; OS notifications fire for due reminders and changed lookouts.',
     usageGuidance: [
       'Use scheduled_task_create when the user asks to remind them, check something later, or watch a page for changes.',
@@ -225,7 +241,8 @@ function normalizeKnownSkill(raw: unknown, defaultState: SkillState): SkillState
  *   prompt, but the model cannot write and extraction is paused.
  */
 function normalizeMemorySkill(raw: unknown, defaultState: SkillState): MemorySkillState {
-  const enabled = isRecord(raw) && typeof raw.enabled === 'boolean' ? raw.enabled : defaultState.enabled
+  const enabled =
+    isRecord(raw) && typeof raw.enabled === 'boolean' ? raw.enabled : defaultState.enabled
   const autoManageRaw = isRecord(raw) && isRecord(raw.config) ? raw.config.autoManage : undefined
   const autoManage = typeof autoManageRaw === 'boolean' ? autoManageRaw : true
   return { enabled, config: { autoManage } }
@@ -236,7 +253,20 @@ export function normalizeSkillsSettings(raw: unknown): SkillsSettings {
 
   if (isRecord(raw)) {
     for (const [skillId, value] of Object.entries(raw)) {
-      if (skillId === 'web_research' || skillId === 'code_execution' || skillId === 'terminal' || skillId === 'testing' || skillId === 'computer_use' || skillId === 'command_center' || skillId === 'chart_generation' || skillId === 'memory' || skillId === 'reminders' || skillId === 'artifacts' || skillId === 'agent_desktop') continue
+      if (
+        skillId === 'web_research' ||
+        skillId === 'code_execution' ||
+        skillId === 'terminal' ||
+        skillId === 'testing' ||
+        skillId === 'computer_use' ||
+        skillId === 'command_center' ||
+        skillId === 'chart_generation' ||
+        skillId === 'memory' ||
+        skillId === 'reminders' ||
+        skillId === 'artifacts' ||
+        skillId === 'agent_desktop'
+      )
+        continue
       const generic = normalizeGenericSkillState(value)
       if (generic) {
         normalized[skillId] = generic
@@ -253,10 +283,7 @@ export function normalizeSkillsSettings(raw: unknown): SkillsSettings {
     rawRecord?.code_execution,
     defaultSkillsSettings.code_execution
   )
-  normalized.terminal = normalizeKnownSkill(
-    rawRecord?.terminal,
-    defaultSkillsSettings.terminal
-  )
+  normalized.terminal = normalizeKnownSkill(rawRecord?.terminal, defaultSkillsSettings.terminal)
   normalized.computer_use = normalizeKnownSkill(
     rawRecord?.computer_use,
     defaultSkillsSettings.computer_use
@@ -269,18 +296,9 @@ export function normalizeSkillsSettings(raw: unknown): SkillsSettings {
     rawRecord?.chart_generation,
     defaultSkillsSettings.chart_generation
   )
-  normalized.memory = normalizeMemorySkill(
-    rawRecord?.memory,
-    defaultSkillsSettings.memory
-  )
-  normalized.reminders = normalizeKnownSkill(
-    rawRecord?.reminders,
-    defaultSkillsSettings.reminders
-  )
-  normalized.artifacts = normalizeKnownSkill(
-    rawRecord?.artifacts,
-    defaultSkillsSettings.artifacts
-  )
+  normalized.memory = normalizeMemorySkill(rawRecord?.memory, defaultSkillsSettings.memory)
+  normalized.reminders = normalizeKnownSkill(rawRecord?.reminders, defaultSkillsSettings.reminders)
+  normalized.artifacts = normalizeKnownSkill(rawRecord?.artifacts, defaultSkillsSettings.artifacts)
   return normalized as SkillsSettings
 }
 
@@ -302,8 +320,10 @@ export function migrateSkillsFromLegacySettings({
   autoMemoryEnabled,
 }: LegacySkillMigrationInput): SkillsSettings {
   const normalized = normalizeSkillsSettings(skills)
-  const hasPersistedWebResearchSkill = isRecord(skills) && Object.prototype.hasOwnProperty.call(skills, 'web_research')
-  const hasPersistedMemorySkill = isRecord(skills) && Object.prototype.hasOwnProperty.call(skills, 'memory')
+  const hasPersistedWebResearchSkill =
+    isRecord(skills) && Object.prototype.hasOwnProperty.call(skills, 'web_research')
+  const hasPersistedMemorySkill =
+    isRecord(skills) && Object.prototype.hasOwnProperty.call(skills, 'memory')
 
   let result = normalized
 
@@ -311,9 +331,9 @@ export function migrateSkillsFromLegacySettings({
     const enabledFromLegacy =
       typeof webSearchEnabled === 'boolean'
         ? webSearchEnabled
-        : (typeof deepResearchEnabled === 'boolean'
-            ? deepResearchEnabled
-            : normalized.web_research.enabled)
+        : typeof deepResearchEnabled === 'boolean'
+          ? deepResearchEnabled
+          : normalized.web_research.enabled
 
     result = {
       ...result,
@@ -344,7 +364,10 @@ export function isWebResearchEnabled(skills: SkillsSettings | undefined): boolea
   return normalizeSkillsSettings(skills).web_research.enabled
 }
 
-export function withWebResearchEnabled(skills: SkillsSettings | undefined, enabled: boolean): SkillsSettings {
+export function withWebResearchEnabled(
+  skills: SkillsSettings | undefined,
+  enabled: boolean
+): SkillsSettings {
   const normalized = normalizeSkillsSettings(skills)
   return {
     ...normalized,
@@ -372,7 +395,10 @@ export function isCodeExecutionEnabled(skills: SkillsSettings | undefined): bool
   return normalizeSkillsSettings(skills).code_execution.enabled
 }
 
-export function withCodeExecutionEnabled(skills: SkillsSettings | undefined, enabled: boolean): SkillsSettings {
+export function withCodeExecutionEnabled(
+  skills: SkillsSettings | undefined,
+  enabled: boolean
+): SkillsSettings {
   const normalized = normalizeSkillsSettings(skills)
   return {
     ...normalized,
@@ -397,7 +423,10 @@ export function isTerminalEnabled(skills: SkillsSettings | undefined): boolean {
   return normalizeSkillsSettings(skills).terminal.enabled
 }
 
-export function withTerminalEnabled(skills: SkillsSettings | undefined, enabled: boolean): SkillsSettings {
+export function withTerminalEnabled(
+  skills: SkillsSettings | undefined,
+  enabled: boolean
+): SkillsSettings {
   const normalized = normalizeSkillsSettings(skills)
   return {
     ...normalized,
@@ -418,7 +447,10 @@ export function getTerminalToolExposure(skills: SkillsSettings | undefined): {
 
 // Computer Use
 
-export function withComputerUseEnabled(skills: SkillsSettings | undefined, enabled: boolean): SkillsSettings {
+export function withComputerUseEnabled(
+  skills: SkillsSettings | undefined,
+  enabled: boolean
+): SkillsSettings {
   const normalized = normalizeSkillsSettings(skills)
   return {
     ...normalized,
@@ -443,7 +475,10 @@ export function isChartGenerationEnabled(skills: SkillsSettings | undefined): bo
   return normalizeSkillsSettings(skills).chart_generation.enabled
 }
 
-export function withChartGenerationEnabled(skills: SkillsSettings | undefined, enabled: boolean): SkillsSettings {
+export function withChartGenerationEnabled(
+  skills: SkillsSettings | undefined,
+  enabled: boolean
+): SkillsSettings {
   const normalized = normalizeSkillsSettings(skills)
   return {
     ...normalized,
@@ -469,7 +504,10 @@ export function isMemoryAutoManageEnabled(skills: SkillsSettings | undefined): b
   return autoManage !== false
 }
 
-export function withMemoryAutoManage(skills: SkillsSettings | undefined, autoManage: boolean): SkillsSettings {
+export function withMemoryAutoManage(
+  skills: SkillsSettings | undefined,
+  autoManage: boolean
+): SkillsSettings {
   const normalized = normalizeSkillsSettings(skills)
   return {
     ...normalized,
@@ -487,7 +525,11 @@ export function isSkillEnabled(skills: SkillsSettings | undefined, skillId: Skil
   return normalized[skillId]?.enabled ?? false
 }
 
-export function withSkillEnabled(skills: SkillsSettings | undefined, skillId: SkillId, enabled: boolean): SkillsSettings {
+export function withSkillEnabled(
+  skills: SkillsSettings | undefined,
+  skillId: SkillId,
+  enabled: boolean
+): SkillsSettings {
   const normalized = normalizeSkillsSettings(skills)
   return {
     ...normalized,
@@ -500,57 +542,105 @@ export function withSkillEnabled(skills: SkillsSettings | undefined, skillId: Sk
 
 export function buildEnabledSkillsPrompt(
   skills: SkillsSettings | undefined,
-  options?: { codeExecutionPrompt?: string; terminalPrompt?: string; computerUsePrompt?: string; commandCenterPrompt?: string; commandCenterActive?: boolean; chartGenerationPrompt?: string; remindersPrompt?: string; artifactsPrompt?: string },
+  options?: {
+    codeExecutionPrompt?: string
+    terminalPrompt?: string
+    computerUsePrompt?: string
+    commandCenterPrompt?: string
+    commandCenterActive?: boolean
+    chartGenerationPrompt?: string
+    remindersPrompt?: string
+    artifactsPrompt?: string
+  }
 ): string {
   if (!skills) return ''
 
   const sections: string[] = []
   const normalized = normalizeSkillsSettings(skills)
-  const commandCenterActive = normalized.command_center.enabled || options?.commandCenterActive === true
+  const commandCenterActive =
+    normalized.command_center.enabled || options?.commandCenterActive === true
 
   const skillLines: string[] = []
 
   if (normalized.web_research.enabled) {
-    skillLines.push('- Tavily (`web_research`): use `web_search` for current facts, verification, and source-backed answers.')
-    skillLines.push('- Use concise, targeted queries and cite relevant sources in the final response.')
+    skillLines.push(
+      '- Tavily (`web_research`): use `web_search` for current facts, verification, and source-backed answers.'
+    )
+    skillLines.push(
+      '- Use concise, targeted queries and cite relevant sources in the final response.'
+    )
   }
 
   if (normalized.code_execution.enabled) {
-    skillLines.push('- Code Execution (`code_execution`): use `code_execution` to run JavaScript or Python code for calculations, data analysis, and logic.')
-    skillLines.push('- Prefer Python for math/data tasks. Keep code concise and self-contained. The sandbox has no filesystem or network access.')
+    skillLines.push(
+      '- Code Execution (`code_execution`): use `code_execution` to run JavaScript or Python code for calculations, data analysis, and logic.'
+    )
+    skillLines.push(
+      '- Prefer Python for math/data tasks. Keep code concise and self-contained. The sandbox has no filesystem or network access.'
+    )
   }
 
   if (normalized.terminal.enabled) {
-    skillLines.push('- Terminal (`system_shell`): run bounded, non-interactive PowerShell commands for system inspection and automation on Windows.')
-    skillLines.push('- Prefer native file/app/window tools first. Each command requires user approval, is bounded by a timeout and output cap, and returns exit code/stdout/stderr — read them to verify success and self-correct.')
+    skillLines.push(
+      '- Terminal (`system_shell`): run bounded, non-interactive PowerShell commands for system inspection and automation on Windows.'
+    )
+    skillLines.push(
+      '- Prefer native file/app/window tools first. Each command requires user approval, is bounded by a timeout and output cap, and returns exit code/stdout/stderr — read them to verify success and self-correct.'
+    )
   }
 
   if (normalized.computer_use.enabled) {
-    skillLines.push('- Control This Desktop (`computer_use`): prefer native Windows tools for filesystem/app/window/UIA work, and use screenshots/click/type/scroll only when native tools cannot handle the task.')
-    skillLines.push('- For Desktop/file organization tasks, first inspect directories with `file_search`/`file_read`, propose changes, then use `file_move` after approval. Do not open Run/Explorer or use screenshots for simple file moves.')
-    skillLines.push('- For visual desktop tasks, screenshot first, analyze before acting, and verify results with follow-up screenshots.')
+    skillLines.push(
+      '- Control This Desktop (`computer_use`): prefer native Windows tools for filesystem/app/window/UIA work, and use screenshots/click/type/scroll only when native tools cannot handle the task.'
+    )
+    skillLines.push(
+      '- For Desktop/file organization tasks, first inspect directories with `file_search`/`file_read`, propose changes, then use `file_move` after approval. Do not open Run/Explorer or use screenshots for simple file moves.'
+    )
+    skillLines.push(
+      '- For visual desktop tasks, screenshot first, analyze before acting, and verify results with follow-up screenshots.'
+    )
   }
 
   if (commandCenterActive) {
-    skillLines.push('- Command Center (`command_center`): use active-window context and explicit OS tools for native desktop requests before falling back to visual Computer Use or terminal commands.')
-    skillLines.push('- Read current app/window context with `system_active_window`, find or launch installed apps with `app_find`/`app_launch`, and list or focus windows with `window_list`/`window_focus` before using screenshots or shell.')
-    skillLines.push('- Read local machine status with `system_status`; use `system_settings_open`, `system_open_path`, and `window_snap` for direct OS-level actions with approval where required.')
+    skillLines.push(
+      '- Command Center (`command_center`): use active-window context and explicit OS tools for native desktop requests before falling back to visual Computer Use or terminal commands.'
+    )
+    skillLines.push(
+      '- Read current app/window context with `system_active_window`, find or launch installed apps with `app_find`/`app_launch`, and list or focus windows with `window_list`/`window_focus` before using screenshots or shell.'
+    )
+    skillLines.push(
+      '- Read local machine status with `system_status`; use `system_settings_open`, `system_open_path`, and `window_snap` for direct OS-level actions with approval where required.'
+    )
   }
 
   if (normalized.chart_generation.enabled) {
-    skillLines.push('- Chart Generation (`chart_generation`): generate Mermaid charts (bar, line, pie) when data is present.')
-    skillLines.push('- Use pie for proportions, bar for comparisons, line for trends. Generate charts proactively.')
+    skillLines.push(
+      '- Chart Generation (`chart_generation`): generate Mermaid charts (bar, line, pie) when data is present.'
+    )
+    skillLines.push(
+      '- Use pie for proportions, bar for comparisons, line for trends. Generate charts proactively.'
+    )
   }
 
   if (normalized.reminders.enabled) {
-    skillLines.push('- Reminders & Lookouts (`reminders`): use `scheduled_task_*` tools to create, update, delete, list, and inspect local reminders and web lookouts for public or local loopback URLs.')
-    skillLines.push('- Use `reminder` tasks for recurring notes/checklists and `web_lookout` tasks for public or local loopback URL change monitoring. Confirm created tasks and mention the Reminders sidebar.')
-    skillLines.push('- For reminder requests like "in 1 minute" or "tomorrow at 9", set `dueAt` to the first run time; do not use `intervalPreset` as the first due time.')
+    skillLines.push(
+      '- Reminders & Lookouts (`reminders`): use `scheduled_task_*` tools to create, update, delete, list, and inspect local reminders and web lookouts for public or local loopback URLs.'
+    )
+    skillLines.push(
+      '- Use `reminder` tasks for recurring notes/checklists and `web_lookout` tasks for public or local loopback URL change monitoring. Confirm created tasks and mention the Reminders sidebar.'
+    )
+    skillLines.push(
+      '- For reminder requests like "in 1 minute" or "tomorrow at 9", set `dueAt` to the first run time; do not use `intervalPreset` as the first due time.'
+    )
   }
 
   if (normalized.artifacts.enabled) {
-    skillLines.push('- Artifacts (`artifact_create`, `artifact_update`): create durable documents when output should be edited, previewed, reused, or exported.')
-    skillLines.push('- Update an existing artifact for revisions instead of repeating long document content in chat.')
+    skillLines.push(
+      '- Artifacts (`artifact_create`, `artifact_update`): create durable documents when output should be edited, previewed, reused, or exported.'
+    )
+    skillLines.push(
+      '- Update an existing artifact for revisions instead of repeating long document content in chat.'
+    )
   }
 
   if (skillLines.length > 0) {

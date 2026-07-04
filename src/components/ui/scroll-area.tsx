@@ -1,7 +1,7 @@
-import * as React from "react"
-import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area"
+import * as React from 'react'
+import * as ScrollAreaPrimitive from '@radix-ui/react-scroll-area'
 
-import { cn } from "@/lib/utils"
+import { cn } from '@/lib/utils'
 
 type ScrollAreaProps = React.ComponentProps<typeof ScrollAreaPrimitive.Root> & {
   viewportClassName?: string
@@ -19,24 +19,30 @@ function ScrollArea({
 }: ScrollAreaProps) {
   const internalViewportRef = React.useRef<HTMLDivElement | null>(null)
 
-  const mergedViewportRef = React.useCallback((node: HTMLDivElement | null) => {
-    internalViewportRef.current = node
+  const mergedViewportRef = React.useCallback(
+    (node: HTMLDivElement | null) => {
+      internalViewportRef.current = node
 
-    if (!viewportRef) return
+      if (!viewportRef) return
 
-    if (typeof viewportRef === "function") {
-      viewportRef(node)
-      return
-    }
+      if (typeof viewportRef === 'function') {
+        viewportRef(node)
+        return
+      }
 
-    viewportRef.current = node
-  }, [viewportRef])
+      viewportRef.current = node
+    },
+    [viewportRef]
+  )
 
-  const normalizedViewportStyle = React.useMemo<React.CSSProperties>(() => ({
-    overscrollBehavior: "contain",
-    scrollBehavior: "auto",
-    ...viewportStyle,
-  }), [viewportStyle])
+  const normalizedViewportStyle = React.useMemo<React.CSSProperties>(
+    () => ({
+      overscrollBehavior: 'contain',
+      scrollBehavior: 'auto',
+      ...viewportStyle,
+    }),
+    [viewportStyle]
+  )
 
   const handleViewportWheel = React.useCallback((event: React.WheelEvent<HTMLDivElement>) => {
     if (event.deltaMode === 0) return
@@ -65,17 +71,14 @@ function ScrollArea({
   return (
     <ScrollAreaPrimitive.Root
       data-slot="scroll-area"
-      className={cn("relative overflow-hidden", className)}
+      className={cn('relative overflow-hidden', className)}
       {...props}
     >
       <ScrollAreaPrimitive.Viewport
         data-slot="scroll-area-viewport"
         ref={mergedViewportRef}
         onWheel={handleViewportWheel}
-        className={cn(
-          "h-full w-full rounded-[inherit]",
-          viewportClassName
-        )}
+        className={cn('h-full w-full rounded-[inherit]', viewportClassName)}
         style={normalizedViewportStyle}
       >
         {children}
@@ -88,7 +91,7 @@ function ScrollArea({
 
 function ScrollBar({
   className,
-  orientation = "vertical",
+  orientation = 'vertical',
   ...props
 }: React.ComponentProps<typeof ScrollAreaPrimitive.ScrollAreaScrollbar>) {
   return (
@@ -96,11 +99,9 @@ function ScrollBar({
       data-slot="scroll-area-scrollbar"
       orientation={orientation}
       className={cn(
-        "flex touch-none select-none transition-colors",
-        orientation === "vertical" &&
-          "h-full w-2.5 border-l border-l-transparent p-[1px]",
-        orientation === "horizontal" &&
-          "h-2.5 flex-col border-t border-t-transparent p-[1px]",
+        'flex touch-none select-none transition-colors',
+        orientation === 'vertical' && 'h-full w-2.5 border-l border-l-transparent p-[1px]',
+        orientation === 'horizontal' && 'h-2.5 flex-col border-t border-t-transparent p-[1px]',
         className
       )}
       {...props}
@@ -108,9 +109,9 @@ function ScrollBar({
       <ScrollAreaPrimitive.ScrollAreaThumb
         data-slot="scroll-area-thumb"
         className={cn(
-          "relative flex-1 rounded-full",
-          "bg-white/20 hover:bg-white/30 active:bg-white/40",
-          "transition-colors duration-150"
+          'relative flex-1 rounded-full',
+          'bg-white/20 hover:bg-white/30 active:bg-white/40',
+          'transition-colors duration-150'
         )}
       />
     </ScrollAreaPrimitive.ScrollAreaScrollbar>

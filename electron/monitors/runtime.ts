@@ -55,7 +55,10 @@ interface MonitorRuntimeDeps {
   now?: () => number
   notificationsSupported?: () => boolean
   notificationFactory?: (options: NotificationConstructorOptions) => ScheduledTaskNotification
-  emailSender?: (task: ScheduledTaskDefinition, run: ScheduledTaskRun) => Promise<{ ok: boolean; error?: string; skipped?: boolean }>
+  emailSender?: (
+    task: ScheduledTaskDefinition,
+    run: ScheduledTaskRun
+  ) => Promise<{ ok: boolean; error?: string; skipped?: boolean }>
   startupOverdueCatchUpDelayMs?: number
 }
 
@@ -73,7 +76,10 @@ interface MonitorRuntime {
   isExtensionEnabled: () => boolean
 }
 
-function buildDiffSummary(task: ScheduledTaskDefinition, changedResults: ScheduledTaskLog[]): string {
+function buildDiffSummary(
+  task: ScheduledTaskDefinition,
+  changedResults: ScheduledTaskLog[]
+): string {
   const lines = [`${task.title}: ${changedResults.length} monitored page(s) changed.`]
   for (const result of changedResults) {
     lines.push(`- ${result.url}`)
@@ -101,11 +107,26 @@ function buildSummaryRequest(
 }
 
 function findSummaryTarget(): WebContents | null {
-  for (const window of BrowserWindow.getAllWindows()) {
-    if (window.isDestroyed() || window.webContents.isDestroyed()) continue
-    return window.webContents
+  const candidates = BrowserWindow.getAllWindows().filter((window) => {
+    return !window.isDestroyed() && !window.webContents.isDestroyed()
+  })
+  const mainRenderer = candidates.find((window) => {
+    const getURL = (window.webContents as WebContents & { getURL?: () => string }).getURL
+    const url = typeof getURL === 'function' ? getURL.call(window.webContents) : ''
+    if (!url) return false
+    if (url.startsWith('data:') || url.includes('#/about') || url.includes('#/command-center'))
+      return false
+    return (
+      url.includes('#/dashboard') ||
+      url.includes('#/chat') ||
+      url.endsWith('/index.html') ||
+      url.endsWith('/')
+    )
+  })
+  if (mainRenderer) {
+    return mainRenderer.webContents
   }
-  return null
+  return candidates[0]?.webContents ?? null
 }
 
 const findAutomationRunTarget = findSummaryTarget
@@ -119,7 +140,9 @@ function buildNotificationOptions(
   run: ScheduledTaskRun
 ): NotificationConstructorOptions | null {
   if (task.type === 'reminder') {
-    const body = compactNotificationBody(task.reminderText || task.instructions || run.logs[0]?.message || task.title)
+    const body = compactNotificationBody(
+      task.reminderText || task.instructions || run.logs[0]?.message || task.title
+    )
     return {
       title: `Reminder: ${task.title}`,
       body: body || 'Scheduled reminder is due.',
@@ -146,8 +169,9 @@ function buildNotificationOptions(
     if (notifyPolicy === 'error_only' && run.status !== 'error') return null
     if (notifyPolicy === 'meaningful_change' && run.status !== 'changed') return null
     const body =
-      compactNotificationBody(run.changeVerdict?.summary || run.aiSummary || run.outputText || run.error) ||
-      'Scheduled AI automation finished.'
+      compactNotificationBody(
+        run.changeVerdict?.summary || run.aiSummary || run.outputText || run.error
+      ) || 'Scheduled AI automation finished.'
     return {
       title: `${run.status === 'error' ? 'Automation failed' : 'Automation'}: ${task.title}`,
       body,
@@ -171,13 +195,16 @@ function sanitizeGeneratedFiles(
       if (!file || typeof file !== 'object') return null
       return {
         id: compactAutomationText(typeof file.id === 'string' ? file.id : undefined, 120) || '',
-        name: compactAutomationText(typeof file.name === 'string' ? file.name : undefined, 200) || '',
+        name:
+          compactAutomationText(typeof file.name === 'string' ? file.name : undefined, 200) || '',
         ...(typeof file.type === 'string' && compactAutomationText(file.type, 80)
           ? { type: compactAutomationText(file.type, 80) }
           : {}),
       }
     })
-    .filter((file): file is { id: string; name: string; type?: string } => Boolean(file?.id && file.name))
+    .filter((file): file is { id: string; name: string; type?: string } =>
+      Boolean(file?.id && file.name)
+    )
     .slice(0, 20)
   return sanitized.length > 0 ? sanitized : undefined
 }
@@ -189,7 +216,10 @@ function sanitizeToolCallSummaries(
   const sanitized = summaries
     .map((summary) => {
       if (!summary || typeof summary !== 'object') return null
-      const name = compactAutomationText(typeof summary.name === 'string' ? summary.name : undefined, 120)
+      const name = compactAutomationText(
+        typeof summary.name === 'string' ? summary.name : undefined,
+        120
+      )
       if (!name) return null
       return {
         name,
@@ -199,20 +229,27 @@ function sanitizeToolCallSummaries(
           : {}),
       }
     })
-    .filter((summary): summary is { name: string; success: boolean; error?: string } => Boolean(summary))
+    .filter((summary): summary is { name: string; success: boolean; error?: string } =>
+      Boolean(summary)
+    )
     .slice(0, 100)
   return sanitized.length > 0 ? sanitized : undefined
 }
 
-function sanitizeUsage(usage: ScheduledAutomationRunResponse['usage']): ScheduledAutomationRunResponse['usage'] | undefined {
+function sanitizeUsage(
+  usage: ScheduledAutomationRunResponse['usage']
+): ScheduledAutomationRunResponse['usage'] | undefined {
   if (!usage || typeof usage !== 'object') return undefined
   const sanitized: NonNullable<ScheduledAutomationRunResponse['usage']> = {}
   const inputTokens = Number(usage.inputTokens)
-  if (Number.isFinite(inputTokens) && inputTokens >= 0) sanitized.inputTokens = Math.round(inputTokens)
+  if (Number.isFinite(inputTokens) && inputTokens >= 0)
+    sanitized.inputTokens = Math.round(inputTokens)
   const outputTokens = Number(usage.outputTokens)
-  if (Number.isFinite(outputTokens) && outputTokens >= 0) sanitized.outputTokens = Math.round(outputTokens)
+  if (Number.isFinite(outputTokens) && outputTokens >= 0)
+    sanitized.outputTokens = Math.round(outputTokens)
   const totalTokens = Number(usage.totalTokens)
-  if (Number.isFinite(totalTokens) && totalTokens >= 0) sanitized.totalTokens = Math.round(totalTokens)
+  if (Number.isFinite(totalTokens) && totalTokens >= 0)
+    sanitized.totalTokens = Math.round(totalTokens)
   const cost = Number(usage.cost)
   if (Number.isFinite(cost) && cost >= 0) sanitized.cost = cost
   return Object.keys(sanitized).length > 0 ? sanitized : undefined
@@ -253,18 +290,34 @@ function buildAutomationRequest(
   }
 }
 
-function sanitizeAutomationResponse(response: ScheduledAutomationRunResponse): ScheduledAutomationRunResponse {
+function sanitizeAutomationResponse(
+  response: ScheduledAutomationRunResponse
+): ScheduledAutomationRunResponse {
   const generatedFiles = sanitizeGeneratedFiles(response.generatedFiles)
   const toolCallSummaries = sanitizeToolCallSummaries(response.toolCallSummaries)
   const usage = sanitizeUsage(response.usage)
   const deliveryStatus = sanitizeDeliveryStatus(response.deliveryStatus)
   return {
     requestId: response.requestId,
-    ...(compactAutomationText(response.outputText) ? { outputText: compactAutomationText(response.outputText) } : {}),
-    ...(compactAutomationText(response.resolvedContextSummary, 4000) ? { resolvedContextSummary: compactAutomationText(response.resolvedContextSummary, 4000) } : {}),
-    ...(compactAutomationText(response.model, 200) ? { model: compactAutomationText(response.model, 200) } : {}),
-    ...(compactAutomationText(response.provider, 80) ? { provider: compactAutomationText(response.provider, 80) } : {}),
-    ...(Array.isArray(response.artifactIds) ? { artifactIds: response.artifactIds.filter((id): id is string => typeof id === 'string').slice(0, 20) } : {}),
+    ...(compactAutomationText(response.outputText)
+      ? { outputText: compactAutomationText(response.outputText) }
+      : {}),
+    ...(compactAutomationText(response.resolvedContextSummary, 4000)
+      ? { resolvedContextSummary: compactAutomationText(response.resolvedContextSummary, 4000) }
+      : {}),
+    ...(compactAutomationText(response.model, 200)
+      ? { model: compactAutomationText(response.model, 200) }
+      : {}),
+    ...(compactAutomationText(response.provider, 80)
+      ? { provider: compactAutomationText(response.provider, 80) }
+      : {}),
+    ...(Array.isArray(response.artifactIds)
+      ? {
+          artifactIds: response.artifactIds
+            .filter((id): id is string => typeof id === 'string')
+            .slice(0, 20),
+        }
+      : {}),
     ...(generatedFiles ? { generatedFiles } : {}),
     ...(toolCallSummaries ? { toolCallSummaries } : {}),
     ...(usage ? { usage } : {}),
@@ -279,7 +332,9 @@ function sanitizeAutomationResponse(response: ScheduledAutomationRunResponse): S
         }
       : {}),
     ...(deliveryStatus ? { deliveryStatus } : {}),
-    ...(compactAutomationText(response.error, 2000) ? { error: compactAutomationText(response.error, 2000) } : {}),
+    ...(compactAutomationText(response.error, 2000)
+      ? { error: compactAutomationText(response.error, 2000) }
+      : {}),
   }
 }
 
@@ -328,7 +383,9 @@ function createRuntime(deps: MonitorRuntimeDeps = {}): MonitorRuntime {
     })
   }
 
-  const requestAutomationRun = (request: ScheduledAutomationRunRequest): Promise<ScheduledAutomationRunResponse> => {
+  const requestAutomationRun = (
+    request: ScheduledAutomationRunRequest
+  ): Promise<ScheduledAutomationRunResponse> => {
     const target = findAutomationRunTarget()
     if (!target) {
       return Promise.reject(new Error('No renderer is available to run AI automation.'))
@@ -366,7 +423,9 @@ function createRuntime(deps: MonitorRuntimeDeps = {}): MonitorRuntime {
       }
 
       if (task.type === 'ai_automation') {
-        const previousRun = (await listRuns(task.id)).find((run) => typeof run.outputText === 'string' && run.outputText.trim())
+        const previousRun = (await listRuns(task.id)).find(
+          (run) => typeof run.outputText === 'string' && run.outputText.trim()
+        )
         let automationResponse: ScheduledAutomationRunResponse | undefined
         let automationError: string | undefined
         try {
@@ -387,7 +446,12 @@ function createRuntime(deps: MonitorRuntimeDeps = {}): MonitorRuntime {
           taskId: task.id,
           startedAt,
           finishedAt,
-          status: automationError || automationResponse?.error ? 'error' : changed ? 'changed' : 'unchanged',
+          status:
+            automationError || automationResponse?.error
+              ? 'error'
+              : changed
+                ? 'changed'
+                : 'unchanged',
           logs: [
             {
               url: '',
@@ -398,17 +462,36 @@ function createRuntime(deps: MonitorRuntimeDeps = {}): MonitorRuntime {
             },
           ],
           promptSnapshot: task.prompt || task.instructions || task.title,
-          ...(automationResponse?.resolvedContextSummary ? { resolvedContextSummary: automationResponse.resolvedContextSummary } : {}),
+          ...(automationResponse?.resolvedContextSummary
+            ? { resolvedContextSummary: automationResponse.resolvedContextSummary }
+            : {}),
           ...(automationResponse?.model ? { model: automationResponse.model } : {}),
           ...(automationResponse?.provider ? { provider: automationResponse.provider } : {}),
-          ...(automationResponse?.outputText ? { outputText: automationResponse.outputText, aiSummary: automationResponse.outputText.slice(0, 1000) } : {}),
-          ...(automationResponse?.artifactIds ? { artifactIds: automationResponse.artifactIds } : {}),
-          ...(automationResponse?.generatedFiles ? { generatedFiles: automationResponse.generatedFiles } : {}),
-          ...(automationResponse?.toolCallSummaries ? { toolCallSummaries: automationResponse.toolCallSummaries } : {}),
+          ...(automationResponse?.outputText
+            ? {
+                outputText: automationResponse.outputText,
+                aiSummary: automationResponse.outputText.slice(0, 1000),
+              }
+            : {}),
+          ...(automationResponse?.artifactIds
+            ? { artifactIds: automationResponse.artifactIds }
+            : {}),
+          ...(automationResponse?.generatedFiles
+            ? { generatedFiles: automationResponse.generatedFiles }
+            : {}),
+          ...(automationResponse?.toolCallSummaries
+            ? { toolCallSummaries: automationResponse.toolCallSummaries }
+            : {}),
           ...(automationResponse?.usage ? { usage: automationResponse.usage } : {}),
-          ...(automationResponse?.changeVerdict ? { changeVerdict: automationResponse.changeVerdict } : {}),
-          ...(automationResponse?.deliveryStatus ? { deliveryStatus: automationResponse.deliveryStatus } : {}),
-          ...(automationError || automationResponse?.error ? { error: automationError || automationResponse?.error } : {}),
+          ...(automationResponse?.changeVerdict
+            ? { changeVerdict: automationResponse.changeVerdict }
+            : {}),
+          ...(automationResponse?.deliveryStatus
+            ? { deliveryStatus: automationResponse.deliveryStatus }
+            : {}),
+          ...(automationError || automationResponse?.error
+            ? { error: automationError || automationResponse?.error }
+            : {}),
         }
         await appendEmailNotificationLog(task, run)
         showRunNotification(task, run)
@@ -456,7 +539,8 @@ function createRuntime(deps: MonitorRuntimeDeps = {}): MonitorRuntime {
 
       const changedResults = logs.filter((result) => result.status === 'changed')
       const errorResults = logs.filter((result) => result.status === 'error')
-      const diffSummary = changedResults.length > 0 ? buildDiffSummary(task, changedResults) : undefined
+      const diffSummary =
+        changedResults.length > 0 ? buildDiffSummary(task, changedResults) : undefined
       let aiSummary: string | undefined
       let summaryError: string | undefined
 
@@ -474,7 +558,8 @@ function createRuntime(deps: MonitorRuntimeDeps = {}): MonitorRuntime {
         taskId: task.id,
         startedAt,
         finishedAt,
-        status: changedResults.length > 0 ? 'changed' : errorResults.length > 0 ? 'error' : 'unchanged',
+        status:
+          changedResults.length > 0 ? 'changed' : errorResults.length > 0 ? 'error' : 'unchanged',
         logs,
         ...(diffSummary ? { diffSummary } : {}),
         ...(aiSummary ? { aiSummary } : {}),
@@ -557,7 +642,9 @@ function createRuntime(deps: MonitorRuntimeDeps = {}): MonitorRuntime {
       if (task.type === 'ai_automation') {
         run.deliveryStatus = { ...run.deliveryStatus, notification: 'error' }
       }
-      logMonitorWarning(`notification failed: ${error instanceof Error ? error.message : String(error)}`)
+      logMonitorWarning(
+        `notification failed: ${error instanceof Error ? error.message : String(error)}`
+      )
     }
   }
 
@@ -569,7 +656,10 @@ function createRuntime(deps: MonitorRuntimeDeps = {}): MonitorRuntime {
     if (!task.enabled) return
     if (task.nextRunAt <= now()) return
 
-    const delay = Math.max(0, Math.min(task.nextRunAt - now(), getMonitorIntervalMs(task.intervalPreset)))
+    const delay = Math.max(
+      0,
+      Math.min(task.nextRunAt - now(), getMonitorIntervalMs(task.intervalPreset))
+    )
     const timer = setTimeoutFn(() => {
       timers.delete(task.id)
       void getScheduledTask(task.id)
@@ -579,7 +669,9 @@ function createRuntime(deps: MonitorRuntimeDeps = {}): MonitorRuntime {
           return runTask(freshTask)
         })
         .catch((error) => {
-          logMonitorWarning(`scheduled task failed: ${error instanceof Error ? error.message : String(error)}`)
+          logMonitorWarning(
+            `scheduled task failed: ${error instanceof Error ? error.message : String(error)}`
+          )
         })
     }, delay)
     timers.set(task.id, timer)
@@ -624,7 +716,9 @@ function createRuntime(deps: MonitorRuntimeDeps = {}): MonitorRuntime {
       void listScheduledTasks()
         .then((tasks) => runDueTasks(tasks, 'startup overdue scheduled task failed'))
         .catch((error) => {
-          logMonitorWarning(`startup overdue catch-up failed: ${error instanceof Error ? error.message : String(error)}`)
+          logMonitorWarning(
+            `startup overdue catch-up failed: ${error instanceof Error ? error.message : String(error)}`
+          )
         })
     }, startupOverdueCatchUpDelayMs)
   }
@@ -690,33 +784,41 @@ function createRuntime(deps: MonitorRuntimeDeps = {}): MonitorRuntime {
 
   const isExtensionEnabled = (): boolean => extensionEnabled
 
-  ipcMain.handle('scheduled-tasks:resolve-summary', (_event, response: ScheduledTaskSummaryResponse) => {
-    if (!response || typeof response !== 'object' || typeof response.requestId !== 'string') {
-      return false
+  ipcMain.handle(
+    'scheduled-tasks:resolve-summary',
+    (_event, response: ScheduledTaskSummaryResponse) => {
+      if (!response || typeof response !== 'object' || typeof response.requestId !== 'string') {
+        return false
+      }
+      const pending = pendingSummaries.get(response.requestId)
+      if (!pending) return false
+      pendingSummaries.delete(response.requestId)
+      clearTimeoutFn(pending.timer)
+      if (typeof response.summary === 'string' && response.summary.trim()) {
+        pending.resolve(response.summary.trim())
+      } else {
+        pending.reject(
+          new Error(typeof response.error === 'string' ? response.error : 'AI summary failed.')
+        )
+      }
+      return true
     }
-    const pending = pendingSummaries.get(response.requestId)
-    if (!pending) return false
-    pendingSummaries.delete(response.requestId)
-    clearTimeoutFn(pending.timer)
-    if (typeof response.summary === 'string' && response.summary.trim()) {
-      pending.resolve(response.summary.trim())
-    } else {
-      pending.reject(new Error(typeof response.error === 'string' ? response.error : 'AI summary failed.'))
-    }
-    return true
-  })
+  )
 
-  ipcMain.handle('scheduled-tasks:resolve-automation-run', (_event, response: ScheduledAutomationRunResponse) => {
-    if (!response || typeof response !== 'object' || typeof response.requestId !== 'string') {
-      return false
+  ipcMain.handle(
+    'scheduled-tasks:resolve-automation-run',
+    (_event, response: ScheduledAutomationRunResponse) => {
+      if (!response || typeof response !== 'object' || typeof response.requestId !== 'string') {
+        return false
+      }
+      const pending = pendingAutomationRuns.get(response.requestId)
+      if (!pending) return false
+      pendingAutomationRuns.delete(response.requestId)
+      clearTimeoutFn(pending.timer)
+      pending.resolve(sanitizeAutomationResponse(response))
+      return true
     }
-    const pending = pendingAutomationRuns.get(response.requestId)
-    if (!pending) return false
-    pendingAutomationRuns.delete(response.requestId)
-    clearTimeoutFn(pending.timer)
-    pending.resolve(sanitizeAutomationResponse(response))
-    return true
-  })
+  )
 
   return { start, stop, reschedule, runNow, setExtensionEnabled, isExtensionEnabled }
 }
@@ -746,7 +848,7 @@ export function isMonitorRuntimeExtensionEnabled(): boolean {
 }
 
 export async function setMonitorRuntimeExtensionEnabled(enabled: boolean): Promise<void> {
-  const runtime = activeRuntime ?? await startMonitorRuntime()
+  const runtime = activeRuntime ?? (await startMonitorRuntime())
   await runtime.setExtensionEnabled(enabled)
 }
 

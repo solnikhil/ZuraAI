@@ -49,7 +49,10 @@ function stripTitlePrefixes(value: string): string {
 }
 
 const enforceMaxWords = (title: string, max: number = MAX_TITLE_WORDS): string => {
-  const words = title.trim().split(/\s+/).filter((word) => word.length > 0)
+  const words = title
+    .trim()
+    .split(/\s+/)
+    .filter((word) => word.length > 0)
   if (words.length === 0) return ''
   if (words.length <= max) return words.join(' ')
   return words.slice(0, max).join(' ')
@@ -72,7 +75,11 @@ const sanitizeTitle = (title: string): string => {
     const deMarked = raw.replace(/^#+\s+/, '').replace(/^[-*]\s+/, '')
     const unquoted = deMarked.trim().replace(/^["'`]+|["'`]+$/g, '')
     const dePrefixed = stripTitlePrefixes(unquoted)
-    return dePrefixed.trim().replace(/[\s"'`]+$/g, '').replace(/[:.!?]+$/g, '').trim()
+    return dePrefixed
+      .trim()
+      .replace(/[\s"'`]+$/g, '')
+      .replace(/[:.!?]+$/g, '')
+      .trim()
   }
 
   for (const raw of lines) {
@@ -143,15 +150,21 @@ export const generateChatTitle = async (
   const model = typeof settings.titleModel === 'string' ? settings.titleModel.trim() : ''
 
   if (!model) {
-    console.warn('[title-generator] No dedicated title model is configured. Keeping existing chat title.')
+    console.warn(
+      '[title-generator] No dedicated title model is configured. Keeping existing chat title.'
+    )
     return null
   }
 
   try {
-    const title = await withTimeout(generateTitleTextForModel(settings, model, prompt), TITLE_GENERATION_TIMEOUT_MS)
+    const title = await withTimeout(
+      generateTitleTextForModel(settings, model, prompt),
+      TITLE_GENERATION_TIMEOUT_MS
+    )
     return normalizeGeneratedTitle(title)
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error || 'Unknown title generation error')
+    const message =
+      error instanceof Error ? error.message : String(error || 'Unknown title generation error')
     console.warn(
       `[title-generator] Title generation failed for model "${model}". Keeping existing chat title. ${message}`
     )

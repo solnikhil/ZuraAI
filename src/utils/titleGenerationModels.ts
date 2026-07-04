@@ -3,7 +3,9 @@ import type { ConfiguredModel } from '../contexts/SettingsConfigContext'
 function normalizeModalities(modalities?: string[]): string[] {
   if (!Array.isArray(modalities)) return []
   return modalities
-    .filter((modality): modality is string => typeof modality === 'string' && modality.trim().length > 0)
+    .filter(
+      (modality): modality is string => typeof modality === 'string' && modality.trim().length > 0
+    )
     .map((modality) => modality.trim().toLowerCase())
 }
 
@@ -13,7 +15,11 @@ export function isModelEligibleForTitleGeneration(model: ConfiguredModel): boole
     return outputModalities.includes('text')
   }
 
-  if (model.modelType === 'image' || model.modelType === 'video' || model.modelType === 'embedding') {
+  if (
+    model.modelType === 'image' ||
+    model.modelType === 'video' ||
+    model.modelType === 'embedding'
+  ) {
     return false
   }
 

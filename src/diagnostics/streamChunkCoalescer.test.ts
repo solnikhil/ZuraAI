@@ -3,10 +3,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import type { ChatDiagnosticStreamChunk } from './chatDiagnostics'
-import {
-  STREAM_CHUNK_FLUSH_INTERVAL_MS,
-  createStreamChunkCoalescer,
-} from './streamChunkCoalescer'
+import { STREAM_CHUNK_FLUSH_INTERVAL_MS, createStreamChunkCoalescer } from './streamChunkCoalescer'
 
 interface TestHarness {
   emit: ReturnType<typeof vi.fn>

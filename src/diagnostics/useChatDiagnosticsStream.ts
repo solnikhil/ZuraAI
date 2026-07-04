@@ -35,8 +35,7 @@ export function useChatDiagnosticsStream(
   const sessionIdRef = useRef<string | null | undefined>(sessionId)
   sessionIdRef.current = sessionId
 
-  const isAvailable =
-    typeof window !== 'undefined' && Boolean(window.chatDiagnostics?.listEvents)
+  const isAvailable = typeof window !== 'undefined' && Boolean(window.chatDiagnostics?.listEvents)
 
   const clear = useCallback(() => {
     setEvents([])
@@ -74,9 +73,10 @@ export function useChatDiagnosticsStream(
     const unsubscribe = bridge.onEvent((event) => {
       if (!event || event.sessionId !== sessionIdRef.current) return
       setEvents((current) => {
-        const next = current.length + 1 > CHAT_DIAGNOSTICS_BUFFER_LIMIT
-          ? [...current.slice(current.length + 1 - CHAT_DIAGNOSTICS_BUFFER_LIMIT), event]
-          : [...current, event]
+        const next =
+          current.length + 1 > CHAT_DIAGNOSTICS_BUFFER_LIMIT
+            ? [...current.slice(current.length + 1 - CHAT_DIAGNOSTICS_BUFFER_LIMIT), event]
+            : [...current, event]
         return next
       })
     })

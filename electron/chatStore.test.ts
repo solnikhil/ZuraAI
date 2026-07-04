@@ -121,15 +121,19 @@ describe('chatStore metadata-first persistence', () => {
     })
 
     const metadata = await chatStore.getSessionMetadataAsync()
-    expect(metadata[0]).toEqual(expect.objectContaining({
-      id: 'session-artifact',
-      title: 'Artifact chat renamed',
-      artifactCount: 1,
-    }))
-    expect(metadata[0].artifactSummaries?.[0]).toEqual(expect.objectContaining({
-      id: 'artifact-1',
-      title: 'Persisted artifact',
-    }))
+    expect(metadata[0]).toEqual(
+      expect.objectContaining({
+        id: 'session-artifact',
+        title: 'Artifact chat renamed',
+        artifactCount: 1,
+      })
+    )
+    expect(metadata[0].artifactSummaries?.[0]).toEqual(
+      expect.objectContaining({
+        id: 'artifact-1',
+        title: 'Persisted artifact',
+      })
+    )
   })
 
   it('derives artifact metadata from full artifact documents', async () => {
@@ -160,13 +164,15 @@ describe('chatStore metadata-first persistence', () => {
 
     const metadata = await chatStore.getSessionMetadataAsync()
     expect(metadata[0].artifactCount).toBe(1)
-    expect(metadata[0].artifactSummaries?.[0]).toEqual(expect.objectContaining({
-      id: 'artifact-1',
-      title: 'Full artifact',
-      kind: 'code',
-      language: 'typescript',
-      currentVersionId: 'version-2',
-      versionCount: 2,
-    }))
+    expect(metadata[0].artifactSummaries?.[0]).toEqual(
+      expect.objectContaining({
+        id: 'artifact-1',
+        title: 'Full artifact',
+        kind: 'code',
+        language: 'typescript',
+        currentVersionId: 'version-2',
+        versionCount: 2,
+      })
+    )
   })
 })

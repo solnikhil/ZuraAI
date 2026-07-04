@@ -31,12 +31,15 @@ export function registerComputerUseHandlers(): void {
     broadcastPending(pending)
   })
 
-  ipcMain.handle('computer-use:resolve-approval', (_event, requestId: unknown, approved: unknown) => {
-    if (typeof requestId !== 'string' || !requestId.trim()) {
-      throw new Error('Invalid approval request ID')
+  ipcMain.handle(
+    'computer-use:resolve-approval',
+    (_event, requestId: unknown, approved: unknown) => {
+      if (typeof requestId !== 'string' || !requestId.trim()) {
+        throw new Error('Invalid approval request ID')
+      }
+      return manager.resolveApproval(requestId.trim(), approved === true)
     }
-    return manager.resolveApproval(requestId.trim(), approved === true)
-  })
+  )
 }
 
 export function unregisterComputerUseHandlers(): void {

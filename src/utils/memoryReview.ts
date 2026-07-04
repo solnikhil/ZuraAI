@@ -28,12 +28,18 @@ function normalizeReviewText(text: string): string {
 
 export function hasReminderOrLookoutIntent(text: string): boolean {
   const normalized = normalizeReviewText(text)
-  return normalized.length > 0 && REMINDER_OR_LOOKOUT_PATTERNS.some((pattern) => pattern.test(normalized))
+  return (
+    normalized.length > 0 &&
+    REMINDER_OR_LOOKOUT_PATTERNS.some((pattern) => pattern.test(normalized))
+  )
 }
 
 export function hasDurableUserContext(text: string): boolean {
   const normalized = normalizeReviewText(text)
-  return normalized.length > 0 && DURABLE_USER_CONTEXT_PATTERNS.some((pattern) => pattern.test(normalized))
+  return (
+    normalized.length > 0 &&
+    DURABLE_USER_CONTEXT_PATTERNS.some((pattern) => pattern.test(normalized))
+  )
 }
 
 export function isReminderOrLookoutOnlyContext(text: string): boolean {

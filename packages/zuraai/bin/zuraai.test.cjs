@@ -3,12 +3,7 @@
 const assert = require('node:assert/strict')
 const test = require('node:test')
 
-const {
-  createChatUrl,
-  createOpenUrl,
-  getDefaultUserDataPath,
-  parseArgs,
-} = require('./zuraai.cjs')
+const { createChatUrl, createOpenUrl, getDefaultUserDataPath, parseArgs } = require('./zuraai.cjs')
 
 test('creates the app-open protocol URL', () => {
   assert.equal(createOpenUrl(), 'zuraai://open')
@@ -46,7 +41,11 @@ test('resolves default userData paths for macOS and Windows', () => {
     '/Users/nikhil/Library/Application Support/ZuraAI'
   )
   assert.equal(
-    getDefaultUserDataPath('win32', { APPDATA: 'C:\\Users\\Nikhil\\AppData\\Roaming' }, 'C:\\Users\\Nikhil'),
+    getDefaultUserDataPath(
+      'win32',
+      { APPDATA: 'C:\\Users\\Nikhil\\AppData\\Roaming' },
+      'C:\\Users\\Nikhil'
+    ),
     'C:\\Users\\Nikhil\\AppData\\Roaming\\ZuraAI'
   )
 })

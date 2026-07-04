@@ -3,106 +3,106 @@
 .markdown-body,
 .markdown-content,
 .markdown-typography {
-    font-family: var(--font-sans);
-    color: var(--theme-text-primary);
-    /* Prevent horizontal layout shift when container resizes (scrollbar appear/disappear) */
-    overflow-wrap: break-word;
-    word-break: break-word;
-    min-width: 0;
+  font-family: var(--font-sans);
+  color: var(--theme-text-primary);
+  /* Prevent horizontal layout shift when container resizes (scrollbar appear/disappear) */
+  overflow-wrap: break-word;
+  word-break: break-word;
+  min-width: 0;
 }
 
 /* Paragraphs */
 .markdown-body p,
 .markdown-content p,
 .markdown-typography p {
-    line-height: 1.75rem; /* leading-7 */
-    margin-top: 0;
-    margin-bottom: 0;
+  line-height: 1.75rem; /* leading-7 */
+  margin-top: 0;
+  margin-bottom: 0;
 }
 
 .markdown-body p:not(:first-child),
 .markdown-content p:not(:first-child),
 .markdown-typography p:not(:first-child) {
-    margin-top: 1.5rem; /* mt-6 */
+  margin-top: 1.5rem; /* mt-6 */
 }
 
 /* Headings */
 .markdown-body h1,
 .markdown-content h1,
 .markdown-typography h1 {
-    scroll-margin-top: 5rem; /* scroll-m-20 */
-    text-align: center;
-    font-size: 2.25rem; /* text-4xl */
-    font-weight: 800; /* font-extrabold */
-    letter-spacing: -0.025em; /* tracking-tight */
-    text-wrap: balance;
-    margin: 0 0 0.75rem;
-    color: var(--theme-text-primary);
+  scroll-margin-top: 5rem; /* scroll-m-20 */
+  text-align: center;
+  font-size: 2.25rem; /* text-4xl */
+  font-weight: 800; /* font-extrabold */
+  letter-spacing: -0.025em; /* tracking-tight */
+  text-wrap: balance;
+  margin: 0 0 0.75rem;
+  color: var(--theme-text-primary);
 }
 
 .markdown-body h1:not(:first-child),
 .markdown-content h1:not(:first-child),
 .markdown-typography h1:not(:first-child) {
-    margin-top: 2rem;
+  margin-top: 2rem;
 }
 
 .markdown-body h2,
 .markdown-content h2,
 .markdown-typography h2 {
-    scroll-margin-top: 5rem; /* scroll-m-20 */
-    border-bottom: 1px solid var(--theme-border);
-    padding-bottom: 0.5rem; /* pb-2 */
-    font-size: 1.875rem; /* text-3xl */
-    font-weight: 600; /* font-semibold */
-    letter-spacing: -0.025em; /* tracking-tight */
-    margin: 0 0 0.75rem;
-    color: var(--theme-text-primary);
+  scroll-margin-top: 5rem; /* scroll-m-20 */
+  border-bottom: 1px solid var(--theme-border);
+  padding-bottom: 0.5rem; /* pb-2 */
+  font-size: 1.875rem; /* text-3xl */
+  font-weight: 600; /* font-semibold */
+  letter-spacing: -0.025em; /* tracking-tight */
+  margin: 0 0 0.75rem;
+  color: var(--theme-text-primary);
 }
 
 .markdown-body h2:first-child,
 .markdown-content h2:first-child,
 .markdown-typography h2:first-child {
-    margin-top: 0;
+  margin-top: 0;
 }
 
 .markdown-body h2:not(:first-child),
 .markdown-content h2:not(:first-child),
 .markdown-typography h2:not(:first-child) {
-    margin-top: 1.75rem;
+  margin-top: 1.75rem;
 }
 
 .markdown-body h3,
 .markdown-content h3,
 .markdown-typography h3 {
-    scroll-margin-top: 5rem; /* scroll-m-20 */
-    font-size: 1.5rem; /* text-2xl */
-    font-weight: 600; /* font-semibold */
-    letter-spacing: -0.025em; /* tracking-tight */
-    margin: 0 0 0.65rem;
-    color: var(--theme-text-primary);
+  scroll-margin-top: 5rem; /* scroll-m-20 */
+  font-size: 1.5rem; /* text-2xl */
+  font-weight: 600; /* font-semibold */
+  letter-spacing: -0.025em; /* tracking-tight */
+  margin: 0 0 0.65rem;
+  color: var(--theme-text-primary);
 }
 
 .markdown-body h3:not(:first-child),
 .markdown-content h3:not(:first-child),
 .markdown-typography h3:not(:first-child) {
-    margin-top: 1.5rem;
+  margin-top: 1.5rem;
 }
 
 .markdown-body h4,
 .markdown-content h4,
 .markdown-typography h4 {
-    scroll-margin-top: 5rem; /* scroll-m-20 */
-    font-size: 1.25rem; /* text-xl */
-    font-weight: 600; /* font-semibold */
-    letter-spacing: -0.025em; /* tracking-tight */
-    margin: 0 0 0.5rem;
-    color: var(--theme-text-primary);
+  scroll-margin-top: 5rem; /* scroll-m-20 */
+  font-size: 1.25rem; /* text-xl */
+  font-weight: 600; /* font-semibold */
+  letter-spacing: -0.025em; /* tracking-tight */
+  margin: 0 0 0.5rem;
+  color: var(--theme-text-primary);
 }
 
 .markdown-body h4:not(:first-child),
 .markdown-content h4:not(:first-child),
 .markdown-typography h4:not(:first-child) {
-    margin-top: 1.25rem;
+  margin-top: 1.25rem;
 }
 
 .markdown-body h5,
@@ -111,10 +111,10 @@
 .markdown-body h6,
 .markdown-content h6,
 .markdown-typography h6 {
-    scroll-margin-top: 5rem;
-    font-weight: 600;
-    margin: 0 0 0.4rem;
-    color: var(--theme-text-primary);
+  scroll-margin-top: 5rem;
+  font-weight: 600;
+  margin: 0 0 0.4rem;
+  color: var(--theme-text-primary);
 }
 
 .markdown-body h5:not(:first-child),
@@ -123,7 +123,7 @@
 .markdown-body h6:not(:first-child),
 .markdown-content h6:not(:first-child),
 .markdown-typography h6:not(:first-child) {
-    margin-top: 1rem;
+  margin-top: 1rem;
 }
 
 /* Tighten spacing when headings are followed by text or lists */
@@ -145,7 +145,7 @@
 .markdown-body h6 + p,
 .markdown-content h6 + p,
 .markdown-typography h6 + p {
-    margin-top: 0.75rem;
+  margin-top: 0.75rem;
 }
 
 .markdown-body h1 + ul,
@@ -184,22 +184,22 @@
 .markdown-body h6 + ol,
 .markdown-content h6 + ol,
 .markdown-typography h6 + ol {
-    margin-top: 0.75rem;
+  margin-top: 0.75rem;
 }
 
 /* Blockquotes */
 .markdown-body blockquote,
 .markdown-content blockquote,
 .markdown-typography blockquote {
-    margin-top: 1.5rem; /* mt-6 */
-    margin-bottom: 1.5rem;
-    border-left: 3px solid var(--theme-accent);
-    padding: 0.75rem 0 0.75rem 1.5rem;
-    margin-left: 0;
-    background: var(--theme-surface-hover);
-    border-radius: 0 0.25rem 0.25rem 0;
-    font-style: italic;
-    color: var(--theme-text-secondary);
+  margin-top: 1.5rem; /* mt-6 */
+  margin-bottom: 1.5rem;
+  border-left: 3px solid var(--theme-accent);
+  padding: 0.75rem 0 0.75rem 1.5rem;
+  margin-left: 0;
+  background: var(--theme-surface-hover);
+  border-radius: 0 0.25rem 0.25rem 0;
+  font-style: italic;
+  color: var(--theme-text-secondary);
 }
 
 /* Lists */
@@ -209,59 +209,59 @@
 .markdown-body ol,
 .markdown-content ol,
 .markdown-typography ol {
-    margin-top: 1.5rem; /* my-6 */
-    margin-bottom: 1.5rem;
-    padding-left: 1.5rem; /* ml-6 */
+  margin-top: 1.5rem; /* my-6 */
+  margin-bottom: 1.5rem;
+  padding-left: 1.5rem; /* ml-6 */
 }
 
 .markdown-body ul,
 .markdown-content ul,
 .markdown-typography ul {
-    list-style-type: disc; /* list-disc */
+  list-style-type: disc; /* list-disc */
 }
 
 .markdown-body ol,
 .markdown-content ol,
 .markdown-typography ol {
-    list-style-type: decimal;
+  list-style-type: decimal;
 }
 
 .markdown-body li,
 .markdown-content li,
 .markdown-typography li {
-    margin-top: 0.5rem; /* [&>li]:mt-2 */
+  margin-top: 0.5rem; /* [&>li]:mt-2 */
 }
 
 .markdown-body li:first-child,
 .markdown-content li:first-child,
 .markdown-typography li:first-child {
-    margin-top: 0;
+  margin-top: 0;
 }
 
 /* Tables */
 .markdown-table {
-    margin-top: 1.5rem; /* my-6 */
-    margin-bottom: 1.5rem;
-    width: 100%;
-    overflow-x: auto;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    border-radius: 0.5rem;
-    border: 1px solid var(--theme-border);
+  margin-top: 1.5rem; /* my-6 */
+  margin-bottom: 1.5rem;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 0.5rem;
+  border: 1px solid var(--theme-border);
 }
 
 .markdown-body table,
 .markdown-content table,
 .markdown-typography table {
-    margin-top: 1.5rem;
-    margin-bottom: 1.5rem;
-    width: 100%;
-    min-width: 300px;
-    border-collapse: collapse;
+  margin-top: 1.5rem;
+  margin-bottom: 1.5rem;
+  width: 100%;
+  min-width: 300px;
+  border-collapse: collapse;
 }
 
 .markdown-table table {
-    margin: 0;
+  margin: 0;
 }
 
 .markdown-body th,
@@ -270,191 +270,200 @@
 .markdown-body td,
 .markdown-content td,
 .markdown-typography td {
-    border: 1px solid var(--theme-border);
-    padding: 0.625rem 0.875rem;
+  border: 1px solid var(--theme-border);
+  padding: 0.625rem 0.875rem;
 }
 
 .markdown-body th,
 .markdown-content th,
 .markdown-typography th {
-    background: color-mix(in srgb, var(--theme-surface-hover) 80%, var(--theme-surface));
-    font-weight: 600;
-    color: var(--theme-text-primary);
-    text-align: left;
-    padding: 0.75rem 1rem;
-    border-bottom: 1px solid var(--theme-border-active);
+  background: color-mix(in srgb, var(--theme-surface-hover) 80%, var(--theme-surface));
+  font-weight: 600;
+  color: var(--theme-text-primary);
+  text-align: left;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--theme-border-active);
 }
 
 .markdown-body td,
 .markdown-content td,
 .markdown-typography td {
-    color: var(--theme-text-secondary);
+  color: var(--theme-text-secondary);
 }
 
 /* Zebra striping for table body rows */
 .markdown-body tbody tr:nth-child(even),
 .markdown-content tbody tr:nth-child(even),
 .markdown-typography tbody tr:nth-child(even) {
-    background: color-mix(in srgb, var(--theme-surface-hover) 40%, transparent);
+  background: color-mix(in srgb, var(--theme-surface-hover) 40%, transparent);
 }
 
 /* Inline Code */
 .markdown-body code:not(pre code),
 .markdown-content code:not(pre code),
 .markdown-typography code:not(pre code) {
-    background: var(--theme-surface-hover); /* bg-muted */
-    position: relative;
-    border-radius: 0.25rem;
-    padding: 0.125rem 0.3rem; /* px-[0.3rem] py-[0.2rem] */
-    font-family: var(--font-mono); /* font-mono */
-    font-size: 0.875rem; /* text-sm */
-    font-weight: 600; /* font-semibold */
-    font-style: normal; /* prevent italic inheritance from blockquote/em */
+  background: var(--theme-surface-hover); /* bg-muted */
+  position: relative;
+  border-radius: 0.25rem;
+  padding: 0.125rem 0.3rem; /* px-[0.3rem] py-[0.2rem] */
+  font-family: var(--font-mono); /* font-mono */
+  font-size: 0.875rem; /* text-sm */
+  font-weight: 600; /* font-semibold */
+  font-style: normal; /* prevent italic inheritance from blockquote/em */
 }
 
 .markdown-body pre,
 .markdown-content pre,
 .markdown-typography pre {
-    margin: 1.5rem 0;
-    border-radius: 0.375rem;
-    overflow: hidden;
-    background: transparent;
+  margin: 1.5rem 0;
+  border-radius: 0.375rem;
+  overflow: hidden;
+  background: transparent;
 }
 
 .markdown-body pre code,
 .markdown-content pre code,
 .markdown-typography pre code {
-    padding: 0;
-    background: transparent;
-    font-weight: normal;
+  padding: 0;
+  background: transparent;
+  font-weight: normal;
 }
 
 /* Keep the outer code-block container tinted while clearing inner highlighter layers */
 .dark .markdown-code-block {
-    background: color-mix(in srgb, var(--theme-surface-active) 58%, black 42%) !important;
+  background: color-mix(in srgb, var(--theme-surface-active) 58%, black 42%) !important;
 }
 
 :root:not(.dark) .markdown-code-block {
-    background: color-mix(in srgb, var(--theme-surface-hover) 72%, var(--theme-background)) !important;
+  background: color-mix(
+    in srgb,
+    var(--theme-surface-hover) 72%,
+    var(--theme-background)
+  ) !important;
 }
 
 .markdown-code-block > div,
 .markdown-code-block pre,
 .markdown-code-block code,
-.markdown-code-block [class*="language-"],
-.markdown-code-block [class*="language-"] > code[class*="language-"] {
-    background: transparent !important;
-    background-color: transparent !important;
+.markdown-code-block [class*='language-'],
+.markdown-code-block [class*='language-'] > code[class*='language-'] {
+  background: transparent !important;
+  background-color: transparent !important;
 }
 
 /* Prism class-based rendering path (useInlineStyles=false) */
-.markdown-code-block pre[class*="language-"],
-.markdown-code-block code[class*="language-"],
+.markdown-code-block pre[class*='language-'],
+.markdown-code-block code[class*='language-'],
 .markdown-code-block pre.prismjs,
 .markdown-code-block code.prismjs {
-    background: transparent !important;
-    background-color: transparent !important;
+  background: transparent !important;
+  background-color: transparent !important;
 }
 
 /* Standard markdown links. Web-search citations keep their dedicated component styling. */
 .markdown-body a.markdown-link,
 .markdown-content a.markdown-link,
 .markdown-typography a.markdown-link {
-    color: var(--theme-accent);
-    text-decoration: underline;
-    text-decoration-thickness: 1.25px;
-    text-underline-offset: 0.16em;
-    transition: color 120ms ease, text-decoration-color 120ms ease;
+  color: var(--theme-accent);
+  text-decoration: underline;
+  text-decoration-thickness: 1.25px;
+  text-underline-offset: 0.16em;
+  transition:
+    color 120ms ease,
+    text-decoration-color 120ms ease;
 }
 
 .markdown-body a.markdown-link:hover,
 .markdown-content a.markdown-link:hover,
 .markdown-typography a.markdown-link:hover {
-    color: color-mix(in srgb, var(--theme-accent) 82%, white);
-    text-decoration-color: currentColor;
+  color: color-mix(in srgb, var(--theme-accent) 82%, white);
+  text-decoration-color: currentColor;
 }
 
 .markdown-body a.web-source-citation,
 .markdown-content a.web-source-citation,
 .markdown-typography a.web-source-citation {
-    display: inline;
-    position: relative;
-    top: -0.32em;
-    margin: 0 0.01em;
-    padding: 0.02em 0.16em;
-    border-radius: 0.35em;
-    background: transparent;
-    color: color-mix(in srgb, var(--theme-text-muted) 82%, transparent);
-    font-size: 0.66em;
-    font-weight: 650;
-    line-height: 0;
-    text-decoration: none;
-    vertical-align: baseline;
-    opacity: 0.72;
-    transition: background-color 120ms ease, color 120ms ease, opacity 120ms ease;
+  display: inline;
+  position: relative;
+  top: -0.32em;
+  margin: 0 0.01em;
+  padding: 0.02em 0.16em;
+  border-radius: 0.35em;
+  background: transparent;
+  color: color-mix(in srgb, var(--theme-text-muted) 82%, transparent);
+  font-size: 0.66em;
+  font-weight: 650;
+  line-height: 0;
+  text-decoration: none;
+  vertical-align: baseline;
+  opacity: 0.72;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease,
+    opacity 120ms ease;
 }
 
 .markdown-body a.web-source-citation:hover,
 .markdown-content a.web-source-citation:hover,
 .markdown-typography a.web-source-citation:hover {
-    background: color-mix(in srgb, var(--theme-accent-muted) 34%, transparent);
-    color: color-mix(in srgb, var(--theme-text-secondary) 72%, var(--theme-accent) 28%);
-    opacity: 1;
+  background: color-mix(in srgb, var(--theme-accent-muted) 34%, transparent);
+  color: color-mix(in srgb, var(--theme-text-secondary) 72%, var(--theme-accent) 28%);
+  opacity: 1;
 }
 
 .markdown-body a.web-source-citation:focus-visible,
 .markdown-content a.web-source-citation:focus-visible,
 .markdown-typography a.web-source-citation:focus-visible {
-    outline: 1px solid color-mix(in srgb, var(--theme-accent) 48%, transparent);
-    outline-offset: 2px;
-    opacity: 1;
+  outline: 1px solid color-mix(in srgb, var(--theme-accent) 48%, transparent);
+  outline-offset: 2px;
+  opacity: 1;
 }
 
 /* Lead text */
 .markdown-body .lead,
 .markdown-content .lead,
 .markdown-typography .lead {
-    color: var(--theme-text-muted); /* text-muted-foreground */
-    font-size: 1.25rem; /* text-xl */
+  color: var(--theme-text-muted); /* text-muted-foreground */
+  font-size: 1.25rem; /* text-xl */
 }
 
 /* Large text */
 .markdown-body .large,
 .markdown-content .large,
 .markdown-typography .large {
-    font-size: 1.125rem; /* text-lg */
-    font-weight: 600; /* font-semibold */
+  font-size: 1.125rem; /* text-lg */
+  font-weight: 600; /* font-semibold */
 }
 
 /* Small text */
 .markdown-body small,
 .markdown-content small,
 .markdown-typography small {
-    font-size: 0.875rem; /* text-sm */
-    line-height: 1; /* leading-none */
-    font-weight: 500; /* font-medium */
+  font-size: 0.875rem; /* text-sm */
+  line-height: 1; /* leading-none */
+  font-weight: 500; /* font-medium */
 }
 
 /* Muted text */
 .markdown-body .muted,
 .markdown-content .muted,
 .markdown-typography .muted {
-    color: var(--theme-text-muted); /* text-muted-foreground */
-    font-size: 0.875rem; /* text-sm */
+  color: var(--theme-text-muted); /* text-muted-foreground */
+  font-size: 0.875rem; /* text-sm */
 }
 
 .markdown-body strong,
 .markdown-content strong,
 .markdown-typography strong {
-    color: var(--theme-text-primary);
-    font-weight: 600;
+  color: var(--theme-text-primary);
+  font-weight: 600;
 }
 
 .markdown-body em,
 .markdown-content em,
 .markdown-typography em {
-    font-style: italic;
-    color: var(--theme-text-primary);
+  font-style: italic;
+  color: var(--theme-text-primary);
 }
 
 /* Strikethrough (GFM ~~text~~) */
@@ -464,72 +473,81 @@
 .markdown-body s,
 .markdown-content s,
 .markdown-typography s {
-    text-decoration: line-through;
-    text-decoration-thickness: 1.5px;
-    text-decoration-color: var(--theme-text-muted);
-    color: var(--theme-text-muted);
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+  text-decoration-color: var(--theme-text-muted);
+  color: var(--theme-text-muted);
 }
 
 /* Task lists (GFM - [ ] / - [x]) */
 .markdown-body ul.contains-task-list,
 .markdown-content ul.contains-task-list,
 .markdown-typography ul.contains-task-list {
-    list-style: none;
-    padding-left: 1.5rem; /* align with other lists */
+  list-style: none;
+  padding-left: 1.5rem; /* align with other lists */
 }
 
 .markdown-body .task-list-item,
 .markdown-content .task-list-item,
 .markdown-typography .task-list-item {
-    list-style: none;
-    display: flex;
-    align-items: flex-start;
-    gap: 0.5rem;
-    margin-top: 0.5rem;
+  list-style: none;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
 }
 
 .markdown-body .task-list-item:first-child,
 .markdown-content .task-list-item:first-child,
 .markdown-typography .task-list-item:first-child {
-    margin-top: 0;
+  margin-top: 0;
 }
 
-.markdown-body .task-list-item input[type="checkbox"],
-.markdown-content .task-list-item input[type="checkbox"],
-.markdown-typography .task-list-item input[type="checkbox"] {
-    margin: 0.25rem 0 0 0;
-    flex-shrink: 0;
-    width: 1rem;
-    height: 1rem;
-    accent-color: var(--theme-accent);
-    cursor: default;
+.markdown-body .task-list-item input[type='checkbox'],
+.markdown-content .task-list-item input[type='checkbox'],
+.markdown-typography .task-list-item input[type='checkbox'] {
+  margin: 0.25rem 0 0 0;
+  flex-shrink: 0;
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--theme-accent);
+  cursor: default;
 }
 
-.markdown-body .task-list-item:has(input[type="checkbox"]:checked),
-.markdown-content .task-list-item:has(input[type="checkbox"]:checked),
-.markdown-typography .task-list-item:has(input[type="checkbox"]:checked) {
-    text-decoration: line-through;
-    text-decoration-thickness: 1.5px;
-    text-decoration-color: var(--theme-text-muted);
-    color: var(--theme-text-muted);
+.markdown-body .task-list-item:has(input[type='checkbox']:checked),
+.markdown-content .task-list-item:has(input[type='checkbox']:checked),
+.markdown-typography .task-list-item:has(input[type='checkbox']:checked) {
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+  text-decoration-color: var(--theme-text-muted);
+  color: var(--theme-text-muted);
 }
 
 /* Horizontal rules (GFM ---) */
 .markdown-body hr,
 .markdown-content hr,
 .markdown-typography hr {
-    margin: 1.5rem 0;
-    border: none;
-    border-top: 1px solid var(--theme-border);
+  margin: 1.5rem 0;
+  border: none;
+  border-top: 1px solid var(--theme-border);
 }
 
 /* Skeleton animation for loading states */
 @keyframes markdown-skeleton-pulse {
-    0%, 100% { opacity: 0.6; }
-    50% { opacity: 1; }
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 @keyframes markdown-code-spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }

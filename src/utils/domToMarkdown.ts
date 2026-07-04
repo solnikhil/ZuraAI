@@ -44,9 +44,7 @@ function collapseInlineWhitespace(text: string): string {
 
 function getCodeLanguage(preOrCode: HTMLElement): string {
   const codeEl =
-    preOrCode.tagName.toLowerCase() === 'code'
-      ? preOrCode
-      : preOrCode.querySelector('code')
+    preOrCode.tagName.toLowerCase() === 'code' ? preOrCode : preOrCode.querySelector('code')
   const className = codeEl?.getAttribute('class') ?? ''
   const match = className.match(/language-([\w+-]+)/)
   return match ? match[1] : ''

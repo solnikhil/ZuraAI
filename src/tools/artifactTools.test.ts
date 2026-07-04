@@ -24,18 +24,25 @@ describe('artifactTools', () => {
       updateArtifact: () => null,
     })
 
-    const result = await executeArtifactTool('artifact_create', {
-      title: 'Spec',
-      kind: 'markdown',
-      content: '# Spec',
-    }, { sessionId: 'session-1', messageId: 'message-1' })
+    const result = await executeArtifactTool(
+      'artifact_create',
+      {
+        title: 'Spec',
+        kind: 'markdown',
+        content: '# Spec',
+      },
+      { sessionId: 'session-1', messageId: 'message-1' }
+    )
 
     expect(result.success).toBe(true)
     expect(result.metadata?.origin).toBe('builtin-renderer')
-    expect(createArtifact).toHaveBeenCalledWith('session-1', expect.objectContaining({
-      title: 'Spec',
-      sourceMessageId: 'message-1',
-    }))
+    expect(createArtifact).toHaveBeenCalledWith(
+      'session-1',
+      expect.objectContaining({
+        title: 'Spec',
+        sourceMessageId: 'message-1',
+      })
+    )
     unregister()
   })
 
@@ -45,15 +52,18 @@ describe('artifactTools', () => {
       updateArtifact: () => null,
     })
 
-    const result = await executeArtifactTool('artifact_create', {
-      title: 'Spec',
-      kind: 'docx',
-      content: 'x',
-    }, { sessionId: 'session-1' })
+    const result = await executeArtifactTool(
+      'artifact_create',
+      {
+        title: 'Spec',
+        kind: 'docx',
+        content: 'x',
+      },
+      { sessionId: 'session-1' }
+    )
 
     expect(result.success).toBe(false)
     expect(result.error).toContain('kind')
     unregister()
   })
 })
-

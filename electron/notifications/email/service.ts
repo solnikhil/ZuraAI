@@ -1,9 +1,5 @@
 import { getSecureValueAsync } from '../../secureStorage'
-import type {
-  BrevoEmailInput,
-  EmailNotificationResult,
-  EmailNotificationSettings,
-} from './types'
+import type { BrevoEmailInput, EmailNotificationResult, EmailNotificationSettings } from './types'
 import { buildNotificationEmailHtml } from './template'
 
 const BREVO_TRANSACTIONAL_EMAIL_ENDPOINT = 'https://api.brevo.com/v3/smtp/email'
@@ -27,7 +23,8 @@ function validateBrevoInput(input: BrevoEmailInput): void {
   if (!input.apiKey.trim()) throw new Error('Brevo API key is required.')
   if (!input.senderName.trim()) throw new Error('Sender name is required.')
   if (!isValidEmail(input.senderEmail.trim())) throw new Error('Valid sender email is required.')
-  if (!isValidEmail(input.recipientEmail.trim())) throw new Error('Valid recipient email is required.')
+  if (!isValidEmail(input.recipientEmail.trim()))
+    throw new Error('Valid recipient email is required.')
   if (!input.subject.trim()) throw new Error('Email subject is required.')
   if (!input.textContent.trim()) throw new Error('Email body is required.')
 }
@@ -42,16 +39,17 @@ export async function sendBrevoEmail(
     const subject = compact(input.subject, SUBJECT_LIMIT)
     const textContent = compact(input.textContent, TEXT_BODY_LIMIT)
     const htmlContent = compact(
-      input.htmlContent || buildNotificationEmailHtml({
-        notificationType: 'Automation notification',
-        title: subject,
-        summary: textContent,
-        notificationMessage: textContent,
-        metadata: [
-          { label: 'automation status', value: 'Triggered' },
-          { label: 'notification', value: 'Email' },
-        ],
-      }),
+      input.htmlContent ||
+        buildNotificationEmailHtml({
+          notificationType: 'Automation notification',
+          title: subject,
+          summary: textContent,
+          notificationMessage: textContent,
+          metadata: [
+            { label: 'automation status', value: 'Triggered' },
+            { label: 'notification', value: 'Email' },
+          ],
+        }),
       HTML_BODY_LIMIT
     )
 

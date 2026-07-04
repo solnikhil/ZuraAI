@@ -1,5 +1,8 @@
 import { ipcMain } from 'electron'
-import type { ProviderProxyFetchRequest, ProviderProxyFetchResponse } from '../../src/electron/types'
+import type {
+  ProviderProxyFetchRequest,
+  ProviderProxyFetchResponse,
+} from '../../src/electron/types'
 
 const OPENCODE_ORIGIN = 'https://opencode.ai'
 const OPENCODE_PATH_PREFIX = '/zen/go/'

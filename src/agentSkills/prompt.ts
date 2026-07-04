@@ -1,7 +1,11 @@
 import type { AgentSkillsSettings } from './types'
 
 export function buildAgentSkillsCatalogPrompt(agentSkills?: AgentSkillsSettings): string {
-  if (!agentSkills?.enabled || !Array.isArray(agentSkills.catalog) || agentSkills.catalog.length === 0) {
+  if (
+    !agentSkills?.enabled ||
+    !Array.isArray(agentSkills.catalog) ||
+    agentSkills.catalog.length === 0
+  ) {
     return ''
   }
 

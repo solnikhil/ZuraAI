@@ -65,43 +65,43 @@ Most desktop AI apps make you pick one provider, one workflow, or one trust mode
 
 ## At a glance
 
-| Area | What ZuraAI gives you |
-| --- | --- |
-| Models | One interface for cloud models and local Ollama models |
-| Agent Workspace | Tool-using assistant mode with visible step timelines, approval gates, and per-skill controls |
-| Research | Built-in web search, batched follow-up searches, citations, and inline search results |
-| Tools | Web research, approved code execution, trusted MCP tools, memory tools, and Windows-only computer use |
-| Media | Image attachments for vision-capable models |
-| Organization | Pinned chats, folders, tags, recency grouping, and title generation |
-| Platform | Desktop app support for macOS and Windows |
-| Privacy | Local chat history, secure API key storage, and opt-in anonymous analytics |
-| Workflow | Command palette quick-send, provider hub controls, and local usage analytics |
+| Area            | What ZuraAI gives you                                                                                 |
+| --------------- | ----------------------------------------------------------------------------------------------------- |
+| Models          | One interface for cloud models and local Ollama models                                                |
+| Agent Workspace | Tool-using assistant mode with visible step timelines, approval gates, and per-skill controls         |
+| Research        | Built-in web search, batched follow-up searches, citations, and inline search results                 |
+| Tools           | Web research, approved code execution, trusted MCP tools, memory tools, and Windows-only computer use |
+| Media           | Image attachments for vision-capable models                                                           |
+| Organization    | Pinned chats, folders, tags, recency grouping, and title generation                                   |
+| Platform        | Desktop app support for macOS and Windows                                                             |
+| Privacy         | Local chat history, secure API key storage, and opt-in anonymous analytics                            |
+| Workflow        | Command palette quick-send, provider hub controls, and local usage analytics                          |
 
 ## Agentic capabilities
 
 ZuraAI has two assistant modes: normal chat for direct conversations and Agent Workspace for tool-using workflows. Agent Workspace exposes capabilities only when the matching skill is enabled and the selected provider/model supports tool calls.
 
-| Capability | What it does | Safety and scope |
-| --- | --- | --- |
-| Web research | Calls `web_search` for current facts, source-backed answers, and multi-query research loops | Skill-gated, budgeted per response, and rendered with inline source results |
-| Code execution | Runs JavaScript or Python through the built-in `code_execution` tool for calculations, data transforms, and quick checks | Disabled by default; every execution requires explicit approval |
-| MCP tools | Connects trusted Model Context Protocol servers and exposes their namespaced tools to capable models | Servers must be enabled and trusted; optional per-call approval plus tool allow/block lists |
-| Memory | Saves, updates, deletes, and searches short durable user facts for personalization across chats | Stored locally under Electron `userData`; user-visible and manageable in Settings |
-| Computer use | Takes screenshots, clicks, types, scrolls, launches apps, and closes windows for desktop automation | Windows-only, disabled by default, approval-gated, with an emergency stop path |
+| Capability     | What it does                                                                                                             | Safety and scope                                                                            |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| Web research   | Calls `web_search` for current facts, source-backed answers, and multi-query research loops                              | Skill-gated, budgeted per response, and rendered with inline source results                 |
+| Code execution | Runs JavaScript or Python through the built-in `code_execution` tool for calculations, data transforms, and quick checks | Disabled by default; every execution requires explicit approval                             |
+| MCP tools      | Connects trusted Model Context Protocol servers and exposes their namespaced tools to capable models                     | Servers must be enabled and trusted; optional per-call approval plus tool allow/block lists |
+| Memory         | Saves, updates, deletes, and searches short durable user facts for personalization across chats                          | Stored locally under Electron `userData`; user-visible and manageable in Settings           |
+| Computer use   | Takes screenshots, clicks, types, scrolls, launches apps, and closes windows for desktop automation                      | Windows-only, disabled by default, approval-gated, with an emergency stop path              |
 
 Agent runs are visible in the chat timeline: ZuraAI records planning, tool calls, approvals, running state, results, failures, and final synthesis on the assistant message. Tool-only turns and approval outcomes are persisted with the chat so the history reflects what actually happened.
 
 ## Provider lineup
 
-| Provider | Best for | Notes |
-| --- | --- | --- |
-| `OpenRouter` | Broad model access | Great default choice when you want one API for many model families |
-| `Ollama` | Local and offline workflows | No API key required; just run an Ollama server locally |
-| `Perplexity` | Research-heavy chats | Strong fit for answers grounded in live web information |
-| `Groq` | Fast responses | Useful when low latency matters more than provider breadth |
-| `Alibaba Cloud` | Qwen-based workflows | Good option for teams already using Alibaba Cloud models |
-| `Fireworks` | Open-weight serverless models | Useful for fast access to hosted open models |
-| `DeepSeek` | DeepSeek-native workflows | Good option for DeepSeek chat and reasoning models |
+| Provider        | Best for                      | Notes                                                              |
+| --------------- | ----------------------------- | ------------------------------------------------------------------ |
+| `OpenRouter`    | Broad model access            | Great default choice when you want one API for many model families |
+| `Ollama`        | Local and offline workflows   | No API key required; just run an Ollama server locally             |
+| `Perplexity`    | Research-heavy chats          | Strong fit for answers grounded in live web information            |
+| `Groq`          | Fast responses                | Useful when low latency matters more than provider breadth         |
+| `Alibaba Cloud` | Qwen-based workflows          | Good option for teams already using Alibaba Cloud models           |
+| `Fireworks`     | Open-weight serverless models | Useful for fast access to hosted open models                       |
+| `DeepSeek`      | DeepSeek-native workflows     | Good option for DeepSeek chat and reasoning models                 |
 
 ZuraAI is actively adding and testing new providers. If the model stack you want is missing, open an issue and we can prioritize it.
 
@@ -135,17 +135,17 @@ Use `bun run build:dir` if you want an unpacked directory build instead of the i
 
 ## Scripts
 
-| Command | Purpose |
-| --- | --- |
-| `bun run dev` | Start the Vite development server |
-| `bun run typecheck` | Run TypeScript checks with `tsc --noEmit` |
-| `bun run test` | Run the Vitest suite |
-| `bun run test:watch` | Run tests in watch mode |
-| `bun run build:renderer` | Typecheck and build the renderer |
-| `bun run build` | Create the production Electron package |
-| `bun run build:dir` | Create an unpacked Electron directory build |
+| Command                     | Purpose                                          |
+| --------------------------- | ------------------------------------------------ |
+| `bun run dev`               | Start the Vite development server                |
+| `bun run typecheck`         | Run TypeScript checks with `tsc --noEmit`        |
+| `bun run test`              | Run the Vitest suite                             |
+| `bun run test:watch`        | Run tests in watch mode                          |
+| `bun run build:renderer`    | Typecheck and build the renderer                 |
+| `bun run build`             | Create the production Electron package           |
+| `bun run build:dir`         | Create an unpacked Electron directory build      |
 | `bun run release:checksums` | Generate SHA-256 checksums for release artifacts |
-| `bun run preview` | Preview the renderer build locally |
+| `bun run preview`           | Preview the renderer build locally               |
 
 ## Release Packaging
 

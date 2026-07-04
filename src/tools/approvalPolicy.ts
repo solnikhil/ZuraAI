@@ -1,9 +1,5 @@
 import { getToolByName } from './definitions'
-import {
-  isMcpNamespacedToolName,
-  type ToolCall,
-  type ToolDescriptor,
-} from './types'
+import { isMcpNamespacedToolName, type ToolCall, type ToolDescriptor } from './types'
 
 const COMPUTER_TOOLS_REQUIRING_APPROVAL = new Set([
   'ui_click',

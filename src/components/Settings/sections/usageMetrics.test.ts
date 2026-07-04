@@ -83,7 +83,7 @@ describe('usageMetrics', () => {
           id: 'a3',
           role: 'assistant',
           content: 'older response',
-          timestamp: now - (9 * 24 * 60 * 60 * 1000),
+          timestamp: now - 9 * 24 * 60 * 60 * 1000,
           model: 'qwen3-max',
           latency: 1200,
           usage: { inputTokens: 70, outputTokens: 80, totalTokens: 150 },

@@ -2,6 +2,6 @@
 
 // Needed so we can use import.meta.url with new URL(...) in TS.
 interface ImportMeta {
-    readonly url: string
-    readonly env: ImportMetaEnv
+  readonly url: string
+  readonly env: ImportMetaEnv
 }

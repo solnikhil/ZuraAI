@@ -41,7 +41,11 @@ function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-function sortItems<T>(items: CatalogItem<T>[], sort: CatalogSortKey, query: string): CatalogItem<T>[] {
+function sortItems<T>(
+  items: CatalogItem<T>[],
+  sort: CatalogSortKey,
+  query: string
+): CatalogItem<T>[] {
   if (sort === 'az') {
     return [...items].sort((a, b) => a.displayName.localeCompare(b.displayName))
   }
@@ -50,7 +54,8 @@ function sortItems<T>(items: CatalogItem<T>[], sort: CatalogSortKey, query: stri
   }
   if (sort === 'capabilities') {
     return [...items].sort(
-      (a, b) => b.capabilities.length - a.capabilities.length || a.displayName.localeCompare(b.displayName)
+      (a, b) =>
+        b.capabilities.length - a.capabilities.length || a.displayName.localeCompare(b.displayName)
     )
   }
   const q = query.trim()

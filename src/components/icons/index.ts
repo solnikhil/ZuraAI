@@ -50,7 +50,6 @@ export {
   Bell,
   Terminal,
   Puzzle,
-
   Play,
   Square,
   ShieldCheck,

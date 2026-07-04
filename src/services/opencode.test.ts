@@ -6,20 +6,18 @@ import {
   mapOpencodeModelToConfiguredModel,
   streamOpencodeCompletion,
 } from './opencode'
-import { getProviderDefinition, getProviderSettingsDefinition, getProviderSecretFields } from '../providers'
+import {
+  getProviderDefinition,
+  getProviderSettingsDefinition,
+  getProviderSecretFields,
+} from '../providers'
 
 describe('extractOpencodeStreamReasoningDelta', () => {
   it('keeps continuation deltas across reasoning_content and reasoning fields', () => {
-    const first = extractOpencodeStreamReasoningDelta(
-      { reasoning_content: 'Thinking' },
-      ''
-    )
+    const first = extractOpencodeStreamReasoningDelta({ reasoning_content: 'Thinking' }, '')
     expect(first).toEqual({ delta: 'Thinking', nextEmitted: 'Thinking' })
 
-    const second = extractOpencodeStreamReasoningDelta(
-      { reasoning: ' more' },
-      first!.nextEmitted
-    )
+    const second = extractOpencodeStreamReasoningDelta({ reasoning: ' more' }, first!.nextEmitted)
     expect(second).toEqual({ delta: ' more', nextEmitted: 'Thinking more' })
   })
 
@@ -67,11 +65,13 @@ describe('opencode service', () => {
         object: 'chat.completion',
         created: 1,
         model: 'glm-5.2',
-        choices: [{
-          index: 0,
-          message: { role: 'assistant', content: 'Hello from Go' },
-          finish_reason: 'stop',
-        }],
+        choices: [
+          {
+            index: 0,
+            message: { role: 'assistant', content: 'Hello from Go' },
+            finish_reason: 'stop',
+          },
+        ],
         usage: { prompt_tokens: 4, completion_tokens: 6, total_tokens: 10 },
       }),
     } as Response)
@@ -128,21 +128,25 @@ describe('opencode service', () => {
       'glm-5.2',
       [{ role: 'user', content: 'search' }],
       {
-        tools: [{
-          type: 'function',
-          function: {
-            name: 'web_search',
-            description: 'Search',
-            parameters: { type: 'object', properties: { query: { type: 'string' } } },
+        tools: [
+          {
+            type: 'function',
+            function: {
+              name: 'web_search',
+              description: 'Search',
+              parameters: { type: 'object', properties: { query: { type: 'string' } } },
+            },
           },
-        }],
+        ],
         toolChoice: 'auto',
       }
     )) {
       chunks.push(chunk)
     }
 
-    const fetchBody = JSON.parse(String((global.fetch as ReturnType<typeof vi.fn>).mock.calls[0]?.[1]?.body))
+    const fetchBody = JSON.parse(
+      String((global.fetch as ReturnType<typeof vi.fn>).mock.calls[0]?.[1]?.body)
+    )
     expect(fetchBody.stream).toBe(true)
     expect(fetchBody.tools).toHaveLength(1)
     expect(chunks[0].choices?.[0]?.delta?.content).toBe('Hi')
@@ -154,10 +158,11 @@ describe('opencode service', () => {
   it('fetches models from the documented catalog endpoint', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      text: async () => JSON.stringify({
-        object: 'list',
-        data: [{ id: 'kimi-k2.7-code', object: 'model', owned_by: 'opencode' }],
-      }),
+      text: async () =>
+        JSON.stringify({
+          object: 'list',
+          data: [{ id: 'kimi-k2.7-code', object: 'model', owned_by: 'opencode' }],
+        }),
     })
     vi.stubGlobal('fetch', fetchMock)
 
@@ -176,10 +181,11 @@ describe('opencode service', () => {
   it('sends the OpenCode Go key for catalog requests when one is available', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      text: async () => JSON.stringify({
-        object: 'list',
-        data: [{ id: 'glm-5.2', object: 'model', owned_by: 'opencode' }],
-      }),
+      text: async () =>
+        JSON.stringify({
+          object: 'list',
+          data: [{ id: 'glm-5.2', object: 'model', owned_by: 'opencode' }],
+        }),
     })
     vi.stubGlobal('fetch', fetchMock)
 
@@ -196,9 +202,8 @@ describe('opencode service', () => {
 
 describe('opencode credential resolution', () => {
   it('resolves opencodeGoApiKey through the provider key map without leaking placeholders', async () => {
-    const { resolveProviderApiKeysForSettings, SECURE_API_KEY_PRESENT_VALUE } = await import(
-      '../utils/secureApiKeys'
-    )
+    const { resolveProviderApiKeysForSettings, SECURE_API_KEY_PRESENT_VALUE } =
+      await import('../utils/secureApiKeys')
 
     const fetchKey = vi.fn().mockResolvedValue('resolved-go-key')
     ;(global as unknown as { window: { secureStorage: { get: typeof fetchKey } } }).window = {
@@ -216,10 +221,12 @@ describe('opencode credential resolution', () => {
   })
 
   it('leaves providers without a secret field unchanged for future registry-driven resolution', async () => {
-    const { resolveProviderApiKeysForSettings, SECURE_API_KEY_PRESENT_VALUE } = await import(
-      '../utils/secureApiKeys'
-    )
-    const settings = { ollamaUrl: 'http://localhost:11434', openRouterApiKey: SECURE_API_KEY_PRESENT_VALUE }
+    const { resolveProviderApiKeysForSettings, SECURE_API_KEY_PRESENT_VALUE } =
+      await import('../utils/secureApiKeys')
+    const settings = {
+      ollamaUrl: 'http://localhost:11434',
+      openRouterApiKey: SECURE_API_KEY_PRESENT_VALUE,
+    }
 
     const resolved = await resolveProviderApiKeysForSettings(settings, 'ollama')
 

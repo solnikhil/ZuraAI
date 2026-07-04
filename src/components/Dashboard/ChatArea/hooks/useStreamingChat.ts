@@ -88,11 +88,7 @@ function addDynamicSystemPrompt<T extends { role: string; content: string }>(
     return [dynamicMessage, ...messages]
   }
 
-  return [
-    ...messages.slice(0, systemIndex + 1),
-    dynamicMessage,
-    ...messages.slice(systemIndex + 1),
-  ]
+  return [...messages.slice(0, systemIndex + 1), dynamicMessage, ...messages.slice(systemIndex + 1)]
 }
 
 export function buildCommittedStreamingUpdates(
@@ -120,19 +116,27 @@ export function buildCommittedStreamingUpdates(
   if (hasField('researchProgress')) updates.researchProgress = finalState.researchProgress
   if (streamResult?.toolResults !== undefined || hasField('toolResults')) {
     updates.toolResults =
-      streamResult?.toolResults === null ? undefined : streamResult?.toolResults ?? finalState.toolResults
+      streamResult?.toolResults === null
+        ? undefined
+        : (streamResult?.toolResults ?? finalState.toolResults)
   }
   if (hasField('agentRun')) updates.agentRun = finalState.agentRun
-  if (streamResult?.files !== undefined || hasField('files')) updates.files = streamResult?.files ?? finalState.files
-  if (streamResult?.model !== undefined || hasField('model')) updates.model = streamResult?.model ?? finalState.model
-  if (streamResult?.latency !== undefined || hasField('latency')) updates.latency = streamResult?.latency ?? finalState.latency
-  if (streamResult?.usage !== undefined || hasField('usage')) updates.usage = streamResult?.usage ?? finalState.usage
+  if (streamResult?.files !== undefined || hasField('files'))
+    updates.files = streamResult?.files ?? finalState.files
+  if (streamResult?.model !== undefined || hasField('model'))
+    updates.model = streamResult?.model ?? finalState.model
+  if (streamResult?.latency !== undefined || hasField('latency'))
+    updates.latency = streamResult?.latency ?? finalState.latency
+  if (streamResult?.usage !== undefined || hasField('usage'))
+    updates.usage = streamResult?.usage ?? finalState.usage
   if (streamResult?.finishReason !== undefined) updates.finishReason = streamResult.finishReason
 
   return updates
 }
 
-export function normalizeGeneratedSessionTitle(generatedTitle: string | null | undefined): string | null {
+export function normalizeGeneratedSessionTitle(
+  generatedTitle: string | null | undefined
+): string | null {
   const normalizedTitle = generatedTitle?.trim() || ''
   return normalizedTitle || null
 }
@@ -169,9 +173,7 @@ function buildMemoryExtractionMessages(
   return [
     ...priorMessages,
     { role: 'user' as const, content: userContent },
-    ...(assistantContent.trim()
-      ? [{ role: 'assistant' as const, content: assistantContent }]
-      : []),
+    ...(assistantContent.trim() ? [{ role: 'assistant' as const, content: assistantContent }] : []),
   ]
 }
 
@@ -210,15 +212,11 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       }
 
       if (hasField('thinking')) updates.thinking = finalState.thinking
-      if (hasField('thinkingDuration'))
-        updates.thinkingDuration = finalState.thinkingDuration
-      if (hasField('thinkingBlocks'))
-        updates.thinkingBlocks = finalState.thinkingBlocks
-      if (hasField('researchStatus'))
-        updates.researchStatus = finalState.researchStatus
+      if (hasField('thinkingDuration')) updates.thinkingDuration = finalState.thinkingDuration
+      if (hasField('thinkingBlocks')) updates.thinkingBlocks = finalState.thinkingBlocks
+      if (hasField('researchStatus')) updates.researchStatus = finalState.researchStatus
       if (hasField('researchPlan')) updates.researchPlan = finalState.researchPlan
-      if (hasField('researchProgress'))
-        updates.researchProgress = finalState.researchProgress
+      if (hasField('researchProgress')) updates.researchProgress = finalState.researchProgress
       if (hasField('toolResults')) updates.toolResults = finalState.toolResults
       if (hasField('agentRun')) updates.agentRun = finalState.agentRun
       if (hasField('files')) updates.files = finalState.files
@@ -345,7 +343,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     }
   }, [updateStreamingMessage, updateStreaming])
 
-const streamingSettings: StreamingSettings = useMemo(
+  const streamingSettings: StreamingSettings = useMemo(
     () => ({
       aiModel: settings.aiModel,
       modelProvider: settings.modelProvider,
@@ -532,8 +530,7 @@ const streamingSettings: StreamingSettings = useMemo(
           content
         )
 
-        const researchMaxRounds =
-          researchConfig.maxRounds
+        const researchMaxRounds = researchConfig.maxRounds
         const forceWebSearch = researchConfig.forceWebSearch
 
         // Start research mode when web search is enabled (maxRounds >= 0)
@@ -561,10 +558,7 @@ const streamingSettings: StreamingSettings = useMemo(
           optimizedContext.messages as ConversationMessage[],
           dynamicResearchContext
         )
-        const providerMessages = buildProviderMessages(
-          cacheStableHistory,
-          settings.modelProvider
-        )
+        const providerMessages = buildProviderMessages(cacheStableHistory, settings.modelProvider)
         const provider = normalizeActiveProviderId(settings.modelProvider)
         const effectiveStreamingSettings = await resolveProviderApiKeysForSettings(
           streamingSettings,
@@ -610,7 +604,7 @@ const streamingSettings: StreamingSettings = useMemo(
           publishAgentRun(targetSessionId!, streamingMessageId, activeAgentRunRef.current)
         }
 
-// Use composed provider-specific streaming hooks
+        // Use composed provider-specific streaming hooks
         const currentModel =
           provider === 'openrouter'
             ? settings.configuredModels?.find((m) => m.code === settings.aiModel)
@@ -623,23 +617,24 @@ const streamingSettings: StreamingSettings = useMemo(
             ? { enabled: true, effort: settings.openRouterReasoningEffort?.[settings.aiModel] }
             : undefined
 
-        const alibabaModel = provider === 'alibaba'
-          ? (settings.alibabaModels || []).find((m) => m.code === settings.aiModel)
-          : undefined
+        const alibabaModel =
+          provider === 'alibaba'
+            ? (settings.alibabaModels || []).find((m) => m.code === settings.aiModel)
+            : undefined
         const alibabaEnableThinking =
-          provider === 'alibaba' && inferAlibabaSupportsDeepThinking(
+          provider === 'alibaba' &&
+          inferAlibabaSupportsDeepThinking(
             alibabaModel || { code: settings.aiModel, displayName: settings.aiModel }
           )
             ? true
             : undefined
 
         const deepseekReasoning =
-          provider === 'deepseek'
-            ? getDeepseekReasoning(settings, settings.aiModel)
+          provider === 'deepseek' ? getDeepseekReasoning(settings, settings.aiModel) : undefined
+        const nvidiaModel =
+          provider === 'nvidia'
+            ? (settings.nvidiaModels || []).find((m) => m.code === settings.aiModel)
             : undefined
-        const nvidiaModel = provider === 'nvidia'
-          ? (settings.nvidiaModels || []).find((m) => m.code === settings.aiModel)
-          : undefined
         const nvidiaReasoningEffort =
           provider === 'nvidia'
             ? (settings.nvidiaReasoningEffort?.[settings.aiModel] ?? 'high')
@@ -647,7 +642,8 @@ const streamingSettings: StreamingSettings = useMemo(
         const nvidiaEnableThinking =
           provider === 'nvidia'
             ? nvidiaReasoningEffort !== 'none' &&
-              (nvidiaModel?.supportsDeepThinking || /(?:reason|thinking|m3|nemotron)/i.test(settings.aiModel))
+              (nvidiaModel?.supportsDeepThinking ||
+                /(?:reason|thinking|m3|nemotron)/i.test(settings.aiModel))
               ? true
               : false
             : undefined
@@ -733,7 +729,13 @@ const streamingSettings: StreamingSettings = useMemo(
                     upsertAgentVerificationStep(activeAgentRunRef.current, strategy, {
                       status: verified ? 'completed' : 'failed',
                       completedAt: now,
-                      durationMs: Math.max(0, now - (activeAgentRunRef.current.steps.find((step) => step.kind === 'verify' && step.status === 'running')?.startedAt ?? now)),
+                      durationMs: Math.max(
+                        0,
+                        now -
+                          (activeAgentRunRef.current.steps.find(
+                            (step) => step.kind === 'verify' && step.status === 'running'
+                          )?.startedAt ?? now)
+                      ),
                     })
                   )
                 },
@@ -742,10 +744,11 @@ const streamingSettings: StreamingSettings = useMemo(
           reasoning: openRouterReasoning,
           enableThinking: deepseekReasoning
             ? deepseekReasoning.enabled && deepseekReasoning.effort !== 'none'
-            : nvidiaEnableThinking ?? alibabaEnableThinking,
-          reasoningEffort: deepseekReasoning?.enabled && deepseekReasoning.effort !== 'none'
-            ? deepseekReasoning.effort
-            : undefined,
+            : (nvidiaEnableThinking ?? alibabaEnableThinking),
+          reasoningEffort:
+            deepseekReasoning?.enabled && deepseekReasoning.effort !== 'none'
+              ? deepseekReasoning.effort
+              : undefined,
         })
 
         // Commit streaming content to the session
@@ -766,8 +769,7 @@ const streamingSettings: StreamingSettings = useMemo(
               buildCommittedStreamingUpdates(finalState, streamResult)
             )
           }
-          assistantTextForMemory =
-            typeof finalState.content === 'string' ? finalState.content : ''
+          assistantTextForMemory = typeof finalState.content === 'string' ? finalState.content : ''
           streamingMessageRef.current = null
           activeAgentRunRef.current = undefined
         }
@@ -801,7 +803,10 @@ const streamingSettings: StreamingSettings = useMemo(
         }
       } catch (error: unknown) {
         // Silently handle abort (user clicked stop)
-        if (error instanceof Error && (error.name === 'AbortError' || abortControllerRef.current === null)) {
+        if (
+          error instanceof Error &&
+          (error.name === 'AbortError' || abortControllerRef.current === null)
+        ) {
           // Stream was aborted by user - loading state already cleared by stopStreaming
           return
         }
@@ -963,7 +968,10 @@ const streamingSettings: StreamingSettings = useMemo(
           },
           effectiveProvider
         )
-        const credentialError = getProviderCredentialError(effectiveRegenerationSettings, effectiveProvider)
+        const credentialError = getProviderCredentialError(
+          effectiveRegenerationSettings,
+          effectiveProvider
+        )
         if (credentialError) {
           showToast(credentialError, 'error')
           setIsLoading(false)
@@ -1007,31 +1015,41 @@ const streamingSettings: StreamingSettings = useMemo(
 
         const openRouterModel =
           effectiveSettings.modelProvider === 'openrouter'
-            ? effectiveSettings.configuredModels?.find((model) => model.code === effectiveSettings.aiModel)
+            ? effectiveSettings.configuredModels?.find(
+                (model) => model.code === effectiveSettings.aiModel
+              )
             : undefined
-        const openRouterModalities =
-          openRouterModel?.supportsImageGeneration
-            ? openRouterModel.outputModalities?.filter(
-                (modality): modality is 'text' | 'image' =>
-                  modality === 'text' || modality === 'image'
-              ) || ['image', 'text']
-            : undefined
-const openRouterReasoning =
-          inferOpenRouterSupportsDeepThinking(
-            openRouterModel || { code: effectiveSettings.aiModel, displayName: effectiveSettings.aiModel }
-          )
-            ? {
-                enabled: true,
-                effort: effectiveSettings.openRouterReasoningEffort?.[effectiveSettings.aiModel],
-              }
-            : undefined
-
-        const alibabaModelForRegen = effectiveSettings.modelProvider === 'alibaba'
-          ? (effectiveSettings.alibabaModels || []).find((m) => m.code === effectiveSettings.aiModel)
+        const openRouterModalities = openRouterModel?.supportsImageGeneration
+          ? openRouterModel.outputModalities?.filter(
+              (modality): modality is 'text' | 'image' =>
+                modality === 'text' || modality === 'image'
+            ) || ['image', 'text']
           : undefined
+        const openRouterReasoning = inferOpenRouterSupportsDeepThinking(
+          openRouterModel || {
+            code: effectiveSettings.aiModel,
+            displayName: effectiveSettings.aiModel,
+          }
+        )
+          ? {
+              enabled: true,
+              effort: effectiveSettings.openRouterReasoningEffort?.[effectiveSettings.aiModel],
+            }
+          : undefined
+
+        const alibabaModelForRegen =
+          effectiveSettings.modelProvider === 'alibaba'
+            ? (effectiveSettings.alibabaModels || []).find(
+                (m) => m.code === effectiveSettings.aiModel
+              )
+            : undefined
         const alibabaEnableThinkingForRegen =
-          effectiveSettings.modelProvider === 'alibaba' && inferAlibabaSupportsDeepThinking(
-            alibabaModelForRegen || { code: effectiveSettings.aiModel, displayName: effectiveSettings.aiModel }
+          effectiveSettings.modelProvider === 'alibaba' &&
+          inferAlibabaSupportsDeepThinking(
+            alibabaModelForRegen || {
+              code: effectiveSettings.aiModel,
+              displayName: effectiveSettings.aiModel,
+            }
           )
             ? true
             : undefined
@@ -1040,9 +1058,12 @@ const openRouterReasoning =
           effectiveSettings.modelProvider === 'deepseek'
             ? getDeepseekReasoning(effectiveSettings, effectiveSettings.aiModel)
             : undefined
-        const nvidiaModelForRegen = effectiveSettings.modelProvider === 'nvidia'
-          ? (effectiveSettings.nvidiaModels || []).find((m) => m.code === effectiveSettings.aiModel)
-          : undefined
+        const nvidiaModelForRegen =
+          effectiveSettings.modelProvider === 'nvidia'
+            ? (effectiveSettings.nvidiaModels || []).find(
+                (m) => m.code === effectiveSettings.aiModel
+              )
+            : undefined
         const nvidiaReasoningEffortForRegen =
           effectiveSettings.modelProvider === 'nvidia'
             ? (effectiveSettings.nvidiaReasoningEffort?.[effectiveSettings.aiModel] ?? 'high')
@@ -1086,10 +1107,11 @@ const openRouterReasoning =
             reasoning: openRouterReasoning,
             enableThinking: deepseekReasoningForRegen
               ? deepseekReasoningForRegen.enabled && deepseekReasoningForRegen.effort !== 'none'
-              : nvidiaEnableThinkingForRegen ?? alibabaEnableThinkingForRegen,
-            reasoningEffort: deepseekReasoningForRegen?.enabled && deepseekReasoningForRegen.effort !== 'none'
-              ? deepseekReasoningForRegen.effort
-              : undefined,
+              : (nvidiaEnableThinkingForRegen ?? alibabaEnableThinkingForRegen),
+            reasoningEffort:
+              deepseekReasoningForRegen?.enabled && deepseekReasoningForRegen.effort !== 'none'
+                ? deepseekReasoningForRegen.effort
+                : undefined,
           })
 
           updateStreamingMessage(currentSessionId, streamingMessageId, {
@@ -1127,11 +1149,14 @@ const openRouterReasoning =
           showToast(formattedError.message, formattedError.tone)
           setIsLoading(false)
         }
-        } catch (error: unknown) {
-          // Silently handle abort (user clicked stop)
-          if (error instanceof Error && (error.name === 'AbortError' || abortControllerRef.current === null)) {
-            return
-          }
+      } catch (error: unknown) {
+        // Silently handle abort (user clicked stop)
+        if (
+          error instanceof Error &&
+          (error.name === 'AbortError' || abortControllerRef.current === null)
+        ) {
+          return
+        }
         const effectiveProvider = normalizeActiveProviderId(settings.modelProvider)
         const formattedError = formatProviderStreamError(error, effectiveProvider, settings)
         trackRendererError('provider', formattedError.tone)

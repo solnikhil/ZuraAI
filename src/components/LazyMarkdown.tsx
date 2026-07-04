@@ -38,13 +38,7 @@ export function findMatchingWebSource(
   return webSources.get(href) || webSources.get(href.replace(/\/+$/, ''))
 }
 
-function PlainMarkdownFallback({
-  content,
-  className,
-}: {
-  content: string
-  className?: string
-}) {
+function PlainMarkdownFallback({ content, className }: { content: string; className?: string }) {
   return (
     <div
       className={className}

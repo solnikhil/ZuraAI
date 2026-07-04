@@ -7,4 +7,3 @@ Create an artifact instead of placing long document content directly in chat whe
 - Any output likely to need revisions
 
 Use artifact_update when revising an existing artifact. Do not create duplicate artifacts for normal edits unless the user asks for a separate version. Keep your chat response short after creating or updating an artifact and mention the artifact title.`
-

@@ -142,8 +142,12 @@ describe('loadMemoryBlock', () => {
     }
   })
 
-  const enabledSkills = { memory: { enabled: true } } as unknown as import('@/skills').SkillsSettings
-  const disabledSkills = { memory: { enabled: false } } as unknown as import('@/skills').SkillsSettings
+  const enabledSkills = {
+    memory: { enabled: true },
+  } as unknown as import('@/skills').SkillsSettings
+  const disabledSkills = {
+    memory: { enabled: false },
+  } as unknown as import('@/skills').SkillsSettings
 
   it('returns empty string when the Memory skill is disabled', async () => {
     const result = await loadMemoryBlock({ skills: disabledSkills })
@@ -157,9 +161,9 @@ describe('loadMemoryBlock', () => {
   })
 
   it('returns formatted block when bridge resolves memories', async () => {
-    const list = vi.fn().mockResolvedValue([
-      memory({ content: 'remember me', updatedAt: Date.UTC(2026, 4, 23) }),
-    ])
+    const list = vi
+      .fn()
+      .mockResolvedValue([memory({ content: 'remember me', updatedAt: Date.UTC(2026, 4, 23) })])
     ;(globalThis as unknown as { window: { memory: { list: typeof list } } }).window = {
       memory: { list },
     }
@@ -182,9 +186,7 @@ describe('loadMemoryBlock', () => {
   })
 
   it('always includes the passive memory instruction when the Memory skill is enabled', async () => {
-    const list = vi.fn().mockResolvedValue([
-      memory({ content: 'fact', updatedAt: 1 }),
-    ])
+    const list = vi.fn().mockResolvedValue([memory({ content: 'fact', updatedAt: 1 })])
     ;(globalThis as unknown as { window: { memory: { list: typeof list } } }).window = {
       memory: { list },
     }
@@ -196,9 +198,7 @@ describe('loadMemoryBlock', () => {
   })
 
   it('uses a custom memoryPrompt override when provided', async () => {
-    const list = vi.fn().mockResolvedValue([
-      memory({ content: 'fact', updatedAt: 1 }),
-    ])
+    const list = vi.fn().mockResolvedValue([memory({ content: 'fact', updatedAt: 1 })])
     ;(globalThis as unknown as { window: { memory: { list: typeof list } } }).window = {
       memory: { list },
     }
@@ -212,13 +212,13 @@ describe('loadMemoryBlock', () => {
   })
 
   it('retrieves top-K via search when a user message is provided', async () => {
-    const search = vi
-      .fn()
-      .mockResolvedValue([memory({ content: 'uses Neovim', updatedAt: 5 })])
+    const search = vi.fn().mockResolvedValue([memory({ content: 'uses Neovim', updatedAt: 5 })])
     const list = vi.fn().mockResolvedValue([])
-    ;(globalThis as unknown as {
-      window: { memory: { search: typeof search; list: typeof list } }
-    }).window = { memory: { search, list } }
+    ;(
+      globalThis as unknown as {
+        window: { memory: { search: typeof search; list: typeof list } }
+      }
+    ).window = { memory: { search, list } }
 
     const result = await loadMemoryBlock(
       { skills: enabledSkills },
@@ -232,9 +232,11 @@ describe('loadMemoryBlock', () => {
   it('does not inject unrelated recent memories when search returns no matches', async () => {
     const search = vi.fn().mockResolvedValue([])
     const list = vi.fn().mockResolvedValue([memory({ content: 'recent fact', updatedAt: 9 })])
-    ;(globalThis as unknown as {
-      window: { memory: { search: typeof search; list: typeof list } }
-    }).window = { memory: { search, list } }
+    ;(
+      globalThis as unknown as {
+        window: { memory: { search: typeof search; list: typeof list } }
+      }
+    ).window = { memory: { search, list } }
 
     const result = await loadMemoryBlock(
       { skills: enabledSkills },
@@ -248,7 +250,9 @@ describe('loadMemoryBlock', () => {
   })
 
   it('injects memories regardless of the auto-manage sub-toggle', async () => {
-    const list = vi.fn().mockResolvedValue([memory({ content: 'lives in Bangalore', updatedAt: 3 })])
+    const list = vi
+      .fn()
+      .mockResolvedValue([memory({ content: 'lives in Bangalore', updatedAt: 3 })])
     ;(globalThis as unknown as { window: { memory: { list: typeof list } } }).window = {
       memory: { list },
     }

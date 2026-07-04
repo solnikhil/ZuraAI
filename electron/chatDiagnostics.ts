@@ -101,9 +101,8 @@ function sanitizeStreamChunk(input: unknown): ChatDiagnosticStreamChunk | undefi
   if (!input || typeof input !== 'object') return undefined
   const raw = input as Partial<ChatDiagnosticStreamChunk>
 
-  const chunkIndex = typeof raw.chunkIndex === 'number' && Number.isFinite(raw.chunkIndex)
-    ? raw.chunkIndex
-    : 0
+  const chunkIndex =
+    typeof raw.chunkIndex === 'number' && Number.isFinite(raw.chunkIndex) ? raw.chunkIndex : 0
   const cumulativeTextLength =
     typeof raw.cumulativeTextLength === 'number' && Number.isFinite(raw.cumulativeTextLength)
       ? raw.cumulativeTextLength
@@ -140,9 +139,10 @@ function sanitizeEvent(input: unknown): ChatDiagnosticEvent | null {
   return {
     sessionId: raw.sessionId.trim(),
     messageId: raw.messageId.trim(),
-    timestamp: typeof raw.timestamp === 'number' && Number.isFinite(raw.timestamp)
-      ? raw.timestamp
-      : Date.now(),
+    timestamp:
+      typeof raw.timestamp === 'number' && Number.isFinite(raw.timestamp)
+        ? raw.timestamp
+        : Date.now(),
     phase: raw.phase,
     provider: typeof raw.provider === 'string' ? truncateString(raw.provider, 120) : undefined,
     model: typeof raw.model === 'string' ? truncateString(raw.model, 240) : undefined,
@@ -152,85 +152,97 @@ function sanitizeEvent(input: unknown): ChatDiagnosticEvent | null {
     messages: Array.isArray(raw.messages)
       ? raw.messages.slice(0, 80).map((message) => ({
           role: typeof message.role === 'string' ? truncateString(message.role, 40) : 'unknown',
-          contentType: VALID_CONTENT_TYPES.has(message.contentType)
-            ? message.contentType
-            : 'empty',
+          contentType: VALID_CONTENT_TYPES.has(message.contentType) ? message.contentType : 'empty',
           textLength: typeof message.textLength === 'number' ? message.textLength : 0,
-          textPreview: typeof message.textPreview === 'string'
-            ? truncateString(message.textPreview, 240)
-            : undefined,
+          textPreview:
+            typeof message.textPreview === 'string'
+              ? truncateString(message.textPreview, 240)
+              : undefined,
           partTypes: Array.isArray(message.partTypes)
             ? message.partTypes.map((part) => truncateString(String(part), 40))
             : undefined,
         }))
       : undefined,
-    context: raw.context && typeof raw.context === 'object'
-      ? sanitizeValue(raw.context) as ChatDiagnosticEvent['context']
-      : undefined,
-    requestShape: raw.requestShape && typeof raw.requestShape === 'object'
-      ? sanitizeValue(raw.requestShape) as ChatDiagnosticEvent['requestShape']
-      : undefined,
+    context:
+      raw.context && typeof raw.context === 'object'
+        ? (sanitizeValue(raw.context) as ChatDiagnosticEvent['context'])
+        : undefined,
+    requestShape:
+      raw.requestShape && typeof raw.requestShape === 'object'
+        ? (sanitizeValue(raw.requestShape) as ChatDiagnosticEvent['requestShape'])
+        : undefined,
     usage: raw.usage && typeof raw.usage === 'object' ? raw.usage : undefined,
-    rawUsage: raw.rawUsage && typeof raw.rawUsage === 'object'
-      ? sanitizeValue(raw.rawUsage) as Record<string, unknown>
-      : undefined,
-    latency: typeof raw.latency === 'number' && Number.isFinite(raw.latency)
-      ? raw.latency
-      : undefined,
-    finishReason: typeof raw.finishReason === 'string'
-      ? truncateString(raw.finishReason, 120)
-      : undefined,
-    tool: raw.tool && typeof raw.tool === 'object'
-      ? {
-          id: typeof raw.tool.id === 'string' ? truncateString(raw.tool.id, 120) : undefined,
-          name: typeof raw.tool.name === 'string' ? truncateString(raw.tool.name, 160) : 'unknown',
-          arguments: raw.tool.arguments && typeof raw.tool.arguments === 'object'
-            ? sanitizeValue(raw.tool.arguments) as Record<string, unknown>
-            : undefined,
-          success: typeof raw.tool.success === 'boolean' ? raw.tool.success : undefined,
-          executionTime: typeof raw.tool.executionTime === 'number' ? raw.tool.executionTime : undefined,
-          origin: typeof raw.tool.origin === 'string' ? truncateString(raw.tool.origin, 80) : undefined,
-          error: typeof raw.tool.error === 'string' ? truncateString(raw.tool.error) : undefined,
-        }
-      : undefined,
+    rawUsage:
+      raw.rawUsage && typeof raw.rawUsage === 'object'
+        ? (sanitizeValue(raw.rawUsage) as Record<string, unknown>)
+        : undefined,
+    latency:
+      typeof raw.latency === 'number' && Number.isFinite(raw.latency) ? raw.latency : undefined,
+    finishReason:
+      typeof raw.finishReason === 'string' ? truncateString(raw.finishReason, 120) : undefined,
+    tool:
+      raw.tool && typeof raw.tool === 'object'
+        ? {
+            id: typeof raw.tool.id === 'string' ? truncateString(raw.tool.id, 120) : undefined,
+            name:
+              typeof raw.tool.name === 'string' ? truncateString(raw.tool.name, 160) : 'unknown',
+            arguments:
+              raw.tool.arguments && typeof raw.tool.arguments === 'object'
+                ? (sanitizeValue(raw.tool.arguments) as Record<string, unknown>)
+                : undefined,
+            success: typeof raw.tool.success === 'boolean' ? raw.tool.success : undefined,
+            executionTime:
+              typeof raw.tool.executionTime === 'number' ? raw.tool.executionTime : undefined,
+            origin:
+              typeof raw.tool.origin === 'string' ? truncateString(raw.tool.origin, 80) : undefined,
+            error: typeof raw.tool.error === 'string' ? truncateString(raw.tool.error) : undefined,
+          }
+        : undefined,
     streamChunk: raw.phase === 'stream-chunk' ? sanitizeStreamChunk(raw.streamChunk) : undefined,
-    researchState: typeof raw.researchState === 'string' && VALID_RESEARCH_STATES.has(raw.researchState)
-      ? raw.researchState as ChatDiagnosticEvent['researchState']
-      : undefined,
-    leakedMarkupFormat: typeof raw.leakedMarkupFormat === 'string' && VALID_LEAKED_MARKUP_FORMATS.has(raw.leakedMarkupFormat)
-      ? raw.leakedMarkupFormat as ChatDiagnosticEvent['leakedMarkupFormat']
-      : undefined,
-    recoveredQueryCount: typeof raw.recoveredQueryCount === 'number' && Number.isFinite(raw.recoveredQueryCount)
-      ? raw.recoveredQueryCount
-      : undefined,
-    deterministicAnswerUsed: typeof raw.deterministicAnswerUsed === 'boolean'
-      ? raw.deterministicAnswerUsed
-      : undefined,
-    searchBudgetRemaining: typeof raw.searchBudgetRemaining === 'number' && Number.isFinite(raw.searchBudgetRemaining)
-      ? raw.searchBudgetRemaining
-      : undefined,
+    researchState:
+      typeof raw.researchState === 'string' && VALID_RESEARCH_STATES.has(raw.researchState)
+        ? (raw.researchState as ChatDiagnosticEvent['researchState'])
+        : undefined,
+    leakedMarkupFormat:
+      typeof raw.leakedMarkupFormat === 'string' &&
+      VALID_LEAKED_MARKUP_FORMATS.has(raw.leakedMarkupFormat)
+        ? (raw.leakedMarkupFormat as ChatDiagnosticEvent['leakedMarkupFormat'])
+        : undefined,
+    recoveredQueryCount:
+      typeof raw.recoveredQueryCount === 'number' && Number.isFinite(raw.recoveredQueryCount)
+        ? raw.recoveredQueryCount
+        : undefined,
+    deterministicAnswerUsed:
+      typeof raw.deterministicAnswerUsed === 'boolean' ? raw.deterministicAnswerUsed : undefined,
+    searchBudgetRemaining:
+      typeof raw.searchBudgetRemaining === 'number' && Number.isFinite(raw.searchBudgetRemaining)
+        ? raw.searchBudgetRemaining
+        : undefined,
     attemptedQueries: Array.isArray(raw.attemptedQueries)
       ? raw.attemptedQueries.slice(0, 16).map((query) => truncateString(String(query), 240))
       : undefined,
     executedQueries: Array.isArray(raw.executedQueries)
       ? raw.executedQueries.slice(0, 16).map((query) => truncateString(String(query), 240))
       : undefined,
-    skippedReason: typeof raw.skippedReason === 'string'
-      ? truncateString(raw.skippedReason, 160)
-      : undefined,
+    skippedReason:
+      typeof raw.skippedReason === 'string' ? truncateString(raw.skippedReason, 160) : undefined,
     error: typeof raw.error === 'string' ? truncateString(raw.error) : undefined,
-    memoryErrorCode: typeof raw.memoryErrorCode === 'string'
-      ? truncateString(raw.memoryErrorCode, 120)
-      : undefined,
-    responseLength: typeof raw.responseLength === 'number' && Number.isFinite(raw.responseLength)
-      ? raw.responseLength
-      : undefined,
-    responsePreview: typeof raw.responsePreview === 'string'
-      ? truncateString(raw.responsePreview, 500)
-      : undefined,
-    factCount: typeof raw.factCount === 'number' && Number.isFinite(raw.factCount)
-      ? raw.factCount
-      : undefined,
+    memoryErrorCode:
+      typeof raw.memoryErrorCode === 'string'
+        ? truncateString(raw.memoryErrorCode, 120)
+        : undefined,
+    responseLength:
+      typeof raw.responseLength === 'number' && Number.isFinite(raw.responseLength)
+        ? raw.responseLength
+        : undefined,
+    responsePreview:
+      typeof raw.responsePreview === 'string'
+        ? truncateString(raw.responsePreview, 500)
+        : undefined,
+    factCount:
+      typeof raw.factCount === 'number' && Number.isFinite(raw.factCount)
+        ? raw.factCount
+        : undefined,
     summaryKept: typeof raw.summaryKept === 'boolean' ? raw.summaryKept : undefined,
   }
 }
@@ -254,7 +266,10 @@ async function pruneDiagnosticFile(filePath: string): Promise<void> {
   for (let index = lines.length - 1; index >= 0; index -= 1) {
     const line = lines[index]
     const lineBytes = Buffer.byteLength(line) + 1
-    if (kept.length >= CHAT_DIAGNOSTIC_MAX_EVENTS || totalBytes + lineBytes > CHAT_DIAGNOSTIC_MAX_BYTES) {
+    if (
+      kept.length >= CHAT_DIAGNOSTIC_MAX_EVENTS ||
+      totalBytes + lineBytes > CHAT_DIAGNOSTIC_MAX_BYTES
+    ) {
       break
     }
     kept.unshift(line)
@@ -303,9 +318,7 @@ export async function appendChatDiagnosticEvent(input: unknown): Promise<boolean
  * to hydrate its initial event list. Returns `[]` when diagnostics are disabled, the
  * file is missing, or the sessionId is invalid.
  */
-export async function readChatDiagnosticEvents(
-  sessionId: unknown
-): Promise<ChatDiagnosticEvent[]> {
+export async function readChatDiagnosticEvents(sessionId: unknown): Promise<ChatDiagnosticEvent[]> {
   if (!isChatDiagnosticsEnabled()) return []
   if (typeof sessionId !== 'string' || !sessionId.trim()) return []
 

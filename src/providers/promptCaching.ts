@@ -26,7 +26,10 @@ const EXPLICIT_OPENROUTER_MODEL_PATTERNS = [
 
 function cloneContent(content: ChatMessage['content']): ChatMessage['content'] {
   if (typeof content === 'string') return content
-  return content.map((part) => ({ ...part, image_url: part.image_url ? { ...part.image_url } : undefined }))
+  return content.map((part) => ({
+    ...part,
+    image_url: part.image_url ? { ...part.image_url } : undefined,
+  }))
 }
 
 function cloneMessages(messages: ChatMessage[]): ChatMessage[] {
@@ -58,7 +61,12 @@ function withEphemeralCacheControl(content: ChatMessage['content']): ChatMessage
 
   let markedTextBlock = false
   const nextContent = content.map((part): MessageContent => {
-    if (!markedTextBlock && part.type === 'text' && typeof part.text === 'string' && part.text.trim()) {
+    if (
+      !markedTextBlock &&
+      part.type === 'text' &&
+      typeof part.text === 'string' &&
+      part.text.trim()
+    ) {
       markedTextBlock = true
       return {
         ...part,
@@ -71,7 +79,9 @@ function withEphemeralCacheControl(content: ChatMessage['content']): ChatMessage
   return nextContent
 }
 
-function buildFireworksSessionHeaders(sessionId: string | undefined): Record<string, string> | undefined {
+function buildFireworksSessionHeaders(
+  sessionId: string | undefined
+): Record<string, string> | undefined {
   const trimmed = sessionId?.trim()
   if (!trimmed) return undefined
   return {

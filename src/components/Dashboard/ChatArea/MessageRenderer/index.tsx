@@ -306,7 +306,8 @@ function MessageRendererComponent({
           segment.hasVisibleContent
         )
         const isReasoningPhase = effectiveSegmentPhase === 'reasoning'
-        const showThinkingSpinner = isStreaming && isActiveSegment && isReasoningPhase && !hasThinking
+        const showThinkingSpinner =
+          isStreaming && isActiveSegment && isReasoningPhase && !hasThinking
         const shouldDeferActiveToolCalls =
           isActiveSegment && hasActiveToolCalls && segment.hasVisibleContent
         const hasInlineActiveToolCalls =
@@ -361,9 +362,7 @@ function MessageRendererComponent({
                     isActiveSegment ? message.researchStatus?.currentSearches : undefined
                   }
                   completedBlocks={segment.blocks}
-                  activeToolCalls={
-                    shouldDeferActiveToolCalls ? [] : segmentActiveToolCalls
-                  }
+                  activeToolCalls={shouldDeferActiveToolCalls ? [] : segmentActiveToolCalls}
                 />
               </div>
             )}

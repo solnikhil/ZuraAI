@@ -3,10 +3,7 @@
  */
 
 import { memo, useMemo } from 'react'
-import {
-  useMessageStreamingState,
-  type StreamingPhase,
-} from '../../../contexts/StreamingContext'
+import { useMessageStreamingState, type StreamingPhase } from '../../../contexts/StreamingContext'
 import { MessageRenderer } from './MessageRenderer'
 import type {
   Message,

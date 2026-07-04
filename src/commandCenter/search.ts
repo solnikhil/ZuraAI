@@ -26,11 +26,7 @@ function levenshtein(a: string, b: string): number {
     for (let j = 1; j <= b.length; j += 1) {
       const temp = rows[j]
       const cost = a[i - 1] === b[j - 1] ? 0 : 1
-      rows[j] = Math.min(
-        rows[j] + 1,
-        rows[j - 1] + 1,
-        previous + cost,
-      )
+      rows[j] = Math.min(rows[j] + 1, rows[j - 1] + 1, previous + cost)
       previous = temp
     }
   }
@@ -42,10 +38,16 @@ export function fuzzyNameScore(name: string, query: string): number {
   const normalizedQuery = normalizeSearchQuery(query)
   if (normalizedQuery.length < 3 || normalizedName.length < 3) return 0
   const maxDistance = normalizedQuery.length <= 4 ? 1 : 2
-  const prefixWindow = normalizedName.slice(0, Math.max(normalizedQuery.length, Math.min(normalizedName.length, normalizedQuery.length + 1)))
+  const prefixWindow = normalizedName.slice(
+    0,
+    Math.max(normalizedQuery.length, Math.min(normalizedName.length, normalizedQuery.length + 1))
+  )
   if (levenshtein(prefixWindow, normalizedQuery) <= maxDistance) return 640
   for (const word of normalizedName.split(/[^a-z0-9]+/).filter((part) => part.length >= 3)) {
-    const wordPrefix = word.slice(0, Math.max(normalizedQuery.length, Math.min(word.length, normalizedQuery.length + 1)))
+    const wordPrefix = word.slice(
+      0,
+      Math.max(normalizedQuery.length, Math.min(word.length, normalizedQuery.length + 1))
+    )
     if (levenshtein(wordPrefix, normalizedQuery) <= maxDistance) return 600
   }
   return 0
@@ -72,10 +74,16 @@ export function scoreAppSearch(name: string, aliases: string[], query: string): 
   let score = 0
   if (normalizedName === normalizedQuery) score = 1000
   else if (normalizedName.startsWith(normalizedQuery)) score = 850
-  else if (normalizedName.split(/[^a-z0-9]+/).some((part) => part.startsWith(normalizedQuery))) score = 760
+  else if (normalizedName.split(/[^a-z0-9]+/).some((part) => part.startsWith(normalizedQuery)))
+    score = 760
   else if (acronym(normalizedName).startsWith(normalizedQuery)) score = 700
   else if (hasWordPrefix(normalizedName, normalizedQuery)) score = 520
-  else if (normalizedAliases.some((alias) => alias.startsWith(normalizedQuery) || hasWordPrefix(alias, normalizedQuery))) score = 430
+  else if (
+    normalizedAliases.some(
+      (alias) => alias.startsWith(normalizedQuery) || hasWordPrefix(alias, normalizedQuery)
+    )
+  )
+    score = 430
   if (score === 0) score = fuzzyNameScore(normalizedName, normalizedQuery)
   return score
 }
@@ -85,7 +93,8 @@ export function scoreWindowSearch(title: string, processName: string, query: str
   if (!normalizedQuery) return 0
   const normalizedTitle = normalizeSearchQuery(title)
   const normalizedProcess = normalizeSearchQuery(processName)
-  if (normalizedProcess === normalizedQuery || normalizedProcess.startsWith(normalizedQuery)) return 900
+  if (normalizedProcess === normalizedQuery || normalizedProcess.startsWith(normalizedQuery))
+    return 900
   if (normalizedTitle === normalizedQuery || normalizedTitle.startsWith(normalizedQuery)) return 820
   if (hasWordPrefix(normalizedProcess, normalizedQuery)) return 480
   if (hasWordPrefix(normalizedTitle, normalizedQuery)) return 560

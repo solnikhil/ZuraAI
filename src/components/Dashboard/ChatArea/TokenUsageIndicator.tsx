@@ -23,11 +23,7 @@ import { buildResearchProgressPrompt } from './hooks/streaming/researchLoopPolic
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
 import { maybeAnimate, motionSpring, useMotionPreferences } from '@/lib/motion'
 import { cn } from '@/lib/utils'
-import {
-  buildAttachmentText,
-  isImageAttachment,
-  type AttachedFile,
-} from './attachmentUtils'
+import { buildAttachmentText, isImageAttachment, type AttachedFile } from './attachmentUtils'
 
 export const DEFAULT_MAX_CONTEXT = 8192
 const CIRCLE_SIZE = 18
@@ -98,7 +94,9 @@ function getContextStatus(reserveFillRatio: number): ContextRingStatus {
 function estimateImageAttachmentTokens(files: Array<Pick<AttachedFile, 'size'>> = []) {
   return files.reduce(
     (sum, file) =>
-      sum + APPROX_TOKENS_PER_IMAGE + Math.ceil(Math.max(0, file.size) / APPROX_IMAGE_BYTES_PER_TOKEN),
+      sum +
+      APPROX_TOKENS_PER_IMAGE +
+      Math.ceil(Math.max(0, file.size) / APPROX_IMAGE_BYTES_PER_TOKEN),
     0
   )
 }
@@ -218,7 +216,10 @@ export function computeTokenBreakdown({
   const fillRatio = maxContext > 0 ? clampRatio(totalUsed / maxContext) : 0
   const reserveFillRatio = maxContext > 0 ? clampRatio(totalWithReserve / maxContext) : 0
   const status = getContextStatus(reserveFillRatio)
-  const tokensUntilCaution = Math.max(0, Math.floor(maxContext * CAUTION_THRESHOLD - totalWithReserve))
+  const tokensUntilCaution = Math.max(
+    0,
+    Math.floor(maxContext * CAUTION_THRESHOLD - totalWithReserve)
+  )
 
   return {
     systemPrompt: systemPromptTokens,
@@ -265,9 +266,7 @@ function BreakdownRow({
       </div>
       <div className="flex shrink-0 items-baseline gap-1.5">
         {percent != null && (
-          <span className="text-[9px] tabular-nums text-[var(--theme-text-muted)]">
-            {percent}%
-          </span>
+          <span className="text-[9px] tabular-nums text-[var(--theme-text-muted)]">{percent}%</span>
         )}
         <span className="font-medium tabular-nums text-[var(--theme-text-primary)]">
           {count.toLocaleString()}
@@ -288,7 +287,11 @@ function getTokenPercent(count: number, maxContext: number) {
   return Math.max(1, Math.round((count / maxContext) * 100))
 }
 
-export function TokenUsageIndicator({ input, attachedFiles = [], className }: TokenUsageIndicatorProps) {
+export function TokenUsageIndicator({
+  input,
+  attachedFiles = [],
+  className,
+}: TokenUsageIndicatorProps) {
   const { animationsEnabled } = useMotionPreferences()
   const { sessions, folders, currentSessionId } = useChatHistory()
   const streamingState = useStreamingState()
@@ -313,7 +316,10 @@ export function TokenUsageIndicator({ input, attachedFiles = [], className }: To
     recentActivityBlock: '',
   })
   const nonMemorySystemPrompt = useMemo(
-    () => getEffectiveSystemPrompt(settings, undefined, undefined, { includeAgentSkillsCatalog: false }),
+    () =>
+      getEffectiveSystemPrompt(settings, undefined, undefined, {
+        includeAgentSkillsCatalog: false,
+      }),
     [
       settings.systemPrompt,
       settings.assistantPersonality,
@@ -642,7 +648,10 @@ export function TokenUsageIndicator({ input, attachedFiles = [], className }: To
                 color: 'var(--theme-text-primary)',
               }}
             >
-              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" style={{ color: statusColor }} />
+              <AlertTriangle
+                className="mt-0.5 h-3.5 w-3.5 shrink-0"
+                style={{ color: statusColor }}
+              />
               <span>{warningMessage}</span>
             </div>
           )}
@@ -759,7 +768,9 @@ export function TokenUsageIndicator({ input, attachedFiles = [], className }: To
                 <div className="flex items-center justify-between gap-2 text-[11px]">
                   <div className="flex items-center gap-1.5">
                     <div className="h-1.5 w-1.5 rounded-full bg-[var(--theme-text-muted)]" />
-                    <span className="text-[var(--theme-text-secondary)]">Remaining After Reserve</span>
+                    <span className="text-[var(--theme-text-secondary)]">
+                      Remaining After Reserve
+                    </span>
                   </div>
                   <span className="font-medium tabular-nums text-[var(--theme-text-primary)]">
                     {breakdown.remainingAfterReserve.toLocaleString()}
@@ -775,7 +786,10 @@ export function TokenUsageIndicator({ input, attachedFiles = [], className }: To
 
               {largerModel && breakdown.status !== 'normal' && (
                 <div className="animate-token-context-item animate-token-context-item-delay-4 rounded-lg bg-[var(--theme-surface-subtle)] px-2 py-1.5 text-[11px] text-[var(--theme-text-secondary)]">
-                  Larger enabled model: <span className="font-medium text-[var(--theme-text-primary)]">{largerModel.displayName}</span>
+                  Larger enabled model:{' '}
+                  <span className="font-medium text-[var(--theme-text-primary)]">
+                    {largerModel.displayName}
+                  </span>
                 </div>
               )}
             </>

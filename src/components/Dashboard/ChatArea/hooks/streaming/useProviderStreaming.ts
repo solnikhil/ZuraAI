@@ -1,11 +1,11 @@
 import { useCallback } from 'react'
 import { useStreamingActions } from '../../../../../contexts/StreamingContext'
+import type { FileAttachment, ThinkingBlock, ToolCallResult } from '../../../../../chat/types'
 import type {
-  FileAttachment,
-  ThinkingBlock,
-  ToolCallResult,
-} from '../../../../../chat/types'
-import type { ReasoningDetail, ServiceAssistantMessage, ToolDefinition } from '../../../../../services/types'
+  ReasoningDetail,
+  ServiceAssistantMessage,
+  ToolDefinition,
+} from '../../../../../services/types'
 import { cleanSonarResponse } from '../../../../../services/perplexity'
 import {
   providerSupportsTools,
@@ -43,7 +43,10 @@ import {
   stripStandaloneHorizontalRule,
   type DeltaToolCall,
 } from './streamingUtils'
-import { selectVerificationStrategy, type AgentVerificationStrategy } from '../../../../../agent/reliability'
+import {
+  selectVerificationStrategy,
+  type AgentVerificationStrategy,
+} from '../../../../../agent/reliability'
 import { createProviderStreamClient } from './providerStreamClient'
 import { resolveStreamPhase as resolveStreamPhaseForContent } from './streamingContentPlacement'
 import {
@@ -51,10 +54,7 @@ import {
   summarizeDiagnosticMessages,
   summarizeDiagnosticToolResult,
 } from '../../../../../diagnostics/chatDiagnosticsClient'
-import {
-  evaluateResearchContinuation,
-  getEffectiveSearchBudget,
-} from './researchLoopPolicy'
+import { evaluateResearchContinuation, getEffectiveSearchBudget } from './researchLoopPolicy'
 import {
   TOOL_FOLLOW_UP_SPLIT_MARKER,
   createToolFollowUpSplitMarker,
@@ -155,7 +155,6 @@ export interface UseProviderStreamingReturn {
   runProviderStream: (options: ProviderStreamingRunOptions) => Promise<StreamingResult>
 }
 
-
 function mergeUsage(existing: NormalizedUsage, incoming: NormalizedUsage): NormalizedUsage {
   return {
     inputTokens: (existing.inputTokens || 0) + (incoming.inputTokens || 0),
@@ -231,16 +230,15 @@ function resolveFollowUpSplitMarkerBlockCount(
 }
 
 function isToolFollowUpNarration(content: string): boolean {
-  const normalized = content
-    .trim()
-    .replace(/\s+/g, ' ')
-    .toLowerCase()
+  const normalized = content.trim().replace(/\s+/g, ' ').toLowerCase()
 
   if (!normalized) return false
 
   return (
     /\blet me\b.*\b(?:search|look up|check|verify|confirm|grab|find|pull)\b/.test(normalized) ||
-    /\bi(?:'ll| will)\b.*\b(?:search|look up|check|verify|confirm|grab|find|pull)\b/.test(normalized) ||
+    /\bi(?:'ll| will)\b.*\b(?:search|look up|check|verify|confirm|grab|find|pull)\b/.test(
+      normalized
+    ) ||
     /\b(?:searching|checking|verifying|confirming)\b.*\b(?:now|next|again)\b/.test(normalized)
   )
 }
@@ -304,7 +302,10 @@ function logToolMarkupLeak(
   console.warn('[tool-markup-leak]', event, details)
 }
 
-function mergeGeneratedFiles(existing: FileAttachment[], incoming: FileAttachment[]): FileAttachment[] {
+function mergeGeneratedFiles(
+  existing: FileAttachment[],
+  incoming: FileAttachment[]
+): FileAttachment[] {
   if (incoming.length === 0) return existing
 
   const merged = [...existing]
@@ -329,9 +330,7 @@ function hasNonWebToolResults(toolResults: ToolCallResult[] | undefined): boolea
   return (toolResults || []).some((result) => result.toolCall.name !== 'web_search')
 }
 
-function getUserContextText(
-  messages: ProviderStreamingRunOptions['messages']
-): string {
+function getUserContextText(messages: ProviderStreamingRunOptions['messages']): string {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index]
     if (message?.role !== 'user') continue
@@ -380,11 +379,12 @@ function buildRequestShape(
     hasReasoning: messages.map((message) => Boolean(message.reasoning)),
     hasThinking: messages.map((message) => Boolean(message.thinking)),
     toolCount,
-    toolChoice: typeof toolChoice === 'string'
-      ? toolChoice
-      : toolChoice && typeof toolChoice === 'object'
-        ? 'function'
-        : undefined,
+    toolChoice:
+      typeof toolChoice === 'string'
+        ? toolChoice
+        : toolChoice && typeof toolChoice === 'object'
+          ? 'function'
+          : undefined,
     cacheMarkerCount: countCacheMarkers(messages),
   }
 }
@@ -441,7 +441,8 @@ export function useProviderStreaming({
       const runtimeSettings = options.settingsOverride ?? settings
       const client = createProviderStreamClient(runtimeSettings, provider)
       const supportsExternalTools = providerSupportsTools(provider)
-      const toolsAvailable = options.enableTools !== false && toolCalling.canUseTools && supportsExternalTools
+      const toolsAvailable =
+        options.enableTools !== false && toolCalling.canUseTools && supportsExternalTools
       const tools = toolsAvailable
         ? toolCalling.getToolsForRequestAsync
           ? await toolCalling.getToolsForRequestAsync()
@@ -454,7 +455,12 @@ export function useProviderStreaming({
         MAX_RESEARCH_ROUNDS
       )
 
-      const logDiagnostic = (event: Omit<Parameters<typeof appendChatDiagnosticEvent>[0], 'sessionId' | 'messageId' | 'timestamp' | 'provider' | 'model'>) => {
+      const logDiagnostic = (
+        event: Omit<
+          Parameters<typeof appendChatDiagnosticEvent>[0],
+          'sessionId' | 'messageId' | 'timestamp' | 'provider' | 'model'
+        >
+      ) => {
         appendChatDiagnosticEvent({
           sessionId: options.sessionId,
           messageId: options.messageId,
@@ -600,30 +606,28 @@ export function useProviderStreaming({
         publishStreamingProgress({
           content: frozenDisplayContent ?? accumulatedContent,
           thinking: activeThinking || undefined,
-          thinkingDuration: activeThinkingStartTime !== null
-            ? performance.now() - activeThinkingStartTime
-            : undefined,
+          thinkingDuration:
+            activeThinkingStartTime !== null
+              ? performance.now() - activeThinkingStartTime
+              : undefined,
           thinkingBlocks: localThinkingBlocks,
           files: generatedFiles,
           toolResults: savedToolResults,
         })
       }
 
-      const finalizeActiveThinking = ():
-        | {
-            thinking: undefined
-            thinkingDuration: undefined
-            thinkingBlocks: ThinkingBlock[]
-            files: FileAttachment[]
-            toolResults: ToolCallResult[] | undefined
-          }
-        | null => {
+      const finalizeActiveThinking = (): {
+        thinking: undefined
+        thinkingDuration: undefined
+        thinkingBlocks: ThinkingBlock[]
+        files: FileAttachment[]
+        toolResults: ToolCallResult[] | undefined
+      } | null => {
         if (!activeThinking.trim()) return null
 
         const thinkingEndTime = performance.now()
-        const thinkingDuration = activeThinkingStartTime !== null
-          ? thinkingEndTime - activeThinkingStartTime
-          : undefined
+        const thinkingDuration =
+          activeThinkingStartTime !== null ? thinkingEndTime - activeThinkingStartTime : undefined
 
         localThinkingBlocks = appendCompletedThinkingBlock(
           localThinkingBlocks,
@@ -818,9 +822,10 @@ export function useProviderStreaming({
                 }
                 activeThinking += event.delta
                 {
-                  const thinkingDuration = activeThinkingStartTime !== null
-                    ? performance.now() - activeThinkingStartTime
-                    : undefined
+                  const thinkingDuration =
+                    activeThinkingStartTime !== null
+                      ? performance.now() - activeThinkingStartTime
+                      : undefined
                   const reasoningProgress = {
                     phase: resolveStreamPhase('reasoning'),
                     thinking: activeThinking,
@@ -904,7 +909,13 @@ export function useProviderStreaming({
                 break
               case 'usage':
                 roundUsage = mergeUsage(roundUsage, event.usage)
-                logDiagnostic({ phase: 'usage', round: roundOptions?.round, roundType, usage: event.usage, rawUsage: event.rawUsage })
+                logDiagnostic({
+                  phase: 'usage',
+                  round: roundOptions?.round,
+                  roundType,
+                  usage: event.usage,
+                  rawUsage: event.rawUsage,
+                })
                 break
               case 'finish':
                 if (!roundAllowsTools && event.finishReason === 'tool_calls') {
@@ -1100,7 +1111,11 @@ export function useProviderStreaming({
           finishReason = roundFinishReason
         }
 
-        if (roundFinishReason !== 'tool_calls' && finalRoundContent.trim() && !suppressedInlineToolMarkup) {
+        if (
+          roundFinishReason !== 'tool_calls' &&
+          finalRoundContent.trim() &&
+          !suppressedInlineToolMarkup
+        ) {
           finalVisibleAnswerRound = {
             content: finalRoundContent,
             usage: roundUsage,
@@ -1278,8 +1293,7 @@ export function useProviderStreaming({
       }
 
       const initialToolChoice =
-        options.forceWebSearch &&
-        tools?.some((tool) => tool.function?.name === 'web_search')
+        options.forceWebSearch && tools?.some((tool) => tool.function?.name === 'web_search')
           ? { type: 'function' as const, function: { name: 'web_search' } }
           : undefined
 
@@ -1308,14 +1322,14 @@ export function useProviderStreaming({
         finishReason === 'tool_calls' &&
         initialRound.roundToolCalls.filter((toolCall) => toolCall?.id).length > 0
       ) {
-            const reconstructedMessage = reconstructToolCallMessage(
-              initialRound.roundContent,
-              initialRound.roundToolCalls,
-              {
-                reasoning: getThinkingTranscript(localThinkingBlocks),
-                reasoningDetails: initialRound.roundReasoningDetails,
-              }
-            )
+        const reconstructedMessage = reconstructToolCallMessage(
+          initialRound.roundContent,
+          initialRound.roundToolCalls,
+          {
+            reasoning: getThinkingTranscript(localThinkingBlocks),
+            reasoningDetails: initialRound.roundReasoningDetails,
+          }
+        )
 
         // Signal that we are now waiting on / executing tool calls
         updateStreamingState({ phase: resolveStreamPhase('tool') })
@@ -1352,7 +1366,10 @@ export function useProviderStreaming({
           toolNames: (toolResult.toolResults || []).map((result) => result.toolCall.name),
         })
 
-        const processed = processInitialToolResults(toolResult.toolResults || [], localThinkingBlocks)
+        const processed = processInitialToolResults(
+          toolResult.toolResults || [],
+          localThinkingBlocks
+        )
         localThinkingBlocks = processed.updatedThinkingBlocks
         savedToolResults = processed.savedToolResults
         publishStreamingToolResults(
@@ -1385,9 +1402,7 @@ export function useProviderStreaming({
           let lastAssistantMessage = reconstructedMessage
           let researchRound = 1
           let pendingVerificationStrategy: AgentVerificationStrategy | null =
-            options.toolEventCallbacks
-              ? selectVerificationStrategy(toolResult.toolResults)
-              : null
+            options.toolEventCallbacks ? selectVerificationStrategy(toolResult.toolResults) : null
           let verificationStepStarted = false
           let verificationRecoveryUsed = false
           const initialLoopDecision = evaluateResearchContinuation({
@@ -1411,17 +1426,12 @@ export function useProviderStreaming({
           // Only force final synthesis for reasons other than budget.
           // Budget is now surfaced as a normal (synthetic) tool result so the model
           // can see it like any other web_search outcome and the loop isn't interrupted.
-          const forceFinalForInitial = initialLoopDecision.shouldForceFinalSynthesis &&
-            initialLoopDecision.reason !== 'budget'
+          const forceFinalForInitial =
+            initialLoopDecision.shouldForceFinalSynthesis && initialLoopDecision.reason !== 'budget'
 
-          const shouldStopAfterInitialBatch =
-            !initialHasNonWebTools &&
-            forceFinalForInitial
+          const shouldStopAfterInitialBatch = !initialHasNonWebTools && forceFinalForInitial
 
-          if (
-            shouldStopAfterInitialBatch &&
-            toolResult.needsFollowUp
-          ) {
+          if (shouldStopAfterInitialBatch && toolResult.needsFollowUp) {
             logResearchLoop('tool-loop-stopped', {
               reason: initialLoopDecision.reason || 'tool-result-complete',
               totalSearchCount,
@@ -1483,11 +1493,7 @@ export function useProviderStreaming({
 
             updateStreamingState({
               phase: resolveStreamPhase('reasoning'),
-              researchStatus: buildResearchStatus(
-                researchRound,
-                options.researchMaxRounds,
-                false
-              ),
+              researchStatus: buildResearchStatus(researchRound, options.researchMaxRounds, false),
             })
 
             const followUpRoundStart = accumulatedContent
@@ -1682,10 +1688,7 @@ export function useProviderStreaming({
               continuationDecision.shouldForceFinalSynthesis &&
               continuationDecision.reason !== 'budget'
 
-            if (
-              shouldStopAfterFollowUpBatch &&
-              nextToolResult.needsFollowUp
-            ) {
+            if (shouldStopAfterFollowUpBatch && nextToolResult.needsFollowUp) {
               logResearchLoop('tool-loop-stopped', {
                 reason: continuationDecision.reason || 'tool-result-complete',
                 totalSearchCount,

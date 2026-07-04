@@ -105,7 +105,13 @@ const MAX_FACTS = 8
 const EXTRACTION_TIMEOUT_MS = 30_000
 const EXTRACTION_MAX_TOKENS = 1024
 const RESPONSE_PREVIEW_CHARS = 500
-const MEMORY_CATEGORIES = new Set<MemoryCategory>(['preference', 'project', 'personal', 'workflow', 'context'])
+const MEMORY_CATEGORIES = new Set<MemoryCategory>([
+  'preference',
+  'project',
+  'personal',
+  'workflow',
+  'context',
+])
 
 /**
  * Synthetic messageId for diagnostics. Background extraction has no assistant
@@ -168,7 +174,8 @@ function filterExtractionResultForStorage(
 ): ExtractionResult {
   const facts = result.facts.filter((fact) => isMemoryStorageEligibleFact(fact.content))
   const summary =
-    result.summary && (isReminderOrLookoutOnlyContext(conversation) || hasReminderOrLookoutIntent(result.summary))
+    result.summary &&
+    (isReminderOrLookoutOnlyContext(conversation) || hasReminderOrLookoutIntent(result.summary))
       ? ''
       : result.summary
   return { facts, summary }
@@ -211,7 +218,11 @@ function buildConversationText(messages: ExtractionMessage[]): string {
  */
 function parseExtractionResponseDetailed(raw: string): ExtractionParseOutcome {
   if (typeof raw !== 'string' || !raw.trim()) {
-    return buildParseFailure('', 'empty-response', 'Memory extraction model returned an empty response')
+    return buildParseFailure(
+      '',
+      'empty-response',
+      'Memory extraction model returned an empty response'
+    )
   }
   const start = raw.indexOf('{')
   const end = raw.lastIndexOf('}')
@@ -227,7 +238,11 @@ function parseExtractionResponseDetailed(raw: string): ExtractionParseOutcome {
     parsed = JSON.parse(raw.slice(start, end + 1))
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error)
-    return buildParseFailure(raw, 'invalid-json', `Memory extraction response contained invalid JSON: ${detail}`)
+    return buildParseFailure(
+      raw,
+      'invalid-json',
+      `Memory extraction response contained invalid JSON: ${detail}`
+    )
   }
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
     return buildParseFailure(

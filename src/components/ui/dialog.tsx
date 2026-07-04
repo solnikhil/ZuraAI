@@ -30,10 +30,7 @@ function DialogOverlay({
   return (
     <DialogPrimitive.Overlay
       data-slot="dialog-overlay"
-      className={cn(
-        'theme-overlay-backdrop fixed inset-0 z-50',
-        className
-      )}
+      className={cn('theme-overlay-backdrop fixed inset-0 z-50', className)}
       {...props}
     />
   )

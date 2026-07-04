@@ -42,14 +42,18 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    files: ['scripts/**/*.mjs', 'electron/**/*.cjs'],
+    files: ['scripts/**/*.mjs', 'electron/**/*.cjs', 'packages/**/*.cjs'],
     languageOptions: {
       globals: {
         Buffer: 'readonly',
+        URL: 'readonly',
         URLSearchParams: 'readonly',
         console: 'readonly',
+        fetch: 'readonly',
         process: 'readonly',
         require: 'readonly',
+        module: 'readonly',
+        __dirname: 'readonly',
         setTimeout: 'readonly',
       },
     },

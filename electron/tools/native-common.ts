@@ -55,11 +55,7 @@ export function requireApproval(args: unknown, action: string): ToolResult | nul
 
 export function clampTimeoutMs(value: unknown, fallback = DEFAULT_NATIVE_TIMEOUT_MS): number {
   const parsed =
-    typeof value === 'number'
-      ? value
-      : typeof value === 'string'
-        ? Number(value)
-        : fallback
+    typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : fallback
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback
   return Math.min(MAX_NATIVE_TIMEOUT_MS, Math.max(1_000, Math.round(parsed)))
 }

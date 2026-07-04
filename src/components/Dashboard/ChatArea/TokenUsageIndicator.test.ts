@@ -110,8 +110,8 @@ describe('computeTokenBreakdown', () => {
 
     it('sums tokens for each message with role overhead', () => {
       const messages = [
-        { role: 'user', content: 'Hello there' },       // ceil(11/4)=3 + 4 = 7
-        { role: 'assistant', content: 'Hi!' },           // ceil(3/4)=1 + 4 = 5
+        { role: 'user', content: 'Hello there' }, // ceil(11/4)=3 + 4 = 7
+        { role: 'assistant', content: 'Hi!' }, // ceil(3/4)=1 + 4 = 5
       ]
       const result = computeTokenBreakdown(makeParams({ messages }))
       expect(result.chatMessages).toBe(12)
@@ -139,9 +139,7 @@ describe('computeTokenBreakdown', () => {
   describe('streaming output tokens', () => {
     it('estimates tokens for streaming content', () => {
       // 16 chars -> ceil(16/4) = 4
-      const result = computeTokenBreakdown(
-        makeParams({ streamingContent: '0123456789abcdef' })
-      )
+      const result = computeTokenBreakdown(makeParams({ streamingContent: '0123456789abcdef' }))
       expect(result.streamingOutput).toBe(4)
     })
 
@@ -194,10 +192,10 @@ describe('computeTokenBreakdown', () => {
     it('sums all token categories', () => {
       const result = computeTokenBreakdown(
         makeParams({
-          systemPrompt: 'sys',             // ceil(3/4)=1 + 4 = 5
+          systemPrompt: 'sys', // ceil(3/4)=1 + 4 = 5
           messages: [{ role: 'user', content: 'msg' }], // ceil(3/4)=1 + 4 = 5
-          currentInput: 'type',            // ceil(4/4) = 1
-          streamingContent: 'streaming',   // ceil(9/4) = 3
+          currentInput: 'type', // ceil(4/4) = 1
+          streamingContent: 'streaming', // ceil(9/4) = 3
         })
       )
       expect(result.totalUsed).toBe(5 + 5 + 1 + 3)
@@ -209,7 +207,7 @@ describe('computeTokenBreakdown', () => {
       const result = computeTokenBreakdown(
         makeParams({
           maxContext: 1000,
-          currentInput: 'abcd',  // 1 token
+          currentInput: 'abcd', // 1 token
         })
       )
       expect(result.remaining).toBe(999)
@@ -217,7 +215,7 @@ describe('computeTokenBreakdown', () => {
 
     it('is clamped to 0 when totalUsed exceeds maxContext', () => {
       // Make totalUsed > maxContext
-      const longInput = 'a'.repeat(400)  // 100 tokens
+      const longInput = 'a'.repeat(400) // 100 tokens
       const result = computeTokenBreakdown(
         makeParams({
           maxContext: 10,
@@ -248,25 +246,19 @@ describe('computeTokenBreakdown', () => {
 
     it('is proportional to usage', () => {
       // 4 chars -> 1 token used, maxContext 100
-      const result = computeTokenBreakdown(
-        makeParams({ maxContext: 100, currentInput: 'abcd' })
-      )
+      const result = computeTokenBreakdown(makeParams({ maxContext: 100, currentInput: 'abcd' }))
       expect(result.fillRatio).toBeCloseTo(0.01, 5)
     })
 
     it('is clamped to 1 when usage exceeds maxContext', () => {
-      const longInput = 'a'.repeat(400)  // 100 tokens
-      const result = computeTokenBreakdown(
-        makeParams({ maxContext: 10, currentInput: longInput })
-      )
+      const longInput = 'a'.repeat(400) // 100 tokens
+      const result = computeTokenBreakdown(makeParams({ maxContext: 10, currentInput: longInput }))
       expect(result.fillRatio).toBe(1)
     })
 
     it('is 0 when maxContext is 0', () => {
       // Edge case: should not divide by zero
-      const result = computeTokenBreakdown(
-        makeParams({ maxContext: 0, currentInput: 'test' })
-      )
+      const result = computeTokenBreakdown(makeParams({ maxContext: 0, currentInput: 'test' }))
       expect(result.fillRatio).toBe(0)
     })
   })
@@ -307,12 +299,12 @@ describe('computeTokenBreakdown', () => {
     it('correctly computes a realistic chat scenario', () => {
       const systemPrompt = 'You are a helpful assistant.'
       const result = computeTokenBreakdown({
-        systemPrompt,                                            // ceil(28/4)=7 + 4 = 11
+        systemPrompt, // ceil(28/4)=7 + 4 = 11
         messages: [
-          { role: 'user', content: 'What is 2+2?' },            // ceil(12/4)=3 + 4 = 7
-          { role: 'assistant', content: 'The answer is 4.' },   // ceil(16/4)=4 + 4 = 8
+          { role: 'user', content: 'What is 2+2?' }, // ceil(12/4)=3 + 4 = 7
+          { role: 'assistant', content: 'The answer is 4.' }, // ceil(16/4)=4 + 4 = 8
         ],
-        currentInput: 'Thanks!',  // ceil(7/4) = 2
+        currentInput: 'Thanks!', // ceil(7/4) = 2
         streamingContent: '',
         responseReserve: 10,
         maxContext: 128000,

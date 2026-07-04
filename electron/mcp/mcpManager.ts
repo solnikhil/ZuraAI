@@ -75,7 +75,10 @@ export interface McpManagedConnection {
   readResource(uri: string): Promise<McpResourceReadResult>
   listPrompts(): Promise<McpPromptManifest[]>
   getPrompt(name: string, args: Record<string, unknown>): Promise<McpPromptResult>
-  callTool(toolName: string, args: Record<string, unknown>): Promise<{ content: unknown[]; structuredContent?: unknown; isError: boolean }>
+  callTool(
+    toolName: string,
+    args: Record<string, unknown>
+  ): Promise<{ content: unknown[]; structuredContent?: unknown; isError: boolean }>
 }
 
 export interface McpManagerDependencies {
@@ -163,28 +166,30 @@ export class McpManager {
   }
 
   listTools(): McpNamespacedTool[] {
-    return ensureUniqueNamespacedTools([...this.servers.values()].flatMap((server) => {
-      const runtimeState = this.runtimeStates.get(server.id)
-      if (
-        !runtimeState ||
-        runtimeState.status !== 'connected' ||
-        server.enabled !== true ||
-        server.trustState !== 'trusted'
-      ) {
-        return []
-      }
+    return ensureUniqueNamespacedTools(
+      [...this.servers.values()].flatMap((server) => {
+        const runtimeState = this.runtimeStates.get(server.id)
+        if (
+          !runtimeState ||
+          runtimeState.status !== 'connected' ||
+          server.enabled !== true ||
+          server.trustState !== 'trusted'
+        ) {
+          return []
+        }
 
-      return runtimeState.tools
-        .filter((manifest) => isToolAllowedForServer(server, manifest.name))
-        .map((manifest) => ({
-          ...createMcpNamespacedToolIdentity(server.id, server.name, manifest.name),
-          manifest: {
-            ...manifest,
-            inputSchema: { ...manifest.inputSchema },
-            annotations: manifest.annotations ? { ...manifest.annotations } : undefined,
-          },
-        }))
-    }))
+        return runtimeState.tools
+          .filter((manifest) => isToolAllowedForServer(server, manifest.name))
+          .map((manifest) => ({
+            ...createMcpNamespacedToolIdentity(server.id, server.name, manifest.name),
+            manifest: {
+              ...manifest,
+              inputSchema: { ...manifest.inputSchema },
+              annotations: manifest.annotations ? { ...manifest.annotations } : undefined,
+            },
+          }))
+      })
+    )
   }
 
   listResources(): McpRuntimeResource[] {
@@ -242,7 +247,8 @@ export class McpManager {
     const normalized = normalizeMcpServerConfig(
       {
         ...(isRecord(rawServer) ? rawServer : {}),
-        id: getOptionalTrimmedString(isRecord(rawServer) ? rawServer.id : undefined) ?? randomUUID(),
+        id:
+          getOptionalTrimmedString(isRecord(rawServer) ? rawServer.id : undefined) ?? randomUUID(),
         createdAt: now,
         updatedAt: now,
       },
@@ -294,7 +300,10 @@ export class McpManager {
     }
 
     this.servers.set(normalizedServerId, normalized)
-    this.runtimeStates.set(normalizedServerId, mergeRuntimeStateWithServer(normalized, this.runtimeStates.get(normalizedServerId)))
+    this.runtimeStates.set(
+      normalizedServerId,
+      mergeRuntimeStateWithServer(normalized, this.runtimeStates.get(normalizedServerId))
+    )
     await this.persistServers()
     this.emitSnapshot()
     return cloneServer(normalized)
@@ -446,7 +455,10 @@ export class McpManager {
     return clonePromptResult(result)
   }
 
-  async executeTool(namespacedToolName: string, args: Record<string, unknown>): Promise<{
+  async executeTool(
+    namespacedToolName: string,
+    args: Record<string, unknown>
+  ): Promise<{
     server: McpServerConfig
     tool: McpNamespacedTool
     result: { content: unknown[]; structuredContent?: unknown; isError: boolean }
@@ -460,7 +472,9 @@ export class McpManager {
     }
   }
 
-  async startOAuth(serverId: string): Promise<{ ok: boolean; status: McpAuthStatus; error?: string }> {
+  async startOAuth(
+    serverId: string
+  ): Promise<{ ok: boolean; status: McpAuthStatus; error?: string }> {
     await this.ensureInitialized()
     const normalizedServerId = normalizeServerId(serverId)
     const server = this.getServerOrThrow(normalizedServerId)
@@ -468,7 +482,10 @@ export class McpManager {
       this.servers.set(normalizedServerId, normalizeMcpServerConfig(nextServer, 0) ?? nextServer)
       this.runtimeStates.set(
         normalizedServerId,
-        mergeRuntimeStateWithServer(this.getServerOrThrow(normalizedServerId), this.runtimeStates.get(normalizedServerId))
+        mergeRuntimeStateWithServer(
+          this.getServerOrThrow(normalizedServerId),
+          this.runtimeStates.get(normalizedServerId)
+        )
       )
       await this.persistServers()
       this.emitSnapshot()
@@ -498,7 +515,9 @@ export class McpManager {
   }> {
     await this.ensureInitialized()
 
-    const tool = this.listTools().find((candidate) => candidate.namespacedName === namespacedToolName)
+    const tool = this.listTools().find(
+      (candidate) => candidate.namespacedName === namespacedToolName
+    )
     if (!tool) {
       throw new Error(`Unknown or unavailable MCP tool: ${namespacedToolName}`)
     }
@@ -529,7 +548,10 @@ export class McpManager {
     }
   }
 
-  async getExecutableResource(serverId: string, uri: string): Promise<{
+  async getExecutableResource(
+    serverId: string,
+    uri: string
+  ): Promise<{
     server: McpServerConfig
     manifest: McpResourceManifest
     connection: McpManagedConnection
@@ -560,7 +582,10 @@ export class McpManager {
     }
   }
 
-  async getExecutablePrompt(serverId: string, promptName: string): Promise<{
+  async getExecutablePrompt(
+    serverId: string,
+    promptName: string
+  ): Promise<{
     server: McpServerConfig
     manifest: McpPromptManifest
     connection: McpManagedConnection
@@ -623,7 +648,9 @@ export class McpManager {
     }
   }
 
-  private async resolveServerForConnection(server: McpServerConfig): Promise<McpResolvedServerConfig> {
+  private async resolveServerForConnection(
+    server: McpServerConfig
+  ): Promise<McpResolvedServerConfig> {
     const resolvedServer = await this.resolveServerSecrets(server)
     if (server.auth?.mode !== 'oauth2Pkce') {
       return resolvedServer
@@ -697,7 +724,10 @@ export class McpManager {
     })
 
     this.connectionUnsubscribers.set(serverId, unsubscribe)
-    this.runtimeStates.set(serverId, mergeRuntimeStateWithServer(this.getServerOrThrow(serverId), connection.getRuntimeState()))
+    this.runtimeStates.set(
+      serverId,
+      mergeRuntimeStateWithServer(this.getServerOrThrow(serverId), connection.getRuntimeState())
+    )
   }
 
   private unregisterConnection(serverId: string): void {

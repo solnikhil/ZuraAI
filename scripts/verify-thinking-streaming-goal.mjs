@@ -197,9 +197,7 @@ writeScopeManifest()
 
 // Step 1 — targeted streaming tests (raw capture + parsed summary)
 const step1 = run('bun', ['run', 'test', '--', ...streamingTests])
-writeRaw(path.join(scratch, 'streaming-tests.txt'), step1.output, [
-  `RAW_RUNNER_EXIT:${step1.code}`,
-])
+writeRaw(path.join(scratch, 'streaming-tests.txt'), step1.output, [`RAW_RUNNER_EXIT:${step1.code}`])
 const step1Parsed = parseVitestRun(step1.output, step1.code)
 writeParsedSummary(path.join(scratch, 'streaming-tests-summary.txt'), 'STEP_1', step1Parsed)
 if (!step1Parsed.thinkingFailuresZero) {
@@ -264,7 +262,10 @@ readSections(path.join(scratch, 'post-edit-sources.txt'))
 
 // Step 5 — plan allows typecheck when full electron build unavailable
 const buildOut = path.join(scratch, 'build-check.txt')
-fs.writeFileSync(buildOut, 'BUILD_CHECK (plan step 5: typecheck branch — full bun run build needs VS for electron-builder)\n')
+fs.writeFileSync(
+  buildOut,
+  'BUILD_CHECK (plan step 5: typecheck branch — full bun run build needs VS for electron-builder)\n'
+)
 const tsc = run('bunx', ['tsc', '--noEmit'])
 fs.appendFileSync(buildOut, tsc.output)
 fs.appendFileSync(buildOut, `\nTSC_EXIT:${tsc.code}\n`)

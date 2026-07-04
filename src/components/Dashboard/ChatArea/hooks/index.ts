@@ -10,10 +10,7 @@ export { useIsolatedStreaming } from './useIsolatedStreaming'
 export { usePromptAutoHide } from './usePromptAutoHide'
 export type { UsePromptAutoHideOptions, UsePromptAutoHideReturn } from './usePromptAutoHide'
 
-export {
-  createProviderStreamClient,
-  useProviderStreaming,
-} from './streaming'
+export { createProviderStreamClient, useProviderStreaming } from './streaming'
 
 export type {
   StreamingResult,

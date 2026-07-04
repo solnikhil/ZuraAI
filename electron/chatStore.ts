@@ -159,38 +159,70 @@ function normalizeFolders(folders: unknown): Folder[] {
 }
 
 function isArtifactKind(value: unknown): value is ArtifactKind {
-  return value === 'text' || value === 'markdown' || value === 'code' || value === 'html' || value === 'json' || value === 'svg' || value === 'mermaid'
+  return (
+    value === 'text' ||
+    value === 'markdown' ||
+    value === 'code' ||
+    value === 'html' ||
+    value === 'json' ||
+    value === 'svg' ||
+    value === 'mermaid'
+  )
 }
 
 function normalizeArtifacts(raw: unknown): ArtifactDocument[] {
   if (!Array.isArray(raw)) return []
-  return raw.map((entry): ArtifactDocument | null => {
-    if (!entry || typeof entry !== 'object') return null
-    const artifact = entry as Partial<ArtifactDocument>
-    if (!artifact.id || !artifact.title || !isArtifactKind(artifact.kind) || !Array.isArray(artifact.versions)) return null
-    const versions = artifact.versions.filter((version): version is ArtifactVersion =>
-      Boolean(version && typeof version.id === 'string' && typeof version.content === 'string' && typeof version.createdAt === 'number')
-    )
-    if (versions.length === 0) return null
-    const currentVersionId = versions.some((version) => version.id === artifact.currentVersionId)
-      ? artifact.currentVersionId!
-      : versions[versions.length - 1].id
-    return {
-      id: artifact.id,
-      title: artifact.title.trim() || 'Untitled artifact',
-      kind: artifact.kind,
-      language: typeof artifact.language === 'string' && artifact.language.trim() ? artifact.language.trim() : undefined,
-      createdAt: typeof artifact.createdAt === 'number' ? artifact.createdAt : versions[0].createdAt,
-      updatedAt: typeof artifact.updatedAt === 'number' ? artifact.updatedAt : versions[versions.length - 1].createdAt,
-      createdByMessageId: typeof artifact.createdByMessageId === 'string' ? artifact.createdByMessageId : undefined,
-      updatedByMessageId: typeof artifact.updatedByMessageId === 'string' ? artifact.updatedByMessageId : undefined,
-      currentVersionId,
-      versions,
-    }
-  }).filter((artifact): artifact is ArtifactDocument => Boolean(artifact))
+  return raw
+    .map((entry): ArtifactDocument | null => {
+      if (!entry || typeof entry !== 'object') return null
+      const artifact = entry as Partial<ArtifactDocument>
+      if (
+        !artifact.id ||
+        !artifact.title ||
+        !isArtifactKind(artifact.kind) ||
+        !Array.isArray(artifact.versions)
+      )
+        return null
+      const versions = artifact.versions.filter((version): version is ArtifactVersion =>
+        Boolean(
+          version &&
+          typeof version.id === 'string' &&
+          typeof version.content === 'string' &&
+          typeof version.createdAt === 'number'
+        )
+      )
+      if (versions.length === 0) return null
+      const currentVersionId = versions.some((version) => version.id === artifact.currentVersionId)
+        ? artifact.currentVersionId!
+        : versions[versions.length - 1].id
+      return {
+        id: artifact.id,
+        title: artifact.title.trim() || 'Untitled artifact',
+        kind: artifact.kind,
+        language:
+          typeof artifact.language === 'string' && artifact.language.trim()
+            ? artifact.language.trim()
+            : undefined,
+        createdAt:
+          typeof artifact.createdAt === 'number' ? artifact.createdAt : versions[0].createdAt,
+        updatedAt:
+          typeof artifact.updatedAt === 'number'
+            ? artifact.updatedAt
+            : versions[versions.length - 1].createdAt,
+        createdByMessageId:
+          typeof artifact.createdByMessageId === 'string' ? artifact.createdByMessageId : undefined,
+        updatedByMessageId:
+          typeof artifact.updatedByMessageId === 'string' ? artifact.updatedByMessageId : undefined,
+        currentVersionId,
+        versions,
+      }
+    })
+    .filter((artifact): artifact is ArtifactDocument => Boolean(artifact))
 }
 
-function summarizeArtifacts(artifacts: ArtifactDocument[] | undefined): ArtifactSummary[] | undefined {
+function summarizeArtifacts(
+  artifacts: ArtifactDocument[] | undefined
+): ArtifactSummary[] | undefined {
   if (!artifacts || artifacts.length === 0) return undefined
   return artifacts.map((artifact) => ({
     id: artifact.id,
@@ -245,7 +277,7 @@ export function sessionToMetadata(session: ChatSession): ChatSessionMetadata {
     artifactCount: migrated.artifacts?.length ?? migrated.artifactSummaries?.length ?? 0,
     artifactSummaries: migrated.artifacts?.length
       ? summarizeArtifacts(migrated.artifacts)
-      : migrated.artifactSummaries ?? undefined,
+      : (migrated.artifactSummaries ?? undefined),
     recentMessages,
   }
 }
@@ -275,11 +307,12 @@ function mergeMetadataWithSession(
 ): ChatSessionMetadata {
   const migrated = migrateSession(session)
   const migratedArtifacts = normalizeArtifacts(migrated.artifacts)
-  const artifactSummaries = migratedArtifacts.length > 0
-    ? summarizeArtifacts(migratedArtifacts)
-    : Array.isArray(migrated.artifactSummaries)
-      ? migrated.artifactSummaries
-      : existing?.artifactSummaries
+  const artifactSummaries =
+    migratedArtifacts.length > 0
+      ? summarizeArtifacts(migratedArtifacts)
+      : Array.isArray(migrated.artifactSummaries)
+        ? migrated.artifactSummaries
+        : existing?.artifactSummaries
   return {
     id: migrated.id,
     title: migrated.title,
@@ -288,11 +321,12 @@ function mergeMetadataWithSession(
     totalTokens: migrated.totalTokens,
     pinned: migrated.pinned ?? existing?.pinned ?? false,
     folderId: migrated.folderId ?? existing?.folderId ?? null,
-    tags: Array.isArray(migrated.tags) ? migrated.tags : existing?.tags ?? [],
+    tags: Array.isArray(migrated.tags) ? migrated.tags : (existing?.tags ?? []),
     messageCount: migrated.messages.length,
-    artifactCount: migratedArtifacts.length > 0
-      ? migratedArtifacts.length
-      : artifactSummaries?.length ?? existing?.artifactCount ?? 0,
+    artifactCount:
+      migratedArtifacts.length > 0
+        ? migratedArtifacts.length
+        : (artifactSummaries?.length ?? existing?.artifactCount ?? 0),
     artifactSummaries,
   }
 }
@@ -300,7 +334,12 @@ function mergeMetadataWithSession(
 function normalizeMetadata(input: unknown): ChatSessionMetadata | null {
   if (!input || typeof input !== 'object') return null
   const raw = input as Partial<ChatSessionMetadata> & { messages?: Message[] }
-  if (!raw.id || !raw.title || typeof raw.createdAt !== 'number' || typeof raw.updatedAt !== 'number') {
+  if (
+    !raw.id ||
+    !raw.title ||
+    typeof raw.createdAt !== 'number' ||
+    typeof raw.updatedAt !== 'number'
+  ) {
     return null
   }
   const messageCount =
@@ -320,7 +359,9 @@ function normalizeMetadata(input: unknown): ChatSessionMetadata | null {
     tags: Array.isArray(raw.tags) ? raw.tags : [],
     messageCount,
     artifactCount: typeof raw.artifactCount === 'number' ? raw.artifactCount : 0,
-    artifactSummaries: Array.isArray(raw.artifactSummaries) ? raw.artifactSummaries.filter(Boolean) as ArtifactSummary[] : undefined,
+    artifactSummaries: Array.isArray(raw.artifactSummaries)
+      ? (raw.artifactSummaries.filter(Boolean) as ArtifactSummary[])
+      : undefined,
     recentMessages: Array.isArray(raw.recentMessages) ? raw.recentMessages : undefined,
   }
 }
@@ -352,7 +393,9 @@ function normalizeIndex(data: unknown): ChatIndexData {
   const raw = data as Partial<ChatIndexData>
   return {
     sessions: Array.isArray(raw.sessions)
-      ? raw.sessions.map(normalizeMetadata).filter((session): session is ChatSessionMetadata => Boolean(session))
+      ? raw.sessions
+          .map(normalizeMetadata)
+          .filter((session): session is ChatSessionMetadata => Boolean(session))
       : [],
     folders: normalizeFolders(raw.folders),
     version: INDEX_VERSION,
@@ -550,7 +593,9 @@ export async function saveChatIndexAsync(index: ChatIndexData): Promise<void> {
 
 export function getAllSessions(): ChatSession[] {
   const index = readIndex()
-  return index.sessions.map((metadata) => readSessionFile(metadata.id) ?? metadataToSession(metadata))
+  return index.sessions.map(
+    (metadata) => readSessionFile(metadata.id) ?? metadataToSession(metadata)
+  )
 }
 
 export function saveAllSessions(sessions: ChatSession[]): void {
@@ -647,7 +692,9 @@ export function getSessionStoreDirPath(): string {
 export async function getAllSessionsAsync(): Promise<ChatSession[]> {
   const index = await readIndexAsync()
   const sessions = await Promise.all(
-    index.sessions.map(async (metadata) => (await readSessionFileAsync(metadata.id)) ?? metadataToSession(metadata))
+    index.sessions.map(
+      async (metadata) => (await readSessionFileAsync(metadata.id)) ?? metadataToSession(metadata)
+    )
   )
   return sessions
 }
@@ -665,7 +712,10 @@ export async function saveAllSessionsAsync(sessions: ChatSession[]): Promise<voi
   })
 }
 
-export async function getSessionAsync(id: string, options?: { limit?: number }): Promise<ChatSession | null> {
+export async function getSessionAsync(
+  id: string,
+  options?: { limit?: number }
+): Promise<ChatSession | null> {
   const session = await readSessionFileAsync(id)
   if (!session || !options?.limit || !Array.isArray(session.messages)) {
     return session
@@ -704,7 +754,10 @@ export async function saveSessionMetadataAsync(metadata: ChatSessionMetadata): P
   if (!nextSessions.some((session) => session.id === metadata.id)) {
     nextSessions.unshift({ ...metadata, tags: [...metadata.tags] })
   }
-  await writeIndexAsync({ ...index, sessions: nextSessions.sort((a, b) => b.updatedAt - a.updatedAt) })
+  await writeIndexAsync({
+    ...index,
+    sessions: nextSessions.sort((a, b) => b.updatedAt - a.updatedAt),
+  })
 }
 
 export async function saveSessionMetadataListAsync(metadata: ChatSessionMetadata[]): Promise<void> {

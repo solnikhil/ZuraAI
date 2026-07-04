@@ -49,33 +49,33 @@ Prereqs: Bun `>= 1.1`, Node.js `>= 18`.
 
 ## Repo Map
 
-| Path                                  | Purpose                                                                                                           |
-| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `electron/main.ts`                    | App lifecycle, IPC registration, windows, tray, updater, tool handlers                                            |
-| `electron/preload.ts`                 | `contextBridge` surface and IPC allowlists; security boundary                                                     |
-| `electron/ipc/`                       | Main-process IPC handlers                                                                                         |
-| `electron/windows/`                   | Main, About, tray, macOS menu, dev chat-debug windows                                                            |
-| `electron/chatStore.ts`               | Chat index/session persistence under `app.getPath('userData')`                                                    |
-| `electron/secureStorage.ts`           | Encrypted key storage via Electron `safeStorage`                                                                  |
-| `electron/mcp/`                       | MCP server storage, connection lifecycle, transports, approvals, IPC                                              |
-| `electron/tools/`                     | Main-process built-in tools: web search, files, shell, code execution, native Windows tools, Computer Use         |
-| `electron/monitors/`                  | Scheduled reminders/lookouts runtime and persistence                                                              |
-| `electron/notifications/email/`       | Brevo transactional email for fixed notification flows                                                            |
-| `electron/analytics/`                 | Opt-in PostHog analytics service and consent state                                                                |
-| `electron/agentSkills/`               | Main-process Agent Skills discovery/activation/install service                                                    |
-| `src/App.tsx`                         | Renderer routing and shared shell layout                                                                          |
-| `src/main.tsx`                        | Renderer bootstrap, first-paint setup, startup preloads                                                           |
-| `src/components/`                     | UI surfaces: dashboard, settings, titlebar, dialogs                                                              |
-| `src/contexts/`                       | Renderer state: settings, chat history, shell, streaming, quick-send                                              |
-| `src/providers/`                      | Provider registry, runtime dispatch, capabilities, metadata                                                       |
-| `src/services/`                       | Provider HTTP integrations and stream parsers                                                                     |
-| `src/tools/`                          | Shared tool definitions, adapters, executor, MCP registry                                                         |
-| `src/skills/`                         | Built-in extension catalog and settings normalization/migration                                                   |
-| `src/agentSkills/`                    | Agent Skills shared types and compact prompt catalog                                                              |
-| `src/mcp/`                            | Shared MCP contracts and renderer context                                                                         |
-| `src/prompts/`                        | Code-owned prompt defaults                                                                                        |
-| `dist/`, `dist-electron/`, `release/` | Generated build outputs; do not hand edit                                                                         |
-| `packages/zuraai/`                    | npm package for the `zuraai` terminal launcher; opens the desktop app through registered local protocols          |
+| Path                                  | Purpose                                                                                                   |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `electron/main.ts`                    | App lifecycle, IPC registration, windows, tray, updater, tool handlers                                    |
+| `electron/preload.ts`                 | `contextBridge` surface and IPC allowlists; security boundary                                             |
+| `electron/ipc/`                       | Main-process IPC handlers                                                                                 |
+| `electron/windows/`                   | Main, About, tray, macOS menu, dev chat-debug windows                                                     |
+| `electron/chatStore.ts`               | Chat index/session persistence under `app.getPath('userData')`                                            |
+| `electron/secureStorage.ts`           | Encrypted key storage via Electron `safeStorage`                                                          |
+| `electron/mcp/`                       | MCP server storage, connection lifecycle, transports, approvals, IPC                                      |
+| `electron/tools/`                     | Main-process built-in tools: web search, files, shell, code execution, native Windows tools, Computer Use |
+| `electron/monitors/`                  | Scheduled reminders/lookouts runtime and persistence                                                      |
+| `electron/notifications/email/`       | Brevo transactional email for fixed notification flows                                                    |
+| `electron/analytics/`                 | Opt-in PostHog analytics service and consent state                                                        |
+| `electron/agentSkills/`               | Main-process Agent Skills discovery/activation/install service                                            |
+| `src/App.tsx`                         | Renderer routing and shared shell layout                                                                  |
+| `src/main.tsx`                        | Renderer bootstrap, first-paint setup, startup preloads                                                   |
+| `src/components/`                     | UI surfaces: dashboard, settings, titlebar, dialogs                                                       |
+| `src/contexts/`                       | Renderer state: settings, chat history, shell, streaming, quick-send                                      |
+| `src/providers/`                      | Provider registry, runtime dispatch, capabilities, metadata                                               |
+| `src/services/`                       | Provider HTTP integrations and stream parsers                                                             |
+| `src/tools/`                          | Shared tool definitions, adapters, executor, MCP registry                                                 |
+| `src/skills/`                         | Built-in extension catalog and settings normalization/migration                                           |
+| `src/agentSkills/`                    | Agent Skills shared types and compact prompt catalog                                                      |
+| `src/mcp/`                            | Shared MCP contracts and renderer context                                                                 |
+| `src/prompts/`                        | Code-owned prompt defaults                                                                                |
+| `dist/`, `dist-electron/`, `release/` | Generated build outputs; do not hand edit                                                                 |
+| `packages/zuraai/`                    | npm package for the `zuraai` terminal launcher; opens the desktop app through registered local protocols  |
 
 ---
 

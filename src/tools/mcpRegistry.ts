@@ -19,9 +19,7 @@ export function createMcpToolRegistry(
   )
 
   return snapshot.tools
-    .filter(
-      (tool) => enabledServerIds.has(tool.serverId) && connectedServerIds.has(tool.serverId)
-    )
+    .filter((tool) => enabledServerIds.has(tool.serverId) && connectedServerIds.has(tool.serverId))
     .map((tool) => createMcpToolDescriptor(tool, serversById.get(tool.serverId)))
 }
 
@@ -64,14 +62,13 @@ function createMcpToolDescriptor(
   }
 }
 
-function normalizeToolInputSchema(schema: McpNamespacedTool['manifest']['inputSchema']): ToolInputSchema {
+function normalizeToolInputSchema(
+  schema: McpNamespacedTool['manifest']['inputSchema']
+): ToolInputSchema {
   return {
     ...schema,
     type: 'object',
-    properties:
-      schema.properties && !Array.isArray(schema.properties)
-        ? schema.properties
-        : {},
+    properties: schema.properties && !Array.isArray(schema.properties) ? schema.properties : {},
     required: Array.isArray(schema.required) ? schema.required : [],
   }
 }

@@ -7,22 +7,22 @@ const STORAGE_KEY = 'zura-model-colors'
 
 // Vibrant color palette - high contrast, easily distinguishable
 const VIBRANT_COLORS = [
-  'hsl(217, 91%, 60%)',  // Blue
-  'hsl(142, 71%, 45%)',  // Green
-  'hsl(25, 95%, 53%)',   // Orange
-  'hsl(271, 81%, 56%)',  // Purple
-  'hsl(330, 81%, 60%)',  // Pink
-  'hsl(189, 85%, 46%)',  // Cyan
-  'hsl(0, 84%, 60%)',    // Red
-  'hsl(48, 96%, 53%)',   // Yellow
-  'hsl(291, 64%, 42%)',  // Deep Purple
-  'hsl(122, 39%, 49%)',  // Forest Green
-  'hsl(14, 100%, 57%)',  // Coral
-  'hsl(204, 70%, 53%)',  // Sky Blue
-  'hsl(340, 82%, 52%)',  // Rose
-  'hsl(162, 63%, 41%)',  // Teal
-  'hsl(45, 93%, 47%)',   // Gold
-  'hsl(262, 52%, 47%)',  // Indigo
+  'hsl(217, 91%, 60%)', // Blue
+  'hsl(142, 71%, 45%)', // Green
+  'hsl(25, 95%, 53%)', // Orange
+  'hsl(271, 81%, 56%)', // Purple
+  'hsl(330, 81%, 60%)', // Pink
+  'hsl(189, 85%, 46%)', // Cyan
+  'hsl(0, 84%, 60%)', // Red
+  'hsl(48, 96%, 53%)', // Yellow
+  'hsl(291, 64%, 42%)', // Deep Purple
+  'hsl(122, 39%, 49%)', // Forest Green
+  'hsl(14, 100%, 57%)', // Coral
+  'hsl(204, 70%, 53%)', // Sky Blue
+  'hsl(340, 82%, 52%)', // Rose
+  'hsl(162, 63%, 41%)', // Teal
+  'hsl(45, 93%, 47%)', // Gold
+  'hsl(262, 52%, 47%)', // Indigo
 ]
 
 interface ColorMapping {
@@ -71,18 +71,18 @@ function getNextColor(usedColors: Set<string>): string {
  */
 export function assignColor(modelName: string): string {
   const mappings = loadMappings()
-  
+
   if (mappings[modelName]) {
     return mappings[modelName]
   }
-  
+
   // Find used colors
   const usedColors = new Set(Object.values(mappings))
-  
+
   // Assign next available color
   const newColor = getNextColor(usedColors)
   mappings[modelName] = newColor
   saveMappings(mappings)
-  
+
   return newColor
 }

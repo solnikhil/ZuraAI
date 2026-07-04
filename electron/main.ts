@@ -121,9 +121,7 @@ function registerSessionSecurityHandlers(): void {
   // headers, so renderer fetch() is blocked.
   defaultSession.webRequest.onHeadersReceived(
     {
-      urls: [
-        'https://integrate.api.nvidia.com/*',
-      ],
+      urls: ['https://integrate.api.nvidia.com/*'],
     },
     (details, callback) => {
       const responseHeaders = details.responseHeaders || {}

@@ -1,7 +1,4 @@
-import {
-  BaseApprovalManager,
-  type ApprovalOutcome,
-} from '../utils/baseApprovalManager'
+import { BaseApprovalManager, type ApprovalOutcome } from '../utils/baseApprovalManager'
 
 import type {
   McpApprovalDecision,
@@ -83,7 +80,10 @@ export class McpApprovalManager extends BaseApprovalManager<
     }
   }
 
-  protected buildMissingDecision(requestId: string, _outcome: ApprovalOutcome): McpApprovalDecision {
+  protected buildMissingDecision(
+    requestId: string,
+    _outcome: ApprovalOutcome
+  ): McpApprovalDecision {
     throw new Error(`Unknown MCP approval request: ${requestId}`)
   }
 

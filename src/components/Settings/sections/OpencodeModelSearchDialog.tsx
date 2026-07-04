@@ -76,7 +76,11 @@ export function OpencodeModelSearchDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="provider-catalog-dialog p-0" showCloseButton={false} overlayClassName="catalog-modal-backdrop">
+      <DialogContent
+        className="provider-catalog-dialog p-0"
+        showCloseButton={false}
+        overlayClassName="catalog-modal-backdrop"
+      >
         <CatalogHeader
           provider="opencode"
           title="Add Model from OpenCode Go Catalog"

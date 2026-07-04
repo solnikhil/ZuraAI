@@ -6,12 +6,7 @@ import { Switch } from '@/components/ui/switch'
 import { SkillLogo } from '@/components/shared'
 import type { Settings } from '@/contexts/SettingsContext'
 import type { EmailNotificationSettings } from '@/electron/types'
-import {
-  BUILT_IN_SKILLS,
-  type BuiltInSkill,
-  type SkillId,
-  type SkillsSettings,
-} from '@/skills'
+import { BUILT_IN_SKILLS, type BuiltInSkill, type SkillId, type SkillsSettings } from '@/skills'
 import { getCatalogExtension, type CatalogExtensionId } from './extensionCatalog'
 import { MemorySection } from './MemorySection'
 import { NotificationsSection } from './NotificationsSection'
@@ -76,7 +71,9 @@ export function ExtensionDetailSection({
   return (
     <div className="extension-detail">
       <div className="extension-detail__header">
-        <span className={`extension-detail__logo ${enabled ? 'extension-detail__logo--enabled' : ''}`}>
+        <span
+          className={`extension-detail__logo ${enabled ? 'extension-detail__logo--enabled' : ''}`}
+        >
           <SkillLogo skill={extensionId} size={40} />
         </span>
         <div className="extension-detail__meta">
@@ -140,7 +137,8 @@ export function ExtensionDetailSection({
               <div className="settings-list-row__meta">
                 <h3 className="settings-list-row__label">Emergency stop</h3>
                 <div className="settings-list-row__description">
-                  Agent Mode includes native Windows tools and Ctrl+Shift+Space Command Center. Press Esc twice quickly to cancel an in-progress Computer Use session.
+                  Agent Mode includes native Windows tools and Ctrl+Shift+Space Command Center.
+                  Press Esc twice quickly to cancel an in-progress Computer Use session.
                 </div>
               </div>
             </div>
@@ -153,7 +151,8 @@ export function ExtensionDetailSection({
               <div className="settings-list-row__meta">
                 <h3 className="settings-list-row__label">Global shortcut</h3>
                 <div className="settings-list-row__description">
-                  Press Ctrl+Shift+Space to open the desktop overlay. Submitted commands include active-window context for Agent Mode.
+                  Press Ctrl+Shift+Space to open the desktop overlay. Submitted commands include
+                  active-window context for Agent Mode.
                 </div>
               </div>
               <div className="settings-list-row__control">
@@ -175,7 +174,10 @@ export function ExtensionDetailSection({
               <div className="settings-list-row__meta">
                 <h3 className="settings-list-row__label">Quick OS actions</h3>
                 <div className="settings-list-row__description">
-                  The overlay can run only fixed shortcuts: snap left, snap right, maximize, set volume to 30% or 60%, toggle mute, toggle theme, show system status, ask about clipboard text, focus ZuraAI, open common Windows settings, and open Downloads. Model-callable OS tools still use the normal approval path where required.
+                  The overlay can run only fixed shortcuts: snap left, snap right, maximize, show
+                  system status, ask about clipboard text, focus ZuraAI, open common Windows
+                  settings, and open Downloads. Model-callable OS tools still use the normal
+                  approval path where required.
                 </div>
               </div>
             </div>

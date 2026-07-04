@@ -76,4 +76,3 @@ export interface ThemeCustomization {
   themeForeground: string
   themeContrast: number
 }
-

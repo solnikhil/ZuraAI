@@ -56,7 +56,10 @@ export function formatProviderStreamError(
     }
   }
 
-  if (rawMessage.toLowerCase().includes('missing') || rawMessage.toLowerCase().includes('api key')) {
+  if (
+    rawMessage.toLowerCase().includes('missing') ||
+    rawMessage.toLowerCase().includes('api key')
+  ) {
     return {
       message:
         getProviderCredentialError(settings, provider) ||

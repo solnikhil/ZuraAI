@@ -188,11 +188,16 @@ function TreeNodes({ nodes, level }: { nodes: FileTreeNode[]; level: number }) {
 
         return (
           <TreeNode key={`${node.id}:${idx}`} nodeId={node.id} level={level} isLast={isLast}>
-             <TreeNodeTrigger className="font-mono text-sm [&[data-selected=true]]:bg-transparent" hasChildren={hasChildren}>
+            <TreeNodeTrigger
+              className="font-mono text-sm [&[data-selected=true]]:bg-transparent"
+              hasChildren={hasChildren}
+            >
               <TreeExpander hasChildren={hasChildren} />
               <TreeIcon isFolder={isFolder} icon={!isFolder ? iconForLeaf(node) : undefined} />
               <div className="min-w-0 flex flex-1 items-center gap-3">
-                <TreeLabel className="min-w-0 truncate">{isFolder ? `${node.name}/` : node.name}</TreeLabel>
+                <TreeLabel className="min-w-0 truncate">
+                  {isFolder ? `${node.name}/` : node.name}
+                </TreeLabel>
                 {node.description && (
                   <span className="ml-auto min-w-0 truncate text-[11px] italic text-muted-foreground/70 font-normal">
                     {node.description}
@@ -236,7 +241,12 @@ export default function MarkdownFileTree({
 
   if (!sortedNodes || sortedNodes.length === 0) {
     return (
-      <pre className={cn('overflow-x-auto rounded-lg border border-border bg-muted/30 p-3 text-sm', className)}>
+      <pre
+        className={cn(
+          'overflow-x-auto rounded-lg border border-border bg-muted/30 p-3 text-sm',
+          className
+        )}
+      >
         <code>{content}</code>
       </pre>
     )
@@ -255,10 +265,7 @@ export default function MarkdownFileTree({
   return (
     <div style={containerStyle} className={cn('mb-1', className)}>
       <div style={{ padding: '14px 16px 18px' }}>
-        <TreeProvider
-          defaultExpandedIds={defaultExpandedIds}
-          onSelectionChange={() => {}}
-        >
+        <TreeProvider defaultExpandedIds={defaultExpandedIds} onSelectionChange={() => {}}>
           <TreeView>
             <TreeNodes nodes={sortedNodes} level={0} />
           </TreeView>

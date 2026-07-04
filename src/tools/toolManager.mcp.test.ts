@@ -85,7 +85,10 @@ describe('toolManager MCP coexistence', () => {
   it('includes MCP runtime tools in the prompt summary with server metadata', () => {
     const availableTools = [...getBuiltinToolDefinitions(), ...createRuntimeTools()]
 
-    const summary = getToolsSummaryForPrompt(['web_search', 'mcp__filesystem__read_file'], availableTools)
+    const summary = getToolsSummaryForPrompt(
+      ['web_search', 'mcp__filesystem__read_file'],
+      availableTools
+    )
 
     expect(summary).toContain('web_search')
     expect(summary).toContain('mcp__filesystem__read_file [MCP Filesystem/read_file]')

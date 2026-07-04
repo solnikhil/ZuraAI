@@ -30,7 +30,10 @@ interface CustomSkillLogoProps {
 
 const SKILL_CUSTOM_LOGOS: Record<string, React.ComponentType<CustomSkillLogoProps>> = {}
 
-const SKILL_FALLBACK_ICONS: Record<string, React.ComponentType<{ size?: number | string; color?: string }>> = {
+const SKILL_FALLBACK_ICONS: Record<
+  string,
+  React.ComponentType<{ size?: number | string; color?: string }>
+> = {
   reminders: Bell,
   terminal: Terminal,
   artifacts: FileText,
@@ -77,13 +80,7 @@ export function SkillLogo({
   }, [assetName])
 
   if (CustomLogo) {
-    return (
-      <CustomLogo
-        size={pixelSize}
-        className={className}
-        style={style}
-      />
-    )
+    return <CustomLogo size={pixelSize} className={className} style={style} />
   }
 
   const assetPath = useMemo(() => {

@@ -92,28 +92,27 @@ If any step fails, capture the failure, revert the pin, and add a tracking note 
 - `.github/workflows/release.yml` (`build-macos` env)
 - This file (record of the change and remove the deferred status)
 
-
 ## CI / GitHub Actions inventory
 
 For the full per-workflow trigger / path-filter / failure-recovery breakdown, see [`docs/CI.md`](CI.md). A quick reference:
 
-| Workflow | Purpose | Trigger | Required check? |
-| --- | --- | --- | --- |
-| `ci.yml` | Ubuntu typecheck + test + renderer build | PR + push to main | yes |
-| `lint.yml` | ESLint + Prettier check | PR + push to main | informational (continue-on-error until cleanup PR lands) |
-| `knip.yml` | Unused dep / export detection | PR + push to main | informational (same reason) |
-| `pr-title.yml` | Conventional-commits PR title | PR opened/edited | yes |
-| `dependency-review.yml` | Vuln / license check on dep changes | PR touching `package.json` or lockfiles | yes when triggered |
-| `ci-cross-platform.yml` | Mac + Windows + Linux test matrix | PR touching code/configs | informational |
-| `ci-package-smoke.yml` | `electron-builder --dir` on Win + Mac | PR touching electron/installer/icons | informational |
-| `actions-pinned.yml` | Enforce SHA-pinned third-party actions | PR touching `.github/workflows` or `.github/actions` | yes when triggered |
-| `labeler.yml` | Auto-apply area / dependencies labels | every PR | n/a (labels only) |
-| `stale.yml` | Stale-issue / stale-PR bot | daily cron 01:00 UTC | n/a |
-| `scorecard.yml` | OpenSSF Scorecard analysis | weekly Monday + push to main | n/a (Security tab + public badge) |
-| `codeql.yml` | CodeQL static analysis | PR + push to main + weekly | yes |
-| `secret-scan.yml` | Gitleaks secret scan | PR + push to main + weekly | yes |
-| `license-audit.yml` | License audit on dep changes | PR touching `package.json` (note: triggers on stale `bun.lockb` path) | yes when triggered |
-| `release.yml` | Win + Mac build + GitHub Release | tag `v*` | n/a (release flow) |
+| Workflow                | Purpose                                  | Trigger                                                               | Required check?                                          |
+| ----------------------- | ---------------------------------------- | --------------------------------------------------------------------- | -------------------------------------------------------- |
+| `ci.yml`                | Ubuntu typecheck + test + renderer build | PR + push to main                                                     | yes                                                      |
+| `lint.yml`              | ESLint + Prettier check                  | PR + push to main                                                     | informational (continue-on-error until cleanup PR lands) |
+| `knip.yml`              | Unused dep / export detection            | PR + push to main                                                     | informational (same reason)                              |
+| `pr-title.yml`          | Conventional-commits PR title            | PR opened/edited                                                      | yes                                                      |
+| `dependency-review.yml` | Vuln / license check on dep changes      | PR touching `package.json` or lockfiles                               | yes when triggered                                       |
+| `ci-cross-platform.yml` | Mac + Windows + Linux test matrix        | PR touching code/configs                                              | informational                                            |
+| `ci-package-smoke.yml`  | `electron-builder --dir` on Win + Mac    | PR touching electron/installer/icons                                  | informational                                            |
+| `actions-pinned.yml`    | Enforce SHA-pinned third-party actions   | PR touching `.github/workflows` or `.github/actions`                  | yes when triggered                                       |
+| `labeler.yml`           | Auto-apply area / dependencies labels    | every PR                                                              | n/a (labels only)                                        |
+| `stale.yml`             | Stale-issue / stale-PR bot               | daily cron 01:00 UTC                                                  | n/a                                                      |
+| `scorecard.yml`         | OpenSSF Scorecard analysis               | weekly Monday + push to main                                          | n/a (Security tab + public badge)                        |
+| `codeql.yml`            | CodeQL static analysis                   | PR + push to main + weekly                                            | yes                                                      |
+| `secret-scan.yml`       | Gitleaks secret scan                     | PR + push to main + weekly                                            | yes                                                      |
+| `license-audit.yml`     | License audit on dep changes             | PR touching `package.json` (note: triggers on stale `bun.lockb` path) | yes when triggered                                       |
+| `release.yml`           | Win + Mac build + GitHub Release         | tag `v*`                                                              | n/a (release flow)                                       |
 
 Configuration files referenced by these workflows:
 

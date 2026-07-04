@@ -94,7 +94,9 @@ vi.mock('@/components/ui/dropdown-menu', () => ({
   DropdownMenuSeparator: () => <div />,
   DropdownMenuShortcut: ({ children }: { children: React.ReactNode }) => <span>{children}</span>,
   DropdownMenuSub: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DropdownMenuSubTrigger: ({ children }: { children: React.ReactNode }) => <button type="button">{children}</button>,
+  DropdownMenuSubTrigger: ({ children }: { children: React.ReactNode }) => (
+    <button type="button">{children}</button>
+  ),
   DropdownMenuSubContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }))
 
@@ -122,7 +124,9 @@ describe('InputArea skills menu', () => {
 
     expect(screen.getByText('Agent Mode')).toBeInTheDocument()
     expect(screen.getByRole('switch', { name: /agent mode/i })).toBeInTheDocument()
-    expect(screen.queryByRole('switch', { name: /control separate desktop/i })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('switch', { name: /control separate desktop/i })
+    ).not.toBeInTheDocument()
   })
 
   it('enables current-desktop control as the agent-mode desktop-control path', () => {

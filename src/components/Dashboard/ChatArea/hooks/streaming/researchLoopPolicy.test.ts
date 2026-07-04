@@ -124,7 +124,12 @@ describe('researchLoopPolicy', () => {
 
     // Budget case no longer forces synthesis (model can emit the call and receive normal result)
     expect(
-      evaluateResearchContinuation({ searchCount: 50, maxRounds: 0, safetyCap: 50, practicalCap: 50 })
+      evaluateResearchContinuation({
+        searchCount: 50,
+        maxRounds: 0,
+        safetyCap: 50,
+        practicalCap: 50,
+      })
     ).toEqual({ shouldForceFinalSynthesis: false, reason: 'budget' })
   })
 

@@ -75,8 +75,6 @@ export interface SettingsUI {
     palettePosition: 'top' | 'center' | 'lower'
   }
 
-  
-
   // Prompt auto-hide (slide away after inactivity)
   promptAutoHide: {
     enabled: boolean
@@ -120,7 +118,7 @@ export const defaultSettingsUI: SettingsUI = {
     paletteWidth: 'default',
     palettePosition: 'center',
   },
-  
+
   promptAutoHide: {
     enabled: false,
     timeout: 120,
@@ -319,7 +317,10 @@ export function useSettingsUI() {
   if (context === undefined) {
     // During HMR, the context may temporarily be undefined
     if (import.meta.hot) {
-      warnOnceDuringHmr('SettingsUIContext', '[SettingsUIContext] Context undefined during HMR, using defaults')
+      warnOnceDuringHmr(
+        'SettingsUIContext',
+        '[SettingsUIContext] Context undefined during HMR, using defaults'
+      )
       return {
         settingsUI: defaultSettingsUI,
         updateSettingsUI: () => {},

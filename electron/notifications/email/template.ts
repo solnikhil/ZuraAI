@@ -26,14 +26,20 @@ function renderParagraphs(value: string): string {
     .split(/\n{2,}/)
     .map((paragraph) => paragraph.trim())
     .filter(Boolean)
-    .map((paragraph) => `<p style="margin:0 0 10px;color:#334155;font-size:15px;line-height:1.55;">${escapeHtml(paragraph).replace(/\n/g, '<br>')}</p>`)
+    .map(
+      (paragraph) =>
+        `<p style="margin:0 0 10px;color:#334155;font-size:15px;line-height:1.55;">${escapeHtml(paragraph).replace(/\n/g, '<br>')}</p>`
+    )
     .join('')
 }
 
 function renderMetadata(metadata: NotificationEmailTemplateInput['metadata']): string {
   if (!metadata || metadata.length === 0) return ''
 
-  const cells = metadata.slice(0, 3).map((item) => `
+  const cells = metadata
+    .slice(0, 3)
+    .map(
+      (item) => `
     <td style="width:33.33%;padding:0 8px 0 0;">
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px solid #e2e8f0;background:#ffffff;border-radius:6px;">
         <tr>
@@ -45,7 +51,9 @@ function renderMetadata(metadata: NotificationEmailTemplateInput['metadata']): s
         </tr>
       </table>
     </td>
-  `).join('')
+  `
+    )
+    .join('')
 
   return `
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:18px;">
@@ -57,9 +65,13 @@ function renderMetadata(metadata: NotificationEmailTemplateInput['metadata']): s
 function renderDetails(title: string | undefined, items: string[] | undefined): string {
   if (!items || items.length === 0) return ''
 
-  const listItems = items.map((item) => `
+  const listItems = items
+    .map(
+      (item) => `
     <li style="margin:0 0 8px;color:#334155;font-size:14px;line-height:1.5;">${escapeHtml(item)}</li>
-  `).join('')
+  `
+    )
+    .join('')
 
   return `
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:18px;border:1px solid #e5e7eb;background:#fafafa;border-radius:14px;">

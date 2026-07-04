@@ -56,11 +56,14 @@ export function createPkcePair(): { verifier: string; challenge: string } {
   return { verifier, challenge }
 }
 
-export async function applyOAuthAuthorizationHeader(server: McpServerConfig): Promise<Record<string, string>> {
+export async function applyOAuthAuthorizationHeader(
+  server: McpServerConfig
+): Promise<Record<string, string>> {
   if (server.auth?.mode !== 'oauth2Pkce') return {}
 
   const oauth = server.auth.oauth
-  const accessTokenKey = oauth?.accessTokenKey ?? buildMcpSecretStorageKey(server.id, 'oauth-access-token')
+  const accessTokenKey =
+    oauth?.accessTokenKey ?? buildMcpSecretStorageKey(server.id, 'oauth-access-token')
   let accessToken = await getSecureValueAsync(accessTokenKey)
 
   if (shouldRefreshToken(oauth?.expiresAt)) {
@@ -80,11 +83,15 @@ export async function startMcpOAuthFlow(
   updateServer: (server: McpServerConfig) => Promise<void>
 ): Promise<McpOAuthStartResult> {
   if (server.transport !== 'sse') {
-    const status = getMcpAuthStatus(markAuthFailed(server, 'OAuth is currently supported for SSE MCP servers only.'))
+    const status = getMcpAuthStatus(
+      markAuthFailed(server, 'OAuth is currently supported for SSE MCP servers only.')
+    )
     return { ok: false, status, error: status.lastError ?? undefined }
   }
   if (!server.url) {
-    const status = getMcpAuthStatus(markAuthFailed(server, 'OAuth requires a saved MCP server URL.'))
+    const status = getMcpAuthStatus(
+      markAuthFailed(server, 'OAuth requires a saved MCP server URL.')
+    )
     return { ok: false, status, error: status.lastError ?? undefined }
   }
 
@@ -93,7 +100,10 @@ export async function startMcpOAuthFlow(
 
   try {
     const resourceUrl = new URL(server.url)
-    const resourceMetadata = await discoverProtectedResourceMetadata(resourceUrl, nextServer.auth.oauth?.resourceMetadataUrl)
+    const resourceMetadata = await discoverProtectedResourceMetadata(
+      resourceUrl,
+      nextServer.auth.oauth?.resourceMetadataUrl
+    )
     const authorizationServer =
       nextServer.auth.oauth?.authorizationServer ??
       resourceMetadata.authorization_servers?.[0] ??
@@ -147,7 +157,10 @@ export async function startMcpOAuthFlow(
       updatedAt: new Date().toISOString(),
       oauth: {
         authorizationServer,
-        resourceMetadataUrl: resourceMetadataUrl(resourceUrl, nextServer.auth.oauth?.resourceMetadataUrl),
+        resourceMetadataUrl: resourceMetadataUrl(
+          resourceUrl,
+          nextServer.auth.oauth?.resourceMetadataUrl
+        ),
         issuer: authServerMetadata.issuer,
         authorizationEndpoint: authServerMetadata.authorization_endpoint,
         tokenEndpoint: authServerMetadata.token_endpoint,
@@ -180,14 +193,26 @@ export async function startMcpOAuthFlow(
 export async function clearMcpOAuth(server: McpServerConfig): Promise<McpServerConfig> {
   const oauth = server.auth?.oauth
   await Promise.all([
-    setSecureValueAsync(oauth?.accessTokenKey ?? buildMcpSecretStorageKey(server.id, 'oauth-access-token'), ''),
-    setSecureValueAsync(oauth?.refreshTokenKey ?? buildMcpSecretStorageKey(server.id, 'oauth-refresh-token'), ''),
+    setSecureValueAsync(
+      oauth?.accessTokenKey ?? buildMcpSecretStorageKey(server.id, 'oauth-access-token'),
+      ''
+    ),
+    setSecureValueAsync(
+      oauth?.refreshTokenKey ?? buildMcpSecretStorageKey(server.id, 'oauth-refresh-token'),
+      ''
+    ),
     oauth?.clientSecretKey ? setSecureValueAsync(oauth.clientSecretKey, '') : Promise.resolve(true),
   ])
 
   return {
     ...server,
-    auth: { mode: 'oauth2Pkce', state: 'reauth_required', lastError: null, updatedAt: new Date().toISOString(), oauth },
+    auth: {
+      mode: 'oauth2Pkce',
+      state: 'reauth_required',
+      lastError: null,
+      updatedAt: new Date().toISOString(),
+      oauth,
+    },
   }
 }
 
@@ -199,7 +224,8 @@ async function refreshOAuthToken(server: McpServerConfig): Promise<{ accessToken
     throw new Error(`MCP server "${server.name}" needs sign-in before connecting.`)
   }
 
-  const refreshTokenKey = oauth.refreshTokenKey ?? buildMcpSecretStorageKey(server.id, 'oauth-refresh-token')
+  const refreshTokenKey =
+    oauth.refreshTokenKey ?? buildMcpSecretStorageKey(server.id, 'oauth-refresh-token')
   const refreshToken = await getSecureValueAsync(refreshTokenKey)
   if (!refreshToken) {
     throw new Error(`MCP server "${server.name}" needs sign-in before connecting.`)
@@ -222,7 +248,7 @@ async function refreshOAuthToken(server: McpServerConfig): Promise<{ accessToken
     throw new Error(`OAuth refresh failed with ${response.status} ${response.statusText}`)
   }
 
-  const token = await response.json() as TokenResponse
+  const token = (await response.json()) as TokenResponse
   await persistOAuthToken(server.id, token)
   return { accessToken: token.access_token ?? '' }
 }
@@ -239,7 +265,7 @@ async function discoverProtectedResourceMetadata(
   for (const candidate of [...new Set(candidates)]) {
     try {
       const response = await fetch(candidate, { headers: { accept: 'application/json' } })
-      if (response.ok) return await response.json() as ProtectedResourceMetadata
+      if (response.ok) return (await response.json()) as ProtectedResourceMetadata
     } catch {
       // Try next discovery location.
     }
@@ -257,7 +283,7 @@ async function discoverAuthorizationServerMetadata(issuer: string): Promise<OAut
 
   for (const candidate of candidates) {
     const response = await fetch(candidate, { headers: { accept: 'application/json' } })
-    if (response.ok) return await response.json() as OAuthServerMetadata
+    if (response.ok) return (await response.json()) as OAuthServerMetadata
   }
 
   throw new Error('Unable to discover OAuth authorization server metadata.')
@@ -279,7 +305,9 @@ async function resolveOAuthClient(
   }
 
   if (!metadata.registration_endpoint) {
-    throw new Error('Authorization server does not support dynamic client registration. Add a client ID in advanced MCP auth settings.')
+    throw new Error(
+      'Authorization server does not support dynamic client registration. Add a client ID in advanced MCP auth settings.'
+    )
   }
 
   const response = await fetch(metadata.registration_endpoint, {
@@ -295,10 +323,12 @@ async function resolveOAuthClient(
   })
 
   if (!response.ok) {
-    throw new Error(`Dynamic client registration failed with ${response.status} ${response.statusText}`)
+    throw new Error(
+      `Dynamic client registration failed with ${response.status} ${response.statusText}`
+    )
   }
 
-  const registered = await response.json() as { client_id?: string; client_secret?: string }
+  const registered = (await response.json()) as { client_id?: string; client_secret?: string }
   if (!registered.client_id) {
     throw new Error('Dynamic client registration did not return a client ID.')
   }
@@ -340,7 +370,7 @@ async function exchangeAuthorizationCode(options: {
     throw new Error(`OAuth token exchange failed with ${response.status} ${response.statusText}`)
   }
 
-  const token = await response.json() as TokenResponse
+  const token = (await response.json()) as TokenResponse
   if (!token.access_token) {
     throw new Error('OAuth token exchange did not return an access token.')
   }
@@ -349,10 +379,16 @@ async function exchangeAuthorizationCode(options: {
 
 async function persistOAuthToken(serverId: string, token: TokenResponse): Promise<void> {
   if (token.access_token) {
-    await setSecureValueAsync(buildMcpSecretStorageKey(serverId, 'oauth-access-token'), token.access_token)
+    await setSecureValueAsync(
+      buildMcpSecretStorageKey(serverId, 'oauth-access-token'),
+      token.access_token
+    )
   }
   if (token.refresh_token) {
-    await setSecureValueAsync(buildMcpSecretStorageKey(serverId, 'oauth-refresh-token'), token.refresh_token)
+    await setSecureValueAsync(
+      buildMcpSecretStorageKey(serverId, 'oauth-refresh-token'),
+      token.refresh_token
+    )
   }
 }
 
@@ -363,7 +399,9 @@ function tokenExpiresAt(token: TokenResponse): number | undefined {
 }
 
 function shouldRefreshToken(expiresAt: number | undefined): boolean {
-  return typeof expiresAt === 'number' && expiresAt > 0 && expiresAt - Date.now() <= TOKEN_EXPIRY_SKEW_MS
+  return (
+    typeof expiresAt === 'number' && expiresAt > 0 && expiresAt - Date.now() <= TOKEN_EXPIRY_SKEW_MS
+  )
 }
 
 function normalizeOAuthAuth(auth: McpAuthConfig | undefined): McpAuthConfig {
@@ -412,7 +450,9 @@ function cloneServer(server: McpServerConfig): McpServerConfig {
     ...server,
     env: [...(server.env ?? [])],
     headers: [...(server.headers ?? [])],
-    auth: server.auth ? { ...server.auth, oauth: server.auth.oauth ? { ...server.auth.oauth } : undefined } : undefined,
+    auth: server.auth
+      ? { ...server.auth, oauth: server.auth.oauth ? { ...server.auth.oauth } : undefined }
+      : undefined,
   }
 }
 
@@ -425,10 +465,12 @@ function createLoopbackCallback(): Promise<{
     let redirectUri = ''
     let callbackResolve: ((value: { code: string; state: string }) => void) | null = null
     let callbackReject: ((reason: Error) => void) | null = null
-    const callbackPromise = new Promise<{ code: string; state: string }>((innerResolve, innerReject) => {
-      callbackResolve = innerResolve
-      callbackReject = innerReject
-    })
+    const callbackPromise = new Promise<{ code: string; state: string }>(
+      (innerResolve, innerReject) => {
+        callbackResolve = innerResolve
+        callbackReject = innerReject
+      }
+    )
     const timeout = setTimeout(() => {
       server.close()
       const error = new Error('Timed out waiting for OAuth callback.')
@@ -442,7 +484,11 @@ function createLoopbackCallback(): Promise<{
       const error = url.searchParams.get('error')
 
       response.writeHead(error ? 400 : 200, { 'content-type': 'text/plain; charset=utf-8' })
-      response.end(error ? `ZuraAI MCP sign-in failed: ${error}` : 'ZuraAI MCP sign-in complete. You can close this window.')
+      response.end(
+        error
+          ? `ZuraAI MCP sign-in failed: ${error}`
+          : 'ZuraAI MCP sign-in complete. You can close this window.'
+      )
       clearTimeout(timeout)
       server.close()
 

@@ -53,7 +53,9 @@ describe('loadRecentActivityBlock', () => {
   })
 
   it('builds a block from bridge summaries', async () => {
-    const list = vi.fn().mockResolvedValue([summary({ summary: 'fitness routine chat', updatedAt: 1 })])
+    const list = vi
+      .fn()
+      .mockResolvedValue([summary({ summary: 'fitness routine chat', updatedAt: 1 })])
     ;(window as unknown as { memory: { summaries: { list: typeof list } } }).memory = {
       summaries: { list },
     }

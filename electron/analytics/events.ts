@@ -12,7 +12,7 @@ export const ANALYTICS_EVENTS = [
   'app_crash',
 ] as const
 
-export type AnalyticsEventName = typeof ANALYTICS_EVENTS[number]
+export type AnalyticsEventName = (typeof ANALYTICS_EVENTS)[number]
 
 export type AnalyticsConsentState = 'undecided' | 'accepted' | 'declined'
 

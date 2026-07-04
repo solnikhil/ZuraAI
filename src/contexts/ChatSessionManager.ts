@@ -220,7 +220,7 @@ export class ChatSessionManager {
   getLoadedSession(id: string): LoadedSession | null {
     const session = this.loadedSessions.get(id)
     if (session) {
-        this.lastAccessTime.set(id, Date.now())
+      this.lastAccessTime.set(id, Date.now())
     }
     return session ?? null
   }
@@ -297,9 +297,9 @@ export class ChatSessionManager {
       loaded.metadata.messageCount = messages.length
       loaded.metadata.updatedAt = Date.now()
 
-        this.metadata.set(id, loaded.metadata)
+      this.metadata.set(id, loaded.metadata)
 
-        this.lastAccessTime.set(id, Date.now())
+      this.lastAccessTime.set(id, Date.now())
     }
   }
 

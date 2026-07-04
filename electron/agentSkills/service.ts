@@ -80,7 +80,9 @@ function parseFrontmatterBlock(block: string): {
 
     const nested = /^ {2,}([A-Za-z0-9_-]+):\s*(.*)$/.exec(line)
     if (nested && currentMapKey) {
-      const existing = isRecord(data[currentMapKey]) ? data[currentMapKey] as Record<string, string> : {}
+      const existing = isRecord(data[currentMapKey])
+        ? (data[currentMapKey] as Record<string, string>)
+        : {}
       existing[nested[1]] = parseScalar(nested[2])
       data[currentMapKey] = existing
       continue
@@ -88,7 +90,10 @@ function parseFrontmatterBlock(block: string): {
 
     const match = /^([A-Za-z0-9_-]+):\s*(.*)$/.exec(line)
     if (!match) {
-      diagnostics.push({ level: 'warning', message: `Unsupported frontmatter line: ${line.trim()}` })
+      diagnostics.push({
+        level: 'warning',
+        message: `Unsupported frontmatter line: ${line.trim()}`,
+      })
       currentMapKey = null
       continue
     }
@@ -113,7 +118,9 @@ function parseSkillMarkdown(content: string, skillPath: string): ParsedSkillFile
   if (!normalized.startsWith('---')) {
     return {
       body: normalized.trim(),
-      diagnostics: [{ level: 'error', message: 'SKILL.md is missing YAML frontmatter.', path: skillPath }],
+      diagnostics: [
+        { level: 'error', message: 'SKILL.md is missing YAML frontmatter.', path: skillPath },
+      ],
     }
   }
 
@@ -121,7 +128,9 @@ function parseSkillMarkdown(content: string, skillPath: string): ParsedSkillFile
   if (!endMatch || endMatch.index < 0) {
     return {
       body: '',
-      diagnostics: [{ level: 'error', message: 'SKILL.md frontmatter is not closed.', path: skillPath }],
+      diagnostics: [
+        { level: 'error', message: 'SKILL.md frontmatter is not closed.', path: skillPath },
+      ],
     }
   }
 
@@ -133,7 +142,9 @@ function parseSkillMarkdown(content: string, skillPath: string): ParsedSkillFile
   const diagnostics = [...parsed.diagnostics]
   const metadata = isRecord(data.metadata)
     ? Object.fromEntries(
-        Object.entries(data.metadata).filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+        Object.entries(data.metadata).filter(
+          (entry): entry is [string, string] => typeof entry[1] === 'string'
+        )
       )
     : undefined
 
@@ -174,7 +185,10 @@ async function scanSkillsRoot(
       const content = await readSkillFile(skillPath)
       const parsed = parseSkillMarkdown(content, skillPath)
       if (!parsed) continue
-      const skillDiagnostics = parsed.diagnostics.map((diagnostic) => ({ ...diagnostic, path: diagnostic.path ?? skillPath }))
+      const skillDiagnostics = parsed.diagnostics.map((diagnostic) => ({
+        ...diagnostic,
+        path: diagnostic.path ?? skillPath,
+      }))
       if (!parsed.name || !parsed.description) {
         diagnostics.push({
           level: 'error',
@@ -208,11 +222,17 @@ async function scanSkillsRoot(
   return { skills, diagnostics }
 }
 
-export async function listAgentSkills(query: AgentSkillsQuery = {}): Promise<AgentSkillsListResult> {
-  const disabled = new Set((query.disabledSkillNames ?? []).filter((name): name is string => typeof name === 'string'))
+export async function listAgentSkills(
+  query: AgentSkillsQuery = {}
+): Promise<AgentSkillsListResult> {
+  const disabled = new Set(
+    (query.disabledSkillNames ?? []).filter((name): name is string => typeof name === 'string')
+  )
   const user = await scanSkillsRoot(getUserSkillsRoot(), 'user')
   const projectRoot = getProjectSkillsRoot(query.projectRoot)
-  const project = projectRoot ? await scanSkillsRoot(projectRoot, 'project') : { skills: [], diagnostics: [] }
+  const project = projectRoot
+    ? await scanSkillsRoot(projectRoot, 'project')
+    : { skills: [], diagnostics: [] }
   const byName = new Map<string, AgentSkillSummary>()
 
   for (const skill of user.skills) {
@@ -268,7 +288,10 @@ function getNpxCommand(): string {
   return process.platform === 'win32' ? 'npx.cmd' : 'npx'
 }
 
-async function runSkillsCli(args: string[], cwd: string): Promise<{ ok: boolean; output: string; error?: string }> {
+async function runSkillsCli(
+  args: string[],
+  cwd: string
+): Promise<{ ok: boolean; output: string; error?: string }> {
   try {
     const result = await execFileAsync(getNpxCommand(), ['--yes', 'skills', ...args], {
       cwd,
@@ -300,10 +323,23 @@ export async function installAgentSkill(
   projectRoot?: string
 ): Promise<AgentSkillInstallResult> {
   const trimmed = typeof packageRef === 'string' ? packageRef.trim() : ''
-  if (!trimmed) return { ok: false, packageRef: '', target, output: '', error: 'Package reference is required.' }
+  if (!trimmed)
+    return {
+      ok: false,
+      packageRef: '',
+      target,
+      output: '',
+      error: 'Package reference is required.',
+    }
   const cwd = target === 'project' ? normalizeProjectRoot(projectRoot) : os.homedir()
   if (target === 'project' && !cwd) {
-    return { ok: false, packageRef: trimmed, target, output: '', error: 'Project root is required for project installs.' }
+    return {
+      ok: false,
+      packageRef: trimmed,
+      target,
+      output: '',
+      error: 'Project root is required for project installs.',
+    }
   }
   const { dialog } = await import('electron')
   const confirmation = await dialog.showMessageBox({
@@ -327,5 +363,5 @@ export async function selectAgentSkillsProjectRoot(): Promise<string> {
     title: 'Select project folder for Agent Skills',
     properties: ['openDirectory'],
   })
-  return result.canceled ? '' : result.filePaths[0] ?? ''
+  return result.canceled ? '' : (result.filePaths[0] ?? '')
 }

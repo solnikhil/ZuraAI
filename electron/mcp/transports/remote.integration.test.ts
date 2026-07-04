@@ -42,7 +42,9 @@ describe('remote MCP transport integration', () => {
     expect(runtimeState.status).toBe('connected')
     expect(runtimeState.resources).toEqual([{ uri: 'file:///tmp/demo.txt', title: 'Demo File' }])
     expect(runtimeState.prompts).toEqual([{ name: 'summarize_demo', title: 'Summarize Demo' }])
-    await expect(connection.callTool('read_file', { path: '/tmp/demo.txt' })).resolves.toMatchObject({
+    await expect(
+      connection.callTool('read_file', { path: '/tmp/demo.txt' })
+    ).resolves.toMatchObject({
       isError: false,
       structuredContent: { path: '/tmp/demo.txt' },
     })
@@ -76,7 +78,9 @@ describe('remote MCP transport integration', () => {
 
     expect(runtimeState.status).toBe('connected')
     expect(runtimeState.tools).toHaveLength(1)
-    await expect(connection.callTool('read_file', { path: '/tmp/demo.txt' })).resolves.toMatchObject({
+    await expect(
+      connection.callTool('read_file', { path: '/tmp/demo.txt' })
+    ).resolves.toMatchObject({
       isError: false,
       structuredContent: { path: '/tmp/demo.txt' },
     })
@@ -92,7 +96,9 @@ describe('remote MCP transport integration', () => {
   })
 })
 
-function createResolvedServerConfig(overrides: Partial<McpResolvedServerConfig>): McpResolvedServerConfig {
+function createResolvedServerConfig(
+  overrides: Partial<McpResolvedServerConfig>
+): McpResolvedServerConfig {
   return {
     id: 'server-1',
     name: 'Remote Mock Server',
@@ -122,7 +128,10 @@ function createResolvedServerConfig(overrides: Partial<McpResolvedServerConfig>)
   }
 }
 
-async function createMockSseMcpServer(): Promise<{ streamUrl: string; close: () => Promise<void> }> {
+async function createMockSseMcpServer(): Promise<{
+  streamUrl: string
+  close: () => Promise<void>
+}> {
   let streamResponse: ServerResponse<IncomingMessage> | null = null
 
   const server = createServer(async (request, response) => {
@@ -140,7 +149,11 @@ async function createMockSseMcpServer(): Promise<{ streamUrl: string; close: () 
     if (request.method === 'POST' && request.url === '/mcp/messages') {
       const body = await readRequestBody(request)
       const message = JSON.parse(body) as { id?: string | number; method?: string; params?: any }
-      sendSseJsonRpc(streamResponse, message.id, buildMockMcpResult(message.method ?? '', message.params))
+      sendSseJsonRpc(
+        streamResponse,
+        message.id,
+        buildMockMcpResult(message.method ?? '', message.params)
+      )
       response.writeHead(202)
       response.end()
       return
@@ -158,13 +171,20 @@ async function createMockSseMcpServer(): Promise<{ streamUrl: string; close: () 
   }
 }
 
-async function createMockWebSocketMcpServer(): Promise<{ url: string; close: () => Promise<void> }> {
+async function createMockWebSocketMcpServer(): Promise<{
+  url: string
+  close: () => Promise<void>
+}> {
   const server = createServer()
   const websocketServer = new WebSocketServer({ server })
 
   websocketServer.on('connection', (socket) => {
     socket.on('message', (rawData) => {
-      const message = JSON.parse(rawData.toString('utf8')) as { id?: string | number; method?: string; params?: any }
+      const message = JSON.parse(rawData.toString('utf8')) as {
+        id?: string | number
+        method?: string
+        params?: any
+      }
       if (message.method === 'notifications/initialized') {
         return
       }
@@ -244,7 +264,9 @@ function buildMockMcpResult(method: string, params: any): unknown {
       }
     case 'tools/call':
       return {
-        content: [{ type: 'text', text: `Mock file contents for ${params?.arguments?.path ?? ''}` }],
+        content: [
+          { type: 'text', text: `Mock file contents for ${params?.arguments?.path ?? ''}` },
+        ],
         structuredContent: { path: params?.arguments?.path ?? '' },
         isError: false,
       }

@@ -76,8 +76,27 @@ interface ChatHistoryContextType {
   pinSession: (id: string) => void
   unpinSession: (id: string) => void
   duplicateSession: (id: string) => void
-  createArtifact: (sessionId: string, input: { title: string; kind: ArtifactKind; language?: string; content: string; sourceMessageId?: string }) => ArtifactDocument | null
-  updateArtifact: (sessionId: string, artifactId: string, input: { content: string; title?: string; language?: string; sourceMessageId?: string; changeSummary?: string }) => ArtifactDocument | null
+  createArtifact: (
+    sessionId: string,
+    input: {
+      title: string
+      kind: ArtifactKind
+      language?: string
+      content: string
+      sourceMessageId?: string
+    }
+  ) => ArtifactDocument | null
+  updateArtifact: (
+    sessionId: string,
+    artifactId: string,
+    input: {
+      content: string
+      title?: string
+      language?: string
+      sourceMessageId?: string
+      changeSummary?: string
+    }
+  ) => ArtifactDocument | null
   renameArtifact: (sessionId: string, artifactId: string, title: string) => void
   restoreArtifact: (sessionId: string, artifactId: string, versionId: string) => void
   deleteArtifact: (sessionId: string, artifactId: string) => void
@@ -101,10 +120,8 @@ interface ChatHistoryState {
   isLoading: boolean
 }
 
-const {
-  Provider: SelectableChatHistoryProvider,
-  useSelector: useChatHistoryStateSelector,
-} = createSelectableContext<ChatHistoryState>()
+const { Provider: SelectableChatHistoryProvider, useSelector: useChatHistoryStateSelector } =
+  createSelectableContext<ChatHistoryState>()
 
 const ChatHistoryContext = createContext<ChatHistoryContextType | undefined>(undefined)
 
@@ -137,7 +154,7 @@ function sessionToMetadata(session: ChatSession): ChatSessionMetadata {
     artifactCount: session.artifacts?.length ?? session.artifactSummaries?.length ?? 0,
     artifactSummaries: session.artifacts?.length
       ? session.artifacts.map(summarizeArtifact)
-      : session.artifactSummaries ?? undefined,
+      : (session.artifactSummaries ?? undefined),
     recentMessages,
   }
 }
@@ -230,15 +247,17 @@ function mergeLoadedSessionWithLiveShell(
   latestExisting?: ChatSession
 ): ChatSession {
   const artifacts = mergeArtifactDocuments(loaded.artifacts, latestExisting?.artifacts)
-  const artifactSummaries = artifacts.length > 0
-    ? artifacts.map(summarizeArtifact)
-    : latestExisting?.artifactSummaries ?? loaded.artifactSummaries
+  const artifactSummaries =
+    artifacts.length > 0
+      ? artifacts.map(summarizeArtifact)
+      : (latestExisting?.artifactSummaries ?? loaded.artifactSummaries)
 
   return normalizeSession({
     ...loaded,
     ...latestExisting,
     messages: loaded.messages ?? [],
-    messageCount: loaded.messageCount ?? loaded.messages?.length ?? latestExisting?.messageCount ?? 0,
+    messageCount:
+      loaded.messageCount ?? loaded.messages?.length ?? latestExisting?.messageCount ?? 0,
     artifacts,
     artifactSummaries,
   })
@@ -583,7 +602,12 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
       window.removeEventListener('focus', refreshIfNeeded)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
-  }, [hasExternalStoreChanges, hasUnsavedLocalSessionChanges, isInitialized, reloadFromExternalStore])
+  }, [
+    hasExternalStoreChanges,
+    hasUnsavedLocalSessionChanges,
+    isInitialized,
+    reloadFromExternalStore,
+  ])
 
   useEffect(() => {
     if (!isInitialized) return
@@ -641,7 +665,11 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
           : undefined
 
       if (existingReusable) {
-        const updatedExisting = { ...existingReusable, folderId: normalizedFolderId, updatedAt: now }
+        const updatedExisting = {
+          ...existingReusable,
+          folderId: normalizedFolderId,
+          updatedAt: now,
+        }
         markLoaded(updatedExisting.id)
         setSessions((prev) => [
           updatedExisting,
@@ -666,8 +694,7 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
       const newSession: ChatSession = normalizeSession({
         id: normalizedIdOverride || crypto.randomUUID(),
         title: normalizedFirstMessage
-          ? normalizedFirstMessage.slice(0, 30) +
-            (normalizedFirstMessage.length > 30 ? '...' : '')
+          ? normalizedFirstMessage.slice(0, 30) + (normalizedFirstMessage.length > 30 ? '...' : '')
           : 'New Chat',
         messages: initialMessages,
         createdAt: now,
@@ -698,7 +725,10 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     []
   )
 
-  const isSessionLoaded = useCallback((id: string): boolean => loadedSessionIdsRef.current.has(id), [])
+  const isSessionLoaded = useCallback(
+    (id: string): boolean => loadedSessionIdsRef.current.has(id),
+    []
+  )
 
   const switchSession = useCallback(
     (id: string) => {
@@ -766,7 +796,8 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
       markLoaded(sessionId)
       updateOneSession(sessionId, (session) => {
         const messages = [...session.messages, newMessage]
-        const firstUserMessage = (session.messageCount ?? session.messages.length) === 0 && message.role === 'user'
+        const firstUserMessage =
+          (session.messageCount ?? session.messages.length) === 0 && message.role === 'user'
         const title = firstUserMessage
           ? message.content.slice(0, 30) + (message.content.length > 30 ? '...' : '')
           : session.title
@@ -822,7 +853,9 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     (id: string) => {
       markSessionsDirty()
       loadedSessionIdsRef.current.delete(id)
-      recentLoadedSessionIdsRef.current = recentLoadedSessionIdsRef.current.filter((entry) => entry !== id)
+      recentLoadedSessionIdsRef.current = recentLoadedSessionIdsRef.current.filter(
+        (entry) => entry !== id
+      )
       setSessions((prev) => prev.filter((session) => session.id !== id))
       setCurrentSessionId((prev) => (prev === id ? null : prev))
       if (isElectron) {
@@ -844,8 +877,14 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     setCurrentSessionId(null)
     if (isElectron) {
       expectedSelfSessionStoreChangeRef.current = true
-      void Promise.all(ids.map((id) => window.ipcRenderer.invoke('chat-store:delete-session', id))).then(() =>
-        window.ipcRenderer.invoke('chat-store:save-index', { sessions: [], folders: foldersRef.current, version: INDEX_VERSION })
+      void Promise.all(
+        ids.map((id) => window.ipcRenderer.invoke('chat-store:delete-session', id))
+      ).then(() =>
+        window.ipcRenderer.invoke('chat-store:save-index', {
+          sessions: [],
+          folders: foldersRef.current,
+          version: INDEX_VERSION,
+        })
       )
     } else {
       localStorage.setItem(LOCAL_CHAT_HISTORY_KEY, '[]')
@@ -885,7 +924,8 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
   const duplicateSession = useCallback(
     (id: string) => {
       void (async () => {
-        const original = (await loadFullSession(id)) ?? sessionsRef.current.find((session) => session.id === id)
+        const original =
+          (await loadFullSession(id)) ?? sessionsRef.current.find((session) => session.id === id)
         if (!original) return
 
         const now = Date.now()
@@ -914,7 +954,16 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
   )
 
   const createArtifact = useCallback(
-    (sessionId: string, input: { title: string; kind: ArtifactKind; language?: string; content: string; sourceMessageId?: string }): ArtifactDocument | null => {
+    (
+      sessionId: string,
+      input: {
+        title: string
+        kind: ArtifactKind
+        language?: string
+        content: string
+        sourceMessageId?: string
+      }
+    ): ArtifactDocument | null => {
       const created = createArtifactDocument(input)
       updateOneSession(sessionId, (session) => {
         return withArtifactSummaries({
@@ -938,15 +987,31 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
   )
 
   const updateArtifact = useCallback(
-    (sessionId: string, artifactId: string, input: { content: string; title?: string; language?: string; sourceMessageId?: string; changeSummary?: string }): ArtifactDocument | null => {
+    (
+      sessionId: string,
+      artifactId: string,
+      input: {
+        content: string
+        title?: string
+        language?: string
+        sourceMessageId?: string
+        changeSummary?: string
+      }
+    ): ArtifactDocument | null => {
       const existingSession = sessionsRef.current.find((session) => session.id === sessionId)
-      const existingArtifact = normalizeArtifacts(existingSession?.artifacts).find((artifact) => artifact.id === artifactId)
-      const optimisticUpdated = existingArtifact ? updateArtifactDocument(existingArtifact, input) : null
+      const existingArtifact = normalizeArtifacts(existingSession?.artifacts).find(
+        (artifact) => artifact.id === artifactId
+      )
+      const optimisticUpdated = existingArtifact
+        ? updateArtifactDocument(existingArtifact, input)
+        : null
       updateOneSession(sessionId, (session) => {
         const artifacts = normalizeArtifacts(session.artifacts)
         const nextArtifacts = artifacts.map((artifact) => {
           if (artifact.id !== artifactId) return artifact
-          return artifact.id === optimisticUpdated?.id ? optimisticUpdated : updateArtifactDocument(artifact, input)
+          return artifact.id === optimisticUpdated?.id
+            ? optimisticUpdated
+            : updateArtifactDocument(artifact, input)
         })
         return nextArtifacts.some((artifact) => artifact.id === artifactId)
           ? withArtifactSummaries({ ...session, artifacts: nextArtifacts, updatedAt: Date.now() })
@@ -1000,7 +1065,9 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     (sessionId: string, artifactId: string) => {
       const updater = (session: ChatSession) => ({
         ...session,
-        artifacts: normalizeArtifacts(session.artifacts).filter((artifact) => artifact.id !== artifactId),
+        artifacts: normalizeArtifacts(session.artifacts).filter(
+          (artifact) => artifact.id !== artifactId
+        ),
         updatedAt: Date.now(),
       })
       updateOneSession(sessionId, (session) => withArtifactSummaries(updater(session)))
@@ -1025,7 +1092,11 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
 
   const removeFromFolder = useCallback(
     (sessionId: string) => {
-      updateOneSession(sessionId, (session) => ({ ...session, folderId: null, updatedAt: Date.now() }))
+      updateOneSession(sessionId, (session) => ({
+        ...session,
+        folderId: null,
+        updatedAt: Date.now(),
+      }))
     },
     [updateOneSession]
   )
@@ -1045,7 +1116,11 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     (sessionId: string, tag: string) => {
       updateOneSession(sessionId, (session) => {
         const currentTags = session.tags || []
-        return { ...session, tags: currentTags.filter((entry) => entry !== tag), updatedAt: Date.now() }
+        return {
+          ...session,
+          tags: currentTags.filter((entry) => entry !== tag),
+          updatedAt: Date.now(),
+        }
       })
     },
     [updateOneSession]
@@ -1107,7 +1182,9 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
 
   const renameFolder = useCallback(
     (id: string, name: string) => {
-      saveFoldersAndIndex(foldersRef.current.map((folder) => (folder.id === id ? { ...folder, name } : folder)))
+      saveFoldersAndIndex(
+        foldersRef.current.map((folder) => (folder.id === id ? { ...folder, name } : folder))
+      )
     },
     [saveFoldersAndIndex]
   )
@@ -1215,7 +1292,10 @@ export function useChatHistory() {
   const context = useContext(ChatHistoryContext)
   if (context === undefined) {
     if (import.meta.hot) {
-      warnOnceDuringHmr('ChatHistoryContext', '[ChatHistoryContext] Context undefined during HMR, using defaults')
+      warnOnceDuringHmr(
+        'ChatHistoryContext',
+        '[ChatHistoryContext] Context undefined during HMR, using defaults'
+      )
       const noop = () => {}
       return {
         sessions: [],
@@ -1314,7 +1394,7 @@ export function useChatHistoryActions() {
       isSessionLoaded: context.isSessionLoaded,
       pinSession: context.pinSession,
       unpinSession: context.unpinSession,
-       duplicateSession: context.duplicateSession,
+      duplicateSession: context.duplicateSession,
       createArtifact: context.createArtifact,
       updateArtifact: context.updateArtifact,
       renameArtifact: context.renameArtifact,

@@ -73,7 +73,9 @@ function formatRelativeNextRun(value?: number): string {
   }
 
   const days = Math.round(absMs / (24 * 60 * 60_000))
-  return deltaMs >= 0 ? `${tense} ${days} day${days === 1 ? '' : 's'}` : `${days} day${days === 1 ? '' : 's'} overdue`
+  return deltaMs >= 0
+    ? `${tense} ${days} day${days === 1 ? '' : 's'}`
+    : `${days} day${days === 1 ? '' : 's'} overdue`
 }
 
 function formatIntervalPreset(value: ScheduledTaskDefinition['intervalPreset']): string {
@@ -101,7 +103,8 @@ function latestRunForTask(runs: ScheduledTaskRun[], taskId: string): ScheduledTa
 
 function formatSchedule(task: ScheduledTaskDefinition): string {
   const schedule = task.schedule
-  if (!schedule || schedule.kind === 'interval') return `Every ${formatIntervalPreset(schedule?.intervalPreset ?? task.intervalPreset)}`
+  if (!schedule || schedule.kind === 'interval')
+    return `Every ${formatIntervalPreset(schedule?.intervalPreset ?? task.intervalPreset)}`
   if (schedule.kind === 'once') return 'One time'
   if (schedule.kind === 'daily') return `Daily at ${schedule.timeOfDay ?? '09:00'}`
   const days = schedule.weekdays?.length ? schedule.weekdays.join(', ') : 'selected days'
@@ -206,17 +209,20 @@ export default function RemindersView(): React.ReactElement {
         return tasks
     }
   }, [activeFilter, automations, lookouts, pausedTasks, reminders, tasks, tasksWithLogs])
-  const drawerTask = drawer ? tasks.find((task) => task.id === drawer.taskId) ?? null : null
+  const drawerTask = drawer ? (tasks.find((task) => task.id === drawer.taskId) ?? null) : null
   const drawerMode = drawer?.mode ?? 'logs'
   const drawerRuns = useMemo(
     () => (drawerTask ? runs.filter((run) => run.taskId === drawerTask.id) : []),
     [drawerTask, runs]
   )
 
-  const askAgent = useCallback((message: string) => {
-    setDraftText(message)
-    setDashboardView('chat')
-  }, [setDraftText, setDashboardView])
+  const askAgent = useCallback(
+    (message: string) => {
+      setDraftText(message)
+      setDashboardView('chat')
+    },
+    [setDraftText, setDashboardView]
+  )
 
   const toggleEnabled = async (task: ScheduledTaskDefinition) => {
     await window.scheduledTasks.update(task.id, { enabled: !task.enabled })
@@ -327,7 +333,11 @@ export default function RemindersView(): React.ReactElement {
                 <MoreVertical size={18} strokeWidth={2.25} />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" sideOffset={6} className="zura-menu-surface--compact w-[155px]">
+            <DropdownMenuContent
+              align="end"
+              sideOffset={6}
+              className="zura-menu-surface--compact w-[155px]"
+            >
               <DropdownMenuItem
                 onSelect={() => void runTaskNow(task.id)}
                 className="zura-menu-item--compact"
@@ -445,12 +455,17 @@ export default function RemindersView(): React.ReactElement {
 
   return (
     <section className="reminders-view" aria-labelledby="reminders-title">
-      <div className={`reminders-view__stage ${drawerTask ? 'reminders-view__stage--drawer-open' : ''}`}>
+      <div
+        className={`reminders-view__stage ${drawerTask ? 'reminders-view__stage--drawer-open' : ''}`}
+      >
         <main className="reminders-view__panel">
           <header className="reminders-view__panel-header">
             <div>
               <h2 id="reminders-title">Reminders & Lookouts</h2>
-              <p>Scheduled work, monitored pages, AI automations, local logs, and agent-managed updates.</p>
+              <p>
+                Scheduled work, monitored pages, AI automations, local logs, and agent-managed
+                updates.
+              </p>
             </div>
             <Button
               variant="default"
@@ -463,31 +478,39 @@ export default function RemindersView(): React.ReactElement {
             </Button>
           </header>
 
-          {error && <div className="reminders-view__error"><AlertCircle size={15} /> {error}</div>}
+          {error && (
+            <div className="reminders-view__error">
+              <AlertCircle size={15} /> {error}
+            </div>
+          )}
 
           {loading ? (
             <div className="reminders-view__loading">
               <Loader2 className="reminders-view__spin" size={18} /> Loading scheduled items
             </div>
           ) : (
-            <div className="reminders-view__content">
-              {renderCombinedGroup()}
-            </div>
+            <div className="reminders-view__content">{renderCombinedGroup()}</div>
           )}
         </main>
 
-        {drawerTask && (
-          <div className="reminders-view__drawer-divider" aria-hidden="true" />
-        )}
+        {drawerTask && <div className="reminders-view__drawer-divider" aria-hidden="true" />}
 
         {drawerTask && (
-          <aside className="reminders-view__drawer" aria-label={`${drawerMode === 'logs' ? 'Logs' : 'Details'} for ${drawerTask.title}`}>
+          <aside
+            className="reminders-view__drawer"
+            aria-label={`${drawerMode === 'logs' ? 'Logs' : 'Details'} for ${drawerTask.title}`}
+          >
             <div className="reminders-view__drawer-header">
               <div>
                 <span>{drawerMode === 'logs' ? 'Run history' : 'Task details'}</span>
                 <h3>{drawerTask.title}</h3>
               </div>
-              <button type="button" className="reminders-view__icon-button" onClick={() => setDrawer(null)} aria-label="Close drawer">
+              <button
+                type="button"
+                className="reminders-view__icon-button"
+                onClick={() => setDrawer(null)}
+                aria-label="Close drawer"
+              >
                 <X size={15} />
               </button>
             </div>
@@ -529,21 +552,25 @@ export default function RemindersView(): React.ReactElement {
                       {renderDetailField('Mode', drawerTask.automationMode || 'prompt')}
                       {renderDetailField('Approval', drawerTask.approvalMode || 'read_only')}
                       {renderDetailField('Notify', drawerTask.notifyPolicy || 'every_run')}
-                      {renderDetailField('Outputs', drawerTask.outputDestinations?.join(', ') || 'log')}
+                      {renderDetailField(
+                        'Outputs',
+                        drawerTask.outputDestinations?.join(', ') || 'log'
+                      )}
                       {renderDetailField('Tools', drawerTask.allowedTools?.join(', ') || 'None')}
                     </>
                   )}
                   {renderDetailField('Instructions', drawerTask.instructions || 'None')}
-                  {drawerTask.type === 'ai_automation' && renderDetailField(
-                    'Templates',
-                    <div className="reminders-view__prompt-chips">
-                      {AUTOMATION_TEMPLATES.slice(0, 4).map((prompt) => (
-                        <button key={prompt} type="button" onClick={() => askAgent(prompt)}>
-                          {prompt.replace(/^Create an AI automation (?:that |for )?/, '')}
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                  {drawerTask.type === 'ai_automation' &&
+                    renderDetailField(
+                      'Templates',
+                      <div className="reminders-view__prompt-chips">
+                        {AUTOMATION_TEMPLATES.slice(0, 4).map((prompt) => (
+                          <button key={prompt} type="button" onClick={() => askAgent(prompt)}>
+                            {prompt.replace(/^Create an AI automation (?:that |for )?/, '')}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                 </FieldGroup>
                 <Button
                   type="button"
@@ -571,12 +598,22 @@ export default function RemindersView(): React.ReactElement {
                           >
                             {STATUS_LABELS[run.status]}
                           </Badge>
-                          <time dateTime={new Date(run.startedAt).toISOString()}>{formatDate(run.startedAt)}</time>
+                          <time dateTime={new Date(run.startedAt).toISOString()}>
+                            {formatDate(run.startedAt)}
+                          </time>
                         </div>
-                        {run.aiSummary && <p className="reminders-view__summary">{run.aiSummary}</p>}
-                        {!run.aiSummary && run.diffSummary && <p className="reminders-view__summary">{run.diffSummary}</p>}
-                        {!run.aiSummary && !run.diffSummary && run.outputText && <p className="reminders-view__summary">{run.outputText}</p>}
-                        {run.changeVerdict?.summary && <p className="reminders-view__summary">{run.changeVerdict.summary}</p>}
+                        {run.aiSummary && (
+                          <p className="reminders-view__summary">{run.aiSummary}</p>
+                        )}
+                        {!run.aiSummary && run.diffSummary && (
+                          <p className="reminders-view__summary">{run.diffSummary}</p>
+                        )}
+                        {!run.aiSummary && !run.diffSummary && run.outputText && (
+                          <p className="reminders-view__summary">{run.outputText}</p>
+                        )}
+                        {run.changeVerdict?.summary && (
+                          <p className="reminders-view__summary">{run.changeVerdict.summary}</p>
+                        )}
                         {run.model && <p className="reminders-view__summary">Model: {run.model}</p>}
                         {run.error && <p className="reminders-view__run-error">{run.error}</p>}
                         {run.logs.length > 0 && (

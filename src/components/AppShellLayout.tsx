@@ -58,7 +58,14 @@ export default function AppShellLayout() {
     return () => {
       window.ipcRenderer.off('app:new-chat', listener)
     }
-  }, [clearCurrentSession, dashboardView, hasUnsavedSettings, navigate, setDashboardView, showToast])
+  }, [
+    clearCurrentSession,
+    dashboardView,
+    hasUnsavedSettings,
+    navigate,
+    setDashboardView,
+    showToast,
+  ])
 
   return (
     <AppContextMenu>
@@ -68,7 +75,9 @@ export default function AppShellLayout() {
           isWindows ? 'app-frame--windows' : null,
           isMacOS ? 'app-frame--macos' : null,
           isMaximized ? 'app-frame--maximized' : null,
-        ].filter(Boolean).join(' ')}
+        ]
+          .filter(Boolean)
+          .join(' ')}
       >
         {isMacOS && <div className="app-macos-drag-region" aria-hidden="true" />}
         {isMacOS && (

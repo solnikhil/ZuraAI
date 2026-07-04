@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { executeTool } from './executor'
 
-const testWindow = window as Window & typeof globalThis & { mcp: { executeTool: ReturnType<typeof vi.fn> } }
+const testWindow = window as Window &
+  typeof globalThis & { mcp: { executeTool: ReturnType<typeof vi.fn> } }
 
 describe('executeTool MCP routing', () => {
   beforeEach(() => {

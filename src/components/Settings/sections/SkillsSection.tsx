@@ -20,10 +20,7 @@ import {
 } from '@/skills'
 import { isMacOSRuntime } from '@/utils/platform'
 import { ExtensionDetailSection } from './ExtensionDetailSection'
-import {
-  getCatalogExtension,
-  type CatalogExtensionId,
-} from './extensionCatalog'
+import { getCatalogExtension, type CatalogExtensionId } from './extensionCatalog'
 
 export interface SkillsSectionProps {
   skills: SkillsSettings
@@ -36,10 +33,7 @@ export interface SkillsSectionProps {
   hasUnsavedChanges?: boolean
   activeExtension?: CatalogExtensionId | null
   activeExtensionPanel?: 'notifications'
-  onActiveExtensionChange: (
-    extension: CatalogExtensionId | null,
-    panel?: 'notifications'
-  ) => void
+  onActiveExtensionChange: (extension: CatalogExtensionId | null, panel?: 'notifications') => void
   onChange: (changes: {
     skills?: SkillsSettings
     codeExecutionAutoApprove?: boolean
@@ -153,9 +147,7 @@ export function SkillsSection({
           onChange={onChange}
         />
 
-        {!catalogEntry ? (
-          <div className="page-subtitle">This extension is unavailable.</div>
-        ) : null}
+        {!catalogEntry ? <div className="page-subtitle">This extension is unavailable.</div> : null}
       </div>
     )
   }
@@ -165,7 +157,8 @@ export function SkillsSection({
       <div className="page-header">
         <h2 className="page-title">Extensions</h2>
         <div className="page-subtitle">
-          Enable built-in extensions that let the assistant search, create artifacts, run tools, and more.
+          Enable built-in extensions that let the assistant search, create artifacts, run tools, and
+          more.
         </div>
       </div>
 
@@ -213,12 +206,23 @@ function ExtensionCatalogGroup({
       <div className="skills-catalog-group__header">
         <h3>{title}</h3>
       </div>
-      <div className={`skills-catalog-group__grid ${featured ? 'skills-catalog-group__grid--featured' : ''}`}>
+      <div
+        className={`skills-catalog-group__grid ${featured ? 'skills-catalog-group__grid--featured' : ''}`}
+      >
         {rows.map((row) => {
           const enabled = isEnabled(row.id)
-          const logoSize = ['web_research', 'code_execution', 'terminal', 'computer_use', 'command_center', 'chart_generation'].includes(row.id)
+          const logoSize = [
+            'web_research',
+            'code_execution',
+            'terminal',
+            'computer_use',
+            'command_center',
+            'chart_generation',
+          ].includes(row.id)
             ? 40
-            : featured ? 22 : 18
+            : featured
+              ? 22
+              : 18
 
           return (
             <div key={row.id} className="skills-catalog-row">
@@ -228,7 +232,9 @@ function ExtensionCatalogGroup({
                 onClick={() => onOpen(row.id)}
                 aria-label={`Open ${row.name} settings`}
               >
-                <span className={`skills-catalog-row__logo ${enabled ? 'skills-catalog-row__logo--enabled' : ''}`}>
+                <span
+                  className={`skills-catalog-row__logo ${enabled ? 'skills-catalog-row__logo--enabled' : ''}`}
+                >
                   <SkillLogo skill={row.id} size={logoSize} />
                 </span>
                 <span className="skills-catalog-row__content">
@@ -259,7 +265,10 @@ function ExtensionCatalogGroup({
                       <MoreHorizontal size={15} />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="settings-menu-surface zura-menu-surface--compact">
+                  <DropdownMenuContent
+                    align="end"
+                    className="settings-menu-surface zura-menu-surface--compact"
+                  >
                     <DropdownMenuItem
                       className="zura-menu-item--compact"
                       onClick={() => onOpen(row.id)}

@@ -111,8 +111,7 @@ export function UserMessageBubble({
                     display: 'block',
                     width: '100%',
                     height: 'auto',
-                    background:
-                      'color-mix(in srgb, var(--theme-background) 84%, black 16%)',
+                    background: 'color-mix(in srgb, var(--theme-background) 84%, black 16%)',
                   }}
                 />
               </div>

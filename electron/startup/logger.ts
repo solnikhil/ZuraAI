@@ -73,7 +73,7 @@ export interface TimingMetrics {
 export function createLogger(tag = 'zura', level?: LogLevel) {
   const isDev = !app?.isPackaged
   const isDebugEnv = process.env.ZURA_DEBUG === '1'
-  const threshold = LEVEL_NUM[level ?? ((isDev || isDebugEnv) ? 'debug' : 'info')]
+  const threshold = LEVEL_NUM[level ?? (isDev || isDebugEnv ? 'debug' : 'info')]
   const phases = new Map<string, PhaseRecord>()
 
   function format(type: LogType, msg: string): void {

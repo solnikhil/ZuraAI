@@ -7,7 +7,9 @@ import { describe, expect, it } from 'vitest'
 import type { McpJsonRpcMessage } from '../../../src/mcp/types'
 import { StdioMcpTransport } from './stdio'
 
-const MOCK_STDIO_SERVER_PATH = fileURLToPath(new URL('../testUtils/mockStdioServer.cjs', import.meta.url))
+const MOCK_STDIO_SERVER_PATH = fileURLToPath(
+  new URL('../testUtils/mockStdioServer.cjs', import.meta.url)
+)
 
 describe('StdioMcpTransport', () => {
   it('spawns a managed MCP stdio process and parses stdout messages', async () => {

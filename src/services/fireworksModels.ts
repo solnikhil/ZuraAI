@@ -29,7 +29,9 @@ const FIREWORKS_MODEL_CATALOG_URL =
   'https://api.fireworks.ai/v1/accounts/fireworks/models'
 
 function coerceStringArray(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : []
+  return Array.isArray(value)
+    ? value.filter((entry): entry is string => typeof entry === 'string')
+    : []
 }
 
 function coerceContextLength(model: FireworksModel): number | undefined {
@@ -103,10 +105,14 @@ export async function fetchFireworksModels(apiKey: string): Promise<FireworksMod
 
 export function mapFireworksModelToConfiguredModel(apiModel: FireworksModel): ConfiguredModel {
   const inputModalities = coerceStringArray(apiModel.inputModalities ?? apiModel.input_modalities)
-  const outputModalities = coerceStringArray(apiModel.outputModalities ?? apiModel.output_modalities)
+  const outputModalities = coerceStringArray(
+    apiModel.outputModalities ?? apiModel.output_modalities
+  )
 
   const supportsVision =
-    Boolean(apiModel.supportsVision) || inputModalities.includes('image') || inputModalities.includes('video')
+    Boolean(apiModel.supportsVision) ||
+    inputModalities.includes('image') ||
+    inputModalities.includes('video')
   const supportsImageGeneration =
     Boolean(apiModel.supportsImageGeneration) || outputModalities.includes('image')
   const supportsVideoRecognition =
@@ -151,8 +157,7 @@ export function searchFireworksModels(models: FireworksModel[], query: string): 
     )
 
     return (
-      haystack.includes(normalizedQuery) ||
-      queryTokens.every((token) => haystack.includes(token))
+      haystack.includes(normalizedQuery) || queryTokens.every((token) => haystack.includes(token))
     )
   })
 }

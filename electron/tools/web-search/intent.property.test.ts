@@ -24,7 +24,7 @@ const arbValidHttpUrl: fc.Arbitrary<string> = fc
     host: fc
       .tuple(
         fc.stringMatching(/^[a-z][a-z0-9]{0,9}$/),
-        fc.constantFrom('.com', '.org', '.net', '.io', '.dev'),
+        fc.constantFrom('.com', '.org', '.net', '.io', '.dev')
       )
       .map(([sub, tld]) => sub + tld),
     path: fc
@@ -50,7 +50,7 @@ const arbNonUrlString: fc.Arbitrary<string> = fc.oneof(
   fc.constant('http://'),
   fc.constant('https://'),
   fc.constant('http://localhost'),
-  fc.constant('https://localhost/path'),
+  fc.constant('https://localhost/path')
 )
 
 describe('Intent classification — determinism property', () => {
@@ -68,7 +68,7 @@ describe('Intent classification — determinism property', () => {
 
         expect(result1).toStrictEqual(result2)
       }),
-      { numRuns: 500 },
+      { numRuns: 500 }
     )
   })
 
@@ -87,7 +87,7 @@ describe('Intent classification — determinism property', () => {
         const allTokens = query.split(/\s+/g).filter(Boolean)
         const allCandidates = [...(urls || []), ...allTokens]
         const hasValidUrl = allCandidates.some(
-          (candidate) => typeof candidate === 'string' && normalizeUrlCandidate(candidate) !== null,
+          (candidate) => typeof candidate === 'string' && normalizeUrlCandidate(candidate) !== null
         )
 
         if (result.intent === 'query_search') {
@@ -98,7 +98,7 @@ describe('Intent classification — determinism property', () => {
           expect(hasValidUrl).toBe(true)
         }
       }),
-      { numRuns: 500 },
+      { numRuns: 500 }
     )
   })
 
@@ -123,9 +123,9 @@ describe('Intent classification — determinism property', () => {
 
           expect(result.intent).not.toBe('query_search')
           expect(result.urls.length).toBeGreaterThanOrEqual(1)
-        },
+        }
       ),
-      { numRuns: 300 },
+      { numRuns: 300 }
     )
   })
 
@@ -137,15 +137,11 @@ describe('Intent classification — determinism property', () => {
    */
   it('with no valid http/https URL, intent is always query_search', () => {
     fc.assert(
-      fc.property(
-        arbNonUrlString,
-        fc.array(arbNonUrlString, { maxLength: 3 }),
-        (query, urls) => {
-          const result = classifyWebInput(query, urls)
-          expect(result.intent).toBe('query_search')
-        },
-      ),
-      { numRuns: 300 },
+      fc.property(arbNonUrlString, fc.array(arbNonUrlString, { maxLength: 3 }), (query, urls) => {
+        const result = classifyWebInput(query, urls)
+        expect(result.intent).toBe('query_search')
+      }),
+      { numRuns: 300 }
     )
   })
 })

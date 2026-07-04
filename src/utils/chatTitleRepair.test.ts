@@ -48,8 +48,8 @@ describe('chatTitleRepair', () => {
   })
 
   it('truncates repaired titles the same way new chats do', () => {
-    expect(makeFirstMessageFallbackTitle('Please help me debug a very annoying renderer issue')).toBe(
-      'Please help me debug a very an...'
-    )
+    expect(
+      makeFirstMessageFallbackTitle('Please help me debug a very annoying renderer issue')
+    ).toBe('Please help me debug a very an...')
   })
 })

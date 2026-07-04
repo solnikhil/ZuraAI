@@ -4,7 +4,11 @@ import { useSettings } from '../../contexts/SettingsContext'
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
 import { useAppShell } from '../../contexts/AppShellContext'
 import { useMcp } from '../../mcp/McpContext'
-import { checkOllamaStatus, listOllamaModels, enrichOllamaModelsWithContext } from '../../services/ollama'
+import {
+  checkOllamaStatus,
+  listOllamaModels,
+  enrichOllamaModelsWithContext,
+} from '../../services/ollama'
 import { SECURE_API_KEY_NAMES, saveApiKeyToSecureStorage } from '../../utils/secureApiKeys'
 import { UsageSection } from './sections/UsageSection'
 import { McpSection } from './sections/McpSection'
@@ -28,15 +32,18 @@ interface SettingsProps {
 }
 
 export default function Settings({
-  activeSection = 'providers', onUnsavedChange, showWarning = false
+  activeSection = 'providers',
+  onUnsavedChange,
+  showWarning = false,
 }: SettingsProps): React.ReactElement {
   const { settings, updateSettings } = useSettings()
-  const { discardDraft: discardMcpDraft, hasDraftChanges: hasMcpChanges, saveDraft: saveMcpDraft } = useMcp()
-  const { sessions } = useChatHistory()
   const {
-    settingsSectionParams,
-    setSettingsSectionParams,
-  } = useAppShell()
+    discardDraft: discardMcpDraft,
+    hasDraftChanges: hasMcpChanges,
+    saveDraft: saveMcpDraft,
+  } = useMcp()
+  const { sessions } = useChatHistory()
+  const { settingsSectionParams, setSettingsSectionParams } = useAppShell()
 
   const [pendingSettings, setPendingSettings] = useState(settings)
   const lastSyncedSettingsRef = useRef(settings)
@@ -65,7 +72,10 @@ export default function Settings({
   const usageSessionSignature = useMemo(
     () =>
       sessions
-        .map((session) => `${session.id}:${session.updatedAt}:${session.messageCount ?? session.messages.length}`)
+        .map(
+          (session) =>
+            `${session.id}:${session.updatedAt}:${session.messageCount ?? session.messages.length}`
+        )
         .join('|'),
     [sessions]
   )
@@ -98,7 +108,10 @@ export default function Settings({
     [usageStoredSessions, sessions]
   )
 
-  const usageStats = useMemo(() => computeUsageStats(usageSessions, usageModelCatalog), [usageSessions, usageModelCatalog])
+  const usageStats = useMemo(
+    () => computeUsageStats(usageSessions, usageModelCatalog),
+    [usageSessions, usageModelCatalog]
+  )
 
   const handleChange = (changes: Partial<typeof settings>) =>
     setPendingSettings((prev) => {
@@ -119,9 +132,13 @@ export default function Settings({
         if (!touchedSecureKeysRef.current.has(key)) continue
         const current = pendingSettings[key]
         const success = await saveApiKeyToSecureStorage(key, current)
-        if (!success) { failedKeys.push(key); allSaved = false }
+        if (!success) {
+          failedKeys.push(key)
+          allSaved = false
+        }
       }
-      if (failedKeys.length > 0) console.warn('[Settings] Failed to save some API keys:', failedKeys.join(', '))
+      if (failedKeys.length > 0)
+        console.warn('[Settings] Failed to save some API keys:', failedKeys.join(', '))
     } catch (error) {
       console.error('[Settings] Failed to save API keys to secure storage:', error)
       allSaved = false
@@ -162,18 +179,20 @@ export default function Settings({
         await saveMcpDraft()
       }
 
-if (!hasSettingsChanges && !hasMcpChanges) {
-         setStatusMessage('No changes to save.')
-       } else if (!allSaved && failedKeys.length > 0) {
-         console.warn('[Settings] Some API keys may not have been saved')
-         setStatusMessage('Saved. Some API keys could not be stored securely.')
-       } else {
-         setStatusMessage('Settings saved.')
-       }
+      if (!hasSettingsChanges && !hasMcpChanges) {
+        setStatusMessage('No changes to save.')
+      } else if (!allSaved && failedKeys.length > 0) {
+        console.warn('[Settings] Some API keys may not have been saved')
+        setStatusMessage('Saved. Some API keys could not be stored securely.')
+      } else {
+        setStatusMessage('Settings saved.')
+      }
     } catch (error) {
       console.error('[Settings] Failed to save changes:', error)
       setStatusMessage(
-        error instanceof Error ? `Failed to save changes: ${error.message}` : 'Failed to save changes.'
+        error instanceof Error
+          ? `Failed to save changes: ${error.message}`
+          : 'Failed to save changes.'
       )
     } finally {
       setIsSaving(false)
@@ -194,10 +213,13 @@ if (!hasSettingsChanges && !hasMcpChanges) {
     setStatusMessage('Changes discarded.')
   }
 
-  const ollamaModelsMatchUserIntent = (a: typeof settings.ollamaModels, b: typeof settings.ollamaModels) => {
-    const aMap = new Map((a || []).map(m => [m.code, m.enabled]))
-    const bMap = new Map((b || []).map(m => [m.code, m.enabled]))
-    const commonCodes = [...aMap.keys()].filter(c => bMap.has(c))
+  const ollamaModelsMatchUserIntent = (
+    a: typeof settings.ollamaModels,
+    b: typeof settings.ollamaModels
+  ) => {
+    const aMap = new Map((a || []).map((m) => [m.code, m.enabled]))
+    const bMap = new Map((b || []).map((m) => [m.code, m.enabled]))
+    const commonCodes = [...aMap.keys()].filter((c) => bMap.has(c))
     for (const code of commonCodes) {
       if (aMap.get(code) !== bMap.get(code)) return false
     }
@@ -207,20 +229,28 @@ if (!hasSettingsChanges && !hasMcpChanges) {
     const { ollamaModels: _om, ...rest } = s
     return rest
   }
-  const baseChanged = JSON.stringify(withoutOllamaModels(pendingSettings)) !== JSON.stringify(withoutOllamaModels(settings))
-  const ollamaEnabledChanged = !ollamaModelsMatchUserIntent(pendingSettings.ollamaModels, settings.ollamaModels)
+  const baseChanged =
+    JSON.stringify(withoutOllamaModels(pendingSettings)) !==
+    JSON.stringify(withoutOllamaModels(settings))
+  const ollamaEnabledChanged = !ollamaModelsMatchUserIntent(
+    pendingSettings.ollamaModels,
+    settings.ollamaModels
+  )
   const hasSettingsChanges = baseChanged || ollamaEnabledChanged
   const hasChanges = hasSettingsChanges || hasMcpChanges
 
   useEffect(() => {
     setPendingSettings((previousDraft) => {
-      const hadLocalDraftChanges = JSON.stringify(previousDraft) !== JSON.stringify(lastSyncedSettingsRef.current)
+      const hadLocalDraftChanges =
+        JSON.stringify(previousDraft) !== JSON.stringify(lastSyncedSettingsRef.current)
       lastSyncedSettingsRef.current = settings
       return hadLocalDraftChanges ? previousDraft : settings
     })
   }, [settings])
 
-  useEffect(() => { onUnsavedChange?.(hasChanges) }, [hasChanges, onUnsavedChange])
+  useEffect(() => {
+    onUnsavedChange?.(hasChanges)
+  }, [hasChanges, onUnsavedChange])
 
   useEffect(() => {
     if (!hasChanges) return
@@ -245,17 +275,19 @@ if (!hasSettingsChanges && !hasMcpChanges) {
     if (connected) {
       const models = await listOllamaModels(pendingSettings.ollamaUrl)
       if (models.length > 0) {
-        const formatted = models.map(m => ({ code: m.name, displayName: `${m.name} (${m.details.parameter_size})` }))
+        const formatted = models.map((m) => ({
+          code: m.name,
+          displayName: `${m.name} (${m.details.parameter_size})`,
+        }))
         const enriched = await enrichOllamaModelsWithContext(pendingSettings.ollamaUrl, formatted)
         handleChange({ ollamaModels: enriched })
       }
     }
   }
 
-  useEffect(
-    () => { if (pendingSettings.modelProvider === 'ollama') void checkOllama() },
-    [pendingSettings.modelProvider, pendingSettings.ollamaUrl]
-  )
+  useEffect(() => {
+    if (pendingSettings.modelProvider === 'ollama') void checkOllama()
+  }, [pendingSettings.modelProvider, pendingSettings.ollamaUrl])
 
   return (
     <div className="settings-container">
@@ -266,9 +298,7 @@ if (!hasSettingsChanges && !hasMcpChanges) {
       >
         <div className="settings-shell">
           <div className="settings-shell__content">
-            {normalizedActiveSection === 'usage' && (
-              <UsageSection stats={usageStats} />
-            )}
+            {normalizedActiveSection === 'usage' && <UsageSection stats={usageStats} />}
 
             {normalizedActiveSection === 'providers' && (
               <ProviderHubSection
@@ -329,10 +359,12 @@ if (!hasSettingsChanges && !hasMcpChanges) {
                   }
                   clearParams()
                 }}
-                onChange={(changes) => handleChange({
-                  ...changes,
-                  ...(changes.skills ? { extensions: changes.skills } : {}),
-                })}
+                onChange={(changes) =>
+                  handleChange({
+                    ...changes,
+                    ...(changes.skills ? { extensions: changes.skills } : {}),
+                  })
+                }
               />
             )}
 
@@ -364,15 +396,20 @@ if (!hasSettingsChanges && !hasMcpChanges) {
                 onChange={(changes) => handleChange(changes)}
               />
             )}
-
           </div>
         </div>
       </ScrollArea>
 
       {hasChanges && (
-        <div className={`settings-savebar ${showWarning ? 'settings-savebar--warning' : ''}`} role="region" aria-label="Unsaved settings changes">
+        <div
+          className={`settings-savebar ${showWarning ? 'settings-savebar--warning' : ''}`}
+          role="region"
+          aria-label="Unsaved settings changes"
+        >
           <div className="settings-savebar__text">
-            {showWarning ? 'Save or discard your changes before leaving.' : 'You have unsaved changes.'}
+            {showWarning
+              ? 'Save or discard your changes before leaving.'
+              : 'You have unsaved changes.'}
           </div>
 
           <div className="settings-savebar__actions">

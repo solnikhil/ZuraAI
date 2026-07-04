@@ -1,8 +1,4 @@
-import type {
-  ReasoningDetail,
-  ServiceAssistantMessage,
-  ToolDefinition,
-} from '../services/types'
+import type { ReasoningDetail, ServiceAssistantMessage, ToolDefinition } from '../services/types'
 import type { FileAttachment } from '../chat/types'
 import type { ActiveProviderId } from './providerTypes'
 

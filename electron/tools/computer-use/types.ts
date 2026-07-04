@@ -1,4 +1,10 @@
-export type ComputerActionType = 'screenshot' | 'click' | 'type' | 'key' | 'scroll' | 'cursor_position'
+export type ComputerActionType =
+  | 'screenshot'
+  | 'click'
+  | 'type'
+  | 'key'
+  | 'scroll'
+  | 'cursor_position'
 
 export interface ScreenshotArgs {
   display_id?: string

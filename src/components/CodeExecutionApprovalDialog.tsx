@@ -103,31 +103,31 @@ export function CodeExecutionApprovalDialog({
     return unsubscribe
   }, [])
 
-  const request = useMemo(
-    () => {
-      resolvedRef.current = false
-      const sorted = [...pending].sort((a, b) => a.requestedAt - b.requestedAt)
-      return sorted[0] ?? null
-    },
-    [pending]
-  )
+  const request = useMemo(() => {
+    resolvedRef.current = false
+    const sorted = [...pending].sort((a, b) => a.requestedAt - b.requestedAt)
+    return sorted[0] ?? null
+  }, [pending])
 
-  const handleResolve = useCallback(async (approved: boolean) => {
-    if (!request || !window.codeExecution?.resolveApproval || resolvedRef.current) return
-    resolvedRef.current = true
-    setIsResolving(true)
-    try {
-      await window.codeExecution.resolveApproval(request.id, approved)
-      showToast(
-        approved ? 'Code execution approved.' : 'Code execution rejected.',
-        approved ? 'success' : 'warning'
-      )
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : String(error), 'error')
-    } finally {
-      setIsResolving(false)
-    }
-  }, [request, showToast])
+  const handleResolve = useCallback(
+    async (approved: boolean) => {
+      if (!request || !window.codeExecution?.resolveApproval || resolvedRef.current) return
+      resolvedRef.current = true
+      setIsResolving(true)
+      try {
+        await window.codeExecution.resolveApproval(request.id, approved)
+        showToast(
+          approved ? 'Code execution approved.' : 'Code execution rejected.',
+          approved ? 'success' : 'warning'
+        )
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : String(error), 'error')
+      } finally {
+        setIsResolving(false)
+      }
+    },
+    [request, showToast]
+  )
 
   if (!request) return null
 
@@ -137,7 +137,10 @@ export function CodeExecutionApprovalDialog({
   const syntaxLang = request.language === 'python' ? 'python' : 'javascript'
 
   return (
-    <AlertDialog open onOpenChange={(open) => (!open && !isResolving ? void handleResolve(false) : undefined)}>
+    <AlertDialog
+      open
+      onOpenChange={(open) => (!open && !isResolving ? void handleResolve(false) : undefined)}
+    >
       <AlertDialogContent className="sm:max-w-2xl">
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2">
@@ -177,9 +180,7 @@ export function CodeExecutionApprovalDialog({
         </div>
 
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={isResolving}>
-            Reject
-          </AlertDialogCancel>
+          <AlertDialogCancel disabled={isResolving}>Reject</AlertDialogCancel>
           <AlertDialogAction disabled={isResolving} onClick={() => void handleResolve(true)}>
             Approve
           </AlertDialogAction>

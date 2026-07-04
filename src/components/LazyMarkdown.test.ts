@@ -2,10 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import React from 'react'
 
-import {
-  findMatchingWebSource,
-  normalizeHighlightLanguage,
-} from './LazyMarkdown'
+import { findMatchingWebSource, normalizeHighlightLanguage } from './LazyMarkdown'
 import WebSourceCitation from './Dashboard/ChatArea/WebSourceCitation'
 
 describe('findMatchingWebSource', () => {
@@ -25,10 +22,18 @@ describe('findMatchingWebSource', () => {
 
   it('does not treat ordinary markdown links as citations when no web source exists', () => {
     const webSources = new Map([
-      ['https://developers.cloudflare.com/mcp', { title: 'Cloudflare Docs', url: 'https://developers.cloudflare.com/mcp' }],
+      [
+        'https://developers.cloudflare.com/mcp',
+        { title: 'Cloudflare Docs', url: 'https://developers.cloudflare.com/mcp' },
+      ],
     ])
 
-    expect(findMatchingWebSource('https://www.npmjs.com/package/@modelcontextprotocol/inspector', webSources)).toBeUndefined()
+    expect(
+      findMatchingWebSource(
+        'https://www.npmjs.com/package/@modelcontextprotocol/inspector',
+        webSources
+      )
+    ).toBeUndefined()
   })
 })
 

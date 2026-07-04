@@ -14,10 +14,7 @@ import type {
   McpToolExecutionResult,
 } from '../mcp/types'
 import type { McpServerInputPayload } from '../mcp/draft'
-import type {
-  McpAgentAddApproveResult,
-  McpAgentAddReview,
-} from '../mcp/addRequestTypes'
+import type { McpAgentAddApproveResult, McpAgentAddReview } from '../mcp/addRequestTypes'
 import type { ToolResult } from '../tools/types'
 import type {
   AgentSkillActivationResult,
@@ -535,7 +532,12 @@ export type ScheduledTaskLogStatus = MonitorUrlResultStatus | 'completed'
 export type ScheduledTaskType = 'web_lookout' | 'reminder' | 'ai_automation'
 export type ScheduledAutomationMode = 'prompt' | 'watch' | 'agent'
 export type ScheduledAutomationApprovalMode = 'read_only' | 'ask_each_run' | 'trusted_repeat'
-export type ScheduledAutomationOutputDestination = 'log' | 'notification' | 'email' | 'chat' | 'artifact'
+export type ScheduledAutomationOutputDestination =
+  | 'log'
+  | 'notification'
+  | 'email'
+  | 'chat'
+  | 'artifact'
 export type ScheduledAutomationNotifyPolicy = 'every_run' | 'meaningful_change' | 'error_only'
 
 export interface ScheduledAutomationSchedule {
@@ -650,7 +652,9 @@ export interface ScheduledTaskRun {
     changed: boolean
     summary?: string
   }
-  deliveryStatus?: Partial<Record<ScheduledAutomationOutputDestination, 'sent' | 'skipped' | 'error'>>
+  deliveryStatus?: Partial<
+    Record<ScheduledAutomationOutputDestination, 'sent' | 'skipped' | 'error'>
+  >
   error?: string
 }
 
@@ -704,7 +708,9 @@ export interface ScheduledAutomationRunResponse {
     changed: boolean
     summary?: string
   }
-  deliveryStatus?: Partial<Record<ScheduledAutomationOutputDestination, 'sent' | 'skipped' | 'error'>>
+  deliveryStatus?: Partial<
+    Record<ScheduledAutomationOutputDestination, 'sent' | 'skipped' | 'error'>
+  >
   error?: string
 }
 

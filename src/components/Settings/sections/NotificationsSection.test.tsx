@@ -13,8 +13,9 @@ const emailNotificationsBridge: EmailNotificationsAPI = {
 describe('NotificationsSection', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    ;(globalThis as unknown as { window: Window & { emailNotifications: EmailNotificationsAPI } }).window.emailNotifications =
-      emailNotificationsBridge
+    ;(
+      globalThis as unknown as { window: Window & { emailNotifications: EmailNotificationsAPI } }
+    ).window.emailNotifications = emailNotificationsBridge
   })
 
   it('renders email notification fields and reports fixed test-email success', async () => {

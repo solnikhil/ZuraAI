@@ -63,9 +63,7 @@ export function validateMcpRemoteUrl(
   }
 
   if (!allowedProtocols.includes(parsed.protocol)) {
-    throw new Error(
-      `MCP ${transportType} transport URL must use ${allowedProtocols.join(' or ')}`
-    )
+    throw new Error(`MCP ${transportType} transport URL must use ${allowedProtocols.join(' or ')}`)
   }
 
   if (!parsed.hostname) {
@@ -92,7 +90,11 @@ export function resolveValidatedMcpRemoteUrl(
   allowedProtocols: readonly string[],
   options: { requireSameOrigin?: boolean } = {}
 ): URL {
-  const resolved = validateMcpRemoteUrl(new URL(rawUrl, baseUrl).toString(), transportType, allowedProtocols)
+  const resolved = validateMcpRemoteUrl(
+    new URL(rawUrl, baseUrl).toString(),
+    transportType,
+    allowedProtocols
+  )
 
   if (options.requireSameOrigin !== false && resolved.origin !== baseUrl.origin) {
     throw new Error(
@@ -105,7 +107,8 @@ export function resolveValidatedMcpRemoteUrl(
 
 export function buildMcpReconnectDelay(policy: McpReconnectPolicy, attempt: number): number {
   const normalizedAttempt = Math.max(0, attempt)
-  const exponentialDelay = policy.initialDelayMs * Math.max(1, policy.backoffMultiplier) ** normalizedAttempt
+  const exponentialDelay =
+    policy.initialDelayMs * Math.max(1, policy.backoffMultiplier) ** normalizedAttempt
   return Math.min(policy.maxDelayMs, Math.max(policy.initialDelayMs, Math.round(exponentialDelay)))
 }
 
@@ -119,17 +122,25 @@ export async function waitForMcpReconnectDelay(delayMs: number): Promise<void> {
   })
 }
 
-export function redactMcpHeaders(headers: Record<string, string> | undefined): Record<string, string> {
+export function redactMcpHeaders(
+  headers: Record<string, string> | undefined
+): Record<string, string> {
   if (!headers) {
     return {}
   }
 
   return Object.fromEntries(
-    Object.entries(headers).map(([key, value]) => [key, isSensitiveHeaderName(key) ? maskSecret(value) : value])
+    Object.entries(headers).map(([key, value]) => [
+      key,
+      isSensitiveHeaderName(key) ? maskSecret(value) : value,
+    ])
   )
 }
 
-export function summarizeMcpRemoteTarget(url: URL, headers?: Record<string, string>): Record<string, unknown> {
+export function summarizeMcpRemoteTarget(
+  url: URL,
+  headers?: Record<string, string>
+): Record<string, unknown> {
   return {
     url: url.toString(),
     headers: redactMcpHeaders(headers),
@@ -164,7 +175,6 @@ export async function connectWithRetry(
 
   return lastError
 }
-
 
 function isSensitiveHeaderName(headerName: string): boolean {
   return /authorization|token|secret|cookie|key/i.test(headerName)

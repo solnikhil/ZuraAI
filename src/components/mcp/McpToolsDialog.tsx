@@ -2,7 +2,14 @@ import React, { useMemo, useState } from 'react'
 import { Search, Wrench } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import type { McpToolManifest } from '@/mcp/types'
@@ -123,10 +130,20 @@ export function McpToolsDialog({
               className="mcp-tools-search-input"
             />
             <div className="mcp-tools-quick-actions">
-              <Button variant="ghost" size="sm" onClick={handleEnableAll} disabled={localBlocked.size === 0}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleEnableAll}
+                disabled={localBlocked.size === 0}
+              >
                 Enable All
               </Button>
-              <Button variant="ghost" size="sm" onClick={handleDisableAll} disabled={localBlocked.size === discoveredTools.length}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleDisableAll}
+                disabled={localBlocked.size === discoveredTools.length}
+              >
                 Disable All
               </Button>
             </div>
@@ -179,7 +196,9 @@ export function McpToolsDialog({
 
             {filteredEnabled.length === 0 && filteredDisabled.length === 0 && (
               <div className="mcp-tools-empty">
-                {searchQuery ? 'No tools match your search.' : 'No tools discovered for this server.'}
+                {searchQuery
+                  ? 'No tools match your search.'
+                  : 'No tools discovered for this server.'}
               </div>
             )}
           </div>

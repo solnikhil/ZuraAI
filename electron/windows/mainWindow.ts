@@ -179,7 +179,9 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
   mainWindow.webContents.on(
     'did-fail-load',
     (_event, errorCode, errorDescription, validatedURL) => {
-      windowLog.error(`did-fail-load: code=${errorCode} desc="${errorDescription}" url="${validatedURL}"`)
+      windowLog.error(
+        `did-fail-load: code=${errorCode} desc="${errorDescription}" url="${validatedURL}"`
+      )
       // -3 is ERR_ABORTED which fires on normal navigation, ignore it
       if (errorCode === -3) return
       trackAppError({

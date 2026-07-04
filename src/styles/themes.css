@@ -4,148 +4,153 @@
    DEFAULT FALLBACK VALUES (Dark Default)
    ======================================== */
 :root {
-    /* Core surfaces */
-    --theme-background: #1a1a1a;
-    --theme-surface: #1c1c1e;
-    --theme-surface-subtle: rgba(255, 255, 255, 0.03);
-    --theme-surface-hover: rgba(255, 255, 255, 0.06);
-    --theme-surface-active: rgba(255, 255, 255, 0.1);
-    --theme-surface-pressed: rgba(255, 255, 255, 0.13);
-    
-    /* Text hierarchy */
-    --theme-text-primary: rgba(255, 255, 255, 0.85);
-    --theme-text-secondary: rgba(255, 255, 255, 0.62);
-    --theme-text-tertiary: rgba(255, 255, 255, 0.48);
-    --theme-text-muted: rgba(255, 255, 255, 0.35);
-    --theme-text-inverse: #000000;
-    
-    /* Borders */
-    --theme-border: rgba(255, 255, 255, 0.08);
-    --theme-border-hover: rgba(255, 255, 255, 0.12);
-    --theme-border-active: rgba(255, 255, 255, 0.16);
-    --theme-border-subtle: rgba(255, 255, 255, 0.05);
-    
-    /* Accents */
-    --theme-accent: #c9a66e;
-    --theme-accent-secondary: #b89558;
-    --theme-accent-hover: #d4b07a;
-    --theme-accent-muted: rgba(201, 166, 110, 0.15);
-    --theme-favorite: #d7b35b;
-    
-    /* Semantic */
-    --theme-error: #ff453a;
-    --theme-error-bg: rgba(255, 69, 58, 0.16);
-    --theme-success: #32d74b;
-    --theme-success-bg: rgba(50, 215, 75, 0.16);
-    --theme-warning: #ffd60a;
-    --theme-warning-bg: rgba(255, 214, 10, 0.16);
-    --theme-info: #0a84ff;
-    --theme-info-bg: rgba(10, 132, 255, 0.16);
-    
-    /* Special elements */
-    --theme-user-message-bg: color-mix(in srgb, var(--theme-accent) 82%, var(--theme-surface));
-    --theme-user-message-text: #ffffff;
-    --theme-assistant-message-bg: rgba(255, 255, 255, 0.04);
-    --theme-assistant-message-text: rgba(255, 255, 255, 0.85);
-    --theme-overlay-bg: rgba(0, 0, 0, 0.7);
-    --theme-dimmer-bg: rgba(0, 0, 0, 0.4);
-    --theme-selection-bg: rgba(10, 132, 255, 0.28);
-    --theme-selection-text: #ffffff;
-    
-    /* Shadows */
-    --theme-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.18);
-    --theme-shadow-md: 0 4px 14px rgba(0, 0, 0, 0.2);
-    --theme-shadow-lg: 0 10px 28px rgba(0, 0, 0, 0.22);
-    
-    /* Scrollbar */
-    --theme-scrollbar: rgba(255, 255, 255, 0.08);
-    --theme-scrollbar-hover: rgba(255, 255, 255, 0.14);
-    
-    /* Glassmorphism variables */
-    --theme-glass-bg: transparent;
-    --theme-glass-bg-light: transparent;
-    --theme-glass-border: rgba(255, 255, 255, 0.14);
-    --theme-glass-border-light: rgba(0, 0, 0, 0.1);
-    --theme-glass-blur: blur(16px);
-    --theme-glass-gloss: linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.02) 100%);
-    
-    /* Legacy variable mappings (for backward compatibility) */
-    --bg-primary: var(--theme-background);
-    --bg-secondary: var(--theme-surface);
-    --bg-tertiary: var(--theme-surface);
-    --bg-card: var(--theme-surface);
-    --bg-hover: var(--theme-surface-hover);
-    --text-primary: var(--theme-text-primary);
-    --text-secondary: var(--theme-text-secondary);
-    --text-tertiary: var(--theme-text-tertiary);
-    --text-muted: var(--theme-text-muted);
-    --border-color: var(--theme-border);
-    --border-hover: var(--theme-border-hover);
-    --accent-primary: var(--theme-accent);
-    --accent-secondary: var(--theme-accent-secondary);
+  /* Core surfaces */
+  --theme-background: #1a1a1a;
+  --theme-surface: #1c1c1e;
+  --theme-surface-subtle: rgba(255, 255, 255, 0.03);
+  --theme-surface-hover: rgba(255, 255, 255, 0.06);
+  --theme-surface-active: rgba(255, 255, 255, 0.1);
+  --theme-surface-pressed: rgba(255, 255, 255, 0.13);
 
-    color-scheme: dark;
+  /* Text hierarchy */
+  --theme-text-primary: rgba(255, 255, 255, 0.85);
+  --theme-text-secondary: rgba(255, 255, 255, 0.62);
+  --theme-text-tertiary: rgba(255, 255, 255, 0.48);
+  --theme-text-muted: rgba(255, 255, 255, 0.35);
+  --theme-text-inverse: #000000;
+
+  /* Borders */
+  --theme-border: rgba(255, 255, 255, 0.08);
+  --theme-border-hover: rgba(255, 255, 255, 0.12);
+  --theme-border-active: rgba(255, 255, 255, 0.16);
+  --theme-border-subtle: rgba(255, 255, 255, 0.05);
+
+  /* Accents */
+  --theme-accent: #c9a66e;
+  --theme-accent-secondary: #b89558;
+  --theme-accent-hover: #d4b07a;
+  --theme-accent-muted: rgba(201, 166, 110, 0.15);
+  --theme-favorite: #d7b35b;
+
+  /* Semantic */
+  --theme-error: #ff453a;
+  --theme-error-bg: rgba(255, 69, 58, 0.16);
+  --theme-success: #32d74b;
+  --theme-success-bg: rgba(50, 215, 75, 0.16);
+  --theme-warning: #ffd60a;
+  --theme-warning-bg: rgba(255, 214, 10, 0.16);
+  --theme-info: #0a84ff;
+  --theme-info-bg: rgba(10, 132, 255, 0.16);
+
+  /* Special elements */
+  --theme-user-message-bg: color-mix(in srgb, var(--theme-accent) 82%, var(--theme-surface));
+  --theme-user-message-text: #ffffff;
+  --theme-assistant-message-bg: rgba(255, 255, 255, 0.04);
+  --theme-assistant-message-text: rgba(255, 255, 255, 0.85);
+  --theme-overlay-bg: rgba(0, 0, 0, 0.7);
+  --theme-dimmer-bg: rgba(0, 0, 0, 0.4);
+  --theme-selection-bg: rgba(10, 132, 255, 0.28);
+  --theme-selection-text: #ffffff;
+
+  /* Shadows */
+  --theme-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.18);
+  --theme-shadow-md: 0 4px 14px rgba(0, 0, 0, 0.2);
+  --theme-shadow-lg: 0 10px 28px rgba(0, 0, 0, 0.22);
+
+  /* Scrollbar */
+  --theme-scrollbar: rgba(255, 255, 255, 0.08);
+  --theme-scrollbar-hover: rgba(255, 255, 255, 0.14);
+
+  /* Glassmorphism variables */
+  --theme-glass-bg: transparent;
+  --theme-glass-bg-light: transparent;
+  --theme-glass-border: rgba(255, 255, 255, 0.14);
+  --theme-glass-border-light: rgba(0, 0, 0, 0.1);
+  --theme-glass-blur: blur(16px);
+  --theme-glass-gloss: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.06) 0%,
+    rgba(255, 255, 255, 0.02) 100%
+  );
+
+  /* Legacy variable mappings (for backward compatibility) */
+  --bg-primary: var(--theme-background);
+  --bg-secondary: var(--theme-surface);
+  --bg-tertiary: var(--theme-surface);
+  --bg-card: var(--theme-surface);
+  --bg-hover: var(--theme-surface-hover);
+  --text-primary: var(--theme-text-primary);
+  --text-secondary: var(--theme-text-secondary);
+  --text-tertiary: var(--theme-text-tertiary);
+  --text-muted: var(--theme-text-muted);
+  --border-color: var(--theme-border);
+  --border-hover: var(--theme-border-hover);
+  --accent-primary: var(--theme-accent);
+  --accent-secondary: var(--theme-accent-secondary);
+
+  color-scheme: dark;
 }
 
 /* Light fallback palette used before runtime theme hydration and when .dark is absent. */
 :root:not(.dark) {
-    --theme-background: #ede7df;
-    --theme-surface: #f0ebe4;
-    --theme-surface-subtle: rgba(143, 102, 40, 0.11);
-    --theme-surface-hover: #dcd7cf;
-    --theme-surface-active: #d3cec6;
-    --theme-surface-pressed: #c9c4be;
+  --theme-background: #ede7df;
+  --theme-surface: #f0ebe4;
+  --theme-surface-subtle: rgba(143, 102, 40, 0.11);
+  --theme-surface-hover: #dcd7cf;
+  --theme-surface-active: #d3cec6;
+  --theme-surface-pressed: #c9c4be;
 
-    --theme-text-primary: #1f1a14;
-    --theme-text-secondary: rgba(31, 26, 20, 0.74);
-    --theme-text-tertiary: rgba(31, 26, 20, 0.6);
-    --theme-text-muted: rgba(31, 26, 20, 0.48);
-    --theme-text-inverse: #ffffff;
+  --theme-text-primary: #1f1a14;
+  --theme-text-secondary: rgba(31, 26, 20, 0.74);
+  --theme-text-tertiary: rgba(31, 26, 20, 0.6);
+  --theme-text-muted: rgba(31, 26, 20, 0.48);
+  --theme-text-inverse: #ffffff;
 
-    --theme-border: rgba(0, 0, 0, 0.19);
-    --theme-border-hover: rgba(0, 0, 0, 0.24);
-    --theme-border-active: rgba(0, 0, 0, 0.29);
-    --theme-border-subtle: rgba(0, 0, 0, 0.11);
+  --theme-border: rgba(0, 0, 0, 0.19);
+  --theme-border-hover: rgba(0, 0, 0, 0.24);
+  --theme-border-active: rgba(0, 0, 0, 0.29);
+  --theme-border-subtle: rgba(0, 0, 0, 0.11);
 
-    --theme-accent: #8f6628;
-    --theme-accent-secondary: #845e25;
-    --theme-accent-hover: #7e5a23;
-    --theme-accent-muted: rgba(143, 102, 40, 0.22);
-    --theme-favorite: #9b7220;
+  --theme-accent: #8f6628;
+  --theme-accent-secondary: #845e25;
+  --theme-accent-hover: #7e5a23;
+  --theme-accent-muted: rgba(143, 102, 40, 0.22);
+  --theme-favorite: #9b7220;
 
-    --theme-error: #c4382f;
-    --theme-error-bg: rgba(196, 56, 47, 0.12);
-    --theme-success: #2f7d45;
-    --theme-success-bg: rgba(47, 125, 69, 0.12);
-    --theme-warning: #986f00;
-    --theme-warning-bg: rgba(152, 111, 0, 0.12);
-    --theme-info: #256bb8;
-    --theme-info-bg: rgba(37, 107, 184, 0.12);
+  --theme-error: #c4382f;
+  --theme-error-bg: rgba(196, 56, 47, 0.12);
+  --theme-success: #2f7d45;
+  --theme-success-bg: rgba(47, 125, 69, 0.12);
+  --theme-warning: #986f00;
+  --theme-warning-bg: rgba(152, 111, 0, 0.12);
+  --theme-info: #256bb8;
+  --theme-info-bg: rgba(37, 107, 184, 0.12);
 
-    --theme-user-message-bg: #9b763f;
-    --theme-user-message-text: #ffffff;
-    --theme-assistant-message-bg: rgba(0, 0, 0, 0.07);
-    --theme-assistant-message-text: #1f1a14;
-    --theme-overlay-bg: rgba(0, 0, 0, 0.44);
-    --theme-dimmer-bg: rgba(0, 0, 0, 0.32);
-    --theme-selection-bg: rgba(143, 102, 40, 0.28);
-    --theme-selection-text: #ffffff;
+  --theme-user-message-bg: #9b763f;
+  --theme-user-message-text: #ffffff;
+  --theme-assistant-message-bg: rgba(0, 0, 0, 0.07);
+  --theme-assistant-message-text: #1f1a14;
+  --theme-overlay-bg: rgba(0, 0, 0, 0.44);
+  --theme-dimmer-bg: rgba(0, 0, 0, 0.32);
+  --theme-selection-bg: rgba(143, 102, 40, 0.28);
+  --theme-selection-text: #ffffff;
 
-    --theme-shadow-sm: 0 1px 2px rgba(45, 35, 22, 0.08);
-    --theme-shadow-md: 0 6px 18px rgba(45, 35, 22, 0.1);
-    --theme-shadow-lg: 0 14px 34px rgba(45, 35, 22, 0.12);
+  --theme-shadow-sm: 0 1px 2px rgba(45, 35, 22, 0.08);
+  --theme-shadow-md: 0 6px 18px rgba(45, 35, 22, 0.1);
+  --theme-shadow-lg: 0 14px 34px rgba(45, 35, 22, 0.12);
 
-    --theme-scrollbar: rgba(31, 26, 20, 0.18);
-    --theme-scrollbar-hover: rgba(31, 26, 20, 0.26);
+  --theme-scrollbar: rgba(31, 26, 20, 0.18);
+  --theme-scrollbar-hover: rgba(31, 26, 20, 0.26);
 
-    --theme-glass-border: rgba(0, 0, 0, 0.12);
-    --theme-glass-border-light: rgba(0, 0, 0, 0.1);
-    --theme-glass-gloss: linear-gradient(180deg, rgba(255, 255, 255, 0.42) 0%, rgba(255, 255, 255, 0.12) 100%);
+  --theme-glass-border: rgba(0, 0, 0, 0.12);
+  --theme-glass-border-light: rgba(0, 0, 0, 0.1);
+  --theme-glass-gloss: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.42) 0%,
+    rgba(255, 255, 255, 0.12) 100%
+  );
 
-    color-scheme: light;
+  color-scheme: light;
 }
 
 /* Theme values are applied at runtime from theme definitions. */
-
-
-

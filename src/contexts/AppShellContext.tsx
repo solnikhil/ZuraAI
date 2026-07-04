@@ -1,4 +1,12 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { useSettings } from './SettingsContext'
 import { SIDEBAR_DEFAULT_WIDTH_PX, clampSidebarWidth } from '../constants/sidebar'
 import { normalizeSettingsSection, resolveSettingsNavigation } from '../constants/settingsSections'
@@ -78,7 +86,8 @@ function readStoredDashboardView(): DashboardView | null {
     raw === 'reminders' ||
     raw === 'artifacts' ||
     raw === 'folders'
-  ) return raw
+  )
+    return raw
   return null
 }
 
@@ -406,7 +415,10 @@ export function useAppShell() {
     // During HMR, the context may temporarily be undefined
     // Return a safe default to prevent crashes during hot reload
     if (import.meta.hot) {
-      warnOnceDuringHmr('AppShellContext', '[AppShellContext] Context undefined during HMR, using defaults')
+      warnOnceDuringHmr(
+        'AppShellContext',
+        '[AppShellContext] Context undefined during HMR, using defaults'
+      )
       return {
         dashboardView: 'chat' as DashboardView,
         setDashboardView: () => {},

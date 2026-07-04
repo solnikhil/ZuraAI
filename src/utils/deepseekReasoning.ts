@@ -32,7 +32,13 @@ export function getReasoningEffortLabel(effort: DeepSeekReasoningEffort): string
 }
 
 export function isDeepSeekReasoningEffort(value: unknown): value is DeepSeekReasoningEffort {
-  return value === 'none' || value === 'low' || value === 'medium' || value === 'high' || value === 'xhigh'
+  return (
+    value === 'none' ||
+    value === 'low' ||
+    value === 'medium' ||
+    value === 'high' ||
+    value === 'xhigh'
+  )
 }
 
 /**

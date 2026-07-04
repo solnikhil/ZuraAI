@@ -92,10 +92,7 @@ describe('ResponseInfo', () => {
 
   it('hides the reasoning effort row when not provided', () => {
     render(
-      <ResponseInfo
-        model="gpt-4.1"
-        usage={{ inputTokens: 10, outputTokens: 4, totalTokens: 14 }}
-      />
+      <ResponseInfo model="gpt-4.1" usage={{ inputTokens: 10, outputTokens: 4, totalTokens: 14 }} />
     )
 
     expect(screen.queryByText('Reasoning Effort')).not.toBeInTheDocument()

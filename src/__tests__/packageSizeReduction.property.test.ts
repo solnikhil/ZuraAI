@@ -55,7 +55,6 @@ const PBT_CONFIG = { numRuns: 50, seed: 42 }
 // ── Tests ──────────────────────────────────────────────────────────────────
 
 describe('Property 1: Bug Condition — Build Configuration Bloat Detection', () => {
-
   // ── (a) radix-ui umbrella package does NOT exist in dependencies ──────────
 
   it('(a) radix-ui umbrella package should NOT exist in package.json dependencies', () => {
@@ -106,18 +105,15 @@ describe('Property 1: Bug Condition — Build Configuration Bloat Detection', ()
     ]
 
     fc.assert(
-      fc.property(
-        fc.constantFrom(...uiFiles),
-        (file: { name: string; source: string }) => {
-          // Must NOT contain a bare import from "radix-ui"
-          const hasBareRadixImport = /from\s+["']radix-ui["']/.test(file.source)
-          expect(hasBareRadixImport).toBe(false)
+      fc.property(fc.constantFrom(...uiFiles), (file: { name: string; source: string }) => {
+        // Must NOT contain a bare import from "radix-ui"
+        const hasBareRadixImport = /from\s+["']radix-ui["']/.test(file.source)
+        expect(hasBareRadixImport).toBe(false)
 
-          // Must contain at least one import from @radix-ui/react-*
-          const hasScopedImport = /from\s+["']@radix-ui\/react-/.test(file.source)
-          expect(hasScopedImport).toBe(true)
-        }
-      ),
+        // Must contain at least one import from @radix-ui/react-*
+        const hasScopedImport = /from\s+["']@radix-ui\/react-/.test(file.source)
+        expect(hasScopedImport).toBe(true)
+      }),
       PBT_CONFIG
     )
   })
@@ -134,13 +130,11 @@ describe('Property 1: Bug Condition — Build Configuration Bloat Detection', ()
     fc.assert(
       fc.property(fc.constant(markdownPreloaderSource), (source: string) => {
         // Must NOT import from the full react-syntax-highlighter entry
-        const hasFullImport =
-          /import\(\s*['"]react-syntax-highlighter['"]\s*\)/.test(source)
+        const hasFullImport = /import\(\s*['"]react-syntax-highlighter['"]\s*\)/.test(source)
         expect(hasFullImport).toBe(false)
 
         // Must import from the prism-light build
-        const hasLightImport =
-          /react-syntax-highlighter\/dist\/esm\/prism-light/.test(source)
+        const hasLightImport = /react-syntax-highlighter\/dist\/esm\/prism-light/.test(source)
         expect(hasLightImport).toBe(true)
       }),
       PBT_CONFIG
@@ -160,9 +154,7 @@ describe('Property 1: Bug Condition — Build Configuration Bloat Detection', ()
 
     fc.assert(
       fc.property(fc.constant(viteConfigSource), (source: string) => {
-        const externalMatch = source.match(
-          /external\s*:\s*\[([^\]]*)\]/
-        )
+        const externalMatch = source.match(/external\s*:\s*\[([^\]]*)\]/)
         expect(externalMatch).not.toBeNull()
 
         const externalContent = externalMatch![1]
@@ -185,12 +177,9 @@ describe('Property 1: Bug Condition — Build Configuration Bloat Detection', ()
     const deps = pkg.dependencies ?? {}
 
     fc.assert(
-      fc.property(
-        fc.constant(Object.keys(deps)),
-        (depNames: string[]) => {
-          expect(depNames).not.toContain('lucide-react')
-        }
-      ),
+      fc.property(fc.constant(Object.keys(deps)), (depNames: string[]) => {
+        expect(depNames).not.toContain('lucide-react')
+      }),
       PBT_CONFIG
     )
   })
@@ -248,44 +237,27 @@ describe('Property 1: Bug Condition — Build Configuration Bloat Detection', ()
     const filesGlob = pkg.build?.files as string[] | undefined
 
     // Required exclusion patterns
-    const requiredExclusions = [
-      '!**/*.map',
-      '!**/*.test.*',
-      '!**/*.spec.*',
-      '!**/*.d.ts',
-    ]
+    const requiredExclusions = ['!**/*.map', '!**/*.test.*', '!**/*.spec.*', '!**/*.d.ts']
 
     // Required test directory exclusions (at least one of these patterns)
-    const testDirExclusions = [
-      '!**/test/**',
-      '!**/tests/**',
-      '!**/__tests__/**',
-    ]
+    const testDirExclusions = ['!**/test/**', '!**/tests/**', '!**/__tests__/**']
 
     fc.assert(
-      fc.property(
-        fc.constantFrom(...requiredExclusions),
-        (exclusionPattern: string) => {
-          expect(filesGlob).toBeDefined()
-          expect(Array.isArray(filesGlob)).toBe(true)
-          expect(filesGlob).toContain(exclusionPattern)
-        }
-      ),
+      fc.property(fc.constantFrom(...requiredExclusions), (exclusionPattern: string) => {
+        expect(filesGlob).toBeDefined()
+        expect(Array.isArray(filesGlob)).toBe(true)
+        expect(filesGlob).toContain(exclusionPattern)
+      }),
       PBT_CONFIG
     )
 
     // At least one test directory exclusion must be present
     fc.assert(
-      fc.property(
-        fc.constant(filesGlob),
-        (glob: string[] | undefined) => {
-          expect(glob).toBeDefined()
-          const hasTestDirExclusion = testDirExclusions.some((pattern) =>
-            glob!.includes(pattern)
-          )
-          expect(hasTestDirExclusion).toBe(true)
-        }
-      ),
+      fc.property(fc.constant(filesGlob), (glob: string[] | undefined) => {
+        expect(glob).toBeDefined()
+        const hasTestDirExclusion = testDirExclusions.some((pattern) => glob!.includes(pattern))
+        expect(hasTestDirExclusion).toBe(true)
+      }),
       PBT_CONFIG
     )
   })

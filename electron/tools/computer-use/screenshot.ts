@@ -24,7 +24,10 @@ export interface ScreenshotCaptureResult {
   }
 }
 
-function getDisplayForSource(source: Electron.DesktopCapturerSource, requestedDisplayId?: string): Electron.Display {
+function getDisplayForSource(
+  source: Electron.DesktopCapturerSource,
+  requestedDisplayId?: string
+): Electron.Display {
   const displays = screen.getAllDisplays()
   const displayId = source.display_id || requestedDisplayId
   const matchedDisplay = displayId
@@ -65,7 +68,15 @@ function runPowerShell(script: string): Promise<string> {
   return new Promise((resolve, reject) => {
     execFile(
       'powershell.exe',
-      ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script],
+      [
+        '-NoLogo',
+        '-NoProfile',
+        '-NonInteractive',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-Command',
+        script,
+      ],
       { windowsHide: true, timeout: 5000, maxBuffer: 4096 },
       (error, stdout, stderr) => {
         if (error) {
@@ -78,7 +89,9 @@ function runPowerShell(script: string): Promise<string> {
   })
 }
 
-async function getWindowBounds(source: Electron.DesktopCapturerSource): Promise<Electron.Rectangle | null> {
+async function getWindowBounds(
+  source: Electron.DesktopCapturerSource
+): Promise<Electron.Rectangle | null> {
   if (process.platform !== 'win32') return null
   const hwnd = parseWindowHandle(source.id)
   if (!hwnd) return null
@@ -122,13 +135,15 @@ if (-not [NativeWin]::GetWindowRect([IntPtr]${hwnd}, [ref]$rect)) { throw "GetWi
   return null
 }
 
-function normalizeCaptureOptions(displayIdOrOptions?: string | ScreenshotCaptureOptions): ScreenshotCaptureOptions {
+function normalizeCaptureOptions(
+  displayIdOrOptions?: string | ScreenshotCaptureOptions
+): ScreenshotCaptureOptions {
   if (typeof displayIdOrOptions === 'string') return { displayId: displayIdOrOptions }
   return displayIdOrOptions ?? {}
 }
 
 export async function captureScreenshot(
-  displayIdOrOptions?: string | ScreenshotCaptureOptions,
+  displayIdOrOptions?: string | ScreenshotCaptureOptions
 ): Promise<ScreenshotCaptureResult> {
   const options = normalizeCaptureOptions(displayIdOrOptions)
   const wantsWindow = Boolean(options.windowId || options.windowTitle || options.appName)
@@ -143,12 +158,18 @@ export async function captureScreenshot(
     const match = sources.find((s) => sourceMatchesTarget(s, options))
     if (match) source = match
   } else if (options.displayId) {
-    const match = sources.find((s) => s.display_id === options.displayId || s.id === options.displayId)
+    const match = sources.find(
+      (s) => s.display_id === options.displayId || s.id === options.displayId
+    )
     if (match) source = match
   }
 
   if (!source) {
-    throw new Error(wantsWindow ? 'No matching window source available for capture' : 'No screen source available for capture')
+    throw new Error(
+      wantsWindow
+        ? 'No matching window source available for capture'
+        : 'No screen source available for capture'
+    )
   }
 
   if (wantsWindow && !sourceMatchesTarget(source, options)) {
@@ -202,9 +223,11 @@ export async function captureScreenshot(
   }
 }
 
-
 export async function listWindows(): Promise<{ windows: Array<{ title: string; id: string }> }> {
-  const sources = await desktopCapturer.getSources({ types: ['window'], thumbnailSize: { width: 0, height: 0 } })
+  const sources = await desktopCapturer.getSources({
+    types: ['window'],
+    thumbnailSize: { width: 0, height: 0 },
+  })
   const windows = sources
     .map((s) => ({ title: s.name, id: s.id }))
     .filter((w) => w.title.trim().length > 0)

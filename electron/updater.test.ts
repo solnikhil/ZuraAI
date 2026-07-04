@@ -156,7 +156,10 @@ describe('updater event forwarding', () => {
 
     autoUpdaterTest.emitter.emit('error', new Error('Network unreachable'))
 
-    expect(electronMocks.webContentsSend).toHaveBeenCalledWith('update-error', 'Network unreachable')
+    expect(electronMocks.webContentsSend).toHaveBeenCalledWith(
+      'update-error',
+      'Network unreachable'
+    )
   })
 
   it('forwards download-progress events as update-download-progress with normalized payload', async () => {

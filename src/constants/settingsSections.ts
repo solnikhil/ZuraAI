@@ -62,10 +62,13 @@ export const SETTINGS_SECTIONS: SettingsSectionMeta[] = [
 ]
 
 export const SETTINGS_SECTION_MAP: Record<SettingsSectionId, SettingsSectionMeta> =
-  SETTINGS_SECTIONS.reduce<Record<SettingsSectionId, SettingsSectionMeta>>((acc, section) => {
-    acc[section.id] = section
-    return acc
-  }, {} as Record<SettingsSectionId, SettingsSectionMeta>)
+  SETTINGS_SECTIONS.reduce<Record<SettingsSectionId, SettingsSectionMeta>>(
+    (acc, section) => {
+      acc[section.id] = section
+      return acc
+    },
+    {} as Record<SettingsSectionId, SettingsSectionMeta>
+  )
 
 const SETTINGS_SECTION_ALIASES: Record<string, SettingsSectionId> = {
   tools: 'extensions',
@@ -89,7 +92,10 @@ export interface ResolvedSettingsNavigation {
   extensionPanel?: 'notifications'
 }
 
-const EXTENSION_ROUTE_ALIASES: Record<string, Pick<ResolvedSettingsNavigation, 'extension' | 'extensionPanel'>> = {
+const EXTENSION_ROUTE_ALIASES: Record<
+  string,
+  Pick<ResolvedSettingsNavigation, 'extension' | 'extensionPanel'>
+> = {
   memory: { extension: 'memory' },
   memories: { extension: 'memory' },
   personalization: { extension: 'memory' },
@@ -115,7 +121,9 @@ export function resolveSettingsNavigation(
   return { section: normalized }
 }
 
-export function normalizeSettingsSection(section: string | null | undefined): SettingsSectionId | null {
+export function normalizeSettingsSection(
+  section: string | null | undefined
+): SettingsSectionId | null {
   if (!section) return null
   if (section in SETTINGS_SECTION_ALIASES) {
     return SETTINGS_SECTION_ALIASES[section]

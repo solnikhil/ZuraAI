@@ -30,43 +30,49 @@ describe('streamUtils', () => {
       'data: [DONE]\n',
     ])
 
-    const chunks = await collect(parseSSEStream<{
-      id: string
-      choices: Array<{ delta: { content: string } }>
-    }>(reader))
+    const chunks = await collect(
+      parseSSEStream<{
+        id: string
+        choices: Array<{ delta: { content: string } }>
+      }>(reader)
+    )
 
     expect(chunks).toHaveLength(2)
-    expect(chunks.map(chunk => chunk.choices[0].delta.content).join('')).toBe('Hello')
+    expect(chunks.map((chunk) => chunk.choices[0].delta.content).join('')).toBe('Hello')
   })
 
   it('parses the final SSE event without a trailing newline', async () => {
     const reader = createReader([
       'data: {"id":"1","choices":[{"delta":{"content":"Hel"}}]}\n',
-      'data: {"id":"2","choices":[{"delta":{"content":"lo"}}]}'
+      'data: {"id":"2","choices":[{"delta":{"content":"lo"}}]}',
     ])
 
-    const chunks = await collect(parseSSEStream<{
-      id: string
-      choices: Array<{ delta: { content: string } }>
-    }>(reader))
+    const chunks = await collect(
+      parseSSEStream<{
+        id: string
+        choices: Array<{ delta: { content: string } }>
+      }>(reader)
+    )
 
     expect(chunks).toHaveLength(2)
-    expect(chunks.map(chunk => chunk.choices[0].delta.content).join('')).toBe('Hello')
+    expect(chunks.map((chunk) => chunk.choices[0].delta.content).join('')).toBe('Hello')
   })
 
   it('parses the final NDJSON chunk without a trailing newline', async () => {
     const reader = createReader([
       '{"message":{"content":"Hel"},"done":false}\n',
-      '{"message":{"content":"lo"},"done":true}'
+      '{"message":{"content":"lo"},"done":true}',
     ])
 
-    const chunks = await collect(parseNDJSONStream<{
-      message: { content: string }
-      done: boolean
-    }>(reader))
+    const chunks = await collect(
+      parseNDJSONStream<{
+        message: { content: string }
+        done: boolean
+      }>(reader)
+    )
 
     expect(chunks).toHaveLength(2)
-    expect(chunks.map(chunk => chunk.message.content).join('')).toBe('Hello')
+    expect(chunks.map((chunk) => chunk.message.content).join('')).toBe('Hello')
     expect(chunks.at(-1)?.done).toBe(true)
   })
 })

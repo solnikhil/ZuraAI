@@ -66,7 +66,9 @@
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--theme-border) 44%, transparent);
 }
 
-:root[data-reminders-container='framed'] .reminders-view__stage--drawer-open .reminders-view__panel {
+:root[data-reminders-container='framed']
+  .reminders-view__stage--drawer-open
+  .reminders-view__panel {
   background: transparent;
   border-color: transparent;
 }
@@ -107,7 +109,10 @@
   color: var(--theme-text-primary);
   background: transparent;
   font: inherit;
-  transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+  transition:
+    background 0.14s ease,
+    border-color 0.14s ease,
+    color 0.14s ease;
 }
 
 .reminders-view__row-actions button:hover,
@@ -180,7 +185,11 @@
 
 .reminders-view__ask-agent {
   border-color: color-mix(in srgb, var(--theme-border) 78%, transparent) !important;
-  background: color-mix(in srgb, var(--theme-surface-active) 86%, var(--theme-background)) !important;
+  background: color-mix(
+    in srgb,
+    var(--theme-surface-active) 86%,
+    var(--theme-background)
+  ) !important;
   color: var(--theme-text-primary) !important;
   height: 38px !important;
   padding: 0 15px !important;
@@ -189,12 +198,19 @@
   font-weight: 650 !important;
   letter-spacing: 0.01em;
   box-shadow: none;
-  transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+  transition:
+    background 0.14s ease,
+    border-color 0.14s ease,
+    color 0.14s ease;
 }
 
 .reminders-view__ask-agent:hover {
   border-color: color-mix(in srgb, var(--theme-border-hover) 82%, transparent) !important;
-  background: color-mix(in srgb, var(--theme-surface-hover) 88%, var(--theme-background)) !important;
+  background: color-mix(
+    in srgb,
+    var(--theme-surface-hover) 88%,
+    var(--theme-background)
+  ) !important;
   color: var(--theme-text-primary) !important;
 }
 
@@ -279,7 +295,9 @@
   text-align: center;
   font-size: 11px;
   font-weight: 650;
-  transition: background 0.14s ease, color 0.14s ease;
+  transition:
+    background 0.14s ease,
+    color 0.14s ease;
 }
 
 .reminders-view__tabs-trigger[data-state='active'] .reminders-view__tabs-count {
@@ -311,7 +329,10 @@
   border: 1px solid color-mix(in srgb, var(--theme-border) 50%, transparent);
   border-radius: 12px;
   background: color-mix(in srgb, var(--theme-surface-active) 76%, var(--theme-background));
-  transition: background 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease;
+  transition:
+    background 0.14s ease,
+    border-color 0.14s ease,
+    box-shadow 0.14s ease;
   --reminder-row-status: var(--theme-success, #32d74b);
 }
 
@@ -376,7 +397,11 @@
   height: 24px;
   padding: 0 10px !important;
   border-color: color-mix(in srgb, var(--theme-border) 66%, transparent) !important;
-  color: color-mix(in srgb, var(--theme-text-primary) 82%, var(--theme-text-secondary) 18%) !important;
+  color: color-mix(
+    in srgb,
+    var(--theme-text-primary) 82%,
+    var(--theme-text-secondary) 18%
+  ) !important;
   background: color-mix(in srgb, var(--theme-surface-hover) 70%, transparent) !important;
   font-size: 11.5px !important;
   font-weight: 720 !important;
@@ -385,13 +410,21 @@
 .reminders-view__status-badge--active {
   border-color: color-mix(in srgb, var(--theme-success, #32d74b) 46%, transparent) !important;
   color: color-mix(in srgb, var(--theme-success, #32d74b) 84%, white 16%) !important;
-  background: color-mix(in srgb, var(--theme-success, #32d74b) 18%, var(--theme-surface)) !important;
+  background: color-mix(
+    in srgb,
+    var(--theme-success, #32d74b) 18%,
+    var(--theme-surface)
+  ) !important;
 }
 
 .reminders-view__status-badge--paused {
   border-color: color-mix(in srgb, var(--theme-warning, #ffd60a) 38%, transparent) !important;
   color: color-mix(in srgb, var(--theme-warning, #ffd60a) 72%, white 28%) !important;
-  background: color-mix(in srgb, var(--theme-warning, #ffd60a) 16%, var(--theme-surface)) !important;
+  background: color-mix(
+    in srgb,
+    var(--theme-warning, #ffd60a) 16%,
+    var(--theme-surface)
+  ) !important;
 }
 
 .reminders-view__date-badge {
@@ -444,16 +477,27 @@
   letter-spacing: 0.01em;
   border-radius: 999px !important;
   border: 1px solid color-mix(in srgb, var(--theme-border-hover) 72%, transparent) !important;
-  background: color-mix(in srgb, var(--theme-surface-hover) 82%, var(--theme-background)) !important;
+  background: color-mix(
+    in srgb,
+    var(--theme-surface-hover) 82%,
+    var(--theme-background)
+  ) !important;
   color: var(--theme-text-primary) !important;
   box-shadow: none !important;
-  transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+  transition:
+    background 0.14s ease,
+    border-color 0.14s ease,
+    color 0.14s ease;
   cursor: pointer;
 }
 
 .reminders-view__logs-btn:hover {
   border-color: color-mix(in srgb, var(--theme-border-hover) 88%, transparent) !important;
-  background: color-mix(in srgb, var(--theme-surface-active) 90%, var(--theme-background)) !important;
+  background: color-mix(
+    in srgb,
+    var(--theme-surface-active) 90%,
+    var(--theme-background)
+  ) !important;
   color: var(--theme-text-primary) !important;
 }
 
@@ -462,27 +506,46 @@
   height: 32px !important;
   border-radius: 9px !important;
   border: 1px solid color-mix(in srgb, var(--theme-border-hover) 72%, transparent) !important;
-  background: color-mix(in srgb, var(--theme-surface-hover) 82%, var(--theme-background)) !important;
+  background: color-mix(
+    in srgb,
+    var(--theme-surface-hover) 82%,
+    var(--theme-background)
+  ) !important;
   color: var(--theme-text-primary) !important;
-  transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+  transition:
+    background 0.14s ease,
+    border-color 0.14s ease,
+    color 0.14s ease;
 }
 
 .reminders-view__menu-trigger:hover,
 .reminders-view__menu-trigger[data-state='open'] {
   border-color: color-mix(in srgb, var(--theme-border-hover) 88%, transparent) !important;
-  background: color-mix(in srgb, var(--theme-surface-active) 90%, var(--theme-background)) !important;
+  background: color-mix(
+    in srgb,
+    var(--theme-surface-active) 90%,
+    var(--theme-background)
+  ) !important;
   color: var(--theme-text-primary) !important;
 }
 
 :root[data-reminders-action='soft'] .reminders-view__ask-agent {
   border-radius: 10px !important;
   border-color: color-mix(in srgb, var(--theme-border-hover) 70%, transparent) !important;
-  background: color-mix(in srgb, var(--theme-surface-hover) 74%, var(--theme-background)) !important;
+  background: color-mix(
+    in srgb,
+    var(--theme-surface-hover) 74%,
+    var(--theme-background)
+  ) !important;
   color: var(--theme-text-primary) !important;
 }
 
 :root[data-reminders-action='soft'] .reminders-view__ask-agent:hover {
-  background: color-mix(in srgb, var(--theme-surface-active) 82%, var(--theme-background)) !important;
+  background: color-mix(
+    in srgb,
+    var(--theme-surface-active) 82%,
+    var(--theme-background)
+  ) !important;
 }
 
 :root[data-reminders-action='minimal'] .reminders-view__ask-agent {
@@ -526,19 +589,31 @@
 :root[data-reminders-badge='filled'] .reminders-view__type-badge,
 :root[data-reminders-badge='filled'] .reminders-view__date-badge {
   border-color: transparent !important;
-  background: color-mix(in srgb, var(--theme-text-muted) 20%, var(--theme-surface-active)) !important;
+  background: color-mix(
+    in srgb,
+    var(--theme-text-muted) 20%,
+    var(--theme-surface-active)
+  ) !important;
   color: var(--theme-text-primary) !important;
 }
 
 :root[data-reminders-badge='filled'] .reminders-view__status-badge--active {
   border-color: transparent !important;
-  background: color-mix(in srgb, var(--theme-success, #32d74b) 54%, var(--theme-surface)) !important;
+  background: color-mix(
+    in srgb,
+    var(--theme-success, #32d74b) 54%,
+    var(--theme-surface)
+  ) !important;
   color: #ffffff !important;
 }
 
 :root[data-reminders-badge='filled'] .reminders-view__status-badge--paused {
   border-color: transparent !important;
-  background: color-mix(in srgb, var(--theme-warning, #ffd60a) 45%, var(--theme-surface)) !important;
+  background: color-mix(
+    in srgb,
+    var(--theme-warning, #ffd60a) 45%,
+    var(--theme-surface)
+  ) !important;
   color: #ffffff !important;
 }
 
@@ -664,7 +739,11 @@
   padding: 0 15px !important;
   border-color: color-mix(in srgb, var(--theme-border) 78%, transparent) !important;
   border-radius: 999px !important;
-  background: color-mix(in srgb, var(--theme-surface-active) 86%, var(--theme-background)) !important;
+  background: color-mix(
+    in srgb,
+    var(--theme-surface-active) 86%,
+    var(--theme-background)
+  ) !important;
   color: var(--theme-text-primary) !important;
   font-size: 12.5px !important;
   font-weight: 650 !important;
@@ -674,7 +753,11 @@
 
 .reminders-view__agent-edit:hover {
   border-color: color-mix(in srgb, var(--theme-border-hover) 82%, transparent) !important;
-  background: color-mix(in srgb, var(--theme-surface-hover) 88%, var(--theme-background)) !important;
+  background: color-mix(
+    in srgb,
+    var(--theme-surface-hover) 88%,
+    var(--theme-background)
+  ) !important;
   color: var(--theme-text-primary) !important;
 }
 
@@ -687,7 +770,7 @@
 }
 
 .reminders-view__run:not(:last-child)::before {
-  content: "";
+  content: '';
   position: absolute;
   top: 18px;
   bottom: 0;
@@ -878,7 +961,6 @@
     grid-template-columns: minmax(0, 1fr);
     gap: 6px;
   }
-
 }
 
 @media (prefers-reduced-motion: reduce) {

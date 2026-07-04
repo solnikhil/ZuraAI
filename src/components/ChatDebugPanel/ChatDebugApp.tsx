@@ -21,8 +21,8 @@ export function ChatDebugApp() {
       <div className="chat-debug-page chat-debug-page--missing">
         <h1 className="chat-debug-panel__title">Chat Debug Logs</h1>
         <p className="chat-debug-page__subtitle">
-          No <code>sessionId</code> was provided. Open this window from the command palette
-          (Show Chat Debug Logs) instead of navigating to <code>#/chat-debug</code> directly.
+          No <code>sessionId</code> was provided. Open this window from the command palette (Show
+          Chat Debug Logs) instead of navigating to <code>#/chat-debug</code> directly.
         </p>
       </div>
     )

@@ -28,12 +28,15 @@ export function registerChatStoreHandlers(): void {
   })
 
   /** Return one chat session on demand. Supports optional { limit } to load only the most recent N messages for fast UI. */
-  ipcMain.handle('chat-store:get-session', async (_event, sessionId: string, options?: { limit?: number }) => {
-    if (typeof sessionId !== 'string' || !sessionId.trim()) {
-      throw new Error('Invalid chat session id')
+  ipcMain.handle(
+    'chat-store:get-session',
+    async (_event, sessionId: string, options?: { limit?: number }) => {
+      if (typeof sessionId !== 'string' || !sessionId.trim()) {
+        throw new Error('Invalid chat session id')
+      }
+      return chatStore.getSessionAsync(sessionId, options)
     }
-    return chatStore.getSessionAsync(sessionId, options)
-  })
+  )
 
   /** Save or replace one full chat session. */
   ipcMain.handle('chat-store:save-session', async (_event, session) => {

@@ -11,11 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import {
-  formatFileSize,
-  splitAttachedFiles,
-  type AttachedFile,
-} from './attachmentUtils'
+import { formatFileSize, splitAttachedFiles, type AttachedFile } from './attachmentUtils'
 
 interface ComposerAttachmentsProps {
   files: AttachedFile[]
@@ -57,7 +53,13 @@ function ImagePreviewCard({
   )
 }
 
-function FileAttachmentChip({ file, onRemove }: { file: AttachedFile; onRemove: (fileId: string) => void }) {
+function FileAttachmentChip({
+  file,
+  onRemove,
+}: {
+  file: AttachedFile
+  onRemove: (fileId: string) => void
+}) {
   return (
     <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-[var(--theme-border)] bg-[var(--theme-surface-subtle)] px-3 py-1.5 text-xs text-[var(--theme-text-secondary)]">
       <FileText className="h-3.5 w-3.5 shrink-0" />
@@ -102,11 +104,7 @@ export function ComposerAttachments({ files, onRemove }: ComposerAttachmentsProp
         {documents.length > 0 && (
           <div className="flex flex-wrap gap-2">
             {documents.map((file) => (
-              <FileAttachmentChip
-                key={file.id}
-                file={file}
-                onRemove={onRemove}
-              />
+              <FileAttachmentChip key={file.id} file={file} onRemove={onRemove} />
             ))}
           </div>
         )}

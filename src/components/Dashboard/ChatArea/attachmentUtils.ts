@@ -114,7 +114,9 @@ function getFileExtension(name: string) {
   return match?.[0] || ''
 }
 
-export function isTextExtractableAttachment(file: Pick<AttachedFile, 'name' | 'mimeType' | 'type'>) {
+export function isTextExtractableAttachment(
+  file: Pick<AttachedFile, 'name' | 'mimeType' | 'type'>
+) {
   if (isImageAttachment(file)) return false
 
   const mimeType = file.mimeType.toLowerCase()
@@ -200,17 +202,18 @@ export function providerSupportsVisionUploads(provider: AttachmentProvider) {
 
 function currentModelSupportsVision(settings: AttachmentSettingsLike) {
   const models = getProviderModels(settings, settings.modelProvider)
-  const matchedModel =
-    models.find((model) => model.code === settings.aiModel) || {
-      code: settings.aiModel,
-      displayName: settings.aiModel,
-    }
+  const matchedModel = models.find((model) => model.code === settings.aiModel) || {
+    code: settings.aiModel,
+    displayName: settings.aiModel,
+  }
 
   return getCapabilitiesFromModel(matchedModel).includes('vision')
 }
 
 export function canAnalyzeImageAttachments(settings: AttachmentSettingsLike) {
-  return providerSupportsVisionUploads(settings.modelProvider) && currentModelSupportsVision(settings)
+  return (
+    providerSupportsVisionUploads(settings.modelProvider) && currentModelSupportsVision(settings)
+  )
 }
 
 function stripDataUrlPrefix(dataUrl: string) {
@@ -308,7 +311,10 @@ function buildOpenAIImageParts(content: string, files?: AttachedFile[]): Message
   return parts
 }
 
-function toProviderMessage(message: ConversationMessage, provider: AttachmentProvider): ComposerMessage {
+function toProviderMessage(
+  message: ConversationMessage,
+  provider: AttachmentProvider
+): ComposerMessage {
   const imageFiles = (message.files || []).filter(isImageAttachment)
   const textContent = buildTextContent(message.content, message.files)
   if (imageFiles.length === 0) {

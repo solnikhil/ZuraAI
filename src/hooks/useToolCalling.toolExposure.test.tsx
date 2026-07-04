@@ -57,9 +57,7 @@ function makeSettings(overrides: Partial<MockSettingsShape> = {}): MockSettingsS
     },
     modelProvider: 'openrouter',
     aiModel: 'openai/gpt-4o',
-    configuredModels: [
-      { code: 'openai/gpt-4o', displayName: 'GPT-4o', supportsToolCall: true },
-    ],
+    configuredModels: [{ code: 'openai/gpt-4o', displayName: 'GPT-4o', supportsToolCall: true }],
     ...overrides,
   }
 }
@@ -89,7 +87,7 @@ const COMMAND_CENTER_SHARED_NATIVE_TOOL_NAMES = [
   'window_focus',
 ]
 
-const COMMAND_CENTER_EXCLUSIVE_TOOL_NAMES = COMMAND_CENTER_TOOL_NAMES.filter(
+const _COMMAND_CENTER_EXCLUSIVE_TOOL_NAMES = COMMAND_CENTER_TOOL_NAMES.filter(
   (tool) => !COMMAND_CENTER_SHARED_NATIVE_TOOL_NAMES.includes(tool)
 )
 
@@ -113,10 +111,7 @@ const SCHEDULED_TASK_TOOL_NAMES = [
   'scheduled_task_get_logs',
 ]
 
-const ARTIFACT_TOOL_NAMES = [
-  'artifact_create',
-  'artifact_update',
-]
+const ARTIFACT_TOOL_NAMES = ['artifact_create', 'artifact_update']
 
 function getExposedToolNames(): string[] {
   const { result } = renderHook(() => useToolCalling())
@@ -129,11 +124,11 @@ function exposesComputerUseSurface(): boolean {
   return COMPUTER_USE_TOOL_NAMES.some((name) => names.includes(name))
 }
 
-  beforeEach(() => {
-    isWindows = true
-    mockMcpContext.value = undefined
-    mockSettings.settings = makeSettings()
-  })
+beforeEach(() => {
+  isWindows = true
+  mockMcpContext.value = undefined
+  mockSettings.settings = makeSettings()
+})
 
 afterEach(() => {
   cleanup()
@@ -143,35 +138,41 @@ afterEach(() => {
 describe('useToolCalling - MCP registry hydration', () => {
   it('refreshes a pending MCP registry before building request tools', async () => {
     const refresh = vi.fn(async () => ({
-      servers: [{
-        id: 'server-1',
-        name: 'Sequential Thinking',
-        enabled: true,
-        trustState: 'trusted',
-        transport: 'stdio',
-        requireApproval: true,
-        createdAt: '2026-07-01T00:00:00.000Z',
-        updatedAt: '2026-07-01T00:00:00.000Z',
-      }],
-      runtimeStates: [{
-        serverId: 'server-1',
-        status: 'connected',
-        tools: [],
-        capabilities: { tools: true, resources: false, prompts: false },
-      }],
-      tools: [{
-        namespacedName: 'mcp__sequential_thinking__sequentialthinking',
-        serverId: 'server-1',
-        serverName: 'Sequential Thinking',
-        serverSlug: 'sequential_thinking',
-        toolName: 'sequentialthinking',
-        toolSlug: 'sequentialthinking',
-        manifest: {
-          name: 'sequentialthinking',
-          description: 'Break down complex problems step by step',
-          inputSchema: { type: 'object', properties: {}, required: [] },
+      servers: [
+        {
+          id: 'server-1',
+          name: 'Sequential Thinking',
+          enabled: true,
+          trustState: 'trusted',
+          transport: 'stdio',
+          requireApproval: true,
+          createdAt: '2026-07-01T00:00:00.000Z',
+          updatedAt: '2026-07-01T00:00:00.000Z',
         },
-      }],
+      ],
+      runtimeStates: [
+        {
+          serverId: 'server-1',
+          status: 'connected',
+          tools: [],
+          capabilities: { tools: true, resources: false, prompts: false },
+        },
+      ],
+      tools: [
+        {
+          namespacedName: 'mcp__sequential_thinking__sequentialthinking',
+          serverId: 'server-1',
+          serverName: 'Sequential Thinking',
+          serverSlug: 'sequential_thinking',
+          toolName: 'sequentialthinking',
+          toolSlug: 'sequentialthinking',
+          manifest: {
+            name: 'sequentialthinking',
+            description: 'Break down complex problems step by step',
+            inputSchema: { type: 'object', properties: {}, required: [] },
+          },
+        },
+      ],
       resources: [],
       prompts: [],
       pendingApprovals: [],
@@ -314,22 +315,18 @@ describe('useToolCalling - Computer Use tool exposure gating', () => {
 
   it('Property: exposure iff Windows AND computer_use skill enabled', () => {
     fc.assert(
-      fc.property(
-        fc.boolean(),
-        fc.boolean(),
-        (windows, computerUseEnabled) => {
-          isWindows = windows
-          const skills = withComputerUseEnabled(defaultSkillsSettings, computerUseEnabled)
-          mockSettings.settings = makeSettings({ skills })
+      fc.property(fc.boolean(), fc.boolean(), (windows, computerUseEnabled) => {
+        isWindows = windows
+        const skills = withComputerUseEnabled(defaultSkillsSettings, computerUseEnabled)
+        mockSettings.settings = makeSettings({ skills })
 
-          const exposed = exposesComputerUseSurface()
-          cleanup()
+        const exposed = exposesComputerUseSurface()
+        cleanup()
 
-          const expected = windows && computerUseEnabled
-          expect(exposed).toBe(expected)
-          return exposed === expected
-        }
-      ),
+        const expected = windows && computerUseEnabled
+        expect(exposed).toBe(expected)
+        return exposed === expected
+      }),
       { numRuns: 100 }
     )
   })

@@ -9,7 +9,9 @@ let unsubscribeBroadcast: (() => void) | null = null
 
 function getOrCreateApprovalManager(): TerminalApprovalManager {
   if (!approvalManager) {
-    approvalManager = new TerminalApprovalManager({ defaultTimeoutMs: TERMINAL_APPROVAL_TIMEOUT_MS })
+    approvalManager = new TerminalApprovalManager({
+      defaultTimeoutMs: TERMINAL_APPROVAL_TIMEOUT_MS,
+    })
   }
   return approvalManager
 }

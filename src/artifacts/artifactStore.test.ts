@@ -76,4 +76,3 @@ describe('artifactStore', () => {
     expect(getArtifactExtension({ kind: 'mermaid' })).toBe('mmd')
   })
 })
-

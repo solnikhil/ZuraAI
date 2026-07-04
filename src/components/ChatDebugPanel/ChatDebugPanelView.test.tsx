@@ -70,7 +70,10 @@ vi.mock('@/utils/clipboard', () => ({
 }))
 
 vi.mock('react-virtuoso', () => ({
-  Virtuoso: ({ data, itemContent }: {
+  Virtuoso: ({
+    data,
+    itemContent,
+  }: {
     data: ChatDiagnosticEvent[]
     itemContent: (index: number, event: ChatDiagnosticEvent) => React.ReactNode
   }) => (
@@ -141,8 +144,9 @@ describe('ChatDebugPanelView (standalone window)', () => {
     const finishSummary = within(getTimeline()).getByText(/finish=stop/)
     fireEvent.click(finishSummary)
 
-    const json = within(getTimeline()).getByText((_content, node) =>
-      node?.tagName === 'PRE' && (node?.textContent?.includes('"finishReason": "stop"') ?? false)
+    const json = within(getTimeline()).getByText(
+      (_content, node) =>
+        node?.tagName === 'PRE' && (node?.textContent?.includes('"finishReason": "stop"') ?? false)
     )
     expect(json).toBeInTheDocument()
   })

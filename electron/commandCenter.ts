@@ -3,7 +3,12 @@ import os from 'os'
 import path from 'path'
 
 import { scoreWindowSearch } from '../src/commandCenter/search'
-import { getCachedAppIcon, refreshAppIndex, resolveAppIndexEntry, warmAppIndex } from './appIndexService'
+import {
+  getCachedAppIcon,
+  refreshAppIndex,
+  resolveAppIndexEntry,
+  warmAppIndex,
+} from './appIndexService'
 import { getSessionMetadataAsync } from './chatStore'
 import {
   deleteCommandCenterWorkflow,
@@ -36,15 +41,50 @@ const MAX_INDEX_QUERY_LENGTH = 120
 const COMMAND_CENTER_ACTIONS = [
   { id: 'snap-left', label: 'Snap left', kind: 'window', aliases: ['tile left'] },
   { id: 'snap-right', label: 'Snap right', kind: 'window', aliases: ['tile right'] },
-  { id: 'maximize-window', label: 'Maximize', kind: 'window', aliases: ['fullscreen', 'full screen'] },
-  { id: 'system-status', label: 'System status', kind: 'system', aliases: ['battery', 'disk', 'network status'] },
-  { id: 'clipboard-to-chat', label: 'Ask about clipboard', kind: 'clipboard', aliases: ['paste', 'copied text'] },
+  {
+    id: 'maximize-window',
+    label: 'Maximize',
+    kind: 'window',
+    aliases: ['fullscreen', 'full screen'],
+  },
+  {
+    id: 'system-status',
+    label: 'System status',
+    kind: 'system',
+    aliases: ['battery', 'disk', 'network status'],
+  },
+  {
+    id: 'clipboard-to-chat',
+    label: 'Ask about clipboard',
+    kind: 'clipboard',
+    aliases: ['paste', 'copied text'],
+  },
   { id: 'focus-zuraai', label: 'Focus ZuraAI', kind: 'app', aliases: ['show zura', 'open zura'] },
-  { id: 'settings-display', label: 'Display settings', kind: 'settings', aliases: ['screen', 'monitor'] },
-  { id: 'settings-sound', label: 'Sound settings', kind: 'settings', aliases: ['audio settings', 'speaker'] },
-  { id: 'settings-network', label: 'Network settings', kind: 'settings', aliases: ['wifi', 'wi-fi', 'internet'] },
+  {
+    id: 'settings-display',
+    label: 'Display settings',
+    kind: 'settings',
+    aliases: ['screen', 'monitor'],
+  },
+  {
+    id: 'settings-sound',
+    label: 'Sound settings',
+    kind: 'settings',
+    aliases: ['audio settings', 'speaker'],
+  },
+  {
+    id: 'settings-network',
+    label: 'Network settings',
+    kind: 'settings',
+    aliases: ['wifi', 'wi-fi', 'internet'],
+  },
   { id: 'settings-bluetooth', label: 'Bluetooth settings', kind: 'settings', aliases: ['devices'] },
-  { id: 'open-downloads', label: 'Open Downloads', kind: 'filesystem', aliases: ['downloads folder'] },
+  {
+    id: 'open-downloads',
+    label: 'Open Downloads',
+    kind: 'filesystem',
+    aliases: ['downloads folder'],
+  },
 ] as const
 
 let extensionEnabled = false
@@ -175,13 +215,15 @@ function normalizeWindows(raw: unknown): WindowMatch[] {
     ) {
       return []
     }
-    return [{
-      hwnd: record.hwnd,
-      title: record.title,
-      processName: record.processName,
-      processId: record.processId,
-      path: typeof record.path === 'string' && record.path.trim() ? record.path : undefined,
-    }]
+    return [
+      {
+        hwnd: record.hwnd,
+        title: record.title,
+        processName: record.processName,
+        processId: record.processId,
+        path: typeof record.path === 'string' && record.path.trim() ? record.path : undefined,
+      },
+    ]
   })
 }
 
@@ -194,16 +236,25 @@ function publicWindowMatch(window: WindowMatch): Omit<WindowMatch, 'path'> {
   }
 }
 
-function findExistingAppWindow(appName: string, windows: WindowMatch[], executableNames: string[] = []): WindowMatch | undefined {
+function findExistingAppWindow(
+  appName: string,
+  windows: WindowMatch[],
+  executableNames: string[] = []
+): WindowMatch | undefined {
   const appKey = compactText(appName)
-  const candidateKeys = Array.from(new Set([appKey, ...executableNames.map(compactExecutableName)]))
-    .filter((key) => key.length >= 3 && key !== 'update')
+  const candidateKeys = Array.from(
+    new Set([appKey, ...executableNames.map(compactExecutableName)])
+  ).filter((key) => key.length >= 3 && key !== 'update')
 
   return windows.find((window) => {
     const processKey = compactExecutableName(window.processName)
     if (processKey.length < 3) return false
     return candidateKeys.some((candidateKey) => {
-      return processKey === candidateKey || processKey.includes(candidateKey) || candidateKey.includes(processKey)
+      return (
+        processKey === candidateKey ||
+        processKey.includes(candidateKey) ||
+        candidateKey.includes(processKey)
+      )
     })
   })
 }
@@ -232,7 +283,9 @@ function parseProcessStartExe(args: string | undefined): string | undefined {
   return match?.[1] || match?.[2] || undefined
 }
 
-function appsFromToolResult(result: Awaited<ReturnType<typeof executeAppList | typeof executeAppFind>>): Array<Record<string, unknown>> {
+function appsFromToolResult(
+  result: Awaited<ReturnType<typeof executeAppList | typeof executeAppFind>>
+): Array<Record<string, unknown>> {
   if (!result.success || !result.data || typeof result.data !== 'object') return []
   const data = result.data as Record<string, unknown>
   if (Array.isArray(data.apps)) return data.apps as Array<Record<string, unknown>>
@@ -240,7 +293,9 @@ function appsFromToolResult(result: Awaited<ReturnType<typeof executeAppList | t
   return []
 }
 
-function appDiagnosticsFromToolResult(result: Awaited<ReturnType<typeof executeAppList | typeof executeAppFind>>): CommandCenterIndex['diagnostics'] {
+function appDiagnosticsFromToolResult(
+  result: Awaited<ReturnType<typeof executeAppList | typeof executeAppFind>>
+): CommandCenterIndex['diagnostics'] {
   if (!result.success) {
     console.warn('[CommandCenter] App index failed:', result.error)
     return {
@@ -269,10 +324,14 @@ function appDiagnosticsFromToolResult(result: Awaited<ReturnType<typeof executeA
     }
   }
   const record = diagnostics as Record<string, unknown>
-  const sourceCounts = record.sourceCounts && typeof record.sourceCounts === 'object'
-    ? Object.fromEntries(Object.entries(record.sourceCounts as Record<string, unknown>)
-      .filter(([, value]) => typeof value === 'number')) as Record<string, number>
-    : {}
+  const sourceCounts =
+    record.sourceCounts && typeof record.sourceCounts === 'object'
+      ? (Object.fromEntries(
+          Object.entries(record.sourceCounts as Record<string, unknown>).filter(
+            ([, value]) => typeof value === 'number'
+          )
+        ) as Record<string, number>)
+      : {}
   const ok = record.ok !== false
   const error = typeof record.error === 'string' ? record.error : undefined
   if (!ok || error) {
@@ -285,7 +344,8 @@ function appDiagnosticsFromToolResult(result: Awaited<ReturnType<typeof executeA
       error,
       sourceCounts,
       lastRefreshAt: typeof record.lastRefreshAt === 'number' ? record.lastRefreshAt : undefined,
-      refreshDurationMs: typeof record.refreshDurationMs === 'number' ? record.refreshDurationMs : undefined,
+      refreshDurationMs:
+        typeof record.refreshDurationMs === 'number' ? record.refreshDurationMs : undefined,
     },
   }
 }
@@ -301,70 +361,84 @@ async function buildCommandCenterIndex(query: unknown = ''): Promise<CommandCent
   const dedupedApps = new Map<string, Record<string, unknown>>()
   for (const app of appsFromToolResult(appsResult)) {
     if (typeof app.name !== 'string') continue
-    if (typeof app.path !== 'string' && typeof app.appUserModelId !== 'string' && typeof app.shortcutPath !== 'string') continue
+    if (
+      typeof app.path !== 'string' &&
+      typeof app.appUserModelId !== 'string' &&
+      typeof app.shortcutPath !== 'string'
+    )
+      continue
     const appUserModelId = typeof app.appUserModelId === 'string' ? app.appUserModelId : undefined
     const targetPath = typeof app.targetPath === 'string' ? app.targetPath : undefined
-    const shortcutPath = typeof app.shortcutPath === 'string'
-      ? app.shortcutPath
-      : typeof app.path === 'string'
-        ? app.path
-        : undefined
-    const dedupeKey = appUserModelId
-      ?? targetPath
-      ?? shortcutPath
-      ?? String(app.name)
+    const shortcutPath =
+      typeof app.shortcutPath === 'string'
+        ? app.shortcutPath
+        : typeof app.path === 'string'
+          ? app.path
+          : undefined
+    const dedupeKey = appUserModelId ?? targetPath ?? shortcutPath ?? String(app.name)
     if (!dedupedApps.has(dedupeKey)) {
       dedupedApps.set(dedupeKey, app)
     }
   }
 
-  const appRows = (await Promise.all(Array.from(dedupedApps.values())
-      .slice(0, appQuery ? 40 : 120)
-      .map(async (app) => {
-        const name = String(app.name)
-        const shortcutPath = typeof app.shortcutPath === 'string'
-          ? String(app.shortcutPath)
-          : typeof app.path === 'string'
-            ? String(app.path)
-            : undefined
-        const appPath = shortcutPath
-        const appUserModelId = typeof app.appUserModelId === 'string' ? String(app.appUserModelId) : undefined
-        const targetPath = typeof app.targetPath === 'string' ? app.targetPath : undefined
-        const args = typeof app.args === 'string' ? app.args : undefined
-        const source = typeof app.source === 'string' ? app.source : undefined
-        const indexedIconKey = typeof app.iconKey === 'string' ? app.iconKey : undefined
-        const rank = typeof app.rank === 'number' ? app.rank : undefined
-        const id = typeof app.id === 'string'
-          ? app.id
-          : `app:${Buffer.from(appPath ?? appUserModelId ?? name).toString('base64url')}`
-        const processStartExe = parseProcessStartExe(args)
-        const existingWindow = findExistingAppWindow(name, windows, [targetPath ?? '', processStartExe ?? ''])
-        const iconKey = indexedIconKey ?? targetPath ?? existingWindow?.path
-        const launchStrategy: 'appUserModelId' | 'shortcutPath' = appUserModelId ? 'appUserModelId' : 'shortcutPath'
-        return {
-          id,
-          type: 'app' as const,
-          title: name,
-          subtitle: existingWindow ? existingWindow.title : undefined,
-          hint: 'Application' as const,
-          aliases: [name, appUserModelId ?? ''].filter(Boolean),
-          appPath,
-          shortcutPath,
-          targetPath,
-          source,
-          launchStrategy,
-          appUserModelId,
-          iconKey,
-          iconDataUrl: getCachedAppIcon(iconKey),
-          existingWindow: existingWindow ? publicWindowMatch(existingWindow) : undefined,
-          rank,
-        }
-      })))
-    .sort((a, b) => {
-      const rankA = (a.rank ?? 0) + (a.existingWindow ? 50 : 0)
-      const rankB = (b.rank ?? 0) + (b.existingWindow ? 50 : 0)
-      return rankB - rankA || a.title.localeCompare(b.title)
-    })
+  const appRows = (
+    await Promise.all(
+      Array.from(dedupedApps.values())
+        .slice(0, appQuery ? 40 : 120)
+        .map(async (app) => {
+          const name = String(app.name)
+          const shortcutPath =
+            typeof app.shortcutPath === 'string'
+              ? String(app.shortcutPath)
+              : typeof app.path === 'string'
+                ? String(app.path)
+                : undefined
+          const appPath = shortcutPath
+          const appUserModelId =
+            typeof app.appUserModelId === 'string' ? String(app.appUserModelId) : undefined
+          const targetPath = typeof app.targetPath === 'string' ? app.targetPath : undefined
+          const args = typeof app.args === 'string' ? app.args : undefined
+          const source = typeof app.source === 'string' ? app.source : undefined
+          const indexedIconKey = typeof app.iconKey === 'string' ? app.iconKey : undefined
+          const rank = typeof app.rank === 'number' ? app.rank : undefined
+          const id =
+            typeof app.id === 'string'
+              ? app.id
+              : `app:${Buffer.from(appPath ?? appUserModelId ?? name).toString('base64url')}`
+          const processStartExe = parseProcessStartExe(args)
+          const existingWindow = findExistingAppWindow(name, windows, [
+            targetPath ?? '',
+            processStartExe ?? '',
+          ])
+          const iconKey = indexedIconKey ?? targetPath ?? existingWindow?.path
+          const launchStrategy: 'appUserModelId' | 'shortcutPath' = appUserModelId
+            ? 'appUserModelId'
+            : 'shortcutPath'
+          return {
+            id,
+            type: 'app' as const,
+            title: name,
+            subtitle: existingWindow ? existingWindow.title : undefined,
+            hint: 'Application' as const,
+            aliases: [name, appUserModelId ?? ''].filter(Boolean),
+            appPath,
+            shortcutPath,
+            targetPath,
+            source,
+            launchStrategy,
+            appUserModelId,
+            iconKey,
+            iconDataUrl: getCachedAppIcon(iconKey),
+            existingWindow: existingWindow ? publicWindowMatch(existingWindow) : undefined,
+            rank,
+          }
+        })
+    )
+  ).sort((a, b) => {
+    const rankA = (a.rank ?? 0) + (a.existingWindow ? 50 : 0)
+    const rankB = (b.rank ?? 0) + (b.existingWindow ? 50 : 0)
+    return rankB - rankA || a.title.localeCompare(b.title)
+  })
 
   return {
     workflows: workflows
@@ -374,7 +448,9 @@ async function buildCommandCenterIndex(query: unknown = ''): Promise<CommandCent
         id: `workflow:${workflow.id}`,
         type: 'workflow' as const,
         title: workflow.name,
-        subtitle: workflow.description ?? `${workflow.steps.length} step${workflow.steps.length === 1 ? '' : 's'}`,
+        subtitle:
+          workflow.description ??
+          `${workflow.steps.length} step${workflow.steps.length === 1 ? '' : 's'}`,
         hint: 'Workflow' as const,
         aliases: workflow.aliases,
         workflow,
@@ -382,25 +458,27 @@ async function buildCommandCenterIndex(query: unknown = ''): Promise<CommandCent
     apps: appRows,
     windows: (appQuery
       ? windows
-        .map((window) => ({
-          window,
-          rank: scoreWindowSearch(window.title, window.processName, appQuery),
-        }))
-        .filter((entry) => entry.rank > 0)
-        .sort((a, b) => b.rank - a.rank || a.window.title.localeCompare(b.window.title))
-        .map((entry) => entry.window)
+          .map((window) => ({
+            window,
+            rank: scoreWindowSearch(window.title, window.processName, appQuery),
+          }))
+          .filter((entry) => entry.rank > 0)
+          .sort((a, b) => b.rank - a.rank || a.window.title.localeCompare(b.window.title))
+          .map((entry) => entry.window)
       : windows
-    ).slice(0, appQuery ? 20 : 80).map((window) => ({
-      id: `window:${window.hwnd}`,
-      type: 'window' as const,
-      title: window.title,
-      subtitle: window.processName,
-      hint: 'Window' as const,
-      aliases: [window.title, window.processName],
-      hwnd: window.hwnd,
-      processName: window.processName,
-      processId: window.processId,
-    })),
+    )
+      .slice(0, appQuery ? 20 : 80)
+      .map((window) => ({
+        id: `window:${window.hwnd}`,
+        type: 'window' as const,
+        title: window.title,
+        subtitle: window.processName,
+        hint: 'Window' as const,
+        aliases: [window.title, window.processName],
+        hwnd: window.hwnd,
+        processName: window.processName,
+        processId: window.processId,
+      })),
     actions: COMMAND_CENTER_ACTIONS.map((action) => ({
       id: `action:${action.id}`,
       type: 'action' as const,
@@ -483,9 +561,10 @@ async function executeCommandCenterAction(actionId: CommandCenterActionId) {
       if (!text) {
         return { success: false, error: 'Clipboard does not contain text.' }
       }
-      const clipped = text.length > MAX_CLIPBOARD_CONTEXT_LENGTH
-        ? `${text.slice(0, MAX_CLIPBOARD_CONTEXT_LENGTH)}\n...[clipboard truncated]`
-        : text
+      const clipped =
+        text.length > MAX_CLIPBOARD_CONTEXT_LENGTH
+          ? `${text.slice(0, MAX_CLIPBOARD_CONTEXT_LENGTH)}\n...[clipboard truncated]`
+          : text
       await sendCommandToMainWindow(`Help me with this clipboard text:\n\n${clipped}`)
       hideCommandCenterWindow()
       return { success: true, data: { queued: true, characterCount: text.length } }
@@ -515,13 +594,7 @@ async function executeCommandCenterAction(actionId: CommandCenterActionId) {
 }
 
 function flattenIndex(index: CommandCenterIndex): CommandCenterIndexItem[] {
-  return [
-    ...index.workflows,
-    ...index.apps,
-    ...index.windows,
-    ...index.actions,
-    ...index.chats,
-  ]
+  return [...index.workflows, ...index.apps, ...index.windows, ...index.actions, ...index.chats]
 }
 
 async function executeWorkflow(workflowId: unknown) {
@@ -560,7 +633,9 @@ async function executeIndexItem(itemId: unknown, query: unknown = '') {
     return { success: false, error: 'Command Center item id is required.' }
   }
 
-  const item = flattenIndex(await buildCommandCenterIndex(query)).find((candidate) => candidate.id === itemId)
+  const item = flattenIndex(await buildCommandCenterIndex(query)).find(
+    (candidate) => candidate.id === itemId
+  )
   if (!item) return { success: false, error: 'Command Center item was not found.' }
 
   if (item.type === 'workflow') return executeWorkflow(item.workflow.id)
@@ -680,12 +755,15 @@ export function registerCommandCenterHandlers(): void {
     return executeCommandCenterAction(actionId)
   })
 
-  ipcMain.handle('command-center:execute-index-item', async (_event, itemId: unknown, query: unknown) => {
-    if (!extensionEnabled) {
-      return { success: false, error: 'Command Center is disabled.' }
+  ipcMain.handle(
+    'command-center:execute-index-item',
+    async (_event, itemId: unknown, query: unknown) => {
+      if (!extensionEnabled) {
+        return { success: false, error: 'Command Center is disabled.' }
+      }
+      return executeIndexItem(itemId, query)
     }
-    return executeIndexItem(itemId, query)
-  })
+  )
 
   ipcMain.handle('command-center:execute-workflow', async (_event, workflowId: unknown) => {
     if (!extensionEnabled) {

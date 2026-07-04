@@ -1,11 +1,12 @@
 import type { ClickArgs, CursorPositionArgs, ScrollArgs } from './types'
 
 function parseFiniteNumber(value: unknown, name: string): number {
-  const parsed = typeof value === 'number'
-    ? value
-    : typeof value === 'string' && value.trim() !== ''
-      ? Number(value)
-      : NaN
+  const parsed =
+    typeof value === 'number'
+      ? value
+      : typeof value === 'string' && value.trim() !== ''
+        ? Number(value)
+        : NaN
 
   if (!Number.isFinite(parsed)) {
     throw new Error(`Invalid ${name}: expected a finite number`)
@@ -15,8 +16,8 @@ function parseFiniteNumber(value: unknown, name: string): number {
 }
 
 export function normalizeClickArgs(args: unknown): { args: ClickArgs; autoApprove: boolean } {
-  const r = (typeof args === 'object' && args !== null) ? args as Record<string, unknown> : {}
-  const button = (r.button === 'right' || r.button === 'middle') ? r.button : 'left' as const
+  const r = typeof args === 'object' && args !== null ? (args as Record<string, unknown>) : {}
+  const button = r.button === 'right' || r.button === 'middle' ? r.button : ('left' as const)
   return {
     args: {
       x: parseFiniteNumber(r.x, 'x coordinate'),
@@ -28,8 +29,10 @@ export function normalizeClickArgs(args: unknown): { args: ClickArgs; autoApprov
 }
 
 export function normalizeScrollArgs(args: unknown): { args: ScrollArgs; autoApprove: boolean } {
-  const r = (typeof args === 'object' && args !== null) ? args as Record<string, unknown> : {}
-  const dir = ['up', 'down', 'left', 'right'].includes(r.direction as string) ? r.direction as ScrollArgs['direction'] : 'down'
+  const r = typeof args === 'object' && args !== null ? (args as Record<string, unknown>) : {}
+  const dir = ['up', 'down', 'left', 'right'].includes(r.direction as string)
+    ? (r.direction as ScrollArgs['direction'])
+    : 'down'
   const amount = r.amount === undefined ? undefined : parseFiniteNumber(r.amount, 'scroll amount')
   return {
     args: {
@@ -42,8 +45,11 @@ export function normalizeScrollArgs(args: unknown): { args: ScrollArgs; autoAppr
   }
 }
 
-export function normalizeCursorArgs(args: unknown): { args: CursorPositionArgs; autoApprove: boolean } {
-  const r = (typeof args === 'object' && args !== null) ? args as Record<string, unknown> : {}
+export function normalizeCursorArgs(args: unknown): {
+  args: CursorPositionArgs
+  autoApprove: boolean
+} {
+  const r = typeof args === 'object' && args !== null ? (args as Record<string, unknown>) : {}
   return {
     args: {
       x: parseFiniteNumber(r.x, 'x coordinate'),

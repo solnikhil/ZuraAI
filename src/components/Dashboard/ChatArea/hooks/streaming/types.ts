@@ -19,10 +19,7 @@ import type {
 import type { ToolCallingResponse } from '../../../../../tools/types'
 import type { ToolExecutionPolicy, ToolExecutionSummary } from '../../../../../tools/types'
 import type { AgentVerificationStrategy } from '../../../../../agent/reliability'
-import type {
-  ServiceAssistantMessage,
-  ToolDefinition,
-} from '../../../../../services/types'
+import type { ServiceAssistantMessage, ToolDefinition } from '../../../../../services/types'
 import type { ActiveProviderId } from '../../../../../providers'
 import type { ContextOptimizationTrace } from '../../../../../utils/tokenUtils'
 
@@ -122,7 +119,11 @@ export type FlushCallback = () => void
 
 export interface HandleToolCallsOptions {
   onToolStart?: (toolCall: { id: string; name: string; arguments: Record<string, unknown> }) => void
-  onToolApprovalStart?: (toolCall: { id: string; name: string; arguments: Record<string, unknown> }) => void
+  onToolApprovalStart?: (toolCall: {
+    id: string
+    name: string
+    arguments: Record<string, unknown>
+  }) => void
   onToolApprovalResolved?: (
     toolCall: { id: string; name: string; arguments: Record<string, unknown> },
     approved: boolean
@@ -130,9 +131,11 @@ export interface HandleToolCallsOptions {
   onToolComplete?: (result: ToolCallResult) => void
   onVerificationStart?: (strategy: AgentVerificationStrategy) => void
   onVerificationComplete?: (strategy: AgentVerificationStrategy, verified: boolean) => void
-  requestToolApproval?: (
-    toolCall: { id: string; name: string; arguments: Record<string, unknown> }
-  ) => Promise<boolean>
+  requestToolApproval?: (toolCall: {
+    id: string
+    name: string
+    arguments: Record<string, unknown>
+  }) => Promise<boolean>
   executionPolicy?: ToolExecutionPolicy
 }
 

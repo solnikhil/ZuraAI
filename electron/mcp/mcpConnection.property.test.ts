@@ -107,7 +107,10 @@ class DeterministicTransport implements McpTransport {
       return
     }
 
-    const result = buildResult(message.method, (message as { params?: Record<string, unknown> }).params)
+    const result = buildResult(
+      message.method,
+      (message as { params?: Record<string, unknown> }).params
+    )
     queueMicrotask(() => {
       for (const handler of this.messageHandlers) {
         handler({ jsonrpc: '2.0', id: message.id, result })

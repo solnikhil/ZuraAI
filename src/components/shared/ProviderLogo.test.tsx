@@ -131,7 +131,17 @@ describe('ProviderLogo', () => {
   })
 
   describe('all providers', () => {
-    const providers = ['ollama', 'perplexity', 'openrouter', 'gemini', 'groq', 'minimax', 'alibaba', 'deepseek', 'fireworks']
+    const providers = [
+      'ollama',
+      'perplexity',
+      'openrouter',
+      'gemini',
+      'groq',
+      'minimax',
+      'alibaba',
+      'deepseek',
+      'fireworks',
+    ]
 
     it.each(providers)('should recognize %s as a known provider', (provider) => {
       expect(isKnownProvider(provider)).toBe(true)

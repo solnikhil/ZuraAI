@@ -8,7 +8,11 @@ vi.mock('electron', () => ({
   },
 }))
 
-import type { McpResolvedServerConfig, McpServerConfig, McpServerRuntimeState } from '../../src/mcp/types'
+import type {
+  McpResolvedServerConfig,
+  McpServerConfig,
+  McpServerRuntimeState,
+} from '../../src/mcp/types'
 import { McpManager, type McpManagedConnection } from './mcpManager'
 
 describe('McpManager property checks', () => {
@@ -41,7 +45,12 @@ describe('McpManager property checks', () => {
     await manager.initialize({ autoConnect: false })
     await Promise.all(combinations.map((server) => manager.connectServer(server.id)))
 
-    expect(manager.listTools().map((tool) => tool.namespacedName).sort()).toEqual([
+    expect(
+      manager
+        .listTools()
+        .map((tool) => tool.namespacedName)
+        .sort()
+    ).toEqual([
       'mcp__allowlisted__read_file',
       'mcp__blocklisted__delete_file',
       'mcp__enabled_trusted__delete_file',
@@ -99,10 +108,7 @@ describe('McpManager property checks', () => {
       .map((tool) => tool.namespacedName)
       .sort()
 
-    expect(names).toEqual([
-      'mcp__filesystem__read_file',
-      'mcp__filesystem_server_b__read_file',
-    ])
+    expect(names).toEqual(['mcp__filesystem__read_file', 'mcp__filesystem_server_b__read_file'])
   })
 })
 

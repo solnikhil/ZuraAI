@@ -1,10 +1,5 @@
 import { SEARCH_EXTRACT_SNIPPET_LENGTH } from './constants'
-import type {
-  ImageResult,
-  JsonRecord,
-  SearchResult,
-  TavilyExtractFailure,
-} from './types'
+import type { ImageResult, JsonRecord, SearchResult, TavilyExtractFailure } from './types'
 
 export function isRecord(value: unknown): value is JsonRecord {
   return typeof value === 'object' && value !== null && !Array.isArray(value)

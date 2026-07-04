@@ -104,8 +104,12 @@ describe('extensions settings migration', () => {
   })
 
   it('exposes extension aliases', () => {
-    expect(defaultExtensionsSettings.artifacts.enabled).toBe(defaultSkillsSettings.artifacts.enabled)
-    expect(normalizeExtensionsSettings({ artifacts: { enabled: false } }).artifacts.enabled).toBe(false)
+    expect(defaultExtensionsSettings.artifacts.enabled).toBe(
+      defaultSkillsSettings.artifacts.enabled
+    )
+    expect(normalizeExtensionsSettings({ artifacts: { enabled: false } }).artifacts.enabled).toBe(
+      false
+    )
   })
 })
 
@@ -167,10 +171,12 @@ describe('code_execution skill', () => {
 
   it('isCodeExecutionEnabled returns correct state', () => {
     expect(isCodeExecutionEnabled(defaultSkillsSettings)).toBe(false)
-    expect(isCodeExecutionEnabled({
-      ...defaultSkillsSettings,
-      code_execution: { enabled: true },
-    })).toBe(true)
+    expect(
+      isCodeExecutionEnabled({
+        ...defaultSkillsSettings,
+        code_execution: { enabled: true },
+      })
+    ).toBe(true)
   })
 
   it('withCodeExecutionEnabled toggles the skill', () => {
@@ -183,10 +189,12 @@ describe('code_execution skill', () => {
     expect(getCodeExecutionToolExposure(defaultSkillsSettings)).toEqual({
       exposeCodeExecution: false,
     })
-    expect(getCodeExecutionToolExposure({
-      ...defaultSkillsSettings,
-      code_execution: { enabled: true },
-    })).toEqual({
+    expect(
+      getCodeExecutionToolExposure({
+        ...defaultSkillsSettings,
+        code_execution: { enabled: true },
+      })
+    ).toEqual({
       exposeCodeExecution: true,
     })
   })
@@ -224,10 +232,12 @@ describe('terminal skill', () => {
 
   it('isTerminalEnabled returns correct state', () => {
     expect(isTerminalEnabled(defaultSkillsSettings)).toBe(false)
-    expect(isTerminalEnabled({
-      ...defaultSkillsSettings,
-      terminal: { enabled: true },
-    })).toBe(true)
+    expect(
+      isTerminalEnabled({
+        ...defaultSkillsSettings,
+        terminal: { enabled: true },
+      })
+    ).toBe(true)
   })
 
   it('withTerminalEnabled toggles the skill', () => {
@@ -240,10 +250,12 @@ describe('terminal skill', () => {
     expect(getTerminalToolExposure(defaultSkillsSettings)).toEqual({
       exposeTerminal: false,
     })
-    expect(getTerminalToolExposure({
-      ...defaultSkillsSettings,
-      terminal: { enabled: true },
-    })).toEqual({
+    expect(
+      getTerminalToolExposure({
+        ...defaultSkillsSettings,
+        terminal: { enabled: true },
+      })
+    ).toEqual({
       exposeTerminal: true,
     })
   })
@@ -267,7 +279,9 @@ describe('terminal skill', () => {
   })
 
   it('buildEnabledSkillsPrompt omits the terminalPrompt option when disabled', () => {
-    const prompt = buildEnabledSkillsPrompt(defaultSkillsSettings, { terminalPrompt: 'TERMINAL_PROMPT_CONTENT' })
+    const prompt = buildEnabledSkillsPrompt(defaultSkillsSettings, {
+      terminalPrompt: 'TERMINAL_PROMPT_CONTENT',
+    })
     expect(prompt).not.toContain('TERMINAL_PROMPT_CONTENT')
   })
 
@@ -281,7 +295,9 @@ describe('terminal skill', () => {
       buildEnabledSkillsPrompt(enabled, { commandCenterPrompt: 'COMMAND_CENTER_PROMPT_CONTENT' })
     ).toContain('COMMAND_CENTER_PROMPT_CONTENT')
     expect(
-      buildEnabledSkillsPrompt(defaultSkillsSettings, { commandCenterPrompt: 'COMMAND_CENTER_PROMPT_CONTENT' })
+      buildEnabledSkillsPrompt(defaultSkillsSettings, {
+        commandCenterPrompt: 'COMMAND_CENTER_PROMPT_CONTENT',
+      })
     ).not.toContain('COMMAND_CENTER_PROMPT_CONTENT')
   })
 
@@ -321,7 +337,6 @@ describe('computer_use skill', () => {
   })
 })
 
-
 describe('chart_generation skill', () => {
   it('defaults to disabled', () => {
     expect(defaultSkillsSettings.chart_generation.enabled).toBe(false)
@@ -342,10 +357,12 @@ describe('chart_generation skill', () => {
 
   it('isChartGenerationEnabled returns correct state', () => {
     expect(isChartGenerationEnabled(defaultSkillsSettings)).toBe(false)
-    expect(isChartGenerationEnabled({
-      ...defaultSkillsSettings,
-      chart_generation: { enabled: true },
-    })).toBe(true)
+    expect(
+      isChartGenerationEnabled({
+        ...defaultSkillsSettings,
+        chart_generation: { enabled: true },
+      })
+    ).toBe(true)
   })
 
   it('withChartGenerationEnabled toggles the skill', () => {
@@ -356,7 +373,9 @@ describe('chart_generation skill', () => {
 
   it('buildEnabledSkillsPrompt includes chart generation when enabled', () => {
     const skills = { ...defaultSkillsSettings, chart_generation: { enabled: true } }
-    const prompt = buildEnabledSkillsPrompt(skills, { chartGenerationPrompt: 'CHART_PROMPT_CONTENT' })
+    const prompt = buildEnabledSkillsPrompt(skills, {
+      chartGenerationPrompt: 'CHART_PROMPT_CONTENT',
+    })
     expect(prompt).toContain('Chart Generation')
     expect(prompt).toContain('chart_generation')
     expect(prompt).toContain('CHART_PROMPT_CONTENT')
@@ -368,8 +387,6 @@ describe('chart_generation skill', () => {
     expect(prompt).not.toContain('Chart Generation')
   })
 })
-
-
 
 describe('memory auto-management sub-toggle', () => {
   it('defaults to enabled when memory is enabled and no config present', async () => {

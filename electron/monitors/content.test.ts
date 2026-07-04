@@ -46,7 +46,9 @@ describe('monitor content helpers', () => {
   })
 
   it('builds changed excerpts from new lines', () => {
-    expect(buildChangedExcerpt('Alpha line\nBeta line', 'Alpha line\nGamma line')).toContain('Gamma line')
+    expect(buildChangedExcerpt('Alpha line\nBeta line', 'Alpha line\nGamma line')).toContain(
+      'Gamma line'
+    )
   })
 
   it('hashes equal normalized content consistently', () => {
@@ -55,11 +57,12 @@ describe('monitor content helpers', () => {
   })
 
   it('fetches and normalizes supported pages', async () => {
-    const fetchImpl = vi.fn(async () =>
-      new Response('<main><p>This public changelog has meaningful monitorable text.</p></main>', {
-        status: 200,
-        headers: { 'content-type': 'text/html' },
-      })
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response('<main><p>This public changelog has meaningful monitorable text.</p></main>', {
+          status: 200,
+          headers: { 'content-type': 'text/html' },
+        })
     ) as unknown as typeof fetch
 
     const result = await fetchMonitorPage('https://example.com/changelog', fetchImpl)

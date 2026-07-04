@@ -1,6 +1,6 @@
 name: Open an issue
 description: Report a bug, provider problem, feature request, or other project issue for ZuraAI
-title: "[Issue]: "
+title: '[Issue]: '
 body:
   - type: markdown
     attributes:

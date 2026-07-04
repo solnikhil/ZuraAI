@@ -80,7 +80,11 @@ export function FireworksModelSearchDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="provider-catalog-dialog p-0" showCloseButton={false} overlayClassName="catalog-modal-backdrop">
+      <DialogContent
+        className="provider-catalog-dialog p-0"
+        showCloseButton={false}
+        overlayClassName="catalog-modal-backdrop"
+      >
         <CatalogHeader
           provider="fireworks"
           title="Add Model from Fireworks Catalog"

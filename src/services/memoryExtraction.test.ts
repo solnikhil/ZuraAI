@@ -1,9 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import {
-  parseExtractionResponse,
-  runMemoryExtraction,
-} from './memoryExtraction'
+import { parseExtractionResponse, runMemoryExtraction } from './memoryExtraction'
 import { appendChatDiagnosticEvent } from '@/diagnostics/chatDiagnosticsClient'
 
 // Mock the provider call so no network happens.
@@ -16,7 +13,9 @@ vi.mock('@/diagnostics/chatDiagnosticsClient', () => ({
 }))
 
 const enabledSkills = { memory: { enabled: true } } as unknown as import('@/skills').SkillsSettings
-const disabledSkills = { memory: { enabled: false } } as unknown as import('@/skills').SkillsSettings
+const disabledSkills = {
+  memory: { enabled: false },
+} as unknown as import('@/skills').SkillsSettings
 
 interface FakeBridge {
   added: string[]
@@ -154,7 +153,9 @@ describe('runMemoryExtraction', () => {
     const result = await runMemoryExtraction({
       settings: baseSettings,
       sessionId: 's-remember-remind',
-      messages: [{ role: 'user', content: 'Remember to remind me every Friday to review invoices' }],
+      messages: [
+        { role: 'user', content: 'Remember to remind me every Friday to review invoices' },
+      ],
     })
 
     expect(result).toEqual({ facts: [], summary: '' })
@@ -179,7 +180,9 @@ describe('runMemoryExtraction', () => {
       summary: 'Discussed response style',
     })
     expect(state.added).toEqual(['User prefers concise answers'])
-    expect(state.summaries).toEqual([{ sessionId: 's-durable', summary: 'Discussed response style' }])
+    expect(state.summaries).toEqual([
+      { sessionId: 's-durable', summary: 'Discussed response style' },
+    ])
   })
 
   it('keeps durable facts in mixed chats while dropping reminder-like facts', async () => {
@@ -204,7 +207,9 @@ describe('runMemoryExtraction', () => {
       summary: 'Discussed user response preferences',
     })
     expect(state.added).toEqual(['User prefers concise answers'])
-    expect(state.summaries).toEqual([{ sessionId: 's-mixed', summary: 'Discussed user response preferences' }])
+    expect(state.summaries).toEqual([
+      { sessionId: 's-mixed', summary: 'Discussed user response preferences' },
+    ])
   })
 
   it('persists extracted facts with the provided Space memory scope', async () => {
@@ -263,9 +268,7 @@ describe('runMemoryExtraction', () => {
 
   it('skips the summary upsert when the model returns an empty summary', async () => {
     const state = installBridge()
-    generateTitleTextForModel.mockResolvedValue(
-      '{"facts":["User likes tea"],"summary":""}'
-    )
+    generateTitleTextForModel.mockResolvedValue('{"facts":["User likes tea"],"summary":""}')
 
     const result = await runMemoryExtraction({
       settings: baseSettings,
@@ -398,7 +401,9 @@ describe('runMemoryExtraction', () => {
     expect(state.added).toEqual(['User prefers dark mode'])
     expect(state.summaries).toEqual([{ sessionId: 's-reasoner', summary: 'Set up the app theme' }])
     // No error diagnostic should be emitted on the success path.
-    const errorCalls = (appendChatDiagnosticEvent as unknown as { mock: { calls: unknown[][] } }).mock.calls.filter(
+    const errorCalls = (
+      appendChatDiagnosticEvent as unknown as { mock: { calls: unknown[][] } }
+    ).mock.calls.filter(
       (call) => (call[0] as { phase?: string })?.phase === 'memory-extraction-error'
     )
     expect(errorCalls).toEqual([])
