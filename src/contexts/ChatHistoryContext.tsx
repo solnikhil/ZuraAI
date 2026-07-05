@@ -59,7 +59,12 @@ interface ChatHistoryContextType {
   folders: Folder[]
   currentSessionId: string | null
   isLoading: boolean
-  createSession: (firstMessage?: string, folderId?: string | null, idOverride?: string) => string
+  createSession: (
+    firstMessage?: string,
+    folderId?: string | null,
+    idOverride?: string,
+    options?: { activate?: boolean }
+  ) => string
   switchSession: (id: string) => void
   addMessageToSession: (sessionId: string, message: Omit<Message, 'id' | 'timestamp'>) => string
   updateStreamingMessage: (sessionId: string, messageId: string, updates: Partial<Message>) => void
@@ -648,12 +653,18 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
   )
 
   const createSession = useCallback(
-    (firstMessage?: string, folderId?: string | null, idOverride?: string) => {
+    (
+      firstMessage?: string,
+      folderId?: string | null,
+      idOverride?: string,
+      options?: { activate?: boolean }
+    ) => {
       const now = Date.now()
       const normalizedFirstMessage = typeof firstMessage === 'string' ? firstMessage.trim() : ''
       const normalizedFolderId = folderId || null
       const normalizedIdOverride =
         typeof idOverride === 'string' && idOverride.trim() ? idOverride.trim() : ''
+      const shouldActivate = options?.activate !== false
       const existingReusable =
         !normalizedIdOverride && !normalizedFirstMessage
           ? sessionsRef.current.find(
@@ -676,7 +687,9 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
           ...prev.filter((session) => session.id !== updatedExisting.id),
         ])
         persistSessionMutation(updatedExisting)
-        setCurrentSessionId(updatedExisting.id)
+        if (shouldActivate) {
+          setCurrentSessionId(updatedExisting.id)
+        }
         return updatedExisting.id
       }
 
@@ -707,7 +720,9 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
       markLoaded(newSession.id)
       setSessions((prev) => [newSession, ...prev])
       persistSessionMutation(newSession)
-      setCurrentSessionId(newSession.id)
+      if (shouldActivate) {
+        setCurrentSessionId(newSession.id)
+      }
       return newSession.id
     },
     [markLoaded, persistSessionMutation]
