@@ -477,22 +477,30 @@
   color: var(--theme-text-secondary);
 }
 
-.folder-name-dialog__setup-card strong,
-.folder-name-dialog__setup-card span {
+.folder-name-dialog__setup-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.folder-name-dialog__setup-copy strong,
+.folder-name-dialog__setup-copy span {
   display: block;
 }
 
-.folder-name-dialog__setup-card strong {
+.folder-name-dialog__setup-copy strong {
   color: var(--theme-text-primary);
   font-size: 0.88rem;
   font-weight: 520;
+  line-height: 1.25;
 }
 
-.folder-name-dialog__setup-card span {
+.folder-name-dialog__setup-copy span {
   color: var(--theme-text-muted);
   font-size: 0.79rem;
   line-height: 1.4;
-  margin-top: 2px;
+  overflow-wrap: anywhere;
 }
 
 .folder-name-dialog__setup-icon {

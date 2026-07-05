@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Check, FolderOpen, SettingsIcon } from '../../icons'
 import type { Folder } from '../../../chat/types'
+import '../FoldersView.css'
 
 interface FolderNameDialogProps {
   open: boolean
@@ -200,7 +201,7 @@ export default function FolderNameDialog({
                 <div className="folder-name-dialog__setup-icon" aria-hidden="true">
                   <FolderOpen size={16} />
                 </div>
-                <div>
+                <div className="folder-name-dialog__setup-copy">
                   <strong>Workspace setup</strong>
                   <span>New chats, context, and folder memories will collect here.</span>
                 </div>
