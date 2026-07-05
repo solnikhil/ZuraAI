@@ -56,11 +56,7 @@ describe('builtInMainToolManifest', () => {
     expect(create.description).toContain('AI automation')
     expect(create.parameters.properties.type.enum).toContain('ai_automation')
     expect(create.parameters.properties.prompt.description).toContain('AI automation')
-    expect(create.parameters.properties.automationMode.enum).toEqual([
-      'prompt',
-      'watch',
-      'agent',
-    ])
+    expect(create.parameters.properties.automationMode.enum).toEqual(['prompt', 'watch', 'agent'])
     expect(create.parameters.properties.allowedTools.description).toContain('agent-mode')
     expect(create.parameters.properties.outputDestinations.description).toContain(
       'background chat run'

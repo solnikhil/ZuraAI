@@ -896,7 +896,8 @@ Safety rules:
     origin: 'builtin-main',
   },
   scheduled_task_update: {
-    description: 'Update or pause/resume an existing local reminder, lookout, or AI automation by id.',
+    description:
+      'Update or pause/resume an existing local reminder, lookout, or AI automation by id.',
     parameters: {
       type: 'object',
       description: 'Arguments for updating a scheduled task.',
