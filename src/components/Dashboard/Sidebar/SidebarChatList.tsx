@@ -105,6 +105,7 @@ export default function SidebarChatList({
   const [renameFolderId, setRenameFolderId] = React.useState<string | null>(null)
   const [deleteFolderId, setDeleteFolderId] = React.useState<string | null>(null)
   const [isPinnedOpen, setIsPinnedOpen] = React.useState(true)
+  const [isProjectsOpen, setIsProjectsOpen] = React.useState(true)
   const [isYourChatsOpen, setIsYourChatsOpen] = React.useState(true)
   const [dragOverFolderId, setDragOverFolderId] = React.useState<string | null>(null)
 
@@ -131,16 +132,26 @@ export default function SidebarChatList({
       }
     }
 
-    items.push({ type: 'folder-heading', key: 'folders-heading', label: 'Folders' })
-    folders.forEach((folder) => {
-      items.push({
-        type: 'section',
-        key: `folder:${folder.id}`,
-        label: folder.name,
-        icon: 'folder',
-        folder,
+    items.push({ type: 'folder-heading', key: 'folders-heading', label: 'Projects' })
+    if (isProjectsOpen) {
+      folders.forEach((folder) => {
+        items.push({
+          type: 'section',
+          key: `folder:${folder.id}`,
+          label: folder.name,
+          icon: 'folder',
+          folder,
+        })
+        ;(groupedSessions.folders.get(folder.id) ?? []).forEach((session) => {
+          items.push({
+            type: 'row',
+            key: `folder:${folder.id}:${session.id}`,
+            session,
+            indented: true,
+          })
+        })
       })
-    })
+    }
 
     items.push({ type: 'section', key: 'your-chats', label: 'Recents' })
     if (isYourChatsOpen) {
@@ -152,7 +163,15 @@ export default function SidebarChatList({
     }
 
     return items
-  }, [folders, groupedSessions.pinned, isPinnedOpen, isYourChatsOpen, timeGroups])
+  }, [
+    folders,
+    groupedSessions.folders,
+    groupedSessions.pinned,
+    isPinnedOpen,
+    isProjectsOpen,
+    isYourChatsOpen,
+    timeGroups,
+  ])
 
   const renderChatRow = React.useCallback(
     (session: ChatSession, indented = false) => {
@@ -320,7 +339,24 @@ export default function SidebarChatList({
     (_index: number, item: SidebarListItem) => {
       if (item.type === 'folder-heading') {
         return (
-          <div className="sidebar-header__btn sidebar-folders-heading" aria-label="Folders">
+          <div
+            className="sidebar-header__btn sidebar-folders-heading"
+            aria-label="Projects"
+            role="button"
+            tabIndex={0}
+            aria-expanded={isProjectsOpen}
+            onClick={() => setIsProjectsOpen((prev) => !prev)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault()
+                setIsProjectsOpen((prev) => !prev)
+              }
+            }}
+          >
+            <ChevronDown
+              size={10}
+              className={`sidebar-section-label__chevron sidebar-folders-heading__chevron ${isProjectsOpen ? 'sidebar-section-label__chevron--open' : 'sidebar-section-label__chevron--closed'}`}
+            />
             <span className="sidebar-folders-heading__label">{item.label}</span>
             <span className="sidebar-section-label__actions">
               <TooltipIconButton
@@ -356,7 +392,7 @@ export default function SidebarChatList({
 
       return renderChatRow(item.session, item.indented)
     },
-    [onCreateFolder, onOpenFolders, renderChatRow, renderSectionHeader]
+    [isProjectsOpen, onCreateFolder, onOpenFolders, renderChatRow, renderSectionHeader]
   )
 
   const renderUtilityAction = (label: string, icon: React.ReactNode, onClick: () => void) => (

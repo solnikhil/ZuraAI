@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import '@testing-library/jest-dom'
 import Sidebar from './Sidebar'
 
@@ -109,6 +109,8 @@ describe('Sidebar', () => {
     mockAppShell.sidebarCollapsed = false
     mockAppShell.sidebarHidden = false
     mockAppShell.sidebarWidth = 300
+    mockChatHistory.sessions = []
+    mockChatHistory.folders = []
     mockSettings.settings.skills.reminders.enabled = false
     mockSettings.settings.skills.artifacts.enabled = false
   })
@@ -181,5 +183,39 @@ describe('Sidebar', () => {
 
     artifactsButton.click()
     expect(mockAppShell.setDashboardView).toHaveBeenCalledWith('artifacts')
+  })
+
+  it('groups folder chats under a collapsible Projects section', () => {
+    mockChatHistory.folders = [{ id: 'folder-1', name: 'ZuraAI', order: 0, createdAt: Date.now() }]
+    mockChatHistory.sessions = [
+      {
+        id: 'chat-1',
+        title: 'Diagram AI automation',
+        messages: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        pinned: false,
+        folderId: 'folder-1',
+        tags: [],
+      },
+    ]
+
+    render(<Sidebar {...defaultProps} />)
+
+    expect(screen.getByRole('button', { name: 'Projects' })).toHaveAttribute(
+      'aria-expanded',
+      'true'
+    )
+    expect(screen.getByText('ZuraAI')).toBeInTheDocument()
+    expect(screen.getByText('Diagram AI automation')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Projects' }))
+
+    expect(screen.getByRole('button', { name: 'Projects' })).toHaveAttribute(
+      'aria-expanded',
+      'false'
+    )
+    expect(screen.queryByText('ZuraAI')).not.toBeInTheDocument()
+    expect(screen.queryByText('Diagram AI automation')).not.toBeInTheDocument()
   })
 })

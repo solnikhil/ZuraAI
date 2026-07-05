@@ -1,22 +1,18 @@
-import { useMemo, useState, type KeyboardEvent } from 'react'
-import { motion } from 'framer-motion'
+import { useEffect, useMemo, useState } from 'react'
 import { useAppShell } from '../../contexts/AppShellContext'
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
+import type { Memory } from '../../electron/types'
 import { Button } from '@/components/ui/button'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Badge } from '@/components/ui/badge'
 import { Brain, FileText, FolderOpen, Plus } from '../icons'
 import FolderNameDialog from './Sidebar/FolderNameDialog'
 import './FoldersView.css'
 
-type FolderTab = 'chats' | 'context'
-
 function formatRelativeDate(value: number): string {
   const delta = Date.now() - value
   if (delta < 60_000) return 'just now'
-  if (delta < 60 * 60_000) return `${Math.max(1, Math.round(delta / 60_000))} min ago`
-  if (delta < 24 * 60 * 60_000) return `${Math.round(delta / (60 * 60_000))} hr ago`
-  if (delta < 7 * 24 * 60 * 60_000) return `${Math.round(delta / (24 * 60 * 60_000))} days ago`
+  if (delta < 60 * 60_000) return `${Math.max(1, Math.round(delta / 60_000))}m`
+  if (delta < 24 * 60 * 60_000) return `${Math.round(delta / (60 * 60_000))}h`
+  if (delta < 7 * 24 * 60 * 60_000) return `${Math.round(delta / (24 * 60 * 60_000))}d`
   return new Date(value).toLocaleDateString()
 }
 
@@ -24,7 +20,9 @@ export default function FoldersView() {
   const { selectedFolderId, setSelectedFolderId, setDashboardView } = useAppShell()
   const { folders, sessions, createFolder, createSession, switchSession } = useChatHistory()
   const [createOpen, setCreateOpen] = useState(false)
-  const [activeTab, setActiveTab] = useState<FolderTab>('chats')
+  const [managedFolderId, setManagedFolderId] = useState<string | null>(selectedFolderId)
+  const [projectMemories, setProjectMemories] = useState<Memory[]>([])
+  const [isLoadingMemories, setIsLoadingMemories] = useState(false)
 
   const sortedFolders = useMemo(
     () =>
@@ -33,34 +31,72 @@ export default function FoldersView() {
       ),
     [folders]
   )
-  const selectedFolder =
-    sortedFolders.find((folder) => folder.id === selectedFolderId) ?? sortedFolders[0] ?? null
-  const folderSessions = useMemo(
-    () =>
-      selectedFolder
-        ? sessions
-            .filter((session) => session.folderId === selectedFolder.id)
+
+  const managedFolder =
+    sortedFolders.find((folder) => folder.id === managedFolderId) ?? sortedFolders[0] ?? null
+
+  useEffect(() => {
+    if (!managedFolderId && sortedFolders[0]) {
+      setManagedFolderId(sortedFolders[0].id)
+    }
+  }, [managedFolderId, sortedFolders])
+
+  const sessionsByFolder = useMemo(() => {
+    const map = new Map<string, typeof sessions>()
+    for (const folder of sortedFolders) {
+      map.set(
+        folder.id,
+        sessions
+          .filter((session) => session.folderId === folder.id)
+          .sort((a, b) => b.updatedAt - a.updatedAt)
+      )
+    }
+    return map
+  }, [sessions, sortedFolders])
+
+  const managedSessions = managedFolder ? (sessionsByFolder.get(managedFolder.id) ?? []) : []
+
+  useEffect(() => {
+    let cancelled = false
+    if (!managedFolder || !window.memory?.list) {
+      setProjectMemories([])
+      return
+    }
+
+    setIsLoadingMemories(true)
+    window.memory
+      .list({ type: 'project', projectId: managedFolder.id })
+      .then((memories) => {
+        if (cancelled) return
+        setProjectMemories(
+          memories
+            .filter((memory) => memory.status === 'active')
             .sort((a, b) => b.updatedAt - a.updatedAt)
-        : [],
-    [selectedFolder, sessions]
-  )
+        )
+      })
+      .catch(() => {
+        if (!cancelled) setProjectMemories([])
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingMemories(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [managedFolder])
 
   const handleCreateFolder = (name: string, memoryMode?: 'default' | 'folder-only') => {
     const folderId = createFolder(name, memoryMode)
+    setManagedFolderId(folderId)
     setSelectedFolderId(folderId)
     setDashboardView('folders')
   }
 
-  const startChatInFolder = () => {
-    if (!selectedFolder) return
-    createSession(undefined, selectedFolder.id)
+  const startChatInFolder = (folderId: string) => {
+    createSession(undefined, folderId)
+    setSelectedFolderId(folderId)
     setDashboardView('chat')
-  }
-
-  const handleComposerKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== 'Enter' && event.key !== ' ') return
-    event.preventDefault()
-    startChatInFolder()
   }
 
   const openChat = (sessionId: string) => {
@@ -68,167 +104,135 @@ export default function FoldersView() {
     setDashboardView('chat')
   }
 
-  const chatCount = folderSessions.length
-  const memoryModeLabel =
-    selectedFolder?.memoryMode === 'folder-only' ? 'Folder-only memory' : 'Default memory'
+  const manageFolder = (folderId: string) => {
+    setManagedFolderId(folderId)
+    setSelectedFolderId(folderId)
+  }
 
   return (
     <section className="folders-view" aria-labelledby="folders-title">
-      <aside className="folders-view__rail" aria-label="Folders">
-        <div className="folders-view__rail-header">
-          <span>Folders</span>
-          <button type="button" onClick={() => setCreateOpen(true)} aria-label="New folder">
+      <main className="folders-view__workspace">
+        <header className="folders-view__header">
+          <div>
+            <p className="folders-view__eyebrow">Projects</p>
+            <h2 id="folders-title">Folders</h2>
+          </div>
+          <Button type="button" size="sm" onClick={() => setCreateOpen(true)}>
             <Plus size={15} />
-          </button>
-        </div>
-        <div className="folders-view__rail-list">
-          {sortedFolders.map((folder) => {
-            const count = sessions.filter((session) => session.folderId === folder.id).length
-            const active = folder.id === selectedFolder?.id
-            return (
-              <button
-                key={folder.id}
-                type="button"
-                className={`folders-view__rail-item ${active ? 'folders-view__rail-item--active' : ''}`}
-                onClick={() => setSelectedFolderId(folder.id)}
-              >
-                <FolderOpen size={15} />
-                <span>{folder.name}</span>
-                <small>{count}</small>
-              </button>
-            )
-          })}
-        </div>
-      </aside>
+            New folder
+          </Button>
+        </header>
 
-      <main className="folders-view__panel">
-        {selectedFolder ? (
-          <>
-            <header className="folders-view__hero">
-              <div className="folders-view__hero-title">
-                <FolderOpen size={30} />
-                <div>
-                  <h2 id="folders-title">{selectedFolder.name}</h2>
-                  <p>
-                    {chatCount === 0
-                      ? 'No chats yet'
-                      : `${chatCount} chat${chatCount === 1 ? '' : 's'} in this folder`}
-                  </p>
-                </div>
-              </div>
-              <div className="folders-view__hero-actions">
-                <Badge variant="outline" className="folders-view__memory-badge">
-                  <Brain size={13} />
-                  {memoryModeLabel}
-                </Badge>
-                <Button type="button" size="sm" onClick={startChatInFolder}>
-                  <Plus size={15} />
-                  New chat
-                </Button>
-              </div>
-            </header>
-
-            <div
-              className="folders-view__composer-entry"
-              role="button"
-              tabIndex={0}
-              onClick={startChatInFolder}
-              onKeyDown={handleComposerKeyDown}
-            >
-              <Plus size={18} />
-              <span>New chat in {selectedFolder.name}</span>
+        {sortedFolders.length > 0 ? (
+          <div className="folders-view__layout">
+            <div className="folders-view__project-grid" aria-label="Project folders">
+              {sortedFolders.map((folder) => {
+                const folderSessions = sessionsByFolder.get(folder.id) ?? []
+                const active = managedFolder?.id === folder.id
+                const memoryModeLabel =
+                  folder.memoryMode === 'folder-only' ? 'Folder-only' : 'Default memory'
+                return (
+                  <article
+                    key={folder.id}
+                    className={`folders-view__project-card ${active ? 'folders-view__project-card--active' : ''}`}
+                  >
+                    <div className="folders-view__project-icon" aria-hidden="true">
+                      <FolderOpen size={20} />
+                    </div>
+                    <div className="folders-view__project-body">
+                      <h3>{folder.name}</h3>
+                      <p>
+                        {folderSessions.length} chat{folderSessions.length === 1 ? '' : 's'} /{' '}
+                        {memoryModeLabel}
+                      </p>
+                    </div>
+                    <div className="folders-view__project-actions">
+                      <button type="button" onClick={() => manageFolder(folder.id)}>
+                        Manage
+                      </button>
+                      <button type="button" onClick={() => startChatInFolder(folder.id)}>
+                        New chat
+                      </button>
+                    </div>
+                  </article>
+                )
+              })}
             </div>
 
-            <Tabs
-              value={activeTab}
-              onValueChange={(value) => setActiveTab(value as FolderTab)}
-              className="folders-view__tabs"
-            >
-              <TabsList variant="line" className="folders-view__tabs-list">
-                {[
-                  { id: 'chats' as const, label: 'Chats', count: chatCount },
-                  {
-                    id: 'context' as const,
-                    label: 'Context',
-                    count: selectedFolder.memoryMode === 'folder-only' ? 1 : 2,
-                  },
-                ].map((tab) => (
-                  <TabsTrigger key={tab.id} value={tab.id} className="folders-view__tabs-trigger">
-                    <span>{tab.label}</span>
-                    <span className="folders-view__tabs-count">{tab.count}</span>
-                    {activeTab === tab.id && (
-                      <motion.div
-                        layoutId="folders-active-tab"
-                        className="folders-view__tabs-indicator"
-                      />
-                    )}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
-
-            {activeTab === 'chats' ? (
-              folderSessions.length === 0 ? (
-                <div className="folders-view__empty">
-                  <FolderOpen size={20} />
-                  <strong>No chats yet</strong>
-                  <span>Chats in {selectedFolder.name} will live here.</span>
-                  <Button type="button" size="sm" onClick={startChatInFolder}>
-                    <Plus size={15} />
-                    Start a folder chat
-                  </Button>
-                </div>
-              ) : (
-                <div className="folders-view__rows">
-                  {folderSessions.map((session, index) => (
-                    <button
-                      key={session.id}
+            <aside className="folders-view__manage-panel" aria-label="Project details">
+              {managedFolder ? (
+                <>
+                  <div className="folders-view__manage-header">
+                    <div>
+                      <span>Manage</span>
+                      <h3>{managedFolder.name}</h3>
+                    </div>
+                    <Button
                       type="button"
-                      className="folders-view__row"
-                      onClick={() => openChat(session.id)}
+                      size="sm"
+                      onClick={() => startChatInFolder(managedFolder.id)}
                     >
-                      <span className="folders-view__row-number">
-                        {String(index + 1).padStart(2, '0')}
-                      </span>
-                      <span className="folders-view__row-main">
-                        <strong>{session.title}</strong>
-                        <small>
-                          {session.messageCount ?? session.messages.length} messages / updated{' '}
-                          {formatRelativeDate(session.updatedAt)}
-                        </small>
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )
-            ) : (
-              <div className="folders-view__context">
-                <article>
-                  <Brain size={18} />
-                  <div>
-                    <strong>{memoryModeLabel}</strong>
-                    <span>
-                      {selectedFolder.memoryMode === 'folder-only'
-                        ? 'Chats in this folder use only memories saved from this folder.'
-                        : 'Chats in this folder can use global memories and memories saved from this folder.'}
-                    </span>
+                      <Plus size={15} />
+                      New chat
+                    </Button>
                   </div>
-                </article>
-                <article>
-                  <FileText size={18} />
-                  <div>
-                    <strong>Folder sources</strong>
-                    <span>Sources and files can be added here when the source library ships.</span>
-                  </div>
-                </article>
-              </div>
-            )}
-          </>
+
+                  <section className="folders-view__manage-section">
+                    <div className="folders-view__manage-section-title">
+                      <Brain size={15} />
+                      <span>Saved memory</span>
+                      <small>{isLoadingMemories ? '...' : projectMemories.length}</small>
+                    </div>
+                    {projectMemories.length > 0 ? (
+                      <div className="folders-view__memory-list">
+                        {projectMemories.slice(0, 8).map((memory) => (
+                          <article key={memory.id} className="folders-view__memory-item">
+                            <p>{memory.content}</p>
+                            <small>{formatRelativeDate(memory.updatedAt)}</small>
+                          </article>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="folders-view__muted">
+                        {isLoadingMemories
+                          ? 'Loading memory...'
+                          : 'No saved memories for this project yet.'}
+                      </p>
+                    )}
+                  </section>
+
+                  <section className="folders-view__manage-section">
+                    <div className="folders-view__manage-section-title">
+                      <FileText size={15} />
+                      <span>Chats</span>
+                      <small>{managedSessions.length}</small>
+                    </div>
+                    {managedSessions.length > 0 ? (
+                      <div className="folders-view__managed-chats">
+                        {managedSessions.map((session) => (
+                          <button
+                            key={session.id}
+                            type="button"
+                            onClick={() => openChat(session.id)}
+                          >
+                            <span>{session.title}</span>
+                            <small>{formatRelativeDate(session.updatedAt)}</small>
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="folders-view__muted">No chats are attached to this project.</p>
+                    )}
+                  </section>
+                </>
+              ) : null}
+            </aside>
+          </div>
         ) : (
           <div className="folders-view__first-run">
             <FolderOpen size={26} />
-            <h2 id="folders-title">Create your first folder</h2>
-            <p>Folders group chats and let you choose how memory works for that workspace.</p>
+            <h2>Create your first folder</h2>
+            <p>Folders group chats and project memory into one workspace.</p>
             <Button type="button" onClick={() => setCreateOpen(true)}>
               <Plus size={15} />
               New folder

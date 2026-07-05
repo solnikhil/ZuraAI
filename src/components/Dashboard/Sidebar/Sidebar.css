@@ -508,7 +508,7 @@
   color: color-mix(in srgb, var(--theme-text-muted) 72%, var(--theme-text-primary) 28%);
   letter-spacing: 0;
   opacity: 0.86;
-  cursor: default;
+  cursor: pointer;
 }
 
 .sidebar-header__btn.sidebar-folders-heading:hover,
@@ -517,6 +517,7 @@
 .sidebar-header__btn.sidebar-folders-heading:active {
   background: transparent;
   box-shadow: none;
+  color: color-mix(in srgb, var(--theme-text-muted) 52%, var(--theme-text-primary) 48%);
 }
 
 .sidebar-container.frosted .sidebar-header__btn.sidebar-folders-heading:hover {
@@ -528,6 +529,11 @@
   text-align: left;
   line-height: 1;
   white-space: nowrap;
+}
+
+.sidebar-folders-heading__chevron {
+  opacity: 0.75;
+  margin-left: 0;
 }
 
 .sidebar-folders-heading .sidebar-section-label__actions {
@@ -629,6 +635,7 @@
   font-size: 0.64rem;
   opacity: 0.5;
   margin-left: 2px;
+  flex-shrink: 0;
 }
 
 .sidebar-section-label__name {
