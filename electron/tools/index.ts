@@ -300,7 +300,10 @@ const toolHandlers: Record<BuiltinMainToolName, ToolHandler> = {
   },
   scheduled_task_list: async (args) => {
     const r = typeof args === 'object' && args !== null ? (args as Record<string, unknown>) : {}
-    const type = r.type === 'reminder' || r.type === 'web_lookout' ? r.type : undefined
+    const type =
+      r.type === 'reminder' || r.type === 'web_lookout' || r.type === 'ai_automation'
+        ? r.type
+        : undefined
     const tasks = await listScheduledTasks()
     return { success: true, data: type ? tasks.filter((task) => task.type === type) : tasks }
   },

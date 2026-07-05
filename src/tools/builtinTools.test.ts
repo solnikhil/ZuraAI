@@ -47,4 +47,26 @@ describe('builtInMainToolManifest', () => {
       expect(builtInMainToolManifest[name].requiresApproval).toBe(true)
     }
   })
+
+  it('advertises AI automation support in scheduled task tools', () => {
+    const create = builtInMainToolManifest.scheduled_task_create
+    const update = builtInMainToolManifest.scheduled_task_update
+    const list = builtInMainToolManifest.scheduled_task_list
+
+    expect(create.description).toContain('AI automation')
+    expect(create.parameters.properties.type.enum).toContain('ai_automation')
+    expect(create.parameters.properties.prompt.description).toContain('AI automation')
+    expect(create.parameters.properties.automationMode.enum).toEqual([
+      'prompt',
+      'watch',
+      'agent',
+    ])
+    expect(create.parameters.properties.allowedTools.description).toContain('agent-mode')
+    expect(create.parameters.properties.outputDestinations.description).toContain(
+      'background chat run'
+    )
+    expect(update.description).toContain('AI automation')
+    expect(update.parameters.properties.prompt.description).toContain('AI automation')
+    expect(list.parameters.properties.type.enum).toContain('ai_automation')
+  })
 })

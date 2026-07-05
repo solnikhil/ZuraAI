@@ -237,14 +237,17 @@ schedule, context-source metadata, output destinations, approval mode, notify
 policy, allowed tools, and run-budget fields; provider keys and tool/MCP
 secrets are never stored there. Main owns timing, catch-up, notifications,
 email delivery, run logs, and the narrow `scheduled-tasks:automation-run-request`
-/ `scheduled-tasks:resolve-automation-run` bridge. Renderer code performs the
-actual AI/provider execution through existing settings, provider runtime, MCP,
-tool exposure, and approval surfaces, then returns sanitized run output and
-metadata to main. If no renderer is available, main records an error run and
-reschedules normally rather than inventing or silently skipping output. Agent
-automation run budgets are enforced in the shared tool execution policy for web
-searches and total tool calls, in addition to the automation run timeout owned
-by main.
+/ `scheduled-tasks:resolve-automation-run` bridge. Renderer code creates a new
+background chat session for every AI automation run, writes the scheduled prompt
+as the user message, streams the assistant response into that chat through the
+existing settings, provider runtime, MCP, tool exposure, and approval surfaces,
+then returns sanitized run output, metadata, and the per-run chat session ID to
+main. The automation chat is visible in chat history but must not steal focus or
+switch the active conversation. If no renderer is available, main records an
+error run and reschedules normally rather than inventing or silently skipping
+output. Agent automation run budgets are enforced in the shared tool execution
+policy for web searches and total tool calls, in addition to the automation run
+timeout owned by main.
 
 Command Center is an internal Agent Mode OS overlay/capability that exposes
 explicit Windows-native tool primitives through the existing `execute-tool` IPC

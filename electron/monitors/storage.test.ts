@@ -175,6 +175,7 @@ describe('scheduled task storage', () => {
     const {
       createScheduledTask,
       getScheduledTask,
+      getRun,
       sanitizeScheduledTaskInput,
       saveScheduledTaskRun,
     } = await import('./storage')
@@ -204,12 +205,15 @@ describe('scheduled task storage', () => {
         finishedAt: dueAt + 1000,
         status: 'unchanged',
         logs: [],
+        automationChatSessionId: 'automation-chat-run-1',
       },
       []
     )
 
     const saved = await getScheduledTask(task.id)
     expect(saved?.enabled).toBe(false)
+    const savedRun = await getRun('run-1')
+    expect(savedRun?.automationChatSessionId).toBe('automation-chat-run-1')
   })
 
   it('rejects invalid AI automation payloads', async () => {

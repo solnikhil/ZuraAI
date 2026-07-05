@@ -639,6 +639,7 @@ export interface ScheduledTaskRun {
   model?: string
   provider?: string
   outputText?: string
+  automationChatSessionId?: string
   artifactIds?: string[]
   generatedFiles?: Array<{ id: string; name: string; type?: string }>
   toolCallSummaries?: Array<{ name: string; success: boolean; error?: string }>
@@ -692,6 +693,7 @@ export interface ScheduledAutomationRunRequest {
 export interface ScheduledAutomationRunResponse {
   requestId: string
   outputText?: string
+  automationChatSessionId?: string
   resolvedContextSummary?: string
   model?: string
   provider?: string

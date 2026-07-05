@@ -789,12 +789,16 @@ Safety rules:
   },
   scheduled_task_create: {
     description:
-      'Create a local reminder or web lookout. Use this when the user asks to remind them, check something later, watch a page, monitor a URL, or set up a recurring lookout. After creating, tell the user it is visible in the Reminders sidebar.',
+      'Create a local reminder, web lookout, or AI automation. Use this when the user asks to remind them, check something later, watch a page, monitor a URL, set up a recurring lookout, or create an AI automation. After creating, tell the user it is visible in the Reminders sidebar.',
     parameters: {
       type: 'object',
       description: 'Arguments for creating a scheduled task.',
       properties: {
-        type: { type: 'string', description: 'Task type.', enum: ['reminder', 'web_lookout'] },
+        type: {
+          type: 'string',
+          description: 'Task type.',
+          enum: ['reminder', 'web_lookout', 'ai_automation'],
+        },
         title: { type: 'string', description: 'Short user-visible title.' },
         reminderText: {
           type: 'string',
@@ -808,7 +812,66 @@ Safety rules:
         },
         instructions: {
           type: 'string',
-          description: 'What matters for this reminder/lookout and what to ignore.',
+          description:
+            'What matters for this reminder, lookout, or AI automation and what to ignore.',
+        },
+        prompt: {
+          type: 'string',
+          description:
+            'Reusable user-facing instruction for an AI automation. Required for ai_automation tasks.',
+        },
+        automationMode: {
+          type: 'string',
+          description:
+            'AI automation mode. Use prompt for direct scheduled outputs, watch for meaningful-change checks, and agent only when the user explicitly wants tool-enabled work.',
+          enum: ['prompt', 'watch', 'agent'],
+        },
+        contextSources: {
+          type: 'array',
+          description:
+            'Optional context sources for an AI automation, such as current_datetime, chat, folder_memory, url, file, or mcp_resource.',
+          items: {
+            type: 'object',
+            properties: {
+              type: {
+                type: 'string',
+                enum: ['current_datetime', 'folder_memory', 'chat', 'url', 'file', 'mcp_resource'],
+              },
+              id: { type: 'string' },
+              label: { type: 'string' },
+              value: { type: 'string' },
+            },
+          },
+        },
+        allowedTools: {
+          type: 'array',
+          description:
+            'Tool names an agent-mode AI automation may use. Include only tools the user requested.',
+          items: { type: 'string' },
+        },
+        approvalMode: {
+          type: 'string',
+          description: 'Approval policy for agent-mode automation tool use.',
+          enum: ['read_only', 'ask_each_run', 'trusted_repeat'],
+        },
+        outputDestinations: {
+          type: 'array',
+          description:
+            'Where AI automation output should be delivered. Every AI automation also creates a background chat run.',
+          items: {
+            type: 'string',
+            enum: ['log', 'notification', 'email', 'chat', 'artifact'],
+          },
+        },
+        notifyPolicy: {
+          type: 'string',
+          description: 'When to notify for an AI automation.',
+          enum: ['every_run', 'meaningful_change', 'error_only'],
+        },
+        schedule: {
+          type: 'object',
+          description:
+            'Exact AI automation schedule. For daily/weekly schedules use timeOfDay as HH:mm local time; weekdays use 0 for Sunday.',
         },
         intervalPreset: {
           type: 'string',
@@ -833,7 +896,7 @@ Safety rules:
     origin: 'builtin-main',
   },
   scheduled_task_update: {
-    description: 'Update or pause/resume an existing local reminder/lookout by id.',
+    description: 'Update or pause/resume an existing local reminder, lookout, or AI automation by id.',
     parameters: {
       type: 'object',
       description: 'Arguments for updating a scheduled task.',
@@ -847,6 +910,58 @@ Safety rules:
           items: { type: 'string' },
         },
         instructions: { type: 'string', description: 'New instructions.' },
+        prompt: {
+          type: 'string',
+          description: 'New reusable prompt for an AI automation.',
+        },
+        automationMode: {
+          type: 'string',
+          description: 'New AI automation mode.',
+          enum: ['prompt', 'watch', 'agent'],
+        },
+        contextSources: {
+          type: 'array',
+          description: 'Replacement context sources for an AI automation.',
+          items: {
+            type: 'object',
+            properties: {
+              type: {
+                type: 'string',
+                enum: ['current_datetime', 'folder_memory', 'chat', 'url', 'file', 'mcp_resource'],
+              },
+              id: { type: 'string' },
+              label: { type: 'string' },
+              value: { type: 'string' },
+            },
+          },
+        },
+        allowedTools: {
+          type: 'array',
+          description: 'Replacement allowed tool names for an agent-mode AI automation.',
+          items: { type: 'string' },
+        },
+        approvalMode: {
+          type: 'string',
+          description: 'New approval policy for agent-mode automation tool use.',
+          enum: ['read_only', 'ask_each_run', 'trusted_repeat'],
+        },
+        outputDestinations: {
+          type: 'array',
+          description: 'Replacement output destinations for an AI automation.',
+          items: {
+            type: 'string',
+            enum: ['log', 'notification', 'email', 'chat', 'artifact'],
+          },
+        },
+        notifyPolicy: {
+          type: 'string',
+          description: 'New AI automation notification policy.',
+          enum: ['every_run', 'meaningful_change', 'error_only'],
+        },
+        schedule: {
+          type: 'object',
+          description: 'Replacement exact schedule for an AI automation.',
+        },
         intervalPreset: {
           type: 'string',
           description: 'New interval.',
@@ -877,7 +992,8 @@ Safety rules:
     origin: 'builtin-main',
   },
   scheduled_task_list: {
-    description: 'List local reminders and web lookouts with ids, titles, schedules, and status.',
+    description:
+      'List local reminders, web lookouts, and AI automations with ids, titles, schedules, and status.',
     parameters: {
       type: 'object',
       description: 'Optional filters for scheduled tasks.',
@@ -885,7 +1001,7 @@ Safety rules:
         type: {
           type: 'string',
           description: 'Optional task type filter.',
-          enum: ['reminder', 'web_lookout'],
+          enum: ['reminder', 'web_lookout', 'ai_automation'],
         },
       },
       required: [],
@@ -894,7 +1010,7 @@ Safety rules:
     origin: 'builtin-main',
   },
   scheduled_task_get_logs: {
-    description: 'Get run logs/history for a local reminder or web lookout.',
+    description: 'Get run logs/history for a local reminder, web lookout, or AI automation.',
     parameters: {
       type: 'object',
       description: 'Arguments for reading scheduled task logs.',

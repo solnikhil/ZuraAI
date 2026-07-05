@@ -544,6 +544,9 @@ function normalizeRun(input: unknown): ScheduledTaskRun | null {
     ...(typeof raw.model === 'string' ? { model: raw.model.slice(0, 200) } : {}),
     ...(typeof raw.provider === 'string' ? { provider: raw.provider.slice(0, 80) } : {}),
     ...(typeof raw.outputText === 'string' ? { outputText: raw.outputText.slice(0, 12000) } : {}),
+    ...(typeof raw.automationChatSessionId === 'string' && raw.automationChatSessionId.trim()
+      ? { automationChatSessionId: raw.automationChatSessionId.trim().slice(0, 200) }
+      : {}),
     ...(Array.isArray(raw.artifactIds)
       ? {
           artifactIds: raw.artifactIds

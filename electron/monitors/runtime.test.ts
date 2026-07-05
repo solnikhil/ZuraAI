@@ -409,9 +409,11 @@ describe('scheduled task runtime notifications', () => {
       {
         requestId: request.requestId,
         outputText: 'Briefing output',
+        automationChatSessionId: 'automation-task-1-request-1',
         model: 'openrouter/fake-model',
         provider: 'openrouter',
         changeVerdict: { changed: true, summary: 'Important change' },
+        deliveryStatus: { log: 'sent', chat: 'sent' },
       }
     )
 
@@ -420,6 +422,8 @@ describe('scheduled task runtime notifications', () => {
         taskId: 'task-1',
         status: 'changed',
         outputText: 'Briefing output',
+        automationChatSessionId: 'automation-task-1-request-1',
+        deliveryStatus: expect.objectContaining({ chat: 'sent' }),
       })
     )
     runtime.stop()

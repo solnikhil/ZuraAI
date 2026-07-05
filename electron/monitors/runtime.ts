@@ -302,6 +302,9 @@ function sanitizeAutomationResponse(
     ...(compactAutomationText(response.outputText)
       ? { outputText: compactAutomationText(response.outputText) }
       : {}),
+    ...(compactAutomationText(response.automationChatSessionId, 200)
+      ? { automationChatSessionId: compactAutomationText(response.automationChatSessionId, 200) }
+      : {}),
     ...(compactAutomationText(response.resolvedContextSummary, 4000)
       ? { resolvedContextSummary: compactAutomationText(response.resolvedContextSummary, 4000) }
       : {}),
@@ -472,6 +475,9 @@ function createRuntime(deps: MonitorRuntimeDeps = {}): MonitorRuntime {
                 outputText: automationResponse.outputText,
                 aiSummary: automationResponse.outputText.slice(0, 1000),
               }
+            : {}),
+          ...(automationResponse?.automationChatSessionId
+            ? { automationChatSessionId: automationResponse.automationChatSessionId }
             : {}),
           ...(automationResponse?.artifactIds
             ? { artifactIds: automationResponse.artifactIds }

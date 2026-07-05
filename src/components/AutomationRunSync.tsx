@@ -11,12 +11,10 @@ import type {
   ScheduledAutomationRunResponse,
 } from '@/electron/types'
 import { useProviderStreaming } from './Dashboard/ChatArea/hooks/streaming/useProviderStreaming'
-import type { ToolCallingHook } from './Dashboard/ChatArea/hooks/streaming/types'
+import type { StreamingResult, ToolCallingHook } from './Dashboard/ChatArea/hooks/streaming/types'
 
-const AUTOMATION_SESSION_PREFIX = 'automation-'
-
-function createAutomationMessageId(): string {
-  return `automation-message-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+function createAutomationSessionId(request: ScheduledAutomationRunRequest): string {
+  return `automation-${request.taskId}-${request.requestId}`
 }
 
 function summarizeToolResults(
@@ -83,6 +81,21 @@ function buildChangeVerdict(
   return { changed: true, summary: 'The automation output changed from the previous run.' }
 }
 
+function buildAssistantFinalUpdates(result: StreamingResult): Partial<Message> {
+  return {
+    content: result.content,
+    ...(result.thinking !== undefined ? { thinking: result.thinking } : {}),
+    ...(result.thinkingDuration !== undefined ? { thinkingDuration: result.thinkingDuration } : {}),
+    ...(result.thinkingBlocks !== undefined ? { thinkingBlocks: result.thinkingBlocks } : {}),
+    ...(result.toolResults !== undefined ? { toolResults: result.toolResults ?? undefined } : {}),
+    ...(result.files !== undefined ? { files: result.files } : {}),
+    ...(result.model !== undefined ? { model: result.model } : {}),
+    ...(result.latency !== undefined ? { latency: result.latency } : {}),
+    ...(result.usage !== undefined ? { usage: result.usage } : {}),
+    ...(result.finishReason !== undefined ? { finishReason: result.finishReason } : {}),
+  }
+}
+
 export function AutomationRunSync(): null {
   const { settings } = useSettings()
   const chatHistory = useChatHistory()
@@ -109,9 +122,9 @@ export function AutomationRunSync(): null {
   const { runProviderStream } = useProviderStreaming({
     settings,
     toolCalling: streamingToolCalling,
-    updateStreamingMessage: () => undefined,
+    updateStreamingMessage: chatHistory.updateStreamingMessage,
     flushThrottledUpdates: () => undefined,
-    throttledUpdateStreamingMessage: () => undefined,
+    throttledUpdateStreamingMessage: chatHistory.updateStreamingMessage,
   })
 
   const resolveContext = useCallback(
@@ -156,49 +169,51 @@ export function AutomationRunSync(): null {
     [chatHistory]
   )
 
-  const deliverToChatAndArtifacts = useCallback(
+  const createBackgroundAutomationChat = useCallback(
+    (request: ScheduledAutomationRunRequest): { sessionId: string; assistantMessageId: string } => {
+      const sessionId = createAutomationSessionId(request)
+      const createdSessionId = chatHistory.createSession(undefined, null, sessionId, {
+        activate: false,
+      })
+      chatHistory.updateSessionTitle(createdSessionId, `Automation: ${request.taskTitle}`)
+      chatHistory.addMessageToSession(createdSessionId, {
+        role: 'user',
+        content: request.prompt,
+      } as Omit<Message, 'id' | 'timestamp'>)
+      const assistantMessageId = chatHistory.addMessageToSession(createdSessionId, {
+        role: 'assistant',
+        content: '',
+        model: `${settings.modelProvider}/${settings.aiModel}`,
+      } as Omit<Message, 'id' | 'timestamp'>)
+      return { sessionId: createdSessionId, assistantMessageId }
+    },
+    [chatHistory, settings.aiModel, settings.modelProvider]
+  )
+
+  const deliverArtifacts = useCallback(
     (
       request: ScheduledAutomationRunRequest,
+      sessionId: string,
       outputText: string
     ): Pick<ScheduledAutomationRunResponse, 'artifactIds' | 'deliveryStatus'> => {
       const deliveryStatus: ScheduledAutomationRunResponse['deliveryStatus'] = {}
       const destinations = request.outputDestinations
-      let sessionId = `${AUTOMATION_SESSION_PREFIX}${request.taskId}`
-      if (destinations.includes('chat') || destinations.includes('artifact')) {
-        const existing = chatHistory.sessions.find((session) => session.id === sessionId)
-        if (!existing) {
-          sessionId = chatHistory.createSession(undefined, null, sessionId)
-          chatHistory.updateSessionTitle(sessionId, `Automation: ${request.taskTitle}`)
-        }
-        const userMessageId = chatHistory.addMessageToSession(sessionId, {
-          role: 'user',
-          content: request.prompt,
-        } as Omit<Message, 'id' | 'timestamp'>)
-        chatHistory.addMessageToSession(sessionId, {
-          role: 'assistant',
+      if (destinations.includes('artifact')) {
+        const artifact = chatHistory.createArtifact(sessionId, {
+          title: request.taskTitle,
+          kind: 'markdown',
+          language: 'markdown',
           content: outputText,
-          model: `${settings.modelProvider}/${settings.aiModel}`,
-        } as Omit<Message, 'id' | 'timestamp'>)
-        deliveryStatus.chat = 'sent'
-
-        if (destinations.includes('artifact')) {
-          const artifact = chatHistory.createArtifact(sessionId, {
-            title: request.taskTitle,
-            kind: 'markdown',
-            language: 'markdown',
-            content: outputText,
-            sourceMessageId: userMessageId,
-          })
-          deliveryStatus.artifact = artifact ? 'sent' : 'error'
-          return {
-            artifactIds: artifact ? [artifact.id] : [],
-            deliveryStatus,
-          }
+        })
+        deliveryStatus.artifact = artifact ? 'sent' : 'error'
+        return {
+          artifactIds: artifact ? [artifact.id] : [],
+          deliveryStatus,
         }
       }
       return { deliveryStatus }
     },
-    [chatHistory, settings.aiModel, settings.modelProvider]
+    [chatHistory]
   )
 
   useEffect(() => {
@@ -212,7 +227,12 @@ export function AutomationRunSync(): null {
       )
 
       void (async () => {
+        let automationChatSessionId: string | undefined
+        let assistantMessageId: string | undefined
         try {
+          const automationChat = createBackgroundAutomationChat(request)
+          automationChatSessionId = automationChat.sessionId
+          assistantMessageId = automationChat.assistantMessageId
           const contextText = await resolveContext(request)
           const prompt = buildPrompt(request, contextText)
           const allowTools = request.automationMode === 'agent' && request.allowedTools.length > 0
@@ -229,8 +249,8 @@ export function AutomationRunSync(): null {
                 provider: settings.modelProvider,
                 model: settings.aiModel,
                 settingsOverride,
-                sessionId: `automation-run-${request.taskId}`,
-                messageId: createAutomationMessageId(),
+                sessionId: automationChatSessionId,
+                messageId: assistantMessageId,
                 messages: [{ role: 'user', content: prompt }] as ServiceAssistantMessage[],
                 startTime: performance.now(),
                 researchMaxRounds: request.budgets.maxWebSearches ?? 0,
@@ -258,8 +278,8 @@ export function AutomationRunSync(): null {
                     ...settings,
                     maxTokens: request.budgets.maxTokens ?? settings.maxTokens,
                   },
-                  sessionId: `automation-run-${request.taskId}`,
-                  messageId: createAutomationMessageId(),
+                  sessionId: automationChatSessionId,
+                  messageId: assistantMessageId,
                   messages: [{ role: 'user', content: prompt }] as ServiceAssistantMessage[],
                   startTime: performance.now(),
                   researchMaxRounds: 0,
@@ -271,9 +291,15 @@ export function AutomationRunSync(): null {
               }
 
           const outputText = result.content.trim()
-          const delivery = deliverToChatAndArtifacts(request, outputText)
+          chatHistory.updateStreamingMessage(
+            automationChatSessionId,
+            assistantMessageId,
+            buildAssistantFinalUpdates(result)
+          )
+          const delivery = deliverArtifacts(request, automationChatSessionId, outputText)
           const response: ScheduledAutomationRunResponse = {
             requestId: request.requestId,
+            automationChatSessionId,
             outputText,
             resolvedContextSummary: contextText,
             model: result.model,
@@ -286,14 +312,24 @@ export function AutomationRunSync(): null {
               : {}),
             deliveryStatus: {
               log: 'sent',
+              chat: 'sent',
               ...delivery.deliveryStatus,
             },
             ...(delivery.artifactIds ? { artifactIds: delivery.artifactIds } : {}),
           }
           await window.scheduledTasks.resolveAutomationRun(response)
         } catch (error) {
+          if (automationChatSessionId && assistantMessageId) {
+            chatHistory.updateStreamingMessage(automationChatSessionId, assistantMessageId, {
+              content: error instanceof Error ? error.message : String(error),
+            })
+          }
           await window.scheduledTasks.resolveAutomationRun({
             requestId: request.requestId,
+            ...(automationChatSessionId ? { automationChatSessionId } : {}),
+            deliveryStatus: {
+              chat: automationChatSessionId ? 'sent' : 'error',
+            },
             error: error instanceof Error ? error.message : String(error),
           })
         } finally {
@@ -303,7 +339,9 @@ export function AutomationRunSync(): null {
     })
   }, [
     approval.requestApproval,
-    deliverToChatAndArtifacts,
+    chatHistory,
+    createBackgroundAutomationChat,
+    deliverArtifacts,
     resolveContext,
     runProviderStream,
     settings,
