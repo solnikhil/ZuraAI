@@ -36,6 +36,7 @@ import { executeAppFind, executeAppLaunch, executeAppList } from './tools/app-ma
 import { executeWindowFocus, executeWindowList } from './tools/window-management'
 
 const COMMAND_CENTER_SHORTCUT = 'CommandOrControl+Shift+Space'
+const COMMAND_CENTER_FALLBACK_SHORTCUT = 'CommandOrControl+Alt+Space'
 const MAX_CLIPBOARD_CONTEXT_LENGTH = 4_000
 const MAX_INDEX_QUERY_LENGTH = 120
 const COMMAND_CENTER_ACTIONS = [
@@ -89,6 +90,7 @@ const COMMAND_CENTER_ACTIONS = [
 
 let extensionEnabled = false
 let shortcutRegistered = false
+let registeredShortcut: string | null = null
 
 const INDEX_STATIC_CACHE_MS = 3_000
 
@@ -534,11 +536,21 @@ async function sendCommandToMainWindow(text: string, sessionId?: string): Promis
 
 function registerShortcut(): boolean {
   if (shortcutRegistered) return true
-  shortcutRegistered = globalShortcut.register(COMMAND_CENTER_SHORTCUT, () => {
+  const onShortcut = () => {
     if (!extensionEnabled) return
     toggleCommandCenterWindow()
     warmAppIndex()
-  })
+  }
+  const shortcuts = [COMMAND_CENTER_SHORTCUT, COMMAND_CENTER_FALLBACK_SHORTCUT]
+  for (const shortcut of shortcuts) {
+    if (globalShortcut.register(shortcut, onShortcut)) {
+      registeredShortcut = shortcut
+      shortcutRegistered = true
+      return true
+    }
+  }
+  registeredShortcut = null
+  shortcutRegistered = false
   return shortcutRegistered
 }
 
@@ -672,7 +684,10 @@ async function executeIndexItem(itemId: unknown, query: unknown = '') {
 
 function unregisterShortcut(): void {
   if (!shortcutRegistered) return
-  globalShortcut.unregister(COMMAND_CENTER_SHORTCUT)
+  if (registeredShortcut) {
+    globalShortcut.unregister(registeredShortcut)
+  }
+  registeredShortcut = null
   shortcutRegistered = false
 }
 
@@ -691,7 +706,7 @@ export function setCommandCenterExtensionEnabled(enabled: boolean): {
 
   return {
     enabled: extensionEnabled,
-    shortcut: COMMAND_CENTER_SHORTCUT,
+    shortcut: registeredShortcut ?? COMMAND_CENTER_SHORTCUT,
     shortcutRegistered,
   }
 }

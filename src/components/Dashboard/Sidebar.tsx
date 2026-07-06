@@ -55,6 +55,7 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
     createFolder,
     deleteFolder,
     renameFolder,
+    setFolderMemoryMode,
   } = useChatHistory()
   const { settingsUI } = useSettingsUI()
   const { settings } = useSettings()
@@ -456,6 +457,7 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
             onRemoveFromFolder={removeFromFolder}
             onRenameFolder={renameFolder}
             onDeleteFolder={deleteFolder}
+            onSetFolderMemoryMode={setFolderMemoryMode}
             onRenameConfirm={handleRenameConfirm}
             onDropSessionToFolder={handleDropSessionToFolder}
             onKeyDown={handleKeyDown}

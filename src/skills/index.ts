@@ -93,7 +93,7 @@ export const BUILT_IN_SKILLS: BuiltInSkill[] = [
     name: 'Control This Desktop',
     description:
       'Let Agent Mode use native OS tools, Command Center, screenshots, clicks, typing, scrolling, and app controls on this desktop.',
-    note: 'Agent Mode includes native Windows tools and Ctrl+Shift+Space Command Center. Desktop control actions require approval. Press Esc+Esc to emergency stop.',
+    note: 'Agent Mode includes native Windows tools and Ctrl+Shift+Space Command Center, with Ctrl+Alt+Space as a fallback if that shortcut is unavailable. Desktop control actions require approval. Press Esc+Esc to emergency stop.',
     usageGuidance: [
       'Prefer native OS tools and Command Center context before screenshots or shell commands.',
       'Use screenshots when visual inspection is required, then analyze before performing any action.',

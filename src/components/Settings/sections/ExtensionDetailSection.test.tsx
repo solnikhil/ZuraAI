@@ -1,20 +1,30 @@
 import React from 'react'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { defaultSkillsSettings } from '@/skills'
 import { ExtensionDetailSection } from './ExtensionDetailSection'
 
 describe('ExtensionDetailSection', () => {
+  const setExtensionEnabled = vi.fn(async () => ({
+    enabled: true,
+    shortcut: 'CommandOrControl+Shift+Space',
+    shortcutRegistered: true,
+  }))
+  const show = vi.fn(async () => true)
+
   beforeEach(() => {
+    setExtensionEnabled.mockClear()
+    show.mockClear()
     Object.assign(window, {
       commandCenter: {
-        show: vi.fn(async () => true),
+        setExtensionEnabled,
+        show,
       },
     })
   })
 
-  it('renders Command Center shortcut and opens the overlay when enabled', () => {
+  it('renders Command Center shortcut and opens the overlay when enabled', async () => {
     render(
       <ExtensionDetailSection
         extensionId="command_center"
@@ -36,7 +46,10 @@ describe('ExtensionDetailSection', () => {
     expect(screen.getByText('Quick OS actions')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /open/i }))
-    expect(window.commandCenter.show).toHaveBeenCalledTimes(1)
+    await waitFor(() => {
+      expect(setExtensionEnabled).toHaveBeenCalledWith(true)
+      expect(show).toHaveBeenCalledTimes(1)
+    })
   })
 
   it('disables the Command Center open button when the extension is disabled', () => {

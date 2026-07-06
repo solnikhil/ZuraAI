@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAppShell } from '../../contexts/AppShellContext'
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
-import type { Memory } from '../../electron/types'
+import type { ChatSession } from '../../chat/types'
 import { Button } from '@/components/ui/button'
-import { Brain, FileText, FolderOpen, Plus } from '../icons'
+import { FileText, FolderOpen, Plus } from '../icons'
+import FolderMemoryPanel from './FolderMemoryPanel'
 import FolderNameDialog from './Sidebar/FolderNameDialog'
 import './FoldersView.css'
 
@@ -16,13 +17,26 @@ function formatRelativeDate(value: number): string {
   return new Date(value).toLocaleDateString()
 }
 
+function memoryModeLabel(memoryMode: 'default' | 'folder-only' | undefined): string {
+  return memoryMode === 'folder-only' ? 'Folder-only' : 'Default memory'
+}
+
+/**
+ * Folders_View: full-page dashboard surface for browsing folders and
+ * inspecting a selected folder's chats/memory (Requirement 6).
+ *
+ * The memory-management region renders `FolderMemoryPanel`, which owns all
+ * scope-aware reads/writes for the selected folder's memories through
+ * `window.memory` (Requirements 3, 4). Memory-mode changes flow through
+ * `setFolderMemoryMode` from `ChatHistoryContext`, which persists via
+ * `chat-store:save-index` and re-renders both this view and the sidebar
+ * Projects section from the same folder state (Requirement 5, 8).
+ */
 export default function FoldersView() {
   const { selectedFolderId, setSelectedFolderId, setDashboardView } = useAppShell()
-  const { folders, sessions, createFolder, createSession, switchSession } = useChatHistory()
+  const { folders, sessions, createFolder, createSession, switchSession, setFolderMemoryMode } =
+    useChatHistory()
   const [createOpen, setCreateOpen] = useState(false)
-  const [managedFolderId, setManagedFolderId] = useState<string | null>(selectedFolderId)
-  const [projectMemories, setProjectMemories] = useState<Memory[]>([])
-  const [isLoadingMemories, setIsLoadingMemories] = useState(false)
 
   const sortedFolders = useMemo(
     () =>
@@ -32,17 +46,19 @@ export default function FoldersView() {
     [folders]
   )
 
-  const managedFolder =
-    sortedFolders.find((folder) => folder.id === managedFolderId) ?? sortedFolders[0] ?? null
+  const selectedFolder =
+    sortedFolders.find((folder) => folder.id === selectedFolderId) ?? sortedFolders[0] ?? null
 
+  // Keep a folder selected once folders exist, without overriding an explicit
+  // selection made elsewhere (e.g. opened from the Sidebar_Projects_Section).
   useEffect(() => {
-    if (!managedFolderId && sortedFolders[0]) {
-      setManagedFolderId(sortedFolders[0].id)
+    if (!selectedFolderId && sortedFolders[0]) {
+      setSelectedFolderId(sortedFolders[0].id)
     }
-  }, [managedFolderId, sortedFolders])
+  }, [selectedFolderId, sortedFolders, setSelectedFolderId])
 
   const sessionsByFolder = useMemo(() => {
-    const map = new Map<string, typeof sessions>()
+    const map = new Map<string, ChatSession[]>()
     for (const folder of sortedFolders) {
       map.set(
         folder.id,
@@ -54,41 +70,10 @@ export default function FoldersView() {
     return map
   }, [sessions, sortedFolders])
 
-  const managedSessions = managedFolder ? (sessionsByFolder.get(managedFolder.id) ?? []) : []
-
-  useEffect(() => {
-    let cancelled = false
-    if (!managedFolder || !window.memory?.list) {
-      setProjectMemories([])
-      return
-    }
-
-    setIsLoadingMemories(true)
-    window.memory
-      .list({ type: 'project', projectId: managedFolder.id })
-      .then((memories) => {
-        if (cancelled) return
-        setProjectMemories(
-          memories
-            .filter((memory) => memory.status === 'active')
-            .sort((a, b) => b.updatedAt - a.updatedAt)
-        )
-      })
-      .catch(() => {
-        if (!cancelled) setProjectMemories([])
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoadingMemories(false)
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [managedFolder])
+  const selectedSessions = selectedFolder ? (sessionsByFolder.get(selectedFolder.id) ?? []) : []
 
   const handleCreateFolder = (name: string, memoryMode?: 'default' | 'folder-only') => {
     const folderId = createFolder(name, memoryMode)
-    setManagedFolderId(folderId)
     setSelectedFolderId(folderId)
     setDashboardView('folders')
   }
@@ -104,8 +89,7 @@ export default function FoldersView() {
     setDashboardView('chat')
   }
 
-  const manageFolder = (folderId: string) => {
-    setManagedFolderId(folderId)
+  const selectFolder = (folderId: string) => {
     setSelectedFolderId(folderId)
   }
 
@@ -128,9 +112,7 @@ export default function FoldersView() {
             <div className="folders-view__project-grid" aria-label="Project folders">
               {sortedFolders.map((folder) => {
                 const folderSessions = sessionsByFolder.get(folder.id) ?? []
-                const active = managedFolder?.id === folder.id
-                const memoryModeLabel =
-                  folder.memoryMode === 'folder-only' ? 'Folder-only' : 'Default memory'
+                const active = selectedFolder?.id === folder.id
                 return (
                   <article
                     key={folder.id}
@@ -143,11 +125,11 @@ export default function FoldersView() {
                       <h3>{folder.name}</h3>
                       <p>
                         {folderSessions.length} chat{folderSessions.length === 1 ? '' : 's'} /{' '}
-                        {memoryModeLabel}
+                        {memoryModeLabel(folder.memoryMode)}
                       </p>
                     </div>
                     <div className="folders-view__project-actions">
-                      <button type="button" onClick={() => manageFolder(folder.id)}>
+                      <button type="button" onClick={() => selectFolder(folder.id)}>
                         Manage
                       </button>
                       <button type="button" onClick={() => startChatInFolder(folder.id)}>
@@ -159,57 +141,38 @@ export default function FoldersView() {
               })}
             </div>
 
-            <aside className="folders-view__manage-panel" aria-label="Project details">
-              {managedFolder ? (
+            <aside className="folders-view__detail-panel" aria-label="Folder details">
+              {selectedFolder ? (
                 <>
-                  <div className="folders-view__manage-header">
+                  <div className="folders-view__detail-header">
                     <div>
                       <span>Manage</span>
-                      <h3>{managedFolder.name}</h3>
+                      <h3>{selectedFolder.name}</h3>
                     </div>
                     <Button
                       type="button"
                       size="sm"
-                      onClick={() => startChatInFolder(managedFolder.id)}
+                      onClick={() => startChatInFolder(selectedFolder.id)}
                     >
                       <Plus size={15} />
                       New chat
                     </Button>
                   </div>
 
-                  <section className="folders-view__manage-section">
-                    <div className="folders-view__manage-section-title">
-                      <Brain size={15} />
-                      <span>Saved memory</span>
-                      <small>{isLoadingMemories ? '...' : projectMemories.length}</small>
-                    </div>
-                    {projectMemories.length > 0 ? (
-                      <div className="folders-view__memory-list">
-                        {projectMemories.slice(0, 8).map((memory) => (
-                          <article key={memory.id} className="folders-view__memory-item">
-                            <p>{memory.content}</p>
-                            <small>{formatRelativeDate(memory.updatedAt)}</small>
-                          </article>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="folders-view__muted">
-                        {isLoadingMemories
-                          ? 'Loading memory...'
-                          : 'No saved memories for this project yet.'}
-                      </p>
-                    )}
-                  </section>
+                  <FolderMemoryPanel
+                    folder={selectedFolder}
+                    onModeChange={(mode) => setFolderMemoryMode(selectedFolder.id, mode)}
+                  />
 
-                  <section className="folders-view__manage-section">
-                    <div className="folders-view__manage-section-title">
+                  <section className="folders-view__detail-section">
+                    <div className="folders-view__detail-section-title">
                       <FileText size={15} />
                       <span>Chats</span>
-                      <small>{managedSessions.length}</small>
+                      <small>{selectedSessions.length}</small>
                     </div>
-                    {managedSessions.length > 0 ? (
-                      <div className="folders-view__managed-chats">
-                        {managedSessions.map((session) => (
+                    {selectedSessions.length > 0 ? (
+                      <div className="folders-view__detail-chats">
+                        {selectedSessions.map((session) => (
                           <button
                             key={session.id}
                             type="button"

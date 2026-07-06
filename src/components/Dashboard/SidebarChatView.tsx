@@ -33,6 +33,7 @@ interface SidebarChatViewProps {
   onRemoveFromFolder: (sessionId: string) => void
   onRenameFolder: (folderId: string, name: string) => void
   onDeleteFolder: (folderId: string) => void
+  onSetFolderMemoryMode: (folderId: string, memoryMode: Folder['memoryMode']) => void
   onRenameConfirm: (id: string, newTitle: string) => void
   onDropSessionToFolder: (sessionId: string, folderId: string) => void
   onKeyDown: (event: React.KeyboardEvent) => void
@@ -64,6 +65,7 @@ function SidebarChatView({
   onRemoveFromFolder,
   onRenameFolder,
   onDeleteFolder,
+  onSetFolderMemoryMode,
   onRenameConfirm,
   onDropSessionToFolder,
   onKeyDown,
@@ -99,6 +101,7 @@ function SidebarChatView({
         onRemoveFromFolder={onRemoveFromFolder}
         onRenameFolder={onRenameFolder}
         onDeleteFolder={onDeleteFolder}
+        onSetFolderMemoryMode={onSetFolderMemoryMode}
         onRenameConfirm={onRenameConfirm}
         onDropSessionToFolder={onDropSessionToFolder}
         onKeyDown={onKeyDown}

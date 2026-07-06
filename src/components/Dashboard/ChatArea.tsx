@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/message-scroller'
 import { useToast } from '../shared/Toast'
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
+import { useAppShell } from '../../contexts/AppShellContext'
 import { useStreamingState } from '../../contexts/StreamingContext'
 import { useQuickSend } from '../../contexts/QuickSendContext'
 import { useComposerDraft } from '../../contexts/ComposerDraftContext'
@@ -21,6 +22,7 @@ import { MessageRenderer } from './ChatArea/MessageRenderer'
 import { StreamingMessage } from './ChatArea/StreamingMessage'
 import { InputArea } from './ChatArea/InputArea'
 import { ChatScrollRail } from './ChatArea/ChatScrollRail'
+import { FolderContextBar } from './ChatArea/FolderContextBar'
 import { shouldHideGenericToolResultCard } from './ChatArea/toolResultVisibility'
 import { useStreamingChat, usePromptAutoHide } from './ChatArea/hooks'
 import { usePinnedAutoScroll } from './ChatArea/hooks/usePinnedAutoScroll'
@@ -40,6 +42,7 @@ export default function ChatArea() {
   } = useChatHistory()
   const { settings } = useSettings()
   const { showToast } = useToast()
+  const { setSelectedFolderId, setDashboardView } = useAppShell()
 
   const streamingState = useStreamingState()
 
@@ -53,9 +56,12 @@ export default function ChatArea() {
 
   const currentSession = sessions.find((s) => s.id === currentSessionId)
   const messages = currentSession?.messages || []
-  const currentFolderName = currentSession?.folderId
-    ? folders.find((folder) => folder.id === currentSession.folderId)?.name
+  const currentFolderId = currentSession?.folderId || undefined
+  const currentFolder = currentFolderId
+    ? folders.find((folder) => folder.id === currentFolderId)
     : undefined
+  const currentFolderName = currentFolder?.name
+  const currentFolderIsMemoryOnly = currentFolder?.memoryMode === 'folder-only'
   const currentSessionMessageCount = currentSession?.messageCount ?? messages.length
   const currentSessionIsLoading = Boolean(
     currentSessionId && currentSessionMessageCount > 0 && !isSessionLoaded(currentSessionId)
@@ -289,6 +295,12 @@ export default function ChatArea() {
     await sendMessage(input.trim(), attachedFiles)
   }
 
+  const handleOpenCurrentFolder = useCallback(() => {
+    if (!currentFolderId) return
+    setSelectedFolderId(currentFolderId)
+    setDashboardView('folders')
+  }, [currentFolderId, setSelectedFolderId, setDashboardView])
+
   const handleCopy = useCallback(
     async (content: string) => {
       const copiedSuccessfully = await writeTextToClipboard(content)
@@ -387,6 +399,14 @@ export default function ChatArea() {
         overflow: 'hidden',
       }}
     >
+      {currentFolderName && (
+        <FolderContextBar
+          folderName={currentFolderName}
+          isFolderOnly={currentFolderIsMemoryOnly}
+          onOpenFolder={handleOpenCurrentFolder}
+        />
+      )}
+
       <MessageScrollerProvider autoScroll defaultScrollPosition="end" scrollMargin={16}>
         <MessageScroller data-select-all-scope="chat" className="flex-1">
           <ChatScrollRail messages={displayedMessages} />

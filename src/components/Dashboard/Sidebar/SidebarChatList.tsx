@@ -8,6 +8,7 @@ import FolderNameDialog from './FolderNameDialog'
 import RenameChatDialog from './RenameChatDialog'
 import {
   Bell,
+  Brain,
   ChevronDown,
   Edit2,
   FileText,
@@ -21,7 +22,12 @@ import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
+  ContextMenuRadioGroup,
+  ContextMenuRadioItem,
   ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu'
 import { TooltipIconButton } from '@/components/ui/TooltipIconButton'
@@ -54,6 +60,7 @@ interface SidebarChatListProps {
   onRemoveFromFolder: (sessionId: string) => void
   onRenameFolder: (folderId: string, name: string) => void
   onDeleteFolder: (folderId: string) => void
+  onSetFolderMemoryMode: (folderId: string, memoryMode: Folder['memoryMode']) => void
   onRenameConfirm: (id: string, newTitle: string) => void
   onDropSessionToFolder: (sessionId: string, folderId: string) => void
   onKeyDown: (e: React.KeyboardEvent) => void
@@ -95,6 +102,7 @@ export default function SidebarChatList({
   onRemoveFromFolder,
   onRenameFolder,
   onDeleteFolder,
+  onSetFolderMemoryMode,
   onRenameConfirm,
   onDropSessionToFolder,
   onKeyDown,
@@ -282,6 +290,8 @@ export default function SidebarChatList({
           </div>
         )
 
+        const currentMemoryMode = item.folder.memoryMode === 'folder-only' ? 'folder-only' : 'default'
+
         return (
           <ContextMenu>
             <ContextMenuTrigger asChild>{header}</ContextMenuTrigger>
@@ -290,6 +300,27 @@ export default function SidebarChatList({
                 <Edit2 size={14} />
                 Rename
               </ContextMenuItem>
+              <ContextMenuSub>
+                <ContextMenuSubTrigger>
+                  <Brain size={14} />
+                  Memory mode
+                </ContextMenuSubTrigger>
+                <ContextMenuSubContent>
+                  <ContextMenuRadioGroup
+                    value={currentMemoryMode}
+                    onValueChange={(value) => {
+                      if (value === 'default' || value === 'folder-only') {
+                        onSetFolderMemoryMode(item.folder!.id, value)
+                      }
+                    }}
+                  >
+                    <ContextMenuRadioItem value="default">
+                      Default (folder + global)
+                    </ContextMenuRadioItem>
+                    <ContextMenuRadioItem value="folder-only">Folder-only</ContextMenuRadioItem>
+                  </ContextMenuRadioGroup>
+                </ContextMenuSubContent>
+              </ContextMenuSub>
               <ContextMenuSeparator />
               <ContextMenuItem
                 variant="destructive"
@@ -331,6 +362,7 @@ export default function SidebarChatList({
       isYourChatsOpen,
       onDropSessionToFolder,
       onOpenFolder,
+      onSetFolderMemoryMode,
       selectedFolderId,
     ]
   )

@@ -10,11 +10,12 @@ describe('Command Center main service', () => {
     overrides: {
       executeAppList?: ReturnType<typeof vi.fn>
       executeAppFind?: ReturnType<typeof vi.fn>
+      register?: ReturnType<typeof vi.fn>
     } = {}
   ) {
     const handlers = new Map<string, (...args: unknown[]) => unknown>()
     const sentEvents: Array<{ channel: string; payload: unknown }> = []
-    const register = vi.fn(() => true)
+    const register = overrides.register ?? vi.fn(() => true)
     const unregister = vi.fn()
     const readText = vi.fn(() => 'clipboard sample')
     const preloadCommandCenterWindow = vi.fn()
@@ -288,6 +289,33 @@ describe('Command Center main service', () => {
     service.setCommandCenterExtensionEnabled(false)
     expect(unregister).toHaveBeenCalledWith('CommandOrControl+Shift+Space')
     expect(hideCommandCenterWindow).toHaveBeenCalledTimes(1)
+  })
+
+  it('falls back when the primary global shortcut is already registered elsewhere', async () => {
+    const register = vi
+      .fn()
+      .mockReturnValueOnce(false)
+      .mockReturnValueOnce(true)
+    const { service, unregister } = await loadService({ register })
+
+    expect(service.setCommandCenterExtensionEnabled(true)).toEqual({
+      enabled: true,
+      shortcut: 'CommandOrControl+Alt+Space',
+      shortcutRegistered: true,
+    })
+    expect(register).toHaveBeenNthCalledWith(
+      1,
+      'CommandOrControl+Shift+Space',
+      expect.any(Function)
+    )
+    expect(register).toHaveBeenNthCalledWith(
+      2,
+      'CommandOrControl+Alt+Space',
+      expect.any(Function)
+    )
+
+    service.setCommandCenterExtensionEnabled(false)
+    expect(unregister).toHaveBeenCalledWith('CommandOrControl+Alt+Space')
   })
 
   it('routes submitted overlay commands into the main window', async () => {

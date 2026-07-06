@@ -152,7 +152,7 @@
   color: var(--theme-text-primary);
 }
 
-.folders-view__manage-panel {
+.folders-view__detail-panel {
   min-width: 0;
   min-height: 0;
   border: 1px solid color-mix(in srgb, var(--theme-border) 72%, transparent);
@@ -165,14 +165,14 @@
   overflow-y: auto;
 }
 
-.folders-view__manage-header {
+.folders-view__detail-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
 }
 
-.folders-view__manage-header span {
+.folders-view__detail-header span {
   display: block;
   color: var(--theme-text-muted);
   font-size: 0.72rem;
@@ -181,20 +181,20 @@
   text-transform: uppercase;
 }
 
-.folders-view__manage-header h3 {
+.folders-view__detail-header h3 {
   margin: 4px 0 0;
   font-size: 1.35rem;
   font-weight: 560;
   line-height: 1.15;
 }
 
-.folders-view__manage-section {
+.folders-view__detail-section {
   display: flex;
   flex-direction: column;
   gap: 9px;
 }
 
-.folders-view__manage-section-title {
+.folders-view__detail-section-title {
   display: flex;
   align-items: center;
   gap: 7px;
@@ -203,41 +203,19 @@
   font-weight: 560;
 }
 
-.folders-view__manage-section-title small {
+.folders-view__detail-section-title small {
   margin-left: auto;
   color: var(--theme-text-muted);
   font-size: 0.74rem;
 }
 
-.folders-view__memory-list,
-.folders-view__managed-chats {
+.folders-view__detail-chats {
   display: flex;
   flex-direction: column;
   gap: 7px;
 }
 
-.folders-view__memory-item {
-  border: 1px solid color-mix(in srgb, var(--theme-border) 72%, transparent);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--theme-surface-hover) 42%, transparent);
-  padding: 10px;
-}
-
-.folders-view__memory-item p {
-  margin: 0;
-  color: var(--theme-text-primary);
-  font-size: 0.82rem;
-  line-height: 1.42;
-}
-
-.folders-view__memory-item small {
-  display: block;
-  margin-top: 6px;
-  color: var(--theme-text-muted);
-  font-size: 0.72rem;
-}
-
-.folders-view__managed-chats button {
+.folders-view__detail-chats button {
   -webkit-appearance: none;
   appearance: none;
   width: 100%;
@@ -257,19 +235,19 @@
   cursor: pointer;
 }
 
-.folders-view__managed-chats button:hover {
+.folders-view__detail-chats button:hover {
   background: var(--theme-surface-hover);
   color: var(--theme-text-primary);
 }
 
-.folders-view__managed-chats span {
+.folders-view__detail-chats span {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.folders-view__managed-chats small,
+.folders-view__detail-chats small,
 .folders-view__muted {
   color: var(--theme-text-muted);
   font-size: 0.76rem;
@@ -315,7 +293,7 @@
     grid-template-columns: 1fr;
   }
 
-  .folders-view__manage-panel {
+  .folders-view__detail-panel {
     max-height: 42vh;
   }
 }
@@ -629,30 +607,4 @@
   }
 }
 
-@media (max-width: 780px) {
-  .folders-view {
-    grid-template-columns: 1fr;
-  }
 
-  .folders-view__rail {
-    display: none;
-  }
-
-  .folders-view__panel {
-    width: min(100% - 24px, 850px);
-    padding-top: 28px;
-  }
-
-  .folders-view__hero {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .folders-view__hero-actions {
-    justify-content: flex-start;
-  }
-
-  .folders-view__context {
-    grid-template-columns: 1fr;
-  }
-}

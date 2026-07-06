@@ -29,6 +29,7 @@ export interface ExtensionDetailSectionProps {
     codeExecutionAutoApprove?: boolean
     terminalAutoApprove?: boolean
     computerUseAutoApprove?: boolean
+    assistantMode?: Settings['assistantMode']
     commandCenterChatPersistence?: Settings['commandCenterChatPersistence']
     memoryModel?: string
     brevoApiKey?: string
@@ -137,8 +138,9 @@ export function ExtensionDetailSection({
               <div className="settings-list-row__meta">
                 <h3 className="settings-list-row__label">Emergency stop</h3>
                 <div className="settings-list-row__description">
-                  Agent Mode includes native Windows tools and Ctrl+Shift+Space Command Center.
-                  Press Esc twice quickly to cancel an in-progress Computer Use session.
+                  Agent Mode includes native Windows tools and Ctrl+Shift+Space Command Center,
+                  with Ctrl+Alt+Space as a fallback. Press Esc twice quickly to cancel an
+                  in-progress Computer Use session.
                 </div>
               </div>
             </div>
@@ -151,8 +153,9 @@ export function ExtensionDetailSection({
               <div className="settings-list-row__meta">
                 <h3 className="settings-list-row__label">Global shortcut</h3>
                 <div className="settings-list-row__description">
-                  Press Ctrl+Shift+Space to open the desktop overlay. Submitted commands include
-                  active-window context for Agent Mode.
+                  Press Ctrl+Shift+Space to open the desktop overlay. If that shortcut is
+                  unavailable, ZuraAI uses Ctrl+Alt+Space. Submitted commands include active-window
+                  context for Agent Mode.
                 </div>
               </div>
               <div className="settings-list-row__control">
@@ -161,7 +164,12 @@ export function ExtensionDetailSection({
                   variant="outline"
                   size="sm"
                   disabled={!enabled}
-                  onClick={() => void window.commandCenter?.show()}
+                  onClick={() => {
+                    void (async () => {
+                      await window.commandCenter?.setExtensionEnabled(true)
+                      await window.commandCenter?.show()
+                    })()
+                  }}
                 >
                   <Command size={14} />
                   Open

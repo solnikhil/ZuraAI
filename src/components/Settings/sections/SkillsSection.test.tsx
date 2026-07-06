@@ -6,6 +6,11 @@ import { defaultSkillsSettings } from '../../../skills'
 import { defaultSettingsConfig } from '../../../contexts/SettingsConfigContext'
 
 let isMac = false
+const setExtensionEnabled = vi.fn(async () => ({
+  enabled: true,
+  shortcut: 'CommandOrControl+Shift+Space',
+  shortcutRegistered: true,
+}))
 vi.mock('@/utils/platform', () => ({
   isMacOSRuntime: () => isMac,
   isWindowsRuntime: () => !isMac,
@@ -37,6 +42,12 @@ vi.mock('./ExtensionDetailSection', () => ({
 describe('SkillsSection', () => {
   beforeEach(() => {
     isMac = false
+    setExtensionEnabled.mockClear()
+    Object.assign(window, {
+      commandCenter: {
+        setExtensionEnabled,
+      },
+    })
   })
 
   it('renders grouped extensions catalog with actions', () => {
@@ -56,7 +67,7 @@ describe('SkillsSection', () => {
     expect(screen.getByText('System')).toBeInTheDocument()
     expect(screen.getByText('Web Research')).toBeInTheDocument()
     expect(screen.getByText('Artifacts')).toBeInTheDocument()
-    expect(screen.queryByText('Command Center')).not.toBeInTheDocument()
+    expect(screen.getByText('Command Center')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /disable web research/i })).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: /more actions for/i }).length).toBeGreaterThan(0)
   })
@@ -172,6 +183,52 @@ describe('SkillsSection', () => {
     )
   })
 
+  it('renders Command Center on Windows and enables Agent Mode when toggled on', () => {
+    const onChange = vi.fn()
+    render(
+      <SkillsSection
+        skills={defaultSkillsSettings}
+        settings={defaultSettingsConfig}
+        codeExecutionAutoApprove={false}
+        terminalAutoApprove={false}
+        computerUseAutoApprove={false}
+        onActiveExtensionChange={vi.fn()}
+        onChange={onChange}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /enable command center/i }))
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        assistantMode: 'agent',
+        skills: expect.objectContaining({
+          command_center: expect.objectContaining({ enabled: true }),
+        }),
+      })
+    )
+    expect(setExtensionEnabled).toHaveBeenCalledWith(true)
+  })
+
+  it('shows Command Center enabled when Agent Mode is active', () => {
+    render(
+      <SkillsSection
+        skills={defaultSkillsSettings}
+        settings={{
+          ...defaultSettingsConfig,
+          assistantMode: 'agent',
+        }}
+        codeExecutionAutoApprove={false}
+        terminalAutoApprove={false}
+        computerUseAutoApprove={false}
+        onActiveExtensionChange={vi.fn()}
+        onChange={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: /disable command center/i })).toBeInTheDocument()
+  })
+
   it('hides the Terminal skill on macOS', () => {
     isMac = true
     render(
@@ -186,6 +243,7 @@ describe('SkillsSection', () => {
     )
 
     expect(screen.queryByText('Terminal')).not.toBeInTheDocument()
+    expect(screen.queryByText('Command Center')).not.toBeInTheDocument()
   })
 
   it('returns to the catalog from inline extension settings', () => {

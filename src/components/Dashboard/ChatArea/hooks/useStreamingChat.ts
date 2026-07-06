@@ -11,7 +11,7 @@ import {
 import { useSettings } from '../../../../contexts/SettingsContext'
 import { useToast } from '../../../shared/Toast'
 import type { ToolCallState } from '../../../../hooks/useToolCalling'
-import { getSessionMemoryScope } from '../../../../utils/memoryScope'
+import { getSessionMemoryScope, isFolderAssociationResolvable } from '../../../../utils/memoryScope'
 import {
   completeAgentToolStep,
   createAgentRun,
@@ -781,7 +781,25 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         // Dreaming: fire-and-forget background memory extraction for this turn.
         // Gated by the Memory skill inside runMemoryExtraction; best-effort and
         // silent on failure so it never disrupts the chat.
-        if (targetSessionId && typeof content === 'string' && content.trim()) {
+        //
+        // Deferral (Requirement 1.5): a brand-new session created earlier in
+        // this call has no folderId (createSession() is invoked with no
+        // folderId in this flow) and is trivially resolvable as global, even
+        // though it hasn't reached the `sessions` array from context yet. For
+        // any other session, the folder association must be definitively
+        // resolvable — i.e. either no folderId (global chat) or a folderId
+        // that matches a known folder — before extraction runs. When the
+        // session can't be found at all, or it carries a folderId that no
+        // longer matches any known folder (stale/removed folder), we defer
+        // (skip) the write rather than silently persisting it as global.
+        const folderAssociationResolvable =
+          isNewSession || isFolderAssociationResolvable(sessions, targetSessionId, folders)
+        if (
+          targetSessionId &&
+          typeof content === 'string' &&
+          content.trim() &&
+          folderAssociationResolvable
+        ) {
           void runMemoryExtraction({
             settings,
             sessionId: targetSessionId,

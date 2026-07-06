@@ -116,6 +116,7 @@ interface ChatHistoryContextType {
   deleteFolder: (id: string) => void
   renameFolder: (id: string, name: string) => void
   reorderFolder: (id: string, order: number) => void
+  setFolderMemoryMode: (id: string, memoryMode: Folder['memoryMode']) => void
 }
 
 interface ChatHistoryState {
@@ -1213,6 +1214,15 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     [saveFoldersAndIndex]
   )
 
+  const setFolderMemoryMode = useCallback(
+    (id: string, memoryMode: Folder['memoryMode']) => {
+      saveFoldersAndIndex(
+        foldersRef.current.map((folder) => (folder.id === id ? { ...folder, memoryMode } : folder))
+      )
+    },
+    [saveFoldersAndIndex]
+  )
+
   const contextValue = useMemo(
     () => ({
       sessions,
@@ -1248,6 +1258,7 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
       deleteFolder,
       renameFolder,
       reorderFolder,
+      setFolderMemoryMode,
     }),
     [
       sessions,
@@ -1283,6 +1294,7 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
       deleteFolder,
       renameFolder,
       reorderFolder,
+      setFolderMemoryMode,
     ]
   )
 
@@ -1346,6 +1358,7 @@ export function useChatHistory() {
         deleteFolder: noop,
         renameFolder: noop,
         reorderFolder: noop,
+        setFolderMemoryMode: noop,
       } as ChatHistoryContextType
     }
     throw new Error('useChatHistory must be used within a ChatHistoryProvider')
@@ -1387,6 +1400,7 @@ export function useChatHistoryActions() {
         deleteFolder: noop,
         renameFolder: noop,
         reorderFolder: noop,
+        setFolderMemoryMode: noop,
       }
     }
     throw new Error('useChatHistoryActions must be used within a ChatHistoryProvider')
@@ -1423,6 +1437,7 @@ export function useChatHistoryActions() {
       deleteFolder: context.deleteFolder,
       renameFolder: context.renameFolder,
       reorderFolder: context.reorderFolder,
+      setFolderMemoryMode: context.setFolderMemoryMode,
     }),
     [
       context.createSession,
@@ -1454,6 +1469,7 @@ export function useChatHistoryActions() {
       context.deleteFolder,
       context.renameFolder,
       context.reorderFolder,
+      context.setFolderMemoryMode,
     ]
   )
 }

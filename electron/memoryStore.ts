@@ -564,8 +564,12 @@ export async function addMemoryWithDedupeAsync(
       // Target vanished — fall through to a normal deduped add.
     }
 
+    const targetScopeKey = scopeKey(scope)
     const duplicate = current.memories.find(
-      (memory) => memory.status === 'active' && isNearDuplicate(memory.content, content)
+      (memory) =>
+        memory.status === 'active' &&
+        scopeKey(memory.scope) === targetScopeKey &&
+        isNearDuplicate(memory.content, content)
     )
     if (duplicate) {
       return { memory: duplicate, operation: 'noop' as const }
