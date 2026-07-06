@@ -678,10 +678,23 @@ export default function CommandCenterOverlay() {
           background: transparent;
         }
 
+        /*
+         * Desktop blur is provided by the native window material (Windows
+         * acrylic / macOS vibrancy), so we no longer stack a heavy CSS
+         * backdrop-filter here (it can't blur the desktop through a
+         * non-transparent window anyway and just wastes GPU). This is a thin
+         * tint over the material for contrast/depth. A light backdrop-filter
+         * is kept as a graceful fallback for platforms without a native
+         * material (e.g. Linux, or when transparency effects are disabled).
+         */
         #root {
-          background: rgba(0, 0, 0, 0.32);
-          backdrop-filter: blur(26px) saturate(118%);
-          -webkit-backdrop-filter: blur(26px) saturate(118%);
+          background: linear-gradient(
+            180deg,
+            rgba(14, 14, 20, 0.24) 0%,
+            rgba(8, 8, 12, 0.42) 100%
+          );
+          backdrop-filter: saturate(120%);
+          -webkit-backdrop-filter: saturate(120%);
         }
 
         .command-center-root {

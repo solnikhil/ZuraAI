@@ -68,13 +68,26 @@ function createCommandCenterWindow(): BrowserWindow {
     skipTaskbar: true,
     show: false,
     autoHideMenuBar: true,
+    // Platform-native translucency. Acrylic is the correct DWM material for a
+    // transient/light-dismiss surface on Windows 11; macOS uses vibrancy. In
+    // both cases the window background must be transparent (alpha 0) so the
+    // system-drawn material is visible instead of an opaque fill obscuring it.
+    // Other platforms fall back to a solid dark panel.
     ...(process.platform === 'win32'
       ? {
           backgroundMaterial: 'acrylic' as const,
           roundedCorners: true,
+          backgroundColor: '#00000000',
         }
-      : {}),
-    backgroundColor: '#000000',
+      : process.platform === 'darwin'
+        ? {
+            vibrancy: 'under-window' as const,
+            visualEffectState: 'active' as const,
+            backgroundColor: '#00000000',
+          }
+        : {
+            backgroundColor: '#0b0b0f',
+          }),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -146,15 +159,37 @@ export function preloadCommandCenterWindow(): void {
   void createCommandCenterWindow()
 }
 
+function boundsEqual(
+  a: { x: number; y: number; width: number; height: number },
+  b: { x: number; y: number; width: number; height: number }
+): boolean {
+  return a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height
+}
+
+// Re-arm the Windows DWM acrylic backdrop. Acrylic can drop to an opaque base
+// frame across geometry changes, so we re-assert it right before showing.
+function reapplyWindowMaterial(win: BrowserWindow): void {
+  if (process.platform === 'win32' && typeof win.setBackgroundMaterial === 'function') {
+    win.setBackgroundMaterial('acrylic')
+  }
+}
+
 export function showCommandCenterWindow(): void {
   const win = createCommandCenterWindow()
   commandCenterLayout = 'search'
   const bounds = centerBounds(commandCenterLayout)
-  win.setBounds(bounds)
+  // Only move the window when the target geometry actually changed. Calling
+  // setBounds forces the acrylic window to recomposite its DWM backdrop, which
+  // presents an opaque transition frame (the "flash before acrylic") on every
+  // open. Skipping the no-op move keeps the already-composited backdrop intact.
+  if (!boundsEqual(win.getBounds(), bounds)) {
+    win.setBounds(bounds)
+  }
   if (!commandCenterReadyToShow) {
     commandCenterShowPending = true
     return
   }
+  reapplyWindowMaterial(win)
   win.setOpacity(1)
   win.show()
   win.focus()
