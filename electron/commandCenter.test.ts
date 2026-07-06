@@ -77,7 +77,16 @@ describe('Command Center main service', () => {
                     iconKey: 'kiro-icon',
                   },
                 ]
-              : [],
+              : args.query === 'native'
+                ? [
+                    {
+                      name: 'Native App',
+                      source: 'windows-search',
+                      appUserModelId: 'Native.App',
+                      iconKey: 'native-icon',
+                    },
+                  ]
+                : [],
         },
       }))
     const executeAppLaunch = vi.fn(async () => ({ success: true, data: { launched: true } }))
@@ -430,15 +439,29 @@ describe('Command Center main service', () => {
       apps: expect.arrayContaining([
         expect.objectContaining({ title: 'Chrome', hint: 'Application' }),
       ]),
-      windows: expect.arrayContaining([expect.objectContaining({ hwnd: 55 })]),
+      windows: expect.arrayContaining([expect.objectContaining({ hwnd: 66 })]),
       chats: expect.arrayContaining([expect.objectContaining({ sessionId: 'chat-1' })]),
     })
+    // The Chrome window (hwnd 55) is folded into the Chrome app row, so it must
+    // not also appear as a standalone entry in the Windows group.
+    expect((index as { windows: Array<{ hwnd: number }> }).windows).not.toContainEqual(
+      expect.objectContaining({ hwnd: 55 })
+    )
     expect(
       (index as { apps: Array<{ title: string; existingWindow?: unknown }> }).apps
     ).toContainEqual(expect.objectContaining({ title: 'Kiro', existingWindow: undefined }))
+    // Native/UWP apps (appUserModelId only, no installed shortcut/target) are
+    // hidden from the default browse list...
     expect(
-      (index as { apps: Array<{ title: string; appUserModelId?: string }> }).apps
-    ).toContainEqual(expect.objectContaining({ title: 'Native App', appUserModelId: 'Native.App' }))
+      (index as { apps: Array<{ title: string }> }).apps
+    ).not.toContainEqual(expect.objectContaining({ title: 'Native App' }))
+    // ...but reappear when the user searches for them.
+    const nativeSearchIndex = (await getIndex?.({}, 'native')) as {
+      apps: Array<{ title: string; appUserModelId?: string }>
+    }
+    expect(nativeSearchIndex.apps).toContainEqual(
+      expect.objectContaining({ title: 'Native App', appUserModelId: 'Native.App' })
+    )
 
     await expect(executeItem?.({}, 'app:QzpcQ2hyb21lLmxuaw')).resolves.toEqual({
       success: true,
@@ -447,7 +470,9 @@ describe('Command Center main service', () => {
     expect(executeWindowFocus).toHaveBeenCalledWith({ hwnd: 55, autoApprove: true })
     expect(executeAppLaunch).not.toHaveBeenCalled()
 
-    await expect(executeItem?.({}, 'app:TmF0aXZlLkFwcA')).resolves.toEqual({
+    // The native app is launched through the search path (with its query), which
+    // is the only way it is surfaced now.
+    await expect(executeItem?.({}, 'app:TmF0aXZlLkFwcA', 'native')).resolves.toEqual({
       success: true,
       data: { launched: true },
     })

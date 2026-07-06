@@ -202,6 +202,15 @@ function compactExecutableName(value: string | undefined): string {
   return compactText(path.basename(value, path.extname(value)))
 }
 
+// An "installed" app is backed by a real executable/shortcut on disk. Native
+// Windows/UWP/store surfaces (Settings, Store, etc.) only carry an
+// appUserModelId with no target or shortcut path. We hide those from the default
+// browse list; they still return via the live search path (executeAppFind).
+function isInstalledApp(app: Record<string, unknown>): boolean {
+  const hasText = (value: unknown): boolean => typeof value === 'string' && value.trim().length > 0
+  return hasText(app.targetPath) || hasText(app.shortcutPath) || hasText(app.path)
+}
+
 function normalizeWindows(raw: unknown): WindowMatch[] {
   if (!raw || typeof raw !== 'object') return []
   const windows = (raw as Record<string, unknown>).windows
@@ -383,9 +392,14 @@ async function buildCommandCenterIndex(query: unknown = ''): Promise<CommandCent
     }
   }
 
+  // Default browse list shows installed apps only; a live query keeps native
+  // Windows/UWP results so the user can still find them by searching.
+  const candidateApps = Array.from(dedupedApps.values())
+  const browsableApps = appQuery ? candidateApps : candidateApps.filter(isInstalledApp)
+
   const appRows = (
     await Promise.all(
-      Array.from(dedupedApps.values())
+      browsableApps
         .slice(0, appQuery ? 40 : 120)
         .map(async (app) => {
           const name = String(app.name)
@@ -442,6 +456,17 @@ async function buildCommandCenterIndex(query: unknown = ''): Promise<CommandCent
     return rankB - rankA || a.title.localeCompare(b.title)
   })
 
+  // Any live window that already belongs to an installed-app row is folded into
+  // that app entry (which focuses the window on click and is boosted to the top).
+  // Drop those windows from the standalone "Windows" group so a running app is
+  // shown once, prioritized as the app row, instead of duplicated here.
+  const appMatchedHwnds = new Set<number>(
+    appRows
+      .map((row) => row.existingWindow?.hwnd)
+      .filter((hwnd): hwnd is number => typeof hwnd === 'number')
+  )
+  const unmatchedWindows = windows.filter((window) => !appMatchedHwnds.has(window.hwnd))
+
   return {
     workflows: workflows
       .slice()
@@ -459,7 +484,7 @@ async function buildCommandCenterIndex(query: unknown = ''): Promise<CommandCent
       })),
     apps: appRows,
     windows: (appQuery
-      ? windows
+      ? unmatchedWindows
           .map((window) => ({
             window,
             rank: scoreWindowSearch(window.title, window.processName, appQuery),
@@ -467,7 +492,7 @@ async function buildCommandCenterIndex(query: unknown = ''): Promise<CommandCent
           .filter((entry) => entry.rank > 0)
           .sort((a, b) => b.rank - a.rank || a.window.title.localeCompare(b.window.title))
           .map((entry) => entry.window)
-      : windows
+      : unmatchedWindows
     )
       .slice(0, appQuery ? 20 : 80)
       .map((window) => ({

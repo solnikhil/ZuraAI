@@ -32,6 +32,22 @@ const EMPTY_INDEX: CommandCenterIndex = {
   chats: [],
 }
 
+// Fixed group order for the results list (keeps section headers stable).
+const GROUP_ORDER = ['Saved Workflows', 'Apps', 'Windows', 'Actions', 'Chats'] as const
+
+// Max rows rendered per group. Apps is the group that can grow into the
+// hundreds, so it is capped hardest; the rest are already small.
+const DEFAULT_GROUP_LIMIT = 20
+const GROUP_RESULT_LIMITS: Record<string, number> = {
+  'Saved Workflows': 12,
+  Apps: 40,
+  Windows: 12,
+  Actions: 24,
+  Chats: 8,
+}
+// Apps shown in the default browse view (before the user types a query).
+const DEFAULT_BROWSE_APP_LIMIT = 8
+
 function flattenIndex(
   index: CommandCenterIndex
 ): Array<{ group: string; item: CommandCenterIndexItem }> {
@@ -139,30 +155,46 @@ export default function CommandCenterOverlay() {
     return { ...index, apps: appMatches.length > 0 ? appMatches : cachedMatches }
   }, [browseApps, index, input])
 
-  const filteredRows = useMemo(() => {
-    const query = input.trim()
-    return flattenIndex(searchIndex).filter(({ item }) => matchesItem(item, query))
-  }, [searchIndex, input])
-
+  // A command palette should never mount its entire app catalogue. We cap each
+  // group (apps is the one that explodes) so only a bounded, ranked set of rows
+  // is rendered, which keeps the overlay responsive over the acrylic backdrop.
   const groupedRows = useMemo(() => {
     const query = input.trim()
     const groups = new Map<string, CommandCenterIndexItem[]>()
-    for (const row of filteredRows) {
-      groups.set(row.group, [...(groups.get(row.group) ?? []), row.item])
+    for (const { group, item } of flattenIndex(searchIndex)) {
+      if (!matchesItem(item, query)) continue
+      groups.set(group, [...(groups.get(group) ?? []), item])
     }
-    return Array.from(groups.entries()).map(
-      ([group, items]) =>
-        [
-          group,
-          query
-            ? [...items].sort(
-                (a, b) =>
-                  searchScore(b, query) - searchScore(a, query) || a.title.localeCompare(b.title)
-              )
-            : items,
-        ] as const
-    )
-  }, [filteredRows, input])
+    return GROUP_ORDER.filter((group) => groups.has(group)).map((group) => {
+      const items = groups.get(group) ?? []
+      const ordered = query
+        ? [...items].sort(
+            (a, b) => searchScore(b, query) - searchScore(a, query) || a.title.localeCompare(b.title)
+          )
+        : items
+      // Keep the default (unsearched) Apps list short; expand it once searching.
+      const limit =
+        group === 'Apps' && !query
+          ? DEFAULT_BROWSE_APP_LIMIT
+          : (GROUP_RESULT_LIMITS[group] ?? DEFAULT_GROUP_LIMIT)
+      return [group, ordered.slice(0, limit)] as const
+    })
+  }, [searchIndex, input])
+
+  // Flat, ordered list that exactly mirrors what is rendered. This is the single
+  // source of truth for keyboard navigation and selection.
+  const filteredRows = useMemo(
+    () => groupedRows.flatMap(([group, items]) => items.map((item) => ({ group, item }))),
+    [groupedRows]
+  )
+
+  // O(1) id -> row index lookup so each rendered row doesn't run an O(n) findIndex
+  // (which made selection cost O(n^2) across the whole list on every render).
+  const rowIndexById = useMemo(() => {
+    const map = new Map<string, number>()
+    filteredRows.forEach((row, index) => map.set(row.item.id, index))
+    return map
+  }, [filteredRows])
 
   const selectedItem = filteredRows[selectedIndex]?.item
   const switchMode = useCallback(() => {
@@ -523,10 +555,10 @@ export default function CommandCenterOverlay() {
                       <section key={group} className="command-center-group">
                         <h2>{group}</h2>
                         {items.map((item) => {
-                          const rowIndex = filteredRows.findIndex((row) => row.item.id === item.id)
+                          const rowIndex = rowIndexById.get(item.id) ?? -1
                           const selected = selectionVisible && rowIndex === selectedIndex
                           return (
-                            <motion.button
+                            <button
                               key={item.id}
                               type="button"
                               className={`command-center-result ${selected ? 'selected' : ''}`}
@@ -536,7 +568,6 @@ export default function CommandCenterOverlay() {
                               }}
                               onMouseLeave={() => setSelectionVisible(false)}
                               onClick={() => void executeItem(item)}
-                              initial={false}
                             >
                               <span className="command-center-result__icon">
                                 {iconForItem(item)}
@@ -546,7 +577,7 @@ export default function CommandCenterOverlay() {
                                 {item.subtitle && <small>{item.subtitle}</small>}
                               </span>
                               <span className="command-center-result__hint">{item.hint}</span>
-                            </motion.button>
+                            </button>
                           )
                         })}
                       </section>
@@ -690,11 +721,11 @@ export default function CommandCenterOverlay() {
         #root {
           background: linear-gradient(
             180deg,
-            rgba(14, 14, 20, 0.24) 0%,
-            rgba(8, 8, 12, 0.42) 100%
+            rgba(9, 9, 13, 0.72) 0%,
+            rgba(4, 4, 7, 0.86) 100%
           );
-          backdrop-filter: saturate(120%);
-          -webkit-backdrop-filter: saturate(120%);
+          backdrop-filter: saturate(115%) brightness(0.82);
+          -webkit-backdrop-filter: saturate(115%) brightness(0.82);
         }
 
         .command-center-root {
