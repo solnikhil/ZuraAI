@@ -88,19 +88,26 @@ export async function executeAppLaunch(args: unknown): Promise<ToolResult> {
   const itemId = stringArg(args, 'itemId')
   if (!nameOrPath && !appUserModelId)
     return { success: false, error: 'nameOrPath or appUserModelId is required.' }
-  try {
-    if (appUserModelId) {
-      await runPowerShell(`Start-Process ${JSON.stringify(`shell:AppsFolder\\${appUserModelId}`)}`)
-    } else if (
-      nameOrPath.includes('\\') ||
+  const looksLikePath =
+    !!nameOrPath &&
+    (nameOrPath.includes('\\') ||
       nameOrPath.includes('/') ||
-      nameOrPath.endsWith('.lnk')
-    ) {
+      nameOrPath.toLowerCase().endsWith('.lnk'))
+  try {
+    if (looksLikePath) {
+      // Installed apps: open the shortcut/executable directly. This is the most
+      // reliable path and avoids the AppsFolder moniker entirely.
       const error = await shell.openPath(nameOrPath)
       if (error) {
         refreshAppIndex().catch(() => undefined)
         return { success: false, error }
       }
+    } else if (appUserModelId) {
+      // UWP/store/native entries have no on-disk path. They must be launched
+      // through Explorer's AppsFolder; Start-Process cannot resolve the moniker
+      // as a FilePath. Single-quote the argument so backslashes stay literal.
+      const appsFolderTarget = `shell:AppsFolder\\${appUserModelId}`.replace(/'/g, "''")
+      await runPowerShell(`Start-Process -FilePath 'explorer.exe' -ArgumentList '${appsFolderTarget}'`)
     } else {
       await runPowerShell(`Start-Process -FilePath ${JSON.stringify(nameOrPath)}`)
     }
