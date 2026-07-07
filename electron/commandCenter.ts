@@ -3,12 +3,7 @@ import os from 'os'
 import path from 'path'
 
 import { scoreWindowSearch } from '../src/commandCenter/search'
-import {
-  getCachedAppIcon,
-  refreshAppIndex,
-  resolveAppIndexEntry,
-  warmAppIndex,
-} from './appIndexService'
+import { getCachedAppIcon, refreshAppIndex, warmAppIndex } from './appIndexService'
 import { getSessionMetadataAsync } from './chatStore'
 import {
   deleteCommandCenterWorkflow,
@@ -102,6 +97,12 @@ interface IndexStaticCache {
 }
 
 let indexStaticCache: IndexStaticCache | null = null
+
+// Items from the most recently built index, keyed by id. The renderer rebuilds
+// the index on every keystroke, so this is fresh for whatever the user can see.
+// executeIndexItem reads from here to avoid rebuilding the entire index (which
+// spawns PowerShell to re-enumerate windows/apps) just to run one action.
+let indexItemCache = new Map<string, CommandCenterIndexItem>()
 
 type CommandCenterActionId = (typeof COMMAND_CENTER_ACTIONS)[number]['id']
 
@@ -467,7 +468,7 @@ async function buildCommandCenterIndex(query: unknown = ''): Promise<CommandCent
   )
   const unmatchedWindows = windows.filter((window) => !appMatchedHwnds.has(window.hwnd))
 
-  return {
+  const index: CommandCenterIndex = {
     workflows: workflows
       .slice()
       .sort((a, b) => (b.lastRunAt ?? b.updatedAt) - (a.lastRunAt ?? a.updatedAt))
@@ -526,6 +527,9 @@ async function buildCommandCenterIndex(query: unknown = ''): Promise<CommandCent
     })),
     diagnostics: appDiagnosticsFromToolResult(appsResult),
   }
+
+  indexItemCache = new Map(flattenIndex(index).map((entry) => [entry.id, entry]))
+  return index
 }
 
 async function getActiveWindowContext(): Promise<unknown | undefined> {
@@ -670,28 +674,27 @@ async function executeIndexItem(itemId: unknown, query: unknown = '') {
     return { success: false, error: 'Command Center item id is required.' }
   }
 
-  const item = flattenIndex(await buildCommandCenterIndex(query)).find(
-    (candidate) => candidate.id === itemId
-  )
+  // Fast path: reuse the item from the last built index (kept fresh by the
+  // renderer's per-keystroke get-index calls) so launching doesn't re-run the
+  // expensive full index build (window enumeration + app queries).
+  const item =
+    indexItemCache.get(itemId) ??
+    flattenIndex(await buildCommandCenterIndex(query)).find(
+      (candidate) => candidate.id === itemId
+    )
   if (!item) return { success: false, error: 'Command Center item was not found.' }
 
   if (item.type === 'workflow') return executeWorkflow(item.workflow.id)
   if (item.type === 'app') {
-    const indexedApp = await resolveAppIndexEntry(item.id, typeof query === 'string' ? query : '')
-    const appItem = indexedApp
-      ? {
-          ...item,
-          shortcutPath: indexedApp.shortcutPath,
-          appPath: indexedApp.shortcutPath,
-          appUserModelId: indexedApp.appUserModelId,
-        }
-      : item
-    if (item.existingWindow) {
-      return executeWindowFocus({ hwnd: item.existingWindow.hwnd, autoApprove: true })
-    }
+    // Launch straight from the cached item via the native open path. We no
+    // longer re-resolve the entry (extra snapshot scan + background PowerShell)
+    // nor route running apps through SetForegroundWindow (which pays for a
+    // PowerShell spawn + runtime C# compile + full process enumeration). A
+    // native launch of a single-instance app activates its existing window,
+    // so this is both faster and behaves the same for the common case.
     return executeAppLaunch({
-      nameOrPath: appItem.shortcutPath ?? appItem.appPath,
-      appUserModelId: appItem.appUserModelId,
+      nameOrPath: item.shortcutPath ?? item.appPath,
+      appUserModelId: item.appUserModelId,
       itemId: item.id,
       autoApprove: true,
     })

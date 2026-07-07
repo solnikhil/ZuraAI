@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import type { Settings } from '../../../contexts/SettingsContext'
-import type { ChatSelectedOverlayStyle } from '../../../contexts/SettingsUIContext'
+import type { AppChromeMaterial, ChatSelectedOverlayStyle } from '../../../contexts/SettingsUIContext'
 import {
   ASSISTANT_PERSONALITIES,
   normalizeAssistantPersonalityId,
@@ -504,6 +504,28 @@ export function AppearanceSection({
               </div>
             </div>
           </div>
+
+          <div className="settings-list-row">
+            <div className="settings-list-row__meta">
+              <h3 className="settings-list-row__label">Sidebar and titlebar material</h3>
+              <div className="settings-list-row__description">
+                Choose a solid chrome surface or native acrylic transparency
+              </div>
+            </div>
+            <div className="settings-list-row__control">
+              <SettingsSelect
+                value={settings.appChromeMaterial ?? 'acrylic'}
+                onValueChange={(value) =>
+                  updateSettings({ appChromeMaterial: value as AppChromeMaterial })
+                }
+                options={[
+                  { value: 'acrylic', label: 'Acrylic' },
+                  { value: 'solid', label: 'Solid' },
+                ]}
+                aria-label="Sidebar and titlebar material"
+              />
+            </div>
+          </div>
         </div>
       </Card>
 
@@ -954,6 +976,7 @@ interface SettingsSelectProps {
   disabled?: boolean
   className?: string
   ariaLabel?: string
+  'aria-label'?: string
 }
 
 function SettingsSelect({
@@ -964,6 +987,7 @@ function SettingsSelect({
   disabled,
   className,
   ariaLabel,
+  'aria-label': ariaLabelAttribute,
 }: SettingsSelectProps): React.ReactElement {
   return (
     <Select value={value} onValueChange={onValueChange} disabled={disabled}>
@@ -973,7 +997,7 @@ function SettingsSelect({
           disabled ? 'opacity-50' : '',
           className ?? '',
         ].join(' ')}
-        aria-label={ariaLabel}
+        aria-label={ariaLabel ?? ariaLabelAttribute}
       >
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>

@@ -105,7 +105,10 @@ export default function CommandCenterOverlay() {
   const [browseApps, setBrowseApps] = useState<CommandCenterIndexItem[]>([])
   const [indexLoading, setIndexLoading] = useState(true)
   const [selectedIndex, setSelectedIndex] = useState(0)
-  const [selectionVisible, setSelectionVisible] = useState(false)
+  // The first result is highlighted by default (both the default browse view
+  // and while searching), so Enter always has a target without needing the
+  // user to arrow into the list first.
+  const [selectionVisible, setSelectionVisible] = useState(true)
   const [confirmingWorkflow, setConfirmingWorkflow] = useState<CommandCenterIndexItem | null>(null)
   const [status, setStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -252,7 +255,7 @@ export default function CommandCenterOverlay() {
     activeSearchQueryRef.current = ''
     setBrowseApps([])
     setSelectedIndex(0)
-    setSelectionVisible(false)
+    setSelectionVisible(true)
     setConfirmingWorkflow(null)
     setStatus(null)
     setError(null)
@@ -294,8 +297,10 @@ export default function CommandCenterOverlay() {
   }, [index.apps, input, isChatMode, mode, refreshIndex])
 
   useEffect(() => {
+    // Reset to the first row whenever the query or mode changes, and keep the
+    // highlight visible so the top result is pre-selected.
     setSelectedIndex(0)
-    setSelectionVisible(false)
+    setSelectionVisible(true)
   }, [input, mode])
 
   useEffect(() => {
@@ -356,6 +361,13 @@ export default function CommandCenterOverlay() {
       }
       if (result.aiPrompt) {
         startChat(result.aiPrompt)
+        return
+      }
+      // Launching an app or focusing a window: dismiss instantly and skip the
+      // post-action index rebuild (which spawns PowerShell to re-enumerate
+      // windows). The overlay would blur-close anyway once focus moves.
+      if (item.type === 'app' || item.type === 'window') {
+        void window.commandCenter.hide()
         return
       }
       if (item.type !== 'chat') {
@@ -452,6 +464,26 @@ export default function CommandCenterOverlay() {
     }
   }
 
+  const footerActionLabel = ((): string => {
+    if (mode === 'ask') return 'Ask Zura'
+    const item = selectedItem
+    if (!item) return input.trim() ? 'Ask Zura' : 'Search'
+    switch (item.type) {
+      case 'app':
+        return item.existingWindow ? 'Focus Window' : 'Open Application'
+      case 'workflow':
+        return 'Run Workflow'
+      case 'window':
+        return 'Focus Window'
+      case 'action':
+        return 'Run Action'
+      case 'chat':
+        return 'Open Chat'
+      default:
+        return 'Open'
+    }
+  })()
+
   return (
     <div className="command-center-root">
       <motion.div
@@ -460,9 +492,6 @@ export default function CommandCenterOverlay() {
         initial={false}
       >
         <motion.div className="command-center-topbar" initial={false}>
-          <div className="command-center-brand">
-            <img className="command-center-logo" src="icon-mark.png" alt="" />
-          </div>
           <motion.div
             className="command-center-input-shell"
             animate={reduceMotion ? { x: 0 } : { x: mode === 'ask' ? 4 : 0 }}
@@ -502,27 +531,16 @@ export default function CommandCenterOverlay() {
             )}
           </motion.div>
           {!isChatMode && (
-            <div className="command-center-tab-hint">
+            <button
+              type="button"
+              className="command-center-mode-hint"
+              onClick={switchMode}
+              aria-label={mode === 'ask' ? 'Switch to Search' : 'Switch to Ask AI'}
+            >
               <kbd>Tab</kbd>
-              <span>to switch</span>
-            </div>
+              <span>{mode === 'ask' ? 'to Search' : 'to AI'}</span>
+            </button>
           )}
-          <div className="command-center-segment" aria-label="Command Center mode">
-            <button
-              type="button"
-              className={mode === 'search' && !isChatMode ? 'active' : ''}
-              onClick={() => setMode('search')}
-            >
-              Search
-            </button>
-            <button
-              type="button"
-              className={mode === 'ask' || isChatMode ? 'active' : ''}
-              onClick={() => setMode('ask')}
-            >
-              Ask AI
-            </button>
-          </div>
         </motion.div>
 
         <AnimatePresence mode="wait" initial={false}>
@@ -562,12 +580,18 @@ export default function CommandCenterOverlay() {
                               key={item.id}
                               type="button"
                               className={`command-center-result ${selected ? 'selected' : ''}`}
-                              onMouseEnter={() => {
+                              onClick={() => {
+                                // Single click selects the row (strong,
+                                // persistent highlight) and returns focus to the
+                                // input so keyboard actions (Enter to open,
+                                // arrows to move) act on the selection. Hover is
+                                // a separate CSS-only lighter highlight and no
+                                // longer moves the selection.
                                 setSelectionVisible(true)
                                 setSelectedIndex(rowIndex)
+                                requestAnimationFrame(() => inputRef.current?.focus())
                               }}
-                              onMouseLeave={() => setSelectionVisible(false)}
-                              onClick={() => void executeItem(item)}
+                              onDoubleClick={() => void executeItem(item)}
                             >
                               <span className="command-center-result__icon">
                                 {iconForItem(item)}
@@ -675,6 +699,25 @@ export default function CommandCenterOverlay() {
           )}
         </AnimatePresence>
 
+        {!isChatMode && (
+          <footer className="command-center-footer">
+            <span className="command-center-footer__brand">
+              <img src="icon-mark.png" alt="" />
+            </span>
+            <button
+              type="button"
+              className="command-center-footer__action"
+              onClick={submit}
+              aria-label={footerActionLabel}
+            >
+              <span>{footerActionLabel}</span>
+              <kbd>
+                <CornerDownLeft size={12} />
+              </kbd>
+            </button>
+          </footer>
+        )}
+
         {(error || status) && (
           <div className={`command-center-status ${error ? 'error' : ''}`}>{error || status}</div>
         )}
@@ -719,13 +762,9 @@ export default function CommandCenterOverlay() {
          * material (e.g. Linux, or when transparency effects are disabled).
          */
         #root {
-          background: linear-gradient(
-            180deg,
-            rgba(9, 9, 13, 0.72) 0%,
-            rgba(4, 4, 7, 0.86) 100%
-          );
-          backdrop-filter: saturate(115%) brightness(0.82);
-          -webkit-backdrop-filter: saturate(115%) brightness(0.82);
+          background: rgba(10, 10, 14, 0.62);
+          backdrop-filter: saturate(116%) brightness(0.94);
+          -webkit-backdrop-filter: saturate(116%) brightness(0.94);
         }
 
         .command-center-root {
@@ -742,6 +781,8 @@ export default function CommandCenterOverlay() {
           position: relative;
           width: 100vw;
           height: 100vh;
+          display: flex;
+          flex-direction: column;
           border-radius: 0;
           overflow: hidden;
           border: 1px solid rgba(255, 255, 255, 0.16);
@@ -760,12 +801,14 @@ export default function CommandCenterOverlay() {
         .command-center-topbar {
           position: relative;
           z-index: 1;
-          height: 52px;
+          flex: 0 0 auto;
+          height: 56px;
           display: flex;
           align-items: center;
-          gap: 8px;
-          padding: 0 8px 0 12px;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.10);
+          gap: 10px;
+          padding: 0 10px 0 16px;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+          box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03);
         }
 
         .command-center-brand {
@@ -787,39 +830,46 @@ export default function CommandCenterOverlay() {
           transform: translateY(1px);
         }
 
-        .command-center-tab-hint {
-          display: flex;
+        .command-center-mode-hint {
+          flex: 0 0 auto;
+          display: inline-flex;
           align-items: center;
-          gap: 4px;
-          color: rgba(255, 231, 238, 0.34);
-          font-size: 11px;
+          gap: 7px;
+          height: 28px;
+          padding: 0 9px;
+          border: 0;
+          border-radius: 8px;
+          background: transparent;
+          color: rgba(255, 231, 238, 0.44);
+          font: inherit;
+          font-size: 12.5px;
           white-space: nowrap;
+          cursor: pointer;
+          transition: background-color 120ms ease, color 120ms ease;
         }
 
-        .command-center-tab-hint kbd {
-          min-width: 0;
-          height: auto;
-          padding: 0;
-          border: 0;
-          border-radius: 0;
-          background: transparent;
-          color: rgba(255, 241, 246, 0.58);
+        .command-center-mode-hint:hover {
+          background: rgba(255, 255, 255, 0.06);
+          color: rgba(255, 241, 246, 0.72);
+        }
+
+        .command-center-mode-hint kbd {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-width: 22px;
+          height: 19px;
+          padding: 0 5px;
+          border-radius: 5px;
+          background: rgba(255, 255, 255, 0.10);
+          border: 1px solid rgba(255, 255, 255, 0.13);
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10);
+          color: rgba(255, 246, 249, 0.82);
           font: inherit;
           font-size: 11px;
-          font-weight: 700;
+          font-weight: 600;
         }
 
-        .command-center-segment {
-          height: 30px;
-          display: flex;
-          align-items: center;
-          padding: 2px;
-          border-radius: 6px;
-          background: rgba(255, 255, 255, 0.12);
-          border: 1px solid rgba(255, 255, 255, 0.10);
-        }
-
-        .command-center-segment button,
         .command-center-input-shell button,
         .command-center-chat-actions button,
         .command-center-ask-empty button,
@@ -830,28 +880,78 @@ export default function CommandCenterOverlay() {
           cursor: pointer;
         }
 
-        .command-center-segment button {
-          height: 24px;
-          padding: 0 9px;
-          border-radius: 4px;
-          background: transparent;
-          color: rgba(255, 235, 240, 0.56);
-          font-size: 13px;
-        }
-
-        .command-center-segment button.active {
-          background: rgba(255, 255, 255, 0.22);
-          color: rgba(255, 247, 250, 0.90);
-        }
-
         .command-center-body,
         .command-center-chat {
           position: relative;
           z-index: 1;
-          height: calc(100% - 52px);
+          flex: 1 1 auto;
           display: flex;
           flex-direction: column;
           min-height: 0;
+        }
+
+        .command-center-footer {
+          flex: 0 0 auto;
+          z-index: 2;
+          height: 42px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0 8px 0 14px;
+          border-top: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .command-center-footer__brand {
+          display: inline-flex;
+          align-items: center;
+          opacity: 0.5;
+        }
+
+        .command-center-footer__brand img {
+          width: 18px;
+          height: 18px;
+          object-fit: contain;
+          display: block;
+        }
+
+        .command-center-footer__action {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          height: 28px;
+          padding: 0 8px;
+          border: 0;
+          border-radius: 7px;
+          background: transparent;
+          color: rgba(255, 241, 246, 0.74);
+          font: inherit;
+          font-size: 12.5px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: background-color 120ms ease, color 120ms ease;
+        }
+
+        .command-center-footer__action:hover {
+          background: rgba(255, 255, 255, 0.06);
+          color: rgba(255, 249, 251, 0.92);
+        }
+
+        .command-center-footer__action kbd {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-width: 20px;
+          height: 19px;
+          padding: 0 4px;
+          border-radius: 5px;
+          background: rgba(255, 255, 255, 0.10);
+          border: 1px solid rgba(255, 255, 255, 0.13);
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10);
+          color: rgba(255, 246, 249, 0.82);
+        }
+
+        .command-center-footer__action kbd svg {
+          display: block;
         }
 
         .command-center-input-shell {
@@ -880,8 +980,10 @@ export default function CommandCenterOverlay() {
           border: 0;
           outline: 0;
           background: transparent;
-          color: rgba(255, 245, 248, 0.94);
-          font-size: 14px;
+          color: rgba(255, 245, 248, 0.96);
+          font-size: 15px;
+          letter-spacing: 0.005em;
+          caret-color: rgba(255, 190, 214, 0.95);
         }
 
         .command-center-input-shell input::placeholder {
@@ -902,7 +1004,7 @@ export default function CommandCenterOverlay() {
           flex: 1;
           min-height: 0;
           overflow: auto;
-          padding: 18px 20px 24px;
+          padding: 8px 8px 14px;
           scrollbar-width: thin;
           scrollbar-color: rgba(255, 255, 255, 0.34) transparent;
         }
@@ -933,71 +1035,82 @@ export default function CommandCenterOverlay() {
         .command-center-group {
           display: flex;
           flex-direction: column;
-          gap: 4px;
-          margin-bottom: 24px;
+          gap: 1px;
+          margin-bottom: 12px;
         }
 
         .command-center-group h2 {
-          margin: 0 0 6px;
-          color: rgba(255, 231, 238, 0.52);
-          font-size: 14px;
+          margin: 0 0 4px;
+          padding: 0 10px;
+          color: rgba(255, 231, 238, 0.40);
+          font-size: 12px;
           font-weight: 500;
+          letter-spacing: 0.01em;
         }
 
         .command-center-result {
           width: 100%;
-          min-height: 45px;
+          min-height: 40px;
           display: grid;
-          grid-template-columns: 42px minmax(0, 1fr) 86px;
+          grid-template-columns: 28px minmax(0, 1fr) auto;
           align-items: center;
-          column-gap: 12px;
+          column-gap: 10px;
           border: 0;
-          border-radius: 6px;
+          border-radius: 8px;
           background: transparent;
-          color: rgba(255, 241, 246, 0.74);
+          color: rgba(255, 241, 246, 0.78);
           text-align: left;
-          padding: 0 9px;
+          padding: 0 10px;
           font: inherit;
           cursor: pointer;
-          transition: background-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
+          transition: background-color 110ms ease, color 110ms ease;
         }
 
-        .command-center-result.selected,
         .command-center-result:hover {
-          background: rgba(255, 255, 255, 0.085);
-          color: rgba(255, 249, 251, 0.96);
+          background: rgba(255, 255, 255, 0.05);
+          color: rgba(255, 249, 251, 0.94);
+        }
+
+        .command-center-result.selected {
+          background: rgba(255, 255, 255, 0.095);
+          color: rgba(255, 250, 252, 0.98);
         }
 
         .command-center-result__icon {
-          width: 32px;
-          height: 32px;
+          width: 22px;
+          height: 22px;
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          color: rgba(255, 221, 231, 0.58);
+          color: rgba(255, 221, 231, 0.60);
           overflow: hidden;
-          border-radius: 8px;
-          background: rgba(255, 255, 255, 0.06);
+          border-radius: 5px;
+          background: transparent;
         }
 
-        .command-center-result__icon svg,
-        .command-center-result__app-icon {
-          width: 28px;
-          height: 28px;
+        .command-center-result__icon svg {
+          width: 19px;
+          height: 19px;
           display: block;
           flex: 0 0 auto;
         }
 
         .command-center-result__app-icon {
+          width: 22px;
+          height: 22px;
+          display: block;
+          flex: 0 0 auto;
           object-fit: contain;
-          border-radius: 7px;
+          border-radius: 5px;
         }
 
         .command-center-result__text {
           min-width: 0;
           display: flex;
-          flex-direction: column;
-          line-height: 1.1;
+          flex-direction: row;
+          align-items: baseline;
+          gap: 8px;
+          line-height: 1.2;
         }
 
         .command-center-result__text span,
@@ -1008,19 +1121,30 @@ export default function CommandCenterOverlay() {
         }
 
         .command-center-result__text span {
-          font-size: 14px;
+          flex: 0 1 auto;
+          font-size: 13.5px;
+          font-weight: 500;
+          letter-spacing: 0.005em;
         }
 
         .command-center-result__text small {
-          margin-top: 3px;
-          color: rgba(255, 231, 238, 0.46);
-          font-size: 11px;
+          flex: 0 1 auto;
+          min-width: 0;
+          color: rgba(255, 231, 238, 0.42);
+          font-size: 13px;
         }
 
         .command-center-result__hint {
           justify-self: end;
-          color: rgba(255, 231, 238, 0.48);
-          font-size: 12px;
+          padding-left: 12px;
+          color: rgba(255, 231, 238, 0.34);
+          font-size: 12.5px;
+          font-weight: 400;
+          transition: color 130ms ease;
+        }
+
+        .command-center-result.selected .command-center-result__hint {
+          color: rgba(255, 231, 238, 0.55);
         }
 
         .command-center-empty,

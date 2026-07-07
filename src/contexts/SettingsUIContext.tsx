@@ -29,6 +29,7 @@ import { warnOnceDuringHmr } from './hmrWarnings'
 
 export type ChatBubbleStyle = 'solid' | 'glass' | 'outline' | 'gradient' | 'elevated' | 'terminal'
 export type ChatSelectedOverlayStyle = 'linear' | 'notion' | 'slack' | 'discord' | 'github'
+export type AppChromeMaterial = 'solid' | 'acrylic'
 export type PlaceholderStyle = 'normal' | 'genz'
 export type RemindersCardStyle = 'solid' | 'subtle' | 'outline'
 export type RemindersContainerStyle = 'panel' | 'flush' | 'framed'
@@ -55,6 +56,7 @@ export interface SettingsUI {
   themeForeground?: string // Custom foreground color override
   themeContrast: number // Contrast slider (0-100, 100 = full contrast, lower = softer)
   fontScale: number // Text size scale (85-125, 100 = current default)
+  appChromeMaterial: AppChromeMaterial
 
   // Title bar personalization
   titleBarDensity: 'comfortable' | 'compact'
@@ -103,6 +105,7 @@ export const defaultSettingsUI: SettingsUI = {
   activeTheme: 'zuraai',
   themeContrast: 100,
   fontScale: DEFAULT_FONT_SCALE,
+  appChromeMaterial: 'acrylic',
   titleBarDensity: 'compact',
   titleBarShowAppName: true,
   titleBarShowChatTitle: true,

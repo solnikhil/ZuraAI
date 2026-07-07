@@ -11,6 +11,11 @@ let commandCenterWindow: BrowserWindow | null = null
 let commandCenterLayout: 'search' | 'chat' = 'search'
 let commandCenterReadyToShow = false
 let commandCenterShowPending = false
+// Timestamp of the last show(). Used to ignore the spurious blur Windows can
+// deliver while focus is still transferring to a freshly shown always-on-top
+// overlay, which would otherwise hide it immediately ("can't open" flicker).
+let commandCenterLastShownAt = 0
+const COMMAND_CENTER_SHOW_BLUR_GRACE_MS = 250
 
 function commandCenterRouteUrl(baseUrl: string): string {
   const url = new URL(baseUrl)
@@ -124,7 +129,24 @@ function createCommandCenterWindow(): BrowserWindow {
   })
 
   commandCenterWindow.on('blur', () => {
-    commandCenterWindow?.hide()
+    const win = commandCenterWindow
+    if (!win || win.isDestroyed()) return
+    // Ignore the blur that can fire in the brief moment after show() while the
+    // OS is still moving focus onto the overlay. Hiding on it makes the overlay
+    // flash open and vanish, which reads as "won't open". If focus genuinely
+    // never lands on the overlay, re-check once the grace window has elapsed
+    // and hide only if it is still not focused.
+    if (Date.now() - commandCenterLastShownAt < COMMAND_CENTER_SHOW_BLUR_GRACE_MS) {
+      setTimeout(() => {
+        const current = commandCenterWindow
+        if (!current || current.isDestroyed()) return
+        if (current.isVisible() && !current.isFocused()) {
+          current.hide()
+        }
+      }, COMMAND_CENTER_SHOW_BLUR_GRACE_MS)
+      return
+    }
+    win.hide()
   })
 
   commandCenterWindow.on('closed', () => {
@@ -190,9 +212,19 @@ export function showCommandCenterWindow(): void {
     return
   }
   reapplyWindowMaterial(win)
+  commandCenterLastShownAt = Date.now()
   win.setOpacity(1)
   win.show()
   win.focus()
+  // Re-assert focus on the next tick. The initial focus() can lose the race
+  // with the OS still finishing the show, especially when triggered from a
+  // global shortcut while another app is foreground.
+  setTimeout(() => {
+    const current = commandCenterWindow
+    if (current && !current.isDestroyed() && current.isVisible() && !current.isFocused()) {
+      current.focus()
+    }
+  }, 60)
   win.webContents.send('command-center:shown')
 }
 

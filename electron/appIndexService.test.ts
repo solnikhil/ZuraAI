@@ -208,7 +208,7 @@ describe('appIndexService', () => {
           name: 'Kiro',
           appUserModelId: 'Kiro',
           shortcutPath: 'C:\\Users\\Nikhil\\Desktop\\Kiro.lnk',
-          iconKey: expect.stringContaining('resources\\app\\resources\\win32\\code_70x70.png'),
+          iconKey: expect.stringContaining('Kiro.exe'),
         }),
         expect.objectContaining({ name: 'Native Only', appUserModelId: 'Native.Only' }),
       ])
@@ -436,7 +436,7 @@ describe('appIndexService', () => {
     )
   })
 
-  it('prefers packaged icons folder assets before executable fallback', async () => {
+  it('resolves app icons from the target executable', async () => {
     const { service } = await loadService({
       nativeApps: [{ name: 'GitHub Copilot', appUserModelId: 'com.github.githubapp' }],
     })
@@ -464,11 +464,11 @@ describe('appIndexService', () => {
       appUserModelId: 'com.github.githubapp',
       shortcutPath: 'C:\\Users\\Nikhil\\Desktop\\GitHub Copilot.lnk',
       targetPath: 'C:\\Users\\Nikhil\\AppData\\Local\\Programs\\GitHub Copilot\\github.exe',
-      iconKey: expect.stringMatching(/GitHub Copilot\\icons\\icon\.ico/),
+      iconKey: expect.stringContaining('github.exe'),
     })
   })
 
-  it('finds VS Code icons from versioned win32 resource folders when shortcut icon is empty', async () => {
+  it('resolves the VS Code icon from its executable when the shortcut icon is empty', async () => {
     const { service } = await loadService({
       nativeApps: [{ name: 'Visual Studio Code', appUserModelId: 'Microsoft.VisualStudioCode' }],
     })
@@ -496,13 +496,11 @@ describe('appIndexService', () => {
     expect((await service.findApps('vscode')).matches[0]).toMatchObject({
       name: 'Visual Studio Code',
       targetPath: 'C:\\Users\\Nikhil\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe',
-      iconKey: expect.stringContaining(
-        'Microsoft VS Code\\*\\resources\\app\\resources\\win32\\code.ico'
-      ),
+      iconKey: expect.stringContaining('Code.exe'),
     })
   })
 
-  it('finds paint.net sibling ico when shortcut icon is empty', async () => {
+  it('resolves the paint.net icon from its executable when the shortcut icon is empty', async () => {
     const { service } = await loadService({
       nativeApps: [{ name: 'paint.net', appUserModelId: 'paint.net' }],
     })
@@ -528,7 +526,51 @@ describe('appIndexService', () => {
     expect((await service.findApps('paint')).matches[0]).toMatchObject({
       name: 'paint.net',
       targetPath: 'C:\\Program Files\\paint.net\\paintdotnet.exe',
-      iconKey: expect.stringContaining('C:\\Program Files\\paint.net\\paintdotnet.ico'),
+      iconKey: expect.stringContaining('paintdotnet.exe'),
+    })
+  })
+
+  it('resolves UWP app icons from the package logo asset', async () => {
+    const { service } = await loadService({
+      nativeApps: [
+        { name: 'Notepad', appUserModelId: 'Microsoft.WindowsNotepad_8wekyb3d8bbwe!App' },
+      ],
+    })
+    const runPowerShell = (await import('./tools/native-common')).runPowerShell as ReturnType<
+      typeof vi.fn
+    >
+    runPowerShell.mockImplementation(async (script: string) => {
+      if (script.includes('Get-AppxPackage')) {
+        return {
+          stdout: JSON.stringify({
+            familyName: 'Microsoft.WindowsNotepad_8wekyb3d8bbwe',
+            logo: 'C:\\Program Files\\WindowsApps\\Notepad\\Assets\\NotepadAppList.scale-200.png',
+          }),
+          stderr: '',
+        }
+      }
+      if (script.includes('UserAssist') || script.includes('Decode-Rot13')) {
+        return { stdout: '', stderr: '' }
+      }
+      return {
+        stdout: JSON.stringify({
+          name: 'Notepad',
+          appUserModelId: 'Microsoft.WindowsNotepad_8wekyb3d8bbwe!App',
+        }),
+        stderr: '',
+      }
+    })
+    const fsPromises = await import('fs/promises')
+    const emptyReaddir = vi.fn(async () => [])
+    vi.mocked(fsPromises.readdir).mockImplementation(emptyReaddir)
+    vi.mocked(fsPromises.default.readdir).mockImplementation(emptyReaddir)
+
+    await service.refreshAppIndex()
+
+    expect((await service.findApps('notepad')).matches[0]).toMatchObject({
+      name: 'Notepad',
+      appUserModelId: 'Microsoft.WindowsNotepad_8wekyb3d8bbwe!App',
+      iconKey: expect.stringContaining('NotepadAppList.scale-200.png'),
     })
   })
 
@@ -621,7 +663,7 @@ describe('appIndexService', () => {
     expect(kiroRows[0]).toMatchObject({
       shortcutPath: 'C:\\Users\\Nikhil\\Desktop\\Kiro.lnk',
       targetPath: 'C:\\Users\\Nikhil\\AppData\\Local\\Programs\\Kiro\\Kiro.exe',
-      iconKey: expect.stringContaining('resources\\app\\resources\\win32\\code_70x70.png'),
+      iconKey: expect.stringContaining('Kiro.exe'),
     })
     expect(runPowerShell).not.toHaveBeenCalled()
   })

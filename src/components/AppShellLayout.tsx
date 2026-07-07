@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAppShell } from '../contexts/AppShellContext'
 import { useChatHistory } from '../contexts/ChatHistoryContext'
+import { useSettingsUI } from '../contexts/SettingsUIContext'
 import TitleBar from './TitleBar'
 import TitleBarSidebarControls from './TitleBarSidebarControls'
 import ResizeHandles from './ResizeHandles'
@@ -28,6 +29,7 @@ export default function AppShellLayout() {
     goForward,
   } = useAppShell()
   const { clearCurrentSession } = useChatHistory()
+  const { settingsUI } = useSettingsUI()
   const { showToast } = useToast()
   const isDev = import.meta.env.DEV
 
@@ -78,6 +80,7 @@ export default function AppShellLayout() {
         ]
           .filter(Boolean)
           .join(' ')}
+        data-app-chrome-material={settingsUI.appChromeMaterial ?? 'acrylic'}
       >
         {isMacOS && <div className="app-macos-drag-region" aria-hidden="true" />}
         {isMacOS && (

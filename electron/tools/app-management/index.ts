@@ -16,7 +16,7 @@ import {
   truncateOutput,
   unsupportedWindowsOnly,
 } from '../native-common'
-import { execFile } from 'child_process'
+import { execFile, spawn } from 'child_process'
 
 export { refreshAppIndex, warmAppIndex }
 
@@ -103,11 +103,18 @@ export async function executeAppLaunch(args: unknown): Promise<ToolResult> {
         return { success: false, error }
       }
     } else if (appUserModelId) {
-      // UWP/store/native entries have no on-disk path. They must be launched
-      // through Explorer's AppsFolder; Start-Process cannot resolve the moniker
-      // as a FilePath. Single-quote the argument so backslashes stay literal.
-      const appsFolderTarget = `shell:AppsFolder\\${appUserModelId}`.replace(/'/g, "''")
-      await runPowerShell(`Start-Process -FilePath 'explorer.exe' -ArgumentList '${appsFolderTarget}'`)
+      // UWP/store/native entries have no on-disk path. Launch them by handing
+      // the AppsFolder moniker straight to Explorer (the native launcher) via a
+      // detached spawn. This avoids spawning powershell.exe on the hot path, so
+      // it's effectively as fast as double-clicking the app's tile. Explorer
+      // returns flaky exit codes, so we fire-and-forget rather than await it.
+      const child = spawn('explorer.exe', [`shell:AppsFolder\\${appUserModelId}`], {
+        windowsHide: true,
+        detached: true,
+        stdio: 'ignore',
+      })
+      child.on('error', () => undefined)
+      child.unref()
     } else {
       await runPowerShell(`Start-Process -FilePath ${JSON.stringify(nameOrPath)}`)
     }

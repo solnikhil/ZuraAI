@@ -140,7 +140,7 @@ body {
   line-height: 1.45;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: var(--theme-background);
+  background-color: transparent;
   color: var(--theme-text-primary);
   transition:
     background-color var(--motion-duration-slow) var(--motion-ease-standard),
@@ -198,7 +198,20 @@ body {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+  background-color: transparent;
+}
+
+.app-frame[data-app-chrome-material='solid'] {
   background-color: var(--theme-background);
+}
+
+.app-frame[data-app-chrome-material='acrylic'] {
+  --theme-sidebar-solid: transparent;
+  background-color: transparent;
+}
+
+:root:not(.dark) .app-frame[data-app-chrome-material='acrylic'] {
+  --theme-sidebar-solid: transparent;
 }
 
 .app-content {
@@ -209,10 +222,9 @@ body {
   min-height: 0;
   overflow: hidden;
   border-top: none;
-  /* Corner gutter: the canvas's rounded top/bottom-left notches reveal this
-       surface, so match the sidebar/titlebar panel color (not theme-background)
-       to avoid a darker square wedge at the sidebar↔titlebar junction. */
-  background: var(--theme-sidebar-solid);
+  /* The dashboard canvas remains solid; surrounding chrome lets native
+       acrylic/vibrancy show through. */
+  background: transparent;
   /* Isolate layout reflow so sidebar resize doesn't reflow the entire chat message tree */
   contain: layout style;
 }

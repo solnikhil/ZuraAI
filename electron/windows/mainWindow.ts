@@ -95,7 +95,8 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
     ...(isWindows
       ? {
           frame: false,
-          backgroundMaterial: 'none' as const,
+          transparent: true,
+          backgroundMaterial: 'acrylic' as const,
         }
       : {}),
     ...(isMacOS
@@ -117,9 +118,9 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
       additionalArguments: ['--process-name=ZuraAI'],
     },
     autoHideMenuBar: isWindows,
-    // Keep the main window on a solid background to avoid transparent border artifacts
-    // and compositor instability on Windows.
-    backgroundColor: '#14120B',
+    // Native acrylic/vibrancy owns the window chrome background. The renderer
+    // keeps the dashboard canvas solid so chat readability is unaffected.
+    backgroundColor: '#00000000',
     show: false,
   })
 

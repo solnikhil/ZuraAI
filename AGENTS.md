@@ -277,7 +277,11 @@ app index service loads a non-secret persisted snapshot from
 immediately on overlay open, refreshes Windows app data in the background from
 `Get-StartApps`, query-specific `Get-StartApps -Name` lookups, and
 Start Menu/Desktop shortcuts enriched with shortcut metadata where available,
-and writes refreshed snapshots atomically. The service also records local
+and writes refreshed snapshots atomically. App icons are resolved OS-natively:
+win32 apps from their target executable via `app.getFileIcon`, and UWP/Store
+apps (which have no on-disk executable) from their package logo asset, resolved
+best-effort in the background refresh via a bounded `Get-AppxPackage` /
+`Get-AppxPackageManifest` lookup and cached in the snapshot. The service also records local
 Command Center app launches and reads Windows UserAssist usage metadata as a
 best-effort recency/frequency ranking signal; those signals may be stored in the
 non-secret snapshot but never act as launch authority. App indexing is warmed at app ready

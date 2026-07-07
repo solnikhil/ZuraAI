@@ -30,6 +30,7 @@ export const UI_SETTING_KEYS: (keyof SettingsUI)[] = [
   'themeForeground',
   'themeContrast',
   'fontScale',
+  'appChromeMaterial',
   'titleBarDensity',
   'titleBarShowAppName',
   'titleBarShowChatTitle',
@@ -604,6 +605,9 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   if (!['light', 'dark', 'system'].includes(String(parsed.theme))) {
     parsed.theme = defaultSettings.theme
   }
+  if (parsed.appChromeMaterial !== 'solid' && parsed.appChromeMaterial !== 'acrylic') {
+    parsed.appChromeMaterial = defaultSettings.appChromeMaterial
+  }
   parsed.activeTheme = normalizeActiveThemeId(parsed.activeTheme || defaultSettings.activeTheme)
   delete parsed.themeAccent
   delete parsed.themeBackground
@@ -671,6 +675,7 @@ export function getInitialUISettings(settings: Settings): Partial<SettingsUI> {
     themeForeground: settings.themeForeground,
     themeContrast: settings.themeContrast,
     fontScale: settings.fontScale,
+    appChromeMaterial: settings.appChromeMaterial,
     titleBarDensity: settings.titleBarDensity,
     titleBarShowAppName: settings.titleBarShowAppName,
     titleBarShowChatTitle: settings.titleBarShowChatTitle,

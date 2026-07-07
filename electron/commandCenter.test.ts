@@ -425,7 +425,7 @@ describe('Command Center main service', () => {
     ).toBe(true)
   })
 
-  it('builds a searchable index and focuses an existing app window by default', async () => {
+  it('builds a searchable index and launches apps via the native open path', async () => {
     const { service, handlers, executeWindowFocus, executeAppLaunch } = await loadService()
     service.registerCommandCenterHandlers()
     service.setCommandCenterExtensionEnabled(true)
@@ -463,12 +463,20 @@ describe('Command Center main service', () => {
       expect.objectContaining({ title: 'Native App', appUserModelId: 'Native.App' })
     )
 
+    // App items launch via the native open path (fast); we no longer route a
+    // running app through SetForegroundWindow. Launching activates the existing
+    // single-instance window without the PowerShell focus round trip.
     await expect(executeItem?.({}, 'app:QzpcQ2hyb21lLmxuaw')).resolves.toEqual({
       success: true,
-      data: { focused: true },
+      data: { launched: true },
     })
-    expect(executeWindowFocus).toHaveBeenCalledWith({ hwnd: 55, autoApprove: true })
-    expect(executeAppLaunch).not.toHaveBeenCalled()
+    expect(executeAppLaunch).toHaveBeenCalledWith({
+      nameOrPath: 'C:\\Chrome.lnk',
+      appUserModelId: undefined,
+      itemId: 'app:QzpcQ2hyb21lLmxuaw',
+      autoApprove: true,
+    })
+    expect(executeWindowFocus).not.toHaveBeenCalled()
 
     // The native app is launched through the search path (with its query), which
     // is the only way it is surfaced now.

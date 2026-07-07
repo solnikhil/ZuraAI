@@ -298,43 +298,12 @@ function normalizeIconCandidatePath(candidatePath: string): string {
   )
 }
 
-function visualElementLogoCandidates(targetPath: string | undefined): string[] {
-  if (!targetPath) return []
-  const targetDir = path.dirname(targetPath)
-  return [
-    path.join(targetDir, 'resources', 'app', 'resources', 'win32', 'code_70x70.png'),
-    path.join(targetDir, 'resources', 'app', 'resources', 'win32', 'code_150x150.png'),
-  ]
-}
-
-function versionedAppIconCandidates(targetPath: string | undefined): string[] {
-  if (!targetPath) return []
-  const targetDir = path.dirname(targetPath)
-  return [
-    path.join(targetDir, '*', 'resources', 'app', 'resources', 'win32', 'code.ico'),
-    path.join(targetDir, '*', 'resources', 'app', 'resources', 'win32', 'code_70x70.png'),
-    path.join(targetDir, '*', 'resources', 'app', 'resources', 'win32', 'code_150x150.png'),
-  ]
-}
-
-function packagedIconCandidates(targetPath: string | undefined): string[] {
-  if (!targetPath) return []
-  const targetDir = path.dirname(targetPath)
-  const targetBase = path.basename(targetPath, path.extname(targetPath))
-  return [
-    path.join(targetDir, 'icons', 'icon.ico'),
-    path.join(targetDir, 'icons', 'icon.png'),
-    path.join(targetDir, 'icons', '128x128.png'),
-    path.join(targetDir, 'icons', '64x64.png'),
-    path.join(targetDir, 'icons', 'Square150x150Logo.png'),
-    path.join(targetDir, 'icons', 'Square71x71Logo.png'),
-    path.join(targetDir, `${targetBase}.ico`),
-    path.join(targetDir, `${targetBase}.png`),
-    path.join(targetDir, 'icon.ico'),
-    path.join(targetDir, 'icon.png'),
-  ]
-}
-
+// Icon resolution is unified around the OS. For any installed app we extract
+// the icon directly from its target executable (or, as a last resort, the
+// shortcut, whose target Windows resolves for us). This replaces the previous
+// per-app guesses at packaged PNG/ICO asset locations, which only worked for a
+// handful of apps (VS Code, GitHub Copilot, paint.net, ...) and left everything
+// else without an icon.
 function iconCandidates(
   appEntry: Pick<
     AppIndexEntry,
@@ -343,15 +312,16 @@ function iconCandidates(
 ): string[] {
   const processStartExe = parseProcessStartExe(appEntry.args)
   const candidates = [
-    appEntry.iconPath,
-    ...visualElementLogoCandidates(appEntry.targetPath),
-    ...versionedAppIconCandidates(appEntry.targetPath),
-    ...packagedIconCandidates(appEntry.targetPath),
+    // Primary: the real executable's embedded icon — always the app's icon.
+    appEntry.targetPath,
+    // Some launchers are stubs that start the real exe from the working dir
+    // (e.g. Squirrel Update.exe --processStart app.exe).
     appEntry.workingDirectory && processStartExe
       ? path.join(appEntry.workingDirectory, processStartExe)
       : undefined,
-    appEntry.targetPath ? path.join(path.dirname(appEntry.targetPath), 'app.ico') : undefined,
-    appEntry.targetPath,
+    // An explicit icon the shortcut points at (kept only if it is a real path).
+    appEntry.iconPath,
+    // Last resort: the shortcut itself; Windows resolves its target icon.
     appEntry.shortcutPath,
   ]
   return Array.from(
@@ -542,66 +512,6 @@ function isUsefulIconPath(iconPath: string | undefined): iconPath is string {
   return Boolean(iconPath && normalizeIconCandidatePath(iconPath).length > 0)
 }
 
-async function readVisualElementsIconPath(
-  targetPath: string | undefined
-): Promise<string | undefined> {
-  if (!targetPath) return undefined
-  const targetDir = path.dirname(targetPath)
-  const manifestPath = path.join(
-    targetDir,
-    `${path.basename(targetPath, path.extname(targetPath))}.VisualElementsManifest.xml`
-  )
-  try {
-    const manifest = await fs.readFile(manifestPath, 'utf-8')
-    const logo =
-      manifest.match(/Square70x70Logo="([^"]+)"/i)?.[1] ??
-      manifest.match(/Square150x150Logo="([^"]+)"/i)?.[1]
-    if (!logo) return undefined
-    return path.resolve(targetDir, logo)
-  } catch {
-    return undefined
-  }
-}
-
-async function readPackagedIconPath(targetPath: string | undefined): Promise<string | undefined> {
-  if (!targetPath) return undefined
-  const targetDir = path.dirname(targetPath)
-  for (const candidate of packagedIconCandidates(targetPath)) {
-    try {
-      await fs.access(candidate)
-      return candidate
-    } catch {
-      // Continue to the next known packaged icon location.
-    }
-  }
-
-  try {
-    const children = await fs.readdir(targetDir, { withFileTypes: true })
-    const versionDirs = children
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => path.join(targetDir, entry.name))
-      .slice(0, 12)
-    for (const versionDir of versionDirs) {
-      for (const candidate of [
-        path.join(versionDir, 'resources', 'app', 'resources', 'win32', 'code.ico'),
-        path.join(versionDir, 'resources', 'app', 'resources', 'win32', 'code_70x70.png'),
-        path.join(versionDir, 'resources', 'app', 'resources', 'win32', 'code_150x150.png'),
-      ]) {
-        try {
-          await fs.access(candidate)
-          return candidate
-        } catch {
-          // Continue through versioned app asset candidates.
-        }
-      }
-    }
-  } catch {
-    return undefined
-  }
-
-  return undefined
-}
-
 async function scanShortcutApps(
   root: string,
   source: AppIndexSource,
@@ -618,9 +528,7 @@ async function scanShortcutApps(
     const name = path.basename(entry.name, '.lnk')
     const shortcut = readShortcutDetails(full)
     const targetPath = shortcut?.target || undefined
-    const iconPath = isUsefulIconPath(shortcut?.icon)
-      ? shortcut?.icon
-      : ((await readVisualElementsIconPath(targetPath)) ?? (await readPackagedIconPath(targetPath)))
+    const iconPath = isUsefulIconPath(shortcut?.icon) ? shortcut?.icon : undefined
     results.push({
       name,
       path: full,
@@ -881,6 +789,96 @@ function applyUsageSignals(apps: AppIndexEntry[], usages: UserAssistUsage[]): Ap
   })
 }
 
+// Cap on how many UWP packages we resolve logos for per refresh, prioritized by
+// usage/recency so the apps a user actually opens get icons first.
+const MAX_UWP_LOGO_LOOKUPS = 80
+
+function uwpFamilyNamesFor(apps: AppIndexEntry[]): string[] {
+  const ranked = apps
+    .filter(
+      (app) =>
+        !!app.appUserModelId &&
+        app.appUserModelId.includes('!') &&
+        !app.targetPath &&
+        !app.iconPath
+    )
+    .sort(
+      (a, b) =>
+        (b.lastUsedAt ?? b.lastLaunchedAt ?? 0) - (a.lastUsedAt ?? a.lastLaunchedAt ?? 0) ||
+        (b.usageCount ?? 0) - (a.usageCount ?? 0)
+    )
+  const familyNames = new Set<string>()
+  for (const app of ranked) {
+    familyNames.add(app.appUserModelId!.split('!')[0])
+    if (familyNames.size >= MAX_UWP_LOGO_LOOKUPS) break
+  }
+  return Array.from(familyNames)
+}
+
+// Resolves the best (largest) logo asset file for each requested UWP package
+// family. Windows stores scaled variants (e.g. *.scale-200.png), so we glob the
+// manifest logo's folder and pick the biggest matching file.
+async function queryAppxLogos(familyNames: string[]): Promise<Map<string, string>> {
+  const map = new Map<string, string>()
+  if (!isWindows() || familyNames.length === 0) return map
+  const targets = familyNames.map(powershellSingleQuotedString).join(',')
+  const script = `
+$ErrorActionPreference = 'SilentlyContinue'
+$targets = @(${targets})
+Get-AppxPackage | Where-Object { $targets -contains $_.PackageFamilyName } | ForEach-Object {
+  $pkg = $_
+  try {
+    $manifest = Get-AppxPackageManifest $pkg
+    $app = @($manifest.Package.Applications.Application)[0]
+    $visual = $app.VisualElements
+    $logo = $visual.Square44x44Logo
+    if (-not $logo) { $logo = $visual.Square150x150Logo }
+    if (-not $logo) { return }
+    $logoFull = Join-Path $pkg.InstallLocation $logo
+    $dir = Split-Path $logoFull -Parent
+    $base = [System.IO.Path]::GetFileNameWithoutExtension($logoFull)
+    $ext = [System.IO.Path]::GetExtension($logoFull)
+    $resolved = $null
+    if (Test-Path $dir) {
+      $match = Get-ChildItem -Path $dir -Filter ($base + '*' + $ext) -File -ErrorAction SilentlyContinue |
+        Sort-Object Length -Descending | Select-Object -First 1
+      if ($match) { $resolved = $match.FullName }
+    }
+    if (-not $resolved -and (Test-Path $logoFull)) { $resolved = $logoFull }
+    if ($resolved) {
+      [pscustomobject]@{ familyName = [string]$pkg.PackageFamilyName; logo = [string]$resolved } |
+        ConvertTo-Json -Compress
+    }
+  } catch {}
+}
+`
+  const { stdout } = await runPowerShell(script, { timeoutMs: 15_000, maxOutputLength: 256_000 })
+  if (!stdout.trim()) return map
+  for (const entry of parseNdjsonOutput<{ familyName?: unknown; logo?: unknown }>(stdout)) {
+    if (
+      entry &&
+      typeof entry.familyName === 'string' &&
+      entry.familyName.trim().length > 0 &&
+      typeof entry.logo === 'string' &&
+      entry.logo.trim().length > 0
+    ) {
+      map.set(entry.familyName, entry.logo)
+    }
+  }
+  return map
+}
+
+function applyAppxLogos(apps: AppIndexEntry[], logos: Map<string, string>): AppIndexEntry[] {
+  if (logos.size === 0) return apps
+  return apps.map((entry) => {
+    if (entry.targetPath || entry.iconPath || !entry.appUserModelId?.includes('!')) return entry
+    const logo = logos.get(entry.appUserModelId.split('!')[0])
+    if (!logo) return entry
+    const withLogo: AppIndexEntry = { ...entry, iconPath: logo }
+    return { ...withLogo, iconKey: iconKeyFor(withLogo) }
+  })
+}
+
 async function bootstrapAppsFromShortcuts(): Promise<boolean> {
   const shortcutApps = await collectShortcutApps().catch(() => [] as RawAppMatch[])
   if (shortcutApps.length === 0) return false
@@ -937,7 +935,14 @@ export async function refreshAppIndex(): Promise<AppIndexDiagnostics> {
     ])
     const nextApps = mergeApps(nativeApps, shortcutApps, memoryApps)
     const updatedAt = Date.now()
-    const dedupedApps = applyUsageSignals(dedupeAppEntries(nextApps), userAssistUsage)
+    const rankedApps = applyUsageSignals(dedupeAppEntries(nextApps), userAssistUsage)
+    // Best-effort UWP/Store icon enrichment: those apps have no on-disk exe, so
+    // we resolve their package logo asset. Kept off the critical path (failures
+    // are swallowed) and bounded to the packages we actually index.
+    const appxLogos = await queryAppxLogos(uwpFamilyNamesFor(rankedApps)).catch(
+      () => new Map<string, string>()
+    )
+    const dedupedApps = applyAppxLogos(rankedApps, appxLogos)
     if (dedupedApps.length > 0 || memoryApps.length === 0) {
       memoryApps = dedupedApps
       await saveSnapshot(memoryApps, updatedAt).catch((error) => {
@@ -1126,35 +1131,18 @@ async function getImageFileDataUrl(candidatePath: string): Promise<string | unde
   }
 }
 
-async function expandIconCandidate(candidatePath: string): Promise<string[]> {
-  if (!candidatePath.includes('*')) return [candidatePath]
-  const parts = candidatePath.split(/[\\/]/)
-  const wildcardIndex = parts.indexOf('*')
-  if (wildcardIndex < 1) return []
-  const root = parts.slice(0, wildcardIndex).join(path.sep)
-  const tail = parts.slice(wildcardIndex + 1)
-  try {
-    const children = await fs.readdir(root, { withFileTypes: true })
-    return children
-      .filter((entry) => entry.isDirectory())
-      .slice(0, 16)
-      .map((entry) => path.join(root, entry.name, ...tail))
-  } catch {
-    return []
-  }
-}
-
 async function loadIcon(iconKey: string): Promise<string | undefined> {
   for (const candidatePath of iconKey.split('|')) {
-    for (const expandedPath of await expandIconCandidate(candidatePath)) {
-      const fileIcon = await getImageFileDataUrl(expandedPath)
-      if (fileIcon) return fileIcon
-      try {
-        const image = await app.getFileIcon(expandedPath, { size: 'normal' })
-        if (!image.isEmpty()) return image.toDataURL()
-      } catch {
-        // Continue to the next candidate.
-      }
+    // A real image asset (.ico/.png/.jpg): read it directly.
+    const fileIcon = await getImageFileDataUrl(candidatePath)
+    if (fileIcon) return fileIcon
+    // Otherwise extract the native icon from the exe/shortcut. 'large' (48px)
+    // keeps it crisp on high-DPI displays.
+    try {
+      const image = await app.getFileIcon(candidatePath, { size: 'large' })
+      if (!image.isEmpty()) return image.toDataURL()
+    } catch {
+      // Continue to the next candidate.
     }
   }
   return undefined

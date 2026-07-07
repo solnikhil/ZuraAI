@@ -18,6 +18,12 @@
   border-bottom: none;
 }
 
+.app-frame[data-app-chrome-material='acrylic'] .app-titlebar,
+.app-frame[data-app-chrome-material='acrylic'] .app-titlebar--with-sidebar,
+.app-frame[data-app-chrome-material='acrylic'] .app-titlebar__sidebar-solid {
+  background: transparent;
+}
+
 /* Non-frosted: solid surface panel above sidebar so titlebar matches sidebar color */
 
 .app-titlebar__sidebar-solid {

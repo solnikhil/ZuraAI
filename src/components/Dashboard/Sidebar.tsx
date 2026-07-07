@@ -62,7 +62,7 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
   const { chatSelectedOverlayStyle = 'linear' } = settingsUI
   const remindersEnabled = isSkillEnabled(settings.skills, 'reminders')
   const artifactsEnabled = isSkillEnabled(settings.skills, 'artifacts')
-  const sidebarFooterScrollPadding = 72
+  const sidebarFooterScrollPadding = 12
   const sortedFolders = useMemo(
     () =>
       [...folders].sort(
