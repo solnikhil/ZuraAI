@@ -9,6 +9,7 @@
  * history state and navigates via AppShellContext. No new data fetch or IPC.
  */
 import { FolderOpen, Lock } from 'lucide-react'
+import { WithTooltip } from '@/components/ui/WithTooltip'
 import './FolderContextBar.css'
 
 export interface FolderContextBarProps {
@@ -20,16 +21,17 @@ export interface FolderContextBarProps {
 export function FolderContextBar({ folderName, isFolderOnly, onOpenFolder }: FolderContextBarProps) {
   return (
     <div className="folder-context-bar" role="note">
-      <button
-        type="button"
-        className="folder-context-bar__label"
-        onClick={onOpenFolder}
-        aria-label={`Open folder ${folderName}`}
-        title={folderName}
-      >
-        <FolderOpen className="folder-context-bar__icon" size={14} aria-hidden="true" />
-        <span className="folder-context-bar__name">{folderName}</span>
-      </button>
+      <WithTooltip tooltip={folderName}>
+        <button
+          type="button"
+          className="folder-context-bar__label"
+          onClick={onOpenFolder}
+          aria-label={`Open folder ${folderName}`}
+        >
+          <FolderOpen className="folder-context-bar__icon" size={14} aria-hidden="true" />
+          <span className="folder-context-bar__name">{folderName}</span>
+        </button>
+      </WithTooltip>
       {isFolderOnly && (
         <span className="folder-context-bar__badge">
           <Lock size={11} aria-hidden="true" />
