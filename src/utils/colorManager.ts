@@ -35,7 +35,14 @@ interface ColorMapping {
 function loadMappings(): ColorMapping {
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
-    return stored ? JSON.parse(stored) : {}
+    const parsed: unknown = stored ? JSON.parse(stored) : {}
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
+
+    return Object.fromEntries(
+      Object.entries(parsed).filter(
+        (entry): entry is [string, string] => typeof entry[1] === 'string'
+      )
+    )
   } catch {
     return {}
   }
