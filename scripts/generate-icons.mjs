@@ -1,19 +1,26 @@
 /**
- * Generate Windows installer assets from source PNG.
+ * Generate installer / tray assets from source PNG.
  *
  * Usage:  node scripts/generate-icons.mjs
  *
  * Requires: png-to-ico (devDependency)
  * Output:
- *   build/icon.ico      — app icon (multi-resolution)
- *   build/sidebar.bmp   — dark sidebar bitmap for NSIS welcome/finish pages (164x314)
+ *   build/icon.ico          — Windows app icon (multi-resolution)
+ *   build/sidebar.bmp       — dark sidebar bitmap for NSIS welcome/finish pages (164x314)
+ *   build/icon.png          — 512px app icon (electron-builder mac/win source)
+ *   build/trayTemplate.png  — black+alpha macOS menu-bar template (22px / @2x via 44px)
+ *   public/trayTemplate.png — same tray template for dev runtime
+ *   build/icon.icns         — macOS app icon when `iconutil` is available (darwin only)
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
-import { resolve, dirname } from 'path'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync } from 'fs'
+import { resolve, dirname, join } from 'path'
 import { fileURLToPath } from 'url'
+import { execFileSync } from 'child_process'
 import { PNG } from 'pngjs'
 import { imagesToIco } from 'png-to-ico'
+import { tmpdir } from 'os'
+import { randomBytes } from 'crypto'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(__dirname, '..')
@@ -21,9 +28,26 @@ const ROOT = resolve(__dirname, '..')
 const SOURCE_PNG = resolve(ROOT, 'public/icon.png')
 const SOURCE_MARK_PNG = resolve(ROOT, 'public/icon-mark.png')
 const OUTPUT_DIR = resolve(ROOT, 'build')
+const PUBLIC_DIR = resolve(ROOT, 'public')
 const OUTPUT_ICO = resolve(OUTPUT_DIR, 'icon.ico')
 const OUTPUT_SIDEBAR = resolve(OUTPUT_DIR, 'sidebar.bmp')
+const OUTPUT_ICON_PNG = resolve(OUTPUT_DIR, 'icon.png')
+const OUTPUT_TRAY_TEMPLATE = resolve(OUTPUT_DIR, 'trayTemplate.png')
+const OUTPUT_PUBLIC_TRAY_TEMPLATE = resolve(PUBLIC_DIR, 'trayTemplate.png')
+const OUTPUT_ICNS = resolve(OUTPUT_DIR, 'icon.icns')
 const ICON_SIZES = [256, 128, 64, 48, 32, 24, 16]
+const MAC_ICONSET_SIZES = [
+  { size: 16, name: 'icon_16x16.png' },
+  { size: 32, name: 'diana.k@example.org' },
+  { size: 32, name: 'icon_32x32.png' },
+  { size: 64, name: 'ivan.p@example.net' },
+  { size: 128, name: 'icon_128x128.png' },
+  { size: 256, name: 'wendy.h@example.net' },
+  { size: 256, name: 'icon_256x256.png' },
+  { size: 512, name: 'wendy.h@example.net' },
+  { size: 512, name: 'icon_512x512.png' },
+  { size: 1024, name: 'walt.e@example.net' },
+]
 
 // --- Dark theme palette (Catppuccin Mocha inspired) ---
 const COLORS = {
@@ -354,6 +378,79 @@ function generateSidebarBMP() {
   })
 }
 
+/**
+ * Black + alpha silhouette from the mark for macOS menu-bar template images.
+ */
+function createTrayTemplatePng(markPng, size = 44) {
+  const png = new PNG({ width: size, height: size })
+  const bounds = getAlphaBounds(markPng)
+  const pad = size * 0.12
+  const destSize = size - pad * 2
+  const scale = Math.min(destSize / bounds.width, destSize / bounds.height)
+  const markWidth = bounds.width * scale
+  const markHeight = bounds.height * scale
+  const destX = (size - markWidth) / 2
+  const destY = (size - markHeight) / 2
+
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const index = (y * size + x) * 4
+      const srcX = bounds.x + (x - destX) / scale
+      const srcY = bounds.y + (y - destY) / scale
+      if (srcX < bounds.x || srcY < bounds.y || srcX >= bounds.x + bounds.width || srcY >= bounds.y + bounds.height) {
+        png.data[index] = 0
+        png.data[index + 1] = 0
+        png.data[index + 2] = 0
+        png.data[index + 3] = 0
+        continue
+      }
+      const sample = sampleBilinear(markPng, srcX, srcY)
+      // Template images: black RGB, alpha from source coverage.
+      png.data[index] = 0
+      png.data[index + 1] = 0
+      png.data[index + 2] = 0
+      png.data[index + 3] = sample[3]
+    }
+  }
+
+  return png
+}
+
+function writePng(filePath, png) {
+  writeFileSync(filePath, PNG.sync.write(png))
+}
+
+function tryGenerateIcns(markPng) {
+  if (process.platform !== 'darwin') {
+    console.log('  icns  -> skipped (iconutil only on macOS)')
+    return
+  }
+
+  const stamp = randomBytes(4).toString('hex')
+  const iconsetDir = join(tmpdir(), `zuraai-iconset-${stamp}.iconset`)
+  try {
+    mkdirSync(iconsetDir, { recursive: true })
+    for (const entry of MAC_ICONSET_SIZES) {
+      const layer = createIconLayer(markPng, entry.size)
+      writePng(join(iconsetDir, entry.name), layer)
+    }
+    execFileSync('iconutil', ['-c', 'icns', iconsetDir, '-o', OUTPUT_ICNS], {
+      stdio: 'pipe',
+    })
+    console.log(`  icns  -> ${OUTPUT_ICNS}`)
+  } catch (error) {
+    console.warn(
+      `  icns  -> skipped (${error instanceof Error ? error.message : String(error)})`
+    )
+  } finally {
+    try {
+      rmSync(iconsetDir, { recursive: true, force: true })
+    } catch {
+      // ignore cleanup failures
+    }
+  }
+}
+
 // -----------------------------------------------------------------------
 
 async function main() {
@@ -382,6 +479,21 @@ async function main() {
   const sidebarBuf = generateSidebarBMP()
   writeFileSync(OUTPUT_SIDEBAR, sidebarBuf)
   console.log(`  sidebar -> ${OUTPUT_SIDEBAR}`)
+
+  // 3. 512px PNG for electron-builder (mac fallback when icns missing)
+  const iconPng512 = createIconLayer(markPng, 512)
+  writePng(OUTPUT_ICON_PNG, iconPng512)
+  console.log(`  png   -> ${OUTPUT_ICON_PNG}`)
+
+  // 4. macOS menu-bar template (black + alpha)
+  const trayTemplate = createTrayTemplatePng(markPng, 44)
+  writePng(OUTPUT_TRAY_TEMPLATE, trayTemplate)
+  writePng(OUTPUT_PUBLIC_TRAY_TEMPLATE, trayTemplate)
+  console.log(`  tray  -> ${OUTPUT_TRAY_TEMPLATE}`)
+  console.log(`  tray  -> ${OUTPUT_PUBLIC_TRAY_TEMPLATE}`)
+
+  // 5. Best-effort .icns on macOS hosts
+  tryGenerateIcns(markPng)
 
   console.log('Installer assets generated.')
 }

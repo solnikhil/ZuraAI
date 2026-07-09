@@ -2,12 +2,12 @@
  * Shared SSE (Server-Sent Events) and NDJSON stream parsing utilities.
  *
  * These eliminate ~40 duplicated lines across groq.ts, alibaba.ts,
- * openrouter.ts, perplexity.ts, and ollama.ts.
+ * openrouter.ts and ollama.ts.
  */
 
 /**
  * Parse an SSE stream (data: prefix, [DONE] sentinel) into typed chunks.
- * Used by OpenRouter, Groq, Alibaba, and Perplexity providers.
+ * Used by OpenRouter, Groq, and Alibaba providers.
  *
  * @param reader - ReadableStream reader from fetch response.body
  * @param options.onChunk - Optional callback invoked for each parsed chunk

@@ -28,6 +28,8 @@ function createAboutWindow(): BrowserWindow {
   const distPath = resolveDistPath(__dirname)
   const parentWindow = getMainWindow() ?? undefined
 
+  const isMacOS = process.platform === 'darwin'
+
   aboutWindow = new BrowserWindow({
     width: 520,
     height: 580,
@@ -42,9 +44,17 @@ function createAboutWindow(): BrowserWindow {
     fullscreenable: false,
     resizable: false,
     show: false,
-    autoHideMenuBar: process.platform !== 'darwin',
+    autoHideMenuBar: !isMacOS,
     skipTaskbar: true,
+    // Keep a solid fill so the About UI stays readable; on macOS use native
+    // inset title-bar chrome (traffic lights) without full-window vibrancy.
     backgroundColor: '#181818',
+    ...(isMacOS
+      ? {
+          titleBarStyle: 'hiddenInset' as const,
+          trafficLightPosition: { x: 14, y: 14 },
+        }
+      : {}),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,

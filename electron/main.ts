@@ -8,6 +8,8 @@ import {
   createTray,
   destroyTray,
   getMainWindow,
+  showMainWindow,
+  setAppQuitting,
   destroyChatDebugWindow,
   destroyCommandCenterWindow,
   destroyAgentApprovalOverlay,
@@ -150,7 +152,11 @@ app.on('window-all-closed', () => {
 })
 
 app.on('activate', () => {
-  if (IS_MACOS && !getMainWindow()) {
+  if (!IS_MACOS) return
+  // Dock click: show a hidden main window, or create one if it was destroyed.
+  if (getMainWindow()) {
+    showMainWindow()
+  } else {
     createMainWindow()
   }
 })
@@ -179,6 +185,9 @@ app.on('will-quit', () => {
 })
 
 app.on('before-quit', (event) => {
+  // Allow macOS close handlers to destroy windows instead of hide-to-dock.
+  setAppQuitting(true)
+
   if (hasCompletedMcpShutdown) {
     return
   }

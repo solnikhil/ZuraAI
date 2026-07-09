@@ -43,7 +43,6 @@ const providerName: Record<UsageProvider, string> = {
   nvidia: 'NVIDIA NIM',
   ollama: 'Ollama',
   openrouter: 'OpenRouter',
-  perplexity: 'Perplexity',
   unknown: 'Unknown',
 }
 

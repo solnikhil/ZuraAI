@@ -6,7 +6,6 @@ export interface ModelDisplaySettingsLike {
   aiModel?: string
   configuredModels?: ModelOption[]
   ollamaModels?: ModelOption[]
-  perplexityModels?: ModelOption[]
   groqModels?: ModelOption[]
   alibabaModels?: ModelOption[]
   fireworksModels?: ModelOption[]

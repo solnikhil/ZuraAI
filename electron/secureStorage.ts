@@ -14,7 +14,6 @@ const STORAGE_FILE = path.join(app.getPath('userData'), 'secure-storage.json')
 
 interface SecureData {
   openRouterApiKey?: string
-  perplexityApiKey?: string
   groqApiKey?: string
   tavilyApiKey?: string
   alibabaApiKey?: string
@@ -43,7 +42,6 @@ function isEncryptionAvailable(): boolean {
 function isLikelyLegacyPlaintextSecret(value: string): boolean {
   return (
     value.startsWith('sk-') ||
-    value.startsWith('pplx-') ||
     value.startsWith('tvly-') ||
     value.startsWith('dashscope-') ||
     value.startsWith('fw-') ||

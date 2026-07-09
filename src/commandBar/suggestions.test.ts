@@ -253,7 +253,6 @@ describe('Feature: floating-command-palette, Property 5: Search filtering correc
     'activity',
     'openrouter',
     'groq',
-    'perplexity',
     'ollama',
     'local',
     'alibaba',

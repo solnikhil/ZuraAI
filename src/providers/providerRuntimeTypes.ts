@@ -91,7 +91,6 @@ export interface ProviderRuntimeSettings {
   ollamaUrl?: string
   openRouterDebug?: boolean
   openRouterApiKey?: string
-  perplexityApiKey?: string
 }
 
 export const emptyUsage = (): NormalizedUsage => ({

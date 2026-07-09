@@ -62,7 +62,6 @@ import { OpencodeModelSearchDialog } from './OpencodeModelSearchDialog'
 import { FireworksModelSearchDialog } from './FireworksModelSearchDialog'
 import { NvidiaModelSearchDialog } from './NvidiaModelSearchDialog'
 import { OpenRouterModelSearchDialog } from './OpenRouterModelSearchDialog'
-import { PerplexityModelSearchDialog } from './PerplexityModelSearchDialog'
 import {
   DEFAULT_OLLAMA_URL,
   getProviderEndpoint,
@@ -108,7 +107,7 @@ const PROVIDER_CATALOG_GROUPS: ProviderCatalogGroup[] = [
   { title: 'Gateways', keys: ['openrouter'], featured: true },
   {
     title: 'Cloud APIs',
-    keys: ['groq', 'alibaba', 'deepseek', 'opencode', 'perplexity', 'fireworks', 'nvidia'],
+    keys: ['groq', 'alibaba', 'deepseek', 'opencode', 'fireworks', 'nvidia'],
   },
   { title: 'Local', keys: ['ollama'], featured: true },
 ]
@@ -176,7 +175,6 @@ const PROVIDER_ENDPOINTS: Record<ProviderKey, string> = {
   nvidia: getProviderEndpoint('nvidia', 'baseUrl') || '',
   ollama: getProviderEndpoint('ollama', 'baseUrl') || DEFAULT_OLLAMA_URL,
   openrouter: getProviderEndpoint('openrouter', 'baseUrl') || '',
-  perplexity: getProviderEndpoint('perplexity', 'baseUrl') || '',
 }
 
 const CATALOG_BASE_BACKGROUND = 'var(--theme-background)'
@@ -262,7 +260,6 @@ export interface ProviderHubSectionProps {
   nvidiaApiKey: string
   groqApiKey: string
   openRouterApiKey: string
-  perplexityApiKey: string
   tavilyApiKey: string
   onlineCompilerApiKey: string
   tavilySearchDepthPreference: TavilySearchDepthPreference
@@ -279,7 +276,6 @@ export interface ProviderHubSectionProps {
   nvidiaModels: ModelBasic[]
   groqModels: ModelBasic[]
   ollamaModels: ModelBasic[]
-  perplexityModels: ModelBasic[]
   maxTokens: number
   deepseekReasoning?: Record<string, { enabled: boolean; effort: DeepSeekReasoningEffort }>
   deepseekLastEffort?: DeepSeekReasoningEffort
@@ -296,7 +292,6 @@ export interface ProviderHubSectionProps {
       groqApiKey: string
       openRouterApiKey: string
 
-      perplexityApiKey: string
       tavilyApiKey: string
       onlineCompilerApiKey: string
       tavilySearchDepthPreference: TavilySearchDepthPreference
@@ -310,7 +305,6 @@ export interface ProviderHubSectionProps {
       nvidiaModels: ConfiguredModel[]
       groqModels: ConfiguredModel[]
       ollamaModels: ConfiguredModel[]
-      perplexityModels: ConfiguredModel[]
       maxTokens: number
       aiModel: string
       modelProvider: ProviderKey
@@ -325,7 +319,6 @@ type ProviderSettingsUpdate = Partial<
   Pick<
     ProviderHubSectionProps,
     | 'configuredModels'
-    | 'perplexityModels'
     | 'groqModels'
     | 'alibabaModels'
     | 'deepseekModels'
@@ -341,7 +334,6 @@ type ProviderSettingsUpdate = Partial<
 
 export function ProviderHubSection({
   openRouterApiKey,
-  perplexityApiKey,
   groqApiKey,
   alibabaApiKey,
   deepseekApiKey,
@@ -357,7 +349,6 @@ export function ProviderHubSection({
   modelProvider,
   providerEnabled,
   configuredModels,
-  perplexityModels,
   groqModels,
   alibabaModels,
   deepseekModels,
@@ -393,7 +384,6 @@ export function ProviderHubSection({
   const [opencodeSearchDialogOpen, setOpencodeSearchDialogOpen] = useState(false)
   const [fireworksSearchDialogOpen, setFireworksSearchDialogOpen] = useState(false)
   const [nvidiaSearchDialogOpen, setNvidiaSearchDialogOpen] = useState(false)
-  const [perplexitySearchDialogOpen, setPerplexitySearchDialogOpen] = useState(false)
   const [modelToEdit, setModelToEdit] = useState<{
     provider: ProviderKey
     model: ConfiguredModel
@@ -438,7 +428,6 @@ export function ProviderHubSection({
 
   const providerModelMap: Record<ProviderKey, ModelBasic[]> = {
     openrouter: configuredModels,
-    perplexity: perplexityModels,
     groq: groqModels,
     alibaba: alibabaModels,
     deepseek: deepseekModels,
@@ -650,7 +639,6 @@ export function ProviderHubSection({
       nvidiaApiKey: nvidiaApiKey ?? '',
       groqApiKey: groqApiKey ?? '',
       openRouterApiKey: openRouterApiKey ?? '',
-      perplexityApiKey: perplexityApiKey ?? '',
     }
     return providerApiKeys[provider.apiKeyField] ?? ''
   }
@@ -658,7 +646,6 @@ export function ProviderHubSection({
   const normalizedProviderEnabled = useMemo<Record<ProviderKey, boolean>>(() => {
     return {
       openrouter: providerEnabled?.openrouter !== false,
-      perplexity: providerEnabled?.perplexity !== false,
       groq: providerEnabled?.groq !== false,
       ollama: providerEnabled?.ollama !== false,
       alibaba: providerEnabled?.alibaba !== false,
@@ -669,7 +656,6 @@ export function ProviderHubSection({
     }
   }, [
     providerEnabled?.openrouter,
-    providerEnabled?.perplexity,
     providerEnabled?.groq,
     providerEnabled?.ollama,
     providerEnabled?.alibaba,
@@ -714,7 +700,6 @@ export function ProviderHubSection({
     groqApiKey,
     nvidiaApiKey,
     openRouterApiKey,
-    perplexityApiKey,
     normalizedProviderEnabled,
   ])
 
@@ -900,10 +885,6 @@ export function ProviderHubSection({
       setFireworksSearchDialogOpen(true)
       return
     }
-    if (provider === 'perplexity') {
-      setPerplexitySearchDialogOpen(true)
-      return
-    }
     if (provider === 'alibaba') {
       setAlibabaSearchDialogOpen(true)
       return
@@ -970,14 +951,6 @@ export function ProviderHubSection({
           `${endpoint}/models`,
           selectedKey,
           'Groq check failed',
-          controller.signal
-        )
-      } else if (selectedProviderDef.key === 'perplexity') {
-        await runChatCompletionsConnectivityCheck(
-          endpoint,
-          selectedKey,
-          connectivityModel,
-          'Perplexity check failed',
           controller.signal
         )
       } else if (selectedProviderDef.key === 'alibaba') {
@@ -1613,16 +1586,6 @@ export function ProviderHubSection({
           onAddModel={(model) => addCustomModel(model, 'fireworks')}
           apiKey={fireworksApiKey}
           existingModelCodes={fireworksModels.map((m) => m.code)}
-        />
-      )}
-
-      {selectedProviderDef.key === 'perplexity' && (
-        <PerplexityModelSearchDialog
-          open={perplexitySearchDialogOpen}
-          onOpenChange={setPerplexitySearchDialogOpen}
-          onAddModel={(model) => addCustomModel(model, 'perplexity')}
-          apiKey={perplexityApiKey}
-          existingModelCodes={perplexityModels.map((m) => m.code)}
         />
       )}
 

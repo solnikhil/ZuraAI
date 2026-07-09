@@ -55,7 +55,7 @@
 
 Most desktop AI apps make you pick one provider, one workflow, or one trust model. ZuraAI is built for people who want all three under control.
 
-- Multi-provider by design: use `OpenRouter`, `Ollama`, `Perplexity`, `Groq`, `Alibaba Cloud`, `Fireworks`, and `DeepSeek` from one desktop app.
+- Multi-provider by design: use `OpenRouter`, `Ollama`, `Groq`, `Alibaba Cloud`, `Fireworks`, and `DeepSeek` from one desktop app.
 - Research that stays in the flow: turn on built-in web search for current facts, follow-up searches, live progress, and citations.
 - Agent Workspace mode: let capable models plan and use gated tools for search, code, MCP actions, memory, and desktop assistance.
 - Local-first storage: chat history lives in the Electron main process and API keys are stored with Electron secure storage.
@@ -97,7 +97,6 @@ Agent runs are visible in the chat timeline: ZuraAI records planning, tool calls
 | --------------- | ----------------------------- | ------------------------------------------------------------------ |
 | `OpenRouter`    | Broad model access            | Great default choice when you want one API for many model families |
 | `Ollama`        | Local and offline workflows   | No API key required; just run an Ollama server locally             |
-| `Perplexity`    | Research-heavy chats          | Strong fit for answers grounded in live web information            |
 | `Groq`          | Fast responses                | Useful when low latency matters more than provider breadth         |
 | `Alibaba Cloud` | Qwen-based workflows          | Good option for teams already using Alibaba Cloud models           |
 | `Fireworks`     | Open-weight serverless models | Useful for fast access to hosted open models                       |

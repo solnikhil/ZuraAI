@@ -312,7 +312,6 @@ export default function Settings({
                 nvidiaApiKey={pendingSettings.nvidiaApiKey}
                 groqApiKey={pendingSettings.groqApiKey}
                 openRouterApiKey={pendingSettings.openRouterApiKey}
-                perplexityApiKey={pendingSettings.perplexityApiKey}
                 tavilyApiKey={pendingSettings.tavilyApiKey}
                 onlineCompilerApiKey={pendingSettings.onlineCompilerApiKey}
                 tavilySearchDepthPreference={pendingSettings.tavilySearchDepthPreference}
@@ -329,7 +328,6 @@ export default function Settings({
                 nvidiaModels={pendingSettings.nvidiaModels}
                 groqModels={pendingSettings.groqModels}
                 ollamaModels={pendingSettings.ollamaModels}
-                perplexityModels={pendingSettings.perplexityModels}
                 maxTokens={pendingSettings.maxTokens}
                 deepseekReasoning={pendingSettings.deepseekReasoning}
                 deepseekLastEffort={pendingSettings.deepseekLastEffort}

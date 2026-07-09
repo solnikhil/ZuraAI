@@ -180,7 +180,6 @@ export interface MemoryAPI {
 
 export type SecureStorageKey =
   | 'openRouterApiKey'
-  | 'perplexityApiKey'
   | 'groqApiKey'
   | 'tavilyApiKey'
   | 'alibabaApiKey'

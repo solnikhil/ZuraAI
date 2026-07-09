@@ -61,7 +61,6 @@ vi.mock('./useModelSelector', () => ({
       groq: [],
       ollama: [],
       openrouter: mockCurrentModel.provider === 'openrouter' ? [mockCurrentModel] : [],
-      perplexity: [],
     },
     currentModel: mockCurrentModel,
     currentName: mockCurrentName,

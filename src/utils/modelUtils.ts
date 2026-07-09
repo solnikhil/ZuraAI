@@ -514,10 +514,6 @@ const PROVIDER_CONFIG = {
     title: getProviderDefinition('openrouter').label,
     color: getProviderAccentColor('openrouter'),
   },
-  perplexity: {
-    title: getProviderDefinition('perplexity').label,
-    color: getProviderAccentColor('perplexity'),
-  },
   groq: {
     title: getProviderDefinition('groq').label,
     color: getProviderAccentColor('groq'),
@@ -590,12 +586,6 @@ export function getModelDescription(model: {
     if (code.includes('kimi')) return 'Enhanced version with longer context'
     if (code.includes('qwen')) return 'Alibaba AI with strong multilingual support'
     return 'Available via OpenRouter'
-  }
-
-  if (model.provider === 'perplexity') {
-    if (name.includes('deep research')) return 'In-depth research with citations'
-    if (name.includes('reasoning')) return 'Advanced reasoning capabilities'
-    return 'Real-time web search powered'
   }
 
   if (model.provider === 'groq') {

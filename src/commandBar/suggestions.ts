@@ -217,13 +217,6 @@ function buildBaseSuggestions(
       action: { type: 'open_settings_section', section: 'providers', provider: 'groq' },
     },
     {
-      id: 'go-settings-perplexity',
-      title: 'Perplexity Settings',
-      subtitle: 'Research-focused models',
-      keywords: ['perplexity'],
-      action: { type: 'open_settings_section', section: 'providers', provider: 'perplexity' },
-    },
-    {
       id: 'go-settings-ollama',
       title: 'Ollama Settings',
       subtitle: 'Local models',

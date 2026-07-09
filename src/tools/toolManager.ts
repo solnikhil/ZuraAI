@@ -1,13 +1,6 @@
 // TOOL MANAGER - Coordinates tool execution in chat flow
 //
 // IMPORTANT: Provider Tool Support Policy
-// The following providers are EXCLUDED from tool support:
-//
-// 1. PERPLEXITY - Has native built-in web search and research capabilities.
-//    Adding external tools would interfere with their native functionality.
-//
-// DO NOT add 'perplexity' to tool support functions.
-//
 // Providers WITH tool support: openrouter, groq, ollama, alibaba, fireworks, deepseek
 
 // Tool Manager - Coordinates tool execution in chat flow
@@ -264,7 +257,6 @@ export function getToolsForProvider(config: ToolManagerConfig) {
 
 /**
  * Parse tool calls from AI response based on provider
- * EXCLUDED: perplexity (see header comment)
  */
 export function parseToolCallsFromResponse(
   response: ProviderResponse,
@@ -277,7 +269,6 @@ export function parseToolCallsFromResponse(
 
 /**
  * Check if response has tool calls based on provider
- * EXCLUDED: perplexity (see header comment)
  */
 export function responseHasToolCalls(response: ProviderResponse, provider: string): boolean {
   return providerSupportsTools(provider) && hasToolCalls(response as OpenRouterResponse)
@@ -285,7 +276,6 @@ export function responseHasToolCalls(response: ProviderResponse, provider: strin
 
 /**
  * Format tool results for sending back to AI based on provider
- * EXCLUDED: perplexity (see header comment)
  */
 export function formatResultsForProvider(
   toolCalls: ToolCall[],
@@ -498,7 +488,6 @@ type ProviderMessage = OpenRouterMessage
 
 /**
  * Build messages array with tool results for follow-up API call
- * EXCLUDED: perplexity (see header comment)
  */
 export function buildMessagesWithToolResults(
   originalMessages: ProviderMessage[],

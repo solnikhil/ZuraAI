@@ -13,7 +13,7 @@ Based on extensive research of 15+ web sources, this report identifies **75+ fea
 
 ### ZuraAI Current Position
 
-✅ **Strong Foundation:** Multi-provider AI (OpenRouter, Ollama, Perplexity, Groq, Alibaba), MCP support, web search, chat history, skills system, command palette, theme customization  
+✅ **Strong Foundation:** Multi-provider AI (OpenRouter, Ollama, Groq, Alibaba), MCP support, web search, chat history, skills system, command palette, theme customization  
 ⚠️ **Gaps Identified:** Voice capabilities, deep IDE integration, agentic workflows, computer use, long-term memory, file system access, advanced voice/video modes
 
 ---
@@ -335,7 +335,7 @@ Based on extensive research of 15+ web sources, this report identifies **75+ fea
 
 ---
 
-#### 5.3 Perplexity-Style Search (Already Partial in ZuraAI)
+#### 5.3 Search-Grounded Research
 
 **What it does:** Real-time web search with cited answers
 

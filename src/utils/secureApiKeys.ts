@@ -30,7 +30,6 @@ type SecureApiKeyValues = {
   groqApiKey: string
   nvidiaApiKey: string
   openRouterApiKey: string
-  perplexityApiKey: string
   tavilyApiKey: string
   onlineCompilerApiKey: string
   brevoApiKey: string
@@ -45,7 +44,6 @@ function defaultSecureApiKeys(): SecureApiKeyValues {
     groqApiKey: '',
     nvidiaApiKey: '',
     openRouterApiKey: '',
-    perplexityApiKey: '',
     tavilyApiKey: '',
     onlineCompilerApiKey: '',
     brevoApiKey: '',

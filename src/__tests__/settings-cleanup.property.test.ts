@@ -50,8 +50,6 @@ describe('Property 1: Model Selection Persistence (Round-Trip)', () => {
       'mixtral-8x7b-32768',
       'gemma2-9b-it'
     ),
-    // Perplexity models
-    fc.constantFrom('sonar', 'sonar-pro', 'sonar-reasoning', 'sonar-deep-research'),
     // OpenRouter models (with provider prefix)
     fc.constantFrom(
       'anthropic/claude-sonnet-4:online',

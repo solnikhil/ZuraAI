@@ -3,7 +3,6 @@ import type { ProviderId } from './providerTypes'
 
 export type ProviderSecretField =
   | 'openRouterApiKey'
-  | 'perplexityApiKey'
   | 'groqApiKey'
   | 'alibabaApiKey'
   | 'fireworksApiKey'
@@ -16,7 +15,6 @@ export type ProviderCatalogDialogKind =
   | 'alibaba'
   | 'fireworks'
   | 'nvidia'
-  | 'perplexity'
   | 'deepseek'
   | 'opencode'
 
@@ -98,20 +96,6 @@ const PROVIDER_SETTINGS_EXTRAS: Record<
     settingsOrder: 3,
     pickerOrder: 1,
   },
-  perplexity: {
-    id: 'perplexity',
-    secretKeyField: 'perplexityApiKey',
-    modelListField: 'perplexityModels',
-    enabledByDefault: true,
-    dashboardUrl: 'https://www.perplexity.ai/settings/api',
-    settingsVisible: true,
-    pickerVisible: true,
-    logoVisible: true,
-    supportsCatalogDialog: true,
-    catalogDialogKind: 'perplexity',
-    settingsOrder: 4,
-    pickerOrder: 2,
-  },
   ollama: {
     id: 'ollama',
     modelListField: 'ollamaModels',
@@ -121,8 +105,8 @@ const PROVIDER_SETTINGS_EXTRAS: Record<
     pickerVisible: true,
     logoVisible: true,
     supportsCatalogDialog: false,
-    settingsOrder: 5,
-    pickerOrder: 6,
+    settingsOrder: 4,
+    pickerOrder: 5,
   },
   fireworks: {
     id: 'fireworks',
@@ -135,7 +119,7 @@ const PROVIDER_SETTINGS_EXTRAS: Record<
     logoVisible: true,
     supportsCatalogDialog: true,
     catalogDialogKind: 'fireworks',
-    settingsOrder: 6,
+    settingsOrder: 5,
     pickerOrder: 4,
   },
   nvidia: {
@@ -149,8 +133,8 @@ const PROVIDER_SETTINGS_EXTRAS: Record<
     logoVisible: true,
     supportsCatalogDialog: true,
     catalogDialogKind: 'nvidia',
-    settingsOrder: 7,
-    pickerOrder: 7,
+    settingsOrder: 6,
+    pickerOrder: 6,
   },
   opencode: {
     id: 'opencode',
@@ -163,8 +147,8 @@ const PROVIDER_SETTINGS_EXTRAS: Record<
     logoVisible: true,
     supportsCatalogDialog: true,
     catalogDialogKind: 'opencode',
-    settingsOrder: 8,
-    pickerOrder: 8,
+    settingsOrder: 7,
+    pickerOrder: 7,
   },
 }
 

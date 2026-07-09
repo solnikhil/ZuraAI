@@ -16,7 +16,6 @@ describe('providerSettingsRegistry', () => {
       'groqApiKey',
       'alibabaApiKey',
       'deepseekApiKey',
-      'perplexityApiKey',
       'fireworksApiKey',
       'nvidiaApiKey',
       'opencodeGoApiKey',
@@ -39,7 +38,6 @@ describe('providerSettingsRegistry', () => {
       ollama: true,
       openrouter: true,
       opencode: true,
-      perplexity: true,
     })
   })
 
@@ -49,7 +47,6 @@ describe('providerSettingsRegistry', () => {
       'groq',
       'alibaba',
       'deepseek',
-      'perplexity',
       'ollama',
       'fireworks',
       'nvidia',
@@ -59,7 +56,6 @@ describe('providerSettingsRegistry', () => {
     expect(getPickerVisibleProviders().map((provider) => provider.id)).toEqual([
       'openrouter',
       'deepseek',
-      'perplexity',
       'groq',
       'fireworks',
       'alibaba',
@@ -73,7 +69,6 @@ describe('providerSettingsRegistry', () => {
       'groq',
       'alibaba',
       'deepseek',
-      'perplexity',
       'ollama',
       'fireworks',
       'nvidia',

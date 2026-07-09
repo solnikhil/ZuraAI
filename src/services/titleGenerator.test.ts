@@ -16,10 +16,6 @@ vi.mock('./ollama', () => ({
   generateOllamaCompletion: vi.fn(),
 }))
 
-vi.mock('./perplexity', () => ({
-  generatePerplexityCompletion: vi.fn(),
-}))
-
 vi.mock('./openrouter', () => ({
   generateOpenRouterCompletion: vi.fn(),
 }))

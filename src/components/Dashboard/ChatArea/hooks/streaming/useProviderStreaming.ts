@@ -6,12 +6,7 @@ import type {
   ServiceAssistantMessage,
   ToolDefinition,
 } from '../../../../../services/types'
-import { cleanSonarResponse } from '../../../../../services/perplexity'
-import {
-  providerSupportsTools,
-  providerUsesNativeSearch,
-  type ActiveProviderId,
-} from '../../../../../providers'
+import { providerSupportsTools, type ActiveProviderId } from '../../../../../providers'
 import {
   extractInlineToolCallsFromContent,
   normalizeInlineToolCallMarkup,
@@ -991,9 +986,7 @@ export function useProviderStreaming({
         throwIfAborted()
         const hasValidRoundToolCalls = roundToolCalls.some((toolCall) => toolCall?.id)
         const roundTranscriptContent = roundStartContent + roundContent
-        let finalRoundContent = providerUsesNativeSearch(provider)
-          ? cleanSonarResponse(roundTranscriptContent, citations)
-          : roundTranscriptContent
+        let finalRoundContent = roundTranscriptContent
 
         if (!hasValidRoundToolCalls) {
           const extracted = extractInlineToolCallsFromContent(finalRoundContent, {

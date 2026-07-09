@@ -36,7 +36,6 @@ export function getSuggestionIcon(suggestion: CommandBarSuggestion): {
     suggestion.id === 'go-settings-preferences' ||
     suggestion.id === 'go-settings-openrouter' ||
     suggestion.id === 'go-settings-groq' ||
-    suggestion.id === 'go-settings-perplexity' ||
     suggestion.id === 'go-settings-ollama' ||
     suggestion.id === 'go-settings-nvidia'
   ) {

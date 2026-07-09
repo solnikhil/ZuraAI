@@ -604,7 +604,7 @@ const testUISettingsArbitrary = fc.record({
 
 const testConfigSettingsArbitrary = fc.record({
   apiKey: fc.string({ minLength: 0, maxLength: 64 }),
-  modelProvider: fc.constantFrom('openrouter', 'ollama', 'perplexity', 'gemini'),
+  modelProvider: fc.constantFrom('openrouter', 'ollama', 'groq', 'gemini'),
   temperature: fc.float({ min: 0, max: 2, noNaN: true }),
   maxTokens: fc.integer({ min: 100, max: 100000 }),
 })

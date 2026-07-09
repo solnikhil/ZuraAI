@@ -10,8 +10,6 @@ import {
   hasProviderAccess,
   modelSupportsTools,
   normalizeActiveProviderId,
-  providerSupportsTools,
-  providerUsesNativeSearch,
   resolveProviderForModel,
 } from './providerRegistry'
 
@@ -22,7 +20,6 @@ describe('providerRegistry', () => {
       'groq',
       'alibaba',
       'deepseek',
-      'perplexity',
       'ollama',
       'fireworks',
       'opencode',
@@ -34,9 +31,6 @@ describe('providerRegistry', () => {
 
   it('resolves endpoints and retry policy from the registry', () => {
     expect(getProviderEndpoint('openrouter', 'chatCompletionsUrl')).toContain('/chat/completions')
-    expect(getProviderEndpoint('perplexity', 'modelCatalogUrl')).toContain(
-      '/api-reference/sonar-post'
-    )
     expect(getProviderEndpoint('ollama', 'defaultLocalUrl')).toBe(DEFAULT_OLLAMA_URL)
     expect(getProviderEndpoint('nvidia', 'chatCompletionsUrl')).toBe(
       'https://integrate.api.nvidia.com/v1/chat/completions'
@@ -59,7 +53,6 @@ describe('providerRegistry', () => {
         groq: true,
         alibaba: true,
         deepseek: true,
-        perplexity: true,
         ollama: true,
         nvidia: true,
       },
@@ -67,7 +60,6 @@ describe('providerRegistry', () => {
       groqApiKey: '',
       alibabaApiKey: 'ali-key',
       deepseekApiKey: 'deepseek-key',
-      perplexityApiKey: 'px-key',
       nvidiaApiKey: 'nvapi-key',
       ollamaUrl: DEFAULT_OLLAMA_URL,
       configuredModels: [{ code: 'openai/gpt-4.1', displayName: 'GPT-4.1', enabled: true }],
@@ -76,7 +68,6 @@ describe('providerRegistry', () => {
       deepseekModels: [
         { code: 'deepseek-v4-flash', displayName: 'DeepSeek V4 Flash', enabled: true },
       ],
-      perplexityModels: [{ code: 'sonar', displayName: 'Sonar', enabled: true }],
       nvidiaModels: [{ code: 'minimaxai/minimax-m3', displayName: 'MiniMax M3', enabled: true }],
       ollamaModels: [{ code: 'llama3.2', displayName: 'Llama 3.2', enabled: true }],
     }
@@ -88,17 +79,13 @@ describe('providerRegistry', () => {
     expect(hasProviderAccess({ ...settings, opencodeGoApiKey: 'go-key' }, 'opencode')).toBe(true)
     expect(hasProviderAccess({ ...settings, opencodeGoApiKey: '' }, 'opencode')).toBe(false)
     expect(getProviderCredentialError(settings, 'groq')).toContain('Groq API key is required')
-    expect(providerSupportsTools('perplexity')).toBe(false)
-    expect(providerUsesNativeSearch('perplexity')).toBe(true)
     expect(modelSupportsTools('alibaba', 'qwen-max')).toBe(true)
     expect(modelSupportsTools('nvidia', 'minimaxai/minimax-m3')).toBe(true)
-    expect(modelSupportsTools('perplexity', 'sonar')).toBe(false)
 
     expect(getAvailableModelOptions(settings)).toEqual([
       { id: 'openai/gpt-4.1', provider: 'openrouter', displayName: 'GPT-4.1' },
       { id: 'qwen-max', provider: 'alibaba', displayName: 'Qwen Max' },
       { id: 'deepseek-v4-flash', provider: 'deepseek', displayName: 'DeepSeek V4 Flash' },
-      { id: 'sonar', provider: 'perplexity', displayName: 'Sonar' },
       { id: 'llama3.2', provider: 'ollama', displayName: 'Llama 3.2' },
       { id: 'minimaxai/minimax-m3', provider: 'nvidia', displayName: 'MiniMax M3' },
     ])

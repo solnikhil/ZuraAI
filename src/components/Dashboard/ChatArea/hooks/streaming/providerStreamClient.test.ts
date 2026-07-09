@@ -18,8 +18,6 @@ const mocks = vi.hoisted(() => ({
   extractOpencodeStreamReasoningDelta: vi.fn(),
   streamOllamaCompletion: vi.fn(),
   generateOllamaCompletion: vi.fn(),
-  streamPerplexityCompletion: vi.fn(),
-  generatePerplexityCompletion: vi.fn(),
 }))
 
 vi.mock('../../../../../services/openrouter', () => ({
@@ -62,17 +60,6 @@ vi.mock('../../../../../services/ollama', () => ({
   streamOllamaCompletion: mocks.streamOllamaCompletion,
   generateOllamaCompletion: mocks.generateOllamaCompletion,
 }))
-
-vi.mock('../../../../../services/perplexity', async () => {
-  const actual = await vi.importActual<typeof import('../../../../../services/perplexity')>(
-    '../../../../../services/perplexity'
-  )
-  return {
-    ...actual,
-    streamPerplexityCompletion: mocks.streamPerplexityCompletion,
-    generatePerplexityCompletion: mocks.generatePerplexityCompletion,
-  }
-})
 
 vi.mock('../../../../../utils/openRouterKey', () => ({
   getOpenRouterApiKey: (value?: string) => value?.trim() || '',
@@ -1017,59 +1004,4 @@ describe('createProviderStreamClient', () => {
     )
   })
 
-  it('emits citation events for Perplexity non-streaming responses', async () => {
-    mocks.generatePerplexityCompletion.mockResolvedValue({
-      id: 'resp_1',
-      model: 'sonar',
-      created: 1,
-      choices: [
-        {
-          index: 0,
-          finish_reason: 'stop',
-          message: {
-            role: 'assistant',
-            content: 'Answer [1]',
-          },
-        },
-      ],
-      usage: {
-        prompt_tokens: 3,
-        completion_tokens: 2,
-        total_tokens: 5,
-      },
-      citations: ['https://example.com/source'],
-    })
-
-    const client = createProviderStreamClient(
-      {
-        aiModel: 'sonar',
-        modelProvider: 'perplexity',
-        temperature: 0.3,
-        maxTokens: 512,
-        streamResponses: false,
-        perplexityApiKey: 'px-key',
-      },
-      'perplexity'
-    )
-
-    const events = await collect(
-      client.stream({
-        provider: 'perplexity',
-        model: 'sonar',
-        messages: [{ role: 'user', content: 'hello' }],
-        streamResponses: false,
-      })
-    )
-
-    expect(events).toEqual([
-      { type: 'text-delta', delta: 'Answer [1]' },
-      {
-        type: 'usage',
-        usage: { inputTokens: 3, outputTokens: 2, totalTokens: 5 },
-        rawUsage: { prompt_tokens: 3, completion_tokens: 2, total_tokens: 5 },
-      },
-      { type: 'citation', citations: ['https://example.com/source'] },
-      { type: 'finish', finishReason: 'stop' },
-    ])
-  })
 })

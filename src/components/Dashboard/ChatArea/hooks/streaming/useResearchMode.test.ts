@@ -21,19 +21,7 @@ describe('useResearchMode', () => {
       'please use web search for this'
     )
 
-    const perplexityConfig = result.current.calculateResearchConfig(
-      {
-        skills: {
-          web_research: { enabled: true },
-        },
-        modelProvider: 'perplexity',
-        enabledTools: ['web_search'],
-      },
-      'please use web search for this'
-    )
-
     expect(fireworksConfig.forceWebSearch).toBe(true)
-    expect(perplexityConfig.forceWebSearch).toBe(false)
   })
 
   it('keeps follow-up search guidance focused on named gaps after multiple searches', () => {

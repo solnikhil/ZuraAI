@@ -34,9 +34,10 @@
 }
 
 :root {
+  /* Windows-first default; macOS overrides on .app-frame--macos */
   --font-sans:
-    'Segoe UI Variable', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display',
-    'Segoe UI', sans-serif;
+    'Segoe UI Variable', 'Segoe UI', -apple-system, BlinkMacSystemFont, 'SF Pro Text',
+    'SF Pro Display', system-ui, sans-serif;
   --font-mono: ui-monospace, 'SF Mono', 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
   --app-font-scale: 1;
   --app-root-font-size: 15px;
@@ -128,6 +129,29 @@
   background: var(--theme-scrollbar-hover);
 }
 
+/* macOS: prefer overlay-style thin scrollbars; system paints when possible */
+.app-frame--macos,
+.app-frame--macos * {
+  scrollbar-width: thin;
+}
+
+.app-frame--macos ::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+
+.app-frame--macos ::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--theme-scrollbar) 72%, transparent);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  border-radius: 999px;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--theme-accent) 36%, transparent);
+  color: var(--theme-text-primary);
+}
+
 html,
 body {
   margin: 0;
@@ -201,6 +225,12 @@ body {
   background-color: transparent;
 }
 
+/* Prefer SF / system UI fonts on macOS without affecting Windows Segoe stack */
+.app-frame--macos {
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', system-ui, sans-serif;
+}
+
 .app-frame[data-app-chrome-material='solid'] {
   background-color: var(--theme-background);
 }
@@ -234,7 +264,8 @@ body {
   top: 0;
   left: 0;
   right: 0;
-  height: 30px;
+  /* Match traffic-light vertical chrome (~standard Mac toolbar strip) */
+  height: 38px;
   z-index: 60;
   -webkit-app-region: drag;
 }
@@ -243,7 +274,8 @@ body {
   --titlebar-nav-icon-color: var(--theme-text-secondary);
   position: fixed;
   top: 6px;
-  left: 80px;
+  /* Traffic lights at x:16 + ~52px control cluster width → leave a small gap */
+  left: 86px;
   z-index: 70;
   display: flex;
   align-items: center;
@@ -294,6 +326,12 @@ body {
        jagged/stair-stepped corners. */
   transform: translateZ(0);
   will-change: transform;
+}
+
+/* Slightly tighter canvas corners on macOS so the shell feels less Win11-card-like */
+.app-frame--macos .dashboard-main-canvas {
+  --dashboard-canvas-radius: 10px;
+  --dashboard-canvas-radius-subtle: 6px;
 }
 
 /* === Tooltip Animations === */

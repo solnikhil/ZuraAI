@@ -693,7 +693,6 @@ export function getInitialConfigSettings(settings: Settings): Partial<SettingsCo
   return {
     openRouterApiKey: settings.openRouterApiKey,
     openRouterDebug: settings.openRouterDebug,
-    perplexityApiKey: settings.perplexityApiKey,
     groqApiKey: settings.groqApiKey,
     tavilyApiKey: settings.tavilyApiKey,
     tavilySearchDepthPreference: settings.tavilySearchDepthPreference,
@@ -711,7 +710,6 @@ export function getInitialConfigSettings(settings: Settings): Partial<SettingsCo
     configuredModels: settings.configuredModels,
     ollamaUrl: settings.ollamaUrl,
     ollamaModels: settings.ollamaModels,
-    perplexityModels: settings.perplexityModels,
     groqModels: settings.groqModels,
     alibabaModels: settings.alibabaModels,
     fireworksModels: settings.fireworksModels,

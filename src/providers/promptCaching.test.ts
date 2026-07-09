@@ -49,8 +49,8 @@ describe('shapePromptCacheRequest', () => {
     ]
 
     const shaped = shapePromptCacheRequest({
-      provider: 'perplexity',
-      model: 'sonar-pro',
+      provider: 'ollama',
+      model: 'llama3.2',
       messages,
     })
 

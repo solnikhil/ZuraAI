@@ -526,6 +526,13 @@
   background: var(--theme-background);
 }
 
+/* Room for native macOS traffic lights when titleBarStyle is hiddenInset */
+.app-titlebar__about-page--macos {
+  padding-top: 36px;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', system-ui, sans-serif;
+}
+
 .app-titlebar__about-backdrop {
   background: color-mix(in srgb, var(--theme-overlay-bg) 32%, transparent);
   backdrop-filter: blur(4px);
