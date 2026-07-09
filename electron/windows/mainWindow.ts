@@ -127,7 +127,9 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
       contextIsolation: true,
       sandbox: true,
       devTools: options?.devTools ?? !app.isPackaged,
-      backgroundThrottling: false,
+      // Allow Chromium to throttle when backgrounded — major idle RAM/CPU win.
+      // Focused streaming remains responsive.
+      backgroundThrottling: true,
       spellcheck: isMacOS,
       additionalArguments: ['--process-name=ZuraAI'],
     },

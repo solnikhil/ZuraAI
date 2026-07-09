@@ -16,6 +16,27 @@ let commandCenterShowPending = false
 // overlay, which would otherwise hide it immediately ("can't open" flicker).
 let commandCenterLastShownAt = 0
 const COMMAND_CENTER_SHOW_BLUR_GRACE_MS = 250
+/** Destroy the hidden CC renderer after idle to free a full Chromium process. */
+const COMMAND_CENTER_IDLE_DESTROY_MS = 3 * 60 * 1000
+let commandCenterIdleDestroyTimer: ReturnType<typeof setTimeout> | null = null
+
+function clearCommandCenterIdleDestroyTimer(): void {
+  if (commandCenterIdleDestroyTimer) {
+    clearTimeout(commandCenterIdleDestroyTimer)
+    commandCenterIdleDestroyTimer = null
+  }
+}
+
+function scheduleCommandCenterIdleDestroy(): void {
+  clearCommandCenterIdleDestroyTimer()
+  commandCenterIdleDestroyTimer = setTimeout(() => {
+    commandCenterIdleDestroyTimer = null
+    const win = commandCenterWindow
+    if (!win || win.isDestroyed()) return
+    if (win.isVisible()) return
+    destroyCommandCenterWindow()
+  }, COMMAND_CENTER_IDLE_DESTROY_MS)
+}
 
 function commandCenterRouteUrl(baseUrl: string): string {
   const url = new URL(baseUrl)
@@ -100,7 +121,7 @@ function createCommandCenterWindow(): BrowserWindow {
       sandbox: true,
       devTools: !app.isPackaged,
       spellcheck: false,
-      backgroundThrottling: false,
+      backgroundThrottling: true,
       additionalArguments: ['--process-name=ZuraAI-CommandCenter'],
     },
   })
@@ -197,6 +218,7 @@ function reapplyWindowMaterial(win: BrowserWindow): void {
 }
 
 export function showCommandCenterWindow(): void {
+  clearCommandCenterIdleDestroyTimer()
   const win = createCommandCenterWindow()
   commandCenterLayout = 'search'
   const bounds = centerBounds(commandCenterLayout)
@@ -240,6 +262,7 @@ export function hideCommandCenterWindow(): void {
   if (commandCenterWindow && !commandCenterWindow.isDestroyed()) {
     commandCenterWindow.setOpacity(1)
     commandCenterWindow.hide()
+    scheduleCommandCenterIdleDestroy()
   }
 }
 
@@ -253,6 +276,7 @@ export function toggleCommandCenterWindow(): void {
 }
 
 export function destroyCommandCenterWindow(): void {
+  clearCommandCenterIdleDestroyTimer()
   if (commandCenterWindow && !commandCenterWindow.isDestroyed()) {
     commandCenterWindow.destroy()
   }

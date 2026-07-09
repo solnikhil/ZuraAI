@@ -67,72 +67,118 @@ function buildPrismStyle(
  * This replaces the full Prism build (~300 grammars) with only ~25 languages
  * that cover the vast majority of real-world code blocks.
  */
+/** Core languages registered at first markdown preload (covers most chat code blocks). */
+const CORE_LANG_LOADERS: Array<{
+  name: string
+  load: () => Promise<{ default: unknown }>
+  aliases?: string[]
+}> = [
+  {
+    name: 'typescript',
+    load: () => import('react-syntax-highlighter/dist/esm/languages/prism/typescript'),
+  },
+  {
+    name: 'javascript',
+    load: () => import('react-syntax-highlighter/dist/esm/languages/prism/javascript'),
+  },
+  {
+    name: 'python',
+    load: () => import('react-syntax-highlighter/dist/esm/languages/prism/python'),
+  },
+  {
+    name: 'bash',
+    load: () => import('react-syntax-highlighter/dist/esm/languages/prism/bash'),
+  },
+  {
+    name: 'json',
+    load: () => import('react-syntax-highlighter/dist/esm/languages/prism/json'),
+  },
+  {
+    name: 'yaml',
+    load: () => import('react-syntax-highlighter/dist/esm/languages/prism/yaml'),
+  },
+  {
+    name: 'markup',
+    load: () => import('react-syntax-highlighter/dist/esm/languages/prism/markup'),
+    aliases: ['html', 'xml'],
+  },
+  {
+    name: 'css',
+    load: () => import('react-syntax-highlighter/dist/esm/languages/prism/css'),
+  },
+  {
+    name: 'markdown',
+    load: () => import('react-syntax-highlighter/dist/esm/languages/prism/markdown'),
+  },
+  {
+    name: 'jsx',
+    load: () => import('react-syntax-highlighter/dist/esm/languages/prism/jsx'),
+  },
+  {
+    name: 'tsx',
+    load: () => import('react-syntax-highlighter/dist/esm/languages/prism/tsx'),
+  },
+]
+
+/** Extra languages registered on demand (first use of that fence). */
+const EXTRA_LANG_LOADERS: Record<string, () => Promise<{ default: unknown }>> = {
+  java: () => import('react-syntax-highlighter/dist/esm/languages/prism/java'),
+  cpp: () => import('react-syntax-highlighter/dist/esm/languages/prism/cpp'),
+  csharp: () => import('react-syntax-highlighter/dist/esm/languages/prism/csharp'),
+  go: () => import('react-syntax-highlighter/dist/esm/languages/prism/go'),
+  rust: () => import('react-syntax-highlighter/dist/esm/languages/prism/rust'),
+  ruby: () => import('react-syntax-highlighter/dist/esm/languages/prism/ruby'),
+  php: () => import('react-syntax-highlighter/dist/esm/languages/prism/php'),
+  swift: () => import('react-syntax-highlighter/dist/esm/languages/prism/swift'),
+  kotlin: () => import('react-syntax-highlighter/dist/esm/languages/prism/kotlin'),
+  sql: () => import('react-syntax-highlighter/dist/esm/languages/prism/sql'),
+  diff: () => import('react-syntax-highlighter/dist/esm/languages/prism/diff'),
+  docker: () => import('react-syntax-highlighter/dist/esm/languages/prism/docker'),
+  graphql: () => import('react-syntax-highlighter/dist/esm/languages/prism/graphql'),
+  toml: () => import('react-syntax-highlighter/dist/esm/languages/prism/toml'),
+}
+
+const registeredLanguages = new Set<string>()
+let highlighterRef: {
+  registerLanguage: (name: string, lang: unknown) => void
+  alias: (name: string, aliases: string | string[]) => void
+} | null = null
+
 async function registerLanguages(SyntaxHighlighter: {
   registerLanguage: (name: string, lang: unknown) => void
   alias: (name: string, aliases: string | string[]) => void
 }) {
-  const langModules = await Promise.all([
-    import('react-syntax-highlighter/dist/esm/languages/prism/typescript'),
-    import('react-syntax-highlighter/dist/esm/languages/prism/javascript'),
-    import('react-syntax-highlighter/dist/esm/languages/prism/python'),
-    import('react-syntax-highlighter/dist/esm/languages/prism/java'),
-    import('react-syntax-highlighter/dist/esm/languages/prism/cpp'),
-    import('react-syntax-highlighter/dist/esm/languages/prism/csharp'),
-    import('react-syntax-highlighter/dist/esm/languages/prism/go'),
-    import('react-syntax-highlighter/dist/esm/languages/prism/rust'),
-    import('react-syntax-highlighter/dist/esm/languages/prism/ruby'),
-    import('react-syntax-highlighter/dist/esm/languages/prism/php'),
-    import('react-syntax-highlighter/dist/esm/languages/prism/swift'),
-    import('react-syntax-highlighter/dist/esm/languages/prism/kotlin'),
-    import('react-syntax-highlighter/dist/esm/languages/prism/sql'),
-    import('react-syntax-highlighter/dist/esm/languages/prism/bash'),
-    import('react-syntax-highlighter/dist/esm/languages/prism/json'),
-    import('react-syntax-highlighter/dist/esm/languages/prism/yaml'),
-    import('react-syntax-highlighter/dist/esm/languages/prism/markup'), // handles html + xml
-    import('react-syntax-highlighter/dist/esm/languages/prism/css'),
-    import('react-syntax-highlighter/dist/esm/languages/prism/markdown'),
-    import('react-syntax-highlighter/dist/esm/languages/prism/diff'),
-    import('react-syntax-highlighter/dist/esm/languages/prism/docker'),
-    import('react-syntax-highlighter/dist/esm/languages/prism/graphql'),
-    import('react-syntax-highlighter/dist/esm/languages/prism/toml'),
-    import('react-syntax-highlighter/dist/esm/languages/prism/jsx'),
-    import('react-syntax-highlighter/dist/esm/languages/prism/tsx'),
-  ])
-
-  const langNames = [
-    'typescript',
-    'javascript',
-    'python',
-    'java',
-    'cpp',
-    'csharp',
-    'go',
-    'rust',
-    'ruby',
-    'php',
-    'swift',
-    'kotlin',
-    'sql',
-    'bash',
-    'json',
-    'yaml',
-    'markup',
-    'css',
-    'markdown',
-    'diff',
-    'docker',
-    'graphql',
-    'toml',
-    'jsx',
-    'tsx',
-  ]
-
-  for (let i = 0; i < langNames.length; i++) {
-    SyntaxHighlighter.registerLanguage(langNames[i], langModules[i].default)
+  highlighterRef = SyntaxHighlighter
+  const modules = await Promise.all(CORE_LANG_LOADERS.map((entry) => entry.load()))
+  for (let i = 0; i < CORE_LANG_LOADERS.length; i++) {
+    const entry = CORE_LANG_LOADERS[i]
+    SyntaxHighlighter.registerLanguage(entry.name, modules[i].default)
+    registeredLanguages.add(entry.name)
+    if (entry.aliases?.length) {
+      SyntaxHighlighter.alias(entry.name, entry.aliases)
+      for (const alias of entry.aliases) registeredLanguages.add(alias)
+    }
   }
+}
 
-  // Alias markup to html and xml (Prism uses "markup" for both)
-  SyntaxHighlighter.alias('markup', ['html', 'xml'])
+/** Lazily register a Prism language the first time a code fence needs it. */
+export async function ensurePrismLanguage(language: string): Promise<void> {
+  const key = language.trim().toLowerCase()
+  if (!key || registeredLanguages.has(key)) return
+  if (!highlighterRef) {
+    await preloadMarkdown()
+  }
+  if (!highlighterRef || registeredLanguages.has(key)) return
+
+  const loader = EXTRA_LANG_LOADERS[key]
+  if (!loader) return
+  try {
+    const mod = await loader()
+    highlighterRef.registerLanguage(key, mod.default)
+    registeredLanguages.add(key)
+  } catch {
+    // Unknown / failed language — leave unregistered; highlighter falls back to plain text.
+  }
 }
 
 // ── Preload function ──────────────────────────────────────────────────────

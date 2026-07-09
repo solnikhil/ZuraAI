@@ -76,6 +76,14 @@ export function registerChatStoreHandlers(): void {
     return chatStore.getAllSessionsAsync()
   })
 
+  /**
+   * Return all sessions with multi-MB fields stripped for Usage metrics.
+   * Prefer this over get-all so the renderer never holds full chat bodies.
+   */
+  ipcMain.handle('chat-store:get-usage-sessions', async () => {
+    return chatStore.getUsageSessionsAsync()
+  })
+
   /** Replace all stored chat sessions. */
   ipcMain.handle('chat-store:save-all', async (_event, sessions) => {
     await chatStore.saveAllSessionsAsync(sessions)
@@ -110,6 +118,7 @@ export function unregisterChatStoreHandlers(): void {
   ipcMain.removeHandler('chat-store:delete-session')
   ipcMain.removeHandler('chat-store:save-index')
   ipcMain.removeHandler('chat-store:get-all')
+  ipcMain.removeHandler('chat-store:get-usage-sessions')
   ipcMain.removeHandler('chat-store:save-all')
   ipcMain.removeHandler('chat-store:migrate')
   ipcMain.removeHandler('chat-store:get-all-folders')

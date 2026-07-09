@@ -107,6 +107,16 @@ Platform chrome:
 - **Windows:** frameless main window with acrylic `backgroundMaterial`, custom title bar + window controls in the renderer, CSS resize handles.
 - **macOS:** `titleBarStyle: 'hidden'` with native traffic lights (`trafficLightPosition`), sidebar `vibrancy`, application menu from `electron/windows/applicationMenu.ts`, and a renderer drag region + sidebar controls (no custom traffic-light buttons). Double-clicking the Mac drag region toggles zoom/maximize through `window.windowControls`. About window uses `titleBarStyle: 'hiddenInset'`. Red traffic light / window close **hides** the main window to the Dock unless `setAppQuitting(true)` was set from `before-quit` (Cmd+Q, menu Quit, tray Quit); dock `activate` shows or recreates the main window. Tray icons on macOS use a black+alpha **template** image (`public/trayTemplate.png` / `build/trayTemplate.png`) so the menu bar can invert for light/dark.
 
+Memory / performance:
+
+- Main and Command Center windows use `backgroundThrottling: true` so Chromium can idle when unfocused.
+- Command Center is create-on-demand; after hide it is **destroyed** after a short idle (or immediately when Agent Mode/CC is disabled) rather than keeping a permanent second renderer.
+- Chat index embeds at most a thin recent tail (`RECENT_TAIL_SIZE` ≈ 20 messages) with images/tool payloads stripped; full history lives in per-session files and is loaded in a window (`SESSION_WINDOW_SIZE` ≈ 80) on open. Older messages load on demand (scroll-top / “Load earlier”). Inactive sessions prune to **empty** message arrays (metadata only).
+- Chat message list is **virtualized** (`VirtualMessageList` / react-virtuoso).
+- Usage settings use `chat-store:get-usage-sessions` (slim message fields only), not `chat-store:get-all`.
+- MCP manager initializes without auto-connect on the critical path; auto-connect servers connect after the main window is visible via deferred startup.
+- Markdown/Prism preloads only a small core language set; extra languages register on first use.
+
 All BrowserWindows must use `nodeIntegration: false`, `contextIsolation: true`, and `sandbox: true` unless a change is explicitly justified in this file.
 
 ### Persistence Boundaries

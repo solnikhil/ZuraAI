@@ -20,6 +20,7 @@ import { applyDevelopmentAppIcon } from './windowIcon'
 import { registerAllHandlers } from './ipc'
 import {
   initializeMcpManager,
+  connectAutoConnectMcpServers,
   registerMcpHandlers,
   shutdownMcpManager,
   unregisterMcpHandlers,
@@ -264,9 +265,10 @@ if (hasSingleInstanceLock) {
     registerSessionSecurityHandlers()
     log.endPhase('ipc-handlers')
 
+    // MCP manager without auto-connect on the critical path — connect after paint.
     log.startPhase('mcp-init')
     await initializeMcpManager({
-      autoConnect: true,
+      autoConnect: false,
       clientInfo: {
         name: APP_NAME,
         version: app.getVersion(),
@@ -277,6 +279,18 @@ if (hasSingleInstanceLock) {
 
     createApplicationMenu()
     applyDevelopmentAppIcon()
+
+    deferredInitializer.registerTask({
+      name: 'mcp-auto-connect',
+      priority: 'high',
+      delayMs: 0,
+      execute: async () => {
+        log.startPhase('mcp-auto-connect')
+        await connectAutoConnectMcpServers()
+        log.endPhase('mcp-auto-connect')
+        log.success('MCP auto-connect completed')
+      },
+    })
 
     deferredInitializer.registerTask({
       name: 'scheduled-tasks',

@@ -136,16 +136,64 @@ const LAST_SESSION_ID_KEY = 'zura-ui:lastChatSessionId'
 const LOCAL_CHAT_HISTORY_KEY = 'zura-chat-history'
 const LOCAL_CHAT_INDEX_KEY = 'zura-chat-index'
 const MAX_LOADED_SESSIONS = 3
-const RECENT_TAIL_SIZE = 80
+/** Keep index/renderer previews tiny — full history lives in session files. */
+const RECENT_TAIL_SIZE = 20
+/** Default messages loaded when opening a chat (windowed; older via load older). */
+const SESSION_WINDOW_SIZE = 80
+const INDEX_CONTENT_PREVIEW_CHARS = 280
+const INACTIVE_UNLOAD_MS = 5 * 60 * 1000
 const SAVE_DEBOUNCE_MS = 500
 const INDEX_VERSION = 4
+
+function toIndexPreviewMessage(message: Message): Message {
+  const content =
+    typeof message.content === 'string' && message.content.length > INDEX_CONTENT_PREVIEW_CHARS
+      ? message.content.slice(0, INDEX_CONTENT_PREVIEW_CHARS)
+      : message.content
+
+  const preview: Message = {
+    id: message.id,
+    role: message.role,
+    content,
+    timestamp: message.timestamp,
+  }
+  if (message.model) preview.model = message.model
+  if (typeof message.tokenCount === 'number') preview.tokenCount = message.tokenCount
+  if (typeof message.latency === 'number') preview.latency = message.latency
+  if (message.usage) preview.usage = message.usage
+  if (message.image) preview.image = ''
+  if (Array.isArray(message.files) && message.files.length > 0) {
+    preview.files = message.files.map((file) => ({
+      ...file,
+      data: '',
+    }))
+  }
+  if (Array.isArray(message.toolResults) && message.toolResults.length > 0) {
+    preview.toolResults = message.toolResults.map((result) => ({
+      toolCall: {
+        id: result.toolCall?.id ?? '',
+        name: result.toolCall?.name ?? 'tool',
+        arguments: result.toolCall?.arguments,
+      },
+      result: {
+        success: result.result?.success ?? false,
+        error: result.result?.error,
+        executionTime: result.result?.executionTime,
+      },
+    }))
+  }
+  return preview
+}
+
+function buildRecentMessagesTail(messages: Message[]): Message[] | undefined {
+  if (!Array.isArray(messages) || messages.length === 0) return undefined
+  return messages.slice(-RECENT_TAIL_SIZE).map(toIndexPreviewMessage)
+}
 
 function sessionToMetadata(session: ChatSession): ChatSessionMetadata {
   const messages = session.messages ?? []
   const messageCount = session.messages?.length ?? session.messageCount ?? 0
-
-  // Mirror of main-process logic: embed recent tail for fast preview
-  const recentMessages = messages.length > 0 ? messages.slice(-RECENT_TAIL_SIZE) : undefined
+  const recentMessages = buildRecentMessagesTail(messages)
 
   return {
     id: session.id,
@@ -409,9 +457,11 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
         if (keep.has(session.id)) return session
         if (!loadedSessionIdsRef.current.has(session.id)) return session
         loadedSessionIdsRef.current.delete(session.id)
+        // Metadata-only: drop message arrays from inactive sessions (index has thin previews).
         return {
           ...session,
-          messages: session.messages.slice(-RECENT_TAIL_SIZE),
+          messages: [],
+          artifacts: [],
           messageCount: session.messageCount ?? session.messages.length,
         }
       })
@@ -423,8 +473,12 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
       const existing = sessionsRef.current.find((session) => session.id === id)
       if (!existing) return null
 
-      // If already fully loaded (no limit was used before), reuse
-      const isFullyLoaded = loadedSessionIdsRef.current.has(id) && isLoadedSession(existing)
+      // Reuse only when we already hold the full message array (not just a window).
+      const haveCount = existing.messages?.length ?? 0
+      const totalCount = existing.messageCount ?? haveCount
+      const holdsFullHistory = haveCount >= totalCount || totalCount === 0
+      const isFullyLoaded =
+        loadedSessionIdsRef.current.has(id) && isLoadedSession(existing) && holdsFullHistory
       if (isFullyLoaded && !options?.limit) {
         markLoaded(id)
         pruneLoadedSessions(currentSessionId)
@@ -449,8 +503,13 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
         const latestExisting = sessionsRef.current.find((session) => session.id === id) ?? existing
         const normalized = mergeLoadedSessionWithLiveShell(loaded, latestExisting)
 
-        // Only mark as "loaded" (eligible for pruning as full) if we didn't use a limit
-        if (!options?.limit) {
+        // Windowed loads count as "loaded" for UI (no spinner) and pruning eligibility.
+        // Full unlimited loads also mark loaded. Incomplete thin previews do not.
+        const loadedCount = normalized.messages?.length ?? 0
+        const totalCount = normalized.messageCount ?? loadedCount
+        const isWindowComplete =
+          !options?.limit || loadedCount >= Math.min(options.limit, totalCount) || totalCount === 0
+        if (isWindowComplete) {
           markLoaded(id)
         }
         setSessions((prev) => prev.map((session) => (session.id === id ? normalized : session)))
@@ -540,34 +599,39 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     if (!rememberedId) return
     if (sessions.some((session) => session.id === rememberedId)) {
       setCurrentSessionId(rememberedId)
-      // Use fast tail load for startup feel
-      void loadFullSession(rememberedId, { limit: 80 })
-      setTimeout(() => void loadFullSession(rememberedId), 150)
+      // Windowed load only — full history stays on disk until user scrolls for older messages.
+      void loadFullSession(rememberedId, { limit: SESSION_WINDOW_SIZE })
     }
   }, [currentSessionId, isInitialized, loadFullSession, sessions, settings.rememberLastChatSession])
+
+  // Unload inactive fully-loaded sessions after idle to free renderer heap.
+  useEffect(() => {
+    if (!isElectron) return
+    const timer = window.setInterval(() => {
+      const activeId = currentSessionId
+      const keep = new Set(recentLoadedSessionIdsRef.current.slice(0, MAX_LOADED_SESSIONS))
+      if (activeId) keep.add(activeId)
+      // Time-based unload is handled by prune to empty messages for non-kept sessions.
+      pruneLoadedSessions(activeId)
+    }, INACTIVE_UNLOAD_MS)
+    return () => window.clearInterval(timer)
+  }, [currentSessionId, pruneLoadedSessions])
 
   useEffect(() => {
     if (!currentSessionId) return
     const session = sessions.find((entry) => entry.id === currentSessionId)
     if (session && !loadedSessionIdsRef.current.has(currentSessionId)) {
-      const total = session.messageCount ?? session.messages?.length ?? 0
       const have = session.messages?.length ?? 0
-
-      // If we already have a good tail from embedded recentMessages in metadata, we can skip the limited IPC
-      const alreadyHasDecentTail = have >= 50
-
-      if (!alreadyHasDecentTail) {
-        void loadFullSession(currentSessionId, { limit: 80 })
+      // Thin index previews are not enough for chat UI — always load a window.
+      if (have < SESSION_WINDOW_SIZE) {
+        void loadFullSession(currentSessionId, { limit: SESSION_WINDOW_SIZE })
+      } else {
+        // Already have a full window from a previous limited load; mark loaded for pruning.
+        markLoaded(currentSessionId)
       }
-
-      // Background: load the complete history so older context is available (if any)
-      if (total > have) {
-        setTimeout(() => {
-          void loadFullSession(currentSessionId)
-        }, 180)
-      }
+      // Do not background-load the entire history (RAM). Older messages load on demand.
     }
-  }, [currentSessionId, loadFullSession, sessions])
+  }, [currentSessionId, loadFullSession, markLoaded, sessions])
 
   useEffect(() => {
     if (!isElectron || !window.ipcRenderer?.on) return
@@ -750,9 +814,8 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     (id: string) => {
       if (!sessionsRef.current.some((session) => session.id === id)) return
       setCurrentSessionId(id)
-      // Fast tail load first for snappy feel, then full background load
-      void loadFullSession(id, { limit: 80 })
-      setTimeout(() => void loadFullSession(id), 100)
+      // Windowed load only — keeps RAM bounded for large histories.
+      void loadFullSession(id, { limit: SESSION_WINDOW_SIZE })
     },
     [loadFullSession]
   )

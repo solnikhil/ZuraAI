@@ -14,23 +14,7 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react'
 import { Virtuoso, VirtuosoHandle } from 'react-virtuoso'
 import { ChevronDown } from 'lucide-react'
-import type { ToolCallResult } from '../../../chat/types'
-
-interface Message {
-  id: string
-  role: 'user' | 'assistant' | 'system'
-  content: string
-  timestamp: number
-  model?: string
-  image?: string
-  thinking?: string
-  toolResults?: ToolCallResult[]
-  usage?: {
-    inputTokens: number
-    outputTokens: number
-    totalTokens: number
-  }
-}
+import type { Message } from '../../../chat/types'
 
 interface VirtualMessageListProps {
   /** Array of messages to render */
@@ -49,6 +33,8 @@ interface VirtualMessageListProps {
   header?: React.ReactNode
   /** Optional footer component */
   footer?: React.ReactNode
+  /** Called when the user scrolls near the top (load older messages). */
+  onStartReached?: () => void
 }
 
 /**
@@ -66,6 +52,7 @@ export function VirtualMessageList({
   renderMessage,
   header,
   footer,
+  onStartReached,
 }: VirtualMessageListProps) {
   const virtuosoRef = useRef<VirtuosoHandle>(null)
   const prevLenRef = useRef(messages.length)
@@ -236,6 +223,9 @@ export function VirtualMessageList({
           }
         }}
         isScrolling={setIsScrolling}
+        startReached={() => {
+          onStartReached?.()
+        }}
         style={{ flex: 1 }}
         components={{
           Header: header ? () => <>{header}</> : undefined,

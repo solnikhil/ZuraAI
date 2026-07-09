@@ -53,6 +53,19 @@ export async function initializeMcpManager(
   return manager
 }
 
+/** Connect servers flagged autoConnect after first paint (RAM/startup friendly). */
+export async function connectAutoConnectMcpServers(): Promise<void> {
+  const manager = getOrCreateMcpManager()
+  // Ensure metadata is loaded without forcing connect on cold start.
+  await manager.initialize({ autoConnect: false })
+  const servers = manager.listServers()
+  await Promise.allSettled(
+    servers
+      .filter((server) => server.enabled === true && server.autoConnect === true)
+      .map((server) => manager.connectServer(server.id))
+  )
+}
+
 export async function shutdownMcpManager(): Promise<void> {
   approvalManager?.dispose()
   approvalManager = null

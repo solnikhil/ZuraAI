@@ -89,6 +89,7 @@ const INVOKE_CHANNELS = new Set<IpcInvokeChannel>([
   'chat-store:delete-session',
   'chat-store:save-index',
   'chat-store:get-all',
+  'chat-store:get-usage-sessions',
   'chat-store:save-all',
   'chat-store:migrate',
   'chat-store:get-all-folders',

@@ -741,6 +741,7 @@ export type IpcInvokeChannel =
   | 'chat-store:delete-session'
   | 'chat-store:save-index'
   | 'chat-store:get-all'
+  | 'chat-store:get-usage-sessions'
   | 'chat-store:save-all'
   | 'chat-store:migrate'
   | 'chat-store:get-all-folders'
@@ -771,6 +772,7 @@ export interface IpcInvokeArgsMap {
   'chat-store:delete-session': [sessionId: string]
   'chat-store:save-index': [index: ChatIndexData]
   'chat-store:get-all': []
+  'chat-store:get-usage-sessions': []
   'chat-store:save-all': [sessions: ChatSession[]]
   'chat-store:migrate': [localStorageData: ChatSession[]]
   'chat-store:get-all-folders': []
@@ -802,6 +804,7 @@ export interface IpcInvokeReturnMap {
   'chat-store:delete-session': boolean
   'chat-store:save-index': boolean
   'chat-store:get-all': ChatSession[]
+  'chat-store:get-usage-sessions': ChatSession[]
   'chat-store:save-all': boolean
   'chat-store:migrate': boolean
   'chat-store:get-all-folders': Folder[]

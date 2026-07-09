@@ -10,6 +10,7 @@ import type { WebSource } from './Dashboard/ChatArea/WebSourceCitation'
 import MarkdownFileTree from './MarkdownFileTree'
 import type { ExtraProps } from 'react-markdown'
 import {
+  ensurePrismLanguage,
   getPreloadedMarkdown,
   waitForMarkdownPreload,
   type SyntaxHighlighterComponent,
@@ -697,6 +698,9 @@ const MarkdownContent = React.memo(function MarkdownContent({
 
         if (isCodeBlock && match && SyntaxHighlighter && prismStyle) {
           // Code block with language - syntax highlighted
+          if (highlightLanguage) {
+            void ensurePrismLanguage(highlightLanguage)
+          }
           const isCopied = copiedCode === codeString
           const handleCopy = () => {
             navigator.clipboard.writeText(codeString)

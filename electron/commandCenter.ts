@@ -14,6 +14,7 @@ import {
 } from './commandCenterWorkflows'
 import {
   createMainWindow,
+  destroyCommandCenterWindow,
   getMainWindow,
   hideCommandCenterWindow,
   setCommandCenterWindowLayout,
@@ -730,6 +731,8 @@ export function setCommandCenterExtensionEnabled(enabled: boolean): {
   } else {
     unregisterShortcut()
     hideCommandCenterWindow()
+    // Free the hidden CC renderer when Agent Mode / CC is turned off.
+    destroyCommandCenterWindow()
   }
 
   return {

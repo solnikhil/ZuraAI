@@ -89,12 +89,12 @@ export default function Settings({
 
     let cancelled = false
     void window.ipcRenderer
-      .invoke('chat-store:get-all')
+      .invoke('chat-store:get-usage-sessions')
       .then((storedSessions: ChatSession[]) => {
         if (!cancelled) setUsageStoredSessions(storedSessions)
       })
       .catch((error) => {
-        console.error('Failed to load full chat history for usage metrics:', error)
+        console.error('Failed to load usage chat snapshots:', error)
         if (!cancelled) setUsageStoredSessions(null)
       })
 
