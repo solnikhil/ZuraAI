@@ -11,26 +11,22 @@ import {
   stringArg,
   unsupportedWindowsOnly,
 } from '../native-common'
+import {
+  SETTINGS_PAGE_URIS,
+  WINDOWS_COPILOT_URI,
+  isSettingsPage,
+  settingsPageListForError,
+  type SettingsPage,
+} from '../../../src/commandCenter/windowsSettings'
+
+export {
+  WINDOWS_SETTINGS_CATALOG,
+  WINDOWS_COPILOT_URI,
+  isSettingsPage,
+  type SettingsPage,
+} from '../../../src/commandCenter/windowsSettings'
 
 type SnapPreset = 'left' | 'right' | 'top' | 'bottom' | 'maximize' | 'center'
-type SettingsPage =
-  | 'display'
-  | 'sound'
-  | 'bluetooth'
-  | 'network'
-  | 'notifications'
-  | 'apps'
-  | 'privacy'
-
-const SETTINGS_PAGE_URIS: Record<SettingsPage, string> = {
-  display: 'ms-settings:display',
-  sound: 'ms-settings:sound',
-  bluetooth: 'ms-settings:bluetooth',
-  network: 'ms-settings:network',
-  notifications: 'ms-settings:notifications',
-  apps: 'ms-settings:appsfeatures',
-  privacy: 'ms-settings:privacy',
-}
 
 function psString(value: string): string {
   return `'${value.replace(/'/g, "''")}'`
@@ -167,25 +163,38 @@ export async function executeSystemActiveWindow(): Promise<ToolResult> {
 }
 
 function parseSettingsPage(value: string): SettingsPage | null {
-  return Object.prototype.hasOwnProperty.call(SETTINGS_PAGE_URIS, value)
-    ? (value as SettingsPage)
-    : null
+  return isSettingsPage(value) ? value : null
 }
 
 export async function executeSystemSettingsOpen(args: unknown): Promise<ToolResult> {
   if (!isWindows()) return unsupportedWindowsOnly('system_settings_open')
   const approval = requireApproval(args, 'system_settings_open')
   if (approval) return approval
-  const page = parseSettingsPage(stringArg(args, 'page'))
+  const page = parseSettingsPage(stringArg(args, 'page') ?? '')
   if (!page) {
     return {
       success: false,
-      error:
-        'page must be one of: display, sound, bluetooth, network, notifications, apps, privacy.',
+      error: `page must be one of: ${settingsPageListForError()}.`,
     }
   }
   await shell.openExternal(SETTINGS_PAGE_URIS[page])
   return { success: true, data: { page } }
+}
+
+/** Open Windows Copilot via the fixed allowlisted protocol only. */
+export async function executeWindowsCopilotOpen(args: unknown = {}): Promise<ToolResult> {
+  if (!isWindows()) return unsupportedWindowsOnly('windows_copilot_open')
+  const approval = requireApproval(args, 'windows_copilot_open')
+  if (approval) return approval
+  try {
+    await shell.openExternal(WINDOWS_COPILOT_URI)
+    return { success: true, data: { opened: 'copilot' } }
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unable to open Windows Copilot.',
+    }
+  }
 }
 
 export async function executeSystemStatus(): Promise<ToolResult> {

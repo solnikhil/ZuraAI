@@ -1,6 +1,7 @@
 import { app, BrowserWindow, shell, screen } from 'electron'
 import path from 'path'
 
+import { captureCommandCenterReturnTarget } from '../commandCenterFocus'
 import { resolveDistPath } from './mainWindow'
 import { resolveAppIconPath } from '../windowIcon'
 
@@ -227,6 +228,9 @@ function reapplyWindowMaterial(win: BrowserWindow): void {
 }
 
 export function showCommandCenterWindow(): void {
+  // Capture the app that had focus *before* we activate the overlay, so emoji
+  // paste / dismiss can return keystrokes to that window's text field.
+  captureCommandCenterReturnTarget()
   cancelIdleDestroy()
   const win = createCommandCenterWindow()
   commandCenterLayout = 'search'
@@ -272,6 +276,11 @@ export function hideCommandCenterWindow(): void {
     commandCenterWindow.setOpacity(1)
     if (commandCenterWindow.isVisible()) {
       commandCenterWindow.hide()
+    }
+    // Tell the renderer so it can soft-resume UI state on the next open
+    // (emoji view, query, ask mode) until idle destroy reclaim.
+    if (!commandCenterWindow.isDestroyed()) {
+      commandCenterWindow.webContents.send('command-center:hidden')
     }
   }
   // Schedule process reclaim while the overlay stays unused.

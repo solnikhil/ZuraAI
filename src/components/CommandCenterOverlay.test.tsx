@@ -105,6 +105,7 @@ describe('CommandCenterOverlay', () => {
         setLayout: vi.fn(async () => true),
         hide: vi.fn(async () => true),
         onShown: vi.fn(() => vi.fn()),
+        onHidden: vi.fn(() => vi.fn()),
       },
     })
   })
@@ -156,6 +157,10 @@ describe('CommandCenterOverlay', () => {
     const input = screen.getByRole('textbox', { name: /search command center/i })
     fireEvent.keyDown(input, { key: 'k', ctrlKey: true })
 
+    const actionsMenu = await screen.findByRole('menu', { name: /chrome actions/i })
+    expect(
+      actionsMenu.querySelector('.command-center-actions-popover__title-icon img')
+    ).toHaveAttribute('src', 'data:image/png;base64,icon')
     expect(await screen.findByText('Show in File Explorer')).toBeInTheDocument()
     expect(screen.getByText('Copy Path')).toBeInTheDocument()
     expect(screen.getByText('Copy Name')).toBeInTheDocument()
@@ -212,8 +217,13 @@ describe('CommandCenterOverlay', () => {
 
   it('keeps previous results painted when the overlay is shown again', async () => {
     let shownHandler: (() => void) | undefined
+    let hiddenHandler: (() => void) | undefined
     window.commandCenter.onShown = vi.fn((callback: () => void) => {
       shownHandler = callback
+      return () => undefined
+    })
+    window.commandCenter.onHidden = vi.fn((callback: () => void) => {
+      hiddenHandler = callback
       return () => undefined
     })
     let reopenPhase = false
@@ -268,6 +278,7 @@ describe('CommandCenterOverlay', () => {
 
     reopenPhase = true
     act(() => {
+      hiddenHandler?.()
       shownHandler?.()
     })
     // Soft reopen must not blank the list while the refresh is in flight.
@@ -275,6 +286,143 @@ describe('CommandCenterOverlay', () => {
     expect(screen.queryByText(/Loading Command Center/i)).not.toBeInTheDocument()
 
     expect(await screen.findByText('Kiro')).toBeInTheDocument()
+  })
+
+  it('restores the last screen when reopened within the session resume window', async () => {
+    let shownHandler: (() => void) | undefined
+    let hiddenHandler: (() => void) | undefined
+    window.commandCenter.onShown = vi.fn((callback: () => void) => {
+      shownHandler = callback
+      return () => undefined
+    })
+    window.commandCenter.onHidden = vi.fn((callback: () => void) => {
+      hiddenHandler = callback
+      return () => undefined
+    })
+    window.commandCenter.getIndex = vi.fn(async () => ({
+      workflows: [],
+      apps: [],
+      windows: [],
+      actions: [
+        {
+          id: 'action:emoji-picker',
+          type: 'action',
+          title: 'Emojis',
+          subtitle: 'Search and paste emoji',
+          hint: 'Command',
+          aliases: ['emoji'],
+          actionId: 'emoji-picker',
+        },
+      ],
+      chats: [],
+    }))
+
+    render(<CommandCenterOverlay />)
+    await screen.findByRole('heading', { name: 'Zura Extras' })
+    fireEvent.doubleClick(screen.getByRole('option', { name: /Emojis/i }))
+    const emojiSearch = await screen.findByRole('textbox', { name: /search emojis/i })
+    fireEvent.change(emojiSearch, { target: { value: 'rocket' } })
+    expect(await screen.findByRole('option', { name: 'Rocket' })).toBeInTheDocument()
+
+    act(() => {
+      hiddenHandler?.()
+    })
+    act(() => {
+      shownHandler?.()
+    })
+
+    expect(await screen.findByRole('textbox', { name: /search emojis/i })).toHaveValue('rocket')
+    expect(screen.getByRole('option', { name: 'Rocket' })).toBeInTheDocument()
+  })
+
+  it('opens the Zura Store preview and filters its bundled extension catalogue', async () => {
+    window.commandCenter.getIndex = vi.fn(async () => ({
+      workflows: [],
+      apps: [],
+      windows: [],
+      actions: [
+        {
+          id: 'action:zura-store',
+          type: 'action',
+          title: 'Zura Store',
+          subtitle: 'Discover extensions for Command Center',
+          hint: 'Command',
+          aliases: ['extensions', 'plugins'],
+          actionId: 'zura-store',
+        },
+      ],
+      chats: [],
+    }))
+
+    render(<CommandCenterOverlay />)
+
+    fireEvent.doubleClick(await screen.findByRole('option', { name: /Zura Store/i }))
+
+    expect(await screen.findByRole('heading', { name: 'Zura Store' })).toBeInTheDocument()
+    expect(screen.getByText('Music, without breaking your flow.')).toBeInTheDocument()
+    expect(
+      screen
+        .getAllByRole('button', { name: /coming soon|soon/i })
+        .every((button) => button.hasAttribute('disabled'))
+    ).toBe(true)
+
+    const search = screen.getByRole('textbox', { name: /search zura store/i })
+    fireEvent.change(search, { target: { value: 'Notion' } })
+
+    expect(await screen.findByRole('heading', { name: 'Notion' })).toBeInTheDocument()
+    expect(screen.queryByText('Music, without breaking your flow.')).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Discord' })).not.toBeInTheDocument()
+  })
+
+  it('resets to home when reopened after the session resume window expires', async () => {
+    let shownHandler: (() => void) | undefined
+    let hiddenHandler: (() => void) | undefined
+    window.commandCenter.onShown = vi.fn((callback: () => void) => {
+      shownHandler = callback
+      return () => undefined
+    })
+    window.commandCenter.onHidden = vi.fn((callback: () => void) => {
+      hiddenHandler = callback
+      return () => undefined
+    })
+    window.commandCenter.getIndex = vi.fn(async () => ({
+      workflows: [],
+      apps: [],
+      windows: [],
+      actions: [
+        {
+          id: 'action:emoji-picker',
+          type: 'action',
+          title: 'Emojis',
+          subtitle: 'Search and paste emoji',
+          hint: 'Command',
+          aliases: ['emoji'],
+          actionId: 'emoji-picker',
+        },
+      ],
+      chats: [],
+    }))
+
+    render(<CommandCenterOverlay />)
+    fireEvent.doubleClick(await screen.findByRole('option', { name: /Emojis/i }))
+    expect(await screen.findByRole('textbox', { name: /search emojis/i })).toBeInTheDocument()
+
+    const hiddenAt = Date.now()
+    vi.spyOn(Date, 'now').mockImplementation(() => hiddenAt)
+    act(() => {
+      hiddenHandler?.()
+    })
+    // Past the 2-minute soft-resume window.
+    vi.spyOn(Date, 'now').mockImplementation(() => hiddenAt + 2 * 60 * 1000 + 1)
+    act(() => {
+      shownHandler?.()
+    })
+
+    expect(
+      await screen.findByRole('textbox', { name: /search command center/i })
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: /search emojis/i })).not.toBeInTheDocument()
+    vi.restoreAllMocks()
   })
 
   it('switches to Ask AI with Tab and starts chat on submit', async () => {
@@ -556,8 +704,8 @@ describe('CommandCenterOverlay', () => {
     // Mount triggers an initial load plus a zero-delay search refresh; neither
     // should reschedule once icons are settled (iconPending: false).
     await new Promise((resolve) => setTimeout(resolve, 250))
-    const callsAfterSettle = (window.commandCenter.getIndex as ReturnType<typeof vi.fn>).mock
-      .calls.length
+    const callsAfterSettle = (window.commandCenter.getIndex as ReturnType<typeof vi.fn>).mock.calls
+      .length
     expect(callsAfterSettle).toBeLessThanOrEqual(2)
     await new Promise((resolve) => setTimeout(resolve, 250))
     expect(window.commandCenter.getIndex).toHaveBeenCalledTimes(callsAfterSettle)
@@ -628,7 +776,7 @@ describe('CommandCenterOverlay', () => {
     ).toBeInTheDocument()
   })
 
-  it('shows Zura Extras as a list category and opens Emojis from a normal result row', async () => {
+  it('opens Layout from Zura Extras and groups other fixed actions by category', async () => {
     window.commandCenter.getIndex = vi.fn(async () => ({
       workflows: [],
       apps: [],
@@ -638,10 +786,82 @@ describe('CommandCenterOverlay', () => {
           id: 'action:system-status',
           type: 'action',
           title: 'System status',
-          subtitle: 'system',
+          subtitle: 'Battery, disk, and network snapshot',
           hint: 'Action',
           aliases: ['status'],
           actionId: 'system-status',
+        },
+        {
+          id: 'action:snap-left',
+          type: 'action',
+          title: 'Snap left',
+          subtitle: 'Tile the active window left',
+          hint: 'Action',
+          aliases: ['tile left'],
+          actionId: 'snap-left',
+        },
+        {
+          id: 'action:snap-right',
+          type: 'action',
+          title: 'Snap right',
+          subtitle: 'Tile the active window right',
+          hint: 'Action',
+          aliases: ['tile right'],
+          actionId: 'snap-right',
+        },
+        {
+          id: 'action:maximize-window',
+          type: 'action',
+          title: 'Maximize',
+          subtitle: 'Maximize the active window',
+          hint: 'Action',
+          aliases: ['fullscreen'],
+          actionId: 'maximize-window',
+        },
+        {
+          id: 'action:layout',
+          type: 'action',
+          title: 'Layout',
+          subtitle: 'Snap, tile, and maximize the active window',
+          hint: 'Command',
+          aliases: ['snap', 'tile'],
+          actionId: 'layout',
+        },
+        {
+          id: 'action:settings',
+          type: 'action',
+          title: 'Settings',
+          subtitle: 'Open Windows Settings pages',
+          hint: 'Command',
+          aliases: ['windows settings'],
+          actionId: 'settings',
+        },
+        {
+          id: 'action:settings-display',
+          type: 'action',
+          title: 'Display',
+          subtitle: 'Resolution, scaling, multiple displays',
+          hint: 'Action',
+          aliases: ['screen'],
+          actionId: 'settings-display',
+        },
+        {
+          id: 'action:open-windows-copilot',
+          type: 'action',
+          title: 'Windows Copilot',
+          subtitle: 'Open Windows Copilot',
+          hint: 'Action',
+          aliases: ['copilot'],
+          actionId: 'open-windows-copilot',
+        },
+        {
+          id: 'action:open-downloads',
+          type: 'action',
+          title: 'Open Downloads',
+          subtitle: 'Open your Downloads folder',
+          hint: 'Action',
+          aliases: ['downloads folder'],
+          actionId: 'open-downloads',
         },
         {
           id: 'action:emoji-picker',
@@ -652,27 +872,77 @@ describe('CommandCenterOverlay', () => {
           aliases: ['emoji'],
           actionId: 'emoji-picker',
         },
+        {
+          id: 'action:zura-ai-chats',
+          type: 'action',
+          title: 'Zura AI Chats',
+          subtitle: 'Browse recent Zura AI chats',
+          hint: 'Command',
+          aliases: ['chats'],
+          actionId: 'zura-ai-chats',
+        },
       ],
-      chats: [],
+      chats: [
+        {
+          id: 'chat:demo',
+          type: 'chat',
+          title: 'Demo chat',
+          subtitle: '2 messages',
+          hint: 'Chat',
+          aliases: ['Demo chat'],
+          sessionId: 'demo',
+        },
+      ],
     }))
 
     render(<CommandCenterOverlay />)
 
     expect(await screen.findByRole('heading', { name: 'Zura Extras' })).toBeInTheDocument()
-    expect(screen.getByText('Emojis')).toBeInTheDocument()
-    expect(screen.getByText('Search and paste emoji')).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Additional' })).not.toBeInTheDocument()
+    // System status + Open Downloads ship under Zura Extras (no System/Files sections).
+    expect(screen.queryByRole('heading', { name: 'System' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Files' })).not.toBeInTheDocument()
+    // Settings is a Zura Extras section entry — not a top-level category of pages.
+    expect(screen.queryByRole('heading', { name: 'Settings' })).not.toBeInTheDocument()
+    expect(screen.getByText('Settings')).toBeInTheDocument()
+    expect(screen.getByText('Windows Copilot')).toBeInTheDocument()
+    // Layout section entry lives under Zura Extras; snap tools are not top-level.
+    expect(screen.getByText('Layout')).toBeInTheDocument()
+    expect(screen.queryByText('Snap left')).not.toBeInTheDocument()
+    expect(screen.queryByText('Maximize')).not.toBeInTheDocument()
     expect(screen.getByText('System status')).toBeInTheDocument()
+    expect(screen.queryByText('Display')).not.toBeInTheDocument()
+    expect(screen.getByText('Open Downloads')).toBeInTheDocument()
+    expect(screen.getByText('Emojis')).toBeInTheDocument()
+    expect(screen.getByText('Zura AI Chats')).toBeInTheDocument()
+    expect(screen.queryByText('Demo chat')).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Actions' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Chats' })).not.toBeInTheDocument()
 
-    fireEvent.doubleClick(screen.getByRole('button', { name: /Emojis/i }))
+    fireEvent.doubleClick(screen.getByRole('option', { name: /^Settings/i }))
+    expect(await screen.findByRole('textbox', { name: /search settings/i })).toBeInTheDocument()
+    expect(await screen.findByText('Display')).toBeInTheDocument()
+    fireEvent.keyDown(screen.getByRole('textbox', { name: /search settings/i }), { key: 'Escape' })
+
+    fireEvent.doubleClick(await screen.findByRole('option', { name: /^Layout/i }))
+    expect(await screen.findByRole('textbox', { name: /search layout/i })).toBeInTheDocument()
+    expect(await screen.findByText('Snap left')).toBeInTheDocument()
+    expect(screen.getByText('Snap right')).toBeInTheDocument()
+    expect(screen.getByText('Maximize')).toBeInTheDocument()
+    fireEvent.keyDown(screen.getByRole('textbox', { name: /search layout/i }), { key: 'Escape' })
+
+    fireEvent.doubleClick(await screen.findByRole('option', { name: /Zura AI Chats/i }))
+    expect(await screen.findByRole('textbox', { name: /search chats/i })).toBeInTheDocument()
+    expect(await screen.findByText('Demo chat')).toBeInTheDocument()
+    fireEvent.keyDown(screen.getByRole('textbox', { name: /search chats/i }), { key: 'Escape' })
+
+    fireEvent.doubleClick(await screen.findByRole('option', { name: /Emojis/i }))
     const emojiSearch = await screen.findByRole('textbox', { name: /search emojis/i })
-    expect(await screen.findByRole('heading', { name: 'Popular' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /All Emojis/i })).toBeInTheDocument()
 
     fireEvent.change(emojiSearch, { target: { value: 'rocket' } })
     const rocket = await screen.findByRole('option', { name: 'Rocket' })
     expect(rocket).toBeInTheDocument()
     expect(rocket).toHaveTextContent('🚀')
-    // Grid cells are glyph-only (no name/keyword labels in the list).
     expect(screen.queryByText('Paste')).not.toBeInTheDocument()
 
     fireEvent.keyDown(emojiSearch, { key: 'Enter' })

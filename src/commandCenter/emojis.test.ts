@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { COMMAND_CENTER_EMOJI_SET, searchCommandCenterEmojis } from './emojis'
+import {
+  getCommandCenterBaseEmojis,
+  getCommandCenterEmojiSet,
+  resolveCommandCenterEmoji,
+  searchCommandCenterEmojis,
+} from './emojis'
 
 describe('Command Center emoji search', () => {
   it('finds emoji by canonical name and related keywords', () => {
@@ -13,6 +18,17 @@ describe('Command Center emoji search', () => {
       ({ emoji }) => emoji === '👍🏽'
     )
     expect(result?.name).toContain('Medium Skin Tone')
-    expect(COMMAND_CENTER_EMOJI_SET.has('👍🏽')).toBe(true)
+    expect(getCommandCenterEmojiSet().has('👍🏽')).toBe(true)
+  })
+
+  it('browses the full base emoji catalog when the query is empty', () => {
+    const all = searchCommandCenterEmojis('')
+    expect(all.length).toBe(getCommandCenterBaseEmojis().length)
+    expect(all.length).toBeGreaterThan(1500)
+  })
+
+  it('resolves paste candidates with optional variation selectors', () => {
+    expect(resolveCommandCenterEmoji('🚀')).toBe('🚀')
+    expect(resolveCommandCenterEmoji('not-an-emoji')).toBeNull()
   })
 })

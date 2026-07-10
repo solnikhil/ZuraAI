@@ -129,7 +129,10 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
     ...(isWindows
       ? {
           frame: false,
-          transparent: true,
+          // Keep the native window opaque at the compositor level so Windows 11
+          // can apply its rounded DWM frame. The renderer/background remain
+          // alpha-transparent below, allowing the acrylic material to show.
+          transparent: false,
           roundedCorners: true,
           backgroundMaterial: 'acrylic' as const,
         }

@@ -33,7 +33,10 @@ describe('Command Center main service', () => {
       data: { page: args.page },
     }))
     const executeSystemStatus = vi.fn(async () => ({ success: true, data: { disks: [] } }))
+    const pasteTextViaClipboard = vi.fn(async () => undefined)
     const performType = vi.fn(async () => undefined)
+    const restoreCommandCenterReturnTarget = vi.fn(async () => true)
+    const captureCommandCenterReturnTarget = vi.fn(() => 42)
     const executeAppList =
       overrides.executeAppList ??
       vi.fn(async () => ({
@@ -61,6 +64,12 @@ describe('Command Center main service', () => {
               source: 'windows-search',
               appUserModelId: 'Native.App',
               iconKey: 'native-icon',
+            },
+            {
+              name: 'Game Bar',
+              source: 'windows-search',
+              appUserModelId: 'Microsoft.XboxGamingOverlay_8wekyb3d8bbwe!App',
+              iconKey: 'game-bar-icon',
             },
           ],
         },
@@ -155,6 +164,7 @@ describe('Command Center main service', () => {
 
     vi.doMock('electron', () => ({
       app: {
+        getPath: vi.fn((name: string) => (name === 'userData' ? 'C:\\tmp\\zura-test-userData' : '')),
         getFileIcon: vi.fn(async () => ({
           isEmpty: () => false,
           toDataURL: () => 'data:image/png;base64,icon',
@@ -177,6 +187,24 @@ describe('Command Center main service', () => {
         }),
         removeHandler: vi.fn(),
       },
+    }))
+
+    vi.doMock('./secureStorage', () => ({
+      getSecureValueAsync: vi.fn(async () => null),
+      setSecureValueAsync: vi.fn(async () => true),
+    }))
+
+    vi.doMock('./commandCenterSearchLearning', () => ({
+      clearCommandCenterSearchLearningCache: vi.fn(),
+      personalizationBoost: vi.fn(() => 0),
+      recordCommandCenterSelection: vi.fn(async () => undefined),
+    }))
+
+    vi.doMock('./windowsSearchService', () => ({
+      disposeWindowsSearch: vi.fn(),
+      resolveWindowsSearchPath: vi.fn(async () => null),
+      searchWindowsIndex: vi.fn(async () => ({ apps: [] })),
+      warmWindowsSearch: vi.fn(),
     }))
 
     vi.doMock('./chatStore', () => ({
@@ -223,7 +251,14 @@ describe('Command Center main service', () => {
       executeSystemStatus,
     }))
 
-    vi.doMock('./tools/computer-use/actions', () => ({ performType }))
+    vi.doMock('./tools/computer-use/actions', () => ({ pasteTextViaClipboard, performType }))
+
+    vi.doMock('./commandCenterFocus', () => ({
+      captureCommandCenterReturnTarget,
+      restoreCommandCenterReturnTarget,
+      getCommandCenterReturnTarget: vi.fn(() => 42),
+      clearCommandCenterReturnTarget: vi.fn(),
+    }))
 
     vi.doMock('./tools/app-management', () => ({
       executeAppFind,
@@ -291,7 +326,10 @@ describe('Command Center main service', () => {
       executeSystemOpenPath,
       executeSystemSettingsOpen,
       executeSystemStatus,
+      pasteTextViaClipboard,
       performType,
+      restoreCommandCenterReturnTarget,
+      captureCommandCenterReturnTarget,
       executeAppList,
       executeAppFind,
       executeAppLaunch,
@@ -331,10 +369,7 @@ describe('Command Center main service', () => {
   })
 
   it('falls back when the primary global shortcut is already registered elsewhere', async () => {
-    const register = vi
-      .fn()
-      .mockReturnValueOnce(false)
-      .mockReturnValueOnce(true)
+    const register = vi.fn().mockReturnValueOnce(false).mockReturnValueOnce(true)
     const { service, unregister } = await loadService({ register })
 
     expect(service.setCommandCenterExtensionEnabled(true)).toEqual({
@@ -347,11 +382,7 @@ describe('Command Center main service', () => {
       'CommandOrControl+Shift+Space',
       expect.any(Function)
     )
-    expect(register).toHaveBeenNthCalledWith(
-      2,
-      'CommandOrControl+Alt+Space',
-      expect.any(Function)
-    )
+    expect(register).toHaveBeenNthCalledWith(2, 'CommandOrControl+Alt+Space', expect.any(Function))
 
     service.setCommandCenterExtensionEnabled(false)
     expect(unregister).toHaveBeenCalledWith('CommandOrControl+Alt+Space')
@@ -403,11 +434,19 @@ describe('Command Center main service', () => {
         expect.objectContaining({ id: 'system-status', label: 'System status' }),
         expect.objectContaining({ id: 'clipboard-to-chat', label: 'Ask about clipboard' }),
         expect.objectContaining({ id: 'focus-zuraai', label: 'Focus ZuraAI' }),
-        expect.objectContaining({ id: 'settings-display', label: 'Display settings' }),
-        expect.objectContaining({ id: 'settings-sound', label: 'Sound settings' }),
-        expect.objectContaining({ id: 'settings-network', label: 'Network settings' }),
-        expect.objectContaining({ id: 'settings-bluetooth', label: 'Bluetooth settings' }),
+        expect.objectContaining({ id: 'settings', label: 'Settings', kind: 'additional' }),
+        expect.objectContaining({ id: 'settings-display', label: 'Display' }),
+        expect.objectContaining({ id: 'settings-sound', label: 'Sound' }),
+        expect.objectContaining({ id: 'settings-wifi', label: 'Wi‑Fi' }),
+        expect.objectContaining({ id: 'open-windows-copilot', label: 'Windows Copilot' }),
         expect.objectContaining({ id: 'emoji-picker', label: 'Emojis', kind: 'additional' }),
+        expect.objectContaining({
+          id: 'zura-ai-chats',
+          label: 'Zura AI Chats',
+          kind: 'additional',
+        }),
+        expect.objectContaining({ id: 'layout', label: 'Layout', kind: 'additional' }),
+        expect.objectContaining({ id: 'zura-store', label: 'Zura Store', kind: 'additional' }),
       ])
     )
 
@@ -427,6 +466,10 @@ describe('Command Center main service', () => {
       success: true,
       data: { focused: true },
     })
+    await expect(execute?.({}, 'settings')).resolves.toEqual({
+      success: true,
+      data: { interactiveCommand: 'settings' },
+    })
     await expect(execute?.({}, 'settings-display')).resolves.toEqual({
       success: true,
       data: { page: 'display' },
@@ -438,6 +481,14 @@ describe('Command Center main service', () => {
     await expect(execute?.({}, 'emoji-picker')).resolves.toEqual({
       success: true,
       data: { interactiveCommand: 'emoji-picker' },
+    })
+    await expect(execute?.({}, 'zura-ai-chats')).resolves.toEqual({
+      success: true,
+      data: { interactiveCommand: 'zura-ai-chats' },
+    })
+    await expect(execute?.({}, 'layout')).resolves.toEqual({
+      success: true,
+      data: { interactiveCommand: 'layout' },
     })
     await expect(execute?.({}, 'format-drive')).resolves.toEqual({
       success: false,
@@ -461,7 +512,14 @@ describe('Command Center main service', () => {
   })
 
   it('inserts only bundled emojis into the previously focused app', async () => {
-    const { service, handlers, performType, hideCommandCenterWindow } = await loadService()
+    const {
+      service,
+      handlers,
+      hideCommandCenterWindow,
+      restoreCommandCenterReturnTarget,
+      pasteTextViaClipboard,
+      writeText,
+    } = await loadService()
     service.registerCommandCenterHandlers()
     service.setCommandCenterExtensionEnabled(true)
 
@@ -473,11 +531,20 @@ describe('Command Center main service', () => {
     })
     await expect(insertEmoji?.({}, '🚀')).resolves.toEqual({
       success: true,
-      data: { inserted: true },
+      data: { inserted: true, onClipboard: true },
     })
 
+    expect(writeText).toHaveBeenCalledWith('🚀')
     expect(hideCommandCenterWindow).toHaveBeenCalledTimes(1)
-    expect(performType).toHaveBeenCalledWith({ text: '🚀' })
+    expect(restoreCommandCenterReturnTarget).toHaveBeenCalled()
+    expect(pasteTextViaClipboard).toHaveBeenCalledWith(
+      '🚀',
+      expect.objectContaining({
+        settleMs: 40,
+        alreadyOnClipboard: true,
+        restoreClipboard: '🚀',
+      })
+    )
   })
 
   it('builds a searchable index and launches apps via the native open path', async () => {
@@ -512,12 +579,16 @@ describe('Command Center main service', () => {
     expect(
       (index as { apps: Array<{ title: string; existingWindow?: unknown }> }).apps
     ).toContainEqual(expect.objectContaining({ title: 'Kiro', existingWindow: undefined }))
-    // Native/UWP apps (appUserModelId only, no installed shortcut/target) are
-    // hidden from the default browse list...
-    expect(
-      (index as { apps: Array<{ title: string }> }).apps
-    ).not.toContainEqual(expect.objectContaining({ title: 'Native App' }))
-    // ...but reappear when the user searches for them.
+    // Native/UWP apps are valid installed apps even when Windows exposes only
+    // an AppUserModelID and no filesystem shortcut/target.
+    expect((index as { apps: Array<{ title: string }> }).apps).toContainEqual(
+      expect.objectContaining({ title: 'Native App' })
+    )
+    // No indexed product is explicitly excluded, including Xbox Game Bar.
+    expect((index as { apps: Array<{ title: string }> }).apps).toContainEqual(
+      expect.objectContaining({ title: 'Game Bar' })
+    )
+    // Native/UWP apps remain available through live search as well.
     const nativeSearchIndex = (await getIndex?.({}, 'native')) as {
       apps: Array<{ title: string; appUserModelId?: string }>
     }
@@ -540,8 +611,7 @@ describe('Command Center main service', () => {
     })
     expect(executeWindowFocus).not.toHaveBeenCalled()
 
-    // The native app is launched through the search path (with its query), which
-    // is the only way it is surfaced now.
+    // Native apps continue to launch through their main-owned AppUserModelID.
     await expect(executeItem?.({}, 'app:TmF0aXZlLkFwcA', 'native')).resolves.toEqual({
       success: true,
       data: { launched: true },
@@ -586,13 +656,16 @@ describe('Command Center main service', () => {
   })
 
   it('runs allowlisted secondary app actions from the Actions menu', async () => {
-    const { service, handlers, writeText, showItemInFolder } = await loadService()
+    const { service, handlers, writeText, showItemInFolder, executeSystemSettingsOpen } =
+      await loadService()
     service.registerCommandCenterHandlers()
     service.setCommandCenterExtensionEnabled(true)
 
     const getIndex = handlers.get('command-center:get-index')
     const executeItemAction = handlers.get('command-center:execute-item-action')
-    const index = (await getIndex?.()) as { apps: Array<{ id: string; title: string }> }
+    const index = (await getIndex?.()) as {
+      apps: Array<{ id: string; title: string; appUserModelId?: string }>
+    }
     const chrome = index.apps.find((app) => app.title === 'Chrome')
     expect(chrome).toBeTruthy()
 
@@ -613,6 +686,18 @@ describe('Command Center main service', () => {
       dismiss: true,
     })
     expect(showItemInFolder).toHaveBeenCalledWith(expect.stringMatching(/Chrome\.lnk$/i))
+
+    await expect(executeItemAction?.({}, chrome!.id, 'add-to-favorite')).resolves.toEqual({
+      success: false,
+      error: 'Favorites are not available yet.',
+    })
+
+    await expect(executeItemAction?.({}, chrome!.id, 'uninstall-application')).resolves.toEqual({
+      success: true,
+      dismiss: true,
+      status: 'Opened Apps settings to uninstall.',
+    })
+    expect(executeSystemSettingsOpen).toHaveBeenCalledWith({ page: 'apps', autoApprove: true })
 
     await expect(executeItemAction?.({}, chrome!.id, 'run-as-admin')).resolves.toEqual({
       success: false,

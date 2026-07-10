@@ -48,6 +48,7 @@ import type {
   CommandCenterSubmitResult,
   CommandCenterWorkflow,
   CommandCenterIndex,
+  CommandCenterNativeSearchResult,
   CommandCenterExecuteResult,
   CommandCenterItemActionId,
   CommandCenterItemActionResult,
@@ -196,6 +197,7 @@ const COMMAND_CENTER_INVOKE_CHANNELS = new Set<string>([
   'command-center:get-context',
   'command-center:list-actions',
   'command-center:get-index',
+  'command-center:search-native-index',
   'command-center:refresh-app-index',
   'command-center:save-workflow',
   'command-center:delete-workflow',
@@ -211,6 +213,7 @@ const COMMAND_CENTER_INVOKE_CHANNELS = new Set<string>([
 
 const COMMAND_CENTER_ON_CHANNELS = new Set<string>([
   'command-center:shown',
+  'command-center:hidden',
   'command-center:command',
 ])
 
@@ -742,6 +745,13 @@ contextBridge.exposeInMainWorld(
       assertAllowed('invoke', 'command-center:get-index', COMMAND_CENTER_INVOKE_CHANNELS)
       return ipcRenderer.invoke('command-center:get-index', query) as Promise<CommandCenterIndex>
     },
+    searchNativeIndex: (query: string) => {
+      assertAllowed('invoke', 'command-center:search-native-index', COMMAND_CENTER_INVOKE_CHANNELS)
+      return ipcRenderer.invoke(
+        'command-center:search-native-index',
+        query
+      ) as Promise<CommandCenterNativeSearchResult>
+    },
     refreshAppIndex: () => {
       assertAllowed('invoke', 'command-center:refresh-app-index', COMMAND_CENTER_INVOKE_CHANNELS)
       return ipcRenderer.invoke('command-center:refresh-app-index') as Promise<
@@ -814,6 +824,12 @@ contextBridge.exposeInMainWorld(
       const listener = () => callback()
       ipcRenderer.on('command-center:shown', listener)
       return () => ipcRenderer.removeListener('command-center:shown', listener)
+    },
+    onHidden: (callback: () => void) => {
+      assertAllowed('on', 'command-center:hidden', COMMAND_CENTER_ON_CHANNELS)
+      const listener = () => callback()
+      ipcRenderer.on('command-center:hidden', listener)
+      return () => ipcRenderer.removeListener('command-center:hidden', listener)
     },
     onCommand: (callback: (command: CommandCenterCommand) => void) => {
       assertAllowed('on', 'command-center:command', COMMAND_CENTER_ON_CHANNELS)

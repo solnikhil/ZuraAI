@@ -126,18 +126,46 @@ Start-Sleep -Milliseconds ${ACTION_DELAY_MS}
   await delay(ACTION_DELAY_MS)
 }
 
+/**
+ * Paste text through the clipboard + Ctrl+V.
+ * Used for Unicode/emoji-safe insertion (keybd_event cannot type astral-plane chars).
+ * Restores the prior clipboard after a short settle so the target app can paste first.
+ *
+ * When `alreadyOnClipboard` is true, the caller already wrote `text` to the clipboard
+ * and must pass `restoreClipboard` as the user's previous clipboard value.
+ */
+export async function pasteTextViaClipboard(
+  text: string,
+  options: {
+    settleMs?: number
+    alreadyOnClipboard?: boolean
+    restoreClipboard?: string
+  } = {}
+): Promise<void> {
+  if (!text) throw new Error('Text is required')
+  const settleMs = options.settleMs ?? 50
+
+  const previousClipboard =
+    options.restoreClipboard !== undefined ? options.restoreClipboard : clipboard.readText()
+  try {
+    if (!options.alreadyOnClipboard) {
+      clipboard.writeText(text)
+    }
+    await pressVirtualKeys([0x11, 0x56]) // Ctrl+V
+    await delay(settleMs)
+  } finally {
+    try {
+      clipboard.writeText(previousClipboard)
+    } catch {
+      // Best-effort restore; do not fail the paste if restore throws.
+    }
+  }
+}
+
 export async function performType(args: TypeArgs): Promise<void> {
   const { text } = args
   if (!text) throw new Error('Text is required')
-
-  const previousClipboard = clipboard.readText()
-  try {
-    clipboard.writeText(text)
-    await pressVirtualKeys([0x11, 0x56])
-    await delay(ACTION_DELAY_MS)
-  } finally {
-    clipboard.writeText(previousClipboard)
-  }
+  await pasteTextViaClipboard(text)
 }
 
 export async function performKeyPress(args: KeyArgs): Promise<void> {

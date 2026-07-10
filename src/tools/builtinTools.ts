@@ -1,3 +1,4 @@
+import { WINDOWS_SETTINGS_CATALOG } from '../commandCenter/windowsSettings'
 import type { ToolDescriptor } from './types'
 
 type BuiltinMainToolManifestEntry = Omit<ToolDescriptor, 'name'> & {
@@ -1116,8 +1117,8 @@ Safety rules:
       properties: {
         page: {
           type: 'string',
-          description: 'Settings page to open.',
-          enum: ['display', 'sound', 'bluetooth', 'network', 'notifications', 'apps', 'privacy'],
+          description: 'Allowlisted Windows Settings page id.',
+          enum: WINDOWS_SETTINGS_CATALOG.map((entry) => entry.page),
         },
       },
       required: ['page'],

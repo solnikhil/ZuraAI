@@ -274,12 +274,15 @@ export type CommandCenterActionId =
   | 'system-status'
   | 'clipboard-to-chat'
   | 'focus-zuraai'
-  | 'settings-display'
-  | 'settings-sound'
-  | 'settings-network'
-  | 'settings-bluetooth'
   | 'open-downloads'
   | 'emoji-picker'
+  | 'zura-ai-chats'
+  | 'layout'
+  | 'settings'
+  | 'zura-store'
+  | 'open-windows-copilot'
+  /** Nested Windows Settings pages: settings-<page> from the fixed catalog. */
+  | `settings-${string}`
 
 export interface CommandCenterAction {
   id: CommandCenterActionId
@@ -289,7 +292,7 @@ export interface CommandCenterAction {
 }
 
 export type CommandCenterWorkflowStep =
-  | { type: 'action'; actionId: CommandCenterActionId }
+  | { type: 'action'; actionId: string }
   | { type: 'app'; appPath: string; label?: string }
   | { type: 'window'; hwnd: number; label?: string }
   | { type: 'ai'; prompt: string }
@@ -314,6 +317,8 @@ export type CommandCenterIndexItem =
       hint: 'Workflow'
       aliases: string[]
       workflow: CommandCenterWorkflow
+      score?: number
+      matchReasons?: string[]
     }
   | {
       id: string
@@ -339,6 +344,8 @@ export type CommandCenterIndexItem =
         processId: number
       }
       rank?: number
+      score?: number
+      matchReasons?: string[]
     }
   | {
       id: string
@@ -350,6 +357,8 @@ export type CommandCenterIndexItem =
       hwnd: number
       processName: string
       processId: number
+      score?: number
+      matchReasons?: string[]
     }
   | {
       id: string
@@ -359,6 +368,8 @@ export type CommandCenterIndexItem =
       hint: 'Action' | 'Command'
       aliases: string[]
       actionId: CommandCenterActionId
+      score?: number
+      matchReasons?: string[]
     }
   | {
       id: string
@@ -368,11 +379,41 @@ export type CommandCenterIndexItem =
       hint: 'Chat'
       aliases: string[]
       sessionId: string
+      score?: number
+      matchReasons?: string[]
+    }
+  | {
+      id: string
+      type: 'file'
+      title: string
+      subtitle?: string
+      hint: 'File'
+      aliases: string[]
+      extension?: string
+      modifiedAt?: number
+      size?: number
+      iconDataUrl?: string
+      score: number
+      matchReasons: string[]
+    }
+  | {
+      id: string
+      type: 'folder'
+      title: string
+      subtitle?: string
+      hint: 'Folder'
+      aliases: string[]
+      modifiedAt?: number
+      iconDataUrl?: string
+      score: number
+      matchReasons: string[]
     }
 
 export interface CommandCenterIndex {
+  bestMatches: CommandCenterIndexItem[]
   workflows: CommandCenterIndexItem[]
   apps: CommandCenterIndexItem[]
+  files: CommandCenterIndexItem[]
   windows: CommandCenterIndexItem[]
   actions: CommandCenterIndexItem[]
   chats: CommandCenterIndexItem[]
@@ -385,7 +426,21 @@ export interface CommandCenterIndex {
       lastRefreshAt?: number
       refreshDurationMs?: number
     }
+    windowsSearch?: CommandCenterWindowsSearchDiagnostics
   }
+}
+
+export interface CommandCenterWindowsSearchDiagnostics {
+  ok: boolean
+  available: boolean
+  disabled?: boolean
+  error?: string
+  durationMs?: number
+}
+
+export interface CommandCenterNativeSearchResult {
+  files: CommandCenterIndexItem[]
+  diagnostics: CommandCenterWindowsSearchDiagnostics
 }
 
 export type CommandCenterAppDiagnostics = NonNullable<CommandCenterIndex['diagnostics']>['apps']
@@ -402,9 +457,16 @@ export interface CommandCenterExecuteResult {
 export type CommandCenterItemActionId =
   | 'open'
   | 'focus-window'
+  | 'force-quit'
   | 'show-in-folder'
+  | 'reveal-shortcut'
+  | 'add-to-favorite'
   | 'copy-path'
+  | 'copy-dir'
   | 'copy-name'
+  | 'copy-bundle-id'
+  | 'disable-application'
+  | 'uninstall-application'
 
 export interface CommandCenterItemActionResult {
   success: boolean
@@ -1010,6 +1072,7 @@ export interface CommandCenterAPI {
   getContext: () => Promise<ToolResult>
   listActions: () => Promise<CommandCenterAction[]>
   getIndex: (query?: string) => Promise<CommandCenterIndex>
+  searchNativeIndex: (query: string) => Promise<CommandCenterNativeSearchResult>
   refreshAppIndex: () => Promise<NonNullable<CommandCenterIndex['diagnostics']>['apps']>
   saveWorkflow: (workflow: Partial<CommandCenterWorkflow>) => Promise<CommandCenterWorkflow | null>
   deleteWorkflow: (id: string) => Promise<boolean>
@@ -1026,6 +1089,7 @@ export interface CommandCenterAPI {
   setLayout: (layout: 'search' | 'chat') => Promise<boolean>
   submitCommand: (text: string) => Promise<CommandCenterSubmitResult>
   onShown: (callback: () => void) => () => void
+  onHidden: (callback: () => void) => () => void
   onCommand: (callback: (command: CommandCenterCommand) => void) => () => void
 }
 

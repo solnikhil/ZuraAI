@@ -37,20 +37,54 @@ const POPULAR_EMOJIS = [
   '🔗',
   '⭐',
   '🏆',
+  '🤣',
+  '😘',
+  '😜',
+  '🤗',
+  '😴',
+  '🫠',
+  '💀',
+  '👻',
+  '🤖',
+  '😺',
+  '🐶',
+  '🐱',
+  '🦊',
+  '🐻',
+  '🐼',
+  '🦄',
+  '🌸',
+  '🌈',
+  '☀️',
+  '🌙',
+  '🍕',
+  '🍔',
+  '☕',
+  '🍺',
+  '⚽',
+  '🎮',
+  '🎵',
+  '📱',
+  '💻',
+  '⌚',
+  '🎁',
+  '🎂',
+  '🏠',
+  '✈️',
+  '🚗',
+  '💬',
+  '📝',
+  '🧡',
+  '💛',
+  '💚',
+  '💙',
+  '💜',
+  '🖤',
+  '🤍',
+  '💔',
+  '❣️',
+  '💕',
 ] as const
-
-function displayName(keywords: string[]): string {
-  const source = keywords[0] || 'emoji'
-  return source.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
-}
-
-const BASE_EMOJIS: CommandCenterEmoji[] = Object.entries(emojiKeywords).map(
-  ([emoji, keywords]) => ({
-    emoji,
-    name: displayName(keywords),
-    keywords,
-  })
-)
 
 const SKIN_TONES = [
   { emoji: '🏻', name: 'Light Skin Tone', keywords: ['light_skin_tone', 'skin_tone_2'] },
@@ -70,6 +104,11 @@ const SKIN_TONES = [
 
 const emojiModifierBase = /\p{Emoji_Modifier_Base}/u
 
+function displayName(keywords: string[]): string {
+  const source = keywords[0] || 'emoji'
+  return source.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
+}
+
 function skinToneVariants(entry: CommandCenterEmoji): CommandCenterEmoji[] {
   const codePoints = Array.from(entry.emoji)
   const modifierIndex = codePoints.findIndex((codePoint) => emojiModifierBase.test(codePoint))
@@ -85,18 +124,93 @@ function skinToneVariants(entry: CommandCenterEmoji): CommandCenterEmoji[] {
   })
 }
 
-export const COMMAND_CENTER_EMOJIS: CommandCenterEmoji[] = BASE_EMOJIS.flatMap((entry) => [
-  entry,
-  ...skinToneVariants(entry),
-])
+/** Lazy catalog state — built on first emoji open/search/paste, not at import. */
+let baseEmojis: CommandCenterEmoji[] | null = null
+let browseEmojis: CommandCenterEmoji[] | null = null
+let fullEmojis: CommandCenterEmoji[] | null = null
+let emojiSet: Set<string> | null = null
+let popularEmojis: CommandCenterEmoji[] | null = null
 
-export const COMMAND_CENTER_EMOJI_SET = new Set(COMMAND_CENTER_EMOJIS.map(({ emoji }) => emoji))
+function ensureBaseCatalog(): CommandCenterEmoji[] {
+  if (baseEmojis) return baseEmojis
+  baseEmojis = Object.entries(emojiKeywords).map(([emoji, keywords]) => ({
+    emoji,
+    name: displayName(keywords),
+    keywords,
+  }))
+  return baseEmojis
+}
 
-const emojiByValue = new Map(COMMAND_CENTER_EMOJIS.map((entry) => [entry.emoji, entry]))
+function ensurePopular(): CommandCenterEmoji[] {
+  if (popularEmojis) return popularEmojis
+  const byEmoji = new Map(ensureBaseCatalog().map((entry) => [entry.emoji, entry]))
+  const seen = new Set<string>()
+  const out: CommandCenterEmoji[] = []
+  for (const glyph of POPULAR_EMOJIS) {
+    if (seen.has(glyph)) continue
+    const entry = byEmoji.get(glyph)
+    if (!entry) continue
+    seen.add(glyph)
+    out.push(entry)
+  }
+  popularEmojis = out
+  return out
+}
 
-export const POPULAR_COMMAND_CENTER_EMOJIS = POPULAR_EMOJIS.map((emoji) =>
-  emojiByValue.get(emoji)
-).filter((entry): entry is CommandCenterEmoji => Boolean(entry))
+/** Popular-first full base list for empty-query browse (no skin-tone spam). */
+function ensureBrowseCatalog(): CommandCenterEmoji[] {
+  if (browseEmojis) return browseEmojis
+  const popular = ensurePopular()
+  const popularSet = new Set(popular.map((entry) => entry.emoji))
+  // Keep emojilib order for the rest — avoid sorting 1.9k on first open.
+  const rest = ensureBaseCatalog().filter((entry) => !popularSet.has(entry.emoji))
+  browseEmojis = [...popular, ...rest]
+  return browseEmojis
+}
+
+/** Base + skin-tone variants — only when search/allowlist needs them. */
+function ensureFullCatalog(): CommandCenterEmoji[] {
+  if (fullEmojis) return fullEmojis
+  fullEmojis = ensureBaseCatalog().flatMap((entry) => [entry, ...skinToneVariants(entry)])
+  return fullEmojis
+}
+
+function ensureEmojiSet(): Set<string> {
+  if (emojiSet) return emojiSet
+  const set = new Set<string>()
+  for (const { emoji } of ensureFullCatalog()) {
+    set.add(emoji)
+    const stripped = emoji.replace(/\uFE0F/g, '')
+    if (stripped) set.add(stripped)
+  }
+  emojiSet = set
+  return set
+}
+
+export function getCommandCenterBaseEmojis(): CommandCenterEmoji[] {
+  return ensureBaseCatalog()
+}
+
+export function getCommandCenterEmojiSet(): Set<string> {
+  return ensureEmojiSet()
+}
+
+/** Alias used by tests/main — same as getCommandCenterEmojiSet(). */
+export const COMMAND_CENTER_EMOJI_SET = {
+  has(value: string): boolean {
+    return ensureEmojiSet().has(value)
+  },
+  get size(): number {
+    return ensureEmojiSet().size
+  },
+} as unknown as Set<string>
+
+/** Alias used by tests — length reflects full base catalog. */
+export const COMMAND_CENTER_BASE_EMOJIS = {
+  get length(): number {
+    return ensureBaseCatalog().length
+  },
+} as unknown as CommandCenterEmoji[]
 
 function normalized(value: string): string {
   return value
@@ -128,11 +242,36 @@ function scoreEmoji(entry: CommandCenterEmoji, rawQuery: string): number {
   return 0
 }
 
-export function searchCommandCenterEmojis(query: string, limit = 80): CommandCenterEmoji[] {
-  if (!query.trim()) return POPULAR_COMMAND_CENTER_EMOJIS.slice(0, limit)
-  return COMMAND_CENTER_EMOJIS.map((entry) => ({ entry, score: scoreEmoji(entry, query) }))
+/**
+ * Search / browse the emoji catalog (lazy-built).
+ * - Empty query: every base emoji (popular first).
+ * - Query: base + skin-tone variants, ranked.
+ */
+export function searchCommandCenterEmojis(
+  query: string,
+  limit = query.trim() ? 240 : Number.POSITIVE_INFINITY
+): CommandCenterEmoji[] {
+  if (!query.trim()) {
+    const ordered = ensureBrowseCatalog()
+    if (!Number.isFinite(limit)) return ordered
+    return ordered.slice(0, Math.max(0, limit))
+  }
+
+  return ensureFullCatalog()
+    .map((entry) => ({ entry, score: scoreEmoji(entry, query) }))
     .filter(({ score }) => score > 0)
     .sort((a, b) => b.score - a.score || a.entry.name.localeCompare(b.entry.name))
-    .slice(0, limit)
+    .slice(0, Math.max(0, limit))
     .map(({ entry }) => entry)
+}
+
+/** Resolve a paste candidate against the allowlist (handles FE0F variants). */
+export function resolveCommandCenterEmoji(value: string): string | null {
+  const set = ensureEmojiSet()
+  if (set.has(value)) return value
+  const stripped = value.replace(/\uFE0F/g, '')
+  if (set.has(stripped)) return stripped
+  const withVs = `${stripped}\uFE0F`
+  if (set.has(withVs)) return withVs
+  return null
 }

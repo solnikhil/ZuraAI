@@ -142,6 +142,7 @@ Main `app.getPath('userData')`:
 - Memories and memory summaries
 - Scheduled task definitions, lookout snapshots, reminder logs, and run history
 - Command Center saved workflow definitions (`command-center-workflows.json`)
+- Command Center privacy-preserving search-learning signals (`command-center-search-learning.json`); stored identities and query prefixes are HMACs, never raw queries, paths, or file content
 - Analytics consent/install metadata
 - Dev-only chat diagnostics JSONL
 - Artifact export files for external opening
@@ -150,6 +151,7 @@ Secrets:
 
 - API keys and MCP secrets live in `electron/secureStorage.ts`.
 - Stored provider keys include OpenRouter, Groq, Alibaba, Fireworks, DeepSeek, OpenCode Go, NVIDIA, Tavily, and Brevo.
+- The Command Center search-learning HMAC key is also stored through `safeStorage`; it is main-only and is not a provider credential.
 - Renderer should read key presence when possible and hydrate actual secrets only when required for a provider/tool call.
 - `safeStorage` is required for secret reads/writes. Do not add plaintext secret persistence fallback.
 
@@ -295,14 +297,21 @@ assistant mode must not unregister the shortcut or hide the overlay.
 Command Center overlay lifecycle (RAM): create on first show, hide on blur/dismiss,
 **destroy after ~2 minutes idle** (or immediately when extension is disabled / app
 quits) so a second Chromium renderer is not kept warm forever. `backgroundThrottling`
-is enabled on the overlay. Empty-query browse index uses a short main-process
+is enabled on the overlay. While the warm window is still alive, the renderer soft-
+resumes the last UI screen (search query, emoji view, ask/chat) for the same ~2
+minute window via `command-center:shown` / `command-center:hidden` instead of always
+resetting to home; after that interval (or after idle destroy recreates the window)
+it returns to the root search home. Empty-query browse index uses a short main-process
 stale-while-revalidate cache (fresh ~12s, stale serve up to ~60s with background
 rebuild); show/shortcut prefetches that cache in parallel with window show. The
 overlay soft-reopens without clearing the previous result list so reopen paints
 immediately while `get-index` refreshes. Selected **app** rows expose a footer
 **Actions** menu (Raycast-style, `Ctrl/Cmd+K`) over a fixed main-process
 allowlist via `command-center:execute-item-action`: `open`, `focus-window`,
-`show-in-folder`, `copy-path`, `copy-name`. Paths always resolve from the
+`show-in-folder`, `reveal-shortcut`, `add-to-favorite` (UI present, not wired
+yet), `copy-path`, `copy-dir`, `copy-name`, `copy-bundle-id`, `force-quit`,
+`disable-application`, `uninstall-application` (last two open Windows Apps
+settings for the user to finish). Paths always resolve from the
 cached index item in main — never from renderer-supplied paths. Do not add
 admin/run-as, freeform shell, or arbitrary tool names without an architecture
 update. Main window uses background throttling when unfocused,
@@ -310,32 +319,51 @@ minimized, or hidden, and on Windows/Linux close (X) **hides to tray** instead o
 quitting so global shortcut / automations can keep a single throttled renderer.
 Direct overlay actions
 are a fixed main-process allowlist (`snap-left`, `snap-right`, `maximize-window`,
-`system-status`, `clipboard-to-chat`, `focus-zuraai`, `settings-display`,
-`settings-sound`, `settings-network`, `settings-bluetooth`, `open-downloads`,
-`emoji-picker`) and must not accept
-renderer-provided commands, paths, protocol URIs, shell strings, or arbitrary
-tool names. Action aliases are search metadata only and must not affect the
+`system-status`, `clipboard-to-chat`, `focus-zuraai`, `open-downloads`,
+`emoji-picker`, `zura-ai-chats`, `layout`, `settings`, `open-windows-copilot`,
+and `settings-<page>` ids from the fixed Windows Settings catalog) and must not
+accept renderer-provided commands, paths, protocol URIs, shell strings, or
+arbitrary tool names. Windows Settings pages and Copilot open only via
+allowlisted `ms-settings:` / `ms-copilot:` targets owned by main. Action aliases are search metadata only and must not affect the
 main-process execution allowlist. Clipboard content may be read for the
 explicit `clipboard-to-chat` user action, is capped before chat handoff, and
 must not be read as background context. The fixed Emojis command may also
 temporarily swap and restore clipboard text solely while inserting a selected
 emoji; the prior clipboard value must not cross IPC, be persisted, or become
 assistant context.
-The renderer groups convenience commands under a first-class `Zura Extras`
-category in the Command Center results list. Items in that category use the same
-list-row layout as Apps/Actions (not a store card grid, and not a nested store
-entry). Its first fixed command, `Emojis`, opens a keyboard-first emoji grid
+Root Command Center browse groups results by category (not a flat Actions dump):
+Saved Workflows, Apps, Windows (open windows), and `Zura Extras` (first-party
+items/sections such as Layout, Settings, Zura Store, Emojis, Zura AI Chats, Windows Copilot,
+system status, open Downloads, clipboard → chat, focus ZuraAI). There are no
+separate top-level System, Files, Settings, Actions, or Chats sections.
+`Zura Store` is currently a renderer-owned, presentation-only nested catalogue:
+it filters a bundled list of curated extension concepts locally, but it does not
+install code, request credentials, persist extension state, or add tool
+capabilities. Install controls remain visibly unavailable until a reviewed
+extension install/runtime architecture is added.
+`Settings` is a nested Zura Extras command that lists a fixed allowlist of major
+Windows Settings pages (and search can surface those pages). `Layout` is a nested
+Zura Extras command for snap left/right and maximize. `Windows Copilot` opens via
+the fixed `ms-copilot:` protocol only (no freeform URIs). Individual recent chats
+are not listed on the empty browse home; `Zura AI Chats` opens a nested
+searchable chat list (matching chats may still appear under Zura Extras while
+the user is typing a query). `Emojis` opens a keyboard-first emoji grid
 (glyph-only cells, searchable by name/keywords) backed by the bundled
 `emojilib` Unicode keyword dataset, with generated Unicode skin-tone variants.
-The emoji catalog is app-bundled (dependency bumps), not a live remote API, so
-main can validate inserts against a fixed allowlist. Typing `:` at the start of
-root Command Center search opens the same emoji command with the remaining text
-as its query. Selecting a result invokes only the narrow
-`command-center:insert-emoji` channel with the chosen Unicode string. Main
-validates the string against the same bundled dataset, hides the overlay to
-restore the previously focused app, inserts the emoji through the fixed native
-typing path, and restores the user's clipboard. This channel must not accept
-arbitrary text or expose a general clipboard/type-text API.
+The emoji catalog is the full bundled `emojilib` base set (plus generated
+skin-tone variants for search/paste), app-bundled via dependency bumps — not a
+live remote API — so main can validate inserts against a fixed allowlist.
+Browse shows every base emoji (popular first); search includes skin-tone
+variants. Typing `:` at the start of root Command Center search opens the same
+emoji command with the remaining text as its query. Selecting a result invokes
+only the narrow `command-center:insert-emoji` channel with the chosen Unicode
+string. Main validates the string against the same bundled dataset. Before the
+overlay is shown, main snapshots the OS foreground window HWND. On insert it
+copies the emoji to the system clipboard (and leaves it there so the user can
+still Ctrl+V / Win+V if the original text field closed), hides the overlay,
+best-effort restores that window and sends Ctrl+V. The prior clipboard is not
+restored after insert — clipboard-first is the product guarantee. This channel
+must not accept arbitrary text or expose a general clipboard/type-text API.
 Command Center search uses narrow `window.commandCenter` bridge methods to read
 a typed index of saved workflows, apps from the main-process
 `appIndexService`, live top-level windows, fixed actions, and recent chats. The
@@ -380,6 +408,22 @@ is the narrow bridge for opening a promoted overlay chat in the main ZuraAI chat
 surface. The overlay may request only the fixed `search` or `chat` layout through
 `command-center:set-layout`; main owns the actual BrowserWindow bounds so the
 renderer cannot set arbitrary window geometry.
+Command Center universal search uses the narrow
+`command-center:search-native-index` channel. The renderer may send only a
+bounded search expression; main parses a fixed source/filter grammar and never
+accepts SQL, Windows Search property names, filesystem scopes, or paths. Existing
+app/window/settings/chat results render first while indexed files and folders
+arrive progressively. On Windows, main owns a lazy hidden Windows PowerShell
+helper process that keeps one read-only `Search.CollatorDSO` / `SystemIndex`
+connection and exchanges bounded JSONL requests. It starts when Command Center
+is shown, is destroyed with Command Center runtime caches, and never crawls the
+filesystem or changes Windows indexing configuration. File rows expose only
+opaque IDs and display metadata; main keeps a short-lived opaque-ID-to-path cache
+and resolves open, reveal, and copy actions itself. If Windows Search is disabled,
+stopped, unavailable, or times out, the file source returns an explicit diagnostic
+and no fallback. Search learning is main-owned, capped and decayed, and uses a
+secure-storage-backed HMAC key so the learning file contains neither raw queries
+nor target paths.
 Agent Mode renderer-local tool-call approvals use the narrow
 `agent-approval:request` channel to show a main-owned always-on-top approval
 overlay near the active desktop. The renderer sends only sanitized display

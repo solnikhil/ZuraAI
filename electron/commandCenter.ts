@@ -1,9 +1,22 @@
 import { clipboard, globalShortcut, ipcMain, shell } from 'electron'
+import { execFileSync } from 'child_process'
 import os from 'os'
 import path from 'path'
 
-import { COMMAND_CENTER_EMOJI_SET } from '../src/commandCenter/emojis'
-import { scoreWindowSearch } from '../src/commandCenter/search'
+import { resolveCommandCenterEmoji } from '../src/commandCenter/emojis'
+import {
+  parseCommandCenterQuery,
+  queryAllowsSource,
+  scoreAppSearch,
+  scoreGenericSearch,
+  scoreSearchFields,
+  scoreWindowSearch,
+} from '../src/commandCenter/search'
+import type {
+  CommandCenterIndex,
+  CommandCenterIndexItem,
+  CommandCenterNativeSearchResult,
+} from '../src/electron/types'
 import {
   clearAppIconCache,
   getCachedAppIcon,
@@ -18,7 +31,6 @@ import {
   listCommandCenterWorkflows,
   markCommandCenterWorkflowRun,
   saveCommandCenterWorkflow,
-  type CommandCenterWorkflow,
 } from './commandCenterWorkflows'
 import {
   createMainWindow,
@@ -35,16 +47,46 @@ import {
   executeSystemSettingsOpen,
   executeSystemStatus,
   executeWindowSnap,
+  executeWindowsCopilotOpen,
 } from './tools/os-integration'
-import { performType } from './tools/computer-use/actions'
+import { getSupportedWindowsSettingsCatalog } from '../src/commandCenter/windowsSettings'
+import { restoreCommandCenterReturnTarget } from './commandCenterFocus'
+import { pasteTextViaClipboard } from './tools/computer-use/actions'
 import { executeAppFind, executeAppLaunch, executeAppList } from './tools/app-management'
-import { executeWindowClose, executeWindowFocus, executeWindowList } from './tools/window-management'
+import {
+  executeWindowClose,
+  executeWindowFocus,
+  executeWindowList,
+} from './tools/window-management'
+import {
+  disposeWindowsSearch,
+  resolveWindowsSearchPath,
+  searchWindowsIndex,
+  warmWindowsSearch,
+} from './windowsSearchService'
+import {
+  clearCommandCenterSearchLearningCache,
+  personalizationBoost,
+  recordCommandCenterSelection,
+} from './commandCenterSearchLearning'
 
 const COMMAND_CENTER_SHORTCUT = 'CommandOrControl+Shift+Space'
 const COMMAND_CENTER_FALLBACK_SHORTCUT = 'CommandOrControl+Alt+Space'
 const MAX_CLIPBOARD_CONTEXT_LENGTH = 4_000
 const MAX_INDEX_QUERY_LENGTH = 120
-const COMMAND_CENTER_ACTIONS = [
+
+/** Fixed Windows Settings pages → Command Center child rows (nested under Settings). */
+const WINDOWS_SETTINGS_ACTION_CATALOG = getSupportedWindowsSettingsCatalog(
+  Number(os.release().split('.').at(-1)) || undefined
+)
+const SETTINGS_CHILD_ACTIONS = WINDOWS_SETTINGS_ACTION_CATALOG.map((entry) => ({
+  id: `settings-${entry.page}`,
+  label: entry.label,
+  kind: 'settings' as const,
+  aliases: entry.aliases,
+}))
+
+const COMMAND_CENTER_BASE_ACTIONS = [
   { id: 'snap-left', label: 'Snap left', kind: 'window', aliases: ['tile left'] },
   { id: 'snap-right', label: 'Snap right', kind: 'window', aliases: ['tile right'] },
   {
@@ -67,25 +109,6 @@ const COMMAND_CENTER_ACTIONS = [
   },
   { id: 'focus-zuraai', label: 'Focus ZuraAI', kind: 'app', aliases: ['show zura', 'open zura'] },
   {
-    id: 'settings-display',
-    label: 'Display settings',
-    kind: 'settings',
-    aliases: ['screen', 'monitor'],
-  },
-  {
-    id: 'settings-sound',
-    label: 'Sound settings',
-    kind: 'settings',
-    aliases: ['audio settings', 'speaker'],
-  },
-  {
-    id: 'settings-network',
-    label: 'Network settings',
-    kind: 'settings',
-    aliases: ['wifi', 'wi-fi', 'internet'],
-  },
-  { id: 'settings-bluetooth', label: 'Bluetooth settings', kind: 'settings', aliases: ['devices'] },
-  {
     id: 'open-downloads',
     label: 'Open Downloads',
     kind: 'filesystem',
@@ -97,7 +120,68 @@ const COMMAND_CENTER_ACTIONS = [
     kind: 'additional',
     aliases: ['emoji', 'emoticon', 'smiley', 'symbols'],
   },
+  {
+    id: 'zura-ai-chats',
+    label: 'Zura AI Chats',
+    kind: 'additional',
+    aliases: ['chats', 'chat history', 'conversations', 'recent chats'],
+  },
+  {
+    id: 'layout',
+    label: 'Layout',
+    kind: 'additional',
+    aliases: ['snap', 'tile', 'window layout', 'arrange windows'],
+  },
+  {
+    id: 'settings',
+    label: 'Settings',
+    kind: 'additional',
+    aliases: ['windows settings', 'ms-settings', 'control panel'],
+  },
+  {
+    id: 'zura-store',
+    label: 'Zura Store',
+    kind: 'additional',
+    aliases: ['extensions', 'plugins', 'integrations', 'add-ons', 'marketplace'],
+  },
+  {
+    id: 'open-windows-copilot',
+    label: 'Windows Copilot',
+    kind: 'additional',
+    aliases: ['copilot', 'windows ai', 'microsoft copilot'],
+  },
 ] as const
+
+const COMMAND_CENTER_ACTIONS = [...COMMAND_CENTER_BASE_ACTIONS, ...SETTINGS_CHILD_ACTIONS]
+
+/** Friendly subtitles for fixed command rows. */
+const ACTION_SUBTITLES: Record<string, string> = {
+  'snap-left': 'Tile the active window left',
+  'snap-right': 'Tile the active window right',
+  'maximize-window': 'Maximize the active window',
+  'system-status': 'Battery, disk, and network snapshot',
+  'clipboard-to-chat': 'Ask Zura about copied text',
+  'focus-zuraai': 'Bring the main ZuraAI window forward',
+  'open-downloads': 'Open your Downloads folder',
+  'emoji-picker': 'Search and paste emoji',
+  'zura-ai-chats': 'Browse recent Zura AI chats',
+  layout: 'Snap, tile, and maximize the active window',
+  settings: 'Open Windows Settings pages',
+  'zura-store': 'Discover extensions for Command Center',
+  'open-windows-copilot': 'Open Windows Copilot',
+  ...Object.fromEntries(
+    WINDOWS_SETTINGS_ACTION_CATALOG.map((entry) => [`settings-${entry.page}`, entry.subtitle])
+  ),
+}
+
+/** Interactive extras that open a nested Command Center view in the renderer. */
+const INTERACTIVE_COMMAND_IDS = new Set<string>([
+  'emoji-picker',
+  'zura-ai-chats',
+  'layout',
+  'settings',
+  'zura-store',
+])
 
 /**
  * Secondary per-item actions (Raycast-style Actions menu). Fixed allowlist only —
@@ -113,6 +197,10 @@ const COMMAND_CENTER_ITEM_ACTIONS = [
   'reveal-shortcut',
   'copy-dir',
   'force-quit',
+  'add-to-favorite',
+  'copy-bundle-id',
+  'disable-application',
+  'uninstall-application',
 ] as const
 
 type CommandCenterItemActionId = (typeof COMMAND_CENTER_ITEM_ACTIONS)[number]
@@ -156,6 +244,8 @@ function clearCommandCenterRuntimeCaches(): void {
   browseIndexCache = null
   browseIndexInflight = null
   clearAppIconCache()
+  disposeWindowsSearch()
+  clearCommandCenterSearchLearningCache()
 }
 
 /** Re-attach icon data-URLs from the main icon cache without rebuilding the index. */
@@ -220,84 +310,6 @@ function prefetchBrowseIndex(): void {
 
 type CommandCenterActionId = (typeof COMMAND_CENTER_ACTIONS)[number]['id']
 
-type CommandCenterIndexItem =
-  | {
-      id: string
-      type: 'workflow'
-      title: string
-      subtitle?: string
-      hint: 'Workflow'
-      aliases: string[]
-      workflow: CommandCenterWorkflow
-    }
-  | {
-      id: string
-      type: 'app'
-      title: string
-      subtitle?: string
-      hint: 'Application'
-      aliases: string[]
-      appPath?: string
-      shortcutPath?: string
-      targetPath?: string
-      source?: string
-      launchStrategy?: 'appUserModelId' | 'shortcutPath'
-      appUserModelId?: string
-      iconKey?: string
-      iconDataUrl?: string
-      /** True while main is still extracting this app's icon. */
-      iconPending?: boolean
-      existingWindow?: WindowMatch
-      rank?: number
-    }
-  | {
-      id: string
-      type: 'window'
-      title: string
-      subtitle?: string
-      hint: 'Window'
-      aliases: string[]
-      hwnd: number
-      processName: string
-      processId: number
-    }
-  | {
-      id: string
-      type: 'action'
-      title: string
-      subtitle?: string
-      hint: 'Action' | 'Command'
-      aliases: string[]
-      actionId: CommandCenterActionId
-    }
-  | {
-      id: string
-      type: 'chat'
-      title: string
-      subtitle?: string
-      hint: 'Chat'
-      aliases: string[]
-      sessionId: string
-    }
-
-interface CommandCenterIndex {
-  workflows: CommandCenterIndexItem[]
-  apps: CommandCenterIndexItem[]
-  windows: CommandCenterIndexItem[]
-  actions: CommandCenterIndexItem[]
-  chats: CommandCenterIndexItem[]
-  diagnostics?: {
-    apps?: {
-      ok: boolean
-      stale?: boolean
-      error?: string
-      sourceCounts?: Record<string, number>
-      lastRefreshAt?: number
-      refreshDurationMs?: number
-    }
-  }
-}
-
 interface WindowMatch {
   hwnd: number
   title: string
@@ -317,15 +329,6 @@ function indexQuery(value: unknown): string {
 function compactExecutableName(value: string | undefined): string {
   if (!value) return ''
   return compactText(path.basename(value, path.extname(value)))
-}
-
-// An "installed" app is backed by a real executable/shortcut on disk. Native
-// Windows/UWP/store surfaces (Settings, Store, etc.) only carry an
-// appUserModelId with no target or shortcut path. We hide those from the default
-// browse list; they still return via the live search path (executeAppFind).
-function isInstalledApp(app: Record<string, unknown>): boolean {
-  const hasText = (value: unknown): boolean => typeof value === 'string' && value.trim().length > 0
-  return hasText(app.targetPath) || hasText(app.shortcutPath) || hasText(app.path)
 }
 
 function normalizeWindows(raw: unknown): WindowMatch[] {
@@ -479,7 +482,9 @@ function appDiagnosticsFromToolResult(
 }
 
 async function buildCommandCenterIndex(query: unknown = ''): Promise<CommandCenterIndex> {
-  const appQuery = indexQuery(query)
+  const rawQuery = indexQuery(query)
+  const parsedQuery = parseCommandCenterQuery(rawQuery)
+  const appQuery = parsedQuery.normalizedText
   const [staticInputs, appsResult] = await Promise.all([
     getIndexStaticInputs(),
     appQuery ? executeAppFind({ query: appQuery }) : executeAppList(),
@@ -509,67 +514,65 @@ async function buildCommandCenterIndex(query: unknown = ''): Promise<CommandCent
     }
   }
 
-  // Default browse list shows installed apps only; a live query keeps native
-  // Windows/UWP results so the user can still find them by searching.
-  const candidateApps = Array.from(dedupedApps.values())
-  const browsableApps = appQuery ? candidateApps : candidateApps.filter(isInstalledApp)
+  // AppUserModelID-only entries are valid installed Store/UWP apps and remain
+  // launchable through the existing main-owned app index. Show every indexed
+  // app, including Win32, Windows system, protocol, and third-party entries.
+  const browsableApps = Array.from(dedupedApps.values())
 
   // Rank first, then warm icons only for the rows the overlay is likely to show.
   // Extracting icons for the full catalogue on every poll thrashes the LRU cache
   // and makes app icons blink as entries fall in and out.
   const rankedAppRows = (
     await Promise.all(
-      browsableApps
-        .slice(0, appQuery ? 40 : 120)
-        .map(async (app) => {
-          const name = String(app.name)
-          const shortcutPath =
-            typeof app.shortcutPath === 'string'
-              ? String(app.shortcutPath)
-              : typeof app.path === 'string'
-                ? String(app.path)
-                : undefined
-          const appPath = shortcutPath
-          const appUserModelId =
-            typeof app.appUserModelId === 'string' ? String(app.appUserModelId) : undefined
-          const targetPath = typeof app.targetPath === 'string' ? app.targetPath : undefined
-          const args = typeof app.args === 'string' ? app.args : undefined
-          const source = typeof app.source === 'string' ? app.source : undefined
-          const indexedIconKey = typeof app.iconKey === 'string' ? app.iconKey : undefined
-          const rank = typeof app.rank === 'number' ? app.rank : undefined
-          const id =
-            typeof app.id === 'string'
-              ? app.id
-              : `app:${Buffer.from(appPath ?? appUserModelId ?? name).toString('base64url')}`
-          const processStartExe = parseProcessStartExe(args)
-          const existingWindow = findExistingAppWindow(name, windows, [
-            targetPath ?? '',
-            processStartExe ?? '',
-          ])
-          const iconKey = indexedIconKey ?? targetPath ?? existingWindow?.path
-          const launchStrategy: 'appUserModelId' | 'shortcutPath' = appUserModelId
-            ? 'appUserModelId'
-            : 'shortcutPath'
-          return {
-            id,
-            type: 'app' as const,
-            title: name,
-            subtitle: existingWindow ? existingWindow.title : undefined,
-            hint: 'Application' as const,
-            aliases: [name, appUserModelId ?? ''].filter(Boolean),
-            appPath,
-            shortcutPath,
-            targetPath,
-            source,
-            launchStrategy,
-            appUserModelId,
-            iconKey,
-            iconDataUrl: undefined as string | undefined,
-            iconPending: false,
-            existingWindow: existingWindow ? publicWindowMatch(existingWindow) : undefined,
-            rank,
-          }
-        })
+      browsableApps.slice(0, appQuery ? 40 : 120).map(async (app) => {
+        const name = String(app.name)
+        const shortcutPath =
+          typeof app.shortcutPath === 'string'
+            ? String(app.shortcutPath)
+            : typeof app.path === 'string'
+              ? String(app.path)
+              : undefined
+        const appPath = shortcutPath
+        const appUserModelId =
+          typeof app.appUserModelId === 'string' ? String(app.appUserModelId) : undefined
+        const targetPath = typeof app.targetPath === 'string' ? app.targetPath : undefined
+        const args = typeof app.args === 'string' ? app.args : undefined
+        const source = typeof app.source === 'string' ? app.source : undefined
+        const indexedIconKey = typeof app.iconKey === 'string' ? app.iconKey : undefined
+        const rank = typeof app.rank === 'number' ? app.rank : undefined
+        const id =
+          typeof app.id === 'string'
+            ? app.id
+            : `app:${Buffer.from(appPath ?? appUserModelId ?? name).toString('base64url')}`
+        const processStartExe = parseProcessStartExe(args)
+        const existingWindow = findExistingAppWindow(name, windows, [
+          targetPath ?? '',
+          processStartExe ?? '',
+        ])
+        const iconKey = indexedIconKey ?? targetPath ?? existingWindow?.path
+        const launchStrategy: 'appUserModelId' | 'shortcutPath' = appUserModelId
+          ? 'appUserModelId'
+          : 'shortcutPath'
+        return {
+          id,
+          type: 'app' as const,
+          title: name,
+          subtitle: existingWindow ? existingWindow.title : undefined,
+          hint: 'Application' as const,
+          aliases: [name, appUserModelId ?? ''].filter(Boolean),
+          appPath,
+          shortcutPath,
+          targetPath,
+          source,
+          launchStrategy,
+          appUserModelId,
+          iconKey,
+          iconDataUrl: undefined as string | undefined,
+          iconPending: false,
+          existingWindow: existingWindow ? publicWindowMatch(existingWindow) : undefined,
+          rank,
+        }
+      })
     )
   ).sort((a, b) => {
     const rankA = (a.rank ?? 0) + (a.existingWindow ? 50 : 0)
@@ -611,6 +614,7 @@ async function buildCommandCenterIndex(query: unknown = ''): Promise<CommandCent
   const unmatchedWindows = windows.filter((window) => !appMatchedHwnds.has(window.hwnd))
 
   const index: CommandCenterIndex = {
+    bestMatches: [],
     workflows: workflows
       .slice()
       .sort((a, b) => (b.lastRunAt ?? b.updatedAt) - (a.lastRunAt ?? a.updatedAt))
@@ -626,6 +630,7 @@ async function buildCommandCenterIndex(query: unknown = ''): Promise<CommandCent
         workflow,
       })),
     apps: appRows,
+    files: [],
     windows: (appQuery
       ? unmatchedWindows
           .map((window) => ({
@@ -653,10 +658,10 @@ async function buildCommandCenterIndex(query: unknown = ''): Promise<CommandCent
       id: `action:${action.id}`,
       type: 'action' as const,
       title: action.label,
-      subtitle: action.id === 'emoji-picker' ? 'Search and paste emoji' : action.kind,
-      hint: action.id === 'emoji-picker' ? ('Command' as const) : ('Action' as const),
+      subtitle: ACTION_SUBTITLES[action.id] ?? action.kind,
+      hint: INTERACTIVE_COMMAND_IDS.has(action.id) ? ('Command' as const) : ('Action' as const),
       aliases: [...(action.aliases ?? []), action.kind],
-      actionId: action.id,
+      actionId: action.id as import('../src/electron/types').CommandCenterActionId,
     })),
     chats: chats.slice(0, 40).map((chat) => ({
       id: `chat:${chat.id}`,
@@ -670,8 +675,9 @@ async function buildCommandCenterIndex(query: unknown = ''): Promise<CommandCent
     diagnostics: appDiagnosticsFromToolResult(appsResult),
   }
 
-  indexItemCache = new Map(flattenIndex(index).map((entry) => [entry.id, entry]))
-  return index
+  const rankedIndex = await rankCommandCenterIndex(index, rawQuery)
+  indexItemCache = new Map(flattenIndex(rankedIndex).map((entry) => [entry.id, entry]))
+  return rankedIndex
 }
 
 async function getActiveWindowContext(): Promise<unknown | undefined> {
@@ -714,6 +720,7 @@ function registerShortcut(): boolean {
     prefetchBrowseIndex()
     toggleCommandCenterWindow()
     warmAppIndex()
+    warmWindowsSearch()
   }
   const shortcuts = [COMMAND_CENTER_SHORTCUT, COMMAND_CENTER_FALLBACK_SHORTCUT]
   for (const shortcut of shortcuts) {
@@ -763,14 +770,6 @@ async function executeCommandCenterAction(actionId: CommandCenterActionId) {
       hideCommandCenterWindow()
       return { success: true, data: { focused: true } }
     }
-    case 'settings-display':
-      return executeSystemSettingsOpen({ page: 'display', autoApprove: true })
-    case 'settings-sound':
-      return executeSystemSettingsOpen({ page: 'sound', autoApprove: true })
-    case 'settings-network':
-      return executeSystemSettingsOpen({ page: 'network', autoApprove: true })
-    case 'settings-bluetooth':
-      return executeSystemSettingsOpen({ page: 'bluetooth', autoApprove: true })
     case 'open-downloads':
       return executeSystemOpenPath({
         path: path.join(os.homedir(), 'Downloads'),
@@ -778,19 +777,67 @@ async function executeCommandCenterAction(actionId: CommandCenterActionId) {
       })
     case 'emoji-picker':
       return { success: true, data: { interactiveCommand: 'emoji-picker' } }
+    case 'zura-ai-chats':
+      return { success: true, data: { interactiveCommand: 'zura-ai-chats' } }
+    case 'layout':
+      return { success: true, data: { interactiveCommand: 'layout' } }
+    case 'settings':
+      return { success: true, data: { interactiveCommand: 'settings' } }
+    case 'zura-store':
+      return { success: true, data: { interactiveCommand: 'zura-store' } }
+    case 'open-windows-copilot': {
+      hideCommandCenterWindow()
+      return executeWindowsCopilotOpen({ autoApprove: true })
+    }
+    default: {
+      // Nested Settings children: settings-<page>
+      if (actionId.startsWith('settings-') && actionId !== 'settings') {
+        const page = actionId.slice('settings-'.length)
+        hideCommandCenterWindow()
+        return executeSystemSettingsOpen({ page, autoApprove: true })
+      }
+      return { success: false, error: 'Command Center action is not allowed.' }
+    }
   }
 }
 
 async function insertEmoji(value: unknown) {
-  if (typeof value !== 'string' || !COMMAND_CENTER_EMOJI_SET.has(value)) {
+  if (typeof value !== 'string') {
     return { success: false, error: 'A supported emoji is required.' }
   }
-  hideCommandCenterWindow()
-  await new Promise((resolve) => setTimeout(resolve, 120))
+  const emoji = resolveCommandCenterEmoji(value)
+  if (!emoji) {
+    return { success: false, error: 'A supported emoji is required.' }
+  }
+
+  // Clipboard-first (what users actually need):
+  // 1) Put emoji on the clipboard and leave it there — if the text field closed
+  //    when CC opened, the user can still Ctrl+V (or Win+V history).
+  // 2) Best-effort: restore the previous window and send Ctrl+V for them.
+  // We intentionally do NOT restore the prior clipboard after paste; overwriting
+  // the emoji would break the manual-paste fallback when the field is gone.
   try {
-    await performType({ text: value })
-    return { success: true, data: { inserted: true } }
+    clipboard.writeText(emoji)
+    hideCommandCenterWindow()
+    const restored = await restoreCommandCenterReturnTarget()
+    if (restored) {
+      await new Promise((resolve) => setTimeout(resolve, 40))
+      // alreadyOnClipboard: don't rewrite; restoreClipboard: '' means leave emoji.
+      await pasteTextViaClipboard(emoji, {
+        settleMs: 40,
+        alreadyOnClipboard: true,
+        // Keep the emoji on the clipboard after Ctrl+V (manual fallback + history).
+        restoreClipboard: emoji,
+      })
+    }
+    return { success: true, data: { inserted: true, onClipboard: true } }
   } catch (error) {
+    // Still try to leave the emoji available for manual paste.
+    try {
+      clipboard.writeText(emoji)
+    } catch {
+      // ignore
+    }
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unable to insert the emoji.',
@@ -798,8 +845,122 @@ async function insertEmoji(value: unknown) {
   }
 }
 
+function searchSourceForItem(item: CommandCenterIndexItem) {
+  if (item.type === 'action') {
+    return item.actionId.startsWith('settings-') ? ('setting' as const) : ('action' as const)
+  }
+  return item.type
+}
+
+function lexicalScoreForItem(item: CommandCenterIndexItem, query: string) {
+  if (!query) {
+    return {
+      score: item.type === 'app' ? (item.rank ?? 0) : 1,
+      matchReasons: [] as string[],
+    }
+  }
+  if (item.type === 'app') {
+    return {
+      score: scoreAppSearch(item.title, item.aliases, query) + Math.min(item.rank ?? 0, 25),
+      matchReasons: scoreSearchFields(
+        [{ value: item.title }, ...item.aliases.map((value) => ({ value, weight: 0.72 }))],
+        query
+      ).matchReasons,
+    }
+  }
+  if (item.type === 'window') {
+    return {
+      score: scoreWindowSearch(item.title, item.processName, query),
+      matchReasons: scoreSearchFields(
+        [{ value: item.processName }, { value: item.title, weight: 0.92 }],
+        query
+      ).matchReasons,
+    }
+  }
+  if (item.type === 'file' || item.type === 'folder') {
+    const lexical = scoreSearchFields(
+      [{ value: item.title }, ...item.aliases.map((value) => ({ value, weight: 0.7 }))],
+      query
+    )
+    return {
+      score: Math.max(lexical.score, item.score),
+      matchReasons: Array.from(new Set([...lexical.matchReasons, ...item.matchReasons])),
+    }
+  }
+  return {
+    score: scoreGenericSearch([item.title, ...item.aliases, item.subtitle ?? '', item.hint], query),
+    matchReasons: scoreSearchFields(
+      [
+        { value: item.title },
+        ...item.aliases.map((value) => ({ value, weight: 0.75 })),
+        { value: item.subtitle, weight: 0.6 },
+      ],
+      query
+    ).matchReasons,
+  }
+}
+
+function learningIdentity(item: CommandCenterIndexItem): string {
+  if (item.type === 'file' || item.type === 'folder') {
+    return `${item.type}:${resolveWindowsSearchPath(item.id) ?? item.id}`
+  }
+  return `${item.type}:${item.id}`
+}
+
+async function rankItems(
+  items: CommandCenterIndexItem[],
+  rawQuery: string
+): Promise<CommandCenterIndexItem[]> {
+  const parsed = parseCommandCenterQuery(rawQuery)
+  const ranked = await Promise.all(
+    items.map(async (item) => {
+      const source = searchSourceForItem(item)
+      if (rawQuery && !queryAllowsSource(parsed, source)) {
+        return { ...item, score: 0, matchReasons: [] }
+      }
+      const lexical = lexicalScoreForItem(item, rawQuery)
+      if (rawQuery && lexical.score <= 0) return { ...item, score: 0, matchReasons: [] }
+      const learning = await personalizationBoost(learningIdentity(item), rawQuery)
+      return {
+        ...item,
+        score: lexical.score + learning,
+        matchReasons: learning > 0 ? [...lexical.matchReasons, 'personalized'] : lexical.matchReasons,
+      }
+    })
+  )
+  return ranked.sort(
+    (a, b) => (b.score ?? 0) - (a.score ?? 0) || a.title.localeCompare(b.title)
+  )
+}
+
+async function rankCommandCenterIndex(
+  index: CommandCenterIndex,
+  rawQuery: string
+): Promise<CommandCenterIndex> {
+  const [workflows, apps, files, windows, actions, chats] = await Promise.all([
+    rankItems(index.workflows, rawQuery),
+    rankItems(index.apps, rawQuery),
+    rankItems(index.files, rawQuery),
+    rankItems(index.windows, rawQuery),
+    rankItems(index.actions, rawQuery),
+    rankItems(index.chats, rawQuery),
+  ])
+  const all = [...workflows, ...apps, ...files, ...windows, ...actions, ...chats]
+  const bestMatches = rawQuery
+    ? all.filter((item) => (item.score ?? 0) > 0).sort((a, b) => (b.score ?? 0) - (a.score ?? 0)).slice(0, 5)
+    : []
+  return { ...index, workflows, apps, files, windows, actions, chats, bestMatches }
+}
+
 function flattenIndex(index: CommandCenterIndex): CommandCenterIndexItem[] {
-  return [...index.workflows, ...index.apps, ...index.windows, ...index.actions, ...index.chats]
+  return [
+    ...index.workflows,
+    ...index.apps,
+    ...index.files,
+    ...index.windows,
+    ...index.actions,
+    ...index.chats,
+  ]
 }
 
 async function executeWorkflow(workflowId: unknown) {
@@ -835,13 +996,14 @@ async function executeWorkflow(workflowId: unknown) {
 
 function isCommandCenterItemActionId(value: unknown): value is CommandCenterItemActionId {
   return (
-    typeof value === 'string' &&
-    (COMMAND_CENTER_ITEM_ACTIONS as readonly string[]).includes(value)
+    typeof value === 'string' && (COMMAND_CENTER_ITEM_ACTIONS as readonly string[]).includes(value)
   )
 }
 
 /** Absolute filesystem path from a cached app row (never trust renderer paths). */
-function appFilesystemPath(item: Extract<CommandCenterIndexItem, { type: 'app' }>): string | undefined {
+function appFilesystemPath(
+  item: Extract<CommandCenterIndexItem, { type: 'app' }>
+): string | undefined {
   const candidates = [item.targetPath, item.shortcutPath, item.appPath]
   for (const candidate of candidates) {
     if (typeof candidate !== 'string') continue
@@ -875,6 +1037,11 @@ async function executeIndexItem(itemId: unknown, query: unknown = '') {
     return { success: false, error: 'Command Center item was not found.' }
   }
 
+  void recordCommandCenterSelection(
+    learningIdentity(item),
+    typeof query === 'string' ? query.slice(0, MAX_INDEX_QUERY_LENGTH) : ''
+  )
+
   if (item.type === 'workflow') return executeWorkflow(item.workflow.id)
   if (item.type === 'app') {
     // Launch straight from the cached item via the native open path. We no
@@ -891,6 +1058,14 @@ async function executeIndexItem(itemId: unknown, query: unknown = '') {
     })
   }
   if (item.type === 'window') return executeWindowFocus({ hwnd: item.hwnd, autoApprove: true })
+  if (item.type === 'file' || item.type === 'folder') {
+    const filePath = resolveWindowsSearchPath(item.id)
+    if (!filePath) {
+      return { success: false, error: 'This file result expired. Search again to reopen it.' }
+    }
+    const error = await shell.openPath(filePath)
+    return error ? { success: false, error } : { success: true }
+  }
   if (item.type === 'action') return executeCommandCenterAction(item.actionId)
   if (item.type === 'chat') {
     await sendCommandToMainWindow('', item.sessionId)
@@ -919,9 +1094,39 @@ async function executeItemAction(
     return { success: false, error: 'Command Center item was not found.' }
   }
 
-  // App actions only in this pass (matches the footer Actions menu).
-  if (item.type !== 'app') {
-    return { success: false, error: 'Actions are only available for applications.' }
+  if (item.type !== 'app' && item.type !== 'file' && item.type !== 'folder') {
+    return { success: false, error: 'Actions are not available for this result.' }
+  }
+
+  void recordCommandCenterSelection(
+    learningIdentity(item),
+    typeof query === 'string' ? query.slice(0, MAX_INDEX_QUERY_LENGTH) : ''
+  )
+
+  if (item.type === 'file' || item.type === 'folder') {
+    const filePath = resolveWindowsSearchPath(item.id)
+    if (!filePath) return { success: false, error: 'This file result expired. Search again.' }
+    switch (actionId) {
+      case 'open': {
+        const error = await shell.openPath(filePath)
+        return { success: !error, error: error || undefined, dismiss: !error }
+      }
+      case 'show-in-folder':
+      case 'reveal-shortcut':
+        shell.showItemInFolder(filePath)
+        return { success: true, dismiss: true }
+      case 'copy-path':
+        clipboard.writeText(filePath)
+        return { success: true, dismiss: false }
+      case 'copy-dir':
+        clipboard.writeText(item.type === 'folder' ? filePath : path.dirname(filePath))
+        return { success: true, dismiss: false }
+      case 'copy-name':
+        clipboard.writeText(item.title)
+        return { success: true, dismiss: false }
+      default:
+        return { success: false, error: 'This action is not available for files.' }
+    }
   }
 
   switch (actionId) {
@@ -976,7 +1181,8 @@ async function executeItemAction(
       } catch (error) {
         return {
           success: false,
-          error: error instanceof Error ? error.message : 'Unable to show shortcut in File Explorer.',
+          error:
+            error instanceof Error ? error.message : 'Unable to show shortcut in File Explorer.',
         }
       }
     }
@@ -1001,6 +1207,38 @@ async function executeItemAction(
       clipboard.writeText(item.title)
       return { success: true, dismiss: false }
     }
+    case 'copy-bundle-id': {
+      const bundleId =
+        typeof item.appUserModelId === 'string' ? item.appUserModelId.trim() : ''
+      if (!bundleId) {
+        return {
+          success: false,
+          error: 'No bundle identifier (AppUserModelID) is available for this app.',
+        }
+      }
+      clipboard.writeText(bundleId)
+      return { success: true, dismiss: false, status: 'Bundle identifier copied.' }
+    }
+    case 'add-to-favorite':
+      return { success: false, error: 'Favorites are not available yet.' }
+    case 'disable-application':
+    case 'uninstall-application': {
+      // Redirect to Windows Apps settings — user completes disable/uninstall there.
+      hideCommandCenterWindow()
+      const result = await executeSystemSettingsOpen({ page: 'apps', autoApprove: true })
+      return {
+        success: Boolean(result.success),
+        error: result.success
+          ? undefined
+          : result.error || 'Unable to open Apps settings.',
+        dismiss: Boolean(result.success),
+        status: result.success
+          ? actionId === 'uninstall-application'
+            ? 'Opened Apps settings to uninstall.'
+            : 'Opened Apps settings to manage apps.'
+          : undefined,
+      }
+    }
     case 'force-quit': {
       const hwnd = item.existingWindow?.hwnd
       const pid = item.existingWindow?.processId
@@ -1014,12 +1252,11 @@ async function executeItemAction(
         try {
           process.kill(pid, 'SIGKILL')
           return { success: true, dismiss: false, status: 'Application terminated.' }
-        } catch (killErr) {
+        } catch {
           try {
-            const { execSync } = require('child_process')
-            execSync(`taskkill /F /PID ${pid}`)
+            execFileSync('taskkill', ['/F', '/PID', String(pid)], { windowsHide: true })
             return { success: true, dismiss: false, status: 'Application terminated.' }
-          } catch (execErr) {
+          } catch {
             // ignore
           }
         }
@@ -1080,6 +1317,7 @@ export function registerCommandCenterHandlers(): void {
     prefetchBrowseIndex()
     showCommandCenterWindow()
     warmAppIndex()
+    warmWindowsSearch()
     return true
   })
 
@@ -1102,6 +1340,20 @@ export function registerCommandCenterHandlers(): void {
       return resolveBrowseIndex()
     }
     return buildCommandCenterIndex(query)
+  })
+
+  ipcMain.handle('command-center:search-native-index', async (_event, query: unknown) => {
+    if (!extensionEnabled) {
+      return {
+        files: [],
+        diagnostics: { ok: false, available: false, error: 'Command Center is disabled.' },
+      } satisfies CommandCenterNativeSearchResult
+    }
+    const native = await searchWindowsIndex(query)
+    const rawQuery = typeof query === 'string' ? query.slice(0, MAX_INDEX_QUERY_LENGTH) : ''
+    const files = await rankItems(native.files, rawQuery)
+    for (const item of files) indexItemCache.set(item.id, item)
+    return { files, diagnostics: native.diagnostics } satisfies CommandCenterNativeSearchResult
   })
 
   ipcMain.handle('command-center:refresh-app-index', async () => {
@@ -1203,6 +1455,7 @@ export function unregisterCommandCenterHandlers(): void {
   ipcMain.removeHandler('command-center:get-context')
   ipcMain.removeHandler('command-center:list-actions')
   ipcMain.removeHandler('command-center:get-index')
+  ipcMain.removeHandler('command-center:search-native-index')
   ipcMain.removeHandler('command-center:refresh-app-index')
   ipcMain.removeHandler('command-center:save-workflow')
   ipcMain.removeHandler('command-center:delete-workflow')
