@@ -582,7 +582,7 @@ const ToolRail = () => {
 const ProviderOrbit = () => {
   const frame = useCurrentFrame()
   const enter = beat(frame, 22, 48)
-  const providers = ['OpenRouter', 'Ollama', 'Perplexity', 'Groq', 'NVIDIA', 'Fireworks']
+  const providers = ['OpenRouter', 'Ollama', 'Groq', 'NVIDIA', 'Fireworks']
 
   return (
     <div

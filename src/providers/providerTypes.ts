@@ -7,6 +7,5 @@ export type ProviderId =
   | 'ollama'
   | 'opencode'
   | 'openrouter'
-  | 'perplexity'
 
 export type ActiveProviderId = ProviderId

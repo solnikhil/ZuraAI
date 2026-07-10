@@ -58,7 +58,6 @@ export interface ProviderDefinition {
 export type ProviderModelListKey =
   | 'configuredModels'
   | 'ollamaModels'
-  | 'perplexityModels'
   | 'groqModels'
   | 'nvidiaModels'
   | 'alibabaModels'
@@ -71,7 +70,6 @@ export type ProviderSettingsLike = Partial<
     SettingsConfig,
     | 'providerEnabled'
     | 'openRouterApiKey'
-    | 'perplexityApiKey'
     | 'groqApiKey'
     | 'nvidiaApiKey'
     | 'alibabaApiKey'
@@ -81,7 +79,6 @@ export type ProviderSettingsLike = Partial<
     | 'ollamaUrl'
     | 'configuredModels'
     | 'ollamaModels'
-    | 'perplexityModels'
     | 'groqModels'
     | 'nvidiaModels'
     | 'alibabaModels'
@@ -159,7 +156,6 @@ const PROVIDER_TOOL_MODEL_PREFIXES: Record<ProviderId, string[]> = {
     'qwen3-coder-plus',
     'qwen3-coder-flash',
   ],
-  perplexity: [],
   opencode: [],
 }
 
@@ -344,41 +340,6 @@ const PROVIDERS: Record<ProviderId, ProviderDefinition> = {
     models: {
       settingsModelKey: 'deepseekModels',
       supportsTools: (model) => supportsModelTools('deepseek', model),
-    },
-  },
-  perplexity: {
-    id: 'perplexity',
-    label: 'Perplexity',
-    description: 'Research-focused model provider with search-native reasoning models.',
-    accentColor: '#22c55e',
-    capabilities: {
-      supportsStreaming: true,
-      supportsTools: false,
-      supportsVisionUploads: false,
-      supportsReasoning: false,
-      supportsImageGeneration: false,
-      supportsNativeSearch: true,
-    },
-    promptCaching: {
-      promptCaching: 'none',
-      sessionAffinity: 'none',
-    },
-    endpoints: {
-      baseUrl: 'https://api.perplexity.ai',
-      chatCompletionsUrl: 'https://api.perplexity.ai/chat/completions',
-      modelCatalogUrl: 'https://docs.perplexity.ai/api-reference/sonar-post',
-    },
-    retryPolicy: OPENAI_COMPATIBLE_RETRY_POLICY,
-    auth: {
-      hasAccess: (settings) => hasConfiguredApiKey(settings.perplexityApiKey),
-      getCredentialError: (settings) =>
-        hasConfiguredApiKey(settings.perplexityApiKey)
-          ? null
-          : 'Perplexity API key is required. Add it in Settings > Providers and save.',
-    },
-    models: {
-      settingsModelKey: 'perplexityModels',
-      supportsTools: () => false,
     },
   },
   ollama: {

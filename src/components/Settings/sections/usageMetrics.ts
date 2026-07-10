@@ -14,7 +14,6 @@ export type UsageProvider =
   | 'nvidia'
   | 'ollama'
   | 'openrouter'
-  | 'perplexity'
   | 'unknown'
 export type UsagePerformanceRange = '1d' | '7d' | '30d' | 'all'
 
@@ -63,7 +62,6 @@ export interface UsageModelCatalog {
   nvidiaModels?: string[]
   ollamaModels?: string[]
   openrouterModels?: string[]
-  perplexityModels?: string[]
 }
 
 export interface UsageStats {
@@ -157,7 +155,6 @@ const PROVIDER_TOKEN_RATES_PER_MILLION: Record<
   nvidia: { inputUsd: 0, outputUsd: 0 },
   ollama: { inputUsd: 0, outputUsd: 0 },
   openrouter: { inputUsd: 1.2, outputUsd: 4.8 },
-  perplexity: { inputUsd: 1.0, outputUsd: 1.0 },
 }
 
 function getLocalDayKeyFromTimestamp(timestamp: number): string {
@@ -422,7 +419,6 @@ function buildModelProviderMap(catalog?: UsageModelCatalog): Map<string, UsagePr
   register('nvidia', catalog?.nvidiaModels)
   register('ollama', catalog?.ollamaModels)
   register('openrouter', catalog?.openrouterModels)
-  register('perplexity', catalog?.perplexityModels)
 
   return map
 }
@@ -442,7 +438,6 @@ function inferProvider(
 
   if (raw.startsWith('fireworks/') || raw.includes('accounts/fireworks')) return 'fireworks'
   if (raw.startsWith('openrouter/')) return 'openrouter'
-  if (normalized.startsWith('sonar')) return 'perplexity'
   if (normalized.startsWith('groq/')) return 'groq'
 
   return 'unknown'

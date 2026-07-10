@@ -56,12 +56,6 @@ function createAlibabaCatalogHtml(): string {
   return `<html><body><script>self.__next_f.push([1,"12:${encodedPayload}"])</script></body></html>`
 }
 
-function createPerplexityCatalogPage(
-  models: string[] = ['sonar', 'sonar-pro', 'sonar-deep-research', 'sonar-reasoning-pro']
-): string {
-  return `Body application/json model enum<string> required Available options: ${models.map((model) => `\`${model}\``).join(', ')} messages ChatMessage`
-}
-
 function openProviderCatalog(name: string): void {
   const configureButton = screen.queryByRole('button', {
     name: new RegExp(`^Configure ${name}$`, 'i'),
@@ -80,7 +74,6 @@ describe('ProviderHubSection', () => {
 
   const baseProps = {
     openRouterApiKey: '',
-    perplexityApiKey: '',
     groqApiKey: '',
     alibabaApiKey: '',
     deepseekApiKey: '',
@@ -99,7 +92,6 @@ describe('ProviderHubSection', () => {
       { code: 'x-ai/grok-4.1-mini', displayName: 'Grok 4.1 Mini' },
       { code: 'openrouter/image-model', displayName: 'ImageGen Pro' },
     ],
-    perplexityModels: [{ code: 'sonar', displayName: 'Sonar' }],
     groqModels: [{ code: 'llama-3.1-8b-instant', displayName: 'Llama 3.1 8B Instant' }],
     alibabaModels: [{ code: 'qwen-plus', displayName: 'Qwen Plus' }],
     deepseekModels: [{ code: 'deepseek-v4-flash', displayName: 'DeepSeek V4 Flash' }],
@@ -366,7 +358,6 @@ describe('ProviderHubSection', () => {
         openRouterApiKey="or-key-123"
         providerEnabled={{
           openrouter: true,
-          perplexity: true,
           groq: true,
           ollama: true,
           alibaba: true,
@@ -392,7 +383,6 @@ describe('ProviderHubSection', () => {
         {...baseProps}
         providerEnabled={{
           openrouter: false,
-          perplexity: true,
           groq: true,
           ollama: true,
           alibaba: true,
@@ -489,15 +479,6 @@ describe('ProviderHubSection', () => {
     expect(screen.getByText('DeepSeek V3.2')).toBeInTheDocument()
   })
 
-  it('shows Perplexity catalog controls in provider detail view', () => {
-    render(<ProviderHubSection {...baseProps} />)
-
-    openProviderCatalog('Perplexity')
-
-    expect(screen.getByRole('button', { name: /add from catalog/i })).toBeInTheDocument()
-    expect(screen.getByText('Sonar')).toBeInTheDocument()
-  })
-
   it('renders the Fireworks provider row with the compact site icon', () => {
     render(<ProviderHubSection {...baseProps} />)
 
@@ -572,48 +553,6 @@ describe('ProviderHubSection', () => {
             code: 'qwen3-coder-next',
             displayName: 'Qwen3-Coder-Next',
             supportsToolCall: true,
-          }),
-        ]),
-      })
-    )
-  })
-
-  it('opens Perplexity catalog dialog and surfaces the missing-key error', async () => {
-    render(<ProviderHubSection {...baseProps} />)
-
-    openProviderCatalog('Perplexity')
-    fireEvent.click(screen.getByRole('button', { name: /add from catalog/i }))
-
-    expect(await screen.findByText('Add Model from Perplexity Catalog')).toBeInTheDocument()
-    expect(
-      await screen.findByText('Add a Perplexity API key before loading the catalog.')
-    ).toBeInTheDocument()
-  })
-
-  it('adds a Perplexity catalog model to perplexityModels', async () => {
-    const onChange = vi.fn()
-    vi.spyOn(global, 'fetch').mockResolvedValue({
-      ok: true,
-      text: async () => createPerplexityCatalogPage(['sonar', 'sonar-pro', 'sonar-deep-research']),
-    } as Response)
-
-    render(<ProviderHubSection {...baseProps} perplexityApiKey="px-key" onChange={onChange} />)
-
-    openProviderCatalog('Perplexity')
-    fireEvent.click(screen.getByRole('button', { name: /add from catalog/i }))
-
-    expect(await screen.findByText('Sonar Deep Research')).toBeInTheDocument()
-    const addButtons = screen.getAllByRole('button', { name: /^add$/i })
-    fireEvent.click(addButtons[addButtons.length - 1])
-
-    expect(onChange).toHaveBeenCalledWith(
-      expect.objectContaining({
-        perplexityModels: expect.arrayContaining([
-          expect.objectContaining({
-            code: 'sonar-deep-research',
-            displayName: 'Sonar Deep Research',
-            supportsWebSearch: true,
-            supportsDeepThinking: true,
           }),
         ]),
       })

@@ -40,7 +40,6 @@ const emptyGroups: GroupedModels = {
   groq: [],
   ollama: [],
   openrouter: [],
-  perplexity: [],
 }
 
 function renderOpen(props: Partial<React.ComponentProps<typeof ModelSelectorDropdown>> = {}) {

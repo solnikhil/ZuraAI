@@ -5,7 +5,7 @@
  */
 
 import React, { useState } from 'react'
-import { Cloud, Database, Globe, Sparkles, Zap, Brain } from 'lucide-react'
+import { Cloud, Database, Sparkles, Zap, Brain } from 'lucide-react'
 import { getLogoVisibleProviderIds, getProviderAccentColor, type ProviderId } from '../../providers'
 
 /**
@@ -52,7 +52,6 @@ const PROVIDER_FALLBACK_ICONS: Record<
 > = {
   gemini: Sparkles,
   openrouter: Cloud,
-  perplexity: Globe,
   groq: Zap,
   ollama: Database,
   minimax: Brain,
@@ -80,7 +79,6 @@ const PROVIDER_LOGO_ADJUSTMENTS: Record<
   { scale?: number; translateX?: number; translateY?: number }
 > = {
   openrouter: { scale: 1.12, translateX: -0.5 },
-  perplexity: { scale: 0.9 },
   groq: { scale: 1.22 },
   fireworks: { scale: 0.94, translateY: 0.25 },
   nvidia: { scale: 1.04 },

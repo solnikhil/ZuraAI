@@ -26,7 +26,8 @@ export function scheduleNonCriticalPreloads(): void {
     void preloadSettings()
   }, 1800)
 
+  // Markdown/prism only after the user has been idle longer — avoid bloating idle RAM.
   scheduleWhenIdle(() => {
     void preloadMarkdown()
-  }, 4500)
+  }, 12000)
 }

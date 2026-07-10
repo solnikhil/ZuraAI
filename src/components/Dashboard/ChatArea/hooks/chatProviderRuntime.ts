@@ -25,7 +25,6 @@ export function getProviderCredentialError(
     SettingsConfig,
     | 'modelProvider'
     | 'openRouterApiKey'
-    | 'perplexityApiKey'
     | 'groqApiKey'
     | 'alibabaApiKey'
     | 'fireworksApiKey'

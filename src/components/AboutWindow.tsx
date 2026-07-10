@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import type { AppRuntimeInfo } from '../electron/types'
+import { isMacOSRuntime } from '../utils/platform'
 import './TitleBar.css'
 
 export default function AboutWindow() {
   const [appInfo, setAppInfo] = useState<AppRuntimeInfo | null>(null)
+  const isMacOS = useMemo(() => isMacOSRuntime(), [])
 
   useEffect(() => {
     document.title = 'About ZuraAI'
@@ -73,7 +75,14 @@ export default function AboutWindow() {
   )
 
   return (
-    <div className="app-titlebar__about-page h-screen overflow-y-auto flex items-start justify-center p-6 py-10">
+    <div
+      className={[
+        'app-titlebar__about-page h-screen overflow-y-auto flex items-start justify-center p-6 py-10',
+        isMacOS ? 'app-titlebar__about-page--macos' : null,
+      ]
+        .filter(Boolean)
+        .join(' ')}
+    >
       <div className="w-full max-w-md flex-shrink-0">
         {/* Header */}
         <div className="text-center mb-8">

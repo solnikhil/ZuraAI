@@ -133,7 +133,6 @@ describe('ProviderLogo', () => {
   describe('all providers', () => {
     const providers = [
       'ollama',
-      'perplexity',
       'openrouter',
       'gemini',
       'groq',

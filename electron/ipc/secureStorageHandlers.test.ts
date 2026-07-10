@@ -41,7 +41,6 @@ describe('registerSecureStorageHandlers', () => {
   it('returns only the provider-key allowlist from secure-storage:get-all', async () => {
     const storedValues: Record<string, string> = {
       openRouterApiKey: 'or-key',
-      perplexityApiKey: 'pplx-key',
       groqApiKey: 'groq-key',
       tavilyApiKey: 'tavily-key',
       alibabaApiKey: 'alibaba-key',
@@ -65,7 +64,6 @@ describe('registerSecureStorageHandlers', () => {
 
     await expect(handler?.()).resolves.toEqual({
       openRouterApiKey: 'or-key',
-      perplexityApiKey: 'pplx-key',
       groqApiKey: 'groq-key',
       tavilyApiKey: 'tavily-key',
       alibabaApiKey: 'alibaba-key',
@@ -77,14 +75,13 @@ describe('registerSecureStorageHandlers', () => {
       brevoApiKey: 'brevo-key',
     })
 
-    expect(secureStorageMocks.getSecureValueAsync).toHaveBeenCalledTimes(11)
+    expect(secureStorageMocks.getSecureValueAsync).toHaveBeenCalledTimes(10)
     expect(secureStorageMocks.getSecureValueAsync).not.toHaveBeenCalledWith('mcp.server.demo.token')
   })
 
   it('returns provider-key presence without decrypting secure values', async () => {
     secureStorageMocks.getSecureValuePresenceAsync.mockResolvedValue({
       openRouterApiKey: true,
-      perplexityApiKey: false,
       groqApiKey: false,
       tavilyApiKey: true,
       alibabaApiKey: false,
@@ -102,7 +99,6 @@ describe('registerSecureStorageHandlers', () => {
 
     await expect(handler?.()).resolves.toEqual({
       openRouterApiKey: true,
-      perplexityApiKey: false,
       groqApiKey: false,
       tavilyApiKey: true,
       alibabaApiKey: false,

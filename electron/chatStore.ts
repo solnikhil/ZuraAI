@@ -333,6 +333,120 @@ export function compactPreviewToMessage(preview: CompactPreviewMessage): Message
   }
 }
 
+/** Messages kept on the chat index for instant preview. Kept small for RAM. */
+export const RECENT_TAIL_SIZE = 20
+/** Default window size when opening a session (full history loaded on demand). */
+export const SESSION_WINDOW_SIZE = 80
+const INDEX_CONTENT_PREVIEW_CHARS = 280
+
+/**
+ * Strip multi-MB fields before embedding messages in the chat index / renderer previews.
+ * Full payloads remain in per-session JSON files.
+ */
+export function toIndexPreviewMessage(message: Message): Message {
+  const content =
+    typeof message.content === 'string' && message.content.length > INDEX_CONTENT_PREVIEW_CHARS
+      ? message.content.slice(0, INDEX_CONTENT_PREVIEW_CHARS)
+      : message.content
+
+  const preview: Message = {
+    id: message.id,
+    role: message.role,
+    content,
+    timestamp: message.timestamp,
+  }
+
+  if (message.model) preview.model = message.model
+  if (typeof message.tokenCount === 'number') preview.tokenCount = message.tokenCount
+  if (typeof message.latency === 'number') preview.latency = message.latency
+  if (message.usage) preview.usage = message.usage
+  // Preserve presence flags without base64 / tool payloads.
+  if (message.image) preview.image = ''
+  if (Array.isArray(message.files) && message.files.length > 0) {
+    preview.files = message.files.map((file) => {
+      if (!file || typeof file !== 'object') return file
+      const entry = file as { id?: string; name?: string; type?: string; size?: number; mimeType?: string }
+      return {
+        id: entry.id,
+        name: entry.name,
+        type: entry.type,
+        size: entry.size,
+        mimeType: entry.mimeType,
+        data: '',
+      }
+    })
+  }
+  if (Array.isArray(message.toolResults) && message.toolResults.length > 0) {
+    preview.toolResults = message.toolResults.map((result) => {
+      if (!result || typeof result !== 'object') return result
+      const entry = result as {
+        toolCall?: { id?: string; name?: string; arguments?: unknown }
+        result?: { success?: boolean; error?: string; executionTime?: number }
+      }
+      return {
+        toolCall: {
+          id: entry.toolCall?.id ?? '',
+          name: entry.toolCall?.name ?? 'tool',
+          arguments: entry.toolCall?.arguments,
+        },
+        result: {
+          success: entry.result?.success ?? false,
+          error: entry.result?.error,
+          executionTime: entry.result?.executionTime,
+        },
+      }
+    })
+  }
+
+  return preview
+}
+
+export function buildRecentMessagesTail(messages: Message[]): Message[] | undefined {
+  if (!Array.isArray(messages) || messages.length === 0) return undefined
+  return messages.slice(-RECENT_TAIL_SIZE).map(toIndexPreviewMessage)
+}
+
+/**
+ * Slim message fields for Usage stats (no images/content bodies/tool data).
+ */
+export function toUsageMetricMessage(message: Message): Message {
+  const content =
+    typeof message.content === 'string' ? message.content.slice(0, 240) : message.content
+  const slim: Message = {
+    id: message.id,
+    role: message.role,
+    content,
+    timestamp: message.timestamp,
+  }
+  if (message.model) slim.model = message.model
+  if (typeof message.tokenCount === 'number') slim.tokenCount = message.tokenCount
+  if (typeof message.latency === 'number') slim.latency = message.latency
+  if (message.usage) slim.usage = message.usage
+  if (message.image) slim.image = '1'
+  if (Array.isArray(message.toolResults) && message.toolResults.length > 0) {
+    slim.toolResults = message.toolResults.map((result) => {
+      if (!result || typeof result !== 'object') return result
+      const entry = result as {
+        toolCall?: { id?: string; name?: string; arguments?: unknown }
+        result?: { success?: boolean; error?: string; executionTime?: number }
+      }
+      return {
+        toolCall: {
+          id: entry.toolCall?.id ?? '',
+          name: entry.toolCall?.name ?? 'tool',
+          arguments: entry.toolCall?.arguments,
+        },
+        result: {
+          success: entry.result?.success ?? false,
+          error: entry.result?.error,
+          executionTime: entry.result?.executionTime,
+        },
+      }
+    })
+  }
+  return slim
+}
+
 export function sessionToMetadata(session: ChatSession): ChatSessionMetadata {
   const migrated = migrateSession(session)
   const messages = migrated.messages ?? []
@@ -386,10 +500,12 @@ function mergeMetadataWithSession(
   session: ChatSession
 ): ChatSessionMetadata {
   const migrated = migrateSession(session)
+  // Always rebuild thin recentMessages so index saves do not retain fat tails.
+  const base = sessionToMetadata(migrated)
   const migratedArtifacts = normalizeArtifacts(migrated.artifacts)
   const artifactSummaries =
     migratedArtifacts.length > 0
-      ? summarizeArtifacts(migratedArtifacts)
+      ? base.artifactSummaries
       : Array.isArray(migrated.artifactSummaries)
         ? migrated.artifactSummaries
         : existing?.artifactSummaries
@@ -404,14 +520,10 @@ function mergeMetadataWithSession(
       ? compactRecentMessages(migrated.messages)
       : compactRecentMessages(existing?.recentMessages)
   return {
-    id: migrated.id,
-    title: migrated.title,
-    createdAt: migrated.createdAt,
-    updatedAt: migrated.updatedAt,
-    totalTokens: migrated.totalTokens,
-    pinned: migrated.pinned ?? existing?.pinned ?? false,
-    folderId: migrated.folderId ?? existing?.folderId ?? null,
-    tags: Array.isArray(migrated.tags) ? migrated.tags : (existing?.tags ?? []),
+    ...base,
+    pinned: base.pinned ?? existing?.pinned ?? false,
+    folderId: base.folderId ?? existing?.folderId ?? null,
+    tags: base.tags.length > 0 ? base.tags : (existing?.tags ?? []),
     messageCount,
     artifactCount:
       migratedArtifacts.length > 0
@@ -835,6 +947,22 @@ export async function getSessionAsync(
   const limit = Math.max(1, options.limit)
   session.messages = session.messages.slice(-limit)
   return session
+}
+
+/**
+ * Load all sessions for Usage metrics with multi-MB fields stripped.
+ * Prefer this over getAllSessionsAsync in the renderer.
+ */
+export async function getUsageSessionsAsync(): Promise<ChatSession[]> {
+  const sessions = await getAllSessionsAsync()
+  return sessions.map((session) => ({
+    ...session,
+    messages: Array.isArray(session.messages)
+      ? session.messages.map(toUsageMetricMessage)
+      : [],
+    // Usage metrics do not need artifact version bodies.
+    artifacts: undefined,
+  }))
 }
 
 export async function saveSessionAsync(session: ChatSession): Promise<ChatSessionMetadata> {

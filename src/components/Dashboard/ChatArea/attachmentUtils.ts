@@ -47,7 +47,6 @@ interface AttachmentSettingsLike {
   groqModels?: ModelLike[]
   nvidiaModels?: ModelLike[]
   ollamaModels?: ModelLike[]
-  perplexityModels?: ModelLike[]
 }
 
 export type ComposerMessage = ChatMessage & {

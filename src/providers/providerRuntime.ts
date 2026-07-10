@@ -34,11 +34,6 @@ import {
   streamOpenRouterCompletion,
   type OpenRouterResponse,
 } from '../services/openrouter'
-import {
-  generatePerplexityCompletion,
-  streamPerplexityCompletion,
-  type PerplexityResponse,
-} from '../services/perplexity'
 import type { ChatMessage, ReasoningDetail } from '../services/types'
 import type { SettingsConfig } from '../contexts/SettingsConfigContext'
 import {
@@ -111,7 +106,6 @@ type OpenAiCompatibleResponse =
   | OpenRouterResponse
   | GroqResponse
   | AlibabaResponse
-  | PerplexityResponse
   | FireworksResponse
   | NvidiaResponse
   | DeepSeekResponse
@@ -126,7 +120,6 @@ type TitleGenerationSettings = Pick<
   | 'nvidiaApiKey'
   | 'ollamaUrl'
   | 'openRouterApiKey'
-  | 'perplexityApiKey'
 >
 
 export function extractTitleTextFromMessage(message: unknown): string {
@@ -494,16 +487,6 @@ export async function generateProviderTitleText(
       )
       return extractTitleTextFromMessage(result.choices?.[0]?.message)
     }
-    case 'perplexity': {
-      const options = { signal: generationOptions.signal, max_tokens: generationOptions.maxTokens }
-      const result = await generatePerplexityCompletion(
-        getProviderCredential(resolvedSettings, provider),
-        normalizedModel,
-        messages,
-        options
-      )
-      return extractTitleTextFromMessage(result.choices?.[0]?.message)
-    }
     case 'ollama': {
       const options = {
         think: false,
@@ -605,7 +588,6 @@ export async function generateTitleTextForModel(
         SettingsConfig,
         | 'configuredModels'
         | 'ollamaModels'
-        | 'perplexityModels'
         | 'groqModels'
         | 'nvidiaModels'
         | 'alibabaModels'
@@ -1097,52 +1079,6 @@ export async function* streamProviderEvents(
         yield* emitOllamaResponse(response)
       }
       return
-    }
-    case 'perplexity': {
-      const apiKey = getProviderCredential(settings, 'perplexity')
-      if (request.streamResponses === false) {
-        const response = await generatePerplexityCompletion(
-          apiKey,
-          normalizedModel,
-          request.messages,
-          {
-            temperature: request.temperature,
-            max_tokens: request.maxTokens,
-            signal: request.signal,
-          }
-        )
-        yield* emitOpenAiCompatibleResponse(response)
-        return
-      }
-
-      for await (const chunk of streamPerplexityCompletion(
-        apiKey,
-        normalizedModel,
-        request.messages,
-        {
-          temperature: request.temperature,
-          max_tokens: request.maxTokens,
-          signal: request.signal,
-        }
-      )) {
-        const citations = (chunk as { citations?: string[] }).citations
-        if (Array.isArray(citations) && citations.length > 0) {
-          yield { type: 'citation', citations }
-        }
-
-        const delta = chunk.choices?.[0]?.delta?.content || ''
-        if (delta) {
-          yield* yieldProgressiveTextDeltas(delta)
-        }
-
-        if (chunk.usage) {
-          yield { type: 'usage', usage: normalizeUsage(chunk.usage), rawUsage: chunk.usage }
-        }
-
-        if (chunk.choices?.[0]?.finish_reason) {
-          yield { type: 'finish', finishReason: chunk.choices[0].finish_reason }
-        }
-      }
     }
   }
 }

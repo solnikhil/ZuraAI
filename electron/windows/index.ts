@@ -5,6 +5,8 @@ export {
   getMainWindow,
   resolveDistPath,
   showMainWindow,
+  setAppQuitting,
+  getAppQuitting,
 } from './mainWindow'
 
 export { showAboutWindow } from './aboutWindow'

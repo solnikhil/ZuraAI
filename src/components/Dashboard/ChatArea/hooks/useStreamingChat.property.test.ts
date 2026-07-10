@@ -249,7 +249,7 @@ describe('Property 7: Model Name Formatting', () => {
     await fc.assert(
       fc.asyncProperty(
         modelCodeArb,
-        fc.constantFrom('openrouter', 'groq', 'gemini', 'perplexity', 'ollama', 'minimax'),
+        fc.constantFrom('openrouter', 'groq', 'gemini', 'ollama', 'minimax'),
         async (modelCode, provider) => {
           const formattedModelName = `${provider}/${modelCode}`
 

@@ -2,7 +2,7 @@
  * Property-Based Tests for Secure API Keys Storage
  *
  * These tests verify the correctness properties for secure storage of API keys
- * including OpenRouter, Perplexity, Groq, Tavily, Alibaba, DeepSeek,
+ * including OpenRouter, Groq, Tavily, Alibaba, DeepSeek,
  * Fireworks, NVIDIA, OpenCode Go, Brevo, and Online Compiler.
  */
 
@@ -165,7 +165,6 @@ describe('Secure API Keys Property Tests', () => {
         fc.asyncProperty(
           fc.record({
             openRouterApiKey: apiKeyArb,
-            perplexityApiKey: apiKeyArb,
             groqApiKey: apiKeyArb,
             tavilyApiKey: apiKeyArb,
             alibabaApiKey: apiKeyArb,
@@ -184,7 +183,6 @@ describe('Secure API Keys Property Tests', () => {
 
             // Property: All keys should be preserved
             expect(loadedKeys.openRouterApiKey).toBe(allKeys.openRouterApiKey)
-            expect(loadedKeys.perplexityApiKey).toBe(allKeys.perplexityApiKey)
             expect(loadedKeys.groqApiKey).toBe(allKeys.groqApiKey)
             expect(loadedKeys.tavilyApiKey).toBe(allKeys.tavilyApiKey)
             expect(loadedKeys.alibabaApiKey).toBe(allKeys.alibabaApiKey)

@@ -89,12 +89,12 @@ export default function Settings({
 
     let cancelled = false
     void window.ipcRenderer
-      .invoke('chat-store:get-all')
+      .invoke('chat-store:get-usage-sessions')
       .then((storedSessions: ChatSession[]) => {
         if (!cancelled) setUsageStoredSessions(storedSessions)
       })
       .catch((error) => {
-        console.error('Failed to load full chat history for usage metrics:', error)
+        console.error('Failed to load usage chat snapshots:', error)
         if (!cancelled) setUsageStoredSessions(null)
       })
 
@@ -312,7 +312,6 @@ export default function Settings({
                 nvidiaApiKey={pendingSettings.nvidiaApiKey}
                 groqApiKey={pendingSettings.groqApiKey}
                 openRouterApiKey={pendingSettings.openRouterApiKey}
-                perplexityApiKey={pendingSettings.perplexityApiKey}
                 tavilyApiKey={pendingSettings.tavilyApiKey}
                 onlineCompilerApiKey={pendingSettings.onlineCompilerApiKey}
                 tavilySearchDepthPreference={pendingSettings.tavilySearchDepthPreference}
@@ -329,7 +328,6 @@ export default function Settings({
                 nvidiaModels={pendingSettings.nvidiaModels}
                 groqModels={pendingSettings.groqModels}
                 ollamaModels={pendingSettings.ollamaModels}
-                perplexityModels={pendingSettings.perplexityModels}
                 maxTokens={pendingSettings.maxTokens}
                 deepseekReasoning={pendingSettings.deepseekReasoning}
                 deepseekLastEffort={pendingSettings.deepseekLastEffort}

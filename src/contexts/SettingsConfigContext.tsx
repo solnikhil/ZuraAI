@@ -97,7 +97,6 @@ export interface SettingsConfig {
   // API Keys
   openRouterApiKey: string
   openRouterDebug: boolean
-  perplexityApiKey: string
   groqApiKey: string
   tavilyApiKey: string
   tavilySearchDepthPreference: TavilySearchDepthPreference
@@ -117,7 +116,6 @@ export interface SettingsConfig {
   configuredModels: ConfiguredModel[]
   ollamaUrl: string
   ollamaModels: ConfiguredModel[]
-  perplexityModels: ConfiguredModel[]
   groqModels: ConfiguredModel[]
   alibabaModels: ConfiguredModel[]
   fireworksModels: ConfiguredModel[]
@@ -229,7 +227,6 @@ export const defaultSettingsConfig: SettingsConfig = {
   // API Keys
   openRouterApiKey: '',
   openRouterDebug: false,
-  perplexityApiKey: '',
   groqApiKey: '',
   tavilyApiKey: '',
   tavilySearchDepthPreference: 'auto',
@@ -249,31 +246,6 @@ export const defaultSettingsConfig: SettingsConfig = {
   configuredModels: [],
   ollamaUrl: 'http://localhost:11434',
   ollamaModels: [],
-  perplexityModels: [
-    { code: 'sonar', displayName: 'Sonar', maxContext: 128000, supportsWebSearch: true },
-    {
-      code: 'sonar-pro',
-      displayName: 'Sonar Pro',
-      maxContext: 128000,
-      supportsWebSearch: true,
-    },
-    {
-      code: 'sonar-reasoning-pro',
-      displayName: 'Sonar Reasoning Pro',
-      maxContext: 128000,
-      modelType: 'reasoning',
-      supportsDeepThinking: true,
-      supportsWebSearch: true,
-    },
-    {
-      code: 'sonar-deep-research',
-      displayName: 'Sonar Deep Research',
-      maxContext: 128000,
-      modelType: 'reasoning',
-      supportsDeepThinking: true,
-      supportsWebSearch: true,
-    },
-  ],
   groqModels: [
     // Production Models (enabled: most famous)
     {

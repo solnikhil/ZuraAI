@@ -72,6 +72,17 @@ let mainWindow: BrowserWindow | null = null
  */
 let allowMainWindowClose = false
 
+/** When true, macOS close should destroy the window (app is quitting). */
+let isAppQuitting = false
+
+export function setAppQuitting(quitting: boolean): void {
+  isAppQuitting = quitting
+}
+
+export function getAppQuitting(): boolean {
+  return isAppQuitting
+}
+
 export interface MainWindowOptions {
   width?: number
   height?: number
@@ -125,10 +136,13 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
       : {}),
     ...(isMacOS
       ? {
-          titleBarStyle: 'hidden',
-          trafficLightPosition: { x: 12, y: 12 },
+          titleBarStyle: 'hidden' as const,
+          // Centered in the 38px Mac chrome strip used by the renderer drag region.
+          trafficLightPosition: { x: 16, y: 13 },
           vibrancy: 'sidebar' as const,
           visualEffectState: 'active' as const,
+          // Prefer hiding on red traffic light; Cmd+Q / dock Quit sets isAppQuitting.
+          closable: true,
         }
       : {}),
     webPreferences: {
@@ -268,6 +282,18 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
         mainWindow.hide()
         applyBackgroundThrottling(mainWindow, true)
       }
+    })
+  }
+
+  // macOS: red traffic light / File → Close hide to Dock instead of quitting.
+  // Quit paths (Cmd+Q, menu Quit, tray Quit) set isAppQuitting so close proceeds.
+  if (isMacOS) {
+    mainWindow.on('close', (event) => {
+      if (isAppQuitting || !mainWindow || mainWindow.isDestroyed()) {
+        return
+      }
+      event.preventDefault()
+      mainWindow.hide()
     })
   }
 

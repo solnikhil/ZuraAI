@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, type MouseEvent } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAppShell } from '../contexts/AppShellContext'
 import { useChatHistory } from '../contexts/ChatHistoryContext'
@@ -42,6 +42,17 @@ export default function AppShellLayout() {
   const resizeIndicator = useResizeIndicator(isDev)
   useMouseNavigation()
 
+  const handleMacDragRegionDoubleClick = useCallback((e: MouseEvent) => {
+    // Traffic-light adjacent controls are no-drag; still guard for nested clicks.
+    if ((e.target as HTMLElement).closest('.no-drag, .app-macos-titlebar-controls')) return
+    window.windowControls?.toggleMaximize().catch((error) => {
+      console.warn(
+        '[AppShellLayout] Failed to toggle maximize on macOS drag-region double-click',
+        error
+      )
+    })
+  }, [])
+
   useEffect(() => {
     if (!window.ipcRenderer?.on) return
 
@@ -82,7 +93,13 @@ export default function AppShellLayout() {
           .join(' ')}
         data-app-chrome-material={settingsUI.appChromeMaterial ?? 'acrylic'}
       >
-        {isMacOS && <div className="app-macos-drag-region" aria-hidden="true" />}
+        {isMacOS && (
+          <div
+            className="app-macos-drag-region"
+            aria-hidden="true"
+            onDoubleClick={handleMacDragRegionDoubleClick}
+          />
+        )}
         {isMacOS && (
           <div className="app-macos-titlebar-controls">
             <TitleBarSidebarControls

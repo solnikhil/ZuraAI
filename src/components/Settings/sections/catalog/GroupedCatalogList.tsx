@@ -15,7 +15,6 @@ const VENDOR_LABELS: Record<string, string> = {
   qwen: 'Alibaba',
   microsoft: 'Microsoft',
   nvidia: 'NVIDIA',
-  perplexity: 'Perplexity',
   '01-ai': '01.AI',
   cohere: 'Cohere',
   agentica: 'Agentica',

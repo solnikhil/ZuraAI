@@ -2471,53 +2471,6 @@ describe('useProviderStreaming', () => {
     expect(streamResult.content).toBe('Final answer from five year-sliced searches.')
   })
 
-  it('applies citation cleanup through the shared native-search path', async () => {
-    mocks.createProviderStreamClient.mockReturnValue({
-      stream: streamFrom([
-        { type: 'text-delta', delta: 'Answer [1]' },
-        { type: 'citation', citations: ['https://example.com/source'] },
-        { type: 'finish', finishReason: 'stop' },
-      ]),
-    })
-
-    const updateStreamingMessage = vi.fn()
-
-    const { result } = renderHook(() =>
-      useProviderStreaming({
-        settings: {
-          aiModel: 'sonar',
-          modelProvider: 'perplexity',
-          temperature: 0.4,
-          maxTokens: 1024,
-          streamResponses: true,
-          perplexityApiKey: 'px-key',
-        },
-        toolCalling: {
-          canUseTools: false,
-          getToolsForRequest: () => null,
-          handleToolCalls: vi.fn(),
-          getResearchContext: () => '',
-        },
-        updateStreamingMessage,
-        flushThrottledUpdates: vi.fn(),
-        throttledUpdateStreamingMessage: vi.fn(),
-      })
-    )
-
-    const streamResult = await result.current.runProviderStream({
-      provider: 'perplexity',
-      model: 'sonar',
-      sessionId: 'session-1',
-      messageId: 'message-1',
-      messages: [{ role: 'user', content: 'cite this' }],
-      startTime: performance.now() - 25,
-      researchMaxRounds: 0,
-      syncToStreamingContext: false,
-    })
-
-    expect(streamResult.content).toBe('Answer [[1]](https://example.com/source)')
-  })
-
   it('grants a second tool-enabled round after a successful first batch with budget remaining', async () => {
     const streamCalls: Array<{ toolChoice?: unknown; tools?: unknown }> = []
     let invocation = 0

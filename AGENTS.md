@@ -13,7 +13,7 @@ ZuraAI is a desktop AI assistant built with **Electron + React + Vite + TypeScri
 Core capabilities:
 
 - Dashboard UI for chats, settings, models, extensions, MCP, memory, and reminders
-- Multi-provider AI calls: Alibaba Cloud, Fireworks, Groq, NVIDIA NIM, Ollama, OpenRouter, OpenCode Go, Perplexity, DeepSeek
+- Multi-provider AI calls: Alibaba Cloud, Fireworks, Groq, NVIDIA NIM, Ollama, OpenRouter, OpenCode Go, DeepSeek
 - Hardened renderer -> preload -> main IPC boundary
 - Restricted tool system: built-in main-process tools, renderer-managed MCP tools, Agent Skills activation, artifacts, scheduled tasks, code execution, terminal, and Windows-native/Computer Use surfaces
 
@@ -26,8 +26,9 @@ Core capabilities:
 - Tests: `bun run test`
 - Tests watch: `bun run test:watch`
 - Typecheck: `bun run typecheck`
-- Build: `bun run build`
+- Build: `bun run build` (Windows installer/portable by default on Windows hosts)
 - Build portable dir: `bun run build:dir`
+- Build macOS: `bun run build:mac` / dir-only `bun run build:mac:dir` (requires a macOS host)
 - Release checksums: `bun run release:checksums`
 - Preview renderer bundle: `bun run preview`
 
@@ -101,6 +102,21 @@ Renderer (React/Vite) -> Preload (allowlisted bridges) -> Electron Main
 - Unknown renderer routes render the dedicated 404 view.
 - Packaged app registers `zuraai` for terminal/app-launch handoff and `zura-chat` for trusted local chat deep links. `zuraai://open` may only focus/create the main window. Debug and CLI chat references keep the shape `zura-chat://<sessionId>?userData=<base64urlUserData>`; session-only links open/switch to that chat, while continuation links may include `message=` or `messageBase64=`. CLI-created new-chat links may include `createIfMissing=1`, but must still pass the userData path validation before the renderer creates a new chat and sends the message.
 
+Platform chrome:
+
+- **Windows:** frameless main window with acrylic `backgroundMaterial`, custom title bar + window controls in the renderer, CSS resize handles.
+- **macOS:** `titleBarStyle: 'hidden'` with native traffic lights (`trafficLightPosition`), sidebar `vibrancy`, application menu from `electron/windows/applicationMenu.ts`, and a renderer drag region + sidebar controls (no custom traffic-light buttons). Double-clicking the Mac drag region toggles zoom/maximize through `window.windowControls`. About window uses `titleBarStyle: 'hiddenInset'`. Red traffic light / window close **hides** the main window to the Dock unless `setAppQuitting(true)` was set from `before-quit` (Cmd+Q, menu Quit, tray Quit); dock `activate` shows or recreates the main window. Tray icons on macOS use a black+alpha **template** image (`public/trayTemplate.png` / `build/trayTemplate.png`) so the menu bar can invert for light/dark.
+
+Memory / performance:
+
+- Main and Command Center windows use `backgroundThrottling: true` so Chromium can idle when unfocused.
+- Command Center is create-on-demand; after hide it is **destroyed** after a short idle (or immediately when Agent Mode/CC is disabled) rather than keeping a permanent second renderer.
+- Chat index embeds at most a thin recent tail (`RECENT_TAIL_SIZE` ≈ 20 messages) with images/tool payloads stripped; full history lives in per-session files and is loaded in a window (`SESSION_WINDOW_SIZE` ≈ 80) on open. Older messages load on demand (scroll-top / “Load earlier”). Inactive sessions prune to **empty** message arrays (metadata only).
+- Chat message list is **virtualized** (`VirtualMessageList` / react-virtuoso).
+- Usage settings use `chat-store:get-usage-sessions` (slim message fields only), not `chat-store:get-all`.
+- MCP manager initializes without auto-connect on the critical path; auto-connect servers connect after the main window is visible via deferred startup.
+- Markdown/Prism preloads only a small core language set; extra languages register on first use.
+
 All BrowserWindows must use `nodeIntegration: false`, `contextIsolation: true`, and `sandbox: true` unless a change is explicitly justified in this file.
 
 ### Persistence Boundaries
@@ -133,7 +149,7 @@ Main `app.getPath('userData')`:
 Secrets:
 
 - API keys and MCP secrets live in `electron/secureStorage.ts`.
-- Stored provider keys include OpenRouter, Perplexity, Groq, Alibaba, Fireworks, DeepSeek, OpenCode Go, NVIDIA, Tavily, and Brevo.
+- Stored provider keys include OpenRouter, Groq, Alibaba, Fireworks, DeepSeek, OpenCode Go, NVIDIA, Tavily, and Brevo.
 - Renderer should read key presence when possible and hydrate actual secrets only when required for a provider/tool call.
 - `safeStorage` is required for secret reads/writes. Do not add plaintext secret persistence fallback.
 
@@ -420,7 +436,6 @@ Important tool rules:
 - Provider metadata/capabilities live in `src/providers/providerRegistry.ts`.
 - Shared runtime dispatch lives in `src/providers/providerRuntime.ts`.
 - Provider service files own request shaping and stream parsing only.
-- Perplexity is search-native and should not receive external tool definitions.
 - OpenRouter-compatible tool-call parsing/recovery lives in `src/tools/adapters/openrouterToolCalls.ts`.
 - New providers must define auth, model enablement, capabilities, title/memory support, streaming behavior, and storage/secrets boundaries explicitly.
 - Do not hardcode real model IDs/names in runtime code. Models are user-configured and resolved from settings plus provider registry metadata. Tests should use clearly fake IDs.
@@ -457,11 +472,13 @@ Important tool rules:
 - `npmRebuild` is `false`; packaging should use installable/prebuilt native dependencies and should not require local Visual Studio Build Tools just to rebuild optional native dependencies.
 - `package.json#build.electronDist` points at `node_modules/electron/dist`; Windows packaging copies the installed Electron distribution instead of unpacking Electron from the builder cache.
 - `bun run build` emits Windows installer and portable artifacts, then writes `release/checksums.txt`.
+- `bun run build:mac` emits macOS DMG/zip artifacts (arm64 + x64) on a macOS host, then writes `release/checksums.txt`. Notarization/signing with an Apple Developer ID is a separate ops step (env credentials only; never commit certs or passwords).
 - Build outputs are gitignored under `dist/`, `dist-electron/`, and `release/`.
 - Auto-updater is production-only in `electron/updater.ts`.
 - GitHub publishing is configured for `solnikhil/ZuraAI`; update `package.json#build.publish` if packaging from a fork.
 - Windows packaging uses the NSIS wizard installer with install-directory selection. The selected directory is the final install path; do not force an extra `\ZuraAI` subfolder.
-- Installer assets (`build/icon.ico`, `build/sidebar.bmp`) are generated by `scripts/generate-icons.mjs` and are gitignored.
+- macOS packaging uses `public.app-category.productivity`, hardened runtime enabled, and `gatekeeperAssess: false` until notarization is wired.
+- Installer assets (`build/icon.ico`, `build/sidebar.bmp`, `build/icon.png`, optional `build/icon.icns`, tray template) are generated by `scripts/generate-icons.mjs`. The `build/` directory is gitignored; `public/trayTemplate.png` is generated for macOS menu-bar template icons in dev.
 
 Windows artifacts:
 
@@ -469,6 +486,12 @@ Windows artifacts:
 - `ZuraAI-Setup-{version}.exe.blockmap`
 - `ZuraAI-Portable-{version}-x64.exe`
 - `latest.yml`
+- `checksums.txt`
+
+macOS artifacts:
+
+- `ZuraAI-{version}-mac-arm64.dmg` / `.zip`
+- `ZuraAI-{version}-mac-x64.dmg` / `.zip`
 - `checksums.txt`
 
 ### npm Package

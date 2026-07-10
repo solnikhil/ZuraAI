@@ -90,7 +90,7 @@ describe('SettingsContext Provider Integration', () => {
 
     it('includes valid modelProvider in defaults', async () => {
       const { defaultSettingsConfig } = await import('./SettingsConfigContext')
-      const validProviders = ['openrouter', 'ollama', 'perplexity', 'groq']
+      const validProviders = ['openrouter', 'ollama', 'groq']
       expect(validProviders).toContain(defaultSettingsConfig.modelProvider)
     })
 
@@ -271,7 +271,6 @@ Rules:
         ollama: true,
         openrouter: true,
         opencode: true,
-        perplexity: true,
       })
     })
 
@@ -435,7 +434,6 @@ SEARCH STRATEGY:
           groqModels: [],
           alibabaModels: [],
           fireworksModels: [],
-          perplexityModels: [],
         })
       )
 
@@ -443,7 +441,6 @@ SEARCH STRATEGY:
       expect(normalized.groqModels).toEqual([])
       expect(normalized.alibabaModels).toEqual([])
       expect(normalized.fireworksModels).toEqual([])
-      expect(normalized.perplexityModels).toEqual([])
     })
 
     it('clears legacy pre-seeded Fireworks model defaults from persisted settings', () => {

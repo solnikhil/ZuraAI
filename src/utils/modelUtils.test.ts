@@ -238,7 +238,6 @@ describe('modelUtils', () => {
       { code: 'qwen-plus', displayName: 'Qwen Plus', provider: 'alibaba' },
       { code: 'claude-3', displayName: 'Claude 3', provider: 'openrouter' },
       { code: 'llama-3', displayName: 'Llama 3', provider: 'ollama' },
-      { code: 'sonar', displayName: 'Sonar', provider: 'perplexity' },
       { code: 'mixtral', displayName: 'Mixtral', provider: 'groq' },
     ]
 
@@ -248,7 +247,6 @@ describe('modelUtils', () => {
       expect(groups.openrouter).toHaveLength(2)
       expect(groups.alibaba).toHaveLength(1)
       expect(groups.ollama).toHaveLength(1)
-      expect(groups.perplexity).toHaveLength(1)
       expect(groups.groq).toHaveLength(1)
     })
 
@@ -257,7 +255,6 @@ describe('modelUtils', () => {
 
       expect(groups.openrouter).toEqual([])
       expect(groups.ollama).toEqual([])
-      expect(groups.perplexity).toEqual([])
       expect(groups.groq).toEqual([])
       expect(groups.alibaba).toEqual([])
     })
@@ -266,7 +263,6 @@ describe('modelUtils', () => {
   describe('getProviderTitle', () => {
     it('returns correct titles for known providers', () => {
       expect(getProviderTitle('openrouter')).toBe('OpenRouter')
-      expect(getProviderTitle('perplexity')).toBe('Perplexity')
       expect(getProviderTitle('groq')).toBe('Groq')
       expect(getProviderTitle('ollama')).toBe('Ollama')
       expect(getProviderTitle('alibaba')).toBe('Alibaba Cloud')
@@ -280,7 +276,6 @@ describe('modelUtils', () => {
   describe('getProviderColor', () => {
     it('returns correct colors for known providers', () => {
       expect(getProviderColor('openrouter')).toBe('#a855f7')
-      expect(getProviderColor('perplexity')).toBe('#22c55e')
       expect(getProviderColor('groq')).toBe('#f97316')
       expect(getProviderColor('ollama')).toBe('#339af0')
       expect(getProviderColor('alibaba')).toBe('#ff6a00')
@@ -320,16 +315,6 @@ describe('modelUtils', () => {
       }
       const caps = getCapabilitiesForModelPicker(model)
       expect(caps).toContain('toolCall')
-    })
-
-    it('excludes toolCall for Perplexity model', () => {
-      const model = {
-        code: 'sonar',
-        displayName: 'Sonar',
-        provider: 'perplexity',
-      }
-      const caps = getCapabilitiesForModelPicker(model)
-      expect(caps).not.toContain('toolCall')
     })
 
     it('includes toolCall when model has explicit supportsToolCall', () => {

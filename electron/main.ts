@@ -9,6 +9,8 @@ import {
   createTray,
   destroyTray,
   getMainWindow,
+  showMainWindow,
+  setAppQuitting,
   destroyChatDebugWindow,
   destroyCommandCenterWindow,
   destroyAgentApprovalOverlay,
@@ -19,6 +21,7 @@ import { applyDevelopmentAppIcon } from './windowIcon'
 import { registerAllHandlers } from './ipc'
 import {
   initializeMcpManager,
+  connectAutoConnectMcpServers,
   registerMcpHandlers,
   shutdownMcpManager,
   unregisterMcpHandlers,
@@ -154,7 +157,11 @@ app.on('window-all-closed', () => {
 })
 
 app.on('activate', () => {
-  if (IS_MACOS && !getMainWindow()) {
+  if (!IS_MACOS) return
+  // Dock click: show a hidden main window, or create one if it was destroyed.
+  if (getMainWindow()) {
+    showMainWindow()
+  } else {
     createMainWindow()
   }
 })
@@ -185,6 +192,8 @@ app.on('will-quit', () => {
 app.on('before-quit', (event) => {
   // Let the main window fully close instead of intercepting as hide-to-tray.
   allowMainWindowToClose()
+  // Allow macOS close handlers to destroy windows instead of hiding to Dock.
+  setAppQuitting(true)
 
   if (hasCompletedMcpShutdown) {
     return
@@ -262,9 +271,10 @@ if (hasSingleInstanceLock) {
     registerSessionSecurityHandlers()
     log.endPhase('ipc-handlers')
 
+    // MCP manager without auto-connect on the critical path — connect after paint.
     log.startPhase('mcp-init')
     await initializeMcpManager({
-      autoConnect: true,
+      autoConnect: false,
       clientInfo: {
         name: APP_NAME,
         version: app.getVersion(),
@@ -275,6 +285,18 @@ if (hasSingleInstanceLock) {
 
     createApplicationMenu()
     applyDevelopmentAppIcon()
+
+    deferredInitializer.registerTask({
+      name: 'mcp-auto-connect',
+      priority: 'high',
+      delayMs: 0,
+      execute: async () => {
+        log.startPhase('mcp-auto-connect')
+        await connectAutoConnectMcpServers()
+        log.endPhase('mcp-auto-connect')
+        log.success('MCP auto-connect completed')
+      },
+    })
 
     deferredInitializer.registerTask({
       name: 'scheduled-tasks',

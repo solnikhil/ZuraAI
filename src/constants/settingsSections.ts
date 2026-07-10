@@ -29,7 +29,7 @@ export const SETTINGS_SECTIONS: SettingsSectionMeta[] = [
     navLabel: 'Providers',
     title: 'Providers & Models',
     description: 'Configure model providers, API credentials, and search integrations.',
-    keywords: ['models', 'openrouter', 'groq', 'perplexity', 'ollama', 'alibaba', 'tavily'],
+    keywords: ['models', 'openrouter', 'groq', 'ollama', 'alibaba', 'tavily'],
   },
   {
     id: 'extensions',

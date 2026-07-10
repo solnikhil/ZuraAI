@@ -24,6 +24,8 @@
     "generate-icons": "bun scripts/generate-icons.mjs",
     "build": "bun scripts/generate-icons.mjs && tsc && vite build && electron-builder && bun scripts/generate-release-checksums.mjs",
     "build:dir": "bun scripts/generate-icons.mjs && tsc && vite build && electron-builder --dir",
+    "build:mac": "bun scripts/generate-icons.mjs && tsc && vite build && electron-builder --mac && bun scripts/generate-release-checksums.mjs",
+    "build:mac:dir": "bun scripts/generate-icons.mjs && tsc && vite build && electron-builder --mac --dir",
     "release:checksums": "bun scripts/generate-release-checksums.mjs",
     "verify:mcp-release": "bun scripts/verify-mcp-release.mjs",
     "preview": "vite preview",
@@ -155,6 +157,36 @@
       "icon": "build/icon.ico",
       "executableName": "ZuraAI",
       "verifyUpdateCodeSignature": false
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "category": "public.app-category.productivity",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "artifactName": "ZuraAI-${version}-mac-${arch}.${ext}",
+      "extendInfo": {
+        "CFBundleDisplayName": "ZuraAI",
+        "NSHighResolutionCapable": true
+      }
+    },
+    "dmg": {
+      "artifactName": "ZuraAI-${version}-mac-${arch}.${ext}"
     },
     "protocols": [
       {
