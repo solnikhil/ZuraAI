@@ -1,5 +1,5 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
 import {
   Brain,
   Check,
@@ -9,6 +9,7 @@ import {
   CornerDownLeft,
   ExternalLink,
   FolderOpen,
+  Link2,
   MessageSquare,
   Monitor,
   Sparkles,
@@ -28,14 +29,6 @@ import type {
   CommandCenterIndexItem,
   CommandCenterItemActionId,
 } from '../electron/types'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuShortcut,
-  DropdownMenuTrigger,
-} from './ui/dropdown-menu'
 
 type Mode = 'search' | 'ask'
 type CommandView = 'root' | 'emojis'
@@ -62,14 +55,32 @@ const APP_ACTION_DEFS: AppActionDef[] = [
     available: (item) => typeof item.existingWindow?.hwnd === 'number',
   },
   {
+    id: 'force-quit',
+    label: 'Force Quit',
+    icon: <X size={15} />,
+    available: (item) => typeof item.existingWindow?.processId === 'number',
+  },
+  {
     id: 'show-in-folder',
     label: 'Show in File Explorer',
     icon: <FolderOpen size={15} />,
     available: (item) => Boolean(appPathCandidate(item)),
   },
   {
+    id: 'reveal-shortcut',
+    label: 'Reveal Shortcut',
+    icon: <Link2 size={15} />,
+    available: (item) => typeof item.shortcutPath === 'string' && Boolean(item.shortcutPath.trim()),
+  },
+  {
     id: 'copy-path',
     label: 'Copy Path',
+    icon: <Clipboard size={15} />,
+    available: (item) => Boolean(appPathCandidate(item)),
+  },
+  {
+    id: 'copy-dir',
+    label: 'Copy Directory Path',
     icon: <Clipboard size={15} />,
     available: (item) => Boolean(appPathCandidate(item)),
   },
@@ -90,8 +101,6 @@ function appPathCandidate(item: Extract<CommandCenterIndexItem, { type: 'app' }>
   return undefined
 }
 
-const motionEase = [0.22, 1, 0.36, 1] as const
-
 const EMPTY_INDEX: CommandCenterIndex = {
   workflows: [],
   apps: [],
@@ -101,13 +110,16 @@ const EMPTY_INDEX: CommandCenterIndex = {
 }
 
 // Fixed group order for the results list (keeps section headers stable).
+// Zura Extras is a first-class category of built-in convenience commands,
+// rendered as normal list rows (same as Apps/Actions) — not a nested store.
+const ZURA_EXTRAS_GROUP = 'Zura Extras'
 const GROUP_ORDER = [
   'Saved Workflows',
   'Apps',
   'Windows',
+  ZURA_EXTRAS_GROUP,
   'Actions',
   'Chats',
-  'Additional',
 ] as const
 
 // Max rows rendered per group. Apps is the group that can grow into the
@@ -119,10 +131,20 @@ const GROUP_RESULT_LIMITS: Record<string, number> = {
   Windows: 12,
   Actions: 24,
   Chats: 8,
-  Additional: 12,
+  [ZURA_EXTRAS_GROUP]: 12,
 }
 // Apps shown in the default browse view (before the user types a query).
 const DEFAULT_BROWSE_APP_LIMIT = 8
+
+/** Built-in commands shown under the Zura Extras category. */
+const ZURA_EXTRAS_ACTION_IDS = new Set<string>(['emoji-picker'])
+
+/** Columns for the emoji-only picker grid (arrow keys move by this width). */
+const EMOJI_GRID_COLUMNS = 8
+
+function isZuraExtrasItem(item: CommandCenterIndexItem): boolean {
+  return item.type === 'action' && ZURA_EXTRAS_ACTION_IDS.has(item.actionId)
+}
 
 function flattenIndex(
   index: CommandCenterIndex
@@ -132,7 +154,7 @@ function flattenIndex(
     ...index.apps.map((item) => ({ group: 'Apps', item })),
     ...index.windows.map((item) => ({ group: 'Windows', item })),
     ...index.actions.map((item) => ({
-      group: item.type === 'action' && item.actionId === 'emoji-picker' ? 'Additional' : 'Actions',
+      group: isZuraExtrasItem(item) ? ZURA_EXTRAS_GROUP : 'Actions',
       item,
     })),
     ...index.chats.map((item) => ({ group: 'Chats', item })),
@@ -183,6 +205,9 @@ function iconForItem(item: CommandCenterIndexItem) {
   if (item.type === 'chat') return <MessageSquare size={22} />
   if (item.type === 'action' && item.actionId === 'emoji-picker') {
     return <span aria-hidden="true">😊</span>
+  }
+  if (isZuraExtrasItem(item)) {
+    return <Sparkles size={22} />
   }
   return <Command size={22} />
 }
@@ -240,11 +265,12 @@ export default function CommandCenterOverlay() {
   const [promoted, setPromoted] = useState(false)
   const [optimisticText, setOptimisticText] = useState<string | null>(null)
   const [actionsOpen, setActionsOpen] = useState(false)
+  const [actionsHighlight, setActionsHighlight] = useState(0)
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null)
   const bodyRef = useRef<HTMLDivElement | null>(null)
+  const actionsRootRef = useRef<HTMLDivElement | null>(null)
   const indexRequestRef = useRef(0)
   const activeSearchQueryRef = useRef('')
-  const reduceMotion = useReducedMotion()
 
   const {
     sessions,
@@ -425,6 +451,7 @@ export default function CommandCenterOverlay() {
     setPromoted(false)
     setChatSessionId(null)
     setActionsOpen(false)
+    setActionsHighlight(0)
     clearCurrentSession()
     void refreshIndex('', false)
     requestAnimationFrame(() => inputRef.current?.focus())
@@ -465,7 +492,24 @@ export default function CommandCenterOverlay() {
     // highlight visible so the top result is pre-selected.
     setSelectedIndex(0)
     setSelectionVisible(true)
+    setActionsOpen(false)
+    setActionsHighlight(0)
   }, [commandView, input, mode])
+
+  // Close the in-panel Actions popover on outside click (no Radix portal).
+  useEffect(() => {
+    if (!actionsOpen) return undefined
+    const onPointerDown = (event: PointerEvent) => {
+      const root = actionsRootRef.current
+      if (!root) return
+      if (event.target instanceof Node && !root.contains(event.target)) {
+        setActionsOpen(false)
+        setActionsHighlight(0)
+      }
+    }
+    window.addEventListener('pointerdown', onPointerDown, true)
+    return () => window.removeEventListener('pointerdown', onPointerDown, true)
+  }, [actionsOpen])
 
   useEffect(() => {
     if (!pendingPrompt || !chatSessionId || currentSessionId !== chatSessionId || isLoading) return
@@ -475,7 +519,10 @@ export default function CommandCenterOverlay() {
   }, [chatSessionId, currentSessionId, isLoading, pendingPrompt, sendMessage])
 
   useEffect(() => {
-    bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight, behavior: 'smooth' })
+    const body = bodyRef.current
+    if (body && typeof body.scrollTo === 'function') {
+      body.scrollTo({ top: body.scrollHeight, behavior: 'smooth' })
+    }
     // Clear optimistic text once a real user message appears in the session
     if (optimisticText && chatMessages.some((m) => m.role === 'user')) {
       setOptimisticText(null)
@@ -558,6 +605,7 @@ export default function CommandCenterOverlay() {
     async (item: CommandCenterIndexItem, actionId: CommandCenterItemActionId) => {
       if (item.type !== 'app') return
       setActionsOpen(false)
+      setActionsHighlight(0)
       setError(null)
       setStatus(null)
       const query = mode === 'search' ? input.trim() : ''
@@ -573,9 +621,21 @@ export default function CommandCenterOverlay() {
       if (result.status) {
         setStatus(result.status)
       }
+      requestAnimationFrame(() => inputRef.current?.focus())
     },
     [input, mode]
   )
+
+  const openActionsMenu = useCallback(() => {
+    setActionsHighlight(0)
+    setActionsOpen(true)
+  }, [])
+
+  const closeActionsMenu = useCallback(() => {
+    setActionsOpen(false)
+    setActionsHighlight(0)
+    requestAnimationFrame(() => inputRef.current?.focus())
+  }, [])
 
   const runConfirmedWorkflow = useCallback(async () => {
     if (!confirmingWorkflow || confirmingWorkflow.type !== 'workflow') return
@@ -655,7 +715,7 @@ export default function CommandCenterOverlay() {
     if (event.key === 'Escape') {
       event.preventDefault()
       if (actionsOpen) {
-        setActionsOpen(false)
+        closeActionsMenu()
         return
       }
       if (confirmingWorkflow) {
@@ -685,7 +745,31 @@ export default function CommandCenterOverlay() {
       selectedItem?.type === 'app'
     ) {
       event.preventDefault()
-      setActionsOpen((open) => !open)
+      if (actionsOpen) closeActionsMenu()
+      else openActionsMenu()
+      return
+    }
+    if (actionsOpen) {
+      if (event.key === 'ArrowDown') {
+        event.preventDefault()
+        setActionsHighlight((current) =>
+          Math.min(current + 1, Math.max(selectedAppActions.length - 1, 0))
+        )
+        return
+      }
+      if (event.key === 'ArrowUp') {
+        event.preventDefault()
+        setActionsHighlight((current) => Math.max(current - 1, 0))
+        return
+      }
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault()
+        const action = selectedAppActions[actionsHighlight]
+        if (selectedItem?.type === 'app' && action) {
+          void runItemAction(selectedItem, action.id)
+        }
+        return
+      }
       return
     }
     if (event.key === 'Enter' && !event.shiftKey) {
@@ -693,11 +777,40 @@ export default function CommandCenterOverlay() {
       submit()
       return
     }
-    if (actionsOpen) return
+    if (isEmojiView && mode === 'search') {
+      const count = emojiResults.length
+      if (count === 0) return
+      const cols = EMOJI_GRID_COLUMNS
+      if (event.key === 'ArrowRight') {
+        event.preventDefault()
+        setSelectionVisible(true)
+        setSelectedIndex((current) => Math.min(current + 1, count - 1))
+        return
+      }
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault()
+        setSelectionVisible(true)
+        setSelectedIndex((current) => Math.max(current - 1, 0))
+        return
+      }
+      if (event.key === 'ArrowDown') {
+        event.preventDefault()
+        setSelectionVisible(true)
+        setSelectedIndex((current) => Math.min(current + cols, count - 1))
+        return
+      }
+      if (event.key === 'ArrowUp') {
+        event.preventDefault()
+        setSelectionVisible(true)
+        setSelectedIndex((current) => Math.max(current - cols, 0))
+        return
+      }
+      return
+    }
     if (!isChatMode && mode === 'search' && event.key === 'ArrowDown') {
       event.preventDefault()
       setSelectionVisible(true)
-      const rowCount = isEmojiView ? emojiResults.length : filteredRows.length
+      const rowCount = filteredRows.length
       setSelectedIndex((current) => Math.min(current + 1, Math.max(rowCount - 1, 0)))
     }
     if (!isChatMode && mode === 'search' && event.key === 'ArrowUp') {
@@ -737,16 +850,29 @@ export default function CommandCenterOverlay() {
     )
   }, [selectedItem])
 
-  const showAppActions = !isChatMode && !isEmojiView && mode === 'search' && selectedAppActions.length > 0
+  const showAppActions =
+    !isChatMode && !isEmojiView && mode === 'search' && selectedAppActions.length > 0
+
+  useEffect(() => {
+    if (!showAppActions && actionsOpen) {
+      setActionsOpen(false)
+      setActionsHighlight(0)
+    }
+  }, [actionsOpen, showAppActions])
+
+  useEffect(() => {
+    if (actionsHighlight >= selectedAppActions.length) {
+      setActionsHighlight(Math.max(selectedAppActions.length - 1, 0))
+    }
+  }, [actionsHighlight, selectedAppActions.length])
 
   return (
     <div className="command-center-root">
-      <motion.div
+      <div
         className={`command-center-panel ${isChatMode ? 'is-chat' : ''}`}
         onKeyDownCapture={handlePanelKeyDownCapture}
-        initial={false}
       >
-        <motion.div className="command-center-topbar" initial={false}>
+        <div className="command-center-topbar">
           {isEmojiView && (
             <button
               type="button"
@@ -757,11 +883,7 @@ export default function CommandCenterOverlay() {
               <span aria-hidden="true">‹</span>
             </button>
           )}
-          <motion.div
-            className="command-center-input-shell"
-            animate={reduceMotion ? { x: 0 } : { x: mode === 'ask' ? 4 : 0 }}
-            transition={{ duration: reduceMotion ? 0 : 0.16, ease: motionEase }}
-          >
+          <div className="command-center-input-shell">
             <input
               ref={(node) => {
                 inputRef.current = node
@@ -798,7 +920,7 @@ export default function CommandCenterOverlay() {
                 {isLoading ? <X size={16} /> : <CornerDownLeft size={16} />}
               </button>
             )}
-          </motion.div>
+          </div>
           {!isChatMode && !isEmojiView && (
             <button
               type="button"
@@ -810,57 +932,44 @@ export default function CommandCenterOverlay() {
               <span>{mode === 'ask' ? 'to Search' : 'to AI'}</span>
             </button>
           )}
-        </motion.div>
+        </div>
 
-        <AnimatePresence mode="wait" initial={false}>
-          {!isChatMode ? (
-            <motion.div
-              key={`${commandView}:${mode}`}
-              className="command-center-body"
-              initial={reduceMotion ? false : { x: mode === 'ask' ? 6 : -6 }}
-              animate={reduceMotion ? undefined : { x: 0 }}
-              exit={reduceMotion ? undefined : { x: mode === 'ask' ? 6 : -6 }}
-              transition={{
-                duration: reduceMotion ? 0 : 0.13,
-                delay: reduceMotion ? 0 : 0.025,
-                ease: motionEase,
-              }}
-            >
+        {!isChatMode ? (
+          <div className="command-center-body">
               {isEmojiView ? (
                 <div
                   className="command-center-results command-center-emoji-results"
                   role="listbox"
                   aria-label="Emoji results"
                 >
-                  <section className="command-center-group">
+                  <section className="command-center-group command-center-emoji-group">
                     <h2>{input.trim() ? 'Search Results' : 'Popular'}</h2>
-                    {emojiResults.map((entry, rowIndex) => {
-                      const selected = selectionVisible && rowIndex === selectedIndex
-                      return (
-                        <button
-                          key={entry.emoji}
-                          type="button"
-                          className={`command-center-result command-center-emoji-result ${selected ? 'selected' : ''}`}
-                          onClick={() => {
-                            setSelectionVisible(true)
-                            setSelectedIndex(rowIndex)
-                            requestAnimationFrame(() => inputRef.current?.focus())
-                          }}
-                          onDoubleClick={() => void insertEmoji(entry)}
-                          role="option"
-                          aria-selected={selected}
-                        >
-                          <span className="command-center-result__icon command-center-emoji-result__glyph">
-                            {entry.emoji}
-                          </span>
-                          <span className="command-center-result__text">
-                            <span>{entry.name}</span>
-                            <small>{entry.keywords.slice(1, 4).join(' · ')}</small>
-                          </span>
-                          <span className="command-center-result__hint">Paste</span>
-                        </button>
-                      )
-                    })}
+                    <div
+                      className="command-center-emoji-grid"
+                      style={{ ['--emoji-grid-cols' as string]: EMOJI_GRID_COLUMNS }}
+                    >
+                      {emojiResults.map((entry, rowIndex) => {
+                        const selected = selectionVisible && rowIndex === selectedIndex
+                        return (
+                          <button
+                            key={entry.emoji}
+                            type="button"
+                            className={`command-center-emoji-cell ${selected ? 'selected' : ''}`}
+                            title={entry.name}
+                            aria-label={entry.name}
+                            onClick={() => {
+                              setSelectionVisible(true)
+                              setSelectedIndex(rowIndex)
+                              void insertEmoji(entry)
+                            }}
+                            role="option"
+                            aria-selected={selected}
+                          >
+                            <span aria-hidden="true">{entry.emoji}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
                   </section>
                   {emojiResults.length === 0 && (
                     <div className="command-center-empty">
@@ -903,6 +1012,15 @@ export default function CommandCenterOverlay() {
                                 requestAnimationFrame(() => inputRef.current?.focus())
                               }}
                               onDoubleClick={() => void executeItem(item)}
+                              onContextMenu={(event) => {
+                                // Right-click opens the app Actions menu (same as ⌃K).
+                                if (item.type !== 'app') return
+                                event.preventDefault()
+                                setSelectionVisible(true)
+                                setSelectedIndex(rowIndex)
+                                openActionsMenu()
+                                requestAnimationFrame(() => inputRef.current?.focus())
+                              }}
                             >
                               <span className="command-center-result__icon">
                                 {iconForItem(item)}
@@ -944,16 +1062,9 @@ export default function CommandCenterOverlay() {
                   </div>
                 </div>
               )}
-            </motion.div>
-          ) : (
-            <motion.div
-              key="chat"
-              className="command-center-chat"
-              initial={reduceMotion ? false : { y: 6 }}
-              animate={reduceMotion ? undefined : { y: 0 }}
-              exit={reduceMotion ? undefined : { y: -6 }}
-              transition={{ duration: reduceMotion ? 0 : 0.15, ease: motionEase }}
-            >
+          </div>
+        ) : (
+          <div className="command-center-chat">
               <div className="command-center-chat-actions">
                 <span className="command-center-model-badge">
                   {settings.aiModel || 'assistant'}
@@ -1006,16 +1117,15 @@ export default function CommandCenterOverlay() {
                   )
                 })}
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+          </div>
+        )}
 
         {!isChatMode && (
           <footer className="command-center-footer">
             <span className="command-center-footer__brand">
               <img src="icon-mark.png" alt="" />
             </span>
-            <div className="command-center-footer__actions">
+            <div className="command-center-footer__actions" ref={actionsRootRef}>
               <button
                 type="button"
                 className="command-center-footer__action"
@@ -1028,67 +1138,82 @@ export default function CommandCenterOverlay() {
                 </kbd>
               </button>
               {showAppActions && selectedItem?.type === 'app' && (
-                <DropdownMenu open={actionsOpen} onOpenChange={setActionsOpen}>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
-                      className="command-center-footer__action command-center-footer__actions-btn"
-                      aria-label="Actions"
-                      aria-haspopup="menu"
-                      aria-expanded={actionsOpen}
-                    >
-                      <span>Actions</span>
-                      <kbd className="command-center-footer__chord">
-                        <span>⌃</span>
-                        <span>K</span>
-                      </kbd>
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent
-                    align="end"
-                    side="top"
-                    sideOffset={8}
-                    className="command-center-actions-menu"
-                    onCloseAutoFocus={(event) => {
-                      event.preventDefault()
-                      inputRef.current?.focus()
+                <>
+                  <button
+                    type="button"
+                    className={`command-center-footer__action command-center-footer__actions-btn ${actionsOpen ? 'is-open' : ''}`}
+                    aria-label="Actions"
+                    aria-haspopup="menu"
+                    aria-expanded={actionsOpen}
+                    aria-controls="command-center-actions-menu"
+                    onClick={() => {
+                      if (actionsOpen) closeActionsMenu()
+                      else openActionsMenu()
                     }}
                   >
-                    {selectedAppActions.map((action, index) => {
-                      const prev = selectedAppActions[index - 1]
-                      const isUtility =
-                        action.id === 'show-in-folder' ||
-                        action.id === 'copy-path' ||
-                        action.id === 'copy-name'
-                      const prevIsPrimary =
-                        !prev || prev.id === 'open' || prev.id === 'focus-window'
-                      const showSeparator = isUtility && prevIsPrimary
-                      return (
-                        <Fragment key={action.id}>
-                          {showSeparator ? <DropdownMenuSeparator /> : null}
-                          <DropdownMenuItem
-                            className="command-center-actions-menu__item"
-                            onSelect={() => {
-                              if (selectedItem?.type === 'app') {
-                                void runItemAction(selectedItem, action.id)
-                              }
-                            }}
-                          >
-                            <span className="command-center-actions-menu__icon">{action.icon}</span>
-                            <span className="command-center-actions-menu__label">
-                              {action.label}
-                            </span>
-                            {action.id === 'open' ? (
-                              <DropdownMenuShortcut>
-                                <CornerDownLeft size={12} />
-                              </DropdownMenuShortcut>
-                            ) : null}
-                          </DropdownMenuItem>
-                        </Fragment>
-                      )
-                    })}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                    <span>Actions</span>
+                    <kbd className="command-center-footer__chord">
+                      <span>⌃</span>
+                      <span>K</span>
+                    </kbd>
+                  </button>
+                  {actionsOpen ? (
+                    <div
+                      id="command-center-actions-menu"
+                      className="command-center-actions-popover"
+                      role="menu"
+                      aria-label={`${selectedItem.title} actions`}
+                    >
+                      <div className="command-center-actions-popover__title">
+                        {selectedItem.title}
+                      </div>
+                      <div className="command-center-actions-popover__list">
+                        {selectedAppActions.map((action, index) => {
+                          const prev = selectedAppActions[index - 1]
+                          const getGroup = (id: string) => {
+                            if (id === 'open' || id === 'focus-window') return 1
+                            if (id === 'force-quit') return 2
+                            if (id === 'show-in-folder' || id === 'reveal-shortcut') return 3
+                            return 4
+                          }
+                          const showSeparator = prev && getGroup(action.id) !== getGroup(prev.id)
+                          const active = index === actionsHighlight
+                          return (
+                            <div key={action.id}>
+                              {showSeparator ? (
+                                <div
+                                  className="command-center-actions-popover__separator"
+                                  role="separator"
+                                />
+                              ) : null}
+                              <button
+                                type="button"
+                                role="menuitem"
+                                className={`command-center-actions-popover__item ${active ? 'is-active' : ''}`}
+                                onMouseEnter={() => setActionsHighlight(index)}
+                                onClick={() => {
+                                  void runItemAction(selectedItem, action.id)
+                                }}
+                              >
+                                <span className="command-center-actions-popover__icon">
+                                  {action.icon}
+                                </span>
+                                <span className="command-center-actions-popover__label">
+                                  {action.label}
+                                </span>
+                                {action.id === 'open' ? (
+                                  <kbd className="command-center-actions-popover__shortcut">
+                                    <CornerDownLeft size={12} />
+                                  </kbd>
+                                ) : null}
+                              </button>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ) : null}
+                </>
               )}
             </div>
           </footer>
@@ -1097,7 +1222,7 @@ export default function CommandCenterOverlay() {
         {(error || status) && (
           <div className={`command-center-status ${error ? 'error' : ''}`}>{error || status}</div>
         )}
-      </motion.div>
+      </div>
 
       {confirmingWorkflow && confirmingWorkflow.type === 'workflow' && (
         <div className="command-center-confirm">
@@ -1298,8 +1423,9 @@ export default function CommandCenterOverlay() {
         }
 
         .command-center-footer {
+          position: relative;
           flex: 0 0 auto;
-          z-index: 2;
+          z-index: 5;
           height: 42px;
           display: flex;
           align-items: center;
@@ -1322,6 +1448,7 @@ export default function CommandCenterOverlay() {
         }
 
         .command-center-footer__actions {
+          position: relative;
           display: inline-flex;
           align-items: center;
           gap: 2px;
@@ -1345,7 +1472,7 @@ export default function CommandCenterOverlay() {
         }
 
         .command-center-footer__action:hover,
-        .command-center-footer__action[data-state='open'] {
+        .command-center-footer__action.is-open {
           background: rgba(255, 255, 255, 0.06);
           color: rgba(255, 249, 251, 0.92);
         }
@@ -1376,63 +1503,111 @@ export default function CommandCenterOverlay() {
           display: inline-block;
         }
 
-        .command-center-actions-menu {
-          min-width: 240px;
-          max-width: min(320px, 92vw);
-          padding: 6px;
-          border-radius: 12px;
+        /* Flat grey panel — no shadow/blur so it stays crisp over acrylic. */
+        .command-center-actions-popover {
+          position: absolute;
+          right: 0;
+          bottom: calc(100% + 6px);
+          z-index: 30;
+          width: min(260px, calc(100vw - 24px));
+          padding: 4px;
+          border-radius: 10px;
           border: 1px solid rgba(255, 255, 255, 0.10);
-          background: rgba(22, 18, 24, 0.96);
-          color: rgba(255, 244, 248, 0.92);
-          box-shadow:
-            0 18px 48px rgba(0, 0, 0, 0.45),
-            0 0 0 1px rgba(255, 255, 255, 0.04) inset;
-          backdrop-filter: blur(18px);
-          -webkit-backdrop-filter: blur(18px);
+          background: #2c2c2e;
+          color: rgba(255, 255, 255, 0.92);
+          box-shadow: none;
+          backdrop-filter: none;
+          -webkit-backdrop-filter: none;
         }
 
-        .command-center-actions-menu__item {
+        .command-center-actions-popover__title {
+          padding: 6px 10px 4px;
+          color: rgba(255, 255, 255, 0.42);
+          font-size: 11px;
+          font-weight: 600;
+          letter-spacing: 0.01em;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .command-center-actions-popover__list {
+          display: flex;
+          flex-direction: column;
+          gap: 0;
+        }
+
+        .command-center-actions-popover__separator {
+          height: 1px;
+          margin: 4px 8px;
+          background: rgba(255, 255, 255, 0.08);
+        }
+
+        .command-center-actions-popover__item {
+          width: 100%;
           display: flex;
           align-items: center;
           gap: 10px;
-          min-height: 34px;
-          border-radius: 8px;
-          padding: 6px 8px;
+          min-height: 32px;
+          margin: 0;
+          padding: 0 10px;
+          border: 0;
+          border-radius: 6px;
+          background: transparent;
+          color: rgba(255, 255, 255, 0.90);
+          font: inherit;
           font-size: 13px;
-          color: rgba(255, 244, 248, 0.90);
+          font-weight: 500;
+          text-align: left;
           cursor: pointer;
         }
 
-        .command-center-actions-menu__item:focus,
-        .command-center-actions-menu__item[data-highlighted] {
-          background: rgba(255, 255, 255, 0.09);
-          color: rgba(255, 250, 252, 0.98);
-          outline: none;
+        .command-center-actions-popover__item:hover,
+        .command-center-actions-popover__item.is-active {
+          background: rgba(255, 255, 255, 0.12);
+          color: #fff;
         }
 
-        .command-center-actions-menu__icon {
-          width: 18px;
-          height: 18px;
+        .command-center-actions-popover__icon {
+          width: 16px;
+          height: 16px;
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          color: rgba(255, 221, 231, 0.62);
+          color: rgba(255, 255, 255, 0.55);
           flex: 0 0 auto;
         }
 
-        .command-center-actions-menu__label {
+        .command-center-actions-popover__item.is-active .command-center-actions-popover__icon,
+        .command-center-actions-popover__item:hover .command-center-actions-popover__icon {
+          color: rgba(255, 255, 255, 0.88);
+        }
+
+        .command-center-actions-popover__label {
           flex: 1 1 auto;
           min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
         }
 
-        .command-center-actions-menu [data-slot='dropdown-menu-shortcut'] {
-          margin-left: 12px;
-          color: rgba(255, 236, 242, 0.48);
+        .command-center-actions-popover__shortcut {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-width: 18px;
+          height: 16px;
+          margin-left: 8px;
+          padding: 0;
+          border: 0;
+          border-radius: 0;
+          background: transparent;
+          color: rgba(255, 255, 255, 0.38);
+          flex: 0 0 auto;
         }
 
-        .command-center-actions-menu [data-slot='dropdown-menu-separator'] {
-          background: rgba(255, 255, 255, 0.08);
-          margin: 4px 2px;
+        .command-center-actions-popover__shortcut svg {
+          display: block;
         }
 
         .command-center-input-shell {
@@ -1588,21 +1763,47 @@ export default function CommandCenterOverlay() {
           background: transparent;
         }
 
-        .command-center-emoji-result {
-          min-height: 46px;
+        .command-center-emoji-group {
+          gap: 8px;
         }
 
-        .command-center-emoji-result__glyph {
-          width: 28px;
-          height: 28px;
-          overflow: visible;
-          font-family: "Segoe UI Emoji", "Apple Color Emoji", sans-serif;
+        .command-center-emoji-grid {
+          display: grid;
+          grid-template-columns: repeat(var(--emoji-grid-cols, 8), minmax(0, 1fr));
+          gap: 4px;
+          padding: 0 6px 4px;
+        }
+
+        .command-center-emoji-cell {
+          aspect-ratio: 1;
+          min-height: 0;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border: 0;
+          border-radius: 10px;
+          background: transparent;
+          color: inherit;
+          padding: 0;
+          font: inherit;
+          cursor: pointer;
+          transition: background-color 110ms ease;
+        }
+
+        .command-center-emoji-cell span {
+          font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
           font-size: 22px;
           line-height: 1;
+          user-select: none;
         }
 
-        .command-center-emoji-result .command-center-result__text small {
-          text-transform: lowercase;
+        .command-center-emoji-cell:hover {
+          background: rgba(255, 255, 255, 0.07);
+        }
+
+        .command-center-emoji-cell.selected {
+          background: rgba(255, 255, 255, 0.12);
+          box-shadow: inset 0 0 0 1px rgba(255, 210, 222, 0.22);
         }
 
         .command-center-result__text {

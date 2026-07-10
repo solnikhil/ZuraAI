@@ -143,7 +143,6 @@ describe('CommandCenterOverlay', () => {
     window.commandCenter.executeItemAction = vi.fn(async () => ({
       success: true,
       dismiss: false,
-      status: 'Path copied.',
     }))
 
     render(<CommandCenterOverlay />)
@@ -169,8 +168,46 @@ describe('CommandCenterOverlay', () => {
         ''
       )
     })
-    expect(await screen.findByText('Path copied.')).toBeInTheDocument()
+    expect(screen.queryByText('Path copied.')).not.toBeInTheDocument()
     expect(window.commandCenter.hide).not.toHaveBeenCalled()
+  })
+
+  it('opens the Actions menu when right-clicking an app row', async () => {
+    window.commandCenter.getIndex = vi.fn(async () => ({
+      workflows: [],
+      apps: [
+        {
+          id: 'app:chrome',
+          type: 'app',
+          title: 'Chrome',
+          hint: 'Application',
+          aliases: ['Chrome'],
+          appPath: 'C:\\Chrome.lnk',
+          shortcutPath: 'C:\\Chrome.lnk',
+        },
+        {
+          id: 'app:kiro',
+          type: 'app',
+          title: 'Kiro',
+          hint: 'Application',
+          aliases: ['Kiro'],
+          appPath: 'C:\\Kiro.lnk',
+          shortcutPath: 'C:\\Kiro.lnk',
+        },
+      ],
+      windows: [],
+      actions: [],
+      chats: [],
+    }))
+
+    render(<CommandCenterOverlay />)
+    await screen.findByText('Chrome')
+
+    fireEvent.contextMenu(screen.getByText('Kiro'))
+
+    expect(await screen.findByRole('menu', { name: /kiro actions/i })).toBeInTheDocument()
+    expect(screen.getByText('Show in File Explorer')).toBeInTheDocument()
+    expect(screen.getByText('Copy Name')).toBeInTheDocument()
   })
 
   it('keeps previous results painted when the overlay is shown again', async () => {
@@ -591,7 +628,7 @@ describe('CommandCenterOverlay', () => {
     ).toBeInTheDocument()
   })
 
-  it('opens a searchable Emojis command under Additional and inserts the selection', async () => {
+  it('shows Zura Extras as a list category and opens Emojis from a normal result row', async () => {
     window.commandCenter.getIndex = vi.fn(async () => ({
       workflows: [],
       apps: [],
@@ -610,8 +647,8 @@ describe('CommandCenterOverlay', () => {
           id: 'action:emoji-picker',
           type: 'action',
           title: 'Emojis',
-          subtitle: 'additional',
-          hint: 'Action',
+          subtitle: 'Search and paste emoji',
+          hint: 'Command',
           aliases: ['emoji'],
           actionId: 'emoji-picker',
         },
@@ -621,16 +658,22 @@ describe('CommandCenterOverlay', () => {
 
     render(<CommandCenterOverlay />)
 
-    expect(await screen.findByRole('heading', { name: 'Additional' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Zura Extras' })).toBeInTheDocument()
     expect(screen.getByText('Emojis')).toBeInTheDocument()
+    expect(screen.getByText('Search and paste emoji')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Additional' })).not.toBeInTheDocument()
+    expect(screen.getByText('System status')).toBeInTheDocument()
 
     fireEvent.doubleClick(screen.getByRole('button', { name: /Emojis/i }))
     const emojiSearch = await screen.findByRole('textbox', { name: /search emojis/i })
     expect(await screen.findByRole('heading', { name: 'Popular' })).toBeInTheDocument()
 
     fireEvent.change(emojiSearch, { target: { value: 'rocket' } })
-    const rocket = await screen.findByText('Rocket')
+    const rocket = await screen.findByRole('option', { name: 'Rocket' })
     expect(rocket).toBeInTheDocument()
+    expect(rocket).toHaveTextContent('🚀')
+    // Grid cells are glyph-only (no name/keyword labels in the list).
+    expect(screen.queryByText('Paste')).not.toBeInTheDocument()
 
     fireEvent.keyDown(emojiSearch, { key: 'Enter' })
     await waitFor(() => expect(window.commandCenter.insertEmoji).toHaveBeenCalledWith('🚀'))
@@ -644,6 +687,6 @@ describe('CommandCenterOverlay', () => {
     fireEvent.change(rootSearch, { target: { value: ':fire' } })
     const quickEmojiSearch = await screen.findByRole('textbox', { name: /search emojis/i })
     expect(quickEmojiSearch).toHaveValue('fire')
-    expect(await screen.findByText('Fire')).toBeInTheDocument()
+    expect(await screen.findByRole('option', { name: 'Fire' })).toHaveTextContent('🔥')
   })
 })

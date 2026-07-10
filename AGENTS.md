@@ -321,13 +321,17 @@ must not be read as background context. The fixed Emojis command may also
 temporarily swap and restore clipboard text solely while inserting a selected
 emoji; the prior clipboard value must not cross IPC, be persisted, or become
 assistant context.
-The renderer groups convenience commands under an `Additional` section. Its
-first fixed command, `Emojis`, opens a keyboard-first, searchable command view
-backed by the bundled `emojilib` Unicode keyword dataset, with generated Unicode
-skin-tone variants. Typing `:` at the start of root Command Center search opens
-the same emoji command with the remaining text as its query. Selecting a result
-invokes only the narrow `command-center:insert-emoji` channel with the chosen
-Unicode string. Main
+The renderer groups convenience commands under a first-class `Zura Extras`
+category in the Command Center results list. Items in that category use the same
+list-row layout as Apps/Actions (not a store card grid, and not a nested store
+entry). Its first fixed command, `Emojis`, opens a keyboard-first emoji grid
+(glyph-only cells, searchable by name/keywords) backed by the bundled
+`emojilib` Unicode keyword dataset, with generated Unicode skin-tone variants.
+The emoji catalog is app-bundled (dependency bumps), not a live remote API, so
+main can validate inserts against a fixed allowlist. Typing `:` at the start of
+root Command Center search opens the same emoji command with the remaining text
+as its query. Selecting a result invokes only the narrow
+`command-center:insert-emoji` channel with the chosen Unicode string. Main
 validates the string against the same bundled dataset, hides the overlay to
 restore the previously focused app, inserts the emoji through the fixed native
 typing path, and restores the user's clipboard. This channel must not accept

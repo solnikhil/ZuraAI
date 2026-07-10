@@ -38,7 +38,7 @@ import {
 } from './tools/os-integration'
 import { performType } from './tools/computer-use/actions'
 import { executeAppFind, executeAppLaunch, executeAppList } from './tools/app-management'
-import { executeWindowFocus, executeWindowList } from './tools/window-management'
+import { executeWindowClose, executeWindowFocus, executeWindowList } from './tools/window-management'
 
 const COMMAND_CENTER_SHORTCUT = 'CommandOrControl+Shift+Space'
 const COMMAND_CENTER_FALLBACK_SHORTCUT = 'CommandOrControl+Alt+Space'
@@ -110,6 +110,9 @@ const COMMAND_CENTER_ITEM_ACTIONS = [
   'show-in-folder',
   'copy-path',
   'copy-name',
+  'reveal-shortcut',
+  'copy-dir',
+  'force-quit',
 ] as const
 
 type CommandCenterItemActionId = (typeof COMMAND_CENTER_ITEM_ACTIONS)[number]
@@ -962,17 +965,66 @@ async function executeItemAction(
         }
       }
     }
+    case 'reveal-shortcut': {
+      const shortcutPath = item.shortcutPath
+      if (!shortcutPath || typeof shortcutPath !== 'string') {
+        return { success: false, error: 'No shortcut path is available for this app.' }
+      }
+      try {
+        shell.showItemInFolder(shortcutPath)
+        return { success: true, dismiss: true }
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unable to show shortcut in File Explorer.',
+        }
+      }
+    }
     case 'copy-path': {
       const filePath = appFilesystemPath(item)
       if (!filePath) {
         return { success: false, error: 'No path is available for this app.' }
       }
       clipboard.writeText(filePath)
-      return { success: true, dismiss: false, status: 'Path copied.' }
+      return { success: true, dismiss: false }
+    }
+    case 'copy-dir': {
+      const filePath = appFilesystemPath(item)
+      if (!filePath) {
+        return { success: false, error: 'No path is available for this app.' }
+      }
+      const dirPath = path.dirname(filePath)
+      clipboard.writeText(dirPath)
+      return { success: true, dismiss: false }
     }
     case 'copy-name': {
       clipboard.writeText(item.title)
-      return { success: true, dismiss: false, status: 'Name copied.' }
+      return { success: true, dismiss: false }
+    }
+    case 'force-quit': {
+      const hwnd = item.existingWindow?.hwnd
+      const pid = item.existingWindow?.processId
+      if (typeof hwnd === 'number') {
+        const result = await executeWindowClose({ hwnd, autoApprove: true })
+        if (result.success) {
+          return { success: true, dismiss: false, status: 'Application closed.' }
+        }
+      }
+      if (typeof pid === 'number') {
+        try {
+          process.kill(pid, 'SIGKILL')
+          return { success: true, dismiss: false, status: 'Application terminated.' }
+        } catch (killErr) {
+          try {
+            const { execSync } = require('child_process')
+            execSync(`taskkill /F /PID ${pid}`)
+            return { success: true, dismiss: false, status: 'Application terminated.' }
+          } catch (execErr) {
+            // ignore
+          }
+        }
+      }
+      return { success: false, error: 'No running process/window is available for this app.' }
     }
     default:
       return { success: false, error: 'Command Center item action is not allowed.' }

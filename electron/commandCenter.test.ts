@@ -599,14 +599,12 @@ describe('Command Center main service', () => {
     await expect(executeItemAction?.({}, chrome!.id, 'copy-name')).resolves.toEqual({
       success: true,
       dismiss: false,
-      status: 'Name copied.',
     })
     expect(writeText).toHaveBeenCalledWith('Chrome')
 
     await expect(executeItemAction?.({}, chrome!.id, 'copy-path')).resolves.toEqual({
       success: true,
       dismiss: false,
-      status: 'Path copied.',
     })
     expect(writeText).toHaveBeenCalledWith(expect.stringMatching(/Chrome\.lnk$/i))
 

@@ -247,11 +247,13 @@ body {
 
 .app-frame[data-app-chrome-material='acrylic'] {
   --theme-sidebar-solid: transparent;
-  background-color: transparent;
+  /* Tint the single transparent app surface; native acrylic remains behind it. */
+  background-color: color-mix(in srgb, var(--theme-background) 78%, transparent);
 }
 
 :root:not(.dark) .app-frame[data-app-chrome-material='acrylic'] {
   --theme-sidebar-solid: transparent;
+  background-color: color-mix(in srgb, var(--theme-background) 58%, transparent);
 }
 
 .app-content {
