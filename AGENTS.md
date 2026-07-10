@@ -96,7 +96,7 @@ Renderer (React/Vite) -> Preload (allowlisted bridges) -> Electron Main
 - Main window: loads `#/dashboard`; routes `/`, `/dashboard`, `/settings`, and `/chat` under `AppShellLayout`.
 - About window: separate `BrowserWindow`, loads `#/about`, opened through `window.appInfo.openAboutWindow()`.
 - Chat debug window: dev-only separate `BrowserWindow`, loads `#/chat-debug?sessionId=<id>`, disabled in packaged builds.
-- Command Center overlay: separate frameless always-on-top `BrowserWindow`, loads `#/command-center`, opened only while Agent Mode is active.
+- Command Center overlay: separate frameless always-on-top `BrowserWindow`, loads `#/command-center`, and is available in both Chat and Agent modes on Windows.
 - Agent approval overlay: separate small frameless always-on-top `BrowserWindow` owned by main for Agent Mode tool-call approvals while ZuraAI is not focused. It loads sanitized inline approval HTML only, resolves approve/reject/always-allow-exact-repeat decisions back to the requesting renderer, and does not execute tools or expose general desktop APIs.
 - Unknown renderer routes render the dedicated 404 view.
 - Packaged app registers `zuraai` for terminal/app-launch handoff and `zura-chat` for trusted local chat deep links. `zuraai://open` may only focus/create the main window. Debug and CLI chat references keep the shape `zura-chat://<sessionId>?userData=<base64urlUserData>`; session-only links open/switch to that chat, while continuation links may include `message=` or `messageBase64=`. CLI-created new-chat links may include `createIfMissing=1`, but must still pass the userData path validation before the renderer creates a new chat and sends the message.
@@ -118,6 +118,8 @@ Renderer `localStorage`:
 Main `app.getPath('userData')`:
 
 - Chat index, folder metadata, and per-session chat JSON
+- Chat index `recentMessages` are compact text-only previews (no base64 images, toolResults, thinkingBlocks, or agentRun payloads)
+- Tool media files under `tool-media/{sessionId}/` for externalized Computer Use / UI automation screenshots referenced from chat messages via `mediaRef` (`tool-media:{sessionId}/{file}`)
 - Conversation summaries and assistant run metadata on chat messages
 - MCP server metadata, runtime metadata, and non-secret config
 - Secure-storage JSON encrypted through `safeStorage`
@@ -170,6 +172,14 @@ Dedicated preload bridges include:
 - `window.commandCenter`
 - `window.discordRpc`
 
+`window.windowControls.setAppearance(...)` uses the narrow
+`window-controls:set-appearance` channel to synchronize the caller's native
+window backdrop (`solid` or `acrylic`) with Electron's validated `light`,
+`dark`, or `system` native theme source. The renderer cannot provide arbitrary
+materials, colors, window IDs, or native options. On Windows, main applies the
+material only to the sender's `BrowserWindow`; the native theme source remains
+app-wide so Electron-owned UI and other app windows use the same appearance.
+
 If you add, rename, or remove an IPC channel:
 
 1. Add/update the preload allowlist or dedicated bridge.
@@ -177,6 +187,11 @@ If you add, rename, or remove an IPC channel:
 3. Register/dispose the main handler.
 4. Validate all renderer input in main.
 5. Update this Architecture section.
+
+`tool-media:load` is a narrow channel that accepts only a `mediaRef` string of the form
+`tool-media:{sessionId}/{fileName}` and returns a data URL (or null). Main resolves the
+ref against `app.getPath('userData')/tool-media` only; the renderer must never supply
+filesystem paths. Session delete also removes that session's tool-media directory.
 
 MCP includes a narrow `mcp:open-config-file` channel that opens ZuraAI's own
 `mcp-servers.json` under `app.getPath('userData')` with the OS default editor.
@@ -258,17 +273,49 @@ mutating tools require the normal tool approval path. These tools are
 Windows-only, gated by Agent Mode in renderer tool exposure, and implemented in main under
 `electron/tools/os-integration/`. The root Command Center overlay is owned by
 main through `electron/commandCenter.ts` and `electron/windows/commandCenterOverlay.ts`.
-Its global shortcut is registered only after the renderer syncs Agent Mode state
-through `command-center:set-extension-enabled`; leaving Agent Mode unregisters
-the shortcut and hides the overlay. Direct overlay actions
+Its global shortcut is registered after the Windows dashboard renderer mounts
+and syncs availability through `command-center:set-extension-enabled`; changing
+assistant mode must not unregister the shortcut or hide the overlay.
+Command Center overlay lifecycle (RAM): create on first show, hide on blur/dismiss,
+**destroy after ~2 minutes idle** (or immediately when extension is disabled / app
+quits) so a second Chromium renderer is not kept warm forever. `backgroundThrottling`
+is enabled on the overlay. Empty-query browse index uses a short main-process
+stale-while-revalidate cache (fresh ~12s, stale serve up to ~60s with background
+rebuild); show/shortcut prefetches that cache in parallel with window show. The
+overlay soft-reopens without clearing the previous result list so reopen paints
+immediately while `get-index` refreshes. Selected **app** rows expose a footer
+**Actions** menu (Raycast-style, `Ctrl/Cmd+K`) over a fixed main-process
+allowlist via `command-center:execute-item-action`: `open`, `focus-window`,
+`show-in-folder`, `copy-path`, `copy-name`. Paths always resolve from the
+cached index item in main — never from renderer-supplied paths. Do not add
+admin/run-as, freeform shell, or arbitrary tool names without an architecture
+update. Main window uses background throttling when unfocused,
+minimized, or hidden, and on Windows/Linux close (X) **hides to tray** instead of
+quitting so global shortcut / automations can keep a single throttled renderer.
+Direct overlay actions
 are a fixed main-process allowlist (`snap-left`, `snap-right`, `maximize-window`,
 `system-status`, `clipboard-to-chat`, `focus-zuraai`, `settings-display`,
-`settings-sound`, `settings-network`, `settings-bluetooth`, `open-downloads`) and must not accept
+`settings-sound`, `settings-network`, `settings-bluetooth`, `open-downloads`,
+`emoji-picker`) and must not accept
 renderer-provided commands, paths, protocol URIs, shell strings, or arbitrary
 tool names. Action aliases are search metadata only and must not affect the
-main-process execution allowlist. Clipboard content may only be read for the
+main-process execution allowlist. Clipboard content may be read for the
 explicit `clipboard-to-chat` user action, is capped before chat handoff, and
-must not be read as background context.
+must not be read as background context. The fixed Emojis command may also
+temporarily swap and restore clipboard text solely while inserting a selected
+emoji; the prior clipboard value must not cross IPC, be persisted, or become
+assistant context.
+The renderer groups convenience commands under an `Additional` section. Its
+first fixed command, `Emojis`, opens a keyboard-first, searchable command view
+backed by the bundled `emojilib` Unicode keyword dataset, with generated Unicode
+skin-tone variants. Typing `:` at the start of root Command Center search opens
+the same emoji command with the remaining text as its query. Selecting a result
+invokes only the narrow `command-center:insert-emoji` channel with the chosen
+Unicode string. Main
+validates the string against the same bundled dataset, hides the overlay to
+restore the previously focused app, inserts the emoji through the fixed native
+typing path, and restores the user's clipboard. This channel must not accept
+arbitrary text or expose a general clipboard/type-text API.
 Command Center search uses narrow `window.commandCenter` bridge methods to read
 a typed index of saved workflows, apps from the main-process
 `appIndexService`, live top-level windows, fixed actions, and recent chats. The
@@ -364,7 +411,7 @@ Important tool rules:
 - Agent mode should prefer native structured tools before visual Computer Use and verify mutating actions with read-only inspection where possible.
 - Terminal (`system_shell`) is Windows-only, default disabled, non-interactive PowerShell with approval, timeout, output caps, and no OS sandbox. Treat any relaxation as security-sensitive.
 - Computer Use is Windows-only, default disabled, current-desktop only. Screenshot/list-window capture uses Electron desktop APIs, while click/type/key/scroll/cursor actions use a fixed main-process User32 PowerShell helper with validated coordinates and allowlisted virtual keys. Do not reintroduce a separate virtual desktop mode, `agent_desktop` settings, or `agent-desktop:*` IPC.
-- Command Center is Windows-only, activated by Agent Mode, and provides active-window context plus narrow OS actions such as OS-default path opening and snap layouts. It must not become arbitrary shell execution, input simulation, clipboard scraping, or broad OS automation.
+- Command Center is Windows-only and opens in both Chat and Agent modes. Its fixed overlay commands remain available in either mode, while model-callable desktop tools and freeform desktop requests are Agent Mode capabilities. It provides active-window context plus narrow OS actions such as OS-default path opening and snap layouts. It must not become arbitrary shell execution, input simulation, clipboard scraping, or broad OS automation.
 - Agent Mode UI automation is Windows-only and uses a model-facing `ui_*` tool family over the existing restricted `execute-tool` IPC path. `ui_get_app_state` is the primary observation primitive and returns a screenshot, active-window metadata, a compact Microsoft UI Automation accessibility tree, stable main-owned `element_id` values, supported actions, bounds, and truncation metadata. `ui_find` searches the latest/requested state, and `ui_wait_for` waits for bounded UI conditions. Mutating `ui_click`, `ui_type_text`, `ui_set_value`, `ui_select`, `ui_scroll`, `ui_focus`, and `ui_key` require approval and return fresh state after execution. Element IDs are opaque, cached only in main, and should be preferred over coordinate actions; coordinate-based `computer_*` tools remain fallback/legacy Computer Use primitives.
 - MCP resources and prompts are user-visible browsing/preview surfaces only; do not merge them into model-callable tools without an explicit architecture update.
 

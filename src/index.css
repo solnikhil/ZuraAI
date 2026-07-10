@@ -201,6 +201,16 @@ body {
   background-color: transparent;
 }
 
+/* Match the native Windows 11 frameless-window curve and clip renderer
+   surfaces so solid panels never paint into the transparent corner area. */
+.app-frame--windows:not(.app-frame--maximized) {
+  border-radius: 8px;
+}
+
+.app-frame--windows.app-frame--maximized {
+  border-radius: 0;
+}
+
 .app-frame[data-app-chrome-material='solid'] {
   background-color: var(--theme-background);
 }

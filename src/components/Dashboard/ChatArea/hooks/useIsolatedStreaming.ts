@@ -114,7 +114,9 @@ export function useIsolatedStreaming(): UseIsolatedStreamingReturn {
         updates.usage = finalState.usage
       }
 
-      updateStreamingMessage(finalState.sessionId, finalState.messageId, updates)
+      updateStreamingMessage(finalState.sessionId, finalState.messageId, updates, {
+        persist: true,
+      })
     }
 
     // Clear tracking

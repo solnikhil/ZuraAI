@@ -148,9 +148,11 @@ export async function captureScreenshot(
   const options = normalizeCaptureOptions(displayIdOrOptions)
   const wantsWindow = Boolean(options.windowId || options.windowTitle || options.appName)
   const sourceTypes: Array<'screen' | 'window'> = wantsWindow ? ['window'] : ['screen']
+  // Capture near the display size we actually keep (SCREENSHOT_MAX_WIDTH), not 4K.
+  // Oversized native thumbnails were a major main-process peak-RAM spike.
   const sources = await desktopCapturer.getSources({
     types: sourceTypes,
-    thumbnailSize: { width: 3840, height: 2160 },
+    thumbnailSize: { width: 1600, height: 900 },
   })
 
   let source = sources[0]

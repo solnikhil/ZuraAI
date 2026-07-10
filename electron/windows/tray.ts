@@ -1,6 +1,6 @@
 import { app, Tray, Menu, nativeImage } from 'electron'
 import { showAboutWindow } from './aboutWindow'
-import { createMainWindow, getMainWindow, showMainWindow } from './mainWindow'
+import { allowMainWindowToClose, createMainWindow, getMainWindow, showMainWindow } from './mainWindow'
 import { showMainWindowAndNavigateSettings } from './navigation'
 import { createAppIcon, resolveAppIconPath } from '../windowIcon'
 
@@ -62,7 +62,10 @@ export function createTray(): Tray {
           {
             label: 'Quit ZuraAI',
             accelerator: 'Command+Q',
-            click: () => app.quit(),
+            click: () => {
+              allowMainWindowToClose()
+              app.quit()
+            },
           },
         ])
       : Menu.buildFromTemplate([
@@ -78,6 +81,8 @@ export function createTray(): Tray {
           {
             label: 'Quit ZuraAI',
             click: () => {
+              // Allow the main window close interceptor to fully exit.
+              allowMainWindowToClose()
               app.quit()
             },
           },

@@ -91,8 +91,22 @@ interface StateCacheEntry {
 const elementCache = new Map<string, ElementCacheEntry>()
 const stateCache = new Map<string, StateCacheEntry>()
 let latestStateId = ''
+let cachePruneTimer: ReturnType<typeof setTimeout> | null = null
 
 const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
+
+function scheduleCachePrune(): void {
+  if (cachePruneTimer) return
+  cachePruneTimer = setTimeout(() => {
+    cachePruneTimer = null
+    pruneCaches()
+    // Keep pruning while caches still hold entries so screenshots don't linger
+    // until the next UI tool call.
+    if (elementCache.size > 0 || stateCache.size > 0) {
+      scheduleCachePrune()
+    }
+  }, Math.min(STATE_TTL_MS, ELEMENT_TTL_MS))
+}
 
 function psString(value: string): string {
   return `'${value.replace(/'/g, "''")}'`
@@ -147,6 +161,7 @@ function normalizeActions(patterns: string[] | undefined): string[] {
 
 function cacheElement(entry: ElementCacheEntry): void {
   elementCache.set(entry.elementId, entry)
+  scheduleCachePrune()
 }
 
 function pruneCaches(now = Date.now()): void {
@@ -490,6 +505,7 @@ async function buildAppState(args: unknown = {}): Promise<UiAppState> {
 
   stateCache.set(state.state_id, { state, updatedAt: now })
   latestStateId = state.state_id
+  scheduleCachePrune()
   return state
 }
 

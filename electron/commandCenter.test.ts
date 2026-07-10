@@ -18,9 +18,12 @@ describe('Command Center main service', () => {
     const register = overrides.register ?? vi.fn(() => true)
     const unregister = vi.fn()
     const readText = vi.fn(() => 'clipboard sample')
+    const writeText = vi.fn()
+    const showItemInFolder = vi.fn()
     const preloadCommandCenterWindow = vi.fn()
     const showCommandCenterWindow = vi.fn()
     const hideCommandCenterWindow = vi.fn()
+    const destroyCommandCenterWindow = vi.fn()
     const setCommandCenterWindowLayout = vi.fn()
     const toggleCommandCenterWindow = vi.fn()
     const executeWindowSnap = vi.fn(async () => ({ success: true, data: { action: 'snap' } }))
@@ -30,6 +33,7 @@ describe('Command Center main service', () => {
       data: { page: args.page },
     }))
     const executeSystemStatus = vi.fn(async () => ({ success: true, data: { disks: [] } }))
+    const performType = vi.fn(async () => undefined)
     const executeAppList =
       overrides.executeAppList ??
       vi.fn(async () => ({
@@ -128,6 +132,10 @@ describe('Command Center main service', () => {
     const getCachedAppIcon = vi.fn((iconKey?: string) =>
       iconKey ? 'data:image/png;base64,icon' : undefined
     )
+    const peekCachedAppIcon = vi.fn((iconKey?: string) =>
+      iconKey ? 'data:image/png;base64,icon' : undefined
+    )
+    const isAppIconPending = vi.fn(() => false)
 
     const webContents = {
       isLoading: vi.fn(() => false),
@@ -158,6 +166,10 @@ describe('Command Center main service', () => {
       },
       clipboard: {
         readText,
+        writeText,
+      },
+      shell: {
+        showItemInFolder,
       },
       ipcMain: {
         handle: vi.fn((channel: string, handler: (...args: unknown[]) => unknown) => {
@@ -194,6 +206,7 @@ describe('Command Center main service', () => {
       getMainWindow: vi.fn(() => mainWindow),
       preloadCommandCenterWindow,
       hideCommandCenterWindow,
+      destroyCommandCenterWindow,
       setCommandCenterWindowLayout,
       showCommandCenterWindow,
       toggleCommandCenterWindow,
@@ -210,6 +223,8 @@ describe('Command Center main service', () => {
       executeSystemStatus,
     }))
 
+    vi.doMock('./tools/computer-use/actions', () => ({ performType }))
+
     vi.doMock('./tools/app-management', () => ({
       executeAppFind,
       executeAppList,
@@ -218,6 +233,9 @@ describe('Command Center main service', () => {
 
     vi.doMock('./appIndexService', () => ({
       getCachedAppIcon,
+      peekCachedAppIcon,
+      isAppIconPending,
+      clearAppIconCache: vi.fn(),
       refreshAppIndex: vi.fn(async () => ({ ok: true, stale: false, sourceCounts: {} })),
       resolveAppIndexEntry: vi.fn(async (itemId: string) => {
         if (itemId === 'app:TmF0aXZlLkFwcA') {
@@ -263,6 +281,7 @@ describe('Command Center main service', () => {
       preloadCommandCenterWindow,
       showCommandCenterWindow,
       hideCommandCenterWindow,
+      destroyCommandCenterWindow,
       setCommandCenterWindowLayout,
       toggleCommandCenterWindow,
       mainWindow,
@@ -272,6 +291,7 @@ describe('Command Center main service', () => {
       executeSystemOpenPath,
       executeSystemSettingsOpen,
       executeSystemStatus,
+      performType,
       executeAppList,
       executeAppFind,
       executeAppLaunch,
@@ -280,12 +300,21 @@ describe('Command Center main service', () => {
       listCommandCenterWorkflows,
       markCommandCenterWorkflowRun,
       getCachedAppIcon,
+      peekCachedAppIcon,
+      isAppIconPending,
+      writeText,
+      showItemInFolder,
     }
   }
 
   it('registers and unregisters the global shortcut with extension state', async () => {
-    const { service, register, unregister, hideCommandCenterWindow, preloadCommandCenterWindow } =
-      await loadService()
+    const {
+      service,
+      register,
+      unregister,
+      destroyCommandCenterWindow,
+      preloadCommandCenterWindow,
+    } = await loadService()
 
     expect(service.setCommandCenterExtensionEnabled(true)).toEqual({
       enabled: true,
@@ -297,7 +326,8 @@ describe('Command Center main service', () => {
 
     service.setCommandCenterExtensionEnabled(false)
     expect(unregister).toHaveBeenCalledWith('CommandOrControl+Shift+Space')
-    expect(hideCommandCenterWindow).toHaveBeenCalledTimes(1)
+    // Leaving Agent Mode must destroy the second renderer, not leave it hidden.
+    expect(destroyCommandCenterWindow).toHaveBeenCalledTimes(1)
   })
 
   it('falls back when the primary global shortcut is already registered elsewhere', async () => {
@@ -377,6 +407,7 @@ describe('Command Center main service', () => {
         expect.objectContaining({ id: 'settings-sound', label: 'Sound settings' }),
         expect.objectContaining({ id: 'settings-network', label: 'Network settings' }),
         expect.objectContaining({ id: 'settings-bluetooth', label: 'Bluetooth settings' }),
+        expect.objectContaining({ id: 'emoji-picker', label: 'Emojis', kind: 'additional' }),
       ])
     )
 
@@ -404,6 +435,10 @@ describe('Command Center main service', () => {
       success: true,
       data: { page: 'network' },
     })
+    await expect(execute?.({}, 'emoji-picker')).resolves.toEqual({
+      success: true,
+      data: { interactiveCommand: 'emoji-picker' },
+    })
     await expect(execute?.({}, 'format-drive')).resolves.toEqual({
       success: false,
       error: 'Command Center action is not allowed.',
@@ -425,6 +460,26 @@ describe('Command Center main service', () => {
     ).toBe(true)
   })
 
+  it('inserts only bundled emojis into the previously focused app', async () => {
+    const { service, handlers, performType, hideCommandCenterWindow } = await loadService()
+    service.registerCommandCenterHandlers()
+    service.setCommandCenterExtensionEnabled(true)
+
+    const insertEmoji = handlers.get('command-center:insert-emoji')
+
+    await expect(insertEmoji?.({}, 'not an emoji')).resolves.toEqual({
+      success: false,
+      error: 'A supported emoji is required.',
+    })
+    await expect(insertEmoji?.({}, '🚀')).resolves.toEqual({
+      success: true,
+      data: { inserted: true },
+    })
+
+    expect(hideCommandCenterWindow).toHaveBeenCalledTimes(1)
+    expect(performType).toHaveBeenCalledWith({ text: '🚀' })
+  })
+
   it('builds a searchable index and launches apps via the native open path', async () => {
     const { service, handlers, executeWindowFocus, executeAppLaunch } = await loadService()
     service.registerCommandCenterHandlers()
@@ -441,6 +496,13 @@ describe('Command Center main service', () => {
       ]),
       windows: expect.arrayContaining([expect.objectContaining({ hwnd: 66 })]),
       chats: expect.arrayContaining([expect.objectContaining({ sessionId: 'chat-1' })]),
+      actions: expect.arrayContaining([
+        expect.objectContaining({
+          actionId: 'emoji-picker',
+          subtitle: 'Search and paste emoji',
+          hint: 'Command',
+        }),
+      ]),
     })
     // The Chrome window (hwnd 55) is folded into the Chrome app row, so it must
     // not also appear as a standalone entry in the Windows group.
@@ -506,6 +568,58 @@ describe('Command Center main service', () => {
         iconDataUrl: 'data:image/png;base64,icon',
       })
     )
+  })
+
+  it('serves a fresh empty-query browse index from the SWR cache without rebuilding', async () => {
+    const { service, handlers, executeAppList } = await loadService()
+    service.registerCommandCenterHandlers()
+    service.setCommandCenterExtensionEnabled(true)
+
+    const getIndex = handlers.get('command-center:get-index')
+    await getIndex?.()
+    const listCallsAfterFirst = executeAppList.mock.calls.length
+
+    await getIndex?.()
+    await getIndex?.('')
+    // Empty-query lookups within the fresh window should not re-run app list.
+    expect(executeAppList.mock.calls.length).toBe(listCallsAfterFirst)
+  })
+
+  it('runs allowlisted secondary app actions from the Actions menu', async () => {
+    const { service, handlers, writeText, showItemInFolder } = await loadService()
+    service.registerCommandCenterHandlers()
+    service.setCommandCenterExtensionEnabled(true)
+
+    const getIndex = handlers.get('command-center:get-index')
+    const executeItemAction = handlers.get('command-center:execute-item-action')
+    const index = (await getIndex?.()) as { apps: Array<{ id: string; title: string }> }
+    const chrome = index.apps.find((app) => app.title === 'Chrome')
+    expect(chrome).toBeTruthy()
+
+    await expect(executeItemAction?.({}, chrome!.id, 'copy-name')).resolves.toEqual({
+      success: true,
+      dismiss: false,
+      status: 'Name copied.',
+    })
+    expect(writeText).toHaveBeenCalledWith('Chrome')
+
+    await expect(executeItemAction?.({}, chrome!.id, 'copy-path')).resolves.toEqual({
+      success: true,
+      dismiss: false,
+      status: 'Path copied.',
+    })
+    expect(writeText).toHaveBeenCalledWith(expect.stringMatching(/Chrome\.lnk$/i))
+
+    await expect(executeItemAction?.({}, chrome!.id, 'show-in-folder')).resolves.toEqual({
+      success: true,
+      dismiss: true,
+    })
+    expect(showItemInFolder).toHaveBeenCalledWith(expect.stringMatching(/Chrome\.lnk$/i))
+
+    await expect(executeItemAction?.({}, chrome!.id, 'run-as-admin')).resolves.toEqual({
+      success: false,
+      error: 'Command Center item action is not allowed.',
+    })
   })
 
   it('uses matching open-window process paths as app icon fallback without exposing the path', async () => {

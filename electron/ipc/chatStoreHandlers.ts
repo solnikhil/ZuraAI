@@ -2,6 +2,7 @@ import { BrowserWindow, ipcMain } from 'electron'
 import * as chatStore from '../chatStore'
 import * as memoryStore from '../memoryStore'
 import * as summaryStore from '../conversationSummaryStore'
+import { loadToolMediaDataUrl } from '../tools/toolMediaStore'
 
 const CHAT_STORE_CHANGED_CHANNEL = 'chat-store:changed'
 const MEMORY_CHANGED_CHANNEL = 'memory-store:changed'
@@ -94,6 +95,17 @@ export function registerChatStoreHandlers(): void {
     return chatStore.getAllFoldersAsync()
   })
 
+  /**
+   * Load an externalized tool screenshot by mediaRef only.
+   * Does not accept filesystem paths from the renderer.
+   */
+  ipcMain.handle('tool-media:load', async (_event, mediaRef: unknown) => {
+    if (typeof mediaRef !== 'string' || !mediaRef.startsWith('tool-media:')) {
+      return null
+    }
+    return loadToolMediaDataUrl(mediaRef)
+  })
+
   /** Replace all stored chat folders. */
   ipcMain.handle('chat-store:save-folders', async (_event, folders) => {
     await chatStore.saveFoldersAsync(folders)
@@ -114,4 +126,5 @@ export function unregisterChatStoreHandlers(): void {
   ipcMain.removeHandler('chat-store:migrate')
   ipcMain.removeHandler('chat-store:get-all-folders')
   ipcMain.removeHandler('chat-store:save-folders')
+  ipcMain.removeHandler('tool-media:load')
 }

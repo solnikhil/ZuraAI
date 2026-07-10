@@ -144,6 +144,19 @@ export interface ChatSession {
   messageCount?: number
 }
 
+/** Compact text-only preview for chat-index embedding (no binary/tool payloads). */
+export interface CompactPreviewMessage {
+  id: string
+  role: 'user' | 'assistant' | 'system'
+  content: string
+  timestamp: number
+  model?: string
+  hasImage?: boolean
+  hasFiles?: boolean
+  toolResultCount?: number
+  hasThinking?: boolean
+}
+
 export interface ChatSessionMetadata {
   id: string
   title: string
@@ -156,8 +169,11 @@ export interface ChatSessionMetadata {
   messageCount: number
   artifactCount?: number
   artifactSummaries?: ArtifactSummary[]
-  /** Last ~30 messages for instant preview when switching chats (kept small for perf) */
-  recentMessages?: Message[]
+  /**
+   * Compact recent tail for instant switch previews only.
+   * Must never carry base64 images, toolResults, thinkingBlocks, or agentRun payloads.
+   */
+  recentMessages?: CompactPreviewMessage[]
 }
 
 export interface Folder {

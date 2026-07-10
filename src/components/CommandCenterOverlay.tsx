@@ -1,10 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import {
   Brain,
   Check,
+  Clipboard,
   Command,
+  Copy,
   CornerDownLeft,
+  ExternalLink,
+  FolderOpen,
   MessageSquare,
   Monitor,
   Sparkles,
@@ -18,9 +22,73 @@ import { MessageRenderer } from './Dashboard/ChatArea/MessageRenderer'
 import { StreamingMessage } from './Dashboard/ChatArea/StreamingMessage'
 import { useStreamingChat } from './Dashboard/ChatArea/hooks'
 import { scoreAppSearch, scoreGenericSearch, scoreWindowSearch } from '../commandCenter/search'
-import type { CommandCenterIndex, CommandCenterIndexItem } from '../electron/types'
+import { searchCommandCenterEmojis, type CommandCenterEmoji } from '../commandCenter/emojis'
+import type {
+  CommandCenterIndex,
+  CommandCenterIndexItem,
+  CommandCenterItemActionId,
+} from '../electron/types'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuShortcut,
+  DropdownMenuTrigger,
+} from './ui/dropdown-menu'
 
 type Mode = 'search' | 'ask'
+type CommandView = 'root' | 'emojis'
+
+type AppActionDef = {
+  id: CommandCenterItemActionId
+  label: string
+  icon: React.ReactNode
+  /** When false, the action is omitted for this item. */
+  available: (item: Extract<CommandCenterIndexItem, { type: 'app' }>) => boolean
+}
+
+const APP_ACTION_DEFS: AppActionDef[] = [
+  {
+    id: 'open',
+    label: 'Open Application',
+    icon: <ExternalLink size={15} />,
+    available: () => true,
+  },
+  {
+    id: 'focus-window',
+    label: 'Focus Window',
+    icon: <Monitor size={15} />,
+    available: (item) => typeof item.existingWindow?.hwnd === 'number',
+  },
+  {
+    id: 'show-in-folder',
+    label: 'Show in File Explorer',
+    icon: <FolderOpen size={15} />,
+    available: (item) => Boolean(appPathCandidate(item)),
+  },
+  {
+    id: 'copy-path',
+    label: 'Copy Path',
+    icon: <Clipboard size={15} />,
+    available: (item) => Boolean(appPathCandidate(item)),
+  },
+  {
+    id: 'copy-name',
+    label: 'Copy Name',
+    icon: <Copy size={15} />,
+    available: () => true,
+  },
+]
+
+function appPathCandidate(item: Extract<CommandCenterIndexItem, { type: 'app' }>): string | undefined {
+  for (const candidate of [item.targetPath, item.shortcutPath, item.appPath]) {
+    if (typeof candidate !== 'string') continue
+    const trimmed = candidate.trim()
+    if (/^[a-zA-Z]:[\\/]/.test(trimmed) || trimmed.startsWith('\\\\')) return trimmed
+  }
+  return undefined
+}
 
 const motionEase = [0.22, 1, 0.36, 1] as const
 
@@ -33,7 +101,14 @@ const EMPTY_INDEX: CommandCenterIndex = {
 }
 
 // Fixed group order for the results list (keeps section headers stable).
-const GROUP_ORDER = ['Saved Workflows', 'Apps', 'Windows', 'Actions', 'Chats'] as const
+const GROUP_ORDER = [
+  'Saved Workflows',
+  'Apps',
+  'Windows',
+  'Actions',
+  'Chats',
+  'Additional',
+] as const
 
 // Max rows rendered per group. Apps is the group that can grow into the
 // hundreds, so it is capped hardest; the rest are already small.
@@ -44,6 +119,7 @@ const GROUP_RESULT_LIMITS: Record<string, number> = {
   Windows: 12,
   Actions: 24,
   Chats: 8,
+  Additional: 12,
 }
 // Apps shown in the default browse view (before the user types a query).
 const DEFAULT_BROWSE_APP_LIMIT = 8
@@ -55,7 +131,10 @@ function flattenIndex(
     ...index.workflows.map((item) => ({ group: 'Saved Workflows', item })),
     ...index.apps.map((item) => ({ group: 'Apps', item })),
     ...index.windows.map((item) => ({ group: 'Windows', item })),
-    ...index.actions.map((item) => ({ group: 'Actions', item })),
+    ...index.actions.map((item) => ({
+      group: item.type === 'action' && item.actionId === 'emoji-picker' ? 'Additional' : 'Actions',
+      item,
+    })),
     ...index.chats.map((item) => ({ group: 'Chats', item })),
   ]
 }
@@ -90,16 +169,60 @@ function matchesItem(item: CommandCenterIndexItem, query: string): boolean {
 function iconForItem(item: CommandCenterIndexItem) {
   if (item.type === 'workflow') return <Sparkles size={22} />
   if (item.type === 'app' && item.iconDataUrl) {
-    return <img src={item.iconDataUrl} alt="" className="command-center-result__app-icon" />
+    return (
+      <img
+        src={item.iconDataUrl}
+        alt=""
+        className="command-center-result__app-icon"
+        draggable={false}
+      />
+    )
   }
   if (item.type === 'app') return <Monitor size={22} />
   if (item.type === 'window') return <Monitor size={22} />
   if (item.type === 'chat') return <MessageSquare size={22} />
+  if (item.type === 'action' && item.actionId === 'emoji-picker') {
+    return <span aria-hidden="true">😊</span>
+  }
   return <Command size={22} />
+}
+
+/** Keep already-rendered app icons when a refresh temporarily omits them.
+ *  Prevents Monitor-placeholder ↔ real-icon blinking during lazy extraction. */
+function mergeAppIcons(
+  previous: CommandCenterIndexItem[],
+  next: CommandCenterIndexItem[]
+): CommandCenterIndexItem[] {
+  if (previous.length === 0) return next
+  const prevById = new Map(previous.map((app) => [app.id, app]))
+  return next.map((app) => {
+    if (app.type !== 'app' || app.iconDataUrl) return app
+    const prev = prevById.get(app.id)
+    if (
+      prev?.type === 'app' &&
+      prev.iconDataUrl &&
+      prev.iconKey &&
+      prev.iconKey === app.iconKey
+    ) {
+      return { ...app, iconDataUrl: prev.iconDataUrl, iconPending: false }
+    }
+    return app
+  })
+}
+
+function mergeCommandCenterIndex(
+  previous: CommandCenterIndex,
+  next: CommandCenterIndex
+): CommandCenterIndex {
+  return {
+    ...next,
+    apps: mergeAppIcons(previous.apps, next.apps),
+  }
 }
 
 export default function CommandCenterOverlay() {
   const [mode, setMode] = useState<Mode>('search')
+  const [commandView, setCommandView] = useState<CommandView>('root')
   const [input, setInput] = useState('')
   const [index, setIndex] = useState<CommandCenterIndex>(EMPTY_INDEX)
   const [browseApps, setBrowseApps] = useState<CommandCenterIndexItem[]>([])
@@ -116,6 +239,7 @@ export default function CommandCenterOverlay() {
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null)
   const [promoted, setPromoted] = useState(false)
   const [optimisticText, setOptimisticText] = useState<string | null>(null)
+  const [actionsOpen, setActionsOpen] = useState(false)
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null)
   const bodyRef = useRef<HTMLDivElement | null>(null)
   const indexRequestRef = useRef(0)
@@ -137,6 +261,10 @@ export default function CommandCenterOverlay() {
   const chatSession = sessions.find((session) => session.id === chatSessionId)
   const chatMessages = chatSession?.messages ?? []
   const isChatMode = Boolean(chatSessionId)
+  const isEmojiView = commandView === 'emojis' && !isChatMode
+
+  const emojiResults = useMemo(() => searchCommandCenterEmojis(input), [input])
+  const selectedEmoji = isEmojiView ? emojiResults[selectedIndex] : undefined
 
   useEffect(() => {
     void window.commandCenter.setLayout(isChatMode ? 'chat' : 'search')
@@ -172,7 +300,8 @@ export default function CommandCenterOverlay() {
       const items = groups.get(group) ?? []
       const ordered = query
         ? [...items].sort(
-            (a, b) => searchScore(b, query) - searchScore(a, query) || a.title.localeCompare(b.title)
+            (a, b) =>
+              searchScore(b, query) - searchScore(a, query) || a.title.localeCompare(b.title)
           )
         : items
       // Keep the default (unsearched) Apps list short; expand it once searching.
@@ -201,15 +330,45 @@ export default function CommandCenterOverlay() {
 
   const selectedItem = filteredRows[selectedIndex]?.item
   const switchMode = useCallback(() => {
-    if (isChatMode) return
+    if (isChatMode || isEmojiView) return
     setMode((current) => (current === 'search' ? 'ask' : 'search'))
     requestAnimationFrame(() => inputRef.current?.focus())
-  }, [isChatMode])
+  }, [isChatMode, isEmojiView])
 
-  const refreshIndex = useCallback(async (query = '', showLoading = true) => {
+  const openEmojiView = useCallback((initialQuery = '') => {
+    setCommandView('emojis')
+    setMode('search')
+    setInput(initialQuery)
+    setSelectedIndex(0)
+    setSelectionVisible(true)
+    requestAnimationFrame(() => inputRef.current?.focus())
+  }, [])
+
+  const handleInputChange = useCallback(
+    (value: string) => {
+      if (!isChatMode && !isEmojiView && mode === 'search' && value.startsWith(':')) {
+        openEmojiView(value.slice(1))
+        return
+      }
+      setInput(value)
+    },
+    [isChatMode, isEmojiView, mode, openEmojiView]
+  )
+
+  const closeCommandView = useCallback(() => {
+    setCommandView('root')
+    setInput('')
+    setSelectedIndex(0)
+    setSelectionVisible(true)
+    requestAnimationFrame(() => inputRef.current?.focus())
+  }, [])
+
+  const refreshIndex = useCallback(async (query = '', showLoading = false) => {
     const requestId = indexRequestRef.current + 1
     indexRequestRef.current = requestId
     const requestedQuery = query.trim()
+    // Default false: reopen/search should not flash an empty loading state over
+    // rows we already painted (stale-while-revalidate).
     if (showLoading) {
       setIndexLoading(true)
     }
@@ -218,14 +377,14 @@ export default function CommandCenterOverlay() {
       if (requestId !== indexRequestRef.current) return
       if (requestedQuery !== activeSearchQueryRef.current) return
       if (!requestedQuery) {
-        setBrowseApps(nextIndex.apps)
-        setIndex(nextIndex)
+        setBrowseApps((current) => mergeAppIcons(current, nextIndex.apps))
+        setIndex((current) => mergeCommandCenterIndex(current, nextIndex))
       } else {
-        setIndex(nextIndex)
+        setIndex((current) => mergeCommandCenterIndex(current, nextIndex))
         if (nextIndex.apps.length > 0) {
           setBrowseApps((current) => {
             const merged = new Map(current.map((app) => [app.id, app]))
-            for (const app of nextIndex.apps) {
+            for (const app of mergeAppIcons(current, nextIndex.apps)) {
               merged.set(app.id, app)
             }
             return Array.from(merged.values())
@@ -251,9 +410,11 @@ export default function CommandCenterOverlay() {
 
   const resetOverlay = useCallback(() => {
     setMode('search')
+    setCommandView('root')
     setInput('')
     activeSearchQueryRef.current = ''
-    setBrowseApps([])
+    // Keep index/browseApps so a reopened overlay paints immediately while the
+    // next getIndex refreshes in the background.
     setSelectedIndex(0)
     setSelectionVisible(true)
     setConfirmingWorkflow(null)
@@ -263,8 +424,9 @@ export default function CommandCenterOverlay() {
     setOptimisticText(null)
     setPromoted(false)
     setChatSessionId(null)
+    setActionsOpen(false)
     clearCurrentSession()
-    void refreshIndex()
+    void refreshIndex('', false)
     requestAnimationFrame(() => inputRef.current?.focus())
   }, [clearCurrentSession, refreshIndex])
 
@@ -275,33 +437,35 @@ export default function CommandCenterOverlay() {
 
   useEffect(() => {
     activeSearchQueryRef.current = input.trim()
-    if (isChatMode || mode !== 'search') return undefined
+    if (isChatMode || isEmojiView || mode !== 'search') return undefined
     const query = input.trim()
     const delay = query ? 90 : 0
     const timer = window.setTimeout(() => {
       void refreshIndex(query, false)
     }, delay)
     return () => window.clearTimeout(timer)
-  }, [input, isChatMode, mode, refreshIndex])
+  }, [input, isChatMode, isEmojiView, mode, refreshIndex])
 
   useEffect(() => {
-    if (isChatMode || mode !== 'search') return undefined
+    if (isChatMode || isEmojiView || mode !== 'search') return undefined
+    // Only re-poll while main still has in-flight icon extraction. Failed or
+    // permanently missing icons must not restart this loop (that caused blink).
     const needsIconRefresh = index.apps.some(
-      (app) => app.type === 'app' && app.iconKey && !app.iconDataUrl
+      (app) => app.type === 'app' && app.iconPending === true
     )
     if (!needsIconRefresh) return undefined
     const timer = window.setTimeout(() => {
       void refreshIndex(input.trim(), false)
     }, 180)
     return () => window.clearTimeout(timer)
-  }, [index.apps, input, isChatMode, mode, refreshIndex])
+  }, [index.apps, input, isChatMode, isEmojiView, mode, refreshIndex])
 
   useEffect(() => {
     // Reset to the first row whenever the query or mode changes, and keep the
     // highlight visible so the top result is pre-selected.
     setSelectedIndex(0)
     setSelectionVisible(true)
-  }, [input, mode])
+  }, [commandView, input, mode])
 
   useEffect(() => {
     if (!pendingPrompt || !chatSessionId || currentSessionId !== chatSessionId || isLoading) return
@@ -347,6 +511,10 @@ export default function CommandCenterOverlay() {
 
   const executeItem = useCallback(
     async (item: CommandCenterIndexItem) => {
+      if (item.type === 'action' && item.actionId === 'emoji-picker') {
+        openEmojiView()
+        return
+      }
       if (item.type === 'workflow') {
         setConfirmingWorkflow(item)
         return
@@ -375,7 +543,38 @@ export default function CommandCenterOverlay() {
         void refreshIndex(query, false)
       }
     },
-    [input, mode, refreshIndex, startChat]
+    [input, mode, openEmojiView, refreshIndex, startChat]
+  )
+
+  const insertEmoji = useCallback(async (entry: CommandCenterEmoji) => {
+    setError(null)
+    const result = await window.commandCenter.insertEmoji(entry.emoji)
+    if (!result.success) {
+      setError(result.error || 'Unable to insert the emoji.')
+    }
+  }, [])
+
+  const runItemAction = useCallback(
+    async (item: CommandCenterIndexItem, actionId: CommandCenterItemActionId) => {
+      if (item.type !== 'app') return
+      setActionsOpen(false)
+      setError(null)
+      setStatus(null)
+      const query = mode === 'search' ? input.trim() : ''
+      const result = await window.commandCenter.executeItemAction(item.id, actionId, query)
+      if (!result.success) {
+        setError(result.error || 'Action failed.')
+        return
+      }
+      if (result.dismiss) {
+        void window.commandCenter.hide()
+        return
+      }
+      if (result.status) {
+        setStatus(result.status)
+      }
+    },
+    [input, mode]
   )
 
   const runConfirmedWorkflow = useCallback(async () => {
@@ -398,6 +597,10 @@ export default function CommandCenterOverlay() {
   }, [confirmingWorkflow, refreshIndex, startChat])
 
   const submit = useCallback(() => {
+    if (isEmojiView) {
+      if (selectedEmoji) void insertEmoji(selectedEmoji)
+      return
+    }
     if (isChatMode) {
       if (input.trim()) {
         const prompt = input.trim()
@@ -422,7 +625,18 @@ export default function CommandCenterOverlay() {
       setMode('ask')
       startChat(input)
     }
-  }, [executeItem, input, isChatMode, mode, selectedItem, sendMessage, startChat])
+  }, [
+    executeItem,
+    input,
+    insertEmoji,
+    isChatMode,
+    isEmojiView,
+    mode,
+    selectedEmoji,
+    selectedItem,
+    sendMessage,
+    startChat,
+  ])
 
   const openInFullChat = useCallback(async () => {
     if (!chatSessionId) return
@@ -440,11 +654,38 @@ export default function CommandCenterOverlay() {
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     if (event.key === 'Escape') {
       event.preventDefault()
+      if (actionsOpen) {
+        setActionsOpen(false)
+        return
+      }
       if (confirmingWorkflow) {
         setConfirmingWorkflow(null)
         return
       }
+      if (isEmojiView) {
+        closeCommandView()
+        return
+      }
       hideOverlay()
+      return
+    }
+    if (isEmojiView && event.key === 'Backspace' && !input) {
+      event.preventDefault()
+      closeCommandView()
+      return
+    }
+    // Raycast-style: Ctrl/Cmd+K opens the secondary Actions menu for apps.
+    if (
+      (event.key === 'k' || event.key === 'K') &&
+      (event.ctrlKey || event.metaKey) &&
+      !event.altKey &&
+      !isChatMode &&
+      mode === 'search' &&
+      !isEmojiView &&
+      selectedItem?.type === 'app'
+    ) {
+      event.preventDefault()
+      setActionsOpen((open) => !open)
       return
     }
     if (event.key === 'Enter' && !event.shiftKey) {
@@ -452,10 +693,12 @@ export default function CommandCenterOverlay() {
       submit()
       return
     }
+    if (actionsOpen) return
     if (!isChatMode && mode === 'search' && event.key === 'ArrowDown') {
       event.preventDefault()
       setSelectionVisible(true)
-      setSelectedIndex((current) => Math.min(current + 1, Math.max(filteredRows.length - 1, 0)))
+      const rowCount = isEmojiView ? emojiResults.length : filteredRows.length
+      setSelectedIndex((current) => Math.min(current + 1, Math.max(rowCount - 1, 0)))
     }
     if (!isChatMode && mode === 'search' && event.key === 'ArrowUp') {
       event.preventDefault()
@@ -465,6 +708,7 @@ export default function CommandCenterOverlay() {
   }
 
   const footerActionLabel = ((): string => {
+    if (isEmojiView) return 'Paste Emoji'
     if (mode === 'ask') return 'Ask Zura'
     const item = selectedItem
     if (!item) return input.trim() ? 'Ask Zura' : 'Search'
@@ -476,13 +720,24 @@ export default function CommandCenterOverlay() {
       case 'window':
         return 'Focus Window'
       case 'action':
-        return 'Run Action'
+        return item.actionId === 'emoji-picker' ? 'Open Command' : 'Run Action'
       case 'chat':
         return 'Open Chat'
       default:
         return 'Open'
     }
   })()
+
+  const selectedAppActions = useMemo(() => {
+    if (!selectedItem || selectedItem.type !== 'app') return []
+    return APP_ACTION_DEFS.filter((action) => action.available(selectedItem)).map((action) =>
+      action.id === 'open' && selectedItem.existingWindow
+        ? { ...action, label: 'Open Application' }
+        : action
+    )
+  }, [selectedItem])
+
+  const showAppActions = !isChatMode && !isEmojiView && mode === 'search' && selectedAppActions.length > 0
 
   return (
     <div className="command-center-root">
@@ -492,6 +747,16 @@ export default function CommandCenterOverlay() {
         initial={false}
       >
         <motion.div className="command-center-topbar" initial={false}>
+          {isEmojiView && (
+            <button
+              type="button"
+              className="command-center-back"
+              onClick={closeCommandView}
+              aria-label="Back to Command Center"
+            >
+              <span aria-hidden="true">‹</span>
+            </button>
+          )}
           <motion.div
             className="command-center-input-shell"
             animate={reduceMotion ? { x: 0 } : { x: mode === 'ask' ? 4 : 0 }}
@@ -503,21 +768,25 @@ export default function CommandCenterOverlay() {
               }}
               autoFocus
               value={input}
-              onChange={(event) => setInput(event.target.value)}
+              onChange={(event) => handleInputChange(event.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={
                 isChatMode
                   ? 'Ask a follow-up...'
-                  : mode === 'search'
-                    ? 'Search workflows, apps, windows, chats...'
-                    : 'Ask Zura to help with this screen...'
+                  : isEmojiView
+                    ? 'Search emojis by name...'
+                    : mode === 'search'
+                      ? 'Search workflows, apps, windows, chats...'
+                      : 'Ask Zura to help with this screen...'
               }
               aria-label={
                 isChatMode
                   ? 'Ask a follow-up'
-                  : mode === 'search'
-                    ? 'Search Command Center'
-                    : 'Ask Zura'
+                  : isEmojiView
+                    ? 'Search emojis'
+                    : mode === 'search'
+                      ? 'Search Command Center'
+                      : 'Ask Zura'
               }
             />
             {isChatMode && (
@@ -530,7 +799,7 @@ export default function CommandCenterOverlay() {
               </button>
             )}
           </motion.div>
-          {!isChatMode && (
+          {!isChatMode && !isEmojiView && (
             <button
               type="button"
               className="command-center-mode-hint"
@@ -546,7 +815,7 @@ export default function CommandCenterOverlay() {
         <AnimatePresence mode="wait" initial={false}>
           {!isChatMode ? (
             <motion.div
-              key={mode}
+              key={`${commandView}:${mode}`}
               className="command-center-body"
               initial={reduceMotion ? false : { x: mode === 'ask' ? 6 : -6 }}
               animate={reduceMotion ? undefined : { x: 0 }}
@@ -557,7 +826,49 @@ export default function CommandCenterOverlay() {
                 ease: motionEase,
               }}
             >
-              {mode === 'search' ? (
+              {isEmojiView ? (
+                <div
+                  className="command-center-results command-center-emoji-results"
+                  role="listbox"
+                  aria-label="Emoji results"
+                >
+                  <section className="command-center-group">
+                    <h2>{input.trim() ? 'Search Results' : 'Popular'}</h2>
+                    {emojiResults.map((entry, rowIndex) => {
+                      const selected = selectionVisible && rowIndex === selectedIndex
+                      return (
+                        <button
+                          key={entry.emoji}
+                          type="button"
+                          className={`command-center-result command-center-emoji-result ${selected ? 'selected' : ''}`}
+                          onClick={() => {
+                            setSelectionVisible(true)
+                            setSelectedIndex(rowIndex)
+                            requestAnimationFrame(() => inputRef.current?.focus())
+                          }}
+                          onDoubleClick={() => void insertEmoji(entry)}
+                          role="option"
+                          aria-selected={selected}
+                        >
+                          <span className="command-center-result__icon command-center-emoji-result__glyph">
+                            {entry.emoji}
+                          </span>
+                          <span className="command-center-result__text">
+                            <span>{entry.name}</span>
+                            <small>{entry.keywords.slice(1, 4).join(' · ')}</small>
+                          </span>
+                          <span className="command-center-result__hint">Paste</span>
+                        </button>
+                      )
+                    })}
+                  </section>
+                  {emojiResults.length === 0 && (
+                    <div className="command-center-empty">
+                      No emoji found. Try a feeling, object, or activity.
+                    </div>
+                  )}
+                </div>
+              ) : mode === 'search' ? (
                 <div
                   className="command-center-results"
                   role="listbox"
@@ -704,17 +1015,82 @@ export default function CommandCenterOverlay() {
             <span className="command-center-footer__brand">
               <img src="icon-mark.png" alt="" />
             </span>
-            <button
-              type="button"
-              className="command-center-footer__action"
-              onClick={submit}
-              aria-label={footerActionLabel}
-            >
-              <span>{footerActionLabel}</span>
-              <kbd>
-                <CornerDownLeft size={12} />
-              </kbd>
-            </button>
+            <div className="command-center-footer__actions">
+              <button
+                type="button"
+                className="command-center-footer__action"
+                onClick={submit}
+                aria-label={footerActionLabel}
+              >
+                <span>{footerActionLabel}</span>
+                <kbd>
+                  <CornerDownLeft size={12} />
+                </kbd>
+              </button>
+              {showAppActions && selectedItem?.type === 'app' && (
+                <DropdownMenu open={actionsOpen} onOpenChange={setActionsOpen}>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      className="command-center-footer__action command-center-footer__actions-btn"
+                      aria-label="Actions"
+                      aria-haspopup="menu"
+                      aria-expanded={actionsOpen}
+                    >
+                      <span>Actions</span>
+                      <kbd className="command-center-footer__chord">
+                        <span>⌃</span>
+                        <span>K</span>
+                      </kbd>
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="end"
+                    side="top"
+                    sideOffset={8}
+                    className="command-center-actions-menu"
+                    onCloseAutoFocus={(event) => {
+                      event.preventDefault()
+                      inputRef.current?.focus()
+                    }}
+                  >
+                    {selectedAppActions.map((action, index) => {
+                      const prev = selectedAppActions[index - 1]
+                      const isUtility =
+                        action.id === 'show-in-folder' ||
+                        action.id === 'copy-path' ||
+                        action.id === 'copy-name'
+                      const prevIsPrimary =
+                        !prev || prev.id === 'open' || prev.id === 'focus-window'
+                      const showSeparator = isUtility && prevIsPrimary
+                      return (
+                        <Fragment key={action.id}>
+                          {showSeparator ? <DropdownMenuSeparator /> : null}
+                          <DropdownMenuItem
+                            className="command-center-actions-menu__item"
+                            onSelect={() => {
+                              if (selectedItem?.type === 'app') {
+                                void runItemAction(selectedItem, action.id)
+                              }
+                            }}
+                          >
+                            <span className="command-center-actions-menu__icon">{action.icon}</span>
+                            <span className="command-center-actions-menu__label">
+                              {action.label}
+                            </span>
+                            {action.id === 'open' ? (
+                              <DropdownMenuShortcut>
+                                <CornerDownLeft size={12} />
+                              </DropdownMenuShortcut>
+                            ) : null}
+                          </DropdownMenuItem>
+                        </Fragment>
+                      )
+                    })}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
           </footer>
         )}
 
@@ -848,6 +1224,37 @@ export default function CommandCenterOverlay() {
           transition: background-color 120ms ease, color 120ms ease;
         }
 
+        .command-center-back {
+          flex: 0 0 30px;
+          width: 30px;
+          height: 30px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border: 0;
+          border-radius: 7px;
+          background: transparent;
+          color: rgba(255, 241, 246, 0.62);
+          font: inherit;
+          cursor: pointer;
+          transition: background-color 120ms ease, color 120ms ease;
+        }
+
+        .command-center-back:hover,
+        .command-center-back:focus-visible {
+          background: rgba(255, 255, 255, 0.07);
+          color: rgba(255, 249, 251, 0.94);
+          outline: none;
+        }
+
+        .command-center-back span {
+          display: block;
+          font-size: 26px;
+          font-weight: 300;
+          line-height: 1;
+          transform: translateY(-1px);
+        }
+
         .command-center-mode-hint:hover {
           background: rgba(255, 255, 255, 0.06);
           color: rgba(255, 241, 246, 0.72);
@@ -914,6 +1321,12 @@ export default function CommandCenterOverlay() {
           display: block;
         }
 
+        .command-center-footer__actions {
+          display: inline-flex;
+          align-items: center;
+          gap: 2px;
+        }
+
         .command-center-footer__action {
           display: inline-flex;
           align-items: center;
@@ -931,7 +1344,8 @@ export default function CommandCenterOverlay() {
           transition: background-color 120ms ease, color 120ms ease;
         }
 
-        .command-center-footer__action:hover {
+        .command-center-footer__action:hover,
+        .command-center-footer__action[data-state='open'] {
           background: rgba(255, 255, 255, 0.06);
           color: rgba(255, 249, 251, 0.92);
         }
@@ -940,6 +1354,7 @@ export default function CommandCenterOverlay() {
           display: inline-flex;
           align-items: center;
           justify-content: center;
+          gap: 2px;
           min-width: 20px;
           height: 19px;
           padding: 0 4px;
@@ -948,10 +1363,76 @@ export default function CommandCenterOverlay() {
           border: 1px solid rgba(255, 255, 255, 0.13);
           box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10);
           color: rgba(255, 246, 249, 0.82);
+          font-size: 11px;
+          font-weight: 600;
+          line-height: 1;
         }
 
         .command-center-footer__action kbd svg {
           display: block;
+        }
+
+        .command-center-footer__chord span {
+          display: inline-block;
+        }
+
+        .command-center-actions-menu {
+          min-width: 240px;
+          max-width: min(320px, 92vw);
+          padding: 6px;
+          border-radius: 12px;
+          border: 1px solid rgba(255, 255, 255, 0.10);
+          background: rgba(22, 18, 24, 0.96);
+          color: rgba(255, 244, 248, 0.92);
+          box-shadow:
+            0 18px 48px rgba(0, 0, 0, 0.45),
+            0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+          backdrop-filter: blur(18px);
+          -webkit-backdrop-filter: blur(18px);
+        }
+
+        .command-center-actions-menu__item {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          min-height: 34px;
+          border-radius: 8px;
+          padding: 6px 8px;
+          font-size: 13px;
+          color: rgba(255, 244, 248, 0.90);
+          cursor: pointer;
+        }
+
+        .command-center-actions-menu__item:focus,
+        .command-center-actions-menu__item[data-highlighted] {
+          background: rgba(255, 255, 255, 0.09);
+          color: rgba(255, 250, 252, 0.98);
+          outline: none;
+        }
+
+        .command-center-actions-menu__icon {
+          width: 18px;
+          height: 18px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          color: rgba(255, 221, 231, 0.62);
+          flex: 0 0 auto;
+        }
+
+        .command-center-actions-menu__label {
+          flex: 1 1 auto;
+          min-width: 0;
+        }
+
+        .command-center-actions-menu [data-slot='dropdown-menu-shortcut'] {
+          margin-left: 12px;
+          color: rgba(255, 236, 242, 0.48);
+        }
+
+        .command-center-actions-menu [data-slot='dropdown-menu-separator'] {
+          background: rgba(255, 255, 255, 0.08);
+          margin: 4px 2px;
         }
 
         .command-center-input-shell {
@@ -1102,6 +1583,26 @@ export default function CommandCenterOverlay() {
           flex: 0 0 auto;
           object-fit: contain;
           border-radius: 5px;
+          /* Avoid decode flash when the same icon re-renders after index refresh. */
+          content-visibility: auto;
+          background: transparent;
+        }
+
+        .command-center-emoji-result {
+          min-height: 46px;
+        }
+
+        .command-center-emoji-result__glyph {
+          width: 28px;
+          height: 28px;
+          overflow: visible;
+          font-family: "Segoe UI Emoji", "Apple Color Emoji", sans-serif;
+          font-size: 22px;
+          line-height: 1;
+        }
+
+        .command-center-emoji-result .command-center-result__text small {
+          text-transform: lowercase;
         }
 
         .command-center-result__text {

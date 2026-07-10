@@ -67,6 +67,29 @@ describe('convertToOpenRouterFormat', () => {
     expect(parsed.results[0].displayed_link).toBeUndefined()
   })
 
+  it('strips base64 screenshots from computer-use tool results before model send', () => {
+    const hugePng = `iVBORw0KGgo${'A'.repeat(800)}`
+    const formatted = formatToolResultsForOpenRouter(
+      [{ id: 'tool-1', name: 'computer_screenshot' }],
+      [
+        {
+          success: true,
+          data: {
+            action: 'screenshot',
+            image: hugePng,
+            screenWidth: 1280,
+            screenHeight: 720,
+          },
+        },
+      ]
+    )
+
+    const parsed = JSON.parse(formatted[0]?.content ?? '{}')
+    expect(parsed.image).toContain('screenshot omitted')
+    expect(parsed.screenWidth).toBe(1280)
+    expect(String(parsed.image).length).toBeLessThan(200)
+  })
+
   it('formats skipped web search results without exposing budget policy details', () => {
     const formatted = formatToolResultsForOpenRouter(
       [{ id: 'tool-1', name: 'web_search' }],

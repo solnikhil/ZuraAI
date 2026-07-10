@@ -24,6 +24,7 @@ import type {
   ChatIndexData,
   ChatSession,
   ChatSessionMetadata,
+  CompactPreviewMessage,
   FileAttachment,
   Folder,
   Message,
@@ -67,7 +68,12 @@ interface ChatHistoryContextType {
   ) => string
   switchSession: (id: string) => void
   addMessageToSession: (sessionId: string, message: Omit<Message, 'id' | 'timestamp'>) => string
-  updateStreamingMessage: (sessionId: string, messageId: string, updates: Partial<Message>) => void
+  updateStreamingMessage: (
+    sessionId: string,
+    messageId: string,
+    updates: Partial<Message>,
+    options?: { persist?: boolean }
+  ) => void
   deleteMessageFromSession: (sessionId: string, messageId: string) => void
   deleteSession: (id: string) => void
   clearAllSessions: () => void
@@ -136,16 +142,58 @@ const LAST_SESSION_ID_KEY = 'zura-ui:lastChatSessionId'
 const LOCAL_CHAT_HISTORY_KEY = 'zura-chat-history'
 const LOCAL_CHAT_INDEX_KEY = 'zura-chat-index'
 const MAX_LOADED_SESSIONS = 3
-const RECENT_TAIL_SIZE = 80
+/** Compact index preview tail — keep small; full history loads from disk on demand. */
+const INDEX_RECENT_TAIL_SIZE = 20
+const INDEX_PREVIEW_CONTENT_MAX = 500
+/** Fast path when switching chats: load this many full messages from disk first. */
+const FAST_LOAD_LIMIT = 80
 const SAVE_DEBOUNCE_MS = 500
 const INDEX_VERSION = 4
+
+function compactMessageForIndex(message: Message): CompactPreviewMessage {
+  return {
+    id: message.id,
+    role: message.role,
+    content:
+      typeof message.content === 'string'
+        ? message.content.slice(0, INDEX_PREVIEW_CONTENT_MAX)
+        : '',
+    timestamp: message.timestamp,
+    model: message.model,
+    hasImage: Boolean(message.image) || undefined,
+    hasFiles: Array.isArray(message.files) && message.files.length > 0 ? true : undefined,
+    toolResultCount:
+      Array.isArray(message.toolResults) && message.toolResults.length > 0
+        ? message.toolResults.length
+        : undefined,
+    hasThinking: Boolean(
+      message.thinking ||
+        (Array.isArray(message.thinkingBlocks) && message.thinkingBlocks.length > 0)
+    )
+      ? true
+      : undefined,
+  }
+}
+
+function compactPreviewToMessage(preview: CompactPreviewMessage): Message {
+  return {
+    id: preview.id,
+    role: preview.role,
+    content: preview.content,
+    timestamp: preview.timestamp,
+    model: preview.model,
+  }
+}
 
 function sessionToMetadata(session: ChatSession): ChatSessionMetadata {
   const messages = session.messages ?? []
   const messageCount = session.messages?.length ?? session.messageCount ?? 0
 
-  // Mirror of main-process logic: embed recent tail for fast preview
-  const recentMessages = messages.length > 0 ? messages.slice(-RECENT_TAIL_SIZE) : undefined
+  // Compact text-only tail — never embed tool screenshots / base64 / agent runs.
+  const recentMessages =
+    messages.length > 0
+      ? messages.slice(-INDEX_RECENT_TAIL_SIZE).map(compactMessageForIndex)
+      : undefined
 
   return {
     id: session.id,
@@ -166,8 +214,11 @@ function sessionToMetadata(session: ChatSession): ChatSessionMetadata {
 }
 
 function metadataToSession(metadata: ChatSessionMetadata, messages: Message[] = []): ChatSession {
-  // If we have no full messages yet, fall back to the embedded recent tail for instant preview
-  const effectiveMessages = messages.length > 0 ? messages : (metadata.recentMessages ?? [])
+  // Prefer provided full messages; otherwise hydrate compact text-only previews.
+  const effectiveMessages =
+    messages.length > 0
+      ? messages
+      : (metadata.recentMessages ?? []).map(compactPreviewToMessage)
   return {
     id: metadata.id,
     title: metadata.title,
@@ -409,10 +460,13 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
         if (keep.has(session.id)) return session
         if (!loadedSessionIdsRef.current.has(session.id)) return session
         loadedSessionIdsRef.current.delete(session.id)
+        // Fully unload inactive sessions — only keep messageCount for sidebar badges.
+        // Full history is reloaded from disk on next switch.
         return {
           ...session,
-          messages: session.messages.slice(-RECENT_TAIL_SIZE),
+          messages: [],
           messageCount: session.messageCount ?? session.messages.length,
+          artifacts: [],
         }
       })
     )
@@ -541,7 +595,7 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     if (sessions.some((session) => session.id === rememberedId)) {
       setCurrentSessionId(rememberedId)
       // Use fast tail load for startup feel
-      void loadFullSession(rememberedId, { limit: 80 })
+      void loadFullSession(rememberedId, { limit: FAST_LOAD_LIMIT })
       setTimeout(() => void loadFullSession(rememberedId), 150)
     }
   }, [currentSessionId, isInitialized, loadFullSession, sessions, settings.rememberLastChatSession])
@@ -551,23 +605,38 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     const session = sessions.find((entry) => entry.id === currentSessionId)
     if (session && !loadedSessionIdsRef.current.has(currentSessionId)) {
       const total = session.messageCount ?? session.messages?.length ?? 0
-      const have = session.messages?.length ?? 0
 
-      // If we already have a good tail from embedded recentMessages in metadata, we can skip the limited IPC
-      const alreadyHasDecentTail = have >= 50
-
-      if (!alreadyHasDecentTail) {
-        void loadFullSession(currentSessionId, { limit: 80 })
+      // Empty chats need no disk load.
+      if (total === 0) {
+        markLoaded(currentSessionId)
+        return
       }
 
-      // Background: load the complete history so older context is available (if any)
-      if (total > have) {
+      // Compact index previews are text-only shells (no toolResults/images/thinking).
+      // Skip re-entry once a limited/full disk load has already replaced them.
+      const looksLikeCompactOnly =
+        session.messages.length === 0 ||
+        session.messages.every(
+          (message) =>
+            !message.toolResults &&
+            !message.image &&
+            !message.thinkingBlocks &&
+            !message.agentRun &&
+            !message.files?.length
+        )
+
+      if (!looksLikeCompactOnly) return
+
+      if (total > FAST_LOAD_LIMIT) {
+        void loadFullSession(currentSessionId, { limit: FAST_LOAD_LIMIT })
         setTimeout(() => {
           void loadFullSession(currentSessionId)
         }, 180)
+      } else {
+        void loadFullSession(currentSessionId)
       }
     }
-  }, [currentSessionId, loadFullSession, sessions])
+  }, [currentSessionId, loadFullSession, markLoaded, sessions])
 
   useEffect(() => {
     if (!isElectron || !window.ipcRenderer?.on) return
@@ -751,14 +820,19 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
       if (!sessionsRef.current.some((session) => session.id === id)) return
       setCurrentSessionId(id)
       // Fast tail load first for snappy feel, then full background load
-      void loadFullSession(id, { limit: 80 })
+      void loadFullSession(id, { limit: FAST_LOAD_LIMIT })
       setTimeout(() => void loadFullSession(id), 100)
     },
     [loadFullSession]
   )
 
   const updateOneSession = useCallback(
-    (sessionId: string, updater: (session: ChatSession) => ChatSession) => {
+    (
+      sessionId: string,
+      updater: (session: ChatSession) => ChatSession,
+      options?: { persist?: boolean }
+    ) => {
+      const shouldPersist = options?.persist !== false
       setSessions((prev) => {
         let updatedSession: ChatSession | null = null
         const next = prev.map((session) => {
@@ -767,7 +841,7 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
           return updatedSession
         })
 
-        if (updatedSession) {
+        if (updatedSession && shouldPersist) {
           persistSessionMutation(updatedSession)
         }
 
@@ -833,19 +907,31 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
   )
 
   const updateStreamingMessage = useCallback(
-    (sessionId: string, messageId: string, updates: Partial<Message>) => {
-      updateOneSession(sessionId, (session) => {
-        const updatedMessages = session.messages.map((message) =>
-          message.id === messageId ? { ...message, ...updates } : message
-        )
+    (
+      sessionId: string,
+      messageId: string,
+      updates: Partial<Message>,
+      options?: { persist?: boolean }
+    ) => {
+      // Default: in-memory only during stream — avoid rewriting multi-MB session
+      // JSON and re-embedding index tails on every throttled token batch.
+      // Pass { persist: true } when committing the final streamed message.
+      updateOneSession(
+        sessionId,
+        (session) => {
+          const updatedMessages = session.messages.map((message) =>
+            message.id === messageId ? { ...message, ...updates } : message
+          )
 
-        return {
-          ...session,
-          messages: updatedMessages,
-          updatedAt: Date.now(),
-          messageCount: updatedMessages.length,
-        }
-      })
+          return {
+            ...session,
+            messages: updatedMessages,
+            updatedAt: Date.now(),
+            messageCount: updatedMessages.length,
+          }
+        },
+        { persist: options?.persist === true }
+      )
     },
     [updateOneSession]
   )

@@ -16,6 +16,32 @@ let commandCenterShowPending = false
 // overlay, which would otherwise hide it immediately ("can't open" flicker).
 let commandCenterLastShownAt = 0
 const COMMAND_CENTER_SHOW_BLUR_GRACE_MS = 250
+/**
+ * After the overlay is dismissed, destroy the BrowserWindow once idle so the
+ * second Chromium renderer does not stay resident forever. Next open recreates
+ * the window (acceptable cold-open cost for a spotlight-style panel).
+ */
+export const COMMAND_CENTER_IDLE_DESTROY_MS = 2 * 60 * 1000
+let idleDestroyTimer: ReturnType<typeof setTimeout> | null = null
+
+function cancelIdleDestroy(): void {
+  if (idleDestroyTimer) {
+    clearTimeout(idleDestroyTimer)
+    idleDestroyTimer = null
+  }
+}
+
+function scheduleIdleDestroy(): void {
+  cancelIdleDestroy()
+  idleDestroyTimer = setTimeout(() => {
+    idleDestroyTimer = null
+    // Only destroy while hidden — never tear down a visible overlay.
+    if (commandCenterWindow && !commandCenterWindow.isDestroyed() && commandCenterWindow.isVisible()) {
+      return
+    }
+    destroyCommandCenterWindow()
+  }, COMMAND_CENTER_IDLE_DESTROY_MS)
+}
 
 function commandCenterRouteUrl(baseUrl: string): string {
   const url = new URL(baseUrl)
@@ -100,7 +126,9 @@ function createCommandCenterWindow(): BrowserWindow {
       sandbox: true,
       devTools: !app.isPackaged,
       spellcheck: false,
-      backgroundThrottling: false,
+      // Throttle when hidden so a dismissed overlay does not keep the
+      // compositor/timers fully hot. Idle destroy reclaims the process entirely.
+      backgroundThrottling: true,
       additionalArguments: ['--process-name=ZuraAI-CommandCenter'],
     },
   })
@@ -141,18 +169,20 @@ function createCommandCenterWindow(): BrowserWindow {
         const current = commandCenterWindow
         if (!current || current.isDestroyed()) return
         if (current.isVisible() && !current.isFocused()) {
-          current.hide()
+          // Route through hideCommandCenterWindow so idle-destroy is scheduled.
+          hideCommandCenterWindow()
         }
       }, COMMAND_CENTER_SHOW_BLUR_GRACE_MS)
       return
     }
-    win.hide()
+    hideCommandCenterWindow()
   })
 
   commandCenterWindow.on('closed', () => {
     commandCenterWindow = null
     commandCenterReadyToShow = false
     commandCenterShowPending = false
+    cancelIdleDestroy()
   })
 
   commandCenterWindow.once('ready-to-show', () => {
@@ -197,6 +227,7 @@ function reapplyWindowMaterial(win: BrowserWindow): void {
 }
 
 export function showCommandCenterWindow(): void {
+  cancelIdleDestroy()
   const win = createCommandCenterWindow()
   commandCenterLayout = 'search'
   const bounds = centerBounds(commandCenterLayout)
@@ -239,13 +270,18 @@ export function setCommandCenterWindowLayout(layout: 'search' | 'chat'): void {
 export function hideCommandCenterWindow(): void {
   if (commandCenterWindow && !commandCenterWindow.isDestroyed()) {
     commandCenterWindow.setOpacity(1)
-    commandCenterWindow.hide()
+    if (commandCenterWindow.isVisible()) {
+      commandCenterWindow.hide()
+    }
   }
+  // Schedule process reclaim while the overlay stays unused.
+  scheduleIdleDestroy()
 }
 
 export function toggleCommandCenterWindow(): void {
-  const win = createCommandCenterWindow()
-  if (win.isVisible()) {
+  const existing =
+    commandCenterWindow && !commandCenterWindow.isDestroyed() ? commandCenterWindow : null
+  if (existing?.isVisible()) {
     hideCommandCenterWindow()
     return
   }
@@ -253,8 +289,16 @@ export function toggleCommandCenterWindow(): void {
 }
 
 export function destroyCommandCenterWindow(): void {
+  cancelIdleDestroy()
+  commandCenterReadyToShow = false
+  commandCenterShowPending = false
   if (commandCenterWindow && !commandCenterWindow.isDestroyed()) {
     commandCenterWindow.destroy()
   }
   commandCenterWindow = null
+}
+
+/** Test helper: whether an idle-destroy timer is armed. */
+export function __isCommandCenterIdleDestroyScheduledForTests(): boolean {
+  return idleDestroyTimer !== null
 }

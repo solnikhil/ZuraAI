@@ -52,7 +52,7 @@ describe('ExtensionDetailSection', () => {
     })
   })
 
-  it('disables the Command Center open button when the extension is disabled', () => {
+  it('keeps the Command Center open button available outside Agent Mode', async () => {
     render(
       <ExtensionDetailSection
         extensionId="command_center"
@@ -66,6 +66,10 @@ describe('ExtensionDetailSection', () => {
       />
     )
 
-    expect(screen.getByRole('button', { name: /open/i })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: /open/i }))
+    await waitFor(() => {
+      expect(setExtensionEnabled).toHaveBeenCalledWith(true)
+      expect(show).toHaveBeenCalledTimes(1)
+    })
   })
 })

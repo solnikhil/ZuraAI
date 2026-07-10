@@ -1,5 +1,5 @@
 import React from 'react'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import CommandCenterOverlay from './CommandCenterOverlay'
@@ -98,6 +98,8 @@ describe('CommandCenterOverlay', () => {
           chats: [],
         })),
         executeIndexItem: vi.fn(async () => ({ success: true })),
+        executeItemAction: vi.fn(async () => ({ success: true, dismiss: true })),
+        insertEmoji: vi.fn(async () => ({ success: true })),
         executeWorkflow: vi.fn(async () => ({ success: true })),
         openChatSession: vi.fn(async () => true),
         setLayout: vi.fn(async () => true),
@@ -117,6 +119,125 @@ describe('CommandCenterOverlay', () => {
     const app = await screen.findByText('Chrome')
 
     expect(workflow.compareDocumentPosition(app) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('shows an Actions menu for the selected app and runs a secondary action', async () => {
+    window.commandCenter.getIndex = vi.fn(async () => ({
+      workflows: [],
+      apps: [
+        {
+          id: 'app:chrome',
+          type: 'app',
+          title: 'Chrome',
+          hint: 'Application',
+          aliases: ['Chrome'],
+          appPath: 'C:\\Chrome.lnk',
+          shortcutPath: 'C:\\Chrome.lnk',
+          iconDataUrl: 'data:image/png;base64,icon',
+        },
+      ],
+      windows: [],
+      actions: [],
+      chats: [],
+    }))
+    window.commandCenter.executeItemAction = vi.fn(async () => ({
+      success: true,
+      dismiss: false,
+      status: 'Path copied.',
+    }))
+
+    render(<CommandCenterOverlay />)
+    await screen.findByText('Chrome')
+
+    // First result is pre-selected; Actions should be available for apps.
+    expect(screen.getByRole('button', { name: /^actions$/i })).toBeInTheDocument()
+
+    // Ctrl+K opens the Actions menu (Raycast-style); more reliable in jsdom than
+    // synthesizing a full Radix pointer open sequence.
+    const input = screen.getByRole('textbox', { name: /search command center/i })
+    fireEvent.keyDown(input, { key: 'k', ctrlKey: true })
+
+    expect(await screen.findByText('Show in File Explorer')).toBeInTheDocument()
+    expect(screen.getByText('Copy Path')).toBeInTheDocument()
+    expect(screen.getByText('Copy Name')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('Copy Path'))
+    await waitFor(() => {
+      expect(window.commandCenter.executeItemAction).toHaveBeenCalledWith(
+        'app:chrome',
+        'copy-path',
+        ''
+      )
+    })
+    expect(await screen.findByText('Path copied.')).toBeInTheDocument()
+    expect(window.commandCenter.hide).not.toHaveBeenCalled()
+  })
+
+  it('keeps previous results painted when the overlay is shown again', async () => {
+    let shownHandler: (() => void) | undefined
+    window.commandCenter.onShown = vi.fn((callback: () => void) => {
+      shownHandler = callback
+      return () => undefined
+    })
+    let reopenPhase = false
+    window.commandCenter.getIndex = vi.fn(async () => {
+      if (!reopenPhase) {
+        return {
+          workflows: [],
+          apps: [
+            {
+              id: 'app:chrome',
+              type: 'app',
+              title: 'Chrome',
+              hint: 'Application',
+              aliases: ['Chrome'],
+              iconDataUrl: 'data:image/png;base64,icon',
+            },
+          ],
+          windows: [],
+          actions: [],
+          chats: [],
+        }
+      }
+      // Reopen: delay the response so we can assert the list stays painted.
+      await new Promise((resolve) => setTimeout(resolve, 80))
+      return {
+        workflows: [],
+        apps: [
+          {
+            id: 'app:chrome',
+            type: 'app',
+            title: 'Chrome',
+            hint: 'Application',
+            aliases: ['Chrome'],
+            iconDataUrl: 'data:image/png;base64,icon',
+          },
+          {
+            id: 'app:kiro',
+            type: 'app',
+            title: 'Kiro',
+            hint: 'Application',
+            aliases: ['Kiro'],
+          },
+        ],
+        windows: [],
+        actions: [],
+        chats: [],
+      }
+    })
+
+    render(<CommandCenterOverlay />)
+    expect(await screen.findByText('Chrome')).toBeInTheDocument()
+
+    reopenPhase = true
+    act(() => {
+      shownHandler?.()
+    })
+    // Soft reopen must not blank the list while the refresh is in flight.
+    expect(screen.getByText('Chrome')).toBeInTheDocument()
+    expect(screen.queryByText(/Loading Command Center/i)).not.toBeInTheDocument()
+
+    expect(await screen.findByText('Kiro')).toBeInTheDocument()
   })
 
   it('switches to Ask AI with Tab and starts chat on submit', async () => {
@@ -352,6 +473,7 @@ describe('CommandCenterOverlay', () => {
             aliases: ['Kiro'],
             iconKey: 'C:\\Users\\Nikhil\\AppData\\Local\\Programs\\Kiro\\Kiro.exe',
             iconDataUrl: callCount > 1 ? 'data:image/png;base64,kiro' : undefined,
+            iconPending: callCount === 1,
           },
         ],
         windows: [],
@@ -370,6 +492,80 @@ describe('CommandCenterOverlay', () => {
       )
     })
     expect(window.commandCenter.getIndex).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not keep polling when app icons are missing but not pending', async () => {
+    window.commandCenter.getIndex = vi.fn(async () => ({
+      workflows: [],
+      apps: [
+        {
+          id: 'app:kiro',
+          type: 'app',
+          title: 'Kiro',
+          hint: 'Application',
+          aliases: ['Kiro'],
+          iconKey: 'C:\\Users\\Nikhil\\AppData\\Local\\Programs\\Kiro\\Kiro.exe',
+          iconDataUrl: undefined,
+          iconPending: false,
+        },
+      ],
+      windows: [],
+      actions: [],
+      chats: [],
+    }))
+
+    render(<CommandCenterOverlay />)
+    await screen.findByText('Kiro')
+    // Mount triggers an initial load plus a zero-delay search refresh; neither
+    // should reschedule once icons are settled (iconPending: false).
+    await new Promise((resolve) => setTimeout(resolve, 250))
+    const callsAfterSettle = (window.commandCenter.getIndex as ReturnType<typeof vi.fn>).mock
+      .calls.length
+    expect(callsAfterSettle).toBeLessThanOrEqual(2)
+    await new Promise((resolve) => setTimeout(resolve, 250))
+    expect(window.commandCenter.getIndex).toHaveBeenCalledTimes(callsAfterSettle)
+  })
+
+  it('keeps a previously loaded app icon when a refresh temporarily omits it', async () => {
+    let callCount = 0
+    window.commandCenter.getIndex = vi.fn(async () => {
+      callCount += 1
+      return {
+        workflows: [],
+        apps: [
+          {
+            id: 'app:kiro',
+            type: 'app',
+            title: 'Kiro',
+            hint: 'Application',
+            aliases: ['Kiro'],
+            iconKey: 'C:\\Users\\Nikhil\\AppData\\Local\\Programs\\Kiro\\Kiro.exe',
+            iconDataUrl: callCount === 1 ? 'data:image/png;base64,kiro' : undefined,
+            iconPending: callCount === 1,
+          },
+        ],
+        windows: [],
+        actions: [],
+        chats: [],
+      }
+    })
+
+    const { container } = render(<CommandCenterOverlay />)
+    await waitFor(() => {
+      expect(container.querySelector('.command-center-result__app-icon')).toHaveAttribute(
+        'src',
+        'data:image/png;base64,kiro'
+      )
+    })
+    // Second poll (pending on first response) returns without the data URL;
+    // sticky merge should keep the icon painted.
+    await waitFor(() => {
+      expect(window.commandCenter.getIndex).toHaveBeenCalledTimes(2)
+    })
+    expect(container.querySelector('.command-center-result__app-icon')).toHaveAttribute(
+      'src',
+      'data:image/png;base64,kiro'
+    )
   })
 
   it('shows app index diagnostics when apps are partially unavailable', async () => {
@@ -393,5 +589,61 @@ describe('CommandCenterOverlay', () => {
     expect(
       await screen.findByText(/Apps may be incomplete: Get-StartApps failed/i)
     ).toBeInTheDocument()
+  })
+
+  it('opens a searchable Emojis command under Additional and inserts the selection', async () => {
+    window.commandCenter.getIndex = vi.fn(async () => ({
+      workflows: [],
+      apps: [],
+      windows: [],
+      actions: [
+        {
+          id: 'action:system-status',
+          type: 'action',
+          title: 'System status',
+          subtitle: 'system',
+          hint: 'Action',
+          aliases: ['status'],
+          actionId: 'system-status',
+        },
+        {
+          id: 'action:emoji-picker',
+          type: 'action',
+          title: 'Emojis',
+          subtitle: 'additional',
+          hint: 'Action',
+          aliases: ['emoji'],
+          actionId: 'emoji-picker',
+        },
+      ],
+      chats: [],
+    }))
+
+    render(<CommandCenterOverlay />)
+
+    expect(await screen.findByRole('heading', { name: 'Additional' })).toBeInTheDocument()
+    expect(screen.getByText('Emojis')).toBeInTheDocument()
+
+    fireEvent.doubleClick(screen.getByRole('button', { name: /Emojis/i }))
+    const emojiSearch = await screen.findByRole('textbox', { name: /search emojis/i })
+    expect(await screen.findByRole('heading', { name: 'Popular' })).toBeInTheDocument()
+
+    fireEvent.change(emojiSearch, { target: { value: 'rocket' } })
+    const rocket = await screen.findByText('Rocket')
+    expect(rocket).toBeInTheDocument()
+
+    fireEvent.keyDown(emojiSearch, { key: 'Enter' })
+    await waitFor(() => expect(window.commandCenter.insertEmoji).toHaveBeenCalledWith('🚀'))
+    expect(window.commandCenter.executeIndexItem).not.toHaveBeenCalledWith(
+      'action:emoji-picker',
+      ''
+    )
+
+    fireEvent.keyDown(emojiSearch, { key: 'Escape' })
+    const rootSearch = await screen.findByRole('textbox', { name: /search command center/i })
+    fireEvent.change(rootSearch, { target: { value: ':fire' } })
+    const quickEmojiSearch = await screen.findByRole('textbox', { name: /search emojis/i })
+    expect(quickEmojiSearch).toHaveValue('fire')
+    expect(await screen.findByText('Fire')).toBeInTheDocument()
   })
 })

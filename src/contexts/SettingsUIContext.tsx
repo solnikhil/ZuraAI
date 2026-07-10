@@ -272,6 +272,21 @@ export function SettingsUIProvider({
     systemPrefersDark,
   ])
 
+  // Keep Electron's native theme and the Windows DWM backdrop aligned with the
+  // renderer theme. `system` stays unforced so OS theme changes keep flowing
+  // through prefers-color-scheme instead of being pinned to the current value.
+  useLayoutEffect(() => {
+    const setAppearance = window.windowControls?.setAppearance
+    if (!setAppearance) return
+
+    void setAppearance({
+      material: settingsUI.appChromeMaterial,
+      themeSource: settingsUI.theme,
+    }).catch((error) => {
+      console.warn('[settings-ui] Failed to synchronize native window appearance', error)
+    })
+  }, [settingsUI.appChromeMaterial, settingsUI.theme])
+
   // Notify parent of changes
   useEffect(() => {
     onSettingsChange?.(settingsUI)

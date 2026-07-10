@@ -92,12 +92,28 @@ let diagnostics: AppIndexDiagnostics = {
 }
 let loadedSnapshot = false
 let refreshRequest: Promise<AppIndexDiagnostics> | null = null
-const iconCache = new Map<string, string | undefined>()
+/** Bound icon data-URL cache — each large (48px) base64 icon is multi-KB. */
+const MAX_ICON_CACHE_ENTRIES = 128
+/** Successful icons only. Failed keys live in `failedIconKeys` so they do not
+ *  thrash the LRU or force the overlay into endless refresh loops. */
+const iconCache = new Map<string, string>()
+const failedIconKeys = new Set<string>()
 const iconRequests = new Map<string, Promise<string | undefined>>()
 const iconQueue: Array<() => void> = []
 let activeIconJobs = 0
 let watchersStarted = false
 let refreshTimer: ReturnType<typeof setTimeout> | undefined
+
+function setIconCacheEntry(iconKey: string, iconDataUrl: string): void {
+  // Refresh insertion order for LRU behavior (Map preserves order).
+  iconCache.delete(iconKey)
+  iconCache.set(iconKey, iconDataUrl)
+  while (iconCache.size > MAX_ICON_CACHE_ENTRIES) {
+    const oldestKey = iconCache.keys().next().value
+    if (typeof oldestKey !== 'string') break
+    iconCache.delete(oldestKey)
+  }
+}
 
 function indexPath(): string {
   return path.join(app.getPath('userData'), SNAPSHOT_FILE)
@@ -1148,17 +1164,40 @@ async function loadIcon(iconKey: string): Promise<string | undefined> {
   return undefined
 }
 
+/** Read a cached icon without starting extraction or touching the LRU. */
+export function peekCachedAppIcon(iconKey: string | undefined): string | undefined {
+  if (!iconKey) return undefined
+  return iconCache.get(iconKey)
+}
+
+/** True while an icon extraction job is queued or in flight for this key. */
+export function isAppIconPending(iconKey: string | undefined): boolean {
+  if (!iconKey) return false
+  return iconRequests.has(iconKey)
+}
+
 export function getCachedAppIcon(iconKey: string | undefined): string | undefined {
   if (!iconKey) return undefined
-  if (iconCache.has(iconKey)) return iconCache.get(iconKey)
+  if (iconCache.has(iconKey)) {
+    // Touch for LRU: re-insert at end
+    const cached = iconCache.get(iconKey)
+    if (cached) setIconCacheEntry(iconKey, cached)
+    return cached
+  }
+  if (failedIconKeys.has(iconKey)) return undefined
   if (!iconRequests.has(iconKey)) {
     const request = runIconJob(() => loadIcon(iconKey))
       .then((iconDataUrl) => {
-        iconCache.set(iconKey, iconDataUrl)
+        if (iconDataUrl) {
+          failedIconKeys.delete(iconKey)
+          setIconCacheEntry(iconKey, iconDataUrl)
+        } else {
+          failedIconKeys.add(iconKey)
+        }
         return iconDataUrl
       })
       .catch(() => {
-        iconCache.set(iconKey, undefined)
+        failedIconKeys.add(iconKey)
         return undefined
       })
       .finally(() => {
@@ -1169,15 +1208,21 @@ export function getCachedAppIcon(iconKey: string | undefined): string | undefine
   return undefined
 }
 
+/** Drop in-memory app icon data-URLs (keeps the app index snapshot itself). */
+export function clearAppIconCache(): void {
+  iconCache.clear()
+  failedIconKeys.clear()
+  iconRequests.clear()
+  iconQueue.splice(0, iconQueue.length)
+  activeIconJobs = 0
+}
+
 export function __resetAppIndexForTests(): void {
   memoryApps = []
   diagnostics = { ok: true, stale: true, sourceCounts: {} }
   loadedSnapshot = false
   refreshRequest = null
-  iconCache.clear()
-  iconRequests.clear()
-  iconQueue.splice(0, iconQueue.length)
-  activeIconJobs = 0
+  clearAppIconCache()
   watchersStarted = false
   if (refreshTimer) clearTimeout(refreshTimer)
 }

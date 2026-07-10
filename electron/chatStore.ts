@@ -11,6 +11,10 @@ import * as fs from 'fs/promises'
 import * as fsSync from 'fs'
 import * as path from 'path'
 import { writeFileAtomic } from './utils/atomicFile'
+import {
+  deleteSessionToolMedia,
+  sanitizeSessionMessagesForPersist,
+} from './tools/toolMediaStore'
 
 export interface Message {
   id: string
@@ -22,6 +26,7 @@ export interface Message {
   tokenCount?: number
   agentRun?: unknown
   toolResults?: unknown[]
+  thinking?: string
   thinkingBlocks?: unknown[]
   researchStatus?: unknown
   model?: string
@@ -79,6 +84,19 @@ export interface ArtifactSummary {
   versionCount: number
 }
 
+/** Compact text-only preview of a message for the chat index (no binary / tool payloads). */
+export interface CompactPreviewMessage {
+  id: string
+  role: 'user' | 'assistant' | 'system'
+  content: string
+  timestamp: number
+  model?: string
+  hasImage?: boolean
+  hasFiles?: boolean
+  toolResultCount?: number
+  hasThinking?: boolean
+}
+
 export interface ChatSessionMetadata {
   id: string
   title: string
@@ -91,9 +109,17 @@ export interface ChatSessionMetadata {
   messageCount: number
   artifactCount?: number
   artifactSummaries?: ArtifactSummary[]
-  /** Last ~30 messages for instant preview when switching chats (kept small for perf) */
-  recentMessages?: Message[]
+  /**
+   * Compact recent tail for instant switch previews only.
+   * Must never carry base64 images, toolResults, thinkingBlocks, or agentRun payloads.
+   */
+  recentMessages?: CompactPreviewMessage[]
 }
+
+/** Max compact messages embedded in the chat index per session. */
+export const INDEX_RECENT_TAIL_SIZE = 20
+/** Max characters of message content retained in index previews. */
+export const INDEX_PREVIEW_CONTENT_MAX = 500
 
 /**
  * Folder definition for organizing chat sessions.
@@ -254,15 +280,66 @@ export function migrateSession(session: ChatSession): ChatSession {
   }
 }
 
+/**
+ * Strip heavy fields so chat-index.json and renderer metadata never retain
+ * base64 images, tool screenshots, thinking, or agent run payloads.
+ */
+export function compactMessageForIndex(message: Message | CompactPreviewMessage): CompactPreviewMessage {
+  const full = message as Message
+  const preview = message as CompactPreviewMessage
+  const content =
+    typeof message.content === 'string'
+      ? message.content.slice(0, INDEX_PREVIEW_CONTENT_MAX)
+      : ''
+  const toolResultCount = Array.isArray(full.toolResults)
+    ? full.toolResults.length
+    : typeof preview.toolResultCount === 'number'
+      ? preview.toolResultCount
+      : undefined
+  const hasThinking = Boolean(
+    full.thinking ||
+      (Array.isArray(full.thinkingBlocks) && full.thinkingBlocks.length > 0) ||
+      preview.hasThinking
+  )
+  return {
+    id: message.id,
+    role: message.role,
+    content,
+    timestamp: typeof message.timestamp === 'number' ? message.timestamp : 0,
+    model: typeof full.model === 'string' ? full.model : undefined,
+    hasImage: Boolean(full.image || preview.hasImage) || undefined,
+    hasFiles:
+      (Array.isArray(full.files) && full.files.length > 0) || preview.hasFiles ? true : undefined,
+    toolResultCount: toolResultCount && toolResultCount > 0 ? toolResultCount : undefined,
+    hasThinking: hasThinking ? true : undefined,
+  }
+}
+
+function compactRecentMessages(
+  messages: Array<Message | CompactPreviewMessage> | undefined
+): CompactPreviewMessage[] | undefined {
+  if (!Array.isArray(messages) || messages.length === 0) return undefined
+  return messages.slice(-INDEX_RECENT_TAIL_SIZE).map(compactMessageForIndex)
+}
+
+/** Convert compact index previews into lightweight Message shells for UI hydration. */
+export function compactPreviewToMessage(preview: CompactPreviewMessage): Message {
+  return {
+    id: preview.id,
+    role: preview.role,
+    content: preview.content,
+    timestamp: preview.timestamp,
+    model: preview.model,
+  }
+}
+
 export function sessionToMetadata(session: ChatSession): ChatSessionMetadata {
   const migrated = migrateSession(session)
   const messages = migrated.messages ?? []
   const messageCount = migrated.messageCount ?? messages.length
 
-  // Embed a decent recent tail in metadata. This gives instant conversation context
-  // on chat switch without touching the full per-session file.
-  const RECENT_TAIL_SIZE = 80
-  const recentMessages = messages.length > 0 ? messages.slice(-RECENT_TAIL_SIZE) : undefined
+  // Compact text-only tail — instant switch context without multi-MB tool/image payloads.
+  const recentMessages = compactRecentMessages(messages)
 
   return {
     id: migrated.id,
@@ -283,8 +360,11 @@ export function sessionToMetadata(session: ChatSession): ChatSessionMetadata {
 }
 
 function metadataToSession(metadata: ChatSessionMetadata, messages: Message[] = []): ChatSession {
-  // Prefer provided messages; otherwise fall back to embedded recent tail for preview
-  const effectiveMessages = messages.length > 0 ? messages : (metadata.recentMessages ?? [])
+  // Prefer provided full messages; otherwise hydrate compact text-only previews.
+  const effectiveMessages =
+    messages.length > 0
+      ? messages
+      : (metadata.recentMessages ?? []).map(compactPreviewToMessage)
   return {
     id: metadata.id,
     title: metadata.title,
@@ -313,6 +393,16 @@ function mergeMetadataWithSession(
       : Array.isArray(migrated.artifactSummaries)
         ? migrated.artifactSummaries
         : existing?.artifactSummaries
+  const messageCount =
+    Array.isArray(migrated.messages) && migrated.messages.length > 0
+      ? migrated.messages.length
+      : (migrated.messageCount ?? existing?.messageCount ?? 0)
+  // Prefer compact tail from the session being saved; keep existing compact tail if this
+  // save is a lightweight shell without messages (e.g. title-only metadata updates).
+  const recentMessages =
+    Array.isArray(migrated.messages) && migrated.messages.length > 0
+      ? compactRecentMessages(migrated.messages)
+      : compactRecentMessages(existing?.recentMessages)
   return {
     id: migrated.id,
     title: migrated.title,
@@ -322,12 +412,13 @@ function mergeMetadataWithSession(
     pinned: migrated.pinned ?? existing?.pinned ?? false,
     folderId: migrated.folderId ?? existing?.folderId ?? null,
     tags: Array.isArray(migrated.tags) ? migrated.tags : (existing?.tags ?? []),
-    messageCount: migrated.messages.length,
+    messageCount,
     artifactCount:
       migratedArtifacts.length > 0
         ? migratedArtifacts.length
         : (artifactSummaries?.length ?? existing?.artifactCount ?? 0),
     artifactSummaries,
+    recentMessages,
   }
 }
 
@@ -348,6 +439,14 @@ function normalizeMetadata(input: unknown): ChatSessionMetadata | null {
       : Array.isArray(raw.messages)
         ? raw.messages.length
         : 0
+  // Migrate fat legacy recentMessages (full tool/image payloads) down to compact previews.
+  const recentMessages = compactRecentMessages(
+    Array.isArray(raw.recentMessages)
+      ? raw.recentMessages
+      : Array.isArray(raw.messages)
+        ? raw.messages
+        : undefined
+  )
   return {
     id: raw.id,
     title: raw.title,
@@ -362,7 +461,7 @@ function normalizeMetadata(input: unknown): ChatSessionMetadata | null {
     artifactSummaries: Array.isArray(raw.artifactSummaries)
       ? (raw.artifactSummaries.filter(Boolean) as ArtifactSummary[])
       : undefined,
-    recentMessages: Array.isArray(raw.recentMessages) ? raw.recentMessages : undefined,
+    recentMessages,
   }
 }
 
@@ -429,12 +528,24 @@ async function writeIndexAsync(index: ChatIndexData): Promise<void> {
 async function writeSessionFileAsync(session: ChatSession): Promise<void> {
   await ensureSessionsDir()
   const migrated = migrateSession(session)
-  await writeFileAtomic(getSessionPath(migrated.id), JSON.stringify(migrated, null, 2))
+  // Externalize base64 tool/user screenshots so session JSON stays compact.
+  const sanitizedMessages = (await sanitizeSessionMessagesForPersist(
+    migrated.id,
+    migrated.messages as unknown[]
+  )) as Message[]
+  const toWrite: ChatSession = {
+    ...migrated,
+    messages: sanitizedMessages,
+    messageCount: migrated.messageCount ?? sanitizedMessages.length,
+  }
+  await writeFileAtomic(getSessionPath(toWrite.id), JSON.stringify(toWrite, null, 2))
 }
 
 function writeSessionFileSync(session: ChatSession): void {
   ensureSessionsDirSync()
   const migrated = migrateSession(session)
+  // Sync path used only for legacy migration; skip async media externalization
+  // (legacy histories rarely have computer-use screenshots).
   fsSync.writeFileSync(getSessionPath(migrated.id), JSON.stringify(migrated, null, 2))
 }
 
@@ -742,6 +853,7 @@ export async function deleteSessionAsync(id: string): Promise<boolean> {
   if (!existed) return false
 
   await fs.rm(getSessionPath(id), { force: true })
+  await deleteSessionToolMedia(id)
   await writeIndexAsync({ ...index, sessions: nextSessions })
   return true
 }

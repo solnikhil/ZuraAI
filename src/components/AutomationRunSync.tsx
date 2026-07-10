@@ -294,7 +294,8 @@ export function AutomationRunSync(): null {
           chatHistory.updateStreamingMessage(
             automationChatSessionId,
             assistantMessageId,
-            buildAssistantFinalUpdates(result)
+            buildAssistantFinalUpdates(result),
+            { persist: true }
           )
           const delivery = deliverArtifacts(request, automationChatSessionId, outputText)
           const response: ScheduledAutomationRunResponse = {
@@ -320,9 +321,14 @@ export function AutomationRunSync(): null {
           await window.scheduledTasks.resolveAutomationRun(response)
         } catch (error) {
           if (automationChatSessionId && assistantMessageId) {
-            chatHistory.updateStreamingMessage(automationChatSessionId, assistantMessageId, {
-              content: error instanceof Error ? error.message : String(error),
-            })
+            chatHistory.updateStreamingMessage(
+              automationChatSessionId,
+              assistantMessageId,
+              {
+                content: error instanceof Error ? error.message : String(error),
+              },
+              { persist: true }
+            )
           }
           await window.scheduledTasks.resolveAutomationRun({
             requestId: request.requestId,

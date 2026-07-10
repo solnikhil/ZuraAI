@@ -79,6 +79,65 @@ describe('chatStore metadata-first persistence', () => {
     expect(JSON.parse(await readFile(sessionFile, 'utf8')).messages).toHaveLength(2)
   })
 
+  it('embeds only compact text previews in index recentMessages (no tool payloads)', async () => {
+    const chatStore = await import('./chatStore')
+    const hugeImage = `iVBORw0KGgo${'B'.repeat(2000)}`
+
+    await chatStore.saveSessionAsync({
+      id: 'session-heavy',
+      title: 'Agent chat',
+      messages: [
+        { id: 'm1', role: 'user', content: 'click the button', timestamp: 1 },
+        {
+          id: 'm2',
+          role: 'assistant',
+          content: 'Done clicking.',
+          timestamp: 2,
+          toolResults: [
+            {
+              toolCall: { id: 'tc1', name: 'computer_screenshot', arguments: {} },
+              result: {
+                success: true,
+                data: {
+                  action: 'screenshot',
+                  image: hugeImage,
+                  screenWidth: 1280,
+                  screenHeight: 720,
+                },
+              },
+            },
+          ],
+          thinkingBlocks: [{ type: 'thinking', content: 'planning…', timestamp: 2 }],
+        },
+      ],
+      createdAt: 1,
+      updatedAt: 2,
+    })
+
+    const metadata = await chatStore.getSessionMetadataAsync()
+    const recent = metadata[0].recentMessages
+    expect(recent).toBeDefined()
+    expect(recent!.length).toBe(2)
+    expect(recent![1]).toMatchObject({
+      id: 'm2',
+      role: 'assistant',
+      content: 'Done clicking.',
+      toolResultCount: 1,
+      hasThinking: true,
+    })
+    expect(recent![1]).not.toHaveProperty('toolResults')
+    expect(recent![1]).not.toHaveProperty('thinkingBlocks')
+    expect(recent![1]).not.toHaveProperty('image')
+
+    // Session file should externalize the screenshot off the message JSON.
+    const sessionFile = path.join(electronMock.userDataPath, 'chat-sessions', 'session-heavy.json')
+    const saved = JSON.parse(await readFile(sessionFile, 'utf8'))
+    const toolData = saved.messages[1].toolResults[0].result.data
+    expect(toolData.image).toBeUndefined()
+    expect(typeof toolData.mediaRef).toBe('string')
+    expect(toolData.mediaRef.startsWith('tool-media:')).toBe(true)
+  })
+
   it('preserves artifact summaries when saving a lightweight session shell', async () => {
     const chatStore = await import('./chatStore')
 

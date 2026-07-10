@@ -14,10 +14,14 @@ function buildBackupPath(filePath: string): string {
   return path.join(dir, `.${base}.${process.pid}.${Date.now()}.${randomUUID()}.bak`)
 }
 
-async function writeTempFile(tempPath: string, content: string): Promise<void> {
+async function writeTempFile(tempPath: string, content: string | Buffer): Promise<void> {
   const handle = await fs.open(tempPath, 'w')
   try {
-    await handle.writeFile(content, 'utf-8')
+    if (typeof content === 'string') {
+      await handle.writeFile(content, 'utf-8')
+    } else {
+      await handle.writeFile(content)
+    }
     await handle.sync()
   } finally {
     await handle.close()
@@ -50,7 +54,7 @@ async function replaceWithBackup(tempPath: string, filePath: string): Promise<vo
   }
 }
 
-export async function writeFileAtomic(filePath: string, content: string): Promise<void> {
+export async function writeFileAtomic(filePath: string, content: string | Buffer): Promise<void> {
   const dir = path.dirname(filePath)
   await fs.mkdir(dir, { recursive: true })
 

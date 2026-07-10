@@ -80,6 +80,9 @@ export const CHAT_AREA_STYLES = `
           width: 100%;
           max-width: 100%;
           min-width: 0;
+          /* Skip layout/paint for off-screen messages — major long-chat RAM win */
+          content-visibility: auto;
+          contain-intrinsic-size: auto 180px;
         }
         .chat-scroll-rail {
           position: absolute;

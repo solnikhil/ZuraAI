@@ -14,6 +14,7 @@ const systemHandlerMocks = vi.hoisted(() => {
   const maximize = vi.fn()
   const unmaximize = vi.fn()
   const close = vi.fn()
+  const setBackgroundMaterial = vi.fn()
   const setFullScreen = vi.fn()
   const isFullScreen = vi.fn(() => false)
   const isMaximized = vi.fn(() => false)
@@ -33,6 +34,7 @@ const systemHandlerMocks = vi.hoisted(() => {
     maximize,
     unmaximize,
     close,
+    setBackgroundMaterial,
     setFullScreen,
     on: vi.fn(),
     webContents: {
@@ -41,6 +43,7 @@ const systemHandlerMocks = vi.hoisted(() => {
     },
   }))
   let isPackaged = false
+  let themeSource: 'light' | 'dark' | 'system' = 'system'
 
   return {
     handlers,
@@ -66,6 +69,7 @@ const systemHandlerMocks = vi.hoisted(() => {
     maximize,
     unmaximize,
     close,
+    setBackgroundMaterial,
     setFullScreen,
     isFullScreen,
     isMaximized,
@@ -75,6 +79,12 @@ const systemHandlerMocks = vi.hoisted(() => {
     },
     setIsPackaged(value: boolean) {
       isPackaged = value
+    },
+    get themeSource() {
+      return themeSource
+    },
+    setThemeSource(value: 'light' | 'dark' | 'system') {
+      themeSource = value
     },
   }
 })
@@ -104,6 +114,14 @@ vi.mock('electron', () => ({
   },
   dialog: {
     showMessageBox: systemHandlerMocks.showMessageBox,
+  },
+  nativeTheme: {
+    get themeSource() {
+      return systemHandlerMocks.themeSource
+    },
+    set themeSource(value: 'light' | 'dark' | 'system') {
+      systemHandlerMocks.setThemeSource(value)
+    },
   },
 }))
 
@@ -139,6 +157,8 @@ describe('registerSystemHandlers context menu', () => {
     systemHandlerMocks.maximize.mockClear()
     systemHandlerMocks.unmaximize.mockClear()
     systemHandlerMocks.close.mockClear()
+    systemHandlerMocks.setBackgroundMaterial.mockClear()
+    systemHandlerMocks.setThemeSource('system')
     systemHandlerMocks.setFullScreen.mockClear()
     systemHandlerMocks.isFullScreen.mockReset()
     systemHandlerMocks.isFullScreen.mockReturnValue(false)
@@ -248,6 +268,35 @@ describe('registerSystemHandlers context menu', () => {
     const handler = systemHandlerMocks.handlers.get('native-dialog:confirm-delete-chat')
     await expect(handler?.({ sender: {} })).resolves.toBe(false)
     expect(systemHandlerMocks.showMessageBox).not.toHaveBeenCalled()
+  })
+
+  it('synchronizes validated Windows acrylic and native theme values', async () => {
+    Object.defineProperty(process, 'platform', { value: 'win32' })
+    const { registerSystemHandlers } = await import('./systemHandlers')
+    registerSystemHandlers()
+
+    const handler = systemHandlerMocks.handlers.get('window-controls:set-appearance')
+    expect(handler?.({ sender: {} }, { material: 'acrylic', themeSource: 'dark' })).toBe(true)
+
+    expect(systemHandlerMocks.themeSource).toBe('dark')
+    expect(systemHandlerMocks.setBackgroundMaterial).toHaveBeenCalledWith('acrylic')
+
+    expect(handler?.({ sender: {} }, { material: 'solid', themeSource: 'light' })).toBe(true)
+    expect(systemHandlerMocks.themeSource).toBe('light')
+    expect(systemHandlerMocks.setBackgroundMaterial).toHaveBeenLastCalledWith('none')
+  })
+
+  it('rejects invalid native window appearance values', async () => {
+    Object.defineProperty(process, 'platform', { value: 'win32' })
+    const { registerSystemHandlers } = await import('./systemHandlers')
+    registerSystemHandlers()
+
+    const handler = systemHandlerMocks.handlers.get('window-controls:set-appearance')
+    expect(handler?.({ sender: {} }, { material: 'blur', themeSource: 'dark' })).toBe(false)
+    expect(handler?.({ sender: {} }, { material: 'acrylic', themeSource: 'midnight' })).toBe(false)
+
+    expect(systemHandlerMocks.themeSource).toBe('system')
+    expect(systemHandlerMocks.setBackgroundMaterial).not.toHaveBeenCalled()
   })
 
   it('rejects unknown app-menu commands', async () => {

@@ -61,6 +61,38 @@ const MAX_TOOL_RESULT_CHARS = 32000
  * the follow-up synthesis can behave like a grounded search assistant instead
  * of treating the results as generic JSON.
  */
+function isLikelyBase64Image(value: string): boolean {
+  if (value.length < 200) return false
+  if (value.startsWith('data:image/')) return true
+  return value.length > 500 && /^[A-Za-z0-9+/=\r\n]+$/.test(value.slice(0, 120))
+}
+
+/**
+ * Strip multi-MB base64 screenshots from tool payloads before they go to the model.
+ * Keep dimensions / media refs so the model still knows a capture occurred.
+ */
+function stripBinaryToolMedia(data: unknown): unknown {
+  if (Array.isArray(data)) {
+    return data.map(stripBinaryToolMedia)
+  }
+  if (!data || typeof data !== 'object') return data
+
+  const obj = data as Record<string, unknown>
+  const next: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(obj)) {
+    if ((key === 'image' || key === 'screenshot') && typeof value === 'string' && isLikelyBase64Image(value)) {
+      next[key] = '[screenshot omitted — use dimensions/mediaRef; re-capture if needed]'
+      continue
+    }
+    if (key === 'image' && value && typeof value === 'object') {
+      next[key] = stripBinaryToolMedia(value)
+      continue
+    }
+    next[key] = stripBinaryToolMedia(value)
+  }
+  return next
+}
+
 function stripUiFieldsFromToolData(data: unknown): unknown {
   if (!data || typeof data !== 'object') return data
   const obj = data as Record<string, unknown>
@@ -95,7 +127,7 @@ function stripUiFieldsFromToolData(data: unknown): unknown {
     return cleaned
   }
 
-  return data
+  return stripBinaryToolMedia(data)
 }
 
 export function formatToolResultsForOpenRouter(
@@ -127,10 +159,11 @@ export function formatToolResultsForOpenRouter(
       }
     }
 
-    const data =
-      toolCall.name === 'web_search' && result.success
+    const data = result.success
+      ? toolCall.name === 'web_search'
         ? stripUiFieldsFromToolData(result.data)
-        : result.data
+        : stripBinaryToolMedia(result.data)
+      : result.data
     const content = result.success ? JSON.stringify(data) : `Error: ${result.error}`
     const truncated =
       content.length > MAX_TOOL_RESULT_CHARS

@@ -5,6 +5,7 @@ import {
   Menu,
   clipboard,
   dialog,
+  nativeTheme,
   shell,
   type IpcMainInvokeEvent,
   type MenuItemConstructorOptions,
@@ -16,6 +17,7 @@ import type {
   AppMenuCommand,
   NativeContextMenuAction,
   NativeContextMenuRequest,
+  WindowAppearance,
 } from '../../src/electron/types'
 
 const HELP_URL = 'https://github.com/solnikhil/ZuraAI'
@@ -84,6 +86,23 @@ function ensureWindowStateListeners(win: BrowserWindow): void {
 
 function isBoolean(value: unknown): value is boolean {
   return typeof value === 'boolean'
+}
+
+function sanitizeWindowAppearance(value: unknown): WindowAppearance | null {
+  if (typeof value !== 'object' || value === null) return null
+
+  const appearance = value as Record<string, unknown>
+  const material = appearance.material
+  const themeSource = appearance.themeSource
+
+  if (
+    (material !== 'solid' && material !== 'acrylic') ||
+    (themeSource !== 'light' && themeSource !== 'dark' && themeSource !== 'system')
+  ) {
+    return null
+  }
+
+  return { material, themeSource }
 }
 
 function sanitizeContextMenuRequest(value: unknown): NativeContextMenuRequest | null {
@@ -283,6 +302,30 @@ export function registerSystemHandlers(): void {
     if (!win) return false
     ensureWindowStateListeners(win)
     return win.isMaximized()
+  })
+
+  /**
+   * Synchronizes the sender window's native backdrop with the renderer's
+   * sanitized chrome setting and keeps Electron/Windows on the same theme.
+   */
+  ipcMain.handle('window-controls:set-appearance', (event, value: unknown) => {
+    const appearance = sanitizeWindowAppearance(value)
+    if (!appearance) return false
+
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win || win.isDestroyed()) return false
+
+    nativeTheme.themeSource = appearance.themeSource
+
+    if (process.platform === 'win32' && typeof win.setBackgroundMaterial === 'function') {
+      try {
+        win.setBackgroundMaterial(appearance.material === 'acrylic' ? 'acrylic' : 'none')
+      } catch {
+        return false
+      }
+    }
+
+    return true
   })
 
   /**
@@ -617,6 +660,7 @@ export function unregisterSystemHandlers(): void {
   ipcMain.removeHandler('window-controls:toggle-maximize')
   ipcMain.removeHandler('window-controls:close')
   ipcMain.removeHandler('window-controls:is-maximized')
+  ipcMain.removeHandler('window-controls:set-appearance')
   ipcMain.removeHandler('app-menu:command')
   ipcMain.removeHandler('app-info:get')
   ipcMain.removeHandler('app-info:get-memory-report')

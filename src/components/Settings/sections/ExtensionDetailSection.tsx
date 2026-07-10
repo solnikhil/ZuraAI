@@ -138,9 +138,9 @@ export function ExtensionDetailSection({
               <div className="settings-list-row__meta">
                 <h3 className="settings-list-row__label">Emergency stop</h3>
                 <div className="settings-list-row__description">
-                  Agent Mode includes native Windows tools and Ctrl+Shift+Space Command Center,
-                  with Ctrl+Alt+Space as a fallback. Press Esc twice quickly to cancel an
-                  in-progress Computer Use session.
+                  Ctrl+Shift+Space opens Command Center in Chat or Agent Mode, with Ctrl+Alt+Space
+                  as a fallback. Agent Mode also includes native Windows tools. Press Esc twice
+                  quickly to cancel an in-progress Computer Use session.
                 </div>
               </div>
             </div>
@@ -155,7 +155,7 @@ export function ExtensionDetailSection({
                 <div className="settings-list-row__description">
                   Press Ctrl+Shift+Space to open the desktop overlay. If that shortcut is
                   unavailable, ZuraAI uses Ctrl+Alt+Space. Submitted commands include active-window
-                  context for Agent Mode.
+                  context when a request continues in Agent Mode.
                 </div>
               </div>
               <div className="settings-list-row__control">
@@ -163,7 +163,6 @@ export function ExtensionDetailSection({
                   type="button"
                   variant="outline"
                   size="sm"
-                  disabled={!enabled}
                   onClick={() => {
                     void (async () => {
                       await window.commandCenter?.setExtensionEnabled(true)

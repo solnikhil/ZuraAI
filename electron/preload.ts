@@ -49,7 +49,10 @@ import type {
   CommandCenterWorkflow,
   CommandCenterIndex,
   CommandCenterExecuteResult,
+  CommandCenterItemActionId,
+  CommandCenterItemActionResult,
   UpdateMemoryPatch,
+  WindowAppearance,
 } from '../src/electron/types'
 
 const isDebug = process.env.ZURA_DEBUG === '1'
@@ -66,6 +69,8 @@ contextBridge.exposeInMainWorld('windowControls', {
   toggleMaximize: () => ipcRenderer.invoke('window-controls:toggle-maximize'),
   close: () => ipcRenderer.invoke('window-controls:close'),
   isMaximized: () => ipcRenderer.invoke('window-controls:is-maximized'),
+  setAppearance: (appearance: WindowAppearance) =>
+    ipcRenderer.invoke('window-controls:set-appearance', appearance),
   onWindowState: (callback: (state: { isMaximized: boolean }) => void) => {
     const listener = (_event: IpcRendererEvent, state: { isMaximized: boolean }) => {
       callback(state)
@@ -93,6 +98,7 @@ const INVOKE_CHANNELS = new Set<IpcInvokeChannel>([
   'chat-store:migrate',
   'chat-store:get-all-folders',
   'chat-store:save-folders',
+  'tool-media:load',
   'chat-diagnostics:append-event',
   'chat-diagnostics:get-debug-reference',
   'chat-diagnostics:list-events',
@@ -193,7 +199,9 @@ const COMMAND_CENTER_INVOKE_CHANNELS = new Set<string>([
   'command-center:save-workflow',
   'command-center:delete-workflow',
   'command-center:execute-action',
+  'command-center:insert-emoji',
   'command-center:execute-index-item',
+  'command-center:execute-item-action',
   'command-center:execute-workflow',
   'command-center:open-chat-session',
   'command-center:set-layout',
@@ -754,6 +762,13 @@ contextBridge.exposeInMainWorld(
       assertAllowed('invoke', 'command-center:execute-action', COMMAND_CENTER_INVOKE_CHANNELS)
       return ipcRenderer.invoke('command-center:execute-action', actionId)
     },
+    insertEmoji: (emoji: string) => {
+      assertAllowed('invoke', 'command-center:insert-emoji', COMMAND_CENTER_INVOKE_CHANNELS)
+      return ipcRenderer.invoke(
+        'command-center:insert-emoji',
+        emoji
+      ) as Promise<CommandCenterExecuteResult>
+    },
     executeIndexItem: (itemId: string, query?: string) => {
       assertAllowed('invoke', 'command-center:execute-index-item', COMMAND_CENTER_INVOKE_CHANNELS)
       return ipcRenderer.invoke(
@@ -761,6 +776,15 @@ contextBridge.exposeInMainWorld(
         itemId,
         query
       ) as Promise<CommandCenterExecuteResult>
+    },
+    executeItemAction: (itemId: string, actionId: CommandCenterItemActionId, query?: string) => {
+      assertAllowed('invoke', 'command-center:execute-item-action', COMMAND_CENTER_INVOKE_CHANNELS)
+      return ipcRenderer.invoke(
+        'command-center:execute-item-action',
+        itemId,
+        actionId,
+        query
+      ) as Promise<CommandCenterItemActionResult>
     },
     executeWorkflow: (workflowId: string) => {
       assertAllowed('invoke', 'command-center:execute-workflow', COMMAND_CENTER_INVOKE_CHANNELS)

@@ -280,11 +280,12 @@ export type CommandCenterActionId =
   | 'settings-network'
   | 'settings-bluetooth'
   | 'open-downloads'
+  | 'emoji-picker'
 
 export interface CommandCenterAction {
   id: CommandCenterActionId
   label: string
-  kind: 'window' | 'system' | 'clipboard' | 'app' | 'settings' | 'filesystem'
+  kind: 'window' | 'system' | 'clipboard' | 'app' | 'settings' | 'filesystem' | 'additional'
   aliases?: string[]
 }
 
@@ -330,6 +331,8 @@ export type CommandCenterIndexItem =
       appUserModelId?: string
       iconKey?: string
       iconDataUrl?: string
+      /** True while main is still extracting this app's icon. */
+      iconPending?: boolean
       existingWindow?: {
         hwnd: number
         title: string
@@ -354,7 +357,7 @@ export type CommandCenterIndexItem =
       type: 'action'
       title: string
       subtitle?: string
-      hint: 'Action'
+      hint: 'Action' | 'Command'
       aliases: string[]
       actionId: CommandCenterActionId
     }
@@ -394,6 +397,22 @@ export interface CommandCenterExecuteResult {
   data?: unknown
   aiPrompt?: string
   sessionId?: string
+}
+
+/** Fixed secondary actions for a selected Command Center index item (apps first). */
+export type CommandCenterItemActionId =
+  | 'open'
+  | 'focus-window'
+  | 'show-in-folder'
+  | 'copy-path'
+  | 'copy-name'
+
+export interface CommandCenterItemActionResult {
+  success: boolean
+  error?: string
+  /** When true, the overlay should hide after the action succeeds. */
+  dismiss?: boolean
+  status?: string
 }
 
 export interface CommandCenterSubmitResult {
@@ -746,6 +765,7 @@ export type IpcInvokeChannel =
   | 'chat-store:migrate'
   | 'chat-store:get-all-folders'
   | 'chat-store:save-folders'
+  | 'tool-media:load'
   | 'chat-diagnostics:append-event'
   | 'chat-diagnostics:get-debug-reference'
   | 'chat-diagnostics:list-events'
@@ -776,6 +796,7 @@ export interface IpcInvokeArgsMap {
   'chat-store:migrate': [localStorageData: ChatSession[]]
   'chat-store:get-all-folders': []
   'chat-store:save-folders': [folders: Folder[]]
+  'tool-media:load': [mediaRef: string]
   'chat-diagnostics:append-event': [event: ChatDiagnosticEvent]
   'chat-diagnostics:get-debug-reference': [sessionId: string]
   'chat-diagnostics:list-events': [sessionId: string]
@@ -807,6 +828,7 @@ export interface IpcInvokeReturnMap {
   'chat-store:migrate': boolean
   'chat-store:get-all-folders': Folder[]
   'chat-store:save-folders': boolean
+  'tool-media:load': string | null
   'chat-diagnostics:append-event': boolean
   'chat-diagnostics:get-debug-reference': string | null
   'chat-diagnostics:list-events': ChatDiagnosticEvent[]
@@ -909,7 +931,13 @@ export interface WindowControlsAPI {
   toggleMaximize: () => Promise<void>
   close: () => Promise<void>
   isMaximized: () => Promise<boolean>
+  setAppearance: (appearance: WindowAppearance) => Promise<boolean>
   onWindowState: (callback: (state: { isMaximized: boolean }) => void) => () => void
+}
+
+export interface WindowAppearance {
+  material: 'solid' | 'acrylic'
+  themeSource: 'light' | 'dark' | 'system'
 }
 
 export interface ShellAPI {
@@ -984,7 +1012,13 @@ export interface CommandCenterAPI {
   saveWorkflow: (workflow: Partial<CommandCenterWorkflow>) => Promise<CommandCenterWorkflow | null>
   deleteWorkflow: (id: string) => Promise<boolean>
   executeAction: (actionId: CommandCenterActionId) => Promise<ToolResult>
+  insertEmoji: (emoji: string) => Promise<ToolResult>
   executeIndexItem: (itemId: string, query?: string) => Promise<CommandCenterExecuteResult>
+  executeItemAction: (
+    itemId: string,
+    actionId: CommandCenterItemActionId,
+    query?: string
+  ) => Promise<CommandCenterItemActionResult>
   executeWorkflow: (workflowId: string) => Promise<CommandCenterExecuteResult>
   openChatSession: (sessionId: string) => Promise<boolean>
   setLayout: (layout: 'search' | 'chat') => Promise<boolean>

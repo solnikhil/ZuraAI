@@ -1,9 +1,17 @@
-import { clipboard, globalShortcut, ipcMain } from 'electron'
+import { clipboard, globalShortcut, ipcMain, shell } from 'electron'
 import os from 'os'
 import path from 'path'
 
+import { COMMAND_CENTER_EMOJI_SET } from '../src/commandCenter/emojis'
 import { scoreWindowSearch } from '../src/commandCenter/search'
-import { getCachedAppIcon, refreshAppIndex, warmAppIndex } from './appIndexService'
+import {
+  clearAppIconCache,
+  getCachedAppIcon,
+  isAppIconPending,
+  peekCachedAppIcon,
+  refreshAppIndex,
+  warmAppIndex,
+} from './appIndexService'
 import { getSessionMetadataAsync } from './chatStore'
 import {
   deleteCommandCenterWorkflow,
@@ -14,6 +22,7 @@ import {
 } from './commandCenterWorkflows'
 import {
   createMainWindow,
+  destroyCommandCenterWindow,
   getMainWindow,
   hideCommandCenterWindow,
   setCommandCenterWindowLayout,
@@ -27,6 +36,7 @@ import {
   executeSystemStatus,
   executeWindowSnap,
 } from './tools/os-integration'
+import { performType } from './tools/computer-use/actions'
 import { executeAppFind, executeAppLaunch, executeAppList } from './tools/app-management'
 import { executeWindowFocus, executeWindowList } from './tools/window-management'
 
@@ -81,13 +91,42 @@ const COMMAND_CENTER_ACTIONS = [
     kind: 'filesystem',
     aliases: ['downloads folder'],
   },
+  {
+    id: 'emoji-picker',
+    label: 'Emojis',
+    kind: 'additional',
+    aliases: ['emoji', 'emoticon', 'smiley', 'symbols'],
+  },
 ] as const
+
+/**
+ * Secondary per-item actions (Raycast-style Actions menu). Fixed allowlist only —
+ * never accept freeform commands, shell strings, or renderer-supplied paths.
+ * Paths always resolve from the last built index item in main.
+ */
+const COMMAND_CENTER_ITEM_ACTIONS = [
+  'open',
+  'focus-window',
+  'show-in-folder',
+  'copy-path',
+  'copy-name',
+] as const
+
+type CommandCenterItemActionId = (typeof COMMAND_CENTER_ITEM_ACTIONS)[number]
 
 let extensionEnabled = false
 let shortcutRegistered = false
 let registeredShortcut: string | null = null
 
 const INDEX_STATIC_CACHE_MS = 3_000
+/** Serve a cached empty-query index for this long without rebuilding. */
+const BROWSE_INDEX_FRESH_MS = 12_000
+/**
+ * If a browse index exists but is older than FRESH, still return it immediately
+ * and rebuild in the background (stale-while-revalidate) until this age.
+ * Beyond this, wait for a full rebuild so results cannot stay arbitrarily old.
+ */
+const BROWSE_INDEX_STALE_MAX_MS = 60_000
 
 interface IndexStaticCache {
   at: number
@@ -103,6 +142,78 @@ let indexStaticCache: IndexStaticCache | null = null
 // executeIndexItem reads from here to avoid rebuilding the entire index (which
 // spawns PowerShell to re-enumerate windows/apps) just to run one action.
 let indexItemCache = new Map<string, CommandCenterIndexItem>()
+
+/** Last successful empty-query Command Center index (browse / default open). */
+let browseIndexCache: { at: number; index: CommandCenterIndex } | null = null
+let browseIndexInflight: Promise<CommandCenterIndex> | null = null
+
+function clearCommandCenterRuntimeCaches(): void {
+  indexStaticCache = null
+  indexItemCache = new Map()
+  browseIndexCache = null
+  browseIndexInflight = null
+  clearAppIconCache()
+}
+
+/** Re-attach icon data-URLs from the main icon cache without rebuilding the index. */
+function withFreshBrowseIcons(index: CommandCenterIndex): CommandCenterIndex {
+  return {
+    ...index,
+    apps: index.apps.map((app) => {
+      if (app.type !== 'app' || !app.iconKey) return app
+      const peeked = peekCachedAppIcon(app.iconKey)
+      const iconDataUrl = peeked ?? app.iconDataUrl
+      return {
+        ...app,
+        iconDataUrl,
+        iconPending: isAppIconPending(app.iconKey),
+      }
+    }),
+  }
+}
+
+function startBrowseIndexBuild(): Promise<CommandCenterIndex> {
+  if (browseIndexInflight) return browseIndexInflight
+  browseIndexInflight = buildCommandCenterIndex('')
+    .then((index) => {
+      browseIndexCache = { at: Date.now(), index }
+      return index
+    })
+    .finally(() => {
+      browseIndexInflight = null
+    })
+  return browseIndexInflight
+}
+
+/**
+ * Empty-query index with a small in-memory SWR cache so reopen/show does not
+ * always wait on PowerShell app/window enumeration.
+ */
+async function resolveBrowseIndex(): Promise<CommandCenterIndex> {
+  const now = Date.now()
+  const cached = browseIndexCache
+  if (cached) {
+    const age = now - cached.at
+    if (age <= BROWSE_INDEX_FRESH_MS) {
+      return withFreshBrowseIcons(cached.index)
+    }
+    if (age <= BROWSE_INDEX_STALE_MAX_MS) {
+      // Return immediately; refresh in the background for the next caller.
+      void startBrowseIndexBuild().catch(() => undefined)
+      return withFreshBrowseIcons(cached.index)
+    }
+  }
+  const index = await startBrowseIndexBuild()
+  return withFreshBrowseIcons(index)
+}
+
+/** Kick off a browse-index build if missing/stale so show→getIndex often hits cache. */
+function prefetchBrowseIndex(): void {
+  const cached = browseIndexCache
+  if (cached && Date.now() - cached.at <= BROWSE_INDEX_FRESH_MS) return
+  if (browseIndexInflight) return
+  void startBrowseIndexBuild().catch(() => undefined)
+}
 
 type CommandCenterActionId = (typeof COMMAND_CENTER_ACTIONS)[number]['id']
 
@@ -131,6 +242,8 @@ type CommandCenterIndexItem =
       appUserModelId?: string
       iconKey?: string
       iconDataUrl?: string
+      /** True while main is still extracting this app's icon. */
+      iconPending?: boolean
       existingWindow?: WindowMatch
       rank?: number
     }
@@ -150,7 +263,7 @@ type CommandCenterIndexItem =
       type: 'action'
       title: string
       subtitle?: string
-      hint: 'Action'
+      hint: 'Action' | 'Command'
       aliases: string[]
       actionId: CommandCenterActionId
     }
@@ -398,7 +511,10 @@ async function buildCommandCenterIndex(query: unknown = ''): Promise<CommandCent
   const candidateApps = Array.from(dedupedApps.values())
   const browsableApps = appQuery ? candidateApps : candidateApps.filter(isInstalledApp)
 
-  const appRows = (
+  // Rank first, then warm icons only for the rows the overlay is likely to show.
+  // Extracting icons for the full catalogue on every poll thrashes the LRU cache
+  // and makes app icons blink as entries fall in and out.
+  const rankedAppRows = (
     await Promise.all(
       browsableApps
         .slice(0, appQuery ? 40 : 120)
@@ -445,7 +561,8 @@ async function buildCommandCenterIndex(query: unknown = ''): Promise<CommandCent
             launchStrategy,
             appUserModelId,
             iconKey,
-            iconDataUrl: getCachedAppIcon(iconKey),
+            iconDataUrl: undefined as string | undefined,
+            iconPending: false,
             existingWindow: existingWindow ? publicWindowMatch(existingWindow) : undefined,
             rank,
           }
@@ -455,6 +572,28 @@ async function buildCommandCenterIndex(query: unknown = ''): Promise<CommandCent
     const rankA = (a.rank ?? 0) + (a.existingWindow ? 50 : 0)
     const rankB = (b.rank ?? 0) + (b.existingWindow ? 50 : 0)
     return rankB - rankA || a.title.localeCompare(b.title)
+  })
+
+  // Browse shows ~8 apps; search lists up to 40. Warm a little past the
+  // visible window so scrolling/search handoff still has icons ready.
+  const iconWarmCount = appQuery ? rankedAppRows.length : Math.min(rankedAppRows.length, 32)
+  const appRows = rankedAppRows.map((row, index) => {
+    if (!row.iconKey) return row
+    if (index < iconWarmCount) {
+      const iconDataUrl = getCachedAppIcon(row.iconKey)
+      return {
+        ...row,
+        iconDataUrl,
+        iconPending: isAppIconPending(row.iconKey),
+      }
+    }
+    // Already-cached icons may still surface for lower-ranked rows without
+    // starting new extraction work that would thrash the cache.
+    return {
+      ...row,
+      iconDataUrl: peekCachedAppIcon(row.iconKey),
+      iconPending: false,
+    }
   })
 
   // Any live window that already belongs to an installed-app row is folded into
@@ -511,8 +650,8 @@ async function buildCommandCenterIndex(query: unknown = ''): Promise<CommandCent
       id: `action:${action.id}`,
       type: 'action' as const,
       title: action.label,
-      subtitle: action.kind,
-      hint: 'Action' as const,
+      subtitle: action.id === 'emoji-picker' ? 'Search and paste emoji' : action.kind,
+      hint: action.id === 'emoji-picker' ? ('Command' as const) : ('Action' as const),
       aliases: [...(action.aliases ?? []), action.kind],
       actionId: action.id,
     })),
@@ -567,6 +706,9 @@ function registerShortcut(): boolean {
   if (shortcutRegistered) return true
   const onShortcut = () => {
     if (!extensionEnabled) return
+    // Prefetch index in parallel with window show so the renderer's first
+    // getIndex often hits the browse SWR cache.
+    prefetchBrowseIndex()
     toggleCommandCenterWindow()
     warmAppIndex()
   }
@@ -631,6 +773,25 @@ async function executeCommandCenterAction(actionId: CommandCenterActionId) {
         path: path.join(os.homedir(), 'Downloads'),
         autoApprove: true,
       })
+    case 'emoji-picker':
+      return { success: true, data: { interactiveCommand: 'emoji-picker' } }
+  }
+}
+
+async function insertEmoji(value: unknown) {
+  if (typeof value !== 'string' || !COMMAND_CENTER_EMOJI_SET.has(value)) {
+    return { success: false, error: 'A supported emoji is required.' }
+  }
+  hideCommandCenterWindow()
+  await new Promise((resolve) => setTimeout(resolve, 120))
+  try {
+    await performType({ text: value })
+    return { success: true, data: { inserted: true } }
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unable to insert the emoji.',
+    }
   }
 }
 
@@ -669,20 +830,47 @@ async function executeWorkflow(workflowId: unknown) {
   return { success: true, data: { workflowId: workflow.id } }
 }
 
-async function executeIndexItem(itemId: unknown, query: unknown = '') {
-  if (typeof itemId !== 'string' || !itemId.trim()) {
-    return { success: false, error: 'Command Center item id is required.' }
-  }
+function isCommandCenterItemActionId(value: unknown): value is CommandCenterItemActionId {
+  return (
+    typeof value === 'string' &&
+    (COMMAND_CENTER_ITEM_ACTIONS as readonly string[]).includes(value)
+  )
+}
 
-  // Fast path: reuse the item from the last built index (kept fresh by the
-  // renderer's per-keystroke get-index calls) so launching doesn't re-run the
-  // expensive full index build (window enumeration + app queries).
-  const item =
+/** Absolute filesystem path from a cached app row (never trust renderer paths). */
+function appFilesystemPath(item: Extract<CommandCenterIndexItem, { type: 'app' }>): string | undefined {
+  const candidates = [item.targetPath, item.shortcutPath, item.appPath]
+  for (const candidate of candidates) {
+    if (typeof candidate !== 'string') continue
+    const trimmed = candidate.trim()
+    if (!trimmed || trimmed.includes('\0')) continue
+    // Only accept real paths — not AUMIDs or bare names.
+    if (/^[a-zA-Z]:[\\/]/.test(trimmed) || trimmed.startsWith('\\\\')) {
+      return path.normalize(trimmed)
+    }
+  }
+  return undefined
+}
+
+async function resolveIndexItem(
+  itemId: unknown,
+  query: unknown = ''
+): Promise<CommandCenterIndexItem | undefined> {
+  if (typeof itemId !== 'string' || !itemId.trim()) return undefined
+  return (
     indexItemCache.get(itemId) ??
-    flattenIndex(await buildCommandCenterIndex(query)).find(
-      (candidate) => candidate.id === itemId
-    )
-  if (!item) return { success: false, error: 'Command Center item was not found.' }
+    flattenIndex(await buildCommandCenterIndex(query)).find((candidate) => candidate.id === itemId)
+  )
+}
+
+async function executeIndexItem(itemId: unknown, query: unknown = '') {
+  const item = await resolveIndexItem(itemId, query)
+  if (!item) {
+    if (typeof itemId !== 'string' || !itemId.trim()) {
+      return { success: false, error: 'Command Center item id is required.' }
+    }
+    return { success: false, error: 'Command Center item was not found.' }
+  }
 
   if (item.type === 'workflow') return executeWorkflow(item.workflow.id)
   if (item.type === 'app') {
@@ -710,6 +898,87 @@ async function executeIndexItem(itemId: unknown, query: unknown = '') {
   return { success: false, error: 'Unsupported Command Center item.' }
 }
 
+/**
+ * Secondary Actions-menu handlers for a selected index item. Apps only for now.
+ * Returns `dismiss: true` when the overlay should hide after success.
+ */
+async function executeItemAction(
+  itemId: unknown,
+  actionId: unknown,
+  query: unknown = ''
+): Promise<{ success: boolean; error?: string; dismiss?: boolean; status?: string }> {
+  if (!isCommandCenterItemActionId(actionId)) {
+    return { success: false, error: 'Command Center item action is not allowed.' }
+  }
+
+  const item = await resolveIndexItem(itemId, query)
+  if (!item) {
+    return { success: false, error: 'Command Center item was not found.' }
+  }
+
+  // App actions only in this pass (matches the footer Actions menu).
+  if (item.type !== 'app') {
+    return { success: false, error: 'Actions are only available for applications.' }
+  }
+
+  switch (actionId) {
+    case 'open': {
+      const result = await executeAppLaunch({
+        nameOrPath: item.shortcutPath ?? item.appPath,
+        appUserModelId: item.appUserModelId,
+        itemId: item.id,
+        autoApprove: true,
+      })
+      return {
+        success: Boolean(result.success),
+        error: result.success ? undefined : result.error || 'Unable to open the application.',
+        dismiss: Boolean(result.success),
+      }
+    }
+    case 'focus-window': {
+      const hwnd = item.existingWindow?.hwnd
+      if (typeof hwnd !== 'number') {
+        return { success: false, error: 'No open window is available for this app.' }
+      }
+      const result = await executeWindowFocus({ hwnd, autoApprove: true })
+      return {
+        success: Boolean(result.success),
+        error: result.success ? undefined : result.error || 'Unable to focus the window.',
+        dismiss: Boolean(result.success),
+      }
+    }
+    case 'show-in-folder': {
+      const filePath = appFilesystemPath(item)
+      if (!filePath) {
+        return { success: false, error: 'No folder path is available for this app.' }
+      }
+      try {
+        shell.showItemInFolder(filePath)
+        return { success: true, dismiss: true }
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unable to show in File Explorer.',
+        }
+      }
+    }
+    case 'copy-path': {
+      const filePath = appFilesystemPath(item)
+      if (!filePath) {
+        return { success: false, error: 'No path is available for this app.' }
+      }
+      clipboard.writeText(filePath)
+      return { success: true, dismiss: false, status: 'Path copied.' }
+    }
+    case 'copy-name': {
+      clipboard.writeText(item.title)
+      return { success: true, dismiss: false, status: 'Name copied.' }
+    }
+    default:
+      return { success: false, error: 'Command Center item action is not allowed.' }
+  }
+}
+
 function unregisterShortcut(): void {
   if (!shortcutRegistered) return
   if (registeredShortcut) {
@@ -729,7 +998,10 @@ export function setCommandCenterExtensionEnabled(enabled: boolean): {
     registerShortcut()
   } else {
     unregisterShortcut()
-    hideCommandCenterWindow()
+    // Destroy (not just hide) so the second renderer process exits immediately
+    // when the user leaves Agent Mode / disables Command Center.
+    destroyCommandCenterWindow()
+    clearCommandCenterRuntimeCaches()
   }
 
   return {
@@ -742,6 +1014,8 @@ export function setCommandCenterExtensionEnabled(enabled: boolean): {
 export function disposeCommandCenter(): void {
   unregisterShortcut()
   extensionEnabled = false
+  destroyCommandCenterWindow()
+  clearCommandCenterRuntimeCaches()
 }
 
 export function registerCommandCenterHandlers(): void {
@@ -751,6 +1025,7 @@ export function registerCommandCenterHandlers(): void {
 
   ipcMain.handle('command-center:show', () => {
     if (!extensionEnabled) return false
+    prefetchBrowseIndex()
     showCommandCenterWindow()
     warmAppIndex()
     return true
@@ -770,6 +1045,10 @@ export function registerCommandCenterHandlers(): void {
   })
 
   ipcMain.handle('command-center:get-index', async (_event, query: unknown) => {
+    const appQuery = indexQuery(query)
+    if (!appQuery) {
+      return resolveBrowseIndex()
+    }
     return buildCommandCenterIndex(query)
   })
 
@@ -798,6 +1077,13 @@ export function registerCommandCenterHandlers(): void {
     return executeCommandCenterAction(actionId)
   })
 
+  ipcMain.handle('command-center:insert-emoji', async (_event, emoji: unknown) => {
+    if (!extensionEnabled) {
+      return { success: false, error: 'Command Center is disabled.' }
+    }
+    return insertEmoji(emoji)
+  })
+
   ipcMain.handle(
     'command-center:execute-index-item',
     async (_event, itemId: unknown, query: unknown) => {
@@ -805,6 +1091,16 @@ export function registerCommandCenterHandlers(): void {
         return { success: false, error: 'Command Center is disabled.' }
       }
       return executeIndexItem(itemId, query)
+    }
+  )
+
+  ipcMain.handle(
+    'command-center:execute-item-action',
+    async (_event, itemId: unknown, actionId: unknown, query: unknown) => {
+      if (!extensionEnabled) {
+        return { success: false, error: 'Command Center is disabled.' }
+      }
+      return executeItemAction(itemId, actionId, query)
     }
   )
 
@@ -859,7 +1155,9 @@ export function unregisterCommandCenterHandlers(): void {
   ipcMain.removeHandler('command-center:save-workflow')
   ipcMain.removeHandler('command-center:delete-workflow')
   ipcMain.removeHandler('command-center:execute-action')
+  ipcMain.removeHandler('command-center:insert-emoji')
   ipcMain.removeHandler('command-center:execute-index-item')
+  ipcMain.removeHandler('command-center:execute-item-action')
   ipcMain.removeHandler('command-center:execute-workflow')
   ipcMain.removeHandler('command-center:open-chat-session')
   ipcMain.removeHandler('command-center:set-layout')

@@ -3,6 +3,7 @@ import path from 'path'
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer'
 
 import {
+  allowMainWindowToClose,
   createMainWindow,
   createApplicationMenu,
   createTray,
@@ -144,6 +145,9 @@ app.setName(APP_NAME)
 process.title = APP_NAME
 
 app.on('window-all-closed', () => {
+  // On Windows/Linux the main window hides to tray instead of closing, so this
+  // usually only fires when every window was destroyed on quit. Keep darwin
+  // behavior (menu bar app stays alive with zero windows).
   if (process.platform !== 'darwin') {
     app.quit()
   }
@@ -179,6 +183,9 @@ app.on('will-quit', () => {
 })
 
 app.on('before-quit', (event) => {
+  // Let the main window fully close instead of intercepting as hide-to-tray.
+  allowMainWindowToClose()
+
   if (hasCompletedMcpShutdown) {
     return
   }

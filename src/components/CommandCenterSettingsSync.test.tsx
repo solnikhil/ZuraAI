@@ -99,10 +99,10 @@ describe('CommandCenterSettingsSync', () => {
     expect(updateSettings).toHaveBeenCalledWith({ assistantMode: 'agent' })
   })
 
-  it('syncs Command Center enabled state from Agent Mode, not the legacy extension toggle', () => {
+  it('keeps Command Center enabled in both Chat and Agent modes', () => {
     const { rerender } = render(<CommandCenterSettingsSync />)
 
-    expect(setExtensionEnabled).toHaveBeenLastCalledWith(false)
+    expect(setExtensionEnabled).toHaveBeenLastCalledWith(true)
 
     assistantMode = 'agent'
     rerender(<CommandCenterSettingsSync />)

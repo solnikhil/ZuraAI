@@ -62,7 +62,7 @@ describe('computer-use screenshot capture', () => {
 
     expect(mocks.getSources).toHaveBeenCalledWith({
       types: ['window'],
-      thumbnailSize: { width: 3840, height: 2160 },
+      thumbnailSize: { width: 1600, height: 900 },
     })
     expect(result.target).toEqual({
       type: 'window',

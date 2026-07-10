@@ -1,5 +1,11 @@
 // Window management barrel export
-export { createMainWindow, getMainWindow, resolveDistPath } from './mainWindow'
+export {
+  allowMainWindowToClose,
+  createMainWindow,
+  getMainWindow,
+  resolveDistPath,
+  showMainWindow,
+} from './mainWindow'
 
 export { showAboutWindow } from './aboutWindow'
 

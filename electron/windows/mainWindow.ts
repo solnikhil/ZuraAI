@@ -65,10 +65,33 @@ function showFallbackError(win: BrowserWindow, message: string): void {
 // Global reference to main window
 let mainWindow: BrowserWindow | null = null
 
+/**
+ * When true, the next main-window close is allowed to fully close (Quit from tray
+ * / app.quit). Otherwise X/close hides to tray so the app can keep running with
+ * a throttled renderer for Command Center / automations.
+ */
+let allowMainWindowClose = false
+
 export interface MainWindowOptions {
   width?: number
   height?: number
   devTools?: boolean
+}
+
+function applyBackgroundThrottling(win: BrowserWindow, enabled: boolean): void {
+  try {
+    win.webContents.setBackgroundThrottling(enabled)
+  } catch {
+    // Older Electron builds may not expose the setter; webPreferences default still applies.
+  }
+}
+
+function syncMainWindowThrottling(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  // Park the renderer when the window is not actively foregrounded.
+  const shouldThrottle =
+    !mainWindow.isVisible() || mainWindow.isMinimized() || !mainWindow.isFocused()
+  applyBackgroundThrottling(mainWindow, shouldThrottle)
 }
 
 /**
@@ -96,6 +119,7 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
       ? {
           frame: false,
           transparent: true,
+          roundedCorners: true,
           backgroundMaterial: 'acrylic' as const,
         }
       : {}),
@@ -113,7 +137,8 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
       contextIsolation: true,
       sandbox: true,
       devTools: options?.devTools ?? !app.isPackaged,
-      backgroundThrottling: false,
+      // Default throttled; we un-throttle only while the window is focused.
+      backgroundThrottling: true,
       spellcheck: isMacOS,
       additionalArguments: ['--process-name=ZuraAI'],
     },
@@ -212,11 +237,52 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
     )
   })
 
+  // Focused → full timer rate for smooth streaming UI; background → throttle.
+  mainWindow.on('focus', () => {
+    applyBackgroundThrottling(mainWindow!, false)
+  })
+  mainWindow.on('blur', () => {
+    syncMainWindowThrottling()
+  })
+  mainWindow.on('minimize', () => {
+    applyBackgroundThrottling(mainWindow!, true)
+  })
+  mainWindow.on('restore', () => {
+    syncMainWindowThrottling()
+  })
+  mainWindow.on('hide', () => {
+    applyBackgroundThrottling(mainWindow!, true)
+  })
+  mainWindow.on('show', () => {
+    syncMainWindowThrottling()
+  })
+
+  // Close-to-tray on Windows/Linux: keep the app (and renderer) alive for
+  // global shortcut / scheduled automations without a visible window.
+  // macOS already keeps apps running after last window via window-all-closed.
+  if (!isMacOS) {
+    mainWindow.on('close', (event) => {
+      if (allowMainWindowClose) return
+      event.preventDefault()
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.hide()
+        applyBackgroundThrottling(mainWindow, true)
+      }
+    })
+  }
+
   mainWindow.on('closed', () => {
     mainWindow = null
   })
 
   return mainWindow
+}
+
+/**
+ * Allow the main window to fully close on the next close event (used before quit).
+ */
+export function allowMainWindowToClose(): void {
+  allowMainWindowClose = true
 }
 
 /**
@@ -236,6 +302,7 @@ export function showMainWindow(): void {
     }
     mainWindow.show()
     mainWindow.focus()
+    applyBackgroundThrottling(mainWindow, false)
   } else {
     createMainWindow()
   }

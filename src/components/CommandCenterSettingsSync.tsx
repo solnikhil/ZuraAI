@@ -28,7 +28,10 @@ export default function CommandCenterSettingsSync() {
   const { settings, updateSettings } = useSettings()
   const { queueMessage } = useQuickSend()
   const { switchSession, loadFullSession } = useChatHistory()
-  const enabled = isWindowsRuntime() && settings.assistantMode === 'agent'
+  // The overlay is a keyboard launcher in both Chat and Agent modes. Freeform
+  // requests switch to Agent Mode when submitted, but opening/searching fixed
+  // commands must not depend on the current assistant mode.
+  const enabled = isWindowsRuntime()
 
   useEffect(() => {
     void window.commandCenter?.setExtensionEnabled(enabled)

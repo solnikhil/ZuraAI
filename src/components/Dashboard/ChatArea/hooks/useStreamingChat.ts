@@ -439,7 +439,8 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         updateStreamingMessage(
           finalState.sessionId,
           finalState.messageId,
-          buildFinalStreamingUpdates(finalState)
+          buildFinalStreamingUpdates(finalState),
+          { persist: true }
         )
       }
       streamingMessageRef.current = null
@@ -766,7 +767,8 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
             updateStreamingMessage(
               finalState.sessionId,
               finalState.messageId,
-              buildCommittedStreamingUpdates(finalState, streamResult)
+              buildCommittedStreamingUpdates(finalState, streamResult),
+              { persist: true }
             )
           }
           assistantTextForMemory = typeof finalState.content === 'string' ? finalState.content : ''
@@ -1132,14 +1134,19 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
                 : undefined,
           })
 
-          updateStreamingMessage(currentSessionId, streamingMessageId, {
-            content: regenerationResult.content,
-            thinkingBlocks: regenerationResult.thinkingBlocks,
-            files: regenerationResult.files,
-            usage: regenerationResult.usage,
-            latency: regenerationResult.latency,
-            model: regenerationResult.model,
-          })
+          updateStreamingMessage(
+            currentSessionId,
+            streamingMessageId,
+            {
+              content: regenerationResult.content,
+              thinkingBlocks: regenerationResult.thinkingBlocks,
+              files: regenerationResult.files,
+              usage: regenerationResult.usage,
+              latency: regenerationResult.latency,
+              model: regenerationResult.model,
+            },
+            { persist: true }
+          )
           setIsLoading(false)
         } catch (streamError: unknown) {
           // Silently handle abort (user clicked stop)
