@@ -35,7 +35,7 @@ import {
 } from '../commandCenter/search'
 import type { CommandCenterEmoji } from '../commandCenter/emojis'
 import CommandCenterStore from './CommandCenterStore'
-import GitHubWorkspace from './GitHubWorkspace'
+import GitHubWorkspace, { type GitHubCommitBarMeta } from './GitHubWorkspace'
 import type {
   CommandCenterIndex,
   CommandCenterIndexItem,
@@ -482,6 +482,13 @@ export default function CommandCenterOverlay() {
   const [mode, setMode] = useState<Mode>('search')
   const [commandView, setCommandView] = useState<CommandView>('root')
   const [githubSignedIn, setGitHubSignedIn] = useState(false)
+  const [githubSummary, setGithubSummary] = useState('')
+  const [githubCommitMeta, setGithubCommitMeta] = useState<GitHubCommitBarMeta>({
+    hasRepository: false,
+    selectedCount: 0,
+    changeCount: 0,
+  })
+  const githubCommitHandlerRef = useRef<(() => Promise<void>) | null>(null)
   const [input, setInput] = useState('')
   const [index, setIndex] = useState<CommandCenterIndex>(EMPTY_INDEX)
   const [browseApps, setBrowseApps] = useState<CommandCenterIndexItem[]>([])
@@ -805,9 +812,21 @@ export default function CommandCenterOverlay() {
     setCommandView('github')
     setMode('search')
     setInput('')
+    setGithubSummary('')
+    setGithubCommitMeta({ hasRepository: false, selectedCount: 0, changeCount: 0 })
     setSelectedIndex(0)
     setSelectionVisible(false)
   }, [])
+
+  const showGitHubCommitBar = isGitHubView && githubSignedIn && githubCommitMeta.hasRepository
+  const canGitHubCommit =
+    showGitHubCommitBar &&
+    githubSummary.trim().length > 0 &&
+    (githubCommitMeta.selectedCount > 0 || githubCommitMeta.changeCount > 0)
+
+  const runGitHubCommit = () => {
+    void githubCommitHandlerRef.current?.()
+  }
 
   const handleInputChange = useCallback(
     (value: string) => {
@@ -1524,61 +1543,86 @@ export default function CommandCenterOverlay() {
               <span aria-hidden="true">‹</span>
             </button>
           )}
-          <div className="command-center-input-shell">
+          <div className={`command-center-input-shell ${showGitHubCommitBar ? 'is-github-commit' : ''}`}>
             <input
               ref={(node) => {
                 inputRef.current = node
               }}
               autoFocus
-              value={input}
-              readOnly={isGitHubView}
-              onChange={(event) => handleInputChange(event.target.value)}
-              onKeyDown={handleKeyDown}
+              value={showGitHubCommitBar ? githubSummary : input}
+              readOnly={isGitHubView && !showGitHubCommitBar}
+              maxLength={showGitHubCommitBar ? 10_000 : undefined}
+              onChange={(event) => {
+                if (showGitHubCommitBar) {
+                  setGithubSummary(event.target.value)
+                  return
+                }
+                handleInputChange(event.target.value)
+              }}
+              onKeyDown={(event) => {
+                if (showGitHubCommitBar) {
+                  if (event.key === 'Enter') {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    if (canGitHubCommit) runGitHubCommit()
+                  }
+                  return
+                }
+                handleKeyDown(event)
+              }}
               placeholder={
-                isChatMode
-                  ? 'Ask a follow-up...'
-                  : isEmojiView
-                    ? 'Search emojis by name...'
-                    : isChatsView
-                      ? 'Search chats...'
-                      : isLayoutView
-                        ? 'Search layout actions...'
-                        : isSettingsView
-                          ? 'Search Windows Settings...'
-                          : isGitHubView
-                            ? 'GitHub Workspace'
-                          : isStoreView
-                            ? 'Search extensions...'
-                            : mode === 'search'
-                              ? 'Search workflows, apps, windows...'
-                              : 'Ask Zura to help with this screen...'
+                showGitHubCommitBar
+                  ? githubCommitMeta.selectedCount
+                    ? `Commit ${githubCommitMeta.selectedCount} selected file${githubCommitMeta.selectedCount === 1 ? '' : 's'}…`
+                    : githubCommitMeta.changeCount
+                      ? `Summary for ${githubCommitMeta.changeCount} change${githubCommitMeta.changeCount === 1 ? '' : 's'}…`
+                      : 'Summary (required)'
+                  : isChatMode
+                    ? 'Ask a follow-up...'
+                    : isEmojiView
+                      ? 'Search emojis by name...'
+                      : isChatsView
+                        ? 'Search chats...'
+                        : isLayoutView
+                          ? 'Search layout actions...'
+                          : isSettingsView
+                            ? 'Search Windows Settings...'
+                            : isGitHubView
+                              ? 'GitHub Workspace'
+                              : isStoreView
+                                ? 'Search extensions...'
+                                : mode === 'search'
+                                  ? 'Search workflows, apps, windows...'
+                                  : 'Ask Zura to help with this screen...'
               }
               aria-label={
-                isChatMode
-                  ? 'Ask a follow-up'
-                  : isEmojiView
-                    ? 'Search emojis'
-                    : isChatsView
-                      ? 'Search chats'
-                      : isLayoutView
-                        ? 'Search layout'
-                        : isSettingsView
-                          ? 'Search settings'
-                          : isGitHubView
-                            ? 'GitHub Workspace'
-                          : isStoreView
-                            ? 'Search Zura Store'
-                            : mode === 'search'
-                              ? 'Search Command Center'
-                              : 'Ask Zura'
+                showGitHubCommitBar
+                  ? 'Commit message'
+                  : isChatMode
+                    ? 'Ask a follow-up'
+                    : isEmojiView
+                      ? 'Search emojis'
+                      : isChatsView
+                        ? 'Search chats'
+                        : isLayoutView
+                          ? 'Search layout'
+                          : isSettingsView
+                            ? 'Search settings'
+                            : isGitHubView
+                              ? 'GitHub Workspace'
+                              : isStoreView
+                                ? 'Search Zura Store'
+                                : mode === 'search'
+                                  ? 'Search Command Center'
+                                  : 'Ask Zura'
               }
-              aria-controls={!isChatMode && mode === 'search' ? 'command-center-results' : undefined}
+              aria-controls={!isChatMode && mode === 'search' && !showGitHubCommitBar ? 'command-center-results' : undefined}
               aria-activedescendant={
-                !isChatMode && mode === 'search' && selectedItem
+                !isChatMode && mode === 'search' && !showGitHubCommitBar && selectedItem
                   ? resultOptionId(selectedItem.id)
                   : undefined
               }
-              aria-autocomplete={!isChatMode && mode === 'search' ? 'list' : undefined}
+              aria-autocomplete={!isChatMode && mode === 'search' && !showGitHubCommitBar ? 'list' : undefined}
             />
             {isChatMode && (
               <button
@@ -1587,6 +1631,22 @@ export default function CommandCenterOverlay() {
                 aria-label={isLoading ? 'Stop' : 'Send'}
               >
                 {isLoading ? <X size={16} /> : <CornerDownLeft size={16} />}
+              </button>
+            )}
+            {showGitHubCommitBar && (
+              <button
+                type="button"
+                className="command-center-github-commit"
+                disabled={!canGitHubCommit}
+                onClick={runGitHubCommit}
+              >
+                <Check size={14} />
+                Commit
+                {githubCommitMeta.selectedCount > 0
+                  ? ` ${githubCommitMeta.selectedCount}`
+                  : githubCommitMeta.changeCount > 0
+                    ? ` ${githubCommitMeta.changeCount}`
+                    : ''}
               </button>
             )}
           </div>
@@ -1795,7 +1855,15 @@ export default function CommandCenterOverlay() {
                 )}
               </div>
             ) : isGitHubView ? (
-              <GitHubWorkspace onSignedInChange={setGitHubSignedIn} />
+              <div className="command-center-github-host">
+                <GitHubWorkspace
+                  summary={githubSummary}
+                  onSummaryChange={setGithubSummary}
+                  onSignedInChange={setGitHubSignedIn}
+                  onCommitMetaChange={setGithubCommitMeta}
+                  commitHandlerRef={githubCommitHandlerRef}
+                />
+              </div>
             ) : isStoreView ? (
               <CommandCenterStore query={input} onOpenGitHub={openGitHubView} />
             ) : mode === 'search' ? (
@@ -2280,6 +2348,35 @@ export default function CommandCenterOverlay() {
         .command-center-github-login-hint { flex: none; display: inline-flex; align-items: center; gap: 6px; margin-right: 10px; color: rgba(255,231,238,.42); font-size: 10px; white-space: nowrap; }
         .command-center-github-login-hint kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 4px; background: rgba(255,255,255,.045); color: rgba(255,239,244,.62); font: inherit; font-size: 8px; font-weight: 650; }
 
+        .command-center-input-shell.is-github-commit {
+          padding-right: 4px;
+        }
+
+        .command-center-input-shell button.command-center-github-commit {
+          width: auto;
+          min-width: 96px;
+          height: 30px;
+          gap: 6px;
+          padding: 0 12px;
+          border-radius: 7px;
+          background: transparent;
+          color: rgba(243, 216, 208, 0.92);
+          font-size: 12.5px;
+          font-weight: 680;
+          white-space: nowrap;
+        }
+
+        .command-center-input-shell button.command-center-github-commit:hover:not(:disabled),
+        .command-center-input-shell button.command-center-github-commit:focus-visible {
+          background: rgba(201, 146, 131, 0.16);
+          outline: none;
+        }
+
+        .command-center-input-shell button.command-center-github-commit:disabled {
+          opacity: 0.4;
+          cursor: default;
+        }
+
         .command-center-input-shell button,
         .command-center-chat-actions button,
         .command-center-ask-empty button,
@@ -2297,6 +2394,19 @@ export default function CommandCenterOverlay() {
           flex: 1 1 auto;
           display: flex;
           flex-direction: column;
+          min-height: 0;
+        }
+
+        .command-center-github-host {
+          flex: 1 1 auto;
+          min-height: 0;
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+        }
+
+        .command-center-github-host > * {
+          flex: 1 1 auto;
           min-height: 0;
         }
 

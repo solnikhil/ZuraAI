@@ -498,6 +498,8 @@ export interface GitHubWorkspaceRepositorySummary {
   behind: number
   changedFiles: number
   remoteUrl?: string
+  /** GitHub owner/org when remote is a github.com URL; used for Desktop-style grouping. */
+  owner?: string
   lastOpenedAt: number
 }
 
@@ -534,6 +536,15 @@ export type GitHubWorkspaceMutation =
   | { type: 'pull'; repositoryId: string }
   | { type: 'push'; repositoryId: string }
 
+/** Open a resolved workspace path in the OS — never accepts freeform paths from the renderer. */
+export type GitHubWorkspaceOpenRequest =
+  | { target: 'repository'; repositoryId: string }
+  | { target: 'file' | 'reveal'; repositoryId: string; changeId: string }
+
+export type GitHubWorkspaceOpenResult =
+  | { ok: true }
+  | { ok: false; error: string }
+
 export interface GitHubWorkspaceApi {
   getInstalled: () => Promise<boolean>
   install: () => Promise<boolean>
@@ -546,6 +557,7 @@ export interface GitHubWorkspaceApi {
   copyUserCode: (userCode: string) => Promise<boolean>
   mutate: (mutation: GitHubWorkspaceMutation) => Promise<GitHubWorkspaceState>
   selectDiff: (repositoryId: string, changeId: string) => Promise<string>
+  open: (request: GitHubWorkspaceOpenRequest) => Promise<GitHubWorkspaceOpenResult>
   onChanged: (callback: (state: GitHubWorkspaceState) => void) => () => void
 }
 

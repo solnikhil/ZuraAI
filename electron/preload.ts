@@ -56,6 +56,7 @@ import type {
   WindowAppearance,
   GitHubWorkspaceApi,
   GitHubWorkspaceMutation,
+  GitHubWorkspaceOpenRequest,
   GitHubWorkspaceState,
 } from '../src/electron/types'
 
@@ -232,6 +233,7 @@ const GITHUB_WORKSPACE_INVOKE_CHANNELS = new Set<string>([
   'github-workspace:copy-user-code',
   'github-workspace:mutate',
   'github-workspace:select-diff',
+  'github-workspace:open',
 ])
 
 const GITHUB_WORKSPACE_ON_CHANNELS = new Set<string>(['github-workspace:changed'])
@@ -897,6 +899,10 @@ contextBridge.exposeInMainWorld(
     selectDiff: (repositoryId: string, changeId: string) => {
       assertAllowed('invoke', 'github-workspace:select-diff', GITHUB_WORKSPACE_INVOKE_CHANNELS)
       return ipcRenderer.invoke('github-workspace:select-diff', repositoryId, changeId) as Promise<string>
+    },
+    open: (request: GitHubWorkspaceOpenRequest) => {
+      assertAllowed('invoke', 'github-workspace:open', GITHUB_WORKSPACE_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('github-workspace:open', request)
     },
     onChanged: (callback: (state: GitHubWorkspaceState) => void) => {
       assertAllowed('on', 'github-workspace:changed', GITHUB_WORKSPACE_ON_CHANNELS)

@@ -430,10 +430,30 @@ secure-storage-backed HMAC key so the learning file contains neither raw queries
 nor target paths.
 GitHub Workspace is a first-party nested Command Center surface entered through
 the fixed `github-workspace` action. It stays within the compact overlay and
-uses the dedicated `window.githubWorkspace` preload bridge. The renderer sends
-only repository/change IDs, bounded commit text, and allowlisted mutations;
-main resolves repository paths and executes Git with the app-bundled `dugite`
-runtime. Repository metadata is stored in
+uses the dedicated `window.githubWorkspace` preload bridge. The UI is GitHub
+Desktop–inspired: commit summary lives in the Command Center top bar (same row
+as the back control) with Commit on the far right when a repository is open;
+File Changes / History sidebar with detail pane; footer is left (logo, branch,
+fetch, push/pull) and right (repository picker, account). Commit stages the
+checked files, or all current changes when none are checked. Commit-message AI
+is not wired to GitHub Desktop/Copilot private endpoints; any future generate
+action must use the user's Zura providers only. The repository picker is a custom
+filtered menu (native `<select>` is avoided because it fails in the always-on-top
+frameless overlay); repos are grouped by Recent and by GitHub owner when
+`origin` is a github.com remote. Add-repository folder dialogs are parented to
+the Command Center window so they are not buried under the always-on-top
+overlay. The renderer sends only repository/change IDs, bounded commit text, and
+allowlisted mutations; main resolves repository paths and executes Git with the
+app-bundled `dugite` runtime. External open uses the narrow
+`github-workspace:open` channel with allowlisted targets only (`file`, `reveal`,
+`repository`): the renderer never supplies filesystem paths. Main resolves the
+path from the stored repository plus change list, rejects path traversal, then
+calls `shell.openPath` or `shell.showItemInFolder`. Main always sets dugite's `LOCAL_GIT_DIRECTORY` to
+the real `node_modules/dugite/git` (or `app.asar.unpacked/node_modules/dugite/git`
+when packaged) before `exec`, because Vite-bundled `__dirname` breaks dugite's
+default embedded-git resolution (ENOENT). `dugite` is also left external in the
+main-process Vite build for the same reason, and `asarUnpack` includes
+`node_modules/dugite/git/**`. Repository metadata is stored in
 `app.getPath('userData')/github-workspace-repositories.json`; GitHub Desktop's
 private storage is never read. GitHub.com authentication uses a ZuraAI-owned
 code-owned public OAuth client ID (optionally overridden by

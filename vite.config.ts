@@ -121,6 +121,10 @@ export default defineConfig({
               external: [
                 'bufferutil',
                 'utf-8-validate',
+                // Keep dugite out of the main bundle so its embedded git path
+                // resolution (__dirname → node_modules/dugite/git) still works,
+                // and so LOCAL_GIT_DIRECTORY can resolve the real package root.
+                'dugite',
                 'koffi',
                 '@koromix/koffi-win32-x64',
                 '@nut-tree-fork/nut-js',

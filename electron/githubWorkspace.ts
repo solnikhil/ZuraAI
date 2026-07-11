@@ -1,5 +1,7 @@
 import { app, clipboard, dialog, ipcMain, shell } from 'electron'
 import crypto from 'crypto'
+import { createRequire } from 'module'
+import { existsSync } from 'fs'
 import fs from 'fs/promises'
 import path from 'path'
 import { exec as execGit } from 'dugite'
@@ -17,6 +19,8 @@ import type {
   GitHubWorkspaceCommit,
   GitHubWorkspaceFileChange,
   GitHubWorkspaceMutation,
+  GitHubWorkspaceOpenRequest,
+  GitHubWorkspaceOpenResult,
   GitHubWorkspaceRepositorySummary,
   GitHubWorkspaceState,
 } from '../src/electron/types'
@@ -35,10 +39,79 @@ let selectedRepositoryId: string | undefined
 let selectedChanges = new Map<string, Set<string>>()
 let operation: Promise<unknown> = Promise.resolve()
 let authAttempt = 0
+/** Cached path to dugite's embedded Git directory (GitHub Desktop / dugite pattern). */
+let embeddedGitDir: string | undefined
 
 const storePath = () => path.join(app.getPath('userData'), STORE_NAME)
 const installPath = () => path.join(app.getPath('userData'), INSTALL_FILE)
 const encodeId = (value: string) => crypto.createHash('sha256').update(value).digest('hex').slice(0, 24)
+
+function gitBinaryPath(gitDir: string): string {
+  return process.platform === 'win32'
+    ? path.join(gitDir, 'cmd', 'git.exe')
+    : path.join(gitDir, 'bin', 'git')
+}
+
+/**
+ * Resolve dugite's embedded Git directory.
+ *
+ * Vite bundles the main process into `dist-electron/main.js`, so dugite's own
+ * `resolveEmbeddedGitDir()` (relative to its `__dirname`) points at the wrong
+ * place and spawns fail with ENOENT. GitHub Desktop / dugite fix this by setting
+ * `LOCAL_GIT_DIRECTORY` to the real `node_modules/dugite/git` folder (or the
+ * asar-unpacked copy in production).
+ */
+function resolveEmbeddedGitDirectory(): string {
+  if (embeddedGitDir && existsSync(gitBinaryPath(embeddedGitDir))) return embeddedGitDir
+
+  const candidates: string[] = []
+  const envDir = process.env.LOCAL_GIT_DIRECTORY?.trim()
+  if (envDir) candidates.push(path.resolve(envDir))
+
+  try {
+    const requireFromApp = createRequire(path.join(process.cwd(), 'package.json'))
+    candidates.push(path.join(path.dirname(requireFromApp.resolve('dugite/package.json')), 'git'))
+  } catch {
+    // ignore — fall through to packaged / cwd candidates
+  }
+
+  try {
+    if (app.isPackaged) {
+      candidates.push(
+        path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', 'dugite', 'git')
+      )
+    } else {
+      candidates.push(path.join(app.getAppPath(), 'node_modules', 'dugite', 'git'))
+    }
+  } catch {
+    // app may be unavailable in pure unit tests
+  }
+
+  candidates.push(path.join(process.cwd(), 'node_modules', 'dugite', 'git'))
+
+  for (const dir of candidates) {
+    if (dir && existsSync(gitBinaryPath(dir))) {
+      embeddedGitDir = dir
+      return dir
+    }
+  }
+
+  throw new Error(
+    'Bundled Git was not found. Reinstall ZuraAI or set LOCAL_GIT_DIRECTORY to a dugite git folder.'
+  )
+}
+
+/** Ensure process + dugite exec env can find the embedded git binary. */
+function dugiteEnv(extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
+  const localGitDirectory = resolveEmbeddedGitDirectory()
+  // dugite reads LOCAL_GIT_DIRECTORY from the merged env map on each exec.
+  process.env.LOCAL_GIT_DIRECTORY = localGitDirectory
+  return {
+    ...process.env,
+    LOCAL_GIT_DIRECTORY: localGitDirectory,
+    ...extra,
+  }
+}
 
 export async function isGitHubWorkspaceInstalled(): Promise<boolean> {
   try {
@@ -71,7 +144,7 @@ async function writeStore(repositories: StoredRepository[]) {
 }
 
 async function git(repositoryPath: string, args: string[]) {
-  const result = await execGit(args, repositoryPath)
+  const result = await execGit(args, repositoryPath, { env: dugiteEnv() })
   if (result.exitCode !== 0) throw new Error(result.stderr.trim() || `Git exited with ${result.exitCode}.`)
   return result.stdout
 }
@@ -88,12 +161,11 @@ async function networkGit(repositoryPath: string, args: string[]) {
   )
   try {
     const result = await execGit(['-c', 'credential.helper=', ...args], repositoryPath, {
-      env: {
-        ...process.env,
+      env: dugiteEnv({
         GIT_TERMINAL_PROMPT: '0',
         GIT_ASKPASS: helperPath,
         ZURA_GITHUB_TOKEN: token || undefined,
-      },
+      }),
     })
     if (result.exitCode !== 0) throw new Error(redactGitHubSecrets(result.stderr.trim()) || `Git exited with ${result.exitCode}.`)
     return result.stdout
@@ -113,17 +185,37 @@ async function accountState(): Promise<GitHubWorkspaceAccount> {
   } catch (error) { return { status: 'signed_out', error: error instanceof Error ? redactGitHubSecrets(error.message) : 'Unable to reach GitHub.' } }
 }
 
+function ownerFromRemote(remoteUrl?: string): string | undefined {
+  if (!remoteUrl) return undefined
+  // Match github.com/owner/repo, git@github.com:owner/repo.git, and ssh:// forms.
+  const match = remoteUrl.match(/github\.com[/:]([^/]+)\/([^/\s]+?)(?:\.git)?$/i)
+  return match?.[1] || undefined
+}
+
 async function repositorySummary(repo: StoredRepository): Promise<GitHubWorkspaceRepositorySummary> {
   try {
     const status = await git(repo.path, ['status', '--porcelain=v1', '--branch'])
     const lines = status.split(/\r?\n/).filter(Boolean)
     const header = lines.shift() ?? ''
-    const branch = header.match(/^## ([^.\s]+)/)?.[1]
+    // Branch can include remote tracking info after "..." — capture name before that.
+    const branch = header.match(/^## ([^\s.]+)/)?.[1]
     const ahead = Number(header.match(/ahead (\d+)/)?.[1] ?? 0)
     const behind = Number(header.match(/behind (\d+)/)?.[1] ?? 0)
     const remoteUrl = (await git(repo.path, ['remote', 'get-url', 'origin']).catch(() => '')).trim() || undefined
-    return { ...repo, name: path.basename(repo.path), missing: false, branch, ahead, behind, changedFiles: lines.length, remoteUrl }
-  } catch { return { ...repo, name: path.basename(repo.path), missing: true, ahead: 0, behind: 0, changedFiles: 0 } }
+    return {
+      ...repo,
+      name: path.basename(repo.path),
+      missing: false,
+      branch,
+      ahead,
+      behind,
+      changedFiles: lines.length,
+      remoteUrl,
+      owner: ownerFromRemote(remoteUrl),
+    }
+  } catch {
+    return { ...repo, name: path.basename(repo.path), missing: true, ahead: 0, behind: 0, changedFiles: 0 }
+  }
 }
 
 async function selectedDetails(repository?: StoredRepository) {
@@ -221,8 +313,14 @@ async function performMutation(mutation: GitHubWorkspaceMutation): Promise<GitHu
     const summary = mutation.summary.trim()
     if (!summary || summary.length > MAX_COMMIT_MESSAGE) throw new Error('Commit summary is required.')
     const selected = selectedChanges.get(repository!.id) ?? new Set<string>()
-    if (!selected.size) throw new Error('Select at least one changed file.')
-    await git(repository!.path, ['add', '--', ...selected])
+    const details = await selectedDetails(repository)
+    // If nothing is checked, commit every current change (Desktop-style “include all”
+    // when the user typed a summary and hit Commit without staging).
+    const paths = selected.size
+      ? [...selected]
+      : details.changes.map((change) => change.path).filter(Boolean)
+    if (!paths.length) throw new Error('No changes to commit.')
+    await git(repository!.path, ['add', '--', ...paths])
     const message = mutation.description?.trim() ? `${summary}\n\n${mutation.description.trim()}` : summary
     await git(repository!.path, ['commit', '-m', message])
     selected.clear()
@@ -240,16 +338,46 @@ export function registerGitHubWorkspaceHandlers() {
   ipcMain.handle('github-workspace:get-state', () => getGitHubWorkspaceState())
   ipcMain.handle('github-workspace:add-repository', async () => {
     await requireInstalled()
-    const result = await dialog.showOpenDialog({ properties: ['openDirectory'], title: 'Add a Git repository' })
+    // Parent to the Command Center overlay so the folder picker is not buried
+    // under the always-on-top workspace window (common "won't open" failure).
+    const parent = getCommandCenterWindow()
+    const result = parent
+      ? await dialog.showOpenDialog(parent, {
+          properties: ['openDirectory'],
+          title: 'Add a Git repository',
+          buttonLabel: 'Add repository',
+        })
+      : await dialog.showOpenDialog({
+          properties: ['openDirectory'],
+          title: 'Add a Git repository',
+          buttonLabel: 'Add repository',
+        })
     if (result.canceled || !result.filePaths[0]) return getGitHubWorkspaceState()
     const repoPath = path.resolve(result.filePaths[0])
-    await git(repoPath, ['rev-parse', '--git-dir'])
+    try {
+      await git(repoPath, ['rev-parse', '--is-inside-work-tree'])
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      if (/ENOENT|Git failed to execute|Bundled Git/i.test(message)) {
+        throw new Error(message)
+      }
+      throw new Error('That folder is not a Git repository. Choose the folder that contains a .git directory.')
+    }
     const repositories = await readStore()
     const id = encodeId(repoPath.toLowerCase())
-    if (!repositories.some((item) => item.id === id)) repositories.unshift({ id, path: repoPath, lastOpenedAt: Date.now() })
+    const existing = repositories.find((item) => item.id === id)
+    if (existing) {
+      existing.lastOpenedAt = Date.now()
+      repositories.splice(repositories.indexOf(existing), 1)
+      repositories.unshift(existing)
+    } else {
+      repositories.unshift({ id, path: repoPath, lastOpenedAt: Date.now() })
+    }
     selectedRepositoryId = id
     await writeStore(repositories)
-    const state = await getGitHubWorkspaceState(); emitChanged(state); return state
+    const state = await getGitHubWorkspaceState()
+    emitChanged(state)
+    return state
   })
   ipcMain.handle('github-workspace:start-sign-in', async () => {
     await requireInstalled()
@@ -289,9 +417,95 @@ export function registerGitHubWorkspaceHandlers() {
     if (!change) throw new Error('Changed file was not found.')
     return git(repository.path, ['diff', '--no-ext-diff', '--', change.path])
   })
+  ipcMain.handle('github-workspace:open', async (_event, request: unknown): Promise<GitHubWorkspaceOpenResult> => {
+    await requireInstalled()
+    try {
+      return await openWorkspaceTarget(request)
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? redactGitHubSecrets(error.message) : 'Unable to open.',
+      }
+    }
+  })
+}
+
+/**
+ * Resolve a change path relative to the repository and ensure it stays inside
+ * the repo root (no renderer-supplied absolute paths).
+ */
+function resolveChangePath(repositoryPath: string, changePath: string): string {
+  // Porcelain rename lines may look like "old -> new"; open the working-tree side.
+  const relative = changePath.includes(' -> ')
+    ? changePath.split(' -> ').at(-1)!.trim()
+    : changePath.trim()
+  if (!relative || path.isAbsolute(relative) || relative.includes('\0')) {
+    throw new Error('Invalid file path.')
+  }
+  const root = path.resolve(repositoryPath)
+  const resolved = path.resolve(root, relative)
+  const rootWithSep = root.endsWith(path.sep) ? root : root + path.sep
+  if (resolved !== root && !resolved.startsWith(rootWithSep)) {
+    throw new Error('File is outside the repository.')
+  }
+  return resolved
+}
+
+async function openWorkspaceTarget(request: unknown): Promise<GitHubWorkspaceOpenResult> {
+  if (!request || typeof request !== 'object') throw new Error('Invalid open request.')
+  const body = request as GitHubWorkspaceOpenRequest
+  if (body.target !== 'file' && body.target !== 'reveal' && body.target !== 'repository') {
+    throw new Error('Invalid open target.')
+  }
+  if (typeof body.repositoryId !== 'string' || !body.repositoryId) {
+    throw new Error('Repository was not found.')
+  }
+  const repository = (await readStore()).find((item) => item.id === body.repositoryId)
+  if (!repository) throw new Error('Repository was not found.')
+  if (!existsSync(repository.path)) throw new Error('Repository folder is missing on disk.')
+
+  if (body.target === 'repository') {
+    const openError = await shell.openPath(repository.path)
+    if (openError) throw new Error(openError)
+    return { ok: true }
+  }
+
+  if (typeof body.changeId !== 'string' || !body.changeId) {
+    throw new Error('Changed file was not found.')
+  }
+  const change = (await selectedDetails(repository)).changes.find((item) => item.id === body.changeId)
+  if (!change) throw new Error('Changed file was not found.')
+  const filePath = resolveChangePath(repository.path, change.path)
+  if (!existsSync(filePath)) {
+    throw new Error('That file is not on disk (deleted or not checked out).')
+  }
+
+  if (body.target === 'reveal') {
+    shell.showItemInFolder(filePath)
+    return { ok: true }
+  }
+
+  const openError = await shell.openPath(filePath)
+  if (openError) throw new Error(openError)
+  return { ok: true }
 }
 
 export function unregisterGitHubWorkspaceHandlers() {
   authAttempt += 1
-  for (const channel of ['get-installed','install','uninstall','get-state','add-repository','start-sign-in','sign-out','disconnect','copy-user-code','mutate','select-diff']) ipcMain.removeHandler(`github-workspace:${channel}`)
+  for (const channel of [
+    'get-installed',
+    'install',
+    'uninstall',
+    'get-state',
+    'add-repository',
+    'start-sign-in',
+    'sign-out',
+    'disconnect',
+    'copy-user-code',
+    'mutate',
+    'select-diff',
+    'open',
+  ]) {
+    ipcMain.removeHandler(`github-workspace:${channel}`)
+  }
 }
