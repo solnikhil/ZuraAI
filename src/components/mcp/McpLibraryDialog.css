@@ -12,7 +12,7 @@
 
 .mcp-library-title {
   font-size: 1.12rem;
-  font-weight: 620;
+  font-weight: 600;
   letter-spacing: -0.01em;
 }
 
@@ -181,7 +181,7 @@
 .mcp-library-card-title {
   margin: 0;
   font-size: 0.96rem;
-  font-weight: 620;
+  font-weight: 600;
   letter-spacing: -0.01em;
   color: var(--theme-text-primary);
   line-height: 1.25;
@@ -310,7 +310,7 @@
 
 .mcp-library-details-popover-title {
   font-size: 0.88rem;
-  font-weight: 620;
+  font-weight: 600;
   color: var(--theme-text-primary);
   letter-spacing: -0.01em;
 }
@@ -409,7 +409,7 @@
 
 .mcp-library-card-setup-title {
   font-size: 0.86rem;
-  font-weight: 620;
+  font-weight: 600;
   color: var(--theme-text-primary);
 }
 
@@ -560,7 +560,7 @@
 
 .mcp-library-preview-title {
   font-size: 1.02rem;
-  font-weight: 620;
+  font-weight: 600;
   letter-spacing: -0.01em;
   color: var(--theme-text-primary);
 }

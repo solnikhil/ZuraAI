@@ -392,7 +392,7 @@
   background: transparent;
   color: color-mix(in srgb, var(--theme-text-muted) 82%, transparent);
   font-size: 0.66em;
-  font-weight: 650;
+  font-weight: 600;
   line-height: 0;
   text-decoration: none;
   vertical-align: baseline;

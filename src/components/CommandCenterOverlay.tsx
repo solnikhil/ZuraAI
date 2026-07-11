@@ -2380,7 +2380,7 @@ export default function CommandCenterOverlay() {
         }
 
         .command-center-github-login-hint { flex: none; display: inline-flex; align-items: center; gap: 6px; margin-right: 10px; color: rgba(255,231,238,.42); font-size: 10px; white-space: nowrap; }
-        .command-center-github-login-hint kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 4px; background: rgba(255,255,255,.045); color: rgba(255,239,244,.62); font: inherit; font-size: 8px; font-weight: 650; }
+        .command-center-github-login-hint kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 4px; background: rgba(255,255,255,.045); color: rgba(255,239,244,.62); font: inherit; font-size: 8px; font-weight: 600; }
 
         .command-center-input-shell.is-github-commit {
           padding-right: 6px;
@@ -2400,7 +2400,7 @@ export default function CommandCenterOverlay() {
           background: var(--theme-accent);
           color: var(--theme-text-inverse);
           font-size: 12.5px;
-          font-weight: 600;
+          font-weight: 500;
           letter-spacing: 0.01em;
           white-space: nowrap;
           box-shadow: none;
@@ -3003,7 +3003,7 @@ export default function CommandCenterOverlay() {
           gap: 5px;
           color: rgba(255, 203, 220, 0.66);
           font-size: 10.5px;
-          font-weight: 650;
+          font-weight: 600;
           letter-spacing: 0.07em;
           text-transform: uppercase;
         }
@@ -3012,7 +3012,7 @@ export default function CommandCenterOverlay() {
           margin: 4px 0 2px;
           color: rgba(255, 248, 250, 0.97);
           font-size: 24px;
-          font-weight: 640;
+          font-weight: 600;
           letter-spacing: -0.025em;
           line-height: 1.05;
         }
@@ -3068,7 +3068,7 @@ export default function CommandCenterOverlay() {
         .zura-store-featured__label {
           color: rgba(169, 255, 199, 0.62);
           font-size: 10px;
-          font-weight: 650;
+          font-weight: 600;
           letter-spacing: 0.06em;
           text-transform: uppercase;
         }
@@ -3077,7 +3077,7 @@ export default function CommandCenterOverlay() {
           margin: 3px 0 3px;
           color: rgba(243, 255, 247, 0.96);
           font-size: 17px;
-          font-weight: 630;
+          font-weight: 600;
           letter-spacing: -0.015em;
         }
 
@@ -3115,7 +3115,7 @@ export default function CommandCenterOverlay() {
         .zura-store-featured__action strong {
           color: rgba(242, 255, 247, 0.92);
           font-size: 13px;
-          font-weight: 620;
+          font-weight: 600;
         }
 
         .zura-store-featured__action button {
@@ -3144,7 +3144,7 @@ export default function CommandCenterOverlay() {
           box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--store-accent) 24%, transparent);
           color: var(--store-accent);
           font-size: 11px;
-          font-weight: 760;
+          font-weight: 700;
           letter-spacing: -0.03em;
         }
 
@@ -3244,7 +3244,7 @@ export default function CommandCenterOverlay() {
           margin: 0;
           color: rgba(255, 244, 247, 0.88);
           font-size: 12.5px;
-          font-weight: 620;
+          font-weight: 600;
           text-overflow: ellipsis;
           white-space: nowrap;
         }
@@ -3280,7 +3280,7 @@ export default function CommandCenterOverlay() {
         }
 
         .zura-store-row__actions { display: flex; align-items: center; gap: 5px; }
-        .zura-store-row__actions button { height: 24px; padding: 0 8px; border: 0; border-radius: 6px; background: rgba(201, 146, 131, 0.14); color: rgba(255, 239, 234, 0.82); font: inherit; font-size: 9.5px; font-weight: 650; cursor: pointer; }
+        .zura-store-row__actions button { height: 24px; padding: 0 8px; border: 0; border-radius: 6px; background: rgba(201, 146, 131, 0.14); color: rgba(255, 239, 234, 0.82); font: inherit; font-size: 9.5px; font-weight: 600; cursor: pointer; }
         .zura-store-row__actions button:hover:not(:disabled), .zura-store-row__actions button:focus-visible { background: rgba(201, 146, 131, 0.24); outline: none; }
         .zura-store-row__actions button:disabled { opacity: .55; cursor: default; }
 

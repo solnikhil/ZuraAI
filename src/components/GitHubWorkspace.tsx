@@ -617,16 +617,18 @@ export default function GitHubWorkspace({
                 role="tab"
                 aria-selected={tab === 'changes'}
                 className={tab === 'changes' ? 'is-active' : ''}
+                title="File changes"
                 onClick={() => setTab('changes')}
               >
-                File Changes
-                <span>{state.changes.length}</span>
+                <span className="github-workspace__tab-label">Changes</span>
+                <span className="github-workspace__tab-count">{state.changes.length}</span>
               </button>
               <button
                 type="button"
                 role="tab"
                 aria-selected={tab === 'history'}
                 className={tab === 'history' ? 'is-active' : ''}
+                title="Commit history"
                 onClick={() => {
                   setTab('history')
                   if (!selectedCommitId && state.history[0]) {
@@ -634,7 +636,7 @@ export default function GitHubWorkspace({
                   }
                 }}
               >
-                History
+                <span className="github-workspace__tab-label">History</span>
               </button>
             </div>
             <div className="github-workspace__list" role="listbox">
@@ -929,7 +931,7 @@ const authStyles = `
   .github-workspace-auth strong { font-size: 21px; letter-spacing: -.02em; }
   .github-workspace-auth p { max-width: 330px; margin: 0; color: rgba(255,236,230,.5); font-size: 12px; line-height: 1.55; }
   .github-workspace-auth__error { color: #f2aaa0; font-size: 11px; line-height: 1.4; }
-  .github-workspace-auth__continue { position: relative; width: 220px; height: 38px; display: grid; place-items: center; margin-top: 7px; padding: 0 14px; border: 1px solid rgba(255,239,232,.15); border-radius: 7px; background: rgba(255,245,241,.065); color: rgba(255,244,240,.9); font: inherit; font-size: 11.5px; font-weight: 680; cursor: pointer; box-shadow: inset 0 1px rgba(255,255,255,.025); }
+  .github-workspace-auth__continue { position: relative; width: 220px; height: 38px; display: grid; place-items: center; margin-top: 7px; padding: 0 14px; border: 1px solid rgba(255,239,232,.15); border-radius: 7px; background: rgba(255,245,241,.065); color: rgba(255,244,240,.9); font: inherit; font-size: 11.5px; font-weight: 600; cursor: pointer; box-shadow: inset 0 1px rgba(255,255,255,.025); }
   .github-workspace-auth__continue:hover { border-color: rgba(201,146,131,.48); background: rgba(201,146,131,.12); color: rgba(255,248,245,.98); }
   .github-workspace-auth__continue:focus-visible { border-color: rgba(201,146,131,.72); outline: 2px solid rgba(201,146,131,.18); outline-offset: 2px; }
   .github-workspace-auth__continue:disabled { opacity: .48; cursor: default; }
@@ -1048,29 +1050,45 @@ const workspaceStyles = `
   }
   .github-workspace__tabs {
     flex: none;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    height: 38px;
+    display: flex;
+    align-items: stretch;
+    min-width: 0;
+    height: 34px;
     border-bottom: 1px solid var(--theme-border);
   }
   .github-workspace__tabs button {
+    flex: 1 1 0;
+    min-width: 0;
     justify-content: center;
+    gap: 5px;
+    padding: 0 8px;
     border-radius: 0;
     color: var(--theme-text-muted);
-    font-size: 12.5px;
-    font-weight: 600;
+    font-size: 12px;
+    font-weight: 500;
   }
   .github-workspace__tabs button.is-active {
     color: var(--theme-text-primary);
+    font-weight: 600;
     box-shadow: inset 0 -2px var(--theme-accent);
   }
-  .github-workspace__tabs span {
-    min-width: 18px;
+  .github-workspace__tab-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .github-workspace__tab-count {
+    flex: none;
+    min-width: 16px;
     padding: 0 5px;
     border-radius: 8px;
     background: var(--theme-surface-subtle);
     color: var(--theme-text-secondary);
-    font-size: 10.5px;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 16px;
+    text-align: center;
   }
   .github-workspace__list {
     flex: 1 1 auto;
@@ -1079,10 +1097,10 @@ const workspaceStyles = `
     overflow-y: auto;
     overscroll-behavior: contain;
     scrollbar-width: thin;
-    padding: 6px 6px 8px;
+    padding: 4px 4px 6px;
   }
   .github-workspace__list-empty {
-    padding: 18px 12px;
+    padding: 14px 10px;
     color: var(--theme-text-muted);
     font-size: 12px;
     text-align: center;
@@ -1090,16 +1108,18 @@ const workspaceStyles = `
   .github-workspace__change-row {
     width: 100%;
     box-sizing: border-box;
-    min-height: 40px;
+    min-height: 28px;
+    height: 28px;
     display: grid;
     grid-template-columns: auto minmax(0,1fr) auto;
-    gap: 10px;
+    gap: 7px;
     align-items: center;
-    padding: 9px 12px;
+    padding: 0 8px;
     margin: 0;
-    border-radius: 8px;
+    border-radius: 6px;
     text-align: left;
-    font-size: 12.5px;
+    font-size: 12px;
+    line-height: 1.2;
   }
   /* Soft inset highlight with room around the row — not flush to the panel edge. */
   .github-workspace__change-row:hover:not(:disabled),
@@ -1119,8 +1139,9 @@ const workspaceStyles = `
     background: color-mix(in srgb, var(--theme-selection-bg) 88%, var(--theme-text-primary));
   }
   .github-workspace__change-row input {
-    width: 14px;
-    height: 14px;
+    width: 13px;
+    height: 13px;
+    margin: 0;
     accent-color: var(--theme-accent);
   }
   .github-workspace__change-row span {
@@ -1130,21 +1151,21 @@ const workspaceStyles = `
   }
   .github-workspace__change-row em {
     color: var(--theme-accent);
-    font-size: 11px;
+    font-size: 10.5px;
     font-style: normal;
-    font-weight: 700;
+    font-weight: 600;
   }
   .github-workspace__history-row {
     width: 100%;
     box-sizing: border-box;
-    min-height: 48px;
+    min-height: 36px;
     display: flex;
     flex-direction: column;
     align-items: flex-start;
     justify-content: center;
-    gap: 3px;
-    padding: 10px 12px;
-    border-radius: 8px;
+    gap: 1px;
+    padding: 5px 8px;
+    border-radius: 6px;
     text-align: left;
   }
   .github-workspace__history-summary {
@@ -1152,8 +1173,8 @@ const workspaceStyles = `
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 12.5px;
-    font-weight: 600;
+    font-size: 12px;
+    font-weight: 500;
     color: var(--theme-text-primary);
   }
   .github-workspace__history-meta {
@@ -1162,7 +1183,8 @@ const workspaceStyles = `
     text-overflow: ellipsis;
     white-space: nowrap;
     color: var(--theme-text-muted);
-    font-size: 11px;
+    font-size: 10.5px;
+    line-height: 1.25;
   }
   .github-workspace__detail {
     min-width: 0;
@@ -1206,7 +1228,7 @@ const workspaceStyles = `
     color: var(--theme-accent);
     font-size: 10px;
     font-style: normal;
-    font-weight: 750;
+    font-weight: 600;
   }
   .github-workspace__detail-titles {
     min-width: 0;
@@ -1220,7 +1242,7 @@ const workspaceStyles = `
     white-space: nowrap;
     color: var(--theme-text-primary);
     font-size: 12.5px;
-    font-weight: 650;
+    font-weight: 500;
   }
   .github-workspace__detail-path {
     overflow: hidden;
@@ -1234,7 +1256,7 @@ const workspaceStyles = `
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    font: 700 11px/1 'Cascadia Code','SFMono-Regular',Consolas,monospace;
+    font: 600 11px/1 'Cascadia Code','SFMono-Regular',Consolas,monospace;
   }
   .github-workspace__diff-stats .is-add {
     color: color-mix(in srgb, var(--theme-success, #3dd68c) 92%, white);
@@ -1249,8 +1271,9 @@ const workspaceStyles = `
     gap: 5px;
     padding: 0 9px;
     border-radius: 8px;
-    font-size: 10.5px;
-    font-weight: 650;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--theme-text-secondary);
     box-shadow: none;
   }
   .github-workspace__diff {
@@ -1362,7 +1385,7 @@ const workspaceStyles = `
   }
   .github-workspace__commit-detail strong {
     font-size: 16px;
-    font-weight: 650;
+    font-weight: 600;
     line-height: 1.35;
     color: var(--theme-text-primary);
   }
