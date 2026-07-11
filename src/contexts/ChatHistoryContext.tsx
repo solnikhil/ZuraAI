@@ -166,12 +166,11 @@ function compactMessageForIndex(message: Message): CompactPreviewMessage {
       Array.isArray(message.toolResults) && message.toolResults.length > 0
         ? message.toolResults.length
         : undefined,
-    hasThinking: Boolean(
+    hasThinking:
       message.thinking ||
-        (Array.isArray(message.thinkingBlocks) && message.thinkingBlocks.length > 0)
-    )
-      ? true
-      : undefined,
+      (Array.isArray(message.thinkingBlocks) && message.thinkingBlocks.length > 0)
+        ? true
+        : undefined,
   }
 }
 
@@ -216,9 +215,7 @@ function sessionToMetadata(session: ChatSession): ChatSessionMetadata {
 function metadataToSession(metadata: ChatSessionMetadata, messages: Message[] = []): ChatSession {
   // Prefer provided full messages; otherwise hydrate compact text-only previews.
   const effectiveMessages =
-    messages.length > 0
-      ? messages
-      : (metadata.recentMessages ?? []).map(compactPreviewToMessage)
+    messages.length > 0 ? messages : (metadata.recentMessages ?? []).map(compactPreviewToMessage)
   return {
     id: metadata.id,
     title: metadata.title,

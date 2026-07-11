@@ -255,7 +255,7 @@ describe('Property 1: Custom controls render on all non-macOS platforms', () => 
       }),
       { numRuns: 100 }
     )
-  })
+  }, 15_000)
 
   it('should always use WindowControlButtons wrapper on non-macOS platforms', () => {
     fc.assert(

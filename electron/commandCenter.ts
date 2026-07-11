@@ -66,7 +66,7 @@ import {
 } from './windowsSearchService'
 import {
   clearCommandCenterSearchLearningCache,
-  personalizationBoost,
+  personalizationBoostMap,
   recordCommandCenterSelection,
 } from './commandCenterSearchLearning'
 import { isGitHubWorkspaceInstalled } from './githubWorkspace'
@@ -274,11 +274,21 @@ function withFreshBrowseIcons(index: CommandCenterIndex): CommandCenterIndex {
   }
 }
 
-function startBrowseIndexBuild(): Promise<CommandCenterIndex> {
+function startBrowseIndexBuild(options?: { deferLiveWindows?: boolean }): Promise<CommandCenterIndex> {
   if (browseIndexInflight) return browseIndexInflight
-  browseIndexInflight = buildCommandCenterIndex('')
+  const deferLiveWindows = options?.deferLiveWindows === true
+  browseIndexInflight = buildCommandCenterIndex('', { deferLiveWindows })
     .then((index) => {
       browseIndexCache = { at: Date.now(), index }
+      // Cold open skips the window PowerShell pass for first paint. Immediately
+      // rebuild with live windows so the next getIndex / soft refresh is complete.
+      if (deferLiveWindows) {
+        void buildCommandCenterIndex('', { deferLiveWindows: false })
+          .then((full) => {
+            browseIndexCache = { at: Date.now(), index: full }
+          })
+          .catch(() => undefined)
+      }
       return index
     })
     .finally(() => {
@@ -301,11 +311,12 @@ async function resolveBrowseIndex(): Promise<CommandCenterIndex> {
     }
     if (age <= BROWSE_INDEX_STALE_MAX_MS) {
       // Return immediately; refresh in the background for the next caller.
-      void startBrowseIndexBuild().catch(() => undefined)
+      void startBrowseIndexBuild({ deferLiveWindows: false }).catch(() => undefined)
       return withFreshBrowseIcons(cached.index)
     }
   }
-  const index = await startBrowseIndexBuild()
+  // First paint: skip waiting on window enumeration (often multi-second PowerShell).
+  const index = await startBrowseIndexBuild({ deferLiveWindows: true })
   return withFreshBrowseIcons(index)
 }
 
@@ -314,7 +325,8 @@ function prefetchBrowseIndex(): void {
   const cached = browseIndexCache
   if (cached && Date.now() - cached.at <= BROWSE_INDEX_FRESH_MS) return
   if (browseIndexInflight) return
-  void startBrowseIndexBuild().catch(() => undefined)
+  // Prefetch can take the full path (including windows) so first user open is warm.
+  void startBrowseIndexBuild({ deferLiveWindows: false }).catch(() => undefined)
 }
 
 type CommandCenterActionId = (typeof COMMAND_CENTER_ACTIONS)[number]['id']
@@ -404,11 +416,36 @@ async function getWindowMatches(): Promise<WindowMatch[]> {
   return result.success ? normalizeWindows(result.data) : []
 }
 
-async function getIndexStaticInputs(): Promise<IndexStaticCache> {
+async function getIndexStaticInputs(options?: {
+  deferLiveWindows?: boolean
+}): Promise<IndexStaticCache> {
   const stale = !indexStaticCache || Date.now() - indexStaticCache.at > INDEX_STATIC_CACHE_MS
   if (!stale && indexStaticCache) {
     return indexStaticCache
   }
+
+  // Cold empty-browse path: do not block first paint on window_list PowerShell
+  // (often the slowest step). Reuse last windows if any; refresh in background.
+  if (options?.deferLiveWindows) {
+    const [workflows, chats] = await Promise.all([
+      listCommandCenterWorkflows(),
+      getSessionMetadataAsync().catch(() => []),
+    ])
+    const windows = indexStaticCache?.windows ?? []
+    indexStaticCache = { at: Date.now(), workflows, windows, chats }
+    void getWindowMatches()
+      .then((freshWindows) => {
+        if (!indexStaticCache) return
+        indexStaticCache = {
+          ...indexStaticCache,
+          at: Date.now(),
+          windows: freshWindows,
+        }
+      })
+      .catch(() => undefined)
+    return indexStaticCache
+  }
+
   const [workflows, windows, chats] = await Promise.all([
     listCommandCenterWorkflows(),
     getWindowMatches(),
@@ -490,13 +527,17 @@ function appDiagnosticsFromToolResult(
   }
 }
 
-async function buildCommandCenterIndex(query: unknown = ''): Promise<CommandCenterIndex> {
+async function buildCommandCenterIndex(
+  query: unknown = '',
+  options?: { deferLiveWindows?: boolean }
+): Promise<CommandCenterIndex> {
   const rawQuery = indexQuery(query)
+  const deferLiveWindows = Boolean(options?.deferLiveWindows) && !rawQuery
   const githubInstalled = await isGitHubWorkspaceInstalled()
   const parsedQuery = parseCommandCenterQuery(rawQuery)
   const appQuery = parsedQuery.normalizedText
   const [staticInputs, appsResult] = await Promise.all([
-    getIndexStaticInputs(),
+    getIndexStaticInputs({ deferLiveWindows }),
     appQuery ? executeAppFind({ query: appQuery }) : executeAppList(),
   ])
   const { workflows, windows, chats } = staticInputs
@@ -919,25 +960,26 @@ function learningIdentity(item: CommandCenterIndexItem): string {
 
 async function rankItems(
   items: CommandCenterIndexItem[],
-  rawQuery: string
+  rawQuery: string,
+  boosts?: Map<string, number>
 ): Promise<CommandCenterIndexItem[]> {
   const parsed = parseCommandCenterQuery(rawQuery)
-  const ranked = await Promise.all(
-    items.map(async (item) => {
-      const source = searchSourceForItem(item)
-      if (rawQuery && !queryAllowsSource(parsed, source)) {
-        return { ...item, score: 0, matchReasons: [] }
-      }
-      const lexical = lexicalScoreForItem(item, rawQuery)
-      if (rawQuery && lexical.score <= 0) return { ...item, score: 0, matchReasons: [] }
-      const learning = await personalizationBoost(learningIdentity(item), rawQuery)
-      return {
-        ...item,
-        score: lexical.score + learning,
-        matchReasons: learning > 0 ? [...lexical.matchReasons, 'personalized'] : lexical.matchReasons,
-      }
-    })
-  )
+  const identities = items.map((item) => learningIdentity(item))
+  const learningMap = boosts ?? (await personalizationBoostMap(identities, rawQuery))
+  const ranked = items.map((item) => {
+    const source = searchSourceForItem(item)
+    if (rawQuery && !queryAllowsSource(parsed, source)) {
+      return { ...item, score: 0, matchReasons: [] as string[] }
+    }
+    const lexical = lexicalScoreForItem(item, rawQuery)
+    if (rawQuery && lexical.score <= 0) return { ...item, score: 0, matchReasons: [] as string[] }
+    const learning = learningMap.get(learningIdentity(item)) ?? 0
+    return {
+      ...item,
+      score: lexical.score + learning,
+      matchReasons: learning > 0 ? [...lexical.matchReasons, 'personalized'] : lexical.matchReasons,
+    }
+  })
   return ranked.sort(
     (a, b) => (b.score ?? 0) - (a.score ?? 0) || a.title.localeCompare(b.title)
   )
@@ -947,13 +989,19 @@ async function rankCommandCenterIndex(
   index: CommandCenterIndex,
   rawQuery: string
 ): Promise<CommandCenterIndex> {
+  const flat = flattenIndex(index)
+  // One secure-storage + learning-file load for the whole index.
+  const boosts = await personalizationBoostMap(
+    flat.map((item) => learningIdentity(item)),
+    rawQuery
+  )
   const [workflows, apps, files, windows, actions, chats] = await Promise.all([
-    rankItems(index.workflows, rawQuery),
-    rankItems(index.apps, rawQuery),
-    rankItems(index.files, rawQuery),
-    rankItems(index.windows, rawQuery),
-    rankItems(index.actions, rawQuery),
-    rankItems(index.chats, rawQuery),
+    rankItems(index.workflows, rawQuery, boosts),
+    rankItems(index.apps, rawQuery, boosts),
+    rankItems(index.files, rawQuery, boosts),
+    rankItems(index.windows, rawQuery, boosts),
+    rankItems(index.actions, rawQuery, boosts),
+    rankItems(index.chats, rawQuery, boosts),
   ])
   const all = [...workflows, ...apps, ...files, ...windows, ...actions, ...chats]
   const bestMatches = rawQuery
@@ -1295,6 +1343,12 @@ export function setCommandCenterExtensionEnabled(enabled: boolean): {
   extensionEnabled = enabled
   if (enabled) {
     registerShortcut()
+    // Warm app snapshot + browse index as soon as the dashboard enables CC so
+    // the first shortcut often hits a hot cache instead of spawning PowerShell.
+    // Do not preload the BrowserWindow (keeps the second renderer create-on-demand).
+    warmAppIndex()
+    prefetchBrowseIndex()
+    warmWindowsSearch()
   } else {
     unregisterShortcut()
     // Destroy (not just hide) so the second renderer process exits immediately

@@ -68,6 +68,8 @@ describe('CommandCenterOverlay', () => {
         addRepository: vi.fn(),
         startSignIn: vi.fn(),
         signOut: vi.fn(),
+        disconnect: vi.fn(),
+        copyUserCode: vi.fn(async () => true),
         mutate: vi.fn(),
         selectDiff: vi.fn(),
         onChanged: vi.fn(() => vi.fn()),
@@ -560,6 +562,47 @@ describe('CommandCenterOverlay', () => {
     expect(screen.queryByText('About Java')).not.toBeInTheDocument()
   })
 
+  it('ignores stale empty-browse scores so frequent apps do not match unrelated queries', async () => {
+    // Main still returns empty-browse rows (high score/rank) until the debounced
+    // query-specific getIndex resolves. Client scoring must not treat those scores
+    // as lexical matches.
+    window.commandCenter.getIndex = vi.fn(async () => ({
+      workflows: [],
+      apps: [
+        {
+          id: 'app:spotify',
+          type: 'app',
+          title: 'Spotify',
+          hint: 'Application',
+          aliases: ['Spotify'],
+          rank: 1500,
+          score: 1600,
+        },
+        {
+          id: 'app:kiro',
+          type: 'app',
+          title: 'Kiro',
+          hint: 'Application',
+          aliases: ['Kiro'],
+          rank: 10,
+          score: 20,
+        },
+      ],
+      windows: [],
+      actions: [],
+      chats: [],
+    }))
+
+    render(<CommandCenterOverlay />)
+    await screen.findByText('Spotify')
+
+    const input = await screen.findByRole('textbox', { name: /search command center/i })
+    fireEvent.change(input, { target: { value: 'kiro' } })
+
+    expect(screen.getByText('Kiro')).toBeInTheDocument()
+    expect(screen.queryByText('Spotify')).not.toBeInTheDocument()
+  })
+
   it('supports follow-up searches from the cached browse app list', async () => {
     window.commandCenter.getIndex = vi.fn(async (query?: string) => ({
       workflows: [],
@@ -695,6 +738,7 @@ describe('CommandCenterOverlay', () => {
         'data:image/png;base64,kiro'
       )
     })
+    // Initial load + zero-delay search refresh (+ optional one cold windows follow-up).
     expect(window.commandCenter.getIndex).toHaveBeenCalledTimes(2)
   })
 

@@ -484,7 +484,7 @@ export interface CommandCenterSubmitResult {
 
 export type GitHubWorkspaceAccount =
   | { status: 'signed_out'; setupRequired?: boolean; error?: string }
-  | { status: 'signing_in'; verificationUrl?: string }
+  | { status: 'signing_in'; verificationUrl: string; userCode: string; expiresAt: number }
   | { status: 'signed_in'; login: string; name?: string; avatarUrl?: string }
 
 export interface GitHubWorkspaceRepositorySummary {
@@ -542,6 +542,8 @@ export interface GitHubWorkspaceApi {
   addRepository: () => Promise<GitHubWorkspaceState>
   startSignIn: () => Promise<GitHubWorkspaceAccount>
   signOut: () => Promise<GitHubWorkspaceAccount>
+  disconnect: () => Promise<GitHubWorkspaceAccount>
+  copyUserCode: (userCode: string) => Promise<boolean>
   mutate: (mutation: GitHubWorkspaceMutation) => Promise<GitHubWorkspaceState>
   selectDiff: (repositoryId: string, changeId: string) => Promise<string>
   onChanged: (callback: (state: GitHubWorkspaceState) => void) => () => void

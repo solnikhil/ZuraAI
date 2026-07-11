@@ -310,6 +310,30 @@ describe('appIndexService', () => {
     expect((await service.listApps()).apps[0]).toMatchObject({ name: 'Launched App' })
   })
 
+  it('ranks most frequently launched apps above a one-off recent open', async () => {
+    const { service } = await loadService({
+      nativeApps: [
+        { name: 'Habit App', appUserModelId: 'Habit.App' },
+        { name: 'One-Off App', appUserModelId: 'OneOff.App' },
+      ],
+      userAssistEntries: [
+        {
+          name: 'One-Off App',
+          usageCount: 1,
+          lastUsedAt: new Date(Date.now() - 30_000).toISOString(),
+        },
+      ],
+    })
+
+    await service.refreshAppIndex()
+    const habit = (await service.findApps('habit')).matches[0]
+    for (let i = 0; i < 8; i += 1) {
+      await service.recordAppLaunch(habit.id)
+    }
+
+    expect((await service.listApps()).apps[0]).toMatchObject({ name: 'Habit App' })
+  })
+
   it('does not use native AppUserModelIDs as icon paths', async () => {
     const { service } = await loadService({
       nativeApps: [{ name: 'Native Only', appUserModelId: 'Native.Only' }],

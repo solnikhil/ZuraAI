@@ -92,16 +92,53 @@ async function hashesFor(identity: string, query: string): Promise<{
   }
 }
 
-export async function personalizationBoost(identity: string, query: string): Promise<number> {
-  const hashes = await hashesFor(identity, query)
-  if (!hashes) return 0
-  const store = await loadStore()
-  const entry = store.entries.find((candidate) => candidate.resultHash === hashes.resultHash)
-  if (!entry) return 0
+function boostFromEntry(
+  entry: LearningEntry,
+  queryHashes: string[],
+  emptyBrowse: boolean
+): number {
   const age = Math.max(0, Date.now() - entry.lastSelectedAt)
   const decay = Math.pow(0.5, age / HALF_LIFE_MS)
-  const queryMatch = hashes.queryHashes.some((hash) => entry.queryHashes.includes(hash))
-  return Math.round(Math.min(35, (Math.log2(entry.count + 1) * 7 + (queryMatch ? 14 : 0)) * decay))
+  const queryMatch = queryHashes.some((hash) => entry.queryHashes.includes(hash))
+  // Empty browse: open frequency must actually move the list (same order of magnitude as app ranks).
+  // Typed search: meaningful tie-breaker among real lexical matches; stay under exact/prefix scores.
+  if (emptyBrowse) {
+    return Math.round(
+      Math.min(1200, (Math.log2(entry.count + 1) * 220 + Math.min(entry.count * 25, 400)) * decay)
+    )
+  }
+  return Math.round(
+    Math.min(120, (Math.log2(entry.count + 1) * 18 + (queryMatch ? 40 : 8)) * decay)
+  )
+}
+
+export async function personalizationBoost(identity: string, query: string): Promise<number> {
+  const map = await personalizationBoostMap([identity], query)
+  return map.get(identity) ?? 0
+}
+
+/** Batch personalization for an index build — one key/store load for all identities. */
+export async function personalizationBoostMap(
+  identities: string[],
+  query: string
+): Promise<Map<string, number>> {
+  const result = new Map<string, number>()
+  if (identities.length === 0) return result
+  const key = await getLearningKey()
+  if (!key) {
+    for (const identity of identities) result.set(identity, 0)
+    return result
+  }
+  const store = await loadStore()
+  const byHash = new Map(store.entries.map((entry) => [entry.resultHash, entry]))
+  const queryHashes = querySignatures(query).map((signature) => hmac(key, `query:${signature}`))
+  const emptyBrowse = queryHashes.length === 0
+  for (const identity of identities) {
+    const resultHash = hmac(key, `result:${identity}`)
+    const entry = byHash.get(resultHash)
+    result.set(identity, entry ? boostFromEntry(entry, queryHashes, emptyBrowse) : 0)
+  }
+  return result
 }
 
 export async function recordCommandCenterSelection(identity: string, query: string): Promise<void> {

@@ -1,4 +1,4 @@
-import { app, dialog, ipcMain, shell } from 'electron'
+import { app, clipboard, dialog, ipcMain, shell } from 'electron'
 import crypto from 'crypto'
 import fs from 'fs/promises'
 import path from 'path'
@@ -6,6 +6,12 @@ import { exec as execGit } from 'dugite'
 import { getSecureValueAsync, setSecureValueAsync } from './secureStorage'
 import { writeFileAtomic } from './utils/atomicFile'
 import { getCommandCenterWindow } from './windows/commandCenterOverlay'
+import {
+  classifyGitHubDevicePoll,
+  isGitHubDeviceFlowExpired,
+  isValidGitHubDeviceUserCode,
+  redactGitHubSecrets,
+} from './githubWorkspaceSecurity'
 import type {
   GitHubWorkspaceAccount,
   GitHubWorkspaceCommit,
@@ -20,12 +26,15 @@ const INSTALL_FILE = 'zura-store-products.json'
 const TOKEN_KEY = 'github.workspace.oauthToken'
 const MAX_REPOSITORIES = 200
 const MAX_COMMIT_MESSAGE = 10_000
-const OAUTH_CLIENT_ID = process.env.ZURA_GITHUB_OAUTH_CLIENT_ID?.trim() ?? ''
+// OAuth client IDs are public identifiers. This ZuraAI-owned OAuth App has
+// Device Flow enabled; no client secret is generated, shipped, or required.
+const OAUTH_CLIENT_ID = process.env.ZURA_GITHUB_OAUTH_CLIENT_ID?.trim() || 'Ov23lia9o7CSXoWqom8M'
 
 interface StoredRepository { id: string; path: string; alias?: string; lastOpenedAt: number }
 let selectedRepositoryId: string | undefined
 let selectedChanges = new Map<string, Set<string>>()
 let operation: Promise<unknown> = Promise.resolve()
+let authAttempt = 0
 
 const storePath = () => path.join(app.getPath('userData'), STORE_NAME)
 const installPath = () => path.join(app.getPath('userData'), INSTALL_FILE)
@@ -77,16 +86,20 @@ async function networkGit(repositoryPath: string, args: string[]) {
     '@echo off\r\necho %~1 | findstr /I "Username" >nul && (echo x-access-token& exit /b 0)\r\necho %ZURA_GITHUB_TOKEN%\r\n',
     { encoding: 'utf8', mode: 0o700 }
   )
-  const result = await execGit(['-c', 'credential.helper=', ...args], repositoryPath, {
-    env: {
-      ...process.env,
-      GIT_TERMINAL_PROMPT: '0',
-      GIT_ASKPASS: helperPath,
-      ZURA_GITHUB_TOKEN: token || undefined,
-    },
-  })
-  if (result.exitCode !== 0) throw new Error(result.stderr.trim() || `Git exited with ${result.exitCode}.`)
-  return result.stdout
+  try {
+    const result = await execGit(['-c', 'credential.helper=', ...args], repositoryPath, {
+      env: {
+        ...process.env,
+        GIT_TERMINAL_PROMPT: '0',
+        GIT_ASKPASS: helperPath,
+        ZURA_GITHUB_TOKEN: token || undefined,
+      },
+    })
+    if (result.exitCode !== 0) throw new Error(redactGitHubSecrets(result.stderr.trim()) || `Git exited with ${result.exitCode}.`)
+    return result.stdout
+  } finally {
+    await fs.rm(helperPath, { force: true }).catch(() => undefined)
+  }
 }
 
 async function accountState(): Promise<GitHubWorkspaceAccount> {
@@ -97,7 +110,7 @@ async function accountState(): Promise<GitHubWorkspaceAccount> {
     if (!response.ok) return { status: 'signed_out', error: response.status === 401 ? 'GitHub authorization expired. Sign in again.' : `GitHub returned ${response.status}.` }
     const user = await response.json() as { login: string; name?: string; avatar_url?: string }
     return { status: 'signed_in', login: user.login, name: user.name, avatarUrl: user.avatar_url }
-  } catch (error) { return { status: 'signed_out', error: error instanceof Error ? error.message : 'Unable to reach GitHub.' } }
+  } catch (error) { return { status: 'signed_out', error: error instanceof Error ? redactGitHubSecrets(error.message) : 'Unable to reach GitHub.' } }
 }
 
 async function repositorySummary(repo: StoredRepository): Promise<GitHubWorkspaceRepositorySummary> {
@@ -140,6 +153,57 @@ export async function getGitHubWorkspaceState(): Promise<GitHubWorkspaceState> {
 
 function emitChanged(state: GitHubWorkspaceState) { getCommandCenterWindow()?.webContents.send('github-workspace:changed', state) }
 
+async function emitAccount(account: GitHubWorkspaceAccount): Promise<void> {
+  const stored = await readStore()
+  if (!selectedRepositoryId && stored[0]) selectedRepositoryId = stored[0].id
+  const repositories = await Promise.all(stored.map(repositorySummary))
+  const selected = stored.find((repo) => repo.id === selectedRepositoryId)
+  emitChanged({ account, repositories, selectedRepositoryId, ...(await selectedDetails(selected)) })
+}
+
+async function pollDeviceAuthorization(
+  attempt: number,
+  deviceCode: string,
+  intervalSeconds: number,
+  expiresAt: number
+): Promise<void> {
+  if (attempt !== authAttempt) return
+  if (isGitHubDeviceFlowExpired(Date.now(), expiresAt)) {
+    await emitAccount({ status: 'signed_out', error: 'The GitHub sign-in code expired. Try again.' })
+    return
+  }
+  const body = new URLSearchParams({
+    client_id: OAUTH_CLIENT_ID,
+    device_code: deviceCode,
+    grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
+  })
+  try {
+    const response = await fetch('https://github.com/login/oauth/access_token', {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'ZuraAI' },
+      body,
+    })
+    const result = await response.json() as { access_token?: string; error?: string; error_description?: string }
+    if (attempt !== authAttempt) return
+    const decision = classifyGitHubDevicePoll(result, intervalSeconds)
+    if (decision.kind === 'authorized') {
+      if (!(await setSecureValueAsync(TOKEN_KEY, decision.token))) {
+        await emitAccount({ status: 'signed_out', error: 'Secure storage is unavailable. GitHub was not connected.' })
+        return
+      }
+      emitChanged(await getGitHubWorkspaceState())
+      return
+    }
+    if (decision.kind === 'retry') {
+      setTimeout(() => void pollDeviceAuthorization(attempt, deviceCode, decision.intervalSeconds, expiresAt), decision.intervalSeconds * 1000)
+      return
+    }
+    await emitAccount({ status: 'signed_out', error: decision.message })
+  } catch (error) {
+    await emitAccount({ status: 'signed_out', error: error instanceof Error ? redactGitHubSecrets(error.message) : 'Unable to reach GitHub.' })
+  }
+}
+
 async function performMutation(mutation: GitHubWorkspaceMutation): Promise<GitHubWorkspaceState> {
   const repositories = await readStore()
   const repository = 'repositoryId' in mutation ? repositories.find((item) => item.id === mutation.repositoryId) : undefined
@@ -172,7 +236,7 @@ async function performMutation(mutation: GitHubWorkspaceMutation): Promise<GitHu
 export function registerGitHubWorkspaceHandlers() {
   ipcMain.handle('github-workspace:get-installed', () => isGitHubWorkspaceInstalled())
   ipcMain.handle('github-workspace:install', async () => { await setGitHubWorkspaceInstalled(true); return true })
-  ipcMain.handle('github-workspace:uninstall', async () => { await setGitHubWorkspaceInstalled(false); await setSecureValueAsync(TOKEN_KEY, ''); selectedRepositoryId = undefined; selectedChanges.clear(); return true })
+  ipcMain.handle('github-workspace:uninstall', async () => { authAttempt += 1; await setGitHubWorkspaceInstalled(false); await setSecureValueAsync(TOKEN_KEY, ''); selectedRepositoryId = undefined; selectedChanges.clear(); await shell.openExternal('https://github.com/settings/connections/applications/' + OAUTH_CLIENT_ID); return true })
   ipcMain.handle('github-workspace:get-state', () => getGitHubWorkspaceState())
   ipcMain.handle('github-workspace:add-repository', async () => {
     await requireInstalled()
@@ -189,17 +253,29 @@ export function registerGitHubWorkspaceHandlers() {
   })
   ipcMain.handle('github-workspace:start-sign-in', async () => {
     await requireInstalled()
-    if (!OAUTH_CLIENT_ID) return { status: 'signed_out', setupRequired: true, error: 'Set ZURA_GITHUB_OAUTH_CLIENT_ID to enable GitHub sign-in.' }
-    const state = crypto.randomBytes(24).toString('base64url')
-    const verifier = crypto.randomBytes(48).toString('base64url')
-    const challenge = crypto.createHash('sha256').update(verifier).digest('base64url')
-    await setSecureValueAsync('github.workspace.oauthState', JSON.stringify({ state, verifier, createdAt: Date.now() }))
-    const url = new URL('https://github.com/login/oauth/authorize')
-    url.searchParams.set('client_id', OAUTH_CLIENT_ID); url.searchParams.set('scope', 'repo user workflow'); url.searchParams.set('state', state); url.searchParams.set('code_challenge', challenge); url.searchParams.set('code_challenge_method', 'S256')
-    await shell.openExternal(url.toString())
-    return { status: 'signing_in' }
+    const response = await fetch('https://github.com/login/device/code', {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'ZuraAI' },
+      body: new URLSearchParams({ client_id: OAUTH_CLIENT_ID, scope: 'repo read:user workflow' }),
+    })
+    const result = await response.json() as { device_code?: string; user_code?: string; verification_uri?: string; expires_in?: number; interval?: number; error_description?: string }
+    if (!response.ok || !result.device_code || !result.user_code || !result.verification_uri) {
+      return { status: 'signed_out', error: result.error_description || 'GitHub did not start device authorization.' }
+    }
+    const attempt = ++authAttempt
+    const expiresAt = Date.now() + Math.max(60, result.expires_in ?? 900) * 1000
+    const account: GitHubWorkspaceAccount = { status: 'signing_in', verificationUrl: result.verification_uri, userCode: result.user_code, expiresAt }
+    await shell.openExternal(result.verification_uri)
+    setTimeout(() => void pollDeviceAuthorization(attempt, result.device_code!, Math.max(5, result.interval ?? 5), expiresAt), Math.max(5, result.interval ?? 5) * 1000)
+    return account
   })
-  ipcMain.handle('github-workspace:sign-out', async () => { await setSecureValueAsync(TOKEN_KEY, ''); return { status: 'signed_out', setupRequired: !OAUTH_CLIENT_ID } })
+  ipcMain.handle('github-workspace:sign-out', async () => { authAttempt += 1; await setSecureValueAsync(TOKEN_KEY, ''); return { status: 'signed_out' } })
+  ipcMain.handle('github-workspace:disconnect', async () => { authAttempt += 1; await setSecureValueAsync(TOKEN_KEY, ''); await shell.openExternal('https://github.com/settings/connections/applications/' + OAUTH_CLIENT_ID); return { status: 'signed_out' } })
+  ipcMain.handle('github-workspace:copy-user-code', (_event, userCode: unknown) => {
+    if (!isValidGitHubDeviceUserCode(userCode)) return false
+    clipboard.writeText(userCode)
+    return true
+  })
   ipcMain.handle('github-workspace:mutate', async (_event, mutation: GitHubWorkspaceMutation) => {
     await requireInstalled()
     operation = operation.then(() => performMutation(mutation)); const state = await operation as GitHubWorkspaceState; emitChanged(state); return state
@@ -216,30 +292,6 @@ export function registerGitHubWorkspaceHandlers() {
 }
 
 export function unregisterGitHubWorkspaceHandlers() {
-  for (const channel of ['get-installed','install','uninstall','get-state','add-repository','start-sign-in','sign-out','mutate','select-diff']) ipcMain.removeHandler(`github-workspace:${channel}`)
-}
-
-export async function handleGitHubWorkspaceOAuthUrl(input: string): Promise<boolean> {
-  let url: URL
-  try { url = new URL(input) } catch { return false }
-  if (url.protocol !== 'zura-github:' || url.host !== 'oauth') return false
-  const code = url.searchParams.get('code')
-  const returnedState = url.searchParams.get('state')
-  const pendingRaw = await getSecureValueAsync('github.workspace.oauthState')
-  await setSecureValueAsync('github.workspace.oauthState', '')
-  if (!code || !returnedState || !pendingRaw || !OAUTH_CLIENT_ID) return false
-  let pending: { state: string; verifier: string; createdAt: number }
-  try { pending = JSON.parse(pendingRaw) } catch { return false }
-  if (pending.state !== returnedState || Date.now() - pending.createdAt > 10 * 60 * 1000) return false
-  const response = await fetch('https://github.com/login/oauth/access_token', {
-    method: 'POST',
-    headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'User-Agent': 'ZuraAI' },
-    body: JSON.stringify({ client_id: OAUTH_CLIENT_ID, code, code_verifier: pending.verifier, redirect_uri: 'zura-github://oauth' }),
-  })
-  const result = await response.json() as { access_token?: string; error_description?: string }
-  if (!response.ok || !result.access_token) return false
-  if (!(await setSecureValueAsync(TOKEN_KEY, result.access_token))) return false
-  const state = await getGitHubWorkspaceState()
-  emitChanged(state)
-  return true
+  authAttempt += 1
+  for (const channel of ['get-installed','install','uninstall','get-state','add-repository','start-sign-in','sign-out','disconnect','copy-user-code','mutate','select-diff']) ipcMain.removeHandler(`github-workspace:${channel}`)
 }

@@ -120,6 +120,11 @@ function indexPath(): string {
 }
 
 function shortcutRoots(): Array<{ path: string; source: AppIndexSource }> {
+  const systemDrive =
+    process.env.SystemDrive || path.parse(process.env.SystemRoot || '').root || 'C:\\'
+  const programData = process.env.ProgramData || path.join(systemDrive, 'ProgramData')
+  const publicProfile = process.env.PUBLIC || path.join(systemDrive, 'Users', 'Public')
+
   return [
     {
       path: path.join(
@@ -133,9 +138,12 @@ function shortcutRoots(): Array<{ path: string; source: AppIndexSource }> {
       ),
       source: 'start-menu',
     },
-    { path: 'C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs', source: 'start-menu' },
+    {
+      path: path.join(programData, 'Microsoft', 'Windows', 'Start Menu', 'Programs'),
+      source: 'start-menu',
+    },
     { path: path.join(os.homedir(), 'Desktop'), source: 'desktop' },
-    { path: 'C:\\Users\\Public\\Desktop', source: 'desktop' },
+    { path: path.join(publicProfile, 'Desktop'), source: 'desktop' },
   ]
 }
 
@@ -813,10 +821,7 @@ function uwpFamilyNamesFor(apps: AppIndexEntry[]): string[] {
   const ranked = apps
     .filter(
       (app) =>
-        !!app.appUserModelId &&
-        app.appUserModelId.includes('!') &&
-        !app.targetPath &&
-        !app.iconPath
+        !!app.appUserModelId && app.appUserModelId.includes('!') && !app.targetPath && !app.iconPath
     )
     .sort(
       (a, b) =>
@@ -1018,25 +1023,28 @@ function scoreApp(appEntry: AppIndexEntry, query: string): number {
   const normalizedQuery = normalizeName(query)
   const recentAt = Math.max(appEntry.lastLaunchedAt ?? 0, appEntry.lastUsedAt ?? 0)
   const ageHours = recentAt > 0 ? (Date.now() - recentAt) / 3_600_000 : Number.POSITIVE_INFINITY
+  // Recency is a secondary nudge — one recent open must not bury a frequently opened app.
   const recencyScore =
     recentAt <= 0
       ? 0
       : ageHours <= 1
-        ? 1600
+        ? 450
         : ageHours <= 24
-          ? 1300
+          ? 320
           : ageHours <= 24 * 7
-            ? 900
+            ? 200
             : ageHours <= 24 * 30
-              ? 450
-              : 120
+              ? 100
+              : 40
+  // Frequency is primary for empty browse: Command Center launches first, UserAssist second.
   const frequencyScore =
-    Math.min((appEntry.launchCount ?? 0) * 30, 300) + Math.min(appEntry.usageCount ?? 0, 200)
-  if (!normalizedQuery) return recencyScore + frequencyScore
+    Math.min((appEntry.launchCount ?? 0) * 80, 1200) + Math.min((appEntry.usageCount ?? 0) * 2, 400)
+  if (!normalizedQuery) return frequencyScore + recencyScore
   let score = scoreAppSearch(appEntry.name, appEntry.aliases, normalizedQuery)
   if (score === 0) return 0
-  score += Math.min(recencyScore / 20, 80)
-  score += Math.min(frequencyScore / 20, 25)
+  // Cap usage additives so typed relevance still wins over habitual opens.
+  score += Math.min(recencyScore / 20, 40)
+  score += Math.min(frequencyScore / 20, 40)
   return score
 }
 

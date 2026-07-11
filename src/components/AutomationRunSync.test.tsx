@@ -137,7 +137,8 @@ describe('AutomationRunSync', () => {
     expect(updateStreamingMessage).toHaveBeenCalledWith(
       'automation-task-1-request-1',
       'automation-assistant-message',
-      expect.objectContaining({ content: 'Automation output' })
+      expect.objectContaining({ content: 'Automation output' }),
+      { persist: true }
     )
     expect(resolveAutomationRun).toHaveBeenCalledWith(
       expect.objectContaining({

@@ -228,6 +228,8 @@ const GITHUB_WORKSPACE_INVOKE_CHANNELS = new Set<string>([
   'github-workspace:add-repository',
   'github-workspace:start-sign-in',
   'github-workspace:sign-out',
+  'github-workspace:disconnect',
+  'github-workspace:copy-user-code',
   'github-workspace:mutate',
   'github-workspace:select-diff',
 ])
@@ -879,6 +881,14 @@ contextBridge.exposeInMainWorld(
     signOut: () => {
       assertAllowed('invoke', 'github-workspace:sign-out', GITHUB_WORKSPACE_INVOKE_CHANNELS)
       return ipcRenderer.invoke('github-workspace:sign-out')
+    },
+    disconnect: () => {
+      assertAllowed('invoke', 'github-workspace:disconnect', GITHUB_WORKSPACE_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('github-workspace:disconnect')
+    },
+    copyUserCode: (userCode: string) => {
+      assertAllowed('invoke', 'github-workspace:copy-user-code', GITHUB_WORKSPACE_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('github-workspace:copy-user-code', userCode) as Promise<boolean>
     },
     mutate: (mutation: GitHubWorkspaceMutation) => {
       assertAllowed('invoke', 'github-workspace:mutate', GITHUB_WORKSPACE_INVOKE_CHANNELS)

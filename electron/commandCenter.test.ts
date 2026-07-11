@@ -196,7 +196,12 @@ describe('Command Center main service', () => {
 
     vi.doMock('./commandCenterSearchLearning', () => ({
       clearCommandCenterSearchLearningCache: vi.fn(),
-      personalizationBoost: vi.fn(() => 0),
+      personalizationBoost: vi.fn(async () => 0),
+      personalizationBoostMap: vi.fn(async (identities: string[]) => {
+        const map = new Map<string, number>()
+        for (const id of identities) map.set(id, 0)
+        return map
+      }),
       recordCommandCenterSelection: vi.fn(async () => undefined),
     }))
 
@@ -353,6 +358,7 @@ describe('Command Center main service', () => {
       destroyCommandCenterWindow,
       preloadCommandCenterWindow,
     } = await loadService()
+    const { warmAppIndex } = await import('./appIndexService')
 
     expect(service.setCommandCenterExtensionEnabled(true)).toEqual({
       enabled: true,
@@ -361,6 +367,8 @@ describe('Command Center main service', () => {
     })
     expect(register).toHaveBeenCalledWith('CommandOrControl+Shift+Space', expect.any(Function))
     expect(preloadCommandCenterWindow).not.toHaveBeenCalled()
+    // Warm app snapshot + browse index on enable so first open is less cold.
+    expect(warmAppIndex).toHaveBeenCalled()
 
     service.setCommandCenterExtensionEnabled(false)
     expect(unregister).toHaveBeenCalledWith('CommandOrControl+Shift+Space')

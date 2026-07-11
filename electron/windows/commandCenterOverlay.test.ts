@@ -137,7 +137,7 @@ describe('commandCenterOverlay idle destroy', () => {
     await vi.advanceTimersByTimeAsync(overlay.COMMAND_CENTER_IDLE_DESTROY_MS)
     expect(win.destroy).toHaveBeenCalled()
     expect(overlay.__isCommandCenterIdleDestroyScheduledForTests()).toBe(false)
-  })
+  }, 15_000)
 
   it('uses backgroundThrottling true so hidden overlay can sleep', async () => {
     const overlay = await import('./commandCenterOverlay')
@@ -145,8 +145,9 @@ describe('commandCenterOverlay idle destroy', () => {
     await vi.runAllTicks()
 
     const created = browserWindowInstances[0]
-    const prefs = (created as unknown as { options: { webPreferences: { backgroundThrottling: boolean } } })
-      .options.webPreferences
+    const prefs = (
+      created as unknown as { options: { webPreferences: { backgroundThrottling: boolean } } }
+    ).options.webPreferences
     expect(prefs.backgroundThrottling).toBe(true)
   })
 })

@@ -152,7 +152,7 @@ Secrets:
 - API keys and MCP secrets live in `electron/secureStorage.ts`.
 - Stored provider keys include OpenRouter, Groq, Alibaba, Fireworks, DeepSeek, OpenCode Go, NVIDIA, Tavily, and Brevo.
 - The Command Center search-learning HMAC key is also stored through `safeStorage`; it is main-only and is not a provider credential.
-- GitHub Workspace OAuth access tokens and pending PKCE state are stored through `safeStorage`; tokens, authorization codes, and verifiers never cross into the renderer.
+- GitHub Workspace OAuth access tokens are stored through `safeStorage`; tokens and device codes never cross into the renderer. The short user verification code is renderer-visible only while sign-in is pending.
 - Renderer should read key presence when possible and hydrate actual secrets only when required for a provider/tool call.
 - `safeStorage` is required for secret reads/writes. Do not add plaintext secret persistence fallback.
 
@@ -436,11 +436,18 @@ main resolves repository paths and executes Git with the app-bundled `dugite`
 runtime. Repository metadata is stored in
 `app.getPath('userData')/github-workspace-repositories.json`; GitHub Desktop's
 private storage is never read. GitHub.com authentication uses a ZuraAI-owned
-OAuth client ID (`ZURA_GITHUB_OAUTH_CLIENT_ID`), system-browser authorization,
-PKCE, CSRF state, and the registered `zura-github://oauth` callback. Authenticated
+code-owned public OAuth client ID (optionally overridden by
+`ZURA_GITHUB_OAUTH_CLIENT_ID`) and GitHub Device Flow. Main requests and polls
+the fixed GitHub device endpoints at the server-provided interval; no client
+secret or callback protocol is used. The requested scopes are `repo`,
+`read:user`, and `workflow`; `workflow` is retained because the product may push
+changes under `.github/workflows`. Authenticated
 HTTPS Git operations use a main-owned askpass helper containing no secret; the
 token is supplied only in the bundled Git child process environment with
-terminal prompting disabled. The current
+terminal prompting disabled, and the helper file is deleted in `finally` after
+every operation. Disconnect and uninstall clear the local encrypted token and
+open the OAuth application's GitHub authorization page so the user can revoke
+the server-side grant without ZuraAI possessing a client secret. The current
 workspace supports local repository registration, status, file selection,
 textual diffs, history, commits, and serialized fetch/pull/push. The bundled Git
 directory is unpacked from ASAR for release execution. The surface is

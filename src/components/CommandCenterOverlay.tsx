@@ -319,12 +319,7 @@ function flattenIndex(
   return rows
 }
 
-function searchScore(item: CommandCenterIndexItem, query: string): number {
-  const trimmedQuery = query.trim()
-  if (!trimmedQuery) {
-    return item.type === 'app' && typeof item.rank === 'number' ? item.rank : 1
-  }
-  if (typeof item.score === 'number') return item.score
+function lexicalSearchScore(item: CommandCenterIndexItem, trimmedQuery: string): number {
   const parsed = parseCommandCenterQuery(trimmedQuery)
   const source =
     item.type === 'action'
@@ -351,6 +346,24 @@ function searchScore(item: CommandCenterIndexItem, query: string): number {
     default:
       return 0
   }
+}
+
+function searchScore(item: CommandCenterIndexItem, query: string): number {
+  const trimmedQuery = query.trim()
+  // Empty browse: prefer main score (rank + open-frequency learning), then app rank.
+  if (!trimmedQuery) {
+    if (typeof item.score === 'number') return item.score
+    return item.type === 'app' && typeof item.rank === 'number' ? item.rank : 1
+  }
+  // Always require a lexical match. Empty-browse `item.score` is always > 0 for
+  // frequently opened apps, so trusting it alone would flood search with
+  // unrelated high-rank rows until main re-ranks for this query.
+  const lexical = lexicalSearchScore(item, trimmedQuery)
+  if (lexical <= 0) return 0
+  // Query-ranked main scores are lexical + personalization (>= lexical). Prefer
+  // them when present so open history can break ties among real matches.
+  if (typeof item.score === 'number' && item.score >= lexical) return item.score
+  return lexical
 }
 
 function matchesItem(item: CommandCenterIndexItem, query: string): boolean {
@@ -468,6 +481,7 @@ function mergeNativeSearchResults(
 export default function CommandCenterOverlay() {
   const [mode, setMode] = useState<Mode>('search')
   const [commandView, setCommandView] = useState<CommandView>('root')
+  const [githubSignedIn, setGitHubSignedIn] = useState(false)
   const [input, setInput] = useState('')
   const [index, setIndex] = useState<CommandCenterIndex>(EMPTY_INDEX)
   const [browseApps, setBrowseApps] = useState<CommandCenterIndexItem[]>([])
@@ -1247,6 +1261,12 @@ export default function CommandCenterOverlay() {
   }
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    if (isGitHubView && event.key === 'Enter') {
+      event.preventDefault()
+      event.stopPropagation()
+      window.dispatchEvent(new CustomEvent('github-workspace:submit-sign-in'))
+      return
+    }
     if (event.key.startsWith('Arrow')) {
       selectionTouchedRef.current = true
       selectedItemIdRef.current = selectedItem?.id ?? null
@@ -1511,6 +1531,7 @@ export default function CommandCenterOverlay() {
               }}
               autoFocus
               value={input}
+              readOnly={isGitHubView}
               onChange={(event) => handleInputChange(event.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={
@@ -1579,6 +1600,9 @@ export default function CommandCenterOverlay() {
               <kbd>Tab</kbd>
               <span>{mode === 'ask' ? 'to Search' : 'to AI'}</span>
             </button>
+          )}
+          {isGitHubView && !githubSignedIn && (
+            <span className="command-center-github-login-hint"><kbd>Enter</kbd><span>to sign in</span></span>
           )}
         </div>
 
@@ -1771,7 +1795,7 @@ export default function CommandCenterOverlay() {
                 )}
               </div>
             ) : isGitHubView ? (
-              <GitHubWorkspace />
+              <GitHubWorkspace onSignedInChange={setGitHubSignedIn} />
             ) : isStoreView ? (
               <CommandCenterStore query={input} onOpenGitHub={openGitHubView} />
             ) : mode === 'search' ? (
@@ -2252,6 +2276,9 @@ export default function CommandCenterOverlay() {
           font-size: 11px;
           font-weight: 600;
         }
+
+        .command-center-github-login-hint { flex: none; display: inline-flex; align-items: center; gap: 6px; margin-right: 10px; color: rgba(255,231,238,.42); font-size: 10px; white-space: nowrap; }
+        .command-center-github-login-hint kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 4px; background: rgba(255,255,255,.045); color: rgba(255,239,244,.62); font: inherit; font-size: 8px; font-weight: 650; }
 
         .command-center-input-shell button,
         .command-center-chat-actions button,

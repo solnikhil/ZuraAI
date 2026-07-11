@@ -10,7 +10,6 @@ import { useSettings } from '../../contexts/SettingsContext'
 import { ToolCallIndicator, ToolResultDisplay } from '../../tools/ui'
 import { writeTextToClipboard } from '../../utils/clipboard'
 import type { Message } from '../../chat/types'
-
 import { MessageRenderer } from './ChatArea/MessageRenderer'
 import { StreamingMessage } from './ChatArea/StreamingMessage'
 import { InputArea } from './ChatArea/InputArea'
@@ -35,16 +34,12 @@ export default function ChatArea() {
   const { settings } = useSettings()
   const { showToast } = useToast()
   const { setSelectedFolderId, setDashboardView } = useAppShell()
-
   const streamingState = useStreamingState()
-
   const { draftText: input, setDraftText: setInput } = useComposerDraft()
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
   const [promptFocused, setPromptFocused] = useState(false)
-
   const inputTextareaRef = useRef<HTMLTextAreaElement | null>(null)
   const [isLoadingOlder, setIsLoadingOlder] = useState(false)
-
   const currentSession = sessions.find((s) => s.id === currentSessionId)
   const messages = currentSession?.messages || []
   const currentFolderId = currentSession?.folderId || undefined
@@ -67,7 +62,6 @@ export default function ChatArea() {
   const displayedSessionId = fallbackSession?.sessionId ?? currentSessionId
   const isShowingLoadingFallback = Boolean(fallbackSession)
   const displayedSessionIsCurrent = displayedSessionId === currentSessionId
-
   useEffect(() => {
     if (currentSessionId && messages.length > 0) {
       lastRenderedSessionRef.current = {
@@ -78,9 +72,7 @@ export default function ChatArea() {
   }, [currentSessionId, messages])
 
   const { isLoading, toolState, sendMessage, regenerateMessage, stopStreaming } = useStreamingChat({
-    onRegenerateStart: () => {
-      // Virtual list follows output when message count grows; no manual scroll needed.
-    },
+    onRegenerateStart: () => {},
   })
   const displayedIsLoading = isLoading && displayedSessionIsCurrent
   const handledChatLinkKeysRef = useRef(new Set<string>())
@@ -88,12 +80,10 @@ export default function ChatArea() {
     displayedSessionIsCurrent &&
     currentSessionMessageCount > displayedMessages.length &&
     displayedMessages.length > 0
-
   const vibe = useMemo(() => {
     const texts = settings.placeholderStyle === 'normal' ? NORMAL_PLACEHOLDERS : GENZ_PLACEHOLDERS
     return texts[Math.floor(Math.random() * texts.length)]
   }, [settings.placeholderStyle])
-
   const promptAutoHideSettings = settings.promptAutoHide
   const { isPromptHidden, resetTimer, triggerZoneProps } = usePromptAutoHide({
     enabled: promptAutoHideSettings.enabled,
