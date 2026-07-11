@@ -819,10 +819,9 @@ export default function CommandCenterOverlay() {
   }, [])
 
   const showGitHubCommitBar = isGitHubView && githubSignedIn && githubCommitMeta.hasRepository
-  // Only enable Commit when there is a summary and at least one local change.
-  // (Push is separate — don't let empty commits look like a failed push.)
+  // Only enable Commit when there is a summary and at least one *checked* file.
   const canGitHubCommit =
-    showGitHubCommitBar && githubSummary.trim().length > 0 && githubCommitMeta.changeCount > 0
+    showGitHubCommitBar && githubSummary.trim().length > 0 && githubCommitMeta.selectedCount > 0
 
   const runGitHubCommit = () => {
     void githubCommitHandlerRef.current?.()
@@ -1575,7 +1574,7 @@ export default function CommandCenterOverlay() {
                   ? githubCommitMeta.selectedCount
                     ? `Commit ${githubCommitMeta.selectedCount} selected file${githubCommitMeta.selectedCount === 1 ? '' : 's'}…`
                     : githubCommitMeta.changeCount
-                      ? `Summary for ${githubCommitMeta.changeCount} change${githubCommitMeta.changeCount === 1 ? '' : 's'}…`
+                      ? 'Check files to include in the commit…'
                       : 'Summary (required)'
                   : isChatMode
                     ? 'Ask a follow-up...'
@@ -1642,11 +1641,7 @@ export default function CommandCenterOverlay() {
               >
                 <Check size={14} />
                 Commit
-                {githubCommitMeta.selectedCount > 0
-                  ? ` ${githubCommitMeta.selectedCount}`
-                  : githubCommitMeta.changeCount > 0
-                    ? ` ${githubCommitMeta.changeCount}`
-                    : ''}
+                {githubCommitMeta.selectedCount > 0 ? ` ${githubCommitMeta.selectedCount}` : ''}
               </button>
             )}
           </div>
@@ -2353,6 +2348,7 @@ export default function CommandCenterOverlay() {
           gap: 10px;
         }
 
+        /* Match main-window primary actions (theme tokens, not a one-off palette). */
         .command-center-input-shell button.command-center-github-commit {
           flex: none;
           width: auto;
@@ -2360,59 +2356,37 @@ export default function CommandCenterOverlay() {
           height: 32px;
           gap: 6px;
           padding: 0 14px;
-          border: 1px solid rgba(201, 146, 131, 0.55);
+          border: 1px solid color-mix(in srgb, var(--theme-accent) 55%, transparent);
           border-radius: 8px;
-          background: linear-gradient(
-            180deg,
-            rgba(186, 118, 99, 0.95) 0%,
-            rgba(158, 96, 80, 0.98) 100%
-          );
-          color: #fff8f5;
+          background: var(--theme-accent);
+          color: var(--theme-text-inverse);
           font-size: 12.5px;
-          font-weight: 700;
+          font-weight: 600;
           letter-spacing: 0.01em;
           white-space: nowrap;
-          box-shadow:
-            inset 0 1px 0 rgba(255, 255, 255, 0.18),
-            0 1px 2px rgba(0, 0, 0, 0.28);
+          box-shadow: none;
           transition:
             background 120ms ease,
             border-color 120ms ease,
-            box-shadow 120ms ease,
-            transform 80ms ease,
             opacity 120ms ease;
         }
 
         .command-center-input-shell button.command-center-github-commit:hover:not(:disabled) {
-          border-color: rgba(232, 176, 158, 0.75);
-          background: linear-gradient(
-            180deg,
-            rgba(201, 132, 112, 0.98) 0%,
-            rgba(172, 108, 90, 1) 100%
-          );
-          box-shadow:
-            inset 0 1px 0 rgba(255, 255, 255, 0.22),
-            0 2px 8px rgba(0, 0, 0, 0.32);
+          border-color: color-mix(in srgb, var(--theme-accent-hover, var(--theme-accent)) 70%, transparent);
+          background: var(--theme-accent-hover, var(--theme-accent));
         }
 
         .command-center-input-shell button.command-center-github-commit:focus-visible {
-          outline: 2px solid rgba(201, 146, 131, 0.45);
+          outline: 2px solid var(--theme-accent-muted);
           outline-offset: 2px;
-        }
-
-        .command-center-input-shell button.command-center-github-commit:active:not(:disabled) {
-          transform: translateY(1px);
-          box-shadow:
-            inset 0 1px 2px rgba(0, 0, 0, 0.22),
-            0 0 0 transparent;
         }
 
         .command-center-input-shell button.command-center-github-commit:disabled {
           opacity: 0.42;
           cursor: default;
-          border-color: rgba(255, 239, 232, 0.12);
-          background: rgba(255, 245, 241, 0.08);
-          color: rgba(255, 236, 230, 0.48);
+          border-color: var(--theme-border);
+          background: var(--theme-surface-subtle);
+          color: var(--theme-text-muted);
           box-shadow: none;
         }
 

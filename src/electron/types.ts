@@ -517,12 +517,23 @@ export interface GitHubWorkspaceCommit {
   authoredAt: number
 }
 
+export interface GitHubWorkspaceWorktree {
+  id: string
+  path: string
+  branch?: string
+  isCurrent: boolean
+}
+
 export interface GitHubWorkspaceState {
   account: GitHubWorkspaceAccount
   repositories: GitHubWorkspaceRepositorySummary[]
   selectedRepositoryId?: string
   changes: GitHubWorkspaceFileChange[]
   history: GitHubWorkspaceCommit[]
+  /** Local branch names for the selected repository. */
+  branches: string[]
+  /** Linked worktrees for the selected repository. */
+  worktrees: GitHubWorkspaceWorktree[]
   diff?: string
   busy?: string
   error?: string
@@ -535,6 +546,8 @@ export type GitHubWorkspaceMutation =
   | { type: 'fetch'; repositoryId: string }
   | { type: 'pull'; repositoryId: string }
   | { type: 'push'; repositoryId: string }
+  | { type: 'checkout-branch'; repositoryId: string; branch: string }
+  | { type: 'open-worktree'; repositoryId: string; worktreeId: string }
 
 /** Open a resolved workspace path in the OS — never accepts freeform paths from the renderer. */
 export type GitHubWorkspaceOpenRequest =

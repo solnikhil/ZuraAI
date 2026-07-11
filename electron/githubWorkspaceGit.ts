@@ -32,11 +32,24 @@ export function resolveChangePath(repositoryPath: string, changePath: string): s
  * Build dugite/Git `-c` config args for a single network invocation.
  * Never rewrites the stored remote; credentials only live in process config.
  */
+/** Abort hung fetch/pull/push so the UI never sits on “Fetching…” forever. */
+export const NETWORK_GIT_TIMEOUT_MS = 90_000
+
 export function buildGithubNetworkConfigArgs(
   remoteUrl: string,
   token: string | null | undefined
 ): string[] {
-  const configArgs: string[] = ['-c', 'credential.helper=', '-c', 'credential.helper=!']
+  // Disable credential helpers (do NOT use `credential.helper=!` — that can hang
+  // on Windows by treating `!` as an external helper command).
+  const configArgs: string[] = [
+    '-c',
+    'credential.helper=',
+    // Abort transfers that stall (bytes/sec floor for N seconds).
+    '-c',
+    'http.lowSpeedLimit=1000',
+    '-c',
+    'http.lowSpeedTime=45',
+  ]
   const github = parseGithubRemote(remoteUrl)
   if (!github || !token) return configArgs
 
@@ -51,6 +64,15 @@ export function buildGithubNetworkConfigArgs(
   return configArgs
 }
 
+export function isNetworkGitTimeoutError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+  const err = error as { name?: string; message?: string; code?: string }
+  if (err.name === 'AbortError') return true
+  if (err.code === 'ABORT_ERR') return true
+  const message = typeof err.message === 'string' ? err.message : ''
+  return /aborted|abort/i.test(message)
+}
+
 /** Choose push argv based on whether the branch already tracks a remote. */
 export function selectPushArgs(branch: string, hasUpstream: boolean): string[] {
   const name = branch.trim()
@@ -61,14 +83,29 @@ export function selectPushArgs(branch: string, hasUpstream: boolean): string[] {
   return ['push', '-u', 'origin', name]
 }
 
-/** Paths to commit: checked files, or all changes when none are checked. */
-export function selectCommitPaths(
-  selectedPaths: Iterable<string>,
-  allChangePaths: readonly string[]
-): string[] {
-  const selected = [...selectedPaths].map((p) => p.trim()).filter(Boolean)
-  if (selected.length) return selected
-  return allChangePaths.map((p) => p.trim()).filter(Boolean)
+/**
+ * Paths to commit: only explicitly selected (checked) files.
+ * Empty selection means commit nothing — never falls back to all changes.
+ */
+export function selectCommitPaths(selectedPaths: Iterable<string>): string[] {
+  return [...selectedPaths].map((p) => p.trim()).filter(Boolean)
+}
+
+/**
+ * Default-checked model: every current change is selected unless the user has
+ * unchecked it (path present in `deselected`).
+ */
+export function isChangeSelected(path: string, deselected: ReadonlySet<string>): boolean {
+  return !deselected.has(path)
+}
+
+export function applyChangeSelection(
+  deselected: Set<string>,
+  path: string,
+  selected: boolean
+): void {
+  if (selected) deselected.delete(path)
+  else deselected.add(path)
 }
 
 export function classifyNetworkGitError(detail: string): string {

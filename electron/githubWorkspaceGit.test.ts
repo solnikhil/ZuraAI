@@ -5,6 +5,8 @@ import {
   classifyNetworkGitError,
   parseGithubRemote,
   resolveChangePath,
+  applyChangeSelection,
+  isChangeSelected,
   selectCommitPaths,
   selectPushArgs,
 } from './githubWorkspaceGit'
@@ -58,9 +60,17 @@ describe('GitHub Workspace git helpers', () => {
   })
 
   describe('buildGithubNetworkConfigArgs', () => {
-    it('disables credential helpers even without a token', () => {
+    it('disables credential helpers and sets stall timeouts without a token', () => {
       const args = buildGithubNetworkConfigArgs('https://example.com/r.git', null)
-      expect(args).toEqual(['-c', 'credential.helper=', '-c', 'credential.helper=!'])
+      expect(args).toEqual([
+        '-c',
+        'credential.helper=',
+        '-c',
+        'http.lowSpeedLimit=1000',
+        '-c',
+        'http.lowSpeedTime=45',
+      ])
+      expect(args.join('\n')).not.toContain('credential.helper=!')
     })
 
     it('injects GitHub basic auth header without rewriting https remotes', () => {
@@ -98,12 +108,39 @@ describe('GitHub Workspace git helpers', () => {
   })
 
   describe('selectCommitPaths', () => {
-    it('prefers explicitly selected paths', () => {
-      expect(selectCommitPaths(['a.ts', 'b.ts'], ['a.ts', 'b.ts', 'c.ts'])).toEqual(['a.ts', 'b.ts'])
+    it('returns only checked paths', () => {
+      expect(selectCommitPaths(['a.ts', 'b.ts'])).toEqual(['a.ts', 'b.ts'])
     })
 
-    it('falls back to all changes when nothing is selected', () => {
-      expect(selectCommitPaths([], ['a.ts', 'b.ts'])).toEqual(['a.ts', 'b.ts'])
+    it('returns empty when nothing is checked (does not fall back to all)', () => {
+      expect(selectCommitPaths([])).toEqual([])
+    })
+  })
+
+  describe('default checkbox selection', () => {
+    it('treats paths as checked unless deselected', () => {
+      const deselected = new Set<string>(['skip.ts'])
+      expect(isChangeSelected('keep.ts', deselected)).toBe(true)
+      expect(isChangeSelected('skip.ts', deselected)).toBe(false)
+    })
+
+    it('toggles deselected set on check/uncheck', () => {
+      const deselected = new Set<string>()
+      applyChangeSelection(deselected, 'a.ts', false)
+      expect(deselected.has('a.ts')).toBe(true)
+      applyChangeSelection(deselected, 'a.ts', true)
+      expect(deselected.has('a.ts')).toBe(false)
+    })
+  })
+
+  describe('history log line shape', () => {
+    it('splits one-line pretty format into commit fields', () => {
+      const line = ['abc123def', 'Fix history layout', 'Nikhil', '1720000000'].join('\x1f')
+      const [id, summary, author, authoredAt] = line.split('\x1f')
+      expect(id).toBe('abc123def')
+      expect(summary).toBe('Fix history layout')
+      expect(author).toBe('Nikhil')
+      expect(Number(authoredAt) * 1000).toBe(1720000000 * 1000)
     })
   })
 

@@ -17,8 +17,12 @@ import {
 import {
   buildGithubNetworkConfigArgs,
   classifyNetworkGitError,
+  isNetworkGitTimeoutError,
+  NETWORK_GIT_TIMEOUT_MS,
   parseGithubRemote,
   resolveChangePath,
+  applyChangeSelection,
+  isChangeSelected,
   selectCommitPaths,
   selectPushArgs,
 } from './githubWorkspaceGit'
@@ -31,6 +35,7 @@ import type {
   GitHubWorkspaceOpenResult,
   GitHubWorkspaceRepositorySummary,
   GitHubWorkspaceState,
+  GitHubWorkspaceWorktree,
 } from '../src/electron/types'
 
 const STORE_NAME = 'github-workspace-repositories.json'
@@ -44,7 +49,8 @@ const OAUTH_CLIENT_ID = process.env.ZURA_GITHUB_OAUTH_CLIENT_ID?.trim() || 'Ov23
 
 interface StoredRepository { id: string; path: string; alias?: string; lastOpenedAt: number }
 let selectedRepositoryId: string | undefined
-let selectedChanges = new Map<string, Set<string>>()
+/** Paths the user unchecked (default is checked for every change). */
+let deselectedChanges = new Map<string, Set<string>>()
 let operation: Promise<unknown> = Promise.resolve()
 let authAttempt = 0
 /** Cached path to dugite's embedded Git directory (GitHub Desktop / dugite pattern). */
@@ -173,21 +179,38 @@ async function networkGit(repositoryPath: string, args: string[]) {
   if (github && !token) throw new Error('Sign in to GitHub before syncing this repository.')
 
   const configArgs = buildGithubNetworkConfigArgs(remote, token || null)
-  const result = await execGit([...configArgs, ...args], repositoryPath, {
-    env: dugiteEnv({
-      GIT_TERMINAL_PROMPT: '0',
-      // Ensure no interactive credential UI is attempted.
-      GCM_INTERACTIVE: 'Never',
-      GIT_ASKPASS: '',
-    }),
-  })
-  if (result.exitCode !== 0) {
-    const detail =
-      redactGitHubSecrets((result.stderr || result.stdout || '').trim()) ||
-      `Git exited with ${result.exitCode}.`
-    throw new Error(classifyNetworkGitError(detail))
+  const operation = args[0] || 'sync'
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), NETWORK_GIT_TIMEOUT_MS)
+  try {
+    const result = await execGit([...configArgs, ...args], repositoryPath, {
+      env: dugiteEnv({
+        GIT_TERMINAL_PROMPT: '0',
+        // Prevent Windows Git Credential Manager from blocking on a UI prompt.
+        GCM_INTERACTIVE: 'Never',
+        GCM_PROVIDER: '',
+      }),
+      signal: controller.signal,
+      killSignal: 'SIGTERM',
+    })
+    if (result.exitCode !== 0) {
+      const detail =
+        redactGitHubSecrets((result.stderr || result.stdout || '').trim()) ||
+        `Git exited with ${result.exitCode}.`
+      throw new Error(classifyNetworkGitError(detail))
+    }
+    return result.stdout
+  } catch (error) {
+    if (controller.signal.aborted || isNetworkGitTimeoutError(error)) {
+      throw new Error(
+        `Git ${operation} timed out after ${Math.round(NETWORK_GIT_TIMEOUT_MS / 1000)}s. ` +
+          'Check your network, or try again if the repository is large.'
+      )
+    }
+    throw error
+  } finally {
+    clearTimeout(timer)
   }
-  return result.stdout
 }
 
 async function pushRepository(repositoryPath: string) {
@@ -243,19 +266,100 @@ async function repositorySummary(repo: StoredRepository): Promise<GitHubWorkspac
 }
 
 async function selectedDetails(repository?: StoredRepository) {
-  if (!repository) return { changes: [] as GitHubWorkspaceFileChange[], history: [] as GitHubWorkspaceCommit[] }
+  if (!repository) {
+    return {
+      changes: [] as GitHubWorkspaceFileChange[],
+      history: [] as GitHubWorkspaceCommit[],
+      branches: [] as string[],
+      worktrees: [] as GitHubWorkspaceWorktree[],
+    }
+  }
   const rawStatus = await git(repository.path, ['status', '--porcelain=v1', '-z']).catch(() => '')
-  const selected = selectedChanges.get(repository.id) ?? new Set<string>()
+  const deselected = deselectedChanges.get(repository.id) ?? new Set<string>()
   const changes = rawStatus.split('\0').filter(Boolean).map((entry) => {
+    // Rename entries can be longer; path always starts at index 3 for standard status.
     const filePath = entry.slice(3)
-    return { id: encodeId(filePath), path: filePath, status: entry.slice(0, 2), selected: selected.has(filePath) }
+    return {
+      id: encodeId(filePath),
+      path: filePath,
+      status: entry.slice(0, 2),
+      // Checked by default; only unchecked paths live in `deselected`.
+      selected: isChangeSelected(filePath, deselected),
+    }
   })
-  const rawLog = await git(repository.path, ['log', '-50', '--date=unix', '--pretty=format:%H%x1f%s%x1f%an%x1f%at%x1e']).catch(() => '')
-  const history = rawLog.split('\x1e').filter(Boolean).map((entry) => {
-    const [id, summary, author, authoredAt] = entry.trim().split('\x1f')
-    return { id, summary, author, authoredAt: Number(authoredAt) * 1000 }
-  })
-  return { changes, history }
+  // Drop deselected entries that no longer appear in the working tree.
+  if (deselected.size) {
+    const live = new Set(changes.map((change) => change.path))
+    for (const path of [...deselected]) {
+      if (!live.has(path)) deselected.delete(path)
+    }
+  }
+  // One commit per line — avoids fragile multi-record \x1e parsing in porcelain-ish logs.
+  const rawLog = await git(
+    repository.path,
+    ['log', '-50', '--date=unix', '--pretty=format:%H%x1f%s%x1f%an%x1f%at']
+  ).catch(() => '')
+  const history = rawLog
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((entry) => {
+      const [id = '', summary = '', author = '', authoredAt = '0'] = entry.split('\x1f')
+      return {
+        id,
+        summary: summary || '(no message)',
+        author: author || 'Unknown',
+        authoredAt: Number(authoredAt) * 1000 || 0,
+      }
+    })
+    .filter((commit) => commit.id.length >= 7)
+
+  const branchOut = await git(repository.path, ['branch', '--format=%(refname:short)']).catch(() => '')
+  const branches = branchOut
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, 200)
+
+  const wtOut = await git(repository.path, ['worktree', 'list', '--porcelain']).catch(() => '')
+  const worktrees: GitHubWorkspaceWorktree[] = []
+  let current: { path?: string; branch?: string; bare?: boolean } = {}
+  const flush = () => {
+    if (!current.path) return
+    const wtPath = path.resolve(current.path)
+    worktrees.push({
+      id: encodeId(wtPath.toLowerCase()),
+      path: wtPath,
+      branch: current.branch,
+      isCurrent: path.resolve(repository.path) === wtPath,
+    })
+    current = {}
+  }
+  for (const line of wtOut.split(/\r?\n/)) {
+    if (!line.trim()) {
+      flush()
+      continue
+    }
+    if (line.startsWith('worktree ')) current.path = line.slice('worktree '.length).trim()
+    else if (line.startsWith('branch ')) {
+      const ref = line.slice('branch '.length).trim()
+      current.branch = ref.replace(/^refs\/heads\//, '')
+    } else if (line === 'bare') current.bare = true
+    else if (line.startsWith('HEAD ') || line === 'detached') {
+      // keep path; branch may be absent when detached
+    }
+  }
+  flush()
+  if (!worktrees.length) {
+    worktrees.push({
+      id: encodeId(path.resolve(repository.path).toLowerCase()),
+      path: path.resolve(repository.path),
+      branch: branches[0],
+      isCurrent: true,
+    })
+  }
+
+  return { changes, history, branches, worktrees }
 }
 
 export async function getGitHubWorkspaceState(): Promise<GitHubWorkspaceState> {
@@ -329,26 +433,24 @@ async function performMutation(mutation: GitHubWorkspaceMutation): Promise<GitHu
     const details = await selectedDetails(repository)
     const change = details.changes.find((item) => item.id === mutation.changeId)
     if (!change) throw new Error('Changed file was not found.')
-    const selected = selectedChanges.get(repository!.id) ?? new Set<string>()
-    mutation.selected ? selected.add(change.path) : selected.delete(change.path)
-    selectedChanges.set(repository!.id, selected)
+    const deselected = deselectedChanges.get(repository!.id) ?? new Set<string>()
+    applyChangeSelection(deselected, change.path, mutation.selected)
+    deselectedChanges.set(repository!.id, deselected)
   }
   if (mutation.type === 'commit') {
     const summary = mutation.summary.trim()
     if (!summary || summary.length > MAX_COMMIT_MESSAGE) throw new Error('Commit summary is required.')
-    const selected = selectedChanges.get(repository!.id) ?? new Set<string>()
     const details = await selectedDetails(repository)
-    // If nothing is checked, commit every current change (Desktop-style “include all”
-    // when the user typed a summary and hit Commit without staging).
+    // Only checked files — never commit unchecked paths.
     const paths = selectCommitPaths(
-      selected,
-      details.changes.map((change) => change.path)
+      details.changes.filter((change) => change.selected).map((change) => change.path)
     )
-    if (!paths.length) throw new Error('No changes to commit.')
+    if (!paths.length) throw new Error('Select at least one changed file to commit.')
     await git(repository!.path, ['add', '--', ...paths])
     const message = mutation.description?.trim() ? `${summary}\n\n${mutation.description.trim()}` : summary
     await git(repository!.path, ['commit', '-m', message])
-    selected.clear()
+    // Clear deselection bookkeeping for committed (and remaining) paths after success.
+    deselectedChanges.delete(repository!.id)
   }
   if (mutation.type === 'fetch') await networkGit(repository!.path, ['fetch', '--prune'])
   if (mutation.type === 'pull') {
@@ -357,13 +459,37 @@ async function performMutation(mutation: GitHubWorkspaceMutation): Promise<GitHu
   if (mutation.type === 'push') {
     await pushRepository(repository!.path)
   }
+  if (mutation.type === 'checkout-branch') {
+    const branch = mutation.branch.trim()
+    if (!branch || branch.includes('..') || /[\s\\]/.test(branch)) {
+      throw new Error('Invalid branch name.')
+    }
+    await git(repository!.path, ['checkout', branch])
+  }
+  if (mutation.type === 'open-worktree') {
+    const details = await selectedDetails(repository)
+    const worktree = details.worktrees.find((item) => item.id === mutation.worktreeId)
+    if (!worktree) throw new Error('Worktree was not found.')
+    await git(worktree.path, ['rev-parse', '--is-inside-work-tree'])
+    const id = encodeId(worktree.path.toLowerCase())
+    const existing = repositories.find((item) => item.id === id)
+    if (existing) {
+      existing.lastOpenedAt = Date.now()
+      repositories.splice(repositories.indexOf(existing), 1)
+      repositories.unshift(existing)
+    } else {
+      repositories.unshift({ id, path: worktree.path, lastOpenedAt: Date.now() })
+    }
+    selectedRepositoryId = id
+    await writeStore(repositories)
+  }
   return getGitHubWorkspaceState()
 }
 
 export function registerGitHubWorkspaceHandlers() {
   ipcMain.handle('github-workspace:get-installed', () => isGitHubWorkspaceInstalled())
   ipcMain.handle('github-workspace:install', async () => { await setGitHubWorkspaceInstalled(true); return true })
-  ipcMain.handle('github-workspace:uninstall', async () => { authAttempt += 1; await setGitHubWorkspaceInstalled(false); await setSecureValueAsync(TOKEN_KEY, ''); selectedRepositoryId = undefined; selectedChanges.clear(); await shell.openExternal('https://github.com/settings/connections/applications/' + OAUTH_CLIENT_ID); return true })
+  ipcMain.handle('github-workspace:uninstall', async () => { authAttempt += 1; await setGitHubWorkspaceInstalled(false); await setSecureValueAsync(TOKEN_KEY, ''); selectedRepositoryId = undefined; deselectedChanges.clear(); await shell.openExternal('https://github.com/settings/connections/applications/' + OAUTH_CLIENT_ID); return true })
   ipcMain.handle('github-workspace:get-state', () => getGitHubWorkspaceState())
   ipcMain.handle('github-workspace:add-repository', async () => {
     await requireInstalled()

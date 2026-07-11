@@ -1,17 +1,24 @@
-import { useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react'
 import {
-  Check,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MutableRefObject,
+  type PointerEvent as ReactPointerEvent,
+} from 'react'
+import {
   ChevronDown,
   Cloud,
   Code,
-  Clock,
   ExternalLink,
   Folder,
   FolderOpen,
+  MoreHorizontal,
   Plus,
   RefreshCcw,
-  Search,
 } from 'lucide-react'
+import { ActionsMenu, type ActionsMenuGroup } from '@/components/ui/actions-menu'
 import type {
   GitHubWorkspaceOpenRequest,
   GitHubWorkspaceRepositorySummary,
@@ -34,6 +41,84 @@ function statusGlyph(status: string): string {
   if (code.includes('D')) return 'D'
   if (code.includes('R')) return 'R'
   return code.slice(-1) || 'M'
+}
+
+function pathBasename(filePath: string): string {
+  const parts = filePath.replace(/\\/g, '/').split('/')
+  return parts[parts.length - 1] || filePath
+}
+
+const SIDEBAR_WIDTH_KEY = 'zura-github-workspace:sidebar-width'
+const SIDEBAR_WIDTH_DEFAULT = 300
+const SIDEBAR_WIDTH_MIN = 200
+const SIDEBAR_WIDTH_MAX = 520
+
+function readStoredSidebarWidth(): number {
+  try {
+    const raw = localStorage.getItem(SIDEBAR_WIDTH_KEY)
+    const value = raw ? Number(raw) : SIDEBAR_WIDTH_DEFAULT
+    if (!Number.isFinite(value)) return SIDEBAR_WIDTH_DEFAULT
+    return Math.min(SIDEBAR_WIDTH_MAX, Math.max(SIDEBAR_WIDTH_MIN, Math.round(value)))
+  } catch {
+    return SIDEBAR_WIDTH_DEFAULT
+  }
+}
+
+type DiffLineKind = 'meta' | 'hunk' | 'add' | 'del' | 'ctx' | 'empty'
+
+function classifyDiffLine(line: string): DiffLineKind {
+  if (!line) return 'empty'
+  if (line.startsWith('+++') || line.startsWith('---') || line.startsWith('diff ') || line.startsWith('index ') || line.startsWith('new file') || line.startsWith('deleted file') || line.startsWith('similarity ') || line.startsWith('rename ')) {
+    return 'meta'
+  }
+  if (line.startsWith('@@')) return 'hunk'
+  if (line.startsWith('+')) return 'add'
+  if (line.startsWith('-')) return 'del'
+  return 'ctx'
+}
+
+function summarizeDiff(diffText: string): { added: number; removed: number } {
+  let added = 0
+  let removed = 0
+  for (const line of diffText.split(/\r?\n/)) {
+    const kind = classifyDiffLine(line)
+    if (kind === 'add') added += 1
+    if (kind === 'del') removed += 1
+  }
+  return { added, removed }
+}
+
+function DiffView({ text }: { text: string }) {
+  const lines = useMemo(() => {
+    if (!text.trim()) return [] as { kind: DiffLineKind; text: string; n: number }[]
+    return text.split(/\r?\n/).map((line, index) => ({
+      kind: classifyDiffLine(line),
+      text: line.length ? line : ' ',
+      n: index + 1,
+    }))
+  }, [text])
+
+  if (!lines.length) {
+    return (
+      <div className="github-workspace__diff-empty">
+        <span>No textual diff for this file</span>
+        <small>Binary files, empty diffs, or renames without content changes show up here.</small>
+      </div>
+    )
+  }
+
+  return (
+    <div className="github-workspace__diff" role="region" aria-label="File diff">
+      {lines.map((line) => (
+        <div key={line.n} className={`github-workspace__diff-line is-${line.kind}`}>
+          <span className="github-workspace__diff-gutter" aria-hidden="true">
+            {line.n}
+          </span>
+          <span className="github-workspace__diff-code">{line.text}</span>
+        </div>
+      ))}
+    </div>
+  )
 }
 
 function groupRepositories(repositories: GitHubWorkspaceRepositorySummary[], filter: string) {
@@ -86,19 +171,24 @@ export default function GitHubWorkspace({
 }) {
   const [state, setState] = useState<GitHubWorkspaceState | null>(null)
   const [tab, setTab] = useState<'changes' | 'history'>('changes')
-  const [selectedId, setSelectedId] = useState<string>()
+  const [selectedChangeId, setSelectedChangeId] = useState<string>()
+  const [selectedCommitId, setSelectedCommitId] = useState<string>()
   const [diff, setDiff] = useState('')
   const [error, setError] = useState<string>()
+  const [busy, setBusy] = useState<string | null>(null)
   const [repoMenuOpen, setRepoMenuOpen] = useState(false)
-  const [repoFilter, setRepoFilter] = useState('')
-  const repoMenuRef = useRef<HTMLDivElement | null>(null)
-  const repoFilterRef = useRef<HTMLInputElement | null>(null)
+  const [branchMenuOpen, setBranchMenuOpen] = useState(false)
+  const [sidebarWidth, setSidebarWidth] = useState(readStoredSidebarWidth)
+  const [isResizingSidebar, setIsResizingSidebar] = useState(false)
+  const bodyRef = useRef<HTMLDivElement | null>(null)
   const summaryRef = useRef(summary)
   summaryRef.current = summary
 
   const repository = state?.repositories.find((item) => item.id === state.selectedRepositoryId)
-  const selectedChange = state?.changes.find((item) => item.id === selectedId)
-  const selectedCommit = state?.history.find((item) => item.id === selectedId)
+  const selectedChange = state?.changes.find((item) => item.id === selectedChangeId)
+  const selectedCommit = state?.history.find((item) => item.id === selectedCommitId)
+  const branches = state?.branches ?? []
+  const worktrees = state?.worktrees ?? []
 
   useEffect(() => {
     let active = true
@@ -133,7 +223,7 @@ export default function GitHubWorkspace({
   }, [onCommitMetaChange, repository, selectedCount, changeCount])
 
   useEffect(() => {
-    if (!repository || !selectedChange) {
+    if (!repository || !selectedChange || tab !== 'changes') {
       setDiff('')
       return
     }
@@ -141,34 +231,11 @@ export default function GitHubWorkspace({
       .selectDiff(repository.id, selectedChange.id)
       .then(setDiff)
       .catch((e) => setError(e instanceof Error ? e.message : 'Unable to load diff.'))
-  }, [repository?.id, selectedChange?.id])
-
-  useEffect(() => {
-    if (!repoMenuOpen) return
-    const onPointer = (event: MouseEvent) => {
-      if (!repoMenuRef.current?.contains(event.target as Node)) {
-        setRepoMenuOpen(false)
-        setRepoFilter('')
-      }
-    }
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setRepoMenuOpen(false)
-        setRepoFilter('')
-      }
-    }
-    document.addEventListener('mousedown', onPointer)
-    document.addEventListener('keydown', onKey)
-    requestAnimationFrame(() => repoFilterRef.current?.focus())
-    return () => {
-      document.removeEventListener('mousedown', onPointer)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [repoMenuOpen])
+  }, [repository?.id, selectedChange?.id, tab])
 
   const grouped = useMemo(
-    () => groupRepositories(state?.repositories ?? [], repoFilter),
-    [state?.repositories, repoFilter]
+    () => groupRepositories(state?.repositories ?? [], ''),
+    [state?.repositories]
   )
 
   const beginSignIn = () => {
@@ -189,12 +256,18 @@ export default function GitHubWorkspace({
     return (wrapped?.[1] || e.message).trim() || 'Git operation failed.'
   }
 
-  const mutate = async (mutation: Parameters<typeof window.githubWorkspace.mutate>[0]) => {
+  const mutate = async (
+    mutation: Parameters<typeof window.githubWorkspace.mutate>[0],
+    busyLabel?: string
+  ) => {
     setError(undefined)
+    if (busyLabel) setBusy(busyLabel)
     try {
       setState(await window.githubWorkspace.mutate(mutation))
     } catch (e) {
       setError(formatGitError(e))
+    } finally {
+      if (busyLabel) setBusy(null)
     }
   }
 
@@ -210,6 +283,10 @@ export default function GitHubWorkspace({
     }
     if (!changeCount) {
       setError('No changes to commit.')
+      return
+    }
+    if (!selectedCount) {
+      setError('Select at least one changed file to commit.')
       return
     }
     setError(undefined)
@@ -247,8 +324,9 @@ export default function GitHubWorkspace({
 
   const selectRepository = async (repositoryId: string) => {
     setRepoMenuOpen(false)
-    setRepoFilter('')
-    setSelectedId(undefined)
+    setBranchMenuOpen(false)
+    setSelectedChangeId(undefined)
+    setSelectedCommitId(undefined)
     setTab('changes')
     await mutate({ type: 'select-repository', repositoryId })
   }
@@ -262,6 +340,161 @@ export default function GitHubWorkspace({
       setError(e instanceof Error ? e.message : 'Unable to open.')
     }
   }
+
+  const branchMenuGroups = useMemo((): ActionsMenuGroup[] => {
+    if (!repository) return []
+    return [
+      {
+        id: 'branches',
+        label: 'Branches',
+        items: branches.map((branch) => ({
+          id: `branch-${branch}`,
+          label: branch,
+          icon: <Code size={14} />,
+          checked: branch === repository.branch,
+          disabled: Boolean(busy) || branch === repository.branch,
+          onSelect: () => {
+            void mutate(
+              { type: 'checkout-branch', repositoryId: repository.id, branch },
+              `Checking out ${branch}…`
+            )
+          },
+        })),
+      },
+      {
+        id: 'worktrees',
+        label: 'Worktrees',
+        items: worktrees.map((wt) => ({
+          id: `wt-${wt.id}`,
+          label: wt.branch || pathBasename(wt.path),
+          description: wt.path,
+          icon: <Folder size={14} />,
+          checked: wt.isCurrent,
+          disabled: Boolean(busy) || wt.isCurrent,
+          onSelect: () => {
+            void mutate(
+              { type: 'open-worktree', repositoryId: repository.id, worktreeId: wt.id },
+              'Opening worktree…'
+            )
+          },
+        })),
+      },
+    ]
+  }, [branches, busy, repository, worktrees])
+
+  const repoMenuGroups = useMemo((): ActionsMenuGroup[] => {
+    if (!state) return []
+    const groups: ActionsMenuGroup[] = []
+    if (grouped.recent.length) {
+      groups.push({
+        id: 'recent',
+        label: 'Recent',
+        items: grouped.recent.map((item) => ({
+          id: `recent-${item.id}`,
+          label: item.alias || item.name,
+          description: `${item.owner ? `${item.owner}/` : ''}${item.name}${item.branch ? ` · ${item.branch}` : ''}`,
+          icon: <Code size={14} />,
+          checked: item.id === state.selectedRepositoryId,
+          onSelect: () => void selectRepository(item.id),
+        })),
+      })
+    }
+    for (const [owner, repos] of grouped.byOwner) {
+      groups.push({
+        id: `owner-${owner}`,
+        label: owner,
+        items: repos.map((item) => ({
+          id: item.id,
+          label: item.alias || item.name,
+          description: item.path,
+          icon: <Code size={14} />,
+          checked: item.id === state.selectedRepositoryId,
+          onSelect: () => void selectRepository(item.id),
+        })),
+      })
+    }
+    return groups
+  }, [grouped, state])
+
+  const fileActionGroups = useMemo((): ActionsMenuGroup[] => {
+    if (!repository || !selectedChange) return []
+    return [
+      {
+        id: 'file',
+        items: [
+          {
+            id: 'open',
+            label: 'Open',
+            description: 'Open in default application',
+            icon: <ExternalLink size={14} />,
+            onSelect: () =>
+              void openTarget({
+                target: 'file',
+                repositoryId: repository.id,
+                changeId: selectedChange.id,
+              }),
+          },
+          {
+            id: 'reveal',
+            label: 'Reveal',
+            description: 'Show in File Explorer',
+            icon: <FolderOpen size={14} />,
+            onSelect: () =>
+              void openTarget({
+                target: 'reveal',
+                repositoryId: repository.id,
+                changeId: selectedChange.id,
+              }),
+          },
+        ],
+      },
+    ]
+  }, [repository, selectedChange])
+
+  // Must stay above any early returns so hook order is stable across signed-out/in.
+  const diffStats = useMemo(() => summarizeDiff(diff), [diff])
+
+  const onSidebarResizePointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return
+    event.preventDefault()
+    const body = bodyRef.current
+    if (!body) return
+    const startX = event.clientX
+    const startWidth = sidebarWidth
+    const bodyRect = body.getBoundingClientRect()
+    const maxForBody = Math.min(SIDEBAR_WIDTH_MAX, Math.max(SIDEBAR_WIDTH_MIN, bodyRect.width - 220))
+
+    setIsResizingSidebar(true)
+    const target = event.currentTarget
+    target.setPointerCapture(event.pointerId)
+
+    const onMove = (moveEvent: PointerEvent) => {
+      const next = Math.min(
+        maxForBody,
+        Math.max(SIDEBAR_WIDTH_MIN, Math.round(startWidth + (moveEvent.clientX - startX)))
+      )
+      setSidebarWidth(next)
+    }
+    const onUp = (upEvent: PointerEvent) => {
+      target.releasePointerCapture(upEvent.pointerId)
+      target.removeEventListener('pointermove', onMove)
+      target.removeEventListener('pointerup', onUp)
+      target.removeEventListener('pointercancel', onUp)
+      setIsResizingSidebar(false)
+      setSidebarWidth((width) => {
+        try {
+          localStorage.setItem(SIDEBAR_WIDTH_KEY, String(width))
+        } catch {
+          // ignore quota / private mode
+        }
+        return width
+      })
+    }
+
+    target.addEventListener('pointermove', onMove)
+    target.addEventListener('pointerup', onUp)
+    target.addEventListener('pointercancel', onUp)
+  }, [sidebarWidth])
 
   if (!state) {
     return <div className="github-workspace-empty">Loading repository workspace…</div>
@@ -365,7 +598,11 @@ export default function GitHubWorkspace({
           </button>
         </div>
       ) : (
-        <div className="github-workspace__body">
+        <div
+          ref={bodyRef}
+          className={`github-workspace__body ${isResizingSidebar ? 'is-resizing' : ''}`}
+          style={{ gridTemplateColumns: `${sidebarWidth}px 5px minmax(0, 1fr)` }}
+        >
           <aside className="github-workspace__sidebar">
             <div className="github-workspace__tabs" role="tablist" aria-label="Repository views">
               <button
@@ -373,10 +610,7 @@ export default function GitHubWorkspace({
                 role="tab"
                 aria-selected={tab === 'changes'}
                 className={tab === 'changes' ? 'is-active' : ''}
-                onClick={() => {
-                  setTab('changes')
-                  setSelectedId(undefined)
-                }}
+                onClick={() => setTab('changes')}
               >
                 File Changes
                 <span>{state.changes.length}</span>
@@ -388,10 +622,12 @@ export default function GitHubWorkspace({
                 className={tab === 'history' ? 'is-active' : ''}
                 onClick={() => {
                   setTab('history')
-                  setSelectedId(undefined)
+                  if (!selectedCommitId && state.history[0]) {
+                    setSelectedCommitId(state.history[0].id)
+                  }
                 }}
               >
-                <Clock size={12} /> History
+                History
               </button>
             </div>
             <div className="github-workspace__list" role="listbox">
@@ -404,9 +640,9 @@ export default function GitHubWorkspace({
                       key={change.id}
                       type="button"
                       role="option"
-                      aria-selected={change.id === selectedId}
-                      className={change.id === selectedId ? 'is-selected' : ''}
-                      onClick={() => setSelectedId(change.id)}
+                      aria-selected={change.id === selectedChangeId}
+                      className={`github-workspace__change-row ${change.id === selectedChangeId ? 'is-selected' : ''}`}
+                      onClick={() => setSelectedChangeId(change.id)}
                     >
                       <input
                         type="checkbox"
@@ -434,68 +670,117 @@ export default function GitHubWorkspace({
                     key={commit.id}
                     type="button"
                     role="option"
-                    aria-selected={commit.id === selectedId}
-                    className={commit.id === selectedId ? 'is-selected' : ''}
-                    onClick={() => setSelectedId(commit.id)}
+                    aria-selected={commit.id === selectedCommitId}
+                    className={`github-workspace__history-row ${commit.id === selectedCommitId ? 'is-selected' : ''}`}
+                    onClick={() => setSelectedCommitId(commit.id)}
                   >
-                    <span>{commit.summary}</span>
-                    <small>
-                      {commit.author} · {new Date(commit.authoredAt).toLocaleDateString()}
+                    <span className="github-workspace__history-summary" title={commit.summary}>
+                      {commit.summary}
+                    </span>
+                    <small className="github-workspace__history-meta">
+                      {commit.author}
+                      {commit.authoredAt
+                        ? ` · ${new Date(commit.authoredAt).toLocaleDateString()}`
+                        : ''}
                     </small>
                   </button>
                 ))
               )}
             </div>
           </aside>
+          <div
+            className="github-workspace__splitter"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize file list"
+            aria-valuemin={SIDEBAR_WIDTH_MIN}
+            aria-valuemax={SIDEBAR_WIDTH_MAX}
+            aria-valuenow={sidebarWidth}
+            tabIndex={0}
+            onPointerDown={onSidebarResizePointerDown}
+            onKeyDown={(event) => {
+              if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+              event.preventDefault()
+              const delta = event.key === 'ArrowLeft' ? -16 : 16
+              setSidebarWidth((width) => {
+                const next = Math.min(SIDEBAR_WIDTH_MAX, Math.max(SIDEBAR_WIDTH_MIN, width + delta))
+                try {
+                  localStorage.setItem(SIDEBAR_WIDTH_KEY, String(next))
+                } catch {
+                  // ignore
+                }
+                return next
+              })
+            }}
+          />
           <main className="github-workspace__detail">
             {tab === 'changes' && selectedChange ? (
               <div className="github-workspace__detail-panel">
                 <div className="github-workspace__detail-toolbar">
-                  <span className="github-workspace__detail-path" title={selectedChange.path}>
-                    {selectedChange.path}
-                  </span>
-                  <div className="github-workspace__detail-actions">
-                    <button
-                      type="button"
-                      title="Open file in default application"
-                      onClick={() =>
-                        void openTarget({
-                          target: 'file',
-                          repositoryId: repository.id,
-                          changeId: selectedChange.id,
-                        })
-                      }
-                    >
-                      <ExternalLink size={12} /> Open
-                    </button>
-                    <button
-                      type="button"
-                      title="Reveal in File Explorer"
-                      onClick={() =>
-                        void openTarget({
-                          target: 'reveal',
-                          repositoryId: repository.id,
-                          changeId: selectedChange.id,
-                        })
-                      }
-                    >
-                      <FolderOpen size={12} /> Reveal
-                    </button>
+                  <div className="github-workspace__detail-identity">
+                    <em className="github-workspace__status-pill" data-status={statusGlyph(selectedChange.status)}>
+                      {statusGlyph(selectedChange.status)}
+                    </em>
+                    <div className="github-workspace__detail-titles">
+                      <span className="github-workspace__detail-name" title={selectedChange.path}>
+                        {pathBasename(selectedChange.path)}
+                      </span>
+                      <span className="github-workspace__detail-path" title={selectedChange.path}>
+                        {selectedChange.path}
+                      </span>
+                    </div>
                   </div>
+                  {diff.trim() ? (
+                    <div className="github-workspace__diff-stats" aria-label="Diff stats">
+                      <span className="is-add">+{diffStats.added}</span>
+                      <span className="is-del">−{diffStats.removed}</span>
+                    </div>
+                  ) : null}
+                  <ActionsMenu
+                    side="bottom"
+                    align="end"
+                    groups={fileActionGroups}
+                    trigger={
+                      <button
+                        type="button"
+                        className="zura-menu-trigger github-workspace__actions-trigger"
+                        title="File actions"
+                        aria-label="File actions"
+                      >
+                        <MoreHorizontal size={14} />
+                        Actions
+                      </button>
+                    }
+                  />
                 </div>
-                <pre className="github-workspace__diff">{diff || 'No textual diff available for this file.'}</pre>
+                <DiffView text={diff} />
               </div>
             ) : tab === 'history' && selectedCommit ? (
               <div className="github-workspace__commit-detail">
-                <strong>{selectedCommit.summary}</strong>
-                <code>{selectedCommit.id}</code>
-                <span>{selectedCommit.author}</span>
-                <span>{new Date(selectedCommit.authoredAt).toLocaleString()}</span>
+                <div className="github-workspace__commit-hero">
+                  <span className="github-workspace__commit-badge">Commit</span>
+                  <strong>{selectedCommit.summary}</strong>
+                </div>
+                <div className="github-workspace__commit-meta">
+                  <span>{selectedCommit.author}</span>
+                  {selectedCommit.authoredAt > 0 && (
+                    <span>{new Date(selectedCommit.authoredAt).toLocaleString()}</span>
+                  )}
+                </div>
+                <code title={selectedCommit.id}>{selectedCommit.id.slice(0, 12)}</code>
               </div>
             ) : (
-              <div className="github-workspace-empty">
+              <div className="github-workspace-empty github-workspace-empty--detail">
+                <span className="github-workspace-empty__mark" aria-hidden="true">
+                  <Code size={22} />
+                </span>
+                <strong>
+                  {tab === 'history' ? 'Pick a commit' : 'Pick a file'}
+                </strong>
                 <span>
-                  Select a {tab === 'changes' ? 'changed file' : 'commit'} to inspect it.
+                  {tab === 'history'
+                    ? 'Select a commit from the list to see its details.'
+                    : 'Select a changed file to review its diff.'}
                 </span>
                 {tab === 'changes' && repository && (
                   <button
@@ -519,137 +804,87 @@ export default function GitHubWorkspace({
             <GitHubMark size={15} />
           </div>
 
-          <button
-            type="button"
-            className="github-workspace__footer-btn github-workspace__branch-btn"
-            title={branchLabel}
-            disabled={!repository}
-            onClick={() =>
-              repository && void openTarget({ target: 'repository', repositoryId: repository.id })
+          <ActionsMenu
+            open={branchMenuOpen}
+            onOpenChange={(open) => {
+              if (open) setRepoMenuOpen(false)
+              setBranchMenuOpen(open)
+            }}
+            side="top"
+            align="start"
+            groups={branchMenuGroups}
+            emptyLabel="No branches or worktrees"
+            disabled={!repository || Boolean(busy)}
+            trigger={
+              <button
+                type="button"
+                className="zura-menu-trigger github-workspace__branch-btn"
+                title="Branches and worktrees"
+                disabled={!repository || Boolean(busy)}
+              >
+                <Code size={12} />
+                <span>{branchLabel}</span>
+                <ChevronDown size={11} />
+              </button>
             }
-          >
-            <Code size={12} />
-            <span>{branchLabel}</span>
-          </button>
+          />
 
           <button
             type="button"
-            className="github-workspace__footer-btn"
-            disabled={!repository}
-            onClick={() => repository && void mutate({ type: 'fetch', repositoryId: repository.id })}
+            className={`github-workspace__footer-btn ${busy?.startsWith('Fetch') ? 'is-busy' : ''}`}
+            disabled={!repository || Boolean(busy)}
+            onClick={() =>
+              repository && void mutate({ type: 'fetch', repositoryId: repository.id }, 'Fetching…')
+            }
           >
-            <RefreshCcw size={12} /> Fetch
+            <RefreshCcw size={12} className={busy?.startsWith('Fetch') ? 'is-spinning' : undefined} />
+            {busy?.startsWith('Fetch') ? 'Fetching…' : 'Fetch'}
           </button>
           <button
             type="button"
-            className="github-workspace__footer-btn"
-            disabled={!repository}
-            onClick={() =>
-              repository &&
-              void mutate({
-                type: repository.behind > 0 ? 'pull' : 'push',
-                repositoryId: repository.id,
-              })
-            }
+            className={`github-workspace__footer-btn ${busy && /Push|Pull/.test(busy) ? 'is-busy' : ''}`}
+            disabled={!repository || Boolean(busy)}
+            onClick={() => {
+              if (!repository) return
+              const isPull = repository.behind > 0
+              void mutate(
+                { type: isPull ? 'pull' : 'push', repositoryId: repository.id },
+                isPull ? 'Pulling…' : 'Pushing…'
+              )
+            }}
           >
-            <Cloud size={12} />
-            {syncLabel}
+            <Cloud size={12} className={busy && /Push|Pull/.test(busy) ? 'is-spinning' : undefined} />
+            {busy && /Push|Pull/.test(busy) ? busy : syncLabel}
           </button>
         </div>
 
         <div className="github-workspace__footer-right">
-          <div className="github-workspace__repo-picker" ref={repoMenuRef}>
-            <button
-              type="button"
-              className="github-workspace__repo-trigger"
-              aria-haspopup="listbox"
-              aria-expanded={repoMenuOpen}
-              onClick={() => setRepoMenuOpen((open) => !open)}
-            >
-              <Folder size={12} />
-              <span>{repository?.alias || repository?.name || 'Repository'}</span>
-              <ChevronDown size={12} />
-            </button>
-            {repoMenuOpen && (
-              <div className="github-workspace__repo-menu" role="listbox" aria-label="Repositories">
-                <div className="github-workspace__repo-menu-head">
-                  <div className="github-workspace__repo-menu-search">
-                    <Search size={12} />
-                    <input
-                      ref={repoFilterRef}
-                      value={repoFilter}
-                      onChange={(event) => setRepoFilter(event.target.value)}
-                      placeholder="Filter"
-                      aria-label="Filter repositories"
-                    />
-                  </div>
-                  <button type="button" className="github-workspace__repo-add" onClick={() => void addRepository()}>
-                    <Plus size={12} /> Add
-                  </button>
-                </div>
-                <div className="github-workspace__repo-menu-scroll">
-                  {grouped.recent.length > 0 && (
-                    <div className="github-workspace__repo-group">
-                      <h3>Recent</h3>
-                      {grouped.recent.map((item) => (
-                        <button
-                          key={`recent-${item.id}`}
-                          type="button"
-                          role="option"
-                          aria-selected={item.id === state.selectedRepositoryId}
-                          className={item.id === state.selectedRepositoryId ? 'is-current' : ''}
-                          onClick={() => void selectRepository(item.id)}
-                        >
-                          <Code size={13} />
-                          <span>
-                            <strong>{item.alias || item.name}</strong>
-                            <small>
-                              {item.owner ? `${item.owner}/` : ''}
-                              {item.name}
-                              {item.branch ? ` · ${item.branch}` : ''}
-                            </small>
-                          </span>
-                          {item.id === state.selectedRepositoryId && <Check size={12} />}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  {grouped.byOwner.map(([owner, repos]) => (
-                    <div key={owner} className="github-workspace__repo-group">
-                      <h3>{owner}</h3>
-                      {repos.map((item) => (
-                        <button
-                          key={item.id}
-                          type="button"
-                          role="option"
-                          aria-selected={item.id === state.selectedRepositoryId}
-                          className={item.id === state.selectedRepositoryId ? 'is-current' : ''}
-                          onClick={() => void selectRepository(item.id)}
-                        >
-                          <Code size={13} />
-                          <span>
-                            <strong>{item.alias || item.name}</strong>
-                            <small title={item.path}>{item.path}</small>
-                          </span>
-                          {item.id === state.selectedRepositoryId && <Check size={12} />}
-                        </button>
-                      ))}
-                    </div>
-                  ))}
-                  {state.repositories.length === 0 && (
-                    <div className="github-workspace__repo-empty">
-                      No repositories yet. Click Add to choose a local folder.
-                    </div>
-                  )}
-                  {state.repositories.length > 0 &&
-                    grouped.recent.length === 0 &&
-                    grouped.byOwner.length === 0 && (
-                      <div className="github-workspace__repo-empty">No matching repositories.</div>
-                    )}
-                </div>
-              </div>
-            )}
-          </div>
+          <ActionsMenu
+            open={repoMenuOpen}
+            onOpenChange={(open) => {
+              if (open) setBranchMenuOpen(false)
+              setRepoMenuOpen(open)
+            }}
+            side="top"
+            align="end"
+            filterable
+            filterPlaceholder="Filter repositories"
+            emptyLabel="No matching repositories"
+            groups={repoMenuGroups}
+            header={
+              <button type="button" onClick={() => void addRepository()}>
+                <Plus size={14} />
+                Add
+              </button>
+            }
+            trigger={
+              <button type="button" className="zura-menu-trigger github-workspace__repo-trigger" disabled={Boolean(busy)}>
+                <Folder size={12} />
+                <span>{repository?.alias || repository?.name || 'Repository'}</span>
+                <ChevronDown size={12} />
+              </button>
+            }
+          />
 
           <div className="github-workspace__account-actions">
             <span className="github-workspace__account">
@@ -700,15 +935,19 @@ const authStyles = `
 `
 
 const workspaceStyles = `
+  /* Theme tokens only — same palette as main window menus/controls. */
   .github-workspace {
     height: 100%;
     min-height: 0;
     display: flex;
     flex-direction: column;
-    color: rgba(255,247,244,.92);
+    overflow: hidden;
+    color: var(--theme-text-primary);
     background: transparent;
+    font-family: var(--font-sans, inherit);
   }
-  .github-workspace button, .github-workspace input {
+  .github-workspace button,
+  .github-workspace input {
     font: inherit;
     color: inherit;
   }
@@ -717,121 +956,206 @@ const workspaceStyles = `
     align-items: center;
     gap: 6px;
     border: 0;
-    border-radius: 6px;
+    border-radius: 8px;
     background: transparent;
     cursor: pointer;
   }
-  .github-workspace button:hover:not(:disabled),
-  .github-workspace button:focus-visible {
-    background: rgba(255,244,239,.09);
+  .github-workspace button:hover:not(:disabled):not(.github-workspace__change-row):not(.github-workspace__history-row),
+  .github-workspace button:focus-visible:not(.github-workspace__change-row):not(.github-workspace__history-row) {
+    background: var(--theme-surface-hover);
     outline: none;
   }
   .github-workspace button:disabled {
-    opacity: .42;
+    opacity: .48;
     cursor: default;
   }
 
   .github-workspace__error {
     flex: none;
     padding: 6px 12px;
-    background: rgba(149,52,46,.28);
-    color: #ffd6d0;
+    background: var(--theme-error-bg);
+    color: var(--theme-error);
     font-size: 11px;
   }
 
   .github-workspace__body {
-    flex: 1;
+    flex: 1 1 auto;
     min-height: 0;
+    overflow: hidden;
     display: grid;
-    grid-template-columns: minmax(280px, 46%) minmax(0, 1fr);
+    grid-template-columns: 300px 5px minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+  }
+  .github-workspace__body.is-resizing {
+    cursor: col-resize;
+    user-select: none;
+  }
+  .github-workspace__body.is-resizing * {
+    cursor: col-resize !important;
+    user-select: none !important;
   }
   .github-workspace__sidebar {
     min-width: 0;
+    min-height: 0;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
-    border-right: 1px solid rgba(255,239,232,.11);
     background: transparent;
+  }
+  .github-workspace__splitter {
+    position: relative;
+    z-index: 2;
+    width: 5px;
+    min-width: 5px;
+    cursor: col-resize;
+    touch-action: none;
+    background: transparent;
+  }
+  .github-workspace__splitter::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 2px;
+    width: 1px;
+    background: var(--theme-border);
+    opacity: 0.9;
+    transition: background-color 120ms ease, opacity 120ms ease, width 120ms ease, left 120ms ease, box-shadow 120ms ease;
+  }
+  .github-workspace__splitter:hover::before,
+  .github-workspace__splitter:focus-visible::before,
+  .github-workspace__body.is-resizing .github-workspace__splitter::before {
+    left: 1px;
+    width: 3px;
+    background: var(--theme-accent);
+    opacity: 1;
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--theme-accent) 30%, transparent);
+  }
+  .github-workspace__splitter:focus-visible {
+    outline: none;
   }
   .github-workspace__tabs {
     flex: none;
     display: grid;
     grid-template-columns: 1fr 1fr;
     height: 38px;
-    border-bottom: 1px solid rgba(255,239,232,.1);
+    border-bottom: 1px solid var(--theme-border);
   }
   .github-workspace__tabs button {
     justify-content: center;
     border-radius: 0;
-    color: rgba(255,236,230,.57);
+    color: var(--theme-text-muted);
     font-size: 12.5px;
     font-weight: 600;
   }
   .github-workspace__tabs button.is-active {
-    color: rgba(255,247,244,.94);
-    box-shadow: inset 0 -2px #c99283;
+    color: var(--theme-text-primary);
+    box-shadow: inset 0 -2px var(--theme-accent);
   }
   .github-workspace__tabs span {
     min-width: 18px;
     padding: 0 5px;
     border-radius: 8px;
-    background: rgba(255,240,234,.1);
+    background: var(--theme-surface-subtle);
+    color: var(--theme-text-secondary);
     font-size: 10.5px;
   }
   .github-workspace__list {
-    flex: 1;
+    flex: 1 1 auto;
     min-height: 0;
-    overflow: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
     scrollbar-width: thin;
+    padding: 6px 6px 8px;
   }
   .github-workspace__list-empty {
     padding: 18px 12px;
-    color: rgba(255,236,230,.42);
+    color: var(--theme-text-muted);
     font-size: 12px;
     text-align: center;
   }
-  .github-workspace__list > button {
+  .github-workspace__change-row {
     width: 100%;
+    box-sizing: border-box;
     min-height: 40px;
     display: grid;
     grid-template-columns: auto minmax(0,1fr) auto;
-    gap: 9px;
+    gap: 10px;
     align-items: center;
-    padding: 8px 12px;
-    border-radius: 0;
+    padding: 9px 12px;
+    margin: 0;
+    border-radius: 8px;
     text-align: left;
     font-size: 12.5px;
   }
-  .github-workspace__list > button.is-selected {
-    background: rgba(201,146,131,.17);
+  /* Soft inset highlight with room around the row — not flush to the panel edge. */
+  .github-workspace__change-row:hover:not(:disabled),
+  .github-workspace__history-row:hover:not(:disabled),
+  .github-workspace__change-row:focus-visible,
+  .github-workspace__history-row:focus-visible {
+    background: color-mix(in srgb, var(--theme-text-primary) 7%, transparent);
+    outline: none;
   }
-  .github-workspace__list input {
+  .github-workspace__change-row.is-selected,
+  .github-workspace__history-row.is-selected {
+    background: var(--theme-selection-bg);
+    color: var(--theme-selection-text, var(--theme-text-primary));
+  }
+  .github-workspace__change-row.is-selected:hover:not(:disabled),
+  .github-workspace__history-row.is-selected:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--theme-selection-bg) 88%, var(--theme-text-primary));
+  }
+  .github-workspace__change-row input {
     width: 14px;
     height: 14px;
-    accent-color: #c99283;
+    accent-color: var(--theme-accent);
   }
-  .github-workspace__list span {
+  .github-workspace__change-row span {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .github-workspace__list small {
-    grid-column: 1 / -1;
-    padding-left: 1px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    color: rgba(255,236,230,.46);
-    font-size: 11px;
-  }
-  .github-workspace__list em {
-    color: #d7a18f;
+  .github-workspace__change-row em {
+    color: var(--theme-accent);
     font-size: 11px;
     font-style: normal;
     font-weight: 700;
   }
+  .github-workspace__history-row {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 48px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 3px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    text-align: left;
+  }
+  .github-workspace__history-summary {
+    width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--theme-text-primary);
+  }
+  .github-workspace__history-meta {
+    width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--theme-text-muted);
+    font-size: 11px;
+  }
   .github-workspace__detail {
     min-width: 0;
     min-height: 0;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
     background: transparent;
@@ -846,266 +1170,331 @@ const workspaceStyles = `
     flex: none;
     display: flex;
     align-items: center;
-    gap: 8px;
-    min-height: 34px;
-    padding: 0 8px 0 12px;
-    border-bottom: 1px solid rgba(255,239,232,.1);
+    gap: 10px;
+    min-height: 44px;
+    padding: 0 10px 0 12px;
+    border-bottom: 1px solid var(--theme-border);
+    background: color-mix(in srgb, var(--theme-surface) 35%, transparent);
   }
-  .github-workspace__detail-path {
+  .github-workspace__detail-identity {
     flex: 1;
     min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .github-workspace__status-pill {
+    flex: none;
+    width: 22px;
+    height: 22px;
+    display: grid;
+    place-items: center;
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--theme-accent) 18%, transparent);
+    color: var(--theme-accent);
+    font-size: 10px;
+    font-style: normal;
+    font-weight: 750;
+  }
+  .github-workspace__detail-titles {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+  .github-workspace__detail-name {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    color: rgba(255,236,230,.62);
-    font-size: 11px;
+    color: var(--theme-text-primary);
+    font-size: 12.5px;
+    font-weight: 650;
   }
-  .github-workspace__detail-actions {
-    flex: none;
-    display: flex;
-    align-items: center;
-    gap: 2px;
-  }
-  .github-workspace__detail-actions button {
-    height: 26px;
-    padding: 0 8px;
-    color: rgba(255,236,230,.72);
+  .github-workspace__detail-path {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--theme-text-muted);
     font-size: 10.5px;
-    font-weight: 600;
+  }
+  .github-workspace__diff-stats {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font: 700 11px/1 'Cascadia Code','SFMono-Regular',Consolas,monospace;
+  }
+  .github-workspace__diff-stats .is-add {
+    color: color-mix(in srgb, var(--theme-success, #3dd68c) 92%, white);
+  }
+  .github-workspace__diff-stats .is-del {
+    color: color-mix(in srgb, var(--theme-error, #ff7b72) 92%, white);
+  }
+  .github-workspace__actions-trigger.zura-menu-trigger {
+    flex: none;
+    height: 28px;
+    min-height: 28px;
+    gap: 5px;
+    padding: 0 9px;
+    border-radius: 8px;
+    font-size: 10.5px;
+    font-weight: 650;
+    box-shadow: none;
   }
   .github-workspace__diff {
     flex: 1;
     min-height: 0;
     min-width: 0;
     margin: 0;
-    padding: 12px;
+    padding: 6px 0 12px;
     overflow: auto;
-    color: #e9ddd9;
-    font: 11px/1.55 'Cascadia Code','SFMono-Regular',Consolas,monospace;
-    white-space: pre;
+    font: 11.5px/1.55 'Cascadia Code','SFMono-Regular',Consolas,monospace;
     tab-size: 2;
-    background: transparent;
+    background:
+      linear-gradient(180deg, color-mix(in srgb, var(--theme-background) 55%, transparent), transparent 28px),
+      transparent;
+  }
+  .github-workspace__diff-line {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr);
+    min-height: 1.55em;
+  }
+  .github-workspace__diff-gutter {
+    padding: 0 8px 0 10px;
+    border-right: 1px solid color-mix(in srgb, var(--theme-border) 70%, transparent);
+    color: color-mix(in srgb, var(--theme-text-muted) 70%, transparent);
+    text-align: right;
+    user-select: none;
+    font-size: 10px;
+    line-height: inherit;
+  }
+  .github-workspace__diff-code {
+    padding: 0 12px 0 10px;
+    white-space: pre;
+    overflow-wrap: normal;
+    color: var(--theme-text-secondary);
+  }
+  .github-workspace__diff-line.is-add {
+    background: color-mix(in srgb, var(--theme-success, #238636) 14%, transparent);
+  }
+  .github-workspace__diff-line.is-add .github-workspace__diff-code {
+    color: color-mix(in srgb, var(--theme-success, #3dd68c) 88%, var(--theme-text-primary));
+  }
+  .github-workspace__diff-line.is-add .github-workspace__diff-gutter {
+    background: color-mix(in srgb, var(--theme-success, #238636) 12%, transparent);
+    color: color-mix(in srgb, var(--theme-success, #3dd68c) 70%, var(--theme-text-muted));
+  }
+  .github-workspace__diff-line.is-del {
+    background: color-mix(in srgb, var(--theme-error, #da3633) 14%, transparent);
+  }
+  .github-workspace__diff-line.is-del .github-workspace__diff-code {
+    color: color-mix(in srgb, var(--theme-error, #ff7b72) 88%, var(--theme-text-primary));
+  }
+  .github-workspace__diff-line.is-del .github-workspace__diff-gutter {
+    background: color-mix(in srgb, var(--theme-error, #da3633) 12%, transparent);
+    color: color-mix(in srgb, var(--theme-error, #ff7b72) 70%, var(--theme-text-muted));
+  }
+  .github-workspace__diff-line.is-hunk {
+    background: color-mix(in srgb, var(--theme-info, #388bfd) 10%, transparent);
+  }
+  .github-workspace__diff-line.is-hunk .github-workspace__diff-code {
+    color: color-mix(in srgb, var(--theme-info, #79c0ff) 85%, var(--theme-text-primary));
+    font-weight: 600;
+  }
+  .github-workspace__diff-line.is-meta .github-workspace__diff-code {
+    color: var(--theme-text-muted);
+  }
+  .github-workspace__diff-empty {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 24px;
+    color: var(--theme-text-muted);
+    text-align: center;
+  }
+  .github-workspace__diff-empty span {
+    color: var(--theme-text-secondary);
+    font-size: 12.5px;
+    font-weight: 600;
+  }
+  .github-workspace__diff-empty small {
+    max-width: 260px;
+    font-size: 11px;
+    line-height: 1.45;
   }
   .github-workspace__commit-detail {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    padding: 18px;
+    gap: 14px;
+    padding: 22px 20px;
   }
-  .github-workspace__commit-detail code,
-  .github-workspace__commit-detail span {
-    color: rgba(255,236,230,.55);
+  .github-workspace__commit-hero {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .github-workspace__commit-badge {
+    display: inline-flex;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--theme-accent) 16%, transparent);
+    color: var(--theme-accent);
     font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .github-workspace__commit-detail strong {
+    font-size: 16px;
+    font-weight: 650;
+    line-height: 1.35;
+    color: var(--theme-text-primary);
+  }
+  .github-workspace__commit-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 14px;
+    color: var(--theme-text-muted);
+    font-size: 11.5px;
+  }
+  .github-workspace__commit-detail code {
+    width: fit-content;
+    max-width: 100%;
+    padding: 5px 9px;
+    border-radius: 8px;
+    border: 1px solid var(--theme-border);
+    background: var(--theme-surface-subtle);
+    color: var(--theme-text-secondary);
+    font: 11px/1.4 'Cascadia Code','SFMono-Regular',Consolas,monospace;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .github-workspace__footer {
-    flex: none;
-    min-height: 44px;
+    /* Match Command Center footer: same bar, no separate fill. */
+    position: relative;
+    z-index: 3;
+    flex: 0 0 auto;
+    height: 42px;
+    min-height: 42px;
     display: flex;
-    align-items: stretch;
+    align-items: center;
     justify-content: space-between;
     gap: 0;
-    padding: 0;
-    border-top: 1px solid rgba(255,239,232,.11);
+    padding: 0 8px 0 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
     background: transparent;
-    font-size: 10px;
+    font-size: 12.5px;
   }
   .github-workspace__footer-left,
   .github-workspace__footer-right {
     display: flex;
-    align-items: stretch;
+    align-items: center;
+    gap: 4px;
     min-width: 0;
+    padding: 6px 4px;
   }
   .github-workspace__footer-right {
     margin-left: auto;
   }
   .github-workspace__brand {
     flex: none;
-    min-width: 42px;
+    width: 32px;
+    height: 28px;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-right: 1px solid rgba(255,239,232,.09);
-    color: rgba(255,244,240,.78);
+    color: var(--theme-text-secondary);
   }
 
-  .github-workspace__repo-picker {
-    position: relative;
-    flex: none;
+  .github-workspace__branch-btn.zura-menu-trigger,
+  .github-workspace__repo-trigger.zura-menu-trigger {
+    height: 28px;
+    min-height: 28px;
     max-width: 160px;
-  }
-  .github-workspace__repo-trigger {
-    width: 100%;
-    height: 100%;
-    min-height: 43px;
-    min-width: 100px;
-    max-width: 160px;
-    justify-content: flex-start;
     gap: 6px;
-    padding: 0 10px;
-    border-left: 1px solid rgba(255,239,232,.09);
-    border-right: 1px solid rgba(255,239,232,.09);
-    border-radius: 0;
-    font-weight: 600;
-  }
-  .github-workspace__branch-btn span {
-    max-width: 120px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .github-workspace__repo-trigger span {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    text-align: left;
-  }
-  .github-workspace__repo-menu {
-    position: absolute;
-    left: 0;
-    bottom: calc(100% + 6px);
-    z-index: 40;
-    width: min(340px, 72vw);
-    max-height: min(420px, 58vh);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    border: 1px solid rgba(255,239,232,.14);
-    border-radius: 10px;
-    /* Solid enough to stay readable over the acrylic shell; not a full-panel tint. */
-    background: rgba(22,19,20,.94);
-    box-shadow: 0 18px 48px rgba(0,0,0,.45);
-  }
-  .github-workspace__repo-menu-head {
-    flex: none;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px;
-    border-bottom: 1px solid rgba(255,239,232,.1);
-  }
-  .github-workspace__repo-menu-search {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    height: 30px;
     padding: 0 8px;
-    border: 1px solid rgba(255,239,232,.12);
-    border-radius: 7px;
-    background: rgba(255,245,241,.05);
-    color: rgba(255,236,230,.55);
-  }
-  .github-workspace__repo-menu-search input {
-    flex: 1;
-    min-width: 0;
     border: 0;
-    outline: none;
-    background: transparent;
-    font-size: 11px;
-  }
-  .github-workspace__repo-add {
-    flex: none;
-    height: 30px;
-    padding: 0 9px;
-    border: 1px solid rgba(255,239,232,.12);
     border-radius: 7px;
-    background: rgba(255,245,241,.05);
-    font-size: 10.5px;
-    font-weight: 650;
+    background: transparent;
+    box-shadow: none;
+    color: rgba(255, 241, 246, 0.74);
+    font-size: 12.5px;
+    font-weight: 500;
   }
-  .github-workspace__repo-menu-scroll {
-    flex: 1;
-    min-height: 0;
-    overflow: auto;
-    scrollbar-width: thin;
+  .github-workspace__branch-btn.zura-menu-trigger:hover,
+  .github-workspace__branch-btn.zura-menu-trigger:focus-visible,
+  .github-workspace__branch-btn.zura-menu-trigger[data-state='open'],
+  .github-workspace__repo-trigger.zura-menu-trigger:hover,
+  .github-workspace__repo-trigger.zura-menu-trigger:focus-visible,
+  .github-workspace__repo-trigger.zura-menu-trigger[data-state='open'] {
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 249, 251, 0.92);
+    box-shadow: none;
+    border-color: transparent;
   }
-  .github-workspace__repo-group {
-    padding: 6px 0 8px;
-  }
-  .github-workspace__repo-group h3 {
-    margin: 0;
-    padding: 6px 12px 4px;
-    color: rgba(255,236,230,.42);
-    font-size: 9.5px;
-    font-weight: 650;
-    letter-spacing: .04em;
-    text-transform: uppercase;
-  }
-  .github-workspace__repo-group > button {
-    width: 100%;
-    min-height: 40px;
-    display: grid;
-    grid-template-columns: auto minmax(0,1fr) auto;
-    gap: 8px;
-    align-items: center;
-    padding: 6px 12px;
-    border-radius: 0;
-    text-align: left;
-  }
-  .github-workspace__repo-group > button.is-current {
-    background: rgba(201,146,131,.16);
-  }
-  .github-workspace__repo-group > button span {
+  .github-workspace__branch-btn span,
+  .github-workspace__repo-trigger span {
     min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-  }
-  .github-workspace__repo-group > button strong {
+    max-width: 110px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 11.5px;
-    font-weight: 600;
   }
-  .github-workspace__repo-group > button small {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    color: rgba(255,236,230,.42);
-    font-size: 9.5px;
-  }
-  .github-workspace__repo-empty {
-    padding: 18px 14px;
-    color: rgba(255,236,230,.45);
-    font-size: 11px;
-    text-align: center;
-  }
-
   .github-workspace__footer-btn {
     flex: none;
-    min-height: 43px;
+    height: 28px;
+    min-height: 28px;
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 0 10px;
-    border-right: 1px solid rgba(255,239,232,.09);
-    border-radius: 0;
-    color: rgba(255,236,230,.72);
+    gap: 8px;
+    padding: 0 8px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: rgba(255, 241, 246, 0.74);
     max-width: 150px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    font-size: 12.5px;
+    font-weight: 500;
     cursor: pointer;
+    transition: background-color 120ms ease, color 120ms ease;
+  }
+  .github-workspace__footer-btn:hover:not(:disabled),
+  .github-workspace__footer-btn:focus-visible {
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 249, 251, 0.92);
+    outline: none;
+  }
+  .github-workspace__footer-btn.is-busy {
+    color: rgba(255, 249, 251, 0.92);
+  }
+  .github-workspace__footer-btn svg.is-spinning {
+    animation: github-auth-spin .85s linear infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .github-workspace__footer-btn svg.is-spinning { animation: none; }
   }
   .github-workspace__account-actions {
     flex: none;
-    min-height: 43px;
+    height: 28px;
     display: flex;
     align-items: center;
-    gap: 7px;
-    padding: 0 10px;
+    gap: 6px;
+    padding: 0 6px;
   }
   .github-workspace__account {
     display: flex;
     align-items: center;
-    gap: 8px;
-    color: rgba(255,236,230,.6);
-    font-size: 11px;
+    gap: 6px;
+    color: rgba(255, 231, 238, 0.55);
+    font-size: 12px;
   }
   .github-workspace__account img {
     width: 18px;
@@ -1113,9 +1502,14 @@ const workspaceStyles = `
     border-radius: 50%;
   }
   .github-workspace__account-actions > button {
-    padding: 4px 7px;
-    color: rgba(255,236,230,.42);
-    font-size: 9px;
+    padding: 4px 8px;
+    border-radius: 7px;
+    color: rgba(255, 231, 238, 0.42);
+    font-size: 12px;
+  }
+  .github-workspace__account-actions > button:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 249, 251, 0.92);
   }
 
   .github-workspace-empty {
@@ -1127,21 +1521,36 @@ const workspaceStyles = `
     justify-content: center;
     gap: 8px;
     padding: 16px;
-    color: rgba(255,236,230,.5);
+    color: var(--theme-text-muted);
     text-align: center;
     font-size: 11px;
   }
-  .github-workspace-empty--main {
+  .github-workspace-empty--main,
+  .github-workspace-empty--detail {
     min-height: 0;
   }
+  .github-workspace-empty__mark {
+    width: 44px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    margin-bottom: 2px;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--theme-accent) 12%, transparent);
+    color: var(--theme-accent);
+  }
   .github-workspace-empty strong {
-    color: rgba(255,247,244,.9);
+    color: var(--theme-text-primary);
     font-size: 13px;
   }
   .github-workspace-empty button {
     margin-top: 3px;
     padding: 7px 12px;
-    background: rgba(201,146,131,.18);
-    color: #f3d8d0;
+    border-radius: 8px;
+    background: var(--theme-accent-muted);
+    color: var(--theme-text-primary);
+  }
+  .github-workspace-empty button:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--theme-accent) 28%, transparent);
   }
 `
