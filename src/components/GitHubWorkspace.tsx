@@ -152,6 +152,8 @@ export type GitHubCommitBarMeta = {
   hasRepository: boolean
   selectedCount: number
   changeCount: number
+  /** True while a commit is in flight (top-bar button busy state). */
+  committing: boolean
 }
 
 export default function GitHubWorkspace({
@@ -219,8 +221,9 @@ export default function GitHubWorkspace({
       hasRepository: Boolean(repository),
       selectedCount,
       changeCount,
+      committing: busy === 'Committing…',
     })
-  }, [onCommitMetaChange, repository, selectedCount, changeCount])
+  }, [onCommitMetaChange, repository, selectedCount, changeCount, busy])
 
   useEffect(() => {
     if (!repository || !selectedChange || tab !== 'changes') {
@@ -272,6 +275,7 @@ export default function GitHubWorkspace({
   }
 
   const performCommit = async () => {
+    if (busy) return
     const message = summaryRef.current.trim()
     if (!repository) {
       setError('Add a repository first.')
@@ -290,6 +294,7 @@ export default function GitHubWorkspace({
       return
     }
     setError(undefined)
+    setBusy('Committing…')
     try {
       setState(
         await window.githubWorkspace.mutate({
@@ -301,6 +306,8 @@ export default function GitHubWorkspace({
       onSummaryChange('')
     } catch (e) {
       setError(formatGitError(e))
+    } finally {
+      setBusy(null)
     }
   }
 
@@ -800,10 +807,25 @@ export default function GitHubWorkspace({
 
       <footer className="github-workspace__footer">
         <div className="github-workspace__footer-left">
-          <div className="github-workspace__brand" title="GitHub Workspace">
-            <GitHubMark size={15} />
+          <div className="github-workspace__account-actions">
+            <span className="github-workspace__account">
+              {state.account.avatarUrl && <img src={state.account.avatarUrl} alt="" />}@
+              {state.account.login}
+            </span>
+            <button
+              type="button"
+              onClick={() =>
+                void window.githubWorkspace
+                  .disconnect()
+                  .then((account) => setState({ ...state, account }))
+              }
+            >
+              Disconnect
+            </button>
           </div>
+        </div>
 
+        <div className="github-workspace__footer-right">
           <ActionsMenu
             open={branchMenuOpen}
             onOpenChange={(open) => {
@@ -811,7 +833,7 @@ export default function GitHubWorkspace({
               setBranchMenuOpen(open)
             }}
             side="top"
-            align="start"
+            align="end"
             groups={branchMenuGroups}
             emptyLabel="No branches or worktrees"
             disabled={!repository || Boolean(busy)}
@@ -828,22 +850,30 @@ export default function GitHubWorkspace({
               </button>
             }
           />
+          <span className="github-workspace__footer-sep" aria-hidden="true" />
 
           <button
             type="button"
-            className={`github-workspace__footer-btn ${busy?.startsWith('Fetch') ? 'is-busy' : ''}`}
+            className={`github-workspace__footer-btn github-workspace__footer-btn--fetch ${busy?.startsWith('Fetch') ? 'is-busy' : ''}`}
             disabled={!repository || Boolean(busy)}
+            aria-busy={busy?.startsWith('Fetch') || undefined}
+            aria-label={busy?.startsWith('Fetch') ? 'Fetching' : 'Fetch'}
             onClick={() =>
               repository && void mutate({ type: 'fetch', repositoryId: repository.id }, 'Fetching…')
             }
           >
             <RefreshCcw size={12} className={busy?.startsWith('Fetch') ? 'is-spinning' : undefined} />
-            {busy?.startsWith('Fetch') ? 'Fetching…' : 'Fetch'}
+            {/* Keep label width stable — only the icon spins while busy. */}
+            <span className="github-workspace__footer-btn-label">Fetch</span>
           </button>
+          <span className="github-workspace__footer-sep" aria-hidden="true" />
+
           <button
             type="button"
-            className={`github-workspace__footer-btn ${busy && /Push|Pull/.test(busy) ? 'is-busy' : ''}`}
+            className={`github-workspace__footer-btn github-workspace__footer-btn--sync ${busy && /Push|Pull/.test(busy) ? 'is-busy' : ''}`}
             disabled={!repository || Boolean(busy)}
+            aria-busy={(busy && /Push|Pull/.test(busy)) || undefined}
+            aria-label={busy && /Push|Pull/.test(busy) ? busy.replace(/…$/, '') : syncLabel}
             onClick={() => {
               if (!repository) return
               const isPull = repository.behind > 0
@@ -854,11 +884,10 @@ export default function GitHubWorkspace({
             }}
           >
             <Cloud size={12} className={busy && /Push|Pull/.test(busy) ? 'is-spinning' : undefined} />
-            {busy && /Push|Pull/.test(busy) ? busy : syncLabel}
+            <span className="github-workspace__footer-btn-label">{syncLabel}</span>
           </button>
-        </div>
+          <span className="github-workspace__footer-sep" aria-hidden="true" />
 
-        <div className="github-workspace__footer-right">
           <ActionsMenu
             open={repoMenuOpen}
             onOpenChange={(open) => {
@@ -885,23 +914,6 @@ export default function GitHubWorkspace({
               </button>
             }
           />
-
-          <div className="github-workspace__account-actions">
-            <span className="github-workspace__account">
-              {state.account.avatarUrl && <img src={state.account.avatarUrl} alt="" />}@
-              {state.account.login}
-            </span>
-            <button
-              type="button"
-              onClick={() =>
-                void window.githubWorkspace
-                  .disconnect()
-                  .then((account) => setState({ ...state, account }))
-              }
-            >
-              Disconnect
-            </button>
-          </div>
         </div>
       </footer>
 
@@ -1401,14 +1413,12 @@ const workspaceStyles = `
   .github-workspace__footer-right {
     margin-left: auto;
   }
-  .github-workspace__brand {
+  .github-workspace__footer-sep {
     flex: none;
-    width: 32px;
-    height: 28px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--theme-text-secondary);
+    width: 1px;
+    height: 14px;
+    margin: 0 2px;
+    background: rgba(255, 255, 255, 0.15);
   }
 
   .github-workspace__branch-btn.zura-menu-trigger,
@@ -1464,7 +1474,20 @@ const workspaceStyles = `
     font-size: 12.5px;
     font-weight: 500;
     cursor: pointer;
-    transition: background-color 120ms ease, color 120ms ease;
+    transition: background-color 120ms ease, color 120ms ease, opacity 120ms ease;
+  }
+  .github-workspace__footer-btn-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  /* Reserve width for the longest usual sync label so counts don't jump layout. */
+  .github-workspace__footer-btn--fetch {
+    min-width: 4.75rem;
+  }
+  .github-workspace__footer-btn--sync {
+    min-width: 5.75rem;
   }
   .github-workspace__footer-btn:hover:not(:disabled),
   .github-workspace__footer-btn:focus-visible {
@@ -1474,6 +1497,12 @@ const workspaceStyles = `
   }
   .github-workspace__footer-btn.is-busy {
     color: rgba(255, 249, 251, 0.92);
+  }
+  .github-workspace__footer-btn.is-busy .github-workspace__footer-btn-label {
+    opacity: 0.88;
+  }
+  .github-workspace__footer-btn svg {
+    flex: none;
   }
   .github-workspace__footer-btn svg.is-spinning {
     animation: github-auth-spin .85s linear infinite;

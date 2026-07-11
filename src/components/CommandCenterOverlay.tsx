@@ -15,6 +15,7 @@ import {
   MessageSquare,
   Monitor,
   Puzzle,
+  RefreshCcw,
   Sparkles,
   Star,
   X,
@@ -487,6 +488,7 @@ export default function CommandCenterOverlay() {
     hasRepository: false,
     selectedCount: 0,
     changeCount: 0,
+    committing: false,
   })
   const githubCommitHandlerRef = useRef<(() => Promise<void>) | null>(null)
   const [input, setInput] = useState('')
@@ -813,7 +815,12 @@ export default function CommandCenterOverlay() {
     setMode('search')
     setInput('')
     setGithubSummary('')
-    setGithubCommitMeta({ hasRepository: false, selectedCount: 0, changeCount: 0 })
+    setGithubCommitMeta({
+      hasRepository: false,
+      selectedCount: 0,
+      changeCount: 0,
+      committing: false,
+    })
     setSelectedIndex(0)
     setSelectionVisible(false)
   }, [])
@@ -821,9 +828,30 @@ export default function CommandCenterOverlay() {
   const showGitHubCommitBar = isGitHubView && githubSignedIn && githubCommitMeta.hasRepository
   // Only enable Commit when there is a summary and at least one *checked* file.
   const canGitHubCommit =
-    showGitHubCommitBar && githubSummary.trim().length > 0 && githubCommitMeta.selectedCount > 0
+    showGitHubCommitBar &&
+    !githubCommitMeta.committing &&
+    githubSummary.trim().length > 0 &&
+    githubCommitMeta.selectedCount > 0
+
+  const githubCommitHint = (() => {
+    if (!showGitHubCommitBar) return undefined
+    if (githubCommitMeta.committing) return 'Creating commit…'
+    if (githubCommitMeta.changeCount === 0) return 'No local changes to commit'
+    if (githubCommitMeta.selectedCount === 0) return 'Check files in the list to include them'
+    if (!githubSummary.trim()) return 'Type a summary, then press Enter or click Commit'
+    const n = githubCommitMeta.selectedCount
+    return `Commit ${n} file${n === 1 ? '' : 's'} · Enter`
+  })()
+
+  const githubCommitLabel = (() => {
+    if (githubCommitMeta.committing) return 'Committing'
+    const n = githubCommitMeta.selectedCount
+    if (n <= 0) return 'Commit'
+    return `Commit ${n}`
+  })()
 
   const runGitHubCommit = () => {
+    if (!canGitHubCommit) return
     void githubCommitHandlerRef.current?.()
   }
 
@@ -1635,13 +1663,24 @@ export default function CommandCenterOverlay() {
             {showGitHubCommitBar && (
               <button
                 type="button"
-                className="command-center-github-commit"
+                className={`command-center-github-commit ${githubCommitMeta.committing ? 'is-busy' : ''}`}
                 disabled={!canGitHubCommit}
+                title={githubCommitHint}
+                aria-label={githubCommitHint || githubCommitLabel}
+                aria-busy={githubCommitMeta.committing || undefined}
                 onClick={runGitHubCommit}
               >
-                <Check size={14} />
-                Commit
-                {githubCommitMeta.selectedCount > 0 ? ` ${githubCommitMeta.selectedCount}` : ''}
+                {githubCommitMeta.committing ? (
+                  <RefreshCcw size={14} className="command-center-github-commit__spin" aria-hidden="true" />
+                ) : (
+                  <Check size={14} aria-hidden="true" />
+                )}
+                <span className="command-center-github-commit__label">{githubCommitLabel}</span>
+                {canGitHubCommit && !githubCommitMeta.committing && (
+                  <kbd className="command-center-github-commit__kbd" aria-hidden="true">
+                    <CornerDownLeft size={11} />
+                  </kbd>
+                )}
               </button>
             )}
           </div>
@@ -2348,14 +2387,14 @@ export default function CommandCenterOverlay() {
           gap: 10px;
         }
 
-        /* Match main-window primary actions (theme tokens, not a one-off palette). */
+        /* Primary commit action — stable width, Enter hint, busy spinner. */
         .command-center-input-shell button.command-center-github-commit {
           flex: none;
           width: auto;
-          min-width: 104px;
+          min-width: 7.5rem;
           height: 32px;
-          gap: 6px;
-          padding: 0 14px;
+          gap: 7px;
+          padding: 0 10px 0 12px;
           border: 1px solid color-mix(in srgb, var(--theme-accent) 55%, transparent);
           border-radius: 8px;
           background: var(--theme-accent);
@@ -2382,12 +2421,52 @@ export default function CommandCenterOverlay() {
         }
 
         .command-center-input-shell button.command-center-github-commit:disabled {
-          opacity: 0.42;
+          opacity: 0.5;
           cursor: default;
           border-color: var(--theme-border);
           background: var(--theme-surface-subtle);
           color: var(--theme-text-muted);
           box-shadow: none;
+        }
+
+        .command-center-input-shell button.command-center-github-commit.is-busy:disabled {
+          opacity: 0.92;
+          border-color: color-mix(in srgb, var(--theme-accent) 45%, transparent);
+          background: color-mix(in srgb, var(--theme-accent) 78%, var(--theme-surface));
+          color: var(--theme-text-inverse);
+          cursor: progress;
+        }
+
+        .command-center-github-commit__label {
+          min-width: 3.6rem;
+          text-align: left;
+        }
+
+        .command-center-github-commit__kbd {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-width: 20px;
+          height: 18px;
+          margin-left: 2px;
+          padding: 0 4px;
+          border-radius: 4px;
+          border: 1px solid color-mix(in srgb, var(--theme-text-inverse) 22%, transparent);
+          background: color-mix(in srgb, var(--theme-text-inverse) 14%, transparent);
+          color: inherit;
+          opacity: 0.9;
+        }
+
+        .command-center-github-commit__spin {
+          animation: command-center-github-spin 0.85s linear infinite;
+        }
+
+        @keyframes command-center-github-spin {
+          to { transform: rotate(360deg); }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .command-center-github-commit__spin { animation: none; }
         }
 
         .command-center-input-shell button,
