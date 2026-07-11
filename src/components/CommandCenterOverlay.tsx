@@ -819,10 +819,10 @@ export default function CommandCenterOverlay() {
   }, [])
 
   const showGitHubCommitBar = isGitHubView && githubSignedIn && githubCommitMeta.hasRepository
+  // Only enable Commit when there is a summary and at least one local change.
+  // (Push is separate — don't let empty commits look like a failed push.)
   const canGitHubCommit =
-    showGitHubCommitBar &&
-    githubSummary.trim().length > 0 &&
-    (githubCommitMeta.selectedCount > 0 || githubCommitMeta.changeCount > 0)
+    showGitHubCommitBar && githubSummary.trim().length > 0 && githubCommitMeta.changeCount > 0
 
   const runGitHubCommit = () => {
     void githubCommitHandlerRef.current?.()
@@ -2349,32 +2349,71 @@ export default function CommandCenterOverlay() {
         .command-center-github-login-hint kbd { padding: 3px 5px; border: 1px solid rgba(255,255,255,.1); border-radius: 4px; background: rgba(255,255,255,.045); color: rgba(255,239,244,.62); font: inherit; font-size: 8px; font-weight: 650; }
 
         .command-center-input-shell.is-github-commit {
-          padding-right: 4px;
+          padding-right: 6px;
+          gap: 10px;
         }
 
         .command-center-input-shell button.command-center-github-commit {
+          flex: none;
           width: auto;
-          min-width: 96px;
-          height: 30px;
+          min-width: 104px;
+          height: 32px;
           gap: 6px;
-          padding: 0 12px;
-          border-radius: 7px;
-          background: transparent;
-          color: rgba(243, 216, 208, 0.92);
+          padding: 0 14px;
+          border: 1px solid rgba(201, 146, 131, 0.55);
+          border-radius: 8px;
+          background: linear-gradient(
+            180deg,
+            rgba(186, 118, 99, 0.95) 0%,
+            rgba(158, 96, 80, 0.98) 100%
+          );
+          color: #fff8f5;
           font-size: 12.5px;
-          font-weight: 680;
+          font-weight: 700;
+          letter-spacing: 0.01em;
           white-space: nowrap;
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.18),
+            0 1px 2px rgba(0, 0, 0, 0.28);
+          transition:
+            background 120ms ease,
+            border-color 120ms ease,
+            box-shadow 120ms ease,
+            transform 80ms ease,
+            opacity 120ms ease;
         }
 
-        .command-center-input-shell button.command-center-github-commit:hover:not(:disabled),
+        .command-center-input-shell button.command-center-github-commit:hover:not(:disabled) {
+          border-color: rgba(232, 176, 158, 0.75);
+          background: linear-gradient(
+            180deg,
+            rgba(201, 132, 112, 0.98) 0%,
+            rgba(172, 108, 90, 1) 100%
+          );
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.22),
+            0 2px 8px rgba(0, 0, 0, 0.32);
+        }
+
         .command-center-input-shell button.command-center-github-commit:focus-visible {
-          background: rgba(201, 146, 131, 0.16);
-          outline: none;
+          outline: 2px solid rgba(201, 146, 131, 0.45);
+          outline-offset: 2px;
+        }
+
+        .command-center-input-shell button.command-center-github-commit:active:not(:disabled) {
+          transform: translateY(1px);
+          box-shadow:
+            inset 0 1px 2px rgba(0, 0, 0, 0.22),
+            0 0 0 transparent;
         }
 
         .command-center-input-shell button.command-center-github-commit:disabled {
-          opacity: 0.4;
+          opacity: 0.42;
           cursor: default;
+          border-color: rgba(255, 239, 232, 0.12);
+          background: rgba(255, 245, 241, 0.08);
+          color: rgba(255, 236, 230, 0.48);
+          box-shadow: none;
         }
 
         .command-center-input-shell button,

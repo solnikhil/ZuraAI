@@ -14,6 +14,14 @@ import {
   isValidGitHubDeviceUserCode,
   redactGitHubSecrets,
 } from './githubWorkspaceSecurity'
+import {
+  buildGithubNetworkConfigArgs,
+  classifyNetworkGitError,
+  parseGithubRemote,
+  resolveChangePath,
+  selectCommitPaths,
+  selectPushArgs,
+} from './githubWorkspaceGit'
 import type {
   GitHubWorkspaceAccount,
   GitHubWorkspaceCommit,
@@ -149,29 +157,45 @@ async function git(repositoryPath: string, args: string[]) {
   return result.stdout
 }
 
+/**
+ * Run a network Git command (fetch/pull/push) with GitHub HTTPS auth.
+ *
+ * Prefer `http.*.extraheader` basic auth over GIT_ASKPASS: askpass helpers are
+ * unreliable with dugite on Windows (empty password prompts → failed push).
+ * Never rewrite the stored remote URL; only inject credentials for this process.
+ */
 async function networkGit(repositoryPath: string, args: string[]) {
-  const remote = await git(repositoryPath, ['remote', 'get-url', 'origin']).catch(() => '')
-  const token = remote.includes('github.com') ? await getSecureValueAsync(TOKEN_KEY) : ''
-  if (remote.includes('github.com') && !token) throw new Error('Sign in to GitHub before syncing this repository.')
-  const helperPath = path.join(app.getPath('userData'), 'github-workspace-askpass.cmd')
-  await fs.writeFile(
-    helperPath,
-    '@echo off\r\necho %~1 | findstr /I "Username" >nul && (echo x-access-token& exit /b 0)\r\necho %ZURA_GITHUB_TOKEN%\r\n',
-    { encoding: 'utf8', mode: 0o700 }
-  )
-  try {
-    const result = await execGit(['-c', 'credential.helper=', ...args], repositoryPath, {
-      env: dugiteEnv({
-        GIT_TERMINAL_PROMPT: '0',
-        GIT_ASKPASS: helperPath,
-        ZURA_GITHUB_TOKEN: token || undefined,
-      }),
-    })
-    if (result.exitCode !== 0) throw new Error(redactGitHubSecrets(result.stderr.trim()) || `Git exited with ${result.exitCode}.`)
-    return result.stdout
-  } finally {
-    await fs.rm(helperPath, { force: true }).catch(() => undefined)
+  const remote = (await git(repositoryPath, ['remote', 'get-url', 'origin']).catch(() => '')).trim()
+  if (!remote) throw new Error('This repository has no origin remote to sync with.')
+
+  const github = parseGithubRemote(remote)
+  const token = github ? await getSecureValueAsync(TOKEN_KEY) : ''
+  if (github && !token) throw new Error('Sign in to GitHub before syncing this repository.')
+
+  const configArgs = buildGithubNetworkConfigArgs(remote, token || null)
+  const result = await execGit([...configArgs, ...args], repositoryPath, {
+    env: dugiteEnv({
+      GIT_TERMINAL_PROMPT: '0',
+      // Ensure no interactive credential UI is attempted.
+      GCM_INTERACTIVE: 'Never',
+      GIT_ASKPASS: '',
+    }),
+  })
+  if (result.exitCode !== 0) {
+    const detail =
+      redactGitHubSecrets((result.stderr || result.stdout || '').trim()) ||
+      `Git exited with ${result.exitCode}.`
+    throw new Error(classifyNetworkGitError(detail))
   }
+  return result.stdout
+}
+
+async function pushRepository(repositoryPath: string) {
+  const branch = (await git(repositoryPath, ['rev-parse', '--abbrev-ref', 'HEAD'])).trim()
+  const hasUpstream = await git(repositoryPath, ['rev-parse', '--abbrev-ref', `${branch}@{upstream}`])
+    .then(() => true)
+    .catch(() => false)
+  await networkGit(repositoryPath, selectPushArgs(branch, hasUpstream))
 }
 
 async function accountState(): Promise<GitHubWorkspaceAccount> {
@@ -316,9 +340,10 @@ async function performMutation(mutation: GitHubWorkspaceMutation): Promise<GitHu
     const details = await selectedDetails(repository)
     // If nothing is checked, commit every current change (Desktop-style “include all”
     // when the user typed a summary and hit Commit without staging).
-    const paths = selected.size
-      ? [...selected]
-      : details.changes.map((change) => change.path).filter(Boolean)
+    const paths = selectCommitPaths(
+      selected,
+      details.changes.map((change) => change.path)
+    )
     if (!paths.length) throw new Error('No changes to commit.')
     await git(repository!.path, ['add', '--', ...paths])
     const message = mutation.description?.trim() ? `${summary}\n\n${mutation.description.trim()}` : summary
@@ -326,8 +351,12 @@ async function performMutation(mutation: GitHubWorkspaceMutation): Promise<GitHu
     selected.clear()
   }
   if (mutation.type === 'fetch') await networkGit(repository!.path, ['fetch', '--prune'])
-  if (mutation.type === 'pull') await networkGit(repository!.path, ['pull', '--ff-only'])
-  if (mutation.type === 'push') await networkGit(repository!.path, ['push'])
+  if (mutation.type === 'pull') {
+    await networkGit(repository!.path, ['pull', '--ff-only'])
+  }
+  if (mutation.type === 'push') {
+    await pushRepository(repository!.path)
+  }
   return getGitHubWorkspaceState()
 }
 
@@ -428,27 +457,6 @@ export function registerGitHubWorkspaceHandlers() {
       }
     }
   })
-}
-
-/**
- * Resolve a change path relative to the repository and ensure it stays inside
- * the repo root (no renderer-supplied absolute paths).
- */
-function resolveChangePath(repositoryPath: string, changePath: string): string {
-  // Porcelain rename lines may look like "old -> new"; open the working-tree side.
-  const relative = changePath.includes(' -> ')
-    ? changePath.split(' -> ').at(-1)!.trim()
-    : changePath.trim()
-  if (!relative || path.isAbsolute(relative) || relative.includes('\0')) {
-    throw new Error('Invalid file path.')
-  }
-  const root = path.resolve(repositoryPath)
-  const resolved = path.resolve(root, relative)
-  const rootWithSep = root.endsWith(path.sep) ? root : root + path.sep
-  if (resolved !== root && !resolved.startsWith(rootWithSep)) {
-    throw new Error('File is outside the repository.')
-  }
-  return resolved
 }
 
 async function openWorkspaceTarget(request: unknown): Promise<GitHubWorkspaceOpenResult> {

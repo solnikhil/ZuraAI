@@ -435,9 +435,12 @@ Desktop–inspired: commit summary lives in the Command Center top bar (same row
 as the back control) with Commit on the far right when a repository is open;
 File Changes / History sidebar with detail pane; footer is left (logo, branch,
 fetch, push/pull) and right (repository picker, account). Commit stages the
-checked files, or all current changes when none are checked. Commit-message AI
-is not wired to GitHub Desktop/Copilot private endpoints; any future generate
-action must use the user's Zura providers only. The repository picker is a custom
+checked files, or all current changes when none are checked. Network
+fetch/pull/push authenticate to github.com via a per-invocation
+`http.https://github.com/.extraheader` basic token (not GIT_ASKPASS), and push
+sets `-u origin <branch>` when no upstream exists. Commit-message AI is not
+wired to GitHub Desktop/Copilot private endpoints; any future generate action
+must use the user's Zura providers only. The repository picker is a custom
 filtered menu (native `<select>` is avoided because it fails in the always-on-top
 frameless overlay); repos are grouped by Recent and by GitHub owner when
 `origin` is a github.com remote. Add-repository folder dialogs are parented to

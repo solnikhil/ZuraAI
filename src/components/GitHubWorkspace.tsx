@@ -182,12 +182,19 @@ export default function GitHubWorkspace({
     return () => window.removeEventListener('github-workspace:submit-sign-in', submit)
   })
 
+  const formatGitError = (e: unknown) => {
+    if (!(e instanceof Error)) return 'Git operation failed.'
+    // Electron wraps invoke failures as: Error invoking remote method 'x': Error: <msg>
+    const wrapped = e.message.match(/Error invoking remote method '[^']+':(?: Error:)?\s*([\s\S]+)$/i)
+    return (wrapped?.[1] || e.message).trim() || 'Git operation failed.'
+  }
+
   const mutate = async (mutation: Parameters<typeof window.githubWorkspace.mutate>[0]) => {
     setError(undefined)
     try {
       setState(await window.githubWorkspace.mutate(mutation))
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Git operation failed.')
+      setError(formatGitError(e))
     }
   }
 
@@ -216,7 +223,7 @@ export default function GitHubWorkspace({
       )
       onSummaryChange('')
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Git operation failed.')
+      setError(formatGitError(e))
     }
   }
 
