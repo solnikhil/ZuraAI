@@ -12,8 +12,8 @@ export interface ZuraStoreExtension {
 }
 
 /**
- * Presentation-only catalogue for the first Zura Store surface. Install state,
- * provider credentials, and runtime capabilities deliberately do not exist yet.
+ * Curated catalogue. GitHub is the first reviewed, bundled product with a real
+ * main-owned install state; remaining concepts stay presentation-only.
  */
 export const ZURA_STORE_EXTENSIONS: ZuraStoreExtension[] = [
   {
@@ -55,12 +55,12 @@ export const ZURA_STORE_EXTENSIONS: ZuraStoreExtension[] = [
   },
   {
     id: 'github',
-    name: 'GitHub',
-    description: 'Keep pull requests, issues, and repository activity close at hand.',
+    name: 'GitHub Workspace',
+    description: 'Review changes, commit, inspect history, and sync repositories in Command Center.',
     category: 'Productivity',
     accent: '#b9b7ff',
     glyph: 'GH',
-    capabilities: ['Pull requests', 'Issues'],
+    capabilities: ['Changes', 'History', 'Commit', 'Sync'],
   },
   {
     id: 'discord',

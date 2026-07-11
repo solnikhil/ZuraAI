@@ -68,6 +68,7 @@ import {
   registerCommandCenterHandlers,
   unregisterCommandCenterHandlers,
 } from './commandCenter'
+import { handleGitHubWorkspaceOAuthUrl, registerGitHubWorkspaceHandlers, unregisterGitHubWorkspaceHandlers } from './githubWorkspace'
 
 // Resolve packaged asset paths consistently in both development and production.
 const DIST_PATH = process.env.DIST || path.join(__dirname, '../dist')
@@ -174,6 +175,7 @@ app.on('will-quit', () => {
   unregisterAgentApprovalOverlayHandlers()
   disposeCommandCenter()
   unregisterCommandCenterHandlers()
+  unregisterGitHubWorkspaceHandlers()
   unregisterMcpHandlers()
   disposeCodeExecutionApprovalManager()
   unregisterCodeExecutionHandlers()
@@ -260,6 +262,7 @@ if (hasSingleInstanceLock) {
     registerToolHandlers()
     registerAgentApprovalOverlayHandlers()
     registerCommandCenterHandlers()
+    registerGitHubWorkspaceHandlers()
     registerUpdaterHandlers(getMainWindow)
     setShutdownHook(() => shutdownMcpManager())
     registerCodeExecutionHandlers()
@@ -336,6 +339,11 @@ if (hasSingleInstanceLock) {
     const initialChatLink = process.argv.find((arg) => arg.startsWith('zura-chat://'))
     if (initialChatLink) {
       handleZuraChatMessageUrl(initialChatLink)
+    }
+
+    const initialGitHubLink = process.argv.find((arg) => arg.startsWith('zura-github://'))
+    if (initialGitHubLink) {
+      void handleGitHubWorkspaceOAuthUrl(initialGitHubLink)
     }
 
     void trackStartupAnalytics()

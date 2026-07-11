@@ -3,6 +3,7 @@ import * as fs from 'fs/promises'
 import path from 'path'
 
 import { getMainWindow, createMainWindow } from './windows'
+import { handleGitHubWorkspaceOAuthUrl } from './githubWorkspace'
 
 export interface ExternalChatMessageRequest {
   sessionId: string
@@ -15,7 +16,7 @@ const CHAT_LINK_MESSAGE_CHANNEL = 'chat-links:message'
 const MAX_DEEP_LINK_MESSAGE_LENGTH = 20_000
 const CLI_SESSION_ID_PATTERN = /^cli-[a-z0-9-]{1,80}$/i
 const TRACE_FILE_NAME = 'chat-link-events.jsonl'
-const ZURA_PROTOCOLS = ['zura-chat', 'zuraai'] as const
+const ZURA_PROTOCOLS = ['zura-chat', 'zuraai', 'zura-github'] as const
 
 const pendingRequests: ExternalChatMessageRequest[] = []
 let deliveryRetryScheduled = false
@@ -224,6 +225,10 @@ export function handleZuraAppUrl(url: string): boolean {
 }
 
 function handleRegisteredProtocolUrl(url: string): boolean {
+  if (url.startsWith('zura-github://')) {
+    void handleGitHubWorkspaceOAuthUrl(url)
+    return true
+  }
   if (url.startsWith('zura-chat://')) {
     return handleZuraChatMessageUrl(url)
   }
@@ -259,7 +264,7 @@ export function registerZuraChatProtocolHandlers(): void {
 
   app.on('second-instance', (_event, commandLine) => {
     const url = commandLine.find(
-      (arg) => arg.startsWith('zura-chat://') || arg.startsWith('zuraai://')
+      (arg) => arg.startsWith('zura-chat://') || arg.startsWith('zuraai://') || arg.startsWith('zura-github://')
     )
     traceChatLinkEvent('second-instance', { hasUrl: Boolean(url), argCount: commandLine.length })
     if (url) {

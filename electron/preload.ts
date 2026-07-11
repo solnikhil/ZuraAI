@@ -54,6 +54,9 @@ import type {
   CommandCenterItemActionResult,
   UpdateMemoryPatch,
   WindowAppearance,
+  GitHubWorkspaceApi,
+  GitHubWorkspaceMutation,
+  GitHubWorkspaceState,
 } from '../src/electron/types'
 
 const isDebug = process.env.ZURA_DEBUG === '1'
@@ -216,6 +219,20 @@ const COMMAND_CENTER_ON_CHANNELS = new Set<string>([
   'command-center:hidden',
   'command-center:command',
 ])
+
+const GITHUB_WORKSPACE_INVOKE_CHANNELS = new Set<string>([
+  'github-workspace:get-installed',
+  'github-workspace:install',
+  'github-workspace:uninstall',
+  'github-workspace:get-state',
+  'github-workspace:add-repository',
+  'github-workspace:start-sign-in',
+  'github-workspace:sign-out',
+  'github-workspace:mutate',
+  'github-workspace:select-diff',
+])
+
+const GITHUB_WORKSPACE_ON_CHANNELS = new Set<string>(['github-workspace:changed'])
 
 const SCHEDULED_TASKS_INVOKE_CHANNELS = new Set<string>([
   'scheduled-tasks:set-extension-enabled',
@@ -839,6 +856,45 @@ contextBridge.exposeInMainWorld(
       return () => ipcRenderer.removeListener('command-center:command', listener)
     },
   })
+)
+
+contextBridge.exposeInMainWorld(
+  'githubWorkspace',
+  Object.freeze({
+    getInstalled: () => { assertAllowed('invoke', 'github-workspace:get-installed', GITHUB_WORKSPACE_INVOKE_CHANNELS); return ipcRenderer.invoke('github-workspace:get-installed') as Promise<boolean> },
+    install: () => { assertAllowed('invoke', 'github-workspace:install', GITHUB_WORKSPACE_INVOKE_CHANNELS); return ipcRenderer.invoke('github-workspace:install') as Promise<boolean> },
+    uninstall: () => { assertAllowed('invoke', 'github-workspace:uninstall', GITHUB_WORKSPACE_INVOKE_CHANNELS); return ipcRenderer.invoke('github-workspace:uninstall') as Promise<boolean> },
+    getState: () => {
+      assertAllowed('invoke', 'github-workspace:get-state', GITHUB_WORKSPACE_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('github-workspace:get-state') as Promise<GitHubWorkspaceState>
+    },
+    addRepository: () => {
+      assertAllowed('invoke', 'github-workspace:add-repository', GITHUB_WORKSPACE_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('github-workspace:add-repository') as Promise<GitHubWorkspaceState>
+    },
+    startSignIn: () => {
+      assertAllowed('invoke', 'github-workspace:start-sign-in', GITHUB_WORKSPACE_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('github-workspace:start-sign-in')
+    },
+    signOut: () => {
+      assertAllowed('invoke', 'github-workspace:sign-out', GITHUB_WORKSPACE_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('github-workspace:sign-out')
+    },
+    mutate: (mutation: GitHubWorkspaceMutation) => {
+      assertAllowed('invoke', 'github-workspace:mutate', GITHUB_WORKSPACE_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('github-workspace:mutate', mutation) as Promise<GitHubWorkspaceState>
+    },
+    selectDiff: (repositoryId: string, changeId: string) => {
+      assertAllowed('invoke', 'github-workspace:select-diff', GITHUB_WORKSPACE_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('github-workspace:select-diff', repositoryId, changeId) as Promise<string>
+    },
+    onChanged: (callback: (state: GitHubWorkspaceState) => void) => {
+      assertAllowed('on', 'github-workspace:changed', GITHUB_WORKSPACE_ON_CHANNELS)
+      const listener = (_event: IpcRendererEvent, state: GitHubWorkspaceState) => callback(state)
+      ipcRenderer.on('github-workspace:changed', listener)
+      return () => ipcRenderer.removeListener('github-workspace:changed', listener)
+    },
+  }) satisfies GitHubWorkspaceApi
 )
 
 contextBridge.exposeInMainWorld(

@@ -60,6 +60,18 @@ describe('CommandCenterOverlay', () => {
     currentSessionId = null
     sessions = []
     Object.assign(window, {
+      githubWorkspace: {
+        getInstalled: vi.fn(async () => false),
+        install: vi.fn(async () => true),
+        uninstall: vi.fn(async () => true),
+        getState: vi.fn(),
+        addRepository: vi.fn(),
+        startSignIn: vi.fn(),
+        signOut: vi.fn(),
+        mutate: vi.fn(),
+        selectDiff: vi.fn(),
+        onChanged: vi.fn(() => vi.fn()),
+      },
       commandCenter: {
         getIndex: vi.fn(async () => ({
           workflows: [
@@ -161,7 +173,14 @@ describe('CommandCenterOverlay', () => {
     expect(
       actionsMenu.querySelector('.command-center-actions-popover__title-icon img')
     ).toHaveAttribute('src', 'data:image/png;base64,icon')
-    expect(await screen.findByText('Show in File Explorer')).toBeInTheDocument()
+    const openAction = screen.getByRole('menuitem', { name: /open application/i })
+    const showInExplorerAction = screen.getByRole('menuitem', {
+      name: /show in file explorer/i,
+    })
+    await waitFor(() => expect(openAction).toHaveFocus())
+    expect(document.querySelector('.command-center-panel')).toHaveClass('has-actions-menu')
+    fireEvent.keyDown(openAction, { key: 'ArrowDown' })
+    expect(showInExplorerAction).toHaveFocus()
     expect(screen.getByText('Copy Path')).toBeInTheDocument()
     expect(screen.getByText('Copy Name')).toBeInTheDocument()
 

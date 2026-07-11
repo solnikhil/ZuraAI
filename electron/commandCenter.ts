@@ -69,6 +69,7 @@ import {
   personalizationBoost,
   recordCommandCenterSelection,
 } from './commandCenterSearchLearning'
+import { isGitHubWorkspaceInstalled } from './githubWorkspace'
 
 const COMMAND_CENTER_SHORTCUT = 'CommandOrControl+Shift+Space'
 const COMMAND_CENTER_FALLBACK_SHORTCUT = 'CommandOrControl+Alt+Space'
@@ -145,6 +146,12 @@ const COMMAND_CENTER_BASE_ACTIONS = [
     aliases: ['extensions', 'plugins', 'integrations', 'add-ons', 'marketplace'],
   },
   {
+    id: 'github-workspace',
+    label: 'GitHub',
+    kind: 'additional',
+    aliases: ['github desktop', 'git', 'repositories', 'source control'],
+  },
+  {
     id: 'open-windows-copilot',
     label: 'Windows Copilot',
     kind: 'additional',
@@ -168,6 +175,7 @@ const ACTION_SUBTITLES: Record<string, string> = {
   layout: 'Snap, tile, and maximize the active window',
   settings: 'Open Windows Settings pages',
   'zura-store': 'Discover extensions for Command Center',
+  'github-workspace': 'Changes, history, branches, and sync',
   'open-windows-copilot': 'Open Windows Copilot',
   ...Object.fromEntries(
     WINDOWS_SETTINGS_ACTION_CATALOG.map((entry) => [`settings-${entry.page}`, entry.subtitle])
@@ -181,6 +189,7 @@ const INTERACTIVE_COMMAND_IDS = new Set<string>([
   'layout',
   'settings',
   'zura-store',
+  'github-workspace',
 ])
 
 /**
@@ -483,6 +492,7 @@ function appDiagnosticsFromToolResult(
 
 async function buildCommandCenterIndex(query: unknown = ''): Promise<CommandCenterIndex> {
   const rawQuery = indexQuery(query)
+  const githubInstalled = await isGitHubWorkspaceInstalled()
   const parsedQuery = parseCommandCenterQuery(rawQuery)
   const appQuery = parsedQuery.normalizedText
   const [staticInputs, appsResult] = await Promise.all([
@@ -654,7 +664,7 @@ async function buildCommandCenterIndex(query: unknown = ''): Promise<CommandCent
         processName: window.processName,
         processId: window.processId,
       })),
-    actions: COMMAND_CENTER_ACTIONS.map((action) => ({
+    actions: COMMAND_CENTER_ACTIONS.filter((action) => action.id !== 'github-workspace' || githubInstalled).map((action) => ({
       id: `action:${action.id}`,
       type: 'action' as const,
       title: action.label,

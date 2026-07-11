@@ -280,6 +280,7 @@ export type CommandCenterActionId =
   | 'layout'
   | 'settings'
   | 'zura-store'
+  | 'github-workspace'
   | 'open-windows-copilot'
   /** Nested Windows Settings pages: settings-<page> from the fixed catalog. */
   | `settings-${string}`
@@ -479,6 +480,71 @@ export interface CommandCenterItemActionResult {
 export interface CommandCenterSubmitResult {
   accepted: boolean
   reason?: string
+}
+
+export type GitHubWorkspaceAccount =
+  | { status: 'signed_out'; setupRequired?: boolean; error?: string }
+  | { status: 'signing_in'; verificationUrl?: string }
+  | { status: 'signed_in'; login: string; name?: string; avatarUrl?: string }
+
+export interface GitHubWorkspaceRepositorySummary {
+  id: string
+  name: string
+  alias?: string
+  path: string
+  missing: boolean
+  branch?: string
+  ahead: number
+  behind: number
+  changedFiles: number
+  remoteUrl?: string
+  lastOpenedAt: number
+}
+
+export interface GitHubWorkspaceFileChange {
+  id: string
+  path: string
+  status: string
+  selected: boolean
+}
+
+export interface GitHubWorkspaceCommit {
+  id: string
+  summary: string
+  author: string
+  authoredAt: number
+}
+
+export interface GitHubWorkspaceState {
+  account: GitHubWorkspaceAccount
+  repositories: GitHubWorkspaceRepositorySummary[]
+  selectedRepositoryId?: string
+  changes: GitHubWorkspaceFileChange[]
+  history: GitHubWorkspaceCommit[]
+  diff?: string
+  busy?: string
+  error?: string
+}
+
+export type GitHubWorkspaceMutation =
+  | { type: 'select-repository'; repositoryId: string }
+  | { type: 'select-change'; repositoryId: string; changeId: string; selected: boolean }
+  | { type: 'commit'; repositoryId: string; summary: string; description?: string }
+  | { type: 'fetch'; repositoryId: string }
+  | { type: 'pull'; repositoryId: string }
+  | { type: 'push'; repositoryId: string }
+
+export interface GitHubWorkspaceApi {
+  getInstalled: () => Promise<boolean>
+  install: () => Promise<boolean>
+  uninstall: () => Promise<boolean>
+  getState: () => Promise<GitHubWorkspaceState>
+  addRepository: () => Promise<GitHubWorkspaceState>
+  startSignIn: () => Promise<GitHubWorkspaceAccount>
+  signOut: () => Promise<GitHubWorkspaceAccount>
+  mutate: (mutation: GitHubWorkspaceMutation) => Promise<GitHubWorkspaceState>
+  selectDiff: (repositoryId: string, changeId: string) => Promise<string>
+  onChanged: (callback: (state: GitHubWorkspaceState) => void) => () => void
 }
 
 export interface EmailNotificationSettings {

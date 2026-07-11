@@ -9,6 +9,10 @@ const devServerUrl = process.env.VITE_DEV_SERVER_URL
 const devServerOrigin = devServerUrl ? new URL(devServerUrl).origin : null
 
 let commandCenterWindow: BrowserWindow | null = null
+
+export function getCommandCenterWindow(): BrowserWindow | null {
+  return commandCenterWindow && !commandCenterWindow.isDestroyed() ? commandCenterWindow : null
+}
 let commandCenterLayout: 'search' | 'chat' = 'search'
 let commandCenterReadyToShow = false
 let commandCenterShowPending = false

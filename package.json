@@ -59,6 +59,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "discord-rpc": "^4.0.1",
+    "dugite": "^3.2.2",
     "electron-updater": "^6.8.9",
     "emojilib": "4.0.3",
     "framer-motion": "^12.35.1",
@@ -123,6 +124,9 @@
     "executableName": "ZuraAI",
     "copyright": "Copyright (c) 2026 Nikhil",
     "asar": true,
+    "asarUnpack": [
+      "node_modules/dugite/git/**"
+    ],
     "npmRebuild": false,
     "compression": "maximum",
     "electronDist": "node_modules/electron/dist",

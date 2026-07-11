@@ -35,6 +35,7 @@ import {
 } from '../commandCenter/search'
 import type { CommandCenterEmoji } from '../commandCenter/emojis'
 import CommandCenterStore from './CommandCenterStore'
+import GitHubWorkspace from './GitHubWorkspace'
 import type {
   CommandCenterIndex,
   CommandCenterIndexItem,
@@ -47,7 +48,7 @@ type EmojiSearchFn = (query: string, limit?: number) => CommandCenterEmoji[]
 const EMOJI_PAGE_SIZE = 72
 
 type Mode = 'search' | 'ask'
-type CommandView = 'root' | 'emojis' | 'chats' | 'layout' | 'settings' | 'store'
+type CommandView = 'root' | 'emojis' | 'chats' | 'layout' | 'settings' | 'store' | 'github'
 
 type AppActionDef = {
   id: CommandCenterItemActionId
@@ -488,6 +489,8 @@ export default function CommandCenterOverlay() {
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null)
   const bodyRef = useRef<HTMLDivElement | null>(null)
   const actionsRootRef = useRef<HTMLDivElement | null>(null)
+  const actionsMenuRef = useRef<HTMLDivElement | null>(null)
+  const actionsTriggerRef = useRef<HTMLButtonElement | null>(null)
   const indexRequestRef = useRef(0)
   const activeSearchQueryRef = useRef('')
   const selectionTouchedRef = useRef(false)
@@ -524,8 +527,9 @@ export default function CommandCenterOverlay() {
   const isLayoutView = commandView === 'layout' && !isChatMode
   const isSettingsView = commandView === 'settings' && !isChatMode
   const isStoreView = commandView === 'store' && !isChatMode
+  const isGitHubView = commandView === 'github' && !isChatMode
   const isNestedCommandView =
-    isEmojiView || isChatsView || isLayoutView || isSettingsView || isStoreView
+    isEmojiView || isChatsView || isLayoutView || isSettingsView || isStoreView || isGitHubView
   const searchSyntaxSuggestions = useMemo(() => {
     if (isChatMode || isNestedCommandView || mode !== 'search') return []
     const last = input.split(/\s+/).at(-1)?.toLowerCase() ?? ''
@@ -781,6 +785,14 @@ export default function CommandCenterOverlay() {
     setSelectedIndex(0)
     setSelectionVisible(false)
     requestAnimationFrame(() => inputRef.current?.focus())
+  }, [])
+
+  const openGitHubView = useCallback(() => {
+    setCommandView('github')
+    setMode('search')
+    setInput('')
+    setSelectedIndex(0)
+    setSelectionVisible(false)
   }, [])
 
   const handleInputChange = useCallback(
@@ -1049,6 +1061,10 @@ export default function CommandCenterOverlay() {
         openStoreView()
         return
       }
+      if (item.type === 'action' && item.actionId === 'github-workspace') {
+        openGitHubView()
+        return
+      }
       if (item.type === 'workflow') {
         setConfirmingWorkflow(item)
         return
@@ -1085,6 +1101,7 @@ export default function CommandCenterOverlay() {
       openLayoutView,
       openSettingsView,
       openStoreView,
+      openGitHubView,
       refreshIndex,
       startChat,
     ]
@@ -1131,7 +1148,7 @@ export default function CommandCenterOverlay() {
   const closeActionsMenu = useCallback(() => {
     setActionsOpen(false)
     setActionsHighlight(0)
-    requestAnimationFrame(() => inputRef.current?.focus())
+    requestAnimationFrame(() => (actionsTriggerRef.current ?? inputRef.current)?.focus())
   }, [])
 
   const runConfirmedWorkflow = useCallback(async () => {
@@ -1222,6 +1239,7 @@ export default function CommandCenterOverlay() {
   }, [chatSessionId])
 
   const handlePanelKeyDownCapture = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (actionsOpen) return
     if (event.key === 'Tab') {
       event.preventDefault()
       switchMode()
@@ -1419,10 +1437,60 @@ export default function CommandCenterOverlay() {
     }
   }, [actionsHighlight, selectedAppActions.length])
 
+  useEffect(() => {
+    if (!actionsOpen) return
+    const frame = requestAnimationFrame(() => {
+      const firstItem = actionsMenuRef.current?.querySelector<HTMLButtonElement>(
+        '[role="menuitem"]:not(:disabled)'
+      )
+      if (!firstItem) return
+      const index = Number(firstItem.dataset.actionIndex ?? 0)
+      setActionsHighlight(index)
+      firstItem.focus()
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [actionsOpen])
+
+  const handleActionsMenuKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const items = Array.from(
+      actionsMenuRef.current?.querySelectorAll<HTMLButtonElement>(
+        '[role="menuitem"]:not(:disabled)'
+      ) ?? []
+    )
+    if (items.length === 0) return
+
+    if (event.key === 'Escape' || ((event.key === 'k' || event.key === 'K') && (event.ctrlKey || event.metaKey))) {
+      event.preventDefault()
+      closeActionsMenu()
+      return
+    }
+
+    const currentIndex = Math.max(items.indexOf(document.activeElement as HTMLButtonElement), 0)
+    let nextIndex: number | null = null
+    if (event.key === 'ArrowDown') nextIndex = (currentIndex + 1) % items.length
+    if (event.key === 'ArrowUp') nextIndex = (currentIndex - 1 + items.length) % items.length
+    if (event.key === 'Home') nextIndex = 0
+    if (event.key === 'End') nextIndex = items.length - 1
+    if (event.key === 'Tab') {
+      nextIndex = event.shiftKey
+        ? (currentIndex - 1 + items.length) % items.length
+        : (currentIndex + 1) % items.length
+    }
+    if (nextIndex === null) return
+
+    event.preventDefault()
+    const nextItem = items[nextIndex]
+    setActionsHighlight(Number(nextItem.dataset.actionIndex ?? 0))
+    nextItem.focus()
+    if (typeof nextItem.scrollIntoView === 'function') {
+      nextItem.scrollIntoView({ block: 'nearest' })
+    }
+  }
+
   return (
     <div className="command-center-root">
       <div
-        className={`command-center-panel ${isChatMode ? 'is-chat' : ''}`}
+        className={`command-center-panel ${isChatMode ? 'is-chat' : ''} ${actionsOpen ? 'has-actions-menu' : ''}`}
         onKeyDownCapture={handlePanelKeyDownCapture}
       >
         <div className="command-center-topbar">
@@ -1456,6 +1524,8 @@ export default function CommandCenterOverlay() {
                         ? 'Search layout actions...'
                         : isSettingsView
                           ? 'Search Windows Settings...'
+                          : isGitHubView
+                            ? 'GitHub Workspace'
                           : isStoreView
                             ? 'Search extensions...'
                             : mode === 'search'
@@ -1473,6 +1543,8 @@ export default function CommandCenterOverlay() {
                         ? 'Search layout'
                         : isSettingsView
                           ? 'Search settings'
+                          : isGitHubView
+                            ? 'GitHub Workspace'
                           : isStoreView
                             ? 'Search Zura Store'
                             : mode === 'search'
@@ -1698,8 +1770,10 @@ export default function CommandCenterOverlay() {
                   <div className="command-center-empty">No matching settings pages.</div>
                 )}
               </div>
+            ) : isGitHubView ? (
+              <GitHubWorkspace />
             ) : isStoreView ? (
-              <CommandCenterStore query={input} />
+              <CommandCenterStore query={input} onOpenGitHub={openGitHubView} />
             ) : mode === 'search' ? (
               <div
                 id="command-center-results"
@@ -1854,7 +1928,7 @@ export default function CommandCenterOverlay() {
           </div>
         )}
 
-        {!isChatMode && (
+        {!isChatMode && !isGitHubView && (
           <footer className="command-center-footer">
             <span className="command-center-footer__brand">
               <img src="icon-mark.png" alt="" />
@@ -1885,6 +1959,7 @@ export default function CommandCenterOverlay() {
                 <>
                   <div className="command-center-footer__separator" />
                   <button
+                    ref={actionsTriggerRef}
                     type="button"
                     className={`command-center-footer__action command-center-footer__actions-btn ${actionsOpen ? 'is-open' : ''}`}
                     aria-label="Actions"
@@ -1904,10 +1979,12 @@ export default function CommandCenterOverlay() {
                   </button>
                   {actionsOpen ? (
                     <div
+                      ref={actionsMenuRef}
                       id="command-center-actions-menu"
                       className="command-center-actions-popover"
                       role="menu"
                       aria-label={`${selectedItem.title} actions`}
+                      onKeyDown={handleActionsMenuKeyDown}
                     >
                       <div className="command-center-actions-popover__title">
                         <span
@@ -1956,6 +2033,8 @@ export default function CommandCenterOverlay() {
                               <button
                                 type="button"
                                 role="menuitem"
+                                data-action-index={index}
+                                tabIndex={active ? 0 : -1}
                                 disabled={disabled}
                                 aria-disabled={disabled || undefined}
                                 className={`command-center-actions-popover__item ${active ? 'is-active' : ''}${disabled ? ' is-disabled' : ''}`}
@@ -2332,6 +2411,11 @@ export default function CommandCenterOverlay() {
           bottom: calc(100% + 6px);
           z-index: 30;
           width: min(260px, calc(100vw - 24px));
+          height: min(360px, calc(100vh - 72px));
+          box-sizing: border-box;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
           padding: 4px;
           border-radius: 10px;
           border: 1px solid rgba(255, 255, 255, 0.12);
@@ -2380,9 +2464,29 @@ export default function CommandCenterOverlay() {
         }
 
         .command-center-actions-popover__list {
+          flex: 1 1 auto;
+          min-height: 0;
           display: flex;
           flex-direction: column;
           gap: 0;
+          overflow-y: auto;
+          overscroll-behavior: contain;
+          scrollbar-width: thin;
+          scrollbar-color: rgba(255, 255, 255, 0.28) transparent;
+        }
+
+        .command-center-actions-popover__list::-webkit-scrollbar {
+          width: 4px;
+        }
+
+        .command-center-actions-popover__list::-webkit-scrollbar-track {
+          background: transparent;
+        }
+
+        .command-center-actions-popover__list::-webkit-scrollbar-thumb {
+          min-height: 28px;
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.24);
         }
 
         .command-center-actions-popover__separator {
@@ -2528,6 +2632,12 @@ export default function CommandCenterOverlay() {
           padding: 8px 8px 14px;
           scrollbar-width: thin;
           scrollbar-color: rgba(255, 255, 255, 0.34) transparent;
+        }
+
+        .command-center-panel.has-actions-menu .command-center-results {
+          overflow: hidden;
+          overscroll-behavior: none;
+          touch-action: none;
         }
 
         .command-center-results::-webkit-scrollbar,
@@ -2939,6 +3049,11 @@ export default function CommandCenterOverlay() {
           font-weight: 600;
           cursor: not-allowed;
         }
+
+        .zura-store-row__actions { display: flex; align-items: center; gap: 5px; }
+        .zura-store-row__actions button { height: 24px; padding: 0 8px; border: 0; border-radius: 6px; background: rgba(201, 146, 131, 0.14); color: rgba(255, 239, 234, 0.82); font: inherit; font-size: 9.5px; font-weight: 650; cursor: pointer; }
+        .zura-store-row__actions button:hover:not(:disabled), .zura-store-row__actions button:focus-visible { background: rgba(201, 146, 131, 0.24); outline: none; }
+        .zura-store-row__actions button:disabled { opacity: .55; cursor: default; }
 
         .zura-store-empty {
           min-height: 104px;

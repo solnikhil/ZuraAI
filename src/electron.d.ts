@@ -10,6 +10,7 @@ import type {
   CodeExecutionAPI,
   ComputerUseAPI,
   CommandCenterAPI,
+  GitHubWorkspaceApi,
   ContextMenuAPI,
   DevToolsAPI,
   DiscordRpcAPI,
@@ -52,6 +53,7 @@ declare global {
     terminal: TerminalAPI
     computerUse: ComputerUseAPI
     commandCenter: CommandCenterAPI
+    githubWorkspace: GitHubWorkspaceApi
     chatDiagnostics?: ChatDiagnosticsAPI
     chatDebug?: ChatDebugAPI
     chatLinks?: ChatLinksAPI

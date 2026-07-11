@@ -152,6 +152,7 @@ Secrets:
 - API keys and MCP secrets live in `electron/secureStorage.ts`.
 - Stored provider keys include OpenRouter, Groq, Alibaba, Fireworks, DeepSeek, OpenCode Go, NVIDIA, Tavily, and Brevo.
 - The Command Center search-learning HMAC key is also stored through `safeStorage`; it is main-only and is not a provider credential.
+- GitHub Workspace OAuth access tokens and pending PKCE state are stored through `safeStorage`; tokens, authorization codes, and verifiers never cross into the renderer.
 - Renderer should read key presence when possible and hydrate actual secrets only when required for a provider/tool call.
 - `safeStorage` is required for secret reads/writes. Do not add plaintext secret persistence fallback.
 
@@ -336,11 +337,14 @@ Saved Workflows, Apps, Windows (open windows), and `Zura Extras` (first-party
 items/sections such as Layout, Settings, Zura Store, Emojis, Zura AI Chats, Windows Copilot,
 system status, open Downloads, clipboard → chat, focus ZuraAI). There are no
 separate top-level System, Files, Settings, Actions, or Chats sections.
-`Zura Store` is currently a renderer-owned, presentation-only nested catalogue:
-it filters a bundled list of curated extension concepts locally, but it does not
-install code, request credentials, persist extension state, or add tool
-capabilities. Install controls remain visibly unavailable until a reviewed
-extension install/runtime architecture is added.
+`Zura Store` is a renderer-presented nested catalogue with main-owned install
+state for reviewed bundled products. GitHub Workspace is the first installable
+product: its installed ID is stored in `zura-store-products.json`, installation
+does not download or execute code, and uninstall removes Command Center exposure
+and clears its GitHub authorization. Main rejects GitHub Workspace operations
+unless the product is installed. Other catalogue concepts remain presentation-
+only with visibly unavailable install controls until each receives a reviewed
+runtime, permissions, storage, and uninstall design.
 `Settings` is a nested Zura Extras command that lists a fixed allowlist of major
 Windows Settings pages (and search can surface those pages). `Layout` is a nested
 Zura Extras command for snap left/right and maximize. `Windows Copilot` opens via
@@ -424,6 +428,23 @@ stopped, unavailable, or times out, the file source returns an explicit diagnost
 and no fallback. Search learning is main-owned, capped and decayed, and uses a
 secure-storage-backed HMAC key so the learning file contains neither raw queries
 nor target paths.
+GitHub Workspace is a first-party nested Command Center surface entered through
+the fixed `github-workspace` action. It stays within the compact overlay and
+uses the dedicated `window.githubWorkspace` preload bridge. The renderer sends
+only repository/change IDs, bounded commit text, and allowlisted mutations;
+main resolves repository paths and executes Git with the app-bundled `dugite`
+runtime. Repository metadata is stored in
+`app.getPath('userData')/github-workspace-repositories.json`; GitHub Desktop's
+private storage is never read. GitHub.com authentication uses a ZuraAI-owned
+OAuth client ID (`ZURA_GITHUB_OAUTH_CLIENT_ID`), system-browser authorization,
+PKCE, CSRF state, and the registered `zura-github://oauth` callback. Authenticated
+HTTPS Git operations use a main-owned askpass helper containing no secret; the
+token is supplied only in the bundled Git child process environment with
+terminal prompting disabled. The current
+workspace supports local repository registration, status, file selection,
+textual diffs, history, commits, and serialized fetch/pull/push. The bundled Git
+directory is unpacked from ASAR for release execution. The surface is
+ZuraAI-branded and must not imply it is the official GitHub Desktop application.
 Agent Mode renderer-local tool-call approvals use the narrow
 `agent-approval:request` channel to show a main-owned always-on-top approval
 overlay near the active desktop. The renderer sends only sanitized display

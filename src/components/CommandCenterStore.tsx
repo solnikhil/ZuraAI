@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ArrowUpRight, Puzzle, ShieldCheck, Sparkles } from 'lucide-react'
 
 import {
@@ -10,6 +10,7 @@ import {
 
 interface CommandCenterStoreProps {
   query: string
+  onOpenGitHub: () => void
 }
 
 function StoreIcon({
@@ -46,10 +47,27 @@ function StoreIcon({
   )
 }
 
-export default function CommandCenterStore({ query }: CommandCenterStoreProps) {
+export default function CommandCenterStore({ query, onOpenGitHub }: CommandCenterStoreProps) {
   const [category, setCategory] = useState<ZuraStoreCategory>('All')
+  const [githubInstalled, setGitHubInstalled] = useState(false)
+  const [githubBusy, setGitHubBusy] = useState(false)
   const normalizedQuery = query.trim().toLocaleLowerCase()
   const featured = ZURA_STORE_EXTENSIONS.find((extension) => extension.featured)
+
+  useEffect(() => { void window.githubWorkspace.getInstalled().then(setGitHubInstalled) }, [])
+
+  const toggleGitHub = async () => {
+    setGitHubBusy(true)
+    try {
+      if (githubInstalled) {
+        await window.githubWorkspace.uninstall()
+        setGitHubInstalled(false)
+      } else {
+        await window.githubWorkspace.install()
+        setGitHubInstalled(true)
+      }
+    } finally { setGitHubBusy(false) }
+  }
 
   const filteredExtensions = useMemo(
     () =>
@@ -139,9 +157,16 @@ export default function CommandCenterStore({ query }: CommandCenterStoreProps) {
                 </div>
                 <p>{extension.description}</p>
               </div>
-              <button type="button" disabled aria-label="Extension installation is coming soon">
-                Soon
-              </button>
+              {extension.id === 'github' ? (
+                <div className="zura-store-row__actions">
+                  {githubInstalled && <button type="button" onClick={onOpenGitHub}>Open</button>}
+                  <button type="button" disabled={githubBusy} onClick={() => void toggleGitHub()}>
+                    {githubBusy ? 'Working…' : githubInstalled ? 'Uninstall' : 'Install'}
+                  </button>
+                </div>
+              ) : (
+                <button type="button" disabled aria-label="Extension installation is coming soon">Soon</button>
+              )}
             </article>
           ))}
         </section>
@@ -155,7 +180,7 @@ export default function CommandCenterStore({ query }: CommandCenterStoreProps) {
 
       <footer className="zura-store-note">
         <span>
-          <ShieldCheck size={14} /> Extensions will show permissions before installation.
+          <ShieldCheck size={14} /> Reviewed products show their available capabilities before installation.
         </span>
         <span>
           Developer submissions <ArrowUpRight size={13} />
