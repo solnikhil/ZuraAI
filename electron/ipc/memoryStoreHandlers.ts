@@ -1,4 +1,5 @@
-import { BrowserWindow, ipcMain } from 'electron'
+import { BrowserWindow } from 'electron'
+import { trustedIpcMain as ipcMain } from './trustedIpc'
 import * as memoryStore from '../memoryStore'
 import * as summaryStore from '../conversationSummaryStore'
 import type { AddMemoryInput, MemoryCategory, MemoryScope, UpdateMemoryPatch } from '../memoryStore'

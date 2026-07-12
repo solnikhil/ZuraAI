@@ -1,12 +1,10 @@
-import { app, BrowserWindow, shell, screen } from 'electron'
+import { app, BrowserWindow, screen } from 'electron'
 import path from 'path'
 
 import { captureCommandCenterReturnTarget } from '../commandCenterFocus'
 import { resolveDistPath } from './mainWindow'
 import { resolveAppIconPath } from '../windowIcon'
-
-const devServerUrl = process.env.VITE_DEV_SERVER_URL
-const devServerOrigin = devServerUrl ? new URL(devServerUrl).origin : null
+import { installExternalNavigationGuards } from './externalNavigation'
 
 let commandCenterWindow: BrowserWindow | null = null
 
@@ -53,12 +51,6 @@ function commandCenterRouteUrl(baseUrl: string): string {
   url.searchParams.set('commandCenter', '1')
   url.hash = '/command-center'
   return url.toString()
-}
-
-function isExternalHttpUrl(url: string): boolean {
-  if (!url.startsWith('http:') && !url.startsWith('https:')) return false
-  if (devServerOrigin && url.startsWith(devServerOrigin)) return false
-  return true
 }
 
 function centerBounds(layout: 'search' | 'chat' = commandCenterLayout): {
@@ -147,19 +139,7 @@ function createCommandCenterWindow(): BrowserWindow {
 
   commandCenterWindow.removeMenu()
 
-  commandCenterWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (isExternalHttpUrl(url)) {
-      void shell.openExternal(url)
-    }
-    return { action: 'deny' }
-  })
-
-  commandCenterWindow.webContents.on('will-navigate', (event, url) => {
-    if (isExternalHttpUrl(url)) {
-      event.preventDefault()
-      void shell.openExternal(url)
-    }
-  })
+  installExternalNavigationGuards(commandCenterWindow)
 
   commandCenterWindow.on('blur', () => {
     const win = commandCenterWindow

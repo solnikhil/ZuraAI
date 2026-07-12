@@ -89,6 +89,13 @@ const systemHandlerMocks = vi.hoisted(() => {
   }
 })
 
+vi.mock('./trustedIpc', () => ({
+  trustedIpcMain: {
+    handle: systemHandlerMocks.handle,
+    removeHandler: systemHandlerMocks.removeHandler,
+  },
+}))
+
 vi.mock('electron', () => ({
   app: {
     get isPackaged() {

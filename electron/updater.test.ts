@@ -32,6 +32,13 @@ vi.mock('electron', () => ({
   BrowserWindow: class {},
 }))
 
+vi.mock('./ipc/trustedIpc', () => ({
+  trustedIpcMain: {
+    handle: electronMocks.handle,
+    removeHandler: vi.fn(),
+  },
+}))
+
 vi.mock('electron-updater', () => {
   // Local imports inside factory are allowed (factory runs lazily).
   const { EventEmitter } = require('events')

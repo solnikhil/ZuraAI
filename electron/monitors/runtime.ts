@@ -1,11 +1,12 @@
 import {
   BrowserWindow,
   Notification,
-  ipcMain,
+  ipcMain as electronIpcMain,
   type IpcMain,
   type NotificationConstructorOptions,
   type WebContents,
 } from 'electron'
+import { trustedIpcMain as ipcMain } from '../ipc/trustedIpc'
 import { randomUUID } from 'crypto'
 import { fetchMonitorPage, buildChangedExcerpt } from './content'
 import { getMonitorIntervalMs } from './schedule'
@@ -858,7 +859,7 @@ export async function setMonitorRuntimeExtensionEnabled(enabled: boolean): Promi
   await runtime.setExtensionEnabled(enabled)
 }
 
-export function stopMonitorRuntime(ipc: IpcMain = ipcMain): void {
+export function stopMonitorRuntime(ipc: IpcMain = electronIpcMain): void {
   if (!activeRuntime) return
   activeRuntime.stop()
   activeRuntime = null

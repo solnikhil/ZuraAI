@@ -30,6 +30,13 @@ vi.mock('electron', () => ({
   },
 }))
 
+vi.mock('./trustedIpc', () => ({
+  trustedIpcMain: {
+    handle: ipcMainMocks.handle,
+    removeHandler: ipcMainMocks.removeHandler,
+  },
+}))
+
 vi.mock('../notifications/email', () => emailMocks)
 
 describe('email notification IPC handlers', () => {

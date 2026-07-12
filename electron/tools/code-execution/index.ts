@@ -1,4 +1,5 @@
-import { BrowserWindow, ipcMain } from 'electron'
+import { BrowserWindow } from 'electron'
+import { trustedIpcMain as ipcMain } from '../../ipc/trustedIpc'
 import { CodeExecutionApprovalManager } from './approvalManager'
 import type { PendingCodeApproval } from './approvalManager'
 import { setApprovalManager } from './service'

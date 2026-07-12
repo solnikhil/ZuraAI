@@ -14,6 +14,14 @@ describe('Command Center main service', () => {
     } = {}
   ) {
     const handlers = new Map<string, (...args: unknown[]) => unknown>()
+    vi.doMock('./ipc/trustedIpc', () => ({
+      trustedIpcMain: {
+        handle: (channel: string, handler: (...args: unknown[]) => unknown) => {
+          handlers.set(channel, handler)
+        },
+        removeHandler: (channel: string) => handlers.delete(channel),
+      },
+    }))
     const sentEvents: Array<{ channel: string; payload: unknown }> = []
     const register = overrides.register ?? vi.fn(() => true)
     const unregister = vi.fn()
@@ -386,17 +394,19 @@ describe('Command Center main service', () => {
   it('falls back when the primary global shortcut is already registered elsewhere', async () => {
     const register = vi.fn().mockReturnValueOnce(false).mockReturnValueOnce(true)
     const { service, unregister } = await loadService({ register })
+    const fallbackShortcut =
+      process.platform === 'darwin' ? 'Control+Option+Shift+Space' : 'Control+Alt+Space'
 
     expect(service.setCommandCenterExtensionEnabled(true)).toEqual({
       enabled: true,
-      shortcut: 'Control+Option+Shift+Space',
+      shortcut: fallbackShortcut,
       shortcutRegistered: true,
     })
     expect(register).toHaveBeenNthCalledWith(1, 'Control+Shift+Space', expect.any(Function))
-    expect(register).toHaveBeenNthCalledWith(2, 'Control+Option+Shift+Space', expect.any(Function))
+    expect(register).toHaveBeenNthCalledWith(2, fallbackShortcut, expect.any(Function))
 
     service.setCommandCenterExtensionEnabled(false)
-    expect(unregister).toHaveBeenCalledWith('Control+Option+Shift+Space')
+    expect(unregister).toHaveBeenCalledWith(fallbackShortcut)
   })
 
   it('routes submitted overlay commands into the main window', async () => {

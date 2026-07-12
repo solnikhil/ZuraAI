@@ -64,6 +64,13 @@ vi.mock('electron', () => ({
   },
 }))
 
+vi.mock('./trustedIpc', () => ({
+  trustedIpcMain: {
+    handle: ipcMainMocks.handle,
+    removeHandler: ipcMainMocks.removeHandler,
+  },
+}))
+
 vi.mock('../chatStore', () => ({
   getSessionMetadataAsync: chatStoreMocks.getSessionMetadataAsync,
   getSessionAsync: chatStoreMocks.getSessionAsync,

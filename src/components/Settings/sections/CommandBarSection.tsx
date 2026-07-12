@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { Command, Loader2, RotateCcw } from 'lucide-react'
+import { Activity, CheckCircle2, Clock, Command, Loader2, RotateCcw, Search } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -74,6 +74,14 @@ export interface CommandBarSectionProps {
   onChange: (changes: Partial<Settings>) => void
 }
 
+const PREVIEW_RESULTS = [
+  ['Open settings', 'Settings'],
+  ['Start a new chat', 'Chat'],
+  ['Search installed apps', 'Apps'],
+  ['Browse Zura Store', 'Extensions'],
+  ['Open downloads', 'System'],
+] as const
+
 export function CommandBarSection({
   settings,
   onChange,
@@ -86,22 +94,16 @@ export function CommandBarSection({
   const maxSuggestions = clampNumber(commandBar.maxSuggestions, 3, 12)
   const overlayOpacity = clampNumber(commandBar.overlayOpacity, 0, 80)
 
-  const [appDiagnostics, setAppDiagnostics] = useState<CommandCenterAppDiagnostics | undefined>()
-  const [windowsSearchDiagnostics, setWindowsSearchDiagnostics] = useState<
-    CommandCenterWindowsSearchDiagnostics | undefined
-  >()
+  const [appDiagnostics, setAppDiagnostics] = useState<CommandCenterAppDiagnostics>()
+  const [windowsSearchDiagnostics, setWindowsSearchDiagnostics] =
+    useState<CommandCenterWindowsSearchDiagnostics>()
   const [isLoadingStatus, setIsLoadingStatus] = useState(false)
   const [isReindexing, setIsReindexing] = useState(false)
   const [statusMessage, setStatusMessage] = useState('')
   const [indexedAppCount, setIndexedAppCount] = useState<number | null>(null)
 
   const updateCommandBar = (changes: Partial<Settings['commandBar']>) => {
-    onChange({
-      commandBar: {
-        ...settings.commandBar,
-        ...changes,
-      },
-    })
+    onChange({ commandBar: { ...settings.commandBar, ...changes } })
   }
 
   const loadStatus = useCallback(async () => {
@@ -131,9 +133,7 @@ export function CommandBarSection({
     }
   }, [isDesktopIndexSupported, isWindows])
 
-  useEffect(() => {
-    void loadStatus()
-  }, [loadStatus])
+  useEffect(() => void loadStatus(), [loadStatus])
 
   useEffect(() => {
     if (!statusMessage || statusMessage.startsWith('Reindexing')) return
@@ -146,28 +146,23 @@ export function CommandBarSection({
     setIsReindexing(true)
     setStatusMessage('Reindexing apps and clearing icon cache…')
     try {
-      // Ensure overlay/runtime is enabled so main will run a full refresh.
       await window.commandCenter.setExtensionEnabled?.(true)
       const result = await window.commandCenter.refreshAppIndex()
       setAppDiagnostics(result)
       const total = result?.sourceCounts
-        ? Object.values(result.sourceCounts).reduce((sum, n) => sum + (n || 0), 0)
+        ? Object.values(result.sourceCounts).reduce((sum, count) => sum + (count || 0), 0)
         : undefined
       if (total != null) setIndexedAppCount(total)
       await loadStatus()
-      if (result?.ok) {
-        setStatusMessage(
-          result.refreshDurationMs != null
+      setStatusMessage(
+        result?.ok
+          ? result.refreshDurationMs != null
             ? `App index refreshed in ${result.refreshDurationMs}ms.`
             : 'App index refreshed.'
-        )
-      } else {
-        setStatusMessage(
-          result?.error
+          : result?.error
             ? `Reindex finished with warnings: ${result.error}`
             : 'Reindex finished with warnings.'
-        )
-      }
+      )
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : 'Failed to reindex apps.')
     } finally {
@@ -185,340 +180,359 @@ export function CommandBarSection({
     }
   }
 
-  return (
-    <div className="settings-section-layout settings-section-layout--wide">
-      <div className="page-header">
-        <h2 className="page-title">Command Bar</h2>
-        <div className="page-subtitle">
-          Manage Command Center app search, reindex installed apps, and tune the in-app command
-          palette.
-        </div>
-      </div>
+  const indexState = isLoadingStatus
+    ? 'checking'
+    : appDiagnostics?.ok === false
+      ? 'issue'
+      : appDiagnostics?.stale
+        ? 'stale'
+        : appDiagnostics
+          ? 'healthy'
+          : 'unknown'
+  const indexStateLabel = {
+    checking: 'Checking index',
+    issue: 'Index needs attention',
+    stale: 'Index is stale',
+    healthy: 'Index healthy',
+    unknown: 'Status unavailable',
+  }[indexState]
+  const previewWidth = commandBar.paletteWidth ?? 'default'
+  const previewPosition = commandBar.palettePosition ?? 'center'
 
-      <h3 className="appearance-group-heading">Command Center index</h3>
-      <Card className="settings-list-card">
-        {!isDesktopIndexSupported ? (
-          <div className="settings-list-row settings-list-row--stacked">
-            <div className="settings-list-row__meta">
-              <h3 className="settings-list-row__label">Desktop indexing unavailable</h3>
-              <div className="settings-list-row__description">
-                Command Center app indexing is available on Windows and macOS.
+  return (
+    <div className="settings-section-layout settings-section-layout--wide command-bar-settings">
+      <header className="command-bar-settings__header">
+        <div className="command-bar-settings__intro">
+          <div className="command-bar-settings__eyebrow">Workspace controls</div>
+          <h2 className="page-title">Command Bar</h2>
+          <p className="page-subtitle">
+            Shape how commands surface, how much context you see, and how the desktop index stays
+            ready.
+          </p>
+        </div>
+        <div className="command-bar-settings__header-actions">
+          <span className={`command-bar-status command-bar-status--${indexState}`}>
+            {indexState === 'healthy' ? <CheckCircle2 size={14} /> : <Activity size={14} />}
+            {indexStateLabel}
+          </span>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => void openCommandCenter()}
+            aria-label="Open Command Center overlay"
+          >
+            <Command size={14} /> Open Command Center
+          </Button>
+        </div>
+      </header>
+
+      <section className="command-bar-preview-section" aria-labelledby="command-bar-preview-title">
+        <div className="command-bar-section-heading">
+          <div>
+            <span className="command-bar-section-heading__kicker">Live workspace</span>
+            <h3 id="command-bar-preview-title">Preview your command flow</h3>
+          </div>
+          <span className="command-bar-section-heading__note">Updates as you customize</span>
+        </div>
+        <div
+          className={`command-bar-preview command-bar-preview--${previewPosition}`}
+          style={{ '--command-bar-preview-dim': overlayOpacity / 100 } as React.CSSProperties}
+          data-testid="command-bar-preview"
+          data-width={previewWidth}
+          data-position={previewPosition}
+          data-size={size}
+          data-opacity={overlayOpacity}
+          data-results={maxSuggestions}
+          data-recents={commandBar.showRecents ? maxRecents : 0}
+        >
+          <div className="command-bar-preview__workspace" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+          </div>
+          <div className="command-bar-preview__veil" />
+          <div
+            className={`command-bar-preview__palette command-bar-preview__palette--${previewWidth} command-bar-preview__palette--${size}`}
+          >
+            <div className="command-bar-preview__search">
+              <Search size={16} />
+              <span>Search apps, chats and actions</span>
+              <kbd>⌘ K</kbd>
+            </div>
+            {commandBar.showRecents && maxRecents > 0 ? (
+              <div className="command-bar-preview__label">
+                <Clock size={11} /> Recent · {maxRecents}
               </div>
+            ) : null}
+            <div className="command-bar-preview__results">
+              {PREVIEW_RESULTS.slice(0, Math.min(maxSuggestions, 5)).map(([title, hint], index) => (
+                <div key={title} className={index === 0 ? 'is-active' : ''}>
+                  <span className="command-bar-preview__result-icon">
+                    <Command size={13} />
+                  </span>
+                  <strong>{title}</strong>
+                  <small>{hint}</small>
+                </div>
+              ))}
             </div>
           </div>
+        </div>
+      </section>
+
+      <div className="command-bar-settings__grid">
+        <section
+          className="command-bar-settings__panel"
+          aria-labelledby="command-bar-appearance-title"
+        >
+          <div className="command-bar-panel-heading">
+            <Activity size={16} />
+            <div>
+              <h3 id="command-bar-appearance-title">Appearance</h3>
+              <p>Control the palette’s footprint and placement.</p>
+            </div>
+          </div>
+          <Card className="settings-list-card command-bar-control-card">
+            <SettingRow label="Overlay opacity" description="How much the workspace is dimmed">
+              <input
+                type="range"
+                min={0}
+                max={80}
+                value={overlayOpacity}
+                onChange={(event) =>
+                  updateCommandBar({ overlayOpacity: Number(event.target.value) })
+                }
+                aria-label="Command palette overlay opacity"
+              />
+              <output className="command-bar-range-value">{overlayOpacity}%</output>
+            </SettingRow>
+            <SettingRow label="Palette width" description="Set the maximum palette width">
+              <SettingsSelect
+                value={previewWidth}
+                onValueChange={(value) =>
+                  updateCommandBar({ paletteWidth: value as 'narrow' | 'default' | 'wide' })
+                }
+                options={[
+                  { value: 'narrow', label: 'Narrow · 440px' },
+                  { value: 'default', label: 'Default · 560px' },
+                  { value: 'wide', label: 'Wide · 680px' },
+                ]}
+                aria-label="Command palette width"
+              />
+            </SettingRow>
+            <SettingRow label="Vertical position" description="Choose where the palette enters">
+              <SettingsSelect
+                value={previewPosition}
+                onValueChange={(value) =>
+                  updateCommandBar({ palettePosition: value as 'top' | 'center' | 'lower' })
+                }
+                options={[
+                  { value: 'top', label: 'Top · 12%' },
+                  { value: 'center', label: 'Center · 20%' },
+                  { value: 'lower', label: 'Lower · 30%' },
+                ]}
+                aria-label="Command palette vertical position"
+              />
+            </SettingRow>
+            <SettingRow label="UI size" description="Adjust height and information density">
+              <SettingsSelect
+                value={size}
+                onValueChange={(value) =>
+                  updateCommandBar({ size: value as 'small' | 'medium' | 'large' })
+                }
+                options={[
+                  { value: 'small', label: 'Compact' },
+                  { value: 'medium', label: 'Comfortable' },
+                  { value: 'large', label: 'Spacious' },
+                ]}
+                aria-label="Command palette UI size"
+              />
+            </SettingRow>
+          </Card>
+        </section>
+
+        <section
+          className="command-bar-settings__panel"
+          aria-labelledby="command-bar-behavior-title"
+        >
+          <div className="command-bar-panel-heading">
+            <Command size={16} />
+            <div>
+              <h3 id="command-bar-behavior-title">Search behavior</h3>
+              <p>Tune speed, context, and completion.</p>
+            </div>
+          </div>
+          <Card className="settings-list-card command-bar-control-card">
+            <SettingRow label="Recent commands" description="Surface your latest actions first">
+              <Switch
+                checked={commandBar.showRecents}
+                onCheckedChange={(checked) => updateCommandBar({ showRecents: checked })}
+                aria-label="Show recent commands in command palette"
+              />
+            </SettingRow>
+            <SettingRow label="Max recents" description="Number of recent actions to show">
+              <SettingsSelect
+                value={String(maxRecents)}
+                onValueChange={(value) => updateCommandBar({ maxRecents: Number(value) })}
+                options={[0, 1, 2, 3].map((count) => ({
+                  value: String(count),
+                  label: String(count),
+                }))}
+                disabled={!commandBar.showRecents}
+                aria-label="Max recent commands in command palette"
+              />
+            </SettingRow>
+            <SettingRow label="Tab autocomplete" description="Complete the highlighted command">
+              <Switch
+                checked={commandBar.enableTabAutocomplete}
+                onCheckedChange={(checked) => updateCommandBar({ enableTabAutocomplete: checked })}
+                aria-label="Enable tab autocomplete in command palette"
+              />
+            </SettingRow>
+            <SettingRow label="Max results" description="Cap suggestions displayed per search">
+              <SettingsSelect
+                value={String(maxSuggestions)}
+                onValueChange={(value) => updateCommandBar({ maxSuggestions: Number(value) })}
+                options={[3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((count) => ({
+                  value: String(count),
+                  label: String(count),
+                }))}
+                aria-label="Max results in command palette"
+              />
+            </SettingRow>
+            <SettingRow
+              label="Save overlay chats"
+              description="Keep overlay chats in normal history"
+            >
+              <Switch
+                checked={settings.commandCenterChatPersistence === 'always-save'}
+                onCheckedChange={(checked) =>
+                  onChange({ commandCenterChatPersistence: checked ? 'always-save' : 'temporary' })
+                }
+                aria-label="Save Command Center overlay chats"
+              />
+            </SettingRow>
+          </Card>
+        </section>
+      </div>
+
+      <section className="command-bar-index" aria-labelledby="command-bar-index-title">
+        <div className="command-bar-section-heading">
+          <div>
+            <span className="command-bar-section-heading__kicker">Desktop readiness</span>
+            <h3 id="command-bar-index-title">App index health</h3>
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => void loadStatus()}
+            disabled={isLoadingStatus || isReindexing}
+            aria-label="Refresh app index status"
+          >
+            {isLoadingStatus ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <RotateCcw size={14} />
+            )}{' '}
+            Refresh status
+          </Button>
+        </div>
+        {!isDesktopIndexSupported ? (
+          <Card className="settings-list-card">
+            <SettingRow
+              label="Desktop indexing unavailable"
+              description="Command Center app indexing is available on Windows and macOS."
+            />
+          </Card>
         ) : (
-          <>
-            <div className="settings-list-row">
-              <div className="settings-list-row__meta">
-                <h3 className="settings-list-row__label">App index status</h3>
-                <div className="settings-list-row__description">
-                  {isLoadingStatus
-                    ? 'Loading…'
-                    : appDiagnostics?.ok === false
-                      ? `Incomplete or failed${appDiagnostics.error ? `: ${appDiagnostics.error}` : ''}`
-                      : appDiagnostics?.stale
-                        ? `Stale${appDiagnostics.error ? `: ${appDiagnostics.error}` : ''}`
-                        : 'Healthy'}
-                </div>
+          <Card className="settings-list-card command-bar-health-card">
+            <div className="command-bar-health-card__summary">
+              <div>
+                <span>Indexed apps</span>
+                <strong>{indexedAppCount ?? '—'}</strong>
               </div>
-              <div className="settings-list-row__control">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => void loadStatus()}
-                  disabled={isLoadingStatus || isReindexing}
-                  aria-label="Refresh app index status"
-                >
-                  {isLoadingStatus ? (
-                    <Loader2 size={14} className="animate-spin" />
-                  ) : (
-                    <RotateCcw size={14} />
-                  )}
-                  Status
-                </Button>
+              <div>
+                <span>Index state</span>
+                <strong>{indexStateLabel}</strong>
+              </div>
+              <div>
+                <span>Last refresh</span>
+                <strong>{formatTimestamp(appDiagnostics?.lastRefreshAt)}</strong>
               </div>
             </div>
-
-            <div className="settings-list-row settings-list-row--stacked">
-              <div className="settings-list-row__meta">
-                <h3 className="settings-list-row__label">Details</h3>
-                <div className="settings-list-row__description">
-                  Apps indexed: {indexedAppCount ?? '—'}
-                  <br />
-                  Sources: {sourceCountsLabel(appDiagnostics?.sourceCounts)}
-                  <br />
-                  Last refresh: {formatTimestamp(appDiagnostics?.lastRefreshAt)}
-                  {appDiagnostics?.refreshDurationMs != null
-                    ? ` · ${appDiagnostics.refreshDurationMs}ms`
-                    : ''}
-                </div>
+            <div className="command-bar-health-card__details">
+              <div>
+                <span>Sources</span>
+                <p>{sourceCountsLabel(appDiagnostics?.sourceCounts)}</p>
               </div>
-            </div>
-
-            <div className="settings-list-row">
-              <div className="settings-list-row__meta">
-                <h3 className="settings-list-row__label">Reindex apps</h3>
-                <div className="settings-list-row__description">
-                  Rescan Start Menu / Desktop shortcuts and Windows Start apps, then clear cached
-                  icons so missing icons can reload. Use this if apps disappear or show blank icons.
-                </div>
-              </div>
-              <div className="settings-list-row__control">
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={() => void reindexApps()}
-                  disabled={isReindexing || !window.commandCenter?.refreshAppIndex}
-                  aria-label="Reindex Command Center apps"
-                >
-                  {isReindexing ? (
-                    <Loader2 size={14} className="animate-spin" />
-                  ) : (
-                    <RotateCcw size={14} />
-                  )}
-                  {isReindexing ? 'Reindexing…' : 'Reindex apps'}
-                </Button>
-              </div>
-            </div>
-
-            <div className="settings-list-row">
-              <div className="settings-list-row__meta">
-                <h3 className="settings-list-row__label">Open Command Center</h3>
-                <div className="settings-list-row__description">
-                  Control+Shift+Space (Control+Option+Shift+Space fallback on macOS). Opens the
-                  desktop overlay to verify search results after reindexing.
-                </div>
-              </div>
-              <div className="settings-list-row__control">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => void openCommandCenter()}
-                  aria-label="Open Command Center overlay"
-                >
-                  <Command size={14} />
-                  Open
-                </Button>
-              </div>
-            </div>
-
-            <div className="settings-list-row settings-list-row--stacked">
-              <div className="settings-list-row__meta">
-                <h3 className="settings-list-row__label">Windows file search</h3>
-                <div className="settings-list-row__description">
+              <div>
+                <span>Windows file search</span>
+                <p>
                   {windowsSearchDiagnostics == null
                     ? 'Status unknown until the index is loaded.'
                     : windowsSearchDiagnostics.ok
                       ? 'Available (SystemIndex / Windows Search).'
-                      : `Unavailable${
-                          windowsSearchDiagnostics.error
-                            ? `: ${windowsSearchDiagnostics.error}`
-                            : ''
-                        }. Enable the Windows Search (WSearch) service if you need file results.`}
-                </div>
+                      : `Unavailable${windowsSearchDiagnostics.error ? `: ${windowsSearchDiagnostics.error}` : ''}. Enable the Windows Search (WSearch) service if you need file results.`}
+                </p>
               </div>
-            </div>
-
-            {statusMessage ? (
-              <div
-                className="settings-list-row settings-list-row--stacked"
-                role="status"
-                aria-live="polite"
-              >
-                <div className="settings-list-row__meta">
-                  <div className="settings-list-row__description">{statusMessage}</div>
+              {appDiagnostics?.error ? (
+                <div>
+                  <span>Index detail</span>
+                  <p>{appDiagnostics.error}</p>
                 </div>
+              ) : null}
+            </div>
+            <div className="command-bar-health-card__action">
+              <div>
+                <strong>Reindex installed apps</strong>
+                <p>
+                  Rescan application sources and clear cached icons when results look incomplete.
+                </p>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => void reindexApps()}
+                disabled={isReindexing || !window.commandCenter?.refreshAppIndex}
+                aria-label="Reindex Command Center apps"
+              >
+                {isReindexing ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <RotateCcw size={14} />
+                )}
+                {isReindexing ? 'Reindexing…' : 'Reindex apps'}
+              </Button>
+            </div>
+            {statusMessage ? (
+              <div className="command-bar-health-card__status" role="status" aria-live="polite">
+                {statusMessage}
               </div>
             ) : null}
-          </>
+          </Card>
         )}
-      </Card>
+      </section>
+    </div>
+  )
+}
 
-      <h3 className="appearance-group-heading">Overlay chats</h3>
-      <Card className="settings-list-card">
-        <div className="settings-list-row">
-          <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Save overlay chats</h3>
-            <div className="settings-list-row__description">
-              Store Command Center AI chats in normal chat history immediately. When off, they stay
-              temporary until opened in Chat.
-            </div>
-          </div>
-          <div className="settings-list-row__control">
-            <Switch
-              checked={settings.commandCenterChatPersistence === 'always-save'}
-              onCheckedChange={(checked) =>
-                onChange({ commandCenterChatPersistence: checked ? 'always-save' : 'temporary' })
-              }
-              aria-label="Save Command Center overlay chats"
-            />
-          </div>
-        </div>
-      </Card>
-
-      <h3 className="appearance-group-heading">In-app command palette</h3>
-      <Card className="settings-list-card">
-        <div className="settings-list-row">
-          <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Recent commands</h3>
-            <div className="settings-list-row__description">
-              Show recently executed commands at the top of the palette
-            </div>
-          </div>
-          <div className="settings-list-row__control">
-            <Switch
-              checked={commandBar.showRecents}
-              onCheckedChange={(checked) => updateCommandBar({ showRecents: checked })}
-              aria-label="Show recent commands in command palette"
-            />
-          </div>
-        </div>
-
-        <div className="settings-list-row">
-          <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Max recents</h3>
-            <div className="settings-list-row__description">How many recent commands to show</div>
-          </div>
-          <div className="settings-list-row__control">
-            <SettingsSelect
-              value={String(maxRecents)}
-              onValueChange={(value) => updateCommandBar({ maxRecents: Number(value) })}
-              options={[0, 1, 2, 3].map((count) => ({
-                value: String(count),
-                label: String(count),
-              }))}
-              disabled={!commandBar.showRecents}
-              aria-label="Max recent commands in command palette"
-            />
-          </div>
-        </div>
-
-        <div className="settings-list-row">
-          <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Tab autocomplete</h3>
-            <div className="settings-list-row__description">
-              Press Tab to complete the highlighted command
-            </div>
-          </div>
-          <div className="settings-list-row__control">
-            <Switch
-              checked={commandBar.enableTabAutocomplete}
-              onCheckedChange={(checked) => updateCommandBar({ enableTabAutocomplete: checked })}
-              aria-label="Enable tab autocomplete in command palette"
-            />
-          </div>
-        </div>
-
-        <div className="settings-list-row">
-          <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Max results</h3>
-            <div className="settings-list-row__description">
-              Maximum number of suggestions shown in the results list
-            </div>
-          </div>
-          <div className="settings-list-row__control">
-            <SettingsSelect
-              value={String(maxSuggestions)}
-              onValueChange={(value) => updateCommandBar({ maxSuggestions: Number(value) })}
-              options={[3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((count) => ({
-                value: String(count),
-                label: String(count),
-              }))}
-              aria-label="Max results in command palette"
-            />
-          </div>
-        </div>
-
-        <div className="settings-list-row">
-          <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Overlay opacity</h3>
-            <div className="settings-list-row__description">
-              Controls how much the background is dimmed
-            </div>
-          </div>
-          <div className="settings-list-row__control">
-            <input
-              type="range"
-              min={0}
-              max={80}
-              value={overlayOpacity}
-              onChange={(e) => updateCommandBar({ overlayOpacity: Number(e.target.value) })}
-              aria-label="Command palette overlay opacity"
-            />
-          </div>
-        </div>
-
-        <div className="settings-list-row">
-          <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Palette width</h3>
-            <div className="settings-list-row__description">
-              Controls the maximum width of the palette
-            </div>
-          </div>
-          <div className="settings-list-row__control">
-            <SettingsSelect
-              value={commandBar.paletteWidth ?? 'default'}
-              onValueChange={(value) =>
-                updateCommandBar({ paletteWidth: value as 'narrow' | 'default' | 'wide' })
-              }
-              options={[
-                { value: 'narrow', label: 'Narrow (440px)' },
-                { value: 'default', label: 'Default (560px)' },
-                { value: 'wide', label: 'Wide (680px)' },
-              ]}
-              aria-label="Command palette width"
-            />
-          </div>
-        </div>
-
-        <div className="settings-list-row">
-          <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Vertical position</h3>
-            <div className="settings-list-row__description">
-              Controls the vertical placement of the palette
-            </div>
-          </div>
-          <div className="settings-list-row__control">
-            <SettingsSelect
-              value={commandBar.palettePosition ?? 'center'}
-              onValueChange={(value) =>
-                updateCommandBar({ palettePosition: value as 'top' | 'center' | 'lower' })
-              }
-              options={[
-                { value: 'top', label: 'Top (12%)' },
-                { value: 'center', label: 'Center (20%)' },
-                { value: 'lower', label: 'Lower (30%)' },
-              ]}
-              aria-label="Command palette vertical position"
-            />
-          </div>
-        </div>
-
-        <div className="settings-list-row">
-          <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">UI size</h3>
-            <div className="settings-list-row__description">
-              Controls the overall density and text size of the command palette input
-            </div>
-          </div>
-          <div className="settings-list-row__control">
-            <SettingsSelect
-              value={size}
-              onValueChange={(value) =>
-                updateCommandBar({ size: value as 'small' | 'medium' | 'large' })
-              }
-              options={[
-                { value: 'small', label: 'Short' },
-                { value: 'medium', label: 'Normal (current)' },
-                { value: 'large', label: 'Larger' },
-              ]}
-              aria-label="Command palette UI size"
-            />
-          </div>
-        </div>
-      </Card>
+function SettingRow({
+  label,
+  description,
+  children,
+}: {
+  label: string
+  description: string
+  children?: React.ReactNode
+}): React.ReactElement {
+  return (
+    <div className="settings-list-row">
+      <div className="settings-list-row__meta">
+        <h3 className="settings-list-row__label">{label}</h3>
+        <div className="settings-list-row__description">{description}</div>
+      </div>
+      {children ? <div className="settings-list-row__control">{children}</div> : null}
     </div>
   )
 }

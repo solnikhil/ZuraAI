@@ -1,4 +1,5 @@
-import { BrowserWindow, ipcMain } from 'electron'
+import { BrowserWindow } from 'electron'
+import { trustedIpcMain as ipcMain } from '../../ipc/trustedIpc'
 import { ComputerUseApprovalManager } from './approvalManager'
 import type { PendingComputerAction } from './approvalManager'
 import { setApprovalManager } from './service'

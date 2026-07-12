@@ -5,8 +5,8 @@
  * presence state and receiving connection updates.
  */
 
-import { ipcMain } from 'electron'
 import type { BrowserWindow } from 'electron'
+import { trustedIpcMain as ipcMain } from '../ipc/trustedIpc'
 import { getDiscordRpcClient, disposeDiscordRpcClient } from './rpcClient'
 import type { DiscordRpcActivity, DiscordRpcState } from './types'
 

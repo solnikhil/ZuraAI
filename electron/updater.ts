@@ -1,4 +1,5 @@
-import { app, ipcMain, BrowserWindow } from 'electron'
+import { app, BrowserWindow } from 'electron'
+import { trustedIpcMain as ipcMain } from './ipc/trustedIpc'
 import { autoUpdater, type UpdateInfo } from 'electron-updater'
 import { trackAppError } from './analytics'
 import { log } from './startup/logger'

@@ -2,7 +2,7 @@
 //
 // SECURITY: Only explicitly registered tools are enabled.
 
-import { ipcMain } from 'electron'
+import { trustedIpcMain as ipcMain } from '../ipc/trustedIpc'
 import { executeWebSearch } from './webSearch'
 import type { WebSearchArgs } from './webSearch'
 import { executeCode } from './codeExecution'

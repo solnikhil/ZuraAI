@@ -1,4 +1,5 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow } from 'electron'
+import { trustedIpcMain as ipcMain } from './trustedIpc'
 
 import {
   appendChatDiagnosticEvent,

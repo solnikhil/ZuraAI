@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - 'package.json'
-      - 'bun.lockb'
+      - 'bun.lock'
 
 permissions:
   contents: read
@@ -20,4 +20,4 @@ jobs:
         uses: ./.github/actions/setup-bun
 
       - name: Run license audit
-        run: bunx tsx scripts/license-audit.ts
+        run: bun scripts/license-audit.ts

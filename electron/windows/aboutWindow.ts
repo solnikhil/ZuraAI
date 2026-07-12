@@ -1,19 +1,11 @@
-import { app, BrowserWindow, shell } from 'electron'
+import { app, BrowserWindow } from 'electron'
 import path from 'path'
 
 import { getMainWindow, resolveDistPath } from './mainWindow'
 import { resolveAppIconPath } from '../windowIcon'
-
-const devServerUrl = process.env.VITE_DEV_SERVER_URL
-const devServerOrigin = devServerUrl ? new URL(devServerUrl).origin : null
+import { installExternalNavigationGuards } from './externalNavigation'
 
 let aboutWindow: BrowserWindow | null = null
-
-function isExternalHttpUrl(url: string): boolean {
-  if (!url.startsWith('http:') && !url.startsWith('https:')) return false
-  if (devServerOrigin && url.startsWith(devServerOrigin)) return false
-  return true
-}
 
 function createAboutWindow(): BrowserWindow {
   if (aboutWindow && !aboutWindow.isDestroyed()) {
@@ -68,19 +60,7 @@ function createAboutWindow(): BrowserWindow {
 
   aboutWindow.removeMenu()
 
-  aboutWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (isExternalHttpUrl(url)) {
-      void shell.openExternal(url)
-    }
-    return { action: 'deny' }
-  })
-
-  aboutWindow.webContents.on('will-navigate', (event, url) => {
-    if (isExternalHttpUrl(url)) {
-      event.preventDefault()
-      void shell.openExternal(url)
-    }
-  })
+  installExternalNavigationGuards(aboutWindow)
 
   aboutWindow.once('ready-to-show', () => {
     aboutWindow?.show()

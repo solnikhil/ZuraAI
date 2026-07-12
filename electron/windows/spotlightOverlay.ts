@@ -22,7 +22,12 @@ function getOrCreateWindow(): BrowserWindow {
     resizable: false,
     movable: false,
     show: false,
-    webPreferences: { nodeIntegration: false, contextIsolation: true },
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: true,
+      devTools: false,
+    },
   })
 
   spotlightWindow.setIgnoreMouseEvents(true)

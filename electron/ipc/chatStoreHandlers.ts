@@ -1,4 +1,5 @@
-import { BrowserWindow, ipcMain } from 'electron'
+import { BrowserWindow } from 'electron'
+import { trustedIpcMain as ipcMain } from './trustedIpc'
 import * as chatStore from '../chatStore'
 import * as memoryStore from '../memoryStore'
 import * as summaryStore from '../conversationSummaryStore'
@@ -40,11 +41,14 @@ export function registerChatStoreHandlers(): void {
   )
 
   /** Save or replace one full chat session. */
-  ipcMain.handle('chat-store:save-session', async (_event, session) => {
-    await chatStore.saveSessionAsync(session)
-    broadcastChatStoreChanged()
-    return true
-  })
+  ipcMain.handle(
+    'chat-store:save-session',
+    async (_event, session: chatStore.ChatSession) => {
+      await chatStore.saveSessionAsync(session)
+      broadcastChatStoreChanged()
+      return true
+    }
+  )
 
   /** Delete one full chat session and its metadata. */
   ipcMain.handle('chat-store:delete-session', async (_event, sessionId) => {
@@ -66,7 +70,7 @@ export function registerChatStoreHandlers(): void {
   })
 
   /** Replace lightweight session metadata and folders. */
-  ipcMain.handle('chat-store:save-index', async (_event, index) => {
+  ipcMain.handle('chat-store:save-index', async (_event, index: chatStore.ChatIndexData) => {
     await chatStore.saveChatIndexAsync(index)
     broadcastChatStoreChanged()
     return true
@@ -86,17 +90,20 @@ export function registerChatStoreHandlers(): void {
   })
 
   /** Replace all stored chat sessions. */
-  ipcMain.handle('chat-store:save-all', async (_event, sessions) => {
+  ipcMain.handle('chat-store:save-all', async (_event, sessions: chatStore.ChatSession[]) => {
     await chatStore.saveAllSessionsAsync(sessions)
     broadcastChatStoreChanged()
     return true
   })
 
   /** Import legacy renderer-localStorage chat history. */
-  ipcMain.handle('chat-store:migrate', async (_event, localStorageData) => {
-    chatStore.migrateFromLocalStorage(localStorageData)
-    return true
-  })
+  ipcMain.handle(
+    'chat-store:migrate',
+    async (_event, localStorageData: chatStore.ChatSession[]) => {
+      chatStore.migrateFromLocalStorage(localStorageData)
+      return true
+    }
+  )
 
   /** Return all stored chat folders. */
   ipcMain.handle('chat-store:get-all-folders', async () => {
@@ -115,7 +122,7 @@ export function registerChatStoreHandlers(): void {
   })
 
   /** Replace all stored chat folders. */
-  ipcMain.handle('chat-store:save-folders', async (_event, folders) => {
+  ipcMain.handle('chat-store:save-folders', async (_event, folders: chatStore.Folder[]) => {
     await chatStore.saveFoldersAsync(folders)
     broadcastChatStoreChanged()
     return true

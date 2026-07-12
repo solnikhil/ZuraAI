@@ -1,23 +1,15 @@
-import { app, BrowserWindow, shell } from 'electron'
+import { app, BrowserWindow } from 'electron'
 import path from 'path'
 import { deferredInitializer } from '../startup/deferredInit'
 import { log } from '../startup/logger'
 import { resolveAppIconPath } from '../windowIcon'
 import { trackAppCrash, trackAppError } from '../analytics'
+import { installExternalNavigationGuards } from './externalNavigation'
 
 const windowLog = log.withTag('window')
 
 export function resolveDistPath(dirname: string, envDist = process.env.DIST): string {
   return envDist || path.join(dirname, '../dist')
-}
-
-const devServerUrl = process.env.VITE_DEV_SERVER_URL
-const devServerOrigin = devServerUrl ? new URL(devServerUrl).origin : null
-
-function isExternalHttpUrl(url: string): boolean {
-  if (!url.startsWith('http:') && !url.startsWith('https:')) return false
-  if (devServerOrigin && url.startsWith(devServerOrigin)) return false
-  return true
 }
 
 /**
@@ -166,19 +158,7 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
     show: false,
   })
 
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (isExternalHttpUrl(url)) {
-      shell.openExternal(url)
-    }
-    return { action: 'deny' }
-  })
-
-  mainWindow.webContents.on('will-navigate', (event, url) => {
-    if (isExternalHttpUrl(url)) {
-      event.preventDefault()
-      shell.openExternal(url)
-    }
-  })
+  installExternalNavigationGuards(mainWindow)
 
   let hasShownMainWindow = false
   const showMainWindowWhenReady = () => {

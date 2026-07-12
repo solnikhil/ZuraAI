@@ -1,4 +1,5 @@
-import { BrowserWindow, ipcMain } from 'electron'
+import { BrowserWindow } from 'electron'
+import { trustedIpcMain as ipcMain } from '../../ipc/trustedIpc'
 import { TerminalApprovalManager } from './approvalManager'
 import type { PendingTerminalApproval } from './approvalManager'
 import { TERMINAL_APPROVAL_TIMEOUT_MS } from './constants'

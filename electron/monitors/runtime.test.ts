@@ -57,6 +57,13 @@ vi.mock('electron', () => ({
   },
 }))
 
+vi.mock('../ipc/trustedIpc', () => ({
+  trustedIpcMain: {
+    handle: electronMock.ipcHandle,
+    removeHandler: electronMock.ipcRemoveHandler,
+  },
+}))
+
 vi.mock('./storage', () => ({
   getScheduledTask: storageMock.getScheduledTask,
   getSnapshotsForTask: storageMock.getSnapshotsForTask,

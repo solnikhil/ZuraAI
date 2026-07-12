@@ -1,4 +1,5 @@
-import { BrowserWindow, ipcMain, screen } from 'electron'
+import { BrowserWindow, screen } from 'electron'
+import { trustedIpcMain as ipcMain } from '../ipc/trustedIpc'
 
 export interface AgentApprovalOverlayRequest {
   id: string

@@ -54,6 +54,15 @@ describe('tool routing through current-desktop Computer Use', () => {
     let handler: ((event: unknown, toolName: string, args: unknown) => Promise<unknown>) | null =
       null
 
+    vi.doMock('../ipc/trustedIpc', () => ({
+      trustedIpcMain: {
+        handle: (channel: string, callback: typeof handler) => {
+          if (channel === 'execute-tool') handler = callback
+        },
+        removeHandler: vi.fn(),
+      },
+    }))
+
     vi.doMock('electron', () => ({
       app: {
         getPath: vi.fn(() => '/tmp/zura-tools-test'),

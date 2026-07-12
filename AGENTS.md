@@ -103,6 +103,9 @@ Renderer (React/Vite) -> Preload (allowlisted bridges) -> Electron Main
 - Command Center overlay: separate frameless always-on-top `BrowserWindow`, loads `#/command-center`, and is available in both Chat and Agent modes on Windows and macOS.
 - Agent approval overlay: separate small frameless always-on-top `BrowserWindow` owned by main for Agent Mode tool-call approvals while ZuraAI is not focused. It loads sanitized inline approval HTML only, resolves approve/reject/always-allow-exact-repeat decisions back to the requesting renderer, and does not execute tools or expose general desktop APIs.
 - Unknown renderer routes render the dedicated 404 view.
+- Renderer-backed windows deny all in-window navigation and new-window creation. Explicit HTTP(S)
+  links may open only through the OS browser; development-server URLs are recognized by exact
+  origin rather than string prefix, and non-HTTP protocols are never forwarded.
 - Packaged app registers `zuraai` for terminal/app-launch handoff and `zura-chat` for trusted local chat deep links. `zuraai://open` may only focus/create the main window. Debug and CLI chat references keep the shape `zura-chat://<sessionId>?userData=<base64urlUserData>`; session-only links open/switch to that chat, while continuation links may include `message=` or `messageBase64=`. CLI-created new-chat links may include `createIfMissing=1`, but must still pass the userData path validation before the renderer creates a new chat and sends the message.
 
 Platform chrome:
@@ -166,6 +169,16 @@ Secrets:
 ### IPC Surface
 
 The renderer never imports Electron APIs directly.
+
+All renderer-invokable main handlers must register through
+`electron/ipc/trustedIpc.ts` rather than raw `ipcMain.handle`. The shared guard
+rejects requests unless they originate from the top frame of a live ZuraAI
+`BrowserWindow` whose URL is either the exact development-server origin or the
+packaged `dist/index.html` file. Subframes, unknown/destroyed windows, origin
+lookalikes, other local files, and non-HTTP(S) remote documents are rejected
+before channel-specific code runs. Tests for individual handler behavior may
+mock the shared registration wrapper, but `trustedIpc.test.ts` must exercise the
+real rejection boundary.
 
 Primary files:
 

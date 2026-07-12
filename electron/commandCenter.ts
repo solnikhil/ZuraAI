@@ -1,7 +1,8 @@
-import { clipboard, globalShortcut, ipcMain, shell } from 'electron'
+import { clipboard, globalShortcut, shell } from 'electron'
 import { execFileSync } from 'child_process'
 import os from 'os'
 import path from 'path'
+import { trustedIpcMain as ipcMain } from './ipc/trustedIpc'
 
 import { resolveCommandCenterEmoji } from '../src/commandCenter/emojis'
 import {

@@ -24,6 +24,7 @@ import { CircleIcon as CircleBase } from '@phosphor-icons/react/dist/csr/Circle'
 import { ClipboardIcon as ClipboardBase } from '@phosphor-icons/react/dist/csr/Clipboard'
 import { ClockCounterClockwiseIcon as ClockCounterClockwiseBase } from '@phosphor-icons/react/dist/csr/ClockCounterClockwise'
 import { ClockIcon as ClockBase } from '@phosphor-icons/react/dist/csr/Clock'
+import { SlidersHorizontalIcon as SlidersHorizontalBase } from '@phosphor-icons/react/dist/csr/SlidersHorizontal'
 import { CloudIcon as CloudBase } from '@phosphor-icons/react/dist/csr/Cloud'
 import { CodeBlockIcon as CodeBlockBase } from '@phosphor-icons/react/dist/csr/CodeBlock'
 import { CodeIcon as CodeBase } from '@phosphor-icons/react/dist/csr/Code'
@@ -153,6 +154,7 @@ export const CircleHelp = withDefaultWeight(QuestionBase, 'duotone', 'CircleHelp
 export const CircleIcon = withDefaultWeight(CircleBase, 'duotone', 'CircleIcon')
 export const Clipboard = withDefaultWeight(ClipboardBase, 'duotone', 'Clipboard')
 export const Clock = withDefaultWeight(ClockBase, 'duotone', 'Clock')
+export const Clock3 = Clock
 export const Cloud = withDefaultWeight(CloudBase, 'duotone', 'Cloud')
 export const Code = withDefaultWeight(CodeBase, 'duotone', 'Code')
 export const Code2 = withDefaultWeight(CodeBlockBase, 'duotone', 'Code2')
@@ -200,6 +202,11 @@ export const Link2 = withDefaultWeight(LinkBase, 'duotone', 'Link2')
 export const Loader2 = withDefaultWeight(SpinnerGapBase, 'duotone', 'Loader2')
 export const Loader2Icon = Loader2
 export const LoaderCircle = withDefaultWeight(CircleNotchBase, 'duotone', 'LoaderCircle')
+export const SlidersHorizontal = withDefaultWeight(
+  SlidersHorizontalBase,
+  'duotone',
+  'SlidersHorizontal'
+)
 export const Lock = withDefaultWeight(LockBase, 'duotone', 'Lock')
 export const Maximize2 = withDefaultWeight(CornersOutBase, 'duotone', 'Maximize2')
 export const MessageCircle = withDefaultWeight(ChatCircleTextBase, 'duotone', 'MessageCircle')

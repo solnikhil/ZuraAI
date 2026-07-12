@@ -20,6 +20,7 @@ import {
   XCircle,
 } from 'lucide-react'
 import { ActionsMenu, type ActionsMenuGroup } from '@/components/ui/actions-menu'
+import { WithTooltip } from '@/components/ui/WithTooltip'
 import type {
   GitHubWorkspaceOpenRequest,
   GitHubWorkspaceRepositorySummary,
@@ -570,16 +571,18 @@ export default function GitHubWorkspace({
           )}
           {signingIn ? (
             <div className="github-workspace-auth__device">
-              <button
-                className="github-workspace-auth__code"
-                type="button"
-                title="Copy code"
-                onClick={() =>
-                  signingAccount && void window.githubWorkspace.copyUserCode(signingAccount.userCode)
-                }
-              >
-                {signingAccount?.userCode}
-              </button>
+              <WithTooltip tooltip="Copy code">
+                <button
+                  className="github-workspace-auth__code"
+                  type="button"
+                  onClick={() =>
+                    signingAccount &&
+                    void window.githubWorkspace.copyUserCode(signingAccount.userCode)
+                  }
+                >
+                  {signingAccount?.userCode}
+                </button>
+              </WithTooltip>
               <div className="github-workspace-auth__waiting">
                 <span>
                   <RefreshCcw size={14} /> Waiting for GitHub…
@@ -647,32 +650,34 @@ export default function GitHubWorkspace({
         >
           <aside className="github-workspace__sidebar">
             <div className="github-workspace__tabs" role="tablist" aria-label="Repository views">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={tab === 'changes'}
-                className={tab === 'changes' ? 'is-active' : ''}
-                title="File changes"
-                onClick={() => setTab('changes')}
-              >
-                <span className="github-workspace__tab-label">Changes</span>
-                <span className="github-workspace__tab-count">{state.changes.length}</span>
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={tab === 'history'}
-                className={tab === 'history' ? 'is-active' : ''}
-                title="Commit history"
-                onClick={() => {
-                  setTab('history')
-                  if (!selectedCommitId && state.history[0]) {
-                    setSelectedCommitId(state.history[0].id)
-                  }
-                }}
-              >
-                <span className="github-workspace__tab-label">History</span>
-              </button>
+              <WithTooltip tooltip="File changes">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === 'changes'}
+                  className={tab === 'changes' ? 'is-active' : ''}
+                  onClick={() => setTab('changes')}
+                >
+                  <span className="github-workspace__tab-label">Changes</span>
+                  <span className="github-workspace__tab-count">{state.changes.length}</span>
+                </button>
+              </WithTooltip>
+              <WithTooltip tooltip="Commit history">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === 'history'}
+                  className={tab === 'history' ? 'is-active' : ''}
+                  onClick={() => {
+                    setTab('history')
+                    if (!selectedCommitId && state.history[0]) {
+                      setSelectedCommitId(state.history[0].id)
+                    }
+                  }}
+                >
+                  <span className="github-workspace__tab-label">History</span>
+                </button>
+              </WithTooltip>
             </div>
             <div className="github-workspace__list" role="listbox">
               {tab === 'changes' ? (
@@ -701,7 +706,9 @@ export default function GitHubWorkspace({
                           })
                         }
                       />
-                      <span title={change.path}>{change.path}</span>
+                      <WithTooltip tooltip={change.path}>
+                        <span>{change.path}</span>
+                      </WithTooltip>
                       <em>{statusGlyph(change.status)}</em>
                     </button>
                   ))
@@ -718,9 +725,9 @@ export default function GitHubWorkspace({
                     className={`github-workspace__history-row ${commit.id === selectedCommitId ? 'is-selected' : ''}`}
                     onClick={() => setSelectedCommitId(commit.id)}
                   >
-                    <span className="github-workspace__history-summary" title={commit.summary}>
-                      {commit.summary}
-                    </span>
+                    <WithTooltip tooltip={commit.summary}>
+                      <span className="github-workspace__history-summary">{commit.summary}</span>
+                    </WithTooltip>
                     <small className="github-workspace__history-meta">
                       {commit.author}
                       {commit.authoredAt
@@ -766,12 +773,16 @@ export default function GitHubWorkspace({
                       {statusGlyph(selectedChange.status)}
                     </em>
                     <div className="github-workspace__detail-titles">
-                      <span className="github-workspace__detail-name" title={selectedChange.path}>
-                        {pathBasename(selectedChange.path)}
-                      </span>
-                      <span className="github-workspace__detail-path" title={selectedChange.path}>
-                        {selectedChange.path}
-                      </span>
+                      <WithTooltip tooltip={selectedChange.path}>
+                        <span className="github-workspace__detail-name">
+                          {pathBasename(selectedChange.path)}
+                        </span>
+                      </WithTooltip>
+                      <WithTooltip tooltip={selectedChange.path}>
+                        <span className="github-workspace__detail-path">
+                          {selectedChange.path}
+                        </span>
+                      </WithTooltip>
                     </div>
                   </div>
                   {diff.trim() ? (
@@ -785,15 +796,16 @@ export default function GitHubWorkspace({
                     align="end"
                     groups={fileActionGroups}
                     trigger={
-                      <button
-                        type="button"
-                        className="zura-menu-trigger github-workspace__actions-trigger"
-                        title="File actions"
-                        aria-label="File actions"
-                      >
-                        <MoreHorizontal size={14} />
-                        Actions
-                      </button>
+                      <WithTooltip tooltip="File actions">
+                        <button
+                          type="button"
+                          className="zura-menu-trigger github-workspace__actions-trigger"
+                          aria-label="File actions"
+                        >
+                          <MoreHorizontal size={14} />
+                          Actions
+                        </button>
+                      </WithTooltip>
                     }
                   />
                 </div>
@@ -811,7 +823,9 @@ export default function GitHubWorkspace({
                     <span>{new Date(selectedCommit.authoredAt).toLocaleString()}</span>
                   )}
                 </div>
-                <code title={selectedCommit.id}>{selectedCommit.id.slice(0, 12)}</code>
+                <WithTooltip tooltip={selectedCommit.id}>
+                  <code>{selectedCommit.id.slice(0, 12)}</code>
+                </WithTooltip>
               </div>
             ) : (
               <div className="github-workspace-empty github-workspace-empty--detail">
@@ -898,16 +912,17 @@ export default function GitHubWorkspace({
             }
             disabled={!repository || Boolean(busy)}
             trigger={
-              <button
-                type="button"
-                className="zura-menu-trigger github-workspace__branch-btn"
-                title="Branches and worktrees"
-                disabled={!repository || Boolean(busy)}
-              >
-                <Code size={12} />
-                <span>{branchLabel}</span>
-                <ChevronDown size={11} />
-              </button>
+              <WithTooltip tooltip="Branches and worktrees">
+                <button
+                  type="button"
+                  className="zura-menu-trigger github-workspace__branch-btn"
+                  disabled={!repository || Boolean(busy)}
+                >
+                  <Code size={12} />
+                  <span>{branchLabel}</span>
+                  <ChevronDown size={11} />
+                </button>
+              </WithTooltip>
             }
           />
           <span className="github-workspace__footer-sep" aria-hidden="true" />

@@ -21,6 +21,13 @@ vi.mock('electron', () => ({
   },
 }))
 
+vi.mock('./trustedIpc', () => ({
+  trustedIpcMain: {
+    handle: ipcMainMocks.handle,
+    removeHandler: ipcMainMocks.removeHandler,
+  },
+}))
+
 vi.mock('../secureStorage', () => ({
   getSecureValueAsync: secureStorageMocks.getSecureValueAsync,
   setSecureValueAsync: secureStorageMocks.setSecureValueAsync,

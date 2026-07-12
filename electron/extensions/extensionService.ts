@@ -1,8 +1,9 @@
-import { app, BrowserWindow, dialog, ipcMain } from 'electron'
+import { app, BrowserWindow, dialog } from 'electron'
 import { watch, type FSWatcher } from 'fs'
 import fs from 'fs/promises'
 import crypto from 'crypto'
 import path from 'path'
+import { trustedIpcMain as ipcMain } from '../ipc/trustedIpc'
 
 import { writeFileAtomic } from '../utils/atomicFile'
 import {

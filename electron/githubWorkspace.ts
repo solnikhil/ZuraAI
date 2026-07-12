@@ -1,4 +1,4 @@
-import { app, clipboard, dialog, ipcMain, shell } from 'electron'
+import { app, clipboard, dialog, shell } from 'electron'
 import crypto from 'crypto'
 import { createRequire } from 'module'
 import { existsSync } from 'fs'
@@ -9,6 +9,7 @@ import { getSecureValueAsync, setSecureValueAsync } from './secureStorage'
 import { writeFileAtomic } from './utils/atomicFile'
 import { isExtensionInstalled, registerExtensionLifecycle } from './extensions/extensionService'
 import { getCommandCenterWindow } from './windows/commandCenterOverlay'
+import { trustedIpcMain as ipcMain } from './ipc/trustedIpc'
 import {
   classifyGitHubDevicePoll,
   isGitHubDeviceFlowExpired,

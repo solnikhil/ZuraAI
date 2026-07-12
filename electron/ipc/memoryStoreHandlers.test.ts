@@ -44,6 +44,13 @@ vi.mock('electron', () => ({
   ipcMain: { handle: ipcMainMocks.handle, removeHandler: ipcMainMocks.removeHandler },
 }))
 
+vi.mock('./trustedIpc', () => ({
+  trustedIpcMain: {
+    handle: ipcMainMocks.handle,
+    removeHandler: ipcMainMocks.removeHandler,
+  },
+}))
+
 vi.mock('../memoryStore', () => memoryStoreMocks)
 vi.mock('../conversationSummaryStore', () => summaryStoreMocks)
 

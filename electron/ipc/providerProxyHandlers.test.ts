@@ -19,6 +19,13 @@ vi.mock('electron', () => ({
   },
 }))
 
+vi.mock('./trustedIpc', () => ({
+  trustedIpcMain: {
+    handle: ipcMocks.handle,
+    removeHandler: ipcMocks.removeHandler,
+  },
+}))
+
 describe('provider proxy handlers', () => {
   beforeEach(async () => {
     vi.resetModules()

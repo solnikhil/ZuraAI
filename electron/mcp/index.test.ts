@@ -22,6 +22,15 @@ const indexMocks = vi.hoisted(() => ({
   }>,
 }))
 
+vi.mock('../ipc/trustedIpc', () => ({
+  trustedIpcMain: {
+    handle: (channel: string, handler: (...args: unknown[]) => unknown) => {
+      indexMocks.handlers.set(channel, handler)
+    },
+    removeHandler: indexMocks.removeHandler,
+  },
+}))
+
 class MockMcpManager {
   readonly initialize = vi.fn(async () => this.getSnapshot())
   readonly dispose = vi.fn(async () => undefined)

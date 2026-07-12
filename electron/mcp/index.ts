@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto'
-import { BrowserWindow, ipcMain, shell } from 'electron'
+import { BrowserWindow, shell } from 'electron'
+import { trustedIpcMain as ipcMain } from '../ipc/trustedIpc'
 
 import type {
   McpApprovalOutcome,

@@ -1,6 +1,5 @@
 import {
   app,
-  ipcMain,
   BrowserWindow,
   Menu,
   clipboard,
@@ -10,6 +9,7 @@ import {
   type IpcMainInvokeEvent,
   type MenuItemConstructorOptions,
 } from 'electron'
+import { trustedIpcMain as ipcMain } from './trustedIpc'
 import { openArtifactExternally } from '../artifacts/openArtifactExternally'
 import { getAppRuntimeInfo } from '../runtimeInfo'
 import { showAboutWindow } from '../windows'

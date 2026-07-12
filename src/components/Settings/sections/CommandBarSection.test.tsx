@@ -126,7 +126,7 @@ describe('CommandBarSection', () => {
     })
 
     await waitFor(() => {
-      expect(screen.getByText(/Sources: start-menu: 12/i)).toBeInTheDocument()
+      expect(screen.getByText(/start-menu: 12/i)).toBeInTheDocument()
     })
 
     fireEvent.click(screen.getByRole('button', { name: /Reindex Command Center apps/i }))
@@ -167,7 +167,7 @@ describe('CommandBarSection', () => {
     expect(trigger).toBeInTheDocument()
 
     fireEvent.click(trigger)
-    const largeOption = screen.getByRole('button', { name: 'Larger' })
+    const largeOption = screen.getByRole('button', { name: 'Spacious' })
     fireEvent.click(largeOption)
 
     expect(onChange).toHaveBeenCalledWith(
@@ -177,5 +177,53 @@ describe('CommandBarSection', () => {
         }),
       })
     )
+  })
+
+  it('opens Command Center from the page header', async () => {
+    render(<CommandBarSection settings={defaultSettings} onChange={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Open Command Center overlay/i }))
+
+    await waitFor(() => {
+      expect(setExtensionEnabled).toHaveBeenCalledWith(true)
+      expect(show).toHaveBeenCalled()
+    })
+  })
+
+  it('keeps the live preview synchronized with command bar preferences', () => {
+    const settings = {
+      ...defaultSettings,
+      commandBar: {
+        ...defaultSettings.commandBar,
+        paletteWidth: 'wide' as const,
+        palettePosition: 'top' as const,
+        size: 'large' as const,
+        overlayOpacity: 62,
+        maxSuggestions: 8,
+        showRecents: true,
+        maxRecents: 2,
+      },
+    }
+
+    render(<CommandBarSection settings={settings} onChange={vi.fn()} />)
+
+    expect(screen.getByTestId('command-bar-preview')).toHaveAttribute('data-width', 'wide')
+    expect(screen.getByTestId('command-bar-preview')).toHaveAttribute('data-position', 'top')
+    expect(screen.getByTestId('command-bar-preview')).toHaveAttribute('data-size', 'large')
+    expect(screen.getByTestId('command-bar-preview')).toHaveAttribute('data-opacity', '62')
+    expect(screen.getByTestId('command-bar-preview')).toHaveAttribute('data-results', '8')
+    expect(screen.getByTestId('command-bar-preview')).toHaveAttribute('data-recents', '2')
+  })
+
+  it('removes recents from the preview when recent commands are disabled', () => {
+    const settings = {
+      ...defaultSettings,
+      commandBar: { ...defaultSettings.commandBar, showRecents: false },
+    }
+
+    render(<CommandBarSection settings={settings} onChange={vi.fn()} />)
+
+    expect(screen.getByTestId('command-bar-preview')).toHaveAttribute('data-recents', '0')
+    expect(screen.queryByText(/Recent ·/i)).not.toBeInTheDocument()
   })
 })
