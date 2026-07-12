@@ -74,12 +74,12 @@ Prereqs: Bun `>= 1.1`, Node.js `>= 18`.
 | `src/tools/`                          | Shared tool definitions, adapters, executor, MCP registry                                                 |
 | `src/skills/`                         | Built-in extension catalog and settings normalization/migration                                           |
 | `src/agentSkills/`                    | Agent Skills shared types and compact prompt catalog                                                      |
-| `src/extensions/`                     | Shared extension manifests, serializable trusted UI contracts, and strict validators                       |
+| `src/extensions/`                     | Shared extension manifests, serializable trusted UI contracts, and strict validators                      |
 | `src/mcp/`                            | Shared MCP contracts and renderer context                                                                 |
 | `src/prompts/`                        | Code-owned prompt defaults                                                                                |
 | `dist/`, `dist-electron/`, `release/` | Generated build outputs; do not hand edit                                                                 |
 | `packages/zuraai/`                    | npm package for the `zuraai` terminal launcher; opens the desktop app through registered local protocols  |
-| `extensions/bundled/`                 | Read-only manifest packages shipped into the Zura Store                                                    |
+| `extensions/bundled/`                 | Read-only manifest packages shipped into the Zura Store                                                   |
 
 ---
 

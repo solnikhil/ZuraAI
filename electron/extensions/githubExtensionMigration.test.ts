@@ -6,7 +6,12 @@ const root = process.cwd()
 
 describe('GitHub Workspace extension migration', () => {
   it('owns lifecycle through the extension manifest and registry only', async () => {
-    const manifest = JSON.parse(await readFile(path.join(root, 'extensions', 'bundled', 'github-workspace', 'zura-extension.json'), 'utf8'))
+    const manifest = JSON.parse(
+      await readFile(
+        path.join(root, 'extensions', 'bundled', 'github-workspace', 'zura-extension.json'),
+        'utf8'
+      )
+    )
     expect(manifest).toMatchObject({
       schemaVersion: 1,
       id: 'com.zuraai.github',
@@ -17,7 +22,11 @@ describe('GitHub Workspace extension migration', () => {
 
     const preload = await readFile(path.join(root, 'electron', 'preload.ts'), 'utf8')
     const workspaceHost = await readFile(path.join(root, 'electron', 'githubWorkspace.ts'), 'utf8')
-    for (const legacyChannel of ['github-workspace:get-installed', 'github-workspace:install', 'github-workspace:uninstall']) {
+    for (const legacyChannel of [
+      'github-workspace:get-installed',
+      'github-workspace:install',
+      'github-workspace:uninstall',
+    ]) {
       expect(preload).not.toContain(legacyChannel)
       expect(workspaceHost).not.toContain(legacyChannel)
     }

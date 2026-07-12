@@ -27,6 +27,7 @@ green build alone is not treated as proof unless the relevant test or artifact c
 | Install/disable/enable/update/uninstall lifecycle works  | Service lifecycle tests and Store tests                                                                          | Verified                                           |
 | Development import and reload works                      | Main-owned picker, dev-only gate, watcher callback reload test                                                   | Verified                                           |
 | GitHub migrated without renderer token exposure          | Manifest registry migration, dedicated host, safe-storage architecture, GitHub security/full regression suite    | Verified within existing GitHub coverage           |
+| GitHub has no parallel legacy Store lifecycle            | Migration test asserts the manifest/registry path and absence of GitHub-specific lifecycle IPC                   | Verified                                           |
 | CLI can scaffold and validate packages                   | Seven Node CLI tests                                                                                             | Verified                                           |
 | Packaged builds ship both reference extensions           | `build:dir` output and direct `release/win-unpacked/resources/extensions` inspection                             | Verified on Windows x64                            |
 | Agents cannot publish extensions                         | No publish runtime or IPC exists                                                                                 | Verified by absence; publishing is not implemented |
@@ -40,8 +41,8 @@ bun run typecheck
   PASS
 
 bun run test
-  258 test files passed
-  2,256 tests passed
+  259 test files passed
+  2,257 tests passed
 
 node --test packages/zuraai/bin/zuraai.test.cjs
   7 tests passed
