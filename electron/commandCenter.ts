@@ -18,6 +18,7 @@ import type {
   CommandCenterNativeSearchResult,
 } from '../src/electron/types'
 import {
+  clearAppIconCache,
   disposeAppIndexRuntime,
   getCachedAppIcon,
   isAppIconPending,
@@ -1424,6 +1425,9 @@ export function registerCommandCenterHandlers(): void {
     if (!extensionEnabled) {
       return { ok: false, stale: true, sourceCounts: {}, error: 'Command Center is disabled.' }
     }
+    // Manual reindex (Settings → Command Bar) should also drop cached icons so
+    // rows can re-resolve after a partial/stale shortcut scan.
+    clearAppIconCache()
     return refreshAppIndex()
   })
 

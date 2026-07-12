@@ -5,6 +5,7 @@ export type SettingsSectionId =
   | 'providers'
   | 'extensions'
   | 'mcp'
+  | 'commandbar'
   | 'themes'
   | 'systemprompt'
 
@@ -46,11 +47,30 @@ export const SETTINGS_SECTIONS: SettingsSectionMeta[] = [
     keywords: ['mcp', 'model context protocol', 'server', 'stdio', 'sse', 'websocket', 'tools'],
   },
   {
+    id: 'commandbar',
+    navLabel: 'Command Bar',
+    title: 'Command Bar',
+    description:
+      'Command Center app index, Windows search diagnostics, and in-app command palette preferences.',
+    keywords: [
+      'command',
+      'bar',
+      'commandbar',
+      'command center',
+      'apps',
+      'reindex',
+      'icons',
+      'palette',
+      'shortcut',
+      'windows search',
+    ],
+  },
+  {
     id: 'themes',
     navLabel: 'Appearance',
     title: 'Appearance & Personalization',
     description: 'Tailor themes, layout density, and visual behavior.',
-    keywords: ['theme', 'style', 'palette', 'titlebar', 'command palette'],
+    keywords: ['theme', 'style', 'palette', 'titlebar'],
   },
   {
     id: 'systemprompt',
@@ -77,7 +97,10 @@ const SETTINGS_SECTION_ALIASES: Record<string, SettingsSectionId> = {
   models: 'providers',
   preferences: 'providers',
   servers: 'mcp',
-  commandbar: 'themes',
+  command_bar: 'commandbar',
+  'command-bar': 'commandbar',
+  commandcenter: 'commandbar',
+  'command-center': 'commandbar',
   notifications: 'extensions',
   email: 'extensions',
   brevo: 'extensions',

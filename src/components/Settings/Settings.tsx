@@ -15,6 +15,7 @@ import { McpSection } from './sections/McpSection'
 import { ProviderHubSection } from './sections/ProviderHubSection'
 import { SkillsSection } from './sections/SkillsSection'
 import { AppearanceSection } from './sections/AppearanceSection'
+import { CommandBarSection } from './sections/CommandBarSection'
 import { SystemPromptSection } from './sections/SystemPromptSection'
 
 import { computeUsageStats, mergeUsageSessionSnapshots } from './sections/usageMetrics'
@@ -367,6 +368,13 @@ export default function Settings({
             )}
 
             {normalizedActiveSection === 'mcp' && <McpSection />}
+
+            {normalizedActiveSection === 'commandbar' && (
+              <CommandBarSection
+                settings={pendingSettings}
+                onChange={(changes) => handleChange(changes)}
+              />
+            )}
 
             {normalizedActiveSection === 'themes' && (
               <AppearanceSection

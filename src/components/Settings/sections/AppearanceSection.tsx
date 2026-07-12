@@ -268,17 +268,13 @@ export function AppearanceSection({
   const updateSettings = (changes: Partial<typeof settings>) => onChange(changes)
   const currentChatBubbleStyle = settings.chatBubbleStyle || 'solid'
   const currentChatSelectedOverlayStyle = settings.chatSelectedOverlayStyle || 'linear'
-  // Consume the initialCommandPaletteTab param (no longer needed for tab switching but keep the callback)
+  // Legacy deep-link param from command palette; section now lives under Command Bar.
   useEffect(() => {
     if (initialCommandPaletteTab) {
       onParamsConsumed?.()
     }
   }, [initialCommandPaletteTab, onParamsConsumed])
 
-  const commandBar = settings.commandBar
-  const maxRecents = clampNumber(commandBar.maxRecents, 0, 3)
-  const maxSuggestions = clampNumber(commandBar.maxSuggestions, 3, 12)
-  const overlayOpacity = clampNumber(commandBar.overlayOpacity, 0, 80)
   const promptAutoHide = settings.promptAutoHide
   const promptTimeout = clampNumber(promptAutoHide.timeout, 30, 600)
   const titleModelOptions: Array<{ value: string; label: string; provider: string }> =
@@ -310,15 +306,6 @@ export function AppearanceSection({
   })()
 
   const selectedProvider = selectedTitleModel?.provider || titleProviders[0]?.id || ''
-
-  const updateCommandBar = (changes: Partial<typeof settings.commandBar>) => {
-    updateSettings({
-      commandBar: {
-        ...settings.commandBar,
-        ...changes,
-      },
-    })
-  }
 
   const updatePromptAutoHide = (changes: Partial<typeof settings.promptAutoHide>) => {
     updateSettings({
@@ -525,145 +512,6 @@ export function AppearanceSection({
                 aria-label="Sidebar and titlebar material"
               />
             </div>
-          </div>
-        </div>
-      </Card>
-
-      <h3 className="appearance-group-heading">Command Palette</h3>
-      <Card className="settings-list-card">
-        <div className="settings-list-row">
-          <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Recent commands</h3>
-            <div className="settings-list-row__description">
-              Show recently executed commands at the top of the palette
-            </div>
-          </div>
-          <div className="settings-list-row__control">
-            <Switch
-              checked={commandBar.showRecents}
-              onCheckedChange={(checked) => updateCommandBar({ showRecents: checked })}
-              aria-label="Show recent commands in command palette"
-            />
-          </div>
-        </div>
-
-        <div className="settings-list-row">
-          <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Max recents</h3>
-            <div className="settings-list-row__description">How many recent commands to show</div>
-          </div>
-          <div className="settings-list-row__control">
-            <SettingsSelect
-              value={String(maxRecents)}
-              onValueChange={(value) => updateCommandBar({ maxRecents: Number(value) })}
-              options={[0, 1, 2, 3].map((count) => ({
-                value: String(count),
-                label: String(count),
-              }))}
-              disabled={!commandBar.showRecents}
-              aria-label="Max recent commands in command palette"
-            />
-          </div>
-        </div>
-
-        <div className="settings-list-row">
-          <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Tab autocomplete</h3>
-            <div className="settings-list-row__description">
-              Press Tab to complete the highlighted command
-            </div>
-          </div>
-          <div className="settings-list-row__control">
-            <Switch
-              checked={commandBar.enableTabAutocomplete}
-              onCheckedChange={(checked) => updateCommandBar({ enableTabAutocomplete: checked })}
-              aria-label="Enable tab autocomplete in command palette"
-            />
-          </div>
-        </div>
-
-        <div className="settings-list-row">
-          <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Max results</h3>
-            <div className="settings-list-row__description">
-              Maximum number of suggestions shown in the results list
-            </div>
-          </div>
-          <div className="settings-list-row__control">
-            <SettingsSelect
-              value={String(maxSuggestions)}
-              onValueChange={(value) => updateCommandBar({ maxSuggestions: Number(value) })}
-              options={[3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((count) => ({
-                value: String(count),
-                label: String(count),
-              }))}
-              aria-label="Max results in command palette"
-            />
-          </div>
-        </div>
-
-        <div className="settings-list-row">
-          <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Overlay opacity</h3>
-            <div className="settings-list-row__description">
-              Controls how much the background is dimmed
-            </div>
-          </div>
-          <div className="settings-list-row__control">
-            <input
-              type="range"
-              min={0}
-              max={80}
-              value={overlayOpacity}
-              onChange={(e) => updateCommandBar({ overlayOpacity: Number(e.target.value) })}
-              aria-label="Command palette overlay opacity"
-            />
-          </div>
-        </div>
-
-        <div className="settings-list-row">
-          <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Palette width</h3>
-            <div className="settings-list-row__description">
-              Controls the maximum width of the palette
-            </div>
-          </div>
-          <div className="settings-list-row__control">
-            <SettingsSelect
-              value={commandBar.paletteWidth ?? 'default'}
-              onValueChange={(value) =>
-                updateCommandBar({ paletteWidth: value as 'narrow' | 'default' | 'wide' })
-              }
-              options={[
-                { value: 'narrow', label: 'Narrow (440px)' },
-                { value: 'default', label: 'Default (560px)' },
-                { value: 'wide', label: 'Wide (680px)' },
-              ]}
-              aria-label="Command palette width"
-            />
-          </div>
-        </div>
-
-        <div className="settings-list-row">
-          <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Vertical position</h3>
-            <div className="settings-list-row__description">
-              Controls the vertical placement of the palette
-            </div>
-          </div>
-          <div className="settings-list-row__control">
-            <SettingsSelect
-              value={commandBar.palettePosition ?? 'center'}
-              onValueChange={(value) =>
-                updateCommandBar({ palettePosition: value as 'top' | 'center' | 'lower' })
-              }
-              options={[
-                { value: 'top', label: 'Top (12%)' },
-                { value: 'center', label: 'Center (20%)' },
-                { value: 'lower', label: 'Lower (30%)' },
-              ]}
-              aria-label="Command palette vertical position"
-            />
           </div>
         </div>
       </Card>
