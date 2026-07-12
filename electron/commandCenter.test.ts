@@ -307,6 +307,11 @@ describe('Command Center main service', () => {
       warmAppIndex: vi.fn(),
     }))
 
+    vi.doMock('./extensions/extensionService', () => ({
+      listEnabledExtensionCommands: vi.fn(async () => []),
+      executeNoViewExtensionCommand: vi.fn(),
+    }))
+
     vi.doMock('./tools/window-management', () => ({
       executeWindowList,
       executeWindowFocus,
@@ -661,6 +666,50 @@ describe('Command Center main service', () => {
     await getIndex?.('')
     // Empty-query lookups within the fresh window should not re-run app list.
     expect(executeAppList.mock.calls.length).toBe(listCallsAfterFirst)
+  })
+
+  it('fills empty-browse bestMatches with ranked apps for the Suggestions strip', async () => {
+    const { service, handlers } = await loadService({
+      executeAppList: vi.fn(async () => ({
+        success: true,
+        data: {
+          apps: [
+            {
+              name: 'Habit App',
+              shortcutPath: 'C:\\Habit.lnk',
+              path: 'C:\\Habit.lnk',
+              source: 'desktop',
+              iconKey: 'habit-icon',
+              rank: 800,
+            },
+            {
+              name: 'Rare App',
+              shortcutPath: 'C:\\Rare.lnk',
+              path: 'C:\\Rare.lnk',
+              source: 'desktop',
+              iconKey: 'rare-icon',
+              rank: 5,
+            },
+          ],
+        },
+      })),
+    })
+    service.registerCommandCenterHandlers()
+    service.setCommandCenterExtensionEnabled(true)
+
+    const getIndex = handlers.get('command-center:get-index')
+    const index = (await getIndex?.()) as {
+      bestMatches: Array<{ title: string; score?: number }>
+      apps: Array<{ title: string }>
+    }
+
+    expect(index.bestMatches.length).toBeGreaterThan(0)
+    expect(index.bestMatches[0]?.title).toBe('Habit App')
+    expect(index.bestMatches[0]?.score ?? 0).toBeGreaterThan(0)
+    // Full apps list still contains everything; Suggestions is a ranked top strip.
+    expect(index.apps.map((app) => app.title)).toEqual(
+      expect.arrayContaining(['Habit App', 'Rare App'])
+    )
   })
 
   it('runs allowlisted secondary app actions from the Actions menu', async () => {

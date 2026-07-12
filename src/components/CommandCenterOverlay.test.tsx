@@ -60,10 +60,60 @@ describe('CommandCenterOverlay', () => {
     currentSessionId = null
     sessions = []
     Object.assign(window, {
+      appInfo: {
+        get: vi.fn(async () => ({ isPackaged: false })),
+      },
+      extensions: {
+        list: vi.fn(async () => [
+          {
+            manifest: {
+              schemaVersion: 1,
+              id: 'com.zuraai.github',
+              name: 'GitHub Workspace',
+              publisher: '@zuraai',
+              version: '1.0.0',
+              description: 'Git repository workflows inside Command Center.',
+              icon: 'assets/icon.svg',
+              platforms: ['windows'],
+              categories: ['Productivity'],
+              commands: [{ id: 'workspace', title: 'GitHub', mode: 'workspace', entry: 'host:git-workspace', keywords: ['github'] }],
+              permissions: ['github.account'],
+              capabilities: { host: ['git-workspace'] },
+              networkDomains: ['github.com'],
+              privacy: { dataLeavesDevice: true },
+            },
+            trust: 'reviewed', installed: false, enabled: false, updateAvailable: false, source: 'bundled', validationErrors: [],
+          },
+          {
+            manifest: {
+              schemaVersion: 1,
+              id: 'com.zuraai.welcome',
+              name: 'Welcome Kit',
+              publisher: '@zuraai',
+              version: '1.0.0',
+              description: 'A safe example extension.',
+              icon: 'assets/icon.svg',
+              platforms: ['windows'],
+              categories: ['Productivity'],
+              commands: [{ id: 'welcome', title: 'Welcome Kit', mode: 'view', entry: 'ui/welcome.json', keywords: ['welcome'] }],
+              permissions: ['storage.local'],
+              privacy: { dataLeavesDevice: false },
+            },
+            trust: 'reviewed', installed: false, enabled: false, updateAvailable: false, source: 'bundled', validationErrors: [],
+          },
+        ]),
+        prepareMutation: vi.fn(),
+        applyMutation: vi.fn(),
+        setEnabled: vi.fn(),
+        importDevelopment: vi.fn(),
+        removeDevelopment: vi.fn(),
+        getView: vi.fn(),
+        executeAction: vi.fn(),
+        executeNoView: vi.fn(),
+        getStorage: vi.fn(),
+        onChanged: vi.fn(() => vi.fn()),
+      },
       githubWorkspace: {
-        getInstalled: vi.fn(async () => false),
-        install: vi.fn(async () => true),
-        uninstall: vi.fn(async () => true),
         getState: vi.fn(),
         addRepository: vi.fn(),
         startSignIn: vi.fn(),
@@ -356,7 +406,60 @@ describe('CommandCenterOverlay', () => {
     expect(screen.getByRole('option', { name: 'Rocket' })).toBeInTheDocument()
   })
 
-  it('opens the Zura Store preview and filters its bundled extension catalogue', async () => {
+  it('shows Suggestions first on empty browse from ranked bestMatches', async () => {
+    window.commandCenter.getIndex = vi.fn(async () => ({
+      bestMatches: [
+        {
+          id: 'app:kiro',
+          type: 'app',
+          title: 'Kiro',
+          subtitle: 'Application',
+          hint: 'Application',
+          aliases: ['kiro'],
+          score: 900,
+          rank: 900,
+        },
+      ],
+      workflows: [],
+      apps: [
+        {
+          id: 'app:chrome',
+          type: 'app',
+          title: 'Chrome',
+          subtitle: 'Application',
+          hint: 'Application',
+          aliases: ['browser'],
+          score: 10,
+          rank: 10,
+        },
+        {
+          id: 'app:kiro',
+          type: 'app',
+          title: 'Kiro',
+          subtitle: 'Application',
+          hint: 'Application',
+          aliases: ['kiro'],
+          score: 900,
+          rank: 900,
+        },
+      ],
+      windows: [],
+      actions: [],
+      chats: [],
+    }))
+
+    render(<CommandCenterOverlay />)
+
+    expect(await screen.findByRole('heading', { name: 'Suggestions' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Best Matches' })).not.toBeInTheDocument()
+    const options = screen.getAllByRole('option')
+    // Kiro is only listed under Suggestions (deduped out of Apps).
+    expect(options[0]).toHaveTextContent('Kiro')
+    expect(screen.getByRole('heading', { name: 'Apps' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /Chrome/i })).toBeInTheDocument()
+  })
+
+  it('opens the manifest-backed Zura Store and filters discovered extensions', async () => {
     window.commandCenter.getIndex = vi.fn(async () => ({
       workflows: [],
       apps: [],
@@ -380,19 +483,14 @@ describe('CommandCenterOverlay', () => {
     fireEvent.doubleClick(await screen.findByRole('option', { name: /Zura Store/i }))
 
     expect(await screen.findByRole('heading', { name: 'Zura Store' })).toBeInTheDocument()
-    expect(screen.getByText('Music, without breaking your flow.')).toBeInTheDocument()
-    expect(
-      screen
-        .getAllByRole('button', { name: /coming soon|soon/i })
-        .every((button) => button.hasAttribute('disabled'))
-    ).toBe(true)
+    expect(await screen.findByText('GitHub Workspace')).toBeInTheDocument()
+    expect(screen.getByText('Welcome Kit')).toBeInTheDocument()
 
     const search = screen.getByRole('textbox', { name: /search zura store/i })
-    fireEvent.change(search, { target: { value: 'Notion' } })
+    fireEvent.change(search, { target: { value: 'Welcome' } })
 
-    expect(await screen.findByRole('heading', { name: 'Notion' })).toBeInTheDocument()
-    expect(screen.queryByText('Music, without breaking your flow.')).not.toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Discord' })).not.toBeInTheDocument()
+    expect(await screen.findByText('Welcome Kit')).toBeInTheDocument()
+    expect(screen.queryByText('GitHub Workspace')).not.toBeInTheDocument()
   })
 
   it('resets to home when reopened after the session resume window expires', async () => {

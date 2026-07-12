@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "rootViewId": "home",
+  "views": {
+    "home": {
+      "id": "home",
+      "kind": "list",
+      "title": "Welcome Kit",
+      "searchPlaceholder": "Search examples",
+      "sections": [{
+        "id": "examples",
+        "title": "Trusted UI primitives",
+        "items": [
+          { "id": "detail", "title": "Detail", "subtitle": "Markdown rendered by Zura", "actions": [{ "id": "open-detail", "title": "Open Detail", "kind": "navigate", "viewId": "detail" }] },
+          { "id": "form", "title": "Form", "subtitle": "Bounded values and namespaced storage", "actions": [{ "id": "open-form", "title": "Open Form", "kind": "navigate", "viewId": "form" }] },
+          { "id": "states", "title": "Empty and Error States", "subtitle": "Consistent host-rendered feedback", "actions": [{ "id": "open-empty", "title": "Open Empty State", "kind": "navigate", "viewId": "empty" }] }
+        ]
+      }],
+      "empty": { "title": "No examples", "description": "Try another search." }
+    },
+    "detail": { "id": "detail", "kind": "detail", "title": "Trusted Detail", "markdown": "# Native by construction\n\nExtensions provide validated data. ZuraAI owns the DOM, styles, navigation, and actions.", "actions": [{ "id": "back-home", "title": "Back to Examples", "kind": "navigate", "viewId": "home" }] },
+    "form": { "id": "form", "kind": "form", "title": "Save a Greeting", "fields": [{ "id": "greeting", "type": "text", "title": "Greeting", "placeholder": "Hello from Zura", "required": true, "maxLength": 120 }], "actions": [{ "id": "save-greeting", "title": "Save Greeting", "kind": "storage.set", "key": "greeting", "valueFromField": "greeting", "nextViewId": "saved" }] },
+    "saved": { "id": "saved", "kind": "detail", "title": "Saved", "markdown": "Your greeting was saved in this extension's isolated local storage.", "actions": [{ "id": "back-after-save", "title": "Back to Examples", "kind": "navigate", "viewId": "home" }] },
+    "empty": { "id": "empty", "kind": "empty", "title": "Nothing here yet", "description": "This empty state is rendered by Command Center.", "actions": [{ "id": "back-from-empty", "title": "Back to Examples", "kind": "navigate", "viewId": "home" }] }
+  }
+}

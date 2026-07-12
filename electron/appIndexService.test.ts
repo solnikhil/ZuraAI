@@ -23,6 +23,8 @@ async function loadService(
     runPowerShellError?: Error
     iconDelayMs?: number
     userDataPath?: string
+    /** Non-shortcut files under Nested Start Menu folder (must not burn budget). */
+    nestedJunkFileCount?: number
   } = {}
 ) {
   userDataPath = options.userDataPath ?? (await mkdtemp(path.join(os.tmpdir(), 'zura-app-index-')))
@@ -115,6 +117,19 @@ async function loadService(
     },
   }))
 
+  const nestedJunk =
+    options.nestedJunkFileCount && options.nestedJunkFileCount > 0
+      ? Array.from({ length: options.nestedJunkFileCount }, (_, i) => fileEntry(`readme-${i}.txt`))
+      : []
+
+  const readdirImplementation = vi.fn(async (root: string, readdirOptions?: unknown) => {
+    if (root.includes('Nested')) return [fileEntry('Discord.lnk'), ...nestedJunk]
+    if (root === 'C:\\Users\\Nikhil\\Desktop') return [fileEntry('Kiro.lnk'), fileEntry('Claude.lnk')]
+    if (root.includes('Start Menu\\Programs')) return [dirEntry('Nested')]
+    const actual = await vi.importActual<typeof import('fs/promises')>('fs/promises')
+    return actual.readdir(root, readdirOptions as never)
+  })
+
   vi.doMock('fs/promises', async () => {
     const actual = await vi.importActual<typeof import('fs/promises')>('fs/promises')
     const accessImplementation = vi.fn(async (filePath: string) => {
@@ -134,13 +149,7 @@ async function loadService(
       default: {
         ...actual,
         access: accessImplementation,
-        readdir: vi.fn(async (root: string, options?: unknown) => {
-          if (root.includes('Nested')) return [fileEntry('Discord.lnk')]
-          if (root === 'C:\\Users\\Nikhil\\Desktop')
-            return [fileEntry('Kiro.lnk'), fileEntry('Claude.lnk')]
-          if (root.includes('Start Menu\\Programs')) return [dirEntry('Nested')]
-          return actual.readdir(root, options as never)
-        }),
+        readdir: readdirImplementation,
         readFile: vi.fn(async (filePath: string, options?: unknown) => {
           if (
             filePath ===
@@ -152,13 +161,7 @@ async function loadService(
         }),
       },
       access: accessImplementation,
-      readdir: vi.fn(async (root: string, options?: unknown) => {
-        if (root.includes('Nested')) return [fileEntry('Discord.lnk')]
-        if (root === 'C:\\Users\\Nikhil\\Desktop')
-          return [fileEntry('Kiro.lnk'), fileEntry('Claude.lnk')]
-        if (root.includes('Start Menu\\Programs')) return [dirEntry('Nested')]
-        return actual.readdir(root, options as never)
-      }),
+      readdir: readdirImplementation,
       readFile: vi.fn(async (filePath: string, options?: unknown) => {
         if (
           filePath ===
@@ -648,6 +651,24 @@ describe('appIndexService', () => {
         expect.objectContaining({ name: 'Native Only' }),
       ])
     )
+  })
+
+  it('does not hard-fail refresh when Start Menu trees contain large non-shortcut noise', async () => {
+    const { service } = await loadService({ nestedJunkFileCount: 12_000 })
+    const diagnostics = await service.refreshAppIndex()
+    const apps = (await service.listApps()).apps
+
+    expect(diagnostics.ok).toBe(true)
+    expect(diagnostics.error).toBeUndefined()
+    expect(apps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'Kiro' }),
+        expect.objectContaining({ name: 'Claude' }),
+        expect.objectContaining({ name: 'Discord' }),
+      ])
+    )
+    // Soft-cap must not surface as a hard shortcuts failure.
+    expect(diagnostics.error ?? '').not.toMatch(/entry limit/i)
   })
 
   it('drops malformed oversized snapshot fields while keeping valid entries', async () => {

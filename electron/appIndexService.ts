@@ -24,9 +24,18 @@ const MAX_APP_NAME_LENGTH = 256
 const MAX_APP_ID_LENGTH = 512
 const MAX_APP_PATH_LENGTH = 4_096
 const MAX_APP_ALIASES = 32
-const MAX_SHORTCUT_SCAN_ENTRIES = 10_000
+/** Budget is charged only for directories + `.lnk` files (not every junk file). */
+const MAX_SHORTCUT_SCAN_ENTRIES = 25_000
 const MAX_SHORTCUT_SCAN_DEPTH = 20
-const SHORTCUT_SCAN_DEADLINE_MS = 15_000
+const SHORTCUT_SCAN_DEADLINE_MS = 20_000
+
+type ShortcutScanBudget = {
+  /** Directories visited + `.lnk` files considered. */
+  entries: number
+  deadline: number
+  /** Soft stop — keep partial results instead of failing the whole source. */
+  stoppedReason?: 'entry-limit' | 'timeout'
+}
 
 export type AppIndexSource = 'windows-search' | 'start-menu' | 'desktop'
 export type AppLaunchStrategy = 'appUserModelId' | 'shortcutPath'
@@ -569,24 +578,45 @@ async function scanShortcutApps(
   root: string,
   source: AppIndexSource,
   results: RawAppMatch[],
-  budget: { entries: number; deadline: number },
+  budget: ShortcutScanBudget,
   depth = 0
 ): Promise<void> {
-  if (depth > MAX_SHORTCUT_SCAN_DEPTH) throw new Error('Shortcut scan exceeded its depth limit.')
-  if (Date.now() > budget.deadline) throw new Error('Shortcut scan timed out.')
+  if (budget.stoppedReason) return
+  // Depth is per-branch: skip this folder rather than failing the whole scan.
+  if (depth > MAX_SHORTCUT_SCAN_DEPTH) return
+  if (Date.now() > budget.deadline) {
+    budget.stoppedReason = 'timeout'
+    return
+  }
+
   const entries = await fs.readdir(root, { withFileTypes: true }).catch(() => [])
   for (const entry of entries) {
-    budget.entries += 1
-    if (budget.entries > MAX_SHORTCUT_SCAN_ENTRIES) {
-      throw new Error('Shortcut scan exceeded its entry limit.')
+    if (budget.stoppedReason) return
+    if (Date.now() > budget.deadline) {
+      budget.stoppedReason = 'timeout'
+      return
     }
-    if (Date.now() > budget.deadline) throw new Error('Shortcut scan timed out.')
+
     const full = path.join(root, entry.name)
     if (entry.isDirectory()) {
+      // Only directories and shortcuts consume budget (not .url/.ini/uninstall junk).
+      budget.entries += 1
+      if (budget.entries > MAX_SHORTCUT_SCAN_ENTRIES) {
+        budget.stoppedReason = 'entry-limit'
+        return
+      }
       await scanShortcutApps(full, source, results, budget, depth + 1)
       continue
     }
+
     if (path.extname(entry.name).toLowerCase() !== '.lnk') continue
+
+    budget.entries += 1
+    if (budget.entries > MAX_SHORTCUT_SCAN_ENTRIES) {
+      budget.stoppedReason = 'entry-limit'
+      return
+    }
+
     const name = path.basename(entry.name, '.lnk')
     const shortcut = readShortcutDetails(full)
     const targetPath = shortcut?.target || undefined
@@ -606,10 +636,19 @@ async function scanShortcutApps(
 
 async function collectShortcutApps(): Promise<RawAppMatch[]> {
   const apps: RawAppMatch[] = []
-  const budget = { entries: 0, deadline: Date.now() + SHORTCUT_SCAN_DEADLINE_MS }
+  const budget: ShortcutScanBudget = {
+    entries: 0,
+    deadline: Date.now() + SHORTCUT_SCAN_DEADLINE_MS,
+  }
   await Promise.all(
     shortcutRoots().map((root) => scanShortcutApps(root.path, root.source, apps, budget))
   )
+  if (budget.stoppedReason) {
+    // Soft-cap: keep every shortcut collected so far. Callers must not treat this as a hard failure.
+    console.warn(
+      `[AppIndex] Shortcut scan stopped early (${budget.stoppedReason}) after ${budget.entries} dir/lnk entries; kept ${apps.length} shortcuts.`
+    )
+  }
   return apps
 }
 

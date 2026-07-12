@@ -7,6 +7,7 @@ import path from 'path'
 import { exec as execGit } from 'dugite'
 import { getSecureValueAsync, setSecureValueAsync } from './secureStorage'
 import { writeFileAtomic } from './utils/atomicFile'
+import { isExtensionInstalled, registerExtensionLifecycle } from './extensions/extensionService'
 import { getCommandCenterWindow } from './windows/commandCenterOverlay'
 import {
   classifyGitHubDevicePoll,
@@ -39,7 +40,7 @@ import type {
 } from '../src/electron/types'
 
 const STORE_NAME = 'github-workspace-repositories.json'
-const INSTALL_FILE = 'zura-store-products.json'
+const GITHUB_EXTENSION_ID = 'com.zuraai.github'
 const TOKEN_KEY = 'github.workspace.oauthToken'
 const MAX_REPOSITORIES = 200
 const MAX_COMMIT_MESSAGE = 10_000
@@ -50,14 +51,13 @@ const OAUTH_CLIENT_ID = process.env.ZURA_GITHUB_OAUTH_CLIENT_ID?.trim() || 'Ov23
 interface StoredRepository { id: string; path: string; alias?: string; lastOpenedAt: number }
 let selectedRepositoryId: string | undefined
 /** Paths the user unchecked (default is checked for every change). */
-let deselectedChanges = new Map<string, Set<string>>()
+const deselectedChanges = new Map<string, Set<string>>()
 let operation: Promise<unknown> = Promise.resolve()
 let authAttempt = 0
 /** Cached path to dugite's embedded Git directory (GitHub Desktop / dugite pattern). */
 let embeddedGitDir: string | undefined
 
 const storePath = () => path.join(app.getPath('userData'), STORE_NAME)
-const installPath = () => path.join(app.getPath('userData'), INSTALL_FILE)
 const encodeId = (value: string) => crypto.createHash('sha256').update(value).digest('hex').slice(0, 24)
 
 function gitBinaryPath(gitDir: string): string {
@@ -128,18 +128,21 @@ function dugiteEnv(extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
 }
 
 export async function isGitHubWorkspaceInstalled(): Promise<boolean> {
-  try {
-    const parsed = JSON.parse(await fs.readFile(installPath(), 'utf8'))
-    return Array.isArray(parsed.installed) && parsed.installed.includes('github')
-  } catch { return false }
+  return isExtensionInstalled(GITHUB_EXTENSION_ID)
 }
 
-async function setGitHubWorkspaceInstalled(installed: boolean): Promise<void> {
-  await writeFileAtomic(installPath(), JSON.stringify({ installed: installed ? ['github'] : [] }, null, 2))
+async function cleanupGitHubWorkspaceAuthorization(openAuthorizationSettings: boolean): Promise<void> {
+  authAttempt += 1
+  await setSecureValueAsync(TOKEN_KEY, '')
+  selectedRepositoryId = undefined
+  deselectedChanges.clear()
+  if (openAuthorizationSettings) {
+    await shell.openExternal(`https://github.com/settings/connections/applications/${OAUTH_CLIENT_ID}`)
+  }
 }
 
 async function requireInstalled(): Promise<void> {
-  if (!(await isGitHubWorkspaceInstalled())) throw new Error('Install GitHub from Zura Store first.')
+  if (!(await isGitHubWorkspaceInstalled())) throw new Error('Install the GitHub Workspace extension first.')
 }
 
 async function readStore(): Promise<StoredRepository[]> {
@@ -204,7 +207,8 @@ async function networkGit(repositoryPath: string, args: string[]) {
     if (controller.signal.aborted || isNetworkGitTimeoutError(error)) {
       throw new Error(
         `Git ${operation} timed out after ${Math.round(NETWORK_GIT_TIMEOUT_MS / 1000)}s. ` +
-          'Check your network, or try again if the repository is large.'
+          'Check your network, or try again if the repository is large.',
+        { cause: error }
       )
     }
     throw error
@@ -487,9 +491,9 @@ async function performMutation(mutation: GitHubWorkspaceMutation): Promise<GitHu
 }
 
 export function registerGitHubWorkspaceHandlers() {
-  ipcMain.handle('github-workspace:get-installed', () => isGitHubWorkspaceInstalled())
-  ipcMain.handle('github-workspace:install', async () => { await setGitHubWorkspaceInstalled(true); return true })
-  ipcMain.handle('github-workspace:uninstall', async () => { authAttempt += 1; await setGitHubWorkspaceInstalled(false); await setSecureValueAsync(TOKEN_KEY, ''); selectedRepositoryId = undefined; deselectedChanges.clear(); await shell.openExternal('https://github.com/settings/connections/applications/' + OAUTH_CLIENT_ID); return true })
+  registerExtensionLifecycle(GITHUB_EXTENSION_ID, {
+    onUninstall: () => cleanupGitHubWorkspaceAuthorization(true),
+  })
   ipcMain.handle('github-workspace:get-state', () => getGitHubWorkspaceState())
   ipcMain.handle('github-workspace:add-repository', async () => {
     await requireInstalled()
@@ -514,9 +518,9 @@ export function registerGitHubWorkspaceHandlers() {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       if (/ENOENT|Git failed to execute|Bundled Git/i.test(message)) {
-        throw new Error(message)
+        throw new Error(message, { cause: error })
       }
-      throw new Error('That folder is not a Git repository. Choose the folder that contains a .git directory.')
+      throw new Error('That folder is not a Git repository. Choose the folder that contains a .git directory.', { cause: error })
     }
     const repositories = await readStore()
     const id = encodeId(repoPath.toLowerCase())
@@ -627,9 +631,6 @@ async function openWorkspaceTarget(request: unknown): Promise<GitHubWorkspaceOpe
 export function unregisterGitHubWorkspaceHandlers() {
   authAttempt += 1
   for (const channel of [
-    'get-installed',
-    'install',
-    'uninstall',
     'get-state',
     'add-repository',
     'start-sign-in',

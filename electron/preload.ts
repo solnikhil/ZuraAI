@@ -13,6 +13,7 @@ import type {
   McpServerRuntimeState,
   McpToolExecutionResult,
 } from '../src/mcp/types'
+import type { ZuraExtensionNetworkRequest, ZuraExtensionsApi } from '../src/extensions/types'
 import type {
   IpcInvokeArgsMap,
   IpcInvokeChannel,
@@ -222,9 +223,6 @@ const COMMAND_CENTER_ON_CHANNELS = new Set<string>([
 ])
 
 const GITHUB_WORKSPACE_INVOKE_CHANNELS = new Set<string>([
-  'github-workspace:get-installed',
-  'github-workspace:install',
-  'github-workspace:uninstall',
   'github-workspace:get-state',
   'github-workspace:add-repository',
   'github-workspace:start-sign-in',
@@ -237,6 +235,23 @@ const GITHUB_WORKSPACE_INVOKE_CHANNELS = new Set<string>([
 ])
 
 const GITHUB_WORKSPACE_ON_CHANNELS = new Set<string>(['github-workspace:changed'])
+
+const EXTENSIONS_INVOKE_CHANNELS = new Set<string>([
+  'extensions:list',
+  'extensions:prepare-mutation',
+  'extensions:apply-mutation',
+  'extensions:set-enabled',
+  'extensions:import-development',
+  'extensions:remove-development',
+  'extensions:get-view',
+  'extensions:execute-action',
+  'extensions:execute-no-view',
+  'extensions:get-storage',
+  'extensions:request-network',
+  'extensions:pick-file',
+  'extensions:read-file-handle',
+])
+const EXTENSIONS_ON_CHANNELS = new Set<string>(['extensions:changed'])
 
 const SCHEDULED_TASKS_INVOKE_CHANNELS = new Set<string>([
   'scheduled-tasks:set-extension-enabled',
@@ -863,11 +878,33 @@ contextBridge.exposeInMainWorld(
 )
 
 contextBridge.exposeInMainWorld(
+  'extensions',
+  Object.freeze({
+    list: () => { assertAllowed('invoke', 'extensions:list', EXTENSIONS_INVOKE_CHANNELS); return ipcRenderer.invoke('extensions:list') },
+    prepareMutation: (extensionId: string, action: 'install' | 'update' | 'uninstall') => { assertAllowed('invoke', 'extensions:prepare-mutation', EXTENSIONS_INVOKE_CHANNELS); return ipcRenderer.invoke('extensions:prepare-mutation', extensionId, action) },
+    applyMutation: (confirmationId: string) => { assertAllowed('invoke', 'extensions:apply-mutation', EXTENSIONS_INVOKE_CHANNELS); return ipcRenderer.invoke('extensions:apply-mutation', confirmationId) },
+    setEnabled: (extensionId: string, enabled: boolean) => { assertAllowed('invoke', 'extensions:set-enabled', EXTENSIONS_INVOKE_CHANNELS); return ipcRenderer.invoke('extensions:set-enabled', extensionId, enabled) },
+    importDevelopment: () => { assertAllowed('invoke', 'extensions:import-development', EXTENSIONS_INVOKE_CHANNELS); return ipcRenderer.invoke('extensions:import-development') },
+    removeDevelopment: (extensionId: string) => { assertAllowed('invoke', 'extensions:remove-development', EXTENSIONS_INVOKE_CHANNELS); return ipcRenderer.invoke('extensions:remove-development', extensionId) },
+    getView: (extensionId: string, commandId: string, viewId?: string) => { assertAllowed('invoke', 'extensions:get-view', EXTENSIONS_INVOKE_CHANNELS); return ipcRenderer.invoke('extensions:get-view', extensionId, commandId, viewId) },
+    executeAction: (extensionId: string, commandId: string, viewId: string, actionId: string, values?: Record<string, string | boolean>) => { assertAllowed('invoke', 'extensions:execute-action', EXTENSIONS_INVOKE_CHANNELS); return ipcRenderer.invoke('extensions:execute-action', extensionId, commandId, viewId, actionId, values) },
+    executeNoView: (extensionId: string, commandId: string) => { assertAllowed('invoke', 'extensions:execute-no-view', EXTENSIONS_INVOKE_CHANNELS); return ipcRenderer.invoke('extensions:execute-no-view', extensionId, commandId) },
+    getStorage: (extensionId: string) => { assertAllowed('invoke', 'extensions:get-storage', EXTENSIONS_INVOKE_CHANNELS); return ipcRenderer.invoke('extensions:get-storage', extensionId) },
+    requestNetwork: (extensionId: string, request: ZuraExtensionNetworkRequest) => { assertAllowed('invoke', 'extensions:request-network', EXTENSIONS_INVOKE_CHANNELS); return ipcRenderer.invoke('extensions:request-network', extensionId, request) },
+    pickFile: (extensionId: string, kind: 'file' | 'directory') => { assertAllowed('invoke', 'extensions:pick-file', EXTENSIONS_INVOKE_CHANNELS); return ipcRenderer.invoke('extensions:pick-file', extensionId, kind) },
+    readFileHandle: (extensionId: string, handleId: string) => { assertAllowed('invoke', 'extensions:read-file-handle', EXTENSIONS_INVOKE_CHANNELS); return ipcRenderer.invoke('extensions:read-file-handle', extensionId, handleId) },
+    onChanged: (callback: () => void) => {
+      assertAllowed('on', 'extensions:changed', EXTENSIONS_ON_CHANNELS)
+      const listener = () => callback()
+      ipcRenderer.on('extensions:changed', listener)
+      return () => ipcRenderer.removeListener('extensions:changed', listener)
+    },
+  }) satisfies ZuraExtensionsApi
+)
+
+contextBridge.exposeInMainWorld(
   'githubWorkspace',
   Object.freeze({
-    getInstalled: () => { assertAllowed('invoke', 'github-workspace:get-installed', GITHUB_WORKSPACE_INVOKE_CHANNELS); return ipcRenderer.invoke('github-workspace:get-installed') as Promise<boolean> },
-    install: () => { assertAllowed('invoke', 'github-workspace:install', GITHUB_WORKSPACE_INVOKE_CHANNELS); return ipcRenderer.invoke('github-workspace:install') as Promise<boolean> },
-    uninstall: () => { assertAllowed('invoke', 'github-workspace:uninstall', GITHUB_WORKSPACE_INVOKE_CHANNELS); return ipcRenderer.invoke('github-workspace:uninstall') as Promise<boolean> },
     getState: () => {
       assertAllowed('invoke', 'github-workspace:get-state', GITHUB_WORKSPACE_INVOKE_CHANNELS)
       return ipcRenderer.invoke('github-workspace:get-state') as Promise<GitHubWorkspaceState>

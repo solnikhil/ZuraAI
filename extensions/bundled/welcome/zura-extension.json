@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "com.zuraai.welcome",
+  "name": "Welcome Kit",
+  "publisher": "@zuraai",
+  "version": "1.0.0",
+  "description": "A safe example extension built entirely from trusted Zura views.",
+  "icon": "assets/icon.svg",
+  "platforms": ["windows", "macos", "linux"],
+  "categories": ["Productivity"],
+  "commands": [
+    { "id": "welcome", "title": "Welcome Kit", "description": "Explore trusted extension UI", "mode": "view", "entry": "ui/welcome.json", "keywords": ["welcome", "example", "extension"] },
+    { "id": "remember-visit", "title": "Remember Welcome Visit", "description": "Run a safe action without opening a view", "mode": "no-view", "entry": "ui/remember-visit.json", "keywords": ["quick action", "no view", "remember"] }
+  ],
+  "permissions": ["storage.local"],
+  "privacy": { "dataLeavesDevice": false },
+  "changelog": "CHANGELOG.md"
+}

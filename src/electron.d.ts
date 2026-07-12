@@ -28,6 +28,7 @@ import type {
   UpdaterAPI,
   WindowControlsAPI,
 } from './electron/types'
+import type { ZuraExtensionsApi } from './extensions/types'
 
 declare global {
   interface Window {
@@ -54,6 +55,7 @@ declare global {
     computerUse: ComputerUseAPI
     commandCenter: CommandCenterAPI
     githubWorkspace: GitHubWorkspaceApi
+    extensions: ZuraExtensionsApi
     chatDiagnostics?: ChatDiagnosticsAPI
     chatDebug?: ChatDebugAPI
     chatLinks?: ChatLinksAPI

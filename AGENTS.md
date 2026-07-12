@@ -64,6 +64,7 @@ Prereqs: Bun `>= 1.1`, Node.js `>= 18`.
 | `electron/notifications/email/`       | Brevo transactional email for fixed notification flows                                                    |
 | `electron/analytics/`                 | Opt-in PostHog analytics service and consent state                                                        |
 | `electron/agentSkills/`               | Main-process Agent Skills discovery/activation/install service                                            |
+| `electron/extensions/`                | Main-owned Command Center extension discovery, lifecycle, permissions, storage, development, and brokers  |
 | `src/App.tsx`                         | Renderer routing and shared shell layout                                                                  |
 | `src/main.tsx`                        | Renderer bootstrap, first-paint setup, startup preloads                                                   |
 | `src/components/`                     | UI surfaces: dashboard, settings, titlebar, dialogs                                                       |
@@ -73,10 +74,12 @@ Prereqs: Bun `>= 1.1`, Node.js `>= 18`.
 | `src/tools/`                          | Shared tool definitions, adapters, executor, MCP registry                                                 |
 | `src/skills/`                         | Built-in extension catalog and settings normalization/migration                                           |
 | `src/agentSkills/`                    | Agent Skills shared types and compact prompt catalog                                                      |
+| `src/extensions/`                     | Shared extension manifests, serializable trusted UI contracts, and strict validators                       |
 | `src/mcp/`                            | Shared MCP contracts and renderer context                                                                 |
 | `src/prompts/`                        | Code-owned prompt defaults                                                                                |
 | `dist/`, `dist-electron/`, `release/` | Generated build outputs; do not hand edit                                                                 |
 | `packages/zuraai/`                    | npm package for the `zuraai` terminal launcher; opens the desktop app through registered local protocols  |
+| `extensions/bundled/`                 | Read-only manifest packages shipped into the Zura Store                                                    |
 
 ---
 
@@ -143,6 +146,10 @@ Main `app.getPath('userData')`:
 - Scheduled task definitions, lookout snapshots, reminder logs, and run history
 - Command Center saved workflow definitions (`command-center-workflows.json`)
 - Command Center privacy-preserving search-learning signals (`command-center-search-learning.json`); stored identities and query prefixes are HMACs, never raw queries, paths, or file content
+- Command Center extension registry (`zura-extensions.json`) containing installed/enabled versions,
+  approved permissions, and explicitly imported development package roots
+- Namespaced non-secret extension values under `zura-extension-storage/<sha256-extension-id>.json`;
+  each namespace is bounded and uninstall removes only that extension's file
 - Analytics consent/install metadata
 - Dev-only chat diagnostics JSONL
 - Artifact export files for external opening
@@ -189,6 +196,7 @@ Dedicated preload bridges include:
 - `window.chatDebug`
 - `window.chatLinks`
 - `window.commandCenter`
+- `window.extensions`
 - `window.discordRpc`
 
 `window.windowControls.setAppearance(...)` uses the narrow
@@ -333,18 +341,56 @@ temporarily swap and restore clipboard text solely while inserting a selected
 emoji; the prior clipboard value must not cross IPC, be persisted, or become
 assistant context.
 Root Command Center browse groups results by category (not a flat Actions dump):
-Saved Workflows, Apps, Windows (open windows), and `Zura Extras` (first-party
-items/sections such as Layout, Settings, Zura Store, Emojis, Zura AI Chats, Windows Copilot,
-system status, open Downloads, clipboard → chat, focus ZuraAI). There are no
+`Suggestions` (empty-browse top strip of up to 4 frequent/recent apps and personalized
+actions from app launch counts + privacy-preserving search learning; omitted when
+there is no usage signal), Saved Workflows, Apps, installed `Extensions`, and `Zura Extras`
+(currently the first-party Zura Store and Emojis entries). Typed search uses
+`Best Matches` instead of Suggestions for the top strip. There are no
 separate top-level System, Files, Settings, Actions, or Chats sections.
-`Zura Store` is a renderer-presented nested catalogue with main-owned install
-state for reviewed bundled products. GitHub Workspace is the first installable
-product: its installed ID is stored in `zura-store-products.json`, installation
-does not download or execute code, and uninstall removes Command Center exposure
-and clears its GitHub authorization. Main rejects GitHub Workspace operations
-unless the product is installed. Other catalogue concepts remain presentation-
-only with visibly unavailable install controls until each receives a reviewed
-runtime, permissions, storage, and uninstall design.
+`Zura Store` is a renderer-presented nested catalogue backed by the main-owned extension
+service in `electron/extensions/extensionService.ts`. Extension packages use the versioned
+`zura-extension.json` contract and bundled packages ship read-only under
+`resources/extensions` (`extensions/bundled` in development). Installed/enabled versions,
+approved permissions, and explicitly selected development roots persist in
+`zura-extensions.json`; the original `zura-store-products.json` GitHub flag is migrated once.
+Installation/update/uninstall is a two-step flow: main returns a short-lived opaque confirmation
+ID, and the apply IPC always requires a second main-owned native dialog confirmation before main
+consumes that ID. A renderer or agent calling prepare and apply cannot bypass the native approval.
+Permission or version
+changes between review and apply invalidate the confirmation. Agents may prepare requests but
+cannot grant permissions, install, uninstall, or publish without this user-owned confirmation.
+
+Phase 1 extensions do **not** execute third-party JavaScript. Their manifest commands reference
+validated serializable view documents, and `CommandCenterExtensionHost` maps List, Detail, Form,
+Actions, Empty, Loading, Progress, Error, and navigation nodes to trusted Zura React components.
+`view` commands open that host, reviewed `workspace` commands route only to their named first-party
+host capability, and `no-view` commands execute exactly one validated non-navigation root action in
+main without opening renderer UI. The narrow `extensions:execute-no-view` channel exists for explicit
+renderer invocation; Command Center index execution calls the same main-owned resolver directly.
+The dedicated `window.extensions` bridge accepts only bounded extension/command/view/action IDs,
+bounded form values, opaque confirmation IDs, declared-domain HTTPS requests, and opaque file
+handles. Main resolves package paths and action definitions. Standard actions are limited to
+navigation and namespaced storage set/remove/no-op. The network broker accepts only manifest-
+declared HTTPS domains with separately approved `network.<domain>` permissions, GET/POST,
+timeouts, response/request caps, fixed headers, and no redirects. File pickers return expiring
+opaque handles; filesystem paths never cross into the renderer. Development imports are disabled
+in packaged builds, require a main-owned folder picker, reject symlinks/path escapes/oversized
+packages/duplicate IDs/host capabilities, and use watched reload in development.
+
+GitHub Workspace is the first reviewed product extension. Its manifest contributes Store and
+root-search metadata, while its `host:git-workspace` command routes to the existing dedicated
+workspace UI and main-owned Git/OAuth/credential/repository runtime. Uninstall runs its registered
+lifecycle cleanup without deleting user repositories. Welcome Kit is the non-privileged bundled
+reference extension proving the generic manifest, trusted UI, navigation, storage, no-view execution, lifecycle, and
+root Command Center command path. The CLI implements `zuraai extension create` and
+`zuraai extension validate` (with `build`/`test` validation aliases); future executable runtimes,
+OAuth brokers, package publishing/signing, and remote Store distribution require separate reviewed
+architecture decisions rather than generic IPC or Node access.
+GitHub install, enable, disable, update, permission review, and uninstall are owned exclusively by
+`window.extensions` and `zura-extensions.json`. The dedicated `window.githubWorkspace` bridge is a
+runtime bridge available only after the extension registry reports `com.zuraai.github` installed
+and enabled; it does not expose GitHub-specific install-state, install, or uninstall channels. The
+legacy `zura-store-products.json` file is read only by the one-time registry migration.
 `Settings` is a nested Zura Extras command that lists a fixed allowlist of major
 Windows Settings pages (and search can surface those pages). `Layout` is a nested
 Zura Extras command for snap left/right and maximize. `Windows Copilot` opens via

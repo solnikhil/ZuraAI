@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "id": "com.zuraai.github",
+  "name": "GitHub Workspace",
+  "publisher": "@zuraai",
+  "version": "1.0.0",
+  "description": "Git repository workflows inside Command Center.",
+  "icon": "assets/icon.svg",
+  "platforms": ["windows"],
+  "categories": ["Productivity", "Developer Tools"],
+  "commands": [
+    {
+      "id": "workspace",
+      "title": "GitHub",
+      "description": "Open the GitHub repository workspace",
+      "mode": "workspace",
+      "entry": "host:git-workspace",
+      "keywords": ["github", "git", "repository", "commit", "branch", "worktree"]
+    }
+  ],
+  "permissions": [
+    "github.account",
+    "git.repositories",
+    "filesystem.repository-selection",
+    "network.github.com",
+    "network.api.github.com"
+  ],
+  "capabilities": { "host": ["git-workspace"] },
+  "networkDomains": ["github.com", "api.github.com"],
+  "privacy": { "dataLeavesDevice": true, "policyUrl": "https://zuraai.in/privacy" },
+  "changelog": "CHANGELOG.md"
+}

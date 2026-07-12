@@ -374,6 +374,21 @@ export type CommandCenterIndexItem =
     }
   | {
       id: string
+      type: 'extension'
+      title: string
+      subtitle?: string
+      hint: 'Extension'
+      aliases: string[]
+        extensionId: string
+        commandId: string
+        commandMode: 'view' | 'no-view' | 'workspace'
+      hostCapability?: string
+      iconDataUrl?: string
+      score?: number
+      matchReasons?: string[]
+    }
+  | {
+      id: string
       type: 'chat'
       title: string
       subtitle?: string
@@ -417,6 +432,7 @@ export interface CommandCenterIndex {
   files: CommandCenterIndexItem[]
   windows: CommandCenterIndexItem[]
   actions: CommandCenterIndexItem[]
+  extensions?: CommandCenterIndexItem[]
   chats: CommandCenterIndexItem[]
   diagnostics?: {
     apps?: {
@@ -452,6 +468,7 @@ export interface CommandCenterExecuteResult {
   data?: unknown
   aiPrompt?: string
   sessionId?: string
+  extension?: { extensionId: string; commandId: string; hostCapability?: string }
 }
 
 /** Fixed secondary actions for a selected Command Center index item (apps first). */
@@ -559,9 +576,6 @@ export type GitHubWorkspaceOpenResult =
   | { ok: false; error: string }
 
 export interface GitHubWorkspaceApi {
-  getInstalled: () => Promise<boolean>
-  install: () => Promise<boolean>
-  uninstall: () => Promise<boolean>
   getState: () => Promise<GitHubWorkspaceState>
   addRepository: () => Promise<GitHubWorkspaceState>
   startSignIn: () => Promise<GitHubWorkspaceAccount>

@@ -7,6 +7,7 @@ export type CommandCenterSearchSource =
   | 'chat'
   | 'workflow'
   | 'action'
+  | 'extension'
 
 export interface ParsedCommandCenterQuery {
   raw: string
@@ -33,6 +34,8 @@ const SOURCE_ALIASES: Record<string, CommandCenterSearchSource> = {
   chat: 'chat',
   workflow: 'workflow',
   action: 'action',
+  extension: 'extension',
+  extn: 'extension',
 }
 
 const FILTER_NAMES = new Set(['kind', 'ext', 'modified', 'size'])

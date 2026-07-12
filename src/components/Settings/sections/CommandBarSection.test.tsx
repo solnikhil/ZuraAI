@@ -156,4 +156,24 @@ describe('CommandBarSection', () => {
     const payload = onChange.mock.calls[0]?.[0]
     expect(payload).toHaveProperty('commandBar')
   })
+
+  it('emits palette size preference changes', () => {
+    const onChange = vi.fn()
+    render(<CommandBarSection settings={defaultSettings} onChange={onChange} />)
+
+    const trigger = screen.getByLabelText('Command palette UI size')
+    expect(trigger).toBeInTheDocument()
+
+    fireEvent.click(trigger)
+    const largeOption = screen.getByRole('button', { name: 'Larger' })
+    fireEvent.click(largeOption)
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        commandBar: expect.objectContaining({
+          size: 'large',
+        }),
+      })
+    )
+  })
 })

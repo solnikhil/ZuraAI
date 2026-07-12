@@ -69,6 +69,7 @@ import {
   unregisterCommandCenterHandlers,
 } from './commandCenter'
 import { registerGitHubWorkspaceHandlers, unregisterGitHubWorkspaceHandlers } from './githubWorkspace'
+import { registerExtensionHandlers, unregisterExtensionHandlers } from './extensions/extensionService'
 
 // Resolve packaged asset paths consistently in both development and production.
 const DIST_PATH = process.env.DIST || path.join(__dirname, '../dist')
@@ -176,6 +177,7 @@ app.on('will-quit', () => {
   disposeCommandCenter()
   unregisterCommandCenterHandlers()
   unregisterGitHubWorkspaceHandlers()
+  unregisterExtensionHandlers()
   unregisterMcpHandlers()
   disposeCodeExecutionApprovalManager()
   unregisterCodeExecutionHandlers()
@@ -262,6 +264,7 @@ if (hasSingleInstanceLock) {
     registerToolHandlers()
     registerAgentApprovalOverlayHandlers()
     registerCommandCenterHandlers()
+    registerExtensionHandlers()
     registerGitHubWorkspaceHandlers()
     registerUpdaterHandlers(getMainWindow)
     setShutdownHook(() => shutdownMcpManager())

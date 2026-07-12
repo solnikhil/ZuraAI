@@ -20,6 +20,7 @@
     <a href="CONTRIBUTING.md">Contributing</a> |
     <a href="TELEMETRY.md">Telemetry</a> |
     <a href="AGENTS.md">Architecture</a> |
+    <a href="docs/EXTENSIONS.md">Extensions</a> |
     <a href="https://github.com/solnikhil/ZuraAI/security/advisories/new">Report Security Issue</a>
   </p>
 
@@ -173,6 +174,8 @@ For the full architecture and security notes, see `AGENTS.md`.
 ## Project docs
 
 - `AGENTS.md` - architecture, IPC boundaries, data flow, and agent rules for this repo
+- `docs/EXTENSIONS.md` - extension authoring, trusted UI, permissions, Store lifecycle, and CLI workflow
+- `docs/EXTENSION_PLATFORM_VERIFICATION.md` - claim-by-claim extension security and release evidence
 - `CONTRIBUTING.md` - local workflow, quality checks, and commit conventions
 - `CODE_OF_CONDUCT.md` - community expectations
 

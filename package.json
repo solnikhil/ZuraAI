@@ -236,6 +236,12 @@
       "!**/tests/**",
       "!**/__tests__/**"
     ],
-    "extraResources": []
+    "extraResources": [
+      {
+        "from": "extensions/bundled",
+        "to": "extensions",
+        "filter": ["**/*"]
+      }
+    ]
   }
 }

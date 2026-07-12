@@ -36,6 +36,7 @@ import {
 } from '../commandCenter/search'
 import type { CommandCenterEmoji } from '../commandCenter/emojis'
 import CommandCenterStore from './CommandCenterStore'
+import CommandCenterExtensionHost from './CommandCenterExtensionHost'
 import GitHubWorkspace, { type GitHubCommitBarMeta } from './GitHubWorkspace'
 import type {
   CommandCenterIndex,
@@ -49,7 +50,7 @@ type EmojiSearchFn = (query: string, limit?: number) => CommandCenterEmoji[]
 const EMOJI_PAGE_SIZE = 72
 
 type Mode = 'search' | 'ask'
-type CommandView = 'root' | 'emojis' | 'chats' | 'layout' | 'settings' | 'store' | 'github'
+type CommandView = 'root' | 'emojis' | 'chats' | 'layout' | 'settings' | 'store' | 'github' | 'extension'
 
 type AppActionDef = {
   id: CommandCenterItemActionId
@@ -165,6 +166,7 @@ const EMPTY_INDEX: CommandCenterIndex = {
   files: [],
   windows: [],
   actions: [],
+  extensions: [],
   chats: [],
 }
 
@@ -172,13 +174,18 @@ const EMPTY_INDEX: CommandCenterIndex = {
 // Layout + Settings are Zura Extras nested sections (not top-level categories).
 // Searching can still surface their child actions under Layout / Settings groups.
 const ZURA_EXTRAS_GROUP = 'Zura Extras'
+/** Empty-browse top strip: frequent/recent apps and actions. */
+const SUGGESTIONS_GROUP = 'Suggestions'
+/** Typed-search top strip: best lexical + personalized hits. */
 const BEST_MATCHES_GROUP = 'Best Matches'
 const FILES_GROUP = 'Files & Folders'
 const LAYOUT_GROUP = 'Layout'
 const SETTINGS_GROUP = 'Settings'
 const GROUP_ORDER = [
+  SUGGESTIONS_GROUP,
   BEST_MATCHES_GROUP,
   'Saved Workflows',
+  'Extensions',
   'Apps',
   FILES_GROUP,
   LAYOUT_GROUP,
@@ -192,6 +199,7 @@ const DEFAULT_GROUP_LIMIT = 20
 const GROUP_RESULT_LIMITS: Record<string, number> = {
   'Saved Workflows': 12,
   Apps: 40,
+  [SUGGESTIONS_GROUP]: 4,
   [BEST_MATCHES_GROUP]: 5,
   [FILES_GROUP]: 40,
   [LAYOUT_GROUP]: 8,
@@ -276,6 +284,8 @@ function flattenIndex(
     includeChats: boolean
     includeLayoutChildren: boolean
     includeSettingsChildren: boolean
+    /** Empty browse → Suggestions; typed search → Best Matches. */
+    topMatchesGroup: typeof SUGGESTIONS_GROUP | typeof BEST_MATCHES_GROUP
   }
 ): Array<{ group: string; item: CommandCenterIndexItem }> {
   // Older mocks / partial index payloads may omit newer fields.
@@ -288,14 +298,16 @@ function flattenIndex(
   const apps = index.apps ?? []
   const files = index.files ?? []
   const actions = index.actions ?? []
+  const extensions = index.extensions ?? []
   const chats = index.chats ?? []
 
   const bestIds = new Set(bestMatches.map((item) => item.id))
   const rows: Array<{ group: string; item: CommandCenterIndexItem }> = [
-    ...bestMatches.map((item) => ({ group: BEST_MATCHES_GROUP, item })),
+    ...bestMatches.map((item) => ({ group: options.topMatchesGroup, item })),
     ...workflows
       .filter((item) => !bestIds.has(item.id))
       .map((item) => ({ group: 'Saved Workflows', item })),
+    ...extensions.filter((item) => !bestIds.has(item.id)).map((item) => ({ group: 'Extensions', item })),
     ...apps.filter((item) => !bestIds.has(item.id)).map((item) => ({ group: 'Apps', item })),
     ...files.filter((item) => !bestIds.has(item.id)).map((item) => ({ group: FILES_GROUP, item })),
   ]
@@ -399,6 +411,9 @@ function iconForItem(item: CommandCenterIndexItem) {
   if (item.type === 'file') return <File size={22} />
   if (item.type === 'folder') return <Folder size={22} />
   if (item.type === 'chat') return <MessageSquare size={22} />
+  if (item.type === 'extension') {
+    return item.iconDataUrl ? <img src={item.iconDataUrl} alt="" /> : <Puzzle size={22} />
+  }
   if (item.type === 'action') {
     switch (item.actionId) {
       case 'emoji-picker':
@@ -492,6 +507,7 @@ function mergeNativeSearchResults(
 export default function CommandCenterOverlay() {
   const [mode, setMode] = useState<Mode>('search')
   const [commandView, setCommandView] = useState<CommandView>('root')
+  const [activeExtension, setActiveExtension] = useState<{ extensionId: string; commandId: string }>()
   const [githubSignedIn, setGitHubSignedIn] = useState(false)
   const [githubSummary, setGithubSummary] = useState('')
   const [githubCommitMeta, setGithubCommitMeta] = useState<GitHubCommitBarMeta>({
@@ -561,8 +577,9 @@ export default function CommandCenterOverlay() {
   const isSettingsView = commandView === 'settings' && !isChatMode
   const isStoreView = commandView === 'store' && !isChatMode
   const isGitHubView = commandView === 'github' && !isChatMode
+  const isExtensionView = commandView === 'extension' && !isChatMode
   const isNestedCommandView =
-    isEmojiView || isChatsView || isLayoutView || isSettingsView || isStoreView || isGitHubView
+    isEmojiView || isChatsView || isLayoutView || isSettingsView || isStoreView || isGitHubView || isExtensionView
   const searchSyntaxSuggestions = useMemo(() => {
     if (isChatMode || isNestedCommandView || mode !== 'search') return []
     const last = input.split(/\s+/).at(-1)?.toLowerCase() ?? ''
@@ -711,18 +728,19 @@ export default function CommandCenterOverlay() {
       includeChats: Boolean(query),
       includeLayoutChildren: Boolean(query),
       includeSettingsChildren: Boolean(query),
+      topMatchesGroup: query ? BEST_MATCHES_GROUP : SUGGESTIONS_GROUP,
     })) {
       if (!matchesItem(item, query)) continue
       groups.set(group, [...(groups.get(group) ?? []), item])
     }
     return GROUP_ORDER.filter((group) => groups.has(group)).map((group) => {
       const items = groups.get(group) ?? []
-      const ordered = query
-        ? [...items].sort(
-            (a, b) =>
-              searchScore(b, query) - searchScore(a, query) || a.title.localeCompare(b.title)
-          )
-        : items
+      // Always rank within the group: empty browse uses main score/rank so
+      // frequent opens stay near the top of Apps as well as Suggestions.
+      const ordered = [...items].sort(
+        (a, b) =>
+          searchScore(b, query) - searchScore(a, query) || a.title.localeCompare(b.title)
+      )
       // Keep the default (unsearched) Apps list short; expand it once searching.
       const limit =
         group === 'Apps' && !query
@@ -834,6 +852,16 @@ export default function CommandCenterOverlay() {
     setSelectedIndex(0)
     setSelectionVisible(false)
   }, [])
+
+  const openExtensionView = useCallback((extensionId: string, commandId: string, hostCapability?: string) => {
+    if (hostCapability === 'git-workspace') { openGitHubView(); return }
+    setActiveExtension({ extensionId, commandId })
+    setCommandView('extension')
+    setMode('search')
+    setInput('')
+    setSelectedIndex(0)
+    setSelectionVisible(false)
+  }, [openGitHubView])
 
   const showGitHubCommitBar = isGitHubView && githubSignedIn && githubCommitMeta.hasRepository
   // Only enable Commit when there is a summary and at least one *checked* file.
@@ -1151,6 +1179,10 @@ export default function CommandCenterOverlay() {
         startChat(result.aiPrompt)
         return
       }
+      if (result.extension) {
+        openExtensionView(result.extension.extensionId, result.extension.commandId, result.extension.hostCapability)
+        return
+      }
       // Launching an app or focusing a window: dismiss instantly and skip the
       // post-action index rebuild (which spawns PowerShell to re-enumerate
       // windows). The overlay would blur-close anyway once focus moves.
@@ -1172,6 +1204,7 @@ export default function CommandCenterOverlay() {
       openSettingsView,
       openStoreView,
       openGitHubView,
+      openExtensionView,
       refreshIndex,
       startChat,
     ]
@@ -1626,6 +1659,8 @@ export default function CommandCenterOverlay() {
                             ? 'Search Windows Settings...'
                             : isGitHubView
                               ? 'GitHub Workspace'
+                              : isExtensionView
+                                ? 'Extension'
                               : isStoreView
                                 ? 'Search extensions...'
                                 : mode === 'search'
@@ -1647,6 +1682,8 @@ export default function CommandCenterOverlay() {
                             ? 'Search settings'
                             : isGitHubView
                               ? 'GitHub Workspace'
+                              : isExtensionView
+                                ? 'Extension'
                               : isStoreView
                                 ? 'Search Zura Store'
                                 : mode === 'search'
@@ -1675,7 +1712,6 @@ export default function CommandCenterOverlay() {
                 type="button"
                 className={`command-center-github-commit ${githubCommitMeta.committing ? 'is-busy' : ''}`}
                 disabled={!canGitHubCommit}
-                title={githubCommitHint}
                 aria-label={githubCommitHint || githubCommitLabel}
                 aria-busy={githubCommitMeta.committing || undefined}
                 onClick={runGitHubCommit}
@@ -1908,8 +1944,10 @@ export default function CommandCenterOverlay() {
                   commitHandlerRef={githubCommitHandlerRef}
                 />
               </div>
+            ) : isExtensionView && activeExtension ? (
+              <CommandCenterExtensionHost extensionId={activeExtension.extensionId} commandId={activeExtension.commandId} />
             ) : isStoreView ? (
-              <CommandCenterStore query={input} onOpenGitHub={openGitHubView} />
+              <CommandCenterStore query={input} onOpenExtension={openExtensionView} />
             ) : mode === 'search' ? (
               <div
                 id="command-center-results"
@@ -3336,6 +3374,46 @@ export default function CommandCenterOverlay() {
         .zura-store-row__actions button { height: 24px; padding: 0 8px; border: 0; border-radius: 6px; background: rgba(201, 146, 131, 0.14); color: rgba(255, 239, 234, 0.82); font: inherit; font-size: 9.5px; font-weight: 600; cursor: pointer; }
         .zura-store-row__actions button:hover:not(:disabled), .zura-store-row__actions button:focus-visible { background: rgba(201, 146, 131, 0.24); outline: none; }
         .zura-store-row__actions button:disabled { opacity: .55; cursor: default; }
+
+        .zura-store-runtime-error {
+          display: flex; align-items: center; gap: 6px; margin: 0 2px 9px; padding: 7px 9px;
+          border: 1px solid rgba(225, 112, 102, .18); border-radius: 7px;
+          background: rgba(160, 62, 62, .1); color: rgba(255, 190, 181, .84); font-size: 10px;
+        }
+        .zura-store-review {
+          display: grid; grid-template-columns: minmax(130px,.75fr) minmax(220px,1.3fr) auto;
+          align-items: center; gap: 13px; margin: 0 2px 10px; padding: 10px 12px;
+          border: 1px solid rgba(201,146,131,.22); border-radius: 9px;
+          background: rgba(201,146,131,.075);
+        }
+        .zura-store-review>div:first-child { display:flex; flex-direction:column; gap:2px; }
+        .zura-store-review>div:first-child span,.zura-store-review small { color:var(--theme-text-muted); font-size:9px; }
+        .zura-store-review>div:first-child strong { font-size:12px; }
+        .zura-store-review ul { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:4px 10px; margin:0; padding:0; list-style:none; color:var(--theme-text-secondary); font-size:9.5px; }
+        .zura-store-review li { display:flex; align-items:center; gap:4px; }
+        .zura-store-review__actions { display:flex; gap:5px; }
+        .zura-store-review button,.zura-store-dev-import,.zura-store-row__details>button { height:26px; padding:0 8px; border:0; border-radius:6px; background:rgba(255,255,255,.065); color:var(--theme-text-secondary); font:inherit; font-size:9.5px; cursor:pointer; }
+        .zura-store-list { grid-template-columns:1fr; gap:6px; }
+        .zura-store-row { grid-template-columns:minmax(0,1fr) auto; gap:6px; padding:7px; border:1px solid rgba(255,255,255,.055); border-radius:9px; }
+        .zura-store-row > .zura-store-row__summary { min-width:0; height:auto; display:grid; grid-template-columns:38px minmax(0,1fr) auto; align-items:center; gap:10px; padding:3px; border:0; background:transparent; color:inherit; font:inherit; text-align:left; cursor:pointer; }
+        .zura-store-row__summary .zura-store-icon { width:38px; height:38px; padding:0; overflow:hidden; }
+        .zura-store-row__summary .zura-store-icon img { width:100%; height:100%; object-fit:cover; }
+        .zura-store-row__copy { display:flex; flex-direction:column; gap:3px; }
+        .zura-store-row__title strong { color:var(--theme-text-primary); font-size:12px; }
+        .zura-store-row__title em { color:var(--theme-text-muted); font-size:9px; font-style:normal; }
+        .zura-store-row__copy small { overflow:hidden; color:var(--theme-text-muted); font-size:10px; text-overflow:ellipsis; white-space:nowrap; }
+        .zura-store-trust { padding:2px 5px; border-radius:5px; background:rgba(255,255,255,.05); color:var(--theme-text-muted); font-size:8.5px; text-transform:capitalize; }
+        .zura-store-trust.is-reviewed { background:rgba(108,177,139,.1); color:rgba(174,225,194,.72); }
+        .zura-store-trust.is-development { background:rgba(212,159,90,.1); color:rgba(240,199,143,.75); }
+        .zura-store-row__actions { justify-self:end; }
+        .zura-store-row__details { grid-column:1/-1; display:grid; grid-template-columns:1fr 1fr; gap:12px; padding:9px 10px 5px; border-top:1px solid rgba(255,255,255,.06); color:var(--theme-text-muted); font-size:9.5px; }
+        .zura-store-row__details dl { display:grid; gap:4px; margin:0; }
+        .zura-store-row__details dl div { display:grid; grid-template-columns:60px 1fr; gap:6px; }
+        .zura-store-row__details dt { color:rgba(255,231,238,.34); }
+        .zura-store-row__details dd { margin:0; color:var(--theme-text-secondary); overflow-wrap:anywhere; }
+        .zura-store-row__details strong { color:var(--theme-text-secondary); }
+        .zura-store-row__details ul { margin:4px 0 0; padding-left:14px; }
+        .zura-store-validation { grid-column:1/-1; display:flex; gap:5px; color:rgba(255,180,169,.8); }
 
         .zura-store-empty {
           min-height: 104px;

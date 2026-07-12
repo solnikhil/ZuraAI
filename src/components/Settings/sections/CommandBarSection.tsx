@@ -77,6 +77,7 @@ export function CommandBarSection({
 }: CommandBarSectionProps): React.ReactElement {
   const isWindows = useMemo(() => isWindowsRuntime(), [])
   const commandBar = settings.commandBar
+  const size = commandBar.size ?? 'medium'
   const maxRecents = clampNumber(commandBar.maxRecents, 0, 3)
   const maxSuggestions = clampNumber(commandBar.maxSuggestions, 3, 12)
   const overlayOpacity = clampNumber(commandBar.overlayOpacity, 0, 80)
@@ -483,6 +484,29 @@ export function CommandBarSection({
                 { value: 'lower', label: 'Lower (30%)' },
               ]}
               aria-label="Command palette vertical position"
+            />
+          </div>
+        </div>
+
+        <div className="settings-list-row">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">UI size</h3>
+            <div className="settings-list-row__description">
+              Controls the overall density and text size of the command palette input
+            </div>
+          </div>
+          <div className="settings-list-row__control">
+            <SettingsSelect
+              value={size}
+              onValueChange={(value) =>
+                updateCommandBar({ size: value as 'small' | 'medium' | 'large' })
+              }
+              options={[
+                { value: 'small', label: 'Short' },
+                { value: 'medium', label: 'Normal (current)' },
+                { value: 'large', label: 'Larger' },
+              ]}
+              aria-label="Command palette UI size"
             />
           </div>
         </div>

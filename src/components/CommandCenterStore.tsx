@@ -1,207 +1,97 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowUpRight, Puzzle, ShieldCheck, Sparkles } from 'lucide-react'
+import { AlertTriangle, ArrowUpRight, Check, Puzzle, ShieldCheck, Sparkles } from 'lucide-react'
 
-import {
-  ZURA_STORE_CATEGORIES,
-  ZURA_STORE_EXTENSIONS,
-  type ZuraStoreCategory,
-  type ZuraStoreExtension,
-} from '../commandCenter/storeCatalog'
+import type { ZuraExtensionMutationReview, ZuraExtensionSummary } from '@/extensions/types'
 
 interface CommandCenterStoreProps {
   query: string
-  onOpenGitHub: () => void
+  onOpenExtension: (extensionId: string, commandId: string, hostCapability?: string) => void
 }
 
-function StoreIcon({
-  extension,
-  large = false,
-}: {
-  extension: ZuraStoreExtension
-  large?: boolean
-}) {
-  if (extension.id === 'spotify') {
-    return (
-      <span
-        className={`zura-store-icon zura-store-icon--spotify ${large ? 'is-large' : ''}`}
-        style={{ '--store-accent': extension.accent } as React.CSSProperties}
-        aria-hidden="true"
-      >
-        <svg viewBox="0 0 32 32" role="img">
-          <path d="M7 11.4c6.8-2 13.8-1.3 18.2.9" />
-          <path d="M8.3 16c5.7-1.5 11.7-.9 15.7.8" />
-          <path d="M9.3 20.4c4.8-1 9.7-.5 13.2.9" />
-        </svg>
-      </span>
-    )
-  }
-
-  if (extension.id === 'github') {
-    return (
-      <span
-        className={`zura-store-icon zura-store-icon--github ${large ? 'is-large' : ''}`}
-        aria-hidden="true"
-      >
-        <svg viewBox="0 0 24 24" role="img">
-          <path d="M12 .7a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2.23c-3.22.7-3.9-1.37-3.9-1.37-.52-1.34-1.28-1.7-1.28-1.7-1.05-.72.08-.71.08-.71 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.57-.29-5.27-1.28-5.27-5.68 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.47.11-3.05 0 0 .97-.31 3.16 1.18a10.9 10.9 0 0 1 5.76 0c2.19-1.49 3.15-1.18 3.15-1.18.63 1.58.23 2.76.11 3.05.74.81 1.19 1.83 1.19 3.09 0 4.41-2.71 5.38-5.29 5.67.42.36.79 1.07.79 2.16v3.2c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .7Z" />
-        </svg>
-      </span>
-    )
-  }
-
-  return (
-    <span
-      className={`zura-store-icon ${large ? 'is-large' : ''}`}
-      style={{ '--store-accent': extension.accent } as React.CSSProperties}
-      aria-hidden="true"
-    >
-      {extension.glyph}
-    </span>
-  )
+const permissionLabels: Record<string, string> = {
+  'github.account': 'Connect your GitHub account',
+  'git.repositories': 'Read and update repositories you add',
+  'filesystem.repository-selection': 'Choose repository folders',
+  'network.github.com': 'Connect to GitHub',
+  'storage.local': 'Store extension data locally',
 }
 
-export default function CommandCenterStore({ query, onOpenGitHub }: CommandCenterStoreProps) {
-  const [category, setCategory] = useState<ZuraStoreCategory>('All')
-  const [githubInstalled, setGitHubInstalled] = useState(false)
-  const [githubBusy, setGitHubBusy] = useState(false)
-  const normalizedQuery = query.trim().toLocaleLowerCase()
-  const featured = ZURA_STORE_EXTENSIONS.find((extension) => extension.featured)
+export default function CommandCenterStore({ query, onOpenExtension }: CommandCenterStoreProps) {
+  const [extensions, setExtensions] = useState<ZuraExtensionSummary[]>([])
+  const [selectedId, setSelectedId] = useState<string>()
+  const [review, setReview] = useState<ZuraExtensionMutationReview>()
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string>()
+  const [developmentAvailable, setDevelopmentAvailable] = useState(false)
+  const normalizedQuery = query.trim().toLowerCase()
 
-  useEffect(() => { void window.githubWorkspace.getInstalled().then(setGitHubInstalled) }, [])
+  const refresh = async () => {
+    try { setExtensions(await window.extensions.list()) }
+    catch (cause) { setError(cause instanceof Error ? cause.message : 'Unable to load extensions.') }
+  }
+  useEffect(() => {
+    void refresh()
+    void window.appInfo.get().then((info) => setDevelopmentAvailable(!info.isPackaged))
+    return window.extensions.onChanged(() => void refresh())
+  }, [])
 
-  const toggleGitHub = async () => {
-    setGitHubBusy(true)
-    try {
-      if (githubInstalled) {
-        await window.githubWorkspace.uninstall()
-        setGitHubInstalled(false)
-      } else {
-        await window.githubWorkspace.install()
-        setGitHubInstalled(true)
-      }
-    } finally { setGitHubBusy(false) }
+  const filtered = useMemo(() => extensions.filter(({ manifest }) => !normalizedQuery || [manifest.name, manifest.publisher, manifest.description, ...manifest.categories, ...manifest.commands.flatMap((command) => [command.title, ...command.keywords])].join(' ').toLowerCase().includes(normalizedQuery)), [extensions, normalizedQuery])
+
+  const prepare = async (extension: ZuraExtensionSummary, action: 'install' | 'update' | 'uninstall') => {
+    setBusy(true); setError(undefined)
+    try { setReview(await window.extensions.prepareMutation(extension.manifest.id, action)) }
+    catch (cause) { setError(cause instanceof Error ? cause.message : 'Unable to prepare extension change.') }
+    finally { setBusy(false) }
   }
 
-  const filteredExtensions = useMemo(
-    () =>
-      ZURA_STORE_EXTENSIONS.filter((extension) => {
-        const matchesCategory = category === 'All' || extension.category === category
-        const searchText = [
-          extension.name,
-          extension.description,
-          extension.category,
-          ...extension.capabilities,
-        ]
-          .join(' ')
-          .toLocaleLowerCase()
-        return matchesCategory && (!normalizedQuery || searchText.includes(normalizedQuery))
-      }),
-    [category, normalizedQuery]
-  )
+  const confirm = async () => {
+    if (!review) return
+    setBusy(true); setError(undefined)
+    try { setExtensions(await window.extensions.applyMutation(review.confirmationId)); setReview(undefined) }
+    catch (cause) { setError(cause instanceof Error ? cause.message : 'Unable to update extension.') }
+    finally { setBusy(false) }
+  }
 
-  const listedExtensions = normalizedQuery
-    ? filteredExtensions
-    : filteredExtensions.filter((extension) => !extension.featured)
+  const toggleEnabled = async (extension: ZuraExtensionSummary) => {
+    setBusy(true)
+    try { setExtensions(await window.extensions.setEnabled(extension.manifest.id, !extension.enabled)) }
+    catch (cause) { setError(cause instanceof Error ? cause.message : 'Unable to change extension state.') }
+    finally { setBusy(false) }
+  }
 
-  return (
-    <div className="zura-store" aria-label="Zura Store">
-      <header className="zura-store-heading">
-        <div>
-          <span className="zura-store-eyebrow">
-            <Sparkles size={12} /> Curated for Command Center
-          </span>
-          <h1>Zura Store</h1>
-          <p>Add small superpowers to the place where your work already starts.</p>
+  return <div className="zura-store" aria-label="Zura Store">
+    <header className="zura-store-heading"><div><span className="zura-store-eyebrow"><Sparkles size={12} /> Curated for Command Center</span><h1>Zura Store</h1><p>Install small, permissioned products without leaving your flow.</p></div><span className="zura-store-preview-badge">Preview</span></header>
+    {error && <div className="zura-store-runtime-error" role="alert"><AlertTriangle size={13} /> {error}</div>}
+    {review && <section className="zura-store-review" aria-label="Confirm extension change">
+      <div><span>{review.action === 'uninstall' ? 'Confirm uninstall' : 'Review permissions'}</span><strong>{review.extension.manifest.name}</strong><small>{review.extension.manifest.publisher} · v{review.extension.manifest.version}</small></div>
+      <ul>{review.action === 'uninstall' ? <li>Extension-owned settings and authorization will be removed. External user data will not be deleted.</li> : review.extension.manifest.permissions.map((permission) => <li key={permission}><Check size={12} /> {permissionLabels[permission] || permission}</li>)}</ul>
+      <div className="zura-store-review__actions"><button type="button" onClick={() => setReview(undefined)}>Cancel</button><button type="button" disabled={busy} onClick={() => void confirm()}>{busy ? 'Working…' : review.action === 'uninstall' ? 'Uninstall' : review.action === 'update' ? 'Confirm Update' : 'Confirm Install'}</button></div>
+    </section>}
+    <div className="zura-store-filterbar"><span className="zura-store-count">{filtered.length} {filtered.length === 1 ? 'extension' : 'extensions'}</span>{developmentAvailable && <button type="button" className="zura-store-dev-import" onClick={() => void window.extensions.importDevelopment().then(setExtensions).catch((cause) => setError(cause instanceof Error ? cause.message : 'Import failed.'))}>Import Development Extension</button>}</div>
+    {filtered.length ? <section className="zura-store-list" aria-label="Available extensions">{filtered.map((extension) => {
+      const manifest = extension.manifest
+      const expanded = selectedId === manifest.id
+      const command = manifest.commands[0]
+      const hostCapability = command.entry.startsWith('host:') ? command.entry.slice(5) : undefined
+      return <article key={manifest.id} className={`zura-store-row ${manifest.id === 'com.zuraai.github' ? 'zura-store-row--github' : ''} ${expanded ? 'is-expanded' : ''}`}>
+        <button type="button" className="zura-store-row__summary" onClick={() => setSelectedId(expanded ? undefined : manifest.id)} aria-expanded={expanded}>
+          <span className="zura-store-icon" aria-hidden="true">{extension.iconDataUrl ? <img src={extension.iconDataUrl} alt="" /> : manifest.name.slice(0, 2)}</span>
+          <span className="zura-store-row__copy"><span className="zura-store-row__title"><strong>{manifest.name}</strong><em>{manifest.publisher}</em></span><small>{manifest.description}</small></span>
+          <span className={`zura-store-trust is-${extension.trust}`}>{extension.trust}</span>
+        </button>
+        <div className="zura-store-row__actions">
+          {extension.installed && extension.enabled && <button type="button" onClick={() => onOpenExtension(manifest.id, command.id, hostCapability)}>Open</button>}
+          {!extension.installed ? <button type="button" disabled={busy || extension.validationErrors.length > 0} onClick={() => void prepare(extension, 'install')}>Install</button> : <>{extension.updateAvailable && <button type="button" disabled={busy || extension.validationErrors.length > 0} onClick={() => void prepare(extension, 'update')}>Update</button>}<button type="button" disabled={busy} onClick={() => void toggleEnabled(extension)}>{extension.enabled ? 'Disable' : 'Enable'}</button><button type="button" disabled={busy} onClick={() => void prepare(extension, 'uninstall')}>Uninstall</button></>}
         </div>
-        <span className="zura-store-preview-badge">Preview</span>
-      </header>
-
-      {!normalizedQuery && category === 'All' && featured ? (
-        <section className="zura-store-featured" aria-label="Featured extension">
-          <div className="zura-store-featured__wash" aria-hidden="true" />
-          <div className="zura-store-featured__copy">
-            <span className="zura-store-featured__label">Featured extension</span>
-            <h2>Music, without breaking your flow.</h2>
-            <p>Play, pause, search, and move between playlists directly from Zura.</p>
-            <div className="zura-store-capabilities" aria-label="Spotify capabilities">
-              {featured.capabilities.map((capability) => (
-                <span key={capability}>{capability}</span>
-              ))}
-            </div>
-          </div>
-          <div className="zura-store-featured__action">
-            <StoreIcon extension={featured} large />
-            <strong>{featured.name}</strong>
-            <button type="button" disabled aria-label="Extension installation is coming soon">
-              Coming soon
-            </button>
-          </div>
-        </section>
-      ) : null}
-
-      <div className="zura-store-filterbar">
-        <div className="zura-store-categories" role="group" aria-label="Extension categories">
-          {ZURA_STORE_CATEGORIES.map((item) => (
-            <button
-              key={item}
-              type="button"
-              className={category === item ? 'is-active' : ''}
-              aria-pressed={category === item}
-              onClick={() => setCategory(item)}
-            >
-              {item}
-            </button>
-          ))}
-        </div>
-        <span className="zura-store-count">
-          {filteredExtensions.length} {filteredExtensions.length === 1 ? 'extension' : 'extensions'}
-        </span>
-      </div>
-
-      {listedExtensions.length > 0 ? (
-        <section className="zura-store-list" aria-label="Available extensions">
-          {listedExtensions.map((extension) => (
-            <article
-              key={extension.id}
-              className={`zura-store-row ${extension.id === 'github' ? 'zura-store-row--github' : ''}`}
-            >
-              <StoreIcon extension={extension} />
-              <div className="zura-store-row__copy">
-                <div className="zura-store-row__title">
-                  <h2>{extension.name}</h2>
-                  <span>{extension.category}</span>
-                </div>
-                <p>{extension.description}</p>
-              </div>
-              {extension.id === 'github' ? (
-                <div className="zura-store-row__actions">
-                  {githubInstalled && <button type="button" onClick={onOpenGitHub}>Open</button>}
-                  <button type="button" disabled={githubBusy} onClick={() => void toggleGitHub()}>
-                    {githubBusy ? 'Working…' : githubInstalled ? 'Uninstall' : 'Install'}
-                  </button>
-                </div>
-              ) : (
-                <button type="button" disabled aria-label="Extension installation is coming soon">Soon</button>
-              )}
-            </article>
-          ))}
-        </section>
-      ) : (
-        <div className="zura-store-empty">
-          <Puzzle size={24} />
-          <strong>No extensions found</strong>
-          <span>Try another search or category.</span>
-        </div>
-      )}
-
-      <footer className="zura-store-note">
-        <span>
-          <ShieldCheck size={14} /> Reviewed products show their available capabilities before installation.
-        </span>
-        <span>
-          Developer submissions <ArrowUpRight size={13} />
-        </span>
-      </footer>
-    </div>
-  )
+        {expanded && <div className="zura-store-row__details">
+          <dl><div><dt>Version</dt><dd>{extension.updateAvailable ? `${extension.installedVersion} installed · ${manifest.version} available` : manifest.version}</dd></div><div><dt>Commands</dt><dd>{manifest.commands.map((item) => `${item.title} (${item.mode})`).join(', ')}</dd></div><div><dt>Privacy</dt><dd>{manifest.privacy?.dataLeavesDevice ? 'Connects to declared services' : 'Data stays on this device'}</dd></div>{manifest.networkDomains?.length ? <div><dt>Network</dt><dd>{manifest.networkDomains.join(', ')}</dd></div> : null}</dl>
+          <div><strong>Permissions</strong><ul>{manifest.permissions.map((permission) => <li key={permission}>{permissionLabels[permission] || permission}</li>)}</ul></div>
+          <div><strong>Version history</strong><p>{extension.changelogText?.trim() || 'No version notes provided.'}</p></div>
+          {extension.validationErrors.length > 0 && <div className="zura-store-validation"><AlertTriangle size={12} /> {extension.validationErrors.join(' ')}</div>}
+          {extension.source === 'development' && !extension.installed && <button type="button" onClick={() => void window.extensions.removeDevelopment(manifest.id).then(setExtensions)}>Remove Development Import</button>}
+        </div>}
+      </article>
+    })}</section> : <div className="zura-store-empty"><Puzzle size={24} /><strong>No extensions found</strong><span>Try another search.</span></div>}
+    <footer className="zura-store-note"><span><ShieldCheck size={14} /> Permission changes require a new confirmation.</span><span>Developer documentation <ArrowUpRight size={13} /></span></footer>
+  </div>
 }

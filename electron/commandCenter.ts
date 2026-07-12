@@ -70,7 +70,7 @@ import {
   personalizationBoostMap,
   recordCommandCenterSelection,
 } from './commandCenterSearchLearning'
-import { isGitHubWorkspaceInstalled } from './githubWorkspace'
+import { executeNoViewExtensionCommand, listEnabledExtensionCommands } from './extensions/extensionService'
 
 const COMMAND_CENTER_SHORTCUT = 'CommandOrControl+Shift+Space'
 const COMMAND_CENTER_FALLBACK_SHORTCUT = 'CommandOrControl+Alt+Space'
@@ -534,12 +534,12 @@ async function buildCommandCenterIndex(
 ): Promise<CommandCenterIndex> {
   const rawQuery = indexQuery(query)
   const deferLiveWindows = Boolean(options?.deferLiveWindows) && !rawQuery
-  const githubInstalled = await isGitHubWorkspaceInstalled()
   const parsedQuery = parseCommandCenterQuery(rawQuery)
   const appQuery = parsedQuery.normalizedText
-  const [staticInputs, appsResult] = await Promise.all([
+  const [staticInputs, appsResult, extensionCommands] = await Promise.all([
     getIndexStaticInputs({ deferLiveWindows }),
     appQuery ? executeAppFind({ query: appQuery }) : executeAppList(),
+    listEnabledExtensionCommands(),
   ])
   const { workflows, windows, chats } = staticInputs
 
@@ -706,7 +706,7 @@ async function buildCommandCenterIndex(
         processName: window.processName,
         processId: window.processId,
       })),
-    actions: COMMAND_CENTER_ACTIONS.filter((action) => action.id !== 'github-workspace' || githubInstalled).map((action) => ({
+    actions: COMMAND_CENTER_ACTIONS.filter((action) => action.id !== 'github-workspace').map((action) => ({
       id: `action:${action.id}`,
       type: 'action' as const,
       title: action.label,
@@ -714,6 +714,19 @@ async function buildCommandCenterIndex(
       hint: INTERACTIVE_COMMAND_IDS.has(action.id) ? ('Command' as const) : ('Action' as const),
       aliases: [...(action.aliases ?? []), action.kind],
       actionId: action.id as import('../src/electron/types').CommandCenterActionId,
+    })),
+    extensions: extensionCommands.map((command) => ({
+      id: `extension:${command.extensionId}:${command.commandId}`,
+      type: 'extension' as const,
+      title: command.title,
+      subtitle: command.subtitle,
+      hint: 'Extension' as const,
+      aliases: command.aliases,
+      extensionId: command.extensionId,
+      commandId: command.commandId,
+      commandMode: command.mode,
+      hostCapability: command.hostCapability,
+      iconDataUrl: command.iconDataUrl,
     })),
     chats: chats.slice(0, 40).map((chat) => ({
       id: `chat:${chat.id}`,
@@ -996,19 +1009,60 @@ async function rankCommandCenterIndex(
     flat.map((item) => learningIdentity(item)),
     rawQuery
   )
-  const [workflows, apps, files, windows, actions, chats] = await Promise.all([
+  const [workflows, apps, files, windows, actions, extensions, chats] = await Promise.all([
     rankItems(index.workflows, rawQuery, boosts),
     rankItems(index.apps, rawQuery, boosts),
     rankItems(index.files, rawQuery, boosts),
     rankItems(index.windows, rawQuery, boosts),
     rankItems(index.actions, rawQuery, boosts),
+    rankItems(index.extensions ?? [], rawQuery, boosts),
     rankItems(index.chats, rawQuery, boosts),
   ])
-  const all = [...workflows, ...apps, ...files, ...windows, ...actions, ...chats]
-  const bestMatches = rawQuery
-    ? all.filter((item) => (item.score ?? 0) > 0).sort((a, b) => (b.score ?? 0) - (a.score ?? 0)).slice(0, 5)
-    : []
-  return { ...index, workflows, apps, files, windows, actions, chats, bestMatches }
+  const all = [...workflows, ...apps, ...files, ...windows, ...actions, ...extensions, ...chats]
+  // Empty browse: "Suggestions" = frequent/recent opens (score = rank + learning).
+  // Typed search: "Best Matches" = top lexical+personalized hits only.
+  const bestMatches = pickTopMatches(all, rawQuery)
+  return { ...index, workflows, apps, files, windows, actions, extensions, chats, bestMatches }
+}
+
+const EMPTY_BROWSE_SUGGESTIONS_LIMIT = 4
+const SEARCH_BEST_MATCHES_LIMIT = 5
+
+function isSuggestionCandidate(item: CommandCenterIndexItem): boolean {
+  if (item.type === 'window') return false
+  if (item.type === 'file' || item.type === 'folder') return false
+  if (item.type === 'chat') return false
+  if (item.type === 'action') {
+    const actionId = item.actionId
+    // Nested section children stay out of the home Suggestions strip.
+    if (
+      actionId === 'snap-left' ||
+      actionId === 'snap-right' ||
+      actionId === 'maximize-window' ||
+      (actionId.startsWith('settings-') && actionId !== 'settings')
+    ) {
+      return false
+    }
+  }
+  return true
+}
+
+function pickTopMatches(all: CommandCenterIndexItem[], rawQuery: string): CommandCenterIndexItem[] {
+  const limit = rawQuery ? SEARCH_BEST_MATCHES_LIMIT : EMPTY_BROWSE_SUGGESTIONS_LIMIT
+  const ranked = all
+    .filter((item) => isSuggestionCandidate(item))
+    .filter((item) => {
+      const score = item.score ?? 0
+      if (score <= 0) return false
+      if (rawQuery) return true
+      // Empty browse: non-apps get a base score of 1 with no usage. Only surface
+      // them when personalization/recency lifts score above that baseline so the
+      // Suggestions strip is "things you open" rather than every fixed action.
+      if (item.type === 'app') return true
+      return score > 1
+    })
+    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || a.title.localeCompare(b.title))
+  return ranked.slice(0, limit)
 }
 
 function flattenIndex(index: CommandCenterIndex): CommandCenterIndexItem[] {
@@ -1018,6 +1072,7 @@ function flattenIndex(index: CommandCenterIndex): CommandCenterIndexItem[] {
     ...index.files,
     ...index.windows,
     ...index.actions,
+    ...(index.extensions ?? []),
     ...index.chats,
   ]
 }
@@ -1126,6 +1181,13 @@ async function executeIndexItem(itemId: unknown, query: unknown = '') {
     return error ? { success: false, error } : { success: true }
   }
   if (item.type === 'action') return executeCommandCenterAction(item.actionId)
+  if (item.type === 'extension') {
+    if (item.commandMode === 'no-view') {
+      const result = await executeNoViewExtensionCommand(item.extensionId, item.commandId)
+      return result.ok ? { success: true, data: result } : { success: false, error: result.error }
+    }
+    return { success: true, extension: { extensionId: item.extensionId, commandId: item.commandId, hostCapability: item.hostCapability } }
+  }
   if (item.type === 'chat') {
     await sendCommandToMainWindow('', item.sessionId)
     hideCommandCenterWindow()
