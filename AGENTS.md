@@ -385,7 +385,8 @@ Command Center app launches and reads Windows UserAssist usage metadata as a
 best-effort recency/frequency ranking signal; those signals may be stored in the
 non-secret snapshot but never act as launch authority. App indexing is warmed at app ready
 and when Command Center is enabled; Start Menu/Desktop shortcut roots are watched
-opportunistically for debounced background refresh. App icons are loaded lazily
+opportunistically for debounced background refresh, and watcher handles are closed when
+Command Center is disabled or disposed. App icons are loaded lazily
 through a bounded in-memory main-process cache so first overlay paint is not
 blocked by icon extraction. For already-open apps, Command Center may use the
 main-process `window_list` process path as an internal icon candidate, but the

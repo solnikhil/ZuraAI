@@ -17,6 +17,7 @@ import {
   MoreHorizontal,
   Plus,
   RefreshCcw,
+  XCircle,
 } from 'lucide-react'
 import { ActionsMenu, type ActionsMenuGroup } from '@/components/ui/actions-menu'
 import type {
@@ -180,6 +181,7 @@ export default function GitHubWorkspace({
   const [busy, setBusy] = useState<string | null>(null)
   const [repoMenuOpen, setRepoMenuOpen] = useState(false)
   const [branchMenuOpen, setBranchMenuOpen] = useState(false)
+  const [branchPickerView, setBranchPickerView] = useState<'branches' | 'worktrees'>('branches')
   const [sidebarWidth, setSidebarWidth] = useState(readStoredSidebarWidth)
   const [isResizingSidebar, setIsResizingSidebar] = useState(false)
   const bodyRef = useRef<HTMLDivElement | null>(null)
@@ -191,6 +193,7 @@ export default function GitHubWorkspace({
   const selectedCommit = state?.history.find((item) => item.id === selectedCommitId)
   const branches = state?.branches ?? []
   const worktrees = state?.worktrees ?? []
+  const accountLogin = state?.account.status === 'signed_in' ? state.account.login : 'GitHub'
 
   useEffect(() => {
     let active = true
@@ -350,8 +353,8 @@ export default function GitHubWorkspace({
 
   const branchMenuGroups = useMemo((): ActionsMenuGroup[] => {
     if (!repository) return []
-    return [
-      {
+    if (branchPickerView === 'branches') {
+      return [{
         id: 'branches',
         label: 'Branches',
         items: branches.map((branch) => ({
@@ -367,8 +370,9 @@ export default function GitHubWorkspace({
             )
           },
         })),
-      },
-      {
+      }]
+    }
+    return [{
         id: 'worktrees',
         label: 'Worktrees',
         items: worktrees.map((wt) => ({
@@ -385,9 +389,8 @@ export default function GitHubWorkspace({
             )
           },
         })),
-      },
-    ]
-  }, [branches, busy, repository, worktrees])
+      }]
+  }, [branchPickerView, branches, busy, repository, worktrees])
 
   const repoMenuGroups = useMemo((): ActionsMenuGroup[] => {
     if (!state) return []
@@ -422,6 +425,38 @@ export default function GitHubWorkspace({
     }
     return groups
   }, [grouped, state])
+
+  const accountMenuGroups = useMemo((): ActionsMenuGroup[] => [
+    {
+      id: 'account',
+      label: `@${accountLogin}`,
+      items: [
+        {
+          id: 'sign-out',
+          label: 'Sign out',
+          description: 'Remove this account from ZuraAI',
+          icon: <XCircle size={14} />,
+          onSelect: () => {
+            void window.githubWorkspace
+              .signOut()
+              .then((account) => setState((current) => current ? { ...current, account } : current))
+          },
+        },
+        {
+          id: 'disconnect',
+          label: 'Disconnect GitHub',
+          description: 'Sign out and open GitHub authorization settings',
+          icon: <ExternalLink size={14} />,
+          destructive: true,
+          onSelect: () => {
+            void window.githubWorkspace
+              .disconnect()
+              .then((account) => setState((current) => current ? { ...current, account } : current))
+          },
+        },
+      ],
+    },
+  ], [accountLogin])
 
   const fileActionGroups = useMemo((): ActionsMenuGroup[] => {
     if (!repository || !selectedChange) return []
@@ -809,22 +844,24 @@ export default function GitHubWorkspace({
 
       <footer className="github-workspace__footer">
         <div className="github-workspace__footer-left">
-          <div className="github-workspace__account-actions">
-            <span className="github-workspace__account">
-              {state.account.avatarUrl && <img src={state.account.avatarUrl} alt="" />}@
-              {state.account.login}
-            </span>
-            <button
-              type="button"
-              onClick={() =>
-                void window.githubWorkspace
-                  .disconnect()
-                  .then((account) => setState({ ...state, account }))
-              }
-            >
-              Disconnect
-            </button>
-          </div>
+          <ActionsMenu
+            side="top"
+            align="start"
+            groups={accountMenuGroups}
+            trigger={
+              <button
+                type="button"
+                className="zura-menu-trigger github-workspace__account-trigger"
+                aria-label={`GitHub account @${state.account.login}`}
+              >
+                {state.account.avatarUrl
+                  ? <img src={state.account.avatarUrl} alt="" />
+                  : <GitHubMark size={17} />}
+                <span>@{state.account.login}</span>
+                <ChevronDown size={12} />
+              </button>
+            }
+          />
         </div>
 
         <div className="github-workspace__footer-right">
@@ -837,7 +874,28 @@ export default function GitHubWorkspace({
             side="top"
             align="end"
             groups={branchMenuGroups}
-            emptyLabel="No branches or worktrees"
+            emptyLabel={branchPickerView === 'branches' ? 'No branches' : 'No worktrees'}
+            header={
+              <div className="github-workspace__branch-switch" role="group" aria-label="Branch picker view">
+                <button
+                  type="button"
+                  className={branchPickerView === 'branches' ? 'is-active' : undefined}
+                  aria-pressed={branchPickerView === 'branches'}
+                  onClick={() => setBranchPickerView('branches')}
+                >
+                  Branches
+                </button>
+                <button
+                  type="button"
+                  className={branchPickerView === 'worktrees' ? 'is-active' : undefined}
+                  aria-pressed={branchPickerView === 'worktrees'}
+                  onClick={() => setBranchPickerView('worktrees')}
+                >
+                  Worktrees
+                  {worktrees.length > 0 && <span>{worktrees.length}</span>}
+                </button>
+              </div>
+            }
             disabled={!repository || Boolean(busy)}
             trigger={
               <button
@@ -1443,6 +1501,51 @@ const workspaceStyles = `
     margin: 0 2px;
     background: rgba(255, 255, 255, 0.15);
   }
+  .github-workspace__branch-switch {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px;
+    padding: 2px;
+    border-radius: 7px;
+    background: rgba(255, 255, 255, 0.045);
+  }
+  .github-workspace__branch-switch button {
+    min-width: 0;
+    height: 26px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 0 9px;
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    color: rgba(255, 241, 246, 0.5);
+    font: inherit;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .github-workspace__branch-switch button:hover,
+  .github-workspace__branch-switch button:focus-visible {
+    color: rgba(255, 249, 251, 0.86);
+    outline: none;
+  }
+  .github-workspace__branch-switch button.is-active {
+    background: rgba(255, 255, 255, 0.085);
+    color: rgba(255, 249, 251, 0.94);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.055);
+  }
+  .github-workspace__branch-switch button span {
+    min-width: 16px;
+    padding: 1px 4px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 241, 246, 0.62);
+    font-size: 9px;
+    line-height: 1.3;
+  }
 
   .github-workspace__branch-btn.zura-menu-trigger,
   .github-workspace__repo-trigger.zura-menu-trigger {
@@ -1533,35 +1636,41 @@ const workspaceStyles = `
   @media (prefers-reduced-motion: reduce) {
     .github-workspace__footer-btn svg.is-spinning { animation: none; }
   }
-  .github-workspace__account-actions {
-    flex: none;
+  .github-workspace__account-trigger.zura-menu-trigger {
     height: 28px;
+    min-height: 28px;
+    max-width: 180px;
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 0 6px;
-  }
-  .github-workspace__account {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    color: rgba(255, 231, 238, 0.55);
+    padding: 0 8px 0 5px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    box-shadow: none;
+    color: rgba(255, 241, 246, 0.62);
     font-size: 12px;
+    font-weight: 500;
   }
-  .github-workspace__account img {
+  .github-workspace__account-trigger img {
     width: 18px;
     height: 18px;
+    flex: none;
     border-radius: 50%;
   }
-  .github-workspace__account-actions > button {
-    padding: 4px 8px;
-    border-radius: 7px;
-    color: rgba(255, 231, 238, 0.42);
-    font-size: 12px;
+  .github-workspace__account-trigger span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
-  .github-workspace__account-actions > button:hover:not(:disabled) {
+  .github-workspace__account-trigger.zura-menu-trigger:hover,
+  .github-workspace__account-trigger.zura-menu-trigger:focus-visible,
+  .github-workspace__account-trigger.zura-menu-trigger[data-state='open'] {
     background: rgba(255, 255, 255, 0.06);
     color: rgba(255, 249, 251, 0.92);
+    box-shadow: none;
+    outline: none;
   }
 
   .github-workspace-empty {

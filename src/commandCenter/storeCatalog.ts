@@ -56,10 +56,10 @@ export const ZURA_STORE_EXTENSIONS: ZuraStoreExtension[] = [
   {
     id: 'github',
     name: 'GitHub Workspace',
-    description: 'Review changes, commit, inspect history, and sync repositories in Command Center.',
+    description: '@zuraai',
     category: 'Productivity',
-    accent: '#b9b7ff',
-    glyph: 'GH',
+    accent: '#8ab4ff',
+    glyph: 'GitHub',
     capabilities: ['Changes', 'History', 'Commit', 'Sync'],
   },
   {

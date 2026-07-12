@@ -18,7 +18,7 @@ import type {
   CommandCenterNativeSearchResult,
 } from '../src/electron/types'
 import {
-  clearAppIconCache,
+  disposeAppIndexRuntime,
   getCachedAppIcon,
   isAppIconPending,
   peekCachedAppIcon,
@@ -252,7 +252,7 @@ function clearCommandCenterRuntimeCaches(): void {
   indexItemCache = new Map()
   browseIndexCache = null
   browseIndexInflight = null
-  clearAppIconCache()
+  disposeAppIndexRuntime()
   disposeWindowsSearch()
   clearCommandCenterSearchLearningCache()
 }

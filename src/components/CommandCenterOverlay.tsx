@@ -181,7 +181,6 @@ const GROUP_ORDER = [
   'Saved Workflows',
   'Apps',
   FILES_GROUP,
-  'Windows',
   LAYOUT_GROUP,
   SETTINGS_GROUP,
   ZURA_EXTRAS_GROUP,
@@ -195,7 +194,6 @@ const GROUP_RESULT_LIMITS: Record<string, number> = {
   Apps: 40,
   [BEST_MATCHES_GROUP]: 5,
   [FILES_GROUP]: 40,
-  Windows: 12,
   [LAYOUT_GROUP]: 8,
   [SETTINGS_GROUP]: 16,
   [ZURA_EXTRAS_GROUP]: 16,
@@ -223,6 +221,17 @@ const INTERACTIVE_EXTRA_ACTION_IDS = new Set<string>([
   'layout',
   'settings',
   'zura-store',
+])
+
+const HIDDEN_COMMAND_CENTER_ACTION_IDS = new Set<string>([
+  'open-windows-copilot',
+  'clipboard-to-chat',
+  'focus-zuraai',
+  'layout',
+  'open-downloads',
+  'settings',
+  'system-status',
+  'zura-ai-chats',
 ])
 
 /** Window placement actions — browse via Zura Extras → Layout. */
@@ -270,11 +279,14 @@ function flattenIndex(
   }
 ): Array<{ group: string; item: CommandCenterIndexItem }> {
   // Older mocks / partial index payloads may omit newer fields.
-  const bestMatches = index.bestMatches ?? []
+  const bestMatches = (index.bestMatches ?? []).filter(
+    (item) =>
+      item.type !== 'window' &&
+      !(item.type === 'action' && HIDDEN_COMMAND_CENTER_ACTION_IDS.has(item.actionId))
+  )
   const workflows = index.workflows ?? []
   const apps = index.apps ?? []
   const files = index.files ?? []
-  const windows = index.windows ?? []
   const actions = index.actions ?? []
   const chats = index.chats ?? []
 
@@ -286,12 +298,10 @@ function flattenIndex(
       .map((item) => ({ group: 'Saved Workflows', item })),
     ...apps.filter((item) => !bestIds.has(item.id)).map((item) => ({ group: 'Apps', item })),
     ...files.filter((item) => !bestIds.has(item.id)).map((item) => ({ group: FILES_GROUP, item })),
-    ...windows
-      .filter((item) => !bestIds.has(item.id))
-      .map((item) => ({ group: 'Windows', item })),
   ]
   for (const item of actions) {
     if (item.type !== 'action') continue
+    if (HIDDEN_COMMAND_CENTER_ACTION_IDS.has(item.actionId)) continue
     // Empty browse: hide individual snap/maximize rows — open via Layout section.
     if (LAYOUT_CHILD_ACTION_IDS.has(item.actionId) && !options.includeLayoutChildren) {
       continue
@@ -3168,6 +3178,27 @@ export default function CommandCenterOverlay() {
           stroke-linecap: round;
         }
 
+        .zura-store-icon--github {
+          position: relative;
+          overflow: hidden;
+          background:
+            radial-gradient(circle at 28% 18%, rgba(193, 220, 255, 0.42), transparent 42%),
+            linear-gradient(145deg, #4579c8 0%, #234a91 55%, #152d62 100%);
+          box-shadow:
+            inset 0 0 0 1px rgba(202, 225, 255, 0.24),
+            0 5px 14px rgba(7, 21, 55, 0.32);
+          color: rgba(246, 250, 255, 0.96);
+        }
+
+        .zura-store-icon--github svg {
+          position: relative;
+          z-index: 1;
+          width: 21px;
+          height: 21px;
+          fill: currentColor;
+          filter: drop-shadow(0 1px 3px rgba(4, 14, 38, 0.42));
+        }
+
         .zura-store-filterbar {
           display: flex;
           align-items: center;
@@ -3226,6 +3257,28 @@ export default function CommandCenterOverlay() {
           gap: 10px;
           padding: 10px 8px;
           border-top: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .zura-store-row--github {
+          position: relative;
+          overflow: hidden;
+          margin-block: 3px;
+          padding-inline: 10px;
+          border: 1px solid rgba(126, 174, 245, 0.17);
+          border-radius: 9px;
+          background:
+            radial-gradient(circle at 8% 8%, rgba(107, 166, 255, 0.18), transparent 38%),
+            linear-gradient(112deg, rgba(43, 85, 154, 0.25), rgba(20, 40, 80, 0.12) 62%, rgba(14, 26, 52, 0.04));
+        }
+
+        .zura-store-row--github .zura-store-row__title span {
+          color: rgba(184, 212, 255, 0.5);
+        }
+
+        .zura-store-row--github p {
+          color: rgba(183, 211, 255, 0.7);
+          font-weight: 600;
+          letter-spacing: 0.01em;
         }
 
         .zura-store-row__copy {

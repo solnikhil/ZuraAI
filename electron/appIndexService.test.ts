@@ -641,8 +641,53 @@ describe('appIndexService', () => {
     expect(diagnostics.ok).toBe(false)
     expect(diagnostics.stale).toBe(true)
     expect((await failed.service.listApps()).apps).toEqual(
-      expect.arrayContaining([expect.objectContaining({ name: 'Kiro' })])
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'Kiro' }),
+        // Native-only entries from the last good snapshot survive a transient
+        // Get-StartApps failure instead of being replaced by shortcut-only data.
+        expect.objectContaining({ name: 'Native Only' }),
+      ])
     )
+  })
+
+  it('drops malformed oversized snapshot fields while keeping valid entries', async () => {
+    const snapshotPath = await mkdtemp(path.join(os.tmpdir(), 'zura-app-index-bounds-'))
+    await writeFile(
+      path.join(snapshotPath, 'command-center-app-index.json'),
+      JSON.stringify({
+        version: 1,
+        updatedAt: Date.now(),
+        sourceCounts: { desktop: 2 },
+        apps: [
+          {
+            id: 'app:valid',
+            name: 'Valid App',
+            normalizedName: 'valid app',
+            aliases: ['Valid App'],
+            source: 'desktop',
+            shortcutPath: 'C:\\Users\\Nikhil\\Desktop\\Valid App.lnk',
+            launchStrategy: 'shortcutPath',
+            lastSeenAt: Date.now(),
+          },
+          {
+            id: 'x'.repeat(513),
+            name: 'Invalid App',
+            normalizedName: 'invalid app',
+            aliases: ['Invalid App'],
+            source: 'desktop',
+            shortcutPath: 'C:\\Invalid.lnk',
+            launchStrategy: 'shortcutPath',
+            lastSeenAt: Date.now(),
+          },
+        ],
+      })
+    )
+
+    const { service, runPowerShell } = await loadService({ userDataPath: snapshotPath })
+    const apps = (await service.listApps()).apps
+
+    expect(apps).toEqual([expect.objectContaining({ name: 'Valid App' })])
+    expect(runPowerShell).not.toHaveBeenCalled()
   })
 
   it('merges duplicate native and shortcut rows from stale snapshots before rendering', async () => {
@@ -744,5 +789,24 @@ describe('appIndexService', () => {
     apps.forEach((app) => service.getCachedAppIcon(app.iconKey))
     await new Promise((resolve) => setTimeout(resolve, 80))
     expect(iconMaxActive).toBeLessThanOrEqual(4)
+  })
+
+  it('does not repopulate a cleared icon cache from stale in-flight jobs', async () => {
+    const { service } = await loadService({ iconDelayMs: 30 })
+    await service.refreshAppIndex()
+    const apps = (await service.listApps()).apps.slice(0, 8)
+
+    apps.forEach((app) => service.getCachedAppIcon(app.iconKey))
+    service.clearAppIconCache()
+    await new Promise((resolve) => setTimeout(resolve, 80))
+
+    apps.forEach((app) => expect(service.peekCachedAppIcon(app.iconKey)).toBeUndefined())
+    expect(iconMaxActive).toBeLessThanOrEqual(4)
+
+    const retry = apps.find((app) => app.iconKey)
+    expect(retry).toBeDefined()
+    service.getCachedAppIcon(retry?.iconKey)
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(service.peekCachedAppIcon(retry?.iconKey)).toBe('data:image/png;base64,icon')
   })
 })

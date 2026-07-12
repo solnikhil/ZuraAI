@@ -275,7 +275,7 @@ describe('Command Center main service', () => {
       getCachedAppIcon,
       peekCachedAppIcon,
       isAppIconPending,
-      clearAppIconCache: vi.fn(),
+      disposeAppIndexRuntime: vi.fn(),
       refreshAppIndex: vi.fn(async () => ({ ok: true, stale: false, sourceCounts: {} })),
       resolveAppIndexEntry: vi.fn(async (itemId: string) => {
         if (itemId === 'app:TmF0aXZlLkFwcA') {

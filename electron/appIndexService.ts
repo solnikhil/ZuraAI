@@ -1,5 +1,6 @@
 import { app, shell } from 'electron'
 import { watch } from 'fs'
+import type { FSWatcher } from 'fs'
 import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
@@ -17,6 +18,15 @@ const SNAPSHOT_VERSION = 1
 const SNAPSHOT_FILE = 'command-center-app-index.json'
 const REFRESH_STALE_MS = 10 * 60_000
 const ICON_CONCURRENCY = 4
+const MAX_SNAPSHOT_BYTES = 5 * 1024 * 1024
+const MAX_SNAPSHOT_APPS = 5_000
+const MAX_APP_NAME_LENGTH = 256
+const MAX_APP_ID_LENGTH = 512
+const MAX_APP_PATH_LENGTH = 4_096
+const MAX_APP_ALIASES = 32
+const MAX_SHORTCUT_SCAN_ENTRIES = 10_000
+const MAX_SHORTCUT_SCAN_DEPTH = 20
+const SHORTCUT_SCAN_DEADLINE_MS = 15_000
 
 export type AppIndexSource = 'windows-search' | 'start-menu' | 'desktop'
 export type AppLaunchStrategy = 'appUserModelId' | 'shortcutPath'
@@ -101,8 +111,10 @@ const failedIconKeys = new Set<string>()
 const iconRequests = new Map<string, Promise<string | undefined>>()
 const iconQueue: Array<() => void> = []
 let activeIconJobs = 0
+let iconCacheGeneration = 0
 let watchersStarted = false
 let refreshTimer: ReturnType<typeof setTimeout> | undefined
+const shortcutWatchers = new Set<FSWatcher>()
 
 function setIconCacheEntry(iconKey: string, iconDataUrl: string): void {
   // Refresh insertion order for LRU behavior (Map preserves order).
@@ -157,6 +169,17 @@ function compactWithoutVersion(value: string): string {
 
 function normalizeName(value: string): string {
   return value.trim().toLowerCase()
+}
+
+function boundedString(value: unknown, maxLength: number): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  if (!trimmed || trimmed.length > maxLength) return undefined
+  return trimmed
+}
+
+function finiteNonNegativeNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined
 }
 
 function powershellSingleQuotedString(value: string): string {
@@ -429,20 +452,22 @@ function createEntry(raw: RawAppMatch, existing?: AppIndexEntry): AppIndexEntry 
 function sanitizeSnapshot(value: unknown): AppIndexSnapshot | null {
   if (!value || typeof value !== 'object') return null
   const record = value as Record<string, unknown>
+  const updatedAt = finiteNonNegativeNumber(record.updatedAt)
   if (
     record.version !== SNAPSHOT_VERSION ||
-    typeof record.updatedAt !== 'number' ||
-    !Array.isArray(record.apps)
+    updatedAt === undefined ||
+    !Array.isArray(record.apps) ||
+    record.apps.length > MAX_SNAPSHOT_APPS
   )
     return null
-  const updatedAt = record.updatedAt
   const apps = record.apps.flatMap((entry): AppIndexEntry[] => {
     if (!entry || typeof entry !== 'object') return []
     const appEntry = entry as Record<string, unknown>
+    const id = boundedString(appEntry.id, MAX_APP_ID_LENGTH)
+    const name = boundedString(appEntry.name, MAX_APP_NAME_LENGTH)
     if (
-      typeof appEntry.id !== 'string' ||
-      typeof appEntry.name !== 'string' ||
-      typeof appEntry.normalizedName !== 'string' ||
+      !id ||
+      !name ||
       (appEntry.source !== 'windows-search' &&
         appEntry.source !== 'start-menu' &&
         appEntry.source !== 'desktop') ||
@@ -451,28 +476,30 @@ function sanitizeSnapshot(value: unknown): AppIndexSnapshot | null {
       return []
     }
     const sanitizedEntry: AppIndexEntry = {
-      id: appEntry.id,
-      name: appEntry.name,
-      normalizedName: appEntry.normalizedName,
+      id,
+      name,
+      normalizedName: normalizeName(name),
       aliases: Array.isArray(appEntry.aliases)
-        ? appEntry.aliases.filter((alias): alias is string => typeof alias === 'string')
-        : [appEntry.name],
+        ? appEntry.aliases
+            .slice(0, MAX_APP_ALIASES)
+            .flatMap((alias) => {
+              const sanitized = boundedString(alias, MAX_APP_NAME_LENGTH)
+              return sanitized ? [sanitized] : []
+            })
+        : [name],
       source: appEntry.source,
-      appUserModelId:
-        typeof appEntry.appUserModelId === 'string' ? appEntry.appUserModelId : undefined,
-      shortcutPath: typeof appEntry.shortcutPath === 'string' ? appEntry.shortcutPath : undefined,
-      targetPath: typeof appEntry.targetPath === 'string' ? appEntry.targetPath : undefined,
-      iconPath: typeof appEntry.iconPath === 'string' ? appEntry.iconPath : undefined,
-      args: typeof appEntry.args === 'string' ? appEntry.args : undefined,
-      workingDirectory:
-        typeof appEntry.workingDirectory === 'string' ? appEntry.workingDirectory : undefined,
+      appUserModelId: boundedString(appEntry.appUserModelId, MAX_APP_PATH_LENGTH),
+      shortcutPath: boundedString(appEntry.shortcutPath, MAX_APP_PATH_LENGTH),
+      targetPath: boundedString(appEntry.targetPath, MAX_APP_PATH_LENGTH),
+      iconPath: boundedString(appEntry.iconPath, MAX_APP_PATH_LENGTH),
+      args: boundedString(appEntry.args, MAX_APP_PATH_LENGTH),
+      workingDirectory: boundedString(appEntry.workingDirectory, MAX_APP_PATH_LENGTH),
       launchStrategy: appEntry.launchStrategy,
-      lastSeenAt: typeof appEntry.lastSeenAt === 'number' ? appEntry.lastSeenAt : updatedAt,
-      launchCount: typeof appEntry.launchCount === 'number' ? appEntry.launchCount : undefined,
-      lastLaunchedAt:
-        typeof appEntry.lastLaunchedAt === 'number' ? appEntry.lastLaunchedAt : undefined,
-      usageCount: typeof appEntry.usageCount === 'number' ? appEntry.usageCount : undefined,
-      lastUsedAt: typeof appEntry.lastUsedAt === 'number' ? appEntry.lastUsedAt : undefined,
+      lastSeenAt: finiteNonNegativeNumber(appEntry.lastSeenAt) ?? updatedAt,
+      launchCount: finiteNonNegativeNumber(appEntry.launchCount),
+      lastLaunchedAt: finiteNonNegativeNumber(appEntry.lastLaunchedAt),
+      usageCount: finiteNonNegativeNumber(appEntry.usageCount),
+      lastUsedAt: finiteNonNegativeNumber(appEntry.lastUsedAt),
     }
     return [
       {
@@ -493,6 +520,8 @@ async function loadSnapshot(): Promise<void> {
   if (loadedSnapshot) return
   loadedSnapshot = true
   try {
+    const snapshotStat = await fs.stat(indexPath())
+    if (snapshotStat.size > MAX_SNAPSHOT_BYTES) throw new Error('App index snapshot is too large.')
     const raw = await fs.readFile(indexPath(), 'utf-8')
     const snapshot = sanitizeSnapshot(JSON.parse(raw))
     if (!snapshot) throw new Error('App index snapshot is invalid.')
@@ -539,13 +568,22 @@ function isUsefulIconPath(iconPath: string | undefined): iconPath is string {
 async function scanShortcutApps(
   root: string,
   source: AppIndexSource,
-  results: RawAppMatch[]
+  results: RawAppMatch[],
+  budget: { entries: number; deadline: number },
+  depth = 0
 ): Promise<void> {
+  if (depth > MAX_SHORTCUT_SCAN_DEPTH) throw new Error('Shortcut scan exceeded its depth limit.')
+  if (Date.now() > budget.deadline) throw new Error('Shortcut scan timed out.')
   const entries = await fs.readdir(root, { withFileTypes: true }).catch(() => [])
   for (const entry of entries) {
+    budget.entries += 1
+    if (budget.entries > MAX_SHORTCUT_SCAN_ENTRIES) {
+      throw new Error('Shortcut scan exceeded its entry limit.')
+    }
+    if (Date.now() > budget.deadline) throw new Error('Shortcut scan timed out.')
     const full = path.join(root, entry.name)
     if (entry.isDirectory()) {
-      await scanShortcutApps(full, source, results)
+      await scanShortcutApps(full, source, results, budget, depth + 1)
       continue
     }
     if (path.extname(entry.name).toLowerCase() !== '.lnk') continue
@@ -568,7 +606,10 @@ async function scanShortcutApps(
 
 async function collectShortcutApps(): Promise<RawAppMatch[]> {
   const apps: RawAppMatch[] = []
-  await Promise.all(shortcutRoots().map((root) => scanShortcutApps(root.path, root.source, apps)))
+  const budget = { entries: 0, deadline: Date.now() + SHORTCUT_SCAN_DEADLINE_MS }
+  await Promise.all(
+    shortcutRoots().map((root) => scanShortcutApps(root.path, root.source, apps, budget))
+  )
   return apps
 }
 
@@ -744,6 +785,19 @@ function mergeApps(
       )
     )
     .sort((a, b) => a.name.localeCompare(b.name))
+}
+
+function appEntryAsRaw(entry: AppIndexEntry): RawAppMatch {
+  return {
+    name: entry.name,
+    source: entry.source,
+    path: entry.shortcutPath,
+    targetPath: entry.targetPath,
+    iconPath: entry.iconPath,
+    args: entry.args,
+    workingDirectory: entry.workingDirectory,
+    appUserModelId: entry.appUserModelId,
+  }
 }
 
 function usageKeysForApp(appEntry: AppIndexEntry): string[] {
@@ -943,17 +997,27 @@ export async function refreshAppIndex(): Promise<AppIndexDiagnostics> {
   refreshRequest = (async () => {
     const startedAt = Date.now()
     const errors: string[] = []
-    const [nativeApps, shortcutApps, userAssistUsage] = await Promise.all([
+    let nativeFailed = false
+    let shortcutsFailed = false
+    const [freshNativeApps, freshShortcutApps, userAssistUsage] = await Promise.all([
       queryNativeStartApps().catch((error) => {
+        nativeFailed = true
         errors.push(`windows-search: ${error instanceof Error ? error.message : 'failed'}`)
         return [] as RawAppMatch[]
       }),
       collectShortcutApps().catch((error) => {
+        shortcutsFailed = true
         errors.push(`shortcuts: ${error instanceof Error ? error.message : 'failed'}`)
         return [] as RawAppMatch[]
       }),
       queryUserAssistUsage().catch(() => [] as UserAssistUsage[]),
     ])
+    const nativeApps = nativeFailed
+      ? memoryApps.filter((entry) => entry.source === 'windows-search').map(appEntryAsRaw)
+      : freshNativeApps
+    const shortcutApps = shortcutsFailed
+      ? memoryApps.filter((entry) => entry.source !== 'windows-search').map(appEntryAsRaw)
+      : freshShortcutApps
     const nextApps = mergeApps(nativeApps, shortcutApps, memoryApps)
     const updatedAt = Date.now()
     const rankedApps = applyUsageSignals(dedupeAppEntries(nextApps), userAssistUsage)
@@ -966,9 +1030,11 @@ export async function refreshAppIndex(): Promise<AppIndexDiagnostics> {
     const dedupedApps = applyAppxLogos(rankedApps, appxLogos)
     if (dedupedApps.length > 0 || memoryApps.length === 0) {
       memoryApps = dedupedApps
-      await saveSnapshot(memoryApps, updatedAt).catch((error) => {
-        errors.push(`snapshot: ${error instanceof Error ? error.message : 'failed'}`)
-      })
+      if (!nativeFailed && !shortcutsFailed) {
+        await saveSnapshot(memoryApps, updatedAt).catch((error) => {
+          errors.push(`snapshot: ${error instanceof Error ? error.message : 'failed'}`)
+        })
+      }
     }
     diagnostics = {
       ok: errors.length === 0,
@@ -1012,7 +1078,11 @@ function startShortcutWatchers(): void {
   for (const root of shortcutRoots()) {
     try {
       const watcher = watch(root.path, { recursive: true }, debounceRefresh)
-      watcher.on('error', () => undefined)
+      shortcutWatchers.add(watcher)
+      watcher.on('error', () => {
+        watcher.close()
+        shortcutWatchers.delete(watcher)
+      })
     } catch {
       // Watchers are opportunistic; missing shortcut roots are normal.
     }
@@ -1087,7 +1157,14 @@ export async function findApps(
         ...diagnostics,
         sourceCounts: sourceCounts(memoryApps),
       }
-      void saveSnapshot(memoryApps, Date.now())
+      void saveSnapshot(memoryApps, Date.now()).catch((error) => {
+        diagnostics = {
+          ...diagnostics,
+          ok: false,
+          stale: true,
+          error: `snapshot: ${error instanceof Error ? error.message : 'failed'}`,
+        }
+      })
     })
     .catch(() => undefined)
 
@@ -1194,8 +1271,10 @@ export function getCachedAppIcon(iconKey: string | undefined): string | undefine
   }
   if (failedIconKeys.has(iconKey)) return undefined
   if (!iconRequests.has(iconKey)) {
+    const generation = iconCacheGeneration
     const request = runIconJob(() => loadIcon(iconKey))
       .then((iconDataUrl) => {
+        if (generation !== iconCacheGeneration) return undefined
         if (iconDataUrl) {
           failedIconKeys.delete(iconKey)
           setIconCacheEntry(iconKey, iconDataUrl)
@@ -1218,19 +1297,26 @@ export function getCachedAppIcon(iconKey: string | undefined): string | undefine
 
 /** Drop in-memory app icon data-URLs (keeps the app index snapshot itself). */
 export function clearAppIconCache(): void {
+  iconCacheGeneration += 1
   iconCache.clear()
   failedIconKeys.clear()
-  iconRequests.clear()
-  iconQueue.splice(0, iconQueue.length)
-  activeIconJobs = 0
+}
+
+export function disposeAppIndexRuntime(): void {
+  if (refreshTimer) {
+    clearTimeout(refreshTimer)
+    refreshTimer = undefined
+  }
+  for (const watcher of shortcutWatchers) watcher.close()
+  shortcutWatchers.clear()
+  watchersStarted = false
+  clearAppIconCache()
 }
 
 export function __resetAppIndexForTests(): void {
+  disposeAppIndexRuntime()
   memoryApps = []
   diagnostics = { ok: true, stale: true, sourceCounts: {} }
   loadedSnapshot = false
   refreshRequest = null
-  clearAppIconCache()
-  watchersStarted = false
-  if (refreshTimer) clearTimeout(refreshTimer)
 }

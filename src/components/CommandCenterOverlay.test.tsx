@@ -839,7 +839,7 @@ describe('CommandCenterOverlay', () => {
     ).toBeInTheDocument()
   })
 
-  it('opens Layout from Zura Extras and groups other fixed actions by category', async () => {
+  it('keeps removed utilities hidden while retaining the emoji command', async () => {
     window.commandCenter.getIndex = vi.fn(async () => ({
       workflows: [],
       apps: [],
@@ -966,37 +966,23 @@ describe('CommandCenterOverlay', () => {
     expect(screen.queryByRole('heading', { name: 'Files' })).not.toBeInTheDocument()
     // Settings is a Zura Extras section entry — not a top-level category of pages.
     expect(screen.queryByRole('heading', { name: 'Settings' })).not.toBeInTheDocument()
-    expect(screen.getByText('Settings')).toBeInTheDocument()
-    expect(screen.getByText('Windows Copilot')).toBeInTheDocument()
+    expect(screen.queryByText('Settings')).not.toBeInTheDocument()
+    expect(screen.queryByText('Windows Copilot')).not.toBeInTheDocument()
+    expect(screen.queryByText('Ask about clipboard')).not.toBeInTheDocument()
+    expect(screen.queryByText('Focus ZuraAI')).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Windows' })).not.toBeInTheDocument()
     // Layout section entry lives under Zura Extras; snap tools are not top-level.
-    expect(screen.getByText('Layout')).toBeInTheDocument()
+    expect(screen.queryByText('Layout')).not.toBeInTheDocument()
     expect(screen.queryByText('Snap left')).not.toBeInTheDocument()
     expect(screen.queryByText('Maximize')).not.toBeInTheDocument()
-    expect(screen.getByText('System status')).toBeInTheDocument()
+    expect(screen.queryByText('System status')).not.toBeInTheDocument()
     expect(screen.queryByText('Display')).not.toBeInTheDocument()
-    expect(screen.getByText('Open Downloads')).toBeInTheDocument()
+    expect(screen.queryByText('Open Downloads')).not.toBeInTheDocument()
     expect(screen.getByText('Emojis')).toBeInTheDocument()
-    expect(screen.getByText('Zura AI Chats')).toBeInTheDocument()
+    expect(screen.queryByText('Zura AI Chats')).not.toBeInTheDocument()
     expect(screen.queryByText('Demo chat')).not.toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Actions' })).not.toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Chats' })).not.toBeInTheDocument()
-
-    fireEvent.doubleClick(screen.getByRole('option', { name: /^Settings/i }))
-    expect(await screen.findByRole('textbox', { name: /search settings/i })).toBeInTheDocument()
-    expect(await screen.findByText('Display')).toBeInTheDocument()
-    fireEvent.keyDown(screen.getByRole('textbox', { name: /search settings/i }), { key: 'Escape' })
-
-    fireEvent.doubleClick(await screen.findByRole('option', { name: /^Layout/i }))
-    expect(await screen.findByRole('textbox', { name: /search layout/i })).toBeInTheDocument()
-    expect(await screen.findByText('Snap left')).toBeInTheDocument()
-    expect(screen.getByText('Snap right')).toBeInTheDocument()
-    expect(screen.getByText('Maximize')).toBeInTheDocument()
-    fireEvent.keyDown(screen.getByRole('textbox', { name: /search layout/i }), { key: 'Escape' })
-
-    fireEvent.doubleClick(await screen.findByRole('option', { name: /Zura AI Chats/i }))
-    expect(await screen.findByRole('textbox', { name: /search chats/i })).toBeInTheDocument()
-    expect(await screen.findByText('Demo chat')).toBeInTheDocument()
-    fireEvent.keyDown(screen.getByRole('textbox', { name: /search chats/i }), { key: 'Escape' })
 
     fireEvent.doubleClick(await screen.findByRole('option', { name: /Emojis/i }))
     const emojiSearch = await screen.findByRole('textbox', { name: /search emojis/i })
