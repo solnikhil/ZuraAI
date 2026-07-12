@@ -164,7 +164,9 @@ describe('Command Center main service', () => {
 
     vi.doMock('electron', () => ({
       app: {
-        getPath: vi.fn((name: string) => (name === 'userData' ? 'C:\\tmp\\zura-test-userData' : '')),
+        getPath: vi.fn((name: string) =>
+          name === 'userData' ? 'C:\\tmp\\zura-test-userData' : ''
+        ),
         getFileIcon: vi.fn(async () => ({
           isEmpty: () => false,
           toDataURL: () => 'data:image/png;base64,icon',
@@ -367,16 +369,16 @@ describe('Command Center main service', () => {
 
     expect(service.setCommandCenterExtensionEnabled(true)).toEqual({
       enabled: true,
-      shortcut: 'CommandOrControl+Shift+Space',
+      shortcut: 'Control+Shift+Space',
       shortcutRegistered: true,
     })
-    expect(register).toHaveBeenCalledWith('CommandOrControl+Shift+Space', expect.any(Function))
+    expect(register).toHaveBeenCalledWith('Control+Shift+Space', expect.any(Function))
     expect(preloadCommandCenterWindow).not.toHaveBeenCalled()
     // Warm app snapshot + browse index on enable so first open is less cold.
     expect(warmAppIndex).toHaveBeenCalled()
 
     service.setCommandCenterExtensionEnabled(false)
-    expect(unregister).toHaveBeenCalledWith('CommandOrControl+Shift+Space')
+    expect(unregister).toHaveBeenCalledWith('Control+Shift+Space')
     // Leaving Agent Mode must destroy the second renderer, not leave it hidden.
     expect(destroyCommandCenterWindow).toHaveBeenCalledTimes(1)
   })
@@ -387,18 +389,14 @@ describe('Command Center main service', () => {
 
     expect(service.setCommandCenterExtensionEnabled(true)).toEqual({
       enabled: true,
-      shortcut: 'CommandOrControl+Alt+Space',
+      shortcut: 'Control+Option+Shift+Space',
       shortcutRegistered: true,
     })
-    expect(register).toHaveBeenNthCalledWith(
-      1,
-      'CommandOrControl+Shift+Space',
-      expect.any(Function)
-    )
-    expect(register).toHaveBeenNthCalledWith(2, 'CommandOrControl+Alt+Space', expect.any(Function))
+    expect(register).toHaveBeenNthCalledWith(1, 'Control+Shift+Space', expect.any(Function))
+    expect(register).toHaveBeenNthCalledWith(2, 'Control+Option+Shift+Space', expect.any(Function))
 
     service.setCommandCenterExtensionEnabled(false)
-    expect(unregister).toHaveBeenCalledWith('CommandOrControl+Alt+Space')
+    expect(unregister).toHaveBeenCalledWith('Control+Option+Shift+Space')
   })
 
   it('routes submitted overlay commands into the main window', async () => {

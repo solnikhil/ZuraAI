@@ -8,7 +8,7 @@ import { ExtensionDetailSection } from './ExtensionDetailSection'
 describe('ExtensionDetailSection', () => {
   const setExtensionEnabled = vi.fn(async () => ({
     enabled: true,
-    shortcut: 'CommandOrControl+Shift+Space',
+    shortcut: 'Control+Shift+Space',
     shortcutRegistered: true,
   }))
   const show = vi.fn(async () => true)
@@ -42,7 +42,7 @@ describe('ExtensionDetailSection', () => {
     )
 
     expect(screen.getByText('Global shortcut')).toBeInTheDocument()
-    expect(screen.getByText(/Ctrl\+Shift\+Space/)).toBeInTheDocument()
+    expect(screen.getByText(/Control\+Shift\+Space/)).toBeInTheDocument()
     expect(screen.getByText('Quick OS actions')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /open/i }))

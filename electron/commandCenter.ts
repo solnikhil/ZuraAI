@@ -70,10 +70,14 @@ import {
   personalizationBoostMap,
   recordCommandCenterSelection,
 } from './commandCenterSearchLearning'
-import { executeNoViewExtensionCommand, listEnabledExtensionCommands } from './extensions/extensionService'
+import {
+  executeNoViewExtensionCommand,
+  listEnabledExtensionCommands,
+} from './extensions/extensionService'
 
-const COMMAND_CENTER_SHORTCUT = 'CommandOrControl+Shift+Space'
-const COMMAND_CENTER_FALLBACK_SHORTCUT = 'CommandOrControl+Alt+Space'
+const COMMAND_CENTER_SHORTCUT = 'Control+Shift+Space'
+const COMMAND_CENTER_FALLBACK_SHORTCUT =
+  process.platform === 'darwin' ? 'Control+Option+Shift+Space' : 'Control+Alt+Space'
 const MAX_CLIPBOARD_CONTEXT_LENGTH = 4_000
 const MAX_INDEX_QUERY_LENGTH = 120
 
@@ -174,7 +178,7 @@ const ACTION_SUBTITLES: Record<string, string> = {
   'emoji-picker': 'Search and paste emoji',
   'zura-ai-chats': 'Browse recent Zura AI chats',
   layout: 'Snap, tile, and maximize the active window',
-  settings: 'Open Windows Settings pages',
+  settings: 'Open system settings pages',
   'zura-store': 'Discover extensions for Command Center',
   'github-workspace': 'Changes, history, branches, and sync',
   'open-windows-copilot': 'Open Windows Copilot',
@@ -275,7 +279,9 @@ function withFreshBrowseIcons(index: CommandCenterIndex): CommandCenterIndex {
   }
 }
 
-function startBrowseIndexBuild(options?: { deferLiveWindows?: boolean }): Promise<CommandCenterIndex> {
+function startBrowseIndexBuild(options?: {
+  deferLiveWindows?: boolean
+}): Promise<CommandCenterIndex> {
   if (browseIndexInflight) return browseIndexInflight
   const deferLiveWindows = options?.deferLiveWindows === true
   browseIndexInflight = buildCommandCenterIndex('', { deferLiveWindows })
@@ -706,7 +712,11 @@ async function buildCommandCenterIndex(
         processName: window.processName,
         processId: window.processId,
       })),
-    actions: COMMAND_CENTER_ACTIONS.filter((action) => action.id !== 'github-workspace').map((action) => ({
+    actions: COMMAND_CENTER_ACTIONS.filter(
+      (action) =>
+        action.id !== 'github-workspace' &&
+        (process.platform === 'win32' || action.id !== 'open-windows-copilot')
+    ).map((action) => ({
       id: `action:${action.id}`,
       type: 'action' as const,
       title: action.label,
@@ -994,9 +1004,7 @@ async function rankItems(
       matchReasons: learning > 0 ? [...lexical.matchReasons, 'personalized'] : lexical.matchReasons,
     }
   })
-  return ranked.sort(
-    (a, b) => (b.score ?? 0) - (a.score ?? 0) || a.title.localeCompare(b.title)
-  )
+  return ranked.sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || a.title.localeCompare(b.title))
 }
 
 async function rankCommandCenterIndex(
@@ -1124,7 +1132,11 @@ function appFilesystemPath(
     const trimmed = candidate.trim()
     if (!trimmed || trimmed.includes('\0')) continue
     // Only accept real paths — not AUMIDs or bare names.
-    if (/^[a-zA-Z]:[\\/]/.test(trimmed) || trimmed.startsWith('\\\\')) {
+    if (
+      /^[a-zA-Z]:[\\/]/.test(trimmed) ||
+      trimmed.startsWith('\\\\') ||
+      (process.platform === 'darwin' && path.isAbsolute(trimmed))
+    ) {
       return path.normalize(trimmed)
     }
   }
@@ -1186,7 +1198,14 @@ async function executeIndexItem(itemId: unknown, query: unknown = '') {
       const result = await executeNoViewExtensionCommand(item.extensionId, item.commandId)
       return result.ok ? { success: true, data: result } : { success: false, error: result.error }
     }
-    return { success: true, extension: { extensionId: item.extensionId, commandId: item.commandId, hostCapability: item.hostCapability } }
+    return {
+      success: true,
+      extension: {
+        extensionId: item.extensionId,
+        commandId: item.commandId,
+        hostCapability: item.hostCapability,
+      },
+    }
   }
   if (item.type === 'chat') {
     await sendCommandToMainWindow('', item.sessionId)
@@ -1329,8 +1348,7 @@ async function executeItemAction(
       return { success: true, dismiss: false }
     }
     case 'copy-bundle-id': {
-      const bundleId =
-        typeof item.appUserModelId === 'string' ? item.appUserModelId.trim() : ''
+      const bundleId = typeof item.appUserModelId === 'string' ? item.appUserModelId.trim() : ''
       if (!bundleId) {
         return {
           success: false,
@@ -1349,9 +1367,7 @@ async function executeItemAction(
       const result = await executeSystemSettingsOpen({ page: 'apps', autoApprove: true })
       return {
         success: Boolean(result.success),
-        error: result.success
-          ? undefined
-          : result.error || 'Unable to open Apps settings.',
+        error: result.success ? undefined : result.error || 'Unable to open Apps settings.',
         dismiss: Boolean(result.success),
         status: result.success
           ? actionId === 'uninstall-application'

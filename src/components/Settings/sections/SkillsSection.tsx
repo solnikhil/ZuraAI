@@ -84,10 +84,7 @@ export function SkillsSection({
   }
 
   const visibleSkills = isMacOSRuntime()
-    ? BUILT_IN_SKILLS.filter(
-        (skill) =>
-          skill.id !== 'computer_use' && skill.id !== 'terminal' && skill.id !== 'command_center'
-      )
+    ? BUILT_IN_SKILLS.filter((skill) => skill.id !== 'computer_use' && skill.id !== 'terminal')
     : BUILT_IN_SKILLS
 
   const recommendedRows = useMemo((): CatalogRow[] => {

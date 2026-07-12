@@ -23,7 +23,7 @@ import { shouldContinueToolResearch, shouldRequestToolFollowUp } from '../tools/
 import { shouldEnableTools } from '../utils/promptSelection'
 import { createMcpToolRegistry } from '../tools/mcpRegistry'
 import { getProviderModels, type ProviderId } from '../providers'
-import { isWindowsRuntime } from '../utils/platform'
+import { isMacOSRuntime, isWindowsRuntime } from '../utils/platform'
 import { isSkillEnabled } from '../skills'
 import type { McpRuntimeSnapshot } from '../mcp/types'
 
@@ -82,6 +82,10 @@ const COMMAND_CENTER_TOOLS = [
   'window_list',
   'window_focus',
 ]
+
+const MACOS_COMMAND_CENTER_TOOLS = COMMAND_CENTER_TOOLS.filter(
+  (tool) => tool !== 'window_list' && tool !== 'window_focus'
+)
 
 const SCHEDULED_TASK_TOOLS = [
   'scheduled_task_create',
@@ -193,7 +197,11 @@ export function useToolCalling() {
       }
     }
 
-    const commandCenterSurfaceEnabled = settings.assistantMode === 'agent' && isWindowsRuntime()
+    const commandCenterSurfaceEnabled =
+      settings.assistantMode === 'agent' && (isWindowsRuntime() || isMacOSRuntime())
+    const platformCommandCenterTools = isMacOSRuntime()
+      ? MACOS_COMMAND_CENTER_TOOLS
+      : COMMAND_CENTER_TOOLS
 
     if (!commandCenterSurfaceEnabled) {
       enabledTools = enabledTools.filter(
@@ -202,7 +210,7 @@ export function useToolCalling() {
           (nativeWindowsAgentToolsEnabled && NATIVE_WINDOWS_AGENT_TOOLS.includes(tool))
       )
     } else {
-      for (const tool of COMMAND_CENTER_TOOLS) {
+      for (const tool of platformCommandCenterTools) {
         if (!enabledTools.includes(tool)) enabledTools.push(tool)
       }
     }

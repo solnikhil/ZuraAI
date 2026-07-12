@@ -93,7 +93,7 @@ export const BUILT_IN_SKILLS: BuiltInSkill[] = [
     name: 'Control This Desktop',
     description:
       'Let Agent Mode use native OS tools, Command Center, screenshots, clicks, typing, scrolling, and app controls on this desktop.',
-    note: 'Agent Mode includes native Windows tools and Ctrl+Shift+Space Command Center, with Ctrl+Alt+Space as a fallback if that shortcut is unavailable. Desktop control actions require approval. Press Esc+Esc to emergency stop.',
+    note: 'Agent Mode includes native desktop tools and Control+Shift+Space Command Center. On macOS, Control+Option+Shift+Space is the fallback. Desktop control actions require approval. Press Esc+Esc to emergency stop.',
     usageGuidance: [
       'Prefer native OS tools and Command Center context before screenshots or shell commands.',
       'Use screenshots when visual inspection is required, then analyze before performing any action.',
@@ -104,8 +104,8 @@ export const BUILT_IN_SKILLS: BuiltInSkill[] = [
     id: 'command_center',
     name: 'Command Center',
     description:
-      'Give the assistant native OS context and safe system controls for the active Windows desktop.',
-    note: 'Windows-only. Model-callable OS actions use the normal approval path; overlay shortcuts are limited to a fixed main-process allowlist.',
+      'Give the assistant native OS context and safe system controls for the active Windows or macOS desktop.',
+    note: 'Available on Windows and macOS. Model-callable OS actions use the normal approval path; overlay shortcuts are limited to a fixed main-process allowlist.',
     usageGuidance: [
       'Use active-window context before acting on the current app or desktop.',
       'Prefer explicit OS tools for opening files/folders and window snap layouts instead of shell commands.',

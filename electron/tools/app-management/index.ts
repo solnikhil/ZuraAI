@@ -38,7 +38,7 @@ function runWinget(args: string[]): Promise<{ stdout: string; stderr: string }> 
 }
 
 export async function executeAppFind(args: unknown): Promise<ToolResult> {
-  if (!isWindows()) return unsupportedWindowsOnly('app_find')
+  if (!isWindows() && process.platform !== 'darwin') return unsupportedWindowsOnly('app_find')
   const query = stringArg(args, 'query')
   if (!query) return { success: false, error: 'query is required.' }
   try {
@@ -60,7 +60,7 @@ export async function executeAppFind(args: unknown): Promise<ToolResult> {
 }
 
 export async function executeAppList(): Promise<ToolResult> {
-  if (!isWindows()) return unsupportedWindowsOnly('app_list')
+  if (!isWindows() && process.platform !== 'darwin') return unsupportedWindowsOnly('app_list')
   try {
     const result = await listApps()
     return {
@@ -80,7 +80,7 @@ export async function executeAppList(): Promise<ToolResult> {
 }
 
 export async function executeAppLaunch(args: unknown): Promise<ToolResult> {
-  if (!isWindows()) return unsupportedWindowsOnly('app_launch')
+  if (!isWindows() && process.platform !== 'darwin') return unsupportedWindowsOnly('app_launch')
   const approval = requireApproval(args, 'app_launch')
   if (approval) return approval
   const nameOrPath = stringArg(args, 'nameOrPath')
@@ -102,7 +102,7 @@ export async function executeAppLaunch(args: unknown): Promise<ToolResult> {
         refreshAppIndex().catch(() => undefined)
         return { success: false, error }
       }
-    } else if (appUserModelId) {
+    } else if (appUserModelId && isWindows()) {
       // UWP/store/native entries have no on-disk path. Launch them by handing
       // the AppsFolder moniker straight to Explorer (the native launcher) via a
       // detached spawn. This avoids spawning powershell.exe on the hot path, so
@@ -115,8 +115,10 @@ export async function executeAppLaunch(args: unknown): Promise<ToolResult> {
       })
       child.on('error', () => undefined)
       child.unref()
-    } else {
+    } else if (isWindows()) {
       await runPowerShell(`Start-Process -FilePath ${JSON.stringify(nameOrPath)}`)
+    } else {
+      return { success: false, error: 'A macOS application path is required.' }
     }
     if (itemId) {
       await recordAppLaunch(itemId)

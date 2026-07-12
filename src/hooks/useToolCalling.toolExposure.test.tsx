@@ -378,7 +378,7 @@ describe('useToolCalling - Command Center OS integration exposure gating', () =>
     }
   })
 
-  it('does not expose OS integration tools on macOS even when Command Center is enabled', () => {
+  it('exposes the supported Command Center tools on macOS', () => {
     isWindows = false
     mockSettings.settings = makeSettings({
       skills: {
@@ -388,9 +388,16 @@ describe('useToolCalling - Command Center OS integration exposure gating', () =>
     })
 
     const names = getExposedToolNames()
-    for (const tool of COMMAND_CENTER_TOOL_NAMES) {
-      expect(names).not.toContain(tool)
-    }
+    expect(names).toContain('system_active_window')
+    expect(names).toContain('system_status')
+    expect(names).toContain('system_settings_open')
+    expect(names).toContain('system_open_path')
+    expect(names).toContain('window_snap')
+    expect(names).toContain('app_find')
+    expect(names).toContain('app_list')
+    expect(names).toContain('app_launch')
+    expect(names).not.toContain('window_list')
+    expect(names).not.toContain('window_focus')
   })
 })
 

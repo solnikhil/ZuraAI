@@ -4,7 +4,7 @@ import { useSettings } from '../contexts/SettingsContext'
 import { useQuickSend } from '../contexts/QuickSendContext'
 import { useChatHistory } from '../contexts/ChatHistoryContext'
 import type { CommandCenterCommand } from '../electron/types'
-import { isWindowsRuntime } from '../utils/platform'
+import { isMacOSRuntime, isWindowsRuntime } from '../utils/platform'
 
 function formatCommandCenterMessage(command: CommandCenterCommand): string {
   const text = command.text.trim()
@@ -31,7 +31,7 @@ export default function CommandCenterSettingsSync() {
   // The overlay is a keyboard launcher in both Chat and Agent modes. Freeform
   // requests switch to Agent Mode when submitted, but opening/searching fixed
   // commands must not depend on the current assistant mode.
-  const enabled = isWindowsRuntime()
+  const enabled = isWindowsRuntime() || isMacOSRuntime()
 
   useEffect(() => {
     void window.commandCenter?.setExtensionEnabled(enabled)

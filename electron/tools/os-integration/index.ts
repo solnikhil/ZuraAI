@@ -1,4 +1,6 @@
 import { shell } from 'electron'
+import { execFile } from 'node:child_process'
+import os from 'node:os'
 
 import type { ToolResult } from '../types'
 import {
@@ -30,6 +32,90 @@ type SnapPreset = 'left' | 'right' | 'top' | 'bottom' | 'maximize' | 'center'
 
 function psString(value: string): string {
   return `'${value.replace(/'/g, "''")}'`
+}
+
+function runAppleScript(script: string, args: string[] = []): Promise<string> {
+  return new Promise((resolve, reject) => {
+    execFile(
+      'osascript',
+      ['-e', script, ...args],
+      { timeout: 8_000, maxBuffer: 64 * 1024 },
+      (error, stdout, stderr) => {
+        if (error) reject(new Error(String(stderr || error.message).trim()))
+        else resolve(String(stdout ?? '').trim())
+      }
+    )
+  })
+}
+
+async function macActiveWindow(): Promise<ToolResult> {
+  try {
+    const output = await runAppleScript(`
+tell application "System Events"
+  set frontProcess to first application process whose frontmost is true
+  set appName to name of frontProcess
+  set processId to unix id of frontProcess
+  set windowTitle to ""
+  try
+    set windowTitle to name of front window of frontProcess
+  end try
+  return appName & linefeed & processId & linefeed & windowTitle
+end tell`)
+    const [processName = '', processId = '', ...title] = output.split(/\r?\n/)
+    return {
+      success: true,
+      data: { processName, processId: Number(processId) || 0, title: title.join('\n') },
+    }
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'system_active_window failed.',
+    }
+  }
+}
+
+async function macWindowSnap(args: unknown): Promise<ToolResult> {
+  const preset = stringArg(args, 'preset') || 'left'
+  if (!['left', 'right', 'maximize'].includes(preset)) {
+    return { success: false, error: 'macOS Command Center supports left, right, and maximize.' }
+  }
+  try {
+    await runAppleScript(
+      `
+on run argv
+  set preset to item 1 of argv
+  tell application "Finder" to set desktopBounds to bounds of window of desktop
+  set screenWidth to item 3 of desktopBounds
+  set screenHeight to item 4 of desktopBounds
+  tell application "System Events"
+    set frontProcess to first application process whose frontmost is true
+    if name of frontProcess is "ZuraAI" then error "Refusing to manage ZuraAI-owned windows."
+    tell front window of frontProcess
+      if preset is "left" then
+        set position to {0, 25}
+        set size to {screenWidth / 2, screenHeight - 25}
+      else if preset is "right" then
+        set position to {screenWidth / 2, 25}
+        set size to {screenWidth / 2, screenHeight - 25}
+      else
+        set position to {0, 25}
+        set size to {screenWidth, screenHeight - 25}
+      end if
+    end tell
+  end tell
+end run`,
+      [preset]
+    )
+    return { success: true, data: { action: 'snap', preset } }
+  } catch (error) {
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'window_snap failed. Grant ZuraAI Accessibility access in System Settings.',
+    }
+  }
 }
 
 function activeWindowScript(): string {
@@ -150,6 +236,7 @@ $networks = Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object {
 }
 
 export async function executeSystemActiveWindow(): Promise<ToolResult> {
+  if (!isWindows() && process.platform === 'darwin') return macActiveWindow()
   if (!isWindows()) return unsupportedWindowsOnly('system_active_window')
   try {
     const { stdout } = await runPowerShell(activeWindowScript())
@@ -167,7 +254,8 @@ function parseSettingsPage(value: string): SettingsPage | null {
 }
 
 export async function executeSystemSettingsOpen(args: unknown): Promise<ToolResult> {
-  if (!isWindows()) return unsupportedWindowsOnly('system_settings_open')
+  if (!isWindows() && process.platform !== 'darwin')
+    return unsupportedWindowsOnly('system_settings_open')
   const approval = requireApproval(args, 'system_settings_open')
   if (approval) return approval
   const page = parseSettingsPage(stringArg(args, 'page') ?? '')
@@ -177,7 +265,19 @@ export async function executeSystemSettingsOpen(args: unknown): Promise<ToolResu
       error: `page must be one of: ${settingsPageListForError()}.`,
     }
   }
-  await shell.openExternal(SETTINGS_PAGE_URIS[page])
+  if (!isWindows() && process.platform === 'darwin') {
+    const macSettings: Partial<Record<SettingsPage, string>> = {
+      display: 'x-apple.systempreferences:com.apple.Displays-Settings.extension',
+      sound: 'x-apple.systempreferences:com.apple.Sound-Settings.extension',
+      network: 'x-apple.systempreferences:com.apple.Network-Settings.extension',
+      bluetooth: 'x-apple.systempreferences:com.apple.BluetoothSettings',
+      privacy: 'x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension',
+      apps: 'x-apple.systempreferences:com.apple.preferences-apps',
+    }
+    await shell.openExternal(macSettings[page] ?? 'x-apple.systempreferences:')
+  } else {
+    await shell.openExternal(SETTINGS_PAGE_URIS[page])
+  }
   return { success: true, data: { page } }
 }
 
@@ -198,6 +298,20 @@ export async function executeWindowsCopilotOpen(args: unknown = {}): Promise<Too
 }
 
 export async function executeSystemStatus(): Promise<ToolResult> {
+  if (!isWindows() && process.platform === 'darwin') {
+    return {
+      success: true,
+      data: {
+        capturedAt: Date.now(),
+        hostname: os.hostname(),
+        uptimeSeconds: os.uptime(),
+        totalMemoryBytes: os.totalmem(),
+        freeMemoryBytes: os.freemem(),
+        cpuCount: os.cpus().length,
+        platform: 'macos',
+      },
+    }
+  }
   if (!isWindows()) return unsupportedWindowsOnly('system_status')
   try {
     const { stdout } = await runPowerShell(systemStatusScript())
@@ -211,7 +325,8 @@ export async function executeSystemStatus(): Promise<ToolResult> {
 }
 
 export async function executeSystemOpenPath(args: unknown): Promise<ToolResult> {
-  if (!isWindows()) return unsupportedWindowsOnly('system_open_path')
+  if (!isWindows() && process.platform !== 'darwin')
+    return unsupportedWindowsOnly('system_open_path')
   const approval = requireApproval(args, 'system_open_path')
   if (approval) return approval
   const targetPath = stringArg(args, 'path')
@@ -222,9 +337,10 @@ export async function executeSystemOpenPath(args: unknown): Promise<ToolResult> 
 }
 
 export async function executeWindowSnap(args: unknown): Promise<ToolResult> {
-  if (!isWindows()) return unsupportedWindowsOnly('window_snap')
   const approval = requireApproval(args, 'window_snap')
   if (approval) return approval
+  if (!isWindows() && process.platform === 'darwin') return macWindowSnap(args)
+  if (!isWindows()) return unsupportedWindowsOnly('window_snap')
   if (!isRecord(args)) return { success: false, error: 'window snap arguments are required.' }
   try {
     const { stdout } = await runPowerShell(windowSnapScript(args))

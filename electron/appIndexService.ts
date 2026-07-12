@@ -37,7 +37,7 @@ type ShortcutScanBudget = {
   stoppedReason?: 'entry-limit' | 'timeout'
 }
 
-export type AppIndexSource = 'windows-search' | 'start-menu' | 'desktop'
+export type AppIndexSource = 'windows-search' | 'start-menu' | 'desktop' | 'macos-applications'
 export type AppLaunchStrategy = 'appUserModelId' | 'shortcutPath'
 
 export interface AppIndexEntry {
@@ -166,6 +166,28 @@ function shortcutRoots(): Array<{ path: string; source: AppIndexSource }> {
     { path: path.join(os.homedir(), 'Desktop'), source: 'desktop' },
     { path: path.join(publicProfile, 'Desktop'), source: 'desktop' },
   ]
+}
+
+function macApplicationRoots(): string[] {
+  return ['/Applications', '/System/Applications', path.join(os.homedir(), 'Applications')]
+}
+
+async function collectMacApplications(): Promise<RawAppMatch[]> {
+  const results: RawAppMatch[] = []
+  for (const root of macApplicationRoots()) {
+    const entries = await fs.readdir(root, { withFileTypes: true }).catch(() => [])
+    for (const entry of entries) {
+      if (!entry.isDirectory() || !entry.name.toLowerCase().endsWith('.app')) continue
+      const appPath = path.join(root, entry.name)
+      results.push({
+        name: entry.name.slice(0, -4),
+        path: appPath,
+        targetPath: appPath,
+        source: 'macos-applications',
+      })
+    }
+  }
+  return results
 }
 
 function compact(value: string): string {
@@ -489,12 +511,10 @@ function sanitizeSnapshot(value: unknown): AppIndexSnapshot | null {
       name,
       normalizedName: normalizeName(name),
       aliases: Array.isArray(appEntry.aliases)
-        ? appEntry.aliases
-            .slice(0, MAX_APP_ALIASES)
-            .flatMap((alias) => {
-              const sanitized = boundedString(alias, MAX_APP_NAME_LENGTH)
-              return sanitized ? [sanitized] : []
-            })
+        ? appEntry.aliases.slice(0, MAX_APP_ALIASES).flatMap((alias) => {
+            const sanitized = boundedString(alias, MAX_APP_NAME_LENGTH)
+            return sanitized ? [sanitized] : []
+          })
         : [name],
       source: appEntry.source,
       appUserModelId: boundedString(appEntry.appUserModelId, MAX_APP_PATH_LENGTH),
@@ -994,7 +1014,9 @@ function applyAppxLogos(apps: AppIndexEntry[], logos: Map<string, string>): AppI
 }
 
 async function bootstrapAppsFromShortcuts(): Promise<boolean> {
-  const shortcutApps = await collectShortcutApps().catch(() => [] as RawAppMatch[])
+  const shortcutApps = await (
+    !isWindows() && process.platform === 'darwin' ? collectMacApplications() : collectShortcutApps()
+  ).catch(() => [] as RawAppMatch[])
   if (shortcutApps.length === 0) return false
   memoryApps = mergeApps([], shortcutApps, memoryApps)
   diagnostics = {
@@ -1022,11 +1044,11 @@ async function ensureAppsAvailable(): Promise<void> {
 }
 
 export async function refreshAppIndex(): Promise<AppIndexDiagnostics> {
-  if (!isWindows()) {
+  if (!isWindows() && process.platform !== 'darwin') {
     diagnostics = {
       ok: false,
       stale: true,
-      error: 'App index is only supported on Windows.',
+      error: 'App index is only supported on Windows and macOS.',
       sourceCounts: {},
     }
     return diagnostics
@@ -1036,6 +1058,26 @@ export async function refreshAppIndex(): Promise<AppIndexDiagnostics> {
   refreshRequest = (async () => {
     const startedAt = Date.now()
     const errors: string[] = []
+    if (!isWindows() && process.platform === 'darwin') {
+      const freshApps = await collectMacApplications().catch((error) => {
+        errors.push(`applications: ${error instanceof Error ? error.message : 'failed'}`)
+        return [] as RawAppMatch[]
+      })
+      const updatedAt = Date.now()
+      memoryApps = mergeApps(freshApps, [], memoryApps)
+      await saveSnapshot(memoryApps, updatedAt).catch((error) => {
+        errors.push(`snapshot: ${error instanceof Error ? error.message : 'failed'}`)
+      })
+      diagnostics = {
+        ok: errors.length === 0,
+        stale: errors.length > 0,
+        error: errors.length ? errors.join('; ') : undefined,
+        sourceCounts: sourceCounts(memoryApps),
+        lastRefreshAt: updatedAt,
+        refreshDurationMs: Date.now() - startedAt,
+      }
+      return diagnostics
+    }
     let nativeFailed = false
     let shortcutsFailed = false
     const [freshNativeApps, freshShortcutApps, userAssistUsage] = await Promise.all([
@@ -1091,7 +1133,7 @@ export async function refreshAppIndex(): Promise<AppIndexDiagnostics> {
 }
 
 export function warmAppIndex(): void {
-  if (!isWindows()) return
+  if (!isWindows() && process.platform !== 'darwin') return
   void (async () => {
     await loadSnapshot()
     if (memoryApps.length === 0) {
@@ -1112,9 +1154,13 @@ function debounceRefresh(): void {
 }
 
 function startShortcutWatchers(): void {
-  if (watchersStarted || !isWindows()) return
+  if (watchersStarted || (!isWindows() && process.platform !== 'darwin')) return
   watchersStarted = true
-  for (const root of shortcutRoots()) {
+  const roots =
+    !isWindows() && process.platform === 'darwin'
+      ? macApplicationRoots().map((root) => ({ path: root }))
+      : shortcutRoots()
+  for (const root of roots) {
     try {
       const watcher = watch(root.path, { recursive: true }, debounceRefresh)
       shortcutWatchers.add(watcher)
@@ -1175,37 +1221,38 @@ export async function findApps(
   const trimmedQuery = query.trim()
   if (!trimmedQuery) return { matches: [], diagnostics }
 
-  void queryNativeStartApps(trimmedQuery, 1_000)
-    .then((nativeMatches) => {
-      if (nativeMatches.length === 0) return
-      memoryApps = mergeApps(
-        nativeMatches,
-        memoryApps.map((entry) => ({
-          name: entry.name,
-          source: entry.source,
-          path: entry.shortcutPath,
-          targetPath: entry.targetPath,
-          iconPath: entry.iconPath,
-          args: entry.args,
-          workingDirectory: entry.workingDirectory,
-          appUserModelId: entry.appUserModelId,
-        })),
-        memoryApps
-      )
-      diagnostics = {
-        ...diagnostics,
-        sourceCounts: sourceCounts(memoryApps),
-      }
-      void saveSnapshot(memoryApps, Date.now()).catch((error) => {
+  if (isWindows())
+    void queryNativeStartApps(trimmedQuery, 1_000)
+      .then((nativeMatches) => {
+        if (nativeMatches.length === 0) return
+        memoryApps = mergeApps(
+          nativeMatches,
+          memoryApps.map((entry) => ({
+            name: entry.name,
+            source: entry.source,
+            path: entry.shortcutPath,
+            targetPath: entry.targetPath,
+            iconPath: entry.iconPath,
+            args: entry.args,
+            workingDirectory: entry.workingDirectory,
+            appUserModelId: entry.appUserModelId,
+          })),
+          memoryApps
+        )
         diagnostics = {
           ...diagnostics,
-          ok: false,
-          stale: true,
-          error: `snapshot: ${error instanceof Error ? error.message : 'failed'}`,
+          sourceCounts: sourceCounts(memoryApps),
         }
+        void saveSnapshot(memoryApps, Date.now()).catch((error) => {
+          diagnostics = {
+            ...diagnostics,
+            ok: false,
+            stale: true,
+            error: `snapshot: ${error instanceof Error ? error.message : 'failed'}`,
+          }
+        })
       })
-    })
-    .catch(() => undefined)
+      .catch(() => undefined)
 
   const matches = memoryApps
     .map((entry) => ({ ...entry, rank: scoreApp(entry, trimmedQuery) }))

@@ -8,7 +8,7 @@ import { defaultSettingsConfig } from '../../../contexts/SettingsConfigContext'
 let isMac = false
 const setExtensionEnabled = vi.fn(async () => ({
   enabled: true,
-  shortcut: 'CommandOrControl+Shift+Space',
+  shortcut: 'Control+Shift+Space',
   shortcutRegistered: true,
 }))
 vi.mock('@/utils/platform', () => ({
@@ -243,7 +243,7 @@ describe('SkillsSection', () => {
     )
 
     expect(screen.queryByText('Terminal')).not.toBeInTheDocument()
-    expect(screen.queryByText('Command Center')).not.toBeInTheDocument()
+    expect(screen.getByText('Command Center')).toBeInTheDocument()
   })
 
   it('returns to the catalog from inline extension settings', () => {

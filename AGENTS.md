@@ -100,7 +100,7 @@ Renderer (React/Vite) -> Preload (allowlisted bridges) -> Electron Main
 - Main window: loads `#/dashboard`; routes `/`, `/dashboard`, `/settings`, and `/chat` under `AppShellLayout`.
 - About window: separate `BrowserWindow`, loads `#/about`, opened through `window.appInfo.openAboutWindow()`.
 - Chat debug window: dev-only separate `BrowserWindow`, loads `#/chat-debug?sessionId=<id>`, disabled in packaged builds.
-- Command Center overlay: separate frameless always-on-top `BrowserWindow`, loads `#/command-center`, and is available in both Chat and Agent modes on Windows.
+- Command Center overlay: separate frameless always-on-top `BrowserWindow`, loads `#/command-center`, and is available in both Chat and Agent modes on Windows and macOS.
 - Agent approval overlay: separate small frameless always-on-top `BrowserWindow` owned by main for Agent Mode tool-call approvals while ZuraAI is not focused. It loads sanitized inline approval HTML only, resolves approve/reject/always-allow-exact-repeat decisions back to the requesting renderer, and does not execute tools or expose general desktop APIs.
 - Unknown renderer routes render the dedicated 404 view.
 - Packaged app registers `zuraai` for terminal/app-launch handoff and `zura-chat` for trusted local chat deep links. `zuraai://open` may only focus/create the main window. Debug and CLI chat references keep the shape `zura-chat://<sessionId>?userData=<base64urlUserData>`; session-only links open/switch to that chat, while continuation links may include `message=` or `messageBase64=`. CLI-created new-chat links may include `createIfMissing=1`, but must still pass the userData path validation before the renderer creates a new chat and sends the message.
@@ -292,15 +292,16 @@ policy for web searches and total tool calls, in addition to the automation run
 timeout owned by main.
 
 Command Center is an internal Agent Mode OS overlay/capability that exposes
-explicit Windows-native tool primitives through the existing `execute-tool` IPC
+explicit platform-native tool primitives through the existing `execute-tool` IPC
 path rather than a broad new desktop API. Its tools are `system_active_window`,
 `system_status`, `system_settings_open`, `system_open_path`, and `window_snap`.
 Read-only context tools return foreground-window or local machine status;
 mutating tools require the normal tool approval path. These tools are
-Windows-only, gated by Agent Mode in renderer tool exposure, and implemented in main under
+implemented for Windows and macOS, gated by Agent Mode in renderer tool exposure, and owned by main under
 `electron/tools/os-integration/`. The root Command Center overlay is owned by
 main through `electron/commandCenter.ts` and `electron/windows/commandCenterOverlay.ts`.
-Its global shortcut is registered after the Windows dashboard renderer mounts
+Its global shortcut is `Control+Shift+Space` on Windows and macOS. The fallback is
+`Control+Alt+Space` on Windows and `Control+Option+Shift+Space` on macOS. It is registered after the dashboard renderer mounts
 and syncs availability through `command-center:set-extension-enabled`; changing
 assistant mode must not unregister the shortcut or hide the overlay.
 Command Center overlay lifecycle (RAM): create on first show, hide on blur/dismiss,
@@ -419,7 +420,11 @@ a typed index of saved workflows, apps from the main-process
 `appIndexService`, live top-level windows, fixed actions, and recent chats. The
 app index service loads a non-secret persisted snapshot from
 `app.getPath('userData')/command-center-app-index.json`, serves that snapshot
-immediately on overlay open, refreshes Windows app data in the background from
+immediately on overlay open. On macOS, the index is refreshed from bounded scans
+of `/Applications`, `/System/Applications`, and `~/Applications`; `.app` bundle
+paths remain main-owned launch authority and never come from renderer input. On
+Windows, it
+refreshes app data in the background from
 `Get-StartApps`, query-specific `Get-StartApps -Name` lookups, and
 Start Menu/Desktop shortcuts enriched with shortcut metadata where available,
 and writes refreshed snapshots atomically. App icons are resolved OS-natively:
@@ -430,7 +435,7 @@ best-effort in the background refresh via a bounded `Get-AppxPackage` /
 Command Center app launches and reads Windows UserAssist usage metadata as a
 best-effort recency/frequency ranking signal; those signals may be stored in the
 non-secret snapshot but never act as launch authority. App indexing is warmed at app ready
-and when Command Center is enabled; Start Menu/Desktop shortcut roots are watched
+and when Command Center is enabled; Start Menu/Desktop shortcut roots on Windows and Applications roots on macOS are watched
 opportunistically for debounced background refresh, and watcher handles are closed when
 Command Center is disabled or disposed. App icons are loaded lazily
 through a bounded in-memory main-process cache so first overlay paint is not
@@ -575,7 +580,7 @@ Important tool rules:
 - Agent mode should prefer native structured tools before visual Computer Use and verify mutating actions with read-only inspection where possible.
 - Terminal (`system_shell`) is Windows-only, default disabled, non-interactive PowerShell with approval, timeout, output caps, and no OS sandbox. Treat any relaxation as security-sensitive.
 - Computer Use is Windows-only, default disabled, current-desktop only. Screenshot/list-window capture uses Electron desktop APIs, while click/type/key/scroll/cursor actions use a fixed main-process User32 PowerShell helper with validated coordinates and allowlisted virtual keys. Do not reintroduce a separate virtual desktop mode, `agent_desktop` settings, or `agent-desktop:*` IPC.
-- Command Center is Windows-only and opens in both Chat and Agent modes. Its fixed overlay commands remain available in either mode, while model-callable desktop tools and freeform desktop requests are Agent Mode capabilities. It provides active-window context plus narrow OS actions such as OS-default path opening and snap layouts. It must not become arbitrary shell execution, input simulation, clipboard scraping, or broad OS automation.
+- Command Center supports Windows and macOS and opens in both Chat and Agent modes. Its fixed overlay commands remain available in either mode, while model-callable desktop tools and freeform desktop requests are Agent Mode capabilities. It provides active-window context plus narrow OS actions such as OS-default path opening and snap layouts. macOS foreground-window, focus restoration, paste, and layout actions use bounded code-owned AppleScript only; they do not accept script source from the renderer. It must not become arbitrary shell execution, input simulation, clipboard scraping, or broad OS automation.
 - Agent Mode UI automation is Windows-only and uses a model-facing `ui_*` tool family over the existing restricted `execute-tool` IPC path. `ui_get_app_state` is the primary observation primitive and returns a screenshot, active-window metadata, a compact Microsoft UI Automation accessibility tree, stable main-owned `element_id` values, supported actions, bounds, and truncation metadata. `ui_find` searches the latest/requested state, and `ui_wait_for` waits for bounded UI conditions. Mutating `ui_click`, `ui_type_text`, `ui_set_value`, `ui_select`, `ui_scroll`, `ui_focus`, and `ui_key` require approval and return fresh state after execution. Element IDs are opaque, cached only in main, and should be preferred over coordinate actions; coordinate-based `computer_*` tools remain fallback/legacy Computer Use primitives.
 - MCP resources and prompts are user-visible browsing/preview surfaces only; do not merge them into model-callable tools without an explicit architecture update.
 

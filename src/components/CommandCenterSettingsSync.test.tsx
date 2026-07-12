@@ -10,7 +10,7 @@ const switchSession = vi.fn()
 const loadFullSession = vi.fn(async () => null)
 const setExtensionEnabled = vi.fn(async () => ({
   enabled: true,
-  shortcut: 'CommandOrControl+Shift+Space',
+  shortcut: 'Control+Shift+Space',
   shortcutRegistered: true,
 }))
 let assistantMode: 'chat' | 'agent' = 'chat'

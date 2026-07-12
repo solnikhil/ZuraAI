@@ -50,7 +50,15 @@ type EmojiSearchFn = (query: string, limit?: number) => CommandCenterEmoji[]
 const EMOJI_PAGE_SIZE = 72
 
 type Mode = 'search' | 'ask'
-type CommandView = 'root' | 'emojis' | 'chats' | 'layout' | 'settings' | 'store' | 'github' | 'extension'
+type CommandView =
+  | 'root'
+  | 'emojis'
+  | 'chats'
+  | 'layout'
+  | 'settings'
+  | 'store'
+  | 'github'
+  | 'extension'
 
 type AppActionDef = {
   id: CommandCenterItemActionId
@@ -307,7 +315,9 @@ function flattenIndex(
     ...workflows
       .filter((item) => !bestIds.has(item.id))
       .map((item) => ({ group: 'Saved Workflows', item })),
-    ...extensions.filter((item) => !bestIds.has(item.id)).map((item) => ({ group: 'Extensions', item })),
+    ...extensions
+      .filter((item) => !bestIds.has(item.id))
+      .map((item) => ({ group: 'Extensions', item })),
     ...apps.filter((item) => !bestIds.has(item.id)).map((item) => ({ group: 'Apps', item })),
     ...files.filter((item) => !bestIds.has(item.id)).map((item) => ({ group: FILES_GROUP, item })),
   ]
@@ -507,7 +517,10 @@ function mergeNativeSearchResults(
 export default function CommandCenterOverlay() {
   const [mode, setMode] = useState<Mode>('search')
   const [commandView, setCommandView] = useState<CommandView>('root')
-  const [activeExtension, setActiveExtension] = useState<{ extensionId: string; commandId: string }>()
+  const [activeExtension, setActiveExtension] = useState<{
+    extensionId: string
+    commandId: string
+  }>()
   const [githubSignedIn, setGitHubSignedIn] = useState(false)
   const [githubSummary, setGithubSummary] = useState('')
   const [githubCommitMeta, setGithubCommitMeta] = useState<GitHubCommitBarMeta>({
@@ -579,11 +592,27 @@ export default function CommandCenterOverlay() {
   const isGitHubView = commandView === 'github' && !isChatMode
   const isExtensionView = commandView === 'extension' && !isChatMode
   const isNestedCommandView =
-    isEmojiView || isChatsView || isLayoutView || isSettingsView || isStoreView || isGitHubView || isExtensionView
+    isEmojiView ||
+    isChatsView ||
+    isLayoutView ||
+    isSettingsView ||
+    isStoreView ||
+    isGitHubView ||
+    isExtensionView
   const searchSyntaxSuggestions = useMemo(() => {
     if (isChatMode || isNestedCommandView || mode !== 'search') return []
     const last = input.split(/\s+/).at(-1)?.toLowerCase() ?? ''
-    const syntax = ['app:', 'file:', 'folder:', 'setting:', 'window:', 'kind:', 'ext:', 'modified:', 'size:']
+    const syntax = [
+      'app:',
+      'file:',
+      'folder:',
+      'setting:',
+      'window:',
+      'kind:',
+      'ext:',
+      'modified:',
+      'size:',
+    ]
     if (!last || (!last.includes(':') && last.length < 2)) return []
     if (last.includes(':') && !last.endsWith(':')) return []
     return syntax.filter((entry) => entry.startsWith(last)).slice(0, 5)
@@ -738,8 +767,7 @@ export default function CommandCenterOverlay() {
       // Always rank within the group: empty browse uses main score/rank so
       // frequent opens stay near the top of Apps as well as Suggestions.
       const ordered = [...items].sort(
-        (a, b) =>
-          searchScore(b, query) - searchScore(a, query) || a.title.localeCompare(b.title)
+        (a, b) => searchScore(b, query) - searchScore(a, query) || a.title.localeCompare(b.title)
       )
       // Keep the default (unsearched) Apps list short; expand it once searching.
       const limit =
@@ -853,15 +881,21 @@ export default function CommandCenterOverlay() {
     setSelectionVisible(false)
   }, [])
 
-  const openExtensionView = useCallback((extensionId: string, commandId: string, hostCapability?: string) => {
-    if (hostCapability === 'git-workspace') { openGitHubView(); return }
-    setActiveExtension({ extensionId, commandId })
-    setCommandView('extension')
-    setMode('search')
-    setInput('')
-    setSelectedIndex(0)
-    setSelectionVisible(false)
-  }, [openGitHubView])
+  const openExtensionView = useCallback(
+    (extensionId: string, commandId: string, hostCapability?: string) => {
+      if (hostCapability === 'git-workspace') {
+        openGitHubView()
+        return
+      }
+      setActiveExtension({ extensionId, commandId })
+      setCommandView('extension')
+      setMode('search')
+      setInput('')
+      setSelectedIndex(0)
+      setSelectionVisible(false)
+    },
+    [openGitHubView]
+  )
 
   const showGitHubCommitBar = isGitHubView && githubSignedIn && githubCommitMeta.hasRepository
   // Only enable Commit when there is a summary and at least one *checked* file.
@@ -1180,7 +1214,11 @@ export default function CommandCenterOverlay() {
         return
       }
       if (result.extension) {
-        openExtensionView(result.extension.extensionId, result.extension.commandId, result.extension.hostCapability)
+        openExtensionView(
+          result.extension.extensionId,
+          result.extension.commandId,
+          result.extension.hostCapability
+        )
         return
       }
       // Launching an app or focusing a window: dismiss instantly and skip the
@@ -1390,7 +1428,9 @@ export default function CommandCenterOverlay() {
       !isChatMode &&
       mode === 'search' &&
       !isNestedCommandView &&
-      (selectedItem?.type === 'app' || selectedItem?.type === 'file' || selectedItem?.type === 'folder')
+      (selectedItem?.type === 'app' ||
+        selectedItem?.type === 'file' ||
+        selectedItem?.type === 'folder')
     ) {
       event.preventDefault()
       if (actionsOpen) closeActionsMenu()
@@ -1568,7 +1608,10 @@ export default function CommandCenterOverlay() {
     )
     if (items.length === 0) return
 
-    if (event.key === 'Escape' || ((event.key === 'k' || event.key === 'K') && (event.ctrlKey || event.metaKey))) {
+    if (
+      event.key === 'Escape' ||
+      ((event.key === 'k' || event.key === 'K') && (event.ctrlKey || event.metaKey))
+    ) {
       event.preventDefault()
       closeActionsMenu()
       return
@@ -1613,7 +1656,9 @@ export default function CommandCenterOverlay() {
               <span aria-hidden="true">‹</span>
             </button>
           )}
-          <div className={`command-center-input-shell ${showGitHubCommitBar ? 'is-github-commit' : ''}`}>
+          <div
+            className={`command-center-input-shell ${showGitHubCommitBar ? 'is-github-commit' : ''}`}
+          >
             <input
               ref={(node) => {
                 inputRef.current = node
@@ -1656,16 +1701,16 @@ export default function CommandCenterOverlay() {
                         : isLayoutView
                           ? 'Search layout actions...'
                           : isSettingsView
-                            ? 'Search Windows Settings...'
+                            ? 'Search System Settings...'
                             : isGitHubView
                               ? 'GitHub Workspace'
                               : isExtensionView
                                 ? 'Extension'
-                              : isStoreView
-                                ? 'Search extensions...'
-                                : mode === 'search'
-                                  ? 'Search workflows, apps, windows...'
-                                  : 'Ask Zura to help with this screen...'
+                                : isStoreView
+                                  ? 'Search extensions...'
+                                  : mode === 'search'
+                                    ? 'Search workflows, apps, windows...'
+                                    : 'Ask Zura to help with this screen...'
               }
               aria-label={
                 showGitHubCommitBar
@@ -1684,19 +1729,25 @@ export default function CommandCenterOverlay() {
                               ? 'GitHub Workspace'
                               : isExtensionView
                                 ? 'Extension'
-                              : isStoreView
-                                ? 'Search Zura Store'
-                                : mode === 'search'
-                                  ? 'Search Command Center'
-                                  : 'Ask Zura'
+                                : isStoreView
+                                  ? 'Search Zura Store'
+                                  : mode === 'search'
+                                    ? 'Search Command Center'
+                                    : 'Ask Zura'
               }
-              aria-controls={!isChatMode && mode === 'search' && !showGitHubCommitBar ? 'command-center-results' : undefined}
+              aria-controls={
+                !isChatMode && mode === 'search' && !showGitHubCommitBar
+                  ? 'command-center-results'
+                  : undefined
+              }
               aria-activedescendant={
                 !isChatMode && mode === 'search' && !showGitHubCommitBar && selectedItem
                   ? resultOptionId(selectedItem.id)
                   : undefined
               }
-              aria-autocomplete={!isChatMode && mode === 'search' && !showGitHubCommitBar ? 'list' : undefined}
+              aria-autocomplete={
+                !isChatMode && mode === 'search' && !showGitHubCommitBar ? 'list' : undefined
+              }
             />
             {isChatMode && (
               <button
@@ -1717,7 +1768,11 @@ export default function CommandCenterOverlay() {
                 onClick={runGitHubCommit}
               >
                 {githubCommitMeta.committing ? (
-                  <RefreshCcw size={14} className="command-center-github-commit__spin" aria-hidden="true" />
+                  <RefreshCcw
+                    size={14}
+                    className="command-center-github-commit__spin"
+                    aria-hidden="true"
+                  />
                 ) : (
                   <Check size={14} aria-hidden="true" />
                 )}
@@ -1742,7 +1797,10 @@ export default function CommandCenterOverlay() {
             </button>
           )}
           {isGitHubView && !githubSignedIn && (
-            <span className="command-center-github-login-hint"><kbd>Enter</kbd><span>to sign in</span></span>
+            <span className="command-center-github-login-hint">
+              <kbd>Enter</kbd>
+              <span>to sign in</span>
+            </span>
           )}
         </div>
 
@@ -1901,7 +1959,7 @@ export default function CommandCenterOverlay() {
                 )}
               </div>
             ) : isSettingsView ? (
-              <div className="command-center-results" role="listbox" aria-label="Windows Settings">
+              <div className="command-center-results" role="listbox" aria-label="System Settings">
                 <section className="command-center-group">
                   <h2>{input.trim() ? 'Search Results' : SETTINGS_GROUP}</h2>
                   {settingsBrowseResults.map((item, rowIndex) => {
@@ -1945,7 +2003,10 @@ export default function CommandCenterOverlay() {
                 />
               </div>
             ) : isExtensionView && activeExtension ? (
-              <CommandCenterExtensionHost extensionId={activeExtension.extensionId} commandId={activeExtension.commandId} />
+              <CommandCenterExtensionHost
+                extensionId={activeExtension.extensionId}
+                commandId={activeExtension.commandId}
+              />
             ) : isStoreView ? (
               <CommandCenterStore query={input} onOpenExtension={openExtensionView} />
             ) : mode === 'search' ? (
@@ -1999,7 +2060,12 @@ export default function CommandCenterOverlay() {
                             onDoubleClick={() => void executeItem(item)}
                             onContextMenu={(event) => {
                               // Right-click opens the app Actions menu (same as ⌃K).
-                              if (item.type !== 'app' && item.type !== 'file' && item.type !== 'folder') return
+                              if (
+                                item.type !== 'app' &&
+                                item.type !== 'file' &&
+                                item.type !== 'folder'
+                              )
+                                return
                               event.preventDefault()
                               setSelectionVisible(true)
                               selectionTouchedRef.current = true
@@ -2130,116 +2196,121 @@ export default function CommandCenterOverlay() {
                 (selectedItem.type === 'app' ||
                   selectedItem.type === 'file' ||
                   selectedItem.type === 'folder') && (
-                <>
-                  <div className="command-center-footer__separator" />
-                  <button
-                    ref={actionsTriggerRef}
-                    type="button"
-                    className={`command-center-footer__action command-center-footer__actions-btn ${actionsOpen ? 'is-open' : ''}`}
-                    aria-label="Actions"
-                    aria-haspopup="menu"
-                    aria-expanded={actionsOpen}
-                    aria-controls="command-center-actions-menu"
-                    onClick={() => {
-                      if (actionsOpen) closeActionsMenu()
-                      else openActionsMenu()
-                    }}
-                  >
-                    <span>Actions</span>
-                    <kbd className="command-center-footer__chord">
-                      <span>⌃</span>
-                      <span>K</span>
-                    </kbd>
-                  </button>
-                  {actionsOpen ? (
-                    <div
-                      ref={actionsMenuRef}
-                      id="command-center-actions-menu"
-                      className="command-center-actions-popover"
-                      role="menu"
-                      aria-label={`${selectedItem.title} actions`}
-                      onKeyDown={handleActionsMenuKeyDown}
+                  <>
+                    <div className="command-center-footer__separator" />
+                    <button
+                      ref={actionsTriggerRef}
+                      type="button"
+                      className={`command-center-footer__action command-center-footer__actions-btn ${actionsOpen ? 'is-open' : ''}`}
+                      aria-label="Actions"
+                      aria-haspopup="menu"
+                      aria-expanded={actionsOpen}
+                      aria-controls="command-center-actions-menu"
+                      onClick={() => {
+                        if (actionsOpen) closeActionsMenu()
+                        else openActionsMenu()
+                      }}
                     >
-                      <div className="command-center-actions-popover__title">
-                        <span
-                          className="command-center-actions-popover__title-icon"
-                          aria-hidden="true"
-                        >
-                          {iconForItem(selectedItem)}
-                        </span>
-                        <span className="command-center-actions-popover__title-label">
-                          {selectedItem.title}
-                        </span>
-                      </div>
-                      <div className="command-center-actions-popover__separator" role="separator" />
-                      <div className="command-center-actions-popover__list">
-                        {selectedAppActions.map((action, index) => {
-                          const prev = selectedAppActions[index - 1]
-                          const getGroup = (id: string) => {
-                            if (id === 'open' || id === 'focus-window') return 1
-                            if (id === 'show-in-folder' || id === 'reveal-shortcut') return 2
-                            if (id === 'add-to-favorite') return 3
-                            if (
-                              id === 'copy-name' ||
-                              id === 'copy-path' ||
-                              id === 'copy-dir' ||
-                              id === 'copy-bundle-id'
-                            ) {
-                              return 4
+                      <span>Actions</span>
+                      <kbd className="command-center-footer__chord">
+                        <span>⌃</span>
+                        <span>K</span>
+                      </kbd>
+                    </button>
+                    {actionsOpen ? (
+                      <div
+                        ref={actionsMenuRef}
+                        id="command-center-actions-menu"
+                        className="command-center-actions-popover"
+                        role="menu"
+                        aria-label={`${selectedItem.title} actions`}
+                        onKeyDown={handleActionsMenuKeyDown}
+                      >
+                        <div className="command-center-actions-popover__title">
+                          <span
+                            className="command-center-actions-popover__title-icon"
+                            aria-hidden="true"
+                          >
+                            {iconForItem(selectedItem)}
+                          </span>
+                          <span className="command-center-actions-popover__title-label">
+                            {selectedItem.title}
+                          </span>
+                        </div>
+                        <div
+                          className="command-center-actions-popover__separator"
+                          role="separator"
+                        />
+                        <div className="command-center-actions-popover__list">
+                          {selectedAppActions.map((action, index) => {
+                            const prev = selectedAppActions[index - 1]
+                            const getGroup = (id: string) => {
+                              if (id === 'open' || id === 'focus-window') return 1
+                              if (id === 'show-in-folder' || id === 'reveal-shortcut') return 2
+                              if (id === 'add-to-favorite') return 3
+                              if (
+                                id === 'copy-name' ||
+                                id === 'copy-path' ||
+                                id === 'copy-dir' ||
+                                id === 'copy-bundle-id'
+                              ) {
+                                return 4
+                              }
+                              if (id === 'force-quit') return 5
+                              if (id === 'disable-application' || id === 'uninstall-application') {
+                                return 6
+                              }
+                              return 7
                             }
-                            if (id === 'force-quit') return 5
-                            if (id === 'disable-application' || id === 'uninstall-application') {
-                              return 6
-                            }
-                            return 7
-                          }
-                          const showSeparator = prev && getGroup(action.id) !== getGroup(prev.id)
-                          const active = index === actionsHighlight
-                          const disabled = 'disabled' in action && Boolean(action.disabled)
-                          return (
-                            <div key={action.id}>
-                              {showSeparator ? (
-                                <div
-                                  className="command-center-actions-popover__separator"
-                                  role="separator"
-                                />
-                              ) : null}
-                              <button
-                                type="button"
-                                role="menuitem"
-                                data-action-index={index}
-                                tabIndex={active ? 0 : -1}
-                                disabled={disabled}
-                                aria-disabled={disabled || undefined}
-                                className={`command-center-actions-popover__item ${active ? 'is-active' : ''}${disabled ? ' is-disabled' : ''}`}
-                                onMouseEnter={() => setActionsHighlight(index)}
-                                onClick={() => {
-                                  if (disabled) return
-                                  void runItemAction(selectedItem, action.id)
-                                }}
-                              >
-                                <span className="command-center-actions-popover__icon">
-                                  {action.icon}
-                                </span>
-                                <span className="command-center-actions-popover__label">
-                                  {action.label}
-                                </span>
-                                {action.id === 'open' ? (
-                                  <kbd className="command-center-actions-popover__shortcut">
-                                    <CornerDownLeft size={12} />
-                                  </kbd>
-                                ) : disabled ? (
-                                  <span className="command-center-actions-popover__soon">Soon</span>
+                            const showSeparator = prev && getGroup(action.id) !== getGroup(prev.id)
+                            const active = index === actionsHighlight
+                            const disabled = 'disabled' in action && Boolean(action.disabled)
+                            return (
+                              <div key={action.id}>
+                                {showSeparator ? (
+                                  <div
+                                    className="command-center-actions-popover__separator"
+                                    role="separator"
+                                  />
                                 ) : null}
-                              </button>
-                            </div>
-                          )
-                        })}
+                                <button
+                                  type="button"
+                                  role="menuitem"
+                                  data-action-index={index}
+                                  tabIndex={active ? 0 : -1}
+                                  disabled={disabled}
+                                  aria-disabled={disabled || undefined}
+                                  className={`command-center-actions-popover__item ${active ? 'is-active' : ''}${disabled ? ' is-disabled' : ''}`}
+                                  onMouseEnter={() => setActionsHighlight(index)}
+                                  onClick={() => {
+                                    if (disabled) return
+                                    void runItemAction(selectedItem, action.id)
+                                  }}
+                                >
+                                  <span className="command-center-actions-popover__icon">
+                                    {action.icon}
+                                  </span>
+                                  <span className="command-center-actions-popover__label">
+                                    {action.label}
+                                  </span>
+                                  {action.id === 'open' ? (
+                                    <kbd className="command-center-actions-popover__shortcut">
+                                      <CornerDownLeft size={12} />
+                                    </kbd>
+                                  ) : disabled ? (
+                                    <span className="command-center-actions-popover__soon">
+                                      Soon
+                                    </span>
+                                  ) : null}
+                                </button>
+                              </div>
+                            )
+                          })}
+                        </div>
                       </div>
-                    </div>
-                  ) : null}
-                </>
-              )}
+                    ) : null}
+                  </>
+                )}
             </div>
           </footer>
         )}

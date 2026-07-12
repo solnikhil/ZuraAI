@@ -151,7 +151,14 @@ export async function pasteTextViaClipboard(
     if (!options.alreadyOnClipboard) {
       clipboard.writeText(text)
     }
-    await pressVirtualKeys([0x11, 0x56]) // Ctrl+V
+    if (process.platform === 'darwin') {
+      await execFileAsync('osascript', [
+        '-e',
+        'tell application "System Events" to keystroke "v" using command down',
+      ])
+    } else {
+      await pressVirtualKeys([0x11, 0x56]) // Ctrl+V
+    }
     await delay(settleMs)
   } finally {
     try {

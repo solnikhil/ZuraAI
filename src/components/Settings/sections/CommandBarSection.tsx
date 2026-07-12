@@ -12,8 +12,11 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import type { Settings } from '../../../contexts/SettingsContext'
-import type { CommandCenterAppDiagnostics, CommandCenterWindowsSearchDiagnostics } from '@/electron/types'
-import { isWindowsRuntime } from '../../../utils/platform'
+import type {
+  CommandCenterAppDiagnostics,
+  CommandCenterWindowsSearchDiagnostics,
+} from '@/electron/types'
+import { isMacOSRuntime, isWindowsRuntime } from '../../../utils/platform'
 
 function clampNumber(value: number, min: number, max: number): number {
   if (Number.isNaN(value)) return min
@@ -76,6 +79,7 @@ export function CommandBarSection({
   onChange,
 }: CommandBarSectionProps): React.ReactElement {
   const isWindows = useMemo(() => isWindowsRuntime(), [])
+  const isDesktopIndexSupported = useMemo(() => isWindowsRuntime() || isMacOSRuntime(), [])
   const commandBar = settings.commandBar
   const size = commandBar.size ?? 'medium'
   const maxRecents = clampNumber(commandBar.maxRecents, 0, 3)
@@ -101,7 +105,7 @@ export function CommandBarSection({
   }
 
   const loadStatus = useCallback(async () => {
-    if (!isWindows || !window.commandCenter?.getIndex) {
+    if (!isDesktopIndexSupported || !window.commandCenter?.getIndex) {
       setAppDiagnostics(undefined)
       setWindowsSearchDiagnostics(undefined)
       setIndexedAppCount(null)
@@ -111,8 +115,9 @@ export function CommandBarSection({
     try {
       const [index, native] = await Promise.all([
         window.commandCenter.getIndex(''),
-        window.commandCenter.searchNativeIndex?.('zura-index-probe').catch(() => null) ??
-          Promise.resolve(null),
+        (isWindows
+          ? window.commandCenter.searchNativeIndex?.('zura-index-probe').catch(() => null)
+          : null) ?? Promise.resolve(null),
       ])
       setAppDiagnostics(index.diagnostics?.apps)
       setWindowsSearchDiagnostics(native?.diagnostics ?? index.diagnostics?.windowsSearch)
@@ -124,7 +129,7 @@ export function CommandBarSection({
     } finally {
       setIsLoadingStatus(false)
     }
-  }, [isWindows])
+  }, [isDesktopIndexSupported, isWindows])
 
   useEffect(() => {
     void loadStatus()
@@ -137,7 +142,7 @@ export function CommandBarSection({
   }, [statusMessage])
 
   const reindexApps = async () => {
-    if (!isWindows || !window.commandCenter?.refreshAppIndex || isReindexing) return
+    if (!isDesktopIndexSupported || !window.commandCenter?.refreshAppIndex || isReindexing) return
     setIsReindexing(true)
     setStatusMessage('Reindexing apps and clearing icon cache…')
     try {
@@ -192,12 +197,12 @@ export function CommandBarSection({
 
       <h3 className="appearance-group-heading">Command Center index</h3>
       <Card className="settings-list-card">
-        {!isWindows ? (
+        {!isDesktopIndexSupported ? (
           <div className="settings-list-row settings-list-row--stacked">
             <div className="settings-list-row__meta">
-              <h3 className="settings-list-row__label">Windows only</h3>
+              <h3 className="settings-list-row__label">Desktop indexing unavailable</h3>
               <div className="settings-list-row__description">
-                Command Center app indexing and desktop search run only on Windows.
+                Command Center app indexing is available on Windows and macOS.
               </div>
             </div>
           </div>
@@ -256,8 +261,7 @@ export function CommandBarSection({
                 <h3 className="settings-list-row__label">Reindex apps</h3>
                 <div className="settings-list-row__description">
                   Rescan Start Menu / Desktop shortcuts and Windows Start apps, then clear cached
-                  icons so missing icons can reload. Use this if apps disappear or show blank
-                  icons.
+                  icons so missing icons can reload. Use this if apps disappear or show blank icons.
                 </div>
               </div>
               <div className="settings-list-row__control">
@@ -282,8 +286,8 @@ export function CommandBarSection({
               <div className="settings-list-row__meta">
                 <h3 className="settings-list-row__label">Open Command Center</h3>
                 <div className="settings-list-row__description">
-                  Ctrl+Shift+Space (fallback Ctrl+Alt+Space). Opens the desktop overlay to verify
-                  search results after reindexing.
+                  Control+Shift+Space (Control+Option+Shift+Space fallback on macOS). Opens the
+                  desktop overlay to verify search results after reindexing.
                 </div>
               </div>
               <div className="settings-list-row__control">
@@ -318,7 +322,11 @@ export function CommandBarSection({
             </div>
 
             {statusMessage ? (
-              <div className="settings-list-row settings-list-row--stacked" role="status" aria-live="polite">
+              <div
+                className="settings-list-row settings-list-row--stacked"
+                role="status"
+                aria-live="polite"
+              >
                 <div className="settings-list-row__meta">
                   <div className="settings-list-row__description">{statusMessage}</div>
                 </div>

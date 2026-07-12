@@ -178,7 +178,7 @@ export function SystemPromptSection(props: SystemPromptSectionProps): React.Reac
       <PromptViewerCard
         title="Command Center Prompt"
         description="Instructions appended when Command Center is enabled in Agent Mode. Guides native OS context, app/window actions, and approved system controls."
-        note="Windows-only. This only applies when the Command Center extension is active."
+        note="Available on Windows and macOS. This only applies when the Command Center extension is active."
         value={defaultCommandCenterPrompt}
         showLabel="Show Command Center Prompt"
         hideLabel="Hide Command Center Prompt"

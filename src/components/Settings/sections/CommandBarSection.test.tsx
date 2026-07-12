@@ -93,7 +93,7 @@ describe('CommandBarSection', () => {
   }))
   const setExtensionEnabled = vi.fn(async () => ({
     enabled: true,
-    shortcut: 'CommandOrControl+Shift+Space',
+    shortcut: 'Control+Shift+Space',
     shortcutRegistered: true,
   }))
   const show = vi.fn(async () => true)
@@ -143,7 +143,9 @@ describe('CommandBarSection', () => {
     render(<CommandBarSection settings={defaultSettings} onChange={vi.fn()} />)
 
     await waitFor(() => {
-      expect(screen.getByText(/Windows Search indexing is disabled or stopped/i)).toBeInTheDocument()
+      expect(
+        screen.getByText(/Windows Search indexing is disabled or stopped/i)
+      ).toBeInTheDocument()
     })
   })
 

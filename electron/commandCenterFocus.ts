@@ -6,6 +6,7 @@
 import { execFile, execFileSync } from 'node:child_process'
 
 let returnTargetHwnd: number | null = null
+let returnTargetMacBundleId: string | null = null
 
 function isWindows(): boolean {
   return process.platform === 'win32'
@@ -16,6 +17,22 @@ function isWindows(): boolean {
  * Skips our own Command Center / Electron chrome when already focused.
  */
 export function captureCommandCenterReturnTarget(): number | null {
+  if (process.platform === 'darwin') {
+    try {
+      const bundleId = execFileSync(
+        'osascript',
+        [
+          '-e',
+          'tell application "System Events" to get bundle identifier of first application process whose frontmost is true',
+        ],
+        { encoding: 'utf8', timeout: 4_000, maxBuffer: 16 * 1024 }
+      ).trim()
+      if (bundleId && !bundleId.toLowerCase().includes('zura')) returnTargetMacBundleId = bundleId
+    } catch {
+      // Best-effort; clipboard insertion remains available.
+    }
+    return null
+  }
   if (!isWindows()) {
     returnTargetHwnd = null
     return null
@@ -86,6 +103,7 @@ export function getCommandCenterReturnTarget(): number | null {
 
 export function clearCommandCenterReturnTarget(): void {
   returnTargetHwnd = null
+  returnTargetMacBundleId = null
 }
 
 /**
@@ -96,7 +114,15 @@ function runPowerShell(script: string, timeoutMs = 5_000): Promise<string> {
   return new Promise((resolve, reject) => {
     execFile(
       'powershell.exe',
-      ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script],
+      [
+        '-NoLogo',
+        '-NoProfile',
+        '-NonInteractive',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-Command',
+        script,
+      ],
       { windowsHide: true, timeout: timeoutMs, maxBuffer: 16 * 1024 },
       (error, stdout) => {
         if (error) reject(error)
@@ -169,6 +195,21 @@ if ([ZuraFocus]::GetGUIThreadInfo($tidB, [ref]$info)) {
 }
 
 export async function restoreCommandCenterReturnTarget(): Promise<boolean> {
+  if (process.platform === 'darwin' && returnTargetMacBundleId) {
+    const bundleId = returnTargetMacBundleId
+    return new Promise((resolve) => {
+      execFile(
+        'osascript',
+        [
+          '-e',
+          'on run argv\ntell application id (item 1 of argv) to activate\ndelay 0.08\nend run',
+          bundleId,
+        ],
+        { timeout: 5_000, maxBuffer: 16 * 1024 },
+        (error) => resolve(!error)
+      )
+    })
+  }
   if (!isWindows() || !returnTargetHwnd || returnTargetHwnd <= 0) return false
   const hwnd = returnTargetHwnd
   try {
