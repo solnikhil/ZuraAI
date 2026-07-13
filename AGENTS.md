@@ -321,7 +321,7 @@ Command Center overlay lifecycle (RAM): create on first show, hide on blur/dismi
 **destroy after ~2 minutes idle** (or immediately when extension is disabled / app
 quits) so a second Chromium renderer is not kept warm forever. `backgroundThrottling`
 is enabled on the overlay. While the warm window is still alive, the renderer soft-
-resumes the last UI screen (search query, emoji view, ask/chat) for the same ~2
+resumes the last UI screen (search query or nested command view) for the same ~2
 minute window via `command-center:shown` / `command-center:hidden` instead of always
 resetting to home; after that interval (or after idle destroy recreates the window)
 it returns to the root search home. Empty-query browse index uses a short main-process
@@ -469,14 +469,17 @@ chat-session promotion. Saved workflows
 are non-secret userData JSON and may contain only typed OS/action/window/app
 steps plus AI prompt steps; they must not store shell strings, unrestricted
 paths, arbitrary tool names, or secrets. Workflow runs require an explicit
-renderer confirmation before main execution. Overlay AI chats use the normal
-chat providers, message model, streaming, and approval surfaces; the renderer
-setting `commandCenterChatPersistence` controls whether overlay chats are
-temporary until promoted or saved immediately, and `command-center:open-chat-session`
-is the narrow bridge for opening a promoted overlay chat in the main ZuraAI chat
-surface. The overlay may request only the fixed `search` or `chat` layout through
-`command-center:set-layout`; main owns the actual BrowserWindow bounds so the
-renderer cannot set arbitrary window geometry.
+renderer confirmation before main execution. Embedded Command Center AI/Ask is
+currently disabled: the overlay does not mount chat, provider, MCP, streaming,
+model-selector, or tool-approval providers, and workflows containing an AI prompt
+step are rejected before any step executes. AI steps remain in the persisted typed
+workflow contract for forward compatibility. Existing chats remain searchable and
+may be opened in the main chat surface through the narrow
+`command-center:open-chat-session` bridge. The initial overlay loads only the search
+surface; Store, extension-host, and GitHub Workspace renderers are lazy-loaded when
+their nested views are opened. The renderer currently requests only the fixed
+`search` layout through `command-center:set-layout`; main owns the actual
+BrowserWindow bounds so the renderer cannot set arbitrary window geometry.
 Command Center universal search uses the narrow
 `command-center:search-native-index` channel. The renderer may send only a
 bounded search expression; main parses a fixed source/filter grammar and never
@@ -555,10 +558,8 @@ tools for app discovery/launch and window focus
 (`app_find`, `app_list`, `app_launch`, `window_list`, `window_focus`). Chat mode
 may still open the fixed Command Center overlay and run its fixed direct action
 allowlist, but must not expose model-callable OS tools through Command Center.
-Freeform commands submitted from the overlay are routed through
-`src/components/CommandCenterSettingsSync.tsx`, which adds active-window context
-and switches the assistant to Agent Mode before queueing the message so the run
-uses the Agent Mode OS tool surface. Do not include app install/uninstall, file
+The overlay currently accepts typed search and fixed indexed actions only; it does
+not submit freeform prompts or start assistant runs. Do not include app install/uninstall, file
 mutation, arbitrary window movement/close, or shell execution in that Command
 Center exposure set without an explicit architecture update. The internal
 Command Center capability has a code-owned

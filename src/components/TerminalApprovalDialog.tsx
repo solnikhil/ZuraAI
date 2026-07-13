@@ -74,7 +74,7 @@ export function TerminalApprovalDialog({
       <AlertDialogContent className="sm:max-w-2xl">
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2">
-            <Terminal className="h-5 w-5 text-emerald-500" />
+            <Terminal className="h-5 w-5 text-[var(--theme-accent)]" />
             Approve terminal command
           </AlertDialogTitle>
           <AlertDialogDescription>
@@ -96,8 +96,8 @@ export function TerminalApprovalDialog({
             {queuedCount > 0 && <Badge variant="destructive">{queuedCount} more queued</Badge>}
           </div>
 
-          <div className="rounded-xl border border-border/70 bg-muted/35 p-4 text-muted-foreground">
-            <AlertTriangle className="mr-1.5 inline h-3.5 w-3.5 text-amber-500" />
+          <div className="rounded-lg border border-[var(--theme-warning)]/25 bg-[var(--theme-warning-bg)] p-4 text-[var(--theme-text-secondary)]">
+            <AlertTriangle className="mr-1.5 inline h-3.5 w-3.5 text-[var(--theme-warning)]" />
             This command runs directly on your machine. Review it carefully before approving.
           </div>
 
@@ -112,7 +112,7 @@ export function TerminalApprovalDialog({
 
           <div className="space-y-2">
             <div className="font-medium text-foreground">Command</div>
-            <div className="max-h-72 overflow-auto rounded-xl border border-border/70">
+            <div className="max-h-72 overflow-auto rounded-lg border border-border/70">
               <pre
                 style={{
                   margin: 0,

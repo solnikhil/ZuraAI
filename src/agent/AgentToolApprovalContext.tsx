@@ -184,8 +184,8 @@ function AgentToolApprovalDialog({
             {queuedCount > 0 && <Badge variant="destructive">{queuedCount} queued</Badge>}
           </div>
 
-          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-amber-950 dark:text-amber-100">
-            <AlertTriangle className="mr-1.5 inline h-3.5 w-3.5 text-amber-500" />
+          <div className="rounded-lg border border-[var(--theme-warning)]/25 bg-[var(--theme-warning-bg)] p-4 text-[var(--theme-text-secondary)]">
+            <AlertTriangle className="mr-1.5 inline h-3.5 w-3.5 text-[var(--theme-warning)]" />
             Review the action before continuing. Approve once for this run, or always allow this
             exact same call only if you expect it to repeat unchanged.
           </div>

@@ -59,7 +59,7 @@ export function McpApprovalDialog(): React.ReactElement | null {
       <AlertDialogContent className="grid max-h-[calc(100vh-2rem)] w-[min(720px,calc(100vw-2rem))] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0 sm:max-w-none">
         <AlertDialogHeader className="border-b border-border/60 px-6 py-5">
           <AlertDialogTitle className="flex min-w-0 items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-amber-500" />
+            <AlertTriangle className="h-5 w-5 text-[var(--theme-accent)]" />
             Approve MCP tool execution
           </AlertDialogTitle>
           <AlertDialogDescription className="min-w-0 break-words">

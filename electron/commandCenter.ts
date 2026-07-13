@@ -1093,6 +1093,12 @@ async function executeWorkflow(workflowId: unknown) {
 
   const workflow = (await listCommandCenterWorkflows()).find((entry) => entry.id === workflowId)
   if (!workflow) return { success: false, error: 'Workflow was not found.' }
+  if (workflow.steps.some((step) => step.type === 'ai')) {
+    return {
+      success: false,
+      error: 'AI workflow steps are temporarily unavailable in Command Center.',
+    }
+  }
 
   for (const step of workflow.steps) {
     if (step.type === 'action') {
@@ -1107,9 +1113,6 @@ async function executeWorkflow(workflowId: unknown) {
     } else if (step.type === 'window') {
       const result = await executeWindowFocus({ hwnd: step.hwnd, autoApprove: true })
       if (!result.success) return result
-    } else if (step.type === 'ai') {
-      await markCommandCenterWorkflowRun(workflow.id)
-      return { success: true, aiPrompt: step.prompt }
     }
   }
 

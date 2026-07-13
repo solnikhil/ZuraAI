@@ -175,46 +175,10 @@ export default defineConfig({
     },
   },
   build: {
-    rollupOptions: {
-      output: {
-        // Enhanced code splitting configuration for bundle optimization.
-        manualChunks(id) {
-          if (id.includes('node_modules/react-virtuoso')) return 'virtualization'
-          if (id.includes('node_modules/mermaid')) return 'mermaid'
-          if (id.includes('node_modules/recharts')) return 'charts'
-          if (id.includes('node_modules/framer-motion')) return 'ui-motion'
-          if (
-            id.includes('node_modules/react-markdown') ||
-            id.includes('node_modules/remark-gfm') ||
-            id.includes('node_modules/react-syntax-highlighter')
-          ) {
-            return 'markdown'
-          }
-          if (
-            id.includes('node_modules/@radix-ui/react-collapsible') ||
-            id.includes('node_modules/@radix-ui/react-dialog') ||
-            id.includes('node_modules/@radix-ui/react-label') ||
-            id.includes('node_modules/@radix-ui/react-popover') ||
-            id.includes('node_modules/@radix-ui/react-scroll-area') ||
-            id.includes('node_modules/@radix-ui/react-separator') ||
-            id.includes('node_modules/@radix-ui/react-slot') ||
-            id.includes('node_modules/@radix-ui/react-switch') ||
-            id.includes('node_modules/@radix-ui/react-tooltip')
-          ) {
-            return 'radix'
-          }
-          if (
-            id.includes('node_modules/react/') ||
-            id.includes('node_modules/react-dom/') ||
-            id.includes('node_modules/react-router-dom/')
-          ) {
-            return 'react-vendor'
-          }
-
-          return undefined
-        },
-      },
-    },
+    // Use graph-based chunking so dynamic feature boundaries remain real load
+    // boundaries. Named manual chunks caused shared renderer runtime modules to
+    // be hoisted through Mermaid, Markdown, and Charts, loading them on routes
+    // that never rendered those features.
     // Chunk size warning threshold (in KB)
     chunkSizeWarningLimit: 500,
     sourcemap: false,

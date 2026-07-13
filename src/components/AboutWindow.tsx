@@ -90,7 +90,7 @@ export default function AboutWindow() {
         </div>
 
         {/* Main Card */}
-        <div className="bg-[var(--theme-surface)] rounded-2xl border border-[var(--theme-border)] overflow-hidden shadow-xl">
+        <div className="overflow-hidden rounded-xl border border-[var(--theme-border)] bg-[var(--theme-surface)] shadow-none">
           {appInfo ? (
             <div className="p-5">
               {/* App Version Section */}

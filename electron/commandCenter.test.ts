@@ -661,6 +661,32 @@ describe('Command Center main service', () => {
     )
   })
 
+  it('rejects AI workflows before executing any preceding steps', async () => {
+    const { service, handlers, listCommandCenterWorkflows, executeAppLaunch } = await loadService()
+    listCommandCenterWorkflows.mockResolvedValue([
+      {
+        id: 'ai-workflow',
+        name: 'AI workflow',
+        aliases: [],
+        steps: [
+          { type: 'app', appPath: 'C:\\Chrome.lnk' },
+          { type: 'ai', prompt: 'Summarize the workspace' },
+        ],
+        createdAt: 1,
+        updatedAt: 2,
+      },
+    ])
+    service.registerCommandCenterHandlers()
+    service.setCommandCenterExtensionEnabled(true)
+
+    const executeWorkflow = handlers.get('command-center:execute-workflow')
+    await expect(executeWorkflow?.({}, 'ai-workflow')).resolves.toEqual({
+      success: false,
+      error: 'AI workflow steps are temporarily unavailable in Command Center.',
+    })
+    expect(executeAppLaunch).not.toHaveBeenCalled()
+  })
+
   it('serves a fresh empty-query browse index from the SWR cache without rebuilding', async () => {
     const { service, handlers, executeAppList } = await loadService()
     service.registerCommandCenterHandlers()

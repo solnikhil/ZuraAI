@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
-  Brain,
   Check,
   Clipboard,
   Command,
@@ -21,12 +20,6 @@ import {
   X,
 } from 'lucide-react'
 
-import { useChatHistory } from '../contexts/ChatHistoryContext'
-import { useSettings } from '../contexts/SettingsContext'
-import { useStreamingState } from '../contexts/StreamingContext'
-import { MessageRenderer } from './Dashboard/ChatArea/MessageRenderer'
-import { StreamingMessage } from './Dashboard/ChatArea/StreamingMessage'
-import { useStreamingChat } from './Dashboard/ChatArea/hooks'
 import {
   parseCommandCenterQuery,
   queryAllowsSource,
@@ -35,9 +28,7 @@ import {
   scoreWindowSearch,
 } from '../commandCenter/search'
 import type { CommandCenterEmoji } from '../commandCenter/emojis'
-import CommandCenterStore from './CommandCenterStore'
-import CommandCenterExtensionHost from './CommandCenterExtensionHost'
-import GitHubWorkspace, { type GitHubCommitBarMeta } from './GitHubWorkspace'
+import type { GitHubCommitBarMeta } from './GitHubWorkspace'
 import type {
   CommandCenterIndex,
   CommandCenterIndexItem,
@@ -49,7 +40,6 @@ type EmojiSearchFn = (query: string, limit?: number) => CommandCenterEmoji[]
 /** First paint + each scroll page of emoji cells (9-col × ~8 rows). */
 const EMOJI_PAGE_SIZE = 72
 
-type Mode = 'search' | 'ask'
 type CommandView =
   | 'root'
   | 'emojis'
@@ -59,6 +49,10 @@ type CommandView =
   | 'store'
   | 'github'
   | 'extension'
+
+const CommandCenterStore = lazy(() => import('./CommandCenterStore'))
+const CommandCenterExtensionHost = lazy(() => import('./CommandCenterExtensionHost'))
+const GitHubWorkspace = lazy(() => import('./GitHubWorkspace'))
 
 type AppActionDef = {
   id: CommandCenterItemActionId
@@ -224,11 +218,7 @@ function resultOptionId(itemId: string): string {
   return `command-center-option-${itemId.replace(/[^a-zA-Z0-9_-]/g, '-')}`
 }
 
-/**
- * Keep overlay UI state (emoji view, search query, ask mode, chat) across hide
- * for this long. Matches main's idle-destroy window so soft reopens reuse the
- * warm renderer instead of always jumping back to home.
- */
+/** Keep nested-view UI state across hide while the warm renderer is retained. */
 const COMMAND_CENTER_SESSION_RESUME_MS = 2 * 60 * 1000
 
 const INTERACTIVE_EXTRA_ACTION_IDS = new Set<string>([
@@ -515,7 +505,6 @@ function mergeNativeSearchResults(
 }
 
 export default function CommandCenterOverlay() {
-  const [mode, setMode] = useState<Mode>('search')
   const [commandView, setCommandView] = useState<CommandView>('root')
   const [activeExtension, setActiveExtension] = useState<{
     extensionId: string
@@ -542,14 +531,9 @@ export default function CommandCenterOverlay() {
   const [confirmingWorkflow, setConfirmingWorkflow] = useState<CommandCenterIndexItem | null>(null)
   const [status, setStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [chatSessionId, setChatSessionId] = useState<string | null>(null)
-  const [pendingPrompt, setPendingPrompt] = useState<string | null>(null)
-  const [promoted, setPromoted] = useState(false)
-  const [optimisticText, setOptimisticText] = useState<string | null>(null)
   const [actionsOpen, setActionsOpen] = useState(false)
   const [actionsHighlight, setActionsHighlight] = useState(0)
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null)
-  const bodyRef = useRef<HTMLDivElement | null>(null)
   const actionsRootRef = useRef<HTMLDivElement | null>(null)
   const actionsMenuRef = useRef<HTMLDivElement | null>(null)
   const actionsTriggerRef = useRef<HTMLButtonElement | null>(null)
@@ -561,36 +545,17 @@ export default function CommandCenterOverlay() {
   const lastHiddenAtRef = useRef<number | null>(null)
   /** Latest UI snapshot for soft-resume without stale closures. */
   const sessionSnapshotRef = useRef({
-    mode: 'search' as Mode,
     commandView: 'root' as CommandView,
     input: '',
-    chatSessionId: null as string | null,
-    promoted: false,
-    isLoading: false,
   })
 
-  const {
-    sessions,
-    currentSessionId,
-    createSession,
-    switchSession,
-    clearCurrentSession,
-    deleteSession,
-  } = useChatHistory()
-  const { settings } = useSettings()
-  const streamingState = useStreamingState()
-  const { isLoading, sendMessage, stopStreaming, regenerateMessage, toolState } = useStreamingChat()
-
-  const chatSession = sessions.find((session) => session.id === chatSessionId)
-  const chatMessages = chatSession?.messages ?? []
-  const isChatMode = Boolean(chatSessionId)
-  const isEmojiView = commandView === 'emojis' && !isChatMode
-  const isChatsView = commandView === 'chats' && !isChatMode
-  const isLayoutView = commandView === 'layout' && !isChatMode
-  const isSettingsView = commandView === 'settings' && !isChatMode
-  const isStoreView = commandView === 'store' && !isChatMode
-  const isGitHubView = commandView === 'github' && !isChatMode
-  const isExtensionView = commandView === 'extension' && !isChatMode
+  const isEmojiView = commandView === 'emojis'
+  const isChatsView = commandView === 'chats'
+  const isLayoutView = commandView === 'layout'
+  const isSettingsView = commandView === 'settings'
+  const isStoreView = commandView === 'store'
+  const isGitHubView = commandView === 'github'
+  const isExtensionView = commandView === 'extension'
   const isNestedCommandView =
     isEmojiView ||
     isChatsView ||
@@ -600,7 +565,7 @@ export default function CommandCenterOverlay() {
     isGitHubView ||
     isExtensionView
   const searchSyntaxSuggestions = useMemo(() => {
-    if (isChatMode || isNestedCommandView || mode !== 'search') return []
+    if (isNestedCommandView) return []
     const last = input.split(/\s+/).at(-1)?.toLowerCase() ?? ''
     const syntax = [
       'app:',
@@ -616,7 +581,7 @@ export default function CommandCenterOverlay() {
     if (!last || (!last.includes(':') && last.length < 2)) return []
     if (last.includes(':') && !last.endsWith(':')) return []
     return syntax.filter((entry) => entry.startsWith(last)).slice(0, 5)
-  }, [input, isChatMode, isNestedCommandView, mode])
+  }, [input, isNestedCommandView])
 
   // Lazy-loaded emoji catalog (dynamic import + deferred skin-tone build).
   const emojiSearchRef = useRef<EmojiSearchFn | null>(null)
@@ -716,18 +681,14 @@ export default function CommandCenterOverlay() {
 
   useEffect(() => {
     sessionSnapshotRef.current = {
-      mode,
       commandView,
       input,
-      chatSessionId,
-      promoted,
-      isLoading,
     }
-  }, [chatSessionId, commandView, input, isLoading, mode, promoted])
+  }, [commandView, input])
 
   useEffect(() => {
-    void window.commandCenter.setLayout(isChatMode ? 'chat' : 'search')
-  }, [isChatMode])
+    void window.commandCenter.setLayout('search')
+  }, [])
 
   const searchIndex = useMemo(() => {
     const query = input.trim()
@@ -806,15 +767,8 @@ export default function CommandCenterOverlay() {
     )
     if (preservedIndex >= 0 && preservedIndex !== selectedIndex) setSelectedIndex(preservedIndex)
   }, [filteredRows, selectedIndex])
-  const switchMode = useCallback(() => {
-    if (isChatMode || isNestedCommandView) return
-    setMode((current) => (current === 'search' ? 'ask' : 'search'))
-    requestAnimationFrame(() => inputRef.current?.focus())
-  }, [isChatMode, isNestedCommandView])
-
   const openEmojiView = useCallback((initialQuery = '') => {
     setCommandView('emojis')
-    setMode('search')
     setInput(initialQuery)
     setSelectedIndex(0)
     setSelectionVisible(true)
@@ -832,7 +786,6 @@ export default function CommandCenterOverlay() {
 
   const openChatsView = useCallback((initialQuery = '') => {
     setCommandView('chats')
-    setMode('search')
     setInput(initialQuery)
     setSelectedIndex(0)
     setSelectionVisible(true)
@@ -841,7 +794,6 @@ export default function CommandCenterOverlay() {
 
   const openLayoutView = useCallback((initialQuery = '') => {
     setCommandView('layout')
-    setMode('search')
     setInput(initialQuery)
     setSelectedIndex(0)
     setSelectionVisible(true)
@@ -850,7 +802,6 @@ export default function CommandCenterOverlay() {
 
   const openSettingsView = useCallback((initialQuery = '') => {
     setCommandView('settings')
-    setMode('search')
     setInput(initialQuery)
     setSelectedIndex(0)
     setSelectionVisible(true)
@@ -859,7 +810,6 @@ export default function CommandCenterOverlay() {
 
   const openStoreView = useCallback((initialQuery = '') => {
     setCommandView('store')
-    setMode('search')
     setInput(initialQuery)
     setSelectedIndex(0)
     setSelectionVisible(false)
@@ -868,7 +818,6 @@ export default function CommandCenterOverlay() {
 
   const openGitHubView = useCallback(() => {
     setCommandView('github')
-    setMode('search')
     setInput('')
     setGithubSummary('')
     setGithubCommitMeta({
@@ -889,7 +838,6 @@ export default function CommandCenterOverlay() {
       }
       setActiveExtension({ extensionId, commandId })
       setCommandView('extension')
-      setMode('search')
       setInput('')
       setSelectedIndex(0)
       setSelectionVisible(false)
@@ -929,7 +877,7 @@ export default function CommandCenterOverlay() {
 
   const handleInputChange = useCallback(
     (value: string) => {
-      if (!isChatMode && !isNestedCommandView && mode === 'search' && value.startsWith(':')) {
+      if (!isNestedCommandView && value.startsWith(':')) {
         openEmojiView(value.slice(1))
         return
       }
@@ -937,7 +885,7 @@ export default function CommandCenterOverlay() {
       selectedItemIdRef.current = null
       setInput(value)
     },
-    [isChatMode, isNestedCommandView, mode, openEmojiView]
+    [isNestedCommandView, openEmojiView]
   )
 
   const closeCommandView = useCallback(() => {
@@ -1006,17 +954,6 @@ export default function CommandCenterOverlay() {
       : null
 
   const resetOverlay = useCallback(() => {
-    const snapshot = sessionSnapshotRef.current
-    // Drop temporary overlay chats only when the session truly expires.
-    if (
-      snapshot.chatSessionId &&
-      settings.commandCenterChatPersistence === 'temporary' &&
-      !snapshot.promoted &&
-      !snapshot.isLoading
-    ) {
-      deleteSession(snapshot.chatSessionId)
-    }
-    setMode('search')
     setCommandView('root')
     setInput('')
     activeSearchQueryRef.current = ''
@@ -1027,26 +964,21 @@ export default function CommandCenterOverlay() {
     setConfirmingWorkflow(null)
     setStatus(null)
     setError(null)
-    setPendingPrompt(null)
-    setOptimisticText(null)
-    setPromoted(false)
-    setChatSessionId(null)
     setActionsOpen(false)
     setActionsHighlight(0)
-    clearCurrentSession()
     void refreshIndex('', false)
     requestAnimationFrame(() => inputRef.current?.focus())
-  }, [clearCurrentSession, deleteSession, refreshIndex, settings.commandCenterChatPersistence])
+  }, [refreshIndex])
 
   const softResumeOverlay = useCallback(() => {
-    // Keep commandView / input / mode / chat; only clear transient UI chrome.
+    // Keep commandView and input; only clear transient UI chrome.
     setConfirmingWorkflow(null)
     setActionsOpen(false)
     setActionsHighlight(0)
     setStatus(null)
     setError(null)
     const snapshot = sessionSnapshotRef.current
-    if (!snapshot.chatSessionId && snapshot.commandView === 'root' && snapshot.mode === 'search') {
+    if (snapshot.commandView === 'root') {
       void refreshIndex(snapshot.input.trim(), false)
     } else if (snapshot.commandView === 'chats') {
       // Keep chat catalogue warm when soft-resuming the chats browser.
@@ -1081,17 +1013,17 @@ export default function CommandCenterOverlay() {
 
   useEffect(() => {
     activeSearchQueryRef.current = input.trim()
-    if (isChatMode || isNestedCommandView || mode !== 'search') return undefined
+    if (isNestedCommandView) return undefined
     const query = input.trim()
     const delay = query ? 90 : 0
     const timer = window.setTimeout(() => {
       void refreshIndex(query, false)
     }, delay)
     return () => window.clearTimeout(timer)
-  }, [input, isChatMode, isNestedCommandView, mode, refreshIndex])
+  }, [input, isNestedCommandView, refreshIndex])
 
   useEffect(() => {
-    if (isChatMode || isNestedCommandView || mode !== 'search') return undefined
+    if (isNestedCommandView) return undefined
     // Only re-poll while main still has in-flight icon extraction. Failed or
     // permanently missing icons must not restart this loop (that caused blink).
     const needsIconRefresh = index.apps.some(
@@ -1102,10 +1034,10 @@ export default function CommandCenterOverlay() {
       void refreshIndex(input.trim(), false)
     }, 180)
     return () => window.clearTimeout(timer)
-  }, [index.apps, input, isChatMode, isNestedCommandView, mode, refreshIndex])
+  }, [index.apps, input, isNestedCommandView, refreshIndex])
 
   useEffect(() => {
-    // Reset to the first row whenever the query or mode changes, and keep the
+    // Reset to the first row whenever the query or view changes, and keep the
     // highlight visible so the top result is pre-selected.
     setSelectedIndex(0)
     selectionTouchedRef.current = false
@@ -1113,7 +1045,7 @@ export default function CommandCenterOverlay() {
     setSelectionVisible(true)
     setActionsOpen(false)
     setActionsHighlight(0)
-  }, [commandView, input, mode])
+  }, [commandView, input])
 
   // Close the in-panel Actions popover on outside click (no Radix portal).
   useEffect(() => {
@@ -1130,24 +1062,6 @@ export default function CommandCenterOverlay() {
     return () => window.removeEventListener('pointerdown', onPointerDown, true)
   }, [actionsOpen])
 
-  useEffect(() => {
-    if (!pendingPrompt || !chatSessionId || currentSessionId !== chatSessionId || isLoading) return
-    const prompt = pendingPrompt
-    setPendingPrompt(null)
-    void sendMessage(prompt, [])
-  }, [chatSessionId, currentSessionId, isLoading, pendingPrompt, sendMessage])
-
-  useEffect(() => {
-    const body = bodyRef.current
-    if (body && typeof body.scrollTo === 'function') {
-      body.scrollTo({ top: body.scrollHeight, behavior: 'smooth' })
-    }
-    // Clear optimistic text once a real user message appears in the session
-    if (optimisticText && chatMessages.some((m) => m.role === 'user')) {
-      setOptimisticText(null)
-    }
-  }, [chatMessages.length, streamingState?.content, optimisticText])
-
   const hideOverlay = useCallback(() => {
     // Remember dismissal time so a quick reopen can restore the last screen.
     // Temporary chat cleanup is deferred until the session resume window expires
@@ -1155,21 +1069,6 @@ export default function CommandCenterOverlay() {
     lastHiddenAtRef.current = Date.now()
     void window.commandCenter.hide()
   }, [])
-
-  const startChat = useCallback(
-    (prompt: string) => {
-      const trimmed = prompt.trim()
-      if (!trimmed) return
-      const sessionId = createSession()
-      setChatSessionId(sessionId)
-      switchSession(sessionId)
-      setOptimisticText(trimmed)
-      setPendingPrompt(trimmed)
-      setMode('ask')
-      setInput('')
-    },
-    [createSession, switchSession]
-  )
 
   const executeItem = useCallback(
     async (item: CommandCenterIndexItem) => {
@@ -1198,19 +1097,23 @@ export default function CommandCenterOverlay() {
         return
       }
       if (item.type === 'workflow') {
+        if (item.workflow.steps.some((step) => step.type === 'ai')) {
+          setError('AI workflow steps are temporarily unavailable in Command Center.')
+          return
+        }
         setConfirmingWorkflow(item)
         return
       }
       setError(null)
       setStatus(null)
-      const query = mode === 'search' ? input.trim() : ''
+      const query = input.trim()
       const result = await window.commandCenter.executeIndexItem(item.id, query)
       if (!result.success) {
         setError(result.error || 'Command failed.')
         return
       }
       if (result.aiPrompt) {
-        startChat(result.aiPrompt)
+        setError('AI actions are temporarily unavailable in Command Center.')
         return
       }
       if (result.extension) {
@@ -1235,7 +1138,6 @@ export default function CommandCenterOverlay() {
     },
     [
       input,
-      mode,
       openChatsView,
       openEmojiView,
       openLayoutView,
@@ -1244,7 +1146,6 @@ export default function CommandCenterOverlay() {
       openGitHubView,
       openExtensionView,
       refreshIndex,
-      startChat,
     ]
   )
 
@@ -1263,7 +1164,7 @@ export default function CommandCenterOverlay() {
       setActionsHighlight(0)
       setError(null)
       setStatus(null)
-      const query = mode === 'search' ? input.trim() : ''
+      const query = input.trim()
       const result = await window.commandCenter.executeItemAction(item.id, actionId, query)
       if (!result.success) {
         setError(result.error || 'Action failed.')
@@ -1278,7 +1179,7 @@ export default function CommandCenterOverlay() {
       }
       requestAnimationFrame(() => inputRef.current?.focus())
     },
-    [input, mode]
+    [input]
   )
 
   const openActionsMenu = useCallback(() => {
@@ -1304,12 +1205,12 @@ export default function CommandCenterOverlay() {
       return
     }
     if (result.aiPrompt) {
-      startChat(result.aiPrompt)
+      setError('AI workflow steps are temporarily unavailable in Command Center.')
       return
     }
     setStatus(`${workflow.name} complete.`)
     void refreshIndex()
-  }, [confirmingWorkflow, refreshIndex, startChat])
+  }, [confirmingWorkflow, refreshIndex])
 
   const submit = useCallback(() => {
     if (isEmojiView) {
@@ -1329,63 +1230,25 @@ export default function CommandCenterOverlay() {
       return
     }
     if (isStoreView) return
-    if (isChatMode) {
-      if (input.trim()) {
-        const prompt = input.trim()
-        setOptimisticText(prompt)
-        setInput('')
-        void sendMessage(prompt, [])
-      }
-      return
-    }
-
-    if (mode === 'ask') {
-      startChat(input)
-      return
-    }
 
     if (selectedItem) {
       void executeItem(selectedItem)
-      return
-    }
-
-    if (input.trim()) {
-      setMode('ask')
-      startChat(input)
     }
   }, [
     executeItem,
     input,
     insertEmoji,
-    isChatMode,
     isChatsView,
     isEmojiView,
     isLayoutView,
     isSettingsView,
     isStoreView,
-    mode,
     selectedBrowseChat,
     selectedEmoji,
     selectedLayoutTool,
     selectedSettingsTool,
     selectedItem,
-    sendMessage,
-    startChat,
   ])
-
-  const openInFullChat = useCallback(async () => {
-    if (!chatSessionId) return
-    setPromoted(true)
-    await window.commandCenter.openChatSession(chatSessionId)
-  }, [chatSessionId])
-
-  const handlePanelKeyDownCapture = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (actionsOpen) return
-    if (event.key === 'Tab') {
-      event.preventDefault()
-      switchMode()
-    }
-  }
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     if (isGitHubView && event.key === 'Enter') {
@@ -1425,8 +1288,6 @@ export default function CommandCenterOverlay() {
       (event.key === 'k' || event.key === 'K') &&
       (event.ctrlKey || event.metaKey) &&
       !event.altKey &&
-      !isChatMode &&
-      mode === 'search' &&
       !isNestedCommandView &&
       (selectedItem?.type === 'app' ||
         selectedItem?.type === 'file' ||
@@ -1471,7 +1332,7 @@ export default function CommandCenterOverlay() {
       submit()
       return
     }
-    if (isEmojiView && mode === 'search') {
+    if (isEmojiView) {
       const count = emojiResults.length
       if (count === 0) return
       const cols = EMOJI_GRID_COLUMNS
@@ -1501,7 +1362,7 @@ export default function CommandCenterOverlay() {
       }
       return
     }
-    if ((isChatsView || isLayoutView || isSettingsView) && mode === 'search') {
+    if (isChatsView || isLayoutView || isSettingsView) {
       const count = isChatsView
         ? chatBrowseResults.length
         : isLayoutView
@@ -1521,13 +1382,13 @@ export default function CommandCenterOverlay() {
       }
       return
     }
-    if (!isChatMode && mode === 'search' && event.key === 'ArrowDown') {
+    if (event.key === 'ArrowDown') {
       event.preventDefault()
       setSelectionVisible(true)
       const rowCount = filteredRows.length
       setSelectedIndex((current) => Math.min(current + 1, Math.max(rowCount - 1, 0)))
     }
-    if (!isChatMode && mode === 'search' && event.key === 'ArrowUp') {
+    if (event.key === 'ArrowUp') {
       event.preventDefault()
       setSelectionVisible(true)
       setSelectedIndex((current) => Math.max(current - 1, 0))
@@ -1540,9 +1401,8 @@ export default function CommandCenterOverlay() {
     if (isLayoutView) return selectedLayoutTool ? 'Run Action' : 'Search Layout'
     if (isSettingsView) return selectedSettingsTool ? 'Open Settings' : 'Search Settings'
     if (isStoreView) return 'Browse Extensions'
-    if (mode === 'ask') return 'Ask Zura'
     const item = selectedItem
-    if (!item) return input.trim() ? 'Ask Zura' : 'Search'
+    if (!item) return 'Search'
     switch (item.type) {
       case 'app':
         return item.existingWindow ? 'Focus Window' : 'Open Application'
@@ -1570,8 +1430,7 @@ export default function CommandCenterOverlay() {
     )
   }, [selectedItem])
 
-  const showAppActions =
-    !isChatMode && !isNestedCommandView && mode === 'search' && selectedAppActions.length > 0
+  const showAppActions = !isNestedCommandView && selectedAppActions.length > 0
 
   useEffect(() => {
     if (!showAppActions && actionsOpen) {
@@ -1641,10 +1500,7 @@ export default function CommandCenterOverlay() {
 
   return (
     <div className="command-center-root">
-      <div
-        className={`command-center-panel ${isChatMode ? 'is-chat' : ''} ${actionsOpen ? 'has-actions-menu' : ''}`}
-        onKeyDownCapture={handlePanelKeyDownCapture}
-      >
+      <div className={`command-center-panel ${actionsOpen ? 'has-actions-menu' : ''}`}>
         <div className="command-center-topbar">
           {isNestedCommandView && (
             <button
@@ -1692,72 +1548,47 @@ export default function CommandCenterOverlay() {
                     : githubCommitMeta.changeCount
                       ? 'Check files to include in the commit…'
                       : 'Summary (required)'
-                  : isChatMode
-                    ? 'Ask a follow-up...'
-                    : isEmojiView
-                      ? 'Search emojis by name...'
-                      : isChatsView
-                        ? 'Search chats...'
-                        : isLayoutView
-                          ? 'Search layout actions...'
-                          : isSettingsView
-                            ? 'Search System Settings...'
-                            : isGitHubView
-                              ? 'GitHub Workspace'
-                              : isExtensionView
-                                ? 'Extension'
-                                : isStoreView
-                                  ? 'Search extensions...'
-                                  : mode === 'search'
-                                    ? 'Search workflows, apps, windows...'
-                                    : 'Ask Zura to help with this screen...'
+                  : isEmojiView
+                    ? 'Search emojis by name...'
+                    : isChatsView
+                      ? 'Search chats...'
+                      : isLayoutView
+                        ? 'Search layout actions...'
+                        : isSettingsView
+                          ? 'Search System Settings...'
+                          : isGitHubView
+                            ? 'GitHub Workspace'
+                            : isExtensionView
+                              ? 'Extension'
+                              : isStoreView
+                                ? 'Search extensions...'
+                                : 'Search workflows, apps, windows...'
               }
               aria-label={
                 showGitHubCommitBar
                   ? 'Commit message'
-                  : isChatMode
-                    ? 'Ask a follow-up'
-                    : isEmojiView
-                      ? 'Search emojis'
-                      : isChatsView
-                        ? 'Search chats'
-                        : isLayoutView
-                          ? 'Search layout'
-                          : isSettingsView
-                            ? 'Search settings'
-                            : isGitHubView
-                              ? 'GitHub Workspace'
-                              : isExtensionView
-                                ? 'Extension'
-                                : isStoreView
-                                  ? 'Search Zura Store'
-                                  : mode === 'search'
-                                    ? 'Search Command Center'
-                                    : 'Ask Zura'
+                  : isEmojiView
+                    ? 'Search emojis'
+                    : isChatsView
+                      ? 'Search chats'
+                      : isLayoutView
+                        ? 'Search layout'
+                        : isSettingsView
+                          ? 'Search settings'
+                          : isGitHubView
+                            ? 'GitHub Workspace'
+                            : isExtensionView
+                              ? 'Extension'
+                              : isStoreView
+                                ? 'Search Zura Store'
+                                : 'Search Command Center'
               }
-              aria-controls={
-                !isChatMode && mode === 'search' && !showGitHubCommitBar
-                  ? 'command-center-results'
-                  : undefined
-              }
+              aria-controls={!showGitHubCommitBar ? 'command-center-results' : undefined}
               aria-activedescendant={
-                !isChatMode && mode === 'search' && !showGitHubCommitBar && selectedItem
-                  ? resultOptionId(selectedItem.id)
-                  : undefined
+                !showGitHubCommitBar && selectedItem ? resultOptionId(selectedItem.id) : undefined
               }
-              aria-autocomplete={
-                !isChatMode && mode === 'search' && !showGitHubCommitBar ? 'list' : undefined
-              }
+              aria-autocomplete={!showGitHubCommitBar ? 'list' : undefined}
             />
-            {isChatMode && (
-              <button
-                type="button"
-                onClick={isLoading ? stopStreaming : submit}
-                aria-label={isLoading ? 'Stop' : 'Send'}
-              >
-                {isLoading ? <X size={16} /> : <CornerDownLeft size={16} />}
-              </button>
-            )}
             {showGitHubCommitBar && (
               <button
                 type="button"
@@ -1785,17 +1616,6 @@ export default function CommandCenterOverlay() {
               </button>
             )}
           </div>
-          {!isChatMode && !isNestedCommandView && (
-            <button
-              type="button"
-              className="command-center-mode-hint"
-              onClick={switchMode}
-              aria-label={mode === 'ask' ? 'Switch to Search' : 'Switch to Ask AI'}
-            >
-              <kbd>Tab</kbd>
-              <span>{mode === 'ask' ? 'to Search' : 'to AI'}</span>
-            </button>
-          )}
           {isGitHubView && !githubSignedIn && (
             <span className="command-center-github-login-hint">
               <kbd>Enter</kbd>
@@ -1823,8 +1643,8 @@ export default function CommandCenterOverlay() {
           </div>
         )}
 
-        {!isChatMode ? (
-          <div className="command-center-body">
+        <div className="command-center-body">
+          <Suspense fallback={<div className="command-center-empty">Loading command…</div>}>
             {isEmojiView ? (
               <div
                 className="command-center-results command-center-emoji-results"
@@ -1918,9 +1738,7 @@ export default function CommandCenterOverlay() {
                 </section>
                 {chatBrowseResults.length === 0 && (
                   <div className="command-center-empty">
-                    {input.trim()
-                      ? 'No matching chats.'
-                      : 'No recent chats yet. Ask Zura from Search or Ask AI.'}
+                    {input.trim() ? 'No matching chats.' : 'No recent chats yet.'}
                   </div>
                 )}
               </div>
@@ -2009,7 +1827,7 @@ export default function CommandCenterOverlay() {
               />
             ) : isStoreView ? (
               <CommandCenterStore query={input} onOpenExtension={openExtensionView} />
-            ) : mode === 'search' ? (
+            ) : (
               <div
                 id="command-center-results"
                 className="command-center-results"
@@ -2089,86 +1907,16 @@ export default function CommandCenterOverlay() {
                 ) : indexLoading && filteredRows.length === 0 ? (
                   <div className="command-center-empty">Loading Command Center...</div>
                 ) : input.trim() ? (
-                  <div className="command-center-empty">
-                    No matching results. Press Enter to ask Zura instead.
-                  </div>
+                  <div className="command-center-empty">No matching results.</div>
                 ) : (
                   <div className="command-center-empty">No Command Center items found.</div>
                 )}
               </div>
-            ) : (
-              <div className="command-center-ask-empty">
-                <Brain size={26} />
-                <p>Waiting for your first message.</p>
-                <div>
-                  <button type="button" onClick={() => setInput('Summarize this window')}>
-                    Summarize this window
-                  </button>
-                  <button type="button" onClick={() => setInput('Find the next step')}>
-                    Find the next step
-                  </button>
-                  <button type="button" onClick={() => setInput('Turn clipboard into a message')}>
-                    Use clipboard
-                  </button>
-                </div>
-              </div>
             )}
-          </div>
-        ) : (
-          <div className="command-center-chat">
-            <div className="command-center-chat-actions">
-              <span className="command-center-model-badge">{settings.aiModel || 'assistant'}</span>
-              <button type="button" onClick={openInFullChat}>
-                Open in Chat
-              </button>
-            </div>
-            <div ref={bodyRef} className="command-center-chat-scroll">
-              {/* Optimistic user message — shown instantly on submit before session syncs */}
-              {optimisticText && (
-                <div
-                  key="optimistic-msg"
-                  className="command-center-chat-message command-center-chat-message--user"
-                >
-                  <div className="command-center-user-bubble">{optimisticText}</div>
-                </div>
-              )}
-              {/* Thinking indicator — only for first message: no assistant messages in session, waiting for response */}
-              {optimisticText && chatMessages.filter((m) => m.role === 'assistant').length === 0 ? (
-                <div key="thinking-indicator" className="command-center-thinking">
-                  <span className="command-center-thinking-dot" />
-                  <span className="command-center-thinking-dot" />
-                  <span className="command-center-thinking-dot" />
-                </div>
-              ) : null}
-              {chatMessages.map((message, index) => {
-                const isLastAssistant =
-                  message.role === 'assistant' && index === chatMessages.length - 1
-                const streaming = isLoading && isLastAssistant
-                return (
-                  <div key={message.id} className="command-center-chat-message">
-                    {streaming ? (
-                      <StreamingMessage
-                        message={message}
-                        sessionId={chatSessionId!}
-                        activeToolCalls={toolState.activeToolCalls}
-                        onRegenerate={(instruction) => regenerateMessage(message, instruction)}
-                      />
-                    ) : (
-                      <MessageRenderer
-                        message={message}
-                        sessionId={chatSessionId!}
-                        isStreaming={false}
-                        onRegenerate={(instruction) => regenerateMessage(message, instruction)}
-                      />
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )}
+          </Suspense>
+        </div>
 
-        {!isChatMode && !isGitHubView && (
+        {!isGitHubView && (
           <footer className="command-center-footer">
             <span className="command-center-footer__brand">
               <img src="icon-mark.png" alt="" />
@@ -2427,24 +2175,6 @@ export default function CommandCenterOverlay() {
           transform: translateY(1px);
         }
 
-        .command-center-mode-hint {
-          flex: 0 0 auto;
-          display: inline-flex;
-          align-items: center;
-          gap: 7px;
-          height: 28px;
-          padding: 0 9px;
-          border: 0;
-          border-radius: 8px;
-          background: transparent;
-          color: rgba(255, 231, 238, 0.44);
-          font: inherit;
-          font-size: 12.5px;
-          white-space: nowrap;
-          cursor: pointer;
-          transition: background-color 120ms ease, color 120ms ease;
-        }
-
         .command-center-back {
           flex: 0 0 30px;
           width: 30px;
@@ -2474,28 +2204,6 @@ export default function CommandCenterOverlay() {
           font-weight: 300;
           line-height: 1;
           transform: translateY(-1px);
-        }
-
-        .command-center-mode-hint:hover {
-          background: rgba(255, 255, 255, 0.06);
-          color: rgba(255, 241, 246, 0.72);
-        }
-
-        .command-center-mode-hint kbd {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          min-width: 22px;
-          height: 19px;
-          padding: 0 5px;
-          border-radius: 5px;
-          background: rgba(255, 255, 255, 0.10);
-          border: 1px solid rgba(255, 255, 255, 0.13);
-          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10);
-          color: rgba(255, 246, 249, 0.82);
-          font: inherit;
-          font-size: 11px;
-          font-weight: 600;
         }
 
         .command-center-github-login-hint { flex: none; display: inline-flex; align-items: center; gap: 6px; margin-right: 10px; color: rgba(255,231,238,.42); font-size: 10px; white-space: nowrap; }
@@ -2589,8 +2297,6 @@ export default function CommandCenterOverlay() {
         }
 
         .command-center-input-shell button,
-        .command-center-chat-actions button,
-        .command-center-ask-empty button,
         .command-center-confirm button {
           border: 0;
           color: inherit;
@@ -2598,8 +2304,7 @@ export default function CommandCenterOverlay() {
           cursor: pointer;
         }
 
-        .command-center-body,
-        .command-center-chat {
+        .command-center-body {
           position: relative;
           z-index: 1;
           flex: 1 1 auto;
@@ -2988,26 +2693,22 @@ export default function CommandCenterOverlay() {
           touch-action: none;
         }
 
-        .command-center-results::-webkit-scrollbar,
-        .command-center-chat-scroll::-webkit-scrollbar {
+        .command-center-results::-webkit-scrollbar {
           width: 4px;
           height: 4px;
         }
 
-        .command-center-results::-webkit-scrollbar-track,
-        .command-center-chat-scroll::-webkit-scrollbar-track {
+        .command-center-results::-webkit-scrollbar-track {
           background: transparent;
         }
 
-        .command-center-results::-webkit-scrollbar-thumb,
-        .command-center-chat-scroll::-webkit-scrollbar-thumb {
+        .command-center-results::-webkit-scrollbar-thumb {
           min-height: 28px;
           border-radius: 999px;
           background: rgba(255, 255, 255, 0.28);
         }
 
-        .command-center-results::-webkit-scrollbar-thumb:hover,
-        .command-center-chat-scroll::-webkit-scrollbar-thumb:hover {
+        .command-center-results::-webkit-scrollbar-thumb:hover {
           background: rgba(255, 255, 255, 0.42);
         }
 
@@ -3640,8 +3341,7 @@ export default function CommandCenterOverlay() {
           color: rgba(255, 231, 238, 0.55);
         }
 
-        .command-center-empty,
-        .command-center-ask-empty {
+        .command-center-empty {
           color: rgba(255, 231, 238, 0.56);
         }
 
@@ -3660,118 +3360,12 @@ export default function CommandCenterOverlay() {
           line-height: 1.35;
         }
 
-        .command-center-ask-empty {
-          flex: 1;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          gap: 16px;
-          padding: 28px;
-          text-align: center;
-        }
-
-        .command-center-ask-empty p {
-          margin: 0;
-          font-size: 15px;
-        }
-
-        .command-center-ask-empty div {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 8px;
-          justify-content: center;
-        }
-
-        .command-center-ask-empty button,
-        .command-center-chat-actions button,
         .command-center-confirm button {
           min-height: 30px;
           border-radius: 7px;
           padding: 0 11px;
           background: rgba(255, 255, 255, 0.13);
           color: rgba(255, 241, 246, 0.78);
-        }
-
-        .command-center-chat-actions {
-          height: 40px;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 0 18px;
-        }
-
-        .command-center-chat-scroll {
-          flex: 1;
-          min-height: 0;
-          overflow: auto;
-          padding: 10px 20px 22px;
-          scrollbar-width: thin;
-          scrollbar-color: rgba(255, 255, 255, 0.34) transparent;
-        }
-
-        .command-center-chat-message {
-          max-width: 690px;
-          margin: 0 auto;
-        }
-
-        .command-center-chat-message--user {
-          max-width: 690px;
-          margin: 0 auto 8px;
-          display: flex;
-          justify-content: flex-end;
-        }
-
-        .command-center-user-bubble {
-          background: rgba(255, 255, 255, 0.12);
-          border-radius: 8px;
-          padding: 8px 14px;
-          max-width: min(74%, 520px);
-          font-size: 14px;
-          line-height: 1.5;
-          overflow-wrap: anywhere;
-        }
-
-        .command-center-model-badge {
-          font-size: 11px;
-          color: rgba(255, 231, 238, 0.48);
-          padding: 3px 8px;
-          border-radius: 4px;
-          background: rgba(255, 255, 255, 0.08);
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          max-width: 180px;
-        }
-
-        .command-center-thinking {
-          display: flex;
-          align-items: center;
-          gap: 4px;
-          max-width: 690px;
-          margin: 0 auto;
-          padding: 14px 0;
-        }
-
-        .command-center-thinking-dot {
-          width: 5px;
-          height: 5px;
-          border-radius: 50%;
-          background: rgba(255, 231, 238, 0.48);
-          animation: thinkingPulse 0.8s ease-in-out infinite;
-        }
-
-        .command-center-thinking-dot:nth-child(2) {
-          animation-delay: 0.16s;
-        }
-
-        .command-center-thinking-dot:nth-child(3) {
-          animation-delay: 0.32s;
-        }
-
-        @keyframes thinkingPulse {
-          0%, 80%, 100% { opacity: 0.2; transform: scale(0.8); }
-          40% { opacity: 1; transform: scale(1); }
         }
 
         .command-center-status {

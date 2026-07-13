@@ -233,40 +233,15 @@ describe('Property 2: Preservation — Runtime Behavior Unchanged After Build Co
 
   // ── 5. manualChunks routing ──────────────────────────────────────────────
 
-  it('manualChunks in vite.config.ts routes key libraries to their respective chunks', () => {
+  it('vite.config.ts leaves feature chunking to the dynamic import graph', () => {
     /**
      * **Validates: Requirements 3.1, 3.2, 3.3**
      *
-     * The manualChunks function in vite.config.ts must still route mermaid,
-     * markdown-related, radix, and other libraries to their respective chunks.
-     * This ensures code splitting is preserved after build config changes.
+     * Manual vendor chunks can absorb shared runtime modules and turn lazy
+     * features into static route dependencies. The build must preserve the
+     * dynamic import graph instead.
      */
-    const expectedChunkMappings = [
-      { library: 'mermaid', chunk: 'mermaid' },
-      { library: 'react-markdown', chunk: 'markdown' },
-      { library: 'react-syntax-highlighter', chunk: 'markdown' },
-      { library: 'remark-gfm', chunk: 'markdown' },
-
-      { library: '@radix-ui/react-dialog', chunk: 'radix' },
-      { library: '@radix-ui/react-popover', chunk: 'radix' },
-      { library: '@radix-ui/react-tooltip', chunk: 'radix' },
-      { library: 'react-virtuoso', chunk: 'virtualization' },
-      { library: 'recharts', chunk: 'charts' },
-      { library: 'framer-motion', chunk: 'ui-motion' },
-    ]
-
-    fc.assert(
-      fc.property(
-        fc.constantFrom(...expectedChunkMappings),
-        (mapping: { library: string; chunk: string }) => {
-          // The vite config must reference this library in manualChunks
-          expect(viteConfigSource).toContain(mapping.library)
-          // The vite config must return the expected chunk name
-          expect(viteConfigSource).toContain(`return '${mapping.chunk}'`)
-        }
-      ),
-      PBT_CONFIG
-    )
+    expect(viteConfigSource).not.toContain('manualChunks(')
   })
 
   // ── 6. package.json#build files array ────────────────────────────────────

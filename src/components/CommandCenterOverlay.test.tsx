@@ -4,61 +4,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import CommandCenterOverlay from './CommandCenterOverlay'
 
-const createSession = vi.fn(() => 'overlay-session')
-const switchSession = vi.fn()
-const clearCurrentSession = vi.fn()
-const deleteSession = vi.fn()
-const sendMessage = vi.fn(async () => undefined)
-
-let currentSessionId: string | null = null
-let sessions: unknown[] = []
-
-vi.mock('../contexts/ChatHistoryContext', () => ({
-  useChatHistory: () => ({
-    sessions,
-    currentSessionId,
-    createSession,
-    switchSession,
-    clearCurrentSession,
-    deleteSession,
-  }),
-}))
-
-vi.mock('../contexts/SettingsContext', () => ({
-  useSettings: () => ({
-    settings: {
-      commandCenterChatPersistence: 'temporary',
-    },
-  }),
-}))
-
-vi.mock('../contexts/StreamingContext', () => ({
-  useStreamingState: () => ({ content: '' }),
-}))
-
-vi.mock('./Dashboard/ChatArea/hooks', () => ({
-  useStreamingChat: () => ({
-    isLoading: false,
-    sendMessage,
-    stopStreaming: vi.fn(),
-    regenerateMessage: vi.fn(),
-    toolState: { activeToolCalls: [], toolResults: [] },
-  }),
-}))
-
-vi.mock('./Dashboard/ChatArea/MessageRenderer', () => ({
-  MessageRenderer: ({ message }: { message: { content: string } }) => <div>{message.content}</div>,
-}))
-
-vi.mock('./Dashboard/ChatArea/StreamingMessage', () => ({
-  StreamingMessage: ({ message }: { message: { content: string } }) => <div>{message.content}</div>,
-}))
-
 describe('CommandCenterOverlay', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    currentSessionId = null
-    sessions = []
     Object.assign(window, {
       appInfo: {
         get: vi.fn(async () => ({ isPackaged: false })),
@@ -76,13 +24,26 @@ describe('CommandCenterOverlay', () => {
               icon: 'assets/icon.svg',
               platforms: ['windows'],
               categories: ['Productivity'],
-              commands: [{ id: 'workspace', title: 'GitHub', mode: 'workspace', entry: 'host:git-workspace', keywords: ['github'] }],
+              commands: [
+                {
+                  id: 'workspace',
+                  title: 'GitHub',
+                  mode: 'workspace',
+                  entry: 'host:git-workspace',
+                  keywords: ['github'],
+                },
+              ],
               permissions: ['github.account'],
               capabilities: { host: ['git-workspace'] },
               networkDomains: ['github.com'],
               privacy: { dataLeavesDevice: true },
             },
-            trust: 'reviewed', installed: false, enabled: false, updateAvailable: false, source: 'bundled', validationErrors: [],
+            trust: 'reviewed',
+            installed: false,
+            enabled: false,
+            updateAvailable: false,
+            source: 'bundled',
+            validationErrors: [],
           },
           {
             manifest: {
@@ -95,11 +56,24 @@ describe('CommandCenterOverlay', () => {
               icon: 'assets/icon.svg',
               platforms: ['windows'],
               categories: ['Productivity'],
-              commands: [{ id: 'welcome', title: 'Welcome Kit', mode: 'view', entry: 'ui/welcome.json', keywords: ['welcome'] }],
+              commands: [
+                {
+                  id: 'welcome',
+                  title: 'Welcome Kit',
+                  mode: 'view',
+                  entry: 'ui/welcome.json',
+                  keywords: ['welcome'],
+                },
+              ],
               permissions: ['storage.local'],
               privacy: { dataLeavesDevice: false },
             },
-            trust: 'reviewed', installed: false, enabled: false, updateAvailable: false, source: 'bundled', validationErrors: [],
+            trust: 'reviewed',
+            installed: false,
+            enabled: false,
+            updateAvailable: false,
+            source: 'bundled',
+            validationErrors: [],
           },
         ]),
         prepareMutation: vi.fn(),
@@ -544,22 +518,54 @@ describe('CommandCenterOverlay', () => {
     vi.restoreAllMocks()
   })
 
-  it('switches to Ask AI with Tab and starts chat on submit', async () => {
-    const { container } = render(<CommandCenterOverlay />)
+  it('does not expose the embedded Ask AI mode', async () => {
+    render(<CommandCenterOverlay />)
 
-    const input = await screen.findByRole('textbox', { name: /search command center/i })
-    fireEvent.keyDown(input, { key: 'Tab' })
+    expect(
+      await screen.findByRole('textbox', { name: /search command center/i })
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /switch to ask ai/i })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('textbox', { name: /ask zura|ask a follow-up/i })
+    ).not.toBeInTheDocument()
+  })
 
-    const askInput = await screen.findByRole('textbox', { name: /ask zura/i })
-    expect(askInput).toBeInTheDocument()
+  it('blocks workflows containing AI steps before execution', async () => {
+    window.commandCenter.getIndex = vi.fn(async () => ({
+      workflows: [
+        {
+          id: 'workflow:ai-summary',
+          type: 'workflow',
+          title: 'Summarize workspace',
+          subtitle: '1 step',
+          hint: 'Run',
+          aliases: ['summary'],
+          workflow: {
+            id: 'ai-summary',
+            name: 'Summarize workspace',
+            aliases: ['summary'],
+            steps: [{ type: 'ai', prompt: 'Summarize this workspace' }],
+            createdAt: 1,
+            updatedAt: 2,
+          },
+        },
+      ],
+      apps: [],
+      windows: [],
+      actions: [],
+      chats: [],
+    }))
 
-    fireEvent.change(askInput, { target: { value: 'summarize this window' } })
-    fireEvent.keyDown(askInput, { key: 'Enter' })
+    render(<CommandCenterOverlay />)
+    await screen.findByText('Summarize workspace')
+    fireEvent.keyDown(screen.getByRole('textbox', { name: /search command center/i }), {
+      key: 'Enter',
+    })
 
-    expect(createSession).toHaveBeenCalledTimes(1)
-    expect(switchSession).toHaveBeenCalledWith('overlay-session')
-    expect(await screen.findByRole('textbox', { name: /ask a follow-up/i })).toBeInTheDocument()
-    expect(container.querySelector('.command-center-composer')).not.toBeInTheDocument()
+    expect(
+      await screen.findByText('AI workflow steps are temporarily unavailable in Command Center.')
+    ).toBeInTheDocument()
+    expect(window.commandCenter.executeWorkflow).not.toHaveBeenCalled()
   })
 
   it('requires workflow confirmation before execution', async () => {

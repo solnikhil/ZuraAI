@@ -34,10 +34,10 @@ function describeAction(action: string, args: Record<string, unknown>): string {
 
 function actionIcon(action: string) {
   if (action === 'type' || action === 'key')
-    return <Keyboard className="h-5 w-5 text-emerald-500" />
+    return <Keyboard className="h-5 w-5 text-[var(--theme-accent)]" />
   if (action === 'click' || action === 'cursor_position')
-    return <MousePointer className="h-5 w-5 text-emerald-500" />
-  return <Monitor className="h-5 w-5 text-emerald-500" />
+    return <MousePointer className="h-5 w-5 text-[var(--theme-accent)]" />
+  return <Monitor className="h-5 w-5 text-[var(--theme-accent)]" />
 }
 
 export function ComputerUseApprovalDialog(): React.ReactElement | null {
@@ -116,7 +116,7 @@ export function ComputerUseApprovalDialog(): React.ReactElement | null {
           </div>
 
           {request.screenshot && (
-            <div className="overflow-hidden rounded-xl border border-border/70">
+            <div className="overflow-hidden rounded-lg border border-border/70">
               <img
                 src={`data:image/png;base64,${request.screenshot}`}
                 alt="Current screen"
@@ -126,7 +126,7 @@ export function ComputerUseApprovalDialog(): React.ReactElement | null {
             </div>
           )}
 
-          <div className="rounded-xl border border-border/70 bg-muted/35 p-3 text-muted-foreground text-xs">
+          <div className="rounded-lg border border-border/70 bg-muted/35 p-3 text-xs text-muted-foreground">
             Press <kbd className="rounded bg-muted px-1 py-0.5 font-mono text-xs">Esc</kbd>+
             <kbd className="rounded bg-muted px-1 py-0.5 font-mono text-xs">Esc</kbd> to emergency
             stop all actions

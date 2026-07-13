@@ -45,7 +45,7 @@ function AlertDialogContent({
         data-slot="alert-dialog-content"
         data-size={size}
         className={cn(
-          'theme-overlay-surface group/alert-dialog-content fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg p-6 data-[size=sm]:max-w-xs data-[size=default]:sm:max-w-lg',
+          'theme-overlay-surface group/alert-dialog-content fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-xl p-6 data-[size=sm]:max-w-xs data-[size=default]:sm:max-w-lg',
           className
         )}
         {...props}
