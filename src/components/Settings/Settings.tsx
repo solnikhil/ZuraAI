@@ -16,7 +16,6 @@ import { ProviderHubSection } from './sections/ProviderHubSection'
 import { SkillsSection } from './sections/SkillsSection'
 import { AppearanceSection } from './sections/AppearanceSection'
 import { CommandBarSection } from './sections/CommandBarSection'
-import { SystemPromptSection } from './sections/SystemPromptSection'
 
 import { computeUsageStats, mergeUsageSessionSnapshots } from './sections/usageMetrics'
 import type { ChatSession } from '@/chat/types'
@@ -299,8 +298,6 @@ export default function Settings({
       >
         <div className="settings-shell">
           <div className="settings-shell__content">
-            {normalizedActiveSection === 'usage' && <UsageSection stats={usageStats} />}
-
             {normalizedActiveSection === 'providers' && (
               <ProviderHubSection
                 initialProvider={settingsSectionParams?.provider}
@@ -385,23 +382,7 @@ export default function Settings({
               />
             )}
 
-            {normalizedActiveSection === 'systemprompt' && (
-              <SystemPromptSection
-                systemPrompt={pendingSettings.systemPrompt}
-                assistantPersonality={pendingSettings.assistantPersonality}
-                webSearchPrompt={pendingSettings.webSearchPrompt}
-                titleGenerationPrompt={pendingSettings.titleGenerationPrompt}
-                codeExecutionPrompt={pendingSettings.codeExecutionPrompt}
-                terminalPrompt={pendingSettings.terminalPrompt}
-                computerUsePrompt={pendingSettings.computerUsePrompt}
-                commandCenterPrompt={pendingSettings.commandCenterPrompt}
-                chartGenerationPrompt={pendingSettings.chartGenerationPrompt}
-                memoryPrompt={pendingSettings.memoryPrompt}
-                remindersPrompt={pendingSettings.remindersPrompt}
-                artifactsPrompt={pendingSettings.artifactsPrompt}
-                onChange={(changes) => handleChange(changes)}
-              />
-            )}
+            {normalizedActiveSection === 'usage' && <UsageSection stats={usageStats} />}
           </div>
         </div>
       </ScrollArea>

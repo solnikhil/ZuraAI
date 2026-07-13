@@ -44,7 +44,7 @@ Prereqs: Bun `>= 1.1`, Node.js `>= 18`.
 - API keys, MCP secrets, and Brevo keys live in main-process secure storage only. Renderer settings may store sanitized non-secret state only.
 - Built-in prompt templates are code-owned defaults. Do not make them user-editable unless explicitly requested.
 - Keep settings cards, chat composer containers, dropdowns, selects, context menus, titlebar menus, and nested model/provider menus visually flat. Preserve the shared `zura-menu-*` system in `src/styles/shared.css` and `src/components/ui/{dropdown-menu,select,context-menu,menubar}.tsx`.
-- If you add a built-in extension that changes assistant behavior, add `src/prompts/default<ExtensionName>Prompt.ts`, wire it through settings defaults/normalization, render it read-only in Settings -> System Prompt, and inject it only when enabled.
+- If you add a built-in extension that changes assistant behavior, add `src/prompts/default<ExtensionName>Prompt.ts`, wire it through settings defaults/normalization, and inject it only when enabled. Built-in prompts are code-owned; do not add a Settings UI to edit them unless explicitly requested.
 
 ---
 
@@ -377,6 +377,9 @@ cannot grant permissions, install, uninstall, or publish without this user-owned
 Phase 1 extensions do **not** execute third-party JavaScript. Their manifest commands reference
 validated serializable view documents, and `CommandCenterExtensionHost` maps List, Detail, Form,
 Actions, Empty, Loading, Progress, Error, and navigation nodes to trusted Zura React components.
+Loading views may declare an optional trusted skeleton template (`rows`, `list`, `detail`, `form`,
+`workspace`, `emoji-grid`); authors cannot ship custom loading HTML/CSS/JS. Command Center root
+index load and first-party hosts (including GitHub Workspace) use the same skeleton system.
 `view` commands open that host, reviewed `workspace` commands route only to their named first-party
 host capability, and `no-view` commands execute exactly one validated non-navigation root action in
 main without opening renderer UI. The narrow `extensions:execute-no-view` channel exists for explicit
@@ -563,8 +566,8 @@ not submit freeform prompts or start assistant runs. Do not include app install/
 mutation, arbitrary window movement/close, or shell execution in that Command
 Center exposure set without an explicit architecture update. The internal
 Command Center capability has a code-owned
-`src/prompts/defaultCommandCenterPrompt.ts` prompt shown read-only in Settings
--> System Prompt and injected while Agent Mode is active.
+`src/prompts/defaultCommandCenterPrompt.ts` prompt that is injected while Agent
+Mode is active.
 
 ### CORS / Provider Proxy
 

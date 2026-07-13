@@ -9,7 +9,6 @@ import {
 } from 'react'
 import {
   ChevronDown,
-  Cloud,
   Code,
   ExternalLink,
   Folder,
@@ -21,6 +20,14 @@ import {
 } from 'lucide-react'
 import { ActionsMenu, type ActionsMenuGroup } from '@/components/ui/actions-menu'
 import { WithTooltip } from '@/components/ui/WithTooltip'
+import { CommandCenterSkeleton } from '@/components/commandCenter/CommandCenterSkeletons'
+import {
+  ZuraBranchGlyph,
+  ZuraFetchGlyph,
+  ZuraPullGlyph,
+  ZuraPushGlyph,
+  ZuraRepositoryGlyph,
+} from '@/components/icons/GitWorkspaceGlyphs'
 import type {
   GitHubWorkspaceOpenRequest,
   GitHubWorkspaceRepositorySummary,
@@ -357,11 +364,10 @@ export default function GitHubWorkspace({
     if (branchPickerView === 'branches') {
       return [{
         id: 'branches',
-        label: 'Branches',
         items: branches.map((branch) => ({
           id: `branch-${branch}`,
           label: branch,
-          icon: <Code size={14} />,
+          icon: <ZuraBranchGlyph size={14} />,
           checked: branch === repository.branch,
           disabled: Boolean(busy) || branch === repository.branch,
           onSelect: () => {
@@ -375,12 +381,11 @@ export default function GitHubWorkspace({
     }
     return [{
         id: 'worktrees',
-        label: 'Worktrees',
         items: worktrees.map((wt) => ({
           id: `wt-${wt.id}`,
           label: wt.branch || pathBasename(wt.path),
           description: wt.path,
-          icon: <Folder size={14} />,
+          icon: <ZuraRepositoryGlyph size={14} />,
           checked: wt.isCurrent,
           disabled: Boolean(busy) || wt.isCurrent,
           onSelect: () => {
@@ -540,7 +545,13 @@ export default function GitHubWorkspace({
   }, [sidebarWidth])
 
   if (!state) {
-    return <div className="github-workspace-empty">Loading repository workspace…</div>
+    return (
+      <CommandCenterSkeleton
+        template="workspace"
+        label="Loading repository workspace"
+        className="github-workspace-skeleton"
+      />
+    )
   }
 
   if (state.account.status !== 'signed_in') {
@@ -618,12 +629,20 @@ export default function GitHubWorkspace({
   }
 
   const branchLabel = repository?.branch || 'No branch'
-  const syncLabel =
-    repository && repository.behind > 0
+  const isFetching = busy?.startsWith('Fetch') ?? false
+  const isPulling = busy?.startsWith('Pull') ?? false
+  const isPushing = busy?.startsWith('Push') ?? false
+  const fetchLabel = isFetching ? 'Fetching…' : 'Fetch'
+  const pullLabel = isPulling
+    ? 'Pulling…'
+    : repository && repository.behind > 0
       ? `Pull ${repository.behind}`
-      : repository && repository.ahead > 0
-        ? `Push ${repository.ahead}`
-        : 'Push / Pull'
+      : 'Pull'
+  const pushLabel = isPushing
+    ? 'Pushing…'
+    : repository && repository.ahead > 0
+      ? `Push ${repository.ahead}`
+      : 'Push'
 
   return (
     <section className="github-workspace" aria-label="GitHub Workspace">
@@ -796,16 +815,14 @@ export default function GitHubWorkspace({
                     align="end"
                     groups={fileActionGroups}
                     trigger={
-                      <WithTooltip tooltip="File actions">
-                        <button
-                          type="button"
-                          className="zura-menu-trigger github-workspace__actions-trigger"
-                          aria-label="File actions"
-                        >
-                          <MoreHorizontal size={14} />
-                          Actions
-                        </button>
-                      </WithTooltip>
+                      <button
+                        type="button"
+                        className="zura-menu-trigger github-workspace__actions-trigger"
+                        aria-label="File actions"
+                      >
+                        <MoreHorizontal size={14} />
+                        Actions
+                      </button>
                     }
                   />
                 </div>
@@ -877,6 +894,7 @@ export default function GitHubWorkspace({
             }
           />
         </div>
+        <span className="github-workspace__footer-sep" aria-hidden="true" />
 
         <div className="github-workspace__footer-right">
           <ActionsMenu
@@ -887,6 +905,8 @@ export default function GitHubWorkspace({
             }}
             side="top"
             align="end"
+            sideOffset={8}
+            contentClassName="github-workspace__branch-menu"
             groups={branchMenuGroups}
             emptyLabel={branchPickerView === 'branches' ? 'No branches' : 'No worktrees'}
             header={
@@ -898,6 +918,7 @@ export default function GitHubWorkspace({
                   onClick={() => setBranchPickerView('branches')}
                 >
                   Branches
+                  {branches.length > 0 && <span>{branches.length}</span>}
                 </button>
                 <button
                   type="button"
@@ -912,54 +933,79 @@ export default function GitHubWorkspace({
             }
             disabled={!repository || Boolean(busy)}
             trigger={
-              <WithTooltip tooltip="Branches and worktrees">
-                <button
-                  type="button"
-                  className="zura-menu-trigger github-workspace__branch-btn"
-                  disabled={!repository || Boolean(busy)}
-                >
-                  <Code size={12} />
-                  <span>{branchLabel}</span>
-                  <ChevronDown size={11} />
-                </button>
-              </WithTooltip>
+              <button
+                type="button"
+                className="zura-menu-trigger github-workspace__branch-btn"
+                disabled={!repository || Boolean(busy)}
+                aria-label={`Switch branch or worktree. Current branch: ${branchLabel}`}
+              >
+                <span className="github-workspace__footer-icon" aria-hidden="true">
+                  <ZuraBranchGlyph size={14} className="github-workspace__brand-glyph" />
+                </span>
+                <span>{branchLabel}</span>
+                <ChevronDown size={11} />
+              </button>
             }
           />
           <span className="github-workspace__footer-sep" aria-hidden="true" />
 
           <button
             type="button"
-            className={`github-workspace__footer-btn github-workspace__footer-btn--fetch ${busy?.startsWith('Fetch') ? 'is-busy' : ''}`}
+            className={`github-workspace__footer-btn github-workspace__footer-btn--fetch ${isFetching ? 'is-busy' : ''}`}
             disabled={!repository || Boolean(busy)}
-            aria-busy={busy?.startsWith('Fetch') || undefined}
-            aria-label={busy?.startsWith('Fetch') ? 'Fetching' : 'Fetch'}
+            aria-busy={isFetching || undefined}
+            aria-label={fetchLabel}
             onClick={() =>
               repository && void mutate({ type: 'fetch', repositoryId: repository.id }, 'Fetching…')
             }
           >
-            <RefreshCcw size={12} className={busy?.startsWith('Fetch') ? 'is-spinning' : undefined} />
-            {/* Keep label width stable — only the icon spins while busy. */}
-            <span className="github-workspace__footer-btn-label">Fetch</span>
+            <span className="github-workspace__footer-icon" aria-hidden="true">
+              <ZuraFetchGlyph
+                size={14}
+                className={`github-workspace__brand-glyph ${isFetching ? 'is-spinning' : ''}`}
+              />
+            </span>
+            <span className="github-workspace__footer-btn-label">{fetchLabel}</span>
           </button>
           <span className="github-workspace__footer-sep" aria-hidden="true" />
 
           <button
             type="button"
-            className={`github-workspace__footer-btn github-workspace__footer-btn--sync ${busy && /Push|Pull/.test(busy) ? 'is-busy' : ''}`}
-            disabled={!repository || Boolean(busy)}
-            aria-busy={(busy && /Push|Pull/.test(busy)) || undefined}
-            aria-label={busy && /Push|Pull/.test(busy) ? busy.replace(/…$/, '') : syncLabel}
-            onClick={() => {
-              if (!repository) return
-              const isPull = repository.behind > 0
-              void mutate(
-                { type: isPull ? 'pull' : 'push', repositoryId: repository.id },
-                isPull ? 'Pulling…' : 'Pushing…'
-              )
-            }}
+            className={`github-workspace__footer-btn github-workspace__footer-btn--pull ${isPulling ? 'is-busy' : ''}`}
+            disabled={!repository || Boolean(busy) || repository.behind === 0}
+            aria-busy={isPulling || undefined}
+            aria-label={pullLabel}
+            onClick={() =>
+              repository && void mutate({ type: 'pull', repositoryId: repository.id }, 'Pulling…')
+            }
           >
-            <Cloud size={12} className={busy && /Push|Pull/.test(busy) ? 'is-spinning' : undefined} />
-            <span className="github-workspace__footer-btn-label">{syncLabel}</span>
+            <span className="github-workspace__footer-icon" aria-hidden="true">
+              <ZuraPullGlyph
+                size={14}
+                className={`github-workspace__brand-glyph ${isPulling ? 'is-pulling' : ''}`}
+              />
+            </span>
+            <span className="github-workspace__footer-btn-label">{pullLabel}</span>
+          </button>
+          <span className="github-workspace__footer-sep" aria-hidden="true" />
+
+          <button
+            type="button"
+            className={`github-workspace__footer-btn github-workspace__footer-btn--push ${isPushing ? 'is-busy' : ''}`}
+            disabled={!repository || Boolean(busy) || repository.ahead === 0}
+            aria-busy={isPushing || undefined}
+            aria-label={pushLabel}
+            onClick={() =>
+              repository && void mutate({ type: 'push', repositoryId: repository.id }, 'Pushing…')
+            }
+          >
+            <span className="github-workspace__footer-icon" aria-hidden="true">
+              <ZuraPushGlyph
+                size={14}
+                className={`github-workspace__brand-glyph ${isPushing ? 'is-pushing' : ''}`}
+              />
+            </span>
+            <span className="github-workspace__footer-btn-label">{pushLabel}</span>
           </button>
           <span className="github-workspace__footer-sep" aria-hidden="true" />
 
@@ -983,7 +1029,9 @@ export default function GitHubWorkspace({
             }
             trigger={
               <button type="button" className="zura-menu-trigger github-workspace__repo-trigger" disabled={Boolean(busy)}>
-                <Folder size={12} />
+                <span className="github-workspace__footer-icon" aria-hidden="true">
+                  <ZuraRepositoryGlyph size={14} className="github-workspace__brand-glyph" />
+                </span>
                 <span>{repository?.alias || repository?.name || 'Repository'}</span>
                 <ChevronDown size={12} />
               </button>
@@ -1489,32 +1537,95 @@ const workspaceStyles = `
     flex: 0 0 auto;
     height: 42px;
     min-height: 42px;
-    display: flex;
+    display: grid;
+    grid-template-columns:
+      minmax(0, 1fr) 1px
+      minmax(0, 1fr) 1px
+      minmax(0, 1fr) 1px
+      minmax(0, 1fr) 1px
+      minmax(0, 1fr) 1px
+      minmax(0, 1fr);
     align-items: center;
-    justify-content: space-between;
     gap: 0;
-    padding: 0 8px 0 10px;
+    padding: 0 8px;
     border-top: 1px solid rgba(255, 255, 255, 0.08);
     background: transparent;
     font-size: 12.5px;
   }
   .github-workspace__footer-left,
   .github-workspace__footer-right {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    min-width: 0;
-    padding: 6px 4px;
-  }
-  .github-workspace__footer-right {
-    margin-left: auto;
+    display: contents;
   }
   .github-workspace__footer-sep {
-    flex: none;
     width: 1px;
     height: 14px;
-    margin: 0 2px;
+    justify-self: center;
     background: rgba(255, 255, 255, 0.15);
+  }
+  .github-workspace__branch-menu {
+    width: min(312px, calc(100vw - 24px));
+    max-height: min(356px, calc(100vh - 40px));
+    padding: 0;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 241, 246, 0.22) transparent;
+  }
+  .github-workspace__branch-menu::-webkit-scrollbar {
+    width: 6px;
+  }
+  .github-workspace__branch-menu::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .github-workspace__branch-menu::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: rgba(255, 241, 246, 0.2);
+  }
+  .github-workspace__branch-menu::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 241, 246, 0.3);
+  }
+  .github-workspace__branch-menu::-webkit-scrollbar-button {
+    display: none;
+  }
+  .github-workspace__branch-menu .zura-actions-menu__toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    width: 100%;
+    padding: 8px;
+    border-bottom: 1px solid var(--zura-menu-separator);
+    background: var(--zura-menu-bg);
+  }
+  .github-workspace__branch-menu .zura-actions-menu__header-slot {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .github-workspace__branch-menu [data-slot='dropdown-menu-group'] {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px;
+  }
+  .github-workspace__branch-menu .zura-actions-menu__empty {
+    margin: 6px;
+  }
+  .github-workspace__branch-menu .zura-actions-menu__item {
+    min-height: 34px;
+    gap: 10px;
+    padding: 0 8px;
+    border-radius: 7px;
+  }
+  .github-workspace__branch-menu .zura-actions-menu__icon {
+    width: 16px;
+    justify-content: center;
+    color: rgba(255, 241, 246, 0.5);
+  }
+  .github-workspace__branch-menu .zura-actions-menu__label {
+    font-size: 12px;
+    font-weight: 560;
+    letter-spacing: -0.005em;
+  }
+  .github-workspace__branch-menu .zura-actions-menu__check {
+    margin-top: 0;
+    color: rgba(255, 241, 246, 0.68);
   }
   .github-workspace__branch-switch {
     width: 100%;
@@ -1531,8 +1642,8 @@ const workspaceStyles = `
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
-    padding: 0 9px;
+    gap: 7px;
+    padding: 0 10px;
     border: 0;
     border-radius: 5px;
     background: transparent;
@@ -1553,9 +1664,9 @@ const workspaceStyles = `
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.055);
   }
   .github-workspace__branch-switch button span {
-    min-width: 16px;
-    padding: 1px 4px;
-    border-radius: 8px;
+    min-width: 17px;
+    padding: 1px 5px;
+    border-radius: 999px;
     background: rgba(255, 255, 255, 0.08);
     color: rgba(255, 241, 246, 0.62);
     font-size: 9px;
@@ -1564,9 +1675,12 @@ const workspaceStyles = `
 
   .github-workspace__branch-btn.zura-menu-trigger,
   .github-workspace__repo-trigger.zura-menu-trigger {
+    width: calc(100% - 8px);
     height: 28px;
     min-height: 28px;
-    max-width: 160px;
+    max-width: none;
+    justify-self: center;
+    justify-content: center;
     gap: 6px;
     padding: 0 8px;
     border: 0;
@@ -1597,7 +1711,7 @@ const workspaceStyles = `
     white-space: nowrap;
   }
   .github-workspace__footer-btn {
-    flex: none;
+    width: calc(100% - 8px);
     height: 28px;
     min-height: 28px;
     display: inline-flex;
@@ -1608,7 +1722,9 @@ const workspaceStyles = `
     border-radius: 7px;
     background: transparent;
     color: rgba(255, 241, 246, 0.74);
-    max-width: 150px;
+    max-width: none;
+    justify-self: center;
+    justify-content: center;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1623,13 +1739,6 @@ const workspaceStyles = `
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  /* Reserve width for the longest usual sync label so counts don't jump layout. */
-  .github-workspace__footer-btn--fetch {
-    min-width: 4.75rem;
-  }
-  .github-workspace__footer-btn--sync {
-    min-width: 5.75rem;
-  }
   .github-workspace__footer-btn:hover:not(:disabled),
   .github-workspace__footer-btn:focus-visible {
     background: rgba(255, 255, 255, 0.06);
@@ -1642,23 +1751,53 @@ const workspaceStyles = `
   .github-workspace__footer-btn.is-busy .github-workspace__footer-btn-label {
     opacity: 0.88;
   }
+  .github-workspace button.github-workspace__footer-btn:disabled {
+    opacity: .58;
+  }
   .github-workspace__footer-btn svg {
     flex: none;
+  }
+  .github-workspace__footer-icon {
+    width: 16px;
+    height: 16px;
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+  }
+  .github-workspace__brand-glyph {
+    color: currentColor;
   }
   .github-workspace__footer-btn svg.is-spinning {
     animation: github-auth-spin .85s linear infinite;
   }
+  .github-workspace__footer-btn svg.is-pulling {
+    animation: github-pull-motion .7s ease-in-out infinite alternate;
+  }
+  .github-workspace__footer-btn svg.is-pushing {
+    animation: github-push-motion .7s ease-in-out infinite alternate;
+  }
+  @keyframes github-pull-motion {
+    to { transform: translateY(1.5px); opacity: .72; }
+  }
+  @keyframes github-push-motion {
+    to { transform: translateY(-1.5px); opacity: .72; }
+  }
   @media (prefers-reduced-motion: reduce) {
-    .github-workspace__footer-btn svg.is-spinning { animation: none; }
+    .github-workspace__footer-btn svg.is-spinning,
+    .github-workspace__footer-btn svg.is-pulling,
+    .github-workspace__footer-btn svg.is-pushing { animation: none; }
   }
   .github-workspace__account-trigger.zura-menu-trigger {
+    width: calc(100% - 8px);
     height: 28px;
     min-height: 28px;
-    max-width: 180px;
+    max-width: none;
     display: flex;
     align-items: center;
     gap: 6px;
     padding: 0 8px 0 5px;
+    justify-self: center;
+    justify-content: center;
     border: 0;
     border-radius: 7px;
     background: transparent;

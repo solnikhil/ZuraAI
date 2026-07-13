@@ -94,10 +94,12 @@ function getItemStyle(size: CommandPaletteSize, isHighlighted: boolean): React.C
     gap: config.itemGap,
     padding: config.itemPadding,
     cursor: 'pointer',
-    borderRadius: 6,
+    borderRadius: 8,
     margin: '0 4px',
     transition: 'background 80ms ease',
-    background: isHighlighted ? 'var(--theme-surface-hover)' : undefined,
+    background: isHighlighted
+      ? 'color-mix(in srgb, var(--theme-surface-hover) 88%, transparent)'
+      : undefined,
   }
 }
 

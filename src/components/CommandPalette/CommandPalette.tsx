@@ -86,10 +86,12 @@ const contentStyle: React.CSSProperties = {
   maxHeight: '70vh',
   display: 'flex',
   flexDirection: 'column',
-  borderRadius: 12,
-  border: '1px solid var(--theme-border)',
+  borderRadius: 14,
+  border: '1px solid color-mix(in srgb, var(--theme-border) 86%, transparent)',
+  /* Solid surface — overlay opacity only dims the backdrop, never this panel */
   background: 'var(--theme-surface)',
-  boxShadow: '0 16px 48px rgba(0, 0, 0, 0.24), 0 4px 12px rgba(0, 0, 0, 0.12)',
+  opacity: 1,
+  boxShadow: 'none',
   outline: 'none',
   overflow: 'hidden',
 }
@@ -102,9 +104,9 @@ function getSearchWrapStyle(size: CommandPaletteSize): React.CSSProperties {
     gap: config.searchGap,
     margin: config.searchMargin,
     padding: config.searchPadding,
-    borderRadius: 999,
-    background: 'rgba(255, 255, 255, 0.06)',
-    border: '1px solid rgba(255, 255, 255, 0.08)',
+    borderRadius: 10,
+    background: 'color-mix(in srgb, var(--theme-surface-hover) 72%, transparent)',
+    border: '1px solid color-mix(in srgb, var(--theme-border) 84%, transparent)',
     flexShrink: 0,
   }
 }
@@ -186,6 +188,8 @@ export default function CommandPalette() {
   const { commandBar } = settingsUI
   const isCommandPaletteEnabled = commandBar.enabled !== false
 
+  // Overlay opacity darkens only the full-screen backdrop (Dialog Overlay).
+  // The palette content panel stays fully opaque and is never driven by this value.
   const dynamicOverlayStyle = useMemo<React.CSSProperties>(
     () => ({
       ...overlayStyle,
@@ -201,6 +205,8 @@ export default function CommandPalette() {
       ...contentStyle,
       maxWidth: paletteWidthMap[commandBar.paletteWidth ?? 'default'] ?? 560,
       top: palettePositionMap[commandBar.palettePosition ?? 'center'] ?? '20%',
+      // Guard: content opacity must not track overlayOpacity
+      opacity: 1,
     }),
     [commandBar.paletteWidth, commandBar.palettePosition]
   )

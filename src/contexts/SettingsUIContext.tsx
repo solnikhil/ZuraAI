@@ -295,7 +295,14 @@ export function SettingsUIProvider({
   const updateSettingsUI = useCallback((newSettings: Partial<SettingsUI>) => {
     setSettingsUI((prev) => {
       const merged = { ...prev, ...newSettings }
-      // Deep merge promptAutoHide if present
+      // Deep merge nested UI objects so partial updates keep defaults / prior fields
+      if (newSettings.commandBar) {
+        merged.commandBar = {
+          ...defaultSettingsUI.commandBar,
+          ...prev.commandBar,
+          ...newSettings.commandBar,
+        }
+      }
       if (newSettings.promptAutoHide) {
         merged.promptAutoHide = {
           ...defaultSettingsUI.promptAutoHide,
@@ -303,7 +310,6 @@ export function SettingsUIProvider({
           ...newSettings.promptAutoHide,
         }
       }
-      // Deep merge remindersAppearance if present
       if (newSettings.remindersAppearance) {
         merged.remindersAppearance = {
           ...defaultSettingsUI.remindersAppearance!,

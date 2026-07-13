@@ -175,13 +175,6 @@ function buildBaseSuggestions(
       action: { type: 'open_dashboard_view', view: 'settings' },
     },
     {
-      id: 'go-settings-usage',
-      title: 'Usage Settings',
-      subtitle: 'Statistics & token tracking',
-      keywords: ['usage', 'stats', 'statistics', 'tokens', 'activity'],
-      action: { type: 'open_settings_section', section: 'usage' },
-    },
-    {
       id: 'go-settings-providers',
       title: 'Providers Settings',
       subtitle: 'Models, API keys, and search APIs',
@@ -259,20 +252,6 @@ function buildBaseSuggestions(
       action: { type: 'open_settings_section', section: 'providers', manageMode: 'search-apis' },
     },
     {
-      id: 'go-settings-themes',
-      title: 'Theme Settings',
-      subtitle: 'Appearance & themes',
-      keywords: ['theme', 'themes', 'appearance', 'colors', 'style'],
-      action: { type: 'open_settings_section', section: 'themes' },
-    },
-    {
-      id: 'go-settings-systemprompt',
-      title: 'System Prompt Settings',
-      subtitle: 'Load and edit assistant instructions',
-      keywords: ['system', 'prompt', 'instructions', 'persona', 'behavior'],
-      action: { type: 'open_settings_section', section: 'systemprompt' },
-    },
-    {
       id: 'go-settings-commandbar',
       title: 'Command Bar Settings',
       subtitle: 'Reindex apps, Command Center, and command palette',
@@ -289,6 +268,20 @@ function buildBaseSuggestions(
         'floating',
       ],
       action: { type: 'open_settings_section', section: 'commandbar' },
+    },
+    {
+      id: 'go-settings-themes',
+      title: 'Theme Settings',
+      subtitle: 'Appearance & themes',
+      keywords: ['theme', 'themes', 'appearance', 'colors', 'style'],
+      action: { type: 'open_settings_section', section: 'themes' },
+    },
+    {
+      id: 'go-settings-usage',
+      title: 'Usage Settings',
+      subtitle: 'Statistics & token tracking',
+      keywords: ['usage', 'stats', 'statistics', 'tokens', 'activity'],
+      action: { type: 'open_settings_section', section: 'usage' },
     },
     {
       id: 'toggle-memory-monitor',

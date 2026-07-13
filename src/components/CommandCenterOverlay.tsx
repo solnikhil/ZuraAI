@@ -28,7 +28,9 @@ import {
   scoreWindowSearch,
 } from '../commandCenter/search'
 import type { CommandCenterEmoji } from '../commandCenter/emojis'
+import { CommandCenterSkeleton } from './commandCenter/CommandCenterSkeletons'
 import type { GitHubCommitBarMeta } from './GitHubWorkspace'
+import { ZuraCommitGlyph } from './icons/GitWorkspaceGlyphs'
 import type {
   CommandCenterIndex,
   CommandCenterIndexItem,
@@ -1605,7 +1607,7 @@ export default function CommandCenterOverlay() {
                     aria-hidden="true"
                   />
                 ) : (
-                  <Check size={14} aria-hidden="true" />
+                  <ZuraCommitGlyph size={15} className="command-center-github-commit__glyph" />
                 )}
                 <span className="command-center-github-commit__label">{githubCommitLabel}</span>
                 {canGitHubCommit && !githubCommitMeta.committing && (
@@ -1644,7 +1646,11 @@ export default function CommandCenterOverlay() {
         )}
 
         <div className="command-center-body">
-          <Suspense fallback={<div className="command-center-empty">Loading command…</div>}>
+          <Suspense
+            fallback={
+              <CommandCenterSkeleton template="rows" label="Loading command" className="command-center-results" />
+            }
+          >
             {isEmojiView ? (
               <div
                 className="command-center-results command-center-emoji-results"
@@ -1656,7 +1662,7 @@ export default function CommandCenterOverlay() {
                 <section className="command-center-group command-center-emoji-group">
                   <h2>
                     {!emojiCatalogReady
-                      ? 'Loading emojis…'
+                      ? 'Emojis'
                       : input.trim()
                         ? `Search Results (${emojiResults.length})`
                         : `All Emojis (${emojiResults.length})`}
@@ -1687,13 +1693,13 @@ export default function CommandCenterOverlay() {
                         )
                       })}
                     </div>
+                  ) : !emojiCatalogReady ? (
+                    <CommandCenterSkeleton template="emoji-grid" label="Loading emoji library" />
                   ) : (
                     <div className="command-center-empty">
-                      {!emojiCatalogReady
-                        ? 'Loading emoji library…'
-                        : input.trim()
-                          ? 'No emoji found. Try a feeling, object, or activity.'
-                          : 'Loading emoji library…'}
+                      {input.trim()
+                        ? 'No emoji found. Try a feeling, object, or activity.'
+                        : 'No emoji available.'}
                     </div>
                   )}
                   {emojiCatalogReady &&
@@ -1905,7 +1911,7 @@ export default function CommandCenterOverlay() {
                     </section>
                   ))
                 ) : indexLoading && filteredRows.length === 0 ? (
-                  <div className="command-center-empty">Loading Command Center...</div>
+                  <CommandCenterSkeleton template="rows" label="Loading Command Center" />
                 ) : input.trim() ? (
                   <div className="command-center-empty">No matching results.</div>
                 ) : (
@@ -2267,6 +2273,11 @@ export default function CommandCenterOverlay() {
         .command-center-github-commit__label {
           min-width: 3.6rem;
           text-align: left;
+        }
+
+        .command-center-github-commit__glyph {
+          flex: none;
+          color: currentColor;
         }
 
         .command-center-github-commit__kbd {

@@ -123,6 +123,12 @@ export function parseExtensionViewText(text: string): { document?: ZuraExtension
   for (const [id, raw] of entries) {
     if (!COMMAND_ID_RE.test(id) || !isObject(raw) || raw.id !== id || !bounded(raw.title, 100)) { errors.push(`View ${id} is invalid.`); continue }
     if (!['list', 'detail', 'form', 'empty', 'loading', 'progress', 'error'].includes(String(raw.kind))) { errors.push(`View ${id} has an unsupported kind.`); continue }
+    if (raw.kind === 'loading' && raw.skeleton != null) {
+      const allowed = ['rows', 'list', 'detail', 'form', 'workspace', 'emoji-grid']
+      if (!allowed.includes(String(raw.skeleton))) {
+        errors.push(`Loading view ${id} has an unsupported skeleton template.`)
+      }
+    }
     const actions: unknown[] = []
     if (Array.isArray(raw.actions)) actions.push(...raw.actions)
     if (raw.kind === 'list') {

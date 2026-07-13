@@ -31,4 +31,30 @@ describe('CommandCenterExtensionHost', () => {
     fireEvent.keyDown(region, { key: 'Escape' })
     await waitFor(() => expect(window.extensions.getView).toHaveBeenLastCalledWith('com.example.safe', 'home', 'home'))
   })
+
+  it('renders a trusted skeleton while the extension view is loading', async () => {
+    let resolveView: ((value: typeof home) => void) | undefined
+    ;(window.extensions.getView as ReturnType<typeof vi.fn>).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveView = resolve
+        })
+    )
+    render(<CommandCenterExtensionHost extensionId="com.example.safe" commandId="home" />)
+    expect(screen.getByRole('status', { name: /Loading extension/i })).toBeInTheDocument()
+    resolveView?.(home)
+    expect(await screen.findByRole('region', { name: 'Examples' })).toBeInTheDocument()
+  })
+
+  it('renders the author-selected skeleton template for loading views', async () => {
+    ;(window.extensions.getView as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      id: 'boot',
+      kind: 'loading',
+      title: 'Warming up',
+      skeleton: 'workspace',
+    })
+    render(<CommandCenterExtensionHost extensionId="com.example.safe" commandId="home" />)
+    expect(await screen.findByRole('status', { name: 'Warming up' })).toBeInTheDocument()
+    expect(screen.queryByText('Loading extension…')).not.toBeInTheDocument()
+  })
 })

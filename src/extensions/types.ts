@@ -66,12 +66,37 @@ export type ZuraExtensionFormField =
   | { id: string; type: 'checkbox'; title: string; defaultValue?: boolean }
   | { id: string; type: 'select'; title: string; required?: boolean; options: Array<{ value: string; title: string }> }
 
+/**
+ * Trusted loading skeleton templates for `kind: 'loading'` views.
+ * Extension authors pick one — they cannot supply custom CSS/JS.
+ * - `rows`: Command Center result rows (default)
+ * - `list`: search field + rows
+ * - `detail`: markdown/detail layout
+ * - `form`: labeled fields + actions
+ * - `workspace`: sidebar + detail host (GitHub-style)
+ * - `emoji-grid`: compact glyph grid
+ */
+export type ZuraExtensionSkeletonTemplate =
+  | 'rows'
+  | 'list'
+  | 'detail'
+  | 'form'
+  | 'workspace'
+  | 'emoji-grid'
+
 export type ZuraExtensionView =
   | { id: string; kind: 'list'; title: string; searchPlaceholder?: string; sections: ZuraExtensionListSection[]; empty?: { title: string; description?: string } }
   | { id: string; kind: 'detail'; title: string; markdown: string; actions?: ZuraExtensionAction[] }
   | { id: string; kind: 'form'; title: string; fields: ZuraExtensionFormField[]; actions: ZuraExtensionAction[] }
   | { id: string; kind: 'empty'; title: string; description?: string; actions?: ZuraExtensionAction[] }
-  | { id: string; kind: 'loading'; title: string; description?: string }
+  | {
+      id: string
+      kind: 'loading'
+      title: string
+      description?: string
+      /** Optional trusted skeleton template. Defaults to `rows` when omitted. */
+      skeleton?: ZuraExtensionSkeletonTemplate
+    }
   | { id: string; kind: 'progress'; title: string; description?: string; value?: number }
   | { id: string; kind: 'error'; title: string; description: string; actions?: ZuraExtensionAction[] }
 

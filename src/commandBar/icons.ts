@@ -9,7 +9,6 @@ import {
   Cloud,
   Box,
   Command,
-  FileText,
   Globe,
   Send,
   Wrench,
@@ -47,8 +46,6 @@ export function getSuggestionIcon(suggestion: CommandBarSuggestion): {
     return { Icon: Globe, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
   if (suggestion.id === 'go-settings-themes')
     return { Icon: Box, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
-  if (suggestion.id === 'go-settings-systemprompt')
-    return { Icon: FileText, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
   if (suggestion.id === 'go-settings-commandbar')
     return { Icon: Command, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
 

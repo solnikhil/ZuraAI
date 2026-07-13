@@ -137,9 +137,37 @@ Supported view kinds are:
 - `detail`, with bounded Markdown content
 - `form`, with text, password, textarea, checkbox, and select fields
 - `empty`
-- `loading`
+- `loading`, with an optional trusted skeleton template (see below)
 - `progress`
 - `error`
+
+### Loading skeletons
+
+Authors cannot ship custom loading HTML/CSS/JS. Instead, a `loading` view may pick one of the
+trusted skeleton templates ZuraAI already knows how to render:
+
+| `skeleton` value | Shape                                              |
+| ---------------- | -------------------------------------------------- |
+| `rows` (default) | Command Center-style result rows                   |
+| `list`           | Search field + result rows                         |
+| `detail`         | Title + body lines + action chips                  |
+| `form`           | Labeled fields + primary action                    |
+| `workspace`      | Sidebar + detail pane + footer (GitHub-style host) |
+| `emoji-grid`     | Compact glyph grid                                 |
+
+Example:
+
+```json
+{
+  "id": "booting",
+  "kind": "loading",
+  "title": "Loading notes…",
+  "description": "Reading local storage",
+  "skeleton": "list"
+}
+```
+
+Omit `skeleton` to use `rows`. Unknown template values are rejected at validation time.
 
 The host owns DOM construction, styling, keyboard focus, Escape/back navigation, and action
 menus. Documents are capped at 64 views and 500 list items. Forms are capped at 64 fields, and

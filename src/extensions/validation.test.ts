@@ -61,4 +61,34 @@ describe('extension validation', () => {
     expect(errors).toContain('duplicate field')
     expect(errors).toContain('unknown field')
   })
+
+  it('accepts loading views with a trusted skeleton template', () => {
+    const document = {
+      schemaVersion: 1,
+      rootViewId: 'boot',
+      views: {
+        boot: {
+          id: 'boot',
+          kind: 'loading',
+          title: 'Loading…',
+          description: 'Warming cache',
+          skeleton: 'list',
+        },
+      },
+    }
+    expect(parseExtensionViewText(JSON.stringify(document)).errors).toEqual([])
+  })
+
+  it('rejects loading views with an unknown skeleton template', () => {
+    const document = {
+      schemaVersion: 1,
+      rootViewId: 'boot',
+      views: {
+        boot: { id: 'boot', kind: 'loading', title: 'Loading…', skeleton: 'custom-css' },
+      },
+    }
+    expect(parseExtensionViewText(JSON.stringify(document)).errors.join(' ')).toContain(
+      'unsupported skeleton template'
+    )
+  })
 })

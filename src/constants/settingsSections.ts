@@ -1,13 +1,12 @@
 import type { CatalogExtensionId } from '../components/Settings/sections/extensionCatalog'
 
 export type SettingsSectionId =
-  | 'usage'
   | 'providers'
   | 'extensions'
   | 'mcp'
   | 'commandbar'
   | 'themes'
-  | 'systemprompt'
+  | 'usage'
 
 export interface SettingsSectionMeta {
   id: SettingsSectionId
@@ -17,14 +16,11 @@ export interface SettingsSectionMeta {
   keywords: string[]
 }
 
+/**
+ * Sidebar / settings page order.
+ * Setup and capability pages first, personalization next, usage insights last.
+ */
 export const SETTINGS_SECTIONS: SettingsSectionMeta[] = [
-  {
-    id: 'usage',
-    navLabel: 'Usage',
-    title: 'Usage Intelligence',
-    description: 'Track activity, model mix, and performance trends in one place.',
-    keywords: ['stats', 'analytics', 'tokens', 'activity', 'performance'],
-  },
   {
     id: 'providers',
     navLabel: 'Providers',
@@ -73,11 +69,11 @@ export const SETTINGS_SECTIONS: SettingsSectionMeta[] = [
     keywords: ['theme', 'style', 'palette', 'titlebar'],
   },
   {
-    id: 'systemprompt',
-    navLabel: 'Prompt',
-    title: 'System Prompt',
-    description: 'Define default assistant behavior and response guidelines.',
-    keywords: ['instruction', 'persona', 'behavior', 'prompt'],
+    id: 'usage',
+    navLabel: 'Usage',
+    title: 'Usage Intelligence',
+    description: 'Track activity, model mix, and performance trends in one place.',
+    keywords: ['stats', 'analytics', 'tokens', 'activity', 'performance'],
   },
 ]
 
