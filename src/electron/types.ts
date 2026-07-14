@@ -471,6 +471,11 @@ export interface CommandCenterExecuteResult {
   extension?: { extensionId: string; commandId: string; hostCapability?: string }
 }
 
+export interface CommandCenterShownInfo {
+  attemptId: number
+  startedAt: number
+}
+
 /** Fixed secondary actions for a selected Command Center index item (apps first). */
 export type CommandCenterItemActionId =
   | 'open'
@@ -1195,7 +1200,7 @@ export interface CommandCenterAPI {
   openChatSession: (sessionId: string) => Promise<boolean>
   setLayout: (layout: 'search' | 'chat') => Promise<boolean>
   submitCommand: (text: string) => Promise<CommandCenterSubmitResult>
-  onShown: (callback: () => void) => () => void
+  onShown: (callback: (info?: CommandCenterShownInfo) => void) => () => void
   onHidden: (callback: () => void) => () => void
   onCommand: (callback: (command: CommandCenterCommand) => void) => () => void
 }

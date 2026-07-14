@@ -14,6 +14,7 @@ const MAX_RESULTS = 40
 const QUERY_TIMEOUT_MS = 650
 const RESULT_CACHE_TTL_MS = 5 * 60 * 1000
 const MAX_QUERY_LENGTH = 120
+const WINDOWS_SEARCH_IDLE_DISPOSE_MS = 2 * 60 * 1000
 
 interface WindowsSearchItemBase {
   id: string
@@ -114,6 +115,7 @@ let helper: ChildProcessWithoutNullStreams | null = null
 let helperSequence = 0
 let helperDisabled = false
 let helperError: string | undefined
+let helperIdleTimer: ReturnType<typeof setTimeout> | null = null
 const pending = new Map<number, PendingRequest>()
 const resultPaths = new Map<string, CachedPath>()
 const opaqueKey = randomBytes(32)
@@ -124,6 +126,10 @@ function powershellPath(): string {
 }
 
 function disposeHelper(error?: Error): void {
+  if (helperIdleTimer) {
+    clearTimeout(helperIdleTimer)
+    helperIdleTimer = null
+  }
   const active = helper
   helper = null
   for (const request of pending.values()) {
@@ -132,6 +138,18 @@ function disposeHelper(error?: Error): void {
   }
   pending.clear()
   if (active && !active.killed) active.kill()
+}
+
+function scheduleHelperIdleDispose(): void {
+  if (helperIdleTimer) clearTimeout(helperIdleTimer)
+  helperIdleTimer = setTimeout(() => {
+    helperIdleTimer = null
+    if (pending.size > 0) {
+      scheduleHelperIdleDispose()
+      return
+    }
+    disposeWindowsSearch()
+  }, WINDOWS_SEARCH_IDLE_DISPOSE_MS)
 }
 
 function ensureHelper(): ChildProcessWithoutNullStreams {
@@ -276,6 +294,7 @@ export function compileWindowsSearchSql(
 
 function requestRows(sql: string): Promise<HelperRow[]> {
   const child = ensureHelper()
+  scheduleHelperIdleDispose()
   const id = ++helperSequence
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
@@ -364,7 +383,12 @@ export async function searchWindowsIndex(queryValue: unknown): Promise<WindowsSe
 
 export function warmWindowsSearch(): void {
   if (process.platform !== 'win32') return
-  try { ensureHelper() } catch { /* surfaced on the first query */ }
+  try {
+    ensureHelper()
+    scheduleHelperIdleDispose()
+  } catch {
+    // Surfaced on the first query.
+  }
 }
 
 export function disposeWindowsSearch(): void {

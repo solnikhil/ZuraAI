@@ -1,0 +1,111 @@
+@import 'tailwindcss';
+@import './styles/shared.css';
+@import './styles/themes.css';
+@import './styles/typography.css';
+
+@theme inline {
+  --color-background: var(--theme-background);
+  --color-foreground: var(--theme-text-primary);
+  --color-card: var(--theme-surface);
+  --color-card-foreground: var(--theme-text-primary);
+  --color-popover: var(--theme-surface);
+  --color-popover-foreground: var(--theme-text-primary);
+  --color-primary: var(--theme-accent);
+  --color-primary-foreground: var(--theme-text-inverse);
+  --color-secondary: var(--theme-surface-subtle);
+  --color-secondary-foreground: var(--theme-text-secondary);
+  --color-muted: var(--theme-surface-hover);
+  --color-muted-foreground: var(--theme-text-muted);
+  --color-accent: var(--theme-surface-hover);
+  --color-accent-foreground: var(--theme-text-primary);
+  --color-destructive: var(--theme-error);
+  --color-destructive-foreground: var(--theme-text-inverse);
+  --color-border: var(--theme-border);
+  --color-input: var(--theme-border);
+  --color-ring: var(--theme-accent);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+:root {
+  --font-sans:
+    'Segoe UI Variable', 'Segoe UI', -apple-system, BlinkMacSystemFont, 'SF Pro Text',
+    'SF Pro Display', system-ui, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
+  --app-font-scale: 1;
+  --app-root-font-size: 15px;
+  --radius: 0.625rem;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+html,
+body {
+  background: transparent;
+  color: var(--theme-text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--app-root-font-size);
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  position: relative;
+  background: rgba(0, 0, 0, 0.32);
+  backdrop-filter: blur(26px) saturate(118%);
+  -webkit-backdrop-filter: blur(26px) saturate(118%);
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+::selection {
+  background: var(--theme-selection-bg);
+  color: var(--theme-selection-text);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--theme-scrollbar) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border-radius: 3px;
+  background: var(--theme-scrollbar);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--theme-scrollbar-hover);
+}

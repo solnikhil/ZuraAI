@@ -35,6 +35,7 @@ import type {
   CommandCenterIndex,
   CommandCenterIndexItem,
   CommandCenterItemActionId,
+  CommandCenterShownInfo,
 } from '../electron/types'
 
 type EmojiSearchFn = (query: string, limit?: number) => CommandCenterEmoji[]
@@ -219,9 +220,6 @@ const EMOJI_GRID_COLUMNS = 9
 function resultOptionId(itemId: string): string {
   return `command-center-option-${itemId.replace(/[^a-zA-Z0-9_-]/g, '-')}`
 }
-
-/** Keep nested-view UI state across hide while the warm renderer is retained. */
-const COMMAND_CENTER_SESSION_RESUME_MS = 2 * 60 * 1000
 
 const INTERACTIVE_EXTRA_ACTION_IDS = new Set<string>([
   'emoji-picker',
@@ -543,6 +541,8 @@ export default function CommandCenterOverlay() {
   const activeSearchQueryRef = useRef('')
   const selectionTouchedRef = useRef(false)
   const selectedItemIdRef = useRef<string | null>(null)
+  const filteredRowCountRef = useRef(0)
+  const pendingFirstRowPaintRef = useRef<CommandCenterShownInfo | null>(null)
   /** Timestamp of last hide(); null until the overlay has been dismissed once. */
   const lastHiddenAtRef = useRef<number | null>(null)
   /** Latest UI snapshot for soft-resume without stale closures. */
@@ -747,6 +747,21 @@ export default function CommandCenterOverlay() {
     () => groupedRows.flatMap(([group, items]) => items.map((item) => ({ group, item }))),
     [groupedRows]
   )
+  filteredRowCountRef.current = filteredRows.length
+
+  useEffect(() => {
+    const info = pendingFirstRowPaintRef.current
+    if (!import.meta.env.DEV || !info || filteredRows.length === 0) return
+    pendingFirstRowPaintRef.current = null
+    requestAnimationFrame(() => {
+      console.debug('[CommandCenter:perf]', {
+        attemptId: info.attemptId,
+        mark: 'first-result-row-paint',
+        elapsedMs: Number((Date.now() - info.startedAt).toFixed(2)),
+        resultCount: filteredRows.length,
+      })
+    })
+  }, [filteredRows.length])
 
   // O(1) id -> row index lookup so each rendered row doesn't run an O(n) findIndex
   // (which made selection cost O(n^2) across the whole list on every render).
@@ -989,15 +1004,35 @@ export default function CommandCenterOverlay() {
     requestAnimationFrame(() => inputRef.current?.focus())
   }, [refreshIndex])
 
-  const handleOverlayShown = useCallback(() => {
+  const handleOverlayShown = useCallback((info?: CommandCenterShownInfo) => {
     const lastHidden = lastHiddenAtRef.current
-    const canResume =
-      lastHidden !== null && Date.now() - lastHidden < COMMAND_CENTER_SESSION_RESUME_MS
+    const canResume = lastHidden !== null
     if (canResume) {
       softResumeOverlay()
-      return
+    } else {
+      resetOverlay()
     }
-    resetOverlay()
+    if (import.meta.env.DEV && info) {
+      pendingFirstRowPaintRef.current = info
+      requestAnimationFrame(() => {
+        const resultCount = filteredRowCountRef.current
+        console.debug('[CommandCenter:perf]', {
+          attemptId: info.attemptId,
+          mark: 'first-visible-renderer-frame',
+          elapsedMs: Number((Date.now() - info.startedAt).toFixed(2)),
+          resultCount,
+        })
+        if (resultCount > 0 && pendingFirstRowPaintRef.current === info) {
+          pendingFirstRowPaintRef.current = null
+          console.debug('[CommandCenter:perf]', {
+            attemptId: info.attemptId,
+            mark: 'first-result-row-paint',
+            elapsedMs: Number((Date.now() - info.startedAt).toFixed(2)),
+            resultCount,
+          })
+        }
+      })
+    }
   }, [resetOverlay, softResumeOverlay])
 
   useEffect(() => {
@@ -1065,9 +1100,8 @@ export default function CommandCenterOverlay() {
   }, [actionsOpen])
 
   const hideOverlay = useCallback(() => {
-    // Remember dismissal time so a quick reopen can restore the last screen.
-    // Temporary chat cleanup is deferred until the session resume window expires
-    // (or the idle destroy recreates a fresh renderer).
+    // Remember that this renderer has been shown so every later reopen restores
+    // the last screen while the permanent warm window remains alive.
     lastHiddenAtRef.current = Date.now()
     void window.commandCenter.hide()
   }, [])

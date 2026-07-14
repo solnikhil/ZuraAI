@@ -6,7 +6,6 @@ import AppLoadingFallback from './components/AppLoadingFallback'
 
 const AboutWindow = lazy(() => import('./components/AboutWindow'))
 const DashboardApp = lazy(() => import('./components/DashboardApp'))
-const CommandCenterApp = lazy(() => import('./components/CommandCenterApp'))
 // Loaded only inside the dev-only `#/chat-debug` BrowserWindow. Wrapped in
 // `import.meta.env.DEV` so the chunk is dropped from production bundles.
 const ChatDebugApp = import.meta.env.DEV
@@ -23,8 +22,6 @@ function App() {
   let content: ReactNode
   if (hashPath.startsWith('#/about')) {
     content = <AboutWindow />
-  } else if (hashPath.startsWith('#/command-center')) {
-    content = <CommandCenterApp />
   } else if (hashPath.startsWith('#/chat-debug') && ChatDebugApp) {
     content = (
       <Suspense fallback={null}>

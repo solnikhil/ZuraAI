@@ -1,5 +1,6 @@
 import { app, BrowserWindow, screen } from 'electron'
 import path from 'path'
+import { performance } from 'node:perf_hooks'
 
 import { captureCommandCenterReturnTarget } from '../commandCenterFocus'
 import { resolveDistPath } from './mainWindow'
@@ -14,43 +15,51 @@ export function getCommandCenterWindow(): BrowserWindow | null {
 let commandCenterLayout: 'search' | 'chat' = 'search'
 let commandCenterReadyToShow = false
 let commandCenterShowPending = false
+let commandCenterOpenAttemptId = 0
+let pendingOpenAttempt: { id: number; startedAt: number; startedAtEpochMs: number } | null = null
 // Timestamp of the last show(). Used to ignore the spurious blur Windows can
 // deliver while focus is still transferring to a freshly shown always-on-top
 // overlay, which would otherwise hide it immediately ("can't open" flicker).
 let commandCenterLastShownAt = 0
 const COMMAND_CENTER_SHOW_BLUR_GRACE_MS = 250
 /**
- * After the overlay is dismissed, destroy the BrowserWindow once idle so the
- * second Chromium renderer does not stay resident forever. Next open recreates
- * the window (acceptable cold-open cost for a spotlight-style panel).
+ * Keep recent opens fast, then reclaim the second Chromium renderer when the
+ * palette has not been used for a while. Background throttling reduces CPU but
+ * does not release the renderer's resident memory.
  */
 export const COMMAND_CENTER_IDLE_DESTROY_MS = 2 * 60 * 1000
 let idleDestroyTimer: ReturnType<typeof setTimeout> | null = null
 
 function cancelIdleDestroy(): void {
-  if (idleDestroyTimer) {
-    clearTimeout(idleDestroyTimer)
-    idleDestroyTimer = null
-  }
+  if (!idleDestroyTimer) return
+  clearTimeout(idleDestroyTimer)
+  idleDestroyTimer = null
 }
 
 function scheduleIdleDestroy(): void {
   cancelIdleDestroy()
   idleDestroyTimer = setTimeout(() => {
     idleDestroyTimer = null
-    // Only destroy while hidden — never tear down a visible overlay.
-    if (commandCenterWindow && !commandCenterWindow.isDestroyed() && commandCenterWindow.isVisible()) {
-      return
-    }
+    const win = commandCenterWindow
+    if (!win || win.isDestroyed() || win.isVisible()) return
     destroyCommandCenterWindow()
   }, COMMAND_CENTER_IDLE_DESTROY_MS)
 }
 
+function logCommandCenterPerformance(
+  attempt: { id: number; startedAt: number } | null,
+  mark: string
+): void {
+  if (app.isPackaged) return
+  console.debug('[CommandCenter:perf]', {
+    attemptId: attempt?.id ?? 0,
+    mark,
+    elapsedMs: attempt ? Number((performance.now() - attempt.startedAt).toFixed(2)) : 0,
+  })
+}
+
 function commandCenterRouteUrl(baseUrl: string): string {
-  const url = new URL(baseUrl)
-  url.searchParams.set('commandCenter', '1')
-  url.hash = '/command-center'
-  return url.toString()
+  return new URL('command-center.html', baseUrl).toString()
 }
 
 function centerBounds(layout: 'search' | 'chat' = commandCenterLayout): {
@@ -95,6 +104,7 @@ function createCommandCenterWindow(): BrowserWindow {
     alwaysOnTop: true,
     skipTaskbar: true,
     show: false,
+    paintWhenInitiallyHidden: true,
     autoHideMenuBar: true,
     // Platform-native translucency. Acrylic is the correct DWM material for a
     // transient/light-dismiss surface on Windows 11; macOS uses vibrancy. In
@@ -123,8 +133,8 @@ function createCommandCenterWindow(): BrowserWindow {
       sandbox: true,
       devTools: !app.isPackaged,
       spellcheck: false,
-      // Throttle when hidden so a dismissed overlay does not keep the
-      // compositor/timers fully hot. Idle destroy reclaims the process entirely.
+      // Keep the warm renderer resident while allowing Chromium to idle hidden
+      // timers and compositor work.
       backgroundThrottling: true,
       additionalArguments: ['--process-name=ZuraAI-CommandCenter'],
     },
@@ -154,7 +164,6 @@ function createCommandCenterWindow(): BrowserWindow {
         const current = commandCenterWindow
         if (!current || current.isDestroyed()) return
         if (current.isVisible() && !current.isFocused()) {
-          // Route through hideCommandCenterWindow so idle-destroy is scheduled.
           hideCommandCenterWindow()
         }
       }, COMMAND_CENTER_SHOW_BLUR_GRACE_MS)
@@ -167,23 +176,39 @@ function createCommandCenterWindow(): BrowserWindow {
     commandCenterWindow = null
     commandCenterReadyToShow = false
     commandCenterShowPending = false
-    cancelIdleDestroy()
+    pendingOpenAttempt = null
   })
 
   commandCenterWindow.once('ready-to-show', () => {
     commandCenterReadyToShow = true
+    logCommandCenterPerformance(pendingOpenAttempt, 'renderer-ready')
+    if (!app.isPackaged) {
+      setImmediate(() => {
+        const win = commandCenterWindow
+        if (!win || win.isDestroyed()) return
+        const rendererPid = win.webContents.getOSProcessId()
+        const metric = app.getAppMetrics().find(({ pid }) => pid === rendererPid)
+        console.debug('[CommandCenter:memory]', {
+          rendererPid,
+          privateKb: metric?.memory?.privateBytes,
+          workingSetKb: metric?.memory?.workingSetSize,
+        })
+      })
+    }
     if (commandCenterShowPending) {
       commandCenterShowPending = false
-      showCommandCenterWindow()
+      const readyWindow = commandCenterWindow
+      if (readyWindow && !readyWindow.isDestroyed()) presentCommandCenterWindow(readyWindow)
+    } else {
+      // Preloading is latency-friendly, but do not retain an unused renderer
+      // for the entire app session.
+      scheduleIdleDestroy()
     }
   })
 
   const loadPromise = process.env.VITE_DEV_SERVER_URL
     ? commandCenterWindow.loadURL(commandCenterRouteUrl(process.env.VITE_DEV_SERVER_URL))
-    : commandCenterWindow.loadFile(path.join(distPath, 'index.html'), {
-        hash: '/command-center',
-        query: { commandCenter: '1' },
-      })
+    : commandCenterWindow.loadFile(path.join(distPath, 'command-center.html'))
 
   void loadPromise.catch((error) => {
     console.error('[MAIN] Failed to load Command Center window:', error)
@@ -211,12 +236,50 @@ function reapplyWindowMaterial(win: BrowserWindow): void {
   }
 }
 
+function presentCommandCenterWindow(win: BrowserWindow): void {
+  cancelIdleDestroy()
+  const attempt = pendingOpenAttempt
+  reapplyWindowMaterial(win)
+  commandCenterLastShownAt = Date.now()
+  win.setOpacity(1)
+  win.show()
+  logCommandCenterPerformance(attempt, 'window-shown')
+  win.focus()
+  logCommandCenterPerformance(attempt, win.isFocused() ? 'focus-acquired' : 'focus-requested')
+  // Re-assert focus on the next tick. The initial focus() can lose the race
+  // with the OS still finishing the show, especially when triggered from a
+  // global shortcut while another app is foreground.
+  setTimeout(() => {
+    const current = commandCenterWindow
+    if (current && !current.isDestroyed() && current.isVisible() && !current.isFocused()) {
+      current.focus()
+    }
+    if (current && !current.isDestroyed() && current.isVisible() && current.isFocused()) {
+      logCommandCenterPerformance(attempt, 'focus-acquired')
+    }
+  }, 60)
+  win.webContents.send('command-center:shown', {
+    attemptId: attempt?.id ?? 0,
+    startedAt: attempt?.startedAtEpochMs ?? Date.now(),
+  })
+  pendingOpenAttempt = null
+}
+
 export function showCommandCenterWindow(): void {
+  cancelIdleDestroy()
+  const startedAt = performance.now()
+  pendingOpenAttempt = {
+    id: ++commandCenterOpenAttemptId,
+    startedAt,
+    startedAtEpochMs: performance.timeOrigin + startedAt,
+  }
+  logCommandCenterPerformance(pendingOpenAttempt, 'shortcut-received')
   // Capture the app that had focus *before* we activate the overlay, so emoji
   // paste / dismiss can return keystrokes to that window's text field.
   captureCommandCenterReturnTarget()
-  cancelIdleDestroy()
+  logCommandCenterPerformance(pendingOpenAttempt, 'foreground-captured')
   const win = createCommandCenterWindow()
+  logCommandCenterPerformance(pendingOpenAttempt, 'window-requested')
   commandCenterLayout = 'search'
   const bounds = centerBounds(commandCenterLayout)
   // Only move the window when the target geometry actually changed. Calling
@@ -230,21 +293,7 @@ export function showCommandCenterWindow(): void {
     commandCenterShowPending = true
     return
   }
-  reapplyWindowMaterial(win)
-  commandCenterLastShownAt = Date.now()
-  win.setOpacity(1)
-  win.show()
-  win.focus()
-  // Re-assert focus on the next tick. The initial focus() can lose the race
-  // with the OS still finishing the show, especially when triggered from a
-  // global shortcut while another app is foreground.
-  setTimeout(() => {
-    const current = commandCenterWindow
-    if (current && !current.isDestroyed() && current.isVisible() && !current.isFocused()) {
-      current.focus()
-    }
-  }, 60)
-  win.webContents.send('command-center:shown')
+  presentCommandCenterWindow(win)
 }
 
 export function setCommandCenterWindowLayout(layout: 'search' | 'chat'): void {
@@ -261,14 +310,12 @@ export function hideCommandCenterWindow(): void {
     if (commandCenterWindow.isVisible()) {
       commandCenterWindow.hide()
     }
-    // Tell the renderer so it can soft-resume UI state on the next open
-    // (emoji view, query, ask mode) until idle destroy reclaim.
+    // Tell the warm renderer so it can soft-resume UI state on the next open.
     if (!commandCenterWindow.isDestroyed()) {
       commandCenterWindow.webContents.send('command-center:hidden')
     }
+    scheduleIdleDestroy()
   }
-  // Schedule process reclaim while the overlay stays unused.
-  scheduleIdleDestroy()
 }
 
 export function toggleCommandCenterWindow(): void {
@@ -285,13 +332,14 @@ export function destroyCommandCenterWindow(): void {
   cancelIdleDestroy()
   commandCenterReadyToShow = false
   commandCenterShowPending = false
+  pendingOpenAttempt = null
   if (commandCenterWindow && !commandCenterWindow.isDestroyed()) {
     commandCenterWindow.destroy()
   }
   commandCenterWindow = null
 }
 
-/** Test helper: whether an idle-destroy timer is armed. */
+/** Test helper for the bounded warm-window lifecycle. */
 export function __isCommandCenterIdleDestroyScheduledForTests(): boolean {
   return idleDestroyTimer !== null
 }

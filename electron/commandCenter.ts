@@ -39,6 +39,7 @@ import {
   destroyCommandCenterWindow,
   getMainWindow,
   hideCommandCenterWindow,
+  preloadCommandCenterWindow,
   setCommandCenterWindowLayout,
   showCommandCenterWindow,
   toggleCommandCenterWindow,
@@ -52,7 +53,10 @@ import {
   executeWindowsCopilotOpen,
 } from './tools/os-integration'
 import { getSupportedWindowsSettingsCatalog } from '../src/commandCenter/windowsSettings'
-import { restoreCommandCenterReturnTarget } from './commandCenterFocus'
+import {
+  restoreCommandCenterReturnTarget,
+  warmCommandCenterFocusCapture,
+} from './commandCenterFocus'
 import { pasteTextViaClipboard } from './tools/computer-use/actions'
 import { executeAppFind, executeAppLaunch, executeAppList } from './tools/app-management'
 import {
@@ -791,12 +795,14 @@ function registerShortcut(): boolean {
   if (shortcutRegistered) return true
   const onShortcut = () => {
     if (!extensionEnabled) return
-    // Prefetch index in parallel with window show so the renderer's first
-    // getIndex often hits the browse SWR cache.
-    prefetchBrowseIndex()
+    // Present first; background refreshes must not contend with the native
+    // window/focus path.
     toggleCommandCenterWindow()
-    warmAppIndex()
-    warmWindowsSearch()
+    setImmediate(() => {
+      prefetchBrowseIndex()
+      warmAppIndex()
+      warmWindowsSearch()
+    })
   }
   const shortcuts = [COMMAND_CENTER_SHORTCUT, COMMAND_CENTER_FALLBACK_SHORTCUT]
   for (const shortcut of shortcuts) {
@@ -1426,9 +1432,11 @@ export function setCommandCenterExtensionEnabled(enabled: boolean): {
   extensionEnabled = enabled
   if (enabled) {
     registerShortcut()
-    // Warm app snapshot + browse index as soon as the dashboard enables CC so
-    // the first shortcut often hits a hot cache instead of spawning PowerShell.
-    // Do not preload the BrowserWindow (keeps the second renderer create-on-demand).
+    // Resolve native symbols and paint a hidden, throttled renderer once the
+    // dashboard enables Command Center so the first shortcut is warm. The
+    // overlay and Windows Search helper reclaim themselves after bounded idle.
+    warmCommandCenterFocusCapture()
+    preloadCommandCenterWindow()
     warmAppIndex()
     prefetchBrowseIndex()
     warmWindowsSearch()
@@ -1461,10 +1469,12 @@ export function registerCommandCenterHandlers(): void {
 
   ipcMain.handle('command-center:show', () => {
     if (!extensionEnabled) return false
-    prefetchBrowseIndex()
     showCommandCenterWindow()
-    warmAppIndex()
-    warmWindowsSearch()
+    setImmediate(() => {
+      prefetchBrowseIndex()
+      warmAppIndex()
+      warmWindowsSearch()
+    })
     return true
   })
 

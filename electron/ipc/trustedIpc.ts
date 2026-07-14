@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 export interface TrustedIpcSenderOptions {
   devServerUrl?: string
   rendererEntryPath?: string
+  rendererEntryPaths?: readonly string[]
   resolveWindow?: (sender: WebContents) => BrowserWindow | null
 }
 
@@ -17,13 +18,16 @@ function exactOrigin(url: string | undefined): string | null {
   }
 }
 
-function defaultRendererEntryPath(): string {
-  return path.resolve(__dirname, '../dist/index.html')
+function defaultRendererEntryPaths(): string[] {
+  return [
+    path.resolve(__dirname, '../dist/index.html'),
+    path.resolve(__dirname, '../dist/command-center.html'),
+  ]
 }
 
 function isTrustedRendererUrl(
   rawUrl: string,
-  { devServerUrl, rendererEntryPath = defaultRendererEntryPath() }: TrustedIpcSenderOptions
+  { devServerUrl, rendererEntryPath, rendererEntryPaths }: TrustedIpcSenderOptions
 ): boolean {
   try {
     const url = new URL(rawUrl)
@@ -34,7 +38,13 @@ function isTrustedRendererUrl(
     }
 
     if (url.protocol !== 'file:') return false
-    return path.resolve(fileURLToPath(url)) === path.resolve(rendererEntryPath)
+    const allowedEntries = rendererEntryPaths
+      ? [...rendererEntryPaths]
+      : rendererEntryPath
+        ? [rendererEntryPath]
+        : defaultRendererEntryPaths()
+    const senderPath = path.resolve(fileURLToPath(url))
+    return allowedEntries.some((entryPath) => senderPath === path.resolve(entryPath))
   } catch {
     return false
   }

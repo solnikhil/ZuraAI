@@ -175,6 +175,12 @@ export default defineConfig({
     },
   },
   build: {
+    rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, 'index.html'),
+        commandCenter: path.resolve(__dirname, 'command-center.html'),
+      },
+    },
     // Use graph-based chunking so dynamic feature boundaries remain real load
     // boundaries. Named manual chunks caused shared renderer runtime modules to
     // be hoisted through Mermaid, Markdown, and Charts, loading them on routes

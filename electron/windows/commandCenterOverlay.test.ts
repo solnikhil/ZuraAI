@@ -95,7 +95,7 @@ vi.mock('./mainWindow', () => ({
   resolveDistPath: () => '/dist',
 }))
 
-describe('commandCenterOverlay idle destroy', () => {
+describe('warm Command Center overlay', () => {
   beforeEach(() => {
     vi.resetModules()
     vi.useFakeTimers()
@@ -108,35 +108,33 @@ describe('commandCenterOverlay idle destroy', () => {
     delete process.env.VITE_DEV_SERVER_URL
   })
 
-  it('schedules idle destroy after hide and cancels on show', async () => {
+  it('keeps the hidden renderer warm briefly, then reclaims it', async () => {
     const overlay = await import('./commandCenterOverlay')
 
-    overlay.showCommandCenterWindow()
+    overlay.preloadCommandCenterWindow()
     await vi.runAllTicks()
-    // ready-to-show may queue show again
     overlay.showCommandCenterWindow()
 
-    expect(browserWindowInstances.length).toBeGreaterThanOrEqual(1)
+    expect(browserWindowInstances).toHaveLength(1)
     const win = browserWindowInstances[0]
     win.isVisible.mockReturnValue(true)
-    expect(overlay.__isCommandCenterIdleDestroyScheduledForTests()).toBe(false)
 
     overlay.hideCommandCenterWindow()
-    expect(overlay.__isCommandCenterIdleDestroyScheduledForTests()).toBe(true)
     expect(win.hide).toHaveBeenCalled()
+    expect(overlay.__isCommandCenterIdleDestroyScheduledForTests()).toBe(true)
 
-    // Re-open before idle expires — timer should clear
+    await vi.advanceTimersByTimeAsync(overlay.COMMAND_CENTER_IDLE_DESTROY_MS - 1)
+    expect(win.destroy).not.toHaveBeenCalled()
+
     win.isVisible.mockReturnValue(false)
     overlay.showCommandCenterWindow()
-    expect(overlay.__isCommandCenterIdleDestroyScheduledForTests()).toBe(false)
+    expect(browserWindowInstances).toHaveLength(1)
+    expect(win.show).toHaveBeenCalled()
+    expect(win.focus).toHaveBeenCalled()
 
     overlay.hideCommandCenterWindow()
-    expect(overlay.__isCommandCenterIdleDestroyScheduledForTests()).toBe(true)
-
-    win.isVisible.mockReturnValue(false)
     await vi.advanceTimersByTimeAsync(overlay.COMMAND_CENTER_IDLE_DESTROY_MS)
-    expect(win.destroy).toHaveBeenCalled()
-    expect(overlay.__isCommandCenterIdleDestroyScheduledForTests()).toBe(false)
+    expect(win.destroy).toHaveBeenCalledOnce()
   }, 15_000)
 
   it('uses backgroundThrottling true so hidden overlay can sleep', async () => {
@@ -146,8 +144,25 @@ describe('commandCenterOverlay idle destroy', () => {
 
     const created = browserWindowInstances[0]
     const prefs = (
-      created as unknown as { options: { webPreferences: { backgroundThrottling: boolean } } }
-    ).options.webPreferences
-    expect(prefs.backgroundThrottling).toBe(true)
+      created as unknown as {
+        options: {
+          paintWhenInitiallyHidden: boolean
+          webPreferences: { backgroundThrottling: boolean }
+        }
+      }
+    ).options
+    expect(prefs.paintWhenInitiallyHidden).toBe(true)
+    expect(prefs.webPreferences.backgroundThrottling).toBe(true)
+  })
+
+  it('loads the dedicated packaged renderer entry', async () => {
+    delete process.env.VITE_DEV_SERVER_URL
+    const overlay = await import('./commandCenterOverlay')
+    overlay.preloadCommandCenterWindow()
+    await vi.runAllTicks()
+
+    expect(browserWindowInstances[0].loadFile).toHaveBeenCalledWith(
+      expect.stringMatching(/command-center\.html$/)
+    )
   })
 })

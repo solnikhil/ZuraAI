@@ -3,7 +3,9 @@
  * before clipboard paste (emoji, etc.). Capture must run *before* the overlay
  * takes focus. Freeform HWNDs from the renderer are never accepted.
  */
-import { execFile, execFileSync } from 'node:child_process'
+import { execFile } from 'node:child_process'
+import path from 'node:path'
+import * as koffi from 'koffi'
 
 let returnTargetHwnd: number | null = null
 let returnTargetMacBundleId: string | null = null
@@ -12,89 +14,175 @@ function isWindows(): boolean {
   return process.platform === 'win32'
 }
 
+type NativeFunction = ReturnType<koffi.LibraryHandle['func']>
+
+interface WindowsForegroundApi {
+  getForegroundWindow: NativeFunction
+  getWindowText: NativeFunction
+  getWindowThreadProcessId: NativeFunction
+  openProcess: NativeFunction
+  queryFullProcessImageName: NativeFunction
+  closeHandle: NativeFunction
+}
+
+interface MacForegroundApi {
+  appKit: koffi.LibraryHandle
+  getClass: NativeFunction
+  registerSelector: NativeFunction
+  sendObject: NativeFunction
+  sendString: NativeFunction
+}
+
+let windowsForegroundApi: WindowsForegroundApi | null | undefined
+let macForegroundApi: MacForegroundApi | null | undefined
+
+function loadWindowsForegroundApi(): WindowsForegroundApi | null {
+  if (windowsForegroundApi !== undefined) return windowsForegroundApi
+  try {
+    const user32 = koffi.load('user32.dll')
+    const kernel32 = koffi.load('kernel32.dll')
+    windowsForegroundApi = {
+      getForegroundWindow: user32.func('void * __stdcall GetForegroundWindow(void)'),
+      getWindowText: user32.func(
+        'int __stdcall GetWindowTextW(void *hWnd, _Out_ uint16_t *lpString, int nMaxCount)'
+      ),
+      getWindowThreadProcessId: user32.func(
+        'uint32_t __stdcall GetWindowThreadProcessId(void *hWnd, _Out_ uint32_t *lpdwProcessId)'
+      ),
+      openProcess: kernel32.func(
+        'void * __stdcall OpenProcess(uint32_t dwDesiredAccess, int bInheritHandle, uint32_t dwProcessId)'
+      ),
+      queryFullProcessImageName: kernel32.func(
+        'int __stdcall QueryFullProcessImageNameW(void *hProcess, uint32_t dwFlags, _Out_ uint16_t *lpExeName, _Inout_ uint32_t *lpdwSize)'
+      ),
+      closeHandle: kernel32.func('int __stdcall CloseHandle(void *hObject)'),
+    }
+  } catch (error) {
+    console.error('[CommandCenter] Failed to initialize native Windows focus capture:', error)
+    windowsForegroundApi = null
+  }
+  return windowsForegroundApi
+}
+
+function loadMacForegroundApi(): MacForegroundApi | null {
+  if (macForegroundApi !== undefined) return macForegroundApi
+  try {
+    // Loading AppKit registers NSWorkspace with the Objective-C runtime. Calls
+    // stay in-process, avoiding an osascript launch on the shortcut hot path.
+    const appKit = koffi.load('/System/Library/Frameworks/AppKit.framework/AppKit')
+    const objc = koffi.load('/usr/lib/libobjc.A.dylib')
+    macForegroundApi = {
+      appKit,
+      getClass: objc.func('void *objc_getClass(const char *name)'),
+      registerSelector: objc.func('void *sel_registerName(const char *name)'),
+      sendObject: objc.func('objc_msgSend', 'void *', ['void *', 'void *']),
+      sendString: objc.func('objc_msgSend', 'str', ['void *', 'void *']),
+    }
+  } catch (error) {
+    console.error('[CommandCenter] Failed to initialize native macOS focus capture:', error)
+    macForegroundApi = null
+  }
+  return macForegroundApi
+}
+
+function windowsProcessName(api: WindowsForegroundApi, processId: number): string {
+  const PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+  const processHandle = api.openProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, processId)
+  if (!processHandle) return ''
+  try {
+    const buffer = Buffer.alloc(2 * 1024)
+    const size: Array<number | null> = [1024]
+    if (!api.queryFullProcessImageName(processHandle, 0, buffer, size)) return ''
+    const characterCount = typeof size[0] === 'number' ? size[0] : 0
+    return path.win32.basename(buffer.toString('utf16le', 0, characterCount * 2))
+  } finally {
+    api.closeHandle(processHandle)
+  }
+}
+
+export function shouldIgnoreWindowsForegroundTarget(
+  target: { processId: number; processName: string; title: string },
+  currentProcessId = process.pid
+): boolean {
+  if (target.processId === currentProcessId) return true
+  const processName = target.processName.toLowerCase().replace(/\.exe$/, '')
+  if (processName === 'zuraai') return true
+  return processName === 'electron' && /(?:command center|zuraai)/i.test(target.title)
+}
+
+function captureWindowsForegroundTarget(): number | null {
+  const api = loadWindowsForegroundApi()
+  if (!api) return returnTargetHwnd
+  try {
+    const nativeHwnd = api.getForegroundWindow()
+    if (!nativeHwnd) return returnTargetHwnd
+
+    const processIdOut: Array<number | null> = [null]
+    if (!api.getWindowThreadProcessId(nativeHwnd, processIdOut)) return returnTargetHwnd
+    const processId = processIdOut[0]
+    if (typeof processId !== 'number' || processId <= 0) return returnTargetHwnd
+
+    const titleBuffer = Buffer.alloc(512)
+    const titleLength = Number(api.getWindowText(nativeHwnd, titleBuffer, 256)) || 0
+    const title = titleBuffer.toString('utf16le', 0, Math.max(0, titleLength) * 2)
+    const processName = windowsProcessName(api, processId)
+    if (shouldIgnoreWindowsForegroundTarget({ processId, processName, title })) {
+      return returnTargetHwnd
+    }
+
+    const hwndAddress = Number(koffi.address(nativeHwnd))
+    if (Number.isSafeInteger(hwndAddress) && hwndAddress > 0) {
+      returnTargetHwnd = hwndAddress
+    }
+  } catch (error) {
+    console.error('[CommandCenter] Native Windows focus capture failed:', error)
+  }
+  return returnTargetHwnd
+}
+
+function captureMacForegroundTarget(): null {
+  const api = loadMacForegroundApi()
+  if (!api) return null
+  try {
+    const workspaceClass = api.getClass('NSWorkspace')
+    const sharedWorkspace = api.sendObject(
+      workspaceClass,
+      api.registerSelector('sharedWorkspace')
+    )
+    const application = api.sendObject(
+      sharedWorkspace,
+      api.registerSelector('frontmostApplication')
+    )
+    const bundleIdObject = api.sendObject(application, api.registerSelector('bundleIdentifier'))
+    const bundleId = String(
+      api.sendString(bundleIdObject, api.registerSelector('UTF8String')) ?? ''
+    ).trim()
+    if (bundleId && !bundleId.toLowerCase().includes('zura')) {
+      returnTargetMacBundleId = bundleId
+    }
+  } catch (error) {
+    console.error('[CommandCenter] Native macOS focus capture failed:', error)
+  }
+  return null
+}
+
+/** Load platform bindings outside the shortcut hot path. */
+export function warmCommandCenterFocusCapture(): void {
+  if (isWindows()) loadWindowsForegroundApi()
+  else if (process.platform === 'darwin') loadMacForegroundApi()
+}
+
 /**
  * Snapshot the current foreground window (sync, before overlay show/focus).
  * Skips our own Command Center / Electron chrome when already focused.
  */
 export function captureCommandCenterReturnTarget(): number | null {
-  if (process.platform === 'darwin') {
-    try {
-      const bundleId = execFileSync(
-        'osascript',
-        [
-          '-e',
-          'tell application "System Events" to get bundle identifier of first application process whose frontmost is true',
-        ],
-        { encoding: 'utf8', timeout: 4_000, maxBuffer: 16 * 1024 }
-      ).trim()
-      if (bundleId && !bundleId.toLowerCase().includes('zura')) returnTargetMacBundleId = bundleId
-    } catch {
-      // Best-effort; clipboard insertion remains available.
-    }
-    return null
-  }
+  if (process.platform === 'darwin') return captureMacForegroundTarget()
   if (!isWindows()) {
     returnTargetHwnd = null
     return null
   }
-  try {
-    const out = execFileSync(
-      'powershell.exe',
-      [
-        '-NoLogo',
-        '-NoProfile',
-        '-NonInteractive',
-        '-ExecutionPolicy',
-        'Bypass',
-        '-Command',
-        `
-Add-Type @"
-using System;
-using System.Text;
-using System.Runtime.InteropServices;
-public static class ZuraFg {
-  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
-  [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetWindowText(IntPtr hWnd, StringBuilder text, int count);
-  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
-}
-"@
-$hwnd = [ZuraFg]::GetForegroundWindow()
-if ($hwnd -eq [IntPtr]::Zero) { Write-Output "0"; exit 0 }
-$pidValue = 0
-[ZuraFg]::GetWindowThreadProcessId($hwnd, [ref]$pidValue) | Out-Null
-$process = if ($pidValue -gt 0) { Get-Process -Id $pidValue -ErrorAction SilentlyContinue } else { $null }
-$name = if ($null -ne $process) { [string]$process.ProcessName } else { "" }
-$builder = New-Object System.Text.StringBuilder 256
-[ZuraFg]::GetWindowText($hwnd, $builder, $builder.Capacity) | Out-Null
-$title = [string]$builder.ToString()
-# Do not treat our own overlay/main as the paste return target.
-if ($name -match '^(ZuraAI|zuraai)$') { Write-Output "0"; exit 0 }
-if ($name -eq 'electron' -and $title -like '*Command Center*') { Write-Output "0"; exit 0 }
-if ($name -eq 'electron' -and $title -like '*ZuraAI*') {
-  # Prefer keeping a prior target if we already have one.
-  Write-Output "0"
-  exit 0
-}
-Write-Output ([int64]$hwnd)
-`,
-      ],
-      {
-        encoding: 'utf8',
-        windowsHide: true,
-        timeout: 4_000,
-        maxBuffer: 16 * 1024,
-      }
-    )
-    const hwnd = Number(String(out).trim())
-    if (Number.isFinite(hwnd) && hwnd > 0) {
-      returnTargetHwnd = Math.trunc(hwnd)
-      return returnTargetHwnd
-    }
-  } catch {
-    // Best-effort; paste will still try OS default focus restore.
-  }
-  // Keep last good target if capture fails mid-session (e.g. reopening CC).
-  return returnTargetHwnd
+  return captureWindowsForegroundTarget()
 }
 
 export function getCommandCenterReturnTarget(): number | null {

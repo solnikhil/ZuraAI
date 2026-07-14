@@ -467,7 +467,7 @@ describe('CommandCenterOverlay', () => {
     expect(screen.queryByText('GitHub Workspace')).not.toBeInTheDocument()
   })
 
-  it('resets to home when reopened after the session resume window expires', async () => {
+  it('keeps the nested view across a long hidden interval', async () => {
     let shownHandler: (() => void) | undefined
     let hiddenHandler: (() => void) | undefined
     window.commandCenter.onShown = vi.fn((callback: () => void) => {
@@ -505,16 +505,13 @@ describe('CommandCenterOverlay', () => {
     act(() => {
       hiddenHandler?.()
     })
-    // Past the 2-minute soft-resume window.
-    vi.spyOn(Date, 'now').mockImplementation(() => hiddenAt + 2 * 60 * 1000 + 1)
+    vi.spyOn(Date, 'now').mockImplementation(() => hiddenAt + 30 * 60 * 1000)
     act(() => {
       shownHandler?.()
     })
 
-    expect(
-      await screen.findByRole('textbox', { name: /search command center/i })
-    ).toBeInTheDocument()
-    expect(screen.queryByRole('textbox', { name: /search emojis/i })).not.toBeInTheDocument()
+    expect(await screen.findByRole('textbox', { name: /search emojis/i })).toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: /search command center/i })).not.toBeInTheDocument()
     vi.restoreAllMocks()
   })
 

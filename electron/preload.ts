@@ -44,6 +44,7 @@ import type {
   PendingComputerAction,
   PendingTerminalApproval,
   CommandCenterCommand,
+  CommandCenterShownInfo,
   CommandCenterActionId,
   CommandCenterState,
   CommandCenterSubmitResult,
@@ -855,9 +856,10 @@ contextBridge.exposeInMainWorld(
         text
       ) as Promise<CommandCenterSubmitResult>
     },
-    onShown: (callback: () => void) => {
+    onShown: (callback: (info?: CommandCenterShownInfo) => void) => {
       assertAllowed('on', 'command-center:shown', COMMAND_CENTER_ON_CHANNELS)
-      const listener = () => callback()
+      const listener = (_event: Electron.IpcRendererEvent, info?: CommandCenterShownInfo) =>
+        callback(info)
       ipcRenderer.on('command-center:shown', listener)
       return () => ipcRenderer.removeListener('command-center:shown', listener)
     },

@@ -100,7 +100,7 @@ Renderer (React/Vite) -> Preload (allowlisted bridges) -> Electron Main
 - Main window: loads `#/dashboard`; routes `/`, `/dashboard`, `/settings`, and `/chat` under `AppShellLayout`.
 - About window: separate `BrowserWindow`, loads `#/about`, opened through `window.appInfo.openAboutWindow()`.
 - Chat debug window: dev-only separate `BrowserWindow`, loads `#/chat-debug?sessionId=<id>`, disabled in packaged builds.
-- Command Center overlay: separate frameless always-on-top `BrowserWindow`, loads `#/command-center`, and is available in both Chat and Agent modes on Windows and macOS.
+- Command Center overlay: separate frameless always-on-top `BrowserWindow`, loads the dedicated `command-center.html` renderer entry, and is available in both Chat and Agent modes on Windows and macOS.
 - Agent approval overlay: separate small frameless always-on-top `BrowserWindow` owned by main for Agent Mode tool-call approvals while ZuraAI is not focused. It loads sanitized inline approval HTML only, resolves approve/reject/always-allow-exact-repeat decisions back to the requesting renderer, and does not execute tools or expose general desktop APIs.
 - Unknown renderer routes render the dedicated 404 view.
 - Renderer-backed windows deny all in-window navigation and new-window creation. Explicit HTTP(S)
@@ -116,7 +116,7 @@ Platform chrome:
 Memory / performance:
 
 - Main and Command Center windows use `backgroundThrottling: true` so Chromium can idle when unfocused.
-- Command Center is create-on-demand; after hide it is **destroyed** after a short idle (or immediately when Agent Mode/CC is disabled) rather than keeping a permanent second renderer.
+- Command Center is pre-created after the dashboard enables it and reuses the hidden, throttled renderer for quick reopen; after about two minutes hidden it is destroyed to reclaim the second renderer, and disable/app shutdown destroy it immediately.
 - Chat index embeds at most a thin recent tail (`RECENT_TAIL_SIZE` ≈ 20 messages) with images/tool payloads stripped; full history lives in per-session files and is loaded in a window (`SESSION_WINDOW_SIZE` ≈ 80) on open. Older messages load on demand (scroll-top / “Load earlier”). Inactive sessions prune to **empty** message arrays (metadata only).
 - Chat message list is **virtualized** (`VirtualMessageList` / react-virtuoso).
 - Usage settings use `chat-store:get-usage-sessions` (slim message fields only), not `chat-store:get-all`.
@@ -173,8 +173,8 @@ The renderer never imports Electron APIs directly.
 All renderer-invokable main handlers must register through
 `electron/ipc/trustedIpc.ts` rather than raw `ipcMain.handle`. The shared guard
 rejects requests unless they originate from the top frame of a live ZuraAI
-`BrowserWindow` whose URL is either the exact development-server origin or the
-packaged `dist/index.html` file. Subframes, unknown/destroyed windows, origin
+`BrowserWindow` whose URL is either the exact development-server origin or one of the
+exact packaged `dist/index.html` and `dist/command-center.html` entries. Subframes, unknown/destroyed windows, origin
 lookalikes, other local files, and non-HTTP(S) remote documents are rejected
 before channel-specific code runs. Tests for individual handler behavior may
 mock the shared registration wrapper, but `trustedIpc.test.ts` must exercise the
@@ -317,14 +317,17 @@ Its global shortcut is `Control+Shift+Space` on Windows and macOS. The fallback 
 `Control+Alt+Space` on Windows and `Control+Option+Shift+Space` on macOS. It is registered after the dashboard renderer mounts
 and syncs availability through `command-center:set-extension-enabled`; changing
 assistant mode must not unregister the shortcut or hide the overlay.
-Command Center overlay lifecycle (RAM): create on first show, hide on blur/dismiss,
-**destroy after ~2 minutes idle** (or immediately when extension is disabled / app
-quits) so a second Chromium renderer is not kept warm forever. `backgroundThrottling`
-is enabled on the overlay. While the warm window is still alive, the renderer soft-
-resumes the last UI screen (search query or nested command view) for the same ~2
-minute window via `command-center:shown` / `command-center:hidden` instead of always
-resetting to home; after that interval (or after idle destroy recreates the window)
-it returns to the root search home. Empty-query browse index uses a short main-process
+Command Center overlay lifecycle: pre-create and paint the hidden window after the
+dashboard enables Command Center, hide it on blur/dismiss, and keep it warm for about
+two minutes for quick reopen. After that hidden idle interval, destroy the renderer;
+disable and app shutdown destroy it immediately. `backgroundThrottling` remains enabled
+while hidden. During the warm interval the renderer soft-resumes the last UI screen through
+`command-center:shown` / `command-center:hidden`; recreation returns to root search.
+The Windows Search helper follows the same bounded-idle policy rather than remaining
+resident for the whole app session. Command Center uses a dedicated Vite
+`command-center.html` entry that eagerly
+mounts root search while nested Store, extension, emoji, and GitHub views remain lazy.
+Empty-query browse index uses a short main-process
 stale-while-revalidate cache (fresh ~12s, stale serve up to ~60s with background
 rebuild); show/shortcut prefetches that cache in parallel with window show. The
 overlay soft-reopens without clearing the previous result list so reopen paints
@@ -431,6 +434,11 @@ still Ctrl+V / Win+V if the original text field closed), hides the overlay,
 best-effort restores that window and sends Ctrl+V. The prior clipboard is not
 restored after insert — clipboard-first is the product guarantee. This channel
 must not accept arbitrary text or expose a general clipboard/type-text API.
+Before show, foreground identity capture is an in-process native call: Windows binds
+the fixed User32/Kernel32 APIs and macOS binds `NSWorkspace.frontmostApplication`
+through the explicitly packaged Koffi runtime. No PowerShell or AppleScript process
+may run on the shortcut-to-show path. Focus restoration after an explicit action may
+remain asynchronous and platform-owned.
 Command Center search uses narrow `window.commandCenter` bridge methods to read
 a typed index of saved workflows, apps from the main-process
 `appIndexService`, live top-level windows, fixed actions, and recent chats. The
@@ -597,7 +605,7 @@ Important tool rules:
 - Agent mode should prefer native structured tools before visual Computer Use and verify mutating actions with read-only inspection where possible.
 - Terminal (`system_shell`) is Windows-only, default disabled, non-interactive PowerShell with approval, timeout, output caps, and no OS sandbox. Treat any relaxation as security-sensitive.
 - Computer Use is Windows-only, default disabled, current-desktop only. Screenshot/list-window capture uses Electron desktop APIs, while click/type/key/scroll/cursor actions use a fixed main-process User32 PowerShell helper with validated coordinates and allowlisted virtual keys. Do not reintroduce a separate virtual desktop mode, `agent_desktop` settings, or `agent-desktop:*` IPC.
-- Command Center supports Windows and macOS and opens in both Chat and Agent modes. Its fixed overlay commands remain available in either mode, while model-callable desktop tools and freeform desktop requests are Agent Mode capabilities. It provides active-window context plus narrow OS actions such as OS-default path opening and snap layouts. macOS foreground-window, focus restoration, paste, and layout actions use bounded code-owned AppleScript only; they do not accept script source from the renderer. It must not become arbitrary shell execution, input simulation, clipboard scraping, or broad OS automation.
+- Command Center supports Windows and macOS and opens in both Chat and Agent modes. Its fixed overlay commands remain available in either mode, while model-callable desktop tools and freeform desktop requests are Agent Mode capabilities. It provides active-window context plus narrow OS actions such as OS-default path opening and snap layouts. macOS foreground capture uses the fixed native AppKit binding; focus restoration, paste, and layout actions may use bounded code-owned AppleScript after user action, and never accept script source from the renderer. It must not become arbitrary shell execution, input simulation, clipboard scraping, or broad OS automation.
 - Agent Mode UI automation is Windows-only and uses a model-facing `ui_*` tool family over the existing restricted `execute-tool` IPC path. `ui_get_app_state` is the primary observation primitive and returns a screenshot, active-window metadata, a compact Microsoft UI Automation accessibility tree, stable main-owned `element_id` values, supported actions, bounds, and truncation metadata. `ui_find` searches the latest/requested state, and `ui_wait_for` waits for bounded UI conditions. Mutating `ui_click`, `ui_type_text`, `ui_set_value`, `ui_select`, `ui_scroll`, `ui_focus`, and `ui_key` require approval and return fresh state after execution. Element IDs are opaque, cached only in main, and should be preferred over coordinate actions; coordinate-based `computer_*` tools remain fallback/legacy Computer Use primitives.
 - MCP resources and prompts are user-visible browsing/preview surfaces only; do not merge them into model-callable tools without an explicit architecture update.
 

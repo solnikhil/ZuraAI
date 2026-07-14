@@ -45,6 +45,7 @@ describe('Command Center main service', () => {
     const performType = vi.fn(async () => undefined)
     const restoreCommandCenterReturnTarget = vi.fn(async () => true)
     const captureCommandCenterReturnTarget = vi.fn(() => 42)
+    const warmCommandCenterFocusCapture = vi.fn()
     const executeAppList =
       overrides.executeAppList ??
       vi.fn(async () => ({
@@ -270,6 +271,7 @@ describe('Command Center main service', () => {
 
     vi.doMock('./commandCenterFocus', () => ({
       captureCommandCenterReturnTarget,
+      warmCommandCenterFocusCapture,
       restoreCommandCenterReturnTarget,
       getCommandCenterReturnTarget: vi.fn(() => 42),
       clearCommandCenterReturnTarget: vi.fn(),
@@ -381,7 +383,7 @@ describe('Command Center main service', () => {
       shortcutRegistered: true,
     })
     expect(register).toHaveBeenCalledWith('Control+Shift+Space', expect.any(Function))
-    expect(preloadCommandCenterWindow).not.toHaveBeenCalled()
+    expect(preloadCommandCenterWindow).toHaveBeenCalledTimes(1)
     // Warm app snapshot + browse index on enable so first open is less cold.
     expect(warmAppIndex).toHaveBeenCalled()
 
@@ -389,6 +391,26 @@ describe('Command Center main service', () => {
     expect(unregister).toHaveBeenCalledWith('Control+Shift+Space')
     // Leaving Agent Mode must destroy the second renderer, not leave it hidden.
     expect(destroyCommandCenterWindow).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows from the shortcut before scheduling background refreshes', async () => {
+    const { service, register, toggleCommandCenterWindow } = await loadService()
+    service.setCommandCenterExtensionEnabled(true)
+    const { warmAppIndex } = await import('./appIndexService')
+    const { warmWindowsSearch } = await import('./windowsSearchService')
+    vi.mocked(warmAppIndex).mockClear()
+    vi.mocked(warmWindowsSearch).mockClear()
+
+    const shortcutHandler = register.mock.calls[0]?.[1] as (() => void) | undefined
+    shortcutHandler?.()
+
+    expect(toggleCommandCenterWindow).toHaveBeenCalledTimes(1)
+    expect(warmAppIndex).not.toHaveBeenCalled()
+    expect(warmWindowsSearch).not.toHaveBeenCalled()
+
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    expect(warmAppIndex).toHaveBeenCalledTimes(1)
+    expect(warmWindowsSearch).toHaveBeenCalledTimes(1)
   })
 
   it('falls back when the primary global shortcut is already registered elsewhere', async () => {
