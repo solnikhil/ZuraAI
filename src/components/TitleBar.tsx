@@ -14,8 +14,6 @@ export default function TitleBar() {
   const location = useLocation()
   const { settings } = useSettings()
   const {
-    dashboardView,
-    hasUnsavedSettings,
     sidebarCollapsed,
     sidebarWidth,
     sidebarHidden,
@@ -33,7 +31,6 @@ export default function TitleBar() {
   }, [])
 
   const density = settings.titleBarDensity || 'comfortable'
-  const isSettingsView = dashboardView === 'settings'
   const sidebarWidthPx = sidebarHidden
     ? 0
     : sidebarCollapsed
@@ -96,8 +93,6 @@ export default function TitleBar() {
           onBack={goBack}
           onForward={goForward}
           hasSidebar={hasSidebar}
-          hasUnsavedSettings={hasUnsavedSettings}
-          isSettingsView={isSettingsView}
           sidebarHidden={sidebarHidden}
           toggleSidebarHidden={toggleSidebarHidden}
         />

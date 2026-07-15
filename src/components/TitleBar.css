@@ -707,15 +707,6 @@
   }
 }
 
-.app-titlebar__unsaved {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--theme-warning);
-  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.15);
-  -webkit-app-region: no-drag;
-}
-
 .no-drag {
   -webkit-app-region: no-drag;
 }

@@ -30,7 +30,7 @@ export interface SkillsSectionProps {
   computerUseAutoApprove: boolean
   brevoApiKey?: string
   emailNotifications?: EmailNotificationSettings
-  hasUnsavedChanges?: boolean
+  isSavingSecureSettings?: boolean
   activeExtension?: CatalogExtensionId | null
   activeExtensionPanel?: 'notifications'
   onActiveExtensionChange: (extension: CatalogExtensionId | null, panel?: 'notifications') => void
@@ -69,7 +69,7 @@ export function SkillsSection({
   computerUseAutoApprove,
   brevoApiKey,
   emailNotifications,
-  hasUnsavedChanges,
+  isSavingSecureSettings,
   activeExtension = null,
   activeExtensionPanel,
   onActiveExtensionChange,
@@ -140,7 +140,7 @@ export function SkillsSection({
           computerUseAutoApprove={computerUseAutoApprove}
           brevoApiKey={brevoApiKey}
           emailNotifications={emailNotifications}
-          hasUnsavedChanges={hasUnsavedChanges}
+          isSavingSecureSettings={isSavingSecureSettings}
           initialPanel={activeExtensionPanel}
           isEnabled={isEnabled}
           setEnabled={setEnabled}

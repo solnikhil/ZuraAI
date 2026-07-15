@@ -15,8 +15,6 @@ const mockAppShell = {
   setDashboardView: vi.fn(),
   activeSettingsSection: 'usage',
   setActiveSettingsSection: vi.fn(),
-  hasUnsavedSettings: false,
-  setHasUnsavedSettings: vi.fn(),
   sidebarCollapsed: false,
   toggleSidebarCollapsed: vi.fn(),
   sidebarHidden: false,

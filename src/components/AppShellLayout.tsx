@@ -7,7 +7,6 @@ import TitleBar from './TitleBar'
 import TitleBarSidebarControls from './TitleBarSidebarControls'
 import ResizeHandles from './ResizeHandles'
 import AppContextMenu from './AppContextMenu'
-import { useToast } from './shared/Toast'
 import { useMouseNavigation } from './shell/useMouseNavigation'
 import { useResizeIndicator } from './shell/useResizeIndicator'
 import { useWindowMaximizeState } from './shell/useWindowMaximizeState'
@@ -18,8 +17,6 @@ export default function AppShellLayout() {
   const navigate = useNavigate()
   const location = useLocation()
   const {
-    dashboardView,
-    hasUnsavedSettings,
     setDashboardView,
     sidebarHidden,
     toggleSidebarHidden,
@@ -30,14 +27,11 @@ export default function AppShellLayout() {
   } = useAppShell()
   const { clearCurrentSession } = useChatHistory()
   const { settingsUI } = useSettingsUI()
-  const { showToast } = useToast()
   const isDev = import.meta.env.DEV
 
   const isWindows = useMemo(() => isWindowsRuntime(), [])
   const isMacOS = useMemo(() => isMacOSRuntime(), [])
   const { hasSidebar } = useShellRouteState(location.pathname)
-  const isSettingsView = dashboardView === 'settings'
-
   const { isMaximized } = useWindowMaximizeState()
   const resizeIndicator = useResizeIndicator(isDev)
   useMouseNavigation()
@@ -57,11 +51,6 @@ export default function AppShellLayout() {
     if (!window.ipcRenderer?.on) return
 
     const listener = () => {
-      if (hasUnsavedSettings && dashboardView === 'settings') {
-        showToast('You have unsaved settings changes', 'warning')
-        return
-      }
-
       navigate('/dashboard')
       setDashboardView('chat')
       clearCurrentSession()
@@ -71,14 +60,7 @@ export default function AppShellLayout() {
     return () => {
       window.ipcRenderer.off('app:new-chat', listener)
     }
-  }, [
-    clearCurrentSession,
-    dashboardView,
-    hasUnsavedSettings,
-    navigate,
-    setDashboardView,
-    showToast,
-  ])
+  }, [clearCurrentSession, navigate, setDashboardView])
 
   return (
     <AppContextMenu>
@@ -109,8 +91,6 @@ export default function AppShellLayout() {
               onBack={goBack}
               onForward={goForward}
               hasSidebar={hasSidebar}
-              hasUnsavedSettings={hasUnsavedSettings}
-              isSettingsView={isSettingsView}
               sidebarHidden={sidebarHidden}
               toggleSidebarHidden={toggleSidebarHidden}
             />

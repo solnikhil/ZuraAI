@@ -11,7 +11,7 @@ import { isSecureApiKeyPlaceholder } from '@/utils/secureApiKeys'
 export interface NotificationsSectionProps {
   brevoApiKey: string
   emailNotifications: EmailNotificationSettings
-  hasUnsavedChanges: boolean
+  isSavingSecureSettings: boolean
   embedded?: boolean
   onChange: (changes: {
     brevoApiKey?: string
@@ -22,7 +22,7 @@ export interface NotificationsSectionProps {
 export function NotificationsSection({
   brevoApiKey,
   emailNotifications,
-  hasUnsavedChanges,
+  isSavingSecureSettings,
   embedded = false,
   onChange,
 }: NotificationsSectionProps): React.ReactElement {
@@ -53,7 +53,7 @@ export function NotificationsSection({
   }
 
   const sendTestEmail = async () => {
-    if (!window.emailNotifications?.sendTest || isSendingTest || hasUnsavedChanges) return
+    if (!window.emailNotifications?.sendTest || isSendingTest || isSavingSecureSettings) return
     setIsSendingTest(true)
     setTestStatus('Sending test email...')
     try {
@@ -168,8 +168,8 @@ export function NotificationsSection({
           <DetailField
             label="Test Email"
             description={
-              hasUnsavedChanges
-                ? 'Save your notification settings before sending a test email.'
+              isSavingSecureSettings
+                ? 'Wait for the secure settings update before sending a test email.'
                 : 'Sends a fixed test message using the saved Brevo key and current email settings.'
             }
             control={
@@ -179,7 +179,7 @@ export function NotificationsSection({
                   className="gap-2"
                   onClick={sendTestEmail}
                   disabled={
-                    hasUnsavedChanges || isSendingTest || !window.emailNotifications?.sendTest
+                    isSavingSecureSettings || isSendingTest || !window.emailNotifications?.sendTest
                   }
                 >
                   <Send size={14} />

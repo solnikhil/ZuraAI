@@ -164,7 +164,6 @@ export default function CommandPalette() {
     setDashboardView,
     setActiveSettingsSection,
     setSettingsSectionParams,
-    hasUnsavedSettings,
     toggleSidebarCollapsed,
     toggleSidebarHidden,
     toggleMemoryMonitor,
@@ -355,14 +354,9 @@ export default function CommandPalette() {
     (view: 'chat' | 'settings') => {
       if (dashboardView === view) return
 
-      if (hasUnsavedSettings && dashboardView === 'settings' && view !== 'settings') {
-        showToast('You have unsaved settings changes', 'warning')
-        return
-      }
-
       setDashboardView(view)
     },
-    [dashboardView, hasUnsavedSettings, setDashboardView, showToast]
+    [dashboardView, setDashboardView]
   )
 
   const ensureDashboardRoute = useCallback(() => {
@@ -414,11 +408,6 @@ export default function CommandPalette() {
           return true
         case 'new_chat': {
           ensureDashboardRoute()
-
-          if (hasUnsavedSettings && dashboardView === 'settings') {
-            showToast('You have unsaved settings changes', 'warning')
-            return false
-          }
 
           setDashboardView('chat')
           createSession()
@@ -488,11 +477,6 @@ export default function CommandPalette() {
 
           ensureDashboardRoute()
 
-          if (hasUnsavedSettings && dashboardView === 'settings') {
-            showToast('You have unsaved settings changes', 'warning')
-            return false
-          }
-
           setDashboardView('chat')
           queueMessage(content)
           return true
@@ -509,7 +493,6 @@ export default function CommandPalette() {
       toggleSidebarHidden,
       toggleSidebarCollapsed,
       toggleMemoryMonitor,
-      hasUnsavedSettings,
       dashboardView,
       setDashboardView,
       showToast,

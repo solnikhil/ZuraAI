@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { useToast } from '@/components/shared'
 import { useSettings } from '../../contexts/SettingsContext'
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
 import { useAppShell } from '../../contexts/AppShellContext'
-import { useMcp } from '../../mcp/McpContext'
 import {
   checkOllamaStatus,
   listOllamaModels,
@@ -26,29 +26,19 @@ import './Settings.css'
 
 interface SettingsProps {
   activeSection?: string
-  onUnsavedChange?: (hasChanges: boolean) => void
-  showWarning?: boolean
 }
 
 export default function Settings({
   activeSection = 'providers',
-  onUnsavedChange,
-  showWarning = false,
 }: SettingsProps): React.ReactElement {
   const { settings, updateSettings } = useSettings()
-  const {
-    discardDraft: discardMcpDraft,
-    hasDraftChanges: hasMcpChanges,
-    saveDraft: saveMcpDraft,
-  } = useMcp()
+  const { showToast } = useToast()
   const { sessions } = useChatHistory()
   const { settingsSectionParams, setSettingsSectionParams } = useAppShell()
 
-  const [pendingSettings, setPendingSettings] = useState(settings)
-  const lastSyncedSettingsRef = useRef(settings)
-  const touchedSecureKeysRef = useRef(new Set<string>())
-  const [isSaving, setIsSaving] = useState(false)
-  const [statusMessage, setStatusMessage] = useState('')
+  const secureSaveQueuesRef = useRef(new Map<string, Promise<void>>())
+  const pendingSecureValuesRef = useRef(new Map<string, string>())
+  const [secureSavesInFlight, setSecureSavesInFlight] = useState(0)
   const [usageStoredSessions, setUsageStoredSessions] = useState<ChatSession[] | null>(null)
   const clearParams = useCallback(() => setSettingsSectionParams(null), [setSettingsSectionParams])
 
@@ -62,11 +52,11 @@ export default function Settings({
         const modelListField = getProviderModelListField(provider.id)
         if (!modelListField) return []
         const usageCatalogKey = provider.id === 'openrouter' ? 'openrouterModels' : modelListField
-        const models = (pendingSettings[modelListField] || []).map((model) => model.code)
+        const models = (settings[modelListField] || []).map((model) => model.code)
         return [[usageCatalogKey, models]]
       })
     )
-  }, [pendingSettings])
+  }, [settings])
 
   const usageSessionSignature = useMemo(
     () =>
@@ -112,188 +102,66 @@ export default function Settings({
     [usageSessions, usageModelCatalog]
   )
 
-  const handleChange = (changes: Partial<typeof settings>) =>
-    setPendingSettings((prev) => {
-      for (const key of SECURE_API_KEY_NAMES) {
-        if (Object.prototype.hasOwnProperty.call(changes, key) && prev[key] !== changes[key]) {
-          touchedSecureKeysRef.current.add(key)
+  const handleChange = (changes: Partial<typeof settings>) => {
+    updateSettings(changes)
+
+    for (const key of SECURE_API_KEY_NAMES) {
+      if (!Object.prototype.hasOwnProperty.call(changes, key)) continue
+
+      pendingSecureValuesRef.current.set(key, changes[key] ?? '')
+      if (secureSaveQueuesRef.current.has(key)) continue
+
+      setSecureSavesInFlight((count) => count + 1)
+
+      const nextSave = (async () => {
+        while (pendingSecureValuesRef.current.has(key)) {
+          const value = pendingSecureValuesRef.current.get(key) ?? ''
+          pendingSecureValuesRef.current.delete(key)
+          const saved = await saveApiKeyToSecureStorage(key, value)
+          if (!saved) throw new Error(`Could not securely store ${key}.`)
         }
-      }
+      })()
+        .catch((error) => {
+          pendingSecureValuesRef.current.delete(key)
+          console.error(`[Settings] Failed to save ${key}:`, error)
+          showToast('A secure setting could not be saved. Try entering it again.', 'error')
+        })
+        .finally(() => {
+          setSecureSavesInFlight((count) => Math.max(0, count - 1))
+          if (secureSaveQueuesRef.current.get(key) === nextSave) {
+            secureSaveQueuesRef.current.delete(key)
+          }
+        })
 
-      return { ...prev, ...changes }
-    })
-
-  const savePendingSettings = async (): Promise<{ allSaved: boolean; failedKeys: string[] }> => {
-    let allSaved = true
-    const failedKeys: string[] = []
-    try {
-      for (const key of SECURE_API_KEY_NAMES) {
-        if (!touchedSecureKeysRef.current.has(key)) continue
-        const current = pendingSettings[key]
-        const success = await saveApiKeyToSecureStorage(key, current)
-        if (!success) {
-          failedKeys.push(key)
-          allSaved = false
-        }
-      }
-      if (failedKeys.length > 0)
-        console.warn('[Settings] Failed to save some API keys:', failedKeys.join(', '))
-    } catch (error) {
-      console.error('[Settings] Failed to save API keys to secure storage:', error)
-      allSaved = false
-    }
-
-    updateSettings(pendingSettings)
-
-    if (allSaved) {
-      touchedSecureKeysRef.current.clear()
-    } else {
-      for (const key of SECURE_API_KEY_NAMES) {
-        if (!failedKeys.includes(key)) {
-          touchedSecureKeysRef.current.delete(key)
-        }
-      }
-    }
-
-    return { allSaved, failedKeys }
-  }
-
-  const saveChanges = async () => {
-    if (isSaving) return
-
-    setIsSaving(true)
-    setStatusMessage('Saving settings...')
-
-    let allSaved = true
-    let failedKeys: string[] = []
-
-    try {
-      if (hasSettingsChanges) {
-        const settingsResult = await savePendingSettings()
-        allSaved = settingsResult.allSaved
-        failedKeys = settingsResult.failedKeys
-      }
-
-      if (hasMcpChanges) {
-        await saveMcpDraft()
-      }
-
-      if (!hasSettingsChanges && !hasMcpChanges) {
-        setStatusMessage('No changes to save.')
-      } else if (!allSaved && failedKeys.length > 0) {
-        console.warn('[Settings] Some API keys may not have been saved')
-        setStatusMessage('Saved. Some API keys could not be stored securely.')
-      } else {
-        setStatusMessage('Settings saved.')
-      }
-    } catch (error) {
-      console.error('[Settings] Failed to save changes:', error)
-      setStatusMessage(
-        error instanceof Error
-          ? `Failed to save changes: ${error.message}`
-          : 'Failed to save changes.'
-      )
-    } finally {
-      setIsSaving(false)
+      secureSaveQueuesRef.current.set(key, nextSave)
     }
   }
-
-  const cancelChanges = () => {
-    if (isSaving) return
-
-    if (hasSettingsChanges) {
-      setPendingSettings(settings)
-    }
-    touchedSecureKeysRef.current.clear()
-    if (hasMcpChanges) {
-      discardMcpDraft()
-    }
-
-    setStatusMessage('Changes discarded.')
-  }
-
-  const ollamaModelsMatchUserIntent = (
-    a: typeof settings.ollamaModels,
-    b: typeof settings.ollamaModels
-  ) => {
-    const aMap = new Map((a || []).map((m) => [m.code, m.enabled]))
-    const bMap = new Map((b || []).map((m) => [m.code, m.enabled]))
-    const commonCodes = [...aMap.keys()].filter((c) => bMap.has(c))
-    for (const code of commonCodes) {
-      if (aMap.get(code) !== bMap.get(code)) return false
-    }
-    return true
-  }
-  const withoutOllamaModels = (s: typeof settings) => {
-    const { ollamaModels: _om, ...rest } = s
-    return rest
-  }
-  const baseChanged =
-    JSON.stringify(withoutOllamaModels(pendingSettings)) !==
-    JSON.stringify(withoutOllamaModels(settings))
-  const ollamaEnabledChanged = !ollamaModelsMatchUserIntent(
-    pendingSettings.ollamaModels,
-    settings.ollamaModels
-  )
-  const hasSettingsChanges = baseChanged || ollamaEnabledChanged
-  const hasChanges = hasSettingsChanges || hasMcpChanges
-
-  useEffect(() => {
-    setPendingSettings((previousDraft) => {
-      const hadLocalDraftChanges =
-        JSON.stringify(previousDraft) !== JSON.stringify(lastSyncedSettingsRef.current)
-      lastSyncedSettingsRef.current = settings
-      return hadLocalDraftChanges ? previousDraft : settings
-    })
-  }, [settings])
-
-  useEffect(() => {
-    onUnsavedChange?.(hasChanges)
-  }, [hasChanges, onUnsavedChange])
-
-  useEffect(() => {
-    if (!hasChanges) return
-
-    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-      event.preventDefault()
-      event.returnValue = ''
-    }
-
-    window.addEventListener('beforeunload', handleBeforeUnload)
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
-  }, [hasChanges])
-
-  useEffect(() => {
-    if (!statusMessage || statusMessage === 'Saving settings...') return
-    const timeoutId = window.setTimeout(() => setStatusMessage(''), 3500)
-    return () => window.clearTimeout(timeoutId)
-  }, [statusMessage])
 
   const checkOllama = async () => {
-    const connected = await checkOllamaStatus(pendingSettings.ollamaUrl)
+    const connected = await checkOllamaStatus(settings.ollamaUrl)
     if (connected) {
-      const models = await listOllamaModels(pendingSettings.ollamaUrl)
+      const models = await listOllamaModels(settings.ollamaUrl)
       if (models.length > 0) {
         const formatted = models.map((m) => ({
           code: m.name,
           displayName: `${m.name} (${m.details.parameter_size})`,
         }))
-        const enriched = await enrichOllamaModelsWithContext(pendingSettings.ollamaUrl, formatted)
+        const enriched = await enrichOllamaModelsWithContext(settings.ollamaUrl, formatted)
         handleChange({ ollamaModels: enriched })
       }
     }
   }
 
   useEffect(() => {
-    if (pendingSettings.modelProvider === 'ollama') void checkOllama()
-  }, [pendingSettings.modelProvider, pendingSettings.ollamaUrl])
+    if (settings.modelProvider === 'ollama') void checkOllama()
+  }, [settings.modelProvider, settings.ollamaUrl])
 
   return (
     <div className="settings-container">
       <ScrollArea
         className="settings-main-col"
         viewportClassName="settings-main-col__viewport"
-        viewportStyle={{ paddingBottom: hasChanges ? 110 : 24 }}
+        viewportStyle={{ paddingBottom: 24 }}
       >
         <div className="settings-shell">
           <div className="settings-shell__content">
@@ -302,48 +170,48 @@ export default function Settings({
                 initialProvider={settingsSectionParams?.provider}
                 initialManageMode={settingsSectionParams?.manageMode}
                 onParamsConsumed={clearParams}
-                alibabaApiKey={pendingSettings.alibabaApiKey}
-                alibabaRegion={pendingSettings.alibabaRegion}
-                deepseekApiKey={pendingSettings.deepseekApiKey}
-                opencodeGoApiKey={pendingSettings.opencodeGoApiKey}
-                fireworksApiKey={pendingSettings.fireworksApiKey}
-                nvidiaApiKey={pendingSettings.nvidiaApiKey}
-                groqApiKey={pendingSettings.groqApiKey}
-                openRouterApiKey={pendingSettings.openRouterApiKey}
-                tavilyApiKey={pendingSettings.tavilyApiKey}
-                onlineCompilerApiKey={pendingSettings.onlineCompilerApiKey}
-                tavilySearchDepthPreference={pendingSettings.tavilySearchDepthPreference}
-                webSearchIncludeImages={pendingSettings.webSearchIncludeImages}
-                ollamaUrl={pendingSettings.ollamaUrl}
-                aiModel={pendingSettings.aiModel}
-                modelProvider={pendingSettings.modelProvider}
-                providerEnabled={pendingSettings.providerEnabled}
-                configuredModels={pendingSettings.configuredModels}
-                alibabaModels={pendingSettings.alibabaModels}
-                codexModels={pendingSettings.codexModels}
-                deepseekModels={pendingSettings.deepseekModels}
-                opencodeModels={pendingSettings.opencodeModels}
-                fireworksModels={pendingSettings.fireworksModels}
-                nvidiaModels={pendingSettings.nvidiaModels}
-                groqModels={pendingSettings.groqModels}
-                ollamaModels={pendingSettings.ollamaModels}
-                maxTokens={pendingSettings.maxTokens}
-                deepseekReasoning={pendingSettings.deepseekReasoning}
-                deepseekLastEffort={pendingSettings.deepseekLastEffort}
+                alibabaApiKey={settings.alibabaApiKey}
+                alibabaRegion={settings.alibabaRegion}
+                deepseekApiKey={settings.deepseekApiKey}
+                opencodeGoApiKey={settings.opencodeGoApiKey}
+                fireworksApiKey={settings.fireworksApiKey}
+                nvidiaApiKey={settings.nvidiaApiKey}
+                groqApiKey={settings.groqApiKey}
+                openRouterApiKey={settings.openRouterApiKey}
+                tavilyApiKey={settings.tavilyApiKey}
+                onlineCompilerApiKey={settings.onlineCompilerApiKey}
+                tavilySearchDepthPreference={settings.tavilySearchDepthPreference}
+                webSearchIncludeImages={settings.webSearchIncludeImages}
+                ollamaUrl={settings.ollamaUrl}
+                aiModel={settings.aiModel}
+                modelProvider={settings.modelProvider}
+                providerEnabled={settings.providerEnabled}
+                configuredModels={settings.configuredModels}
+                alibabaModels={settings.alibabaModels}
+                codexModels={settings.codexModels}
+                deepseekModels={settings.deepseekModels}
+                opencodeModels={settings.opencodeModels}
+                fireworksModels={settings.fireworksModels}
+                nvidiaModels={settings.nvidiaModels}
+                groqModels={settings.groqModels}
+                ollamaModels={settings.ollamaModels}
+                maxTokens={settings.maxTokens}
+                deepseekReasoning={settings.deepseekReasoning}
+                deepseekLastEffort={settings.deepseekLastEffort}
                 onChange={handleChange}
               />
             )}
 
             {normalizedActiveSection === 'extensions' && (
               <SkillsSection
-                skills={pendingSettings.extensions}
-                settings={pendingSettings}
-                codeExecutionAutoApprove={pendingSettings.codeExecutionAutoApprove}
-                terminalAutoApprove={pendingSettings.terminalAutoApprove}
-                computerUseAutoApprove={pendingSettings.computerUseAutoApprove}
-                brevoApiKey={pendingSettings.brevoApiKey}
-                emailNotifications={pendingSettings.emailNotifications}
-                hasUnsavedChanges={hasSettingsChanges}
+                skills={settings.extensions}
+                settings={settings}
+                codeExecutionAutoApprove={settings.codeExecutionAutoApprove}
+                terminalAutoApprove={settings.terminalAutoApprove}
+                computerUseAutoApprove={settings.computerUseAutoApprove}
+                brevoApiKey={settings.brevoApiKey}
+                emailNotifications={settings.emailNotifications}
+                isSavingSecureSettings={secureSavesInFlight > 0}
                 activeExtension={settingsSectionParams?.extension ?? null}
                 activeExtensionPanel={settingsSectionParams?.extensionPanel}
                 onActiveExtensionChange={(extension, panel) => {
@@ -369,7 +237,7 @@ export default function Settings({
 
             {normalizedActiveSection === 'themes' && (
               <AppearanceSection
-                settings={pendingSettings}
+                settings={settings}
                 onChange={(changes) => handleChange(changes)}
                 initialCommandPaletteTab={settingsSectionParams?.commandPaletteTab}
                 onParamsConsumed={clearParams}
@@ -380,41 +248,6 @@ export default function Settings({
           </div>
         </div>
       </ScrollArea>
-
-      {hasChanges && (
-        <div
-          className={`settings-savebar ${showWarning ? 'settings-savebar--warning' : ''}`}
-          role="region"
-          aria-label="Unsaved settings changes"
-        >
-          <div className="settings-savebar__text">
-            {showWarning
-              ? 'Save or discard your changes before leaving.'
-              : 'You have unsaved changes.'}
-          </div>
-
-          <div className="settings-savebar__actions">
-            <button
-              onClick={cancelChanges}
-              disabled={isSaving}
-              className="settings-savebar__button settings-savebar__button--ghost"
-            >
-              Discard
-            </button>
-            <button
-              onClick={saveChanges}
-              disabled={isSaving}
-              className="settings-savebar__button settings-savebar__button--primary"
-            >
-              {isSaving ? 'Saving...' : 'Save'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      <div className="settings-announcer" role="status" aria-live="polite">
-        {statusMessage}
-      </div>
     </div>
   )
 }

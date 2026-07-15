@@ -48,8 +48,6 @@ interface McpContextValue {
   addServer: (server: McpDraftServer) => Promise<void>
   upsertDraftServer: (server: McpDraftServer) => void
   removeDraftServer: (serverId: string) => void
-  discardDraft: () => void
-  saveDraft: () => Promise<void>
   refresh: () => Promise<McpRuntimeSnapshot | null>
   openConfigFile: () => Promise<{ ok: boolean; path?: string; error?: string }>
   connectServer: (serverId: string) => Promise<void>
@@ -91,6 +89,8 @@ export function McpProvider({ children }: { children: React.ReactNode }): React.
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const isSupported = typeof window !== 'undefined' && Boolean(window.mcp)
+  const draftRevisionRef = useRef(0)
+  const saveQueueRef = useRef<Promise<void>>(Promise.resolve())
 
   const syncDraftFromSnapshot = useCallback((nextSnapshot: McpRuntimeSnapshot) => {
     setDraftServers(nextSnapshot.servers.map((server) => mcpServerToDraftServer(server)))
@@ -176,6 +176,7 @@ export function McpProvider({ children }: { children: React.ReactNode }): React.
   }, [applySnapshot, refresh])
 
   const upsertDraftServer = useCallback((server: McpDraftServer) => {
+    draftRevisionRef.current += 1
     setDraftServers((currentDraftServers) => {
       const nextDraftServers = [...currentDraftServers]
       const existingIndex = nextDraftServers.findIndex((entry) => entry.id === server.id)
@@ -190,59 +191,77 @@ export function McpProvider({ children }: { children: React.ReactNode }): React.
   }, [])
 
   const removeDraftServer = useCallback((serverId: string) => {
+    draftRevisionRef.current += 1
     setDraftServers((currentDraftServers) =>
       currentDraftServers.filter((server) => server.id !== serverId)
     )
   }, [])
 
-  const discardDraft = useCallback(() => {
-    syncDraftFromSnapshot(snapshot)
-    setError(null)
-  }, [snapshot, syncDraftFromSnapshot])
+  const persistDraft = useCallback(
+    async (draftToSave: McpDraftServer[], revision: number) => {
+      if (!window.mcp) {
+        throw new Error('MCP bridge is unavailable in this environment.')
+      }
 
-  const saveDraft = useCallback(async () => {
-    if (!window.mcp) {
-      throw new Error('MCP bridge is unavailable in this environment.')
-    }
-
-    const validationErrors = draftServers.flatMap((draftServer) =>
-      validateDraftServer(draftServer).map(
-        (message) => `${draftServer.name.trim() || 'Untitled Server'}: ${message}`
+      const validationErrors = draftToSave.flatMap((draftServer) =>
+        validateDraftServer(draftServer).map(
+          (message) => `${draftServer.name.trim() || 'Untitled Server'}: ${message}`
+        )
       )
-    )
-    if (validationErrors.length > 0) {
-      throw new Error(validationErrors.join('\n'))
-    }
-
-    const liveServersById = new Map(snapshot.servers.map((server) => [server.id, server]))
-    const draftServerIds = new Set(draftServers.map((server) => server.id))
-
-    for (const liveServer of snapshot.servers) {
-      if (!draftServerIds.has(liveServer.id)) {
-        await window.mcp.removeServer(liveServer.id)
-      }
-    }
-
-    for (const draftServer of draftServers) {
-      const liveServer = liveServersById.get(draftServer.id)
-      const payload = draftServerToInputPayload(draftServer)
-
-      if (!liveServer) {
-        await window.mcp.addServer(payload)
-        continue
+      if (validationErrors.length > 0) {
+        throw new Error(validationErrors.join('\n'))
       }
 
-      if (!isDraftServerEqualToLiveServer(draftServer, liveServer)) {
-        await window.mcp.updateServer(draftServer.id, payload)
-      }
-    }
+      const liveSnapshot = await window.mcp.getState()
+      const liveServersById = new Map(liveSnapshot.servers.map((server) => [server.id, server]))
+      const draftServerIds = new Set(draftToSave.map((server) => server.id))
 
-    const nextSnapshot = await window.mcp.getState()
-    setSnapshot(nextSnapshot)
-    syncDraftFromSnapshot(nextSnapshot)
-    setError(null)
-    setIsLoading(false)
-  }, [draftServers, snapshot.servers, syncDraftFromSnapshot])
+      for (const liveServer of liveSnapshot.servers) {
+        if (!draftServerIds.has(liveServer.id)) {
+          await window.mcp.removeServer(liveServer.id)
+        }
+      }
+
+      for (const draftServer of draftToSave) {
+        const liveServer = liveServersById.get(draftServer.id)
+        const payload = draftServerToInputPayload(draftServer)
+
+        if (!liveServer) {
+          await window.mcp.addServer(payload)
+          continue
+        }
+
+        if (!isDraftServerEqualToLiveServer(draftServer, liveServer)) {
+          await window.mcp.updateServer(draftServer.id, payload)
+        }
+      }
+
+      const nextSnapshot = await window.mcp.getState()
+      setSnapshot(nextSnapshot)
+      if (draftRevisionRef.current === revision) {
+        syncDraftFromSnapshot(nextSnapshot)
+      }
+      setError(null)
+      setIsLoading(false)
+    },
+    [syncDraftFromSnapshot]
+  )
+
+  useEffect(() => {
+    if (!hasDraftChanges) return
+
+    const revision = draftRevisionRef.current
+    const draftToSave = draftServers
+    const timeoutId = window.setTimeout(() => {
+      const nextSave = saveQueueRef.current
+        .catch(() => undefined)
+        .then(() => persistDraft(draftToSave, revision))
+      saveQueueRef.current = nextSave
+      void nextSave.catch((saveError) => setError(toErrorMessage(saveError)))
+    }, 250)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [draftServers, hasDraftChanges, persistDraft])
 
   const addServer = useCallback(
     async (server: McpDraftServer) => {
@@ -250,7 +269,7 @@ export function McpProvider({ children }: { children: React.ReactNode }): React.
         throw new Error('MCP bridge is unavailable in this environment.')
       }
       if (hasDraftChanges) {
-        throw new Error('Save or discard MCP changes before adding a catalogue server.')
+        throw new Error('Wait for the current MCP changes to finish applying.')
       }
 
       const validationErrors = validateDraftServer(server)
@@ -433,8 +452,6 @@ export function McpProvider({ children }: { children: React.ReactNode }): React.
       addServer,
       upsertDraftServer,
       removeDraftServer,
-      discardDraft,
-      saveDraft,
       refresh,
       openConfigFile,
       connectServer,
@@ -456,7 +473,6 @@ export function McpProvider({ children }: { children: React.ReactNode }): React.
       addServer,
       connectServer,
       disconnectServer,
-      discardDraft,
       draftServers,
       error,
       getPrompt,
@@ -473,7 +489,6 @@ export function McpProvider({ children }: { children: React.ReactNode }): React.
       resolveApproval,
       refresh,
       removeDraftServer,
-      saveDraft,
       snapshot.prompts,
       snapshot.resources,
       snapshot.runtimeStates,

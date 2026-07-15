@@ -87,7 +87,7 @@ describe('McpContext', () => {
     expect(screen.getByTestId('tool-count').textContent).toBe('0')
   })
 
-  it('tracks draft changes and persists new servers through the MCP bridge', async () => {
+  it('automatically persists valid draft changes through the MCP bridge', async () => {
     render(
       <McpProvider>
         <Probe />
@@ -103,8 +103,6 @@ describe('McpContext', () => {
     expect(screen.getByTestId('dirty-flag').textContent).toBe('dirty')
     expect(screen.getByTestId('draft-count').textContent).toBe('2')
 
-    fireEvent.click(screen.getByRole('button', { name: 'save-draft' }))
-
     await waitFor(() => {
       expect(windowWithMcp.mcp.addServer).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -115,7 +113,7 @@ describe('McpContext', () => {
       )
     })
 
-    expect(windowWithMcp.mcp.getState).toHaveBeenCalledTimes(2)
+    expect(windowWithMcp.mcp.getState).toHaveBeenCalledTimes(3)
   })
 
   it('blocks saving drafts with required secrets that have not been filled', async () => {
@@ -130,8 +128,6 @@ describe('McpContext', () => {
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'add-secret-draft' }))
-    fireEvent.click(screen.getByRole('button', { name: 'save-draft' }))
-
     await waitFor(() => {
       expect(screen.getByTestId('save-error').textContent).toContain(
         'Secret Server: Auth token needs a secret value or a stored secret.'
@@ -172,15 +168,13 @@ function Probe(): React.ReactElement {
     connectServer,
     createDraftServer,
     draftServers,
+    error,
     hasDraftChanges,
     pendingApprovals,
     runtimeStates,
-    saveDraft,
     tools,
     upsertDraftServer,
   } = useMcp()
-  const [saveError, setSaveError] = React.useState('')
-
   return (
     <div>
       <div data-testid="server-count">{draftServers.length}</div>
@@ -191,7 +185,7 @@ function Probe(): React.ReactElement {
       <div data-testid="tool-count">{tools.length}</div>
       <div data-testid="approval-count">{pendingApprovals.length}</div>
       <div data-testid="dirty-flag">{hasDraftChanges ? 'dirty' : 'clean'}</div>
-      <div data-testid="save-error">{saveError}</div>
+      <div data-testid="save-error">{error}</div>
       <button
         type="button"
         aria-label="add-server-now"
@@ -246,18 +240,6 @@ function Probe(): React.ReactElement {
         }}
       >
         add-secret-draft
-      </button>
-      <button
-        type="button"
-        aria-label="save-draft"
-        onClick={() => {
-          setSaveError('')
-          void saveDraft().catch((error: unknown) => {
-            setSaveError(error instanceof Error ? error.message : String(error))
-          })
-        }}
-      >
-        save-draft
       </button>
       <button type="button" aria-label="connect" onClick={() => void connectServer('server-1')}>
         connect

@@ -5,7 +5,6 @@ import '@testing-library/jest-dom'
 
 const mockAppShell = {
   dashboardView: 'chat' as const,
-  hasUnsavedSettings: false,
   sidebarCollapsed: false,
   sidebarWidth: 300,
   sidebarHidden: false,

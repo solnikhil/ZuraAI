@@ -201,10 +201,7 @@ describe('McpSection', () => {
         requireApproval: true,
       })
     )
-    expect(mockShowToast).toHaveBeenCalledWith(
-      'Updated 1 MCP server from mcp.json. Save changes to apply.',
-      'success'
-    )
+    expect(mockShowToast).toHaveBeenCalledWith('Updated 1 MCP server from mcp.json.', 'success')
   })
 
   it('opens the local MCP config file from the JSON editor', () => {
@@ -346,8 +343,6 @@ function createMcpContextValue(overrides: Record<string, unknown> = {}) {
     addServer: vi.fn(async () => undefined),
     upsertDraftServer: vi.fn(),
     removeDraftServer: vi.fn(),
-    discardDraft: vi.fn(),
-    saveDraft: vi.fn(async () => undefined),
     refresh: vi.fn(async () => undefined),
     openConfigFile: vi.fn(async () => ({ ok: true, path: 'mcp-servers.json' })),
     connectServer: vi.fn(async () => undefined),

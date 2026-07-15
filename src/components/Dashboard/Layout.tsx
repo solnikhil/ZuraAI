@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, lazy, Suspense } from 'react'
+import { useEffect, lazy, Suspense } from 'react'
 import Sidebar from './Sidebar'
 import ChatArea from './ChatArea'
 import { useAppShell } from '../../contexts/AppShellContext'
@@ -37,13 +37,10 @@ export default function DashboardLayout() {
     activeSettingsSection,
     setActiveSettingsSection,
     setSettingsSectionParams,
-    hasUnsavedSettings,
-    setHasUnsavedSettings,
   } = useAppShell()
   const { settings } = useSettings()
   const remindersEnabled = isSkillEnabled(settings.skills, 'reminders')
   const artifactsEnabled = isSkillEnabled(settings.skills, 'artifacts')
-  const [showUnsavedWarning, setShowUnsavedWarning] = useState(false)
 
   useEffect(() => {
     if (view === 'reminders' && !remindersEnabled) {
@@ -76,30 +73,6 @@ export default function DashboardLayout() {
     }
   }, [setActiveSettingsSection, setDashboardView, setSettingsSectionParams])
 
-  // This callback is passed to Settings to track unsaved changes
-  const handleUnsavedChange = useCallback((hasChanges: boolean) => {
-    setHasUnsavedSettings(hasChanges)
-  }, [])
-
-  // This is called when trying to navigate away with unsaved changes
-  const triggerWarning = useCallback(() => {
-    setShowUnsavedWarning(true)
-    setTimeout(() => setShowUnsavedWarning(false), 600)
-  }, [])
-
-  // Wrapper for navigation that checks for unsaved changes
-  const handleNavigate = useCallback(
-    (action: () => void) => {
-      if (hasUnsavedSettings) {
-        triggerWarning()
-        return false // blocked
-      }
-      action()
-      return true // allowed
-    },
-    [hasUnsavedSettings, triggerWarning]
-  )
-
   return (
     <div
       style={{
@@ -113,7 +86,7 @@ export default function DashboardLayout() {
       <Sidebar
         view={view}
         activeSettingsSection={activeSettingsSection}
-        onNavigateSettings={(section) => handleNavigate(() => setActiveSettingsSection(section))}
+        onNavigateSettings={setActiveSettingsSection}
       />
 
       {/* Main Content Area - ChatArea or Settings - always has solid background */}
@@ -133,11 +106,7 @@ export default function DashboardLayout() {
           {view === 'settings' ? (
             <div style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}>
               <Suspense fallback={<SettingsLoadingFallback />}>
-                <Settings
-                  activeSection={activeSettingsSection}
-                  onUnsavedChange={handleUnsavedChange}
-                  showWarning={showUnsavedWarning}
-                />
+                <Settings activeSection={activeSettingsSection} />
               </Suspense>
             </div>
           ) : view === 'reminders' && remindersEnabled ? (

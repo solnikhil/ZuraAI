@@ -31,7 +31,7 @@ describe('NotificationsSection', () => {
       <NotificationsSection
         brevoApiKey="xkeysib-demo"
         emailNotifications={emailNotifications}
-        hasUnsavedChanges={false}
+        isSavingSecureSettings={false}
         onChange={onChange}
       />
     )
@@ -52,7 +52,7 @@ describe('NotificationsSection', () => {
     expect(await screen.findByText('Test email sent.')).toBeInTheDocument()
   })
 
-  it('disables test email while settings are unsaved', () => {
+  it('disables test email while secure settings are being written', () => {
     render(
       <NotificationsSection
         brevoApiKey="xkeysib-demo"
@@ -62,7 +62,7 @@ describe('NotificationsSection', () => {
           senderEmail: 'reminders@example.com',
           recipientEmail: 'user@example.com',
         }}
-        hasUnsavedChanges
+        isSavingSecureSettings
         onChange={vi.fn()}
       />
     )

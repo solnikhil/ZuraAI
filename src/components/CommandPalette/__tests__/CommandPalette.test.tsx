@@ -48,7 +48,6 @@ vi.mock('../../../contexts/AppShellContext', () => ({
     activeSettingsSection: 'usage',
     setActiveSettingsSection: mockSetActiveSettingsSection,
     setSettingsSectionParams: mockSetSettingsSectionParams,
-    hasUnsavedSettings: false,
     sidebarCollapsed: false,
     sidebarHidden: false,
     toggleSidebarCollapsed: mockToggleSidebarCollapsed,

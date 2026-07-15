@@ -31,7 +31,6 @@ vi.mock('../../../contexts/AppShellContext', () => ({
     activeSettingsSection: 'usage',
     setActiveSettingsSection: vi.fn(),
     setSettingsSectionParams: vi.fn(),
-    hasUnsavedSettings: false,
     sidebarCollapsed: false,
     sidebarHidden: false,
     toggleSidebarCollapsed: vi.fn(),

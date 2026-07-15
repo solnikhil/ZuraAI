@@ -18,7 +18,7 @@ export interface ExtensionDetailSectionProps {
   computerUseAutoApprove: boolean
   brevoApiKey?: string
   emailNotifications?: EmailNotificationSettings
-  hasUnsavedChanges?: boolean
+  isSavingSecureSettings?: boolean
   initialPanel?: 'notifications'
   isEnabled: (extensionId: CatalogExtensionId) => boolean
   setEnabled: (extensionId: CatalogExtensionId, enabled: boolean) => void
@@ -47,7 +47,7 @@ export function ExtensionDetailSection({
   computerUseAutoApprove,
   brevoApiKey = '',
   emailNotifications,
-  hasUnsavedChanges = false,
+  isSavingSecureSettings = false,
   initialPanel,
   isEnabled,
   setEnabled,
@@ -103,7 +103,7 @@ export function ExtensionDetailSection({
               embedded
               brevoApiKey={brevoApiKey}
               emailNotifications={emailNotifications}
-              hasUnsavedChanges={hasUnsavedChanges}
+              isSavingSecureSettings={isSavingSecureSettings}
               onChange={(changes) => onChange(changes)}
             />
           </div>

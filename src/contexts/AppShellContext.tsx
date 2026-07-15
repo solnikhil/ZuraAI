@@ -46,8 +46,6 @@ interface AppShellContextType {
   setSettingsSectionParams: (params: SettingsSectionParams | null) => void
   selectedFolderId: string | null
   setSelectedFolderId: (folderId: string | null) => void
-  hasUnsavedSettings: boolean
-  setHasUnsavedSettings: (hasUnsaved: boolean) => void
   sidebarCollapsed: boolean
   toggleSidebarCollapsed: () => void
   sidebarWidth: number
@@ -138,8 +136,6 @@ export function AppShellProvider({
     }
     return 'providers'
   })
-
-  const [hasUnsavedSettings, setHasUnsavedSettings] = useState(false)
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
     if (settings.rememberLastDashboardView) {
@@ -358,8 +354,6 @@ export function AppShellProvider({
       setSettingsSectionParams: setSettingsSectionParamsCallback,
       selectedFolderId,
       setSelectedFolderId,
-      hasUnsavedSettings,
-      setHasUnsavedSettings,
       sidebarCollapsed,
       toggleSidebarCollapsed,
       sidebarWidth,
@@ -384,7 +378,6 @@ export function AppShellProvider({
       dashboardView,
       goBack,
       goForward,
-      hasUnsavedSettings,
       isResizingSidebar,
       memoryMonitorVisible,
       setActiveSettingsSection,
@@ -428,8 +421,6 @@ export function useAppShell() {
         setSettingsSectionParams: () => {},
         selectedFolderId: null,
         setSelectedFolderId: () => {},
-        hasUnsavedSettings: false,
-        setHasUnsavedSettings: () => {},
         sidebarCollapsed: false,
         toggleSidebarCollapsed: () => {},
         sidebarWidth: SIDEBAR_DEFAULT_WIDTH_PX,

@@ -126,6 +126,7 @@ All BrowserWindows must use `nodeIntegration: false`, `contextIsolation: true`, 
 Renderer `localStorage`:
 
 - Sanitized settings and UI state (`zura-settings`)
+- Settings changes apply immediately; secure-key edits are serialized to main-process secure storage, and valid MCP configuration edits are serialized through the existing narrow MCP bridge without a page-level Save action.
 - Extensions/settings compatibility state (`settings.extensions`, legacy `settings.skills` alias while migration continues)
 - Agent Skills non-secret settings (`settings.agentSkills`)
 - Provider model lists, enablement, reasoning preferences, theme settings, command bar state, sidebar/shell state
@@ -225,6 +226,10 @@ filesystem paths. Session delete also removes that session's tool-media director
 MCP includes a narrow `mcp:open-config-file` channel that opens ZuraAI's own
 `mcp-servers.json` under `app.getPath('userData')` with the OS default editor.
 It must not accept renderer-provided paths.
+
+The MCP renderer context keeps a short-lived draft only while an edit is being validated/applied.
+Valid MCP edits auto-persist in order through the existing add/update/remove channels; connection,
+sign-in, catalogue-add, and tool-management actions remain disabled while an edit is applying.
 
 MCP auth is modeled explicitly on each server as `none`, `envSecret`,
 `headerSecret`, `bearerToken`, `basicAuth`, `oauth2Pkce`, `jsonCredential`, or

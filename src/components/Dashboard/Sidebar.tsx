@@ -30,7 +30,6 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
   const {
     dashboardView,
     setDashboardView,
-    hasUnsavedSettings,
     sidebarHidden,
     sidebarCollapsed,
     sidebarWidth,
@@ -470,8 +469,7 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
 
           <div className="sidebar-footer-wrapper">
             <TitleBarInfoMenu
-              hasUnsavedSettings={hasUnsavedSettings}
-              isSettingsView={dashboardView === 'settings'}
+              isSettingsView={view === 'settings'}
               setDashboardView={setDashboardView}
               triggerVariant="sidebar"
               sidebarCollapsed={sidebarCollapsed}

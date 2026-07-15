@@ -1,7 +1,6 @@
 import { PanelLeft } from './icons'
 import TitleBarNavigation from './TitleBarNavigation'
 import { TooltipIconButton } from './ui/TooltipIconButton'
-import { WithTooltip } from './ui/WithTooltip'
 
 interface TitleBarSidebarControlsProps {
   canGoBack: boolean
@@ -10,8 +9,6 @@ interface TitleBarSidebarControlsProps {
   onBack: () => void
   onForward: () => void
   hasSidebar: boolean
-  hasUnsavedSettings: boolean
-  isSettingsView: boolean
   showNavigation?: boolean
   sidebarHidden: boolean
   toggleSidebarHidden: () => void
@@ -24,8 +21,6 @@ export default function TitleBarSidebarControls({
   onBack,
   onForward,
   hasSidebar,
-  hasUnsavedSettings,
-  isSettingsView,
   showNavigation = true,
   sidebarHidden,
   toggleSidebarHidden,
@@ -61,12 +56,6 @@ export default function TitleBarSidebarControls({
           onBack={onBack}
           onForward={onForward}
         />
-      )}
-
-      {showNavigation && hasUnsavedSettings && isSettingsView && (
-        <WithTooltip tooltip="Unsaved changes">
-          <span className="app-titlebar__unsaved" />
-        </WithTooltip>
       )}
     </>
   )

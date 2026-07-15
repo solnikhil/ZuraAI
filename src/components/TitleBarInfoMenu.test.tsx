@@ -103,11 +103,7 @@ function installWindowMocks() {
 function renderMenu() {
   const utils = render(
     <ToastProvider>
-      <TitleBarInfoMenu
-        hasUnsavedSettings={false}
-        isSettingsView={false}
-        setDashboardView={() => undefined}
-      />
+      <TitleBarInfoMenu isSettingsView={false} setDashboardView={() => undefined} />
     </ToastProvider>
   )
   return utils

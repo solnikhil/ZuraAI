@@ -149,7 +149,7 @@ export function McpSection(): React.ReactElement {
 
   const handleConnectToggle = async (server: McpDraftServer) => {
     if (hasDraftChanges) {
-      showToast('Save or discard MCP changes before connecting a server.', 'warning')
+      showToast('Wait for the MCP changes to finish applying.', 'warning')
       return
     }
 
@@ -174,7 +174,7 @@ export function McpSection(): React.ReactElement {
 
   const handleOAuthSignIn = async (server: McpDraftServer) => {
     if (hasDraftChanges) {
-      showToast('Save or discard MCP changes before signing in.', 'warning')
+      showToast('Wait for the MCP changes to finish applying.', 'warning')
       return
     }
 
@@ -235,7 +235,7 @@ export function McpSection(): React.ReactElement {
     })
 
     showToast(
-      `Updated ${result.servers.length} MCP server${result.servers.length === 1 ? '' : 's'} from mcp.json. Save changes to apply.`,
+      `Updated ${result.servers.length} MCP server${result.servers.length === 1 ? '' : 's'} from mcp.json.`,
       'success'
     )
     closeMcpJsonDialog()
@@ -366,7 +366,8 @@ export function McpSection(): React.ReactElement {
 
         {hasDraftChanges && (
           <div className="mcp-info-row">
-            <span>You have unsaved changes. Save them to connect or disconnect servers.</span>
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span>Applying MCP changes...</span>
           </div>
         )}
 
@@ -606,8 +607,7 @@ export function McpSection(): React.ReactElement {
           <DialogHeader>
             <DialogTitle>Edit mcp.json</DialogTitle>
             <DialogDescription>
-              Edit the MCP config as JSON. Applying replaces the unsaved MCP draft; Settings Save
-              persists it.
+              Edit the MCP config as JSON. Applying replaces the current MCP configuration.
             </DialogDescription>
           </DialogHeader>
 

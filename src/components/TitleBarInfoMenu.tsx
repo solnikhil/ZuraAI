@@ -43,7 +43,6 @@ export function getUpdateMenuLabel(state: UpdateState, percent: number | null): 
 }
 
 interface TitleBarInfoMenuProps {
-  hasUnsavedSettings: boolean
   isSettingsView: boolean
   setDashboardView: (view: DashboardView) => void
   triggerVariant?: 'titlebar' | 'sidebar'
@@ -51,7 +50,6 @@ interface TitleBarInfoMenuProps {
 }
 
 export default function TitleBarInfoMenu({
-  hasUnsavedSettings,
   isSettingsView,
   setDashboardView,
   triggerVariant = 'titlebar',
@@ -113,7 +111,6 @@ export default function TitleBarInfoMenu({
   }, [showToast])
 
   const isPackaged = appInfo?.isPackaged ?? false
-  const settingsButtonDisabled = isSettingsView && hasUnsavedSettings
   const isSidebarTrigger = triggerVariant === 'sidebar'
   const updateBusy = updateState === 'checking' || updateState === 'available'
   const handleCheckForUpdates = useCallback(async () => {
@@ -166,14 +163,12 @@ export default function TitleBarInfoMenu({
 
   const handleSettingsToggle = useCallback(() => {
     if (isSettingsView) {
-      if (!hasUnsavedSettings) {
-        setDashboardView('chat')
-      }
+      setDashboardView('chat')
       return
     }
 
     setDashboardView('settings')
-  }, [hasUnsavedSettings, isSettingsView, setDashboardView])
+  }, [isSettingsView, setDashboardView])
 
   if (isSidebarTrigger && isSettingsView) {
     return (
@@ -236,19 +231,12 @@ export default function TitleBarInfoMenu({
 
         <DropdownMenuItem
           className="zura-menu-item--compact"
-          disabled={settingsButtonDisabled}
           onSelect={() => {
             handleSettingsToggle()
           }}
         >
           <SettingsIcon size={16} />
-          <span className="truncate">
-            {settingsButtonDisabled
-              ? 'Save or discard changes first'
-              : isSettingsView
-                ? 'Back to chat'
-                : 'Settings'}
-          </span>
+          <span className="truncate">{isSettingsView ? 'Back to chat' : 'Settings'}</span>
         </DropdownMenuItem>
 
         <DropdownMenuSeparator />
