@@ -131,7 +131,7 @@ describe('generateChatTitle', () => {
     )
   })
 
-  it('falls back to DeepSeek reasoning_content when content is empty', async () => {
+  it('does not expose DeepSeek reasoning_content as a title', async () => {
     vi.mocked(generateDeepSeekCompletion).mockResolvedValue({
       choices: [{ message: { content: '', reasoning_content: 'DeepSeek Title Output' } }],
     } as never)
@@ -142,7 +142,7 @@ describe('generateChatTitle', () => {
       deepseekModels: [{ code: 'deepseek-v4-flash', displayName: 'DeepSeek V4 Flash' }],
     })
 
-    expect(result).toBe('DeepSeek Title Output')
+    expect(result).toBeNull()
   })
 
   it('skips image-only OpenRouter models in the title selector pipeline', async () => {
@@ -402,7 +402,7 @@ describe('generateChatTitle', () => {
       'alibaba-key',
       'qwen-turbo',
       [{ role: 'user', content: expect.any(String) }],
-      { enableThinking: false }
+      expect.objectContaining({ enableThinking: false })
     )
   })
 

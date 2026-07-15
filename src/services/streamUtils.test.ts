@@ -23,11 +23,11 @@ async function collect<T>(stream: AsyncIterable<T>): Promise<T[]> {
 }
 
 describe('streamUtils', () => {
-  it('parses single-line SSE events incrementally without blank-line separators', async () => {
+  it('parses standards-compliant SSE events across transport chunks', async () => {
     const reader = createReader([
-      'data: {"id":"1","choices":[{"delta":{"content":"Hel"}}]}\n',
-      'data: {"id":"2","choices":[{"delta":{"content":"lo"}}]}\n',
-      'data: [DONE]\n',
+      'data: {"id":"1","choices":[{"delta":{"content":"Hel"}}]}\n\n',
+      'data: {"id":"2","choices":[{"delta":{"content":"lo"}}]}\n\n',
+      'data: [DONE]\n\n',
     ])
 
     const chunks = await collect(
@@ -43,7 +43,7 @@ describe('streamUtils', () => {
 
   it('parses the final SSE event without a trailing newline', async () => {
     const reader = createReader([
-      'data: {"id":"1","choices":[{"delta":{"content":"Hel"}}]}\n',
+      'data: {"id":"1","choices":[{"delta":{"content":"Hel"}}]}\n\n',
       'data: {"id":"2","choices":[{"delta":{"content":"lo"}}]}',
     ])
 
@@ -56,6 +56,11 @@ describe('streamUtils', () => {
 
     expect(chunks).toHaveLength(2)
     expect(chunks.map((chunk) => chunk.choices[0].delta.content).join('')).toBe('Hello')
+  })
+
+  it('surfaces malformed SSE JSON instead of silently dropping it', async () => {
+    const reader = createReader(['data: {not-json}\n\n'])
+    await expect(collect(parseSSEStream(reader))).rejects.toThrow('JSON')
   })
 
   it('parses the final NDJSON chunk without a trailing newline', async () => {
@@ -74,5 +79,10 @@ describe('streamUtils', () => {
     expect(chunks).toHaveLength(2)
     expect(chunks.map((chunk) => chunk.message.content).join('')).toBe('Hello')
     expect(chunks.at(-1)?.done).toBe(true)
+  })
+
+  it('surfaces malformed NDJSON instead of silently dropping it', async () => {
+    const reader = createReader(['{"done":false}\n', '{not-json}\n'])
+    await expect(collect(parseNDJSONStream(reader))).rejects.toThrow('malformed NDJSON')
   })
 })

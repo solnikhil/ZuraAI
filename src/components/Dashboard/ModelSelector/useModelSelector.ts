@@ -66,6 +66,9 @@ export function useModelSelector(): UseModelSelectorReturn {
         const formatted = models.map((m) => ({
           code: m.name,
           displayName: `${m.name} (${m.details.parameter_size})`,
+          ...('maxContext' in m && typeof m.maxContext === 'number'
+            ? { maxContext: m.maxContext }
+            : {}),
         }))
         const enriched = await enrichOllamaModelsWithContext(url, formatted)
         const enabledMap = new Map(existing)

@@ -1,4 +1,4 @@
-import { WINDOWS_SETTINGS_CATALOG } from '../commandCenter/windowsSettings'
+import { WINDOWS_SETTINGS_CATALOG } from './windowsSettings'
 import type { ToolDescriptor } from './types'
 
 type BuiltinMainToolManifestEntry = Omit<ToolDescriptor, 'name'> & {

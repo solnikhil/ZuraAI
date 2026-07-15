@@ -1,12 +1,6 @@
 import type { CatalogExtensionId } from '../components/Settings/sections/extensionCatalog'
 
-export type SettingsSectionId =
-  | 'providers'
-  | 'extensions'
-  | 'mcp'
-  | 'commandbar'
-  | 'themes'
-  | 'usage'
+export type SettingsSectionId = 'providers' | 'extensions' | 'mcp' | 'themes' | 'usage'
 
 export interface SettingsSectionMeta {
   id: SettingsSectionId
@@ -26,7 +20,7 @@ export const SETTINGS_SECTIONS: SettingsSectionMeta[] = [
     navLabel: 'Providers',
     title: 'Providers & Models',
     description: 'Configure model providers, API credentials, and search integrations.',
-    keywords: ['models', 'openrouter', 'groq', 'ollama', 'alibaba', 'tavily'],
+    keywords: ['models', 'openrouter', 'chatgpt', 'codex', 'groq', 'ollama', 'alibaba', 'tavily'],
   },
   {
     id: 'extensions',
@@ -41,25 +35,6 @@ export const SETTINGS_SECTIONS: SettingsSectionMeta[] = [
     title: 'MCP Servers',
     description: 'Configure Model Context Protocol servers, secrets, and connection state.',
     keywords: ['mcp', 'model context protocol', 'server', 'stdio', 'sse', 'websocket', 'tools'],
-  },
-  {
-    id: 'commandbar',
-    navLabel: 'Command Bar',
-    title: 'Command Bar',
-    description:
-      'Command Center app index, Windows search diagnostics, and in-app command palette preferences.',
-    keywords: [
-      'command',
-      'bar',
-      'commandbar',
-      'command center',
-      'apps',
-      'reindex',
-      'icons',
-      'palette',
-      'shortcut',
-      'windows search',
-    ],
   },
   {
     id: 'themes',
@@ -93,10 +68,8 @@ const SETTINGS_SECTION_ALIASES: Record<string, SettingsSectionId> = {
   models: 'providers',
   preferences: 'providers',
   servers: 'mcp',
-  command_bar: 'commandbar',
-  'command-bar': 'commandbar',
-  commandcenter: 'commandbar',
-  'command-center': 'commandbar',
+  command_bar: 'extensions',
+  'command-bar': 'extensions',
   notifications: 'extensions',
   email: 'extensions',
   brevo: 'extensions',

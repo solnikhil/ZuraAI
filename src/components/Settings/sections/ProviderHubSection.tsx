@@ -49,8 +49,10 @@ import type {
   TavilySearchDepthPreference,
   DeepSeekReasoningEffort,
 } from '@/contexts/SettingsConfigContext'
+import type { AlibabaRegion } from '@/services/alibabaEndpoints'
+import { getAlibabaBaseUrl } from '@/services/alibabaEndpoints'
 import { getDeepseekReasoning, setDeepseekReasoningEnabled } from '@/utils/deepseekReasoning'
-import { isSecureApiKeyPlaceholder, resolveApiKeyFromSecureStorage } from '@/utils/secureApiKeys'
+import { isSecureApiKeyPlaceholder } from '@/utils/secureApiKeys'
 import {
   fetchOpenRouterModels,
   mapOpenRouterModelToConfiguredModel,
@@ -86,6 +88,7 @@ interface ProviderDefinition {
   description: string
   apiKeyField?: ProviderSecretField
   supportsCatalogDialog: boolean
+  setupKind: 'api-key' | 'account' | 'local'
 }
 const PROVIDERS: ProviderDefinition[] = getSettingsVisibleProviders().map((provider) => ({
   key: provider.id,
@@ -93,6 +96,7 @@ const PROVIDERS: ProviderDefinition[] = getSettingsVisibleProviders().map((provi
   description: provider.description,
   apiKeyField: provider.secretKeyField,
   supportsCatalogDialog: provider.supportsCatalogDialog,
+  setupKind: provider.setupKind,
 }))
 
 type ProviderCatalogFilter = 'all' | 'needs-setup' | 'disabled' | 'active'
@@ -105,6 +109,7 @@ type ProviderCatalogGroup = {
 
 const PROVIDER_CATALOG_GROUPS: ProviderCatalogGroup[] = [
   { title: 'Gateways', keys: ['openrouter'], featured: true },
+  { title: 'Account Providers', keys: ['codex'], featured: true },
   {
     title: 'Cloud APIs',
     keys: ['groq', 'alibaba', 'deepseek', 'opencode', 'fireworks', 'nvidia'],
@@ -136,7 +141,13 @@ function formatProviderStatusLine(
   modelCount: number
 ): string {
   if (providerNeedsApiKey(provider, hasApiKey)) return 'API key not set'
-  if (!provider.apiKeyField) {
+  if (provider.setupKind === 'account') {
+    if (!enabled) return 'ChatGPT account · Disabled'
+    return modelCount > 0
+      ? `ChatGPT account · ${enabledModelCount}/${modelCount} models`
+      : 'ChatGPT account · Ready'
+  }
+  if (provider.setupKind === 'local') {
     if (!enabled) return 'Local · Disabled'
     return modelCount > 0 ? `Local · ${enabledModelCount}/${modelCount} models` : 'Local · Ready'
   }
@@ -175,6 +186,7 @@ const PROVIDER_ENDPOINTS: Record<ProviderKey, string> = {
   nvidia: getProviderEndpoint('nvidia', 'baseUrl') || '',
   ollama: getProviderEndpoint('ollama', 'baseUrl') || DEFAULT_OLLAMA_URL,
   openrouter: getProviderEndpoint('openrouter', 'baseUrl') || '',
+  codex: 'ChatGPT Codex Responses',
 }
 
 const CATALOG_BASE_BACKGROUND = 'var(--theme-background)'
@@ -254,6 +266,7 @@ interface ModelBasic {
 
 export interface ProviderHubSectionProps {
   alibabaApiKey: string
+  alibabaRegion: AlibabaRegion
   deepseekApiKey: string
   opencodeGoApiKey: string
   fireworksApiKey: string
@@ -269,6 +282,7 @@ export interface ProviderHubSectionProps {
   modelProvider: ProviderKey
   providerEnabled?: ProviderEnabledMap
   configuredModels: ConfiguredModel[]
+  codexModels: ModelBasic[]
   alibabaModels: ModelBasic[]
   deepseekModels: ModelBasic[]
   opencodeModels: ModelBasic[]
@@ -285,6 +299,7 @@ export interface ProviderHubSectionProps {
   onChange: (
     changes: Partial<{
       alibabaApiKey: string
+      alibabaRegion: AlibabaRegion
       deepseekApiKey: string
       opencodeGoApiKey: string
       fireworksApiKey: string
@@ -298,6 +313,7 @@ export interface ProviderHubSectionProps {
       webSearchIncludeImages: boolean
       ollamaUrl: string
       configuredModels: ConfiguredModel[]
+      codexModels: ConfiguredModel[]
       alibabaModels: ConfiguredModel[]
       deepseekModels: ConfiguredModel[]
       opencodeModels: ConfiguredModel[]
@@ -319,6 +335,7 @@ type ProviderSettingsUpdate = Partial<
   Pick<
     ProviderHubSectionProps,
     | 'configuredModels'
+    | 'codexModels'
     | 'groqModels'
     | 'alibabaModels'
     | 'deepseekModels'
@@ -336,6 +353,7 @@ export function ProviderHubSection({
   openRouterApiKey,
   groqApiKey,
   alibabaApiKey,
+  alibabaRegion,
   deepseekApiKey,
   opencodeGoApiKey,
   fireworksApiKey,
@@ -349,6 +367,7 @@ export function ProviderHubSection({
   modelProvider,
   providerEnabled,
   configuredModels,
+  codexModels,
   groqModels,
   alibabaModels,
   deepseekModels,
@@ -399,9 +418,9 @@ export function ProviderHubSection({
   const [detectingReasoningModel, setDetectingReasoningModel] = useState<string | null>(null)
   const [connectivityModel, setConnectivityModel] = useState('')
   const [modelListFilter, setModelListFilter] = useState<'all' | 'chat'>('all')
-  const [providerProxyUrls, setProviderProxyUrls] =
-    useState<Record<ProviderKey, string>>(PROVIDER_ENDPOINTS)
   const [connectivityStatus, setConnectivityStatus] = useState<ConnectivityStatus>('idle')
+  const [codexSigningIn, setCodexSigningIn] = useState(false)
+  const [codexSignedIn, setCodexSignedIn] = useState<boolean | null>(null)
   const [connectivityMessage, setConnectivityMessage] = useState(
     'Select a model, then test your connection.'
   )
@@ -426,8 +445,25 @@ export function ProviderHubSection({
     }
   }, [initialProvider, initialManageMode, onParamsConsumed])
 
+  useEffect(() => {
+    if (selectedProvider !== 'codex' || !window.providerRuntime?.getCodexAuthStatus) return
+    let active = true
+    void window.providerRuntime.getCodexAuthStatus().then(
+      (status) => {
+        if (active) setCodexSignedIn(status.signedIn)
+      },
+      () => {
+        if (active) setCodexSignedIn(false)
+      }
+    )
+    return () => {
+      active = false
+    }
+  }, [selectedProvider])
+
   const providerModelMap: Record<ProviderKey, ModelBasic[]> = {
     openrouter: configuredModels,
+    codex: codexModels,
     groq: groqModels,
     alibaba: alibabaModels,
     deepseek: deepseekModels,
@@ -506,60 +542,6 @@ export function ProviderHubSection({
     }
   }
 
-  const runOpencodeConnectivityCheck = async (
-    endpoint: string,
-    apiKey: string,
-    modelCode: string,
-    signal: AbortSignal
-  ) => {
-    const url = `${endpoint}/chat/completions`
-    const body = JSON.stringify({
-      model: modelCode,
-      messages: [{ role: 'user', content: 'ping' }],
-      max_completion_tokens: 1,
-    })
-    const canUseOpencodeProxy = (() => {
-      try {
-        const parsed = new URL(url)
-        return parsed.origin === 'https://opencode.ai' && parsed.pathname.startsWith('/zen/go/')
-      } catch {
-        return false
-      }
-    })()
-    const providerProxy = (
-      window as unknown as {
-        providerProxy?: {
-          fetchOpencode?: typeof window.providerProxy.fetchOpencode
-        }
-      }
-    ).providerProxy
-
-    const response =
-      providerProxy?.fetchOpencode && canUseOpencodeProxy
-        ? await providerProxy.fetchOpencode({
-            url,
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${apiKey}`,
-              'Content-Type': 'application/json',
-            },
-            body,
-          })
-        : await fetch(url, {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${apiKey}`,
-              'Content-Type': 'application/json',
-            },
-            body,
-            signal,
-          })
-
-    if (!response.ok && response.status !== 400) {
-      throw new Error(`OpenCode Go check failed (${response.status}).`)
-    }
-  }
-
   const selectedProviderDef =
     PROVIDERS.find((provider) => provider.key === selectedProvider) ?? PROVIDERS[0]
 
@@ -571,21 +553,7 @@ export function ProviderHubSection({
     if (!apiKeyField) return
 
     const currentValue = getProviderApiKey(selectedProviderDef)
-    if (isSecureApiKeyPlaceholder(currentValue)) {
-      let cancelled = false
-      resolveApiKeyFromSecureStorage(apiKeyField, currentValue)
-        .then((realKey) => {
-          if (!cancelled) setDisplayedApiKey(realKey)
-        })
-        .catch(() => {
-          if (!cancelled) setDisplayedApiKey('')
-        })
-      return () => {
-        cancelled = true
-      }
-    } else {
-      setDisplayedApiKey(currentValue)
-    }
+    setDisplayedApiKey(isSecureApiKeyPlaceholder(currentValue) ? '' : currentValue)
   }, [selectedProviderDef.key, selectedProviderDef.apiKeyField])
 
   const providerModels = providerModelMap[selectedProviderDef.key] || []
@@ -646,6 +614,7 @@ export function ProviderHubSection({
   const normalizedProviderEnabled = useMemo<Record<ProviderKey, boolean>>(() => {
     return {
       openrouter: providerEnabled?.openrouter !== false,
+      codex: providerEnabled?.codex !== false,
       groq: providerEnabled?.groq !== false,
       ollama: providerEnabled?.ollama !== false,
       alibaba: providerEnabled?.alibaba !== false,
@@ -656,6 +625,7 @@ export function ProviderHubSection({
     }
   }, [
     providerEnabled?.openrouter,
+    providerEnabled?.codex,
     providerEnabled?.groq,
     providerEnabled?.ollama,
     providerEnabled?.alibaba,
@@ -706,11 +676,6 @@ export function ProviderHubSection({
   const setProviderApiKey = (provider: ProviderDefinition, value: string) => {
     if (!provider.apiKeyField) return
     onChange({ [provider.apiKeyField]: value })
-  }
-
-  const resolveProviderApiKey = async (provider: ProviderDefinition): Promise<string> => {
-    if (!provider.apiKeyField) return ''
-    return resolveApiKeyFromSecureStorage(provider.apiKeyField, getProviderApiKey(provider))
   }
 
   const setProviderEnabled = (providerKey: ProviderKey, enabled: boolean) => {
@@ -800,8 +765,7 @@ export function ProviderHubSection({
     try {
       const openRouterProvider =
         PROVIDERS.find((provider) => provider.key === 'openrouter') ?? selectedProviderDef
-      const resolvedApiKey = await resolveProviderApiKey(openRouterProvider)
-      const catalogModels = await fetchOpenRouterModels(resolvedApiKey)
+      const catalogModels = await fetchOpenRouterModels(getProviderApiKey(openRouterProvider))
       const catalogModel = catalogModels.find((model) => model.id === modelCode)
       if (!catalogModel) return
 
@@ -908,11 +872,22 @@ export function ProviderHubSection({
   }
 
   const runConnectivityCheck = async () => {
-    const selectedKey = (await resolveProviderApiKey(selectedProviderDef)).trim()
+    const useMainRuntime = Boolean(window.providerRuntime)
+    const selectedKey = useMainRuntime ? '' : getProviderApiKey(selectedProviderDef).trim()
     const endpoint =
-      providerProxyUrls[selectedProviderDef.key] || PROVIDER_ENDPOINTS[selectedProviderDef.key]
+      selectedProviderDef.key === 'alibaba'
+        ? getAlibabaBaseUrl(alibabaRegion)
+        : PROVIDER_ENDPOINTS[selectedProviderDef.key]
 
-    if (selectedProviderDef.key !== 'ollama' && !selectedKey) {
+    if (!useMainRuntime && selectedProviderDef.key === 'codex') {
+      setConnectivityErrorState(
+        'ChatGPT Codex is available only in the ZuraAI desktop runtime.',
+        `Provider: ${selectedProviderDef.name}\nModel: ${connectivityModel || 'none'}`
+      )
+      return
+    }
+
+    if (!useMainRuntime && selectedProviderDef.key !== 'ollama' && !selectedKey) {
       setConnectivityErrorState(
         `${selectedProviderDef.name} API key is incorrect or empty. Add a valid key and try again.`,
         `Provider: ${selectedProviderDef.name}\nModel: ${connectivityModel || 'none'}\nEndpoint: ${endpoint}`
@@ -937,9 +912,27 @@ export function ProviderHubSection({
     const startedAt = Date.now()
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 9000)
+    let mainRequestId: string | undefined
 
     try {
-      if (selectedProviderDef.key === 'openrouter') {
+      if (useMainRuntime) {
+        mainRequestId = crypto.randomUUID()
+        const requestId = mainRequestId
+        controller.signal.addEventListener(
+          'abort',
+          () => void window.providerRuntime?.cancel(requestId),
+          { once: true }
+        )
+        await window.providerRuntime!.generate({
+          requestId,
+          provider: selectedProviderDef.key,
+          model: connectivityModel,
+          prompt: 'Reply with OK.',
+          maxTokens: 8,
+          ollamaUrl,
+          alibabaRegion,
+        })
+      } else if (selectedProviderDef.key === 'openrouter') {
         await runBearerGetConnectivityCheck(
           `${endpoint}/auth/key`,
           selectedKey,
@@ -978,10 +971,11 @@ export function ProviderHubSection({
           controller.signal
         )
       } else if (selectedProviderDef.key === 'opencode') {
-        await runOpencodeConnectivityCheck(
+        await runChatCompletionsConnectivityCheck(
           endpoint,
           selectedKey,
           connectivityModel,
+          'OpenCode Go check failed',
           controller.signal
         )
       } else if (selectedProviderDef.key === 'nvidia') {
@@ -1001,7 +995,11 @@ export function ProviderHubSection({
       const latencyMs = Math.max(1, Date.now() - startedAt)
       setConnectivityStatus('success')
       setConnectivityMeta({ latencyMs, checkedAt: new Date().toLocaleTimeString() })
-      setConnectivityMessage('Connection successful. API key and model are reachable.')
+      setConnectivityMessage(
+        selectedProviderDef.key === 'codex'
+          ? 'ChatGPT Codex sign-in and model are reachable.'
+          : 'Connection successful. API key and model are reachable.'
+      )
       setConnectivityDetails(
         `Provider: ${selectedProviderDef.name}\nModel: ${connectivityModel}\nEndpoint: ${endpoint}\nStatus: 200 OK`
       )
@@ -1010,13 +1008,83 @@ export function ProviderHubSection({
       setConnectivityStatus('error')
       setConnectivityMeta(null)
       setConnectivityMessage(
-        `${selectedProviderDef.name} API key appears invalid or endpoint is unreachable.`
+        selectedProviderDef.key === 'codex'
+          ? 'ChatGPT Codex is unavailable or not signed in. Use "Sign in with ChatGPT", then retry.'
+          : `${selectedProviderDef.name} API key appears invalid or endpoint is unreachable.`
       )
       setConnectivityDetails(
         `Provider: ${selectedProviderDef.name}\nModel: ${connectivityModel}\nEndpoint: ${endpoint}\nError: ${message}`
       )
     } finally {
       clearTimeout(timeout)
+      if (mainRequestId) void window.providerRuntime?.cancel(mainRequestId)
+    }
+  }
+
+  const discoverCodexModels = async (): Promise<ConfiguredModel[]> => {
+    if (!window.providerRuntime) throw new Error('The provider runtime bridge is unavailable.')
+    const requestId = crypto.randomUUID()
+    const result = await window.providerRuntime.listModels({
+      requestId,
+      provider: 'codex',
+    })
+    const models = result.filter((model): model is ConfiguredModel =>
+      Boolean(
+        model &&
+        typeof model === 'object' &&
+        typeof (model as { code?: unknown }).code === 'string' &&
+        typeof (model as { displayName?: unknown }).displayName === 'string'
+      )
+    )
+    if (models.length === 0) throw new Error('ChatGPT returned no usable Codex models.')
+    const selectedModel = models.some((model) => model.code === aiModel) ? aiModel : models[0].code
+    onChange({
+      codexModels: models,
+      ...(modelProvider === 'codex' ? { aiModel: selectedModel } : {}),
+    })
+    setConnectivityModel(selectedModel)
+    return models
+  }
+
+  const runCodexSignIn = async () => {
+    if (!window.providerRuntime?.signInCodex) {
+      setConnectivityErrorState(
+        'ChatGPT sign-in is available only in the ZuraAI desktop runtime.',
+        'The provider runtime bridge is unavailable.'
+      )
+      return
+    }
+    setCodexSigningIn(true)
+    resetConnectivityState('Complete ChatGPT sign-in in the browser window.')
+    try {
+      await window.providerRuntime.signInCodex()
+      setCodexSignedIn(true)
+      const models = await discoverCodexModels()
+      setConnectivityStatus('success')
+      setConnectivityMessage(
+        `ChatGPT sign-in complete. ${models.length} available Codex model${models.length === 1 ? '' : 's'} discovered.`
+      )
+    } catch (error) {
+      setConnectivityErrorState(
+        'ChatGPT Codex sign-in was cancelled or failed.',
+        error instanceof Error ? error.message : 'Unknown sign-in error.'
+      )
+    } finally {
+      setCodexSigningIn(false)
+    }
+  }
+
+  const runCodexSignOut = async () => {
+    if (!window.providerRuntime?.signOutCodex) return
+    try {
+      await window.providerRuntime.signOutCodex()
+      setCodexSignedIn(false)
+      resetConnectivityState('Signed out of ChatGPT on this device.')
+    } catch (error) {
+      setConnectivityErrorState(
+        'Could not sign out of ChatGPT Codex.',
+        error instanceof Error ? error.message : 'Unknown sign-out error.'
+      )
     }
   }
 
@@ -1170,24 +1238,33 @@ export function ProviderHubSection({
                     }
                   />
 
-                  <DetailField
-                    label="API Proxy URL"
-                    description="Must include http(s)://"
-                    control={
-                      <Input
-                        value={providerProxyUrls[selectedProviderDef.key]}
-                        onChange={(e) => {
-                          setProviderProxyUrls((previous) => ({
-                            ...previous,
-                            [selectedProviderDef.key]: e.target.value,
-                          }))
-                          resetConnectivityState('Proxy URL changed. Run connectivity check again.')
-                        }}
-                        className="border-border bg-secondary"
-                        placeholder="https://api.example.com/v1"
-                      />
-                    }
-                  />
+                  {selectedProviderDef.key === 'alibaba' && (
+                    <DetailField
+                      label="Region"
+                      description="The API key and endpoint must belong to the same Alibaba region."
+                      control={
+                        <Select
+                          value={alibabaRegion}
+                          onValueChange={(value) => {
+                            onChange({ alibabaRegion: value as AlibabaRegion })
+                            resetConnectivityState('Region changed. Run connectivity check again.')
+                          }}
+                        >
+                          <SelectTrigger
+                            className="h-10 border-border bg-secondary"
+                            aria-label="Alibaba region"
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="settings-menu-surface">
+                            <SelectItem value="singapore">Singapore</SelectItem>
+                            <SelectItem value="us-virginia">US (Virginia)</SelectItem>
+                            <SelectItem value="china-beijing">China (Beijing)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      }
+                    />
+                  )}
 
                   <DetailField
                     label="Connectivity Check"
@@ -1304,6 +1381,78 @@ export function ProviderHubSection({
                     }
                   />
                 </div>
+              ) : selectedProviderDef.key === 'codex' ? (
+                <div className="space-y-6">
+                  <DetailField
+                    label="ChatGPT Account"
+                    description="Unofficial local integration using your ChatGPT Codex allowance. OAuth tokens are OS-encrypted and remain in ZuraAI's main process."
+                    control={
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          onClick={runCodexSignIn}
+                          disabled={codexSigningIn}
+                        >
+                          {codexSigningIn ? (
+                            <Loader2 size={14} className="animate-spin" />
+                          ) : (
+                            <ExternalLink size={14} />
+                          )}
+                          {codexSigningIn
+                            ? 'Waiting for sign-in'
+                            : codexSignedIn
+                              ? 'Sign in again'
+                              : 'Sign in with ChatGPT'}
+                        </Button>
+                        {codexSignedIn && (
+                          <Button variant="ghost" onClick={runCodexSignOut}>
+                            Sign out
+                          </Button>
+                        )}
+                      </div>
+                    }
+                  />
+                  <DetailField
+                    label="Connectivity Check"
+                    description="Verify the OAuth session and selected account-accessible Codex model."
+                    control={
+                      <div className="space-y-2">
+                        <Button
+                          variant="outline"
+                          className="w-full"
+                          onClick={runConnectivityCheck}
+                          disabled={connectivityStatus === 'checking'}
+                        >
+                          {connectivityStatus === 'checking' ? (
+                            <span className="inline-flex items-center gap-2">
+                              <Loader2 size={14} className="animate-spin" />
+                              Checking
+                            </span>
+                          ) : (
+                            'Check ChatGPT sign-in'
+                          )}
+                        </Button>
+                        <div className="rounded-xl border border-border bg-secondary px-4 py-3 text-sm">
+                          <span className="inline-flex items-start gap-2">
+                            {connectivityStatus === 'success' ? (
+                              <CheckCircle2 size={16} className="mt-0.5 text-emerald-400" />
+                            ) : connectivityStatus === 'error' ? (
+                              <AlertCircle size={16} className="mt-0.5 text-red-400" />
+                            ) : (
+                              <ShieldCheck size={16} className="mt-0.5 text-muted-foreground" />
+                            )}
+                            <span>{connectivityMessage}</span>
+                          </span>
+                          {connectivityDetails && (
+                            <pre className="mt-2 whitespace-pre-wrap text-[11px] leading-5 text-muted-foreground">
+                              {connectivityDetails}
+                            </pre>
+                          )}
+                        </div>
+                      </div>
+                    }
+                  />
+                </div>
               ) : (
                 <DetailField
                   label="Ollama Endpoint"
@@ -1320,24 +1469,26 @@ export function ProviderHubSection({
                 />
               )}
 
-              <p className="mt-5 inline-flex items-center gap-2 text-xs text-muted-foreground">
-                <ShieldCheck size={13} />
-                <span>
-                  Your key and proxy URL are stored in{' '}
-                  <a
-                    href="https://www.electronjs.org/docs/latest/api/safe-storage"
-                    onClick={(e) => {
-                      e.preventDefault()
-                      window.shell?.openExternal(
-                        'https://www.electronjs.org/docs/latest/api/safe-storage'
-                      )
-                    }}
-                    className="text-cyan-300 underline decoration-cyan-300/40 underline-offset-2 transition hover:decoration-cyan-300"
-                  >
-                    Electron secure storage
-                  </a>
-                </span>
-              </p>
+              {selectedProviderDef.apiKeyField && (
+                <p className="mt-5 inline-flex items-center gap-2 text-xs text-muted-foreground">
+                  <ShieldCheck size={13} />
+                  <span>
+                    Your key is stored in{' '}
+                    <a
+                      href="https://www.electronjs.org/docs/latest/api/safe-storage"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        window.shell?.openExternal(
+                          'https://www.electronjs.org/docs/latest/api/safe-storage'
+                        )
+                      }}
+                      className="text-cyan-300 underline decoration-cyan-300/40 underline-offset-2 transition hover:decoration-cyan-300"
+                    >
+                      Electron secure storage
+                    </a>
+                  </span>
+                </p>
+              )}
             </div>
 
             <div className="space-y-3 border-t border-border pt-5">
@@ -1564,7 +1715,6 @@ export function ProviderHubSection({
           open={alibabaSearchDialogOpen}
           onOpenChange={setAlibabaSearchDialogOpen}
           onAddModel={(model) => addCustomModel(model, 'alibaba')}
-          apiKey={alibabaApiKey}
           existingModelCodes={alibabaModels.map((m) => m.code)}
         />
       )}
@@ -2282,21 +2432,9 @@ function SearchApiDetail({
 
     if (!api.apiKeyField) return
 
-    if (isSecureApiKeyPlaceholder(normalizedApiKeyValue)) {
-      let cancelled = false
-      resolveApiKeyFromSecureStorage(api.apiKeyField, normalizedApiKeyValue)
-        .then((realKey) => {
-          if (!cancelled) setDisplayedApiKey(realKey)
-        })
-        .catch(() => {
-          if (!cancelled) setDisplayedApiKey('')
-        })
-      return () => {
-        cancelled = true
-      }
-    } else {
-      setDisplayedApiKey(normalizedApiKeyValue)
-    }
+    setDisplayedApiKey(
+      isSecureApiKeyPlaceholder(normalizedApiKeyValue) ? '' : normalizedApiKeyValue
+    )
   }, [api.apiKeyField, normalizedApiKeyValue])
 
   return (

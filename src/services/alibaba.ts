@@ -1,16 +1,13 @@
-import { ChatMessage, ToolDefinition, parseErrorResponse, extractErrorMessage } from './types'
+import { ChatMessage, ToolDefinition } from './types'
 import { parseSSEStream } from './streamUtils'
-import { getProviderEndpoint } from '../providers'
+import { getAlibabaBaseUrl } from './alibabaEndpoints'
+import { createProviderHttpError, missingResponseBodyError } from './providerHttpError'
 
 /**
  * Alibaba Cloud DashScope API Service
  * Uses OpenAI-compatible API at https://dashscope-intl.aliyuncs.com/compatible-mode/v1
  * Supports Qwen models (qwen-plus, qwen-max, qwen-flash, qwen-turbo, etc.)
  */
-
-const ALIBABA_BASE_URL =
-  getProviderEndpoint('alibaba', 'baseUrl') ??
-  'https://dashscope-intl.aliyuncs.com/compatible-mode/v1'
 
 export interface AlibabaResponse {
   id: string
@@ -103,6 +100,7 @@ export async function* streamAlibabaCompletion(
     onChunk?: (chunk: AlibabaStreamChunk) => void
     signal?: AbortSignal
     enableThinking?: boolean
+    baseUrl?: string
   }
 ): AsyncGenerator<AlibabaStreamChunk, void, unknown> {
   if (!apiKey) {
@@ -130,31 +128,26 @@ export async function* streamAlibabaCompletion(
     requestBody.enable_thinking = true
   }
 
-  const response = await fetch(`${ALIBABA_BASE_URL}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(requestBody),
-    signal: options?.signal,
-  })
+  const response = await fetch(
+    `${options?.baseUrl ?? getAlibabaBaseUrl(undefined)}/chat/completions`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+      signal: options?.signal,
+    }
+  )
 
   if (!response.ok) {
-    const errorText = await response.text()
-    const errorData = parseErrorResponse(errorText)
-    const errorMessage = extractErrorMessage(
-      errorData,
-      errorText,
-      response.status,
-      response.statusText
-    )
-    throw new Error(errorMessage)
+    throw await createProviderHttpError('alibaba', response, 'Alibaba request failed')
   }
 
   const reader = response.body?.getReader()
   if (!reader) {
-    throw new Error('Failed to get response reader')
+    throw missingResponseBodyError('alibaba')
   }
 
   yield* parseSSEStream<AlibabaStreamChunk>(reader, {
@@ -174,6 +167,7 @@ export const generateAlibabaCompletion = async (
     toolChoice?: 'auto' | 'none' | { type: 'function'; function: { name: string } }
     signal?: AbortSignal
     enableThinking?: boolean
+    baseUrl?: string
   }
 ): Promise<AlibabaResponse> => {
   if (!apiKey) {
@@ -199,26 +193,21 @@ export const generateAlibabaCompletion = async (
     requestBody.enable_thinking = true
   }
 
-  const response = await fetch(`${ALIBABA_BASE_URL}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(requestBody),
-    signal: options?.signal,
-  })
+  const response = await fetch(
+    `${options?.baseUrl ?? getAlibabaBaseUrl(undefined)}/chat/completions`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+      signal: options?.signal,
+    }
+  )
 
   if (!response.ok) {
-    const errorText = await response.text()
-    const errorData = parseErrorResponse(errorText)
-    const errorMessage = extractErrorMessage(
-      errorData,
-      errorText,
-      response.status,
-      response.statusText
-    )
-    throw new Error(errorMessage)
+    throw await createProviderHttpError('alibaba', response, 'Alibaba request failed')
   }
 
   const result = (await response.json()) as AlibabaResponse

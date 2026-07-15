@@ -3,7 +3,6 @@ export type SkillId =
   | 'code_execution'
   | 'terminal'
   | 'computer_use'
-  | 'command_center'
   | 'chart_generation'
   | 'memory'
   | 'reminders'
@@ -22,7 +21,6 @@ export interface CodeExecutionSkillState extends SkillState {}
 export interface TerminalSkillState extends SkillState {}
 
 export interface ComputerUseSkillState extends SkillState {}
-export interface CommandCenterSkillState extends SkillState {}
 
 export interface ChartGenerationSkillState extends SkillState {}
 
@@ -36,7 +34,6 @@ export type SkillsSettings = Record<string, SkillState> & {
   code_execution: CodeExecutionSkillState
   terminal: TerminalSkillState
   computer_use: ComputerUseSkillState
-  command_center: CommandCenterSkillState
   chart_generation: ChartGenerationSkillState
   memory: MemorySkillState
   reminders: RemindersSkillState
@@ -92,24 +89,12 @@ export const BUILT_IN_SKILLS: BuiltInSkill[] = [
     id: 'computer_use',
     name: 'Control This Desktop',
     description:
-      'Let Agent Mode use native OS tools, Command Center, screenshots, clicks, typing, scrolling, and app controls on this desktop.',
-    note: 'Agent Mode includes native desktop tools and Control+Shift+Space Command Center. On macOS, Control+Option+Shift+Space is the fallback. Desktop control actions require approval. Press Esc+Esc to emergency stop.',
+      'Let Agent Mode use native OS tools, screenshots, clicks, typing, scrolling, and app controls on this desktop.',
+    note: 'Desktop control actions require approval. Press Esc+Esc to emergency stop.',
     usageGuidance: [
-      'Prefer native OS tools and Command Center context before screenshots or shell commands.',
+      'Prefer native OS tools before screenshots or shell commands.',
       'Use screenshots when visual inspection is required, then analyze before performing any action.',
       'Verify results with the narrowest read-only native tool or a follow-up screenshot.',
-    ],
-  },
-  {
-    id: 'command_center',
-    name: 'Command Center',
-    description:
-      'Give the assistant native OS context and safe system controls for the active Windows or macOS desktop.',
-    note: 'Available on Windows and macOS. Model-callable OS actions use the normal approval path; overlay shortcuts are limited to a fixed main-process allowlist.',
-    usageGuidance: [
-      'Use active-window context before acting on the current app or desktop.',
-      'Prefer explicit OS tools for opening files/folders and window snap layouts instead of shell commands.',
-      'Ask for approval before changing system state, then verify with read-only active window or window list context.',
     ],
   },
   {
@@ -176,10 +161,6 @@ const DEFAULT_COMPUTER_USE_SKILL: ComputerUseSkillState = {
   enabled: false,
 }
 
-const DEFAULT_COMMAND_CENTER_SKILL: CommandCenterSkillState = {
-  enabled: false,
-}
-
 const DEFAULT_CHART_GENERATION_SKILL: ChartGenerationSkillState = {
   enabled: false,
 }
@@ -202,7 +183,6 @@ export const defaultSkillsSettings: SkillsSettings = {
   code_execution: DEFAULT_CODE_EXECUTION_SKILL,
   terminal: DEFAULT_TERMINAL_SKILL,
   computer_use: DEFAULT_COMPUTER_USE_SKILL,
-  command_center: DEFAULT_COMMAND_CENTER_SKILL,
   chart_generation: DEFAULT_CHART_GENERATION_SKILL,
   memory: DEFAULT_MEMORY_SKILL,
   reminders: DEFAULT_REMINDERS_SKILL,
@@ -259,7 +239,6 @@ export function normalizeSkillsSettings(raw: unknown): SkillsSettings {
         skillId === 'terminal' ||
         skillId === 'testing' ||
         skillId === 'computer_use' ||
-        skillId === 'command_center' ||
         skillId === 'chart_generation' ||
         skillId === 'memory' ||
         skillId === 'reminders' ||
@@ -287,10 +266,6 @@ export function normalizeSkillsSettings(raw: unknown): SkillsSettings {
   normalized.computer_use = normalizeKnownSkill(
     rawRecord?.computer_use,
     defaultSkillsSettings.computer_use
-  )
-  normalized.command_center = normalizeKnownSkill(
-    rawRecord?.command_center,
-    defaultSkillsSettings.command_center
   )
   normalized.chart_generation = normalizeKnownSkill(
     rawRecord?.chart_generation,
@@ -546,8 +521,6 @@ export function buildEnabledSkillsPrompt(
     codeExecutionPrompt?: string
     terminalPrompt?: string
     computerUsePrompt?: string
-    commandCenterPrompt?: string
-    commandCenterActive?: boolean
     chartGenerationPrompt?: string
     remindersPrompt?: string
     artifactsPrompt?: string
@@ -557,9 +530,6 @@ export function buildEnabledSkillsPrompt(
 
   const sections: string[] = []
   const normalized = normalizeSkillsSettings(skills)
-  const commandCenterActive =
-    normalized.command_center.enabled || options?.commandCenterActive === true
-
   const skillLines: string[] = []
 
   if (normalized.web_research.enabled) {
@@ -601,9 +571,9 @@ export function buildEnabledSkillsPrompt(
     )
   }
 
-  if (commandCenterActive) {
+  if (normalized.computer_use.enabled) {
     skillLines.push(
-      '- Command Center (`command_center`): use active-window context and explicit OS tools for native desktop requests before falling back to visual Computer Use or terminal commands.'
+      '- Desktop OS tools: use active-window context and explicit OS tools for native desktop requests before falling back to visual Computer Use or terminal commands.'
     )
     skillLines.push(
       '- Read current app/window context with `system_active_window`, find or launch installed apps with `app_find`/`app_launch`, and list or focus windows with `window_list`/`window_focus` before using screenshots or shell.'
@@ -657,10 +627,6 @@ export function buildEnabledSkillsPrompt(
 
   if (normalized.computer_use.enabled && options?.computerUsePrompt) {
     sections.push(options.computerUsePrompt)
-  }
-
-  if (commandCenterActive && options?.commandCenterPrompt) {
-    sections.push(options.commandCenterPrompt)
   }
 
   if (normalized.chart_generation.enabled && options?.chartGenerationPrompt) {

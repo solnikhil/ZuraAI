@@ -56,6 +56,7 @@ const PROVIDER_FALLBACK_ICONS: Record<
   ollama: Database,
   minimax: Brain,
   alibaba: Cloud,
+  codex: Sparkles,
   deepseek: Brain,
   fireworks: Sparkles,
   nvidia: Zap,

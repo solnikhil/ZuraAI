@@ -203,10 +203,6 @@ body {
   will-change: opacity;
 }
 
-.command-center-route #root::before {
-  content: none;
-}
-
 @keyframes app-launch-fade-out {
   from {
     opacity: 1;

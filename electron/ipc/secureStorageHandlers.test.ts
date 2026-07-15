@@ -45,45 +45,13 @@ describe('registerSecureStorageHandlers', () => {
     secureStorageMocks.getSecureValuePresenceAsync.mockReset()
   })
 
-  it('returns only the provider-key allowlist from secure-storage:get-all', async () => {
-    const storedValues: Record<string, string> = {
-      openRouterApiKey: 'or-key',
-      groqApiKey: 'groq-key',
-      tavilyApiKey: 'tavily-key',
-      alibabaApiKey: 'alibaba-key',
-      fireworksApiKey: 'fireworks-key',
-      nvidiaApiKey: 'nvidia-key',
-      deepseekApiKey: 'deepseek-key',
-      opencodeGoApiKey: 'opencode-key',
-      onlineCompilerApiKey: 'oc-key',
-      brevoApiKey: 'brevo-key',
-    }
-
-    secureStorageMocks.getSecureValueAsync.mockImplementation((key: string) =>
-      Promise.resolve(storedValues[key])
-    )
-
+  it('does not expose secret read or read-all handlers to the renderer', async () => {
     const { registerSecureStorageHandlers } = await import('./secureStorageHandlers')
     registerSecureStorageHandlers()
 
-    const handler = ipcMainMocks.handlers.get('secure-storage:get-all')
-    expect(handler).toBeTypeOf('function')
-
-    await expect(handler?.()).resolves.toEqual({
-      openRouterApiKey: 'or-key',
-      groqApiKey: 'groq-key',
-      tavilyApiKey: 'tavily-key',
-      alibabaApiKey: 'alibaba-key',
-      fireworksApiKey: 'fireworks-key',
-      nvidiaApiKey: 'nvidia-key',
-      deepseekApiKey: 'deepseek-key',
-      opencodeGoApiKey: 'opencode-key',
-      onlineCompilerApiKey: 'oc-key',
-      brevoApiKey: 'brevo-key',
-    })
-
-    expect(secureStorageMocks.getSecureValueAsync).toHaveBeenCalledTimes(10)
-    expect(secureStorageMocks.getSecureValueAsync).not.toHaveBeenCalledWith('mcp.server.demo.token')
+    expect(ipcMainMocks.handlers.has('secure-storage:get')).toBe(false)
+    expect(ipcMainMocks.handlers.has('secure-storage:get-all')).toBe(false)
+    expect(secureStorageMocks.getSecureValueAsync).not.toHaveBeenCalled()
   })
 
   it('returns provider-key presence without decrypting secure values', async () => {

@@ -291,7 +291,7 @@ describe('appIndexService', () => {
     )
   })
 
-  it('uses local command center launches as a recency signal', async () => {
+  it('uses local agent app launches as a recency signal', async () => {
     const { service } = await loadService({
       nativeApps: [
         { name: 'Old App', appUserModelId: 'Old.App' },
@@ -674,7 +674,7 @@ describe('appIndexService', () => {
   it('drops malformed oversized snapshot fields while keeping valid entries', async () => {
     const snapshotPath = await mkdtemp(path.join(os.tmpdir(), 'zura-app-index-bounds-'))
     await writeFile(
-      path.join(snapshotPath, 'command-center-app-index.json'),
+      path.join(snapshotPath, 'app-index.json'),
       JSON.stringify({
         version: 1,
         updatedAt: Date.now(),
@@ -714,7 +714,7 @@ describe('appIndexService', () => {
   it('merges duplicate native and shortcut rows from stale snapshots before rendering', async () => {
     const sameUserDataPath = await mkdtemp(path.join(os.tmpdir(), 'zura-app-index-snapshot-'))
     await writeFile(
-      path.join(sameUserDataPath, 'command-center-app-index.json'),
+      path.join(sameUserDataPath, 'app-index.json'),
       JSON.stringify({
         version: 1,
         updatedAt: Date.now(),

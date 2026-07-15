@@ -88,6 +88,18 @@ describe('SettingsContext Provider Integration', () => {
       expect(defaultSettingsConfig.tavilySearchDepthPreference).toBe('auto')
     })
 
+    it('includes a real ChatGPT Codex model without storing a credential', async () => {
+      const { defaultSettingsConfig } = await import('./SettingsConfigContext')
+      expect(defaultSettingsConfig.codexModels).toEqual([
+        expect.objectContaining({
+          code: 'gpt-5.4',
+          enabled: true,
+          supportsDeepThinking: true,
+        }),
+      ])
+      expect('codexApiKey' in defaultSettingsConfig).toBe(false)
+    })
+
     it('includes valid modelProvider in defaults', async () => {
       const { defaultSettingsConfig } = await import('./SettingsConfigContext')
       const validProviders = ['openrouter', 'ollama', 'groq']
@@ -264,6 +276,7 @@ Rules:
       const { defaultSettingsConfig } = await import('./SettingsConfigContext')
       expect(defaultSettingsConfig.providerEnabled).toEqual({
         alibaba: true,
+        codex: true,
         deepseek: true,
         fireworks: true,
         groq: true,

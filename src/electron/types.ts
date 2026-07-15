@@ -16,6 +16,8 @@ import type {
 import type { McpServerInputPayload } from '../mcp/draft'
 import type { McpAgentAddApproveResult, McpAgentAddReview } from '../mcp/addRequestTypes'
 import type { ToolResult } from '../tools/types'
+import type { ProviderRuntimeStreamRequest } from '../providers/providerRuntimeTypes'
+import type { ProviderStreamEvent, SerializedProviderError } from '@zura/provider-core'
 import type {
   AgentSkillActivationResult,
   AgentSkillInstallResult,
@@ -248,351 +250,6 @@ export interface DiscordRpcState {
   lastError?: string
 }
 
-export interface CommandCenterState {
-  enabled: boolean
-  shortcut: string
-  shortcutRegistered: boolean
-}
-
-export interface CommandCenterCommand {
-  text: string
-  receivedAt: number
-  sessionId?: string
-  activeWindow?: {
-    hwnd?: number
-    title?: string
-    processId?: number
-    processName?: string
-    path?: string
-  }
-}
-
-export type CommandCenterActionId =
-  | 'snap-left'
-  | 'snap-right'
-  | 'maximize-window'
-  | 'system-status'
-  | 'clipboard-to-chat'
-  | 'focus-zuraai'
-  | 'open-downloads'
-  | 'emoji-picker'
-  | 'zura-ai-chats'
-  | 'layout'
-  | 'settings'
-  | 'zura-store'
-  | 'github-workspace'
-  | 'open-windows-copilot'
-  /** Nested Windows Settings pages: settings-<page> from the fixed catalog. */
-  | `settings-${string}`
-
-export interface CommandCenterAction {
-  id: CommandCenterActionId
-  label: string
-  kind: 'window' | 'system' | 'clipboard' | 'app' | 'settings' | 'filesystem' | 'additional'
-  aliases?: string[]
-}
-
-export type CommandCenterWorkflowStep =
-  | { type: 'action'; actionId: string }
-  | { type: 'app'; appPath: string; label?: string }
-  | { type: 'window'; hwnd: number; label?: string }
-  | { type: 'ai'; prompt: string }
-
-export interface CommandCenterWorkflow {
-  id: string
-  name: string
-  description?: string
-  aliases: string[]
-  steps: CommandCenterWorkflowStep[]
-  createdAt: number
-  updatedAt: number
-  lastRunAt?: number
-}
-
-export type CommandCenterIndexItem =
-  | {
-      id: string
-      type: 'workflow'
-      title: string
-      subtitle?: string
-      hint: 'Workflow'
-      aliases: string[]
-      workflow: CommandCenterWorkflow
-      score?: number
-      matchReasons?: string[]
-    }
-  | {
-      id: string
-      type: 'app'
-      title: string
-      subtitle?: string
-      hint: 'Application'
-      aliases: string[]
-      appPath?: string
-      shortcutPath?: string
-      targetPath?: string
-      source?: string
-      launchStrategy?: 'appUserModelId' | 'shortcutPath'
-      appUserModelId?: string
-      iconKey?: string
-      iconDataUrl?: string
-      /** True while main is still extracting this app's icon. */
-      iconPending?: boolean
-      existingWindow?: {
-        hwnd: number
-        title: string
-        processName: string
-        processId: number
-      }
-      rank?: number
-      score?: number
-      matchReasons?: string[]
-    }
-  | {
-      id: string
-      type: 'window'
-      title: string
-      subtitle?: string
-      hint: 'Window'
-      aliases: string[]
-      hwnd: number
-      processName: string
-      processId: number
-      score?: number
-      matchReasons?: string[]
-    }
-  | {
-      id: string
-      type: 'action'
-      title: string
-      subtitle?: string
-      hint: 'Action' | 'Command'
-      aliases: string[]
-      actionId: CommandCenterActionId
-      score?: number
-      matchReasons?: string[]
-    }
-  | {
-      id: string
-      type: 'extension'
-      title: string
-      subtitle?: string
-      hint: 'Extension'
-      aliases: string[]
-        extensionId: string
-        commandId: string
-        commandMode: 'view' | 'no-view' | 'workspace'
-      hostCapability?: string
-      iconDataUrl?: string
-      score?: number
-      matchReasons?: string[]
-    }
-  | {
-      id: string
-      type: 'chat'
-      title: string
-      subtitle?: string
-      hint: 'Chat'
-      aliases: string[]
-      sessionId: string
-      score?: number
-      matchReasons?: string[]
-    }
-  | {
-      id: string
-      type: 'file'
-      title: string
-      subtitle?: string
-      hint: 'File'
-      aliases: string[]
-      extension?: string
-      modifiedAt?: number
-      size?: number
-      iconDataUrl?: string
-      score: number
-      matchReasons: string[]
-    }
-  | {
-      id: string
-      type: 'folder'
-      title: string
-      subtitle?: string
-      hint: 'Folder'
-      aliases: string[]
-      modifiedAt?: number
-      iconDataUrl?: string
-      score: number
-      matchReasons: string[]
-    }
-
-export interface CommandCenterIndex {
-  bestMatches: CommandCenterIndexItem[]
-  workflows: CommandCenterIndexItem[]
-  apps: CommandCenterIndexItem[]
-  files: CommandCenterIndexItem[]
-  windows: CommandCenterIndexItem[]
-  actions: CommandCenterIndexItem[]
-  extensions?: CommandCenterIndexItem[]
-  chats: CommandCenterIndexItem[]
-  diagnostics?: {
-    apps?: {
-      ok: boolean
-      stale?: boolean
-      error?: string
-      sourceCounts?: Record<string, number>
-      lastRefreshAt?: number
-      refreshDurationMs?: number
-    }
-    windowsSearch?: CommandCenterWindowsSearchDiagnostics
-  }
-}
-
-export interface CommandCenterWindowsSearchDiagnostics {
-  ok: boolean
-  available: boolean
-  disabled?: boolean
-  error?: string
-  durationMs?: number
-}
-
-export interface CommandCenterNativeSearchResult {
-  files: CommandCenterIndexItem[]
-  diagnostics: CommandCenterWindowsSearchDiagnostics
-}
-
-export type CommandCenterAppDiagnostics = NonNullable<CommandCenterIndex['diagnostics']>['apps']
-
-export interface CommandCenterExecuteResult {
-  success: boolean
-  error?: string
-  data?: unknown
-  aiPrompt?: string
-  sessionId?: string
-  extension?: { extensionId: string; commandId: string; hostCapability?: string }
-}
-
-export interface CommandCenterShownInfo {
-  attemptId: number
-  startedAt: number
-}
-
-/** Fixed secondary actions for a selected Command Center index item (apps first). */
-export type CommandCenterItemActionId =
-  | 'open'
-  | 'focus-window'
-  | 'force-quit'
-  | 'show-in-folder'
-  | 'reveal-shortcut'
-  | 'add-to-favorite'
-  | 'copy-path'
-  | 'copy-dir'
-  | 'copy-name'
-  | 'copy-bundle-id'
-  | 'disable-application'
-  | 'uninstall-application'
-
-export interface CommandCenterItemActionResult {
-  success: boolean
-  error?: string
-  /** When true, the overlay should hide after the action succeeds. */
-  dismiss?: boolean
-  status?: string
-}
-
-export interface CommandCenterSubmitResult {
-  accepted: boolean
-  reason?: string
-}
-
-export type GitHubWorkspaceAccount =
-  | { status: 'signed_out'; setupRequired?: boolean; error?: string }
-  | { status: 'signing_in'; verificationUrl: string; userCode: string; expiresAt: number }
-  | { status: 'signed_in'; login: string; name?: string; avatarUrl?: string }
-
-export interface GitHubWorkspaceRepositorySummary {
-  id: string
-  name: string
-  alias?: string
-  path: string
-  missing: boolean
-  branch?: string
-  ahead: number
-  behind: number
-  changedFiles: number
-  remoteUrl?: string
-  /** GitHub owner/org when remote is a github.com URL; used for Desktop-style grouping. */
-  owner?: string
-  lastOpenedAt: number
-}
-
-export interface GitHubWorkspaceFileChange {
-  id: string
-  path: string
-  status: string
-  selected: boolean
-}
-
-export interface GitHubWorkspaceCommit {
-  id: string
-  summary: string
-  author: string
-  authoredAt: number
-}
-
-export interface GitHubWorkspaceWorktree {
-  id: string
-  path: string
-  branch?: string
-  isCurrent: boolean
-}
-
-export interface GitHubWorkspaceState {
-  account: GitHubWorkspaceAccount
-  repositories: GitHubWorkspaceRepositorySummary[]
-  selectedRepositoryId?: string
-  changes: GitHubWorkspaceFileChange[]
-  history: GitHubWorkspaceCommit[]
-  /** Local branch names for the selected repository. */
-  branches: string[]
-  /** Linked worktrees for the selected repository. */
-  worktrees: GitHubWorkspaceWorktree[]
-  diff?: string
-  busy?: string
-  error?: string
-}
-
-export type GitHubWorkspaceMutation =
-  | { type: 'select-repository'; repositoryId: string }
-  | { type: 'select-change'; repositoryId: string; changeId: string; selected: boolean }
-  | { type: 'commit'; repositoryId: string; summary: string; description?: string }
-  | { type: 'fetch'; repositoryId: string }
-  | { type: 'pull'; repositoryId: string }
-  | { type: 'push'; repositoryId: string }
-  | { type: 'checkout-branch'; repositoryId: string; branch: string }
-  | { type: 'open-worktree'; repositoryId: string; worktreeId: string }
-
-/** Open a resolved workspace path in the OS — never accepts freeform paths from the renderer. */
-export type GitHubWorkspaceOpenRequest =
-  | { target: 'repository'; repositoryId: string }
-  | { target: 'file' | 'reveal'; repositoryId: string; changeId: string }
-
-export type GitHubWorkspaceOpenResult =
-  | { ok: true }
-  | { ok: false; error: string }
-
-export interface GitHubWorkspaceApi {
-  getState: () => Promise<GitHubWorkspaceState>
-  addRepository: () => Promise<GitHubWorkspaceState>
-  startSignIn: () => Promise<GitHubWorkspaceAccount>
-  signOut: () => Promise<GitHubWorkspaceAccount>
-  disconnect: () => Promise<GitHubWorkspaceAccount>
-  copyUserCode: (userCode: string) => Promise<boolean>
-  mutate: (mutation: GitHubWorkspaceMutation) => Promise<GitHubWorkspaceState>
-  selectDiff: (repositoryId: string, changeId: string) => Promise<string>
-  open: (request: GitHubWorkspaceOpenRequest) => Promise<GitHubWorkspaceOpenResult>
-  onChanged: (callback: (state: GitHubWorkspaceState) => void) => () => void
-}
-
 export interface EmailNotificationSettings {
   enabled: boolean
   senderName: string
@@ -623,23 +280,48 @@ export interface AgentSkillsAPI {
   ) => Promise<AgentSkillInstallResult>
 }
 
-export interface ProviderProxyFetchRequest {
-  url: string
-  method?: 'GET' | 'POST'
-  headers?: Record<string, string>
-  body?: string
+export interface ProviderRuntimeStartRequest extends Omit<ProviderRuntimeStreamRequest, 'signal'> {
+  requestId: string
+  ollamaUrl?: string
+  alibabaRegion?: import('../services/alibabaEndpoints').AlibabaRegion
+  openRouterDebug?: boolean
 }
 
-export interface ProviderProxyFetchResponse {
-  ok: boolean
-  status: number
-  statusText: string
-  headers: Record<string, string>
-  body: string
+export interface ProviderRuntimeGenerateRequest {
+  requestId: string
+  provider: import('../providers/providerTypes').ActiveProviderId
+  model: string
+  prompt: string
+  maxTokens?: number
+  jsonMode?: boolean
+  ollamaUrl?: string
+  alibabaRegion?: import('../services/alibabaEndpoints').AlibabaRegion
 }
 
-export interface ProviderProxyAPI {
-  fetchOpencode: (request: ProviderProxyFetchRequest) => Promise<ProviderProxyFetchResponse>
+export interface ProviderRuntimeListModelsRequest {
+  requestId: string
+  provider: import('../providers/providerTypes').ActiveProviderId
+  ollamaUrl?: string
+}
+
+export type ProviderRuntimeBridgeEvent =
+  | {
+      requestId: string
+      type: 'event'
+      event: Exclude<ProviderStreamEvent, { type: 'error' }>
+    }
+  | { requestId: string; type: 'error'; error: SerializedProviderError }
+  | { requestId: string; type: 'done' }
+
+export interface ProviderRuntimeAPI {
+  start: (request: ProviderRuntimeStartRequest) => Promise<boolean>
+  generate: (request: ProviderRuntimeGenerateRequest) => Promise<string>
+  listModels: (request: ProviderRuntimeListModelsRequest) => Promise<unknown[]>
+  signInCodex: () => Promise<boolean>
+  getCodexAuthStatus: () => Promise<{ signedIn: boolean }>
+  signOutCodex: () => Promise<boolean>
+  cancel: (requestId: string) => Promise<boolean>
+  onEvent: (callback: (event: ProviderRuntimeBridgeEvent) => void) => () => void
 }
 
 export interface ExternalChatMessageRequest {
@@ -946,10 +628,8 @@ export type IpcInvokeChannel =
   | 'chat-debug-window:open'
   | 'chat-links:consume-pending'
   | 'chat-links:peek-pending'
-  | 'secure-storage:get'
   | 'secure-storage:set'
   | 'secure-storage:get-presence'
-  | 'secure-storage:get-all'
   | 'execute-tool'
   | 'window-resize'
   | 'context-menu:show'
@@ -957,7 +637,13 @@ export type IpcInvokeChannel =
   | 'updater:check-for-updates'
   | 'updater:quit-and-install'
   | 'updater:get-version'
-  | 'provider-proxy:opencode-fetch'
+  | 'provider-runtime:start'
+  | 'provider-runtime:generate'
+  | 'provider-runtime:list-models'
+  | 'provider-runtime:codex-sign-in'
+  | 'provider-runtime:codex-auth-status'
+  | 'provider-runtime:codex-sign-out'
+  | 'provider-runtime:cancel'
 
 export interface IpcInvokeArgsMap {
   'chat-store:get-metadata': []
@@ -978,10 +664,8 @@ export interface IpcInvokeArgsMap {
   'chat-debug-window:open': [sessionId: string]
   'chat-links:consume-pending': []
   'chat-links:peek-pending': []
-  'secure-storage:get': [key: SecureStorageKey]
   'secure-storage:set': [key: SecureStorageKey, value: string]
   'secure-storage:get-presence': []
-  'secure-storage:get-all': []
   'execute-tool': [toolName: string, args: Record<string, unknown>]
   'window-resize': [newBounds: WindowBounds]
   'context-menu:show': [request: NativeContextMenuRequest]
@@ -989,7 +673,13 @@ export interface IpcInvokeArgsMap {
   'updater:check-for-updates': []
   'updater:quit-and-install': []
   'updater:get-version': []
-  'provider-proxy:opencode-fetch': [request: ProviderProxyFetchRequest]
+  'provider-runtime:start': [request: ProviderRuntimeStartRequest]
+  'provider-runtime:generate': [request: ProviderRuntimeGenerateRequest]
+  'provider-runtime:list-models': [request: ProviderRuntimeListModelsRequest]
+  'provider-runtime:codex-sign-in': []
+  'provider-runtime:codex-auth-status': []
+  'provider-runtime:codex-sign-out': []
+  'provider-runtime:cancel': [requestId: string]
 }
 
 export interface IpcInvokeReturnMap {
@@ -1011,10 +701,8 @@ export interface IpcInvokeReturnMap {
   'chat-debug-window:open': boolean
   'chat-links:consume-pending': ExternalChatMessageRequest[]
   'chat-links:peek-pending': ExternalChatMessageRequest[]
-  'secure-storage:get': string
   'secure-storage:set': boolean
   'secure-storage:get-presence': Record<SecureStorageKey, boolean>
-  'secure-storage:get-all': Record<SecureStorageKey, string>
   'execute-tool': ToolResult
   'window-resize': void
   'context-menu:show': void
@@ -1022,7 +710,13 @@ export interface IpcInvokeReturnMap {
   'updater:check-for-updates': UpdateCheckInfo | null
   'updater:quit-and-install': boolean
   'updater:get-version': string
-  'provider-proxy:opencode-fetch': ProviderProxyFetchResponse
+  'provider-runtime:start': boolean
+  'provider-runtime:generate': string
+  'provider-runtime:list-models': unknown[]
+  'provider-runtime:codex-sign-in': boolean
+  'provider-runtime:codex-auth-status': { signedIn: boolean }
+  'provider-runtime:codex-sign-out': boolean
+  'provider-runtime:cancel': boolean
   'discord-rpc:get-state': DiscordRpcState
   'discord-rpc:set-activity': DiscordRpcState
 }
@@ -1080,10 +774,8 @@ export interface IElectronAPI {
 }
 
 export interface SecureStorageAPI {
-  get: (key: SecureStorageKey) => Promise<string>
   set: (key: SecureStorageKey, value: string) => Promise<boolean>
   getPresence: () => Promise<Record<SecureStorageKey, boolean>>
-  getAll: () => Promise<Record<SecureStorageKey, string>>
 }
 
 export interface UpdaterAPI {
@@ -1175,34 +867,6 @@ export interface ComputerUseAPI {
 
 export interface AgentApprovalAPI {
   requestApproval: (request: AgentApprovalOverlayRequest) => Promise<AgentApprovalOverlayDecision>
-}
-
-export interface CommandCenterAPI {
-  setExtensionEnabled: (enabled: boolean) => Promise<CommandCenterState>
-  show: () => Promise<boolean>
-  hide: () => Promise<boolean>
-  getContext: () => Promise<ToolResult>
-  listActions: () => Promise<CommandCenterAction[]>
-  getIndex: (query?: string) => Promise<CommandCenterIndex>
-  searchNativeIndex: (query: string) => Promise<CommandCenterNativeSearchResult>
-  refreshAppIndex: () => Promise<NonNullable<CommandCenterIndex['diagnostics']>['apps']>
-  saveWorkflow: (workflow: Partial<CommandCenterWorkflow>) => Promise<CommandCenterWorkflow | null>
-  deleteWorkflow: (id: string) => Promise<boolean>
-  executeAction: (actionId: CommandCenterActionId) => Promise<ToolResult>
-  insertEmoji: (emoji: string) => Promise<ToolResult>
-  executeIndexItem: (itemId: string, query?: string) => Promise<CommandCenterExecuteResult>
-  executeItemAction: (
-    itemId: string,
-    actionId: CommandCenterItemActionId,
-    query?: string
-  ) => Promise<CommandCenterItemActionResult>
-  executeWorkflow: (workflowId: string) => Promise<CommandCenterExecuteResult>
-  openChatSession: (sessionId: string) => Promise<boolean>
-  setLayout: (layout: 'search' | 'chat') => Promise<boolean>
-  submitCommand: (text: string) => Promise<CommandCenterSubmitResult>
-  onShown: (callback: (info?: CommandCenterShownInfo) => void) => () => void
-  onHidden: (callback: () => void) => () => void
-  onCommand: (callback: (command: CommandCenterCommand) => void) => () => void
 }
 
 export interface EmailNotificationsAPI {

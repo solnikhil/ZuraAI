@@ -1,5 +1,6 @@
 import type { ConfiguredModel } from '../contexts/SettingsConfigContext'
 import { getProviderEndpoint } from '../providers'
+import { listProviderModelsThroughMain } from './providerCatalogBridge'
 
 export interface NvidiaModel {
   id: string
@@ -41,7 +42,12 @@ function isNvidiaChatModel(modelId: string): boolean {
   )
 }
 
-export async function fetchNvidiaModels(apiKey: string): Promise<NvidiaModel[]> {
+export async function fetchNvidiaModels(
+  apiKey: string,
+  signal?: AbortSignal
+): Promise<NvidiaModel[]> {
+  const bridged = await listProviderModelsThroughMain<NvidiaModel>('nvidia', signal)
+  if (bridged) return bridged
   if (!apiKey?.trim()) {
     throw new Error('NVIDIA API key is required to fetch catalog models.')
   }
@@ -52,6 +58,7 @@ export async function fetchNvidiaModels(apiKey: string): Promise<NvidiaModel[]> 
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
+    signal,
   })
 
   if (!response.ok) {
@@ -74,37 +81,13 @@ export async function fetchNvidiaModels(apiKey: string): Promise<NvidiaModel[]> 
 
 export function mapNvidiaModelToConfiguredModel(apiModel: NvidiaModel): ConfiguredModel {
   const id = apiModel.id.trim()
-  const lowerId = id.toLowerCase()
-  const isMiniMaxM3 = lowerId === 'minimaxai/minimax-m3'
-  const supportsVision = isMiniMaxM3 || /\b(vl|vision|visual|multimodal|m3|vila|llava)\b/i.test(id)
-  const supportsVideo = isMiniMaxM3 || /\b(video|m3)\b/i.test(id)
-  const supportsReasoning =
-    isMiniMaxM3 || /\b(reason|reasoning|thinking|r1|qwq|nemotron|m3)\b/i.test(id)
-  const supportsImageGeneration = /\b(image|flux|stable-diffusion|sdxl)\b/i.test(id)
-
-  let modelType: ConfiguredModel['modelType'] = 'chat'
-  if (supportsImageGeneration) {
-    modelType = 'image'
-  } else if (supportsReasoning) {
-    modelType = 'reasoning'
-  } else if (supportsVideo) {
-    modelType = 'video'
-  }
 
   return {
     code: id,
-    displayName: isMiniMaxM3 ? 'MiniMax M3' : titleCaseModelId(id),
-    maxContext: isMiniMaxM3 ? 1048576 : undefined,
-    inputModalities: supportsVision
-      ? ['text', 'image', ...(supportsVideo ? ['video'] : [])]
-      : ['text'],
+    displayName: titleCaseModelId(id),
+    inputModalities: ['text'],
     outputModalities: ['text'],
-    modelType,
-    supportsToolCall: true,
-    supportsVision,
-    supportsDeepThinking: supportsReasoning,
-    supportsImageGeneration,
-    supportsVideoRecognition: supportsVideo,
+    modelType: 'chat',
   }
 }
 

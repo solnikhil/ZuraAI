@@ -115,7 +115,7 @@ function findSummaryTarget(): WebContents | null {
     const getURL = (window.webContents as WebContents & { getURL?: () => string }).getURL
     const url = typeof getURL === 'function' ? getURL.call(window.webContents) : ''
     if (!url) return false
-    if (url.startsWith('data:') || url.includes('#/about') || url.includes('#/command-center'))
+    if (url.startsWith('data:') || url.includes('#/about'))
       return false
     return (
       url.includes('#/dashboard') ||

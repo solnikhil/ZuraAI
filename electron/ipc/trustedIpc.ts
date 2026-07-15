@@ -19,10 +19,7 @@ function exactOrigin(url: string | undefined): string | null {
 }
 
 function defaultRendererEntryPaths(): string[] {
-  return [
-    path.resolve(__dirname, '../dist/index.html'),
-    path.resolve(__dirname, '../dist/command-center.html'),
-  ]
+  return [path.resolve(__dirname, '../dist/index.html')]
 }
 
 function isTrustedRendererUrl(

@@ -87,7 +87,7 @@ export function fillMissingUsage(
   usage: { inputTokens: number; outputTokens: number; totalTokens: number },
   content: string,
   options?: { deriveInputFromTotal?: boolean }
-): { inputTokens: number; outputTokens: number; totalTokens: number } {
+): { inputTokens: number; outputTokens: number; totalTokens: number; estimated?: boolean } {
   let { inputTokens } = usage
   const { outputTokens, totalTokens } = usage
 
@@ -107,6 +107,7 @@ export function fillMissingUsage(
     inputTokens,
     outputTokens: estimatedOutput,
     totalTokens: totalTokens > 0 ? totalTokens : inputTokens + estimatedOutput,
+    estimated: outputTokens === 0 || totalTokens === 0,
   }
 }
 

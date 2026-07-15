@@ -66,7 +66,7 @@ const COMPUTER_USE_TOOL_NAMES = getBuiltinToolDefinitions()
   .filter((tool) => tool.category === 'computer-use')
   .map((tool) => tool.name)
 
-const COMMAND_CENTER_TOOL_NAMES = [
+const DESKTOP_OS_TOOL_NAMES = [
   'system_active_window',
   'system_status',
   'system_settings_open',
@@ -87,7 +87,7 @@ const COMMAND_CENTER_SHARED_NATIVE_TOOL_NAMES = [
   'window_focus',
 ]
 
-const _COMMAND_CENTER_EXCLUSIVE_TOOL_NAMES = COMMAND_CENTER_TOOL_NAMES.filter(
+const _DESKTOP_OS_EXCLUSIVE_TOOL_NAMES = DESKTOP_OS_TOOL_NAMES.filter(
   (tool) => !COMMAND_CENTER_SHARED_NATIVE_TOOL_NAMES.includes(tool)
 )
 
@@ -332,8 +332,8 @@ describe('useToolCalling - Computer Use tool exposure gating', () => {
   })
 })
 
-describe('useToolCalling - Command Center OS integration exposure gating', () => {
-  it('exposes OS integration tools on Windows in Agent Mode without requiring the legacy Command Center toggle', () => {
+describe('useToolCalling - desktop OS integration exposure gating', () => {
+  it('exposes OS integration tools on Windows in Agent Mode', () => {
     isWindows = true
     mockSettings.settings = makeSettings({
       assistantMode: 'agent',
@@ -341,50 +341,29 @@ describe('useToolCalling - Command Center OS integration exposure gating', () =>
     })
 
     const names = getExposedToolNames()
-    for (const tool of COMMAND_CENTER_TOOL_NAMES) {
+    for (const tool of DESKTOP_OS_TOOL_NAMES) {
       expect(names).toContain(tool)
     }
   })
 
-  it('keeps legacy Command Center-enabled settings compatible in Agent Mode', () => {
-    isWindows = true
-    mockSettings.settings = makeSettings({
-      assistantMode: 'agent',
-      skills: {
-        ...defaultSkillsSettings,
-        command_center: { enabled: true },
-      },
-    })
-
-    const names = getExposedToolNames()
-    for (const tool of COMMAND_CENTER_TOOL_NAMES) {
-      expect(names).toContain(tool)
-    }
-  })
-
-  it('does not expose Command Center model-callable OS tools in chat mode', () => {
+  it('does not expose desktop OS tools in chat mode', () => {
     isWindows = true
     mockSettings.settings = makeSettings({
       assistantMode: 'chat',
-      skills: {
-        ...defaultSkillsSettings,
-        command_center: { enabled: true },
-      },
+      skills: defaultSkillsSettings,
     })
 
     const names = getExposedToolNames()
-    for (const tool of COMMAND_CENTER_TOOL_NAMES) {
+    for (const tool of DESKTOP_OS_TOOL_NAMES) {
       expect(names).not.toContain(tool)
     }
   })
 
-  it('exposes the supported Command Center tools on macOS', () => {
+  it('exposes the supported desktop OS tools on macOS', () => {
     isWindows = false
     mockSettings.settings = makeSettings({
-      skills: {
-        ...defaultSkillsSettings,
-        command_center: { enabled: true },
-      },
+      assistantMode: 'agent',
+      skills: defaultSkillsSettings,
     })
 
     const names = getExposedToolNames()

@@ -1,6 +1,6 @@
 import React from 'react'
 import { SETTINGS_SECTIONS, type SettingsSectionId } from '../../constants/settingsSections'
-import { Box, ChartNoAxesCombined, Cloud, Command, Paintbrush, Puzzle } from '../icons'
+import { Box, ChartNoAxesCombined, Cloud, Paintbrush, Puzzle } from '../icons'
 
 interface SidebarSettingsViewProps {
   active: boolean
@@ -12,7 +12,6 @@ const settingsIcons: Record<SettingsSectionId, React.ReactNode> = {
   providers: <Cloud size={18} />,
   extensions: <Puzzle size={18} />,
   mcp: <Box size={18} />,
-  commandbar: <Command size={18} />,
   themes: <Paintbrush size={18} />,
   usage: <ChartNoAxesCombined size={18} />,
 }

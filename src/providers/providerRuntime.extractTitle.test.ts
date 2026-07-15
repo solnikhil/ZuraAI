@@ -16,22 +16,22 @@ describe('extractTitleTextFromMessage', () => {
     ).toBe('{"facts":[]}')
   })
 
-  it('falls back to reasoning_content when content is empty (reasoner safety net)', () => {
+  it('never exposes reasoning_content as output when content is empty', () => {
     expect(
       extractTitleTextFromMessage({
         content: '',
         reasoning_content: '{"facts":["likes dark mode"],"summary":""}',
       })
-    ).toBe('{"facts":["likes dark mode"],"summary":""}')
+    ).toBe('')
   })
 
-  it('falls back to reasoning_content when content is null', () => {
+  it('never exposes reasoning_content as output when content is null', () => {
     expect(
       extractTitleTextFromMessage({
         content: null,
         reasoning_content: 'recovered text',
       })
-    ).toBe('recovered text')
+    ).toBe('')
   })
 
   it('does NOT use reasoning_content when content has a real answer', () => {

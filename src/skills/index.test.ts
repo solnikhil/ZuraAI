@@ -285,22 +285,6 @@ describe('terminal skill', () => {
     expect(prompt).not.toContain('TERMINAL_PROMPT_CONTENT')
   })
 
-  it('buildEnabledSkillsPrompt injects the commandCenterPrompt option only when enabled', () => {
-    const enabled = {
-      ...defaultSkillsSettings,
-      command_center: { enabled: true },
-    }
-
-    expect(
-      buildEnabledSkillsPrompt(enabled, { commandCenterPrompt: 'COMMAND_CENTER_PROMPT_CONTENT' })
-    ).toContain('COMMAND_CENTER_PROMPT_CONTENT')
-    expect(
-      buildEnabledSkillsPrompt(defaultSkillsSettings, {
-        commandCenterPrompt: 'COMMAND_CENTER_PROMPT_CONTENT',
-      })
-    ).not.toContain('COMMAND_CENTER_PROMPT_CONTENT')
-  })
-
   it('legacy settings without terminal default to disabled', () => {
     const migrated = migrateSkillsFromLegacySettings({
       skills: { web_research: { enabled: true } },

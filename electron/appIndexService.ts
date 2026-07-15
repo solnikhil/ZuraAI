@@ -5,7 +5,7 @@ import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
 
-import { scoreAppSearch } from '../src/commandCenter/search'
+import { scoreAppSearch } from '../src/tools/search'
 import { writeFileAtomic } from './utils/atomicFile'
 import {
   isWindows,
@@ -15,7 +15,7 @@ import {
 } from './tools/native-common'
 
 const SNAPSHOT_VERSION = 1
-const SNAPSHOT_FILE = 'command-center-app-index.json'
+const SNAPSHOT_FILE = 'app-index.json'
 const REFRESH_STALE_MS = 10 * 60_000
 const ICON_CONCURRENCY = 4
 const MAX_SNAPSHOT_BYTES = 5 * 1024 * 1024
@@ -1191,7 +1191,7 @@ function scoreApp(appEntry: AppIndexEntry, query: string): number {
             : ageHours <= 24 * 30
               ? 100
               : 40
-  // Frequency is primary for empty browse: Command Center launches first, UserAssist second.
+  // Frequency is primary for agent app discovery: local launches first, UserAssist second.
   const frequencyScore =
     Math.min((appEntry.launchCount ?? 0) * 80, 1200) + Math.min((appEntry.usageCount ?? 0) * 2, 400)
   if (!normalizedQuery) return frequencyScore + recencyScore

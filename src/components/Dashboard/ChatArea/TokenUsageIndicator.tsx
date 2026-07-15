@@ -328,7 +328,6 @@ export function TokenUsageIndicator({
       settings.codeExecutionPrompt,
       settings.terminalPrompt,
       settings.computerUsePrompt,
-      settings.commandCenterPrompt,
       settings.chartGenerationPrompt,
       settings.remindersPrompt,
       settings.artifactsPrompt,

@@ -78,6 +78,8 @@ export interface ToolCall {
   id: string
   name: string
   arguments: Record<string, unknown>
+  /** Prevents execution while preserving the native call id for a corrective tool result. */
+  validationError?: string
 }
 
 /**

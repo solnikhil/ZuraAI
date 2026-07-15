@@ -14,6 +14,7 @@ import { normalizeDeepseekReasoning, coerceReasoningEffort } from '../utils/deep
 import { normalizeActiveThemeId } from '../themes/themeRegistry'
 import { normalizeFontScale } from '../themes/themeUtils'
 import type { AgentSkillSummary, AgentSkillsSettings } from '../agentSkills/types'
+import { isAlibabaRegion } from '../services/alibabaEndpoints'
 
 export interface Settings extends SettingsUI, SettingsConfig {}
 
@@ -295,7 +296,6 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   parsed.codeExecutionPrompt = defaultSettings.codeExecutionPrompt
   parsed.terminalPrompt = defaultSettings.terminalPrompt
   parsed.computerUsePrompt = defaultSettings.computerUsePrompt
-  parsed.commandCenterPrompt = defaultSettings.commandCenterPrompt
   parsed.chartGenerationPrompt = defaultSettings.chartGenerationPrompt
   parsed.memoryPrompt = defaultSettings.memoryPrompt
   parsed.remindersPrompt = defaultSettings.remindersPrompt
@@ -314,6 +314,9 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   }
 
   if (!parsed.ollamaUrl) parsed.ollamaUrl = defaultSettings.ollamaUrl
+  if (!isAlibabaRegion(parsed.alibabaRegion)) {
+    parsed.alibabaRegion = defaultSettings.alibabaRegion
+  }
   if (typeof parsed.openRouterDebug !== 'boolean') {
     parsed.openRouterDebug = defaultSettings.openRouterDebug
   }
@@ -517,12 +520,6 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   if (parsed.rememberLastDashboardView === undefined) {
     parsed.rememberLastDashboardView = defaultSettings.rememberLastDashboardView
   }
-  if (
-    parsed.commandCenterChatPersistence !== 'temporary' &&
-    parsed.commandCenterChatPersistence !== 'always-save'
-  ) {
-    parsed.commandCenterChatPersistence = defaultSettings.commandCenterChatPersistence
-  }
   if (!parsed.emailNotifications || typeof parsed.emailNotifications !== 'object') {
     parsed.emailNotifications = defaultSettings.emailNotifications
   } else {
@@ -698,6 +695,7 @@ export function getInitialConfigSettings(settings: Settings): Partial<SettingsCo
     tavilySearchDepthPreference: settings.tavilySearchDepthPreference,
     webSearchIncludeImages: settings.webSearchIncludeImages,
     alibabaApiKey: settings.alibabaApiKey,
+    alibabaRegion: settings.alibabaRegion,
     fireworksApiKey: settings.fireworksApiKey,
     nvidiaApiKey: settings.nvidiaApiKey,
     deepseekApiKey: settings.deepseekApiKey,
@@ -712,6 +710,7 @@ export function getInitialConfigSettings(settings: Settings): Partial<SettingsCo
     ollamaModels: settings.ollamaModels,
     groqModels: settings.groqModels,
     alibabaModels: settings.alibabaModels,
+    codexModels: settings.codexModels,
     fireworksModels: settings.fireworksModels,
     nvidiaModels: settings.nvidiaModels,
     deepseekModels: settings.deepseekModels,
@@ -728,7 +727,6 @@ export function getInitialConfigSettings(settings: Settings): Partial<SettingsCo
     codeExecutionPrompt: settings.codeExecutionPrompt,
     terminalPrompt: settings.terminalPrompt,
     computerUsePrompt: settings.computerUsePrompt,
-    commandCenterPrompt: settings.commandCenterPrompt,
     chartGenerationPrompt: settings.chartGenerationPrompt,
     memoryPrompt: settings.memoryPrompt,
     remindersPrompt: settings.remindersPrompt,
@@ -752,7 +750,6 @@ export function getInitialConfigSettings(settings: Settings): Partial<SettingsCo
     rememberLastChatSession: settings.rememberLastChatSession,
     rememberLastSettingsSection: settings.rememberLastSettingsSection,
     rememberLastDashboardView: settings.rememberLastDashboardView,
-    commandCenterChatPersistence: settings.commandCenterChatPersistence,
     emailNotifications: settings.emailNotifications,
     discordRpc: settings.discordRpc,
   }

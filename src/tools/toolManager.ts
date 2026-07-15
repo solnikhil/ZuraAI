@@ -5,7 +5,8 @@
 
 // Tool Manager - Coordinates tool execution in chat flow
 
-import { getAllToolDefinitions, getToolByName } from './definitions'
+import { getAllToolDefinitions } from './definitions'
+import { validateToolCall } from '@zura/provider-core'
 import { convertToolsForProvider, providerSupportsTools, modelSupportsTools } from './adapters'
 import { executeToolCalls } from './executor'
 import { requiresManualToolApproval } from './approvalPolicy'
@@ -32,104 +33,6 @@ import { trackAnalytics } from '../analytics/track'
 type ProviderResponse = OpenRouterResponse
 
 type FormattedToolResults = OpenRouterToolResultMessage[]
-
-/**
- * Validate that all required parameters are present in tool arguments
- * Returns an error message if validation fails, null if valid
- */
-function isMissingRequiredParameterValue(
-  value: unknown,
-  toolDef: ToolDescriptor,
-  param: string
-): boolean {
-  if (value === undefined || value === null) {
-    return true
-  }
-
-  const schema = toolDef.parameters.properties[param]
-  if (schema?.type === 'string') {
-    return typeof value !== 'string' || value.trim() === ''
-  }
-
-  return value === ''
-}
-
-function validateRequiredParameters(
-  toolCall: ToolCall,
-  availableTools: ToolDescriptor[]
-): string | null {
-  const toolDef = getToolByName(toolCall.name, availableTools)
-
-  if (!toolDef) {
-    const availableToolNames = availableTools.map((t) => t.name).join(', ')
-    return `Unknown tool "${toolCall.name}". Available tools: ${availableToolNames}`
-  }
-
-  const requiredParams = toolDef.parameters.required || []
-  const missingParams: string[] = []
-
-  for (const param of requiredParams) {
-    const value = toolCall.arguments[param]
-    if (isMissingRequiredParameterValue(value, toolDef, param)) {
-      missingParams.push(param)
-    }
-  }
-
-  if (missingParams.length > 0) {
-    return `Missing required parameter(s): ${missingParams.join(', ')}. Please provide ${missingParams.map((p) => `'${p}'`).join(' and ')} to use ${toolCall.name}.`
-  }
-
-  return null
-}
-
-/**
- * Coerce tool arguments to correct types based on tool definition schema
- */
-function coerceToolArguments(toolCall: ToolCall, availableTools: ToolDescriptor[]): ToolCall {
-  const toolDef = getToolByName(toolCall.name, availableTools)
-  if (!toolDef) return toolCall
-
-  const coercedArgs: Record<string, unknown> = {}
-
-  for (const [key, value] of Object.entries(toolCall.arguments)) {
-    const paramDef = toolDef.parameters.properties[key]
-    if (!paramDef) {
-      // Unknown parameter, keep as-is
-      coercedArgs[key] = value
-      continue
-    }
-
-    // Coerce based on expected type
-    if (paramDef.type === 'number') {
-      if (typeof value === 'string' && value.trim() !== '') {
-        const num = Number(value)
-        coercedArgs[key] = isNaN(num)
-          ? paramDef.default !== undefined
-            ? paramDef.default
-            : value
-          : num
-      } else if (typeof value === 'number') {
-        coercedArgs[key] = value
-      } else {
-        coercedArgs[key] = paramDef.default !== undefined ? paramDef.default : value
-      }
-    } else if (paramDef.type === 'boolean') {
-      if (typeof value === 'string') {
-        coercedArgs[key] = value.toLowerCase() === 'true' || value === '1'
-      } else {
-        coercedArgs[key] = Boolean(value)
-      }
-    } else {
-      // Keep as-is for strings, objects, arrays
-      coercedArgs[key] = value
-    }
-  }
-
-  return {
-    ...toolCall,
-    arguments: coercedArgs,
-  }
-}
 
 export type { ToolCall, ToolCallResult }
 
@@ -328,18 +231,32 @@ export async function processToolCalls(
   )
   const userContextText = config.executionPolicy?.userContextText
 
+  const coreToolDefinitions = availableTools.map((tool) => ({
+    name: tool.name,
+    description: tool.description,
+    inputSchema: tool.parameters as Record<string, unknown>,
+    strict: true,
+  }))
+
   for (const [index, toolCall] of toolCalls.entries()) {
-    const coercedToolCall = normalizeWebSearchToolCall(
-      coerceToolArguments(toolCall, availableTools),
-      userContextText
-    )
-    const validationError = validateRequiredParameters(coercedToolCall, availableTools)
+    const normalizedToolCall = normalizeWebSearchToolCall(toolCall, userContextText)
+    const validation = normalizedToolCall.validationError
+      ? null
+      : validateToolCall({
+          id: normalizedToolCall.id,
+          name: normalizedToolCall.name,
+          rawArguments: normalizedToolCall.arguments,
+          tools: coreToolDefinitions,
+        })
+    const validationError =
+      normalizedToolCall.validationError ||
+      (validation && !validation.ok ? validation.error.message : null)
 
     if (validationError) {
-      console.warn(`Tool validation failed for ${coercedToolCall.name}:`, validationError)
-      config.onToolStart?.(coercedToolCall)
+      console.warn(`Tool validation failed for ${normalizedToolCall.name}:`, validationError)
+      config.onToolStart?.(normalizedToolCall)
       const errorResult: ToolCallResult = {
-        toolCall: coercedToolCall,
+        toolCall: normalizedToolCall,
         result: { success: false, error: validationError },
       }
       resultsByIndex[index] = errorResult
@@ -348,17 +265,22 @@ export async function processToolCalls(
       continue
     }
 
-    if (coercedToolCall.name === 'web_search') {
+    if (!validation || !validation.ok) {
+      throw new Error('Tool validation reached an inconsistent state.')
+    }
+    const validatedToolCall = validation.toolCall
+
+    if (validatedToolCall.name === 'web_search') {
       executionSummary.attemptedWebSearchCount += 1
 
-      const query = getWebSearchQuery(coercedToolCall)
+      const query = getWebSearchQuery(validatedToolCall)
       if (remainingWebSearchBudget <= 0) {
         const budgetResult = createSyntheticToolResult(
-          coercedToolCall,
+          validatedToolCall,
           'Web search budget for this response has been reached. No additional results.',
           'budget'
         )
-        config.onToolStart?.(coercedToolCall)
+        config.onToolStart?.(validatedToolCall)
         resultsByIndex[index] = budgetResult
         config.onToolComplete?.(budgetResult)
         trackToolResult(budgetResult)
@@ -374,11 +296,11 @@ export async function processToolCalls(
 
     if (remainingToolCallBudget <= 0) {
       const budgetResult = createSyntheticToolResult(
-        coercedToolCall,
+        validatedToolCall,
         'Tool call budget for this response has been reached. No additional tools were executed.',
         'budget'
       )
-      config.onToolStart?.(coercedToolCall)
+      config.onToolStart?.(validatedToolCall)
       resultsByIndex[index] = budgetResult
       config.onToolComplete?.(budgetResult)
       trackToolResult(budgetResult)
@@ -386,7 +308,7 @@ export async function processToolCalls(
     }
     remainingToolCallBudget -= 1
 
-    executableCalls.push({ index, toolCall: coercedToolCall })
+    executableCalls.push({ index, toolCall: validatedToolCall })
   }
 
   // Phase 2: Gate executable calls behind optional manual approval, then execute approved calls.

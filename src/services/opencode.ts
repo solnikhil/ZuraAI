@@ -1,7 +1,15 @@
 import { ChatMessage, ToolDefinition, parseErrorResponse, extractErrorMessage } from './types'
 import { parseSSEStream } from './streamUtils'
 import { getProviderEndpoint } from '../providers'
-import type { ProviderProxyFetchResponse } from '../electron/types'
+import { listProviderModelsThroughMain } from './providerCatalogBridge'
+
+interface OpencodeTextResponse {
+  ok: boolean
+  status: number
+  statusText: string
+  headers: Record<string, string>
+  body: string
+}
 
 const OPENCODE_GO_BASE_URL =
   getProviderEndpoint('opencode', 'baseUrl') ?? 'https://opencode.ai/zen/go/v1'
@@ -9,6 +17,22 @@ const OPENCODE_GO_BASE_URL =
 const OPENCODE_GO_CHAT_COMPLETIONS_URL =
   getProviderEndpoint('opencode', 'chatCompletionsUrl') ??
   'https://opencode.ai/zen/go/v1/chat/completions'
+const OPENCODE_GO_MESSAGES_URL = `${OPENCODE_GO_BASE_URL}/messages`
+
+export type OpencodeProtocol = 'openai-chat-completions' | 'anthropic-messages'
+
+const OPENCODE_ANTHROPIC_MODEL_IDS = new Set([
+  'minimax-m3',
+  'minimax-m2.7',
+  'minimax-m2.5',
+  'qwen3.7-plus',
+  'qwen3.7-max',
+  'qwen3.6-plus',
+])
+
+export function getOpencodeProtocol(model: string): OpencodeProtocol {
+  return OPENCODE_ANTHROPIC_MODEL_IDS.has(model) ? 'anthropic-messages' : 'openai-chat-completions'
+}
 
 export interface OpencodeResponse {
   id: string
@@ -93,29 +117,233 @@ interface OpencodeRequestBody {
   tool_choice?: 'auto' | 'none' | { type: 'function'; function: { name: string } }
 }
 
-function shouldUseOpencodeProxy(): boolean {
-  return typeof window !== 'undefined' && Boolean(window.providerProxy?.fetchOpencode)
+type AnthropicContentBlock =
+  | { type: 'text'; text: string }
+  | { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> }
+  | { type: 'tool_result'; tool_use_id: string; content: string }
+
+interface AnthropicMessage {
+  role: 'user' | 'assistant'
+  content: AnthropicContentBlock[]
 }
 
-function textToReader(text: string): ReadableStreamDefaultReader<Uint8Array> {
-  const encoded = new TextEncoder().encode(text)
-  return new ReadableStream<Uint8Array>({
-    start(controller) {
-      controller.enqueue(encoded)
-      controller.close()
+interface AnthropicRequestBody {
+  model: string
+  max_tokens: number
+  messages: AnthropicMessage[]
+  system?: string
+  stream?: boolean
+  temperature?: number
+  tools?: Array<{
+    name: string
+    description?: string
+    input_schema: Record<string, unknown>
+  }>
+  tool_choice?: { type: 'auto' } | { type: 'tool'; name: string }
+}
+
+interface AnthropicResponse {
+  id: string
+  model: string
+  content: Array<
+    | { type: 'text'; text: string }
+    | { type: 'thinking'; thinking: string }
+    | { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> }
+  >
+  stop_reason?: string | null
+  usage?: { input_tokens?: number; output_tokens?: number }
+}
+
+interface AnthropicStreamEvent {
+  type: string
+  message?: AnthropicResponse
+  index?: number
+  content_block?: AnthropicResponse['content'][number]
+  delta?: {
+    type?: string
+    text?: string
+    thinking?: string
+    partial_json?: string
+    stop_reason?: string | null
+  }
+  usage?: { input_tokens?: number; output_tokens?: number }
+}
+
+function contentToText(message: ChatMessage): string {
+  if (typeof message.content === 'string') return message.content
+  const unsupported = message.content.find((part) => part.type !== 'text')
+  if (unsupported) {
+    throw new Error('This OpenCode Messages model does not support image content in ZuraAI.')
+  }
+  return message.content.map((part) => part.text ?? '').join('')
+}
+
+function parseAssistantToolInput(name: string, raw: string): Record<string, unknown> {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    throw new Error(`Assistant tool call ${name} contained invalid JSON arguments.`)
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error(`Assistant tool call ${name} arguments must be a JSON object.`)
+  }
+  return parsed as Record<string, unknown>
+}
+
+function convertToAnthropicMessages(messages: ChatMessage[]): {
+  system?: string
+  messages: AnthropicMessage[]
+} {
+  const systemParts: string[] = []
+  const converted: AnthropicMessage[] = []
+
+  const append = (role: AnthropicMessage['role'], blocks: AnthropicContentBlock[]) => {
+    if (blocks.length === 0) return
+    const previous = converted.at(-1)
+    if (previous?.role === role) previous.content.push(...blocks)
+    else converted.push({ role, content: blocks })
+  }
+
+  for (const message of messages) {
+    if (message.role === 'system') {
+      systemParts.push(contentToText(message))
+      continue
+    }
+    if (message.role === 'tool') {
+      if (!message.tool_call_id) {
+        throw new Error('OpenCode Messages tool results require a tool_call_id.')
+      }
+      append('user', [
+        {
+          type: 'tool_result',
+          tool_use_id: message.tool_call_id,
+          content: contentToText(message),
+        },
+      ])
+      continue
+    }
+
+    const blocks: AnthropicContentBlock[] = []
+    const text = contentToText(message)
+    if (text) blocks.push({ type: 'text', text })
+    if (message.role === 'assistant') {
+      const toolCalls = (
+        message as ChatMessage & {
+          tool_calls?: Array<{
+            id: string
+            function: { name: string; arguments: string }
+          }>
+        }
+      ).tool_calls
+      for (const toolCall of toolCalls ?? []) {
+        blocks.push({
+          type: 'tool_use',
+          id: toolCall.id,
+          name: toolCall.function.name,
+          input: parseAssistantToolInput(toolCall.function.name, toolCall.function.arguments),
+        })
+      }
+    }
+    append(message.role === 'assistant' ? 'assistant' : 'user', blocks)
+  }
+
+  return {
+    system: systemParts.length > 0 ? systemParts.join('\n\n') : undefined,
+    messages: converted,
+  }
+}
+
+function buildAnthropicRequestBody(
+  model: string,
+  messages: ChatMessage[],
+  options: {
+    temperature?: number
+    max_tokens?: number
+    tools?: ToolDefinition[]
+    toolChoice?: 'auto' | 'none' | { type: 'function'; function: { name: string } }
+    stream?: boolean
+  }
+): AnthropicRequestBody {
+  const converted = convertToAnthropicMessages(messages)
+  const toolsEnabled = options.toolChoice !== 'none' && Boolean(options.tools?.length)
+  return {
+    model,
+    max_tokens: options.max_tokens ?? 4096,
+    messages: converted.messages,
+    system: converted.system,
+    stream: options.stream,
+    temperature: options.temperature,
+    tools: toolsEnabled
+      ? options.tools!.map((tool) => ({
+          name: tool.function.name,
+          description: tool.function.description,
+          input_schema: tool.function.parameters ?? { type: 'object', properties: {} },
+        }))
+      : undefined,
+    tool_choice:
+      toolsEnabled && typeof options.toolChoice === 'object'
+        ? { type: 'tool', name: options.toolChoice.function.name }
+        : toolsEnabled
+          ? { type: 'auto' }
+          : undefined,
+  }
+}
+
+function mapAnthropicFinishReason(reason: string | null | undefined): string | null {
+  if (!reason) return null
+  if (reason === 'tool_use') return 'tool_calls'
+  if (reason === 'max_tokens') return 'length'
+  if (reason === 'end_turn' || reason === 'stop_sequence') return 'stop'
+  return reason
+}
+
+function mapAnthropicResponse(response: AnthropicResponse): OpencodeResponse {
+  const text = response.content
+    .filter((block): block is Extract<typeof block, { type: 'text' }> => block.type === 'text')
+    .map((block) => block.text)
+    .join('')
+  const reasoning = response.content
+    .filter(
+      (block): block is Extract<typeof block, { type: 'thinking' }> => block.type === 'thinking'
+    )
+    .map((block) => block.thinking)
+    .join('')
+  const toolCalls = response.content
+    .filter(
+      (block): block is Extract<typeof block, { type: 'tool_use' }> => block.type === 'tool_use'
+    )
+    .map((block) => ({
+      id: block.id,
+      type: 'function' as const,
+      function: { name: block.name, arguments: JSON.stringify(block.input) },
+    }))
+  const inputTokens = response.usage?.input_tokens ?? 0
+  const outputTokens = response.usage?.output_tokens ?? 0
+
+  return {
+    id: response.id,
+    object: 'chat.completion',
+    created: Math.floor(Date.now() / 1000),
+    model: response.model,
+    choices: [
+      {
+        index: 0,
+        message: {
+          role: 'assistant',
+          content: text,
+          reasoning_content: reasoning || undefined,
+          tool_calls: toolCalls.length > 0 ? toolCalls : undefined,
+        },
+        finish_reason: mapAnthropicFinishReason(response.stop_reason),
+      },
+    ],
+    usage: {
+      prompt_tokens: inputTokens,
+      completion_tokens: outputTokens,
+      total_tokens: inputTokens + outputTokens,
     },
-  }).getReader()
-}
-
-function normalizeHeaderRecord(headers: HeadersInit | undefined): Record<string, string> {
-  if (!headers) return {}
-  if (headers instanceof Headers) {
-    return Object.fromEntries(headers.entries())
   }
-  if (Array.isArray(headers)) {
-    return Object.fromEntries(headers.map(([key, value]) => [key, value]))
-  }
-  return { ...headers }
 }
 
 async function readResponseBody(response: Response): Promise<string> {
@@ -148,19 +376,7 @@ async function readResponseBody(response: Response): Promise<string> {
   return new TextDecoder().decode(merged)
 }
 
-async function fetchOpencodeText(
-  url: string,
-  init: RequestInit
-): Promise<ProviderProxyFetchResponse> {
-  if (shouldUseOpencodeProxy()) {
-    return window.providerProxy.fetchOpencode({
-      url,
-      method: init.method === 'POST' ? 'POST' : 'GET',
-      headers: normalizeHeaderRecord(init.headers),
-      body: typeof init.body === 'string' ? init.body : undefined,
-    })
-  }
-
+async function fetchOpencodeText(url: string, init: RequestInit): Promise<OpencodeTextResponse> {
   const response = await fetch(url, init)
   const headers: Record<string, string> = {}
   response.headers?.forEach((value, key) => {
@@ -177,7 +393,7 @@ async function fetchOpencodeText(
 }
 
 function throwOpencodeError(
-  response: Pick<ProviderProxyFetchResponse, 'status' | 'statusText' | 'body'>
+  response: Pick<OpencodeTextResponse, 'status' | 'statusText' | 'body'>
 ): never {
   const errorData = parseErrorResponse(response.body)
   const errorMessage = extractErrorMessage(
@@ -193,7 +409,7 @@ async function postOpencodeCompletion(
   apiKey: string,
   requestBody: OpencodeRequestBody,
   signal?: AbortSignal
-): Promise<ProviderProxyFetchResponse> {
+): Promise<OpencodeTextResponse> {
   if (!apiKey) {
     throw new Error('OpenCode Go API Key is missing')
   }
@@ -215,6 +431,188 @@ async function postOpencodeCompletion(
   return response
 }
 
+async function openOpencodeStream(
+  apiKey: string,
+  url: string,
+  requestBody: OpencodeRequestBody | AnthropicRequestBody,
+  signal?: AbortSignal
+): Promise<ReadableStreamDefaultReader<Uint8Array>> {
+  if (!apiKey) throw new Error('OpenCode Go API Key is missing')
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+      Accept: 'text/event-stream',
+    },
+    body: JSON.stringify(requestBody),
+    signal,
+  })
+  if (!response.ok) {
+    const body = await response.text()
+    throwOpencodeError({ status: response.status, statusText: response.statusText, body })
+  }
+  const reader = response.body?.getReader()
+  if (!reader) throw new Error('OpenCode Go streaming response did not include a body.')
+  return reader
+}
+
+async function* streamAnthropicOpencodeCompletion(
+  apiKey: string,
+  model: string,
+  messages: ChatMessage[],
+  options?: {
+    temperature?: number
+    max_tokens?: number
+    tools?: ToolDefinition[]
+    toolChoice?: 'auto' | 'none' | { type: 'function'; function: { name: string } }
+    onChunk?: (chunk: OpencodeStreamChunk) => void
+    signal?: AbortSignal
+  }
+): AsyncGenerator<OpencodeStreamChunk, void, unknown> {
+  const requestBody = buildAnthropicRequestBody(model, messages, { ...options, stream: true })
+  const reader = await openOpencodeStream(
+    apiKey,
+    OPENCODE_GO_MESSAGES_URL,
+    requestBody,
+    options?.signal
+  )
+  let id = ''
+  let responseModel = model
+  let inputTokens = 0
+  let outputTokens = 0
+  let finishEmitted = false
+  const created = Math.floor(Date.now() / 1000)
+
+  const emit = (chunk: OpencodeStreamChunk): OpencodeStreamChunk => {
+    options?.onChunk?.(chunk)
+    return chunk
+  }
+
+  for await (const event of parseSSEStream<AnthropicStreamEvent>(reader, {
+    providerName: 'OpenCode Go Messages',
+  })) {
+    if (event.type === 'message_start' && event.message) {
+      id = event.message.id
+      responseModel = event.message.model
+      inputTokens = event.message.usage?.input_tokens ?? inputTokens
+      continue
+    }
+
+    if (event.type === 'content_block_start' && event.content_block) {
+      if (event.content_block.type === 'text' && event.content_block.text) {
+        yield emit({
+          id,
+          object: 'chat.completion.chunk',
+          created,
+          model: responseModel,
+          choices: [{ index: 0, delta: { content: event.content_block.text } }],
+        })
+      } else if (event.content_block.type === 'thinking' && event.content_block.thinking) {
+        yield emit({
+          id,
+          object: 'chat.completion.chunk',
+          created,
+          model: responseModel,
+          choices: [{ index: 0, delta: { reasoning_content: event.content_block.thinking } }],
+        })
+      } else if (event.content_block.type === 'tool_use') {
+        const initialArguments =
+          Object.keys(event.content_block.input).length > 0
+            ? JSON.stringify(event.content_block.input)
+            : ''
+        yield emit({
+          id,
+          object: 'chat.completion.chunk',
+          created,
+          model: responseModel,
+          choices: [
+            {
+              index: 0,
+              delta: {
+                tool_calls: [
+                  {
+                    index: event.index ?? 0,
+                    id: event.content_block.id,
+                    type: 'function',
+                    function: { name: event.content_block.name, arguments: initialArguments },
+                  },
+                ],
+              },
+            },
+          ],
+        })
+      }
+      continue
+    }
+
+    if (event.type === 'content_block_delta' && event.delta) {
+      const delta = event.delta
+      const normalizedDelta: OpencodeStreamChunk['choices'][number]['delta'] = {}
+      if (delta.type === 'text_delta' && delta.text) normalizedDelta.content = delta.text
+      if (delta.type === 'thinking_delta' && delta.thinking) {
+        normalizedDelta.reasoning_content = delta.thinking
+      }
+      if (delta.type === 'input_json_delta' && delta.partial_json) {
+        normalizedDelta.tool_calls = [
+          {
+            index: event.index ?? 0,
+            type: 'function',
+            function: { arguments: delta.partial_json },
+          },
+        ]
+      }
+      if (Object.keys(normalizedDelta).length > 0) {
+        yield emit({
+          id,
+          object: 'chat.completion.chunk',
+          created,
+          model: responseModel,
+          choices: [{ index: 0, delta: normalizedDelta }],
+        })
+      }
+      continue
+    }
+
+    if (event.type === 'message_delta') {
+      outputTokens = event.usage?.output_tokens ?? outputTokens
+      const finishReason = mapAnthropicFinishReason(event.delta?.stop_reason)
+      if (finishReason) {
+        finishEmitted = true
+        yield emit({
+          id,
+          object: 'chat.completion.chunk',
+          created,
+          model: responseModel,
+          choices: [{ index: 0, delta: {}, finish_reason: finishReason }],
+          usage: {
+            prompt_tokens: inputTokens,
+            completion_tokens: outputTokens,
+            total_tokens: inputTokens + outputTokens,
+          },
+        })
+      }
+      continue
+    }
+
+    if (event.type === 'message_stop' && !finishEmitted) {
+      yield emit({
+        id,
+        object: 'chat.completion.chunk',
+        created,
+        model: responseModel,
+        choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+        usage: {
+          prompt_tokens: inputTokens,
+          completion_tokens: outputTokens,
+          total_tokens: inputTokens + outputTokens,
+        },
+      })
+    }
+  }
+}
+
 export async function* streamOpencodeCompletion(
   apiKey: string,
   model: string,
@@ -228,6 +626,10 @@ export async function* streamOpencodeCompletion(
     signal?: AbortSignal
   }
 ): AsyncGenerator<OpencodeStreamChunk, void, unknown> {
+  if (getOpencodeProtocol(model) === 'anthropic-messages') {
+    yield* streamAnthropicOpencodeCompletion(apiKey, model, messages, options)
+    return
+  }
   const requestBody: OpencodeRequestBody = {
     model,
     messages,
@@ -245,8 +647,12 @@ export async function* streamOpencodeCompletion(
     requestBody.tool_choice = options.toolChoice || 'auto'
   }
 
-  const response = await postOpencodeCompletion(apiKey, requestBody, options?.signal)
-  const reader = textToReader(response.body)
+  const reader = await openOpencodeStream(
+    apiKey,
+    OPENCODE_GO_CHAT_COMPLETIONS_URL,
+    requestBody,
+    options?.signal
+  )
 
   yield* parseSSEStream<OpencodeStreamChunk>(reader, {
     onChunk: options?.onChunk,
@@ -266,6 +672,28 @@ export async function generateOpencodeCompletion(
     signal?: AbortSignal
   }
 ): Promise<OpencodeResponse> {
+  if (getOpencodeProtocol(model) === 'anthropic-messages') {
+    if (!apiKey) throw new Error('OpenCode Go API Key is missing')
+    const requestBody = buildAnthropicRequestBody(model, messages, { ...options, stream: false })
+    const response = await fetchOpencodeText(OPENCODE_GO_MESSAGES_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+      signal: options?.signal,
+    })
+    if (!response.ok) throwOpencodeError(response)
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(response.body)
+    } catch {
+      throw new Error('OpenCode Go Messages returned invalid JSON.')
+    }
+    return mapAnthropicResponse(parsed as AnthropicResponse)
+  }
+
   const requestBody: OpencodeRequestBody = {
     model,
     messages,
@@ -326,7 +754,12 @@ function parseOpencodeModelList(body: string): OpencodeModel[] {
   })
 }
 
-export async function fetchOpencodeModels(apiKey = ''): Promise<OpencodeModel[]> {
+export async function fetchOpencodeModels(
+  apiKey = '',
+  signal?: AbortSignal
+): Promise<OpencodeModel[]> {
+  const bridged = await listProviderModelsThroughMain<OpencodeModel>('opencode', signal)
+  if (bridged) return bridged
   const headers: Record<string, string> = {}
   if (apiKey.trim()) {
     headers.Authorization = `Bearer ${apiKey.trim()}`
@@ -335,6 +768,7 @@ export async function fetchOpencodeModels(apiKey = ''): Promise<OpencodeModel[]>
   const response = await fetchOpencodeText(`${OPENCODE_GO_BASE_URL}/models`, {
     method: 'GET',
     headers,
+    signal,
   })
 
   if (!response.ok) {
@@ -391,24 +825,7 @@ const OPENCODE_REASONING_MODEL_IDS = new Set<string>([
 ])
 
 function isOpencodeReasoningModel(modelId: string): boolean {
-  if (OPENCODE_REASONING_MODEL_IDS.has(modelId)) return true
-  const lower = modelId.toLowerCase()
-  return (
-    lower.includes('reasoner') ||
-    lower.includes('reasoning') ||
-    lower.includes('-r1') ||
-    lower.includes('thinking') ||
-    lower.includes('pro') ||
-    lower.includes('max') ||
-    lower.includes('plus') ||
-    lower.startsWith('kimi-') ||
-    lower.startsWith('glm-') ||
-    lower.startsWith('deepseek-') ||
-    lower.startsWith('qwen3') ||
-    lower.startsWith('minimax-') ||
-    lower.startsWith('mimo-v2') ||
-    lower.startsWith('hy3')
-  )
+  return OPENCODE_REASONING_MODEL_IDS.has(modelId)
 }
 
 /**
@@ -452,9 +869,8 @@ export function mapOpencodeModelToConfiguredModel(
     code: model.id,
     displayName,
     enabled: true,
-    supportsToolCall: true,
+    supportsToolCall: model.id in OPENCODE_MODEL_DISPLAY_NAMES || undefined,
     supportsDeepThinking: isReasoning || undefined,
-    maxContext: 1048576,
     modelType: isReasoning ? 'reasoning' : 'chat',
   }
 }

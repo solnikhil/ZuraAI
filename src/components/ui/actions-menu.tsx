@@ -50,7 +50,7 @@ export type ActionsMenuProps = {
 
 /**
  * Shared app actions dropdown — uses the unanimous `zura-menu-*` surface/item
- * system so every picker (settings, titlebar, GitHub Workspace, etc.) looks the same.
+ * system so every picker (settings, titlebar, and related surfaces) looks the same.
  */
 export function ActionsMenu({
   trigger,

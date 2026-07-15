@@ -6,8 +6,8 @@ import {
 } from './chatProviderRuntime'
 
 describe('chatProviderRuntime', () => {
-  it('defaults unknown providers to openrouter', () => {
-    expect(resolveChatProvider('unknown-provider')).toBe('openrouter')
+  it('rejects unknown providers instead of silently routing to openrouter', () => {
+    expect(() => resolveChatProvider('unknown-provider')).toThrow('Unknown provider id')
   })
 
   it('returns credential errors through the shared provider registry', () => {

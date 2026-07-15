@@ -5,7 +5,6 @@ import AgentSkillsSync from './AgentSkillsSync'
 import NotificationSettingsSync from './NotificationSettingsSync'
 import MonitorSummarySync from './MonitorSummarySync'
 import AutomationRunSync from './AutomationRunSync'
-import CommandCenterSettingsSync from './CommandCenterSettingsSync'
 import DashboardLayout from './Dashboard/Layout'
 import AppShellLayout from './AppShellLayout'
 import AppShellRouteHost from './AppShellRouteHost'
@@ -44,7 +43,6 @@ export default function DashboardApp() {
                     <NotificationSettingsSync />
                     <MonitorSummarySync />
                     <AutomationRunSync />
-                    <CommandCenterSettingsSync />
                     <Router>
                       <Routes>
                         <Route element={<AppShellRouteHost />}>

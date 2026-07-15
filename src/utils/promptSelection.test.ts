@@ -55,7 +55,6 @@ describe('System Prompt Selection', () => {
     )
   })
 })
-
 describe('Tool Enablement', () => {
   it('Respects toolsEnabled setting', () => {
     fc.assert(
@@ -135,28 +134,5 @@ describe('Chart Generation skill prompt integration', () => {
 
     expect(prompt).not.toContain('CHART_GEN_INSTRUCTIONS')
     expect(prompt).not.toContain('chart_generation')
-  })
-})
-
-describe('Command Center prompt integration', () => {
-  it('appends Command Center prompt in Agent Mode without requiring the legacy extension toggle', () => {
-    const enabledPrompt = getEffectiveSystemPrompt({
-      systemPrompt: 'Base prompt',
-      assistantMode: 'agent',
-      skills: defaultSkillsSettings,
-      commandCenterPrompt: 'COMMAND_CENTER_INSTRUCTIONS',
-    })
-
-    expect(enabledPrompt).toContain('Command Center')
-    expect(enabledPrompt).toContain('COMMAND_CENTER_INSTRUCTIONS')
-
-    const disabledPrompt = getEffectiveSystemPrompt({
-      systemPrompt: 'Base prompt',
-      assistantMode: 'chat',
-      skills: defaultSkillsSettings,
-      commandCenterPrompt: 'COMMAND_CENTER_INSTRUCTIONS',
-    })
-
-    expect(disabledPrompt).not.toContain('COMMAND_CENTER_INSTRUCTIONS')
   })
 })

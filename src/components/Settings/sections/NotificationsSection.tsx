@@ -6,7 +6,7 @@ import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import type { EmailNotificationSettings } from '@/electron/types'
-import { isSecureApiKeyPlaceholder, resolveApiKeyFromSecureStorage } from '@/utils/secureApiKeys'
+import { isSecureApiKeyPlaceholder } from '@/utils/secureApiKeys'
 
 export interface NotificationsSectionProps {
   brevoApiKey: string
@@ -36,17 +36,8 @@ export function NotificationsSection({
     setDisplayedApiKey('')
 
     if (isSecureApiKeyPlaceholder(brevoApiKey)) {
-      let cancelled = false
-      resolveApiKeyFromSecureStorage('brevoApiKey', brevoApiKey)
-        .then((realKey) => {
-          if (!cancelled) setDisplayedApiKey(realKey)
-        })
-        .catch(() => {
-          if (!cancelled) setDisplayedApiKey('')
-        })
-      return () => {
-        cancelled = true
-      }
+      setDisplayedApiKey('')
+      return
     }
 
     setDisplayedApiKey(brevoApiKey)

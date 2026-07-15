@@ -3,6 +3,7 @@ import {
   extractOpencodeStreamReasoningDelta,
   fetchOpencodeModels,
   generateOpencodeCompletion,
+  getOpencodeProtocol,
   mapOpencodeModelToConfiguredModel,
   streamOpencodeCompletion,
 } from './opencode'
@@ -34,6 +35,12 @@ describe('extractOpencodeStreamReasoningDelta', () => {
 })
 
 describe('opencode service', () => {
+  it('routes each documented model family to its required protocol', () => {
+    expect(getOpencodeProtocol('glm-5.2')).toBe('openai-chat-completions')
+    expect(getOpencodeProtocol('minimax-m3')).toBe('anthropic-messages')
+    expect(getOpencodeProtocol('qwen3.7-max')).toBe('anthropic-messages')
+  })
+
   it('maps catalog models with tool support enabled', () => {
     const configured = mapOpencodeModelToConfiguredModel({
       id: 'deepseek-v4-pro',
@@ -155,6 +162,111 @@ describe('opencode service', () => {
     expect(chunks[2].usage?.total_tokens).toBe(12)
   })
 
+  it('uses the Messages protocol and maps tool calls for MiniMax models', async () => {
+    const fetchMock = vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      headers: new Headers(),
+      text: async () =>
+        JSON.stringify({
+          id: 'msg_1',
+          model: 'minimax-m3',
+          content: [
+            { type: 'text', text: 'Searching' },
+            { type: 'tool_use', id: 'tool_1', name: 'web_search', input: { query: 'zura' } },
+          ],
+          stop_reason: 'tool_use',
+          usage: { input_tokens: 8, output_tokens: 3 },
+        }),
+    } as Response)
+
+    const result = await generateOpencodeCompletion(
+      'go-key',
+      'minimax-m3',
+      [
+        { role: 'system', content: 'Be concise.' },
+        { role: 'user', content: 'Search for Zura.' },
+      ],
+      {
+        max_tokens: 64,
+        tools: [
+          {
+            type: 'function',
+            function: {
+              name: 'web_search',
+              parameters: {
+                type: 'object',
+                properties: { query: { type: 'string' } },
+                required: ['query'],
+              },
+            },
+          },
+        ],
+        toolChoice: { type: 'function', function: { name: 'web_search' } },
+      }
+    )
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://opencode.ai/zen/go/v1/messages',
+      expect.objectContaining({ method: 'POST' })
+    )
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))
+    expect(body).toMatchObject({
+      model: 'minimax-m3',
+      max_tokens: 64,
+      system: 'Be concise.',
+      tool_choice: { type: 'tool', name: 'web_search' },
+    })
+    expect(body.tools[0].input_schema.required).toEqual(['query'])
+    expect(result.choices[0].finish_reason).toBe('tool_calls')
+    expect(result.choices[0].message.tool_calls?.[0]).toMatchObject({
+      id: 'tool_1',
+      function: { name: 'web_search', arguments: '{"query":"zura"}' },
+    })
+    expect(result.usage?.total_tokens).toBe(11)
+  })
+
+  it('streams Messages tool input incrementally without buffering the fetch response', async () => {
+    const sse = [
+      'event: message_start\ndata: {"type":"message_start","message":{"id":"msg_1","model":"minimax-m3","content":[],"usage":{"input_tokens":5}}}\n\n',
+      'event: content_block_start\ndata: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"tool_1","name":"web_search","input":{}}}\n\n',
+      'event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\\"query\\":\\"zura\\"}"}}\n\n',
+      'event: message_delta\ndata: {"type":"message_delta","delta":{"stop_reason":"tool_use"},"usage":{"output_tokens":4}}\n\n',
+      'event: message_stop\ndata: {"type":"message_stop"}\n\n',
+    ].join('')
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(sse.slice(0, 120)))
+        controller.enqueue(new TextEncoder().encode(sse.slice(120)))
+        controller.close()
+      },
+    })
+    vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      body: stream,
+      headers: new Headers(),
+    } as Response)
+
+    const chunks = []
+    for await (const chunk of streamOpencodeCompletion(
+      'go-key',
+      'minimax-m3',
+      [{ role: 'user', content: 'search' }],
+      { tools: [], toolChoice: 'none' }
+    )) {
+      chunks.push(chunk)
+    }
+
+    expect(chunks[0].choices[0].delta?.tool_calls?.[0]).toMatchObject({
+      id: 'tool_1',
+      function: { name: 'web_search', arguments: '' },
+    })
+    expect(chunks[1].choices[0].delta?.tool_calls?.[0]?.function?.arguments).toBe(
+      '{"query":"zura"}'
+    )
+    expect(chunks[2].choices[0].finish_reason).toBe('tool_calls')
+    expect(chunks[2].usage?.total_tokens).toBe(9)
+  })
+
   it('fetches models from the documented catalog endpoint', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
@@ -197,40 +309,6 @@ describe('opencode service', () => {
         headers: { Authorization: 'Bearer test-key' },
       })
     )
-  })
-})
-
-describe('opencode credential resolution', () => {
-  it('resolves opencodeGoApiKey through the provider key map without leaking placeholders', async () => {
-    const { resolveProviderApiKeysForSettings, SECURE_API_KEY_PRESENT_VALUE } =
-      await import('../utils/secureApiKeys')
-
-    const fetchKey = vi.fn().mockResolvedValue('resolved-go-key')
-    ;(global as unknown as { window: { secureStorage: { get: typeof fetchKey } } }).window = {
-      secureStorage: { get: fetchKey },
-    }
-
-    const resolved = await resolveProviderApiKeysForSettings(
-      { opencodeGoApiKey: SECURE_API_KEY_PRESENT_VALUE },
-      'opencode'
-    )
-
-    expect(fetchKey).toHaveBeenCalledWith('opencodeGoApiKey')
-    expect(resolved.opencodeGoApiKey).toBe('resolved-go-key')
-    expect(resolved.opencodeGoApiKey).not.toContain('__zura_secure')
-  })
-
-  it('leaves providers without a secret field unchanged for future registry-driven resolution', async () => {
-    const { resolveProviderApiKeysForSettings, SECURE_API_KEY_PRESENT_VALUE } =
-      await import('../utils/secureApiKeys')
-    const settings = {
-      ollamaUrl: 'http://localhost:11434',
-      openRouterApiKey: SECURE_API_KEY_PRESENT_VALUE,
-    }
-
-    const resolved = await resolveProviderApiKeysForSettings(settings, 'ollama')
-
-    expect(resolved).toBe(settings)
   })
 })
 

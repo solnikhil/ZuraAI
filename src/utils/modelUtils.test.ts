@@ -307,14 +307,14 @@ describe('modelUtils', () => {
       expect(caps).not.toContain('toolCall')
     })
 
-    it('includes toolCall for OpenRouter model', () => {
+    it('does not guess toolCall support for OpenRouter models', () => {
       const model = {
         code: 'anthropic/claude-3.5-sonnet',
         displayName: 'Claude 3.5 Sonnet',
         provider: 'openrouter',
       }
       const caps = getCapabilitiesForModelPicker(model)
-      expect(caps).toContain('toolCall')
+      expect(caps).not.toContain('toolCall')
     })
 
     it('includes toolCall when model has explicit supportsToolCall', () => {

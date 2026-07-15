@@ -405,7 +405,7 @@ describe('toolManager web search batch policy', () => {
       executedWebSearchQueries: [],
     })
     expect(processed.results[0]?.result.success).toBe(false)
-    expect(processed.results[0]?.result.error).toContain("Please provide 'query'")
+    expect(processed.results[0]?.result.error).toContain('must not be empty: query')
   })
 
   it('trims web_search queries before execution and tracking', async () => {

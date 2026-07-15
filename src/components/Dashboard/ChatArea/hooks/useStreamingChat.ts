@@ -31,7 +31,6 @@ import { getEffectiveSystemPrompt } from '../../../../utils/promptSelection'
 import { loadMemoryBlock } from '../../../../prompts/buildMemoryBlock'
 import { loadRecentActivityBlock } from '../../../../prompts/buildRecentActivityBlock'
 import { StreamingThrottler } from '../../../../utils/streamingThrottler'
-import { resolveProviderApiKeysForSettings } from '../../../../utils/secureApiKeys'
 import {
   getAvailableModelOptions,
   getProviderCredentialError,
@@ -356,6 +355,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       openRouterApiKey: settings.openRouterApiKey,
       configuredModels: settings.configuredModels,
       alibabaModels: settings.alibabaModels,
+      alibabaRegion: settings.alibabaRegion,
       groqApiKey: settings.groqApiKey,
       alibabaApiKey: settings.alibabaApiKey,
       deepseekApiKey: settings.deepseekApiKey,
@@ -376,6 +376,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       settings.openRouterApiKey,
       settings.configuredModels,
       settings.alibabaModels,
+      settings.alibabaRegion,
       settings.groqApiKey,
       settings.alibabaApiKey,
       settings.deepseekApiKey,
@@ -559,10 +560,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         )
         const providerMessages = buildProviderMessages(cacheStableHistory, settings.modelProvider)
         const provider = normalizeActiveProviderId(settings.modelProvider)
-        const effectiveStreamingSettings = await resolveProviderApiKeysForSettings(
-          streamingSettings,
-          provider
-        )
+        const effectiveStreamingSettings = streamingSettings
 
         const credentialError = getProviderCredentialError(effectiveStreamingSettings, provider)
         if (credentialError) {
@@ -962,8 +960,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         }
 
         const effectiveProvider = normalizeActiveProviderId(effectiveSettings.modelProvider)
-        const effectiveRegenerationSettings = await resolveProviderApiKeysForSettings(
-          {
+        const effectiveRegenerationSettings = {
             aiModel: effectiveSettings.aiModel,
             modelProvider: effectiveSettings.modelProvider,
             temperature: effectiveSettings.temperature,
@@ -975,6 +972,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
             openRouterApiKey: effectiveSettings.openRouterApiKey,
             configuredModels: effectiveSettings.configuredModels,
             alibabaModels: effectiveSettings.alibabaModels,
+            alibabaRegion: effectiveSettings.alibabaRegion,
             groqApiKey: effectiveSettings.groqApiKey,
             alibabaApiKey: effectiveSettings.alibabaApiKey,
             deepseekApiKey: effectiveSettings.deepseekApiKey,
@@ -982,9 +980,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
             fireworksApiKey: effectiveSettings.fireworksApiKey,
             nvidiaApiKey: effectiveSettings.nvidiaApiKey,
             nvidiaModels: effectiveSettings.nvidiaModels,
-          },
-          effectiveProvider
-        )
+          }
         const credentialError = getProviderCredentialError(
           effectiveRegenerationSettings,
           effectiveProvider

@@ -2,14 +2,11 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import {
   fetchDeepSeekModels,
-  fetchDeepSeekBalance,
   mapDeepSeekModelToConfiguredModel,
   type DeepSeekModel,
-  type DeepSeekBalanceInfo,
 } from '../../../services/deepseek'
 import type { ConfiguredModel } from '@/contexts/SettingsConfigContext'
 import { getCapabilitiesFromModel } from '@/utils/modelUtils'
-import { resolveApiKeyFromSecureStorage } from '../../../utils/secureApiKeys'
 import { toast } from 'sonner'
 import { CatalogDialogBody, CatalogHeader, type CatalogItem } from './catalog'
 
@@ -31,20 +28,11 @@ export function DeepseekModelSearchDialog({
   const [models, setModels] = useState<DeepSeekModel[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [balance, setBalance] = useState<DeepSeekBalanceInfo | null>(null)
 
-  const loadModels = useCallback(async () => {
-    const resolvedApiKey = await resolveApiKeyFromSecureStorage('deepseekApiKey', apiKey ?? '')
-
-    if (!resolvedApiKey.trim()) {
-      setError('Add a DeepSeek API key before loading the catalog.')
-      setModels([])
-      return
-    }
-
+  const loadModels = useCallback(() => {
     setLoading(true)
     setError(null)
-    fetchDeepSeekModels(resolvedApiKey)
+    fetchDeepSeekModels(apiKey ?? '')
       .then((fetchedModels) => {
         setModels(fetchedModels)
         setLoading(false)
@@ -54,13 +42,6 @@ export function DeepseekModelSearchDialog({
         setLoading(false)
       })
 
-    fetchDeepSeekBalance(resolvedApiKey)
-      .then((balanceInfo) => {
-        setBalance(balanceInfo)
-      })
-      .catch(() => {
-        setBalance(null)
-      })
   }, [apiKey])
 
   useEffect(() => {
@@ -91,16 +72,6 @@ export function DeepseekModelSearchDialog({
     toast.success(`Added ${configured.displayName}`)
   }
 
-  const balanceBanner = balance ? (
-    <div className="mt-3 flex flex-wrap gap-3 text-xs text-muted-foreground">
-      {balance.balance_infos.map((info, i) => (
-        <span key={i}>
-          Balance: {info.total_balance} {info.currency}
-        </span>
-      ))}
-    </div>
-  ) : undefined
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
@@ -115,7 +86,6 @@ export function DeepseekModelSearchDialog({
           loading={loading}
           onRefresh={loadModels}
           showRefresh
-          extra={balanceBanner}
         />
         <CatalogDialogBody
           providerKey="deepseek"

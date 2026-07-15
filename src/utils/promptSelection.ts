@@ -3,7 +3,6 @@ import { buildEnabledExtensionsPrompt } from '../skills'
 import { CURRENT_YEAR_PLACEHOLDER } from '../prompts/defaultSystemPrompt'
 import { buildSelectedPersonalityPrompt } from '../prompts/assistantPersonalities'
 import { buildAgentSkillsCatalogPrompt } from '../agentSkills/prompt'
-import { defaultCommandCenterPrompt } from '../prompts/defaultCommandCenterPrompt'
 
 export interface EffectiveSystemPromptOptions {
   includeAgentSkillsCatalog?: boolean
@@ -36,7 +35,6 @@ export function getEffectiveSystemPrompt(
         | 'codeExecutionPrompt'
         | 'terminalPrompt'
         | 'computerUsePrompt'
-        | 'commandCenterPrompt'
         | 'chartGenerationPrompt'
         | 'remindersPrompt'
         | 'artifactsPrompt'
@@ -49,18 +47,12 @@ export function getEffectiveSystemPrompt(
   const includeAgentSkillsCatalog = options.includeAgentSkillsCatalog ?? true
   const resolvedSystemPrompt = resolveSystemPromptTemplate(settings.systemPrompt)
   const selectedPersonalityPrompt = buildSelectedPersonalityPrompt(settings.assistantPersonality)
-  const commandCenterPrompt =
-    settings.assistantMode === 'agent'
-      ? (settings.commandCenterPrompt ?? defaultCommandCenterPrompt)
-      : undefined
   const enabledExtensionsSection = buildEnabledExtensionsPrompt(
     settings.extensions ?? settings.skills,
     {
       codeExecutionPrompt: settings.codeExecutionPrompt,
       terminalPrompt: settings.terminalPrompt,
       computerUsePrompt: settings.computerUsePrompt,
-      commandCenterPrompt,
-      commandCenterActive: settings.assistantMode === 'agent',
       chartGenerationPrompt: settings.chartGenerationPrompt,
       remindersPrompt: settings.remindersPrompt,
       artifactsPrompt: settings.artifactsPrompt,

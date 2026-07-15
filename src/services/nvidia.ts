@@ -1,6 +1,7 @@
-import { ChatMessage, ToolDefinition, parseErrorResponse, extractErrorMessage } from './types'
+import { ChatMessage, ToolDefinition } from './types'
 import { parseSSEStream } from './streamUtils'
 import { getProviderEndpoint } from '../providers'
+import { createProviderHttpError, missingResponseBodyError } from './providerHttpError'
 
 const NVIDIA_CHAT_COMPLETIONS_URL =
   getProviderEndpoint('nvidia', 'chatCompletionsUrl') ??
@@ -140,22 +141,7 @@ async function postNvidiaCompletion(
   })
 
   if (!response.ok) {
-    const errorText = await response.text()
-    const errorData = parseErrorResponse(errorText)
-    const errorMessage = extractErrorMessage(
-      errorData,
-      errorText,
-      response.status,
-      response.statusText
-    )
-
-    if (response.status === 429) {
-      throw new Error(
-        `Rate limited by NVIDIA NIM (429). Please try again in a moment. ${errorMessage}`
-      )
-    }
-
-    throw new Error(errorMessage)
+    throw await createProviderHttpError('nvidia', response, 'NVIDIA NIM request failed')
   }
 
   return response
@@ -183,7 +169,7 @@ export async function* streamNvidiaCompletion(
 
   const reader = response.body?.getReader()
   if (!reader) {
-    throw new Error('Failed to get response reader')
+    throw missingResponseBodyError('nvidia')
   }
 
   yield* parseSSEStream<NvidiaStreamChunk>(reader, {

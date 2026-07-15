@@ -31,6 +31,7 @@ describe('providerSettingsRegistry', () => {
     expect(getProviderDashboardUrl('deepseek')).toBe('https://platform.deepseek.com/api_keys')
     expect(getProviderEnabledDefaults()).toEqual({
       alibaba: true,
+      codex: true,
       deepseek: true,
       fireworks: true,
       groq: true,
@@ -44,6 +45,7 @@ describe('providerSettingsRegistry', () => {
   it('keeps settings, picker, and logo provider coverage aligned', () => {
     expect(getSettingsVisibleProviders().map((provider) => provider.id)).toEqual([
       'openrouter',
+      'codex',
       'groq',
       'alibaba',
       'deepseek',
@@ -55,6 +57,7 @@ describe('providerSettingsRegistry', () => {
 
     expect(getPickerVisibleProviders().map((provider) => provider.id)).toEqual([
       'openrouter',
+      'codex',
       'deepseek',
       'groq',
       'fireworks',
@@ -66,6 +69,7 @@ describe('providerSettingsRegistry', () => {
 
     expect(getLogoVisibleProviderIds()).toEqual([
       'openrouter',
+      'codex',
       'groq',
       'alibaba',
       'deepseek',

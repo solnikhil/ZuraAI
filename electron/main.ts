@@ -12,7 +12,6 @@ import {
   showMainWindow,
   setAppQuitting,
   destroyChatDebugWindow,
-  destroyCommandCenterWindow,
   destroyAgentApprovalOverlay,
   registerAgentApprovalOverlayHandlers,
   unregisterAgentApprovalOverlayHandlers,
@@ -27,6 +26,7 @@ import {
   unregisterMcpHandlers,
 } from './mcp'
 import { registerToolHandlers } from './tools'
+import { disposeAppIndexRuntime } from './appIndexService'
 import {
   cleanupAutoUpdater,
   initializeAutoUpdater,
@@ -63,13 +63,6 @@ import {
   registerZuraChatProtocolHandlers,
 } from './chatLinks'
 import { log } from './startup/logger'
-import {
-  disposeCommandCenter,
-  registerCommandCenterHandlers,
-  unregisterCommandCenterHandlers,
-} from './commandCenter'
-import { registerGitHubWorkspaceHandlers, unregisterGitHubWorkspaceHandlers } from './githubWorkspace'
-import { registerExtensionHandlers, unregisterExtensionHandlers } from './extensions/extensionService'
 
 // Resolve packaged asset paths consistently in both development and production.
 const DIST_PATH = process.env.DIST || path.join(__dirname, '../dist')
@@ -123,21 +116,6 @@ function registerSessionSecurityHandlers(): void {
 
   defaultSession.setPermissionCheckHandler(() => false)
 
-  // CORS bypass for provider APIs that do not send Access-Control-Allow-Origin
-  // headers, so renderer fetch() is blocked.
-  defaultSession.webRequest.onHeadersReceived(
-    {
-      urls: ['https://integrate.api.nvidia.com/*'],
-    },
-    (details, callback) => {
-      const responseHeaders = details.responseHeaders || {}
-      responseHeaders['Access-Control-Allow-Origin'] = ['*']
-      responseHeaders['Access-Control-Allow-Headers'] = ['Authorization, Content-Type, Accept']
-      responseHeaders['Access-Control-Allow-Methods'] = ['GET, POST, OPTIONS']
-      responseHeaders['Access-Control-Max-Age'] = ['86400']
-      callback({ responseHeaders, cancel: false })
-    }
-  )
 }
 
 app.commandLine.appendSwitch('process-name', APP_NAME)
@@ -171,13 +149,8 @@ app.on('activate', () => {
 app.on('will-quit', () => {
   globalShortcut.unregisterAll()
   destroyChatDebugWindow()
-  destroyCommandCenterWindow()
   destroyAgentApprovalOverlay()
   unregisterAgentApprovalOverlayHandlers()
-  disposeCommandCenter()
-  unregisterCommandCenterHandlers()
-  unregisterGitHubWorkspaceHandlers()
-  unregisterExtensionHandlers()
   unregisterMcpHandlers()
   disposeCodeExecutionApprovalManager()
   unregisterCodeExecutionHandlers()
@@ -187,6 +160,7 @@ app.on('will-quit', () => {
   disposeDiscordRpcClient()
   disposeComputerUseApprovalManager()
   unregisterComputerUseHandlers()
+  disposeAppIndexRuntime()
 
   cleanupAutoUpdater()
   destroyTray()
@@ -263,9 +237,6 @@ if (hasSingleInstanceLock) {
     registerMcpHandlers()
     registerToolHandlers()
     registerAgentApprovalOverlayHandlers()
-    registerCommandCenterHandlers()
-    registerExtensionHandlers()
-    registerGitHubWorkspaceHandlers()
     registerUpdaterHandlers(getMainWindow)
     setShutdownHook(() => shutdownMcpManager())
     registerCodeExecutionHandlers()

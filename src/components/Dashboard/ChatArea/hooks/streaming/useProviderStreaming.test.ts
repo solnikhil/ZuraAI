@@ -1083,9 +1083,10 @@ describe('useProviderStreaming', () => {
     expect(streamResult.toolResults).toEqual([toolResult])
     expect(streamResult.usage).toEqual(
       expect.objectContaining({
-        inputTokens: 3,
-        outputTokens: 6,
-        totalTokens: 9,
+        inputTokens: 14,
+        outputTokens: 10,
+        totalTokens: 24,
+        requestCount: 2,
       })
     )
     expect(updateStreamingMessage).toHaveBeenLastCalledWith(
@@ -1094,9 +1095,10 @@ describe('useProviderStreaming', () => {
       expect.objectContaining({
         content: 'Final answer from follow-up.',
         usage: expect.objectContaining({
-          inputTokens: 3,
-          outputTokens: 6,
-          totalTokens: 9,
+          inputTokens: 14,
+          outputTokens: 10,
+          totalTokens: 24,
+          requestCount: 2,
         }),
         toolResults: [toolResult],
       })
@@ -1790,7 +1792,7 @@ describe('useProviderStreaming', () => {
     )
   })
 
-  it('recovers XML-style tool markup from content without leaking it into the final message', async () => {
+  it('suppresses XML-style tool markup without executing inferred calls', async () => {
     const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {})
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     mocks.createProviderStreamClient.mockReturnValue({
@@ -1862,48 +1864,34 @@ describe('useProviderStreaming', () => {
       enableTools: true,
     })
 
-    expect(handleToolCalls).toHaveBeenCalledTimes(1)
-    expect(handleToolCalls.mock.calls[0]?.[0]?.choices?.[0]?.message?.content).toBe('')
+    expect(handleToolCalls).not.toHaveBeenCalled()
     expect(streamResult.content).toBe('')
-    expect(streamResult.toolResults).toEqual([
-      buildWebSearchToolResult(
-        'content-tool-call-1',
-        'global gay population percentage statistics'
-      ),
-    ])
+    expect(streamResult.toolResults).toBeUndefined()
     expect(updateStreamingMessage).toHaveBeenLastCalledWith(
       'session-1',
       'message-xml',
       expect.objectContaining({
         content: '',
-        toolResults: [
-          buildWebSearchToolResult(
-            'content-tool-call-1',
-            'global gay population percentage statistics'
-          ),
-        ],
+        toolResults: undefined,
       })
     )
-    expect(debugSpy).toHaveBeenCalledWith(
+    expect(debugSpy).not.toHaveBeenCalledWith(
       '[openrouter-debug]',
       'xml-tool-call-recovered',
-      expect.objectContaining({
-        toolNames: ['web_search'],
-      })
+      expect.anything()
     )
     expect(warnSpy).toHaveBeenCalledWith(
       '[tool-markup-leak]',
-      'recovered',
+      'recovery-failed',
       expect.objectContaining({
         format: 'xml',
-        toolNames: ['web_search'],
       })
     )
     debugSpy.mockRestore()
     warnSpy.mockRestore()
   })
 
-  it('recovers DSML-style tool markup during tool-enabled research rounds without leaking it', async () => {
+  it('suppresses DSML-style tool markup during tool-enabled rounds without executing it', async () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     mocks.createProviderStreamClient.mockReturnValue({
       stream: streamFrom([
@@ -1976,27 +1964,23 @@ describe('useProviderStreaming', () => {
       enableTools: true,
     })
 
-    expect(handleToolCalls).toHaveBeenCalledTimes(1)
-    expect(handleToolCalls.mock.calls[0]?.[0]?.choices?.[0]?.message?.content).toBe('')
+    expect(handleToolCalls).not.toHaveBeenCalled()
     expect(streamResult.content).toBe('')
     expect(updateStreamingMessage).toHaveBeenLastCalledWith(
       'session-1',
       'message-dsml',
       expect.objectContaining({
         content: '',
-        toolResults: [
-          buildWebSearchToolResult('content-tool-call-1', 'JEE Main registration count 2026'),
-        ],
+        toolResults: undefined,
       })
     )
     expect(warnSpy).toHaveBeenCalledWith(
       '[tool-markup-leak]',
-      'recovered',
+      'recovery-failed',
       expect.objectContaining({
         provider: 'deepseek',
         model: 'deepseek-v4-flash',
         format: 'dsml',
-        toolNames: ['web_search'],
       })
     )
     warnSpy.mockRestore()

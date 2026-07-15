@@ -8,6 +8,7 @@ const ONE_MILLION = 1_000_000
 
 export type UsageProvider =
   | 'alibaba'
+  | 'codex'
   | 'deepseek'
   | 'fireworks'
   | 'groq'
@@ -56,6 +57,7 @@ export interface UsageErrorBreakdown {
 
 export interface UsageModelCatalog {
   alibabaModels?: string[]
+  codexModels?: string[]
   deepseekModels?: string[]
   fireworksModels?: string[]
   groqModels?: string[]
@@ -149,6 +151,8 @@ const PROVIDER_TOKEN_RATES_PER_MILLION: Record<
   { inputUsd: number; outputUsd: number }
 > = {
   alibaba: { inputUsd: 0.5, outputUsd: 1.5 },
+  // Codex is covered by the user's ChatGPT subscription, not metered by ZuraAI per token.
+  codex: { inputUsd: 0, outputUsd: 0 },
   deepseek: { inputUsd: 0.27, outputUsd: 1.1 },
   fireworks: { inputUsd: 0.9, outputUsd: 2.7 },
   groq: { inputUsd: 0.8, outputUsd: 0.8 },
@@ -413,6 +417,7 @@ function buildModelProviderMap(catalog?: UsageModelCatalog): Map<string, UsagePr
   }
 
   register('alibaba', catalog?.alibabaModels)
+  register('codex', catalog?.codexModels)
   register('deepseek', catalog?.deepseekModels)
   register('fireworks', catalog?.fireworksModels)
   register('groq', catalog?.groqModels)
@@ -437,6 +442,7 @@ function inferProvider(
   if (catalogProvider) return catalogProvider
 
   if (raw.startsWith('fireworks/') || raw.includes('accounts/fireworks')) return 'fireworks'
+  if (raw === 'codex-default' || raw.startsWith('codex/')) return 'codex'
   if (raw.startsWith('openrouter/')) return 'openrouter'
   if (normalized.startsWith('groq/')) return 'groq'
 

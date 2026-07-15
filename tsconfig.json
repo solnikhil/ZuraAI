@@ -3,6 +3,7 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
+      "@zura/provider-core": ["./packages/provider-core/src/index.ts"],
       "remotion": ["./node_modules/remotion/dist/cjs/index.d.ts"],
       "lucide-react": ["./src/lib/lucide-react"]
     },
@@ -26,7 +27,7 @@
     "jsx": "react-jsx",
     "downlevelIteration": true
   },
-  "include": ["src", "electron", "remotion", "vite.config.ts"],
+  "include": ["src", "electron", "packages/provider-core/src", "remotion", "vite.config.ts"],
   "exclude": [
     "**/*.test.ts",
     "**/*.test.tsx",

@@ -1,13 +1,8 @@
-import {
-  ChatMessage,
-  ReasoningDetail,
-  ServiceToolCall,
-  ToolDefinition,
-  parseErrorResponse,
-  extractErrorMessage,
-} from './types'
+import { ChatMessage, ReasoningDetail, ServiceToolCall, ToolDefinition } from './types'
 import { parseSSEStream } from './streamUtils'
 import { getProviderEndpoint, getProviderRetryPolicy } from '../providers'
+import { ProviderError } from '@zura/provider-core'
+import { createProviderHttpError, missingResponseBodyError } from './providerHttpError'
 
 // OpenRouter API service with streaming support
 
@@ -20,26 +15,31 @@ const OPENROUTER_RETRY_POLICY = getProviderRetryPolicy('openrouter')
  * Parse retry delay from OpenRouter error response or use exponential backoff.
  * OpenRouter 429 responses may include metadata.retry_after (seconds).
  */
-function getRetryDelay(attempt: number, errorBody?: string): number {
-  if (errorBody) {
-    try {
-      const parsed = JSON.parse(errorBody)
-      const retryAfter = parsed?.error?.metadata?.retry_after
-      if (typeof retryAfter === 'number' && retryAfter > 0) {
-        return Math.min(retryAfter * 1000, 30000) // Cap at 30s, convert to ms
-      }
-    } catch {
-      /* ignore parse errors */
-    }
-  }
-  return (
+function getRetryDelay(attempt: number, retryAfterMs?: number): number {
+  if (retryAfterMs !== undefined) return Math.min(retryAfterMs, 30_000)
+  const exponential =
     OPENROUTER_RETRY_POLICY.initialBackoffMs *
     Math.pow(OPENROUTER_RETRY_POLICY.backoffMultiplier, attempt)
-  )
+  return Math.min(30_000, Math.round(exponential * (0.8 + Math.random() * 0.4)))
 }
 
-/** Sleep helper */
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(signal.reason ?? new DOMException('Aborted', 'AbortError'))
+      return
+    }
+    const timeout = setTimeout(resolve, ms)
+    signal?.addEventListener(
+      'abort',
+      () => {
+        clearTimeout(timeout)
+        reject(signal.reason ?? new DOMException('Aborted', 'AbortError'))
+      },
+      { once: true }
+    )
+  })
+}
 
 export interface OpenRouterStreamChunk {
   id: string
@@ -321,11 +321,11 @@ export async function* streamOpenRouterCompletion(
 
   // Retry loop for the initial HTTP request (before streaming starts)
   let response: Response | null = null
-  let lastError: Error | null = null
+  let lastError: ProviderError | null = null
   for (let attempt = 0; attempt <= OPENROUTER_RETRY_POLICY.maxRetries; attempt++) {
     if (attempt > 0) {
-      const delay = getRetryDelay(attempt - 1, lastError?.message)
-      await sleep(delay)
+      const delay = getRetryDelay(attempt - 1, lastError?.retryAfterMs)
+      await sleep(delay, options?.signal)
     }
 
     response = await fetch(OPENROUTER_CHAT_COMPLETIONS_URL, {
@@ -343,27 +343,22 @@ export async function* streamOpenRouterCompletion(
 
     if (response.ok) break // Success, proceed to streaming
 
-    const errorText = await response.text()
-    const errorData = parseErrorResponse(errorText)
-    const errorMessage = extractErrorMessage(
-      errorData,
-      errorText,
-      response.status,
-      response.statusText
+    const providerError = await createProviderHttpError(
+      'openrouter',
+      response,
+      'OpenRouter request failed'
     )
 
     if (
       OPENROUTER_RETRY_POLICY.retryableStatusCodes.includes(response.status) &&
       attempt < OPENROUTER_RETRY_POLICY.maxRetries
     ) {
-      console.warn(
-        `[ZuraAI] OpenRouter stream ${response.status} (attempt ${attempt + 1}): ${errorMessage}`
-      )
-      lastError = new Error(errorText)
+      console.warn(`[ZuraAI] OpenRouter stream ${response.status} (attempt ${attempt + 1})`)
+      lastError = providerError
       continue
     }
 
-    throw new Error(`[${response.status}] ${errorMessage}`)
+    throw providerError
   }
 
   logOpenRouterDebug(options?.debug, 'request.connected', {
@@ -373,12 +368,20 @@ export async function* streamOpenRouterCompletion(
   })
 
   if (!response || !response.ok) {
-    throw lastError || new Error('OpenRouter stream request failed after retries')
+    throw (
+      lastError ??
+      new ProviderError({
+        provider: 'openrouter',
+        code: 'network',
+        message: 'OpenRouter stream request failed after retries.',
+        retryable: false,
+      })
+    )
   }
 
   const reader = response.body?.getReader()
   if (!reader) {
-    throw new Error('Failed to get response reader')
+    throw missingResponseBodyError('openrouter')
   }
 
   yield* parseSSEStream<OpenRouterStreamChunk>(reader, {
@@ -415,10 +418,14 @@ export async function* streamOpenRouterCompletion(
         const errorMsg = chunk.error.message || 'Stream error from provider'
         const code = chunk.error.code || 'unknown'
         const provider = chunk.error.metadata?.provider_name || ''
-        const raw = chunk.error.metadata?.raw || ''
         const detail = provider ? ` (provider: ${provider})` : ''
-        const rawDetail = raw && raw !== errorMsg ? ` - ${String(raw).slice(0, 200)}` : ''
-        throw new Error(`${code} ${errorMsg}${detail}${rawDetail}`)
+        throw new ProviderError({
+          provider: 'openrouter',
+          code: 'server_error',
+          message: `${code} ${errorMsg}${detail}`,
+          retryable: false,
+          partialResponse: true,
+        })
       }
       return chunk as OpenRouterStreamChunk
     },
@@ -471,9 +478,7 @@ export async function generateOpenRouterCompletion(
   })
 
   if (!response.ok) {
-    const errorText = await response.text()
-    const errorData = parseErrorResponse(errorText)
-    throw new Error(extractErrorMessage(errorData, errorText, response.status, response.statusText))
+    throw await createProviderHttpError('openrouter', response, 'OpenRouter request failed')
   }
 
   return response.json()

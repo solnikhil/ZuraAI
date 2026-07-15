@@ -36,7 +36,7 @@ describe('nvidiaModels', () => {
     expect(models.map((model) => model.id)).toEqual(['minimaxai/minimax-m3', 'nvidia/llama-chat'])
   })
 
-  it('maps MiniMax M3 to configured model capabilities', () => {
+  it('does not invent capabilities that the NVIDIA model-list response omits', () => {
     expect(
       mapNvidiaModelToConfiguredModel({
         id: 'minimaxai/minimax-m3',
@@ -46,15 +46,14 @@ describe('nvidiaModels', () => {
     ).toEqual(
       expect.objectContaining({
         code: 'minimaxai/minimax-m3',
-        displayName: 'MiniMax M3',
-        maxContext: 1048576,
-        modelType: 'reasoning',
-        supportsToolCall: true,
-        supportsVision: true,
-        supportsDeepThinking: true,
-        supportsVideoRecognition: true,
+        displayName: 'Minimax M3',
+        modelType: 'chat',
+        inputModalities: ['text'],
       })
     )
+    expect(
+      mapNvidiaModelToConfiguredModel({ id: 'minimaxai/minimax-m3' }).supportsToolCall
+    ).toBeUndefined()
   })
 
   it('filters NVIDIA catalog models by id and owner', () => {

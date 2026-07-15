@@ -7,7 +7,6 @@ import {
 } from '../../../services/nvidiaModels'
 import type { ConfiguredModel } from '@/contexts/SettingsConfigContext'
 import { getCapabilitiesFromModel } from '@/utils/modelUtils'
-import { resolveApiKeyFromSecureStorage } from '../../../utils/secureApiKeys'
 import { toast } from 'sonner'
 import { CatalogDialogBody, CatalogHeader, type CatalogItem } from './catalog'
 
@@ -30,18 +29,10 @@ export function NvidiaModelSearchDialog({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const loadModels = useCallback(async () => {
-    const resolvedApiKey = await resolveApiKeyFromSecureStorage('nvidiaApiKey', apiKey ?? '')
-
-    if (!resolvedApiKey.trim()) {
-      setError('Add an NVIDIA API key before loading the catalog.')
-      setModels([])
-      return
-    }
-
+  const loadModels = useCallback(() => {
     setLoading(true)
     setError(null)
-    fetchNvidiaModels(resolvedApiKey)
+    fetchNvidiaModels(apiKey ?? '')
       .then((fetchedModels) => {
         setModels(fetchedModels)
         setLoading(false)

@@ -1,5 +1,6 @@
-import { ChatMessage, ToolDefinition, parseErrorResponse, extractErrorMessage } from './types'
+import { ChatMessage, ToolDefinition } from './types'
 import { parseSSEStream } from './streamUtils'
+import { createProviderHttpError, missingResponseBodyError } from './providerHttpError'
 import { getProviderEndpoint } from '../providers'
 
 /**
@@ -131,20 +132,12 @@ export async function* streamFireworksCompletion(
   })
 
   if (!response.ok) {
-    const errorText = await response.text()
-    const errorData = parseErrorResponse(errorText)
-    const errorMessage = extractErrorMessage(
-      errorData,
-      errorText,
-      response.status,
-      response.statusText
-    )
-    throw new Error(errorMessage)
+    throw await createProviderHttpError('fireworks', response, 'Fireworks request failed')
   }
 
   const reader = response.body?.getReader()
   if (!reader) {
-    throw new Error('Failed to get response reader')
+    throw missingResponseBodyError('fireworks')
   }
 
   yield* parseSSEStream<FireworksStreamChunk>(reader, {
@@ -196,15 +189,7 @@ export const generateFireworksCompletion = async (
   })
 
   if (!response.ok) {
-    const errorText = await response.text()
-    const errorData = parseErrorResponse(errorText)
-    const errorMessage = extractErrorMessage(
-      errorData,
-      errorText,
-      response.status,
-      response.statusText
-    )
-    throw new Error(errorMessage)
+    throw await createProviderHttpError('fireworks', response, 'Fireworks request failed')
   }
 
   return (await response.json()) as FireworksResponse

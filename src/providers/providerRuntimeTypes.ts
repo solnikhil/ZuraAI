@@ -1,50 +1,12 @@
-import type { ReasoningDetail, ServiceAssistantMessage, ToolDefinition } from '../services/types'
-import type { FileAttachment } from '../chat/types'
+import type { ServiceAssistantMessage, ToolDefinition } from '../services/types'
+import type { ProviderStreamEvent, ProviderToolCallDelta, ProviderUsage } from '@zura/provider-core'
+import { emptyProviderUsage } from '@zura/provider-core'
 import type { ActiveProviderId } from './providerTypes'
+import type { AlibabaRegion } from '../services/alibabaEndpoints'
 
-export interface NormalizedUsage {
-  inputTokens: number
-  outputTokens: number
-  totalTokens: number
-  thinkingTokens?: number
-  cachedInputTokens?: number
-  cachedOutputTokens?: number
-  cacheMissInputTokens?: number
-  cacheWriteInputTokens?: number
-  cost?: number
-  imageTokens?: number
-  audioTokens?: number
-}
-
-export interface NormalizedToolCallDelta {
-  index?: number
-  id?: string
-
-  type?: 'function'
-  function?: {
-    name?: string
-    arguments?: string
-  }
-}
-
-export type NormalizedStreamEvent =
-  | {
-      type: 'text-delta'
-      delta: string
-      smoothing?: {
-        sourceLength: number
-        pieceIndex: number
-        pieceCount: number
-      }
-    }
-  | { type: 'reasoning-delta'; delta: string }
-  | { type: 'reasoning-details'; details: ReasoningDetail[] }
-  | { type: 'tool-call-delta'; delta: NormalizedToolCallDelta[] }
-  | { type: 'file-delta'; files: FileAttachment[] }
-  | { type: 'usage'; usage: NormalizedUsage; rawUsage?: Record<string, unknown> }
-  | { type: 'citation'; citations: string[] }
-  | { type: 'finish'; finishReason?: string | null }
-  | { type: 'error'; error: Error }
+export type NormalizedUsage = ProviderUsage
+export type NormalizedToolCallDelta = ProviderToolCallDelta
+export type NormalizedStreamEvent = ProviderStreamEvent
 
 export interface ProviderRuntimeStreamRequest {
   provider: ActiveProviderId
@@ -83,6 +45,7 @@ export interface ProviderRuntimeSettings {
   maxTokens: number
   streamResponses: boolean
   alibabaApiKey?: string
+  alibabaRegion?: AlibabaRegion
   deepseekApiKey?: string
   opencodeGoApiKey?: string
   fireworksApiKey?: string
@@ -93,8 +56,4 @@ export interface ProviderRuntimeSettings {
   openRouterApiKey?: string
 }
 
-export const emptyUsage = (): NormalizedUsage => ({
-  inputTokens: 0,
-  outputTokens: 0,
-  totalTokens: 0,
-})
+export const emptyUsage = emptyProviderUsage

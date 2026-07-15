@@ -70,6 +70,7 @@ const DEFAULT_CONTEXT_WINDOWS: Record<string, ContextWindow> = {
   mistral: { maxTokens: 32768, reserveForResponse: 2000 },
   sonar: { maxTokens: 32768, reserveForResponse: 2000 },
   deepseek: { maxTokens: 1048576, reserveForResponse: 64000 },
+  'gpt-5.4': { maxTokens: 400000, reserveForResponse: 128000 },
   // OpenRouter models - allow up to 12k output tokens
   openrouter: { maxTokens: 16384, reserveForResponse: 12000 },
   // Default for unknown models

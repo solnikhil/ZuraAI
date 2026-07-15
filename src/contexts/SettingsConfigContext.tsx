@@ -28,7 +28,6 @@ import { defaultTitleGenerationPrompt } from '../prompts/defaultTitleGenerationP
 import { defaultCodeExecutionPrompt } from '../prompts/defaultCodeExecutionPrompt'
 import { defaultTerminalPrompt } from '../prompts/defaultTerminalPrompt'
 import { defaultComputerUsePrompt } from '../prompts/defaultComputerUsePrompt'
-import { defaultCommandCenterPrompt } from '../prompts/defaultCommandCenterPrompt'
 import { defaultChartGenerationPrompt } from '../prompts/defaultChartGenerationPrompt'
 import { defaultMemoryPrompt } from '../prompts/defaultMemoryPrompt'
 import { defaultRemindersPrompt } from '../prompts/defaultRemindersPrompt'
@@ -46,6 +45,7 @@ import {
 import type { AssistantMode } from '../chat/types'
 import { getProviderEnabledDefaults, getProviderSecretFields } from '../providers'
 import type { ProviderId } from '../providers/providerTypes'
+import type { AlibabaRegion } from '../services/alibabaEndpoints'
 import { warnOnceDuringHmr } from './hmrWarnings'
 import type { EmailNotificationSettings } from '../electron/types'
 import type { AgentSkillsSettings } from '../agentSkills/types'
@@ -102,6 +102,7 @@ export interface SettingsConfig {
   tavilySearchDepthPreference: TavilySearchDepthPreference
   webSearchIncludeImages: boolean
   alibabaApiKey: string
+  alibabaRegion: AlibabaRegion
   fireworksApiKey: string
   nvidiaApiKey: string
   deepseekApiKey: string
@@ -118,6 +119,7 @@ export interface SettingsConfig {
   ollamaModels: ConfiguredModel[]
   groqModels: ConfiguredModel[]
   alibabaModels: ConfiguredModel[]
+  codexModels: ConfiguredModel[]
   fireworksModels: ConfiguredModel[]
   nvidiaModels: ConfiguredModel[]
   deepseekModels: ConfiguredModel[]
@@ -163,8 +165,6 @@ export interface SettingsConfig {
   terminalPrompt: string
   /** Computer use instructions appended when Computer Use is enabled */
   computerUsePrompt: string
-  /** Command Center instructions appended when Command Center is enabled */
-  commandCenterPrompt: string
   /** Chart generation instructions appended when Chart Generation is enabled */
   chartGenerationPrompt: string
   /** Memory autosave instructions appended when the Memory skill is enabled */
@@ -208,7 +208,6 @@ export interface SettingsConfig {
   rememberLastChatSession: boolean
   rememberLastSettingsSection: boolean
   rememberLastDashboardView: boolean
-  commandCenterChatPersistence: 'temporary' | 'always-save'
   emailNotifications: EmailNotificationSettings
   /**
    * Discord Rich Presence preferences. Lives in the sanitized `zura-settings`
@@ -232,6 +231,7 @@ export const defaultSettingsConfig: SettingsConfig = {
   tavilySearchDepthPreference: 'auto',
   webSearchIncludeImages: true,
   alibabaApiKey: '',
+  alibabaRegion: 'singapore',
   fireworksApiKey: '',
   nvidiaApiKey: '',
   deepseekApiKey: '',
@@ -299,6 +299,15 @@ export const defaultSettingsConfig: SettingsConfig = {
     },
   ],
   alibabaModels: [],
+  codexModels: [
+    {
+      code: 'gpt-5.4',
+      displayName: 'GPT-5.4',
+      enabled: true,
+      supportsDeepThinking: true,
+      modelType: 'reasoning',
+    },
+  ],
   fireworksModels: [],
   nvidiaModels: [
     {
@@ -394,7 +403,6 @@ export const defaultSettingsConfig: SettingsConfig = {
   codeExecutionPrompt: defaultCodeExecutionPrompt,
   terminalPrompt: defaultTerminalPrompt,
   computerUsePrompt: defaultComputerUsePrompt,
-  commandCenterPrompt: defaultCommandCenterPrompt,
   chartGenerationPrompt: defaultChartGenerationPrompt,
   memoryPrompt: defaultMemoryPrompt,
   remindersPrompt: defaultRemindersPrompt,
@@ -441,7 +449,6 @@ export const defaultSettingsConfig: SettingsConfig = {
   rememberLastChatSession: true,
   rememberLastSettingsSection: true,
   rememberLastDashboardView: true,
-  commandCenterChatPersistence: 'temporary',
   emailNotifications: {
     enabled: false,
     senderName: 'ZuraAI',
@@ -536,6 +543,9 @@ export function SettingsConfigProvider({
             const formatted = models.map((m) => ({
               code: m.name,
               displayName: `${m.name} (${m.details.parameter_size})`,
+              ...('maxContext' in m && typeof m.maxContext === 'number'
+                ? { maxContext: m.maxContext }
+                : {}),
             }))
             const enriched = await enrichOllamaModelsWithContext(
               settingsConfig.ollamaUrl,

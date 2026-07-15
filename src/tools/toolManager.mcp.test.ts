@@ -57,6 +57,7 @@ describe('toolManager MCP coexistence', () => {
     const tools = getToolsForProvider({
       provider: 'openrouter',
       model: 'openai/gpt-4o-mini',
+      modelSupportsTools: true,
       enabledTools: ['web_search', 'mcp__filesystem__read_file'],
       availableTools,
     })

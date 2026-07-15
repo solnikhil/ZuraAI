@@ -1,7 +1,5 @@
 import React, { useEffect, useRef } from 'react'
-import { Command } from 'lucide-react'
 import { Card } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { SkillLogo } from '@/components/shared'
 import type { Settings } from '@/contexts/SettingsContext'
@@ -30,7 +28,6 @@ export interface ExtensionDetailSectionProps {
     terminalAutoApprove?: boolean
     computerUseAutoApprove?: boolean
     assistantMode?: Settings['assistantMode']
-    commandCenterChatPersistence?: Settings['commandCenterChatPersistence']
     memoryModel?: string
     brevoApiKey?: string
     emailNotifications?: EmailNotificationSettings
@@ -138,67 +135,11 @@ export function ExtensionDetailSection({
               <div className="settings-list-row__meta">
                 <h3 className="settings-list-row__label">Emergency stop</h3>
                 <div className="settings-list-row__description">
-                  Control+Shift+Space opens Command Center in Chat or Agent Mode. On macOS,
-                  Control+Option+Shift+Space is the fallback. Press Esc twice quickly to cancel an
-                  in-progress Computer Use session.
+                  Press Esc twice quickly to cancel an in-progress Computer Use session.
                 </div>
               </div>
             </div>
           </Card>
-        </>
-      ) : extensionId === 'command_center' ? (
-        <>
-          <Card className="settings-list-card">
-            <div className="settings-list-row">
-              <div className="settings-list-row__meta">
-                <h3 className="settings-list-row__label">Global shortcut</h3>
-                <div className="settings-list-row__description">
-                  Press Control+Shift+Space to open the desktop overlay. On macOS, ZuraAI uses
-                  Control+Option+Shift+Space as a fallback. Submitted commands include active-window
-                  context when a request continues in Agent Mode.
-                </div>
-              </div>
-              <div className="settings-list-row__control">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    void (async () => {
-                      await window.commandCenter?.setExtensionEnabled(true)
-                      await window.commandCenter?.show()
-                    })()
-                  }}
-                >
-                  <Command size={14} />
-                  Open
-                </Button>
-              </div>
-            </div>
-          </Card>
-          <Card className="settings-list-card">
-            <div className="settings-list-row settings-list-row--stacked">
-              <div className="settings-list-row__meta">
-                <h3 className="settings-list-row__label">Quick OS actions</h3>
-                <div className="settings-list-row__description">
-                  The overlay can run only fixed shortcuts: snap left, snap right, maximize, show
-                  system status, ask about clipboard text, focus ZuraAI, open common Windows
-                  settings, and open Downloads. Model-callable OS tools still use the normal
-                  approval path where required.
-                </div>
-              </div>
-            </div>
-          </Card>
-          {settings ? (
-            <ExtensionToggleCard
-              label="Save overlay chats"
-              description="Store Command Center AI chats in normal chat history immediately. When off, they stay temporary until opened in Chat."
-              checked={settings.commandCenterChatPersistence === 'always-save'}
-              onCheckedChange={(checked) =>
-                onChange({ commandCenterChatPersistence: checked ? 'always-save' : 'temporary' })
-              }
-            />
-          ) : null}
         </>
       ) : skill ? (
         <ExtensionInfoCard skill={skill} />

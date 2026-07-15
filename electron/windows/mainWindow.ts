@@ -60,7 +60,7 @@ let mainWindow: BrowserWindow | null = null
 /**
  * When true, the next main-window close is allowed to fully close (Quit from tray
  * / app.quit). Otherwise X/close hides to tray so the app can keep running with
- * a throttled renderer for Command Center / automations.
+ * a throttled renderer for background automations.
  */
 let allowMainWindowClose = false
 

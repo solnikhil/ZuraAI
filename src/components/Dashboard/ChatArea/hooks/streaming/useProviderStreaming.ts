@@ -1,17 +1,11 @@
 import { useCallback } from 'react'
 import { useStreamingActions } from '../../../../../contexts/StreamingContext'
 import type { FileAttachment, ThinkingBlock, ToolCallResult } from '../../../../../chat/types'
-import type {
-  ReasoningDetail,
-  ServiceAssistantMessage,
-  ToolDefinition,
-} from '../../../../../services/types'
+import type { ReasoningDetail, ServiceAssistantMessage } from '../../../../../services/types'
 import { providerSupportsTools, type ActiveProviderId } from '../../../../../providers'
-import {
-  extractInlineToolCallsFromContent,
-  normalizeInlineToolCallMarkup,
-} from '../../../../../tools/adapters/openrouterToolCalls'
+import { extractInlineToolCallsFromContent } from '../../../../../tools/adapters/openrouterToolCalls'
 import { emptyUsage } from '../../../../../providers/providerRuntimeTypes'
+import { mergeProviderUsage } from '@zura/provider-core'
 import {
   SAFETY_CAP,
   MAX_RESEARCH_ROUNDS,
@@ -19,12 +13,8 @@ import {
   appendCompletedThinkingBlock,
   shouldSkipStrayReasoningDelta,
   buildAgentVerificationMessages,
-  buildDeterministicSearchSynthesis,
   buildFollowUpMessages,
-  buildPlainTextOnlySynthesisMessages,
-  buildRecoverySynthesisMessages,
   buildResponseWithFallback,
-  SEARCH_SYNTHESIS_FAILURE_MESSAGE,
   buildThinkingBlocksFromResults,
   computeStreamMetrics,
   fillMissingUsage,
@@ -58,54 +48,31 @@ import {
 } from '../../messageTimeline'
 import type {
   HandleToolCallsOptions,
-  NormalizedUsage,
   StreamingResult,
   StreamingSettings,
   ToolCallingHook,
   UpdateStreamingCallback,
 } from './types'
-import type { ChatDiagnosticRequestShape } from '../../../../../diagnostics/chatDiagnostics'
 import { createStreamChunkCoalescer } from '../../../../../diagnostics/streamChunkCoalescer'
 import type { ResearchState } from '../../../../../research/types'
-
-function buildToolInventoryMessage(tools: ToolDefinition[] | null): ServiceAssistantMessage | null {
-  if (!Array.isArray(tools) || tools.length === 0) return null
-
-  const lines = tools.map((tool) => {
-    const name = tool.function.name
-    const description = tool.function.description?.trim()
-    const prefix = name.startsWith('mcp__') ? 'MCP tool' : 'Built-in tool'
-    return `- ${name} (${prefix})${description ? `: ${description}` : ''}`
-  })
-
-  return {
-    role: 'system',
-    content: [
-      'Current tool inventory for this request:',
-      ...lines,
-      'Use this inventory when the user asks which tools or MCP servers are loaded.',
-    ].join('\n'),
-  }
-}
-
-function addToolInventoryMessage(
-  messages: ServiceAssistantMessage[],
-  tools: ToolDefinition[] | null
-): ServiceAssistantMessage[] {
-  const inventoryMessage = buildToolInventoryMessage(tools)
-  if (!inventoryMessage) return messages
-
-  const firstSystemIndex = messages.findIndex((message) => message.role === 'system')
-  if (firstSystemIndex < 0) {
-    return [inventoryMessage, ...messages]
-  }
-
-  return [
-    ...messages.slice(0, firstSystemIndex + 1),
-    inventoryMessage,
-    ...messages.slice(firstSystemIndex + 1),
-  ]
-}
+import {
+  TOOL_MARKUP_PREVIEW_LIMIT,
+  addToolInventoryMessage,
+  buildRequestShape,
+  buildResearchStatus,
+  detectMidStreamMarkup,
+  extractWebSearchQueries,
+  findMidStreamMarkupStart,
+  getUserContextText,
+  hasNonWebToolResults,
+  logToolMarkupLeak,
+  mergeGeneratedFiles,
+  resolveCommittedRoundContent,
+  resolveFollowUpSplitMarkerBlockCount,
+  type ProviderStreamingMessages,
+  type VisibleAnswerRound,
+} from './providerStreamingSupport'
+import { runFinalSynthesisWithRetries } from './providerSynthesis'
 
 export interface ProviderStreamingRunOptions {
   provider: ActiveProviderId
@@ -113,7 +80,7 @@ export interface ProviderStreamingRunOptions {
   settingsOverride?: StreamingSettings
   sessionId: string
   messageId: string
-  messages: Array<ServiceAssistantMessage & { images?: string[]; thinking?: string }>
+  messages: ProviderStreamingMessages
   contextTrace?: import('../../../../../utils/tokenUtils').ContextOptimizationTrace
   startTime: number
   researchMaxRounds: number
@@ -150,262 +117,6 @@ export interface UseProviderStreamingReturn {
   runProviderStream: (options: ProviderStreamingRunOptions) => Promise<StreamingResult>
 }
 
-function mergeUsage(existing: NormalizedUsage, incoming: NormalizedUsage): NormalizedUsage {
-  return {
-    inputTokens: (existing.inputTokens || 0) + (incoming.inputTokens || 0),
-    outputTokens: (existing.outputTokens || 0) + (incoming.outputTokens || 0),
-    totalTokens: (existing.totalTokens || 0) + (incoming.totalTokens || 0),
-    thinkingTokens: (existing.thinkingTokens || 0) + (incoming.thinkingTokens || 0) || undefined,
-    cachedInputTokens:
-      (existing.cachedInputTokens || 0) + (incoming.cachedInputTokens || 0) || undefined,
-    cachedOutputTokens:
-      (existing.cachedOutputTokens || 0) + (incoming.cachedOutputTokens || 0) || undefined,
-    cacheMissInputTokens:
-      (existing.cacheMissInputTokens || 0) + (incoming.cacheMissInputTokens || 0) || undefined,
-    cacheWriteInputTokens:
-      (existing.cacheWriteInputTokens || 0) + (incoming.cacheWriteInputTokens || 0) || undefined,
-  }
-}
-
-const TOOL_MARKUP_PREVIEW_LIMIT = 240
-
-/**
- * Opening markup signatures we cut the stream early on during a no-tools
- * synthesis round. Once the model starts writing one of these, it has
- * already given up on prose and will keep emitting markup; aborting now
- * lets the retry pipeline kick in faster and avoids the user watching
- * raw `<||DSML||tool_calls>` scroll past in chat.
- */
-const MID_STREAM_MARKUP_PATTERNS: ReadonlyArray<{ format: 'dsml' | 'xml'; pattern: RegExp }> = [
-  { format: 'dsml', pattern: /<\s*\|\s*\|\s*DSML\s*\|\s*\|\s*(?:tool_calls|invoke)\b/i },
-  { format: 'xml', pattern: /<\s*invoke\s+name=["']/i },
-  { format: 'xml', pattern: /<\s*tool_call(?:s)?\s*>/i },
-]
-
-function detectMidStreamMarkup(content: string): 'dsml' | 'xml' | null {
-  if (!content) return null
-  const normalizedContent = normalizeInlineToolCallMarkup(content)
-  for (const { format, pattern } of MID_STREAM_MARKUP_PATTERNS) {
-    if (pattern.test(normalizedContent)) return format
-  }
-  return null
-}
-
-/**
- * Index where inline tool-call markup begins, or null if none is present.
- * Used in tool-enabled rounds to freeze the visible content at the clean
- * prefix so raw `<||DSML||tool_calls>` markup never streams to the user
- * before it's parsed into tool calls at end-of-round.
- */
-function findMidStreamMarkupStart(content: string): number | null {
-  if (!content) return null
-  const normalizedContent = normalizeInlineToolCallMarkup(content)
-  let start: number | null = null
-  for (const { pattern } of MID_STREAM_MARKUP_PATTERNS) {
-    const match = normalizedContent.match(pattern)
-    if (match?.index != null && (start === null || match.index < start)) {
-      start = match.index
-    }
-  }
-  return start
-}
-
-function resolveFollowUpSplitMarkerBlockCount(
-  round: number | undefined,
-  visibleContentBlockBaseline: number | null,
-  completedBlockCount: number
-): number {
-  // The first follow-up round follows the initial preamble, which streams after
-  // the first thinking block but before the first tool/search block is appended.
-  if (round === 1) {
-    return visibleContentBlockBaseline ?? completedBlockCount
-  }
-
-  return completedBlockCount
-}
-
-function isToolFollowUpNarration(content: string): boolean {
-  const normalized = content.trim().replace(/\s+/g, ' ').toLowerCase()
-
-  if (!normalized) return false
-
-  return (
-    /\blet me\b.*\b(?:search|look up|check|verify|confirm|grab|find|pull)\b/.test(normalized) ||
-    /\bi(?:'ll| will)\b.*\b(?:search|look up|check|verify|confirm|grab|find|pull)\b/.test(
-      normalized
-    ) ||
-    /\b(?:searching|checking|verifying|confirming)\b.*\b(?:now|next|again)\b/.test(normalized)
-  )
-}
-
-function resolveCommittedRoundContent(options: {
-  isToolFollowUpRound: boolean
-  roundFinishReason: string | null
-  roundStartContent: string
-  roundContent: string
-  finalRoundContent: string
-  suppressedInlineToolMarkup: boolean
-}): string {
-  const {
-    isToolFollowUpRound,
-    roundFinishReason,
-    roundStartContent,
-    roundContent,
-    finalRoundContent,
-    suppressedInlineToolMarkup,
-  } = options
-
-  if (!isToolFollowUpRound || roundFinishReason !== 'tool_calls' || suppressedInlineToolMarkup) {
-    return finalRoundContent
-  }
-
-  const markupStart = findMidStreamMarkupStart(roundContent)
-  const cleanRoundText =
-    markupStart !== null ? roundContent.slice(0, markupStart).trimEnd() : roundContent.trimEnd()
-
-  if (!cleanRoundText) {
-    return roundStartContent
-  }
-
-  if (isToolFollowUpNarration(cleanRoundText)) {
-    return roundStartContent
-  }
-
-  return `${roundStartContent}${cleanRoundText}`
-}
-
-class MidStreamMarkupAbort extends Error {
-  readonly format: 'dsml' | 'xml'
-  readonly previewContent: string
-  constructor(format: 'dsml' | 'xml', previewContent: string) {
-    super('Mid-stream tool-call markup detected during no-tools synthesis')
-    this.name = 'MidStreamMarkupAbort'
-    this.format = format
-    this.previewContent = previewContent
-  }
-}
-
-function logToolMarkupLeak(
-  event:
-    | 'detected'
-    | 'recovered'
-    | 'suppressed-during-no-tools-pass'
-    | 'recovery-failed'
-    | 'mid-stream-cut',
-  details: Record<string, unknown>
-): void {
-  console.warn('[tool-markup-leak]', event, details)
-}
-
-function mergeGeneratedFiles(
-  existing: FileAttachment[],
-  incoming: FileAttachment[]
-): FileAttachment[] {
-  if (incoming.length === 0) return existing
-
-  const merged = [...existing]
-  const seen = new Set(existing.map((file) => file.data))
-  for (const file of incoming) {
-    if (seen.has(file.data)) continue
-    seen.add(file.data)
-    merged.push(file)
-  }
-
-  return merged
-}
-
-function extractWebSearchQueries(toolResults: ToolCallResult[] | undefined): string[] {
-  return (toolResults || [])
-    .filter((result) => result.toolCall.name === 'web_search')
-    .map((result) => String(result.toolCall.arguments?.query || '').trim())
-    .filter(Boolean)
-}
-
-function hasNonWebToolResults(toolResults: ToolCallResult[] | undefined): boolean {
-  return (toolResults || []).some((result) => result.toolCall.name !== 'web_search')
-}
-
-function getUserContextText(messages: ProviderStreamingRunOptions['messages']): string {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index]
-    if (message?.role !== 'user') continue
-
-    if (typeof message.content === 'string') {
-      return message.content
-    }
-
-    return message.content
-      .filter((part) => part.type === 'text' && typeof part.text === 'string')
-      .map((part) => part.text?.trim() || '')
-      .filter(Boolean)
-      .join(' ')
-  }
-
-  return ''
-}
-
-function countCacheMarkers(messages: ProviderStreamingRunOptions['messages']): number {
-  return messages.reduce((count, message) => {
-    if (!Array.isArray(message.content)) return count
-    return count + message.content.filter((part) => Boolean(part.cache_control)).length
-  }, 0)
-}
-
-function buildRequestShape(
-  messages: ProviderStreamingRunOptions['messages'],
-  toolCount: number,
-  toolChoice?: 'auto' | 'none' | { type: 'function'; function: { name: string } }
-): ChatDiagnosticRequestShape {
-  return {
-    roleOrder: messages.map((message) => message.role),
-    textLengths: messages.map((message) => {
-      if (typeof message.content === 'string') return message.content.length
-      return message.content
-        .filter((part) => part.type === 'text' && typeof part.text === 'string')
-        .reduce((total, part) => total + (part.text?.length || 0), 0)
-    }),
-    contentTypes: messages.map((message) => {
-      if (typeof message.content === 'string') return message.content ? 'text' : 'empty'
-      return message.content.length > 0 ? 'parts' : 'empty'
-    }),
-    partTypes: messages.map((message) =>
-      Array.isArray(message.content) ? message.content.map((part) => part.type) : []
-    ),
-    hasReasoning: messages.map((message) => Boolean(message.reasoning)),
-    hasThinking: messages.map((message) => Boolean(message.thinking)),
-    toolCount,
-    toolChoice:
-      typeof toolChoice === 'string'
-        ? toolChoice
-        : toolChoice && typeof toolChoice === 'object'
-          ? 'function'
-          : undefined,
-    cacheMarkerCount: countCacheMarkers(messages),
-  }
-}
-
-function buildResearchStatus(
-  currentRound: number,
-  maxRounds: number,
-  isSearching: boolean,
-  currentSearches?: string[]
-) {
-  const normalizedSearches = (currentSearches || []).filter(Boolean)
-  return {
-    currentRound,
-    maxRounds,
-    currentSearch: normalizedSearches[0],
-    currentSearches: normalizedSearches.length > 0 ? normalizedSearches : undefined,
-    isSearching,
-  }
-}
-
-interface VisibleAnswerRound {
-  content: string
-  usage: NormalizedUsage
-  firstTokenTime: number | null
-}
-
 export function useProviderStreaming({
   settings,
   toolCalling,
@@ -415,18 +126,11 @@ export function useProviderStreaming({
 }: UseProviderStreamingOptions): UseProviderStreamingReturn {
   const { updateStreaming } = useStreamingActions()
   const shouldLogResearchLoop = import.meta.env.DEV
-  const shouldLogOpenRouterDebug = settings.openRouterDebug === true
 
   const logResearchLoop = (event: string, details?: Record<string, unknown>) => {
     if (!shouldLogResearchLoop) return
 
     console.debug('[research-loop]', event, details || {})
-  }
-
-  const logOpenRouterDebug = (event: string, details?: Record<string, unknown>) => {
-    if (!shouldLogOpenRouterDebug) return
-
-    console.debug('[openrouter-debug]', event, details || {})
   }
 
   const runProviderStream = useCallback(
@@ -537,6 +241,7 @@ export function useProviderStreaming({
       let frozenDisplayContent: string | null = null
       let generatedFiles: FileAttachment[] = []
       let finalVisibleAnswerRound: VisibleAnswerRound | null = null
+      let totalUsage = emptyUsage()
       let savedToolResults: ToolCallResult[] | undefined
       let localThinkingBlocks: ThinkingBlock[] = []
       // Number of completed thinking/tool blocks that existed at the moment the
@@ -677,7 +382,7 @@ export function useProviderStreaming({
         const roundType = roundAllowsTools ? 'tool-enabled' : 'no-tools'
         const roundResearchState: ResearchState = roundAllowsTools ? 'search' : 'synthesize'
         let roundContent = ''
-        let roundToolCalls: DeltaToolCall[] = []
+        const roundToolCalls: DeltaToolCall[] = []
         const roundReasoningDetails: ReasoningDetail[] = []
         let roundFinishReason: string | null = null
         let roundUsage = emptyUsage()
@@ -716,9 +421,9 @@ export function useProviderStreaming({
             provider,
             model,
             messages: roundMessages,
-            temperature: settings.temperature,
-            maxTokens: settings.maxTokens,
-            streamResponses: settings.streamResponses,
+            temperature: runtimeSettings.temperature,
+            maxTokens: runtimeSettings.maxTokens,
+            streamResponses: runtimeSettings.streamResponses,
             tools: roundTools,
             toolChoice: roundOptions?.toolChoice,
             modalities: options.modalities,
@@ -903,7 +608,7 @@ export function useProviderStreaming({
                 persistProgress()
                 break
               case 'usage':
-                roundUsage = mergeUsage(roundUsage, event.usage)
+                roundUsage = mergeProviderUsage(roundUsage, event.usage)
                 logDiagnostic({
                   phase: 'usage',
                   round: roundOptions?.round,
@@ -928,48 +633,14 @@ export function useProviderStreaming({
             }
           }
         } catch (streamError: unknown) {
-          if (streamError instanceof MidStreamMarkupAbort) {
-            // Soft abort: keep what we have but signal the suppression flag so
-            // end-of-round logic strips the markup and the caller can classify
-            // this round as 'leaked'. We DO NOT rethrow — the rest of the
-            // round teardown still needs to run.
-            suppressedInlineToolMarkup = true
-            // Emit the same 'suppressed-during-no-tools-pass' signal
-            // end-of-round suppression would have, so existing diagnostics
-            // and tests see consistent behavior whether the markup was
-            // caught mid-stream or only at end-of-round.
-            logToolMarkupLeak('suppressed-during-no-tools-pass', {
-              provider,
-              model,
-              roundType,
-              format: streamError.format,
-              toolNames: [],
-              cleanedContentLength: 0,
-              rawPreview: streamError.previewContent.slice(0, TOOL_MARKUP_PREVIEW_LIMIT),
-            })
-            logToolMarkupLeak('mid-stream-cut', {
-              provider,
-              model,
-              roundType,
-              format: streamError.format,
-              rawPreview: streamError.previewContent.slice(0, TOOL_MARKUP_PREVIEW_LIMIT),
-            })
-            // Reset the visible content immediately so the user doesn't see the
-            // markup; cleaned content (likely empty) replaces accumulatedContent
-            // at end-of-round.
-            accumulatedContent = roundStartContent
-            roundContent = ''
-            updateStreamingState({ content: accumulatedContent })
-          } else if (!(streamError instanceof DOMException && streamError.name === 'AbortError')) {
+          if (!(streamError instanceof DOMException && streamError.name === 'AbortError')) {
             streamChunkCoalescer.flush()
             logDiagnostic({
               phase: 'provider-error',
               error: streamError instanceof Error ? streamError.message : String(streamError),
             })
-            throw streamError
-          } else {
-            throw streamError
           }
+          throw streamError
         }
 
         throwIfAborted()
@@ -1006,61 +677,19 @@ export function useProviderStreaming({
               round: roundOptions?.round,
               roundType,
               leakedMarkupFormat: extracted.format || undefined,
-              recoveredQueryCount: extracted.toolCalls.filter(
-                (toolCall) => toolCall.name === 'web_search'
-              ).length,
+              recoveredQueryCount: 0,
             })
 
             finalRoundContent = extracted.cleanedContent
+            suppressedInlineToolMarkup = true
 
-            if (roundAllowsTools && extracted.toolCalls.length > 0) {
-              if (provider === 'openrouter') {
-                logOpenRouterDebug('xml-tool-call-recovered', {
-                  model,
-                  toolNames: extracted.toolCalls.map((toolCall) => toolCall.name),
-                  cleanedContentLength: extracted.cleanedContent.length,
-                  rawContentPreview: extracted.rawPreview.slice(0, TOOL_MARKUP_PREVIEW_LIMIT),
-                })
-              }
-
-              roundToolCalls = extracted.toolCalls.map((toolCall, index) => ({
-                index,
-                id: toolCall.id,
-                type: 'function',
-                function: {
-                  name: toolCall.name,
-                  arguments: JSON.stringify(toolCall.arguments),
-                },
-              }))
-              roundFinishReason = 'tool_calls'
-              logToolMarkupLeak('recovered', {
-                provider,
-                model,
-                roundType,
-                format: extracted.format,
-                toolNames: extracted.recoveredToolNames,
-                cleanedContentLength: extracted.cleanedContent.length,
-                rawPreview: extracted.rawPreview.slice(0, TOOL_MARKUP_PREVIEW_LIMIT),
-              })
-            } else if (!roundAllowsTools) {
-              suppressedInlineToolMarkup = true
-              if (extracted.toolCalls.length > 0) {
-                roundToolCalls = extracted.toolCalls.map((toolCall, index) => ({
-                  index,
-                  id: toolCall.id,
-                  type: 'function',
-                  function: {
-                    name: toolCall.name,
-                    arguments: JSON.stringify(toolCall.arguments),
-                  },
-                }))
-              }
+            if (!roundAllowsTools) {
               logToolMarkupLeak('suppressed-during-no-tools-pass', {
                 provider,
                 model,
                 roundType,
                 format: extracted.format,
-                toolNames: extracted.recoveredToolNames,
+                toolNames: [],
                 cleanedContentLength: extracted.cleanedContent.length,
                 rawPreview: extracted.rawPreview.slice(0, TOOL_MARKUP_PREVIEW_LIMIT),
               })
@@ -1129,6 +758,10 @@ export function useProviderStreaming({
           finishReason: roundFinishReason || undefined,
           usage: roundUsage,
         })
+        totalUsage = mergeProviderUsage(totalUsage, {
+          ...roundUsage,
+          requestCount: (roundUsage.requestCount ?? 0) + 1,
+        })
 
         return {
           roundContent: returnedRoundContent,
@@ -1151,138 +784,28 @@ export function useProviderStreaming({
         lastAssistantMessage: ServiceAssistantMessage,
         formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>
       ): Promise<void> => {
-        type Outcome = 'good' | 'blank' | 'leaked-or-ungrounded'
-
-        const classify = (round: {
-          roundContent: string
-          suppressedInlineToolMarkup: boolean
-        }): Outcome => {
-          if (round.suppressedInlineToolMarkup) return 'leaked-or-ungrounded'
-          const trimmed = round.roundContent.trim()
-          if (!trimmed) return 'blank'
-          if (shouldRetryUngroundedSearchSynthesis(trimmed)) return 'leaked-or-ungrounded'
-          return 'good'
-        }
-
-        const noToolsResearchContext = ''
-
-        // Snapshot accumulatedContent so we can roll back between failed
-        // attempts. Without this, a blank/leaked attempt would leak its
-        // partial state into the next attempt's content.
-        const baselineContent = accumulatedContent
-
-        const commitSynthesisFailure = () => {
-          const deterministicAnswer = buildDeterministicSearchSynthesis(savedToolResults)
-          logResearchLoop('synthesis-failed', {
-            deterministicAnswerUsed: Boolean(deterministicAnswer),
-            searchBudgetRemaining: Math.max(0, effectiveSearchBudget - totalSearchCount),
-          })
-          accumulatedContent =
-            baselineContent + (deterministicAnswer || SEARCH_SYNTHESIS_FAILURE_MESSAGE)
-          finishReason = null
-          updateStreamingState({
-            content: accumulatedContent,
-            phase: 'answering',
-          })
-          publishStreamingProgress({ content: accumulatedContent, phase: 'answering' })
-        }
-
-        // Attempt 1: plain follow-up. No discouragement prompt; we want to
-        // see what the model does naturally with the gathered evidence.
-        const attempt1Messages = buildFollowUpMessages(
-          noToolsResearchContext,
+        await runFinalSynthesisWithRetries({
           baseRound,
           totalSearchCount,
-          requestMessages,
           lastAssistantMessage,
-          formattedResults
-        )
-        updateStreamingState({
-          phase: 'answering',
-          researchStatus: buildResearchStatus(baseRound, options.researchMaxRounds, false),
-        })
-        throwIfAborted()
-        const attempt1 = await runRound(attempt1Messages, {
-          round: baseRound,
-          toolChoice: 'none',
-          tools: [],
-        })
-        throwIfAborted()
-        const outcome1 = classify(attempt1)
-        if (outcome1 === 'good') return
-
-        logResearchLoop('synthesis-retry', {
-          attempt: 1,
-          outcome: outcome1,
-          baseRound,
-        })
-        // Roll back to baseline before attempt 2.
-        accumulatedContent = baselineContent
-        updateStreamingState({ content: accumulatedContent })
-
-        // Attempt 2: use a recovery prompt based on the failure shape.
-        const attempt2Messages =
-          outcome1 === 'blank'
-            ? buildRecoverySynthesisMessages(
-                noToolsResearchContext,
-                baseRound + 1,
-                totalSearchCount,
-                requestMessages,
-                lastAssistantMessage,
-                formattedResults
-              )
-            : buildPlainTextOnlySynthesisMessages(
-                noToolsResearchContext,
-                baseRound + 1,
-                totalSearchCount,
-                requestMessages,
-                lastAssistantMessage,
-                formattedResults
-              )
-        const attempt2 = await runRound(attempt2Messages, {
-          round: baseRound + 1,
-          toolChoice: 'none',
-          tools: [],
-        })
-        throwIfAborted()
-        const outcome2 = classify(attempt2)
-        if (outcome2 === 'good') return
-
-        logResearchLoop('synthesis-retry', {
-          attempt: 2,
-          outcome: outcome2,
-          baseRound,
-        })
-        accumulatedContent = baselineContent
-        updateStreamingState({ content: accumulatedContent })
-
-        // Attempt 3: strictest plain-text-only escalation.
-        const attempt3Messages = buildPlainTextOnlySynthesisMessages(
-          noToolsResearchContext,
-          baseRound + 2,
-          totalSearchCount,
+          formattedResults,
           requestMessages,
-          lastAssistantMessage,
-          formattedResults
-        )
-        const attempt3 = await runRound(attempt3Messages, {
-          round: baseRound + 2,
-          toolChoice: 'none',
-          tools: [],
+          researchMaxRounds: options.researchMaxRounds,
+          effectiveSearchBudget,
+          savedToolResults,
+          getAccumulatedContent: () => accumulatedContent,
+          setAccumulatedContent: (content) => {
+            accumulatedContent = content
+          },
+          setFinishReason: (value) => {
+            finishReason = value
+          },
+          runRound,
+          updateStreamingState,
+          publishStreamingProgress,
+          throwIfAborted,
+          logResearchLoop,
         })
-        throwIfAborted()
-        const outcome3 = classify(attempt3)
-        if (outcome3 === 'good') return
-
-        logResearchLoop('synthesis-retry', {
-          attempt: 3,
-          outcome: outcome3,
-          baseRound,
-        })
-
-        // All synthesis attempts failed. Keep the tool-result cards in the
-        // timeline, but do not fabricate an answer-looking wall of evidence.
-        commitSynthesisFailure()
       }
 
       const initialToolChoice =
@@ -1733,13 +1256,18 @@ export function useProviderStreaming({
           ? accumulatedContent
           : removeToolFollowUpSplitMarker(accumulatedContent)
       const finalFinishReason = finishReason || undefined
+      const totalBasicUsage = fillMissingUsage(
+        {
+          inputTokens: totalUsage.inputTokens,
+          outputTokens: totalUsage.outputTokens,
+          totalTokens: totalUsage.totalTokens,
+        },
+        visibleAnswerRound.content,
+        { deriveInputFromTotal: provider === 'alibaba' }
+      )
       const finalUsage = {
-        ...basicUsage,
-        thinkingTokens: visibleAnswerUsage?.thinkingTokens,
-        cachedInputTokens: visibleAnswerUsage?.cachedInputTokens,
-        cachedOutputTokens: visibleAnswerUsage?.cachedOutputTokens,
-        cacheMissInputTokens: visibleAnswerUsage?.cacheMissInputTokens,
-        cacheWriteInputTokens: visibleAnswerUsage?.cacheWriteInputTokens,
+        ...totalUsage,
+        ...totalBasicUsage,
         tps:
           basicUsage.outputTokens > 0 && metrics.latency > 0
             ? basicUsage.outputTokens / (metrics.latency / 1000)

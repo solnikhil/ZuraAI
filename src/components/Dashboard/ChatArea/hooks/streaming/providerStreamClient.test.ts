@@ -696,7 +696,7 @@ describe('createProviderStreamClient', () => {
     ])
   })
 
-  it('breaks large OpenRouter text chunks into progressive deltas for smoother token streaming', async () => {
+  it('preserves OpenRouter transport chunk boundaries without artificial delays', async () => {
     mocks.streamOpenRouterCompletion.mockImplementation(async function* () {
       yield {
         choices: [
@@ -732,14 +732,13 @@ describe('createProviderStreamClient', () => {
     )
 
     const textDeltas = events.filter((event) => event.type === 'text-delta')
-    expect(textDeltas.length).toBeGreaterThan(1)
-    expect(textDeltas.map((event: any) => event.delta).join('')).toBe(
-      'This response arrived as one large buffered chunk.'
-    )
+    expect(textDeltas).toEqual([
+      { type: 'text-delta', delta: 'This response arrived as one large buffered chunk.' },
+    ])
     expect(events.at(-1)).toEqual({ type: 'finish', finishReason: 'stop' })
   })
 
-  it('breaks large DeepSeek text chunks into progressive deltas for smoother final synthesis', async () => {
+  it('preserves DeepSeek transport chunk boundaries', async () => {
     const bufferedAnswer = 'Buffered final synthesis arrived as one large chunk.'
     mocks.streamDeepSeekCompletion.mockImplementation(async function* () {
       yield {
@@ -776,12 +775,11 @@ describe('createProviderStreamClient', () => {
     )
 
     const textDeltas = events.filter((event) => event.type === 'text-delta')
-    expect(textDeltas.length).toBeGreaterThan(1)
-    expect(textDeltas.map((event: any) => event.delta).join('')).toBe(bufferedAnswer)
+    expect(textDeltas).toEqual([{ type: 'text-delta', delta: bufferedAnswer }])
     expect(events.at(-1)).toEqual({ type: 'finish', finishReason: 'stop' })
   })
 
-  it('breaks non-streaming OpenAI-compatible responses into progressive deltas', async () => {
+  it('emits a non-streaming response once instead of simulating token streaming', async () => {
     const bufferedAnswer = 'Non-stream completion arrived as one buffered answer.'
     mocks.generateGroqCompletion.mockResolvedValue({
       id: 'resp_1',
@@ -822,28 +820,15 @@ describe('createProviderStreamClient', () => {
     )
 
     const textDeltas = events.filter((event) => event.type === 'text-delta')
-    expect(textDeltas.length).toBeGreaterThan(1)
-    expect(textDeltas.map((event: any) => event.delta).join('')).toBe(bufferedAnswer)
+    expect(textDeltas).toEqual([{ type: 'text-delta', delta: bufferedAnswer }])
     expect(events.at(-1)).toEqual({ type: 'finish', finishReason: 'stop' })
   })
 
-  it('falls back to non-streaming Ollama completion and forwards abort signals', async () => {
+  it('surfaces Ollama streaming failures without repeating the request', async () => {
     const signal = new AbortController().signal
     mocks.streamOllamaCompletion.mockImplementation(async function* () {
       yield* []
       throw new Error('stream failed')
-    })
-    mocks.generateOllamaCompletion.mockResolvedValue({
-      model: 'llama3.2',
-      created_at: '2026-01-01T00:00:00Z',
-      message: {
-        role: 'assistant',
-        content: 'Fallback answer',
-        thinking: 'Local chain',
-      },
-      done: true,
-      prompt_eval_count: 7,
-      eval_count: 5,
     })
 
     const client = createProviderStreamClient(
@@ -858,31 +843,24 @@ describe('createProviderStreamClient', () => {
       'ollama'
     )
 
-    const events = await collect(
-      client.stream({
-        provider: 'ollama',
-        model: 'llama3.2',
-        messages: [{ role: 'user', content: 'hello' }],
-        signal,
-      })
-    )
+    await expect(
+      collect(
+        client.stream({
+          provider: 'ollama',
+          model: 'llama3.2',
+          messages: [{ role: 'user', content: 'hello' }],
+          signal,
+        })
+      )
+    ).rejects.toThrow('stream failed')
 
-    expect(mocks.generateOllamaCompletion).toHaveBeenCalledWith(
+    expect(mocks.generateOllamaCompletion).not.toHaveBeenCalled()
+    expect(mocks.streamOllamaCompletion).toHaveBeenCalledWith(
       'http://localhost:11434',
       'llama3.2',
       [{ role: 'user', content: 'hello' }],
       expect.objectContaining({ signal })
     )
-    expect(events).toEqual([
-      { type: 'reasoning-delta', delta: 'Local chain' },
-      { type: 'text-delta', delta: 'Fallback answer' },
-      {
-        type: 'usage',
-        usage: { inputTokens: 7, outputTokens: 5, totalTokens: 12 },
-        rawUsage: { prompt_eval_count: 7, eval_count: 5 },
-      },
-      { type: 'finish', finishReason: 'stop' },
-    ])
   })
 
   it('normalizes Fireworks tool-calling chunks into shared stream events', async () => {
@@ -1003,5 +981,4 @@ describe('createProviderStreamClient', () => {
       expect.objectContaining({ enableThinking: true, reasoningEffort: 'xhigh' })
     )
   })
-
 })

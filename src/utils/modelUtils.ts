@@ -514,6 +514,10 @@ const PROVIDER_CONFIG = {
     title: getProviderDefinition('openrouter').label,
     color: getProviderAccentColor('openrouter'),
   },
+  codex: {
+    title: getProviderDefinition('codex').label,
+    color: getProviderAccentColor('codex'),
+  },
   groq: {
     title: getProviderDefinition('groq').label,
     color: getProviderAccentColor('groq'),

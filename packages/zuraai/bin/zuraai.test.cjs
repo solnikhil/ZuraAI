@@ -3,10 +3,7 @@
 const assert = require('node:assert/strict')
 const test = require('node:test')
 
-const fs = require('node:fs')
-const os = require('node:os')
-const path = require('node:path')
-const { createChatUrl, createOpenUrl, createExtensionProject, getDefaultUserDataPath, parseArgs, validateExtensionDirectory } = require('./zuraai.cjs')
+const { createChatUrl, createOpenUrl, getDefaultUserDataPath, parseArgs } = require('./zuraai.cjs')
 
 test('creates the app-open protocol URL', () => {
   assert.equal(createOpenUrl(), 'zuraai://open')
@@ -51,23 +48,4 @@ test('resolves default userData paths for macOS and Windows', () => {
     ),
     'C:\\Users\\Nikhil\\AppData\\Roaming\\ZuraAI'
   )
-})
-
-test('creates and validates an agent-friendly extension package', () => {
-  const root = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'zura-cli-extension-')), 'sample')
-  createExtensionProject(root, 'com.example.sample')
-  const validation = validateExtensionDirectory(root)
-  assert.equal(validation.ok, true)
-  assert.equal(validation.manifest.id, 'com.example.sample')
-  assert.equal(fs.existsSync(path.join(root, 'ui', 'home.json')), true)
-})
-
-test('rejects extension entries that escape the package', () => {
-  const root = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'zura-cli-extension-')), 'unsafe')
-  createExtensionProject(root, 'com.example.unsafe')
-  const manifestPath = path.join(root, 'zura-extension.json')
-  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
-  manifest.commands[0].entry = 'ui/../../secret.json'
-  fs.writeFileSync(manifestPath, JSON.stringify(manifest))
-  assert.equal(validateExtensionDirectory(root).ok, false)
 })

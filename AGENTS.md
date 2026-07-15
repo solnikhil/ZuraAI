@@ -13,7 +13,7 @@ ZuraAI is a desktop AI assistant built with **Electron + React + Vite + TypeScri
 Core capabilities:
 
 - Dashboard UI for chats, settings, models, extensions, MCP, memory, and reminders
-- Multi-provider AI calls: Alibaba Cloud, Fireworks, Groq, NVIDIA NIM, Ollama, OpenRouter, OpenCode Go, DeepSeek
+- Multi-provider AI calls: Alibaba Cloud, ChatGPT Codex, Fireworks, Groq, NVIDIA NIM, Ollama, OpenRouter, OpenCode Go, DeepSeek
 - Hardened renderer -> preload -> main IPC boundary
 - Restricted tool system: built-in main-process tools, renderer-managed MCP tools, Agent Skills activation, artifacts, scheduled tasks, code execution, terminal, and Windows-native/Computer Use surfaces
 
@@ -60,11 +60,11 @@ Prereqs: Bun `>= 1.1`, Node.js `>= 18`.
 | `electron/secureStorage.ts`           | Encrypted key storage via Electron `safeStorage`                                                          |
 | `electron/mcp/`                       | MCP server storage, connection lifecycle, transports, approvals, IPC                                      |
 | `electron/tools/`                     | Main-process built-in tools: web search, files, shell, code execution, native Windows tools, Computer Use |
+| `electron/providers/`                 | Main-only provider adapters with privileged auth/transport needs, including ChatGPT Codex OAuth           |
 | `electron/monitors/`                  | Scheduled reminders/lookouts runtime and persistence                                                      |
 | `electron/notifications/email/`       | Brevo transactional email for fixed notification flows                                                    |
 | `electron/analytics/`                 | Opt-in PostHog analytics service and consent state                                                        |
 | `electron/agentSkills/`               | Main-process Agent Skills discovery/activation/install service                                            |
-| `electron/extensions/`                | Main-owned Command Center extension discovery, lifecycle, permissions, storage, development, and brokers  |
 | `src/App.tsx`                         | Renderer routing and shared shell layout                                                                  |
 | `src/main.tsx`                        | Renderer bootstrap, first-paint setup, startup preloads                                                   |
 | `src/components/`                     | UI surfaces: dashboard, settings, titlebar, dialogs                                                       |
@@ -74,12 +74,10 @@ Prereqs: Bun `>= 1.1`, Node.js `>= 18`.
 | `src/tools/`                          | Shared tool definitions, adapters, executor, MCP registry                                                 |
 | `src/skills/`                         | Built-in extension catalog and settings normalization/migration                                           |
 | `src/agentSkills/`                    | Agent Skills shared types and compact prompt catalog                                                      |
-| `src/extensions/`                     | Shared extension manifests, serializable trusted UI contracts, and strict validators                      |
 | `src/mcp/`                            | Shared MCP contracts and renderer context                                                                 |
 | `src/prompts/`                        | Code-owned prompt defaults                                                                                |
 | `dist/`, `dist-electron/`, `release/` | Generated build outputs; do not hand edit                                                                 |
 | `packages/zuraai/`                    | npm package for the `zuraai` terminal launcher; opens the desktop app through registered local protocols  |
-| `extensions/bundled/`                 | Read-only manifest packages shipped into the Zura Store                                                   |
 
 ---
 
@@ -100,7 +98,6 @@ Renderer (React/Vite) -> Preload (allowlisted bridges) -> Electron Main
 - Main window: loads `#/dashboard`; routes `/`, `/dashboard`, `/settings`, and `/chat` under `AppShellLayout`.
 - About window: separate `BrowserWindow`, loads `#/about`, opened through `window.appInfo.openAboutWindow()`.
 - Chat debug window: dev-only separate `BrowserWindow`, loads `#/chat-debug?sessionId=<id>`, disabled in packaged builds.
-- Command Center overlay: separate frameless always-on-top `BrowserWindow`, loads the dedicated `command-center.html` renderer entry, and is available in both Chat and Agent modes on Windows and macOS.
 - Agent approval overlay: separate small frameless always-on-top `BrowserWindow` owned by main for Agent Mode tool-call approvals while ZuraAI is not focused. It loads sanitized inline approval HTML only, resolves approve/reject/always-allow-exact-repeat decisions back to the requesting renderer, and does not execute tools or expose general desktop APIs.
 - Unknown renderer routes render the dedicated 404 view.
 - Renderer-backed windows deny all in-window navigation and new-window creation. Explicit HTTP(S)
@@ -115,8 +112,7 @@ Platform chrome:
 
 Memory / performance:
 
-- Main and Command Center windows use `backgroundThrottling: true` so Chromium can idle when unfocused.
-- Command Center is pre-created after the dashboard enables it and reuses the hidden, throttled renderer for quick reopen; after about two minutes hidden it is destroyed to reclaim the second renderer, and disable/app shutdown destroy it immediately.
+- The main window uses `backgroundThrottling: true` so Chromium can idle when unfocused.
 - Chat index embeds at most a thin recent tail (`RECENT_TAIL_SIZE` ≈ 20 messages) with images/tool payloads stripped; full history lives in per-session files and is loaded in a window (`SESSION_WINDOW_SIZE` ≈ 80) on open. Older messages load on demand (scroll-top / “Load earlier”). Inactive sessions prune to **empty** message arrays (metadata only).
 - Chat message list is **virtualized** (`VirtualMessageList` / react-virtuoso).
 - Usage settings use `chat-store:get-usage-sessions` (slim message fields only), not `chat-store:get-all`.
@@ -147,12 +143,7 @@ Main `app.getPath('userData')`:
 - Secure-storage JSON encrypted through `safeStorage`
 - Memories and memory summaries
 - Scheduled task definitions, lookout snapshots, reminder logs, and run history
-- Command Center saved workflow definitions (`command-center-workflows.json`)
-- Command Center privacy-preserving search-learning signals (`command-center-search-learning.json`); stored identities and query prefixes are HMACs, never raw queries, paths, or file content
-- Command Center extension registry (`zura-extensions.json`) containing installed/enabled versions,
-  approved permissions, and explicitly imported development package roots
-- Namespaced non-secret extension values under `zura-extension-storage/<sha256-extension-id>.json`;
-  each namespace is bounded and uninstall removes only that extension's file
+- Non-secret installed-app discovery snapshot (`app-index.json`) used only by agent app tools
 - Analytics consent/install metadata
 - Dev-only chat diagnostics JSONL
 - Artifact export files for external opening
@@ -161,9 +152,8 @@ Secrets:
 
 - API keys and MCP secrets live in `electron/secureStorage.ts`.
 - Stored provider keys include OpenRouter, Groq, Alibaba, Fireworks, DeepSeek, OpenCode Go, NVIDIA, Tavily, and Brevo.
-- The Command Center search-learning HMAC key is also stored through `safeStorage`; it is main-only and is not a provider credential.
-- GitHub Workspace OAuth access tokens are stored through `safeStorage`; tokens and device codes never cross into the renderer. The short user verification code is renderer-visible only while sign-in is pending.
-- Renderer should read key presence when possible and hydrate actual secrets only when required for a provider/tool call.
+- ChatGPT Codex access and refresh tokens are stored as one encrypted main-only `chatGptCodexOAuth` bundle. The renderer can request sign-in/sign-out and receive only `{ signedIn: boolean }`; tokens, account IDs, OAuth codes, PKCE values, and endpoint parameters never cross IPC.
+- The renderer may read secret presence and may replace a secret, but cannot read or reveal stored values. Provider calls resolve credentials in main.
 - `safeStorage` is required for secret reads/writes. Do not add plaintext secret persistence fallback.
 
 ### IPC Surface
@@ -173,8 +163,8 @@ The renderer never imports Electron APIs directly.
 All renderer-invokable main handlers must register through
 `electron/ipc/trustedIpc.ts` rather than raw `ipcMain.handle`. The shared guard
 rejects requests unless they originate from the top frame of a live ZuraAI
-`BrowserWindow` whose URL is either the exact development-server origin or one of the
-exact packaged `dist/index.html` and `dist/command-center.html` entries. Subframes, unknown/destroyed windows, origin
+`BrowserWindow` whose URL is either the exact development-server origin or the
+exact packaged `dist/index.html` entry. Subframes, unknown/destroyed windows, origin
 lookalikes, other local files, and non-HTTP(S) remote documents are rejected
 before channel-specific code runs. Tests for individual handler behavior may
 mock the shared registration wrapper, but `trustedIpc.test.ts` must exercise the
@@ -208,9 +198,8 @@ Dedicated preload bridges include:
 - `window.terminal`
 - `window.chatDebug`
 - `window.chatLinks`
-- `window.commandCenter`
-- `window.extensions`
 - `window.discordRpc`
+- `window.providerRuntime`
 
 `window.windowControls.setAppearance(...)` uses the narrow
 `window-controls:set-appearance` channel to synchronize the caller's native
@@ -304,284 +293,22 @@ output. Agent automation run budgets are enforced in the shared tool execution
 policy for web searches and total tool calls, in addition to the automation run
 timeout owned by main.
 
-Command Center is an internal Agent Mode OS overlay/capability that exposes
-explicit platform-native tool primitives through the existing `execute-tool` IPC
-path rather than a broad new desktop API. Its tools are `system_active_window`,
-`system_status`, `system_settings_open`, `system_open_path`, and `window_snap`.
-Read-only context tools return foreground-window or local machine status;
-mutating tools require the normal tool approval path. These tools are
-implemented for Windows and macOS, gated by Agent Mode in renderer tool exposure, and owned by main under
-`electron/tools/os-integration/`. The root Command Center overlay is owned by
-main through `electron/commandCenter.ts` and `electron/windows/commandCenterOverlay.ts`.
-Its global shortcut is `Control+Shift+Space` on Windows and macOS. The fallback is
-`Control+Alt+Space` on Windows and `Control+Option+Shift+Space` on macOS. It is registered after the dashboard renderer mounts
-and syncs availability through `command-center:set-extension-enabled`; changing
-assistant mode must not unregister the shortcut or hide the overlay.
-Command Center overlay lifecycle: pre-create and paint the hidden window after the
-dashboard enables Command Center, hide it on blur/dismiss, and keep it warm for about
-two minutes for quick reopen. After that hidden idle interval, destroy the renderer;
-disable and app shutdown destroy it immediately. `backgroundThrottling` remains enabled
-while hidden. During the warm interval the renderer soft-resumes the last UI screen through
-`command-center:shown` / `command-center:hidden`; recreation returns to root search.
-The Windows Search helper follows the same bounded-idle policy rather than remaining
-resident for the whole app session. Command Center uses a dedicated Vite
-`command-center.html` entry that eagerly
-mounts root search while nested Store, extension, emoji, and GitHub views remain lazy.
-Empty-query browse index uses a short main-process
-stale-while-revalidate cache (fresh ~12s, stale serve up to ~60s with background
-rebuild); show/shortcut prefetches that cache in parallel with window show. The
-overlay soft-reopens without clearing the previous result list so reopen paints
-immediately while `get-index` refreshes. Selected **app** rows expose a footer
-**Actions** menu (Raycast-style, `Ctrl/Cmd+K`) over a fixed main-process
-allowlist via `command-center:execute-item-action`: `open`, `focus-window`,
-`show-in-folder`, `reveal-shortcut`, `add-to-favorite` (UI present, not wired
-yet), `copy-path`, `copy-dir`, `copy-name`, `copy-bundle-id`, `force-quit`,
-`disable-application`, `uninstall-application` (last two open Windows Apps
-settings for the user to finish). Paths always resolve from the
-cached index item in main — never from renderer-supplied paths. Do not add
-admin/run-as, freeform shell, or arbitrary tool names without an architecture
-update. Main window uses background throttling when unfocused,
-minimized, or hidden, and on Windows/Linux close (X) **hides to tray** instead of
-quitting so global shortcut / automations can keep a single throttled renderer.
-Direct overlay actions
-are a fixed main-process allowlist (`snap-left`, `snap-right`, `maximize-window`,
-`system-status`, `clipboard-to-chat`, `focus-zuraai`, `open-downloads`,
-`emoji-picker`, `zura-ai-chats`, `layout`, `settings`, `open-windows-copilot`,
-and `settings-<page>` ids from the fixed Windows Settings catalog) and must not
-accept renderer-provided commands, paths, protocol URIs, shell strings, or
-arbitrary tool names. Windows Settings pages and Copilot open only via
-allowlisted `ms-settings:` / `ms-copilot:` targets owned by main. Action aliases are search metadata only and must not affect the
-main-process execution allowlist. Clipboard content may be read for the
-explicit `clipboard-to-chat` user action, is capped before chat handoff, and
-must not be read as background context. The fixed Emojis command may also
-temporarily swap and restore clipboard text solely while inserting a selected
-emoji; the prior clipboard value must not cross IPC, be persisted, or become
-assistant context.
-Root Command Center browse groups results by category (not a flat Actions dump):
-`Suggestions` (empty-browse top strip of up to 4 frequent/recent apps and personalized
-actions from app launch counts + privacy-preserving search learning; omitted when
-there is no usage signal), Saved Workflows, Apps, installed `Extensions`, and `Zura Extras`
-(currently the first-party Zura Store and Emojis entries). Typed search uses
-`Best Matches` instead of Suggestions for the top strip. There are no
-separate top-level System, Files, Settings, Actions, or Chats sections.
-`Zura Store` is a renderer-presented nested catalogue backed by the main-owned extension
-service in `electron/extensions/extensionService.ts`. Extension packages use the versioned
-`zura-extension.json` contract and bundled packages ship read-only under
-`resources/extensions` (`extensions/bundled` in development). Installed/enabled versions,
-approved permissions, and explicitly selected development roots persist in
-`zura-extensions.json`; the original `zura-store-products.json` GitHub flag is migrated once.
-Installation/update/uninstall is a two-step flow: main returns a short-lived opaque confirmation
-ID, and the apply IPC always requires a second main-owned native dialog confirmation before main
-consumes that ID. A renderer or agent calling prepare and apply cannot bypass the native approval.
-Permission or version
-changes between review and apply invalidate the confirmation. Agents may prepare requests but
-cannot grant permissions, install, uninstall, or publish without this user-owned confirmation.
+### Desktop OS Integration
 
-Phase 1 extensions do **not** execute third-party JavaScript. Their manifest commands reference
-validated serializable view documents, and `CommandCenterExtensionHost` maps List, Detail, Form,
-Actions, Empty, Loading, Progress, Error, and navigation nodes to trusted Zura React components.
-Loading views may declare an optional trusted skeleton template (`rows`, `list`, `detail`, `form`,
-`workspace`, `emoji-grid`); authors cannot ship custom loading HTML/CSS/JS. Command Center root
-index load and first-party hosts (including GitHub Workspace) use the same skeleton system.
-`view` commands open that host, reviewed `workspace` commands route only to their named first-party
-host capability, and `no-view` commands execute exactly one validated non-navigation root action in
-main without opening renderer UI. The narrow `extensions:execute-no-view` channel exists for explicit
-renderer invocation; Command Center index execution calls the same main-owned resolver directly.
-The dedicated `window.extensions` bridge accepts only bounded extension/command/view/action IDs,
-bounded form values, opaque confirmation IDs, declared-domain HTTPS requests, and opaque file
-handles. Main resolves package paths and action definitions. Standard actions are limited to
-navigation and namespaced storage set/remove/no-op. The network broker accepts only manifest-
-declared HTTPS domains with separately approved `network.<domain>` permissions, GET/POST,
-timeouts, response/request caps, fixed headers, and no redirects. File pickers return expiring
-opaque handles; filesystem paths never cross into the renderer. Development imports are disabled
-in packaged builds, require a main-owned folder picker, reject symlinks/path escapes/oversized
-packages/duplicate IDs/host capabilities, and use watched reload in development.
+Agent Mode exposes narrow, main-owned desktop primitives through the existing `execute-tool` IPC path. Retained cross-platform tools include `system_active_window`, `system_status`, `system_settings_open`, `system_open_path`, and `window_snap`; Windows also exposes the existing bounded app, window, filesystem, UI Automation, and Computer Use tool sets. Mutating actions continue through normal approval policy. These tools are assistant capabilities only: there is no global launcher overlay, global shortcut, direct-action palette, renderer-provided path/URI/command execution, or background clipboard context.
 
-GitHub Workspace is the first reviewed product extension. Its manifest contributes Store and
-root-search metadata, while its `host:git-workspace` command routes to the existing dedicated
-workspace UI and main-owned Git/OAuth/credential/repository runtime. Uninstall runs its registered
-lifecycle cleanup without deleting user repositories. Welcome Kit is the non-privileged bundled
-reference extension proving the generic manifest, trusted UI, navigation, storage, no-view execution, lifecycle, and
-root Command Center command path. The CLI implements `zuraai extension create` and
-`zuraai extension validate` (with `build`/`test` validation aliases); future executable runtimes,
-OAuth brokers, package publishing/signing, and remote Store distribution require separate reviewed
-architecture decisions rather than generic IPC or Node access.
-GitHub install, enable, disable, update, permission review, and uninstall are owned exclusively by
-`window.extensions` and `zura-extensions.json`. The dedicated `window.githubWorkspace` bridge is a
-runtime bridge available only after the extension registry reports `com.zuraai.github` installed
-and enabled; it does not expose GitHub-specific install-state, install, or uninstall channels. The
-legacy `zura-store-products.json` file is read only by the one-time registry migration.
-`Settings` is a nested Zura Extras command that lists a fixed allowlist of major
-Windows Settings pages (and search can surface those pages). `Layout` is a nested
-Zura Extras command for snap left/right and maximize. `Windows Copilot` opens via
-the fixed `ms-copilot:` protocol only (no freeform URIs). Individual recent chats
-are not listed on the empty browse home; `Zura AI Chats` opens a nested
-searchable chat list (matching chats may still appear under Zura Extras while
-the user is typing a query). `Emojis` opens a keyboard-first emoji grid
-(glyph-only cells, searchable by name/keywords) backed by the bundled
-`emojilib` Unicode keyword dataset, with generated Unicode skin-tone variants.
-The emoji catalog is the full bundled `emojilib` base set (plus generated
-skin-tone variants for search/paste), app-bundled via dependency bumps — not a
-live remote API — so main can validate inserts against a fixed allowlist.
-Browse shows every base emoji (popular first); search includes skin-tone
-variants. Typing `:` at the start of root Command Center search opens the same
-emoji command with the remaining text as its query. Selecting a result invokes
-only the narrow `command-center:insert-emoji` channel with the chosen Unicode
-string. Main validates the string against the same bundled dataset. Before the
-overlay is shown, main snapshots the OS foreground window HWND. On insert it
-copies the emoji to the system clipboard (and leaves it there so the user can
-still Ctrl+V / Win+V if the original text field closed), hides the overlay,
-best-effort restores that window and sends Ctrl+V. The prior clipboard is not
-restored after insert — clipboard-first is the product guarantee. This channel
-must not accept arbitrary text or expose a general clipboard/type-text API.
-Before show, foreground identity capture is an in-process native call: Windows binds
-the fixed User32/Kernel32 APIs and macOS binds `NSWorkspace.frontmostApplication`
-through the explicitly packaged Koffi runtime. No PowerShell or AppleScript process
-may run on the shortcut-to-show path. Focus restoration after an explicit action may
-remain asynchronous and platform-owned.
-Command Center search uses narrow `window.commandCenter` bridge methods to read
-a typed index of saved workflows, apps from the main-process
-`appIndexService`, live top-level windows, fixed actions, and recent chats. The
-app index service loads a non-secret persisted snapshot from
-`app.getPath('userData')/command-center-app-index.json`, serves that snapshot
-immediately on overlay open. On macOS, the index is refreshed from bounded scans
-of `/Applications`, `/System/Applications`, and `~/Applications`; `.app` bundle
-paths remain main-owned launch authority and never come from renderer input. On
-Windows, it
-refreshes app data in the background from
-`Get-StartApps`, query-specific `Get-StartApps -Name` lookups, and
-Start Menu/Desktop shortcuts enriched with shortcut metadata where available,
-and writes refreshed snapshots atomically. App icons are resolved OS-natively:
-win32 apps from their target executable via `app.getFileIcon`, and UWP/Store
-apps (which have no on-disk executable) from their package logo asset, resolved
-best-effort in the background refresh via a bounded `Get-AppxPackage` /
-`Get-AppxPackageManifest` lookup and cached in the snapshot. The service also records local
-Command Center app launches and reads Windows UserAssist usage metadata as a
-best-effort recency/frequency ranking signal; those signals may be stored in the
-non-secret snapshot but never act as launch authority. App indexing is warmed at app ready
-and when Command Center is enabled; Start Menu/Desktop shortcut roots on Windows and Applications roots on macOS are watched
-opportunistically for debounced background refresh, and watcher handles are closed when
-Command Center is disabled or disposed. App icons are loaded lazily
-through a bounded in-memory main-process cache so first overlay paint is not
-blocked by icon extraction. For already-open apps, Command Center may use the
-main-process `window_list` process path as an internal icon candidate, but the
-Command Center renderer-facing row must expose only sanitized window identity
-(`hwnd`, title, process name, and process id), not the process path. The app
-index may return non-secret diagnostics
-(`diagnostics.apps`) including stale state, source counts, refresh timing, and
-sanitized errors so renderer UI can show app-index failures without exposing
-arbitrary shell commands or renderer-supplied launch data. A narrow
-`command-center:refresh-app-index` bridge exists only for explicit/manual app
-index refresh.
-Search execution passes typed item/workflow IDs and the current search query back
-to main; main resolves those IDs against its own typed index to allowlisted
-actions, shortcut/AppUserModelID app launches, exact `hwnd` window focus, or
-chat-session promotion. Saved workflows
-are non-secret userData JSON and may contain only typed OS/action/window/app
-steps plus AI prompt steps; they must not store shell strings, unrestricted
-paths, arbitrary tool names, or secrets. Workflow runs require an explicit
-renderer confirmation before main execution. Embedded Command Center AI/Ask is
-currently disabled: the overlay does not mount chat, provider, MCP, streaming,
-model-selector, or tool-approval providers, and workflows containing an AI prompt
-step are rejected before any step executes. AI steps remain in the persisted typed
-workflow contract for forward compatibility. Existing chats remain searchable and
-may be opened in the main chat surface through the narrow
-`command-center:open-chat-session` bridge. The initial overlay loads only the search
-surface; Store, extension-host, and GitHub Workspace renderers are lazy-loaded when
-their nested views are opened. The renderer currently requests only the fixed
-`search` layout through `command-center:set-layout`; main owns the actual
-BrowserWindow bounds so the renderer cannot set arbitrary window geometry.
-Command Center universal search uses the narrow
-`command-center:search-native-index` channel. The renderer may send only a
-bounded search expression; main parses a fixed source/filter grammar and never
-accepts SQL, Windows Search property names, filesystem scopes, or paths. Existing
-app/window/settings/chat results render first while indexed files and folders
-arrive progressively. On Windows, main owns a lazy hidden Windows PowerShell
-helper process that keeps one read-only `Search.CollatorDSO` / `SystemIndex`
-connection and exchanges bounded JSONL requests. It starts when Command Center
-is shown, is destroyed with Command Center runtime caches, and never crawls the
-filesystem or changes Windows indexing configuration. File rows expose only
-opaque IDs and display metadata; main keeps a short-lived opaque-ID-to-path cache
-and resolves open, reveal, and copy actions itself. If Windows Search is disabled,
-stopped, unavailable, or times out, the file source returns an explicit diagnostic
-and no fallback. Search learning is main-owned, capped and decayed, and uses a
-secure-storage-backed HMAC key so the learning file contains neither raw queries
-nor target paths.
-GitHub Workspace is a first-party nested Command Center surface entered through
-the fixed `github-workspace` action. It stays within the compact overlay and
-uses the dedicated `window.githubWorkspace` preload bridge. The UI is GitHub
-Desktop–inspired: commit summary lives in the Command Center top bar (same row
-as the back control) with Commit on the far right when a repository is open;
-File Changes / History sidebar with detail pane; footer is left (logo, branch/
-worktree menu, fetch, push/pull) and right (repository picker, account). Branch, repository, and file Actions use the shared `ActionsMenu` template
-(`src/components/ui/actions-menu.tsx`) on the unanimous `zura-menu-*` surface so
-GitHub pickers match the rest of the app. The branch control opens local branches
-(checkout) and git worktrees (switch workspace)—it must not open the OS folder.
-Network ops show busy labels (Fetching… / Pushing… / Pulling…) on the footer
-controls. Commit stages only checked files (all changes are checked by default;
-uncheck to exclude). Network fetch/pull/push authenticate to github.com via a
-per-invocation `http.https://github.com/.extraheader` basic token (not
-GIT_ASKPASS), and push sets `-u origin <branch>` when no upstream exists.
-Commit-message AI is not wired to GitHub Desktop/Copilot private endpoints; any
-future generate action must use the user's Zura providers only. Repository rows
-are grouped by Recent and by GitHub owner when `origin` is a github.com remote.
-Add-repository folder dialogs are parented to the Command Center window so they
-are not buried under the always-on-top overlay. The renderer sends only repository/change IDs, bounded commit text, and
-allowlisted mutations; main resolves repository paths and executes Git with the
-app-bundled `dugite` runtime. External open uses the narrow
-`github-workspace:open` channel with allowlisted targets only (`file`, `reveal`,
-`repository`): the renderer never supplies filesystem paths. Main resolves the
-path from the stored repository plus change list, rejects path traversal, then
-calls `shell.openPath` or `shell.showItemInFolder`. Main always sets dugite's `LOCAL_GIT_DIRECTORY` to
-the real `node_modules/dugite/git` (or `app.asar.unpacked/node_modules/dugite/git`
-when packaged) before `exec`, because Vite-bundled `__dirname` breaks dugite's
-default embedded-git resolution (ENOENT). `dugite` is also left external in the
-main-process Vite build for the same reason, and `asarUnpack` includes
-`node_modules/dugite/git/**`. Repository metadata is stored in
-`app.getPath('userData')/github-workspace-repositories.json`; GitHub Desktop's
-private storage is never read. GitHub.com authentication uses a ZuraAI-owned
-code-owned public OAuth client ID (optionally overridden by
-`ZURA_GITHUB_OAUTH_CLIENT_ID`) and GitHub Device Flow. Main requests and polls
-the fixed GitHub device endpoints at the server-provided interval; no client
-secret or callback protocol is used. The requested scopes are `repo`,
-`read:user`, and `workflow`; `workflow` is retained because the product may push
-changes under `.github/workflows`. Authenticated
-HTTPS Git operations use a main-owned askpass helper containing no secret; the
-token is supplied only in the bundled Git child process environment with
-terminal prompting disabled, and the helper file is deleted in `finally` after
-every operation. Disconnect and uninstall clear the local encrypted token and
-open the OAuth application's GitHub authorization page so the user can revoke
-the server-side grant without ZuraAI possessing a client secret. The current
-workspace supports local repository registration, status, file selection,
-textual diffs, history, commits, and serialized fetch/pull/push. The bundled Git
-directory is unpacked from ASAR for release execution. The surface is
-ZuraAI-branded and must not imply it is the official GitHub Desktop application.
-Agent Mode renderer-local tool-call approvals use the narrow
-`agent-approval:request` channel to show a main-owned always-on-top approval
-overlay near the active desktop. The renderer sends only sanitized display
-metadata for the pending tool call (`id`, title, summary, tool name, kind, and
-formatted argument rows). Main returns only an approval decision and optional
-exact-repeat trust flag; it must not execute the tool, persist trust, accept raw
-commands for execution, or expose a generic notification/overlay API. Exact
-tool-call trust remains renderer-owned localStorage state.
-When the assistant is in Agent Mode, the renderer may expose existing app/window
-tools for app discovery/launch and window focus
-(`app_find`, `app_list`, `app_launch`, `window_list`, `window_focus`). Chat mode
-may still open the fixed Command Center overlay and run its fixed direct action
-allowlist, but must not expose model-callable OS tools through Command Center.
-The overlay currently accepts typed search and fixed indexed actions only; it does
-not submit freeform prompts or start assistant runs. Do not include app install/uninstall, file
-mutation, arbitrary window movement/close, or shell execution in that Command
-Center exposure set without an explicit architecture update. The internal
-Command Center capability has a code-owned
-`src/prompts/defaultCommandCenterPrompt.ts` prompt that is injected while Agent
-Mode is active.
+Installed-app discovery used by `app_find`, `app_list`, and `app_launch` remains main-owned in `electron/appIndexService.ts`. Its non-secret snapshot is stored as `app-index.json` under `app.getPath('userData')`; Windows and macOS refresh from bounded platform-owned application sources, and the renderer/model never provides launch authority. The service may use local launch counts and platform usage metadata for app ranking, but no raw launcher queries or search-learning HMAC data are collected.
 
-### CORS / Provider Proxy
+The removed Command Center architecture included a second renderer/window, global shortcuts, workflows, Windows Search helper, emoji insertion, search learning, the manifest-based Zura Store extension runtime, and GitHub Workspace. Their IPC/preload bridges, packaged resources, CLI authoring commands, OAuth/token storage, repository storage, and extension storage are no longer part of the application. Existing orphaned files from older installations are not read or migrated.
 
-- `electron/main.ts` has a narrow CORS header handler for known provider domains that lack browser CORS headers, currently including NVIDIA NIM.
-- OpenCode Go uses a narrow main-process proxy constrained to `https://opencode.ai/zen/go/*`.
-- Do not add arbitrary HTTP proxying or all-domain CORS bypasses.
+### Provider Network Boundary
+
+- Production provider chat streams, lightweight title/memory generations, authenticated model catalogs, connectivity checks, and Ollama discovery run in main through `window.providerRuntime`.
+- `provider-runtime:start` streams sanitized events tagged by an opaque request ID. `provider-runtime:generate` and `provider-runtime:list-models` are bounded operations; `provider-runtime:cancel` can cancel only a request owned by the calling renderer. ChatGPT account actions are narrow, argument-free `provider-runtime:codex-sign-in`, `provider-runtime:codex-auth-status`, and `provider-runtime:codex-sign-out` channels.
+- Main resolves provider credentials immediately before the request. Provider keys never appear in provider runtime requests, events, catalog results, or renderer settings.
+- Ollama URLs are restricted in main to loopback HTTP(S) addresses without credentials, query strings, or fragments. Alibaba endpoints are selected from the fixed Singapore, US (Virginia), and China (Beijing) regional allowlist.
+- There is no provider HTTP proxy or renderer CORS bypass. Do not add arbitrary URLs, headers, or methods to the provider runtime bridge.
+- ChatGPT Codex is a main-only OAuth/HTTP exception. An explicit Settings click starts a five-minute PKCE browser flow using the fixed OpenAI Codex public client, a loopback-only callback on port 1455, exact state validation, and OS-encrypted token persistence. The transport uses Vercel AI SDK 7 plus `@ai-sdk/openai`, rewrites only `POST https://api.openai.com/v1/responses` to the fixed `https://chatgpt.com/backend-api/codex/responses` endpoint, strips unsupported `metadata`/`max_output_tokens`, sets `store: false`, injects account auth in main, disables SDK retries, and rejects every other URL/method. Account-aware models come only from the fixed `/backend-api/codex/models` endpoint. This unofficial subscription path is for local/personal use, supports text/reasoning only in ZuraAI, receives no Zura tool definitions, and must not become a broad ChatGPT proxy or second tool-execution loop.
 
 ### Tools
 
@@ -605,7 +332,7 @@ Important tool rules:
 - Agent mode should prefer native structured tools before visual Computer Use and verify mutating actions with read-only inspection where possible.
 - Terminal (`system_shell`) is Windows-only, default disabled, non-interactive PowerShell with approval, timeout, output caps, and no OS sandbox. Treat any relaxation as security-sensitive.
 - Computer Use is Windows-only, default disabled, current-desktop only. Screenshot/list-window capture uses Electron desktop APIs, while click/type/key/scroll/cursor actions use a fixed main-process User32 PowerShell helper with validated coordinates and allowlisted virtual keys. Do not reintroduce a separate virtual desktop mode, `agent_desktop` settings, or `agent-desktop:*` IPC.
-- Command Center supports Windows and macOS and opens in both Chat and Agent modes. Its fixed overlay commands remain available in either mode, while model-callable desktop tools and freeform desktop requests are Agent Mode capabilities. It provides active-window context plus narrow OS actions such as OS-default path opening and snap layouts. macOS foreground capture uses the fixed native AppKit binding; focus restoration, paste, and layout actions may use bounded code-owned AppleScript after user action, and never accept script source from the renderer. It must not become arbitrary shell execution, input simulation, clipboard scraping, or broad OS automation.
+- Desktop OS integration is an Agent Mode tool capability, not a launcher surface. It provides active-window context plus narrow OS actions such as OS-default path opening and snap layouts. macOS integration uses bounded code-owned platform calls and never accepts script source from the renderer. It must not become arbitrary shell execution, background clipboard scraping, or broad unapproved OS automation.
 - Agent Mode UI automation is Windows-only and uses a model-facing `ui_*` tool family over the existing restricted `execute-tool` IPC path. `ui_get_app_state` is the primary observation primitive and returns a screenshot, active-window metadata, a compact Microsoft UI Automation accessibility tree, stable main-owned `element_id` values, supported actions, bounds, and truncation metadata. `ui_find` searches the latest/requested state, and `ui_wait_for` waits for bounded UI conditions. Mutating `ui_click`, `ui_type_text`, `ui_set_value`, `ui_select`, `ui_scroll`, `ui_focus`, and `ui_key` require approval and return fresh state after execution. Element IDs are opaque, cached only in main, and should be preferred over coordinate actions; coordinate-based `computer_*` tools remain fallback/legacy Computer Use primitives.
 - MCP resources and prompts are user-visible browsing/preview surfaces only; do not merge them into model-callable tools without an explicit architecture update.
 
@@ -613,10 +340,16 @@ Important tool rules:
 
 - Provider metadata/capabilities live in `src/providers/providerRegistry.ts`.
 - Shared runtime dispatch lives in `src/providers/providerRuntime.ts`.
+- Platform-neutral contracts, typed errors, strict tool validation, and lossless usage aggregation live in the private `packages/provider-core` package.
 - Provider service files own request shaping and stream parsing only.
-- OpenRouter-compatible tool-call parsing/recovery lives in `src/tools/adapters/openrouterToolCalls.ts`.
+- The ChatGPT Codex adapter lives in `electron/providers/codexProvider.ts` because OAuth credentials, refresh serialization, fixed-host request rewriting, and account headers are main-only concerns. It is intentionally excluded from renderer/shared HTTP dispatch and from the platform-neutral provider SDK package.
+- SSE providers use `eventsource-parser` and fail visibly on malformed events; NDJSON parsing also fails rather than dropping malformed records.
+- Only native provider tool calls are executable. XML/DSML-like text is stripped from display and logged for diagnostics, but is never repaired into a tool call.
+- Tool arguments are parsed once and validated with Ajv against the complete declared JSON Schema before execution. Do not coerce, remove, or invent arguments.
+- Usage aggregates every model round (including tool/research rounds) without dropping cache, image, audio, cost, or request-count fields. Estimated usage must be marked `estimated`.
+- Alibaba's picker is a small versioned catalog derived from documented models; never scrape private Model Studio page payloads or send a credential to a documentation page.
 - New providers must define auth, model enablement, capabilities, title/memory support, streaming behavior, and storage/secrets boundaries explicitly.
-- Do not hardcode real model IDs/names in runtime code. Models are user-configured and resolved from settings plus provider registry metadata. Tests should use clearly fake IDs.
+- Do not hardcode real model IDs/names in runtime dispatch. A documented, dated curated catalog may contain model IDs when the provider has no supported model-list endpoint. Tests should otherwise use clearly fake IDs.
 - Provider-level enablement is independent from API key presence; model pickers should list only manually enabled providers and models where `enabled !== false`.
 - DeepSeek reasoning is user-controlled per model; do not infer capability or add fallback reasoning behavior.
 
@@ -647,6 +380,7 @@ Important tool rules:
 ### Desktop Release
 
 - Packaging uses `electron-builder` (`package.json#build`).
+- ChatGPT Codex uses JavaScript-only `ai` and `@ai-sdk/openai` dependencies; no Codex executable or platform-specific `@openai/codex-*` package is shipped or unpacked.
 - `npmRebuild` is `false`; packaging should use installable/prebuilt native dependencies and should not require local Visual Studio Build Tools just to rebuild optional native dependencies.
 - `package.json#build.electronDist` points at `node_modules/electron/dist`; Windows packaging copies the installed Electron distribution instead of unpacking Electron from the builder cache.
 - `bun run build` emits Windows installer and portable artifacts, then writes `release/checksums.txt`.

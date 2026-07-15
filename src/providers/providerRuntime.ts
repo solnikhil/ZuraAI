@@ -3,6 +3,7 @@ import {
   streamAlibabaCompletion,
   type AlibabaResponse,
 } from '../services/alibaba'
+import { getAlibabaBaseUrl } from '../services/alibabaEndpoints'
 import {
   generateDeepSeekCompletion,
   streamDeepSeekCompletion,
@@ -39,8 +40,10 @@ import type { SettingsConfig } from '../contexts/SettingsConfigContext'
 import {
   DEFAULT_OLLAMA_URL,
   getProviderDefinition,
+  getProviderRetryPolicy,
   resolveProviderForModel,
 } from './providerRegistry'
+import { ProviderError, toProviderError } from '@zura/provider-core'
 import { getProviderSettingsDefinition } from './providerSettingsRegistry'
 import type { ActiveProviderId } from './providerTypes'
 import { shapePromptCacheRequest } from './promptCaching'
@@ -54,7 +57,6 @@ import {
   type ProviderRuntimeStreamRequest as StreamRequest,
 } from './providerRuntimeTypes'
 import { getOpenRouterApiKey } from '../utils/openRouterKey'
-import { resolveProviderApiKeysForSettings } from '../utils/secureApiKeys'
 
 function extractOpenRouterReasoningDelta(
   reasoningDetails:
@@ -113,6 +115,7 @@ type OpenAiCompatibleResponse =
 type TitleGenerationSettings = Pick<
   StreamingSettings,
   | 'alibabaApiKey'
+  | 'alibabaRegion'
   | 'deepseekApiKey'
   | 'opencodeGoApiKey'
   | 'fireworksApiKey'
@@ -142,15 +145,6 @@ export function extractTitleTextFromMessage(message: unknown): string {
       .join('')
       .trim()
     if (joined) return joined
-  }
-
-  // Last-resort net: a reasoning model (e.g. DeepSeek reasoner) can return an
-  // empty `content` while its answer/JSON sits in `reasoning_content` — for
-  // example when the token budget is consumed by reasoning. We only read it
-  // when `content` produced nothing, so this never overrides a real answer.
-  const reasoningContent = record.reasoning_content
-  if (typeof reasoningContent === 'string' && reasoningContent.trim()) {
-    return reasoningContent
   }
 
   return ''
@@ -187,7 +181,7 @@ function normalizeToolCalls(
     | Array<{
         id?: string
         type?: 'function'
-        function?: { name?: string; arguments?: string }
+        function?: { name?: string; arguments?: string | Record<string, unknown> }
       }>
     | undefined
 ): NormalizedToolCallDelta[] {
@@ -197,7 +191,12 @@ function normalizeToolCalls(
     type: 'function',
     function: {
       name: toolCall.function?.name,
-      arguments: toolCall.function?.arguments,
+      arguments:
+        typeof toolCall.function?.arguments === 'string'
+          ? toolCall.function.arguments
+          : toolCall.function?.arguments
+            ? JSON.stringify(toolCall.function.arguments)
+            : undefined,
     },
   }))
 }
@@ -258,54 +257,10 @@ function normalizeUsage(
   }
 }
 
-const smoothStreamingSleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
-
-function splitForProgressiveStreaming(delta: string): string[] {
-  if (!delta) return []
-  if (delta.length <= 24) return [delta]
-
-  const units = delta.match(/\S+\s*|\s+/g) || [delta]
-  const pieces: string[] = []
-  let buffer = ''
-
-  for (const unit of units) {
-    if ((buffer + unit).length > 12 && buffer.length > 0) {
-      pieces.push(buffer)
-      buffer = unit
-      continue
-    }
-
-    buffer += unit
-  }
-
-  if (buffer) {
-    pieces.push(buffer)
-  }
-
-  return pieces.length > 1 ? pieces : [delta]
-}
-
-async function* yieldProgressiveTextDeltas(
+async function* yieldTextDelta(
   delta: string
 ): AsyncGenerator<NormalizedStreamEvent, void, unknown> {
-  const progressiveDeltas = splitForProgressiveStreaming(delta)
-  for (let index = 0; index < progressiveDeltas.length; index += 1) {
-    yield {
-      type: 'text-delta',
-      delta: progressiveDeltas[index],
-      smoothing:
-        progressiveDeltas.length > 1
-          ? {
-              sourceLength: delta.length,
-              pieceIndex: index,
-              pieceCount: progressiveDeltas.length,
-            }
-          : undefined,
-    }
-    if (progressiveDeltas.length > 1 && index < progressiveDeltas.length - 1) {
-      await smoothStreamingSleep(10)
-    }
-  }
+  if (delta) yield { type: 'text-delta', delta }
 }
 
 async function* emitOpenAiCompatibleResponse(
@@ -332,7 +287,7 @@ async function* emitOpenAiCompatibleResponse(
   }
 
   if (content) {
-    yield* yieldProgressiveTextDeltas(content)
+    yield* yieldTextDelta(content)
   }
 
   const toolCalls = normalizeToolCalls(
@@ -381,7 +336,7 @@ async function* emitOllamaResponse(
   }
 
   if (response.message?.content) {
-    yield* yieldProgressiveTextDeltas(response.message.content)
+    yield* yieldTextDelta(response.message.content)
   }
 
   if (
@@ -425,6 +380,9 @@ function getProviderCredential(
   settings: TitleGenerationSettings | StreamingSettings,
   provider: ActiveProviderId
 ): string {
+  if (provider === 'codex') {
+    throw new Error('ChatGPT Codex is available only through the Electron main-process runtime.')
+  }
   if (provider === 'ollama') {
     return settings.ollamaUrl?.trim() || DEFAULT_OLLAMA_URL
   }
@@ -465,6 +423,38 @@ interface LightweightGenerationOptions {
   jsonMode?: boolean
 }
 
+async function generateProviderTextThroughMain(
+  settings: TitleGenerationSettings,
+  provider: ActiveProviderId,
+  model: string,
+  prompt: string,
+  options: LightweightGenerationOptions
+): Promise<string> {
+  const bridge = window.providerRuntime
+  if (!bridge) throw new Error('The provider runtime bridge is unavailable in Electron.')
+  const requestId = crypto.randomUUID()
+  const cancel = () => void bridge.cancel(requestId)
+  if (options.signal?.aborted) {
+    throw options.signal.reason ?? new DOMException('Aborted', 'AbortError')
+  }
+  options.signal?.addEventListener('abort', cancel, { once: true })
+  try {
+    return await bridge.generate({
+      requestId,
+      provider,
+      model,
+      prompt,
+      maxTokens: options.maxTokens,
+      jsonMode: options.jsonMode,
+      ollamaUrl: settings.ollamaUrl,
+      alibabaRegion: settings.alibabaRegion,
+    })
+  } finally {
+    options.signal?.removeEventListener('abort', cancel)
+    void bridge.cancel(requestId)
+  }
+}
+
 export async function generateProviderTitleText(
   settings: TitleGenerationSettings,
   provider: ActiveProviderId,
@@ -472,11 +462,19 @@ export async function generateProviderTitleText(
   prompt: string,
   generationOptions: LightweightGenerationOptions = {}
 ): Promise<string> {
-  const resolvedSettings = await resolveProviderApiKeysForSettings(settings, provider)
+  if (typeof window !== 'undefined' && window.providerRuntime) {
+    return generateProviderTextThroughMain(settings, provider, model, prompt, generationOptions)
+  }
+  if (typeof window !== 'undefined' && window.ipcRenderer) {
+    throw new Error('The provider runtime bridge is unavailable in Electron.')
+  }
+  const resolvedSettings = settings
   const normalizedModel = normalizeProviderModel(provider, model)
   const messages: ChatMessage[] = [{ role: 'user', content: prompt }]
 
   switch (provider) {
+    case 'codex':
+      throw new Error('ChatGPT Codex is available only through the Electron main-process runtime.')
     case 'groq': {
       const options = { signal: generationOptions.signal, max_tokens: generationOptions.maxTokens }
       const result = await generateGroqCompletion(
@@ -506,6 +504,7 @@ export async function generateProviderTitleText(
         enableThinking: false,
         signal: generationOptions.signal,
         max_tokens: generationOptions.maxTokens,
+        baseUrl: getAlibabaBaseUrl(resolvedSettings.alibabaRegion),
       }
       const result = await generateAlibabaCompletion(
         getProviderCredential(resolvedSettings, provider),
@@ -591,6 +590,7 @@ export async function generateTitleTextForModel(
         | 'groqModels'
         | 'nvidiaModels'
         | 'alibabaModels'
+        | 'codexModels'
         | 'fireworksModels'
         | 'deepseekModels'
         | 'opencodeModels'
@@ -614,13 +614,15 @@ export async function generateTitleTextForModel(
   )
 }
 
-export async function* streamProviderEvents(
+async function* streamProviderEventsOnce(
   settings: StreamingSettings,
   request: StreamRequest
 ): AsyncGenerator<NormalizedStreamEvent, void, unknown> {
   const normalizedModel = normalizeProviderModel(request.provider, request.model)
 
   switch (request.provider) {
+    case 'codex':
+      throw new Error('ChatGPT Codex is available only through the Electron main-process runtime.')
     case 'openrouter': {
       const apiKey = getProviderCredential(settings, 'openrouter')
       if (request.streamResponses === false) {
@@ -654,7 +656,7 @@ export async function* streamProviderEvents(
       )) {
         const delta = chunk.choices?.[0]?.delta?.content || ''
         if (delta) {
-          yield* yieldProgressiveTextDeltas(delta)
+          yield* yieldTextDelta(delta)
         }
 
         const reasoningDetails = chunk.choices?.[0]?.delta?.reasoning_details
@@ -712,7 +714,7 @@ export async function* streamProviderEvents(
         signal: request.signal,
       })) {
         const delta = chunk.choices?.[0]?.delta?.content || ''
-        if (delta) yield* yieldProgressiveTextDeltas(delta)
+        if (delta) yield* yieldTextDelta(delta)
         if (chunk.choices?.[0]?.delta?.tool_calls?.length) {
           yield { type: 'tool-call-delta', delta: chunk.choices[0].delta.tool_calls }
         }
@@ -769,7 +771,7 @@ export async function* streamProviderEvents(
         }
 
         const delta = chunk.choices?.[0]?.delta?.content || ''
-        if (delta) yield* yieldProgressiveTextDeltas(delta)
+        if (delta) yield* yieldTextDelta(delta)
         if (chunk.choices?.[0]?.delta?.tool_calls?.length) {
           yield { type: 'tool-call-delta', delta: chunk.choices[0].delta.tool_calls }
         }
@@ -814,7 +816,7 @@ export async function* streamProviderEvents(
         }
 
         const delta = chunk.choices?.[0]?.delta?.content || ''
-        if (delta) yield* yieldProgressiveTextDeltas(delta)
+        if (delta) yield* yieldTextDelta(delta)
         if (chunk.choices?.[0]?.delta?.tool_calls?.length) {
           yield { type: 'tool-call-delta', delta: chunk.choices[0].delta.tool_calls }
         }
@@ -840,6 +842,7 @@ export async function* streamProviderEvents(
             toolChoice: request.toolChoice,
             signal: request.signal,
             enableThinking: request.enableThinking,
+            baseUrl: getAlibabaBaseUrl(settings.alibabaRegion),
           }
         )
         yield* emitOpenAiCompatibleResponse(response, {
@@ -867,6 +870,7 @@ export async function* streamProviderEvents(
           toolChoice: request.toolChoice,
           signal: request.signal,
           enableThinking: request.enableThinking,
+          baseUrl: getAlibabaBaseUrl(settings.alibabaRegion),
         }
       )) {
         const reasoningDelta = chunk.choices?.[0]?.delta?.reasoning_content
@@ -875,7 +879,7 @@ export async function* streamProviderEvents(
         }
 
         const delta = chunk.choices?.[0]?.delta?.content || ''
-        if (delta) yield* yieldProgressiveTextDeltas(delta)
+        if (delta) yield* yieldTextDelta(delta)
         if (chunk.choices?.[0]?.delta?.tool_calls?.length) {
           yield { type: 'tool-call-delta', delta: chunk.choices[0].delta.tool_calls }
         }
@@ -933,7 +937,7 @@ export async function* streamProviderEvents(
         }
 
         const delta = chunk.choices?.[0]?.delta?.content || ''
-        if (delta) yield* yieldProgressiveTextDeltas(delta)
+        if (delta) yield* yieldTextDelta(delta)
         if (chunk.choices?.[0]?.delta?.tool_calls?.length) {
           yield { type: 'tool-call-delta', delta: chunk.choices[0].delta.tool_calls }
         }
@@ -985,7 +989,7 @@ export async function* streamProviderEvents(
         }
       )) {
         const delta = chunk.choices?.[0]?.delta?.content || ''
-        if (delta) yield* yieldProgressiveTextDeltas(delta)
+        if (delta) yield* yieldTextDelta(delta)
         if (chunk.choices?.[0]?.delta?.tool_calls?.length) {
           yield { type: 'tool-call-delta', delta: chunk.choices[0].delta.tool_calls }
         }
@@ -1007,7 +1011,7 @@ export async function* streamProviderEvents(
           request.messages,
           {
             temperature: request.temperature,
-            think: true,
+            think: request.enableThinking,
             tools: request.tools || undefined,
             signal: request.signal,
           }
@@ -1016,69 +1020,103 @@ export async function* streamProviderEvents(
         return
       }
 
-      try {
-        for await (const chunk of streamOllamaCompletion(
-          baseUrl,
-          normalizedModel,
-          request.messages,
-          {
-            temperature: request.temperature,
-            think: true,
-            tools: request.tools || undefined,
-            signal: request.signal,
-          }
-        )) {
-          const thinkingDelta = chunk.message?.thinking || ''
-          if (thinkingDelta) yield { type: 'reasoning-delta', delta: thinkingDelta }
+      for await (const chunk of streamOllamaCompletion(baseUrl, normalizedModel, request.messages, {
+        temperature: request.temperature,
+        think: request.enableThinking,
+        tools: request.tools || undefined,
+        signal: request.signal,
+      })) {
+        const thinkingDelta = chunk.message?.thinking || ''
+        if (thinkingDelta) yield { type: 'reasoning-delta', delta: thinkingDelta }
 
-          const delta = chunk.message?.content || ''
-          if (delta) yield* yieldProgressiveTextDeltas(delta)
+        const delta = chunk.message?.content || ''
+        if (delta) yield* yieldTextDelta(delta)
 
-          const toolCalls = (
-            chunk.message as {
-              tool_calls?: Array<{
-                id?: string
-                function?: { name?: string; arguments?: string }
-              }>
-            }
-          )?.tool_calls
-          if (toolCalls?.length) {
-            yield { type: 'tool-call-delta', delta: normalizeToolCalls(toolCalls) }
+        const toolCalls = (
+          chunk.message as {
+            tool_calls?: Array<{
+              id?: string
+              function?: { name?: string; arguments?: Record<string, unknown> }
+            }>
           }
-
-          if (chunk.done) {
-            yield {
-              type: 'usage',
-              usage: {
-                inputTokens: chunk.prompt_eval_count || 0,
-                outputTokens: chunk.eval_count || 0,
-                totalTokens: (chunk.prompt_eval_count || 0) + (chunk.eval_count || 0),
-              },
-              rawUsage: {
-                prompt_eval_count: chunk.prompt_eval_count,
-                eval_count: chunk.eval_count,
-              },
-            }
-            yield { type: 'finish', finishReason: 'stop' }
-          }
+        )?.tool_calls
+        if (toolCalls?.length) {
+          yield { type: 'tool-call-delta', delta: normalizeToolCalls(toolCalls) }
         }
-      } catch (error) {
-        if ((error as Error).name === 'AbortError') throw error
 
-        const response = await generateOllamaCompletion(
-          baseUrl,
-          normalizedModel,
-          request.messages,
-          {
-            temperature: request.temperature,
-            think: true,
-            tools: request.tools || undefined,
-            signal: request.signal,
+        if (chunk.done) {
+          yield {
+            type: 'usage',
+            usage: {
+              inputTokens: chunk.prompt_eval_count || 0,
+              outputTokens: chunk.eval_count || 0,
+              totalTokens: (chunk.prompt_eval_count || 0) + (chunk.eval_count || 0),
+            },
+            rawUsage: {
+              prompt_eval_count: chunk.prompt_eval_count,
+              eval_count: chunk.eval_count,
+            },
           }
-        )
-        yield* emitOllamaResponse(response)
+          yield { type: 'finish', finishReason: 'stop' }
+        }
       }
       return
+    }
+  }
+}
+
+function waitForRetry(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(signal.reason ?? new DOMException('Aborted', 'AbortError'))
+      return
+    }
+    const timeout = setTimeout(resolve, ms)
+    signal?.addEventListener(
+      'abort',
+      () => {
+        clearTimeout(timeout)
+        reject(signal.reason ?? new DOMException('Aborted', 'AbortError'))
+      },
+      { once: true }
+    )
+  })
+}
+
+export async function* streamProviderEvents(
+  settings: StreamingSettings,
+  request: StreamRequest
+): AsyncGenerator<NormalizedStreamEvent, void, unknown> {
+  const policy = getProviderRetryPolicy(request.provider)
+  // OpenRouter already performs its pre-stream retry inside the transport.
+  const maxRetries = request.provider === 'openrouter' ? 0 : policy.maxRetries
+
+  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+    let emitted = false
+    try {
+      for await (const event of streamProviderEventsOnce(settings, request)) {
+        emitted = true
+        yield event
+      }
+      return
+    } catch (error) {
+      const providerError = toProviderError(error, request.provider)
+      const canRetry =
+        !emitted && !request.signal?.aborted && providerError.retryable && attempt < maxRetries
+      if (!canRetry) {
+        if (emitted && providerError instanceof ProviderError) {
+          throw new ProviderError({
+            ...providerError.serialize(),
+            partialResponse: true,
+            cause: providerError,
+          })
+        }
+        throw providerError
+      }
+
+      const exponential = policy.initialBackoffMs * Math.pow(policy.backoffMultiplier, attempt)
+      const jittered = Math.round(exponential * (0.8 + Math.random() * 0.4))
+      await waitForRetry(Math.min(providerError.retryAfterMs ?? jittered, 30_000), request.signal)
     }
   }
 }

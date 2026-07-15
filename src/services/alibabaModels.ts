@@ -1,5 +1,4 @@
 import type { ConfiguredModel } from '../contexts/SettingsConfigContext'
-import { getProviderEndpoint } from '../providers'
 
 export interface AlibabaCatalogModel {
   id: string
@@ -17,63 +16,79 @@ export interface AlibabaCatalogModel {
   supportsVideoRecognition?: boolean
 }
 
-interface AlibabaCatalogPageModel {
-  modelId?: string
-  name?: string
-  feature?: string
-  description?: string
-  modelType?: string
-  launchDate?: string
-  order?: string
-}
-
-const ALIBABA_MODEL_CATALOG_URL =
-  getProviderEndpoint('alibaba', 'modelCatalogUrl') ?? 'https://modelstudio.alibabacloud.com/'
-
-const NEXT_FLIGHT_PAYLOAD_PATTERN = /self\.__next_f\.push\(\[1,"([\s\S]*?)"\]\)/g
-const QWEN_REASONING_PATTERNS = [/\breason(?:ing)?\b/i, /\bthinking\b/i, /\bmax\b/i, /\bqwq\b/i]
-
-function decodeNextFlightPayload(payload: string): unknown {
-  try {
-    const decoded = JSON.parse(`"${payload}"`) as string
-    const colonIndex = decoded.indexOf(':')
-    const jsonPayload = colonIndex >= 0 ? decoded.slice(colonIndex + 1).trim() : decoded.trim()
-    return JSON.parse(jsonPayload)
-  } catch {
-    return null
-  }
-}
-
-function parseCatalogPayload(html: string): AlibabaCatalogPageModel[] {
-  const models: AlibabaCatalogPageModel[] = []
-
-  for (const match of html.matchAll(NEXT_FLIGHT_PAYLOAD_PATTERN)) {
-    const payload = decodeNextFlightPayload(match[1] ?? '')
-    if (!Array.isArray(payload) || payload.length < 4) continue
-
-    const payloadData = payload[3]
-    if (!payloadData || typeof payloadData !== 'object' || !('data' in payloadData)) continue
-
-    const groupedData = (payloadData as { data?: Record<string, AlibabaCatalogPageModel[]> }).data
-    if (!groupedData || typeof groupedData !== 'object') continue
-
-    const pageModels = Object.values(groupedData)
-      .flat()
-      .filter((model): model is AlibabaCatalogPageModel =>
-        Boolean(model && typeof model === 'object' && model.modelId && model.name)
-      )
-
-    if (pageModels.length > 0) {
-      models.push(...pageModels)
-    }
-  }
-
-  return models
-}
+/**
+ * Alibaba does not document an OpenAI-compatible model-list endpoint. Keep the
+ * picker deliberately small and versioned instead of scraping Model Studio's
+ * private Next.js payload or guessing capabilities from marketing copy.
+ *
+ * Sources reviewed 2026-07-15:
+ * - https://www.alibabacloud.com/help/en/model-studio/models
+ * - https://www.alibabacloud.com/help/en/model-studio/qwen-function-calling
+ * - https://www.alibabacloud.com/help/en/model-studio/deep-thinking
+ */
+export const ALIBABA_CURATED_MODELS: readonly AlibabaCatalogModel[] = Object.freeze([
+  {
+    id: 'qwen3.7-max',
+    displayName: 'Qwen3.7-Max',
+    description: 'Flagship Qwen text model with hybrid thinking and function calling.',
+    category: 'Text generation',
+    maxContext: 1_000_000,
+    inputModalities: ['text'],
+    outputModalities: ['text'],
+    supportsToolCall: true,
+    supportsVision: false,
+    supportsDeepThinking: true,
+  },
+  {
+    id: 'qwen3.7-plus',
+    displayName: 'Qwen3.7-Plus',
+    description: 'General-purpose Qwen model with vision, hybrid thinking, and function calling.',
+    category: 'Multimodal generation',
+    inputModalities: ['text', 'image'],
+    outputModalities: ['text'],
+    supportsToolCall: true,
+    supportsVision: true,
+    supportsDeepThinking: true,
+  },
+  {
+    id: 'qwen3.6-flash',
+    displayName: 'Qwen3.6-Flash',
+    description: 'Cost-efficient Qwen text model with hybrid thinking and function calling.',
+    category: 'Text generation',
+    inputModalities: ['text'],
+    outputModalities: ['text'],
+    supportsToolCall: true,
+    supportsVision: false,
+    supportsDeepThinking: true,
+  },
+  {
+    id: 'qwen3.5-omni-plus',
+    displayName: 'Qwen3.5-Omni-Plus',
+    description: 'Multimodal Qwen model for text, image, audio, and video understanding.',
+    category: 'Multimodal generation',
+    inputModalities: ['text', 'image', 'audio', 'video'],
+    outputModalities: ['text'],
+    supportsToolCall: true,
+    supportsVision: true,
+    supportsDeepThinking: false,
+    supportsVideoRecognition: true,
+  },
+  {
+    id: 'qwen3-vl-plus',
+    displayName: 'Qwen3-VL-Plus',
+    description: 'Vision-language Qwen model with documented function-calling support.',
+    category: 'Visual understanding',
+    inputModalities: ['text', 'image', 'video'],
+    outputModalities: ['text'],
+    supportsToolCall: true,
+    supportsVision: true,
+    supportsDeepThinking: false,
+    supportsVideoRecognition: true,
+  },
+])
 
 function normalizeSearchText(value: string | undefined): string {
   if (!value) return ''
-
   return value
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, ' ')
@@ -81,133 +96,8 @@ function normalizeSearchText(value: string | undefined): string {
     .trim()
 }
 
-function inferContextFromText(...values: Array<string | undefined>): number | undefined {
-  const haystack = values.filter(Boolean).join(' ')
-
-  const millionMatch = haystack.match(/\b(\d+(?:\.\d+)?)\s*m(?:illion)?[- ]context\b/i)
-  if (millionMatch) {
-    const value = Number.parseFloat(millionMatch[1] ?? '')
-    if (Number.isFinite(value) && value > 0) {
-      return Math.round(value * 1_000_000)
-    }
-  }
-
-  const thousandMatch = haystack.match(/\b(\d+(?:\.\d+)?)\s*k[- ]context\b/i)
-  if (thousandMatch) {
-    const value = Number.parseFloat(thousandMatch[1] ?? '')
-    if (Number.isFinite(value) && value > 0) {
-      return Math.round(value * 1_000)
-    }
-  }
-
-  return undefined
-}
-
-function uniqueModalities(...groups: Array<string[] | undefined>): string[] {
-  return [...new Set(groups.flat().filter((value): value is string => Boolean(value)))]
-}
-
-function inferCapabilities(
-  model: AlibabaCatalogPageModel
-): Omit<
-  AlibabaCatalogModel,
-  'id' | 'displayName' | 'description' | 'category' | 'launchDate' | 'maxContext'
-> {
-  const featureText = model.feature ?? ''
-  const description = model.description ?? ''
-  const name = model.name ?? ''
-  const combined = `${name} ${featureText} ${description}`
-
-  const hasVisualUnderstanding =
-    /\bvisual\b/i.test(featureText) ||
-    /\bvision-language\b/i.test(description) ||
-    /\bnative multimodal\b/i.test(description)
-  const hasVideoUnderstanding = /\bvideo analysis\b/i.test(description)
-  const hasImageGeneration =
-    /\bimage generation\b/i.test(featureText) ||
-    /\bimage edit\b/i.test(featureText) ||
-    /\btext to image\b/i.test(description)
-  const hasToolUse =
-    /\btool interaction/i.test(description) ||
-    /\bagentic coding\b/i.test(description) ||
-    /\bcoding\b/i.test(featureText)
-  const hasReasoning = QWEN_REASONING_PATTERNS.some((pattern) => pattern.test(combined))
-
-  const inputModalities = uniqueModalities(
-    ['text'],
-    hasVisualUnderstanding || hasImageGeneration || hasVideoUnderstanding ? ['image'] : undefined,
-    hasVideoUnderstanding ? ['video'] : undefined
-  )
-  const outputModalities = uniqueModalities(
-    hasImageGeneration ? ['image'] : undefined,
-    !hasImageGeneration ? ['text'] : undefined
-  )
-
-  return {
-    inputModalities,
-    outputModalities,
-    supportsToolCall: hasToolUse,
-    supportsVision: hasVisualUnderstanding || hasImageGeneration || hasVideoUnderstanding,
-    supportsDeepThinking: hasReasoning,
-    supportsImageGeneration: hasImageGeneration,
-    supportsVideoRecognition: hasVideoUnderstanding,
-  }
-}
-
-function compareCatalogModels(a: AlibabaCatalogPageModel, b: AlibabaCatalogPageModel): number {
-  const orderA = Number.parseFloat(a.order ?? '')
-  const orderB = Number.parseFloat(b.order ?? '')
-
-  if (Number.isFinite(orderA) && Number.isFinite(orderB) && orderA !== orderB) {
-    return orderA - orderB
-  }
-
-  return (a.name ?? '').localeCompare(b.name ?? '')
-}
-
-export async function fetchAlibabaModels(apiKey: string): Promise<AlibabaCatalogModel[]> {
-  if (!apiKey?.trim()) {
-    throw new Error('Alibaba API key is required to fetch catalog models.')
-  }
-
-  const response = await fetch(ALIBABA_MODEL_CATALOG_URL, {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'text/html',
-    },
-  })
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch Alibaba models: ${response.status} ${response.statusText}`)
-  }
-
-  const html = await response.text()
-  const rawModels = parseCatalogPayload(html)
-
-  if (rawModels.length === 0) {
-    throw new Error('Alibaba catalog did not expose any models in the expected page payload.')
-  }
-
-  return rawModels
-    .filter((model) => {
-      const modelId = model.modelId?.trim().toLowerCase()
-      const name = model.name?.trim().toLowerCase()
-      return Boolean(modelId?.startsWith('qwen') || name?.startsWith('qwen'))
-    })
-    .sort(compareCatalogModels)
-    .map((model) => {
-      const capabilities = inferCapabilities(model)
-      return {
-        id: model.modelId!.trim(),
-        displayName: model.name!.trim(),
-        description: model.description?.trim(),
-        category: model.modelType?.trim(),
-        launchDate: model.launchDate?.trim(),
-        maxContext: inferContextFromText(model.description, model.feature, model.name),
-        ...capabilities,
-      }
-    })
+export async function fetchAlibabaModels(): Promise<AlibabaCatalogModel[]> {
+  return ALIBABA_CURATED_MODELS.map((model) => ({ ...model }))
 }
 
 export function mapAlibabaModelToConfiguredModel(apiModel: AlibabaCatalogModel): ConfiguredModel {
@@ -247,35 +137,18 @@ export function searchAlibabaModels(
 
   const normalizedQuery = normalizeSearchText(query)
   const queryTokens = normalizedQuery.split(' ').filter(Boolean)
-
   return models.filter((model) => {
     const haystack = normalizeSearchText(
       [model.id, model.displayName, model.description, model.category].filter(Boolean).join(' ')
     )
-
     return (
       haystack.includes(normalizedQuery) || queryTokens.every((token) => haystack.includes(token))
     )
   })
 }
 
-const ALIBABA_THINKING_MODEL_PATTERNS = [/\bqwq[-_]/i, /\bqwen3\.5[-_]/i, /\bqwen3[-_]/i]
-
 export function inferAlibabaSupportsDeepThinking(
-  model:
-    | Pick<ConfiguredModel, 'code' | 'displayName' | 'supportsDeepThinking'>
-    | { code?: string; displayName?: string; supportsDeepThinking?: boolean }
-    | null
-    | undefined
+  model: Pick<ConfiguredModel, 'supportsDeepThinking'> | null | undefined
 ): boolean {
-  if (!model) return false
-  if (model.supportsDeepThinking === true) return true
-
-  const haystack = [model.code, model.displayName]
-    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
-    .join(' ')
-
-  if (!haystack) return false
-
-  return ALIBABA_THINKING_MODEL_PATTERNS.some((pattern) => pattern.test(haystack))
+  return model?.supportsDeepThinking === true
 }

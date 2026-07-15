@@ -7,6 +7,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      '@zura/provider-core': path.resolve(__dirname, './packages/provider-core/src/index.ts'),
       'lucide-react': path.resolve(__dirname, './src/lib/lucide-react.tsx'),
     },
   },
@@ -14,6 +15,11 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
-    include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'electron/**/*.test.ts'],
+    include: [
+      'src/**/*.test.ts',
+      'src/**/*.test.tsx',
+      'electron/**/*.test.ts',
+      'packages/**/*.test.ts',
+    ],
   },
 })

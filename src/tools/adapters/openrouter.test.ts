@@ -158,25 +158,17 @@ describe('convertToOpenRouterFormat', () => {
     )
   })
 
-  it('extracts XML-style fallback tool calls from assistant content', () => {
+  it('strips XML-style pseudo tool calls without making them executable', () => {
     const extracted = extractXmlToolCallsFromContent(
       'Before\n<tool_call>web_search <arg_key>query</arg_key><arg_value>global LGBTQ population statistics</arg_value></tool_call>\nAfter'
     )
 
-    expect(extracted.toolCalls).toEqual([
-      {
-        id: 'content-tool-call-1',
-        name: 'web_search',
-        arguments: {
-          query: 'global LGBTQ population statistics',
-        },
-      },
-    ])
+    expect(extracted.toolCalls).toEqual([])
     expect(extracted.cleanedContent).toBe('Before\n\nAfter')
     expect(extracted.format).toBe('xml')
   })
 
-  it('extracts XML-style tool calls that use tool_name and nested argument tags', () => {
+  it('reports XML tool names for diagnostics without recovering arguments', () => {
     const extracted = extractXmlToolCallsFromContent(
       [
         'Before',
@@ -190,20 +182,13 @@ describe('convertToOpenRouterFormat', () => {
       ].join('\n')
     )
 
-    expect(extracted.toolCalls).toEqual([
-      {
-        id: 'content-tool-call-1',
-        name: 'web_search',
-        arguments: {
-          query: 'latest openrouter tool calling issue',
-        },
-      },
-    ])
+    expect(extracted.toolCalls).toEqual([])
+    expect(extracted.recoveredToolNames).toEqual(['web_search'])
     expect(extracted.cleanedContent).toBe('Before\n\nAfter')
     expect(extracted.format).toBe('xml')
   })
 
-  it('extracts DSML-style tool calls from assistant content', () => {
+  it('strips DSML-style pseudo tool calls without making them executable', () => {
     const extracted = extractInlineToolCallsFromContent(
       [
         'Before',
@@ -218,22 +203,13 @@ describe('convertToOpenRouterFormat', () => {
       ].join('\n')
     )
 
-    expect(extracted.toolCalls).toEqual([
-      {
-        id: 'content-tool-call-1',
-        name: 'web_search',
-        arguments: {
-          query: 'JEE Main registration count 2026',
-          num_results: '5',
-          search_depth: 'advanced',
-        },
-      },
-    ])
+    expect(extracted.toolCalls).toEqual([])
+    expect(extracted.recoveredToolNames).toEqual(['web_search'])
     expect(extracted.cleanedContent).toBe('Before\n\nAfter')
     expect(extracted.format).toBe('dsml')
   })
 
-  it('extracts fullwidth DSML-style tool calls from assistant content', () => {
+  it('strips fullwidth DSML-style pseudo tool calls without executing them', () => {
     const extracted = extractInlineToolCallsFromContent(
       [
         'Before',
@@ -246,15 +222,7 @@ describe('convertToOpenRouterFormat', () => {
       ].join('\n')
     )
 
-    expect(extracted.toolCalls).toEqual([
-      {
-        id: 'content-tool-call-1',
-        name: 'web_search',
-        arguments: {
-          query: 'Kiro brand ambassador welcome kit',
-        },
-      },
-    ])
+    expect(extracted.toolCalls).toEqual([])
     expect(extracted.cleanedContent).toBe('Before\n\nAfter')
     expect(extracted.format).toBe('dsml')
   })

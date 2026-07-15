@@ -168,6 +168,6 @@ describe('nvidia service', () => {
       generateNvidiaCompletion('nvapi-key', 'minimaxai/minimax-m3', [
         { role: 'user', content: 'hello' },
       ])
-    ).rejects.toThrow('500 model failed')
+    ).rejects.toThrow('NVIDIA NIM request failed (500): model failed')
   })
 })

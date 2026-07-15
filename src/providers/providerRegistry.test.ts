@@ -17,6 +17,7 @@ describe('providerRegistry', () => {
   it('includes Fireworks and NVIDIA in the active provider surface', () => {
     expect(getActiveProviderIds()).toEqual([
       'openrouter',
+      'codex',
       'groq',
       'alibaba',
       'deepseek',
@@ -27,6 +28,7 @@ describe('providerRegistry', () => {
     ])
     expect(normalizeActiveProviderId('fireworks')).toBe('fireworks')
     expect(normalizeActiveProviderId('nvidia')).toBe('nvidia')
+    expect(normalizeActiveProviderId('codex')).toBe('codex')
   })
 
   it('resolves endpoints and retry policy from the registry', () => {
@@ -50,6 +52,7 @@ describe('providerRegistry', () => {
     const settings = {
       providerEnabled: {
         openrouter: true,
+        codex: true,
         groq: true,
         alibaba: true,
         deepseek: true,
@@ -63,6 +66,7 @@ describe('providerRegistry', () => {
       nvidiaApiKey: 'nvapi-key',
       ollamaUrl: DEFAULT_OLLAMA_URL,
       configuredModels: [{ code: 'openai/gpt-4.1', displayName: 'GPT-4.1', enabled: true }],
+      codexModels: [{ code: 'gpt-5.4', displayName: 'GPT-5.4', enabled: true }],
       groqModels: [{ code: 'llama-3.1-8b-instant', displayName: 'Llama Instant', enabled: true }],
       alibabaModels: [{ code: 'qwen-max', displayName: 'Qwen Max', enabled: true }],
       deepseekModels: [
@@ -73,6 +77,7 @@ describe('providerRegistry', () => {
     }
 
     expect(hasProviderAccess(settings, 'openrouter')).toBe(true)
+    expect(hasProviderAccess(settings, 'codex')).toBe(true)
     expect(hasProviderAccess(settings, 'groq')).toBe(false)
     expect(hasProviderAccess(settings, 'deepseek')).toBe(true)
     expect(hasProviderAccess(settings, 'nvidia')).toBe(true)
@@ -80,10 +85,12 @@ describe('providerRegistry', () => {
     expect(hasProviderAccess({ ...settings, opencodeGoApiKey: '' }, 'opencode')).toBe(false)
     expect(getProviderCredentialError(settings, 'groq')).toContain('Groq API key is required')
     expect(modelSupportsTools('alibaba', 'qwen-max')).toBe(true)
-    expect(modelSupportsTools('nvidia', 'minimaxai/minimax-m3')).toBe(true)
+    expect(modelSupportsTools('nvidia', 'minimaxai/minimax-m3')).toBe(false)
+    expect(modelSupportsTools('codex', 'gpt-5.4')).toBe(false)
 
     expect(getAvailableModelOptions(settings)).toEqual([
       { id: 'openai/gpt-4.1', provider: 'openrouter', displayName: 'GPT-4.1' },
+      { id: 'gpt-5.4', provider: 'codex', displayName: 'GPT-5.4' },
       { id: 'qwen-max', provider: 'alibaba', displayName: 'Qwen Max' },
       { id: 'deepseek-v4-flash', provider: 'deepseek', displayName: 'DeepSeek V4 Flash' },
       { id: 'llama3.2', provider: 'ollama', displayName: 'Llama 3.2' },

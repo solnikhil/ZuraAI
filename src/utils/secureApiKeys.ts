@@ -1,9 +1,4 @@
-import {
-  getProviderSecretFields,
-  getProviderSettingsDefinition,
-  type ProviderSecretField,
-} from '../providers'
-import type { ActiveProviderId } from '../providers/providerTypes'
+import { getProviderSecretFields, type ProviderSecretField } from '../providers'
 
 // Utility functions for managing API keys in secure storage
 
@@ -72,64 +67,6 @@ export async function loadApiKeyPresenceFromSecureStorage(): Promise<SecureApiKe
   } catch (error) {
     console.error('[SecureApiKeys] Failed to load key presence:', error)
     return defaults
-  }
-}
-
-export async function loadApiKeysFromSecureStorage(): Promise<SecureApiKeyValues> {
-  const defaults = defaultSecureApiKeys()
-
-  if (!window.secureStorage) {
-    return defaults
-  }
-
-  try {
-    const all = await window.secureStorage.getAll()
-    for (const key of SECURE_API_KEY_NAMES) {
-      defaults[key] = all[key] || ''
-    }
-    return defaults
-  } catch (error) {
-    console.error('[SecureApiKeys] Failed to load:', error)
-    return defaults
-  }
-}
-
-export async function resolveApiKeyFromSecureStorage(
-  key: SecureStorageKey,
-  currentValue: string
-): Promise<string> {
-  if (!isSecureApiKeyPlaceholder(currentValue)) {
-    return currentValue
-  }
-
-  if (!window.secureStorage) {
-    return ''
-  }
-
-  try {
-    return await window.secureStorage.get(key)
-  } catch (error) {
-    console.error(`[SecureApiKeys] Failed to resolve ${key}:`, error)
-    return ''
-  }
-}
-
-export async function resolveProviderApiKeysForSettings<TSettings extends object>(
-  settings: TSettings,
-  provider: ActiveProviderId
-): Promise<TSettings> {
-  const key = getProviderSettingsDefinition(provider)?.secretKeyField
-  const settingsRecord = settings as Record<string, unknown>
-  const currentValue = key ? settingsRecord[key] : undefined
-
-  if (!key || typeof currentValue !== 'string' || !isSecureApiKeyPlaceholder(currentValue)) {
-    return settings
-  }
-
-  const resolved = await resolveApiKeyFromSecureStorage(key, currentValue)
-  return {
-    ...settings,
-    [key]: resolved,
   }
 }
 

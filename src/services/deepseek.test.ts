@@ -119,7 +119,7 @@ describe('deepseek service helpers', () => {
     )
   })
 
-  it('degrades forced function tool_choice to auto for DeepSeek requests', async () => {
+  it('preserves forced function tool_choice for DeepSeek requests', async () => {
     const fetchMock = vi.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -155,7 +155,7 @@ describe('deepseek service helpers', () => {
     )
 
     const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))
-    expect(body.tool_choice).toBe('auto')
+    expect(body.tool_choice).toEqual({ type: 'function', function: { name: 'web_search' } })
   })
 
   describe('thinking toggle in request body', () => {
@@ -215,17 +215,20 @@ describe('deepseek service helpers', () => {
 
     it('sends thinking:{type:enabled} when enableThinking is true', async () => {
       const body = await bodyForReasoningEffort('high')
-      expect(body.thinking).toEqual({ type: 'enabled', reasoning_effort: 'high' })
+      expect(body.thinking).toEqual({ type: 'enabled' })
+      expect(body.reasoning_effort).toBe('high')
     })
 
     it('maps low reasoning effort to the DeepSeek high wire value', async () => {
       const body = await bodyForReasoningEffort('low')
-      expect(body.thinking).toEqual({ type: 'enabled', reasoning_effort: 'high' })
+      expect(body.thinking).toEqual({ type: 'enabled' })
+      expect(body.reasoning_effort).toBe('high')
     })
 
     it('maps xhigh reasoning effort to the DeepSeek max wire value', async () => {
       const body = await bodyForReasoningEffort('xhigh')
-      expect(body.thinking).toEqual({ type: 'enabled', reasoning_effort: 'max' })
+      expect(body.thinking).toEqual({ type: 'enabled' })
+      expect(body.reasoning_effort).toBe('max')
     })
 
     it('maps xhigh reasoning effort to max for streaming requests', async () => {
@@ -239,7 +242,8 @@ describe('deepseek service helpers', () => {
       await stream.next()
 
       const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))
-      expect(body.thinking).toEqual({ type: 'enabled', reasoning_effort: 'max' })
+      expect(body.thinking).toEqual({ type: 'enabled' })
+      expect(body.reasoning_effort).toBe('max')
     })
 
     it('omits thinking when enableThinking is undefined (preserves default)', async () => {

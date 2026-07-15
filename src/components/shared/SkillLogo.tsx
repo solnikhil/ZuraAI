@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react'
-import { Bell, Command, FileText, Globe, Terminal } from 'lucide-react'
+import { Bell, FileText, Globe, Terminal } from 'lucide-react'
 
 export type SkillLogoSize = 'sm' | 'md' | 'lg'
 
@@ -37,7 +37,6 @@ const SKILL_FALLBACK_ICONS: Record<
   reminders: Bell,
   terminal: Terminal,
   artifacts: FileText,
-  command_center: Command,
 }
 
 const SKILL_FALLBACK_COLORS: Record<string, string> = {
@@ -46,7 +45,6 @@ const SKILL_FALLBACK_COLORS: Record<string, string> = {
   code_execution: '#a78bfa',
   terminal: '#10b981',
   computer_use: '#10b981',
-  command_center: '#22d3ee',
   chart_generation: '#f59e0b',
   reminders: '#38bdf8',
   artifacts: '#f8fafc',

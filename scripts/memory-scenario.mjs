@@ -15,8 +15,8 @@ const checkpoints = [
   'switch through 20 sidebar chats',
   'send one streamed response and wait for completion',
   'open settings, visit Provider Hub and MCP sections, then return to dashboard',
-  'hide the main window, open and dismiss Command Center several times, then show the main window and capture a report',
-  'hide both windows, wait at least 2 minutes, show the main window, and confirm the Command Center renderer and Windows Search helper were reclaimed',
+  'hide and show the main window several times, then capture a report',
+  'leave the main window hidden for at least 2 minutes, show it, and capture a report',
   'connect then disconnect one configured MCP server if available',
 ]
 

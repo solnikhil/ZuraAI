@@ -37,6 +37,7 @@ const PERFORMANCE_RANGES: Array<{ value: UsagePerformanceRange; label: string }>
 
 const providerName: Record<UsageProvider, string> = {
   alibaba: 'Alibaba',
+  codex: 'ChatGPT Codex',
   deepseek: 'DeepSeek',
   fireworks: 'Fireworks',
   groq: 'Groq',

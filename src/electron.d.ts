@@ -9,8 +9,6 @@ import type {
   ChatLinksAPI,
   CodeExecutionAPI,
   ComputerUseAPI,
-  CommandCenterAPI,
-  GitHubWorkspaceApi,
   ContextMenuAPI,
   DevToolsAPI,
   DiscordRpcAPI,
@@ -20,7 +18,7 @@ import type {
   MemoryAPI,
   ScheduledTasksAPI,
   NativeDialogAPI,
-  ProviderProxyAPI,
+  ProviderRuntimeAPI,
   SecureStorageAPI,
   ArtifactsAPI,
   ShellAPI,
@@ -28,14 +26,13 @@ import type {
   UpdaterAPI,
   WindowControlsAPI,
 } from './electron/types'
-import type { ZuraExtensionsApi } from './extensions/types'
 
 declare global {
   interface Window {
     ipcRenderer: IElectronAPI
     secureStorage: SecureStorageAPI
     updater: UpdaterAPI
-    providerProxy: ProviderProxyAPI
+    providerRuntime: ProviderRuntimeAPI
     appInfo: AppInfoAPI
     agentApproval?: AgentApprovalAPI
     agentSkills: AgentSkillsAPI
@@ -53,9 +50,6 @@ declare global {
     codeExecution: CodeExecutionAPI
     terminal: TerminalAPI
     computerUse: ComputerUseAPI
-    commandCenter: CommandCenterAPI
-    githubWorkspace: GitHubWorkspaceApi
-    extensions: ZuraExtensionsApi
     chatDiagnostics?: ChatDiagnosticsAPI
     chatDebug?: ChatDebugAPI
     chatLinks?: ChatLinksAPI

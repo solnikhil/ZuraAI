@@ -19,14 +19,14 @@ import {
   isSettingsPage,
   settingsPageListForError,
   type SettingsPage,
-} from '../../../src/commandCenter/windowsSettings'
+} from '../../../src/tools/windowsSettings'
 
 export {
   WINDOWS_SETTINGS_CATALOG,
   WINDOWS_COPILOT_URI,
   isSettingsPage,
   type SettingsPage,
-} from '../../../src/commandCenter/windowsSettings'
+} from '../../../src/tools/windowsSettings'
 
 type SnapPreset = 'left' | 'right' | 'top' | 'bottom' | 'maximize' | 'center'
 
@@ -77,7 +77,7 @@ end tell`)
 async function macWindowSnap(args: unknown): Promise<ToolResult> {
   const preset = stringArg(args, 'preset') || 'left'
   if (!['left', 'right', 'maximize'].includes(preset)) {
-    return { success: false, error: 'macOS Command Center supports left, right, and maximize.' }
+    return { success: false, error: 'macOS window snapping supports left, right, and maximize.' }
   }
   try {
     await runAppleScript(

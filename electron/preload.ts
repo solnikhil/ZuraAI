@@ -13,7 +13,6 @@ import type {
   McpServerRuntimeState,
   McpToolExecutionResult,
 } from '../src/mcp/types'
-import type { ZuraExtensionNetworkRequest, ZuraExtensionsApi } from '../src/extensions/types'
 import type {
   IpcInvokeArgsMap,
   IpcInvokeChannel,
@@ -38,28 +37,15 @@ import type {
   ScheduledTaskSummaryRequest,
   ScheduledTaskSummaryResponse,
   ScheduledTaskUpdateInput,
-  ProviderProxyFetchRequest,
-  ProviderProxyFetchResponse,
+  ProviderRuntimeBridgeEvent,
+  ProviderRuntimeGenerateRequest,
+  ProviderRuntimeListModelsRequest,
+  ProviderRuntimeStartRequest,
   PendingCodeApproval,
   PendingComputerAction,
   PendingTerminalApproval,
-  CommandCenterCommand,
-  CommandCenterShownInfo,
-  CommandCenterActionId,
-  CommandCenterState,
-  CommandCenterSubmitResult,
-  CommandCenterWorkflow,
-  CommandCenterIndex,
-  CommandCenterNativeSearchResult,
-  CommandCenterExecuteResult,
-  CommandCenterItemActionId,
-  CommandCenterItemActionResult,
   UpdateMemoryPatch,
   WindowAppearance,
-  GitHubWorkspaceApi,
-  GitHubWorkspaceMutation,
-  GitHubWorkspaceOpenRequest,
-  GitHubWorkspaceState,
 } from '../src/electron/types'
 
 const isDebug = process.env.ZURA_DEBUG === '1'
@@ -115,10 +101,8 @@ const INVOKE_CHANNELS = new Set<IpcInvokeChannel>([
   'chat-links:peek-pending',
 
   // Secure storage
-  'secure-storage:get',
   'secure-storage:set',
   'secure-storage:get-presence',
-  'secure-storage:get-all',
 
   // Tools
   'execute-tool',
@@ -196,64 +180,6 @@ const DISCORD_RPC_INVOKE_CHANNELS = new Set<string>([
 
 const DISCORD_RPC_ON_CHANNELS = new Set<string>(['discord-rpc:state-changed'])
 
-const COMMAND_CENTER_INVOKE_CHANNELS = new Set<string>([
-  'command-center:set-extension-enabled',
-  'command-center:show',
-  'command-center:hide',
-  'command-center:get-context',
-  'command-center:list-actions',
-  'command-center:get-index',
-  'command-center:search-native-index',
-  'command-center:refresh-app-index',
-  'command-center:save-workflow',
-  'command-center:delete-workflow',
-  'command-center:execute-action',
-  'command-center:insert-emoji',
-  'command-center:execute-index-item',
-  'command-center:execute-item-action',
-  'command-center:execute-workflow',
-  'command-center:open-chat-session',
-  'command-center:set-layout',
-  'command-center:submit-command',
-])
-
-const COMMAND_CENTER_ON_CHANNELS = new Set<string>([
-  'command-center:shown',
-  'command-center:hidden',
-  'command-center:command',
-])
-
-const GITHUB_WORKSPACE_INVOKE_CHANNELS = new Set<string>([
-  'github-workspace:get-state',
-  'github-workspace:add-repository',
-  'github-workspace:start-sign-in',
-  'github-workspace:sign-out',
-  'github-workspace:disconnect',
-  'github-workspace:copy-user-code',
-  'github-workspace:mutate',
-  'github-workspace:select-diff',
-  'github-workspace:open',
-])
-
-const GITHUB_WORKSPACE_ON_CHANNELS = new Set<string>(['github-workspace:changed'])
-
-const EXTENSIONS_INVOKE_CHANNELS = new Set<string>([
-  'extensions:list',
-  'extensions:prepare-mutation',
-  'extensions:apply-mutation',
-  'extensions:set-enabled',
-  'extensions:import-development',
-  'extensions:remove-development',
-  'extensions:get-view',
-  'extensions:execute-action',
-  'extensions:execute-no-view',
-  'extensions:get-storage',
-  'extensions:request-network',
-  'extensions:pick-file',
-  'extensions:read-file-handle',
-])
-const EXTENSIONS_ON_CHANNELS = new Set<string>(['extensions:changed'])
-
 const SCHEDULED_TASKS_INVOKE_CHANNELS = new Set<string>([
   'scheduled-tasks:set-extension-enabled',
   'scheduled-tasks:list',
@@ -284,7 +210,16 @@ const EMAIL_NOTIFICATIONS_INVOKE_CHANNELS = new Set<string>([
   'email-notifications:send-test',
 ])
 
-const PROVIDER_PROXY_INVOKE_CHANNELS = new Set<string>(['provider-proxy:opencode-fetch'])
+const PROVIDER_RUNTIME_INVOKE_CHANNELS = new Set<string>([
+  'provider-runtime:start',
+  'provider-runtime:generate',
+  'provider-runtime:list-models',
+  'provider-runtime:codex-sign-in',
+  'provider-runtime:codex-auth-status',
+  'provider-runtime:codex-sign-out',
+  'provider-runtime:cancel',
+])
+const PROVIDER_RUNTIME_ON_CHANNELS = new Set<string>(['provider-runtime:event'])
 
 const AGENT_SKILLS_INVOKE_CHANNELS = new Set<string>([
   'agent-skills:list',
@@ -373,10 +308,8 @@ contextBridge.exposeInMainWorld(
 contextBridge.exposeInMainWorld(
   'secureStorage',
   Object.freeze({
-    get: (key: string) => ipcRenderer.invoke('secure-storage:get', key),
     set: (key: string, value: string) => ipcRenderer.invoke('secure-storage:set', key, value),
     getPresence: () => ipcRenderer.invoke('secure-storage:get-presence'),
-    getAll: () => ipcRenderer.invoke('secure-storage:get-all'),
   })
 )
 
@@ -574,14 +507,49 @@ contextBridge.exposeInMainWorld(
 )
 
 contextBridge.exposeInMainWorld(
-  'providerProxy',
+  'providerRuntime',
   Object.freeze({
-    fetchOpencode: (request: ProviderProxyFetchRequest) => {
-      assertAllowed('invoke', 'provider-proxy:opencode-fetch', PROVIDER_PROXY_INVOKE_CHANNELS)
-      return ipcRenderer.invoke(
-        'provider-proxy:opencode-fetch',
-        request
-      ) as Promise<ProviderProxyFetchResponse>
+    start: (request: ProviderRuntimeStartRequest) => {
+      assertAllowed('invoke', 'provider-runtime:start', PROVIDER_RUNTIME_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('provider-runtime:start', request) as Promise<boolean>
+    },
+    generate: (request: ProviderRuntimeGenerateRequest) => {
+      assertAllowed('invoke', 'provider-runtime:generate', PROVIDER_RUNTIME_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('provider-runtime:generate', request) as Promise<string>
+    },
+    listModels: (request: ProviderRuntimeListModelsRequest) => {
+      assertAllowed('invoke', 'provider-runtime:list-models', PROVIDER_RUNTIME_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('provider-runtime:list-models', request) as Promise<unknown[]>
+    },
+    signInCodex: () => {
+      assertAllowed('invoke', 'provider-runtime:codex-sign-in', PROVIDER_RUNTIME_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('provider-runtime:codex-sign-in') as Promise<boolean>
+    },
+    getCodexAuthStatus: () => {
+      assertAllowed(
+        'invoke',
+        'provider-runtime:codex-auth-status',
+        PROVIDER_RUNTIME_INVOKE_CHANNELS
+      )
+      return ipcRenderer.invoke('provider-runtime:codex-auth-status') as Promise<{
+        signedIn: boolean
+      }>
+    },
+    signOutCodex: () => {
+      assertAllowed('invoke', 'provider-runtime:codex-sign-out', PROVIDER_RUNTIME_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('provider-runtime:codex-sign-out') as Promise<boolean>
+    },
+    cancel: (requestId: string) => {
+      assertAllowed('invoke', 'provider-runtime:cancel', PROVIDER_RUNTIME_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('provider-runtime:cancel', requestId) as Promise<boolean>
+    },
+    onEvent: (callback: (event: ProviderRuntimeBridgeEvent) => void) => {
+      assertAllowed('on', 'provider-runtime:event', PROVIDER_RUNTIME_ON_CHANNELS)
+      const listener = (_event: IpcRendererEvent, payload: ProviderRuntimeBridgeEvent) => {
+        callback(payload)
+      }
+      ipcRenderer.on('provider-runtime:event', listener)
+      return () => ipcRenderer.removeListener('provider-runtime:event', listener)
     },
   })
 )
@@ -746,210 +714,6 @@ contextBridge.exposeInMainWorld(
       return () => ipcRenderer.removeListener('computer-use:killed', listener)
     },
   })
-)
-
-contextBridge.exposeInMainWorld(
-  'commandCenter',
-  Object.freeze({
-    setExtensionEnabled: (enabled: boolean) => {
-      assertAllowed(
-        'invoke',
-        'command-center:set-extension-enabled',
-        COMMAND_CENTER_INVOKE_CHANNELS
-      )
-      return ipcRenderer.invoke(
-        'command-center:set-extension-enabled',
-        enabled
-      ) as Promise<CommandCenterState>
-    },
-    show: () => {
-      assertAllowed('invoke', 'command-center:show', COMMAND_CENTER_INVOKE_CHANNELS)
-      return ipcRenderer.invoke('command-center:show') as Promise<boolean>
-    },
-    hide: () => {
-      assertAllowed('invoke', 'command-center:hide', COMMAND_CENTER_INVOKE_CHANNELS)
-      return ipcRenderer.invoke('command-center:hide') as Promise<boolean>
-    },
-    getContext: () => {
-      assertAllowed('invoke', 'command-center:get-context', COMMAND_CENTER_INVOKE_CHANNELS)
-      return ipcRenderer.invoke('command-center:get-context')
-    },
-    listActions: () => {
-      assertAllowed('invoke', 'command-center:list-actions', COMMAND_CENTER_INVOKE_CHANNELS)
-      return ipcRenderer.invoke('command-center:list-actions')
-    },
-    getIndex: (query?: string) => {
-      assertAllowed('invoke', 'command-center:get-index', COMMAND_CENTER_INVOKE_CHANNELS)
-      return ipcRenderer.invoke('command-center:get-index', query) as Promise<CommandCenterIndex>
-    },
-    searchNativeIndex: (query: string) => {
-      assertAllowed('invoke', 'command-center:search-native-index', COMMAND_CENTER_INVOKE_CHANNELS)
-      return ipcRenderer.invoke(
-        'command-center:search-native-index',
-        query
-      ) as Promise<CommandCenterNativeSearchResult>
-    },
-    refreshAppIndex: () => {
-      assertAllowed('invoke', 'command-center:refresh-app-index', COMMAND_CENTER_INVOKE_CHANNELS)
-      return ipcRenderer.invoke('command-center:refresh-app-index') as Promise<
-        NonNullable<CommandCenterIndex['diagnostics']>['apps']
-      >
-    },
-    saveWorkflow: (workflow: Partial<CommandCenterWorkflow>) => {
-      assertAllowed('invoke', 'command-center:save-workflow', COMMAND_CENTER_INVOKE_CHANNELS)
-      return ipcRenderer.invoke(
-        'command-center:save-workflow',
-        workflow
-      ) as Promise<CommandCenterWorkflow | null>
-    },
-    deleteWorkflow: (id: string) => {
-      assertAllowed('invoke', 'command-center:delete-workflow', COMMAND_CENTER_INVOKE_CHANNELS)
-      return ipcRenderer.invoke('command-center:delete-workflow', id) as Promise<boolean>
-    },
-    executeAction: (actionId: CommandCenterActionId) => {
-      assertAllowed('invoke', 'command-center:execute-action', COMMAND_CENTER_INVOKE_CHANNELS)
-      return ipcRenderer.invoke('command-center:execute-action', actionId)
-    },
-    insertEmoji: (emoji: string) => {
-      assertAllowed('invoke', 'command-center:insert-emoji', COMMAND_CENTER_INVOKE_CHANNELS)
-      return ipcRenderer.invoke(
-        'command-center:insert-emoji',
-        emoji
-      ) as Promise<CommandCenterExecuteResult>
-    },
-    executeIndexItem: (itemId: string, query?: string) => {
-      assertAllowed('invoke', 'command-center:execute-index-item', COMMAND_CENTER_INVOKE_CHANNELS)
-      return ipcRenderer.invoke(
-        'command-center:execute-index-item',
-        itemId,
-        query
-      ) as Promise<CommandCenterExecuteResult>
-    },
-    executeItemAction: (itemId: string, actionId: CommandCenterItemActionId, query?: string) => {
-      assertAllowed('invoke', 'command-center:execute-item-action', COMMAND_CENTER_INVOKE_CHANNELS)
-      return ipcRenderer.invoke(
-        'command-center:execute-item-action',
-        itemId,
-        actionId,
-        query
-      ) as Promise<CommandCenterItemActionResult>
-    },
-    executeWorkflow: (workflowId: string) => {
-      assertAllowed('invoke', 'command-center:execute-workflow', COMMAND_CENTER_INVOKE_CHANNELS)
-      return ipcRenderer.invoke(
-        'command-center:execute-workflow',
-        workflowId
-      ) as Promise<CommandCenterExecuteResult>
-    },
-    openChatSession: (sessionId: string) => {
-      assertAllowed('invoke', 'command-center:open-chat-session', COMMAND_CENTER_INVOKE_CHANNELS)
-      return ipcRenderer.invoke('command-center:open-chat-session', sessionId) as Promise<boolean>
-    },
-    setLayout: (layout: 'search' | 'chat') => {
-      assertAllowed('invoke', 'command-center:set-layout', COMMAND_CENTER_INVOKE_CHANNELS)
-      return ipcRenderer.invoke('command-center:set-layout', layout) as Promise<boolean>
-    },
-    submitCommand: (text: string) => {
-      assertAllowed('invoke', 'command-center:submit-command', COMMAND_CENTER_INVOKE_CHANNELS)
-      return ipcRenderer.invoke(
-        'command-center:submit-command',
-        text
-      ) as Promise<CommandCenterSubmitResult>
-    },
-    onShown: (callback: (info?: CommandCenterShownInfo) => void) => {
-      assertAllowed('on', 'command-center:shown', COMMAND_CENTER_ON_CHANNELS)
-      const listener = (_event: Electron.IpcRendererEvent, info?: CommandCenterShownInfo) =>
-        callback(info)
-      ipcRenderer.on('command-center:shown', listener)
-      return () => ipcRenderer.removeListener('command-center:shown', listener)
-    },
-    onHidden: (callback: () => void) => {
-      assertAllowed('on', 'command-center:hidden', COMMAND_CENTER_ON_CHANNELS)
-      const listener = () => callback()
-      ipcRenderer.on('command-center:hidden', listener)
-      return () => ipcRenderer.removeListener('command-center:hidden', listener)
-    },
-    onCommand: (callback: (command: CommandCenterCommand) => void) => {
-      assertAllowed('on', 'command-center:command', COMMAND_CENTER_ON_CHANNELS)
-      const listener = (_event: IpcRendererEvent, command: CommandCenterCommand) =>
-        callback(command)
-      ipcRenderer.on('command-center:command', listener)
-      return () => ipcRenderer.removeListener('command-center:command', listener)
-    },
-  })
-)
-
-contextBridge.exposeInMainWorld(
-  'extensions',
-  Object.freeze({
-    list: () => { assertAllowed('invoke', 'extensions:list', EXTENSIONS_INVOKE_CHANNELS); return ipcRenderer.invoke('extensions:list') },
-    prepareMutation: (extensionId: string, action: 'install' | 'update' | 'uninstall') => { assertAllowed('invoke', 'extensions:prepare-mutation', EXTENSIONS_INVOKE_CHANNELS); return ipcRenderer.invoke('extensions:prepare-mutation', extensionId, action) },
-    applyMutation: (confirmationId: string) => { assertAllowed('invoke', 'extensions:apply-mutation', EXTENSIONS_INVOKE_CHANNELS); return ipcRenderer.invoke('extensions:apply-mutation', confirmationId) },
-    setEnabled: (extensionId: string, enabled: boolean) => { assertAllowed('invoke', 'extensions:set-enabled', EXTENSIONS_INVOKE_CHANNELS); return ipcRenderer.invoke('extensions:set-enabled', extensionId, enabled) },
-    importDevelopment: () => { assertAllowed('invoke', 'extensions:import-development', EXTENSIONS_INVOKE_CHANNELS); return ipcRenderer.invoke('extensions:import-development') },
-    removeDevelopment: (extensionId: string) => { assertAllowed('invoke', 'extensions:remove-development', EXTENSIONS_INVOKE_CHANNELS); return ipcRenderer.invoke('extensions:remove-development', extensionId) },
-    getView: (extensionId: string, commandId: string, viewId?: string) => { assertAllowed('invoke', 'extensions:get-view', EXTENSIONS_INVOKE_CHANNELS); return ipcRenderer.invoke('extensions:get-view', extensionId, commandId, viewId) },
-    executeAction: (extensionId: string, commandId: string, viewId: string, actionId: string, values?: Record<string, string | boolean>) => { assertAllowed('invoke', 'extensions:execute-action', EXTENSIONS_INVOKE_CHANNELS); return ipcRenderer.invoke('extensions:execute-action', extensionId, commandId, viewId, actionId, values) },
-    executeNoView: (extensionId: string, commandId: string) => { assertAllowed('invoke', 'extensions:execute-no-view', EXTENSIONS_INVOKE_CHANNELS); return ipcRenderer.invoke('extensions:execute-no-view', extensionId, commandId) },
-    getStorage: (extensionId: string) => { assertAllowed('invoke', 'extensions:get-storage', EXTENSIONS_INVOKE_CHANNELS); return ipcRenderer.invoke('extensions:get-storage', extensionId) },
-    requestNetwork: (extensionId: string, request: ZuraExtensionNetworkRequest) => { assertAllowed('invoke', 'extensions:request-network', EXTENSIONS_INVOKE_CHANNELS); return ipcRenderer.invoke('extensions:request-network', extensionId, request) },
-    pickFile: (extensionId: string, kind: 'file' | 'directory') => { assertAllowed('invoke', 'extensions:pick-file', EXTENSIONS_INVOKE_CHANNELS); return ipcRenderer.invoke('extensions:pick-file', extensionId, kind) },
-    readFileHandle: (extensionId: string, handleId: string) => { assertAllowed('invoke', 'extensions:read-file-handle', EXTENSIONS_INVOKE_CHANNELS); return ipcRenderer.invoke('extensions:read-file-handle', extensionId, handleId) },
-    onChanged: (callback: () => void) => {
-      assertAllowed('on', 'extensions:changed', EXTENSIONS_ON_CHANNELS)
-      const listener = () => callback()
-      ipcRenderer.on('extensions:changed', listener)
-      return () => ipcRenderer.removeListener('extensions:changed', listener)
-    },
-  }) satisfies ZuraExtensionsApi
-)
-
-contextBridge.exposeInMainWorld(
-  'githubWorkspace',
-  Object.freeze({
-    getState: () => {
-      assertAllowed('invoke', 'github-workspace:get-state', GITHUB_WORKSPACE_INVOKE_CHANNELS)
-      return ipcRenderer.invoke('github-workspace:get-state') as Promise<GitHubWorkspaceState>
-    },
-    addRepository: () => {
-      assertAllowed('invoke', 'github-workspace:add-repository', GITHUB_WORKSPACE_INVOKE_CHANNELS)
-      return ipcRenderer.invoke('github-workspace:add-repository') as Promise<GitHubWorkspaceState>
-    },
-    startSignIn: () => {
-      assertAllowed('invoke', 'github-workspace:start-sign-in', GITHUB_WORKSPACE_INVOKE_CHANNELS)
-      return ipcRenderer.invoke('github-workspace:start-sign-in')
-    },
-    signOut: () => {
-      assertAllowed('invoke', 'github-workspace:sign-out', GITHUB_WORKSPACE_INVOKE_CHANNELS)
-      return ipcRenderer.invoke('github-workspace:sign-out')
-    },
-    disconnect: () => {
-      assertAllowed('invoke', 'github-workspace:disconnect', GITHUB_WORKSPACE_INVOKE_CHANNELS)
-      return ipcRenderer.invoke('github-workspace:disconnect')
-    },
-    copyUserCode: (userCode: string) => {
-      assertAllowed('invoke', 'github-workspace:copy-user-code', GITHUB_WORKSPACE_INVOKE_CHANNELS)
-      return ipcRenderer.invoke('github-workspace:copy-user-code', userCode) as Promise<boolean>
-    },
-    mutate: (mutation: GitHubWorkspaceMutation) => {
-      assertAllowed('invoke', 'github-workspace:mutate', GITHUB_WORKSPACE_INVOKE_CHANNELS)
-      return ipcRenderer.invoke('github-workspace:mutate', mutation) as Promise<GitHubWorkspaceState>
-    },
-    selectDiff: (repositoryId: string, changeId: string) => {
-      assertAllowed('invoke', 'github-workspace:select-diff', GITHUB_WORKSPACE_INVOKE_CHANNELS)
-      return ipcRenderer.invoke('github-workspace:select-diff', repositoryId, changeId) as Promise<string>
-    },
-    open: (request: GitHubWorkspaceOpenRequest) => {
-      assertAllowed('invoke', 'github-workspace:open', GITHUB_WORKSPACE_INVOKE_CHANNELS)
-      return ipcRenderer.invoke('github-workspace:open', request)
-    },
-    onChanged: (callback: (state: GitHubWorkspaceState) => void) => {
-      assertAllowed('on', 'github-workspace:changed', GITHUB_WORKSPACE_ON_CHANNELS)
-      const listener = (_event: IpcRendererEvent, state: GitHubWorkspaceState) => callback(state)
-      ipcRenderer.on('github-workspace:changed', listener)
-      return () => ipcRenderer.removeListener('github-workspace:changed', listener)
-    },
-  }) satisfies GitHubWorkspaceApi
 )
 
 contextBridge.exposeInMainWorld(

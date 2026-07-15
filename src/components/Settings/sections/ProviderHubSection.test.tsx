@@ -30,32 +30,6 @@ Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
   writable: true,
 })
 
-function createAlibabaCatalogHtml(): string {
-  const payload = JSON.stringify([
-    '$',
-    '$L22',
-    null,
-    {
-      data: {
-        '0': [
-          {
-            modelId: 'qwen3-coder-next',
-            name: 'Qwen3-Coder-Next',
-            feature: 'Qwen3, Agentic Coding',
-            description: 'Multi-turn tool interactions, future-ready development support',
-            modelType: 'Flagship',
-            launchDate: '2026-02-20',
-            order: '1.000000000',
-          },
-        ],
-      },
-    },
-  ])
-
-  const encodedPayload = payload.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n')
-  return `<html><body><script>self.__next_f.push([1,"12:${encodedPayload}"])</script></body></html>`
-}
-
 function openProviderCatalog(name: string): void {
   const configureButton = screen.queryByRole('button', {
     name: new RegExp(`^Configure ${name}$`, 'i'),
@@ -76,6 +50,7 @@ describe('ProviderHubSection', () => {
     openRouterApiKey: '',
     groqApiKey: '',
     alibabaApiKey: '',
+    alibabaRegion: 'singapore' as const,
     deepseekApiKey: '',
     opencodeGoApiKey: '',
     fireworksApiKey: '',
@@ -91,6 +66,15 @@ describe('ProviderHubSection', () => {
       { code: 'x-ai/grok-4.1-fast', displayName: 'Grok 4.1 Fast' },
       { code: 'x-ai/grok-4.1-mini', displayName: 'Grok 4.1 Mini' },
       { code: 'openrouter/image-model', displayName: 'ImageGen Pro' },
+    ],
+    codexModels: [
+      {
+        code: 'gpt-5.4',
+        displayName: 'GPT-5.4',
+        enabled: true,
+        supportsDeepThinking: true,
+        modelType: 'reasoning' as const,
+      },
     ],
     groqModels: [{ code: 'llama-3.1-8b-instant', displayName: 'Llama 3.1 8B Instant' }],
     alibabaModels: [{ code: 'qwen-plus', displayName: 'Qwen Plus' }],
@@ -111,6 +95,7 @@ describe('ProviderHubSection', () => {
     ;(window as Window & { shell?: { openExternal: typeof openExternal } }).shell = {
       openExternal,
     }
+    delete (window as Window & { providerRuntime?: unknown }).providerRuntime
     vi.stubGlobal('fetch', fetchMock)
   })
 
@@ -519,39 +504,78 @@ describe('ProviderHubSection', () => {
     expect(screen.getByRole('button', { name: /add from catalog/i })).toBeInTheDocument()
   })
 
-  it('opens Alibaba catalog dialog and surfaces the missing-key error', async () => {
+  it('opens Alibaba catalog without requiring a key', async () => {
     render(<ProviderHubSection {...baseProps} />)
 
     openProviderCatalog('Alibaba Cloud')
     fireEvent.click(screen.getByRole('button', { name: /add from catalog/i }))
 
     expect(await screen.findByText('Add Model from Alibaba Catalog')).toBeInTheDocument()
-    expect(
-      await screen.findByText('Add an Alibaba API key before loading the catalog.')
-    ).toBeInTheDocument()
+    expect(await screen.findByText('Qwen3.7-Max')).toBeInTheDocument()
+  })
+
+  it('renders ChatGPT Codex as an account-backed provider without an API-key field', () => {
+    render(<ProviderHubSection {...baseProps} />)
+
+    openProviderCatalog('ChatGPT Codex')
+
+    expect(screen.getByText('ChatGPT Account')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Sign in with ChatGPT' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Check ChatGPT sign-in' })).toBeInTheDocument()
+    expect(screen.queryByLabelText('Ollama Endpoint')).not.toBeInTheDocument()
+    expect(screen.queryByText('Your key is stored in')).not.toBeInTheDocument()
+  })
+
+  it('signs in through main and replaces the placeholder with account-discovered models', async () => {
+    const onChange = vi.fn()
+    const providerRuntime = {
+      getCodexAuthStatus: vi.fn(async () => ({ signedIn: false })),
+      signInCodex: vi.fn(async () => true),
+      listModels: vi.fn(async () => [
+        {
+          code: 'gpt-5.5',
+          displayName: 'GPT-5.5',
+          enabled: true,
+          supportsDeepThinking: true,
+        },
+      ]),
+    }
+    ;(window as Window & { providerRuntime?: unknown }).providerRuntime = providerRuntime
+
+    render(<ProviderHubSection {...baseProps} onChange={onChange} />)
+    openProviderCatalog('ChatGPT Codex')
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in with ChatGPT' }))
+
+    await waitFor(() => expect(providerRuntime.signInCodex).toHaveBeenCalledOnce())
+    await waitFor(() =>
+      expect(onChange).toHaveBeenCalledWith(
+        expect.objectContaining({
+          codexModels: [expect.objectContaining({ code: 'gpt-5.5' })],
+        })
+      )
+    )
+    expect(providerRuntime.listModels).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: 'codex', requestId: expect.any(String) })
+    )
   })
 
   it('adds an Alibaba catalog model to alibabaModels', async () => {
     const onChange = vi.fn()
-    vi.spyOn(global, 'fetch').mockResolvedValue({
-      ok: true,
-      text: async () => createAlibabaCatalogHtml(),
-    } as Response)
 
     render(<ProviderHubSection {...baseProps} alibabaApiKey="ali-key" onChange={onChange} />)
 
     openProviderCatalog('Alibaba Cloud')
     fireEvent.click(screen.getByRole('button', { name: /add from catalog/i }))
 
-    expect(await screen.findByText('Qwen3-Coder-Next')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /^add$/i }))
+    expect(await screen.findByText('Qwen3.7-Max')).toBeInTheDocument()
+    fireEvent.click(screen.getAllByRole('button', { name: /^add$/i })[0])
 
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({
         alibabaModels: expect.arrayContaining([
           expect.objectContaining({
-            code: 'qwen3-coder-next',
-            displayName: 'Qwen3-Coder-Next',
+            code: 'qwen3.7-max',
+            displayName: 'Qwen3.7-Max',
             supportsToolCall: true,
           }),
         ]),
@@ -623,7 +647,7 @@ describe('ProviderHubSection', () => {
           expect.objectContaining({
             code: 'nvidia/llama-chat',
             displayName: 'Llama Chat',
-            supportsToolCall: true,
+            modelType: 'chat',
           }),
         ]),
       })

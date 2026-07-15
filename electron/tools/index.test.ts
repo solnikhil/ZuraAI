@@ -217,7 +217,7 @@ describe('tool routing through current-desktop Computer Use', () => {
     expect(handlers.executeSystemShell).toHaveBeenCalledTimes(1)
   })
 
-  it('routes Command Center OS integration tools through execute-tool', async () => {
+  it('routes desktop OS integration tools through execute-tool', async () => {
     const { handler, handlers } = await loadToolHandler()
 
     const activeWindow = await handler({}, 'system_active_window', {})

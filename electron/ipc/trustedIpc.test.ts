@@ -70,20 +70,15 @@ describe('trusted IPC sender validation', () => {
     ).toBe(false)
   })
 
-  it('accepts the exact main and Command Center packaged entries only', () => {
-    const rendererEntryPaths = [
-      path.resolve('dist/index.html'),
-      path.resolve('dist/command-center.html'),
-    ]
-    for (const rendererEntryPath of rendererEntryPaths) {
-      const allowed = createEvent(pathToFileURL(rendererEntryPath).href)
-      expect(
-        isTrustedIpcSender(allowed.event, {
-          rendererEntryPaths,
-          resolveWindow: () => allowed.window,
-        })
-      ).toBe(true)
-    }
+  it('accepts only the exact packaged renderer entry', () => {
+    const rendererEntryPaths = [path.resolve('dist/index.html')]
+    const allowed = createEvent(pathToFileURL(rendererEntryPaths[0]).href)
+    expect(
+      isTrustedIpcSender(allowed.event, {
+        rendererEntryPaths,
+        resolveWindow: () => allowed.window,
+      })
+    ).toBe(true)
 
     const otherFile = createEvent(pathToFileURL(path.resolve('dist/other.html')).href)
     expect(

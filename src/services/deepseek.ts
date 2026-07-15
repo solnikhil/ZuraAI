@@ -1,6 +1,8 @@
-import { ChatMessage, ToolDefinition, parseErrorResponse, extractErrorMessage } from './types'
+import { ChatMessage, ToolDefinition } from './types'
 import { parseSSEStream } from './streamUtils'
 import { getProviderEndpoint } from '../providers'
+import { createProviderHttpError, missingResponseBodyError } from './providerHttpError'
+import { listProviderModelsThroughMain } from './providerCatalogBridge'
 
 type DeepSeekReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh'
 type DeepSeekWireReasoningEffort = 'high' | 'max'
@@ -94,8 +96,8 @@ interface DeepSeekRequestBody {
   tool_choice?: 'auto' | 'none' | 'required' | { type: 'function'; function: { name: string } }
   thinking?: {
     type: 'enabled' | 'disabled'
-    reasoning_effort?: DeepSeekWireReasoningEffort
   }
+  reasoning_effort?: DeepSeekWireReasoningEffort
   response_format?: { type: 'text' | 'json_object' }
   stop?: string | string[]
   user_id?: string
@@ -116,23 +118,6 @@ interface DeepSeekMessage {
   tool_call_id?: string
   name?: string
   prefix?: boolean
-}
-
-type DeepSeekToolChoice = NonNullable<DeepSeekRequestBody['tool_choice']>
-
-function normalizeDeepSeekToolChoice(
-  toolChoice: DeepSeekToolChoice | undefined
-): DeepSeekToolChoice {
-  if (!toolChoice) return 'auto'
-
-  // DeepSeek rejects OpenAI's forced single-function object form for reasoner
-  // models. Keep tools available and let the prompt/tool schema drive the
-  // call instead of failing the whole request with a 400.
-  if (typeof toolChoice === 'object') {
-    return 'auto'
-  }
-
-  return toolChoice
 }
 
 function mapDeepSeekReasoningEffort(
@@ -206,7 +191,7 @@ export async function* streamDeepSeekCompletion(
   }
   if (options?.tools && options.tools.length > 0) {
     requestBody.tools = options.tools
-    requestBody.tool_choice = normalizeDeepSeekToolChoice(options.toolChoice)
+    requestBody.tool_choice = options.toolChoice ?? 'auto'
   }
 
   // Thinking toggle: DeepSeek defaults to `enabled`, so we must send an
@@ -215,10 +200,8 @@ export async function* streamDeepSeekCompletion(
   // preserves DeepSeek's default behavior and never affects normal chat.
   if (options?.enableThinking === true) {
     const reasoningEffort = mapDeepSeekReasoningEffort(options.reasoningEffort)
-    requestBody.thinking = {
-      type: 'enabled',
-      ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
-    }
+    requestBody.thinking = { type: 'enabled' }
+    requestBody.reasoning_effort = reasoningEffort
   } else if (options?.enableThinking === false) {
     requestBody.thinking = { type: 'disabled' }
   }
@@ -238,27 +221,12 @@ export async function* streamDeepSeekCompletion(
   })
 
   if (!response.ok) {
-    const errorText = await response.text()
-    const errorData = parseErrorResponse(errorText)
-    const errorMessage = extractErrorMessage(
-      errorData,
-      errorText,
-      response.status,
-      response.statusText
-    )
-
-    if (response.status === 429) {
-      throw new Error(
-        `Rate limited by DeepSeek (429). Please try again in a moment. ${errorMessage}`
-      )
-    }
-
-    throw new Error(errorMessage)
+    throw await createProviderHttpError('deepseek', response, 'DeepSeek request failed')
   }
 
   const reader = response.body?.getReader()
   if (!reader) {
-    throw new Error('Failed to get response reader')
+    throw missingResponseBodyError('deepseek')
   }
 
   yield* parseSSEStream<DeepSeekStreamChunk>(reader, {
@@ -299,7 +267,7 @@ export const generateDeepSeekCompletion = async (
   }
   if (options?.tools && options.tools.length > 0) {
     requestBody.tools = options.tools
-    requestBody.tool_choice = normalizeDeepSeekToolChoice(options.toolChoice)
+    requestBody.tool_choice = options.toolChoice ?? 'auto'
   }
   // Thinking toggle: DeepSeek defaults to `enabled`, so we must send an
   // explicit `disabled` to turn reasoning off (e.g. memory extraction / title
@@ -307,10 +275,8 @@ export const generateDeepSeekCompletion = async (
   // preserves DeepSeek's default behavior and never affects normal chat.
   if (options?.enableThinking === true) {
     const reasoningEffort = mapDeepSeekReasoningEffort(options.reasoningEffort)
-    requestBody.thinking = {
-      type: 'enabled',
-      ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
-    }
+    requestBody.thinking = { type: 'enabled' }
+    requestBody.reasoning_effort = reasoningEffort
   } else if (options?.enableThinking === false) {
     requestBody.thinking = { type: 'disabled' }
   }
@@ -329,22 +295,7 @@ export const generateDeepSeekCompletion = async (
   })
 
   if (!response.ok) {
-    const errorText = await response.text()
-    const errorData = parseErrorResponse(errorText)
-    const errorMessage = extractErrorMessage(
-      errorData,
-      errorText,
-      response.status,
-      response.statusText
-    )
-
-    if (response.status === 429) {
-      throw new Error(
-        `Rate limited by DeepSeek (429). Please try again in a moment. ${errorMessage}`
-      )
-    }
-
-    throw new Error(errorMessage)
+    throw await createProviderHttpError('deepseek', response, 'DeepSeek request failed')
   }
 
   return response.json() as Promise<DeepSeekResponse>
@@ -374,7 +325,12 @@ export function isDeepSeekCompatibilityAlias(modelId: string): boolean {
   return modelId in DEEPSEEK_MODEL_ALIASES
 }
 
-export async function fetchDeepSeekModels(apiKey: string): Promise<DeepSeekModel[]> {
+export async function fetchDeepSeekModels(
+  apiKey: string,
+  signal?: AbortSignal
+): Promise<DeepSeekModel[]> {
+  const bridged = await listProviderModelsThroughMain<DeepSeekModel>('deepseek', signal)
+  if (bridged) return bridged
   if (!apiKey?.trim()) {
     throw new Error('Add a DeepSeek API key before loading the catalog.')
   }
@@ -383,11 +339,11 @@ export async function fetchDeepSeekModels(apiKey: string): Promise<DeepSeekModel
     headers: {
       Authorization: `Bearer ${apiKey}`,
     },
+    signal,
   })
 
   if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(`Failed to fetch DeepSeek models: ${response.status} ${errorText}`)
+    throw await createProviderHttpError('deepseek', response, 'DeepSeek model catalog failed')
   }
 
   const data = (await response.json()) as DeepSeekModelListResponse
@@ -459,7 +415,7 @@ export async function fetchDeepSeekBalance(apiKey: string): Promise<DeepSeekBala
   })
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch DeepSeek balance: ${response.status}`)
+    throw await createProviderHttpError('deepseek', response, 'DeepSeek balance request failed')
   }
 
   return response.json() as Promise<DeepSeekBalanceInfo>

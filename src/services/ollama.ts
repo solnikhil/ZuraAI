@@ -1,5 +1,6 @@
 import { parseNDJSONStream } from './streamUtils'
 import type { ChatMessage, ToolDefinition } from './types'
+import { listProviderModelsThroughMain } from './providerCatalogBridge'
 
 export interface OllamaModel {
   name: string
@@ -23,6 +24,11 @@ export interface OllamaResponse {
     content: string
     thinking?: string
     images?: string[]
+    tool_calls?: Array<{
+      id?: string
+      type?: 'function'
+      function: { name: string; arguments: Record<string, unknown> }
+    }>
   }
   done: boolean
   total_duration?: number
@@ -34,6 +40,14 @@ export interface OllamaResponse {
 }
 
 export const checkOllamaStatus = async (baseUrl: string): Promise<boolean> => {
+  if (typeof window !== 'undefined' && window.providerRuntime) {
+    try {
+      await listProviderModelsThroughMain<OllamaModel>('ollama', undefined, { ollamaUrl: baseUrl })
+      return true
+    } catch {
+      return false
+    }
+  }
   try {
     const response = await fetch(`${baseUrl}/api/tags`, { method: 'HEAD' })
     return response.ok
@@ -43,46 +57,42 @@ export const checkOllamaStatus = async (baseUrl: string): Promise<boolean> => {
 }
 
 export const listOllamaModels = async (baseUrl: string): Promise<OllamaModel[]> => {
-  try {
-    const response = await fetch(`${baseUrl}/api/tags`)
-    if (!response.ok) throw new Error('Failed to fetch models')
-    const data = await response.json()
-    return data.models || []
-  } catch (error) {
-    console.error('Error fetching Ollama models:', error)
-    return []
+  const bridged = await listProviderModelsThroughMain<OllamaModel>('ollama', undefined, {
+    ollamaUrl: baseUrl,
+  })
+  if (bridged) return bridged
+  const response = await fetch(`${baseUrl}/api/tags`)
+  if (!response.ok) {
+    throw new Error(`Failed to fetch Ollama models: ${response.status} ${response.statusText}`)
   }
+  const data = (await response.json()) as { models?: OllamaModel[] }
+  if (!Array.isArray(data.models)) {
+    throw new Error('Ollama returned an invalid model catalog response.')
+  }
+  return data.models
 }
 
-/** Default Ollama context length when /api/show doesn't return one */
-const OLLAMA_DEFAULT_CONTEXT = 4096
-
-/**
- * Fetch context length for a single Ollama model via /api/show.
- * Returns the context_length from model_info, or OLLAMA_DEFAULT_CONTEXT on failure.
- */
 const getOllamaModelContextLength = async (baseUrl: string, modelName: string): Promise<number> => {
-  try {
-    const response = await fetch(`${baseUrl}/api/show`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: modelName }),
-    })
-    if (!response.ok) return OLLAMA_DEFAULT_CONTEXT
-    const data = await response.json()
-    // model_info keys are like "<architecture>.context_length"
-    const modelInfo = data.model_info
-    if (modelInfo && typeof modelInfo === 'object') {
-      for (const key of Object.keys(modelInfo)) {
-        if (key.endsWith('.context_length') && typeof modelInfo[key] === 'number') {
-          return modelInfo[key]
-        }
+  const response = await fetch(`${baseUrl}/api/show`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: modelName }),
+  })
+  if (!response.ok) {
+    throw new Error(
+      `Failed to inspect Ollama model ${modelName}: ${response.status} ${response.statusText}`
+    )
+  }
+  const data = (await response.json()) as { model_info?: Record<string, unknown> }
+  const modelInfo = data.model_info
+  if (modelInfo && typeof modelInfo === 'object') {
+    for (const [key, value] of Object.entries(modelInfo)) {
+      if (key.endsWith('.context_length') && typeof value === 'number' && value > 0) {
+        return value
       }
     }
-    return OLLAMA_DEFAULT_CONTEXT
-  } catch {
-    return OLLAMA_DEFAULT_CONTEXT
   }
+  throw new Error(`Ollama did not report a context length for ${modelName}.`)
 }
 
 /**
@@ -94,12 +104,18 @@ export const enrichOllamaModelsWithContext = async (
 ): Promise<
   Array<{ code: string; displayName: string; maxContext: number; [key: string]: unknown }>
 > => {
-  const results = await Promise.allSettled(
-    models.map((m) => getOllamaModelContextLength(baseUrl, m.code))
-  )
+  if (models.every((model) => typeof model.maxContext === 'number' && model.maxContext > 0)) {
+    return models as Array<{
+      code: string
+      displayName: string
+      maxContext: number
+      [key: string]: unknown
+    }>
+  }
+  const results = await Promise.all(models.map((m) => getOllamaModelContextLength(baseUrl, m.code)))
   return models.map((m, i) => ({
     ...m,
-    maxContext: results[i].status === 'fulfilled' ? results[i].value : OLLAMA_DEFAULT_CONTEXT,
+    maxContext: results[i],
   }))
 }
 
@@ -115,7 +131,7 @@ export interface OllamaStreamChunk {
       type?: 'function'
       function?: {
         name?: string
-        arguments?: string
+        arguments?: Record<string, unknown>
       }
     }>
   }
@@ -150,9 +166,8 @@ export async function* streamOllamaCompletion(
       model,
       messages,
       stream: true,
-      think: options?.think ?? true,
+      ...(options?.think !== undefined ? { think: options.think } : {}),
       tools: options?.tools && options.tools.length > 0 ? options.tools : undefined,
-      tool_choice: options?.tools && options.tools.length > 0 ? 'auto' : undefined,
       options: {
         temperature: options?.temperature,
         num_ctx: options?.num_ctx,
@@ -196,15 +211,11 @@ export const generateOllamaCompletion = async (
     body: JSON.stringify({
       model,
       messages,
-      stream: false, // For now, we use non-streaming
-      think: options?.think ?? true,
+      stream: false,
+      ...(options?.think !== undefined ? { think: options.think } : {}),
       tools:
         options?.tools && Array.isArray(options.tools) && options.tools.length > 0
           ? options.tools
-          : undefined,
-      tool_choice:
-        options?.tools && Array.isArray(options.tools) && options.tools.length > 0
-          ? 'auto'
           : undefined,
       options: {
         temperature: options?.temperature,
@@ -215,7 +226,8 @@ export const generateOllamaCompletion = async (
   })
 
   if (!response.ok) {
-    throw new Error(`Ollama API Error: ${response.statusText}`)
+    const errorText = await response.text().catch(() => '')
+    throw new Error(`Ollama API Error: ${response.status} ${response.statusText} - ${errorText}`)
   }
 
   return await response.json()

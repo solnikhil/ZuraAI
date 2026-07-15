@@ -7,7 +7,6 @@ import {
 } from '../../../services/opencode'
 import type { ConfiguredModel } from '@/contexts/SettingsConfigContext'
 import { getCapabilitiesFromModel } from '@/utils/modelUtils'
-import { resolveApiKeyFromSecureStorage } from '../../../utils/secureApiKeys'
 import { toast } from 'sonner'
 import { CatalogDialogBody, CatalogHeader, type CatalogItem } from './catalog'
 
@@ -30,12 +29,10 @@ export function OpencodeModelSearchDialog({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const loadModels = useCallback(async () => {
-    const resolvedApiKey = await resolveApiKeyFromSecureStorage('opencodeGoApiKey', apiKey ?? '')
-
+  const loadModels = useCallback(() => {
     setLoading(true)
     setError(null)
-    fetchOpencodeModels(resolvedApiKey)
+    fetchOpencodeModels(apiKey ?? '')
       .then((fetchedModels) => {
         setModels(fetchedModels)
         setLoading(false)

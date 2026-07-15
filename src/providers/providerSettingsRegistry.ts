@@ -35,6 +35,7 @@ export interface ProviderSettingsDefinition {
   catalogDialogKind?: ProviderCatalogDialogKind
   settingsOrder: number
   pickerOrder: number
+  setupKind: 'api-key' | 'account' | 'local'
 }
 
 const PROVIDER_SETTINGS_EXTRAS: Record<
@@ -54,6 +55,20 @@ const PROVIDER_SETTINGS_EXTRAS: Record<
     catalogDialogKind: 'openrouter',
     settingsOrder: 0,
     pickerOrder: 0,
+    setupKind: 'api-key',
+  },
+  codex: {
+    id: 'codex',
+    modelListField: 'codexModels',
+    enabledByDefault: true,
+    dashboardUrl: 'https://chatgpt.com/codex',
+    settingsVisible: true,
+    pickerVisible: true,
+    logoVisible: true,
+    supportsCatalogDialog: false,
+    settingsOrder: 1,
+    pickerOrder: 1,
+    setupKind: 'account',
   },
   groq: {
     id: 'groq',
@@ -65,8 +80,9 @@ const PROVIDER_SETTINGS_EXTRAS: Record<
     pickerVisible: true,
     logoVisible: true,
     supportsCatalogDialog: false,
-    settingsOrder: 1,
-    pickerOrder: 3,
+    settingsOrder: 2,
+    pickerOrder: 4,
+    setupKind: 'api-key',
   },
   alibaba: {
     id: 'alibaba',
@@ -79,8 +95,9 @@ const PROVIDER_SETTINGS_EXTRAS: Record<
     logoVisible: true,
     supportsCatalogDialog: true,
     catalogDialogKind: 'alibaba',
-    settingsOrder: 2,
-    pickerOrder: 5,
+    settingsOrder: 3,
+    pickerOrder: 6,
+    setupKind: 'api-key',
   },
   deepseek: {
     id: 'deepseek',
@@ -93,8 +110,9 @@ const PROVIDER_SETTINGS_EXTRAS: Record<
     logoVisible: true,
     supportsCatalogDialog: true,
     catalogDialogKind: 'deepseek',
-    settingsOrder: 3,
-    pickerOrder: 1,
+    settingsOrder: 4,
+    pickerOrder: 2,
+    setupKind: 'api-key',
   },
   ollama: {
     id: 'ollama',
@@ -105,8 +123,9 @@ const PROVIDER_SETTINGS_EXTRAS: Record<
     pickerVisible: true,
     logoVisible: true,
     supportsCatalogDialog: false,
-    settingsOrder: 4,
-    pickerOrder: 5,
+    settingsOrder: 5,
+    pickerOrder: 6,
+    setupKind: 'local',
   },
   fireworks: {
     id: 'fireworks',
@@ -119,8 +138,9 @@ const PROVIDER_SETTINGS_EXTRAS: Record<
     logoVisible: true,
     supportsCatalogDialog: true,
     catalogDialogKind: 'fireworks',
-    settingsOrder: 5,
-    pickerOrder: 4,
+    settingsOrder: 6,
+    pickerOrder: 5,
+    setupKind: 'api-key',
   },
   nvidia: {
     id: 'nvidia',
@@ -133,8 +153,9 @@ const PROVIDER_SETTINGS_EXTRAS: Record<
     logoVisible: true,
     supportsCatalogDialog: true,
     catalogDialogKind: 'nvidia',
-    settingsOrder: 6,
-    pickerOrder: 6,
+    settingsOrder: 7,
+    pickerOrder: 7,
+    setupKind: 'api-key',
   },
   opencode: {
     id: 'opencode',
@@ -147,8 +168,9 @@ const PROVIDER_SETTINGS_EXTRAS: Record<
     logoVisible: true,
     supportsCatalogDialog: true,
     catalogDialogKind: 'opencode',
-    settingsOrder: 7,
-    pickerOrder: 7,
+    settingsOrder: 8,
+    pickerOrder: 8,
+    setupKind: 'api-key',
   },
 }
 

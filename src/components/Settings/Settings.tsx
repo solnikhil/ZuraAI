@@ -15,7 +15,6 @@ import { McpSection } from './sections/McpSection'
 import { ProviderHubSection } from './sections/ProviderHubSection'
 import { SkillsSection } from './sections/SkillsSection'
 import { AppearanceSection } from './sections/AppearanceSection'
-import { CommandBarSection } from './sections/CommandBarSection'
 
 import { computeUsageStats, mergeUsageSessionSnapshots } from './sections/usageMetrics'
 import type { ChatSession } from '@/chat/types'
@@ -304,6 +303,7 @@ export default function Settings({
                 initialManageMode={settingsSectionParams?.manageMode}
                 onParamsConsumed={clearParams}
                 alibabaApiKey={pendingSettings.alibabaApiKey}
+                alibabaRegion={pendingSettings.alibabaRegion}
                 deepseekApiKey={pendingSettings.deepseekApiKey}
                 opencodeGoApiKey={pendingSettings.opencodeGoApiKey}
                 fireworksApiKey={pendingSettings.fireworksApiKey}
@@ -320,6 +320,7 @@ export default function Settings({
                 providerEnabled={pendingSettings.providerEnabled}
                 configuredModels={pendingSettings.configuredModels}
                 alibabaModels={pendingSettings.alibabaModels}
+                codexModels={pendingSettings.codexModels}
                 deepseekModels={pendingSettings.deepseekModels}
                 opencodeModels={pendingSettings.opencodeModels}
                 fireworksModels={pendingSettings.fireworksModels}
@@ -365,13 +366,6 @@ export default function Settings({
             )}
 
             {normalizedActiveSection === 'mcp' && <McpSection />}
-
-            {normalizedActiveSection === 'commandbar' && (
-              <CommandBarSection
-                settings={pendingSettings}
-                onChange={(changes) => handleChange(changes)}
-              />
-            )}
 
             {normalizedActiveSection === 'themes' && (
               <AppearanceSection

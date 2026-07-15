@@ -8,6 +8,7 @@ export interface ModelDisplaySettingsLike {
   ollamaModels?: ModelOption[]
   groqModels?: ModelOption[]
   alibabaModels?: ModelOption[]
+  codexModels?: ModelOption[]
   fireworksModels?: ModelOption[]
   nvidiaModels?: ModelOption[]
   deepseekModels?: ModelOption[]

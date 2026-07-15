@@ -20,15 +20,6 @@ export { createApplicationMenu } from './applicationMenu'
 export { showSpotlight, hideSpotlight } from './spotlightOverlay'
 
 export {
-  preloadCommandCenterWindow,
-  showCommandCenterWindow,
-  hideCommandCenterWindow,
-  setCommandCenterWindowLayout,
-  toggleCommandCenterWindow,
-  destroyCommandCenterWindow,
-} from './commandCenterOverlay'
-
-export {
   destroyAgentApprovalOverlay,
   registerAgentApprovalOverlayHandlers,
   unregisterAgentApprovalOverlayHandlers,

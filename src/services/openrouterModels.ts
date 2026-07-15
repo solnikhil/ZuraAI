@@ -6,6 +6,7 @@
 
 import type { ConfiguredModel } from '../contexts/SettingsConfigContext'
 import { getProviderEndpoint } from '../providers'
+import { listProviderModelsThroughMain } from './providerCatalogBridge'
 
 const OPENROUTER_REASONING_MODEL_PATTERNS = [
   /\bthinking\b/i,
@@ -62,7 +63,12 @@ export interface OpenRouterModelsResponse {
  * @param apiKey - Optional API key (required for some models, optional for public catalog)
  * @returns Promise resolving to array of OpenRouter models
  */
-export async function fetchOpenRouterModels(apiKey?: string): Promise<OpenRouterModel[]> {
+export async function fetchOpenRouterModels(
+  apiKey?: string,
+  signal?: AbortSignal
+): Promise<OpenRouterModel[]> {
+  const bridged = await listProviderModelsThroughMain<OpenRouterModel>('openrouter', signal)
+  if (bridged) return bridged
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
   }
@@ -74,6 +80,7 @@ export async function fetchOpenRouterModels(apiKey?: string): Promise<OpenRouter
   const response = await fetch(getProviderEndpoint('openrouter', 'modelCatalogUrl')!, {
     method: 'GET',
     headers,
+    signal,
   })
 
   if (!response.ok) {

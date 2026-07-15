@@ -61,6 +61,7 @@ export type ProviderModelListKey =
   | 'groqModels'
   | 'nvidiaModels'
   | 'alibabaModels'
+  | 'codexModels'
   | 'fireworksModels'
   | 'deepseekModels'
   | 'opencodeModels'
@@ -82,6 +83,7 @@ export type ProviderSettingsLike = Partial<
     | 'groqModels'
     | 'nvidiaModels'
     | 'alibabaModels'
+    | 'codexModels'
     | 'fireworksModels'
     | 'deepseekModels'
     | 'opencodeModels'
@@ -156,6 +158,7 @@ const PROVIDER_TOOL_MODEL_PREFIXES: Record<ProviderId, string[]> = {
     'qwen3-coder-plus',
     'qwen3-coder-flash',
   ],
+  codex: [],
   opencode: [],
 }
 
@@ -169,16 +172,7 @@ export const STREAM_RESEARCH_SAFETY_CAP = 50
 export const STREAM_MAX_RESEARCH_ROUNDS = 50
 export const TITLE_REVEAL_INTERVAL_MS = 24
 
-const allowAllToolModels = (provider: ProviderId) =>
-  provider === 'openrouter' ||
-  provider === 'fireworks' ||
-  provider === 'deepseek' ||
-  provider === 'nvidia' ||
-  provider === 'opencode'
-
 const supportsModelTools = (provider: ProviderId, model: string): boolean => {
-  if (allowAllToolModels(provider)) return true
-
   const supportedModels = PROVIDER_TOOL_MODEL_PREFIXES[provider]
   if (!supportedModels || supportedModels.length === 0) return false
 
@@ -237,6 +231,38 @@ const PROVIDERS: Record<ProviderId, ProviderDefinition> = {
       supportsTools: (model) => supportsModelTools('openrouter', model),
     },
   },
+  codex: {
+    id: 'codex',
+    label: 'ChatGPT Codex',
+    description:
+      'Unofficial local OAuth access to Codex models using your ChatGPT account allowance.',
+    accentColor: '#10a37f',
+    capabilities: {
+      supportsStreaming: true,
+      supportsTools: false,
+      supportsVisionUploads: false,
+      supportsReasoning: true,
+      supportsImageGeneration: false,
+      supportsNativeSearch: false,
+    },
+    promptCaching: {
+      promptCaching: 'automatic',
+      sessionAffinity: 'none',
+    },
+    endpoints: {
+      baseUrl: 'https://chatgpt.com/backend-api/codex',
+      modelCatalogUrl: 'https://chatgpt.com/backend-api/codex/models',
+    },
+    retryPolicy: OPENAI_COMPATIBLE_RETRY_POLICY,
+    auth: {
+      hasAccess: () => true,
+      getCredentialError: () => null,
+    },
+    models: {
+      settingsModelKey: 'codexModels',
+      supportsTools: () => false,
+    },
+  },
   groq: {
     id: 'groq',
     label: 'Groq',
@@ -292,7 +318,6 @@ const PROVIDERS: Record<ProviderId, ProviderDefinition> = {
     endpoints: {
       baseUrl: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
       chatCompletionsUrl: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions',
-      modelCatalogUrl: 'https://modelstudio.alibabacloud.com/',
     },
     retryPolicy: OPENAI_COMPATIBLE_RETRY_POLICY,
     auth: {
@@ -485,10 +510,13 @@ const PROVIDERS: Record<ProviderId, ProviderDefinition> = {
 }
 
 export function normalizeProviderId(provider: string | null | undefined): ProviderId {
-  if (!provider) return 'openrouter'
-  return Object.prototype.hasOwnProperty.call(PROVIDERS, provider)
-    ? (provider as ProviderId)
-    : 'openrouter'
+  if (!provider?.trim()) {
+    throw new Error('A provider id is required.')
+  }
+  if (!Object.prototype.hasOwnProperty.call(PROVIDERS, provider)) {
+    throw new Error(`Unknown provider id: ${provider}`)
+  }
+  return provider as ProviderId
 }
 
 export function normalizeActiveProviderId(provider: string | null | undefined): ActiveProviderId {

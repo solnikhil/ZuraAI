@@ -43,6 +43,26 @@ describe('preload MCP bridge', () => {
     await import('./preload')
   })
 
+  it('exposes the narrow ChatGPT Codex account actions on the provider bridge', async () => {
+    const providerRuntime = getExposedBridge<{
+      signInCodex: () => Promise<boolean>
+      getCodexAuthStatus: () => Promise<{ signedIn: boolean }>
+      signOutCodex: () => Promise<boolean>
+    }>('providerRuntime')
+    preloadMocks.invoke
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce({ signedIn: true })
+      .mockResolvedValueOnce(true)
+
+    await expect(providerRuntime.signInCodex()).resolves.toBe(true)
+    await expect(providerRuntime.getCodexAuthStatus()).resolves.toEqual({ signedIn: true })
+    await expect(providerRuntime.signOutCodex()).resolves.toBe(true)
+
+    expect(preloadMocks.invoke).toHaveBeenCalledWith('provider-runtime:codex-sign-in')
+    expect(preloadMocks.invoke).toHaveBeenCalledWith('provider-runtime:codex-auth-status')
+    expect(preloadMocks.invoke).toHaveBeenCalledWith('provider-runtime:codex-sign-out')
+  })
+
   it('exposes a dedicated MCP bridge with invoke helpers', async () => {
     const mcp = getExposedBridge<{
       listServers: () => Promise<unknown>
@@ -312,25 +332,6 @@ describe('preload MCP bridge', () => {
     expect(preloadMocks.invoke).toHaveBeenNthCalledWith(2, 'email-notifications:send-test')
     expect(() => ipcRenderer.invoke('email-notifications:send-test' as never)).toThrow(
       'Blocked IPC invoke channel: email-notifications:send-test'
-    )
-  })
-
-  it('exposes a dedicated provider proxy bridge and keeps it out of generic IPC', async () => {
-    const providerProxy = getExposedBridge<{
-      fetchOpencode: (request: { url: string; method: 'GET' }) => Promise<unknown>
-    }>('providerProxy')
-    const ipcRenderer = getExposedBridge<{
-      invoke: (channel: string, ...args: unknown[]) => Promise<unknown>
-    }>('ipcRenderer')
-    const request = { url: 'https://opencode.ai/zen/go/v1/models', method: 'GET' as const }
-    const response = { ok: true, status: 200, statusText: 'OK', headers: {}, body: '{"data":[]}' }
-
-    preloadMocks.invoke.mockResolvedValueOnce(response)
-
-    await expect(providerProxy.fetchOpencode(request)).resolves.toEqual(response)
-    expect(preloadMocks.invoke).toHaveBeenCalledWith('provider-proxy:opencode-fetch', request)
-    expect(() => ipcRenderer.invoke('provider-proxy:opencode-fetch' as never, request)).toThrow(
-      'Blocked IPC invoke channel: provider-proxy:opencode-fetch'
     )
   })
 

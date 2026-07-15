@@ -70,7 +70,7 @@ const LEGACY_WINDOWS_UIA_TOOLS = [
   'windows_uia_select',
 ]
 
-const COMMAND_CENTER_TOOLS = [
+const DESKTOP_OS_TOOLS = [
   'system_active_window',
   'system_status',
   'system_settings_open',
@@ -83,7 +83,7 @@ const COMMAND_CENTER_TOOLS = [
   'window_focus',
 ]
 
-const MACOS_COMMAND_CENTER_TOOLS = COMMAND_CENTER_TOOLS.filter(
+const MACOS_DESKTOP_OS_TOOLS = DESKTOP_OS_TOOLS.filter(
   (tool) => tool !== 'window_list' && tool !== 'window_focus'
 )
 
@@ -197,20 +197,20 @@ export function useToolCalling() {
       }
     }
 
-    const commandCenterSurfaceEnabled =
+    const desktopOsSurfaceEnabled =
       settings.assistantMode === 'agent' && (isWindowsRuntime() || isMacOSRuntime())
-    const platformCommandCenterTools = isMacOSRuntime()
-      ? MACOS_COMMAND_CENTER_TOOLS
-      : COMMAND_CENTER_TOOLS
+    const platformDesktopOsTools = isMacOSRuntime()
+      ? MACOS_DESKTOP_OS_TOOLS
+      : DESKTOP_OS_TOOLS
 
-    if (!commandCenterSurfaceEnabled) {
+    if (!desktopOsSurfaceEnabled) {
       enabledTools = enabledTools.filter(
         (tool) =>
-          !COMMAND_CENTER_TOOLS.includes(tool) ||
+          !DESKTOP_OS_TOOLS.includes(tool) ||
           (nativeWindowsAgentToolsEnabled && NATIVE_WINDOWS_AGENT_TOOLS.includes(tool))
       )
     } else {
-      for (const tool of platformCommandCenterTools) {
+      for (const tool of platformDesktopOsTools) {
         if (!enabledTools.includes(tool)) enabledTools.push(tool)
       }
     }
@@ -286,7 +286,7 @@ export function useToolCalling() {
     }
 
     const nativePriority = new Map(
-      [...COMMAND_CENTER_TOOLS, ...NATIVE_WINDOWS_AGENT_TOOLS].map((tool, index) => [tool, index])
+      [...DESKTOP_OS_TOOLS, ...NATIVE_WINDOWS_AGENT_TOOLS].map((tool, index) => [tool, index])
     )
     const computerPriorityOffset = NATIVE_WINDOWS_AGENT_TOOLS.length
     const computerPriority = new Map(

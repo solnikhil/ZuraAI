@@ -121,10 +121,6 @@ export default defineConfig({
               external: [
                 'bufferutil',
                 'utf-8-validate',
-                // Keep dugite out of the main bundle so its embedded git path
-                // resolution (__dirname → node_modules/dugite/git) still works,
-                // and so LOCAL_GIT_DIRECTORY can resolve the real package root.
-                'dugite',
                 'koffi',
                 '@koromix/koffi-win32-x64',
                 '@nut-tree-fork/nut-js',
@@ -171,6 +167,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      '@zura/provider-core': path.resolve(__dirname, './packages/provider-core/src/index.ts'),
       'lucide-react': path.resolve(__dirname, './src/lib/lucide-react.tsx'),
     },
   },
@@ -178,7 +175,6 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: path.resolve(__dirname, 'index.html'),
-        commandCenter: path.resolve(__dirname, 'command-center.html'),
       },
     },
     // Use graph-based chunking so dynamic feature boundaries remain real load

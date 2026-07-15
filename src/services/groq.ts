@@ -1,6 +1,8 @@
 import { ChatMessage, ToolDefinition, parseErrorResponse, extractErrorMessage } from './types'
 import { parseSSEStream } from './streamUtils'
 import { getProviderEndpoint } from '../providers'
+import { ProviderError, parseRetryAfterMs, providerErrorCodeForStatus } from '@zura/provider-core'
+import { createProviderHttpError, missingResponseBodyError } from './providerHttpError'
 
 /**
  * Groq API Service
@@ -129,20 +131,12 @@ export async function* streamGroqCompletion(
   })
 
   if (!response.ok) {
-    const errorText = await response.text()
-    const errorData = parseErrorResponse(errorText)
-    const errorMessage = extractErrorMessage(
-      errorData,
-      errorText,
-      response.status,
-      response.statusText
-    )
-    throw new Error(errorMessage)
+    throw await createProviderHttpError('groq', response, 'Groq request failed')
   }
 
   const reader = response.body?.getReader()
   if (!reader) {
-    throw new Error('Failed to get response reader')
+    throw missingResponseBodyError('groq')
   }
 
   yield* parseSSEStream<GroqStreamChunk>(reader, {
@@ -196,99 +190,28 @@ export const generateGroqCompletion = async (
   if (!response.ok) {
     const errorText = await response.text()
     const errorData = parseErrorResponse(errorText)
-
-    if (errorData.error?.code === 'tool_use_failed' && errorData.error?.failed_generation) {
-      const failedContent = errorData.error.failed_generation
-
-      try {
-        const jsonMatch = failedContent.match(/\[[\s\S]*?\]|{[\s\S]*?}/)
-        if (jsonMatch) {
-          const parsed = JSON.parse(jsonMatch[0])
-          if (
-            Array.isArray(parsed) &&
-            parsed.length > 0 &&
-            parsed[0].name &&
-            parsed[0].parameters
-          ) {
-            const toolCall = parsed[0]
-            // Coerce num_results to number if present
-            if (
-              toolCall.parameters.num_results &&
-              typeof toolCall.parameters.num_results === 'string'
-            ) {
-              const num = Number(toolCall.parameters.num_results)
-              if (!isNaN(num)) {
-                toolCall.parameters.num_results = num
-              }
-            }
-            return {
-              id: 'groq-extracted-tool-call',
-              object: 'chat.completion',
-              created: Math.floor(Date.now() / 1000),
-              model: model,
-              choices: [
-                {
-                  index: 0,
-                  message: {
-                    role: 'assistant',
-                    content: '',
-                    tool_calls: [
-                      {
-                        id: `call_${Date.now()}`,
-                        type: 'function' as const,
-                        function: {
-                          name: toolCall.name,
-                          arguments: JSON.stringify(toolCall.parameters),
-                        },
-                      },
-                    ],
-                  },
-                  finish_reason: 'tool_calls',
-                },
-              ],
-              usage: {
-                prompt_tokens: 0,
-                completion_tokens: 0,
-                total_tokens: 0,
-              },
-            } as GroqResponse
-          }
-        }
-      } catch {
-        // Failed to parse, fall through to returning failed_generation as content
-      }
-
-      // Fallback: Return failed_generation as regular content
-      return {
-        id: 'groq-failed-generation',
-        object: 'chat.completion',
-        created: Math.floor(Date.now() / 1000),
-        model: model,
-        choices: [
-          {
-            index: 0,
-            message: {
-              role: 'assistant',
-              content: failedContent,
-            },
-            finish_reason: 'stop',
-          },
-        ],
-        usage: {
-          prompt_tokens: 0,
-          completion_tokens: 0,
-          total_tokens: 0,
-        },
-      } as GroqResponse
-    }
-
     const errorMessage = extractErrorMessage(
       errorData,
       errorText,
       response.status,
       response.statusText
     )
-    throw new Error(errorMessage)
+    throw new ProviderError({
+      provider: 'groq',
+      code:
+        errorData.error?.code === 'tool_use_failed'
+          ? 'invalid_tool_call'
+          : providerErrorCodeForStatus(response.status),
+      message: errorMessage,
+      status: response.status,
+      requestId: response.headers.get('x-request-id') ?? undefined,
+      retryAfterMs: parseRetryAfterMs(response.headers.get('retry-after')),
+      retryable: response.status === 429 || response.status >= 500,
+      metadata:
+        errorData.error?.code === 'tool_use_failed'
+          ? { providerCode: 'tool_use_failed' }
+          : undefined,
+    })
   }
 
   const result = (await response.json()) as GroqResponse

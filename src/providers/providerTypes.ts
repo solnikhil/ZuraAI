@@ -1,5 +1,6 @@
 export type ProviderId =
   | 'alibaba'
+  | 'codex'
   | 'deepseek'
   | 'fireworks'
   | 'groq'

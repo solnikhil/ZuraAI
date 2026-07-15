@@ -1,5 +1,6 @@
 import type { ConfiguredModel } from '../contexts/SettingsConfigContext'
 import { getProviderEndpoint } from '../providers'
+import { listProviderModelsThroughMain } from './providerCatalogBridge'
 
 export interface FireworksModel {
   name: string
@@ -66,7 +67,12 @@ function normalizeSearchText(value: string | undefined): string {
   return normalized
 }
 
-export async function fetchFireworksModels(apiKey: string): Promise<FireworksModel[]> {
+export async function fetchFireworksModels(
+  apiKey: string,
+  signal?: AbortSignal
+): Promise<FireworksModel[]> {
+  const bridged = await listProviderModelsThroughMain<FireworksModel>('fireworks', signal)
+  if (bridged) return bridged
   if (!apiKey?.trim()) {
     throw new Error('Fireworks API key is required to fetch catalog models.')
   }
@@ -88,6 +94,7 @@ export async function fetchFireworksModels(apiKey: string): Promise<FireworksMod
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
+      signal,
     })
 
     if (!response.ok) {

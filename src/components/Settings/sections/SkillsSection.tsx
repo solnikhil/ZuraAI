@@ -40,7 +40,6 @@ export interface SkillsSectionProps {
     terminalAutoApprove?: boolean
     computerUseAutoApprove?: boolean
     assistantMode?: Settings['assistantMode']
-    commandCenterChatPersistence?: Settings['commandCenterChatPersistence']
     memoryModel?: string
     brevoApiKey?: string
     emailNotifications?: EmailNotificationSettings
@@ -77,9 +76,6 @@ export function SkillsSection({
   onChange,
 }: SkillsSectionProps): React.ReactElement {
   const isEnabled = (extensionId: CatalogExtensionId): boolean => {
-    if (extensionId === 'command_center') {
-      return settings?.assistantMode === 'agent' || checkSkillEnabled(skills, extensionId)
-    }
     return checkSkillEnabled(skills, extensionId)
   }
 
@@ -102,15 +98,6 @@ export function SkillsSection({
   )
 
   const setEnabled = (extensionId: CatalogExtensionId, enabled: boolean) => {
-    if (extensionId === 'command_center') {
-      void window.commandCenter?.setExtensionEnabled(enabled)
-      onChange({
-        assistantMode: enabled ? 'agent' : 'chat',
-        skills: withSkillEnabled(skills, extensionId, enabled),
-      })
-      return
-    }
-
     if (extensionId === 'computer_use') {
       onChange({
         skills: withComputerUseEnabled(skills, enabled),
