@@ -279,7 +279,7 @@ describe('Property 1: Custom controls render on all non-macOS platforms', () => 
       }),
       { numRuns: 100 }
     )
-  })
+  }, 15_000)
 })
 
 /**

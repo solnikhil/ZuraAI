@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react'
-import { AlertTriangle, CheckCircle2, ShieldCheck, TimerReset, Wrench, XCircle } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, TimerReset, Wrench, XCircle } from 'lucide-react'
 
 import { useToast } from '@/components/shared'
 import {
@@ -15,13 +15,11 @@ import {
 import { Badge } from '@/components/ui/badge'
 import type { ToolCall } from '@/tools/types'
 import { describeToolCall, getToolStepKind } from './agentRun'
-
-const TRUSTED_AGENT_TOOL_SIGNATURES_KEY = 'zura-agent:trusted-tool-signatures'
+import { rememberToolApprovalToken } from '@/tools/toolApprovalTokens'
 
 interface PendingApproval {
   id: string
   toolCall: ToolCall
-  trustSignature: string
   requestedAt: number
   resolve: (approved: boolean) => void
 }
@@ -36,15 +34,9 @@ export function AgentToolApprovalProvider({ children }: { children: React.ReactN
   const [pending, setPending] = useState<PendingApproval[]>([])
   const { showToast } = useToast()
   const resolvedIdsRef = useRef(new Set<string>())
-  const trustedSignaturesRef = useRef(loadTrustedSignatures())
 
   const requestApproval = useCallback(
     (toolCall: ToolCall) => {
-      const trustSignature = getToolTrustSignature(toolCall)
-      if (trustedSignaturesRef.current.has(trustSignature)) {
-        return Promise.resolve(true)
-      }
-
       if (typeof window !== 'undefined' && window.agentApproval?.requestApproval) {
         const description = describeToolCall(toolCall)
         const kind = getToolStepKind(toolCall.name)
@@ -61,11 +53,11 @@ export function AgentToolApprovalProvider({ children }: { children: React.ReactN
               label,
               value,
             })),
+            toolArguments: toolCall.arguments,
           })
           .then((decision) => {
-            if (decision.approved && decision.trusted) {
-              trustedSignaturesRef.current.add(trustSignature)
-              saveTrustedSignatures(trustedSignaturesRef.current)
+            if (decision.approved && decision.approvalToken) {
+              rememberToolApprovalToken(toolCall.id, decision.approvalToken)
             }
             showToast(
               decision.approved
@@ -86,7 +78,6 @@ export function AgentToolApprovalProvider({ children }: { children: React.ReactN
           {
             id: `agent-approval-${toolCall.id}-${Date.now()}`,
             toolCall,
-            trustSignature,
             requestedAt: Date.now(),
             resolve,
           },
@@ -102,18 +93,14 @@ export function AgentToolApprovalProvider({ children }: { children: React.ReactN
   )
 
   const resolveActive = useCallback(
-    (approved: boolean, trust = false) => {
+    (approved: boolean) => {
       if (!active) return
       if (resolvedIdsRef.current.has(active.id)) return
       resolvedIdsRef.current.add(active.id)
-      if (approved && trust) {
-        trustedSignaturesRef.current.add(active.trustSignature)
-        saveTrustedSignatures(trustedSignaturesRef.current)
-      }
       active.resolve(approved)
       setPending((prev) => prev.filter((request) => request.id !== active.id))
       showToast(
-        approved ? (trust ? 'Tool call trusted.' : 'Tool call approved.') : 'Tool call rejected.',
+        approved ? 'Tool call approved.' : 'Tool call rejected.',
         approved ? 'success' : 'warning'
       )
     },
@@ -151,7 +138,7 @@ function AgentToolApprovalDialog({
 }: {
   request: PendingApproval | null
   queuedCount: number
-  onResolve: (approved: boolean, trust?: boolean) => void
+  onResolve: (approved: boolean) => void
 }) {
   if (!request) return null
 
@@ -218,10 +205,6 @@ function AgentToolApprovalDialog({
             <XCircle className="mr-1.5 h-4 w-4" />
             Reject
           </AlertDialogCancel>
-          <AlertDialogAction variant="outline" onClick={() => onResolve(true, true)}>
-            <ShieldCheck className="mr-1.5 h-4 w-4" />
-            Always allow exact repeat
-          </AlertDialogAction>
           <AlertDialogAction onClick={() => onResolve(true)}>
             <CheckCircle2 className="mr-1.5 h-4 w-4" />
             Approve once
@@ -230,26 +213,6 @@ function AgentToolApprovalDialog({
       </AlertDialogContent>
     </AlertDialog>
   )
-}
-
-function stableStringify(value: unknown): string {
-  if (value === null || typeof value !== 'object') {
-    return JSON.stringify(value)
-  }
-
-  if (Array.isArray(value)) {
-    return `[${value.map((item) => stableStringify(item)).join(',')}]`
-  }
-
-  const record = value as Record<string, unknown>
-  return `{${Object.keys(record)
-    .sort()
-    .map((key) => `${JSON.stringify(key)}:${stableStringify(record[key])}`)
-    .join(',')}}`
-}
-
-function getToolTrustSignature(toolCall: ToolCall): string {
-  return `${toolCall.name}:${stableStringify(toolCall.arguments || {})}`
 }
 
 function getReadableArgumentRows(
@@ -283,30 +246,5 @@ function formatArgumentValue(value: unknown): string {
     return JSON.stringify(value, null, 2)
   } catch {
     return String(value)
-  }
-}
-
-function loadTrustedSignatures(): Set<string> {
-  if (typeof window === 'undefined') return new Set()
-  try {
-    const raw = window.localStorage.getItem(TRUSTED_AGENT_TOOL_SIGNATURES_KEY)
-    const parsed = raw ? JSON.parse(raw) : []
-    return new Set(
-      Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : []
-    )
-  } catch {
-    return new Set()
-  }
-}
-
-function saveTrustedSignatures(signatures: Set<string>): void {
-  if (typeof window === 'undefined') return
-  try {
-    window.localStorage.setItem(
-      TRUSTED_AGENT_TOOL_SIGNATURES_KEY,
-      JSON.stringify([...signatures].slice(-200))
-    )
-  } catch {
-    // Trust storage is an ergonomics feature; approval still works if storage is unavailable.
   }
 }

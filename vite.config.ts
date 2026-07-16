@@ -121,8 +121,6 @@ export default defineConfig({
               external: [
                 'bufferutil',
                 'utf-8-validate',
-                'koffi',
-                '@koromix/koffi-win32-x64',
                 '@nut-tree-fork/nut-js',
                 '@nut-tree-fork/libnut',
                 '@nut-tree-fork/shared',

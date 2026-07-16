@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import '@testing-library/jest-dom'
 
 import { AgentToolApprovalProvider, useAgentToolApproval } from './AgentToolApprovalContext'
+import { consumeToolApprovalToken } from '@/tools/toolApprovalTokens'
 
 vi.mock('@/components/shared', () => ({
   useToast: () => ({ showToast: vi.fn() }),
@@ -37,7 +38,13 @@ describe('AgentToolApprovalProvider', () => {
     delete document.body.dataset.approval
   })
 
-  it('trusts an exact tool call so matching future requests do not prompt', async () => {
+  it('delegates exact arguments to main and retains its one-use approval token', async () => {
+    const requestApproval = vi.fn(async () => ({
+      approved: true,
+      trusted: true,
+      approvalToken: 'main-issued-token',
+    }))
+    window.agentApproval = { requestApproval }
     render(
       <AgentToolApprovalProvider>
         <ApprovalHarness />
@@ -45,19 +52,17 @@ describe('AgentToolApprovalProvider', () => {
     )
 
     fireEvent.click(screen.getByText('request'))
-    expect(await screen.findByText('Approve Agent Mode action')).toBeInTheDocument()
-    expect(screen.getByText('Approve once')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByText('Always allow exact repeat'))
     await waitFor(() => {
       expect(document.body.dataset.approval).toBe('approved')
     })
-
-    delete document.body.dataset.approval
-    fireEvent.click(screen.getByText('request'))
-    await waitFor(() => {
-      expect(document.body.dataset.approval).toBe('approved')
-    })
-    expect(screen.queryByText('Approve Agent Mode action')).not.toBeInTheDocument()
+    expect(requestApproval).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toolName: 'system_shell',
+        toolArguments: { command: 'Get-ChildItem', description: 'List files' },
+      })
+    )
+    const request = requestApproval.mock.calls[0][0]
+    const toolCallId = request.id.replace(/^agent-approval-/, '').replace(/-\d+$/, '')
+    expect(consumeToolApprovalToken(toolCallId)).toBe('main-issued-token')
   })
 })

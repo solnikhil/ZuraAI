@@ -15,6 +15,7 @@ const systemHandlerMocks = vi.hoisted(() => {
   const unmaximize = vi.fn()
   const close = vi.fn()
   const setBackgroundMaterial = vi.fn()
+  const setBounds = vi.fn()
   const setFullScreen = vi.fn()
   const isFullScreen = vi.fn(() => false)
   const isMaximized = vi.fn(() => false)
@@ -35,6 +36,7 @@ const systemHandlerMocks = vi.hoisted(() => {
     unmaximize,
     close,
     setBackgroundMaterial,
+    setBounds,
     setFullScreen,
     on: vi.fn(),
     webContents: {
@@ -70,6 +72,7 @@ const systemHandlerMocks = vi.hoisted(() => {
     unmaximize,
     close,
     setBackgroundMaterial,
+    setBounds,
     setFullScreen,
     isFullScreen,
     isMaximized,
@@ -304,6 +307,22 @@ describe('registerSystemHandlers context menu', () => {
 
     expect(systemHandlerMocks.themeSource).toBe('system')
     expect(systemHandlerMocks.setBackgroundMaterial).not.toHaveBeenCalled()
+  })
+
+  it('clamps renderer resize requests to the shared main-window minimum', async () => {
+    const { registerSystemHandlers } = await import('./systemHandlers')
+    registerSystemHandlers()
+    const resize = systemHandlerMocks.handlers.get('window-resize')
+    expect(resize).toBeDefined()
+
+    await resize?.({}, { x: 4, y: 8, width: 100, height: 100 })
+
+    expect(systemHandlerMocks.setBounds).toHaveBeenCalledWith({
+      x: 4,
+      y: 8,
+      width: 820,
+      height: 600,
+    })
   })
 
   it('rejects unknown app-menu commands', async () => {

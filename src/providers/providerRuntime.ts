@@ -417,7 +417,7 @@ function normalizeProviderModel(provider: ActiveProviderId, model: string): stri
   return model
 }
 
-interface LightweightGenerationOptions {
+export interface LightweightGenerationOptions {
   signal?: AbortSignal
   maxTokens?: number
   jsonMode?: boolean
@@ -455,7 +455,27 @@ async function generateProviderTextThroughMain(
   }
 }
 
-export async function generateProviderTitleText(
+interface ProviderRuntimeAdapterContext {
+  settings: TitleGenerationSettings
+  model: string
+  prompt: string
+  options: LightweightGenerationOptions
+}
+
+interface ProviderRuntimeStreamContext {
+  settings: StreamingSettings
+  request: StreamRequest
+}
+
+export interface ProviderRuntimeAdapter<P extends ActiveProviderId = ActiveProviderId> {
+  readonly provider: P
+  generateTitle(context: ProviderRuntimeAdapterContext): Promise<string>
+  stream(
+    context: ProviderRuntimeStreamContext
+  ): AsyncGenerator<NormalizedStreamEvent, void, unknown>
+}
+
+async function generateProviderTitleTextForProvider(
   settings: TitleGenerationSettings,
   provider: ActiveProviderId,
   model: string,
@@ -489,7 +509,7 @@ export async function generateProviderTitleText(
       const options = {
         think: false,
         signal: generationOptions.signal,
-        max_tokens: generationOptions.maxTokens,
+        num_predict: generationOptions.maxTokens,
       }
       const result = await generateOllamaCompletion(
         getProviderCredential(resolvedSettings, provider),
@@ -614,7 +634,7 @@ export async function generateTitleTextForModel(
   )
 }
 
-async function* streamProviderEventsOnce(
+async function* streamProviderEventsForProvider(
   settings: StreamingSettings,
   request: StreamRequest
 ): AsyncGenerator<NormalizedStreamEvent, void, unknown> {
@@ -1011,6 +1031,7 @@ async function* streamProviderEventsOnce(
           request.messages,
           {
             temperature: request.temperature,
+            num_predict: request.maxTokens,
             think: request.enableThinking,
             tools: request.tools || undefined,
             signal: request.signal,
@@ -1022,6 +1043,7 @@ async function* streamProviderEventsOnce(
 
       for await (const chunk of streamOllamaCompletion(baseUrl, normalizedModel, request.messages, {
         temperature: request.temperature,
+        num_predict: request.maxTokens,
         think: request.enableThinking,
         tools: request.tools || undefined,
         signal: request.signal,
@@ -1065,6 +1087,58 @@ async function* streamProviderEventsOnce(
   }
 }
 
+function createProviderRuntimeAdapter<P extends ActiveProviderId>(
+  provider: P
+): ProviderRuntimeAdapter<P> {
+  return {
+    provider,
+    generateTitle: ({ settings, model, prompt, options }) =>
+      generateProviderTitleTextForProvider(settings, provider, model, prompt, options),
+    stream: ({ settings, request }) =>
+      streamProviderEventsForProvider(settings, { ...request, provider }),
+  }
+}
+
+export const providerRuntimeAdapters = {
+  alibaba: createProviderRuntimeAdapter('alibaba'),
+  codex: createProviderRuntimeAdapter('codex'),
+  deepseek: createProviderRuntimeAdapter('deepseek'),
+  fireworks: createProviderRuntimeAdapter('fireworks'),
+  groq: createProviderRuntimeAdapter('groq'),
+  nvidia: createProviderRuntimeAdapter('nvidia'),
+  ollama: createProviderRuntimeAdapter('ollama'),
+  opencode: createProviderRuntimeAdapter('opencode'),
+  openrouter: createProviderRuntimeAdapter('openrouter'),
+} satisfies { [P in ActiveProviderId]: ProviderRuntimeAdapter<P> }
+
+export function getProviderRuntimeAdapter<P extends ActiveProviderId>(
+  provider: P
+): ProviderRuntimeAdapter<P> {
+  return providerRuntimeAdapters[provider] as ProviderRuntimeAdapter<P>
+}
+
+export async function generateProviderTitleText(
+  settings: TitleGenerationSettings,
+  provider: ActiveProviderId,
+  model: string,
+  prompt: string,
+  generationOptions: LightweightGenerationOptions = {}
+): Promise<string> {
+  if (typeof window !== 'undefined' && window.providerRuntime) {
+    return generateProviderTextThroughMain(settings, provider, model, prompt, generationOptions)
+  }
+  if (typeof window !== 'undefined' && window.ipcRenderer) {
+    throw new Error('The provider runtime bridge is unavailable in Electron.')
+  }
+
+  return getProviderRuntimeAdapter(provider).generateTitle({
+    settings,
+    model,
+    prompt,
+    options: generationOptions,
+  })
+}
+
 function waitForRetry(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) {
@@ -1094,7 +1168,10 @@ export async function* streamProviderEvents(
   for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
     let emitted = false
     try {
-      for await (const event of streamProviderEventsOnce(settings, request)) {
+      for await (const event of getProviderRuntimeAdapter(request.provider).stream({
+        settings,
+        request,
+      })) {
         emitted = true
         yield event
       }

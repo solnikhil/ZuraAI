@@ -5,6 +5,8 @@ import * as path from 'path'
 
 import { getSecureValueAsync } from '../secureStorage'
 import { log } from '../startup/logger'
+import { writeFileAtomic } from '../utils/atomicFile'
+import { RecoverableSerializedTaskQueue } from '../utils/serializedTaskQueue'
 
 const mcpLog = log.withTag('mcp')
 
@@ -32,7 +34,7 @@ let cacheTimestamp = 0
 let cachedStoreFilePath: string | null = null
 const CACHE_TTL_MS = 1000
 
-let pendingWrite: Promise<void> = Promise.resolve()
+const writeQueue = new RecoverableSerializedTaskQueue()
 
 function getDefaultStore(): McpServerStoreFile {
   return {
@@ -465,16 +467,24 @@ async function readMcpStoreInternal(): Promise<McpServerStoreFile> {
     return cachedStore
   }
 
+  let file: string
   try {
-    if (!fsSync.existsSync(filePath)) {
+    file = await fs.readFile(filePath, 'utf-8')
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
       const emptyStore = getDefaultStore()
       cachedStore = emptyStore
       cachedStoreFilePath = filePath
       cacheTimestamp = Date.now()
       return emptyStore
     }
+    mcpLog.error(
+      `failed to read MCP server config: ${error instanceof Error ? error.message : String(error)}`
+    )
+    throw error
+  }
 
-    const file = await fs.readFile(filePath, 'utf-8')
+  try {
     const parsed = normalizeMcpStore(JSON.parse(file))
     const migrated = migrateMcpStore(parsed)
     cachedStore = migrated
@@ -484,7 +494,7 @@ async function readMcpStoreInternal(): Promise<McpServerStoreFile> {
   } catch (error) {
     await quarantineCorruptMcpStore(filePath)
     mcpLog.error(
-      `failed to read MCP server config: ${error instanceof Error ? error.message : String(error)}`
+      `MCP server config is corrupt: ${error instanceof Error ? error.message : String(error)}`
     )
     const emptyStore = getDefaultStore()
     cachedStore = emptyStore
@@ -514,20 +524,12 @@ async function writeMcpStoreInternal(store: McpServerStoreFile): Promise<void> {
   const normalized = normalizeMcpStore(store)
   const filePath = getMcpStoreFilePath()
 
-  const doWrite = async () => {
-    const dir = path.dirname(filePath)
-    if (!fsSync.existsSync(dir)) {
-      await fs.mkdir(dir, { recursive: true })
-    }
-
-    await fs.writeFile(filePath, JSON.stringify(normalized, null, 2), 'utf-8')
+  await writeQueue.run(async () => {
+    await writeFileAtomic(filePath, JSON.stringify(normalized, null, 2))
     cachedStore = normalized
     cachedStoreFilePath = filePath
     cacheTimestamp = Date.now()
-  }
-
-  pendingWrite = pendingWrite.then(doWrite)
-  await pendingWrite
+  })
 }
 
 export async function loadMcpServerStore(): Promise<McpServerStoreFile> {

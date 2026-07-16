@@ -79,6 +79,36 @@ describe('chatStore metadata-first persistence', () => {
     expect(JSON.parse(await readFile(sessionFile, 'utf8')).messages).toHaveLength(2)
   })
 
+  it('does not lose index entries when different sessions save concurrently', async () => {
+    const chatStore = await import('./chatStore')
+
+    await Promise.all(
+      Array.from({ length: 12 }, (_, index) =>
+        chatStore.saveSessionAsync({
+          id: `concurrent-${index}`,
+          title: `Concurrent ${index}`,
+          messages: [{ id: `m-${index}`, role: 'user', content: 'hello', timestamp: index }],
+          createdAt: index,
+          updatedAt: index,
+        })
+      )
+    )
+
+    const metadata = await chatStore.getSessionMetadataAsync()
+    expect(metadata.map((session) => session.id).sort()).toEqual(
+      Array.from({ length: 12 }, (_, index) => `concurrent-${index}`).sort()
+    )
+  })
+
+  it('surfaces a corrupt index instead of replacing it with empty state', async () => {
+    await writeFile(path.join(electronMock.userDataPath, 'chat-index.json'), '{invalid json')
+    const chatStore = await import('./chatStore')
+
+    await expect(chatStore.getSessionMetadataAsync()).rejects.toThrow(
+      'Chat index contains invalid JSON'
+    )
+  })
+
   it('embeds only compact text previews in index recentMessages (no tool payloads)', async () => {
     const chatStore = await import('./chatStore')
     const hugeImage = `iVBORw0KGgo${'B'.repeat(2000)}`

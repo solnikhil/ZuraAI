@@ -69,12 +69,17 @@ import {
   getProviderEndpoint,
   getProviderDashboardUrl,
   getProviderEnabledDefaults,
-  getProviderModelListField,
-  getSettingsVisibleProviders,
+  getProviderSettingsDefinition,
   type ProviderId,
-  type ProviderModelListKey,
   type ProviderSecretField,
 } from '../../../providers'
+import {
+  buildProviderModelUpdate,
+  createProviderModelMap,
+  getBrowserConnectivityDescriptor,
+  PROVIDER_HUB_DEFINITIONS,
+  type ProviderHubDefinition,
+} from './providerHubDescriptors'
 
 type ManageMode = 'providers' | 'search-apis'
 type ProviderView = 'catalog' | 'detail'
@@ -82,22 +87,7 @@ type ProviderKey = ProviderId
 type ConnectivityStatus = 'idle' | 'checking' | 'success' | 'error'
 type ProviderEnabledMap = Partial<Record<ProviderKey, boolean>>
 
-interface ProviderDefinition {
-  key: ProviderKey
-  name: string
-  description: string
-  apiKeyField?: ProviderSecretField
-  supportsCatalogDialog: boolean
-  setupKind: 'api-key' | 'account' | 'local'
-}
-const PROVIDERS: ProviderDefinition[] = getSettingsVisibleProviders().map((provider) => ({
-  key: provider.id,
-  name: provider.label,
-  description: provider.description,
-  apiKeyField: provider.secretKeyField,
-  supportsCatalogDialog: provider.supportsCatalogDialog,
-  setupKind: provider.setupKind,
-}))
+const PROVIDERS = PROVIDER_HUB_DEFINITIONS
 
 type ProviderCatalogFilter = 'all' | 'needs-setup' | 'disabled' | 'active'
 
@@ -119,12 +109,12 @@ const PROVIDER_CATALOG_GROUPS: ProviderCatalogGroup[] = [
 
 type ProviderSetupState = 'needs-setup' | 'ready' | 'disabled'
 
-function providerNeedsApiKey(provider: ProviderDefinition, hasApiKey: boolean): boolean {
+function providerNeedsApiKey(provider: ProviderHubDefinition, hasApiKey: boolean): boolean {
   return Boolean(provider.apiKeyField && !hasApiKey)
 }
 
 function getProviderSetupState(
-  provider: ProviderDefinition,
+  provider: ProviderHubDefinition,
   hasApiKey: boolean,
   enabled: boolean
 ): ProviderSetupState {
@@ -134,7 +124,7 @@ function getProviderSetupState(
 }
 
 function formatProviderStatusLine(
-  provider: ProviderDefinition,
+  provider: ProviderHubDefinition,
   hasApiKey: boolean,
   enabled: boolean,
   enabledModelCount: number,
@@ -160,7 +150,7 @@ function formatProviderStatusLine(
 }
 
 function providerMatchesCatalogFilter(
-  provider: ProviderDefinition,
+  provider: ProviderHubDefinition,
   filter: ProviderCatalogFilter,
   hasApiKey: boolean,
   enabled: boolean
@@ -461,27 +451,31 @@ export function ProviderHubSection({
     }
   }, [selectedProvider])
 
-  const providerModelMap: Record<ProviderKey, ModelBasic[]> = {
-    openrouter: configuredModels,
-    codex: codexModels,
-    groq: groqModels,
-    alibaba: alibabaModels,
-    deepseek: deepseekModels,
-    opencode: opencodeModels,
-    fireworks: fireworksModels,
-    nvidia: nvidiaModels,
-    ollama: ollamaModels,
-  }
-
-  const buildModelUpdateForProvider = (
-    provider: ProviderKey,
-    models: ConfiguredModel[]
-  ): ProviderSettingsUpdate => {
-    const modelListField = getProviderModelListField(provider) as ProviderModelListKey
-    return {
-      [modelListField]: models,
-    }
-  }
+  const providerModelMap = useMemo(
+    () =>
+      createProviderModelMap({
+        configuredModels,
+        codexModels,
+        groqModels,
+        alibabaModels,
+        deepseekModels,
+        opencodeModels,
+        fireworksModels,
+        nvidiaModels,
+        ollamaModels,
+      }),
+    [
+      configuredModels,
+      codexModels,
+      groqModels,
+      alibabaModels,
+      deepseekModels,
+      opencodeModels,
+      fireworksModels,
+      nvidiaModels,
+      ollamaModels,
+    ]
+  )
 
   const resetConnectivityState = (message: string) => {
     setConnectivityStatus('idle')
@@ -597,7 +591,7 @@ export function ProviderHubSection({
   const enabledModels = modelsForList.filter((model) => model.enabled !== false)
   const disabledModels = modelsForList.filter((model) => model.enabled === false)
 
-  const getProviderApiKey = (provider: ProviderDefinition): string => {
+  const getProviderApiKey = (provider: ProviderHubDefinition): string => {
     if (!provider.apiKeyField) return ''
     const providerApiKeys: Record<ProviderSecretField, string> = {
       alibabaApiKey: alibabaApiKey ?? '',
@@ -635,7 +629,7 @@ export function ProviderHubSection({
     providerEnabled?.nvidia,
   ])
 
-  const isProviderEnabled = (provider: ProviderDefinition): boolean =>
+  const isProviderEnabled = (provider: ProviderHubDefinition): boolean =>
     normalizedProviderEnabled[provider.key]
 
   const catalogStats = useMemo(() => {
@@ -673,7 +667,7 @@ export function ProviderHubSection({
     normalizedProviderEnabled,
   ])
 
-  const setProviderApiKey = (provider: ProviderDefinition, value: string) => {
+  const setProviderApiKey = (provider: ProviderHubDefinition, value: string) => {
     if (!provider.apiKeyField) return
     onChange({ [provider.apiKeyField]: value })
   }
@@ -714,7 +708,7 @@ export function ProviderHubSection({
   }
 
   const setModelsForProvider = (provider: ProviderKey, models: ConfiguredModel[]) => {
-    onChange(buildModelUpdateForProvider(provider, models))
+    onChange(buildProviderModelUpdate(provider, models))
   }
 
   const addCustomModel = (
@@ -740,7 +734,7 @@ export function ProviderHubSection({
       return { ...model, enabled: checked }
     })
 
-    const updates: ProviderSettingsUpdate = buildModelUpdateForProvider(provider, updatedModels)
+    const updates: ProviderSettingsUpdate = buildProviderModelUpdate(provider, updatedModels)
 
     if (!checked && modelProvider === provider && aiModel === modelCode) {
       const fallback = updatedModels.find((model) => model.enabled !== false)
@@ -794,14 +788,14 @@ export function ProviderHubSection({
       return { ...model, ...updatedModel, code: modelCode }
     })
 
-    onChange(buildModelUpdateForProvider(provider, updatedModels))
+    onChange(buildProviderModelUpdate(provider, updatedModels))
   }
 
   const removeModel = (provider: ProviderKey, modelCode: string) => {
     const currentModels = providerModelMap[provider] as ConfiguredModel[]
     const updatedModels = currentModels.filter((model) => model.code !== modelCode)
 
-    const updates: ProviderSettingsUpdate = buildModelUpdateForProvider(provider, updatedModels)
+    const updates: ProviderSettingsUpdate = buildProviderModelUpdate(provider, updatedModels)
 
     if (modelProvider === provider && aiModel === modelCode) {
       const fallback = updatedModels.find((model) => model.enabled !== false)
@@ -837,33 +831,21 @@ export function ProviderHubSection({
   }
 
   const clearModelsForProvider = (provider: ProviderKey) => {
-    onChange(buildModelUpdateForProvider(provider, []))
+    onChange(buildProviderModelUpdate(provider, []))
   }
 
   const openCatalogDialogForProvider = (provider: ProviderKey) => {
-    if (provider === 'openrouter') {
-      setOpenRouterSearchDialogOpen(true)
-      return
-    }
-    if (provider === 'fireworks') {
-      setFireworksSearchDialogOpen(true)
-      return
-    }
-    if (provider === 'alibaba') {
-      setAlibabaSearchDialogOpen(true)
-      return
-    }
-    if (provider === 'deepseek') {
-      setDeepseekSearchDialogOpen(true)
-      return
-    }
-    if (provider === 'opencode') {
-      setOpencodeSearchDialogOpen(true)
-      return
-    }
-    if (provider === 'nvidia') {
-      setNvidiaSearchDialogOpen(true)
-    }
+    const kind = getProviderSettingsDefinition(provider)?.catalogDialogKind
+    if (!kind) return
+    const openDialog = {
+      openrouter: setOpenRouterSearchDialogOpen,
+      fireworks: setFireworksSearchDialogOpen,
+      alibaba: setAlibabaSearchDialogOpen,
+      deepseek: setDeepseekSearchDialogOpen,
+      opencode: setOpencodeSearchDialogOpen,
+      nvidia: setNvidiaSearchDialogOpen,
+    }[kind]
+    openDialog(true)
   }
 
   const handleClearModelsConfirm = () => {
@@ -932,64 +914,28 @@ export function ProviderHubSection({
           ollamaUrl,
           alibabaRegion,
         })
-      } else if (selectedProviderDef.key === 'openrouter') {
-        await runBearerGetConnectivityCheck(
-          `${endpoint}/auth/key`,
-          selectedKey,
-          'OpenRouter auth failed',
-          controller.signal
-        )
-      } else if (selectedProviderDef.key === 'groq') {
-        await runBearerGetConnectivityCheck(
-          `${endpoint}/models`,
-          selectedKey,
-          'Groq check failed',
-          controller.signal
-        )
-      } else if (selectedProviderDef.key === 'alibaba') {
-        await runChatCompletionsConnectivityCheck(
-          endpoint,
-          selectedKey,
-          connectivityModel,
-          'Alibaba Cloud check failed',
-          controller.signal
-        )
-      } else if (selectedProviderDef.key === 'fireworks') {
-        await runChatCompletionsConnectivityCheck(
-          endpoint,
-          selectedKey,
-          connectivityModel,
-          'Fireworks check failed',
-          controller.signal
-        )
-      } else if (selectedProviderDef.key === 'deepseek') {
-        await runChatCompletionsConnectivityCheck(
-          endpoint,
-          selectedKey,
-          connectivityModel,
-          'DeepSeek check failed',
-          controller.signal
-        )
-      } else if (selectedProviderDef.key === 'opencode') {
-        await runChatCompletionsConnectivityCheck(
-          endpoint,
-          selectedKey,
-          connectivityModel,
-          'OpenCode Go check failed',
-          controller.signal
-        )
-      } else if (selectedProviderDef.key === 'nvidia') {
-        await runChatCompletionsConnectivityCheck(
-          endpoint,
-          selectedKey,
-          connectivityModel,
-          'NVIDIA NIM check failed',
-          controller.signal
-        )
       } else {
-        throw new Error(
-          `Connectivity check is not supported for provider: ${selectedProviderDef.key}`
-        )
+        const connectivity = getBrowserConnectivityDescriptor(selectedProviderDef.key)
+        if (connectivity.kind === 'bearer-get') {
+          await runBearerGetConnectivityCheck(
+            `${endpoint}${connectivity.path}`,
+            selectedKey,
+            connectivity.failurePrefix,
+            controller.signal
+          )
+        } else if (connectivity.kind === 'chat-completions') {
+          await runChatCompletionsConnectivityCheck(
+            endpoint,
+            selectedKey,
+            connectivityModel,
+            connectivity.failurePrefix,
+            controller.signal
+          )
+        } else {
+          throw new Error(
+            `Connectivity check is not supported for provider: ${selectedProviderDef.key}`
+          )
+        }
       }
 
       const latencyMs = Math.max(1, Date.now() - startedAt)
@@ -1827,12 +1773,12 @@ function ProviderCatalog({
   getApiKey,
   modelMap,
 }: {
-  providers: ProviderDefinition[]
+  providers: readonly ProviderHubDefinition[]
   filter: ProviderCatalogFilter
-  onCardClick: (provider: ProviderDefinition) => void
-  isProviderEnabled: (provider: ProviderDefinition) => boolean
+  onCardClick: (provider: ProviderHubDefinition) => void
+  isProviderEnabled: (provider: ProviderHubDefinition) => boolean
   setProviderEnabled: (providerKey: ProviderKey, enabled: boolean) => void
-  getApiKey: (provider: ProviderDefinition) => string
+  getApiKey: (provider: ProviderHubDefinition) => string
   modelMap: Record<ProviderKey, ModelBasic[]>
 }): React.ReactElement | null {
   const providerByKey = useMemo(() => {
@@ -1843,7 +1789,7 @@ function ProviderCatalog({
     ...group,
     providers: group.keys
       .map((key) => providerByKey.get(key))
-      .filter((provider): provider is ProviderDefinition => Boolean(provider))
+      .filter((provider): provider is ProviderHubDefinition => Boolean(provider))
       .filter((provider) => {
         const hasApiKey = provider.apiKeyField ? getApiKey(provider).trim().length > 0 : true
         const enabled = isProviderEnabled(provider)
@@ -1897,7 +1843,7 @@ function ProviderCatalogRow({
   onOpen,
   onToggle,
 }: {
-  provider: ProviderDefinition
+  provider: ProviderHubDefinition
   enabled: boolean
   hasApiKey: boolean
   models: ModelBasic[]

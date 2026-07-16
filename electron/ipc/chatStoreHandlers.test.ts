@@ -93,6 +93,15 @@ vi.mock('../conversationSummaryStore', () => ({
 }))
 
 describe('registerChatStoreHandlers', () => {
+  const session = {
+    id: 'session-1',
+    title: 'Test session',
+    messages: [],
+    createdAt: 1,
+    updatedAt: 1,
+  }
+  const folder = { id: 'folder-1', name: 'Test folder', order: 0, createdAt: 1 }
+
   beforeEach(() => {
     vi.resetModules()
     ipcMainMocks.handlers.clear()
@@ -123,9 +132,9 @@ describe('registerChatStoreHandlers', () => {
     const handler = ipcMainMocks.handlers.get('chat-store:save-all')
     expect(handler).toBeTypeOf('function')
 
-    await handler?.({}, [{ id: 'session-1' }])
+    await handler?.({}, [session])
 
-    expect(chatStoreMocks.saveAllSessionsAsync).toHaveBeenCalledWith([{ id: 'session-1' }])
+    expect(chatStoreMocks.saveAllSessionsAsync).toHaveBeenCalledWith([session])
     expect(browserWindowMocks.getAllWindows).toHaveBeenCalledTimes(1)
     expect(browserWindowMocks.send).toHaveBeenCalledWith('chat-store:changed')
   })
@@ -137,9 +146,9 @@ describe('registerChatStoreHandlers', () => {
     const handler = ipcMainMocks.handlers.get('chat-store:save-folders')
     expect(handler).toBeTypeOf('function')
 
-    await handler?.({}, [{ id: 'folder-1' }])
+    await handler?.({}, [folder])
 
-    expect(chatStoreMocks.saveFoldersAsync).toHaveBeenCalledWith([{ id: 'folder-1' }])
+    expect(chatStoreMocks.saveFoldersAsync).toHaveBeenCalledWith([folder])
     expect(browserWindowMocks.send).toHaveBeenCalledWith('chat-store:changed')
   })
 
@@ -192,5 +201,32 @@ describe('registerChatStoreHandlers', () => {
 
     expect(browserWindowMocks.send).toHaveBeenCalledWith('chat-store:changed')
     expect(browserWindowMocks.send).not.toHaveBeenCalledWith('memory-store:changed')
+  })
+
+  it('rejects malformed session payloads before persistence', async () => {
+    const { registerChatStoreHandlers } = await import('./chatStoreHandlers')
+    registerChatStoreHandlers()
+
+    const handler = ipcMainMocks.handlers.get('chat-store:save-session')
+    await expect(handler?.({}, { id: 'session-1' })).rejects.toThrow('session.title')
+    expect(chatStoreMocks.saveSessionAsync).not.toHaveBeenCalled()
+  })
+
+  it('rejects out-of-range session window limits', async () => {
+    const { registerChatStoreHandlers } = await import('./chatStoreHandlers')
+    registerChatStoreHandlers()
+
+    const handler = ipcMainMocks.handlers.get('chat-store:get-session')
+    await expect(handler?.({}, 'session-1', { limit: 50_000 })).rejects.toThrow('options.limit')
+    expect(chatStoreMocks.getSessionAsync).not.toHaveBeenCalled()
+  })
+
+  it('rejects malformed folder payloads before persistence', async () => {
+    const { registerChatStoreHandlers } = await import('./chatStoreHandlers')
+    registerChatStoreHandlers()
+
+    const handler = ipcMainMocks.handlers.get('chat-store:save-folders')
+    await expect(handler?.({}, [{ id: 'folder-1' }])).rejects.toThrow('folders[0].name')
+    expect(chatStoreMocks.saveFoldersAsync).not.toHaveBeenCalled()
   })
 })

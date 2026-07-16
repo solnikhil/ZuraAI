@@ -2,6 +2,7 @@ import { ChatMessage, ToolDefinition, parseErrorResponse, extractErrorMessage } 
 import { parseSSEStream } from './streamUtils'
 import { getProviderEndpoint } from '../providers'
 import { listProviderModelsThroughMain } from './providerCatalogBridge'
+import { getOpencodeModelMetadata, type OpencodeProtocol } from '../providers/opencodeModelCatalog'
 
 interface OpencodeTextResponse {
   ok: boolean
@@ -19,19 +20,10 @@ const OPENCODE_GO_CHAT_COMPLETIONS_URL =
   'https://opencode.ai/zen/go/v1/chat/completions'
 const OPENCODE_GO_MESSAGES_URL = `${OPENCODE_GO_BASE_URL}/messages`
 
-export type OpencodeProtocol = 'openai-chat-completions' | 'anthropic-messages'
-
-const OPENCODE_ANTHROPIC_MODEL_IDS = new Set([
-  'minimax-m3',
-  'minimax-m2.7',
-  'minimax-m2.5',
-  'qwen3.7-plus',
-  'qwen3.7-max',
-  'qwen3.6-plus',
-])
+export type { OpencodeProtocol } from '../providers/opencodeModelCatalog'
 
 export function getOpencodeProtocol(model: string): OpencodeProtocol {
-  return OPENCODE_ANTHROPIC_MODEL_IDS.has(model) ? 'anthropic-messages' : 'openai-chat-completions'
+  return getOpencodeModelMetadata(model)?.protocol ?? 'openai-chat-completions'
 }
 
 export interface OpencodeResponse {
@@ -782,52 +774,6 @@ export async function fetchOpencodeModels(
   return models
 }
 
-const OPENCODE_MODEL_DISPLAY_NAMES: Record<string, string> = {
-  'deepseek-v4-pro': 'DeepSeek V4 Pro',
-  'deepseek-v4-flash': 'DeepSeek V4 Flash',
-  'kimi-k2.7-code': 'Kimi K2.7 Code',
-  'kimi-k2.6': 'Kimi K2.6',
-  'kimi-k2.5': 'Kimi K2.5',
-  'glm-5.2': 'GLM 5.2',
-  'glm-5.1': 'GLM 5.1',
-  'glm-5': 'GLM 5',
-  'qwen3.7-plus': 'Qwen3.7 Plus',
-  'qwen3.7-max': 'Qwen3.7 Max',
-  'qwen3.6-plus': 'Qwen3.6 Plus',
-  'qwen3.5-plus': 'Qwen3.5 Plus',
-  'minimax-m3': 'MiniMax M3',
-  'minimax-m2.7': 'MiniMax M2.7',
-  'minimax-m2.5': 'MiniMax M2.5',
-  'mimo-v2-pro': 'MiMo-V2-Pro',
-  'mimo-v2-omni': 'MiMo-V2-Omni',
-  'mimo-v2.5': 'MiMo-V2.5',
-  'mimo-v2.5-pro': 'MiMo-V2.5-Pro',
-  'hy3-preview': 'HY3 Preview',
-}
-
-const OPENCODE_REASONING_MODEL_IDS = new Set<string>([
-  'glm-5.2',
-  'glm-5.1',
-  'glm-5',
-  'deepseek-v4-pro',
-  'deepseek-v4-flash',
-  'kimi-k2.7-code',
-  'kimi-k2.6',
-  'kimi-k2.5',
-  'qwen3.7-plus',
-  'qwen3.7-max',
-  'qwen3.6-plus',
-  'qwen3.5-plus',
-  'minimax-m3',
-  'minimax-m2.7',
-  'minimax-m2.5',
-  'hy3-preview',
-])
-
-function isOpencodeReasoningModel(modelId: string): boolean {
-  return OPENCODE_REASONING_MODEL_IDS.has(modelId)
-}
-
 /**
  * Normalize a single OpenCode stream delta into reasoning text, skipping stray
  * duplicate prefixes some GLM-family models echo through the legacy `reasoning`
@@ -859,18 +805,17 @@ export function extractOpencodeStreamReasoningDelta(
 export function mapOpencodeModelToConfiguredModel(
   model: OpencodeModel
 ): import('../contexts/SettingsConfigContext').ConfiguredModel {
+  const metadata = getOpencodeModelMetadata(model.id)
   const displayName =
-    OPENCODE_MODEL_DISPLAY_NAMES[model.id] ??
+    metadata?.displayName ??
     model.id.replace(/-/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase())
-
-  const isReasoning = isOpencodeReasoningModel(model.id)
 
   return {
     code: model.id,
     displayName,
     enabled: true,
-    supportsToolCall: model.id in OPENCODE_MODEL_DISPLAY_NAMES || undefined,
-    supportsDeepThinking: isReasoning || undefined,
-    modelType: isReasoning ? 'reasoning' : 'chat',
+    supportsToolCall: metadata?.supportsTools || undefined,
+    supportsDeepThinking: metadata?.supportsReasoning || undefined,
+    modelType: metadata?.supportsReasoning ? 'reasoning' : 'chat',
   }
 }

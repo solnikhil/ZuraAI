@@ -1,5 +1,7 @@
 import { createHash, randomBytes, randomUUID } from 'crypto'
 import * as http from 'http'
+import { lookup } from 'node:dns/promises'
+import { isIP } from 'node:net'
 import { shell } from 'electron'
 
 import type { McpAuthConfig, McpAuthStatus, McpServerConfig } from '../../src/mcp/types'
@@ -9,6 +11,7 @@ import { buildMcpSecretStorageKey } from './mcpStorage'
 const CALLBACK_HOST = '127.0.0.1'
 const DEFAULT_SCOPE = 'openid profile'
 const TOKEN_EXPIRY_SKEW_MS = 60_000
+const OAUTH_FETCH_TIMEOUT_MS = 10_000
 
 interface OAuthServerMetadata {
   issuer?: string
@@ -28,6 +31,118 @@ interface TokenResponse {
   token_type?: string
   expires_in?: number
   scope?: string
+}
+
+interface McpOAuthEndpointPolicy {
+  allowLoopback?: boolean
+}
+
+/**
+ * OAuth metadata is untrusted network input. Only public HTTPS endpoints are accepted;
+ * loopback HTTP(S) is permitted solely when the saved MCP resource itself is loopback.
+ */
+export function validateMcpOAuthEndpoint(rawUrl: string, policy: McpOAuthEndpointPolicy = {}): URL {
+  let url: URL
+  try {
+    url = new URL(rawUrl)
+  } catch {
+    throw new Error('MCP OAuth endpoint URL is invalid.')
+  }
+
+  if (url.username || url.password || url.hash) {
+    throw new Error('MCP OAuth endpoints must not contain credentials or fragments.')
+  }
+
+  const loopback = isLoopbackHostname(url.hostname)
+  if (isPrivateOrLocalHostname(url.hostname) && !(loopback && policy.allowLoopback === true)) {
+    throw new Error('MCP OAuth endpoint targets a local or private network address.')
+  }
+
+  if (
+    url.protocol !== 'https:' &&
+    !(url.protocol === 'http:' && loopback && policy.allowLoopback)
+  ) {
+    throw new Error('MCP OAuth endpoints must use HTTPS.')
+  }
+
+  return url
+}
+
+export async function fetchMcpOAuthEndpoint(
+  rawUrl: string,
+  init: RequestInit,
+  policy: McpOAuthEndpointPolicy = {}
+): Promise<Response> {
+  const url = validateMcpOAuthEndpoint(rawUrl, policy)
+  await assertSafeResolvedAddress(url, policy)
+  const timeoutSignal = AbortSignal.timeout(OAUTH_FETCH_TIMEOUT_MS)
+  return fetch(url, {
+    ...init,
+    redirect: 'error',
+    signal: timeoutSignal,
+  })
+}
+
+async function assertSafeResolvedAddress(url: URL, policy: McpOAuthEndpointPolicy): Promise<void> {
+  if (isIP(url.hostname.replace(/^\[|\]$/g, '')) !== 0) return
+  const addresses = await lookup(url.hostname, { all: true, verbatim: true })
+  if (addresses.length === 0) {
+    throw new Error('MCP OAuth endpoint hostname did not resolve.')
+  }
+  for (const { address } of addresses) {
+    const loopback = isLoopbackHostname(address)
+    if (isPrivateOrLocalHostname(address) && !(loopback && policy.allowLoopback)) {
+      throw new Error('MCP OAuth endpoint resolved to a local or private network address.')
+    }
+  }
+}
+
+function isLoopbackHostname(rawHostname: string): boolean {
+  const hostname = rawHostname.toLowerCase().replace(/^\[|\]$/g, '')
+  return (
+    hostname === 'localhost' ||
+    hostname.endsWith('.localhost') ||
+    hostname === '::1' ||
+    hostname.startsWith('127.')
+  )
+}
+
+function isPrivateOrLocalHostname(rawHostname: string): boolean {
+  const hostname = rawHostname.toLowerCase().replace(/^\[|\]$/g, '')
+  if (hostname.startsWith('::ffff:')) {
+    return isPrivateOrLocalHostname(hostname.slice('::ffff:'.length))
+  }
+  if (
+    isLoopbackHostname(hostname) ||
+    hostname === '0.0.0.0' ||
+    hostname === '::' ||
+    hostname.endsWith('.local') ||
+    hostname.endsWith('.internal') ||
+    hostname.startsWith('fc') ||
+    hostname.startsWith('fd') ||
+    hostname.startsWith('fe80:') ||
+    hostname.startsWith('ff')
+  ) {
+    return true
+  }
+
+  const octets = hostname.split('.').map(Number)
+  if (
+    octets.length !== 4 ||
+    octets.some((value) => !Number.isInteger(value) || value < 0 || value > 255)
+  ) {
+    return false
+  }
+  const [a, b] = octets
+  return (
+    a === 10 ||
+    a === 127 ||
+    a === 0 ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    (a === 100 && b >= 64 && b <= 127)
+  )
 }
 
 export interface McpOAuthStartResult {
@@ -99,10 +214,12 @@ export async function startMcpOAuthFlow(
   nextServer.auth = normalizeOAuthAuth(nextServer.auth)
 
   try {
-    const resourceUrl = new URL(server.url)
+    const resourceUrl = validateMcpOAuthEndpoint(server.url, { allowLoopback: true })
+    const allowLoopback = isLoopbackHostname(resourceUrl.hostname)
     const resourceMetadata = await discoverProtectedResourceMetadata(
       resourceUrl,
-      nextServer.auth.oauth?.resourceMetadataUrl
+      nextServer.auth.oauth?.resourceMetadataUrl,
+      allowLoopback
     )
     const authorizationServer =
       nextServer.auth.oauth?.authorizationServer ??
@@ -113,7 +230,10 @@ export async function startMcpOAuthFlow(
       throw new Error('OAuth protected resource metadata did not provide an authorization server.')
     }
 
-    const authServerMetadata = await discoverAuthorizationServerMetadata(authorizationServer)
+    const authServerMetadata = await discoverAuthorizationServerMetadata(
+      authorizationServer,
+      allowLoopback
+    )
     if (!authServerMetadata.authorization_endpoint || !authServerMetadata.token_endpoint) {
       throw new Error('Authorization server metadata is missing authorization or token endpoint.')
     }
@@ -121,9 +241,16 @@ export async function startMcpOAuthFlow(
     const callback = await createLoopbackCallback()
     const pkce = createPkcePair()
     const state = randomUUID()
-    const client = await resolveOAuthClient(nextServer, authServerMetadata, callback.redirectUri)
+    const client = await resolveOAuthClient(
+      nextServer,
+      authServerMetadata,
+      callback.redirectUri,
+      allowLoopback
+    )
 
-    const authUrl = new URL(authServerMetadata.authorization_endpoint)
+    const authUrl = validateMcpOAuthEndpoint(authServerMetadata.authorization_endpoint, {
+      allowLoopback,
+    })
     authUrl.searchParams.set('response_type', 'code')
     authUrl.searchParams.set('client_id', client.clientId)
     authUrl.searchParams.set('redirect_uri', callback.redirectUri)
@@ -147,6 +274,7 @@ export async function startMcpOAuthFlow(
       clientId: client.clientId,
       clientSecret: client.clientSecret,
       resource: resourceUrl.toString(),
+      allowLoopback,
     })
 
     await persistOAuthToken(nextServer.id, token)
@@ -239,11 +367,15 @@ async function refreshOAuthToken(server: McpServerConfig): Promise<{ accessToken
   })
   if (clientSecret) body.set('client_secret', clientSecret)
 
-  const response = await fetch(tokenEndpoint, {
-    method: 'POST',
-    headers: { accept: 'application/json', 'content-type': 'application/x-www-form-urlencoded' },
-    body,
-  })
+  const response = await fetchMcpOAuthEndpoint(
+    tokenEndpoint,
+    {
+      method: 'POST',
+      headers: { accept: 'application/json', 'content-type': 'application/x-www-form-urlencoded' },
+      body,
+    },
+    { allowLoopback: Boolean(server.url && isLoopbackHostname(new URL(server.url).hostname)) }
+  )
   if (!response.ok) {
     throw new Error(`OAuth refresh failed with ${response.status} ${response.statusText}`)
   }
@@ -255,7 +387,8 @@ async function refreshOAuthToken(server: McpServerConfig): Promise<{ accessToken
 
 async function discoverProtectedResourceMetadata(
   resourceUrl: URL,
-  explicitMetadataUrl?: string
+  explicitMetadataUrl?: string,
+  allowLoopback = false
 ): Promise<ProtectedResourceMetadata> {
   const candidates = [
     resourceMetadataUrl(resourceUrl, explicitMetadataUrl),
@@ -264,7 +397,11 @@ async function discoverProtectedResourceMetadata(
 
   for (const candidate of [...new Set(candidates)]) {
     try {
-      const response = await fetch(candidate, { headers: { accept: 'application/json' } })
+      const response = await fetchMcpOAuthEndpoint(
+        candidate,
+        { headers: { accept: 'application/json' } },
+        { allowLoopback }
+      )
       if (response.ok) return (await response.json()) as ProtectedResourceMetadata
     } catch {
       // Try next discovery location.
@@ -274,15 +411,22 @@ async function discoverProtectedResourceMetadata(
   return {}
 }
 
-async function discoverAuthorizationServerMetadata(issuer: string): Promise<OAuthServerMetadata> {
-  const issuerUrl = new URL(issuer)
+async function discoverAuthorizationServerMetadata(
+  issuer: string,
+  allowLoopback = false
+): Promise<OAuthServerMetadata> {
+  const issuerUrl = validateMcpOAuthEndpoint(issuer, { allowLoopback })
   const candidates = [
     new URL('/.well-known/oauth-authorization-server', issuerUrl.origin).toString(),
     new URL('/.well-known/openid-configuration', issuerUrl.origin).toString(),
   ]
 
   for (const candidate of candidates) {
-    const response = await fetch(candidate, { headers: { accept: 'application/json' } })
+    const response = await fetchMcpOAuthEndpoint(
+      candidate,
+      { headers: { accept: 'application/json' } },
+      { allowLoopback }
+    )
     if (response.ok) return (await response.json()) as OAuthServerMetadata
   }
 
@@ -292,7 +436,8 @@ async function discoverAuthorizationServerMetadata(issuer: string): Promise<OAut
 async function resolveOAuthClient(
   server: McpServerConfig,
   metadata: OAuthServerMetadata,
-  redirectUri: string
+  redirectUri: string,
+  allowLoopback: boolean
 ): Promise<{ clientId: string; clientSecret?: string; clientSecretKey?: string }> {
   const existingClientId = server.auth?.oauth?.clientId
   if (existingClientId) {
@@ -310,17 +455,21 @@ async function resolveOAuthClient(
     )
   }
 
-  const response = await fetch(metadata.registration_endpoint, {
-    method: 'POST',
-    headers: { accept: 'application/json', 'content-type': 'application/json' },
-    body: JSON.stringify({
-      client_name: 'ZuraAI',
-      redirect_uris: [redirectUri],
-      grant_types: ['authorization_code', 'refresh_token'],
-      response_types: ['code'],
-      token_endpoint_auth_method: 'none',
-    }),
-  })
+  const response = await fetchMcpOAuthEndpoint(
+    metadata.registration_endpoint,
+    {
+      method: 'POST',
+      headers: { accept: 'application/json', 'content-type': 'application/json' },
+      body: JSON.stringify({
+        client_name: 'ZuraAI',
+        redirect_uris: [redirectUri],
+        grant_types: ['authorization_code', 'refresh_token'],
+        response_types: ['code'],
+        token_endpoint_auth_method: 'none',
+      }),
+    },
+    { allowLoopback }
+  )
 
   if (!response.ok) {
     throw new Error(
@@ -350,6 +499,7 @@ async function exchangeAuthorizationCode(options: {
   clientId: string
   clientSecret?: string
   resource: string
+  allowLoopback: boolean
 }): Promise<TokenResponse> {
   const body = new URLSearchParams({
     grant_type: 'authorization_code',
@@ -361,11 +511,15 @@ async function exchangeAuthorizationCode(options: {
   })
   if (options.clientSecret) body.set('client_secret', options.clientSecret)
 
-  const response = await fetch(options.tokenEndpoint, {
-    method: 'POST',
-    headers: { accept: 'application/json', 'content-type': 'application/x-www-form-urlencoded' },
-    body,
-  })
+  const response = await fetchMcpOAuthEndpoint(
+    options.tokenEndpoint,
+    {
+      method: 'POST',
+      headers: { accept: 'application/json', 'content-type': 'application/x-www-form-urlencoded' },
+      body,
+    },
+    { allowLoopback: options.allowLoopback }
+  )
   if (!response.ok) {
     throw new Error(`OAuth token exchange failed with ${response.status} ${response.statusText}`)
   }

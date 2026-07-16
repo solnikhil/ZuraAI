@@ -5,6 +5,7 @@
     "src/**/*.ts",
     "src/**/*.tsx",
     "electron/**/*.ts",
+    "packages/**/*.ts",
     "remotion/**/*.ts",
     "remotion/**/*.tsx"
   ],

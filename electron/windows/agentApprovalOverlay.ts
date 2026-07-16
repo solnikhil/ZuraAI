@@ -1,5 +1,11 @@
 import { BrowserWindow, screen } from 'electron'
 import { trustedIpcMain as ipcMain } from '../ipc/trustedIpc'
+import { getSecureValueAsync, setSecureValueAsync } from '../secureStorage'
+import {
+  buildToolApprovalSignature,
+  clearToolApprovalAuthorizations,
+  issueToolApprovalAuthorization,
+} from '../tools/toolApprovalAuthorizations'
 
 export interface AgentApprovalOverlayRequest {
   id: string
@@ -8,24 +14,56 @@ export interface AgentApprovalOverlayRequest {
   toolName: string
   kind: string
   arguments: Array<{ label: string; value: string }>
+  toolArguments: Record<string, unknown>
 }
 
 export interface AgentApprovalOverlayDecision {
   approved: boolean
   trusted?: boolean
+  approvalToken?: string
 }
+
+const TRUSTED_TOOL_SIGNATURES_KEY = 'agentApprovalTrustedToolSignatures'
+let trustedSignatures: Set<string> | null = null
 
 let approvalWindow: BrowserWindow | null = null
 let activeRequestId: string | null = null
 let resolveActive: ((decision: AgentApprovalOverlayDecision) => void) | null = null
 
 export function registerAgentApprovalOverlayHandlers(): void {
-  ipcMain.handle('agent-approval:request', async (_event, payload: unknown) => {
+  ipcMain.handle('agent-approval:request', async (event, payload: unknown) => {
     const request = normalizeApprovalRequest(payload)
     if (!request) {
       return { approved: false }
     }
-    return showAgentApprovalOverlay(request)
+    const signature = buildToolApprovalSignature(request.toolName, request.toolArguments)
+    const trusted = await getTrustedSignatures()
+    if (trusted.has(signature)) {
+      return {
+        approved: true,
+        trusted: true,
+        approvalToken: issueToolApprovalAuthorization(
+          event.sender.id,
+          request.toolName,
+          request.toolArguments
+        ),
+      }
+    }
+
+    const decision = await showAgentApprovalOverlay(request)
+    if (!decision.approved) return decision
+    if (decision.trusted) {
+      trusted.add(signature)
+      await persistTrustedSignatures(trusted)
+    }
+    return {
+      ...decision,
+      approvalToken: issueToolApprovalAuthorization(
+        event.sender.id,
+        request.toolName,
+        request.toolArguments
+      ),
+    }
   })
 }
 
@@ -35,6 +73,7 @@ export function unregisterAgentApprovalOverlayHandlers(): void {
 
 export function destroyAgentApprovalOverlay(): void {
   finishActive({ approved: false })
+  clearToolApprovalAuthorizations()
   if (approvalWindow && !approvalWindow.isDestroyed()) {
     approvalWindow.destroy()
   }
@@ -161,6 +200,8 @@ function normalizeApprovalRequest(payload: unknown): AgentApprovalOverlayRequest
   if (!id || !title || !toolName) return null
 
   const rawArguments = Array.isArray(record.arguments) ? record.arguments : []
+  const toolArguments = normalizeToolArguments(record.toolArguments)
+  if (!toolArguments) return null
   const argumentRows = rawArguments
     .map((item) => {
       if (!item || typeof item !== 'object') return null
@@ -179,7 +220,46 @@ function normalizeApprovalRequest(payload: unknown): AgentApprovalOverlayRequest
     toolName,
     kind: kind || 'tool',
     arguments: argumentRows,
+    toolArguments,
   }
+}
+
+function normalizeToolArguments(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  try {
+    const serialized = JSON.stringify(value)
+    if (Buffer.byteLength(serialized, 'utf8') > 64 * 1024) return null
+    const parsed = JSON.parse(serialized) as unknown
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null
+  } catch {
+    return null
+  }
+}
+
+async function getTrustedSignatures(): Promise<Set<string>> {
+  if (trustedSignatures) return trustedSignatures
+  try {
+    const stored = JSON.parse(await getSecureValueAsync(TRUSTED_TOOL_SIGNATURES_KEY)) as unknown
+    trustedSignatures = new Set(
+      Array.isArray(stored)
+        ? stored.filter(
+            (value): value is string => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value)
+          )
+        : []
+    )
+  } catch {
+    trustedSignatures = new Set()
+  }
+  return trustedSignatures
+}
+
+async function persistTrustedSignatures(signatures: Set<string>): Promise<void> {
+  await setSecureValueAsync(
+    TRUSTED_TOOL_SIGNATURES_KEY,
+    JSON.stringify([...signatures].slice(-200))
+  )
 }
 
 function sanitizeText(value: unknown, maxLength: number): string {

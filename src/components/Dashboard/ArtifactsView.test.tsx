@@ -156,8 +156,7 @@ describe('ArtifactsView', () => {
           }
           return null
         }),
-        on: vi.fn(),
-        off: vi.fn(),
+        on: vi.fn(() => vi.fn()),
       },
       configurable: true,
       writable: true,

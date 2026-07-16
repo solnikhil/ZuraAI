@@ -21,10 +21,7 @@ import { createSelectableContext } from './createSelectableContext'
 import { warnOnceDuringHmr } from './hmrWarnings'
 import type {
   ArtifactDocument,
-  ChatIndexData,
   ChatSession,
-  ChatSessionMetadata,
-  CompactPreviewMessage,
   FileAttachment,
   Folder,
   Message,
@@ -42,6 +39,23 @@ import {
 } from '../artifacts/artifactStore'
 import type { ArtifactKind } from '../artifacts/artifactTypes'
 import { registerArtifactToolHost } from '../tools/artifactTools'
+import {
+  addSessionTag,
+  deleteFolderFromState,
+  metadataToSession,
+  normalizeSession,
+  removeSessionTag,
+  setSessionFolder,
+  setSessionPinned,
+} from './chatHistoryDomain'
+import {
+  chatHistoryRepository,
+  isElectronChatRepository,
+  localChatStorage,
+  readLocalChatIndex,
+} from './chatHistoryRepository'
+import { useChatHistoryPersistence } from './useChatHistoryPersistence'
+import { mergeLoadedSessionWithLiveShell, useLoadedSessionCache } from './useLoadedSessionCache'
 
 export type { SessionMetadata } from './ChatSessionManager'
 
@@ -137,155 +151,12 @@ const { Provider: SelectableChatHistoryProvider, useSelector: useChatHistoryStat
 
 const ChatHistoryContext = createContext<ChatHistoryContextType | undefined>(undefined)
 
-const isElectron = typeof window !== 'undefined' && Boolean(window.ipcRenderer)
+const isElectron = isElectronChatRepository()
 const LAST_SESSION_ID_KEY = 'zura-ui:lastChatSessionId'
-const LOCAL_CHAT_HISTORY_KEY = 'zura-chat-history'
-const LOCAL_CHAT_INDEX_KEY = 'zura-chat-index'
-const MAX_LOADED_SESSIONS = 3
 /** Compact index preview tail — keep small; full history loads from disk on demand. */
-const INDEX_RECENT_TAIL_SIZE = 20
-const INDEX_PREVIEW_CONTENT_MAX = 500
 const SESSION_WINDOW_SIZE = 80
 const INACTIVE_UNLOAD_MS = 5 * 60 * 1000
-const SAVE_DEBOUNCE_MS = 500
 const INDEX_VERSION = 4
-
-function compactMessageForIndex(message: Message): CompactPreviewMessage {
-  return {
-    id: message.id,
-    role: message.role,
-    content:
-      typeof message.content === 'string'
-        ? message.content.slice(0, INDEX_PREVIEW_CONTENT_MAX)
-        : '',
-    timestamp: message.timestamp,
-    model: message.model,
-    hasImage: Boolean(message.image) || undefined,
-    hasFiles: Array.isArray(message.files) && message.files.length > 0 ? true : undefined,
-    toolResultCount:
-      Array.isArray(message.toolResults) && message.toolResults.length > 0
-        ? message.toolResults.length
-        : undefined,
-    hasThinking:
-      message.thinking ||
-      (Array.isArray(message.thinkingBlocks) && message.thinkingBlocks.length > 0)
-        ? true
-        : undefined,
-  }
-}
-
-function compactPreviewToMessage(preview: CompactPreviewMessage): Message {
-  return {
-    id: preview.id,
-    role: preview.role,
-    content: preview.content,
-    timestamp: preview.timestamp,
-    model: preview.model,
-  }
-}
-
-function sessionToMetadata(session: ChatSession): ChatSessionMetadata {
-  const messages = session.messages ?? []
-  const messageCount = session.messages?.length ?? session.messageCount ?? 0
-
-  // Compact text-only tail — never embed tool screenshots / base64 / agent runs.
-  const recentMessages =
-    messages.length > 0
-      ? messages.slice(-INDEX_RECENT_TAIL_SIZE).map(compactMessageForIndex)
-      : undefined
-
-  return {
-    id: session.id,
-    title: session.title,
-    createdAt: session.createdAt,
-    updatedAt: session.updatedAt,
-    totalTokens: session.totalTokens,
-    pinned: session.pinned ?? false,
-    folderId: session.folderId ?? null,
-    tags: Array.isArray(session.tags) ? session.tags : [],
-    messageCount,
-    artifactCount: session.artifacts?.length ?? session.artifactSummaries?.length ?? 0,
-    artifactSummaries: session.artifacts?.length
-      ? session.artifacts.map(summarizeArtifact)
-      : (session.artifactSummaries ?? undefined),
-    recentMessages,
-  }
-}
-
-function metadataToSession(metadata: ChatSessionMetadata, messages: Message[] = []): ChatSession {
-  // Prefer provided full messages; otherwise hydrate compact text-only previews.
-  const effectiveMessages =
-    messages.length > 0 ? messages : (metadata.recentMessages ?? []).map(compactPreviewToMessage)
-  return {
-    id: metadata.id,
-    title: metadata.title,
-    messages: effectiveMessages,
-    createdAt: metadata.createdAt,
-    updatedAt: metadata.updatedAt,
-    totalTokens: metadata.totalTokens,
-    pinned: metadata.pinned,
-    folderId: metadata.folderId,
-    tags: [...metadata.tags],
-    messageCount: metadata.messageCount,
-    artifacts: [],
-    artifactSummaries: metadata.artifactSummaries,
-  }
-}
-
-function normalizeSession(session: ChatSession): ChatSession {
-  const messages = Array.isArray(session.messages) ? session.messages : []
-  return {
-    ...session,
-    messages,
-    artifacts: normalizeArtifacts(session.artifacts),
-    artifactSummaries: session.artifactSummaries,
-    pinned: session.pinned ?? false,
-    folderId: session.folderId ?? null,
-    tags: Array.isArray(session.tags) ? session.tags : [],
-    messageCount: session.messageCount ?? messages.length,
-  }
-}
-
-function readLocalChatIndex(): { sessions: ChatSession[]; folders: Folder[] } {
-  const savedIndex = localStorage.getItem(LOCAL_CHAT_INDEX_KEY)
-  if (savedIndex) {
-    try {
-      const parsed = JSON.parse(savedIndex) as Partial<ChatIndexData>
-      const metadata = Array.isArray(parsed.sessions) ? parsed.sessions : []
-      const folders = Array.isArray(parsed.folders) ? parsed.folders : []
-      return {
-        sessions: metadata.map((entry) => metadataToSession(entry)),
-        folders,
-      }
-    } catch (error) {
-      console.error('Failed to parse local chat index:', error)
-    }
-  }
-
-  const savedHistory = localStorage.getItem(LOCAL_CHAT_HISTORY_KEY)
-  const parsedHistory = savedHistory ? (JSON.parse(savedHistory) as ChatSession[]) : []
-  return {
-    sessions: parsedHistory.map(normalizeSession),
-    folders: [],
-  }
-}
-
-function mergeArtifactDocuments(
-  loadedArtifacts: unknown,
-  liveArtifacts: unknown
-): ArtifactDocument[] {
-  const merged = new Map<string, ArtifactDocument>()
-  for (const artifact of normalizeArtifacts(loadedArtifacts)) {
-    merged.set(artifact.id, artifact)
-  }
-  for (const artifact of normalizeArtifacts(liveArtifacts)) {
-    const existing = merged.get(artifact.id)
-    if (!existing || artifact.updatedAt >= existing.updatedAt) {
-      merged.set(artifact.id, artifact)
-    }
-  }
-  return Array.from(merged.values()).sort((a, b) => b.updatedAt - a.updatedAt)
-}
 
 function withArtifactSummaries(session: ChatSession): ChatSession {
   const artifacts = normalizeArtifacts(session.artifacts)
@@ -294,31 +165,6 @@ function withArtifactSummaries(session: ChatSession): ChatSession {
     artifacts,
     artifactSummaries: artifacts.length > 0 ? artifacts.map(summarizeArtifact) : [],
   }
-}
-
-function mergeLoadedSessionWithLiveShell(
-  loaded: ChatSession,
-  latestExisting?: ChatSession
-): ChatSession {
-  const artifacts = mergeArtifactDocuments(loaded.artifacts, latestExisting?.artifacts)
-  const artifactSummaries =
-    artifacts.length > 0
-      ? artifacts.map(summarizeArtifact)
-      : (latestExisting?.artifactSummaries ?? loaded.artifactSummaries)
-
-  return normalizeSession({
-    ...loaded,
-    ...latestExisting,
-    messages: loaded.messages ?? [],
-    messageCount:
-      loaded.messageCount ?? loaded.messages?.length ?? latestExisting?.messageCount ?? 0,
-    artifacts,
-    artifactSummaries,
-  })
-}
-
-function isLoadedSession(session: ChatSession): boolean {
-  return session.messages.length > 0 || (session.messageCount ?? 0) === 0
 }
 
 export function ChatHistoryProvider({ children }: { children: React.ReactNode }) {
@@ -332,14 +178,6 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
 
   const sessionsRef = useRef<ChatSession[]>([])
   const foldersRef = useRef<Folder[]>([])
-  const loadedSessionIdsRef = useRef(new Set<string>())
-  const recentLoadedSessionIdsRef = useRef<string[]>([])
-  const indexSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const sessionSaveTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>())
-  const pendingSessionSavesRef = useRef(new Map<string, ChatSession>())
-  const localSessionRevisionRef = useRef(0)
-  const savedSessionRevisionRef = useRef(0)
-  const expectedSelfSessionStoreChangeRef = useRef(false)
 
   useEffect(() => {
     sessionsRef.current = sessions
@@ -349,199 +187,50 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     foldersRef.current = folders
   }, [folders])
 
-  const markSessionsDirty = useCallback(() => {
-    localSessionRevisionRef.current += 1
-  }, [])
+  const {
+    pendingSelfStoreChangesRef,
+    markSessionsDirty,
+    hasUnsavedLocalSessionChanges,
+    markAllSaved,
+    trackSelfStoreMutation,
+    flushIndexSave,
+    scheduleIndexSave,
+    scheduleSessionSave,
+    cancelScheduledIndexSave,
+  } = useChatHistoryPersistence({ isInitialized, sessionsRef, foldersRef })
 
-  const hasUnsavedLocalSessionChanges = useCallback(
-    () => localSessionRevisionRef.current > savedSessionRevisionRef.current,
-    []
-  )
-
-  const flushIndexSave = useCallback(async () => {
-    if (!isInitialized) return
-
-    const revisionToSave = localSessionRevisionRef.current
-    const index: ChatIndexData = {
-      sessions: sessionsRef.current.map(sessionToMetadata),
-      folders: foldersRef.current,
-      version: INDEX_VERSION,
-    }
-
-    try {
-      if (isElectron) {
-        expectedSelfSessionStoreChangeRef.current = true
-        await window.ipcRenderer.invoke('chat-store:save-index', index)
-      } else {
-        localStorage.setItem(LOCAL_CHAT_INDEX_KEY, JSON.stringify(index))
-        localStorage.setItem(LOCAL_CHAT_HISTORY_KEY, JSON.stringify(sessionsRef.current))
-      }
-
-      if (localSessionRevisionRef.current === revisionToSave) {
-        savedSessionRevisionRef.current = revisionToSave
-      }
-    } catch (error) {
-      expectedSelfSessionStoreChangeRef.current = false
-      console.error('Failed to save chat index:', error)
-      if (!isElectron) {
-        localStorage.setItem(LOCAL_CHAT_INDEX_KEY, JSON.stringify(index))
-        localStorage.setItem(LOCAL_CHAT_HISTORY_KEY, JSON.stringify(sessionsRef.current))
-        if (localSessionRevisionRef.current === revisionToSave) {
-          savedSessionRevisionRef.current = revisionToSave
-        }
-      }
-    }
-  }, [isInitialized])
-
-  const scheduleIndexSave = useCallback(() => {
-    if (!isInitialized) return
-    if (indexSaveTimerRef.current) {
-      clearTimeout(indexSaveTimerRef.current)
-    }
-    indexSaveTimerRef.current = setTimeout(() => {
-      indexSaveTimerRef.current = null
-      void flushIndexSave()
-    }, SAVE_DEBOUNCE_MS)
-  }, [flushIndexSave, isInitialized])
-
-  const flushSessionSave = useCallback(async (sessionId: string) => {
-    const session = pendingSessionSavesRef.current.get(sessionId)
-    if (!session) return
-    pendingSessionSavesRef.current.delete(sessionId)
-
-    try {
-      if (isElectron) {
-        expectedSelfSessionStoreChangeRef.current = true
-        await window.ipcRenderer.invoke('chat-store:save-session', session)
-      } else {
-        localStorage.setItem(LOCAL_CHAT_HISTORY_KEY, JSON.stringify(sessionsRef.current))
-      }
-    } catch (error) {
-      expectedSelfSessionStoreChangeRef.current = false
-      console.error(`Failed to save chat session ${sessionId}:`, error)
-    }
-  }, [])
-
-  const scheduleSessionSave = useCallback(
-    (session: ChatSession) => {
-      if (!isInitialized) return
-      pendingSessionSavesRef.current.set(session.id, normalizeSession(session))
-      const existingTimer = sessionSaveTimersRef.current.get(session.id)
-      if (existingTimer) clearTimeout(existingTimer)
-
-      const nextTimer = setTimeout(() => {
-        sessionSaveTimersRef.current.delete(session.id)
-        void flushSessionSave(session.id)
-      }, SAVE_DEBOUNCE_MS)
-      sessionSaveTimersRef.current.set(session.id, nextTimer)
-    },
-    [flushSessionSave, isInitialized]
-  )
-
-  const markLoaded = useCallback((id: string) => {
-    loadedSessionIdsRef.current.add(id)
-    recentLoadedSessionIdsRef.current = [
-      id,
-      ...recentLoadedSessionIdsRef.current.filter((candidate) => candidate !== id),
-    ].slice(0, MAX_LOADED_SESSIONS)
-  }, [])
-
-  const pruneLoadedSessions = useCallback((activeId?: string | null) => {
-    if (!isElectron) return
-
-    const keep = new Set(recentLoadedSessionIdsRef.current.slice(0, MAX_LOADED_SESSIONS))
-    if (activeId) keep.add(activeId)
-
-    setSessions((prev) =>
-      prev.map((session) => {
-        if (keep.has(session.id)) return session
-        if (!loadedSessionIdsRef.current.has(session.id)) return session
-        loadedSessionIdsRef.current.delete(session.id)
-        // Metadata-only: drop message arrays from inactive sessions (index has thin previews).
-        return {
-          ...session,
-          messages: [],
-          artifacts: [],
-          messageCount: session.messageCount ?? session.messages.length,
-        }
-      })
-    )
-  }, [])
-
-  const loadFullSession = useCallback(
-    async (id: string, options?: { limit?: number }): Promise<ChatSession | null> => {
-      const existing = sessionsRef.current.find((session) => session.id === id)
-      if (!existing) return null
-
-      // Reuse only when we already hold the full message array (not just a window).
-      const haveCount = existing.messages?.length ?? 0
-      const totalCount = existing.messageCount ?? haveCount
-      const holdsFullHistory = haveCount >= totalCount || totalCount === 0
-      const isFullyLoaded =
-        loadedSessionIdsRef.current.has(id) && isLoadedSession(existing) && holdsFullHistory
-      if (isFullyLoaded && !options?.limit) {
-        markLoaded(id)
-        pruneLoadedSessions(currentSessionId)
-        return existing
-      }
-
-      try {
-        const loaded = isElectron
-          ? await window.ipcRenderer.invoke('chat-store:get-session', id, options)
-          : (() => {
-              const saved = localStorage.getItem(LOCAL_CHAT_HISTORY_KEY)
-              const parsed = saved ? (JSON.parse(saved) as ChatSession[]) : []
-              const found = parsed.find((session) => session.id === id) ?? null
-              if (found && options?.limit && Array.isArray(found.messages)) {
-                found.messages = found.messages.slice(-options.limit)
-              }
-              return found
-            })()
-
-        if (!loaded) return null
-
-        const latestExisting = sessionsRef.current.find((session) => session.id === id) ?? existing
-        const normalized = mergeLoadedSessionWithLiveShell(loaded, latestExisting)
-
-        // Windowed loads count as "loaded" for UI (no spinner) and pruning eligibility.
-        // Full unlimited loads also mark loaded. Incomplete thin previews do not.
-        const loadedCount = normalized.messages?.length ?? 0
-        const totalCount = normalized.messageCount ?? loadedCount
-        const isWindowComplete =
-          !options?.limit || loadedCount >= Math.min(options.limit, totalCount) || totalCount === 0
-        if (isWindowComplete) {
-          markLoaded(id)
-        }
-        setSessions((prev) => prev.map((session) => (session.id === id ? normalized : session)))
-        pruneLoadedSessions(id)
-        return normalized
-      } catch (error) {
-        console.error('Failed to load session:', error)
-        return null
-      }
-    },
-    [currentSessionId, markLoaded, pruneLoadedSessions]
-  )
+  const {
+    loadedSessionIdsRef,
+    markLoaded,
+    forgetLoaded,
+    clearLoaded,
+    pruneLoadedSessions,
+    loadFullSession,
+  } = useLoadedSessionCache({
+    sessionsRef,
+    setSessions,
+    getCurrentSessionId: () => currentSessionId,
+  })
 
   const loadSessions = useCallback(async () => {
     try {
       if (isElectron) {
-        let metadata = await window.ipcRenderer.invoke('chat-store:get-metadata')
+        let metadata = await chatHistoryRepository.getMetadata()
 
         if (metadata.length === 0) {
-          const localData = localStorage.getItem(LOCAL_CHAT_HISTORY_KEY)
+          const localData = localStorage.getItem(localChatStorage.historyKey)
           if (localData) {
             const parsed = JSON.parse(localData)
             if (Array.isArray(parsed) && parsed.length > 0) {
-              await window.ipcRenderer.invoke('chat-store:migrate', parsed)
-              localStorage.removeItem(LOCAL_CHAT_HISTORY_KEY)
-              metadata = await window.ipcRenderer.invoke('chat-store:get-metadata')
+              await chatHistoryRepository.migrate(parsed)
+              localStorage.removeItem(localChatStorage.historyKey)
+              metadata = await chatHistoryRepository.getMetadata()
             }
           }
         }
 
         setSessions(metadata.map((entry) => metadataToSession(entry)))
-        setFolders(await window.ipcRenderer.invoke('chat-store:get-all-folders'))
+        setFolders(await chatHistoryRepository.getFolders())
       } else {
         const localState = readLocalChatIndex()
         localState.sessions.forEach((session) => markLoaded(session.id))
@@ -550,23 +239,22 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
       }
     } catch (error) {
       console.error('Failed to load chat history:', error)
-      const saved = localStorage.getItem(LOCAL_CHAT_HISTORY_KEY)
+      const saved = localStorage.getItem(localChatStorage.historyKey)
       const parsed = saved ? (JSON.parse(saved) as ChatSession[]) : []
       setSessions(parsed.map(normalizeSession))
     } finally {
-      savedSessionRevisionRef.current = localSessionRevisionRef.current
+      markAllSaved()
       setIsLoading(false)
       setIsInitialized(true)
     }
-  }, [markLoaded])
+  }, [markAllSaved, markLoaded])
 
   const reloadFromExternalStore = useCallback(async () => {
     try {
       if (isElectron) {
-        const metadata = await window.ipcRenderer.invoke('chat-store:get-metadata')
-        const nextFolders = await window.ipcRenderer.invoke('chat-store:get-all-folders')
-        loadedSessionIdsRef.current.clear()
-        recentLoadedSessionIdsRef.current = []
+        const metadata = await chatHistoryRepository.getMetadata()
+        const nextFolders = await chatHistoryRepository.getFolders()
+        clearLoaded()
         setSessions(metadata.map((entry) => metadataToSession(entry)))
         setFolders(nextFolders)
         setCurrentSessionId((prev) => {
@@ -580,12 +268,12 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
         setFolders(localState.folders)
       }
 
-      savedSessionRevisionRef.current = localSessionRevisionRef.current
+      markAllSaved()
       setHasExternalStoreChanges(false)
     } catch (error) {
       console.error('Failed to reload chat history from external store:', error)
     }
-  }, [markLoaded])
+  }, [clearLoaded, markAllSaved, markLoaded])
 
   useEffect(() => {
     void loadSessions()
@@ -609,8 +297,6 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     if (!isElectron) return
     const timer = window.setInterval(() => {
       const activeId = currentSessionId
-      const keep = new Set(recentLoadedSessionIdsRef.current.slice(0, MAX_LOADED_SESSIONS))
-      if (activeId) keep.add(activeId)
       // Time-based unload is handled by prune to empty messages for non-kept sessions.
       pruneLoadedSessions(activeId)
     }, INACTIVE_UNLOAD_MS)
@@ -637,17 +323,14 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     if (!isElectron || !window.ipcRenderer?.on) return
 
     const handleChatStoreChanged = () => {
-      if (expectedSelfSessionStoreChangeRef.current) {
-        expectedSelfSessionStoreChangeRef.current = false
+      if (pendingSelfStoreChangesRef.current > 0) {
+        pendingSelfStoreChangesRef.current -= 1
         return
       }
       setHasExternalStoreChanges(true)
     }
 
-    window.ipcRenderer.on('chat-store:changed', handleChatStoreChanged)
-    return () => {
-      window.ipcRenderer.off('chat-store:changed', handleChatStoreChanged)
-    }
+    return window.ipcRenderer.on('chat-store:changed', handleChatStoreChanged)
   }, [])
 
   useEffect(() => {
@@ -691,16 +374,6 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
       localStorage.removeItem(LAST_SESSION_ID_KEY)
     }
   }, [currentSessionId, isInitialized, settings.rememberLastChatSession])
-
-  useEffect(() => {
-    return () => {
-      if (indexSaveTimerRef.current) clearTimeout(indexSaveTimerRef.current)
-      for (const timer of sessionSaveTimersRef.current.values()) {
-        clearTimeout(timer)
-      }
-      sessionSaveTimersRef.current.clear()
-    }
-  }, [])
 
   const refreshSessions = useCallback(async () => {
     await reloadFromExternalStore()
@@ -851,22 +524,20 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
 
       void (async () => {
         try {
-          const fullSession = await window.ipcRenderer.invoke('chat-store:get-session', sessionId)
+          const fullSession = await chatHistoryRepository.getSession(sessionId)
           if (!fullSession) return
 
           const latestExisting = sessionsRef.current.find((session) => session.id === sessionId)
           const mergedBase = mergeLoadedSessionWithLiveShell(fullSession, latestExisting)
           const nextSession = withArtifactSummaries(normalizeSession(updater(mergedBase)))
 
-          expectedSelfSessionStoreChangeRef.current = true
-          await window.ipcRenderer.invoke('chat-store:save-session', nextSession)
+          await trackSelfStoreMutation(() => chatHistoryRepository.saveSession(nextSession))
         } catch (error) {
-          expectedSelfSessionStoreChangeRef.current = false
           console.error(`Failed to persist artifact mutation for session ${sessionId}:`, error)
         }
       })()
     },
-    []
+    [trackSelfStoreMutation]
   )
 
   const addMessageToSession = useCallback(
@@ -948,48 +619,44 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
   const deleteSession = useCallback(
     (id: string) => {
       markSessionsDirty()
-      loadedSessionIdsRef.current.delete(id)
-      recentLoadedSessionIdsRef.current = recentLoadedSessionIdsRef.current.filter(
-        (entry) => entry !== id
-      )
+      forgetLoaded(id)
       setSessions((prev) => prev.filter((session) => session.id !== id))
       setCurrentSessionId((prev) => (prev === id ? null : prev))
       if (isElectron) {
-        expectedSelfSessionStoreChangeRef.current = true
-        void window.ipcRenderer.invoke('chat-store:delete-session', id)
+        void trackSelfStoreMutation(() => chatHistoryRepository.deleteSession(id))
       } else {
         scheduleIndexSave()
       }
     },
-    [markSessionsDirty, scheduleIndexSave]
+    [forgetLoaded, markSessionsDirty, scheduleIndexSave, trackSelfStoreMutation]
   )
 
   const clearAllSessions = useCallback(() => {
     markSessionsDirty()
     const ids = sessionsRef.current.map((session) => session.id)
-    loadedSessionIdsRef.current.clear()
-    recentLoadedSessionIdsRef.current = []
+    clearLoaded()
     setSessions([])
     setCurrentSessionId(null)
     if (isElectron) {
-      expectedSelfSessionStoreChangeRef.current = true
       void Promise.all(
-        ids.map((id) => window.ipcRenderer.invoke('chat-store:delete-session', id))
+        ids.map((id) => trackSelfStoreMutation(() => chatHistoryRepository.deleteSession(id)))
       ).then(() =>
-        window.ipcRenderer.invoke('chat-store:save-index', {
-          sessions: [],
-          folders: foldersRef.current,
-          version: INDEX_VERSION,
-        })
+        trackSelfStoreMutation(() =>
+          chatHistoryRepository.saveIndex({
+            sessions: [],
+            folders: foldersRef.current,
+            version: INDEX_VERSION,
+          })
+        )
       )
     } else {
-      localStorage.setItem(LOCAL_CHAT_HISTORY_KEY, '[]')
+      localStorage.setItem(localChatStorage.historyKey, '[]')
       localStorage.setItem(
-        LOCAL_CHAT_INDEX_KEY,
+        localChatStorage.indexKey,
         JSON.stringify({ sessions: [], folders: foldersRef.current, version: INDEX_VERSION })
       )
     }
-  }, [markSessionsDirty])
+  }, [clearLoaded, markSessionsDirty, trackSelfStoreMutation])
 
   const updateSessionTitle = useCallback(
     (id: string, title: string) => {
@@ -1005,14 +672,14 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
 
   const pinSession = useCallback(
     (id: string) => {
-      updateOneSession(id, (session) => ({ ...session, pinned: true, updatedAt: Date.now() }))
+      updateOneSession(id, (session) => setSessionPinned(session, true, Date.now()))
     },
     [updateOneSession]
   )
 
   const unpinSession = useCallback(
     (id: string) => {
-      updateOneSession(id, (session) => ({ ...session, pinned: false, updatedAt: Date.now() }))
+      updateOneSession(id, (session) => setSessionPinned(session, false, Date.now()))
     },
     [updateOneSession]
   )
@@ -1181,43 +848,28 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
 
   const assignFolder = useCallback(
     (sessionId: string, folderId: string) => {
-      updateOneSession(sessionId, (session) => ({ ...session, folderId, updatedAt: Date.now() }))
+      updateOneSession(sessionId, (session) => setSessionFolder(session, folderId, Date.now()))
     },
     [updateOneSession]
   )
 
   const removeFromFolder = useCallback(
     (sessionId: string) => {
-      updateOneSession(sessionId, (session) => ({
-        ...session,
-        folderId: null,
-        updatedAt: Date.now(),
-      }))
+      updateOneSession(sessionId, (session) => setSessionFolder(session, null, Date.now()))
     },
     [updateOneSession]
   )
 
   const addTag = useCallback(
     (sessionId: string, tag: string) => {
-      updateOneSession(sessionId, (session) => {
-        const currentTags = session.tags || []
-        if (currentTags.includes(tag)) return session
-        return { ...session, tags: [...currentTags, tag], updatedAt: Date.now() }
-      })
+      updateOneSession(sessionId, (session) => addSessionTag(session, tag, Date.now()))
     },
     [updateOneSession]
   )
 
   const removeTag = useCallback(
     (sessionId: string, tag: string) => {
-      updateOneSession(sessionId, (session) => {
-        const currentTags = session.tags || []
-        return {
-          ...session,
-          tags: currentTags.filter((entry) => entry !== tag),
-          updatedAt: Date.now(),
-        }
-      })
+      updateOneSession(sessionId, (session) => removeSessionTag(session, tag, Date.now()))
     },
     [updateOneSession]
   )
@@ -1227,13 +879,10 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
       foldersRef.current = nextFolders
       setFolders(nextFolders)
       markSessionsDirty()
-      if (indexSaveTimerRef.current) {
-        clearTimeout(indexSaveTimerRef.current)
-        indexSaveTimerRef.current = null
-      }
+      cancelScheduledIndexSave()
       void flushIndexSave()
     },
-    [flushIndexSave, markSessionsDirty]
+    [cancelScheduledIndexSave, flushIndexSave, markSessionsDirty]
   )
 
   const createFolder = useCallback(
@@ -1257,9 +906,11 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
   const deleteFolder = useCallback(
     (id: string) => {
       const now = Date.now()
-      const nextFolders = foldersRef.current.filter((folder) => folder.id !== id)
-      const nextSessions = sessionsRef.current.map((session) =>
-        session.folderId === id ? { ...session, folderId: null, updatedAt: now } : session
+      const { folders: nextFolders, sessions: nextSessions } = deleteFolderFromState(
+        foldersRef.current,
+        sessionsRef.current,
+        id,
+        now
       )
 
       foldersRef.current = nextFolders
@@ -1267,13 +918,10 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
       setFolders(nextFolders)
       setSessions(nextSessions)
       markSessionsDirty()
-      if (indexSaveTimerRef.current) {
-        clearTimeout(indexSaveTimerRef.current)
-        indexSaveTimerRef.current = null
-      }
+      cancelScheduledIndexSave()
       void flushIndexSave()
     },
-    [flushIndexSave, markSessionsDirty]
+    [cancelScheduledIndexSave, flushIndexSave, markSessionsDirty]
   )
 
   const renameFolder = useCallback(

@@ -1,4 +1,6 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
+import { isBuiltinMainToolName } from '../src/tools/builtinMainToolContract'
+import { PRELOAD_CHANNEL_MANIFEST } from '../src/electron/ipcChannelManifest'
 
 import type {
   McpApprovalDecision,
@@ -77,160 +79,31 @@ contextBridge.exposeInMainWorld('windowControls', {
 // Only allow a small set of channels to be used by the renderer.
 // This prevents arbitrary IPC access if the renderer is compromised.
 
-const SEND_CHANNELS = new Set<IpcSendChannel>([])
-
-const INVOKE_CHANNELS = new Set<IpcInvokeChannel>([
-  // Chat store
-  'chat-store:get-metadata',
-  'chat-store:get-session',
-  'chat-store:save-session',
-  'chat-store:delete-session',
-  'chat-store:save-index',
-  'chat-store:get-all',
-  'chat-store:get-usage-sessions',
-  'chat-store:save-all',
-  'chat-store:migrate',
-  'chat-store:get-all-folders',
-  'chat-store:save-folders',
-  'tool-media:load',
-  'chat-diagnostics:append-event',
-  'chat-diagnostics:get-debug-reference',
-  'chat-diagnostics:list-events',
-  'chat-debug-window:open',
-  'chat-links:consume-pending',
-  'chat-links:peek-pending',
-
-  // Secure storage
-  'secure-storage:set',
-  'secure-storage:get-presence',
-
-  // Tools
-  'execute-tool',
-
-  // Window resize
-  'window-resize',
-  'context-menu:show',
-  'native-dialog:confirm-delete-chat',
-
-  // Updater
-  'updater:check-for-updates',
-  'updater:quit-and-install',
-  'updater:get-version',
-])
-
-const ON_CHANNELS = new Set<IpcOnChannel>([
-  'update-available',
-  'update-downloaded',
-  'update-error',
-  'update-download-progress',
-  'app:new-chat',
-  'settings:navigate',
-  'chat-store:changed',
-  'context-menu:action',
-  'chat-diagnostics:event',
-  'chat-links:message',
-])
-
-const MCP_INVOKE_CHANNELS = new Set<string>([
-  'mcp:list-servers',
-  'mcp:add-server',
-  'mcp:update-server',
-  'mcp:remove-server',
-  'mcp:connect-server',
-  'mcp:disconnect-server',
-  'mcp:get-state',
-  'mcp:open-config-file',
-  'mcp:list-tools',
-  'mcp:list-resources',
-  'mcp:read-resource',
-  'mcp:list-prompts',
-  'mcp:get-prompt',
-  'mcp:execute-tool',
-  'mcp:resolve-approval',
-  'mcp:start-oauth',
-  'mcp:clear-oauth',
-  'mcp:get-auth-status',
-  'mcp:resolve-add-request',
-  'mcp:approve-add-request',
-  'mcp:cancel-add-request',
-])
-
-const MCP_ON_CHANNELS = new Set<string>(['mcp:state-changed'])
-
-const MEMORY_INVOKE_CHANNELS = new Set<string>([
-  'memory:list',
-  'memory:add',
-  'memory:add-deduped',
-  'memory:update',
-  'memory:delete',
-  'memory:clear',
-  'memory:search',
-  'memory:summaries-list',
-  'memory:summaries-upsert',
-  'memory:summaries-delete',
-  'memory:summaries-clear',
-])
-
-const MEMORY_ON_CHANNELS = new Set<string>(['memory-store:changed'])
-
-const DISCORD_RPC_INVOKE_CHANNELS = new Set<string>([
-  'discord-rpc:get-state',
-  'discord-rpc:set-activity',
-])
-
-const DISCORD_RPC_ON_CHANNELS = new Set<string>(['discord-rpc:state-changed'])
-
-const SCHEDULED_TASKS_INVOKE_CHANNELS = new Set<string>([
-  'scheduled-tasks:set-extension-enabled',
-  'scheduled-tasks:list',
-  'scheduled-tasks:create',
-  'scheduled-tasks:update',
-  'scheduled-tasks:delete',
-  'scheduled-tasks:run-now',
-  'scheduled-tasks:list-runs',
-  'scheduled-tasks:get-run',
-  'scheduled-tasks:resolve-summary',
-  'scheduled-tasks:resolve-automation-run',
-])
-
-const SCHEDULED_TASKS_ON_CHANNELS = new Set<string>([
-  'scheduled-tasks:changed',
-  'scheduled-tasks:summary-request',
-  'scheduled-tasks:automation-run-request',
-])
-
-const ANALYTICS_INVOKE_CHANNELS = new Set<string>([
-  'analytics:get-state',
-  'analytics:set-enabled',
-  'analytics:track',
-])
-
-const EMAIL_NOTIFICATIONS_INVOKE_CHANNELS = new Set<string>([
-  'email-notifications:apply-settings',
-  'email-notifications:send-test',
-])
-
-const PROVIDER_RUNTIME_INVOKE_CHANNELS = new Set<string>([
-  'provider-runtime:start',
-  'provider-runtime:generate',
-  'provider-runtime:list-models',
-  'provider-runtime:codex-sign-in',
-  'provider-runtime:codex-auth-status',
-  'provider-runtime:codex-sign-out',
-  'provider-runtime:cancel',
-])
-const PROVIDER_RUNTIME_ON_CHANNELS = new Set<string>(['provider-runtime:event'])
-
-const AGENT_SKILLS_INVOKE_CHANNELS = new Set<string>([
-  'agent-skills:list',
-  'agent-skills:activate',
-  'agent-skills:select-project-root',
-  'agent-skills:clear-project-root',
-  'agent-skills:search',
-  'agent-skills:install',
-])
-
-const AGENT_APPROVAL_INVOKE_CHANNELS = new Set<string>(['agent-approval:request'])
+const SEND_CHANNELS = new Set<IpcSendChannel>(PRELOAD_CHANNEL_MANIFEST.generic.send)
+const INVOKE_CHANNELS = new Set<IpcInvokeChannel>(PRELOAD_CHANNEL_MANIFEST.generic.invoke)
+const ON_CHANNELS = new Set<IpcOnChannel>(PRELOAD_CHANNEL_MANIFEST.generic.on)
+const MCP_INVOKE_CHANNELS = new Set<string>(PRELOAD_CHANNEL_MANIFEST.mcp.invoke)
+const MCP_ON_CHANNELS = new Set<string>(PRELOAD_CHANNEL_MANIFEST.mcp.on)
+const MEMORY_INVOKE_CHANNELS = new Set<string>(PRELOAD_CHANNEL_MANIFEST.memory.invoke)
+const MEMORY_ON_CHANNELS = new Set<string>(PRELOAD_CHANNEL_MANIFEST.memory.on)
+const DISCORD_RPC_INVOKE_CHANNELS = new Set<string>(PRELOAD_CHANNEL_MANIFEST.discordRpc.invoke)
+const DISCORD_RPC_ON_CHANNELS = new Set<string>(PRELOAD_CHANNEL_MANIFEST.discordRpc.on)
+const SCHEDULED_TASKS_INVOKE_CHANNELS = new Set<string>(
+  PRELOAD_CHANNEL_MANIFEST.scheduledTasks.invoke
+)
+const SCHEDULED_TASKS_ON_CHANNELS = new Set<string>(PRELOAD_CHANNEL_MANIFEST.scheduledTasks.on)
+const ANALYTICS_INVOKE_CHANNELS = new Set<string>(PRELOAD_CHANNEL_MANIFEST.analytics.invoke)
+const EMAIL_NOTIFICATIONS_INVOKE_CHANNELS = new Set<string>(
+  PRELOAD_CHANNEL_MANIFEST.emailNotifications.invoke
+)
+const PROVIDER_RUNTIME_INVOKE_CHANNELS = new Set<string>(
+  PRELOAD_CHANNEL_MANIFEST.providerRuntime.invoke
+)
+const PROVIDER_RUNTIME_ON_CHANNELS = new Set<string>(PRELOAD_CHANNEL_MANIFEST.providerRuntime.on)
+const AGENT_SKILLS_INVOKE_CHANNELS = new Set<string>(PRELOAD_CHANNEL_MANIFEST.agentSkills.invoke)
+const AGENT_APPROVAL_INVOKE_CHANNELS = new Set<string>(
+  PRELOAD_CHANNEL_MANIFEST.agentApproval.invoke
+)
 
 function assertAllowed<TChannel extends string>(
   kind: 'send' | 'invoke' | 'on' | 'off',
@@ -247,17 +120,13 @@ contextBridge.exposeInMainWorld(
   Object.freeze({
     on: <TChannel extends IpcOnChannel>(
       channel: TChannel,
-      listener: (event: IpcRendererEvent, ...args: IpcOnArgsMap[TChannel]) => void
+      callback: (...args: IpcOnArgsMap[TChannel]) => void
     ) => {
       assertAllowed('on', channel, ON_CHANNELS)
+      const listener = (_event: IpcRendererEvent, ...args: IpcOnArgsMap[TChannel]) =>
+        callback(...args)
       ipcRenderer.on(channel, listener)
-    },
-    off: <TChannel extends IpcOnChannel>(
-      channel: TChannel,
-      listener: (event: IpcRendererEvent, ...args: IpcOnArgsMap[TChannel]) => void
-    ) => {
-      assertAllowed('off', channel, ON_CHANNELS)
-      ipcRenderer.off(channel, listener)
+      return () => ipcRenderer.off(channel, listener)
     },
     send: (channel: IpcSendChannel) => {
       assertAllowed('send', channel, SEND_CHANNELS)
@@ -272,26 +141,7 @@ contextBridge.exposeInMainWorld(
       // Extra validation for tool execution
       if (channel === 'execute-tool') {
         const toolName = args[0]
-        const isNativeWindowsTool =
-          typeof toolName === 'string' &&
-          (toolName.startsWith('ui_') ||
-            toolName.startsWith('windows_uia_') ||
-            toolName.startsWith('file_') ||
-            toolName.startsWith('app_') ||
-            toolName.startsWith('window_') ||
-            toolName.startsWith('scheduled_task_') ||
-            toolName === 'activate_skill' ||
-            toolName === 'system_active_window' ||
-            toolName === 'system_status' ||
-            toolName === 'system_settings_open' ||
-            toolName === 'system_open_path' ||
-            toolName === 'system_shell')
-        if (
-          toolName !== 'web_search' &&
-          toolName !== 'code_execution' &&
-          !(typeof toolName === 'string' && toolName.startsWith('computer_')) &&
-          !isNativeWindowsTool
-        ) {
+        if (!isBuiltinMainToolName(toolName)) {
           return Promise.resolve({
             success: false,
             error: `Tool "${String(toolName)}" is disabled.`,

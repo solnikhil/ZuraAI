@@ -56,10 +56,7 @@ export default function AppShellLayout() {
       clearCurrentSession()
     }
 
-    window.ipcRenderer.on('app:new-chat', listener)
-    return () => {
-      window.ipcRenderer.off('app:new-chat', listener)
-    }
+    return window.ipcRenderer.on('app:new-chat', listener)
   }, [clearCurrentSession, navigate, setDashboardView])
 
   return (

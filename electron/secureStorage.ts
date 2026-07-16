@@ -3,9 +3,9 @@
 
 import { safeStorage, app } from 'electron'
 import * as fs from 'fs/promises'
-import * as fsSync from 'fs'
 import * as path from 'path'
 import { writeFileAtomic } from './utils/atomicFile'
+import { RecoverableSerializedTaskQueue } from './utils/serializedTaskQueue'
 import { log } from './startup/logger'
 
 const storageLog = log.withTag('storage')
@@ -29,6 +29,11 @@ let cachedData: SecureData | null = null
 let cacheTimestamp = 0
 // Keep decrypted values in memory briefly to reduce repeated disk reads and decrypt work.
 const CACHE_TTL = 30000
+const secureOperations = new RecoverableSerializedTaskQueue()
+
+function cloneSecureData(data: SecureData): SecureData {
+  return { ...data }
+}
 
 function isEncryptionAvailable(): boolean {
   try {
@@ -53,21 +58,20 @@ function isLikelyLegacyPlaintextSecret(value: string): boolean {
 
 async function readSecureDataAsync(): Promise<SecureData> {
   if (cachedData && Date.now() - cacheTimestamp < CACHE_TTL) {
-    return cachedData
+    return cloneSecureData(cachedData)
   }
 
   try {
-    if (!fsSync.existsSync(STORAGE_FILE)) {
-      return {}
-    }
-
     const data = await fs.readFile(STORAGE_FILE, 'utf-8')
-    const parsed = JSON.parse(data)
+    const parsed = JSON.parse(data) as unknown
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new SyntaxError('Secure storage root must be an object.')
+    }
     const encryptionAvailable = isEncryptionAvailable()
 
     if (!encryptionAvailable) {
       storageLog.error('secure storage unavailable: OS-backed encryption is required')
-      return {}
+      throw new Error('OS-backed secure storage encryption is unavailable.')
     }
 
     const decrypted: SecureData = {}
@@ -98,38 +102,44 @@ async function readSecureDataAsync(): Promise<SecureData> {
 
     cachedData = decrypted
     cacheTimestamp = Date.now()
-    return decrypted
-  } catch {
+    return cloneSecureData(decrypted)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return {}
+    if (error instanceof SyntaxError) {
+      storageLog.error('secure storage file is corrupt and requires recovery')
+      throw new Error('Secure storage contains invalid JSON.', { cause: error })
+    }
     storageLog.error('failed to read secure storage data')
-    return {}
+    throw error
   }
 }
 
 export async function getSecureValuePresenceAsync(
   keys: readonly string[]
 ): Promise<Record<string, boolean>> {
-  const presence: Record<string, boolean> = {}
-  for (const key of keys) {
-    presence[key] = false
-  }
-
-  try {
-    if (!fsSync.existsSync(STORAGE_FILE)) {
-      return presence
-    }
-
-    const data = await fs.readFile(STORAGE_FILE, 'utf-8')
-    const parsed = JSON.parse(data) as Record<string, unknown>
-
+  return secureOperations.run(async () => {
+    const presence: Record<string, boolean> = {}
     for (const key of keys) {
-      presence[key] = typeof parsed[key] === 'string' && parsed[key].trim().length > 0
+      presence[key] = false
     }
 
-    return presence
-  } catch {
-    storageLog.error('failed to read secure storage key presence')
-    return presence
-  }
+    try {
+      const data = await fs.readFile(STORAGE_FILE, 'utf-8')
+      const parsed = JSON.parse(data) as unknown
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new SyntaxError('Secure storage root must be an object.')
+      }
+      for (const key of keys) {
+        const value = (parsed as Record<string, unknown>)[key]
+        presence[key] = typeof value === 'string' && value.trim().length > 0
+      }
+      return presence
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return presence
+      storageLog.error('failed to read secure storage key presence')
+      throw error
+    }
+  })
 }
 
 async function writeSecureDataAsync(data: SecureData): Promise<boolean> {
@@ -148,7 +158,7 @@ async function writeSecureDataAsync(data: SecureData): Promise<boolean> {
     }
 
     await writeFileAtomic(STORAGE_FILE, JSON.stringify(toWrite, null, 2))
-    cachedData = data
+    cachedData = cloneSecureData(data)
     cacheTimestamp = Date.now()
     return true
   } catch {
@@ -158,16 +168,21 @@ async function writeSecureDataAsync(data: SecureData): Promise<boolean> {
 }
 
 export async function getSecureValueAsync(key: string): Promise<string> {
-  const data = await readSecureDataAsync()
-  return data[key] || ''
+  return secureOperations.run(async () => {
+    const data = await readSecureDataAsync()
+    return data[key] || ''
+  })
 }
 
 export async function setSecureValueAsync(key: string, value: string): Promise<boolean> {
-  const data = await readSecureDataAsync()
-  if (value && value.trim()) {
-    data[key] = value.trim()
-  } else {
-    delete data[key]
-  }
-  return writeSecureDataAsync(data)
+  return secureOperations.run(async () => {
+    const data = await readSecureDataAsync()
+    const nextData = cloneSecureData(data)
+    if (value && value.trim()) {
+      nextData[key] = value.trim()
+    } else {
+      delete nextData[key]
+    }
+    return writeSecureDataAsync(nextData)
+  })
 }

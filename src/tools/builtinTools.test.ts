@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { builtInMainToolManifest } from './builtinTools'
+import { BUILTIN_MAIN_TOOL_NAMES, builtInMainToolManifest } from './builtinTools'
 
 describe('builtInMainToolManifest', () => {
+  it('has an exact IPC contract entry for every manifest tool', () => {
+    expect(Object.keys(builtInMainToolManifest)).toEqual([...BUILTIN_MAIN_TOOL_NAMES])
+  })
+
   it('tells models to batch independent web_search facets in one turn', () => {
     const webSearch = builtInMainToolManifest.web_search
     const numResultsDescription = webSearch.parameters.properties.num_results.description

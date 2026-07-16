@@ -25,9 +25,6 @@ import { getCatalogExtension, type CatalogExtensionId } from './extensionCatalog
 export interface SkillsSectionProps {
   skills: SkillsSettings
   settings?: Settings
-  codeExecutionAutoApprove: boolean
-  terminalAutoApprove: boolean
-  computerUseAutoApprove: boolean
   brevoApiKey?: string
   emailNotifications?: EmailNotificationSettings
   isSavingSecureSettings?: boolean
@@ -36,9 +33,6 @@ export interface SkillsSectionProps {
   onActiveExtensionChange: (extension: CatalogExtensionId | null, panel?: 'notifications') => void
   onChange: (changes: {
     skills?: SkillsSettings
-    codeExecutionAutoApprove?: boolean
-    terminalAutoApprove?: boolean
-    computerUseAutoApprove?: boolean
     assistantMode?: Settings['assistantMode']
     memoryModel?: string
     brevoApiKey?: string
@@ -64,9 +58,6 @@ interface ExtensionCatalogGroupProps {
 export function SkillsSection({
   skills,
   settings,
-  codeExecutionAutoApprove,
-  terminalAutoApprove,
-  computerUseAutoApprove,
   brevoApiKey,
   emailNotifications,
   isSavingSecureSettings,
@@ -135,9 +126,6 @@ export function SkillsSection({
           extensionId={activeExtension}
           skills={skills}
           settings={settings}
-          codeExecutionAutoApprove={codeExecutionAutoApprove}
-          terminalAutoApprove={terminalAutoApprove}
-          computerUseAutoApprove={computerUseAutoApprove}
           brevoApiKey={brevoApiKey}
           emailNotifications={emailNotifications}
           isSavingSecureSettings={isSavingSecureSettings}

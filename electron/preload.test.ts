@@ -1,6 +1,7 @@
 // @vitest-environment node
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { BUILTIN_MAIN_TOOL_NAMES } from '../src/tools/builtinMainToolContract'
 
 const preloadMocks = vi.hoisted(() => ({
   exposed: new Map<string, unknown>(),
@@ -252,6 +253,30 @@ describe('preload MCP bridge', () => {
     expect(preloadMocks.invoke).toHaveBeenCalledWith('execute-tool', 'web_search', { query: 'mcp' })
   })
 
+  it('forwards every exact built-in main tool name and blocks lookalikes', async () => {
+    const ipcRenderer = getExposedBridge<{
+      invoke: (channel: string, ...args: unknown[]) => Promise<unknown>
+    }>('ipcRenderer')
+
+    preloadMocks.invoke.mockResolvedValue({ success: true })
+
+    for (const toolName of BUILTIN_MAIN_TOOL_NAMES) {
+      await expect(ipcRenderer.invoke('execute-tool', toolName, {})).resolves.toEqual({
+        success: true,
+      })
+      expect(preloadMocks.invoke).toHaveBeenLastCalledWith('execute-tool', toolName, {})
+    }
+
+    const forwardedCallCount = preloadMocks.invoke.mock.calls.length
+    for (const toolName of ['mcp__server__read_file', 'file_not_registered', 'web_search_extra']) {
+      await expect(ipcRenderer.invoke('execute-tool', toolName, {})).resolves.toEqual({
+        success: false,
+        error: `Tool "${toolName}" is disabled.`,
+      })
+    }
+    expect(preloadMocks.invoke).toHaveBeenCalledTimes(forwardedCallCount)
+  })
+
   it('exposes the terminal approval bridge', () => {
     expect(preloadMocks.exposed.has('terminal')).toBe(true)
     const bridge = preloadMocks.exposed.get('terminal') as {
@@ -463,7 +488,7 @@ describe('preload updater bridge', () => {
     // and update-error is allowlisted (so this should NOT throw). This locks in the
     // allowlist so accidental removal causes a regression.
     const ipcRenderer = getExposedBridge<{
-      on: (channel: string, listener: (...args: unknown[]) => void) => void
+      on: (channel: string, listener: (...args: unknown[]) => void) => () => void
     }>('ipcRenderer')
 
     expect(() => ipcRenderer.on('update-error', () => undefined)).not.toThrow()
@@ -471,6 +496,24 @@ describe('preload updater bridge', () => {
     expect(() => ipcRenderer.on('not-an-allowlisted-channel' as never, () => undefined)).toThrow(
       /Blocked IPC on channel/
     )
+  })
+
+  it('strips the privileged Electron event from generic subscription callbacks', () => {
+    const ipcRenderer = getExposedBridge<{
+      on: (channel: string, listener: (...args: unknown[]) => void) => () => void
+    }>('ipcRenderer')
+    const callback = vi.fn()
+
+    const unsubscribe = ipcRenderer.on('settings:navigate', callback)
+    const listener = preloadMocks.on.mock.calls.find((call) => call[0] === 'settings:navigate')?.[1]
+    const privilegedEvent = { sender: { send: vi.fn() } }
+    listener?.(privilegedEvent, 'providers')
+
+    expect(callback).toHaveBeenCalledWith('providers')
+    expect(callback).not.toHaveBeenCalledWith(privilegedEvent, 'providers')
+
+    unsubscribe()
+    expect(preloadMocks.off).toHaveBeenCalledWith('settings:navigate', listener)
   })
 })
 

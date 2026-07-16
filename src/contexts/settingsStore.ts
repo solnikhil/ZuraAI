@@ -15,12 +15,21 @@ import { normalizeActiveThemeId } from '../themes/themeRegistry'
 import { normalizeFontScale } from '../themes/themeUtils'
 import type { AgentSkillSummary, AgentSkillsSettings } from '../agentSkills/types'
 import { isAlibabaRegion } from '../services/alibabaEndpoints'
+import {
+  SETTINGS_SCHEMA_VERSION,
+  migrateLegacyConfiguredModelCode,
+  migrateStoredSettingsRecord,
+} from './settingsMigrations'
 
-export interface Settings extends SettingsUI, SettingsConfig {}
+export interface Settings extends SettingsUI, SettingsConfig {
+  /** Persisted migration metadata. This is not a user-facing preference. */
+  settingsSchemaVersion?: number
+}
 
 export const defaultSettings: Settings = {
   ...defaultSettingsUI,
   ...defaultSettingsConfig,
+  settingsSchemaVersion: SETTINGS_SCHEMA_VERSION,
 }
 
 export const UI_SETTING_KEYS: (keyof SettingsUI)[] = [
@@ -55,18 +64,6 @@ const SECRET_SETTING_KEYS: Array<keyof Settings> = [
 const PROVIDER_IDS = getProviderDefinitions().map((provider) => provider.id)
 const PROVIDER_ENABLED_DEFAULTS = getProviderEnabledDefaults()
 const PROVIDER_MODEL_LIST_FIELDS = getProviderModelListFields()
-const LEGACY_FIREWORKS_MODEL_ID_MAP: Record<string, string> = {
-  'accounts/fireworks/models/kimi-k2p5-turbo': 'accounts/fireworks/routers/kimi-k2p5-turbo',
-  'accounts/fireworks/models/kimi-k2p5-turbo-instruct':
-    'accounts/fireworks/routers/kimi-k2p5-turbo',
-}
-const LEGACY_OPENCODE_MODEL_ID_MAP: Record<string, string> = {
-  'kimi-k2.7': 'kimi-k2.7-code',
-}
-const LEGACY_MODEL_ID_MAP: Record<string, string> = {
-  ...LEGACY_FIREWORKS_MODEL_ID_MAP,
-  ...LEGACY_OPENCODE_MODEL_ID_MAP,
-}
 const LEGACY_FIREWORKS_SEEDED_MODEL_CODES = new Set([
   'accounts/fireworks/models/deepseek-v3p2',
   'accounts/fireworks/models/kimi-k2p5',
@@ -213,14 +210,7 @@ export function migrateConfiguredModelCode<
     displayName?: string
   },
 >(model: T): T {
-  const mappedCode = LEGACY_MODEL_ID_MAP[model.code]
-  if (!mappedCode) return model
-
-  return {
-    ...model,
-    code: mappedCode,
-    displayName: model.displayName === 'Kimi K2.5 Turbo' ? 'Kimi K2.5 Turbo' : model.displayName,
-  }
+  return migrateLegacyConfiguredModelCode(model)
 }
 
 export function parseStoredSettings(raw: string | null): Partial<Settings> {
@@ -230,7 +220,9 @@ export function parseStoredSettings(raw: string | null): Partial<Settings> {
     if (typeof parsed !== 'object' || parsed == null || Array.isArray(parsed)) {
       return {}
     }
-    return stripSecretSettings(parsed as Partial<Settings>)
+    return migrateStoredSettingsRecord(
+      stripSecretSettings(parsed as Record<string, unknown>)
+    ) as Partial<Settings>
   } catch {
     console.warn(
       '[SettingsContext] Invalid zura-settings in localStorage. Falling back to defaults.'
@@ -243,16 +235,7 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   const parsedFromStorage = parseStoredSettings(raw)
   const parsed = { ...defaultSettings, ...parsedFromStorage }
 
-  delete (parsed as Record<string, unknown>)[`autoHide${'Overlay'}`]
-  delete (parsed as Record<string, unknown>)[`${'over'}${'lay'}Transparency`]
-  delete (parsed as Record<string, unknown>)[`load${'Overlay'}OnStartup`]
-  delete (parsed as Record<string, unknown>).shortcuts
-  delete (parsed as Record<string, unknown>)[`${'over'}${'lay'}`]
-  delete (parsed as Record<string, unknown>)[`buddy${'Overlay'}`]
-
-  if (parsed.aiModel === 'openrouter/sherlock-dash-alpha') {
-    parsed.aiModel = 'x-ai/grok-4.1-fast'
-  }
+  if (parsed.aiModel === 'openrouter/sherlock-dash-alpha') parsed.aiModel = 'x-ai/grok-4.1-fast'
 
   if (parsed.systemPrompt?.includes('Keep responses concise and actionable')) {
     parsed.systemPrompt = defaultSettings.systemPrompt
@@ -342,9 +325,6 @@ export function normalizeStoredSettings(raw: string | null): Settings {
     ) as never
   }
 
-  if (parsed.aiModel && LEGACY_MODEL_ID_MAP[parsed.aiModel]) {
-    parsed.aiModel = LEGACY_MODEL_ID_MAP[parsed.aiModel]
-  }
   const userFireworks = Array.isArray(parsed.fireworksModels)
     ? parsed.fireworksModels.map((model) => migrateConfiguredModelCode(model))
     : parsed.fireworksModels
@@ -355,16 +335,6 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   parsed.fireworksModels = shouldClearLegacyFireworksSeededModels(normalizedFireworksModels)
     ? []
     : normalizedFireworksModels
-
-  const deprecatedGroqModelMap: Record<string, string> = {
-    'llama-4-scout': 'meta-llama/llama-4-scout-17b-16e-instruct',
-    'deepseek-r1-distill-llama-70b': 'llama-3.3-70b-versatile',
-    'mixtral-8x7b-32768': 'llama-3.1-8b-instant',
-    'gemma2-9b-it': 'llama-3.1-8b-instant',
-  }
-  if (parsed.modelProvider === 'groq' && parsed.aiModel && deprecatedGroqModelMap[parsed.aiModel]) {
-    parsed.aiModel = deprecatedGroqModelMap[parsed.aiModel]
-  }
 
   if ('titleModelProvider' in parsed) {
     delete parsed.titleModelProvider
@@ -412,9 +382,6 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   }
 
   if (!parsed.todos) parsed.todos = []
-  if ((parsed as Record<string, unknown>).assistantMode === 'research') {
-    parsed.assistantMode = 'chat'
-  }
   if (parsed.assistantMode !== 'chat' && parsed.assistantMode !== 'agent') {
     parsed.assistantMode = defaultSettings.assistantMode
   }
@@ -489,17 +456,9 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   delete legacySettingsRecord.memoryEnabled
   delete legacySettingsRecord.autoMemoryEnabled
 
-  if (typeof parsed.codeExecutionAutoApprove !== 'boolean') {
-    parsed.codeExecutionAutoApprove = defaultSettings.codeExecutionAutoApprove
-  }
-
-  if (typeof parsed.terminalAutoApprove !== 'boolean') {
-    parsed.terminalAutoApprove = defaultSettings.terminalAutoApprove
-  }
-
-  if (typeof parsed.computerUseAutoApprove !== 'boolean') {
-    parsed.computerUseAutoApprove = defaultSettings.computerUseAutoApprove
-  }
+  delete (parsed as Record<string, unknown>).codeExecutionAutoApprove
+  delete (parsed as Record<string, unknown>).terminalAutoApprove
+  delete (parsed as Record<string, unknown>).computerUseAutoApprove
 
   parsed.titleBarDensity = 'compact'
   if (parsed.titleBarShowAppName === undefined) {
@@ -606,12 +565,6 @@ export function normalizeStoredSettings(raw: string | null): Settings {
     parsed.appChromeMaterial = defaultSettings.appChromeMaterial
   }
   parsed.activeTheme = normalizeActiveThemeId(parsed.activeTheme || defaultSettings.activeTheme)
-  delete parsed.themeAccent
-  delete parsed.themeBackground
-  delete parsed.themeForeground
-  delete (parsed as Record<string, unknown>).frostedSidebar
-  delete (parsed as Record<string, unknown>).frostedPrompt
-  delete (parsed as Record<string, unknown>).sidebarAutoHideOnResize
   if (!parsed.promptAutoHide) {
     parsed.promptAutoHide = defaultSettings.promptAutoHide
   } else {
@@ -622,43 +575,20 @@ export function normalizeStoredSettings(raw: string | null): Settings {
     parsed.themeContrast = (parsed as Record<string, unknown>).softenedContrast === true ? 85 : 100
   }
   parsed.fontScale = normalizeFontScale(parsed.fontScale)
-  delete (parsed as Record<string, unknown>).softenedContrast
-  delete (parsed as Record<string, unknown>).notificationsEnabled
-  delete (parsed as Record<string, unknown>).nativeNotificationsEnabled
-  delete (parsed as Record<string, unknown>).toastDuration
-  delete (parsed as Record<string, unknown>).doNotDisturb
 
   if (!parsed.chatBubbleStyle) parsed.chatBubbleStyle = defaultSettings.chatBubbleStyle
-  const legacyChatSelectedOverlayMap: Partial<
-    Record<string, NonNullable<SettingsUI['chatSelectedOverlayStyle']>>
-  > = {
-    pill: 'linear',
-    soft: 'notion',
-    outline: 'github',
-    glow: 'slack',
-  }
   const rawChatSelectedOverlayStyle = parsed.chatSelectedOverlayStyle as string | undefined
   if (!rawChatSelectedOverlayStyle) {
     parsed.chatSelectedOverlayStyle = defaultSettings.chatSelectedOverlayStyle
   } else {
-    const migratedStyle = legacyChatSelectedOverlayMap[rawChatSelectedOverlayStyle]
-    if (migratedStyle) {
-      parsed.chatSelectedOverlayStyle = migratedStyle
-    } else if (
-      !['linear', 'notion', 'slack', 'discord', 'github'].includes(rawChatSelectedOverlayStyle)
-    ) {
+    if (!['linear', 'notion', 'slack', 'discord', 'github'].includes(rawChatSelectedOverlayStyle)) {
       parsed.chatSelectedOverlayStyle = defaultSettings.chatSelectedOverlayStyle
     }
   }
 
-  delete (parsed as Record<string, unknown>).responseTransitionMode
-
   parsed.deepseekReasoning = normalizeDeepseekReasoning(parsed.deepseekReasoning)
   parsed.deepseekLastEffort =
     coerceReasoningEffort(parsed.deepseekLastEffort) ?? defaultSettings.deepseekLastEffort
-
-  delete (parsed as Record<string, unknown>).modelSelector
-  delete (parsed as Record<string, unknown>).favoriteModels
 
   return parsed
 }
@@ -740,9 +670,6 @@ export function getInitialConfigSettings(settings: Settings): Partial<SettingsCo
     skills: settings.skills,
     agentSkills: settings.agentSkills,
     titleModel: settings.titleModel,
-    codeExecutionAutoApprove: settings.codeExecutionAutoApprove,
-    terminalAutoApprove: settings.terminalAutoApprove,
-    computerUseAutoApprove: settings.computerUseAutoApprove,
     titleGenerationPrompt: settings.titleGenerationPrompt,
     titleGenerationDisplayMode: settings.titleGenerationDisplayMode,
     quickPrompts: settings.quickPrompts,

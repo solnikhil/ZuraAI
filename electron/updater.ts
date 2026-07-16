@@ -226,6 +226,12 @@ export function registerUpdaterHandlers(getMainWindow: () => BrowserWindow | nul
   })
 }
 
+export function unregisterUpdaterHandlers(): void {
+  ipcMain.removeHandler('updater:check-for-updates')
+  ipcMain.removeHandler('updater:quit-and-install')
+  ipcMain.removeHandler('updater:get-version')
+}
+
 /**
  * Cancel pending timers.
  */

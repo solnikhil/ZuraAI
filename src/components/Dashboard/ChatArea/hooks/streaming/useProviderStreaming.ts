@@ -9,23 +9,16 @@ import { mergeProviderUsage } from '@zura/provider-core'
 import {
   SAFETY_CAP,
   MAX_RESEARCH_ROUNDS,
-  accumulateDeltaToolCalls,
-  appendCompletedThinkingBlock,
-  shouldSkipStrayReasoningDelta,
   buildAgentVerificationMessages,
   buildFollowUpMessages,
   buildResponseWithFallback,
   buildThinkingBlocksFromResults,
-  computeStreamMetrics,
-  fillMissingUsage,
   getThinkingTranscript,
-  hasSearchResults,
   mergeSavedToolResults,
   processInitialToolResults,
   publishStreamingToolResults,
   reconstructToolCallMessage,
   shouldRetryUngroundedSearchSynthesis,
-  stripStandaloneHorizontalRule,
   type DeltaToolCall,
 } from './streamingUtils'
 import {
@@ -66,13 +59,19 @@ import {
   getUserContextText,
   hasNonWebToolResults,
   logToolMarkupLeak,
-  mergeGeneratedFiles,
   resolveCommittedRoundContent,
   resolveFollowUpSplitMarkerBlockCount,
   type ProviderStreamingMessages,
   type VisibleAnswerRound,
 } from './providerStreamingSupport'
 import { runFinalSynthesisWithRetries } from './providerSynthesis'
+import { finalizeProviderStream } from './providerStreamFinalization'
+import {
+  accumulateDeltaToolCalls,
+  appendCompletedThinkingBlock,
+  mergeGeneratedFiles,
+  shouldSkipStrayReasoningDelta,
+} from './providerEventAccumulator'
 
 export interface ProviderStreamingRunOptions {
   provider: ActiveProviderId
@@ -1226,86 +1225,32 @@ export function useProviderStreaming({
         }
       }
 
-      const visibleAnswerRound: VisibleAnswerRound = finalVisibleAnswerRound ?? {
-        content: '',
-        usage: emptyUsage(),
-        firstTokenTime: null,
-      }
-      const visibleAnswerUsage = visibleAnswerRound.usage
-      const basicUsage = fillMissingUsage(
-        {
-          inputTokens: visibleAnswerUsage?.inputTokens ?? 0,
-          outputTokens: visibleAnswerUsage?.outputTokens ?? 0,
-          totalTokens: visibleAnswerUsage?.totalTokens ?? 0,
-        },
-        visibleAnswerRound.content,
-        { deriveInputFromTotal: provider === 'alibaba' }
-      )
-      const metrics = computeStreamMetrics(
-        options.startTime,
-        visibleAnswerRound.firstTokenTime,
-        basicUsage.outputTokens
-      )
-      const finalContent = hasSearchResults(savedToolResults)
-        ? stripStandaloneHorizontalRule(
-            preserveToolSplitMarkers
-              ? accumulatedContent
-              : removeToolFollowUpSplitMarker(accumulatedContent)
-          )
-        : preserveToolSplitMarkers
-          ? accumulatedContent
-          : removeToolFollowUpSplitMarker(accumulatedContent)
-      const finalFinishReason = finishReason || undefined
-      const totalBasicUsage = fillMissingUsage(
-        {
-          inputTokens: totalUsage.inputTokens,
-          outputTokens: totalUsage.outputTokens,
-          totalTokens: totalUsage.totalTokens,
-        },
-        visibleAnswerRound.content,
-        { deriveInputFromTotal: provider === 'alibaba' }
-      )
-      const finalUsage = {
-        ...totalUsage,
-        ...totalBasicUsage,
-        tps:
-          basicUsage.outputTokens > 0 && metrics.latency > 0
-            ? basicUsage.outputTokens / (metrics.latency / 1000)
-            : undefined,
-        ttft: metrics.ttft,
-      }
-
-      const finalMessageUpdates = {
-        content: finalContent,
-        model: `${provider}/${model}`,
-        latency: metrics.latency,
-        usage: finalUsage,
-        toolResults: savedToolResults,
-        files: generatedFiles,
-        ...(localThinkingBlocks.length > 0 ? { thinkingBlocks: localThinkingBlocks } : {}),
-      }
-
-      throwIfAborted()
-      publishStreamingProgress(finalMessageUpdates)
-      flushActiveThrottledUpdates()
-      updatePersistedStreamingMessage(options.sessionId, options.messageId, finalMessageUpdates)
-      logDiagnostic({
-        phase: 'finish',
-        latency: metrics.latency,
-        finishReason: finalFinishReason,
-        usage: finalUsage,
+      const finalized = finalizeProviderStream({
+        provider,
+        model,
+        startTime: options.startTime,
+        finalVisibleAnswerRound,
+        totalUsage,
+        accumulatedContent,
+        preserveToolSplitMarkers,
+        finishReason,
+        savedToolResults,
+        generatedFiles,
+        thinkingBlocks: localThinkingBlocks,
       })
 
-      return {
-        content: finalMessageUpdates.content,
-        model: `${provider}/${model}`,
-        toolResults: savedToolResults,
-        thinkingBlocks: localThinkingBlocks.length > 0 ? localThinkingBlocks : undefined,
-        usage: finalUsage,
-        latency: metrics.latency,
-        files: generatedFiles,
-        finishReason: finalFinishReason,
-      }
+      throwIfAborted()
+      publishStreamingProgress(finalized.updates)
+      flushActiveThrottledUpdates()
+      updatePersistedStreamingMessage(options.sessionId, options.messageId, finalized.updates)
+      logDiagnostic({
+        phase: 'finish',
+        latency: finalized.updates.latency,
+        finishReason: finalized.finishReason,
+        usage: finalized.updates.usage,
+      })
+
+      return finalized.result
     },
     [
       settings,

@@ -3,13 +3,14 @@
 import { ToolResult, ToolCall, ToolCallResult, isMcpNamespacedToolName } from './types'
 import { resolveWebSearchArgsForExecution } from './webSearchPreferences'
 import { executeArtifactTool, isArtifactToolName } from './artifactTools'
+import { isBuiltinMainToolName } from './builtinMainToolContract'
 
 // Re-export types for backward compatibility
 export type { ToolResult, ToolCall, ToolCallResult }
 
 export interface ExecuteToolOptions {
   userContextText?: string
-  bypassNativeApproval?: boolean
+  approvalToken?: string
   sessionId?: string
   messageId?: string
 }
@@ -19,17 +20,6 @@ const CODE_EXECUTION_TIMEOUT_MS = 100_000 // 60s approval + 30s OnlineCompiler +
 
 function getTimeoutForTool(toolName: string): number {
   return toolName === 'code_execution' ? CODE_EXECUTION_TIMEOUT_MS : DEFAULT_TIMEOUT_MS
-}
-
-function isNativeWindowsToolName(toolName: string): boolean {
-  return (
-    toolName === 'system_shell' ||
-    toolName.startsWith('ui_') ||
-    toolName.startsWith('windows_uia_') ||
-    toolName.startsWith('file_') ||
-    toolName.startsWith('app_') ||
-    toolName.startsWith('window_')
-  )
 }
 
 /**
@@ -87,54 +77,23 @@ export async function executeTool(
       }
     }
 
+    if (!isBuiltinMainToolName(toolName)) {
+      return {
+        success: false,
+        error: `Tool "${toolName}" is disabled.`,
+        executionTime: Math.round(performance.now() - startTime),
+      }
+    }
+
     const resolvedArgs = resolveWebSearchArgsForExecution(toolName, args, options.userContextText)
 
-    // Inject auto-approve preference for code execution
-    if (toolName === 'code_execution') {
-      try {
-        const raw = localStorage.getItem('zura-settings')
-        if (raw) {
-          const parsed = JSON.parse(raw)
-          if (options.bypassNativeApproval || parsed?.codeExecutionAutoApprove === true) {
-            resolvedArgs.autoApprove = true
-          }
-        }
-      } catch {
-        /* ignore */
-      }
-    }
-
-    // Inject auto-approve preference for the terminal skill (system_shell).
-    // In agent mode bypassNativeApproval already handles this below; this
-    // path covers chat mode where the user opted into terminalAutoApprove.
-    if (toolName === 'system_shell') {
-      try {
-        const raw = localStorage.getItem('zura-settings')
-        if (raw) {
-          const parsed = JSON.parse(raw)
-          if (options.bypassNativeApproval || parsed?.terminalAutoApprove === true) {
-            resolvedArgs.autoApprove = true
-          }
-        }
-      } catch {
-        /* ignore */
-      }
-    }
-
-    if (toolName.startsWith('computer_') && options.bypassNativeApproval) {
-      resolvedArgs.autoApprove = true
-    }
-
-    if (isNativeWindowsToolName(toolName) && options.bypassNativeApproval) {
-      resolvedArgs.autoApprove = true
-    }
-
+    let agentSkillsContext: { projectRoot?: string; disabledSkillNames?: string[] } | undefined
     if (toolName === 'activate_skill') {
       try {
         const raw = localStorage.getItem('zura-settings')
         if (raw) {
           const parsed = JSON.parse(raw)
-          resolvedArgs._agentSkills = {
+          agentSkillsContext = {
             projectRoot:
               typeof parsed?.agentSkills?.projectRoot === 'string'
                 ? parsed.agentSkills.projectRoot
@@ -162,8 +121,14 @@ export async function executeTool(
 
     let result: { success: boolean; data?: unknown; error?: string }
     try {
+      const executionContext =
+        options.approvalToken || agentSkillsContext
+          ? { approvalToken: options.approvalToken, agentSkills: agentSkillsContext }
+          : undefined
       result = (await Promise.race([
-        window.ipcRenderer.invoke('execute-tool', toolName, resolvedArgs),
+        executionContext
+          ? window.ipcRenderer.invoke('execute-tool', toolName, resolvedArgs, executionContext)
+          : window.ipcRenderer.invoke('execute-tool', toolName, resolvedArgs),
         timeoutPromise,
       ])) as { success: boolean; data?: unknown; error?: string }
     } finally {

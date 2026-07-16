@@ -90,15 +90,24 @@ Renderer (React/Vite) -> Preload (allowlisted bridges) -> Electron Main
 ```
 
 - Renderer owns UI, local sanitized settings, provider request shaping, and chat interaction state.
+- Renderer state ownership, chat write/flush invariants, session windowing, streaming lifecycle, and
+  settings migration guidance are documented in `docs/RENDERER_ARCHITECTURE.md`.
+- `ChatHistoryProvider` keeps the public chat contexts/hooks while pure chat operations, chat-store
+  adaptation, durable save coordination, and the bounded loaded-session cache have separate owners
+  documented in `docs/RENDERER_ARCHITECTURE.md`.
+- Settings CSS uses an ordered section-owned import entrypoint, and the dashboard sidebar derives its
+  stable chat/folder rows through a pure list model; their ownership and test contracts are documented
+  in `docs/RENDERER_ARCHITECTURE.md`.
 - Preload exposes only approved `window.*` APIs and restricted `ipcRenderer` wrappers.
 - Main owns windows, secure storage, chat persistence, MCP server processes/connections, native tools, filesystem access, notifications, updater, analytics transport, and OS integration.
+- `electron/startup/mainProcessComposition.ts` is the privileged registration composition root. It owns runtime registrations and returns one idempotent reverse-order disposer; partial startup failure rolls back completed registrations.
 
 ### Windows & Routes
 
 - Main window: loads `#/dashboard`; routes `/`, `/dashboard`, `/settings`, and `/chat` under `AppShellLayout`.
 - About window: separate `BrowserWindow`, loads `#/about`, opened through `window.appInfo.openAboutWindow()`.
 - Chat debug window: dev-only separate `BrowserWindow`, loads `#/chat-debug?sessionId=<id>`, disabled in packaged builds.
-- Agent approval overlay: separate small frameless always-on-top `BrowserWindow` owned by main for Agent Mode tool-call approvals while ZuraAI is not focused. It loads sanitized inline approval HTML only, resolves approve/reject/always-allow-exact-repeat decisions back to the requesting renderer, and does not execute tools or expose general desktop APIs.
+- Agent approval overlay: separate small frameless always-on-top `BrowserWindow` owned by main for Agent Mode tool-call approvals while ZuraAI is not focused. It loads sanitized inline approval HTML only, resolves approve/reject/always-allow-exact-repeat decisions, and issues bounded one-use execution authorizations; it does not execute tools or expose general desktop APIs.
 - Unknown renderer routes render the dedicated 404 view.
 - Renderer-backed windows deny all in-window navigation and new-window creation. Explicit HTTP(S)
   links may open only through the OS browser; development-server URLs are recognized by exact
@@ -119,19 +128,28 @@ Memory / performance:
 - MCP manager initializes without auto-connect on the critical path; auto-connect servers connect after the main window is visible via deferred startup.
 - Markdown/Prism preloads only a small core language set; extra languages register on first use.
 
+Chat run lifecycle:
+
+- Renderer chat send and regenerate operations share the explicit `ChatRunController` state machine under `src/components/Dashboard/ChatArea/hooks/`. One controller owns the run's single `AbortController`, preparation/stream/tool/finalization phases, and exactly-once completion, failure, or cancellation. Shared request construction uses `streaming/chatRunConfig.ts`; shared finalization commits immutable chat updates and performs UI cleanup. `useStreamingChat` is the React/context adapter, while provider event accumulation and final result calculation remain isolated in focused streaming modules. The lifecycle contract and required tests are documented in `docs/CHAT_RUNTIME.md`.
+
 All BrowserWindows must use `nodeIntegration: false`, `contextIsolation: true`, and `sandbox: true` unless a change is explicitly justified in this file.
+
+Release packaging has no explicit `asarUnpack` native-module exception. The former unused Koffi
+dependency and unpack rules were removed; introducing a native runtime dependency requires an
+explicit packaging/build update and packaged-app verification on each supported platform.
 
 ### Persistence Boundaries
 
 Renderer `localStorage`:
 
 - Sanitized settings and UI state (`zura-settings`)
+- `zura-settings` carries a numbered `settingsSchemaVersion`; ordered migrations and retired-key
+  policy live in `src/contexts/settingsMigrations.ts` and `docs/RENDERER_ARCHITECTURE.md`.
 - Settings changes apply immediately; secure-key edits are serialized to main-process secure storage, and valid MCP configuration edits are serialized through the existing narrow MCP bridge without a page-level Save action.
 - Extensions/settings compatibility state (`settings.extensions`, legacy `settings.skills` alias while migration continues)
 - Agent Skills non-secret settings (`settings.agentSkills`)
 - Provider model lists, enablement, reasoning preferences, theme settings, command bar state, sidebar/shell state
 - Last-open dashboard folder selection (`zura-ui:selectedFolderId`) when dashboard view persistence is enabled
-- Trusted exact tool signatures for renderer approval gating
 - Non-Electron chat fallback only
 
 Main `app.getPath('userData')`:
@@ -142,12 +160,26 @@ Main `app.getPath('userData')`:
 - Conversation summaries and assistant run metadata on chat messages
 - MCP server metadata, runtime metadata, and non-secret config
 - Secure-storage JSON encrypted through `safeStorage`
+- Hashed exact-repeat Agent approval signatures used only by main to issue one-use execution authorizations
 - Memories and memory summaries
 - Scheduled task definitions, lookout snapshots, reminder logs, and run history
 - Non-secret installed-app discovery snapshot (`app-index.json`) used only by agent app tools
 - Analytics consent/install metadata
 - Dev-only chat diagnostics JSONL
 - Artifact export files for external opening
+
+Main-process persistence rules:
+
+- JSON stores that can be rewritten at runtime use `writeFileAtomic`; stateful read-modify-write
+  operations are serialized with a recoverable queue so one rejected disk write does not block all
+  later writes. The chat index serializes the complete index transaction, not only the final rename,
+  so concurrent session, metadata, delete, and folder changes cannot overwrite one another.
+- Secure-storage mutations are serialized as immutable read-copy-write transactions. Decrypted cache
+  objects must never be returned by reference, and OS-backed encryption remains mandatory.
+- A missing store (`ENOENT`) initializes empty state. Invalid JSON is treated explicitly as corruption;
+  MCP may quarantine proven corrupt config. Permission, locking, device, and other operational I/O
+  failures must propagate and must never be converted into empty state or quarantined as corruption.
+- See `docs/PERSISTENCE.md` for transaction, failure, and recovery invariants.
 
 Secrets:
 
@@ -174,8 +206,14 @@ real rejection boundary.
 Primary files:
 
 - `electron/preload.ts` - allowlists and dedicated `window.*` bridges
+- `src/electron/ipcChannelManifest.ts` - typed source of truth from which preload channel allowlists are derived
 - `src/electron.d.ts` - renderer-visible API types
 - `electron/ipc/*` - main-process handlers
+- `electron/ipc/windowControlHandlers.ts` owns sender-scoped window state, appearance, and resize channels; `externalOpenHandlers.ts`, `appInfoHandlers.ts`, and `nativeInteractionHandlers.ts` own their narrow capabilities; `systemHandlers.ts` composes them with app-menu commands.
+
+The channel ownership, validation, subscription, and contributor checklist is documented in
+`docs/IPC.md`. Generic preload subscriptions strip `IpcRendererEvent` and return an exact
+unsubscribe function; Electron event objects never cross into renderer callbacks.
 
 Dedicated preload bridges include:
 
@@ -227,6 +265,14 @@ MCP includes a narrow `mcp:open-config-file` channel that opens ZuraAI's own
 `mcp-servers.json` under `app.getPath('userData')` with the OS default editor.
 It must not accept renderer-provided paths.
 
+`McpManager` coordinates focused storage, connection, OAuth, exposure-policy, content-cache,
+snapshot-publication, and per-server transition modules. Config, OAuth, connect/disconnect, and
+runtime-metadata mutations for one server are serialized; unrelated servers may transition
+concurrently.
+
+The focused lifecycle, trust, authentication, OAuth network policy, and troubleshooting contract
+is documented in `docs/MCP.md`.
+
 The MCP renderer context keeps a short-lived draft only while an edit is being validated/applied.
 Valid MCP edits auto-persist in order through the existing add/update/remove channels; connection,
 sign-in, catalogue-add, and tool-management actions remain disabled while an edit is applying.
@@ -245,7 +291,12 @@ target URLs, authorization endpoints, token endpoints, verifiers, state values,
 tokens, refresh tokens, or client secrets over IPC. Main performs protected
 resource metadata discovery, authorization server metadata discovery, dynamic
 client registration when available, loopback callback handling, code exchange,
-token refresh, and bearer header injection. OAuth access tokens, refresh tokens,
+token refresh, and bearer header injection. Discovered OAuth endpoints are treated
+as untrusted input: main accepts public HTTPS targets only (with loopback HTTP(S)
+allowed only when the saved MCP resource is itself loopback), rejects embedded
+credentials/fragments, resolves hostnames and rejects local/private results,
+refuses redirects, and applies a ten-second network deadline to discovery,
+registration, refresh, and exchange requests. OAuth access tokens, refresh tokens,
 and client secrets use deterministic per-server secure-storage keys and must
 never be stored in renderer settings or shown after save. `websocket` MCP auth
 remains manual header/bearer unless an explicit compatible flow is added later.
@@ -298,6 +349,13 @@ output. Agent automation run budgets are enforced in the shared tool execution
 policy for web searches and total tool calls, in addition to the automation run
 timeout owned by main.
 
+The scheduled-task runtime is split by responsibility: `scheduler.ts` owns timers, extension
+enablement, overdue catch-up, and duplicate-due suppression; `rendererBroker.ts` owns bounded renderer
+request/response IPC and pending-request cancellation; `delivery.ts` owns notification/email policy;
+`runtime.ts` orchestrates task execution and persistence. Notification clicks use the explicit main
+window supplied by the caller and must never focus the first arbitrary `BrowserWindow`. See
+`docs/MAIN_PROCESS_LIFECYCLE.md`.
+
 ### Desktop OS Integration
 
 Agent Mode exposes narrow, main-owned desktop primitives through the existing `execute-tool` IPC path. Retained cross-platform tools include `system_active_window`, `system_status`, `system_settings_open`, `system_open_path`, and `window_snap`; Windows also exposes the existing bounded app, window, filesystem, UI Automation, and Computer Use tool sets. Mutating actions continue through normal approval policy. These tools are assistant capabilities only: there is no global launcher overlay, global shortcut, direct-action palette, renderer-provided path/URI/command execution, or background clipboard context.
@@ -320,12 +378,24 @@ The removed Command Center architecture included a second renderer/window, globa
 Tool execution is restricted and gated by settings/extension state.
 
 - Built-in manifest: `src/tools/builtinTools.ts`
+- Exact cross-process built-in name contract: `src/tools/builtinMainToolContract.ts`
 - Renderer definitions/adapters: `src/tools/definitions.ts`, `src/tools/adapters/*`
 - Tool exposure/merge: `src/hooks/useToolCalling.ts`, `src/tools/toolManager.ts`, `src/tools/mcpRegistry.ts`
 - Main registry: `electron/tools/index.ts`
 
 Important tool rules:
 
+- Built-in main-process tools share the single `execute-tool` IPC channel. Preload and main both
+  accept only exact names from `BUILTIN_MAIN_TOOL_NAMES`; prefix matching must not grant tool access.
+  The renderer's typed generic bridge accepts only `BuiltinMainToolName`, and main validates every
+  invocation against the tool's closed, complete manifest JSON Schema before exhaustive handler
+  dispatch, without coercing, removing, or inventing arguments. Reserved execution-context fields
+  such as `autoApprove`, `_agentSkills`, and approval tokens are rejected when supplied as model
+  arguments. The supported contributor workflow is
+  documented in `docs/CREATING_BUILTIN_TOOLS.md`.
+- The approval threat model and contributor invariants are documented in
+  `docs/TOOLS_SECURITY.md`. Approval authority is main-owned execution context and must never be
+  encoded in model-visible arguments or renderer settings.
 - `web_search` is a main-process Tavily-only pipeline. No fallback backend.
 - Renderer-only artifact tools mutate active chat session state and do not cross IPC.
 - Scheduled task tools execute in main and are gated by the reminders extension.
@@ -333,7 +403,13 @@ Important tool rules:
   renderer settings; disabling Reminders & Lookouts clears active timers and
   prevents manual or model-callable task execution until re-enabled.
 - MCP tools use `window.mcp.executeTool(...)`, not the generic built-in tool IPC.
-- Mutating/high-risk tools require user approval unless an explicit trusted signature/auto-approve setting applies.
+- Mutating/high-risk tools require user approval. Agent approval is represented by a main-issued,
+  one-use token bound to the requesting `webContents`, exact tool name, and exact validated
+  arguments; the token travels in a separate execution context and is consumed before dispatch.
+  Exact-repeat trust signatures are hashed and stored main-only. Renderer/model booleans such as
+  `autoApprove` never grant authority.
+- Legacy renderer auto-approve settings for code execution, terminal, and Computer Use are removed
+  during settings migration/normalization and must not be reintroduced as approval authority.
 - Agent mode should prefer native structured tools before visual Computer Use and verify mutating actions with read-only inspection where possible.
 - Terminal (`system_shell`) is Windows-only, default disabled, non-interactive PowerShell with approval, timeout, output caps, and no OS sandbox. Treat any relaxation as security-sensitive.
 - Computer Use is Windows-only, default disabled, current-desktop only. Screenshot/list-window capture uses Electron desktop APIs, while click/type/key/scroll/cursor actions use a fixed main-process User32 PowerShell helper with validated coordinates and allowlisted virtual keys. Do not reintroduce a separate virtual desktop mode, `agent_desktop` settings, or `agent-desktop:*` IPC.
@@ -345,6 +421,9 @@ Important tool rules:
 
 - Provider metadata/capabilities live in `src/providers/providerRegistry.ts`.
 - Shared runtime dispatch lives in `src/providers/providerRuntime.ts`.
+- Provider extension boundaries and adapter conformance requirements are documented in
+  `docs/PROVIDERS.md`. The platform-neutral `packages/provider-core` package is built and
+  typechecked independently before application builds; generated package output remains untracked.
 - Platform-neutral contracts, typed errors, strict tool validation, and lossless usage aggregation live in the private `packages/provider-core` package.
 - Provider service files own request shaping and stream parsing only.
 - The ChatGPT Codex adapter lives in `electron/providers/codexProvider.ts` because OAuth credentials, refresh serialization, fixed-host request rewriting, and account headers are main-only concerns. It is intentionally excluded from renderer/shared HTTP dispatch and from the platform-neutral provider SDK package.
@@ -352,6 +431,8 @@ Important tool rules:
 - Only native provider tool calls are executable. XML/DSML-like text is stripped from display and logged for diagnostics, but is never repaired into a tool call.
 - Tool arguments are parsed once and validated with Ajv against the complete declared JSON Schema before execution. Do not coerce, remove, or invent arguments.
 - Usage aggregates every model round (including tool/research rounds) without dropping cache, image, audio, cost, or request-count fields. Estimated usage must be marked `estimated`.
+- The renderer send/regenerate/tool/research state-machine and finalization invariants are documented in
+  `docs/CHAT_RUNTIME.md`; both entry points must converge on the same run-controller contract.
 - Alibaba's picker is a small versioned catalog derived from documented models; never scrape private Model Studio page payloads or send a credential to a documentation page.
 - New providers must define auth, model enablement, capabilities, title/memory support, streaming behavior, and storage/secrets boundaries explicitly.
 - Do not hardcode real model IDs/names in runtime dispatch. A documented, dated curated catalog may contain model IDs when the provider has no supported model-list endpoint. Tests should otherwise use clearly fake IDs.

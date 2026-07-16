@@ -4,6 +4,13 @@ import * as chatStore from '../chatStore'
 import * as memoryStore from '../memoryStore'
 import * as summaryStore from '../conversationSummaryStore'
 import { loadToolMediaDataUrl } from '../tools/toolMediaStore'
+import {
+  assertChatIndexInput,
+  assertChatSessionInput,
+  assertFoldersInput,
+  assertSessionLoadOptions,
+  assertSessionsInput,
+} from './chatStoreValidation'
 
 const CHAT_STORE_CHANGED_CHANNEL = 'chat-store:changed'
 const MEMORY_CHANGED_CHANNEL = 'memory-store:changed'
@@ -36,19 +43,18 @@ export function registerChatStoreHandlers(): void {
       if (typeof sessionId !== 'string' || !sessionId.trim()) {
         throw new Error('Invalid chat session id')
       }
+      assertSessionLoadOptions(options)
       return chatStore.getSessionAsync(sessionId, options)
     }
   )
 
   /** Save or replace one full chat session. */
-  ipcMain.handle(
-    'chat-store:save-session',
-    async (_event, session: chatStore.ChatSession) => {
-      await chatStore.saveSessionAsync(session)
-      broadcastChatStoreChanged()
-      return true
-    }
-  )
+  ipcMain.handle('chat-store:save-session', async (_event, session: unknown) => {
+    assertChatSessionInput(session)
+    await chatStore.saveSessionAsync(session)
+    broadcastChatStoreChanged()
+    return true
+  })
 
   /** Delete one full chat session and its metadata. */
   ipcMain.handle('chat-store:delete-session', async (_event, sessionId) => {
@@ -70,7 +76,8 @@ export function registerChatStoreHandlers(): void {
   })
 
   /** Replace lightweight session metadata and folders. */
-  ipcMain.handle('chat-store:save-index', async (_event, index: chatStore.ChatIndexData) => {
+  ipcMain.handle('chat-store:save-index', async (_event, index: unknown) => {
+    assertChatIndexInput(index)
     await chatStore.saveChatIndexAsync(index)
     broadcastChatStoreChanged()
     return true
@@ -90,20 +97,19 @@ export function registerChatStoreHandlers(): void {
   })
 
   /** Replace all stored chat sessions. */
-  ipcMain.handle('chat-store:save-all', async (_event, sessions: chatStore.ChatSession[]) => {
+  ipcMain.handle('chat-store:save-all', async (_event, sessions: unknown) => {
+    assertSessionsInput(sessions)
     await chatStore.saveAllSessionsAsync(sessions)
     broadcastChatStoreChanged()
     return true
   })
 
   /** Import legacy renderer-localStorage chat history. */
-  ipcMain.handle(
-    'chat-store:migrate',
-    async (_event, localStorageData: chatStore.ChatSession[]) => {
-      chatStore.migrateFromLocalStorage(localStorageData)
-      return true
-    }
-  )
+  ipcMain.handle('chat-store:migrate', async (_event, localStorageData: unknown) => {
+    assertSessionsInput(localStorageData)
+    chatStore.migrateFromLocalStorage(localStorageData)
+    return true
+  })
 
   /** Return all stored chat folders. */
   ipcMain.handle('chat-store:get-all-folders', async () => {
@@ -122,7 +128,8 @@ export function registerChatStoreHandlers(): void {
   })
 
   /** Replace all stored chat folders. */
-  ipcMain.handle('chat-store:save-folders', async (_event, folders: chatStore.Folder[]) => {
+  ipcMain.handle('chat-store:save-folders', async (_event, folders: unknown) => {
+    assertFoldersInput(folders)
     await chatStore.saveFoldersAsync(folders)
     broadcastChatStoreChanged()
     return true

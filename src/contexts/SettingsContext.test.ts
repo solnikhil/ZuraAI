@@ -173,6 +173,21 @@ Rules:
       expect(defaultSettingsConfig.streamResponses).toBe(true)
     })
 
+    it('removes legacy renderer auto-approval preferences even at the current schema version', () => {
+      const normalized = normalizeStoredSettings(
+        JSON.stringify({
+          settingsSchemaVersion: 3,
+          codeExecutionAutoApprove: true,
+          terminalAutoApprove: true,
+          computerUseAutoApprove: true,
+        })
+      ) as unknown as Record<string, unknown>
+
+      expect(normalized.codeExecutionAutoApprove).toBeUndefined()
+      expect(normalized.terminalAutoApprove).toBeUndefined()
+      expect(normalized.computerUseAutoApprove).toBeUndefined()
+    })
+
     it('defaults assistant personality to Professional Engineer', async () => {
       const { defaultSettingsConfig } = await import('./SettingsConfigContext')
       expect(defaultSettingsConfig.assistantPersonality).toBe(DEFAULT_ASSISTANT_PERSONALITY)

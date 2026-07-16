@@ -3,6 +3,7 @@ import { MotionConfig } from 'framer-motion'
 import { ToastProvider, ErrorBoundary } from './components/shared'
 import { TooltipProvider } from './components/ui/tooltip'
 import AppLoadingFallback from './components/AppLoadingFallback'
+import { resolveAppSurface } from './appSurface'
 
 const AboutWindow = lazy(() => import('./components/AboutWindow'))
 const DashboardApp = lazy(() => import('./components/DashboardApp'))
@@ -17,12 +18,13 @@ const ChatDebugApp = import.meta.env.DEV
   : null
 
 function App() {
-  const hashPath = typeof window === 'undefined' ? '' : window.location.hash
+  const hash = typeof window === 'undefined' ? '' : window.location.hash
+  const surface = resolveAppSurface(hash, ChatDebugApp !== null)
 
   let content: ReactNode
-  if (hashPath.startsWith('#/about')) {
+  if (surface === 'about') {
     content = <AboutWindow />
-  } else if (hashPath.startsWith('#/chat-debug') && ChatDebugApp) {
+  } else if (surface === 'chat-debug' && ChatDebugApp) {
     content = (
       <Suspense fallback={null}>
         <ChatDebugApp />

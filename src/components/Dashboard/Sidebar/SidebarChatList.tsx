@@ -2,10 +2,8 @@ import React from 'react'
 import ChatRow from './ChatRow'
 import type { ChatRowAction } from './ChatRow'
 import ChatRowContextMenu from './ChatRowContextMenu'
-import DeleteChatAlertDialog from './DeleteChatAlertDialog'
-import DeleteFolderAlertDialog from './DeleteFolderAlertDialog'
-import FolderNameDialog from './FolderNameDialog'
-import RenameChatDialog from './RenameChatDialog'
+import { SidebarChatListDialogs } from './SidebarChatListDialogs'
+import { SidebarSectionToggle } from './SidebarSectionToggle'
 import {
   Bell,
   Brain,
@@ -13,7 +11,6 @@ import {
   Edit2,
   FileText,
   FolderOpen,
-  Pin,
   Plus,
   SettingsIcon,
   Trash2,
@@ -34,6 +31,11 @@ import { TooltipIconButton } from '@/components/ui/TooltipIconButton'
 import type { GroupedSessions } from './utils/groupSessions'
 import type { ChatSession, Folder } from '../../../chat/types'
 import type { ChatSelectedOverlayStyle } from '../../../contexts/SettingsUIContext'
+import {
+  buildSidebarListItems,
+  buildTimeGroups,
+  type SidebarListItem,
+} from './sidebarChatListModel'
 
 interface SidebarChatListProps {
   groupedSessions: GroupedSessions
@@ -66,17 +68,6 @@ interface SidebarChatListProps {
   onKeyDown: (e: React.KeyboardEvent) => void
 }
 
-/** Time-group definition for sub-labels inside "Recents" */
-interface TimeGroupBucket {
-  label: string
-  sessions: ChatSession[]
-}
-
-type SidebarListItem =
-  | { type: 'section'; key: string; label: string; icon?: 'pin' | 'folder'; folder?: Folder }
-  | { type: 'folder-heading'; key: string; label: string }
-  | { type: 'row'; key: string; session: ChatSession; indented?: boolean }
-
 export default function SidebarChatList({
   groupedSessions,
   folders,
@@ -107,8 +98,6 @@ export default function SidebarChatList({
   onDropSessionToFolder,
   onKeyDown,
 }: SidebarChatListProps) {
-  const [deleteConfirmSessionId, setDeleteConfirmSessionId] = React.useState<string | null>(null)
-
   const [renameSessionId, setRenameSessionId] = React.useState<string | null>(null)
   const [renameFolderId, setRenameFolderId] = React.useState<string | null>(null)
   const [deleteFolderId, setDeleteFolderId] = React.useState<string | null>(null)
@@ -117,60 +106,15 @@ export default function SidebarChatList({
   const [isYourChatsOpen, setIsYourChatsOpen] = React.useState(true)
   const [dragOverFolderId, setDragOverFolderId] = React.useState<string | null>(null)
 
-  const timeGroups: TimeGroupBucket[] = React.useMemo(() => {
-    const buckets: TimeGroupBucket[] = [
-      { label: 'Today', sessions: groupedSessions.today },
-      { label: 'Yesterday', sessions: groupedSessions.yesterday },
-      { label: 'Previous 7 days', sessions: groupedSessions.previous7Days },
-      { label: 'Previous 30 days', sessions: groupedSessions.previous30Days },
-      { label: 'Older', sessions: groupedSessions.older },
-    ]
-    return buckets.filter((b) => b.sessions.length > 0)
-  }, [groupedSessions])
+  const timeGroups = React.useMemo(() => buildTimeGroups(groupedSessions), [groupedSessions])
 
   const sidebarItems = React.useMemo<SidebarListItem[]>(() => {
-    const items: SidebarListItem[] = []
-
-    if (groupedSessions.pinned.length > 0) {
-      items.push({ type: 'section', key: 'pinned', label: 'Pinned', icon: 'pin' })
-      if (isPinnedOpen) {
-        groupedSessions.pinned.forEach((session) => {
-          items.push({ type: 'row', key: `pinned:${session.id}`, session })
-        })
-      }
-    }
-
-    items.push({ type: 'folder-heading', key: 'folders-heading', label: 'Projects' })
-    if (isProjectsOpen) {
-      folders.forEach((folder) => {
-        items.push({
-          type: 'section',
-          key: `folder:${folder.id}`,
-          label: folder.name,
-          icon: 'folder',
-          folder,
-        })
-        ;(groupedSessions.folders.get(folder.id) ?? []).forEach((session) => {
-          items.push({
-            type: 'row',
-            key: `folder:${folder.id}:${session.id}`,
-            session,
-            indented: true,
-          })
-        })
-      })
-    }
-
-    items.push({ type: 'section', key: 'your-chats', label: 'Recents' })
-    if (isYourChatsOpen) {
-      timeGroups.forEach((group) => {
-        group.sessions.forEach((session) => {
-          items.push({ type: 'row', key: `${group.label}:${session.id}`, session })
-        })
-      })
-    }
-
-    return items
+    return buildSidebarListItems({
+      groupedSessions,
+      folders,
+      timeGroups,
+      open: { pinned: isPinnedOpen, projects: isProjectsOpen, recents: isYourChatsOpen },
+    })
   }, [
     folders,
     groupedSessions.folders,
@@ -290,7 +234,8 @@ export default function SidebarChatList({
           </div>
         )
 
-        const currentMemoryMode = item.folder.memoryMode === 'folder-only' ? 'folder-only' : 'default'
+        const currentMemoryMode =
+          item.folder.memoryMode === 'folder-only' ? 'folder-only' : 'default'
 
         return (
           <ContextMenu>
@@ -341,19 +286,12 @@ export default function SidebarChatList({
           : () => setIsYourChatsOpen((prev) => !prev)
 
       return (
-        <div
-          className="sidebar-section-label"
-          onClick={toggleOpen}
-          role="button"
-          aria-expanded={isOpen}
-        >
-          {item.icon === 'pin' && <Pin size={11} className="sidebar-section-label__icon" />}
-          <span className="sidebar-section-label__name">{item.label}</span>
-          <ChevronDown
-            size={10}
-            className={`sidebar-section-label__chevron ${isOpen ? 'sidebar-section-label__chevron--open' : 'sidebar-section-label__chevron--closed'}`}
-          />
-        </div>
+        <SidebarSectionToggle
+          label={item.label}
+          icon={item.icon === 'pin' ? 'pin' : undefined}
+          isOpen={isOpen}
+          onToggle={toggleOpen}
+        />
       )
     },
     [
@@ -482,68 +420,18 @@ export default function SidebarChatList({
         </div>
       </div>
 
-      <DeleteChatAlertDialog
-        open={deleteConfirmSessionId !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setDeleteConfirmSessionId(null)
-          }
-        }}
-        onConfirm={() => {
-          if (deleteConfirmSessionId) {
-            onContextAction('delete', deleteConfirmSessionId)
-          }
-          setDeleteConfirmSessionId(null)
-        }}
-      />
-
-      <FolderNameDialog
-        open={renameFolderId !== null}
-        mode="rename"
-        currentName={folders.find((folder) => folder.id === renameFolderId)?.name ?? ''}
-        onOpenChange={(open) => {
-          if (!open) {
-            setRenameFolderId(null)
-          }
-        }}
-        onConfirm={(name) => {
-          if (renameFolderId) {
-            onRenameFolder(renameFolderId, name)
-          }
-          setRenameFolderId(null)
-        }}
-      />
-
-      <DeleteFolderAlertDialog
-        open={deleteFolderId !== null}
-        folderName={folders.find((folder) => folder.id === deleteFolderId)?.name ?? ''}
-        onOpenChange={(open) => {
-          if (!open) {
-            setDeleteFolderId(null)
-          }
-        }}
-        onConfirm={() => {
-          if (deleteFolderId) {
-            onDeleteFolder(deleteFolderId)
-          }
-          setDeleteFolderId(null)
-        }}
-      />
-
-      <RenameChatDialog
-        open={renameSessionId !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setRenameSessionId(null)
-          }
-        }}
-        currentTitle={flatVisibleSessions.find((s) => s.id === renameSessionId)?.title || ''}
-        onConfirm={(newTitle) => {
-          if (renameSessionId) {
-            onRenameConfirm(renameSessionId, newTitle)
-          }
-          setRenameSessionId(null)
-        }}
+      <SidebarChatListDialogs
+        folders={folders}
+        sessions={flatVisibleSessions}
+        renameSessionId={renameSessionId}
+        renameFolderId={renameFolderId}
+        deleteFolderId={deleteFolderId}
+        onRenameSessionClose={() => setRenameSessionId(null)}
+        onRenameFolderClose={() => setRenameFolderId(null)}
+        onDeleteFolderClose={() => setDeleteFolderId(null)}
+        onRenameSession={onRenameConfirm}
+        onRenameFolder={onRenameFolder}
+        onDeleteFolder={onDeleteFolder}
       />
     </>
   )

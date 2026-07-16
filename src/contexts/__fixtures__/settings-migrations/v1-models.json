@@ -1,0 +1,14 @@
+{
+  "input": {
+    "settingsSchemaVersion": 1,
+    "modelProvider": "groq",
+    "aiModel": "llama-4-scout",
+    "opencodeModels": [{ "code": "kimi-k2.7", "displayName": "Kimi Code" }]
+  },
+  "expected": {
+    "settingsSchemaVersion": 3,
+    "modelProvider": "groq",
+    "aiModel": "meta-llama/llama-4-scout-17b-16e-instruct",
+    "opencodeModels": [{ "code": "kimi-k2.7-code", "displayName": "Kimi Code" }]
+  }
+}

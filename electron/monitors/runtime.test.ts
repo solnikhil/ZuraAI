@@ -121,6 +121,44 @@ describe('scheduled task runtime notifications', () => {
     expect(storageMock.savedRuns[0]?.logs[0]?.status).toBe('completed')
   })
 
+  it('focuses the injected main window when a notification is clicked', async () => {
+    const { __test__ } = await import('./runtime')
+    let clickListener: (() => void) | undefined
+    const notification = {
+      show: vi.fn(),
+      on: vi.fn((_event: 'click', listener: () => void) => {
+        clickListener = listener
+        return notification
+      }),
+    }
+    const mainWindow = {
+      isDestroyed: vi.fn(() => false),
+      isMinimized: vi.fn(() => true),
+      restore: vi.fn(),
+      show: vi.fn(),
+      focus: vi.fn(),
+      webContents: { isDestroyed: vi.fn(() => false), send: vi.fn() },
+    }
+    storageMock.task = createTask({ type: 'reminder', reminderText: 'Focus main' })
+
+    const runtime = __test__.createRuntime({
+      notificationsSupported: () => true,
+      notificationFactory: () => notification,
+      getMainWindow: () => mainWindow as never,
+      setTimeoutImpl: vi.fn(() => 1 as unknown as ReturnType<typeof setTimeout>),
+      clearTimeoutImpl: vi.fn(),
+      now: () => 1_000,
+    })
+    await runtime.setExtensionEnabled(true)
+    await runtime.runNow('task-1')
+    clickListener?.()
+    runtime.stop()
+
+    expect(mainWindow.restore).toHaveBeenCalledOnce()
+    expect(mainWindow.show).toHaveBeenCalledOnce()
+    expect(mainWindow.focus).toHaveBeenCalledOnce()
+  })
+
   it('shows an OS notification when a lookout detects changed content', async () => {
     const { __test__ } = await import('./runtime')
     const show = vi.fn()

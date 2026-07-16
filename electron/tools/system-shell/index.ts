@@ -106,8 +106,8 @@ export async function executeSystemShell(args: unknown): Promise<ToolResult> {
   const resolvedCwd = cwd ? path.resolve(cwd) : undefined
 
   // Approval gate — blocks until the user approves, rejects, or it times out.
-  // The `autoApprove` fast-path lets agent-mode (which already approved in the
-  // renderer) and the terminalAutoApprove opt-in skip the main-process prompt.
+  // `autoApprove` is internal-only and is added by the execute-tool boundary only
+  // after it consumes a main-issued authorization bound to this exact invocation.
   if (approvalManager && !boolArg(args, 'autoApprove')) {
     const decision = await approvalManager.requestApproval({
       command,

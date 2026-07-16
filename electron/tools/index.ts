@@ -70,13 +70,19 @@ import {
 import type { ScheduledTaskInput, ScheduledTaskUpdateInput } from '../monitors'
 import type { ScreenshotArgs, TypeArgs, KeyArgs } from './computerUse'
 import { showSpotlight } from '../windows/spotlightOverlay'
-import { isBuiltinMainToolName, type BuiltinMainToolName } from '../../src/tools/builtinTools'
+import {
+  isBuiltinMainToolName,
+  type BuiltinMainToolName,
+} from '../../src/tools/builtinMainToolContract'
 import {
   normalizeClickArgs,
   normalizeCursorArgs,
   normalizeScrollArgs,
 } from './computer-use/normalize'
 import { activateAgentSkill } from '../agentSkills/service'
+import { validateBuiltinToolInvocation } from './validateBuiltinToolInvocation'
+import { consumeToolApprovalAuthorization } from './toolApprovalAuthorizations'
+import type { BuiltinToolExecutionContext } from '../../src/electron/types'
 
 import type { ToolResult, ToolHandler } from './types'
 export type { ToolResult, ToolHandler } from './types'
@@ -336,12 +342,22 @@ const toolHandlers: Record<BuiltinMainToolName, ToolHandler> = {
 export function registerToolHandlers(): void {
   ipcMain.handle(
     'execute-tool',
-    async (_event, toolName: string, args: unknown): Promise<ToolResult> => {
+    async (
+      event,
+      toolName: string,
+      args: unknown,
+      executionContext?: BuiltinToolExecutionContext
+    ): Promise<ToolResult> => {
       if (!isBuiltinMainToolName(toolName)) {
         return {
           success: false,
           error: `Tool "${String(toolName)}" is disabled.`,
         }
+      }
+
+      const validation = validateBuiltinToolInvocation(toolName, args)
+      if (!validation.ok) {
+        return { success: false, error: validation.error }
       }
 
       if (process.platform === 'darwin' && isComputerUseToolName(toolName)) {
@@ -368,7 +384,21 @@ export function registerToolHandlers(): void {
       }
 
       try {
-        return await handler(args)
+        const senderId = event.sender?.id ?? -1
+        const approved = consumeToolApprovalAuthorization(
+          executionContext?.approvalToken,
+          senderId,
+          toolName,
+          validation.args
+        )
+        const handlerArgs: Record<string, unknown> = {
+          ...validation.args,
+          ...(approved ? { autoApprove: true } : {}),
+          ...(toolName === 'activate_skill' && executionContext?.agentSkills
+            ? { _agentSkills: executionContext.agentSkills }
+            : {}),
+        }
+        return await handler(handlerArgs)
       } catch (error: unknown) {
         return {
           success: false,
@@ -380,4 +410,8 @@ export function registerToolHandlers(): void {
       }
     }
   )
+}
+
+export function unregisterToolHandlers(): void {
+  ipcMain.removeHandler('execute-tool')
 }

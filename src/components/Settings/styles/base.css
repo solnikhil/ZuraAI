@@ -1,0 +1,188 @@
+/* ==== SCIRA DESIGN THEME - Chat Window Aesthetic ==== */
+
+.settings-container {
+  display: flex;
+  height: 100%;
+  background-color: var(--theme-content-solid);
+  color: var(--theme-text-secondary);
+  font-family: var(--font-sans);
+  overflow: hidden;
+  gap: 0;
+}
+
+/* ==== LEFT COLUMN (SIDEBAR) ==== */
+
+.settings-sidebar-col {
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  flex-shrink: 0;
+  background: var(--theme-surface);
+  border-right: 1px solid var(--theme-border);
+  padding: 20px;
+  height: 100%;
+  overflow-y: auto;
+  box-shadow: none;
+}
+
+/* Profile Card */
+
+.profile-card {
+  background: var(--theme-background);
+  border: 1px solid var(--theme-border);
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-bottom: 16px;
+  box-shadow: none;
+}
+
+.profile-avatar-large {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--theme-background);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+  border: 1px solid var(--theme-border);
+}
+
+.profile-name {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--theme-text-primary);
+  margin-bottom: 4px;
+}
+
+.profile-email {
+  font-size: 0.8rem;
+  color: var(--theme-text-tertiary);
+  margin-bottom: 24px;
+}
+
+.profile-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin-bottom: 24px;
+  padding: 0 4px;
+}
+
+.label-small {
+  font-size: 0.8rem;
+  color: var(--theme-text-tertiary);
+}
+
+.toggle-switch {
+  width: 48px !important;
+  height: 26px !important;
+  background: var(--theme-background) !important;
+  border-radius: 13px !important;
+  position: relative;
+  cursor: pointer;
+  transition:
+    background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid var(--theme-border);
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.toggle-switch:hover {
+  background: var(--theme-surface-hover) !important;
+  border-color: var(--theme-border-hover);
+}
+
+.toggle-switch input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  cursor: pointer;
+  z-index: 1;
+}
+
+.toggle-slider,
+.toggle-thumb {
+  width: 20px !important;
+  height: 20px !important;
+  background: var(--theme-text-primary);
+  border-radius: 50%;
+  position: absolute;
+  top: 50% !important;
+  left: 3px;
+  transform: translateY(-50%);
+  transition:
+    transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.3),
+    0 1px 2px rgba(0, 0, 0, 0.2);
+  pointer-events: none;
+  display: block;
+}
+
+.toggle-switch input:checked + .toggle-slider,
+.toggle-switch input:checked ~ .toggle-slider,
+.toggle-switch.active .toggle-slider,
+.toggle-switch.active .toggle-thumb {
+  transform: translateX(22px) translateY(-50%) !important;
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.3),
+    0 0 12px rgba(0, 0, 0, 0.2);
+}
+
+.toggle-switch:has(input:checked),
+.toggle-switch.active {
+  background: var(--theme-accent) !important;
+  border-color: var(--theme-accent);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.toggle-switch:has(input:checked):hover {
+  background: var(--theme-accent-hover) !important;
+  border-color: var(--theme-accent-hover);
+}
+
+.btn-signout {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--theme-border);
+  background: transparent;
+  border-radius: 12px;
+  color: var(--theme-text-secondary);
+  cursor: pointer;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.btn-signout:hover {
+  background: var(--theme-surface-hover);
+  border-color: var(--theme-border-hover);
+}
+
+/* ==== RIGHT COLUMN (CONTENT) ==== */
+
+.settings-main-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: 100%;
+  max-width: 100%;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+/* Usage Stats Row */

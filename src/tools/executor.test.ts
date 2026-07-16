@@ -31,4 +31,27 @@ describe('executeTool web_search argument normalization', () => {
       include_images: true,
     })
   })
+
+  it('rejects unknown built-in names before IPC', async () => {
+    await expect(executeTool('file_not_registered', {})).resolves.toMatchObject({
+      success: false,
+      error: 'Tool "file_not_registered" is disabled.',
+    })
+    expect(testWindow.ipcRenderer.invoke).not.toHaveBeenCalled()
+  })
+
+  it('keeps approval authorization in a separate execution context', async () => {
+    await executeTool(
+      'system_shell',
+      { command: 'Get-Date', description: 'Check the current date' },
+      { approvalToken: 'main-issued-token' }
+    )
+
+    expect(testWindow.ipcRenderer.invoke).toHaveBeenCalledWith(
+      'execute-tool',
+      'system_shell',
+      { command: 'Get-Date', description: 'Check the current date' },
+      { approvalToken: 'main-issued-token', agentSkills: undefined }
+    )
+  })
 })

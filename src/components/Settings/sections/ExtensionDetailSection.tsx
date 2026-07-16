@@ -13,9 +13,6 @@ export interface ExtensionDetailSectionProps {
   extensionId: CatalogExtensionId
   skills: SkillsSettings
   settings?: Settings
-  codeExecutionAutoApprove: boolean
-  terminalAutoApprove: boolean
-  computerUseAutoApprove: boolean
   brevoApiKey?: string
   emailNotifications?: EmailNotificationSettings
   isSavingSecureSettings?: boolean
@@ -24,9 +21,6 @@ export interface ExtensionDetailSectionProps {
   setEnabled: (extensionId: CatalogExtensionId, enabled: boolean) => void
   onChange: (changes: {
     skills?: SkillsSettings
-    codeExecutionAutoApprove?: boolean
-    terminalAutoApprove?: boolean
-    computerUseAutoApprove?: boolean
     assistantMode?: Settings['assistantMode']
     memoryModel?: string
     brevoApiKey?: string
@@ -42,9 +36,6 @@ export function ExtensionDetailSection({
   extensionId,
   skills,
   settings,
-  codeExecutionAutoApprove,
-  terminalAutoApprove,
-  computerUseAutoApprove,
   brevoApiKey = '',
   emailNotifications,
   isSavingSecureSettings = false,
@@ -108,28 +99,9 @@ export function ExtensionDetailSection({
             />
           </div>
         </>
-      ) : extensionId === 'code_execution' ? (
-        <ExtensionToggleCard
-          label="Auto-approve execution"
-          description="Skip the approval dialog for every code execution request."
-          checked={codeExecutionAutoApprove}
-          onCheckedChange={(checked) => onChange({ codeExecutionAutoApprove: checked })}
-        />
-      ) : extensionId === 'terminal' ? (
-        <ExtensionToggleCard
-          label="Auto-approve execution"
-          description="Skip the approval dialog for every terminal command."
-          checked={terminalAutoApprove}
-          onCheckedChange={(checked) => onChange({ terminalAutoApprove: checked })}
-        />
       ) : extensionId === 'computer_use' ? (
         <>
-          <ExtensionToggleCard
-            label="Auto-approve actions"
-            description="Skip the approval dialog for desktop control actions."
-            checked={computerUseAutoApprove}
-            onCheckedChange={(checked) => onChange({ computerUseAutoApprove: checked })}
-          />
+          {skill ? <ExtensionInfoCard skill={skill} /> : null}
           <Card className="settings-list-card extension-detail__note-card">
             <div className="settings-list-row">
               <div className="settings-list-row__meta">
@@ -156,32 +128,6 @@ export function ExtensionDetailSection({
         </Card>
       ) : null}
     </div>
-  )
-}
-
-function ExtensionToggleCard({
-  label,
-  description,
-  checked,
-  onCheckedChange,
-}: {
-  label: string
-  description: string
-  checked: boolean
-  onCheckedChange: (checked: boolean) => void
-}): React.ReactElement {
-  return (
-    <Card className="settings-list-card">
-      <div className="settings-list-row">
-        <div className="settings-list-row__meta">
-          <h3 className="settings-list-row__label">{label}</h3>
-          <div className="settings-list-row__description">{description}</div>
-        </div>
-        <div className="settings-list-row__control">
-          <Switch checked={checked} onCheckedChange={onCheckedChange} aria-label={label} />
-        </div>
-      </div>
-    </Card>
   )
 }
 

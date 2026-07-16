@@ -1,4 +1,4 @@
-import type { FileAttachment, ToolCallResult } from '../../../../../chat/types'
+import type { ToolCallResult } from '../../../../../chat/types'
 import type { ServiceAssistantMessage, ToolDefinition } from '../../../../../services/types'
 import { normalizeInlineToolCallMarkup } from '../../../../../tools/adapters/openrouterToolCalls'
 import type { ChatDiagnosticRequestShape } from '../../../../../diagnostics/chatDiagnostics'
@@ -134,21 +134,7 @@ export function logToolMarkupLeak(
   console.warn('[tool-markup-leak]', event, details)
 }
 
-export function mergeGeneratedFiles(
-  existing: FileAttachment[],
-  incoming: FileAttachment[]
-): FileAttachment[] {
-  if (incoming.length === 0) return existing
-
-  const merged = [...existing]
-  const seen = new Set(existing.map((file) => file.data))
-  for (const file of incoming) {
-    if (seen.has(file.data)) continue
-    seen.add(file.data)
-    merged.push(file)
-  }
-  return merged
-}
+export { mergeGeneratedFiles } from './providerEventAccumulator'
 
 export function extractWebSearchQueries(toolResults: ToolCallResult[] | undefined): string[] {
   return (toolResults || [])

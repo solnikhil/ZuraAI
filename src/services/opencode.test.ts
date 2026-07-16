@@ -41,6 +41,10 @@ describe('opencode service', () => {
     expect(getOpencodeProtocol('qwen3.7-max')).toBe('anthropic-messages')
   })
 
+  it('uses the explicit OpenAI-compatible behavior for unknown catalog models', () => {
+    expect(getOpencodeProtocol('future-unknown-model')).toBe('openai-chat-completions')
+  })
+
   it('maps catalog models with tool support enabled', () => {
     const configured = mapOpencodeModelToConfiguredModel({
       id: 'deepseek-v4-pro',

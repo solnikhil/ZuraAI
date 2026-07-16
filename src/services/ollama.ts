@@ -151,6 +151,7 @@ export async function* streamOllamaCompletion(
   options?: {
     temperature?: number
     num_ctx?: number
+    num_predict?: number
     think?: boolean | string
     tools?: ToolDefinition[]
     onChunk?: (chunk: OllamaStreamChunk) => void
@@ -171,6 +172,7 @@ export async function* streamOllamaCompletion(
       options: {
         temperature: options?.temperature,
         num_ctx: options?.num_ctx,
+        num_predict: options?.num_predict,
       },
     }),
     signal: options?.signal,
@@ -198,6 +200,7 @@ export const generateOllamaCompletion = async (
   options?: {
     temperature?: number
     num_ctx?: number // Context window size
+    num_predict?: number // Maximum number of output tokens
     think?: boolean | string
     tools?: ToolDefinition[]
     signal?: AbortSignal
@@ -220,6 +223,7 @@ export const generateOllamaCompletion = async (
       options: {
         temperature: options?.temperature,
         num_ctx: options?.num_ctx,
+        num_predict: options?.num_predict,
       },
     }),
     signal: options?.signal,

@@ -11,10 +11,8 @@ import * as fs from 'fs/promises'
 import * as fsSync from 'fs'
 import * as path from 'path'
 import { writeFileAtomic } from './utils/atomicFile'
-import {
-  deleteSessionToolMedia,
-  sanitizeSessionMessagesForPersist,
-} from './tools/toolMediaStore'
+import { RecoverableSerializedTaskQueue } from './utils/serializedTaskQueue'
+import { deleteSessionToolMedia, sanitizeSessionMessagesForPersist } from './tools/toolMediaStore'
 
 export interface Message {
   id: string
@@ -153,8 +151,7 @@ let cachedIndex: ChatIndexData | null = null
 let indexCacheTimestamp = 0
 const CACHE_TTL = 1000
 
-let writeVersion = 0
-let pendingWrite: Promise<void> = Promise.resolve()
+const indexMutationQueue = new RecoverableSerializedTaskQueue()
 
 function getUserDataPath(): string {
   return app.getPath('userData')
@@ -284,13 +281,13 @@ export function migrateSession(session: ChatSession): ChatSession {
  * Strip heavy fields so chat-index.json and renderer metadata never retain
  * base64 images, tool screenshots, thinking, or agent run payloads.
  */
-export function compactMessageForIndex(message: Message | CompactPreviewMessage): CompactPreviewMessage {
+export function compactMessageForIndex(
+  message: Message | CompactPreviewMessage
+): CompactPreviewMessage {
   const full = message as Message
   const preview = message as CompactPreviewMessage
   const content =
-    typeof message.content === 'string'
-      ? message.content.slice(0, INDEX_PREVIEW_CONTENT_MAX)
-      : ''
+    typeof message.content === 'string' ? message.content.slice(0, INDEX_PREVIEW_CONTENT_MAX) : ''
   const toolResultCount = Array.isArray(full.toolResults)
     ? full.toolResults.length
     : typeof preview.toolResultCount === 'number'
@@ -298,8 +295,8 @@ export function compactMessageForIndex(message: Message | CompactPreviewMessage)
       : undefined
   const hasThinking = Boolean(
     full.thinking ||
-      (Array.isArray(full.thinkingBlocks) && full.thinkingBlocks.length > 0) ||
-      preview.hasThinking
+    (Array.isArray(full.thinkingBlocks) && full.thinkingBlocks.length > 0) ||
+    preview.hasThinking
   )
   return {
     id: message.id,
@@ -365,7 +362,13 @@ export function toIndexPreviewMessage(message: Message): Message {
   if (Array.isArray(message.files) && message.files.length > 0) {
     preview.files = message.files.map((file) => {
       if (!file || typeof file !== 'object') return file
-      const entry = file as { id?: string; name?: string; type?: string; size?: number; mimeType?: string }
+      const entry = file as {
+        id?: string
+        name?: string
+        type?: string
+        size?: number
+        mimeType?: string
+      }
       return {
         id: entry.id,
         name: entry.name,
@@ -476,9 +479,7 @@ export function sessionToMetadata(session: ChatSession): ChatSessionMetadata {
 function metadataToSession(metadata: ChatSessionMetadata, messages: Message[] = []): ChatSession {
   // Prefer provided full messages; otherwise hydrate compact text-only previews.
   const effectiveMessages =
-    messages.length > 0
-      ? messages
-      : (metadata.recentMessages ?? []).map(compactPreviewToMessage)
+    messages.length > 0 ? messages : (metadata.recentMessages ?? []).map(compactPreviewToMessage)
   return {
     id: metadata.id,
     title: metadata.title,
@@ -621,20 +622,43 @@ function ensureSessionsDirSync(): void {
   fsSync.mkdirSync(getSessionsDir(), { recursive: true })
 }
 
-async function writeIndexAsync(index: ChatIndexData): Promise<void> {
-  const myVersion = ++writeVersion
+async function persistIndexUnlocked(index: ChatIndexData): Promise<ChatIndexData> {
   const normalized = normalizeIndex(index)
+  await writeFileAtomic(getIndexPath(), JSON.stringify(normalized, null, 2))
+  cachedIndex = normalized
+  indexCacheTimestamp = Date.now()
+  return normalized
+}
 
-  const doWrite = async () => {
-    await writeFileAtomic(getIndexPath(), JSON.stringify(normalized, null, 2))
-    if (myVersion === writeVersion) {
-      cachedIndex = normalized
-      indexCacheTimestamp = Date.now()
-    }
+function parsePersistedIndex(data: string): ChatIndexData {
+  const parsed = JSON.parse(data) as unknown
+  if (
+    !parsed ||
+    typeof parsed !== 'object' ||
+    Array.isArray(parsed) ||
+    !Array.isArray((parsed as Partial<ChatIndexData>).sessions) ||
+    !Array.isArray((parsed as Partial<ChatIndexData>).folders)
+  ) {
+    throw new SyntaxError('Chat index root must contain sessions and folders arrays.')
   }
+  return normalizeIndex(parsed)
+}
 
-  pendingWrite = pendingWrite.then(doWrite)
-  await pendingWrite
+async function writeIndexAsync(index: ChatIndexData): Promise<void> {
+  await indexMutationQueue.run(() => persistIndexUnlocked(index))
+}
+
+async function mutateIndex<T>(
+  mutation: (
+    index: ChatIndexData
+  ) => Promise<{ index: ChatIndexData; result: T }> | { index: ChatIndexData; result: T }
+): Promise<T> {
+  return indexMutationQueue.run(async () => {
+    const current = await readIndexAsync()
+    const { index, result } = await mutation(current)
+    await persistIndexUnlocked(index)
+    return result
+  })
 }
 
 async function writeSessionFileAsync(session: ChatSession): Promise<void> {
@@ -683,7 +707,7 @@ async function migrateLegacyStoreIfNeeded(): Promise<ChatIndexData | null> {
     folders: migrated.folders,
     version: INDEX_VERSION,
   }
-  await writeIndexAsync(index)
+  await persistIndexUnlocked(index)
   return index
 }
 
@@ -724,18 +748,22 @@ async function readIndexAsync(): Promise<ChatIndexData> {
     const migrated = await migrateLegacyStoreIfNeeded()
     if (migrated) return migrated
 
-    if (fsSync.existsSync(getIndexPath())) {
-      const data = await fs.readFile(getIndexPath(), 'utf-8')
-      const parsed = normalizeIndex(JSON.parse(data))
-      cachedIndex = parsed
-      indexCacheTimestamp = Date.now()
-      return parsed
-    }
+    const data = await fs.readFile(getIndexPath(), 'utf-8')
+    const parsed = parsePersistedIndex(data)
+    cachedIndex = parsed
+    indexCacheTimestamp = Date.now()
+    return parsed
   } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return createEmptyIndex()
+    }
+    if (error instanceof SyntaxError) {
+      console.error('Chat index is corrupt and requires recovery:', error)
+      throw new Error('Chat index contains invalid JSON.', { cause: error })
+    }
     console.error('Failed to read chat index:', error)
+    throw error
   }
-
-  return createEmptyIndex()
 }
 
 function readIndex(): ChatIndexData {
@@ -747,18 +775,22 @@ function readIndex(): ChatIndexData {
     const migrated = migrateLegacyStoreIfNeededSync()
     if (migrated) return migrated
 
-    if (fsSync.existsSync(getIndexPath())) {
-      const data = fsSync.readFileSync(getIndexPath(), 'utf-8')
-      const parsed = normalizeIndex(JSON.parse(data))
-      cachedIndex = parsed
-      indexCacheTimestamp = Date.now()
-      return parsed
-    }
+    const data = fsSync.readFileSync(getIndexPath(), 'utf-8')
+    const parsed = parsePersistedIndex(data)
+    cachedIndex = parsed
+    indexCacheTimestamp = Date.now()
+    return parsed
   } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return createEmptyIndex()
+    }
+    if (error instanceof SyntaxError) {
+      console.error('Chat index is corrupt and requires recovery:', error)
+      throw new Error('Chat index contains invalid JSON.', { cause: error })
+    }
     console.error('Failed to read chat index:', error)
+    throw error
   }
-
-  return createEmptyIndex()
 }
 
 async function readSessionFileAsync(id: string): Promise<ChatSession | null> {
@@ -766,10 +798,12 @@ async function readSessionFileAsync(id: string): Promise<ChatSession | null> {
     const data = await fs.readFile(getSessionPath(id), 'utf-8')
     return migrateSession(JSON.parse(data))
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-      console.error(`Failed to read chat session ${id}:`, error)
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
+    if (error instanceof SyntaxError) {
+      throw new Error(`Chat session "${id}" contains invalid JSON.`, { cause: error })
     }
-    return null
+    console.error(`Failed to read chat session ${id}:`, error)
+    throw error
   }
 }
 
@@ -778,19 +812,13 @@ function readSessionFile(id: string): ChatSession | null {
     const data = fsSync.readFileSync(getSessionPath(id), 'utf-8')
     return migrateSession(JSON.parse(data))
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-      console.error(`Failed to read chat session ${id}:`, error)
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
+    if (error instanceof SyntaxError) {
+      throw new Error(`Chat session "${id}" contains invalid JSON.`, { cause: error })
     }
-    return null
+    console.error(`Failed to read chat session ${id}:`, error)
+    throw error
   }
-}
-
-async function replaceIndexSession(metadata: ChatSessionMetadata): Promise<void> {
-  const index = await readIndexAsync()
-  const nextSessions = index.sessions.filter((session) => session.id !== metadata.id)
-  nextSessions.unshift(metadata)
-  nextSessions.sort((a, b) => b.updatedAt - a.updatedAt)
-  await writeIndexAsync({ ...index, sessions: nextSessions })
 }
 
 export function getSessionMetadata(): ChatSessionMetadata[] {
@@ -927,12 +955,14 @@ export async function saveAllSessionsAsync(sessions: ChatSession[]): Promise<voi
   for (const session of sessions) {
     await writeSessionFileAsync(session)
   }
-  const currentIndex = await readIndexAsync()
-  await writeIndexAsync({
-    sessions: sessions.map(sessionToMetadata),
-    folders: currentIndex.folders,
-    version: INDEX_VERSION,
-  })
+  await mutateIndex((index) => ({
+    index: {
+      sessions: sessions.map(sessionToMetadata),
+      folders: index.folders,
+      version: INDEX_VERSION,
+    },
+    result: undefined,
+  }))
 }
 
 export async function getSessionAsync(
@@ -957,55 +987,62 @@ export async function getUsageSessionsAsync(): Promise<ChatSession[]> {
   const sessions = await getAllSessionsAsync()
   return sessions.map((session) => ({
     ...session,
-    messages: Array.isArray(session.messages)
-      ? session.messages.map(toUsageMetricMessage)
-      : [],
+    messages: Array.isArray(session.messages) ? session.messages.map(toUsageMetricMessage) : [],
     // Usage metrics do not need artifact version bodies.
     artifacts: undefined,
   }))
 }
 
 export async function saveSessionAsync(session: ChatSession): Promise<ChatSessionMetadata> {
-  const index = await readIndexAsync()
-  const existing = index.sessions.find((entry) => entry.id === session.id)
-  const metadata = mergeMetadataWithSession(existing, session)
-  await writeSessionFileAsync({ ...session, ...metadata })
-  await replaceIndexSession(metadata)
-  return metadata
+  return mutateIndex(async (index) => {
+    const existing = index.sessions.find((entry) => entry.id === session.id)
+    const metadata = mergeMetadataWithSession(existing, session)
+    await writeSessionFileAsync({ ...session, ...metadata })
+    const nextSessions = index.sessions.filter((entry) => entry.id !== metadata.id)
+    nextSessions.unshift(metadata)
+    nextSessions.sort((a, b) => b.updatedAt - a.updatedAt)
+    return { index: { ...index, sessions: nextSessions }, result: metadata }
+  })
 }
 
 export async function deleteSessionAsync(id: string): Promise<boolean> {
-  const index = await readIndexAsync()
-  const nextSessions = index.sessions.filter((session) => session.id !== id)
-  const existed = nextSessions.length !== index.sessions.length
-  if (!existed) return false
-
-  await fs.rm(getSessionPath(id), { force: true })
-  await deleteSessionToolMedia(id)
-  await writeIndexAsync({ ...index, sessions: nextSessions })
-  return true
+  return mutateIndex(async (index) => {
+    const nextSessions = index.sessions.filter((session) => session.id !== id)
+    const existed = nextSessions.length !== index.sessions.length
+    if (existed) {
+      await fs.rm(getSessionPath(id), { force: true })
+      await deleteSessionToolMedia(id)
+    }
+    return { index: existed ? { ...index, sessions: nextSessions } : index, result: existed }
+  })
 }
 
 export async function saveSessionMetadataAsync(metadata: ChatSessionMetadata): Promise<void> {
-  const index = await readIndexAsync()
-  const nextSessions = index.sessions.map((session) =>
-    session.id === metadata.id ? { ...metadata, tags: [...metadata.tags] } : session
-  )
-  if (!nextSessions.some((session) => session.id === metadata.id)) {
-    nextSessions.unshift({ ...metadata, tags: [...metadata.tags] })
-  }
-  await writeIndexAsync({
-    ...index,
-    sessions: nextSessions.sort((a, b) => b.updatedAt - a.updatedAt),
+  await mutateIndex((index) => {
+    const nextSessions = index.sessions.map((session) =>
+      session.id === metadata.id ? { ...metadata, tags: [...metadata.tags] } : session
+    )
+    if (!nextSessions.some((session) => session.id === metadata.id)) {
+      nextSessions.unshift({ ...metadata, tags: [...metadata.tags] })
+    }
+    return {
+      index: {
+        ...index,
+        sessions: nextSessions.sort((a, b) => b.updatedAt - a.updatedAt),
+      },
+      result: undefined,
+    }
   })
 }
 
 export async function saveSessionMetadataListAsync(metadata: ChatSessionMetadata[]): Promise<void> {
-  const index = await readIndexAsync()
-  await writeIndexAsync({
-    ...index,
-    sessions: metadata.map((session) => ({ ...session, tags: [...session.tags] })),
-  })
+  await mutateIndex((index) => ({
+    index: {
+      ...index,
+      sessions: metadata.map((session) => ({ ...session, tags: [...session.tags] })),
+    },
+    result: undefined,
+  }))
 }
 
 export async function getAllFoldersAsync(): Promise<Folder[]> {
@@ -1014,6 +1051,5 @@ export async function getAllFoldersAsync(): Promise<Folder[]> {
 }
 
 export async function saveFoldersAsync(folders: Folder[]): Promise<void> {
-  const index = await readIndexAsync()
-  await writeIndexAsync({ ...index, folders })
+  await mutateIndex((index) => ({ index: { ...index, folders }, result: undefined }))
 }

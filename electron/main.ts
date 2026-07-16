@@ -1,4 +1,4 @@
-import { app, globalShortcut, session } from 'electron'
+import { app, globalShortcut } from 'electron'
 import path from 'path'
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer'
 
@@ -12,57 +12,20 @@ import {
   showMainWindow,
   setAppQuitting,
   destroyChatDebugWindow,
-  destroyAgentApprovalOverlay,
-  registerAgentApprovalOverlayHandlers,
-  unregisterAgentApprovalOverlayHandlers,
 } from './windows'
 import { applyDevelopmentAppIcon } from './windowIcon'
-import { registerAllHandlers } from './ipc'
-import {
-  initializeMcpManager,
-  connectAutoConnectMcpServers,
-  registerMcpHandlers,
-  shutdownMcpManager,
-  unregisterMcpHandlers,
-} from './mcp'
-import { registerToolHandlers } from './tools'
-import { disposeAppIndexRuntime } from './appIndexService'
-import {
-  cleanupAutoUpdater,
-  initializeAutoUpdater,
-  isInstallingUpdate,
-  registerUpdaterHandlers,
-  setShutdownHook,
-} from './updater'
+import { initializeMcpManager, connectAutoConnectMcpServers, shutdownMcpManager } from './mcp'
+import { initializeAutoUpdater, isInstallingUpdate } from './updater'
 import { deferredInitializer } from './startup/deferredInit'
-import {
-  registerCodeExecutionHandlers,
-  unregisterCodeExecutionHandlers,
-  disposeCodeExecutionApprovalManager,
-} from './tools/code-execution'
-import {
-  registerTerminalHandlers,
-  unregisterTerminalHandlers,
-  disposeTerminalApprovalManager,
-} from './tools/terminal'
-import {
-  registerComputerUseHandlers,
-  unregisterComputerUseHandlers,
-  disposeComputerUseApprovalManager,
-} from './tools/computer-use'
-import {
-  registerDiscordRpcHandlers,
-  unregisterDiscordRpcHandlers,
-  disposeDiscordRpcClient,
-} from './discordRpc'
 import { trackAppCrash, trackStartupAnalytics } from './analytics'
-import { startMonitorRuntime, stopMonitorRuntime } from './monitors'
+import { startMonitorRuntime } from './monitors'
 import {
   handleZuraAppUrl,
   handleZuraChatMessageUrl,
   registerZuraChatProtocolHandlers,
 } from './chatLinks'
 import { log } from './startup/logger'
+import { registerMainProcessComposition } from './startup/mainProcessComposition'
 
 // Resolve packaged asset paths consistently in both development and production.
 const DIST_PATH = process.env.DIST || path.join(__dirname, '../dist')
@@ -76,6 +39,7 @@ const APP_NAME = 'ZuraAI'
 const IS_MACOS = process.platform === 'darwin'
 let isAwaitingMcpShutdown = false
 let hasCompletedMcpShutdown = false
+let disposeMainProcessComposition: (() => void) | null = null
 const hasSingleInstanceLock = app.requestSingleInstanceLock()
 
 if (!hasSingleInstanceLock) {
@@ -106,17 +70,6 @@ process.on('unhandledRejection', (reason) => {
   const message = reason instanceof Error ? reason.message : String(reason)
   log.error(`unhandled rejection: ${message}`)
 })
-
-function registerSessionSecurityHandlers(): void {
-  const defaultSession = session.defaultSession
-
-  defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => {
-    callback(false)
-  })
-
-  defaultSession.setPermissionCheckHandler(() => false)
-
-}
 
 app.commandLine.appendSwitch('process-name', APP_NAME)
 
@@ -149,22 +102,15 @@ app.on('activate', () => {
 app.on('will-quit', () => {
   globalShortcut.unregisterAll()
   destroyChatDebugWindow()
-  destroyAgentApprovalOverlay()
-  unregisterAgentApprovalOverlayHandlers()
-  unregisterMcpHandlers()
-  disposeCodeExecutionApprovalManager()
-  unregisterCodeExecutionHandlers()
-  disposeTerminalApprovalManager()
-  unregisterTerminalHandlers()
-  unregisterDiscordRpcHandlers()
-  disposeDiscordRpcClient()
-  disposeComputerUseApprovalManager()
-  unregisterComputerUseHandlers()
-  disposeAppIndexRuntime()
-
-  cleanupAutoUpdater()
+  try {
+    disposeMainProcessComposition?.()
+  } catch (error) {
+    log.error(
+      `main-process disposal failed: ${error instanceof Error ? error.message : String(error)}`
+    )
+  }
+  disposeMainProcessComposition = null
   destroyTray()
-  stopMonitorRuntime()
 })
 
 app.on('before-quit', (event) => {
@@ -233,19 +179,11 @@ if (hasSingleInstanceLock) {
 
     // Register every preload-exposed IPC surface before the window is created.
     log.startPhase('ipc-handlers')
-    registerAllHandlers()
-    registerMcpHandlers()
-    registerToolHandlers()
-    registerAgentApprovalOverlayHandlers()
-    registerUpdaterHandlers(getMainWindow)
-    setShutdownHook(() => shutdownMcpManager())
-    registerCodeExecutionHandlers()
-    registerTerminalHandlers()
-    registerDiscordRpcHandlers(getMainWindow)
-    if (!IS_MACOS) {
-      registerComputerUseHandlers()
-    }
-    registerSessionSecurityHandlers()
+    disposeMainProcessComposition = registerMainProcessComposition({
+      isMacOS: IS_MACOS,
+      getMainWindow,
+      shutdownMcp: shutdownMcpManager,
+    })
     log.endPhase('ipc-handlers')
 
     // MCP manager without auto-connect on the critical path — connect after paint.
@@ -280,7 +218,7 @@ if (hasSingleInstanceLock) {
       priority: 'high',
       delayMs: 1000,
       execute: async () => {
-        await startMonitorRuntime()
+        await startMonitorRuntime({ getMainWindow })
         log.success('scheduled tasks initialized')
       },
     })
@@ -314,7 +252,6 @@ if (hasSingleInstanceLock) {
     if (initialChatLink) {
       handleZuraChatMessageUrl(initialChatLink)
     }
-
 
     void trackStartupAnalytics()
   })

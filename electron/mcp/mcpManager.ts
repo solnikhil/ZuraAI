@@ -42,27 +42,19 @@ import {
   isRecord,
   normalizeServerId,
 } from './mcpManagerUtils'
-import {
-  loadMcpServers,
-  normalizeMcpServerConfig,
-  resolveMcpServerSecrets,
-  saveMcpServers,
-} from './mcpStorage'
+import { normalizeMcpServerConfig, resolveMcpServerSecrets } from './mcpStorage'
 import {
   applyOAuthAuthorizationHeader,
   clearMcpOAuth,
   getMcpAuthStatus,
   startMcpOAuthFlow,
 } from './mcpOAuth'
+import { McpContentCache } from './mcpContentCache'
+import { McpSnapshotPublisher } from './mcpSnapshotPublisher'
+import { McpTransitionQueue } from './mcpTransitionQueue'
+import { createMcpConfigRepository, type McpConfigRepository } from './mcpConfigRepository'
 
 type SnapshotHandler = (snapshot: McpRuntimeSnapshot) => void
-type BoundedCacheEntry<T> = {
-  value: T
-  sizeBytes: number
-}
-
-const MAX_MCP_CONTENT_CACHE_ENTRIES = 50
-const MAX_MCP_CONTENT_CACHE_ENTRY_BYTES = 512 * 1024
 
 export interface McpManagedConnection {
   getRuntimeState(): McpServerRuntimeState
@@ -82,6 +74,7 @@ export interface McpManagedConnection {
 }
 
 export interface McpManagerDependencies {
+  configRepository?: McpConfigRepository
   loadServers?: () => Promise<McpServerConfig[]>
   saveServers?: (servers: McpServerConfig[]) => Promise<void>
   resolveServerSecrets?: (server: McpServerConfig) => Promise<McpResolvedServerConfig>
@@ -97,8 +90,7 @@ export interface McpManagerInitializeOptions {
 }
 
 export class McpManager {
-  private readonly loadServers
-  private readonly saveServers
+  private readonly configRepository: McpConfigRepository
   private readonly resolveServerSecrets
   private readonly connectionFactory
 
@@ -106,17 +98,22 @@ export class McpManager {
   private readonly connections = new Map<string, McpManagedConnection>()
   private readonly connectionUnsubscribers = new Map<string, () => void>()
   private readonly runtimeStates = new Map<string, McpServerRuntimeState>()
-  private readonly resourceReadCache = new Map<string, BoundedCacheEntry<McpResourceReadResult>>()
-  private readonly promptResultCache = new Map<string, BoundedCacheEntry<McpPromptResult>>()
-  private readonly snapshotHandlers = new Set<SnapshotHandler>()
+  private readonly resourceReadCache = new McpContentCache<McpResourceReadResult>()
+  private readonly promptResultCache = new McpContentCache<McpPromptResult>()
+  private readonly snapshots = new McpSnapshotPublisher<McpRuntimeSnapshot>()
+  private readonly transitions = new McpTransitionQueue()
 
   private initialized = false
   private initializationPromise: Promise<McpRuntimeSnapshot> | null = null
   private clientInfo: McpConnectionOptions['clientInfo']
 
   constructor(dependencies: McpManagerDependencies = {}) {
-    this.loadServers = dependencies.loadServers ?? loadMcpServers
-    this.saveServers = dependencies.saveServers ?? saveMcpServers
+    this.configRepository =
+      dependencies.configRepository ??
+      createMcpConfigRepository({
+        load: dependencies.loadServers,
+        save: dependencies.saveServers,
+      })
     this.resolveServerSecrets = dependencies.resolveServerSecrets ?? resolveMcpServerSecrets
     this.connectionFactory =
       dependencies.connectionFactory ??
@@ -147,14 +144,14 @@ export class McpManager {
   async dispose(): Promise<void> {
     const serverIds = [...this.connections.keys()]
     await Promise.allSettled(serverIds.map((serverId) => this.disconnectServer(serverId)))
+    this.resourceReadCache.clear()
+    this.promptResultCache.clear()
+    this.snapshots.clear()
     this.initialized = false
   }
 
   onSnapshotChange(handler: SnapshotHandler): () => void {
-    this.snapshotHandlers.add(handler)
-    return () => {
-      this.snapshotHandlers.delete(handler)
-    }
+    return this.snapshots.subscribe(handler)
   }
 
   listServers(): McpServerConfig[] {
@@ -260,79 +257,83 @@ export class McpManager {
       throw new Error('Invalid MCP server config')
     }
 
-    if (this.servers.has(normalized.id)) {
-      throw new Error(`MCP server already exists: ${normalized.id}`)
-    }
-
-    this.servers.set(normalized.id, normalized)
-    this.runtimeStates.set(normalized.id, createInitialRuntimeState(normalized))
-    await this.persistServers()
-    this.emitSnapshot()
-    return cloneServer(normalized)
+    return this.transitions.run(normalized.id, async () => {
+      if (this.servers.has(normalized.id)) {
+        throw new Error(`MCP server already exists: ${normalized.id}`)
+      }
+      this.servers.set(normalized.id, normalized)
+      this.runtimeStates.set(normalized.id, createInitialRuntimeState(normalized))
+      await this.persistServers()
+      this.emitSnapshot()
+      return cloneServer(normalized)
+    })
   }
 
   async updateServer(serverId: string, updates: unknown): Promise<McpServerConfig> {
     await this.ensureInitialized()
-
     const normalizedServerId = normalizeServerId(serverId)
-    const existingServer = this.getServerOrThrow(normalizedServerId)
-    const isConnected = this.connections.has(normalizedServerId)
+    return this.transitions.run(normalizedServerId, async () => {
+      const existingServer = this.getServerOrThrow(normalizedServerId)
+      const isConnected = this.connections.has(normalizedServerId)
 
-    if (isConnected) {
-      await this.disconnectServer(normalizedServerId)
-    }
+      if (isConnected) await this.disconnectServerUnlocked(normalizedServerId)
 
-    const now = new Date().toISOString()
-    const normalized = normalizeMcpServerConfig(
-      {
-        ...existingServer,
-        ...(isRecord(updates) ? updates : {}),
-        id: normalizedServerId,
-        createdAt: existingServer.createdAt,
-        updatedAt: now,
-      },
-      0,
-      now
-    )
+      const now = new Date().toISOString()
+      const normalized = normalizeMcpServerConfig(
+        {
+          ...existingServer,
+          ...(isRecord(updates) ? updates : {}),
+          id: normalizedServerId,
+          createdAt: existingServer.createdAt,
+          updatedAt: now,
+        },
+        0,
+        now
+      )
 
-    if (!normalized) {
-      throw new Error('Invalid MCP server config')
-    }
+      if (!normalized) {
+        throw new Error('Invalid MCP server config')
+      }
 
-    this.servers.set(normalizedServerId, normalized)
-    this.runtimeStates.set(
-      normalizedServerId,
-      mergeRuntimeStateWithServer(normalized, this.runtimeStates.get(normalizedServerId))
-    )
-    await this.persistServers()
-    this.emitSnapshot()
-    return cloneServer(normalized)
+      this.servers.set(normalizedServerId, normalized)
+      this.runtimeStates.set(
+        normalizedServerId,
+        mergeRuntimeStateWithServer(normalized, this.runtimeStates.get(normalizedServerId))
+      )
+      await this.persistServers()
+      this.emitSnapshot()
+      return cloneServer(normalized)
+    })
   }
 
   async removeServer(serverId: string): Promise<boolean> {
     await this.ensureInitialized()
-
     const normalizedServerId = normalizeServerId(serverId)
-    if (!this.servers.has(normalizedServerId)) {
-      return false
-    }
+    return this.transitions.run(normalizedServerId, async () => {
+      if (!this.servers.has(normalizedServerId)) return false
 
-    if (this.connections.has(normalizedServerId)) {
-      await this.disconnectServer(normalizedServerId)
-    }
+      if (this.connections.has(normalizedServerId)) {
+        await this.disconnectServerUnlocked(normalizedServerId)
+      }
 
-    this.unregisterConnection(normalizedServerId)
-    this.runtimeStates.delete(normalizedServerId)
-    this.servers.delete(normalizedServerId)
-    await this.persistServers()
-    this.emitSnapshot()
-    return true
+      this.unregisterConnection(normalizedServerId)
+      this.runtimeStates.delete(normalizedServerId)
+      this.servers.delete(normalizedServerId)
+      await this.persistServers()
+      this.emitSnapshot()
+      return true
+    })
   }
 
   async connectServer(serverId: string): Promise<McpServerRuntimeState> {
     await this.ensureInitialized()
-
     const normalizedServerId = normalizeServerId(serverId)
+    return this.transitions.run(normalizedServerId, () =>
+      this.connectServerUnlocked(normalizedServerId)
+    )
+  }
+
+  private async connectServerUnlocked(normalizedServerId: string): Promise<McpServerRuntimeState> {
     const server = this.getServerOrThrow(normalizedServerId)
     let connection = this.connections.get(normalizedServerId)
 
@@ -359,8 +360,15 @@ export class McpManager {
 
   async disconnectServer(serverId: string): Promise<McpServerRuntimeState> {
     await this.ensureInitialized()
-
     const normalizedServerId = normalizeServerId(serverId)
+    return this.transitions.run(normalizedServerId, () =>
+      this.disconnectServerUnlocked(normalizedServerId)
+    )
+  }
+
+  private async disconnectServerUnlocked(
+    normalizedServerId: string
+  ): Promise<McpServerRuntimeState> {
     const connection = this.connections.get(normalizedServerId)
     const server = this.getServerOrThrow(normalizedServerId)
 
@@ -426,13 +434,11 @@ export class McpManager {
     const cacheKey = createResourceCacheKey(executable.server.id, uri)
     const cached = this.resourceReadCache.get(cacheKey)
     if (cached) {
-      this.resourceReadCache.delete(cacheKey)
-      this.resourceReadCache.set(cacheKey, cached)
-      return cloneReadResourceResult(cached.value)
+      return cloneReadResourceResult(cached)
     }
 
     const result = await executable.connection.readResource(uri)
-    this.setBoundedCacheEntry(this.resourceReadCache, cacheKey, cloneReadResourceResult(result))
+    this.resourceReadCache.set(cacheKey, cloneReadResourceResult(result))
     return cloneReadResourceResult(result)
   }
 
@@ -445,13 +451,11 @@ export class McpManager {
     const cacheKey = createPromptCacheKey(executable.server.id, promptName, args)
     const cached = this.promptResultCache.get(cacheKey)
     if (cached) {
-      this.promptResultCache.delete(cacheKey)
-      this.promptResultCache.set(cacheKey, cached)
-      return clonePromptResult(cached.value)
+      return clonePromptResult(cached)
     }
 
     const result = await executable.connection.getPrompt(promptName, args)
-    this.setBoundedCacheEntry(this.promptResultCache, cacheKey, clonePromptResult(result))
+    this.promptResultCache.set(cacheKey, clonePromptResult(result))
     return clonePromptResult(result)
   }
 
@@ -477,30 +481,34 @@ export class McpManager {
   ): Promise<{ ok: boolean; status: McpAuthStatus; error?: string }> {
     await this.ensureInitialized()
     const normalizedServerId = normalizeServerId(serverId)
-    const server = this.getServerOrThrow(normalizedServerId)
-    return startMcpOAuthFlow(server, async (nextServer) => {
-      this.servers.set(normalizedServerId, normalizeMcpServerConfig(nextServer, 0) ?? nextServer)
-      this.runtimeStates.set(
-        normalizedServerId,
-        mergeRuntimeStateWithServer(
-          this.getServerOrThrow(normalizedServerId),
-          this.runtimeStates.get(normalizedServerId)
+    return this.transitions.run(normalizedServerId, async () => {
+      const server = this.getServerOrThrow(normalizedServerId)
+      return startMcpOAuthFlow(server, async (nextServer) => {
+        this.servers.set(normalizedServerId, normalizeMcpServerConfig(nextServer, 0) ?? nextServer)
+        this.runtimeStates.set(
+          normalizedServerId,
+          mergeRuntimeStateWithServer(
+            this.getServerOrThrow(normalizedServerId),
+            this.runtimeStates.get(normalizedServerId)
+          )
         )
-      )
-      await this.persistServers()
-      this.emitSnapshot()
+        await this.persistServers()
+        this.emitSnapshot()
+      })
     })
   }
 
   async clearOAuth(serverId: string): Promise<McpAuthStatus> {
     await this.ensureInitialized()
     const normalizedServerId = normalizeServerId(serverId)
-    const server = this.getServerOrThrow(normalizedServerId)
-    const nextServer = await clearMcpOAuth(server)
-    this.servers.set(normalizedServerId, normalizeMcpServerConfig(nextServer, 0) ?? nextServer)
-    await this.persistServers()
-    this.emitSnapshot()
-    return getMcpAuthStatus(this.getServerOrThrow(normalizedServerId))
+    return this.transitions.run(normalizedServerId, async () => {
+      const server = this.getServerOrThrow(normalizedServerId)
+      const nextServer = await clearMcpOAuth(server)
+      this.servers.set(normalizedServerId, normalizeMcpServerConfig(nextServer, 0) ?? nextServer)
+      await this.persistServers()
+      this.emitSnapshot()
+      return getMcpAuthStatus(this.getServerOrThrow(normalizedServerId))
+    })
   }
 
   getAuthStatus(serverId: string): McpAuthStatus {
@@ -618,7 +626,7 @@ export class McpManager {
 
   private async doInitialize(options: McpManagerInitializeOptions): Promise<McpRuntimeSnapshot> {
     this.clientInfo = options.clientInfo
-    const loadedServers = await this.loadServers()
+    const loadedServers = await this.configRepository.load()
 
     this.servers.clear()
     this.runtimeStates.clear()
@@ -752,8 +760,8 @@ export class McpManager {
 
     const mergedState = mergeRuntimeStateWithServer(server, runtimeState)
     this.runtimeStates.set(serverId, mergedState)
-    await this.syncRuntimeMetadata(serverId, mergedState)
     this.emitSnapshot()
+    await this.transitions.run(serverId, () => this.syncRuntimeMetadata(serverId, mergedState))
   }
 
   private async syncRuntimeMetadata(
@@ -775,59 +783,18 @@ export class McpManager {
   }
 
   private async persistServers(): Promise<void> {
-    await this.saveServers(this.listServers())
+    await this.configRepository.save(this.listServers())
   }
 
   private emitSnapshot(): void {
-    const snapshot = this.getSnapshot()
-    for (const handler of this.snapshotHandlers) {
-      handler(snapshot)
-    }
+    this.snapshots.publish(this.getSnapshot())
   }
 
   private clearContentCachesForServer(serverId: string): void {
     const resourcePrefix = `${serverId}::resource::`
     const promptPrefix = `${serverId}::prompt::`
 
-    for (const key of this.resourceReadCache.keys()) {
-      if (key.startsWith(resourcePrefix)) {
-        this.resourceReadCache.delete(key)
-      }
-    }
-
-    for (const key of this.promptResultCache.keys()) {
-      if (key.startsWith(promptPrefix)) {
-        this.promptResultCache.delete(key)
-      }
-    }
-  }
-
-  private setBoundedCacheEntry<T>(
-    cache: Map<string, BoundedCacheEntry<T>>,
-    key: string,
-    value: T
-  ): void {
-    const sizeBytes = estimateSerializedBytes(value)
-    if (sizeBytes > MAX_MCP_CONTENT_CACHE_ENTRY_BYTES) {
-      cache.delete(key)
-      return
-    }
-
-    cache.delete(key)
-    cache.set(key, { value, sizeBytes })
-
-    while (cache.size > MAX_MCP_CONTENT_CACHE_ENTRIES) {
-      const oldestKey = cache.keys().next().value
-      if (typeof oldestKey !== 'string') break
-      cache.delete(oldestKey)
-    }
-  }
-}
-
-function estimateSerializedBytes(value: unknown): number {
-  try {
-    return Buffer.byteLength(JSON.stringify(value), 'utf8')
-  } catch {
-    return MAX_MCP_CONTENT_CACHE_ENTRY_BYTES + 1
+    this.resourceReadCache.clearPrefix(resourcePrefix)
+    this.promptResultCache.clearPrefix(promptPrefix)
   }
 }

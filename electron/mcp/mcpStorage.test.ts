@@ -130,6 +130,19 @@ describe('mcpStorage', () => {
     expect(directoryEntries.includes('mcp-servers.json')).toBe(false)
   })
 
+  it('surfaces operational read errors without quarantining the configured path', async () => {
+    const storePath = getMcpStoreFilePath()
+    await fs.mkdir(storePath, { recursive: true })
+
+    await expect(loadMcpServerStore()).rejects.toMatchObject({ code: expect.any(String) })
+    const stat = await fs.stat(storePath)
+    expect(stat.isDirectory()).toBe(true)
+    const directoryEntries = await fs.readdir(path.dirname(storePath))
+    expect(directoryEntries.some((entry) => entry.startsWith('mcp-servers.json.corrupt-'))).toBe(
+      false
+    )
+  })
+
   it('resolves secret-backed env vars and headers from secure storage', async () => {
     secureValues.set('mcp.server.server-1.env.API_KEY', 'env-secret')
     secureValues.set('mcp.server.server-1.header.Authorization', 'Bearer secret-token')

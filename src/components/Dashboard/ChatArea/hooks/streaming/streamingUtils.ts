@@ -111,26 +111,11 @@ export function fillMissingUsage(
   }
 }
 
-// Tool call accumulation
-
-/** Accumulate delta tool calls from a streaming chunk into an accumulator array (mutates in place) */
-export function accumulateDeltaToolCalls(
-  accumulator: DeltaToolCall[],
-  deltaToolCalls: DeltaToolCall[]
-): void {
-  for (const tc of deltaToolCalls) {
-    const index = tc.index ?? 0
-    if (!accumulator[index]) {
-      accumulator[index] = {
-        id: tc.id || '',
-        type: tc.type || 'function',
-        function: { name: '', arguments: '' },
-      }
-    }
-    if (tc.function?.name) accumulator[index].function!.name += tc.function.name
-    if (tc.function?.arguments) accumulator[index].function!.arguments += tc.function.arguments
-  }
-}
+export {
+  accumulateDeltaToolCalls,
+  appendCompletedThinkingBlock,
+  shouldSkipStrayReasoningDelta,
+} from './providerEventAccumulator'
 
 // Reconstructing assistant messages / responses
 
@@ -229,53 +214,6 @@ export function buildThinkingBlocksFromResults(
     })
   }
   return blocks
-}
-
-/** Create a persisted reasoning block from a completed active thinking segment. */
-function createThinkingBlock(content: string | undefined, duration?: number): ThinkingBlock | null {
-  const normalizedContent = content?.trim()
-  if (!normalizedContent) return null
-
-  return {
-    type: 'thinking',
-    content: normalizedContent,
-    ...(duration !== undefined ? { duration: Math.max(0, duration) } : {}),
-    timestamp: Date.now(),
-  }
-}
-
-/** Skip duplicate reasoning prefixes that arrive after answer content has started. */
-export function shouldSkipStrayReasoningDelta(
-  delta: string | undefined,
-  completedBlocks: ThinkingBlock[],
-  activeThinking: string,
-  hasAnswerContent: boolean
-): boolean {
-  const normalizedDelta = delta?.trim()
-  if (!normalizedDelta || !hasAnswerContent) return false
-
-  const completedThinking = completedBlocks
-    .filter((block) => block.type === 'thinking' && block.content)
-    .map((block) => block.content!.trim())
-    .filter(Boolean)
-
-  const transcript = [...completedThinking, activeThinking.trim()].filter(Boolean).join('')
-  if (!transcript) return false
-
-  return (
-    normalizedDelta === transcript ||
-    (normalizedDelta.length < transcript.length && transcript.startsWith(normalizedDelta))
-  )
-}
-
-/** Append a completed thinking segment as its own block. */
-export function appendCompletedThinkingBlock(
-  existingBlocks: ThinkingBlock[],
-  content: string | undefined,
-  duration?: number
-): ThinkingBlock[] {
-  const block = createThinkingBlock(content, duration)
-  return block ? [...existingBlocks, block] : existingBlocks
 }
 
 /** Join completed reasoning blocks and any active segment for non-UI fallback context. */

@@ -1,5 +1,12 @@
 import { WINDOWS_SETTINGS_CATALOG } from './windowsSettings'
 import type { ToolDescriptor } from './types'
+import { BUILTIN_MAIN_TOOL_NAMES, type BuiltinMainToolName } from './builtinMainToolContract'
+
+export {
+  BUILTIN_MAIN_TOOL_NAMES,
+  isBuiltinMainToolName,
+  type BuiltinMainToolName,
+} from './builtinMainToolContract'
 
 type BuiltinMainToolManifestEntry = Omit<ToolDescriptor, 'name'> & {
   origin: 'builtin-main'
@@ -1163,17 +1170,9 @@ Safety rules:
     origin: 'builtin-main',
     requiresApproval: true,
   },
-} satisfies Record<string, BuiltinMainToolManifestEntry>
-
-export type BuiltinMainToolName = keyof typeof builtInMainToolManifest
-
-const BUILTIN_MAIN_TOOL_NAMES = Object.keys(builtInMainToolManifest) as BuiltinMainToolName[]
+} satisfies Record<BuiltinMainToolName, BuiltinMainToolManifestEntry>
 
 export const builtInMainToolDefinitions: ToolDescriptor[] = BUILTIN_MAIN_TOOL_NAMES.map((name) => ({
   name,
   ...builtInMainToolManifest[name],
 }))
-
-export function isBuiltinMainToolName(name: string): name is BuiltinMainToolName {
-  return BUILTIN_MAIN_TOOL_NAMES.includes(name as BuiltinMainToolName)
-}

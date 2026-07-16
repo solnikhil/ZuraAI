@@ -23,9 +23,6 @@ import {
 import { useAgentToolApproval } from '../../../../agent/AgentToolApprovalContext'
 import { generateChatTitle } from '../../../../services/titleGenerator'
 import { runMemoryExtraction, type ExtractionMessage } from '../../../../services/memoryExtraction'
-import { inferOpenRouterSupportsDeepThinking } from '../../../../services/openrouterModels'
-import { inferAlibabaSupportsDeepThinking } from '../../../../services/alibabaModels'
-import { getDeepseekReasoning } from '../../../../utils/deepseekReasoning'
 import { buildOptimizedContextWithTrace } from '../../../../utils/tokenUtils'
 import { getEffectiveSystemPrompt } from '../../../../utils/promptSelection'
 import { loadMemoryBlock } from '../../../../prompts/buildMemoryBlock'
@@ -55,6 +52,14 @@ import {
   type ToolCallingHook,
 } from './streaming'
 import { trackAnalytics, trackRendererError } from '../../../../analytics/track'
+import { buildStreamingSettings } from './streaming/chatRunConfig'
+import { ChatRunController, isChatRunAbort } from './chatRunController'
+import { buildChatRunRequest } from './chatRunRequest'
+import {
+  buildChatRunResultUpdates,
+  finalizeChatRun,
+  mergeStreamingFinalState,
+} from './chatRunFinalization'
 
 export interface UseStreamingChatOptions {
   onStreamStart?: () => void
@@ -72,6 +77,19 @@ export interface UseStreamingChatReturn {
 
 type RegenerateMessage = Message & {
   instruction?: string
+}
+
+export function buildRegenerationResponseVersions(message: RegenerateMessage) {
+  return [
+    ...(message.responseVersions ?? []),
+    {
+      id: message.id,
+      content: message.content,
+      timestamp: message.timestamp,
+      instruction: message.instruction,
+      model: message.model,
+    },
+  ]
 }
 
 function addDynamicSystemPrompt<T extends { role: string; content: string }>(
@@ -94,41 +112,26 @@ export function buildCommittedStreamingUpdates(
   finalState: StreamingMessageState,
   streamResult?: StreamingResult
 ): Partial<Message> {
+  if (streamResult) return mergeStreamingFinalState(finalState, streamResult)
   const hasField = <K extends keyof StreamingMessageState>(key: K) =>
     Object.prototype.hasOwnProperty.call(finalState, key)
 
   const updates: Partial<Message> = {
-    content: streamResult?.content ?? finalState.content,
+    content: finalState.content,
   }
 
-  if (streamResult?.thinking !== undefined || hasField('thinking')) {
-    updates.thinking = streamResult?.thinking ?? finalState.thinking
-  }
-  if (streamResult?.thinkingDuration !== undefined || hasField('thinkingDuration')) {
-    updates.thinkingDuration = streamResult?.thinkingDuration ?? finalState.thinkingDuration
-  }
-  if (streamResult?.thinkingBlocks !== undefined || hasField('thinkingBlocks')) {
-    updates.thinkingBlocks = streamResult?.thinkingBlocks ?? finalState.thinkingBlocks
-  }
+  if (hasField('thinking')) updates.thinking = finalState.thinking
+  if (hasField('thinkingDuration')) updates.thinkingDuration = finalState.thinkingDuration
+  if (hasField('thinkingBlocks')) updates.thinkingBlocks = finalState.thinkingBlocks
   if (hasField('researchStatus')) updates.researchStatus = finalState.researchStatus
   if (hasField('researchPlan')) updates.researchPlan = finalState.researchPlan
   if (hasField('researchProgress')) updates.researchProgress = finalState.researchProgress
-  if (streamResult?.toolResults !== undefined || hasField('toolResults')) {
-    updates.toolResults =
-      streamResult?.toolResults === null
-        ? undefined
-        : (streamResult?.toolResults ?? finalState.toolResults)
-  }
+  if (hasField('toolResults')) updates.toolResults = finalState.toolResults
   if (hasField('agentRun')) updates.agentRun = finalState.agentRun
-  if (streamResult?.files !== undefined || hasField('files'))
-    updates.files = streamResult?.files ?? finalState.files
-  if (streamResult?.model !== undefined || hasField('model'))
-    updates.model = streamResult?.model ?? finalState.model
-  if (streamResult?.latency !== undefined || hasField('latency'))
-    updates.latency = streamResult?.latency ?? finalState.latency
-  if (streamResult?.usage !== undefined || hasField('usage'))
-    updates.usage = streamResult?.usage ?? finalState.usage
-  if (streamResult?.finishReason !== undefined) updates.finishReason = streamResult.finishReason
+  if (hasField('files')) updates.files = finalState.files
+  if (hasField('model')) updates.model = finalState.model
+  if (hasField('latency')) updates.latency = finalState.latency
+  if (hasField('usage')) updates.usage = finalState.usage
 
   return updates
 }
@@ -178,7 +181,7 @@ function buildMemoryExtractionMessages(
 
 export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStreamingChatReturn {
   const [isLoading, setIsLoading] = useState(false)
-  const abortControllerRef = useRef<AbortController | null>(null)
+  const activeRunRef = useRef<ChatRunController | null>(null)
 
   // Throttle partial updates so long responses do not repaint the message list on every token.
   const throttlerRef = useRef<StreamingThrottler | null>(null)
@@ -343,27 +346,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
   }, [updateStreamingMessage, updateStreaming])
 
   const streamingSettings: StreamingSettings = useMemo(
-    () => ({
-      aiModel: settings.aiModel,
-      modelProvider: settings.modelProvider,
-      temperature: settings.temperature,
-      maxTokens: settings.maxTokens,
-      streamResponses: settings.streamResponses,
-      webSearchPrompt: settings.webSearchPrompt,
-      ollamaUrl: settings.ollamaUrl,
-      openRouterDebug: settings.openRouterDebug,
-      openRouterApiKey: settings.openRouterApiKey,
-      configuredModels: settings.configuredModels,
-      alibabaModels: settings.alibabaModels,
-      alibabaRegion: settings.alibabaRegion,
-      groqApiKey: settings.groqApiKey,
-      alibabaApiKey: settings.alibabaApiKey,
-      deepseekApiKey: settings.deepseekApiKey,
-      opencodeGoApiKey: settings.opencodeGoApiKey,
-      fireworksApiKey: settings.fireworksApiKey,
-      nvidiaApiKey: settings.nvidiaApiKey,
-      nvidiaModels: settings.nvidiaModels,
-    }),
+    () => buildStreamingSettings(settings),
     [
       settings.aiModel,
       settings.modelProvider,
@@ -419,47 +402,55 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     throttledUpdateStreamingMessage,
   })
 
+  const finishRunUi = useCallback(
+    (run: ChatRunController) => {
+      if (activeRunRef.current === run) activeRunRef.current = null
+      setIsLoading(false)
+      clearToolState()
+      options.onStreamEnd?.()
+    },
+    [clearToolState, options]
+  )
+
   const stopStreaming = useCallback(() => {
-    // Flush any pending throttled updates before stopping
-    flushThrottledUpdates()
+    const run = activeRunRef.current
+    if (!run) return
 
-    // Commit any pending streaming content to the session
-    if (streamingMessageRef.current) {
-      if (activeAgentRunRef.current) {
-        publishAgentRun(
-          streamingMessageRef.current.sessionId,
-          streamingMessageRef.current.messageId,
-          finishAgentRun(activeAgentRunRef.current, 'cancelled')
-        )
-      }
-      const finalState = completeStreaming()
-      if (finalState.sessionId && finalState.messageId) {
-        // Commit final content to the session
-        updateStreamingMessage(
-          finalState.sessionId,
-          finalState.messageId,
-          buildFinalStreamingUpdates(finalState),
-          { persist: true }
-        )
-      }
-      streamingMessageRef.current = null
-      activeAgentRunRef.current = undefined
-    }
-
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort()
-      abortControllerRef.current = null
-    }
-    setIsLoading(false)
-    clearToolState()
-    options.onStreamEnd?.()
+    finalizeChatRun(
+      run,
+      'cancelled',
+      () => {
+        flushThrottledUpdates()
+        if (streamingMessageRef.current) {
+          if (activeAgentRunRef.current) {
+            publishAgentRun(
+              streamingMessageRef.current.sessionId,
+              streamingMessageRef.current.messageId,
+              finishAgentRun(activeAgentRunRef.current, 'cancelled')
+            )
+          }
+          const finalState = completeStreaming()
+          if (finalState.sessionId && finalState.messageId) {
+            updateStreamingMessage(
+              finalState.sessionId,
+              finalState.messageId,
+              buildFinalStreamingUpdates(finalState),
+              { persist: true }
+            )
+          }
+          streamingMessageRef.current = null
+          activeAgentRunRef.current = undefined
+        }
+      },
+      () => finishRunUi(run)
+    )
   }, [
-    clearToolState,
-    options,
     flushThrottledUpdates,
     completeStreaming,
     updateStreamingMessage,
     buildFinalStreamingUpdates,
+    publishAgentRun,
+    finishRunUi,
   ])
 
   /**
@@ -470,9 +461,10 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     async (content: string, files: AttachedFile[]) => {
       if ((!content.trim() && files.length === 0) || isLoading) return
 
+      const run = new ChatRunController('send')
+      activeRunRef.current = run
       clearToolState()
       setIsLoading(true)
-      abortControllerRef.current = new AbortController()
       options.onStreamStart?.()
 
       let targetSessionId = currentSessionId
@@ -493,10 +485,15 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       }
 
       if (hasImageAttachments(fileAttachments) && !canAnalyzeImageAttachments(settings)) {
-        setIsLoading(false)
         showToast(
           'Current model cannot analyze attached images. Switch to a vision-capable model or remove the images.',
           'warning'
+        )
+        finalizeChatRun(
+          run,
+          'failed',
+          () => undefined,
+          () => finishRunUi(run)
         )
         return
       }
@@ -507,8 +504,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       }
 
       const outboundUserMessageId = addMessageToSession(targetSessionId, outboundUserMessage)
-
-      const startTime = performance.now()
+      const providerStartTime = performance.now()
 
       try {
         const conversationHistory = toConversationMessages(
@@ -564,9 +560,14 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
 
         const credentialError = getProviderCredentialError(effectiveStreamingSettings, provider)
         if (credentialError) {
-          setIsLoading(false)
           showToast(credentialError, 'error')
           trackRendererError('provider', 'credential_error')
+          finalizeChatRun(
+            run,
+            'failed',
+            () => undefined,
+            () => finishRunUi(run)
+          )
           return
         }
 
@@ -601,180 +602,144 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           publishAgentRun(targetSessionId!, streamingMessageId, activeAgentRunRef.current)
         }
 
-        // Use composed provider-specific streaming hooks
-        const currentModel =
-          provider === 'openrouter'
-            ? settings.configuredModels?.find((m) => m.code === settings.aiModel)
-            : undefined
-        const openRouterReasoning =
-          provider === 'openrouter' &&
-          inferOpenRouterSupportsDeepThinking(
-            currentModel || { code: settings.aiModel, displayName: settings.aiModel }
-          )
-            ? { enabled: true, effort: settings.openRouterReasoningEffort?.[settings.aiModel] }
-            : undefined
-
-        const alibabaModel =
-          provider === 'alibaba'
-            ? (settings.alibabaModels || []).find((m) => m.code === settings.aiModel)
-            : undefined
-        const alibabaEnableThinking =
-          provider === 'alibaba' &&
-          inferAlibabaSupportsDeepThinking(
-            alibabaModel || { code: settings.aiModel, displayName: settings.aiModel }
-          )
-            ? true
-            : undefined
-
-        const deepseekReasoning =
-          provider === 'deepseek' ? getDeepseekReasoning(settings, settings.aiModel) : undefined
-        const nvidiaModel =
-          provider === 'nvidia'
-            ? (settings.nvidiaModels || []).find((m) => m.code === settings.aiModel)
-            : undefined
-        const nvidiaReasoningEffort =
-          provider === 'nvidia'
-            ? (settings.nvidiaReasoningEffort?.[settings.aiModel] ?? 'high')
-            : undefined
-        const nvidiaEnableThinking =
-          provider === 'nvidia'
-            ? nvidiaReasoningEffort !== 'none' &&
-              (nvidiaModel?.supportsDeepThinking ||
-                /(?:reason|thinking|m3|nemotron)/i.test(settings.aiModel))
-              ? true
-              : false
-            : undefined
-
-        const streamResult = await runProviderStream({
-          provider,
-          model: settings.aiModel,
-          settingsOverride: effectiveStreamingSettings,
-          sessionId: targetSessionId!,
-          messageId: streamingMessageId,
-          messages: providerMessages,
-          contextTrace: optimizedContext.trace,
-          startTime,
-          researchMaxRounds,
-          forceWebSearch,
-          signal: abortControllerRef.current?.signal,
-          enableTools: true,
-          syncToStreamingContext: true,
-          toolEventCallbacks: activeAgentRunRef.current
-            ? {
-                requestToolApproval: requestApproval,
-                onToolApprovalStart: (toolCall) => {
-                  if (!activeAgentRunRef.current) return
-                  publishAgentRun(
-                    targetSessionId!,
-                    streamingMessageId,
-                    upsertAgentToolStep(activeAgentRunRef.current, toolCall, {
-                      status: 'awaiting-approval',
-                      approvalState: 'pending',
-                      startedAt: Date.now(),
-                    })
-                  )
-                },
-                onToolApprovalResolved: (toolCall, approved) => {
-                  if (!activeAgentRunRef.current) return
-                  publishAgentRun(
-                    targetSessionId!,
-                    streamingMessageId,
-                    upsertAgentToolStep(activeAgentRunRef.current, toolCall, {
-                      status: approved ? 'pending' : 'rejected',
-                      approvalState: approved ? 'approved' : 'rejected',
-                      completedAt: approved ? undefined : Date.now(),
-                    })
-                  )
-                },
-                onToolStart: (toolCall) => {
-                  if (!activeAgentRunRef.current) return
-                  publishAgentRun(
-                    targetSessionId!,
-                    streamingMessageId,
-                    upsertAgentToolStep(activeAgentRunRef.current, toolCall, {
-                      status: 'running',
-                      approvalState: 'approved',
-                      startedAt: Date.now(),
-                    })
-                  )
-                },
-                onToolComplete: (result) => {
-                  if (!activeAgentRunRef.current) return
-                  publishAgentRun(
-                    targetSessionId!,
-                    streamingMessageId,
-                    completeAgentToolStep(activeAgentRunRef.current, result)
-                  )
-                },
-                onVerificationStart: (strategy) => {
-                  if (!activeAgentRunRef.current) return
-                  publishAgentRun(
-                    targetSessionId!,
-                    streamingMessageId,
-                    upsertAgentVerificationStep(activeAgentRunRef.current, strategy, {
-                      status: 'running',
-                      startedAt: Date.now(),
-                    })
-                  )
-                },
-                onVerificationComplete: (strategy, verified) => {
-                  if (!activeAgentRunRef.current) return
-                  const now = Date.now()
-                  publishAgentRun(
-                    targetSessionId!,
-                    streamingMessageId,
-                    upsertAgentVerificationStep(activeAgentRunRef.current, strategy, {
-                      status: verified ? 'completed' : 'failed',
-                      completedAt: now,
-                      durationMs: Math.max(
-                        0,
-                        now -
-                          (activeAgentRunRef.current.steps.find(
-                            (step) => step.kind === 'verify' && step.status === 'running'
-                          )?.startedAt ?? now)
-                      ),
-                    })
-                  )
-                },
-              }
-            : undefined,
-          reasoning: openRouterReasoning,
-          enableThinking: deepseekReasoning
-            ? deepseekReasoning.enabled && deepseekReasoning.effort !== 'none'
-            : (nvidiaEnableThinking ?? alibabaEnableThinking),
-          reasoningEffort:
-            deepseekReasoning?.enabled && deepseekReasoning.effort !== 'none'
-              ? deepseekReasoning.effort
+        run.transition('streaming')
+        const streamResult = await runProviderStream(
+          buildChatRunRequest({
+            run,
+            settings,
+            sessionId: targetSessionId!,
+            messageId: streamingMessageId,
+            messages: providerMessages,
+            contextTrace: optimizedContext.trace,
+            providerStartTime,
+            researchMaxRounds,
+            forceWebSearch,
+            enableTools: true,
+            syncToStreamingContext: true,
+            toolEventCallbacks: activeAgentRunRef.current
+              ? {
+                  requestToolApproval: requestApproval,
+                  onToolApprovalStart: (toolCall) => {
+                    if (!run.isFinalized && run.phase === 'streaming')
+                      run.transition('awaiting_tool')
+                    if (!activeAgentRunRef.current) return
+                    publishAgentRun(
+                      targetSessionId!,
+                      streamingMessageId,
+                      upsertAgentToolStep(activeAgentRunRef.current, toolCall, {
+                        status: 'awaiting-approval',
+                        approvalState: 'pending',
+                        startedAt: Date.now(),
+                      })
+                    )
+                  },
+                  onToolApprovalResolved: (toolCall, approved) => {
+                    if (!run.isFinalized && run.phase === 'awaiting_tool' && !approved) {
+                      run.transition('streaming')
+                    }
+                    if (!activeAgentRunRef.current) return
+                    publishAgentRun(
+                      targetSessionId!,
+                      streamingMessageId,
+                      upsertAgentToolStep(activeAgentRunRef.current, toolCall, {
+                        status: approved ? 'pending' : 'rejected',
+                        approvalState: approved ? 'approved' : 'rejected',
+                        completedAt: approved ? undefined : Date.now(),
+                      })
+                    )
+                  },
+                  onToolStart: (toolCall) => {
+                    if (!run.isFinalized && run.phase !== 'executing_tools') {
+                      run.transition('executing_tools')
+                    }
+                    if (!activeAgentRunRef.current) return
+                    publishAgentRun(
+                      targetSessionId!,
+                      streamingMessageId,
+                      upsertAgentToolStep(activeAgentRunRef.current, toolCall, {
+                        status: 'running',
+                        approvalState: 'approved',
+                        startedAt: Date.now(),
+                      })
+                    )
+                  },
+                  onToolComplete: (result) => {
+                    if (!run.isFinalized && run.phase === 'executing_tools') {
+                      run.transition('streaming')
+                    }
+                    if (!activeAgentRunRef.current) return
+                    publishAgentRun(
+                      targetSessionId!,
+                      streamingMessageId,
+                      completeAgentToolStep(activeAgentRunRef.current, result)
+                    )
+                  },
+                  onVerificationStart: (strategy) => {
+                    if (!activeAgentRunRef.current) return
+                    publishAgentRun(
+                      targetSessionId!,
+                      streamingMessageId,
+                      upsertAgentVerificationStep(activeAgentRunRef.current, strategy, {
+                        status: 'running',
+                        startedAt: Date.now(),
+                      })
+                    )
+                  },
+                  onVerificationComplete: (strategy, verified) => {
+                    if (!activeAgentRunRef.current) return
+                    const now = Date.now()
+                    publishAgentRun(
+                      targetSessionId!,
+                      streamingMessageId,
+                      upsertAgentVerificationStep(activeAgentRunRef.current, strategy, {
+                        status: verified ? 'completed' : 'failed',
+                        completedAt: now,
+                        durationMs: Math.max(
+                          0,
+                          now -
+                            (activeAgentRunRef.current.steps.find(
+                              (step) => step.kind === 'verify' && step.status === 'running'
+                            )?.startedAt ?? now)
+                        ),
+                      })
+                    )
+                  },
+                }
               : undefined,
-        })
+          })
+        )
 
         // Commit streaming content to the session
         let assistantTextForMemory = ''
-        if (streamingMessageRef.current && activeAgentRunRef.current) {
-          publishAgentRun(
-            streamingMessageRef.current.sessionId,
-            streamingMessageRef.current.messageId,
-            finishAgentRun(activeAgentRunRef.current, 'completed')
-          )
-        }
-        if (streamingMessageRef.current) {
-          const finalState = completeStreaming()
-          if (finalState.sessionId && finalState.messageId) {
-            updateStreamingMessage(
-              finalState.sessionId,
-              finalState.messageId,
-              buildCommittedStreamingUpdates(finalState, streamResult),
-              { persist: true }
-            )
-          }
-          assistantTextForMemory = typeof finalState.content === 'string' ? finalState.content : ''
-          streamingMessageRef.current = null
-          activeAgentRunRef.current = undefined
-        }
-
-        setIsLoading(false)
-        clearToolState()
-        options.onStreamEnd?.()
+        finalizeChatRun(
+          run,
+          'completed',
+          () => {
+            if (streamingMessageRef.current && activeAgentRunRef.current) {
+              publishAgentRun(
+                streamingMessageRef.current.sessionId,
+                streamingMessageRef.current.messageId,
+                finishAgentRun(activeAgentRunRef.current, 'completed')
+              )
+            }
+            if (streamingMessageRef.current) {
+              const finalState = completeStreaming()
+              if (finalState.sessionId && finalState.messageId) {
+                updateStreamingMessage(
+                  finalState.sessionId,
+                  finalState.messageId,
+                  buildCommittedStreamingUpdates(finalState, streamResult),
+                  { persist: true }
+                )
+              }
+              assistantTextForMemory =
+                typeof finalState.content === 'string' ? finalState.content : ''
+              streamingMessageRef.current = null
+              activeAgentRunRef.current = undefined
+            }
+          },
+          () => finishRunUi(run)
+        )
 
         // Dreaming: fire-and-forget background memory extraction for this turn.
         // Gated by the Memory skill inside runMemoryExtraction; best-effort and
@@ -819,26 +784,12 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         }
       } catch (error: unknown) {
         // Silently handle abort (user clicked stop)
-        if (
-          error instanceof Error &&
-          (error.name === 'AbortError' || abortControllerRef.current === null)
-        ) {
+        if (isChatRunAbort(error, run)) {
           // Stream was aborted by user - loading state already cleared by stopStreaming
           return
         }
 
         // Cancel isolated streaming on error
-        if (streamingMessageRef.current) {
-          activeAgentRunRef.current = undefined
-          deleteMessageFromSession(
-            streamingMessageRef.current.sessionId,
-            streamingMessageRef.current.messageId
-          )
-          cancelStreaming()
-          streamingMessageRef.current = null
-        }
-
-        setIsLoading(false)
         const formattedError = formatProviderStreamError(
           error,
           normalizeActiveProviderId(settings.modelProvider),
@@ -848,9 +799,23 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         const errorMsg = formattedError.message
         showToast(errorMsg, formattedError.tone)
 
-        addMessageToSession(targetSessionId!, { role: 'assistant', content: errorMsg })
-        clearToolState()
-        options.onStreamEnd?.()
+        finalizeChatRun(
+          run,
+          'failed',
+          () => {
+            if (streamingMessageRef.current) {
+              activeAgentRunRef.current = undefined
+              deleteMessageFromSession(
+                streamingMessageRef.current.sessionId,
+                streamingMessageRef.current.messageId
+              )
+              cancelStreaming()
+              streamingMessageRef.current = null
+            }
+            addMessageToSession(targetSessionId!, { role: 'assistant', content: errorMsg })
+          },
+          () => finishRunUi(run)
+        )
       }
     },
     [
@@ -879,6 +844,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       buildFinalStreamingUpdates,
       publishAgentRun,
       requestApproval,
+      finishRunUi,
     ]
   )
 
@@ -909,31 +875,35 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         }
       }
 
-      const versions = message.responseVersions || []
-      versions.push({
-        id: message.id,
-        content: message.content,
-        timestamp: message.timestamp,
-        instruction: message.instruction,
-        model: message.model,
-      })
+      const versions = buildRegenerationResponseVersions(message)
 
+      const run = new ChatRunController('regenerate')
+      activeRunRef.current = run
       clearToolState()
       setIsLoading(true)
-      abortControllerRef.current = new AbortController()
 
       try {
         const session = sessions.find((s) => s.id === currentSessionId)
         if (!session) {
           showToast('Session not found', 'error')
-          setIsLoading(false)
+          finalizeChatRun(
+            run,
+            'failed',
+            () => undefined,
+            () => finishRunUi(run)
+          )
           return
         }
 
         const messageIndex = session.messages.findIndex((m) => m.id === message.id)
         if (messageIndex <= 0) {
           showToast('Cannot regenerate - no user message found', 'error')
-          setIsLoading(false)
+          finalizeChatRun(
+            run,
+            'failed',
+            () => undefined,
+            () => finishRunUi(run)
+          )
           return
         }
 
@@ -955,39 +925,29 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
             'This response was generated from an image prompt. Switch back to a vision-capable model to regenerate it.',
             'warning'
           )
-          setIsLoading(false)
+          finalizeChatRun(
+            run,
+            'failed',
+            () => undefined,
+            () => finishRunUi(run)
+          )
           return
         }
 
         const effectiveProvider = normalizeActiveProviderId(effectiveSettings.modelProvider)
-        const effectiveRegenerationSettings = {
-            aiModel: effectiveSettings.aiModel,
-            modelProvider: effectiveSettings.modelProvider,
-            temperature: effectiveSettings.temperature,
-            maxTokens: effectiveSettings.maxTokens,
-            streamResponses: effectiveSettings.streamResponses,
-            webSearchPrompt: effectiveSettings.webSearchPrompt,
-            ollamaUrl: effectiveSettings.ollamaUrl,
-            openRouterDebug: effectiveSettings.openRouterDebug,
-            openRouterApiKey: effectiveSettings.openRouterApiKey,
-            configuredModels: effectiveSettings.configuredModels,
-            alibabaModels: effectiveSettings.alibabaModels,
-            alibabaRegion: effectiveSettings.alibabaRegion,
-            groqApiKey: effectiveSettings.groqApiKey,
-            alibabaApiKey: effectiveSettings.alibabaApiKey,
-            deepseekApiKey: effectiveSettings.deepseekApiKey,
-            opencodeGoApiKey: effectiveSettings.opencodeGoApiKey,
-            fireworksApiKey: effectiveSettings.fireworksApiKey,
-            nvidiaApiKey: effectiveSettings.nvidiaApiKey,
-            nvidiaModels: effectiveSettings.nvidiaModels,
-          }
+        const effectiveRegenerationSettings = buildStreamingSettings(effectiveSettings)
         const credentialError = getProviderCredentialError(
           effectiveRegenerationSettings,
           effectiveProvider
         )
         if (credentialError) {
           showToast(credentialError, 'error')
-          setIsLoading(false)
+          finalizeChatRun(
+            run,
+            'failed',
+            () => undefined,
+            () => finishRunUi(run)
+          )
           return
         }
 
@@ -1026,70 +986,6 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           files: userMessage.files as AttachedFile[] | undefined,
         }
 
-        const openRouterModel =
-          effectiveSettings.modelProvider === 'openrouter'
-            ? effectiveSettings.configuredModels?.find(
-                (model) => model.code === effectiveSettings.aiModel
-              )
-            : undefined
-        const openRouterModalities = openRouterModel?.supportsImageGeneration
-          ? openRouterModel.outputModalities?.filter(
-              (modality): modality is 'text' | 'image' =>
-                modality === 'text' || modality === 'image'
-            ) || ['image', 'text']
-          : undefined
-        const openRouterReasoning = inferOpenRouterSupportsDeepThinking(
-          openRouterModel || {
-            code: effectiveSettings.aiModel,
-            displayName: effectiveSettings.aiModel,
-          }
-        )
-          ? {
-              enabled: true,
-              effort: effectiveSettings.openRouterReasoningEffort?.[effectiveSettings.aiModel],
-            }
-          : undefined
-
-        const alibabaModelForRegen =
-          effectiveSettings.modelProvider === 'alibaba'
-            ? (effectiveSettings.alibabaModels || []).find(
-                (m) => m.code === effectiveSettings.aiModel
-              )
-            : undefined
-        const alibabaEnableThinkingForRegen =
-          effectiveSettings.modelProvider === 'alibaba' &&
-          inferAlibabaSupportsDeepThinking(
-            alibabaModelForRegen || {
-              code: effectiveSettings.aiModel,
-              displayName: effectiveSettings.aiModel,
-            }
-          )
-            ? true
-            : undefined
-
-        const deepseekReasoningForRegen =
-          effectiveSettings.modelProvider === 'deepseek'
-            ? getDeepseekReasoning(effectiveSettings, effectiveSettings.aiModel)
-            : undefined
-        const nvidiaModelForRegen =
-          effectiveSettings.modelProvider === 'nvidia'
-            ? (effectiveSettings.nvidiaModels || []).find(
-                (m) => m.code === effectiveSettings.aiModel
-              )
-            : undefined
-        const nvidiaReasoningEffortForRegen =
-          effectiveSettings.modelProvider === 'nvidia'
-            ? (effectiveSettings.nvidiaReasoningEffort?.[effectiveSettings.aiModel] ?? 'high')
-            : undefined
-        const nvidiaEnableThinkingForRegen =
-          effectiveSettings.modelProvider === 'nvidia'
-            ? nvidiaReasoningEffortForRegen !== 'none' &&
-              (nvidiaModelForRegen?.supportsDeepThinking ||
-                /(?:reason|thinking|m3|nemotron)/i.test(effectiveSettings.aiModel))
-              ? true
-              : false
-            : undefined
-
         const optimizedContext = buildOptimizedContextWithTrace(
           conversationHistory,
           { ...outboundUserMessage, id: userMessage.id },
@@ -1102,62 +998,42 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         )
 
         try {
-          const regenerationResult = await runProviderStream({
-            provider: effectiveProvider,
-            model: effectiveSettings.aiModel,
-            settingsOverride: effectiveRegenerationSettings,
-            sessionId: currentSessionId,
-            messageId: streamingMessageId,
-            messages: apiMessages,
-            contextTrace: optimizedContext.trace,
-            startTime: performance.now(),
-            researchMaxRounds: 0,
-            forceWebSearch: false,
-            signal: abortControllerRef.current?.signal,
-            enableTools: false,
-            syncToStreamingContext: false,
-            modalities: openRouterModalities,
-            reasoning: openRouterReasoning,
-            enableThinking: deepseekReasoningForRegen
-              ? deepseekReasoningForRegen.enabled && deepseekReasoningForRegen.effort !== 'none'
-              : (nvidiaEnableThinkingForRegen ?? alibabaEnableThinkingForRegen),
-            reasoningEffort:
-              deepseekReasoningForRegen?.enabled && deepseekReasoningForRegen.effort !== 'none'
-                ? deepseekReasoningForRegen.effort
-                : undefined,
-          })
-
-          updateStreamingMessage(
-            currentSessionId,
-            streamingMessageId,
-            {
-              content: regenerationResult.content,
-              thinkingBlocks: regenerationResult.thinkingBlocks,
-              files: regenerationResult.files,
-              usage: regenerationResult.usage,
-              latency: regenerationResult.latency,
-              model: regenerationResult.model,
-            },
-            { persist: true }
+          run.transition('streaming')
+          const regenerationResult = await runProviderStream(
+            buildChatRunRequest({
+              run,
+              settings: effectiveSettings,
+              sessionId: currentSessionId,
+              messageId: streamingMessageId,
+              messages: apiMessages,
+              contextTrace: optimizedContext.trace,
+              providerStartTime: performance.now(),
+              researchMaxRounds: 0,
+              forceWebSearch: false,
+              enableTools: false,
+              syncToStreamingContext: false,
+              includeImageModalities: true,
+            })
           )
-          setIsLoading(false)
+
+          finalizeChatRun(
+            run,
+            'completed',
+            () => {
+              updateStreamingMessage(
+                currentSessionId,
+                streamingMessageId,
+                buildChatRunResultUpdates(regenerationResult),
+                { persist: true }
+              )
+            },
+            () => finishRunUi(run)
+          )
         } catch (streamError: unknown) {
           // Silently handle abort (user clicked stop)
-          if (
-            streamError instanceof Error &&
-            (streamError.name === 'AbortError' || abortControllerRef.current === null)
-          ) {
+          if (isChatRunAbort(streamError, run)) {
             return
           }
-          deleteMessageFromSession(currentSessionId, streamingMessageId)
-          addMessageToSession(currentSessionId, {
-            role: 'assistant',
-            content: message.content,
-            model: message.model,
-            thinking: message.thinking,
-            responseVersions: message.responseVersions,
-            currentVersionIndex: message.currentVersionIndex,
-          })
           const formattedError = formatProviderStreamError(
             streamError,
             effectiveProvider,
@@ -1165,21 +1041,38 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           )
           trackRendererError('provider', formattedError.tone)
           showToast(formattedError.message, formattedError.tone)
-          setIsLoading(false)
+          finalizeChatRun(
+            run,
+            'failed',
+            () => {
+              deleteMessageFromSession(currentSessionId, streamingMessageId)
+              addMessageToSession(currentSessionId, {
+                role: 'assistant',
+                content: message.content,
+                model: message.model,
+                thinking: message.thinking,
+                responseVersions: message.responseVersions,
+                currentVersionIndex: message.currentVersionIndex,
+              })
+            },
+            () => finishRunUi(run)
+          )
         }
       } catch (error: unknown) {
         // Silently handle abort (user clicked stop)
-        if (
-          error instanceof Error &&
-          (error.name === 'AbortError' || abortControllerRef.current === null)
-        ) {
+        if (isChatRunAbort(error, run)) {
           return
         }
         const effectiveProvider = normalizeActiveProviderId(settings.modelProvider)
         const formattedError = formatProviderStreamError(error, effectiveProvider, settings)
         trackRendererError('provider', formattedError.tone)
         showToast(formattedError.message, formattedError.tone)
-        setIsLoading(false)
+        finalizeChatRun(
+          run,
+          'failed',
+          () => undefined,
+          () => finishRunUi(run)
+        )
       }
     },
     [
@@ -1195,6 +1088,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       options,
       updateSettings,
       runProviderStream,
+      finishRunUi,
     ]
   )
 

@@ -16,6 +16,7 @@ import type {
 import type { McpServerInputPayload } from '../mcp/draft'
 import type { McpAgentAddApproveResult, McpAgentAddReview } from '../mcp/addRequestTypes'
 import type { ToolResult } from '../tools/types'
+import type { BuiltinMainToolName } from '../tools/builtinMainToolContract'
 import type { ProviderRuntimeStreamRequest } from '../providers/providerRuntimeTypes'
 import type { ProviderStreamEvent, SerializedProviderError } from '@zura/provider-core'
 import type {
@@ -54,11 +55,23 @@ export interface AgentApprovalOverlayRequest {
   toolName: string
   kind: string
   arguments: Array<{ label: string; value: string }>
+  /** Exact validated model arguments. Main binds any approval token to this payload. */
+  toolArguments: Record<string, unknown>
 }
 
 export interface AgentApprovalOverlayDecision {
   approved: boolean
   trusted?: boolean
+  /** Main-owned, one-use authorization bound to the sender, tool, and exact arguments. */
+  approvalToken?: string
+}
+
+export interface BuiltinToolExecutionContext {
+  approvalToken?: string
+  agentSkills?: {
+    projectRoot?: string
+    disabledSkillNames?: string[]
+  }
 }
 
 /**
@@ -666,7 +679,11 @@ export interface IpcInvokeArgsMap {
   'chat-links:peek-pending': []
   'secure-storage:set': [key: SecureStorageKey, value: string]
   'secure-storage:get-presence': []
-  'execute-tool': [toolName: string, args: Record<string, unknown>]
+  'execute-tool': [
+    toolName: BuiltinMainToolName,
+    args: Record<string, unknown>,
+    executionContext?: BuiltinToolExecutionContext,
+  ]
   'window-resize': [newBounds: WindowBounds]
   'context-menu:show': [request: NativeContextMenuRequest]
   'native-dialog:confirm-delete-chat': []
@@ -757,12 +774,8 @@ export interface IpcOnArgsMap {
 export interface IElectronAPI {
   on: <TChannel extends IpcOnChannel>(
     channel: TChannel,
-    listener: (event: unknown, ...args: IpcOnArgsMap[TChannel]) => void
-  ) => void
-  off: <TChannel extends IpcOnChannel>(
-    channel: TChannel,
-    listener: (event: unknown, ...args: IpcOnArgsMap[TChannel]) => void
-  ) => void
+    listener: (...args: IpcOnArgsMap[TChannel]) => void
+  ) => () => void
   send: <TChannel extends IpcSendChannel>(
     channel: TChannel,
     ...args: IpcSendArgsMap[TChannel]

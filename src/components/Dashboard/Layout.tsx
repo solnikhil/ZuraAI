@@ -53,7 +53,7 @@ export default function DashboardLayout() {
 
   useEffect(() => {
     if (!window.ipcRenderer?.on) return
-    const listener = (_event: unknown, section: unknown) => {
+    const listener = (section: string) => {
       if (typeof section !== 'string') return
       const resolved = resolveSettingsNavigation(section)
       setActiveSettingsSection(resolved.section)
@@ -67,10 +67,7 @@ export default function DashboardLayout() {
       }
       setDashboardView('settings')
     }
-    window.ipcRenderer.on('settings:navigate', listener)
-    return () => {
-      window.ipcRenderer.off('settings:navigate', listener)
-    }
+    return window.ipcRenderer.on('settings:navigate', listener)
   }, [setActiveSettingsSection, setDashboardView, setSettingsSectionParams])
 
   return (

@@ -1,0 +1,16 @@
+{
+  "input": {
+    "settingsSchemaVersion": 2,
+    "assistantMode": "agent",
+    "chatSelectedOverlayStyle": "glow",
+    "themeAccent": "#ff0000",
+    "favoriteModels": ["old/model"],
+    "themeContrast": 91
+  },
+  "expected": {
+    "settingsSchemaVersion": 3,
+    "assistantMode": "agent",
+    "chatSelectedOverlayStyle": "slack",
+    "themeContrast": 91
+  }
+}

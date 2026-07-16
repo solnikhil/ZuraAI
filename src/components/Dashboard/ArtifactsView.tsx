@@ -110,11 +110,11 @@ export default function ArtifactsView(): React.ReactElement {
       loadMetadata()
     }
 
-    window.ipcRenderer.on('chat-store:changed', handleChanged)
+    const unsubscribe = window.ipcRenderer.on('chat-store:changed', handleChanged)
 
     return () => {
       cancelled = true
-      window.ipcRenderer?.off('chat-store:changed', handleChanged)
+      unsubscribe()
     }
   }, [sessions])
 

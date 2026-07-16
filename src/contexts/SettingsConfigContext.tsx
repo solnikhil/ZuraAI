@@ -14,14 +14,10 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react'
 import {
-  checkOllamaStatus,
-  listOllamaModels,
-  enrichOllamaModelsWithContext,
-} from '../services/ollama'
-import {
-  loadApiKeyPresenceFromSecureStorage,
-  migrateApiKeysFromLocalStorage,
-} from '../utils/secureApiKeys'
+  discoverStartupOllamaModels,
+  loadSecureSettingPresence,
+  syncReminderExtensionState,
+} from './settingsBootstrap'
 import { defaultSystemPrompt } from '../prompts/defaultSystemPrompt'
 import { defaultWebSearchPrompt } from '../prompts/defaultWebSearchPrompt'
 import { defaultTitleGenerationPrompt } from '../prompts/defaultTitleGenerationPrompt'
@@ -183,12 +179,6 @@ export interface SettingsConfig {
   extensions: ExtensionsSettings
   skills: SkillsSettings
   agentSkills: AgentSkillsSettings
-  /** When true, code execution runs without the approval dialog */
-  codeExecutionAutoApprove: boolean
-  /** When true, terminal (system_shell) commands run without the approval dialog */
-  terminalAutoApprove: boolean
-  /** When true, computer use actions run without the approval dialog */
-  computerUseAutoApprove: boolean
 
   // Title generation
   titleModel: string
@@ -423,9 +413,6 @@ export const defaultSettingsConfig: SettingsConfig = {
     catalog: [],
   },
 
-  codeExecutionAutoApprove: false,
-  terminalAutoApprove: false,
-  computerUseAutoApprove: false,
   // Title generation
   titleModel: '',
   titleGenerationPrompt: defaultTitleGenerationPrompt,
@@ -505,12 +492,10 @@ export function SettingsConfigProvider({
   useEffect(() => {
     const loadSecureKeys = async () => {
       try {
-        // Migrate existing keys from localStorage if needed
-        await migrateApiKeysFromLocalStorage(
-          settingsConfig as unknown as Record<string, string | undefined>
+        const secureKeys = await loadSecureSettingPresence(
+          settingsConfig as unknown as Record<string, string | undefined>,
+          SECURE_SETTINGS_KEY_NAMES
         )
-
-        const secureKeys = await loadApiKeyPresenceFromSecureStorage()
         const hasSecureKeys = SECURE_SETTINGS_KEY_NAMES.some((key) => Boolean(secureKeys[key]))
 
         if (hasSecureKeys) {
@@ -536,23 +521,9 @@ export function SettingsConfigProvider({
   useEffect(() => {
     const fetchOllamaModels = async () => {
       try {
-        const isConnected = await checkOllamaStatus(settingsConfig.ollamaUrl)
-        if (isConnected) {
-          const models = await listOllamaModels(settingsConfig.ollamaUrl)
-          if (models.length > 0) {
-            const formatted = models.map((m) => ({
-              code: m.name,
-              displayName: `${m.name} (${m.details.parameter_size})`,
-              ...('maxContext' in m && typeof m.maxContext === 'number'
-                ? { maxContext: m.maxContext }
-                : {}),
-            }))
-            const enriched = await enrichOllamaModelsWithContext(
-              settingsConfig.ollamaUrl,
-              formatted
-            )
-            setSettingsConfig((prev) => ({ ...prev, ollamaModels: enriched }))
-          }
+        const models = await discoverStartupOllamaModels(settingsConfig.ollamaUrl)
+        if (models.length > 0) {
+          setSettingsConfig((prev) => ({ ...prev, ollamaModels: models }))
         }
       } catch {
         /* Ollama not available */
@@ -567,13 +538,11 @@ export function SettingsConfigProvider({
   }, [settingsConfig, onSettingsChange])
 
   useEffect(() => {
-    void window.scheduledTasks
-      ?.setExtensionEnabled(
-        isSkillEnabled(settingsConfig.extensions ?? settingsConfig.skills, 'reminders')
-      )
-      .catch((error) => {
-        console.error('[SettingsConfigContext] Failed to sync Reminders extension state:', error)
-      })
+    void syncReminderExtensionState(
+      isSkillEnabled(settingsConfig.extensions ?? settingsConfig.skills, 'reminders')
+    ).catch((error) => {
+      console.error('[SettingsConfigContext] Failed to sync Reminders extension state:', error)
+    })
   }, [settingsConfig.extensions, settingsConfig.skills])
 
   const updateSettingsConfig = useCallback((newSettings: Partial<SettingsConfig>) => {

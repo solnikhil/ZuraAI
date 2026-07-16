@@ -43,9 +43,6 @@ describe('SkillsSection', () => {
     render(
       <SkillsSection
         skills={defaultSkillsSettings}
-        codeExecutionAutoApprove={false}
-        terminalAutoApprove={false}
-        computerUseAutoApprove={false}
         onActiveExtensionChange={vi.fn()}
         onChange={vi.fn()}
       />
@@ -65,9 +62,6 @@ describe('SkillsSection', () => {
     render(
       <SkillsSection
         skills={defaultSkillsSettings}
-        codeExecutionAutoApprove={false}
-        terminalAutoApprove={false}
-        computerUseAutoApprove={false}
         onActiveExtensionChange={vi.fn()}
         onChange={onChange}
       />
@@ -92,9 +86,6 @@ describe('SkillsSection', () => {
       <SkillsSection
         skills={defaultSkillsSettings}
         settings={defaultSettingsConfig}
-        codeExecutionAutoApprove={false}
-        terminalAutoApprove={false}
-        computerUseAutoApprove={false}
         emailNotifications={defaultSettingsConfig.emailNotifications}
         onActiveExtensionChange={onActiveExtensionChange}
         onChange={vi.fn()}
@@ -112,9 +103,6 @@ describe('SkillsSection', () => {
       <SkillsSection
         skills={defaultSkillsSettings}
         settings={defaultSettingsConfig}
-        codeExecutionAutoApprove={false}
-        terminalAutoApprove={false}
-        computerUseAutoApprove={false}
         emailNotifications={defaultSettingsConfig.emailNotifications}
         onActiveExtensionChange={onActiveExtensionChange}
         onChange={vi.fn()}
@@ -131,9 +119,6 @@ describe('SkillsSection', () => {
       <SkillsSection
         skills={defaultSkillsSettings}
         settings={defaultSettingsConfig}
-        codeExecutionAutoApprove={false}
-        terminalAutoApprove={false}
-        computerUseAutoApprove={false}
         emailNotifications={defaultSettingsConfig.emailNotifications}
         activeExtension="memory"
         onActiveExtensionChange={vi.fn()}
@@ -151,9 +136,6 @@ describe('SkillsSection', () => {
     render(
       <SkillsSection
         skills={defaultSkillsSettings}
-        codeExecutionAutoApprove={false}
-        terminalAutoApprove={false}
-        computerUseAutoApprove={false}
         onActiveExtensionChange={vi.fn()}
         onChange={onChange}
       />
@@ -176,9 +158,6 @@ describe('SkillsSection', () => {
     render(
       <SkillsSection
         skills={defaultSkillsSettings}
-        codeExecutionAutoApprove={false}
-        terminalAutoApprove={false}
-        computerUseAutoApprove={false}
         onActiveExtensionChange={vi.fn()}
         onChange={vi.fn()}
       />
@@ -193,9 +172,6 @@ describe('SkillsSection', () => {
       <SkillsSection
         skills={defaultSkillsSettings}
         activeExtension="memory"
-        codeExecutionAutoApprove={false}
-        terminalAutoApprove={false}
-        computerUseAutoApprove={false}
         onActiveExtensionChange={onActiveExtensionChange}
         onChange={vi.fn()}
       />

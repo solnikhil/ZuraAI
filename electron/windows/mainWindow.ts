@@ -5,6 +5,7 @@ import { log } from '../startup/logger'
 import { resolveAppIconPath } from '../windowIcon'
 import { trackAppCrash, trackAppError } from '../analytics'
 import { installExternalNavigationGuards } from './externalNavigation'
+import { MAIN_WINDOW_MIN_HEIGHT, MAIN_WINDOW_MIN_WIDTH } from './windowBounds'
 
 const windowLog = log.withTag('window')
 
@@ -114,8 +115,8 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
   mainWindow = new BrowserWindow({
     width: options?.width ?? 1200,
     height: options?.height ?? 800,
-    minWidth: 820,
-    minHeight: 600,
+    minWidth: MAIN_WINDOW_MIN_WIDTH,
+    minHeight: MAIN_WINDOW_MIN_HEIGHT,
     title: 'ZuraAI',
     icon: resolveAppIconPath(),
     ...(isWindows

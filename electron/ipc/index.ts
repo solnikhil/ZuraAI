@@ -82,9 +82,23 @@ const IPC_DOMAIN_HANDLERS: readonly IpcDomainHandlers[] = [
  * Keeping registration centralized makes it easier to audit which renderer
  * requests are actually handled by the main process.
  */
-export function registerAllHandlers(): void {
-  for (const domain of IPC_DOMAIN_HANDLERS) {
-    domain.register()
+export function registerAllHandlers(): () => void {
+  const registered: IpcDomainHandlers[] = []
+  try {
+    for (const domain of IPC_DOMAIN_HANDLERS) {
+      domain.register()
+      registered.push(domain)
+    }
+  } catch (error) {
+    for (const domain of registered.reverse()) domain.unregister()
+    throw error
+  }
+  return unregisterAllHandlers
+}
+
+export function unregisterAllHandlers(): void {
+  for (const domain of [...IPC_DOMAIN_HANDLERS].reverse()) {
+    domain.unregister()
   }
 }
 

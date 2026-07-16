@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { ToolExecutionMetadata } from '../types'
+import { isSkippedBuiltinToolResult, type ToolExecutionMetadata } from '../types'
 import {
   ChevronDown,
   ChevronUp,
@@ -13,7 +13,11 @@ import {
   XCircle,
 } from '../../components/icons'
 import { getWebToolLabel, inferWebToolModeFromResultData } from './webToolDisplay'
-import { getToolPresentation, stringifyToolValue } from './toolPresentation'
+import {
+  normalizeToolPresentation,
+  stringifyToolValue,
+  type ToolPresentationViewModel,
+} from './toolPresentation'
 import { useOptionalMcp } from '../../mcp/McpContext'
 import type { McpAgentAddApproveResult, McpAgentAddReview } from '../../mcp/addRequestTypes'
 
@@ -101,18 +105,14 @@ function ToolScreenshotImage({
 }) {
   const [loadedSrc, setLoadedSrc] = useState<string | null>(() => {
     if (!inlineBase64) return null
-    return inlineBase64.startsWith('data:')
-      ? inlineBase64
-      : `data:image/png;base64,${inlineBase64}`
+    return inlineBase64.startsWith('data:') ? inlineBase64 : `data:image/png;base64,${inlineBase64}`
   })
   const [loadError, setLoadError] = useState(false)
 
   useEffect(() => {
     if (inlineBase64) {
       setLoadedSrc(
-        inlineBase64.startsWith('data:')
-          ? inlineBase64
-          : `data:image/png;base64,${inlineBase64}`
+        inlineBase64.startsWith('data:') ? inlineBase64 : `data:image/png;base64,${inlineBase64}`
       )
       return
     }
@@ -184,14 +184,19 @@ export default function ToolResultDisplay({
   const [mcpAddError, setMcpAddError] = useState<string | null>(null)
   const mcp = useOptionalMcp()
 
-  const toolPresentation = getToolPresentation(toolName)
-  const displayName = toolPresentation.toolLabel
-  const mcpMetadata = metadata?.origin === 'mcp' ? metadata : null
-  const durationMs = mcpMetadata?.durationMs ?? executionTime
+  const presentation = normalizeToolPresentation({
+    toolName,
+    result,
+    error,
+    metadata,
+    executionTime,
+  })
+  const displayName = presentation.toolLabel
+  const mcpMetadata = presentation.mcpMetadata
+  const durationMs = presentation.durationMs
 
   if (toolName === 'web_search') {
-    const skippedReason = (metadata as any)?.skippedReason
-    if (skippedReason === 'budget') {
+    if (isSkippedBuiltinToolResult(metadata)) {
       // Render budget exhaustion as a normal-ish tool result (not a scary "Tool Error")
       // so the user sees the attempt + outcome exactly like other web_search calls.
       return (
@@ -219,9 +224,7 @@ export default function ToolResultDisplay({
             <span>Tool Error: {displayName}</span>
           </div>
           <div className="tool-result-error-message">{error}</div>
-          {mcpMetadata && (
-            <div className="tool-result-error-message">{formatMcpAuditLine(mcpMetadata)}</div>
-          )}
+          {mcpMetadata && <div className="tool-result-error-message">{presentation.auditLine}</div>}
         </div>
       )
     }
@@ -704,10 +707,9 @@ export default function ToolResultDisplay({
     }
   }
 
-  const status = getGenericToolStatus(mcpMetadata, error)
-  const resultBody = stringifyToolValue(result)
-  const detailBody = error || resultBody
-  const outputItems = extractResultItems(result)
+  const status = presentation.status
+  const detailBody = presentation.outputText
+  const outputItems = presentation.outputItems
   const hasStructuredOutput = outputItems.length > 0
 
   return (
@@ -730,13 +732,7 @@ export default function ToolResultDisplay({
           </span>
           <div className="tool-result-title-group">
             <span className="tool-result-title">{displayName}</span>
-            <span className="tool-result-subtitle">
-              {mcpMetadata
-                ? `${mcpMetadata.serverName} MCP`
-                : toolPresentation.isMcp && toolPresentation.serverLabel
-                  ? `${toolPresentation.serverLabel} MCP`
-                  : 'Tool'}
-            </span>
+            <span className="tool-result-subtitle">{presentation.subtitleLabel}</span>
           </div>
         </div>
         <div className="tool-result-badge-row">
@@ -770,12 +766,7 @@ export default function ToolResultDisplay({
             <pre className="tool-result-json">{detailBody}</pre>
           )}
 
-          <McpDetailsSection
-            metadata={mcpMetadata}
-            toolArguments={toolArguments}
-            status={status}
-            durationMs={durationMs}
-          />
+          <McpDetailsSection presentation={presentation} toolArguments={toolArguments} />
         </div>
       )}
     </div>
@@ -841,227 +832,15 @@ function toErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
-function getGenericToolStatus(
-  metadata: Extract<ToolExecutionMetadata, { origin: 'mcp' }> | null,
-  error?: string
-): { label: string; tone: 'success' | 'warning' | 'error' | 'neutral'; description?: string } {
-  const errorText = error?.trim() || ''
-
-  if (!metadata) {
-    return errorText
-      ? { label: 'Error', tone: 'error', description: classifyGenericError(errorText) }
-      : { label: 'Completed', tone: 'success' }
-  }
-
-  if (metadata.approvalState === 'rejected' || metadata.outcome === 'rejected') {
-    return {
-      label: 'Rejected',
-      tone: 'warning',
-      description: 'The tool run was blocked by the current approval policy.',
-    }
-  }
-
-  if (metadata.approvalState === 'timed_out' || metadata.outcome === 'timed_out') {
-    return {
-      label: 'Timed Out',
-      tone: 'warning',
-      description: 'The tool run expired before approval or execution completed.',
-    }
-  }
-
-  if (metadata.approvalState === 'cancelled' || metadata.outcome === 'cancelled') {
-    return {
-      label: isDisconnectError(errorText) ? 'Disconnected' : 'Cancelled',
-      tone: 'warning',
-      description: isDisconnectError(errorText)
-        ? 'The MCP server disconnected before the tool could finish.'
-        : 'The tool run was cancelled before completion.',
-    }
-  }
-
-  switch (metadata.outcome) {
-    case 'success':
-      return { label: 'Completed', tone: 'success' }
-    default:
-      if (isDisconnectError(errorText)) {
-        return {
-          label: 'Disconnected',
-          tone: 'error',
-          description: 'The MCP server connection dropped during execution.',
-        }
-      }
-      if (isConnectionError(errorText)) {
-        return {
-          label: 'Connection Error',
-          tone: 'error',
-          description: 'The MCP tool could not reach its backing server or transport.',
-        }
-      }
-      return {
-        label: 'Failed',
-        tone: 'error',
-        description: errorText ? classifyGenericError(errorText) : 'The MCP tool execution failed.',
-      }
-  }
-}
-
-function isDisconnectError(error: string): boolean {
-  return /disconnect|disconnected|closed|terminated|broken pipe|eof/i.test(error)
-}
-
-function isConnectionError(error: string): boolean {
-  return /connect|connection|unreachable|refused|not connected|transport|network/i.test(error)
-}
-
-function classifyGenericError(error: string): string {
-  if (isDisconnectError(error)) {
-    return 'The MCP server disconnected before the tool completed.'
-  }
-
-  if (isConnectionError(error)) {
-    return 'The MCP server could not be reached for this tool call.'
-  }
-
-  return 'The tool execution returned an error.'
-}
-
-function formatApprovalLabel(
-  approvalState: Extract<ToolExecutionMetadata, { origin: 'mcp' }>['approvalState']
-): string {
-  switch (approvalState) {
-    case 'not-required':
-      return 'No approval required'
-    case 'approved':
-      return 'Approved'
-    case 'rejected':
-      return 'Rejected'
-    case 'timed_out':
-      return 'Approval timed out'
-    default:
-      return 'Approval cancelled'
-  }
-}
-
-function formatOutcomeLabel(
-  outcome: Extract<ToolExecutionMetadata, { origin: 'mcp' }>['outcome']
-): string {
-  switch (outcome) {
-    case 'success':
-      return 'Success'
-    case 'rejected':
-      return 'Rejected'
-    case 'timed_out':
-      return 'Timed out'
-    case 'cancelled':
-      return 'Cancelled'
-    default:
-      return 'Error'
-  }
-}
-
-function formatMcpAuditLine(metadata: Extract<ToolExecutionMetadata, { origin: 'mcp' }>): string {
-  return `${metadata.serverName} MCP • ${formatApprovalLabel(metadata.approvalState)} • ${metadata.durationMs}ms • ${formatOutcomeLabel(metadata.outcome)}`
-}
-
-interface ResultItem {
-  key: string | null
-  value: string
-}
-
-function extractResultItems(result: unknown): ResultItem[] {
-  if (!result || typeof result !== 'object') {
-    return []
-  }
-
-  const record = result as Record<string, unknown>
-  const items: ResultItem[] = []
-
-  const arrayFields = [
-    'results',
-    'items',
-    'data',
-    'files',
-    'content',
-    'entries',
-    'resources',
-    'tools',
-    'prompts',
-  ]
-  for (const field of arrayFields) {
-    if (Array.isArray(record[field])) {
-      const arr = record[field] as unknown[]
-      for (const item of arr) {
-        if (typeof item === 'string') {
-          if (item.trim()) {
-            items.push({ key: null, value: item.trim() })
-          }
-        } else if (item && typeof item === 'object') {
-          const obj = item as Record<string, unknown>
-          const title = obj.title || obj.name || obj.label || obj.id || obj.path || obj.key
-          const desc =
-            obj.description || obj.content || obj.value || obj.text || obj.snippet || obj.message
-          if (typeof title === 'string' && title.trim()) {
-            items.push({
-              key: title.trim(),
-              value: typeof desc === 'string' ? desc.trim() : stringifyToolValue(obj),
-            })
-          } else if (typeof desc === 'string' && desc.trim()) {
-            items.push({ key: null, value: desc.trim() })
-          } else {
-            items.push({ key: null, value: stringifyToolValue(item) })
-          }
-        }
-      }
-      if (items.length > 0) return items
-    }
-  }
-
-  if (record.content && typeof record.content === 'object' && !Array.isArray(record.content)) {
-    const content = record.content as Record<string, unknown>
-    for (const [key, value] of Object.entries(content)) {
-      if (value !== null && value !== undefined) {
-        items.push({ key, value: typeof value === 'string' ? value : stringifyToolValue(value) })
-      }
-    }
-    if (items.length > 0) return items
-  }
-
-  const primitiveKeys = ['content', 'text', 'message', 'output', 'result', 'value', 'response']
-  for (const key of primitiveKeys) {
-    if (typeof record[key] === 'string') {
-      const val = (record[key] as string).trim()
-      if (val) {
-        return [{ key: null, value: val }]
-      }
-    }
-  }
-
-  const entries = Object.entries(record)
-  if (entries.length <= 8 && entries.some(([k]) => !k.startsWith('_') && k !== 'type')) {
-    for (const [key, value] of entries) {
-      if (key.startsWith('_') || key === 'type') continue
-      if (value !== null && value !== undefined) {
-        items.push({ key, value: typeof value === 'string' ? value : stringifyToolValue(value) })
-      }
-    }
-    if (items.length > 0) return items
-  }
-
-  return []
-}
-
 function McpDetailsSection({
-  metadata,
+  presentation,
   toolArguments,
-  status,
-  durationMs,
 }: {
-  metadata: Extract<ToolExecutionMetadata, { origin: 'mcp' }> | null
+  presentation: ToolPresentationViewModel
   toolArguments?: Record<string, unknown>
-  status: { label: string; tone: string; description?: string }
-  durationMs?: number
 }) {
   const [isExpanded, setIsExpanded] = useState(false)
+  const { mcpMetadata: metadata, status, durationMs } = presentation
 
   return (
     <>
@@ -1091,15 +870,11 @@ function McpDetailsSection({
                 </div>
                 <div className="tool-result-meta-item">
                   <span className="tool-result-meta-label">Approval</span>
-                  <span className="tool-result-meta-value">
-                    {formatApprovalLabel(metadata.approvalState)}
-                  </span>
+                  <span className="tool-result-meta-value">{presentation.approvalLabel}</span>
                 </div>
                 <div className="tool-result-meta-item">
                   <span className="tool-result-meta-label">Trusted</span>
-                  <span className="tool-result-meta-value">
-                    {metadata.trusted ? 'Trusted' : 'Untrusted'}
-                  </span>
+                  <span className="tool-result-meta-value">{presentation.trustedLabel}</span>
                 </div>
                 {durationMs !== undefined && (
                   <div className="tool-result-meta-item">
@@ -1111,7 +886,9 @@ function McpDetailsSection({
             )}
           </div>
 
-          {metadata && <div className="tool-result-audit-line">{formatMcpAuditLine(metadata)}</div>}
+          {presentation.auditLine && (
+            <div className="tool-result-audit-line">{presentation.auditLine}</div>
+          )}
           {status.description && <div className="tool-result-audit-line">{status.description}</div>}
 
           {toolArguments && Object.keys(toolArguments).length > 0 && (

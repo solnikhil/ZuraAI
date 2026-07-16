@@ -276,8 +276,9 @@ describe('ChatHistoryContext external sync', () => {
 
     await act(async () => {
       ipcListeners.get('chat-store:changed')?.({})
-      fireEvent.focus(window)
+      await Promise.resolve()
     })
+    fireEvent.focus(window)
 
     expect(screen.getByTestId('messages').textContent).toContain('new user message')
     expect(screen.getByTestId('message-count').textContent).toBe('3')
@@ -294,6 +295,194 @@ describe('ChatHistoryContext external sync', () => {
         persistedSessions[0].messages.some((message) => message.content === 'new user message')
       ).toBe(true)
     })
+  })
+
+  it('requeues a failed session save and persists the latest snapshot on the next mutation', async () => {
+    const originalInvoke = window.ipcRenderer.invoke.bind(window.ipcRenderer)
+    let saveAttempts = 0
+    window.ipcRenderer.invoke = vi.fn(async (channel, ...args) => {
+      if (channel === 'chat-store:save-session') {
+        saveAttempts += 1
+        if (saveAttempts === 1) {
+          throw new Error('temporary write failure')
+        }
+      }
+      return originalInvoke(channel, ...args) as never
+    }) as IElectronAPI['invoke']
+
+    const { ChatHistoryProvider, useChatHistory } = await import('./ChatHistoryContext')
+
+    function Probe() {
+      const { sessions, currentSessionId, switchSession, addMessageToSession } = useChatHistory()
+      return (
+        <div>
+          <div data-testid="retry-session-count">{sessions.length}</div>
+          <div data-testid="retry-current-session">{currentSessionId ?? 'none'}</div>
+          <button onClick={() => switchSession('session-1')}>retry-switch</button>
+          <button
+            onClick={() => addMessageToSession('session-1', { role: 'user', content: 'first' })}
+          >
+            retry-add-first
+          </button>
+          <button
+            onClick={() => addMessageToSession('session-1', { role: 'user', content: 'second' })}
+          >
+            retry-add-second
+          </button>
+        </div>
+      )
+    }
+
+    render(
+      <ChatHistoryProvider>
+        <Probe />
+      </ChatHistoryProvider>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('retry-session-count').textContent).toBe('1'))
+    fireEvent.click(screen.getByText('retry-switch'))
+    await waitFor(() =>
+      expect(screen.getByTestId('retry-current-session').textContent).toBe('session-1')
+    )
+
+    fireEvent.click(screen.getByText('retry-add-first'))
+    await waitFor(() => expect(saveAttempts).toBe(1), { timeout: 1500 })
+
+    fireEvent.click(screen.getByText('retry-add-second'))
+    await waitFor(
+      () => {
+        expect(saveAttempts).toBe(2)
+        expect(persistedSessions[0].messages.map((message) => message.content)).toEqual([
+          'first',
+          'second',
+        ])
+      },
+      { timeout: 1500 }
+    )
+  })
+
+  it('attempts to flush a pending session snapshot when the provider unmounts', async () => {
+    const { ChatHistoryProvider, useChatHistory } = await import('./ChatHistoryContext')
+
+    function Probe() {
+      const { sessions, currentSessionId, switchSession, addMessageToSession } = useChatHistory()
+      return (
+        <div>
+          <div data-testid="flush-session-count">{sessions.length}</div>
+          <div data-testid="flush-current-session">{currentSessionId ?? 'none'}</div>
+          <button onClick={() => switchSession('session-1')}>flush-switch</button>
+          <button
+            onClick={() => addMessageToSession('session-1', { role: 'user', content: 'flush me' })}
+          >
+            flush-add
+          </button>
+        </div>
+      )
+    }
+
+    const view = render(
+      <ChatHistoryProvider>
+        <Probe />
+      </ChatHistoryProvider>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('flush-session-count').textContent).toBe('1'))
+    fireEvent.click(screen.getByText('flush-switch'))
+    await waitFor(() =>
+      expect(screen.getByTestId('flush-current-session').textContent).toBe('session-1')
+    )
+    fireEvent.click(screen.getByText('flush-add'))
+    view.unmount()
+
+    await waitFor(() =>
+      expect(persistedSessions[0].messages.map((message) => message.content)).toEqual(['flush me'])
+    )
+  })
+
+  it('accounts for concurrent self-change events without hiding the next external change', async () => {
+    const originalInvoke = window.ipcRenderer.invoke.bind(window.ipcRenderer)
+    let resolveSessionSave: ((value: boolean) => void) | undefined
+    let resolveIndexSave: ((value: boolean) => void) | undefined
+    let sessionSaveStarted = false
+    let indexSaveStarted = false
+    window.ipcRenderer.invoke = vi.fn(async (channel, ...args) => {
+      if (channel === 'chat-store:save-session') {
+        sessionSaveStarted = true
+        return new Promise<boolean>((resolve) => {
+          resolveSessionSave = resolve
+        })
+      }
+      if (channel === 'chat-store:save-index') {
+        indexSaveStarted = true
+        return new Promise<boolean>((resolve) => {
+          resolveIndexSave = resolve
+        })
+      }
+      return originalInvoke(channel, ...args) as never
+    }) as IElectronAPI['invoke']
+
+    const { ChatHistoryProvider, useChatHistory } = await import('./ChatHistoryContext')
+
+    function Probe() {
+      const { sessions, switchSession, addMessageToSession } = useChatHistory()
+      return (
+        <div>
+          <div data-testid="tracked-session-count">{sessions.length}</div>
+          <button onClick={() => switchSession('session-1')}>tracked-switch</button>
+          <button
+            onClick={() => addMessageToSession('session-1', { role: 'user', content: 'queued' })}
+          >
+            tracked-add
+          </button>
+        </div>
+      )
+    }
+
+    render(
+      <ChatHistoryProvider>
+        <Probe />
+      </ChatHistoryProvider>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('tracked-session-count').textContent).toBe('1'))
+    fireEvent.click(screen.getByText('tracked-switch'))
+    fireEvent.click(screen.getByText('tracked-add'))
+    await waitFor(
+      () => {
+        expect(sessionSaveStarted).toBe(true)
+        expect(indexSaveStarted).toBe(true)
+      },
+      { timeout: 1500 }
+    )
+
+    await act(async () => {
+      ipcListeners.get('chat-store:changed')?.({})
+      ipcListeners.get('chat-store:changed')?.({})
+      resolveSessionSave?.(true)
+      resolveIndexSave?.(true)
+      await Promise.resolve()
+    })
+
+    persistedSessions = [
+      persistedSessions[0],
+      {
+        id: 'external-session',
+        title: 'External session',
+        messages: [],
+        createdAt: 2,
+        updatedAt: 2,
+      },
+    ]
+    fireEvent.focus(window)
+    await act(async () => Promise.resolve())
+    expect(screen.getByTestId('tracked-session-count').textContent).toBe('1')
+
+    await act(async () => {
+      ipcListeners.get('chat-store:changed')?.({})
+      await Promise.resolve()
+    })
+    fireEvent.focus(window)
+    await waitFor(() => expect(screen.getByTestId('tracked-session-count').textContent).toBe('2'))
   })
 
   it('loads full-session artifacts without metadata shell artifacts replacing them', async () => {

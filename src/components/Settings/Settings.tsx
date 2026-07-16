@@ -206,9 +206,6 @@ export default function Settings({
               <SkillsSection
                 skills={settings.extensions}
                 settings={settings}
-                codeExecutionAutoApprove={settings.codeExecutionAutoApprove}
-                terminalAutoApprove={settings.terminalAutoApprove}
-                computerUseAutoApprove={settings.computerUseAutoApprove}
                 brevoApiKey={settings.brevoApiKey}
                 emailNotifications={settings.emailNotifications}
                 isSavingSecureSettings={secureSavesInFlight > 0}

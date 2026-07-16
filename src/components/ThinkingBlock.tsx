@@ -5,13 +5,17 @@ import { WithTooltip } from './ui/WithTooltip'
 import './ThinkingBlock.css'
 import { ThinkingBlock as ThinkingBlockType } from '../contexts/ChatHistoryContext'
 import AITextLoading from './AITextLoading'
-import type { ToolExecutionMetadata } from '../tools/types'
+import { isSkippedBuiltinToolResult, type ToolExecutionMetadata } from '../tools/types'
 import {
   getWebToolLabel,
   inferWebToolModeFromArgs,
   inferWebToolModeFromResultData,
 } from '../tools/ui/webToolDisplay'
-import { getToolArgumentSummary, getToolPresentation } from '../tools/ui/toolPresentation'
+import {
+  getToolArgumentSummary,
+  normalizeToolPresentation,
+  stringifyToolValue,
+} from '../tools/ui/toolPresentation'
 import { shouldSuppressNoisyToolUi } from './Dashboard/ChatArea/toolResultVisibility'
 import {
   motionDuration,
@@ -32,39 +36,17 @@ function formatToolDisplayName(
     return getWebToolLabel(mode)
   }
 
-  return getToolPresentation(name).combinedLabel
-}
-
-function parseMcpToolName(name: string): { serverId: string; toolId: string } | null {
-  const match = /^mcp__([a-z0-9_]+)__([a-z0-9_]+)$/i.exec(name)
-  if (!match) {
-    return null
-  }
-
-  const [, serverId, toolId] = match
-  return { serverId, toolId }
+  return normalizeToolPresentation({ toolName: name }).combinedLabel
 }
 
 function getMcpToolInfo(
   name: string,
   metadata?: ToolExecutionMetadata
 ): { serverLabel: string; toolLabel: string } | null {
-  const parsed = parseMcpToolName(name)
-  if (!parsed && metadata?.origin !== 'mcp') {
-    return null
-  }
-
-  const fallbackPresentation = getToolPresentation(name)
-  const serverLabel =
-    metadata?.origin === 'mcp'
-      ? metadata.serverName
-      : fallbackPresentation.serverLabel || parsed?.serverId || 'MCP'
-  const toolLabel =
-    metadata?.origin === 'mcp'
-      ? metadata.originalToolName
-      : parsed?.toolId || fallbackPresentation.toolLabel
-
-  return { serverLabel, toolLabel }
+  const presentation = normalizeToolPresentation({ toolName: name, metadata })
+  return presentation.isMcp && presentation.serverLabel
+    ? { serverLabel: presentation.serverLabel, toolLabel: presentation.originalToolName }
+    : null
 }
 
 function formatMcpToolLabel(name: string, metadata?: ToolExecutionMetadata): string | null {
@@ -148,7 +130,7 @@ function ActiveToolCallPreview({
   const title = total > 1 ? `${displayName} ${index + 1}` : displayName
   const input =
     toolCall.arguments && Object.keys(toolCall.arguments).length > 0
-      ? JSON.stringify(toolCall.arguments, null, 2)
+      ? stringifyToolValue(toolCall.arguments)
       : '{}'
 
   return (
@@ -265,6 +247,12 @@ function getWebSearchResultCount(data: unknown): number | null {
   return null
 }
 
+function hasWebSearchResults(data: unknown): boolean {
+  return Boolean(
+    data && typeof data === 'object' && Array.isArray((data as Record<string, unknown>).results)
+  )
+}
+
 function WebSearchSourcesPreview({
   data,
   executionTime,
@@ -357,63 +345,30 @@ function getCompletedToolStatus(
     return null
   }
 
-  if (metadata?.origin === 'mcp') {
-    if (metadata.approvalState === 'rejected' || metadata.outcome === 'rejected') {
-      return { label: 'Rejected', tone: 'warning' }
-    }
-    if (metadata.approvalState === 'timed_out' || metadata.outcome === 'timed_out') {
-      return { label: 'Timed Out', tone: 'warning' }
-    }
-    if (metadata.approvalState === 'cancelled' || metadata.outcome === 'cancelled') {
-      return { label: 'Cancelled', tone: 'warning' }
-    }
-  }
-
-  if (toolOutput?.success) {
-    return { label: 'Completed', tone: 'success' }
-  }
-
-  const skippedReason = (metadata as any)?.skippedReason
-  if (toolName === 'web_search' && skippedReason === 'budget') {
+  if (toolName === 'web_search' && isSkippedBuiltinToolResult(metadata)) {
     return { label: 'Budget reached', tone: 'warning' }
   }
 
-  if (toolOutput?.error) {
-    return { label: 'Failed', tone: 'error' }
-  }
-
-  return toolName === 'web_search' ? null : { label: 'Completed', tone: 'success' }
+  return normalizeToolPresentation({
+    toolName,
+    result: toolOutput?.data,
+    error: toolOutput?.error,
+    success: toolOutput?.success,
+    metadata,
+    executionTime: toolOutput?.executionTime,
+  }).status
 }
 
 function formatToolAuditLine(block: ThinkingBlockType): string | null {
-  const metadata = block.toolOutput?.metadata
-  if (metadata?.origin !== 'mcp') {
-    return null
-  }
-
-  const approvalLabel =
-    metadata.approvalState === 'not-required'
-      ? 'No approval required'
-      : metadata.approvalState === 'approved'
-        ? 'Approved'
-        : metadata.approvalState === 'rejected'
-          ? 'Rejected'
-          : metadata.approvalState === 'timed_out'
-            ? 'Approval timed out'
-            : 'Approval cancelled'
-
-  const outcomeLabel =
-    metadata.outcome === 'success'
-      ? 'Success'
-      : metadata.outcome === 'rejected'
-        ? 'Rejected'
-        : metadata.outcome === 'timed_out'
-          ? 'Timed out'
-          : metadata.outcome === 'cancelled'
-            ? 'Cancelled'
-            : 'Error'
-
-  return `${metadata.serverName} MCP | ${approvalLabel} | ${metadata.durationMs}ms | ${outcomeLabel}`
+  const toolName = block.toolName || (block.type === 'searching' ? 'web_search' : '')
+  return normalizeToolPresentation({
+    toolName,
+    result: block.toolOutput?.data,
+    error: block.toolOutput?.error,
+    success: block.toolOutput?.success,
+    metadata: block.toolOutput?.metadata,
+    executionTime: block.toolOutput?.executionTime,
+  }).auditLine
 }
 
 function McpCalledToolDetail({
@@ -645,7 +600,7 @@ function InlineWebSearchBlock({ block }: { block: ThinkingBlockType }) {
               {block.toolOutput && (
                 <div className="thinking-tool-json">
                   <div className="thinking-tool-json-label">Sources</div>
-                  {block.toolOutput.data && (block.toolOutput.data as any).results ? (
+                  {hasWebSearchResults(block.toolOutput.data) ? (
                     <WebSearchSourcesPreview
                       data={block.toolOutput.data}
                       executionTime={block.toolOutput.executionTime}
@@ -655,11 +610,7 @@ function InlineWebSearchBlock({ block }: { block: ThinkingBlockType }) {
                       {block.toolOutput.error
                         ? block.toolOutput.error
                         : block.toolOutput.data !== undefined
-                          ? JSON.stringify(
-                              cleanToolOutputForDisplay(block.toolOutput.data),
-                              null,
-                              2
-                            )
+                          ? stringifyToolValue(cleanToolOutputForDisplay(block.toolOutput.data))
                           : '{}'}
                     </pre>
                   )}
@@ -1055,7 +1006,7 @@ function CompletedBlock({
                   toolName !== 'web_search' && (
                     <div className="thinking-tool-json">
                       <div className="thinking-tool-json-label">Input</div>
-                      <pre>{JSON.stringify(block.toolInput, null, 2)}</pre>
+                      <pre>{stringifyToolValue(block.toolInput)}</pre>
                     </div>
                   )}
                 {block.toolOutput && (
@@ -1075,11 +1026,7 @@ function CompletedBlock({
                         {block.toolOutput.error
                           ? block.toolOutput.error
                           : block.toolOutput.data !== undefined
-                            ? JSON.stringify(
-                                cleanToolOutputForDisplay(block.toolOutput.data),
-                                null,
-                                2
-                              )
+                            ? stringifyToolValue(cleanToolOutputForDisplay(block.toolOutput.data))
                             : '{}'}
                       </pre>
                     )}

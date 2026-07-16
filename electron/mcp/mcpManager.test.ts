@@ -90,6 +90,35 @@ describe('McpManager', () => {
     expect(manager.listTools()).toEqual([])
   })
 
+  it('serializes overlapping lifecycle transitions for the same server', async () => {
+    const connection = new FakeMcpConnection('server-1')
+    let releaseConnect!: () => void
+    const connectGate = new Promise<void>((resolve) => (releaseConnect = resolve))
+    const originalConnect = connection.connect.bind(connection)
+    vi.spyOn(connection, 'connect').mockImplementation(async () => {
+      await connectGate
+      return originalConnect()
+    })
+    const manager = new McpManager({
+      loadServers: async () => [createServerConfig()],
+      saveServers: async () => undefined,
+      resolveServerSecrets: async (server) => createResolvedServerConfig(server),
+      connectionFactory: () => connection,
+    })
+    await manager.initialize({ autoConnect: false })
+
+    const connecting = manager.connectServer('server-1')
+    const disconnecting = manager.disconnectServer('server-1')
+    await Promise.resolve()
+    expect(connection.disconnectCalls).toBe(0)
+    releaseConnect()
+    await Promise.all([connecting, disconnecting])
+
+    expect(connection.connectCalls).toBe(1)
+    expect(connection.disconnectCalls).toBe(1)
+    expect(manager.getRuntimeStates()[0]?.status).toBe('disconnected')
+  })
+
   it('requires trusted servers before surfacing or executing MCP tools', async () => {
     const manager = new McpManager({
       loadServers: async () => [

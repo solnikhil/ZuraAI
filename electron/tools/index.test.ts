@@ -48,11 +48,22 @@ describe('tool routing through current-desktop Computer Use', () => {
   async function loadToolHandler(
     computerUseOverrides: Record<string, ReturnType<typeof vi.fn>> = {}
   ): Promise<{
-    handler: (event: unknown, toolName: string, args: unknown) => Promise<unknown>
+    handler: (
+      event: { sender?: { id: number } },
+      toolName: string,
+      args: unknown,
+      executionContext?: { approvalToken?: string }
+    ) => Promise<unknown>
     handlers: Record<string, ReturnType<typeof vi.fn>>
   }> {
-    let handler: ((event: unknown, toolName: string, args: unknown) => Promise<unknown>) | null =
-      null
+    let handler:
+      | ((
+          event: { sender?: { id: number } },
+          toolName: string,
+          args: unknown,
+          executionContext?: { approvalToken?: string }
+        ) => Promise<unknown>)
+      | null = null
 
     vi.doMock('../ipc/trustedIpc', () => ({
       trustedIpcMain: {
@@ -121,6 +132,7 @@ describe('tool routing through current-desktop Computer Use', () => {
       })),
       executeSystemOpenPath: vi.fn(async () => ({ success: false, error: 'approval required' })),
       executeWindowSnap: vi.fn(async () => ({ success: false, error: 'approval required' })),
+      createMcpAddRequest: vi.fn(() => ({ requestId: 'request-1', status: 'pending' })),
     }
 
     vi.doMock('./computerUse', () => computerUse)
@@ -130,6 +142,7 @@ describe('tool routing through current-desktop Computer Use', () => {
     vi.doMock('./app-management', () => nativeMocks)
     vi.doMock('./window-management', () => nativeMocks)
     vi.doMock('./os-integration', () => nativeMocks)
+    vi.doMock('../mcp/mcpAddRequests', () => nativeMocks)
     vi.doMock('./webSearch', () => ({
       executeWebSearch: vi.fn(async () => ({ success: true, data: [] })),
     }))
@@ -194,6 +207,17 @@ describe('tool routing through current-desktop Computer Use', () => {
     expect(handlers.executeWindowsUiaSnapshot).toHaveBeenCalledTimes(1)
   })
 
+  it('routes mcp_request_add through the shared built-in channel', async () => {
+    const { handler, handlers } = await loadToolHandler()
+    const args = { mode: 'catalogue', reason: 'Connect Gmail for the requested email task.' }
+
+    await expect(handler({}, 'mcp_request_add', args)).resolves.toEqual({
+      success: true,
+      data: { requestId: 'request-1', status: 'pending' },
+    })
+    expect(handlers.createMcpAddRequest).toHaveBeenCalledWith(args)
+  })
+
   it('fails closed for removed duplicate Computer Use app tools', async () => {
     const { handler } = await loadToolHandler()
 
@@ -203,6 +227,26 @@ describe('tool routing through current-desktop Computer Use', () => {
         error: `Tool "${toolName}" is disabled.`,
       })
     }
+  })
+
+  it('rejects malformed arguments at the main boundary before dispatch', async () => {
+    const { handler, handlers } = await loadToolHandler()
+
+    await expect(handler({}, 'file_read', { path: 42 })).resolves.toEqual({
+      success: false,
+      error: 'Invalid arguments for tool "file_read": /path must be string',
+    })
+    await expect(handler({}, 'file_read', {})).resolves.toEqual({
+      success: false,
+      error: 'Invalid arguments for tool "file_read": missing required property "path"',
+    })
+    await expect(handler({}, 'file_read', { path: '   ' })).resolves.toEqual({
+      success: false,
+      error:
+        'Invalid arguments for tool "file_read": required string properties must not be empty: path.',
+    })
+
+    expect(handlers.executeFileRead).not.toHaveBeenCalled()
   })
 
   it('routes mutating native tools to fail closed when approval is absent', async () => {
@@ -215,6 +259,22 @@ describe('tool routing through current-desktop Computer Use', () => {
 
     expect(result).toEqual({ success: false, error: 'approval required' })
     expect(handlers.executeSystemShell).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects model-supplied approval authority and accepts only an exact main-issued token', async () => {
+    const { handler, handlers } = await loadToolHandler()
+    const args = { command: 'Get-Date', description: 'Check date' }
+
+    await expect(
+      handler({ sender: { id: 7 } }, 'system_shell', { ...args, autoApprove: true })
+    ).resolves.toMatchObject({ success: false })
+    expect(handlers.executeSystemShell).not.toHaveBeenCalled()
+
+    const { issueToolApprovalAuthorization } = await import('./toolApprovalAuthorizations')
+    const token = issueToolApprovalAuthorization(7, 'system_shell', args)
+    await handler({ sender: { id: 7 } }, 'system_shell', args, { approvalToken: token })
+
+    expect(handlers.executeSystemShell).toHaveBeenCalledWith({ ...args, autoApprove: true })
   })
 
   it('routes desktop OS integration tools through execute-tool', async () => {
