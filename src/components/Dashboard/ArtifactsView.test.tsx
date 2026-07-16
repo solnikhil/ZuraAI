@@ -1,9 +1,12 @@
 import React from 'react'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ArtifactsView from './ArtifactsView'
 
 const mockSwitchSession = vi.fn()
+const mockLoadFullSession = vi.fn()
+const mockRenameArtifact = vi.fn()
+const mockRestoreArtifact = vi.fn()
 const mockDeleteArtifact = vi.fn()
 const mockSetDashboardView = vi.fn()
 let mockSessions: Array<Record<string, unknown>> = []
@@ -14,11 +17,11 @@ vi.mock('@/contexts/AppShellContext', () => ({
 
 vi.mock('@/contexts/ChatHistoryContext', () => ({
   useChatHistory: () => ({
-    currentSessionId: 'session-1',
     sessions: mockSessions,
+    loadFullSession: mockLoadFullSession,
     switchSession: mockSwitchSession,
-    renameArtifact: vi.fn(),
-    restoreArtifact: vi.fn(),
+    renameArtifact: mockRenameArtifact,
+    restoreArtifact: mockRestoreArtifact,
     deleteArtifact: mockDeleteArtifact,
   }),
 }))
@@ -30,21 +33,15 @@ vi.mock('@/artifacts/openArtifactExternally', () => ({
   openArtifactInExternalApp: (...args: unknown[]) => mockOpenArtifactInExternalApp(...args),
 }))
 
-// Ensure window exists for the component (some tests run before full jsdom init)
 if (typeof globalThis.window === 'undefined') {
-  // @ts-expect-error - test shim
+  // @ts-expect-error test shim
   globalThis.window = {}
 }
-Object.defineProperty(globalThis.window, 'ipcRenderer', {
-  value: undefined,
-  configurable: true,
-  writable: true,
-})
 
 describe('ArtifactsView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockOpenArtifactInExternalApp.mockClear()
+    mockLoadFullSession.mockResolvedValue(null)
     mockSessions = [
       {
         id: 'session-1',
@@ -72,13 +69,12 @@ describe('ArtifactsView', () => {
     })
   })
 
-  it('lists artifacts and opens one externally from the card', () => {
+  it('selects artifacts for in-app preview and opens externally from the toolbar', async () => {
     render(<ArtifactsView />)
 
     expect(screen.getByRole('heading', { name: 'Artifacts' })).toBeInTheDocument()
-    fireEvent.click(
-      screen.getAllByRole('button', { name: /open in default editor: launch plan/i })[0]
-    )
+    expect(await screen.findByRole('heading', { name: 'Launch plan' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /open in editor/i }))
 
     expect(mockOpenArtifactInExternalApp).toHaveBeenCalledWith(
       'session-1',
@@ -87,21 +83,32 @@ describe('ArtifactsView', () => {
     )
   })
 
-  it('opens an artifact externally from the chevron action', () => {
+  it('searches by source chat and navigates back to that chat', async () => {
     render(<ArtifactsView />)
 
-    fireEvent.click(
-      screen.getAllByRole('button', { name: /open in default editor: launch plan/i })[1]
-    )
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search artifacts' }), {
+      target: { value: 'source chat' },
+    })
+    expect(screen.getByRole('button', { name: /launch plan/i })).toBeInTheDocument()
 
-    expect(mockOpenArtifactInExternalApp).toHaveBeenCalledWith(
-      'session-1',
-      'artifact-1',
-      expect.any(Array)
+    fireEvent.click(await screen.findByRole('button', { name: 'Source chat' }))
+    expect(mockSwitchSession).toHaveBeenCalledWith('session-1')
+    expect(mockSetDashboardView).toHaveBeenCalledWith('chat')
+  })
+
+  it('keeps the mobile back action on the library', async () => {
+    const { container } = render(<ArtifactsView />)
+
+    await screen.findByRole('heading', { name: 'Launch plan' })
+    expect(container.querySelector('.artifacts-view')).toHaveClass('artifacts-view--detail-open')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Library' }))
+    expect(container.querySelector('.artifacts-view')).not.toHaveClass(
+      'artifacts-view--detail-open'
     )
   })
 
-  it('lists metadata-only artifacts and opens them externally', async () => {
+  it('lazily loads metadata-only artifacts before previewing them', async () => {
     mockSessions = []
     const fullSession = {
       id: 'session-2',
@@ -121,41 +128,29 @@ describe('ArtifactsView', () => {
         },
       ],
     }
+    mockLoadFullSession.mockResolvedValue(fullSession)
 
     Object.defineProperty(globalThis.window, 'ipcRenderer', {
       value: {
-        invoke: vi.fn(async (channel: string, ...args: unknown[]) => {
-          if (channel === 'chat-store:get-metadata') {
-            return [
+        invoke: vi.fn(async () => [
+          {
+            id: 'session-2',
+            title: 'Historical chat',
+            createdAt: 10,
+            updatedAt: 20,
+            messageCount: 0,
+            artifactSummaries: [
               {
-                id: 'session-2',
-                title: 'Historical chat',
-                createdAt: 10,
+                id: 'artifact-2',
+                title: 'Historical plan',
+                kind: 'markdown',
                 updatedAt: 20,
-                pinned: false,
-                folderId: null,
-                tags: [],
-                messageCount: 0,
-                artifactCount: 1,
-                artifactSummaries: [
-                  {
-                    id: 'artifact-2',
-                    title: 'Historical plan',
-                    kind: 'markdown',
-                    updatedAt: 20,
-                    currentVersionId: 'version-2',
-                    versionCount: 1,
-                  },
-                ],
+                currentVersionId: 'version-2',
+                versionCount: 1,
               },
-            ]
-          }
-          if (channel === 'chat-store:get-session') {
-            expect(args[0]).toBe('session-2')
-            return fullSession
-          }
-          return null
-        }),
+            ],
+          },
+        ]),
         on: vi.fn(() => vi.fn()),
       },
       configurable: true,
@@ -164,15 +159,8 @@ describe('ArtifactsView', () => {
 
     render(<ArtifactsView />)
 
-    const historicalButtons = await screen.findAllByRole('button', {
-      name: /open in default editor: historical plan/i,
-    })
-    fireEvent.click(historicalButtons[0])
-
-    expect(mockOpenArtifactInExternalApp).toHaveBeenCalledWith(
-      'session-2',
-      'artifact-2',
-      expect.any(Array)
-    )
+    expect(await screen.findByRole('heading', { name: 'Historical plan' })).toBeInTheDocument()
+    await waitFor(() => expect(mockLoadFullSession).toHaveBeenCalledWith('session-2'))
+    expect(await screen.findByRole('heading', { name: 'Historical', level: 1 })).toBeInTheDocument()
   })
 })

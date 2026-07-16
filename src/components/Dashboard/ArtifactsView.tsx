@@ -1,57 +1,78 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
-  ChevronRight,
+  ArrowLeft,
+  Check,
+  Clock3,
+  Copy,
+  ExternalLink,
   File,
   FileCode2,
   FileImage,
   FileJson,
   FileTerminal,
   FileText,
+  LoaderCircle,
+  MessageSquare,
+  Pencil,
+  RotateCcw,
+  Search,
+  Trash2,
+  X,
 } from 'lucide-react'
-import { motion } from 'framer-motion'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { TooltipIconButton } from '@/components/ui/TooltipIconButton'
-import { motionSpring } from '@/lib/motion'
+import { toast } from 'sonner'
+import { Button } from '@/components/ui/button'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { useAppShell } from '@/contexts/AppShellContext'
 import { useChatHistory } from '@/contexts/ChatHistoryContext'
+import { ARTIFACT_KINDS, type ArtifactDocument, type ArtifactKind } from '@/artifacts/artifactTypes'
+import { getCurrentArtifactVersion } from '@/artifacts/artifactStore'
 import { getExternalOpenLabel, openArtifactInExternalApp } from '@/artifacts/openArtifactExternally'
-import type { ArtifactDocument, ArtifactKind, ArtifactSummary } from '@/artifacts/artifactTypes'
 import type { ChatSessionMetadata } from '@/chat/types'
+import ArtifactPreview from './artifacts/ArtifactPreview'
+import {
+  buildArtifactLibrary,
+  filterAndSortArtifacts,
+  type ArtifactFilter,
+  type ArtifactLibraryEntry,
+  type ArtifactSort,
+} from './artifacts/artifactLibraryModel'
 import './ArtifactsView.css'
 
-type ArtifactFilter = 'all' | ArtifactKind
-
-interface ArtifactListItem {
-  sessionId: string
-  sessionTitle: string
-  artifact: ArtifactDocument
-}
+type DetailTab = 'preview' | 'source' | 'history'
 
 function formatArtifactKind(kind: ArtifactKind): string {
-  if (kind === 'html') return 'HTML'
-  if (kind === 'json') return 'JSON'
-  if (kind === 'svg') return 'SVG'
+  if (kind === 'html' || kind === 'json' || kind === 'svg') return kind.toUpperCase()
   return kind.charAt(0).toUpperCase() + kind.slice(1)
 }
 
 function formatRelativeDate(value: number): string {
   const date = new Date(value)
-  const now = new Date()
-  const isToday = date.toDateString() === now.toDateString()
+  const elapsed = Date.now() - value
+  const minutes = Math.floor(elapsed / 60_000)
+  if (minutes < 1) return 'Just now'
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  if (days < 7) return `${days}d ago`
+  return date.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: date.getFullYear() === new Date().getFullYear() ? undefined : 'numeric',
+  })
+}
 
-  const yesterday = new Date(now)
-  yesterday.setDate(yesterday.getDate() - 1)
-  const isYesterday = date.toDateString() === yesterday.toDateString()
-
-  const isThisYear = date.getFullYear() === now.getFullYear()
-  const time = date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
-
-  if (isToday) return `Today, ${time}`
-  if (isYesterday) return `Yesterday, ${time}`
-  if (isThisYear) {
-    const monthDay = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-    return `${monthDay}, ${time}`
-  }
-  return date.toLocaleString(undefined, {
+function formatFullDate(value: number): string {
+  return new Date(value).toLocaleString(undefined, {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
@@ -60,8 +81,8 @@ function formatRelativeDate(value: number): string {
   })
 }
 
-function getArtifactIcon(kind: ArtifactKind): React.ReactElement {
-  const props = { size: 16, strokeWidth: 1.9 }
+function getArtifactIcon(kind: ArtifactKind, size = 16): React.ReactElement {
+  const props = { size, strokeWidth: 1.8 }
   switch (kind) {
     case 'html':
       return <FileCode2 {...props} />
@@ -73,313 +94,621 @@ function getArtifactIcon(kind: ArtifactKind): React.ReactElement {
       return <FileJson {...props} />
     case 'code':
       return <FileTerminal {...props} />
-    case 'mermaid':
-      return <FileText {...props} />
-    case 'text':
     default:
       return <File {...props} />
   }
 }
 
+function artifactExcerpt(entry: ArtifactLibraryEntry): string {
+  const content = entry.document ? getCurrentArtifactVersion(entry.document)?.content : ''
+  if (!content) return `${formatArtifactKind(entry.kind)} from ${entry.sessionTitle}`
+  return content
+    .replace(/[#_*`>{}]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 118)
+}
+
 export default function ArtifactsView(): React.ReactElement {
-  const { sessions } = useChatHistory()
-  const [sessionMetadata, setSessionMetadata] = useState<ChatSessionMetadata[]>([])
+  const {
+    sessions,
+    loadFullSession,
+    switchSession,
+    renameArtifact,
+    restoreArtifact,
+    deleteArtifact,
+  } = useChatHistory()
+  const { setDashboardView } = useAppShell()
+  const [metadata, setMetadata] = useState<ChatSessionMetadata[]>([])
+  const [metadataState, setMetadataState] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [resolvedDocuments, setResolvedDocuments] = useState<Map<string, ArtifactDocument>>(
+    new Map()
+  )
+  const [selectedKey, setSelectedKey] = useState<string | null>(null)
+  const [mobileLibraryVisible, setMobileLibraryVisible] = useState(false)
+  const [loadingKey, setLoadingKey] = useState<string | null>(null)
+  const [loadErrorKey, setLoadErrorKey] = useState<string | null>(null)
+  const [query, setQuery] = useState('')
   const [activeFilter, setActiveFilter] = useState<ArtifactFilter>('all')
-  const [openingArtifactKey, setOpeningArtifactKey] = useState<string | null>(null)
+  const [sort, setSort] = useState<ArtifactSort>('updated')
+  const [detailTab, setDetailTab] = useState<DetailTab>('preview')
+  const [viewedVersionId, setViewedVersionId] = useState<string | null>(null)
+  const [openingKey, setOpeningKey] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+  const [renaming, setRenaming] = useState(false)
+  const [titleDraft, setTitleDraft] = useState('')
+  const [deleteOpen, setDeleteOpen] = useState(false)
 
-  // Load lightweight metadata (with artifactSummaries) + listen for changes so we see artifacts
-  // from other chats + react to saves (including our own debounced ones).
-  useEffect(() => {
-    if (!window.ipcRenderer) return
-    let cancelled = false
-
-    const loadMetadata = () => {
-      void window
-        .ipcRenderer!.invoke('chat-store:get-metadata')
-        .then((meta: ChatSessionMetadata[]) => {
-          if (!cancelled) setSessionMetadata(meta || [])
-        })
-        .catch(() => {
-          if (!cancelled) setSessionMetadata([])
-        })
+  const loadMetadata = useCallback(() => {
+    if (!window.ipcRenderer) {
+      setMetadataState('ready')
+      return
     }
-
-    loadMetadata()
-
-    const handleChanged = () => {
-      loadMetadata()
-    }
-
-    const unsubscribe = window.ipcRenderer.on('chat-store:changed', handleChanged)
-
-    return () => {
-      cancelled = true
-      unsubscribe()
-    }
-  }, [sessions])
-
-  // Build display list:
-  // - Use FULL documents from live sessions in context (these are immediately up-to-date after create/update)
-  // - Supplement with lightweight ArtifactSummary entries from metadata for other chats
-  // - Prefer live full docs over stale metadata summaries
-  const items = useMemo<ArtifactListItem[]>(() => {
-    const liveById = new Map(sessions.map((s) => [s.id, s] as const))
-
-    // Full documents from whatever the context currently holds (current chat + any loaded ones)
-    // Also turn carried artifactSummaries (for lightweight sessions) into stubs so old ones show
-    const liveItems: ArtifactListItem[] = sessions.flatMap((session) => {
-      if (session.artifacts && session.artifacts.length > 0) {
-        return session.artifacts.map((artifact) => ({
-          sessionId: session.id,
-          sessionTitle: session.title,
-          artifact,
-        }))
-      }
-      // lightweight carried summaries
-      const sums = session.artifactSummaries
-      if (sums && sums.length) {
-        return sums.map((summary) => {
-          const stubVersions = Array.from(
-            { length: Math.max(1, summary.versionCount) },
-            (_, i) => ({
-              id: i === 0 ? summary.currentVersionId : `v${i}`,
-              content: '',
-              createdAt: summary.updatedAt,
-            })
-          )
-          const stub: ArtifactDocument = {
-            id: summary.id,
-            title: summary.title,
-            kind: summary.kind,
-            language: summary.language,
-            createdAt: summary.updatedAt,
-            updatedAt: summary.updatedAt,
-            currentVersionId: summary.currentVersionId,
-            versions: stubVersions,
-          }
-          return { sessionId: session.id, sessionTitle: session.title, artifact: stub }
-        })
-      }
-      return []
-    })
-
-    // Lightweight entries from the persisted index (for chats we haven't loaded fully)
-    const metaItems: ArtifactListItem[] = sessionMetadata.flatMap((meta) => {
-      const live = liveById.get(meta.id)
-      // If this session is already represented in live (full artifacts or carried summaries), skip
-      const liveHasArtifacts =
-        live && ((live.artifacts?.length ?? 0) > 0 || (live.artifactSummaries?.length ?? 0) > 0)
-      if (liveHasArtifacts) return []
-
-      const summaries: ArtifactSummary[] = meta.artifactSummaries || []
-      return summaries.map((summary) => {
-        // Synthesize a minimal ArtifactDocument shape sufficient for list rendering.
-        // Real content resolves on demand when the artifact is opened externally.
-        const stubVersions = Array.from({ length: Math.max(1, summary.versionCount) }, (_, i) => ({
-          id: i === 0 ? summary.currentVersionId : `v${i}`,
-          content: '',
-          createdAt: summary.updatedAt,
-        }))
-
-        const stub: ArtifactDocument = {
-          id: summary.id,
-          title: summary.title,
-          kind: summary.kind,
-          language: summary.language,
-          createdAt: summary.updatedAt,
-          updatedAt: summary.updatedAt,
-          currentVersionId: summary.currentVersionId,
-          versions: stubVersions,
-        }
-
-        return {
-          sessionId: meta.id,
-          sessionTitle: meta.title,
-          artifact: stub,
-        }
+    setMetadataState('loading')
+    void window.ipcRenderer
+      .invoke('chat-store:get-metadata')
+      .then((value: ChatSessionMetadata[]) => {
+        setMetadata(value || [])
+        setMetadataState('ready')
       })
-    })
+      .catch(() => setMetadataState('error'))
+  }, [])
 
-    const combined = [...liveItems, ...metaItems]
+  useEffect(() => {
+    loadMetadata()
+    if (!window.ipcRenderer) return
+    return window.ipcRenderer.on('chat-store:changed', loadMetadata)
+  }, [loadMetadata])
 
-    // Dedupe (sessionId + artifactId), live wins because it comes first
-    const seen = new Set<string>()
-    const deduped = combined.filter((item) => {
-      const key = `${item.sessionId}:${item.artifact.id}`
-      if (seen.has(key)) return false
-      seen.add(key)
-      return true
-    })
+  const items = useMemo(
+    () => buildArtifactLibrary(sessions, metadata, resolvedDocuments),
+    [metadata, resolvedDocuments, sessions]
+  )
 
-    return deduped.sort((a, b) => b.artifact.updatedAt - a.artifact.updatedAt)
-  }, [sessions, sessionMetadata])
+  const filteredItems = useMemo(
+    () => filterAndSortArtifacts(items, { filter: activeFilter, query, sort }),
+    [activeFilter, items, query, sort]
+  )
 
-  const filteredItems = useMemo(() => {
-    if (activeFilter === 'all') return items
-    return items.filter((item) => item.artifact.kind === activeFilter)
-  }, [activeFilter, items])
+  const counts = useMemo(() => {
+    const next = new Map<ArtifactKind, number>()
+    for (const item of items) next.set(item.kind, (next.get(item.kind) ?? 0) + 1)
+    return next
+  }, [items])
 
-  const filters: Array<{ id: ArtifactFilter; label: string; count: number }> = [
-    { id: 'all', label: 'All', count: items.length },
-    {
-      id: 'markdown',
-      label: 'Markdown',
-      count: items.filter((item) => item.artifact.kind === 'markdown').length,
-    },
-    {
-      id: 'code',
-      label: 'Code',
-      count: items.filter((item) => item.artifact.kind === 'code').length,
-    },
-    {
-      id: 'html',
-      label: 'HTML',
-      count: items.filter((item) => item.artifact.kind === 'html').length,
-    },
-    {
-      id: 'json',
-      label: 'JSON',
-      count: items.filter((item) => item.artifact.kind === 'json').length,
-    },
-    {
-      id: 'mermaid',
-      label: 'Mermaid',
-      count: items.filter((item) => item.artifact.kind === 'mermaid').length,
-    },
-    { id: 'svg', label: 'SVG', count: items.filter((item) => item.artifact.kind === 'svg').length },
-    {
-      id: 'text',
-      label: 'Text',
-      count: items.filter((item) => item.artifact.kind === 'text').length,
-    },
-  ]
+  const selectedEntry = useMemo(
+    () => items.find((entry) => entry.key === selectedKey) ?? null,
+    [items, selectedKey]
+  )
+  const selectedDocument = selectedEntry?.document ?? null
+  const viewedVersion = selectedDocument
+    ? (selectedDocument.versions.find((version) => version.id === viewedVersionId) ??
+      getCurrentArtifactVersion(selectedDocument))
+    : null
 
-  const openExternally = async (item: ArtifactListItem) => {
-    const key = `${item.sessionId}:${item.artifact.id}`
-    setOpeningArtifactKey(key)
+  const resolveEntry = useCallback(
+    async (entry: ArtifactLibraryEntry) => {
+      if (entry.document) return entry.document
+      setLoadingKey(entry.key)
+      setLoadErrorKey(null)
+      try {
+        const session = await loadFullSession(entry.sessionId)
+        const document = session?.artifacts?.find((artifact) => artifact.id === entry.id) ?? null
+        if (!document) throw new Error('Artifact content is unavailable.')
+        setResolvedDocuments((current) => new Map(current).set(entry.key, document))
+        return document
+      } catch (error) {
+        setLoadErrorKey(entry.key)
+        toast.error(error instanceof Error ? error.message : 'Could not load this artifact.')
+        return null
+      } finally {
+        setLoadingKey((current) => (current === entry.key ? null : current))
+      }
+    },
+    [loadFullSession]
+  )
+
+  const selectEntry = useCallback(
+    (entry: ArtifactLibraryEntry) => {
+      setSelectedKey(entry.key)
+      setMobileLibraryVisible(false)
+      setDetailTab('preview')
+      setRenaming(false)
+      void resolveEntry(entry)
+    },
+    [resolveEntry]
+  )
+
+  useEffect(() => {
+    if (filteredItems.length === 0) {
+      if (selectedKey && !items.some((entry) => entry.key === selectedKey)) setSelectedKey(null)
+      return
+    }
+    if (!selectedKey || !filteredItems.some((entry) => entry.key === selectedKey)) {
+      const firstEntry = filteredItems[0]
+      setSelectedKey(firstEntry.key)
+      setDetailTab('preview')
+      setRenaming(false)
+      void resolveEntry(firstEntry)
+    }
+  }, [filteredItems, items, resolveEntry, selectedKey])
+
+  useEffect(() => {
+    if (!selectedDocument) return
+    setViewedVersionId(selectedDocument.currentVersionId)
+    setTitleDraft(selectedDocument.title)
+  }, [selectedDocument?.id, selectedDocument?.currentVersionId, selectedDocument?.title])
+
+  const handleCopy = async () => {
+    if (!viewedVersion) return
     try {
-      await openArtifactInExternalApp(item.sessionId, item.artifact.id, sessions)
-    } finally {
-      setOpeningArtifactKey((current) => (current === key ? null : current))
+      await navigator.clipboard.writeText(viewedVersion.content)
+      setCopied(true)
+      toast.success('Artifact copied')
+      window.setTimeout(() => setCopied(false), 1600)
+    } catch {
+      toast.error('Could not copy the artifact.')
     }
   }
 
+  const handleOpenExternal = async () => {
+    if (!selectedEntry) return
+    setOpeningKey(selectedEntry.key)
+    try {
+      const result = await openArtifactInExternalApp(
+        selectedEntry.sessionId,
+        selectedEntry.id,
+        sessions
+      )
+      if (!result.ok) toast.error(result.error || 'Could not open the artifact.')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not open the artifact.')
+    } finally {
+      setOpeningKey(null)
+    }
+  }
+
+  const handleRename = () => {
+    if (!selectedEntry || !titleDraft.trim()) return
+    renameArtifact(selectedEntry.sessionId, selectedEntry.id, titleDraft)
+    if (selectedDocument) {
+      setResolvedDocuments((current) =>
+        new Map(current).set(selectedEntry.key, {
+          ...selectedDocument,
+          title: titleDraft.trim(),
+          updatedAt: Date.now(),
+        })
+      )
+    }
+    setRenaming(false)
+    toast.success('Artifact renamed')
+  }
+
+  const handleRestore = (versionId: string) => {
+    if (!selectedEntry || !selectedDocument) return
+    restoreArtifact(selectedEntry.sessionId, selectedEntry.id, versionId)
+    setResolvedDocuments((current) =>
+      new Map(current).set(selectedEntry.key, {
+        ...selectedDocument,
+        currentVersionId: versionId,
+        updatedAt: Date.now(),
+      })
+    )
+    setViewedVersionId(versionId)
+    toast.success('Version restored')
+  }
+
+  const handleDelete = () => {
+    if (!selectedEntry) return
+    deleteArtifact(selectedEntry.sessionId, selectedEntry.id)
+    setResolvedDocuments((current) => {
+      const next = new Map(current)
+      next.delete(selectedEntry.key)
+      return next
+    })
+    setSelectedKey(null)
+    setDeleteOpen(false)
+    toast.success('Artifact deleted')
+  }
+
+  const openSourceChat = () => {
+    if (!selectedEntry) return
+    switchSession(selectedEntry.sessionId)
+    setDashboardView('chat')
+  }
+
+  const isInitialLoading = metadataState === 'loading' && items.length === 0
+  const hasSearchOrFilter = Boolean(query.trim()) || activeFilter !== 'all'
+
   return (
-    <section className="artifacts-view" aria-labelledby="artifacts-title">
-      <div className="artifacts-view__stage">
-        <main className="artifacts-view__panel">
-          <header className="artifacts-view__panel-header">
-            <div>
-              <h2 id="artifacts-title">Artifacts</h2>
-              <p>Assistant-created documents, code, diagrams, and previews from your chats.</p>
-            </div>
-          </header>
+    <section
+      className={`artifacts-view ${selectedEntry && !mobileLibraryVisible ? 'artifacts-view--detail-open' : ''}`}
+      aria-labelledby="artifacts-title"
+    >
+      <header className="artifacts-view__page-header">
+        <div>
+          <div className="artifacts-view__eyebrow">Workspace</div>
+          <h2 id="artifacts-title">Artifacts</h2>
+          <p>Preview, revisit, and reuse everything Zura has made with you.</p>
+        </div>
+        <div className="artifacts-view__total">
+          <strong>{items.length}</strong>
+          <span>saved</span>
+        </div>
+      </header>
 
-          <Tabs
-            value={activeFilter}
-            onValueChange={(value) => setActiveFilter(value as ArtifactFilter)}
-            className="artifacts-view__tabs"
+      <div className="artifacts-view__workspace">
+        <aside className="artifacts-view__library" aria-label="Artifact library">
+          <div className="artifacts-view__library-tools">
+            <label className="artifacts-view__search">
+              <Search size={15} aria-hidden="true" />
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search artifacts or chats"
+                aria-label="Search artifacts"
+              />
+              {query && (
+                <button type="button" onClick={() => setQuery('')} aria-label="Clear search">
+                  <X size={14} />
+                </button>
+              )}
+            </label>
+            <select
+              className="artifacts-view__sort"
+              value={sort}
+              onChange={(event) => setSort(event.target.value as ArtifactSort)}
+              aria-label="Sort artifacts"
+            >
+              <option value="updated">Recently updated</option>
+              <option value="name">Name</option>
+              <option value="type">Type</option>
+            </select>
+          </div>
+
+          <div className="artifacts-view__filters" aria-label="Filter artifacts">
+            <button
+              type="button"
+              data-active={activeFilter === 'all'}
+              onClick={() => setActiveFilter('all')}
+            >
+              All <span>{items.length}</span>
+            </button>
+            {ARTIFACT_KINDS.filter((kind) => (counts.get(kind) ?? 0) > 0).map((kind) => (
+              <button
+                key={kind}
+                type="button"
+                data-active={activeFilter === kind}
+                onClick={() => setActiveFilter(kind)}
+              >
+                {formatArtifactKind(kind)} <span>{counts.get(kind)}</span>
+              </button>
+            ))}
+          </div>
+
+          <div
+            className="artifacts-view__library-list"
+            aria-live="polite"
+            aria-busy={isInitialLoading}
           >
-            <TabsList variant="line" className="artifacts-view__tabs-list">
-              {filters.map((filter) => (
-                <TabsTrigger
-                  key={filter.id}
-                  value={filter.id}
-                  className="artifacts-view__tabs-trigger"
+            {isInitialLoading ? (
+              <div className="artifacts-view__state">
+                <LoaderCircle className="artifacts-view__spinner" size={19} />
+                <strong>Gathering your artifacts</strong>
+                <span>Looking across saved chats…</span>
+              </div>
+            ) : metadataState === 'error' && items.length === 0 ? (
+              <div className="artifacts-view__state">
+                <FileText size={19} />
+                <strong>Couldn’t load the library</strong>
+                <span>Your artifacts are still safe in their chats.</span>
+                <Button variant="outline" size="sm" onClick={loadMetadata}>
+                  Try again
+                </Button>
+              </div>
+            ) : filteredItems.length === 0 ? (
+              <div className="artifacts-view__state">
+                <Search size={19} />
+                <strong>{hasSearchOrFilter ? 'Nothing matches' : 'No artifacts yet'}</strong>
+                <span>
+                  {hasSearchOrFilter
+                    ? 'Try a different search or file type.'
+                    : 'Ask Zura to create a plan, code file, diagram, or prototype.'}
+                </span>
+                {hasSearchOrFilter && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setQuery('')
+                      setActiveFilter('all')
+                    }}
+                  >
+                    Clear filters
+                  </Button>
+                )}
+              </div>
+            ) : (
+              filteredItems.map((entry) => (
+                <button
+                  key={entry.key}
+                  type="button"
+                  className="artifacts-view__library-item"
+                  data-kind={entry.kind}
+                  data-selected={selectedKey === entry.key}
+                  onClick={() => selectEntry(entry)}
+                  aria-pressed={selectedKey === entry.key}
                 >
-                  <span>{filter.label}</span>
-                  <span className="artifacts-view__tabs-count">{filter.count}</span>
-                  {activeFilter === filter.id && (
-                    <motion.div
-                      layoutId="artifacts-active-tab-indicator"
-                      className="artifacts-view__tabs-indicator"
-                      initial={false}
-                      transition={motionSpring.bouncy}
-                    />
-                  )}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
+                  <span className="artifacts-view__item-icon">
+                    {getArtifactIcon(entry.kind, 17)}
+                  </span>
+                  <span className="artifacts-view__item-copy">
+                    <strong>{entry.title}</strong>
+                    <span className="artifacts-view__item-excerpt">{artifactExcerpt(entry)}</span>
+                    <span className="artifacts-view__item-meta">
+                      <span>{entry.sessionTitle}</span>
+                      <span aria-hidden="true">·</span>
+                      <span>{formatRelativeDate(entry.updatedAt)}</span>
+                    </span>
+                  </span>
+                </button>
+              ))
+            )}
+          </div>
+        </aside>
 
-          {filteredItems.length === 0 ? (
-            <div className="artifacts-view__empty-state">
-              <FileText size={18} />
-              <strong>No artifacts yet</strong>
-              <span>
-                Ask the assistant to create a document, code file, SVG, or Mermaid diagram.
-              </span>
+        <main className="artifacts-view__detail" aria-label="Artifact detail">
+          {!selectedEntry ? (
+            <div className="artifacts-view__detail-empty">
+              <div className="artifacts-view__detail-mark">
+                <FileText size={25} />
+              </div>
+              <strong>Select an artifact</strong>
+              <span>Its preview, source, and version history will appear here.</span>
             </div>
           ) : (
-            <div className="artifacts-view__rows">
-              {filteredItems.map((item, index) => {
-                const itemKey = `${item.sessionId}:${item.artifact.id}`
-                const isOpening = openingArtifactKey === itemKey
-                const externalOpenLabel = getExternalOpenLabel(item.artifact.kind)
-
-                return (
-                  <div
-                    key={itemKey}
-                    data-kind={item.artifact.kind}
-                    className="artifacts-view__row-card"
-                  >
+            <>
+              <header className="artifacts-view__detail-header">
+                <button
+                  type="button"
+                  className="artifacts-view__mobile-back"
+                  onClick={() => setMobileLibraryVisible(true)}
+                >
+                  <ArrowLeft size={16} /> Library
+                </button>
+                <div className="artifacts-view__title-row">
+                  <span className="artifacts-view__detail-icon" data-kind={selectedEntry.kind}>
+                    {getArtifactIcon(selectedEntry.kind, 20)}
+                  </span>
+                  <div className="artifacts-view__detail-title">
+                    {renaming ? (
+                      <div className="artifacts-view__rename">
+                        <input
+                          autoFocus
+                          value={titleDraft}
+                          onChange={(event) => setTitleDraft(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') handleRename()
+                            if (event.key === 'Escape') setRenaming(false)
+                          }}
+                          aria-label="Artifact title"
+                        />
+                        <Button size="icon-sm" onClick={handleRename} aria-label="Save title">
+                          <Check size={15} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => setRenaming(false)}
+                          aria-label="Cancel rename"
+                        >
+                          <X size={15} />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="artifacts-view__title-display">
+                        <h3>{selectedEntry.title}</h3>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTitleDraft(selectedEntry.title)
+                            setRenaming(true)
+                          }}
+                          aria-label="Rename artifact"
+                        >
+                          <Pencil size={13} />
+                        </button>
+                      </div>
+                    )}
                     <button
                       type="button"
-                      className="artifacts-view__row"
-                      aria-label={`${externalOpenLabel}: ${item.artifact.title}`}
-                      disabled={isOpening}
-                      onClick={() => void openExternally(item)}
+                      className="artifacts-view__source-chat"
+                      onClick={openSourceChat}
                     >
-                      <div className="artifacts-view__row-main">
-                        <div className="artifacts-view__row-header">
-                          <span className="artifacts-view__type-icon" aria-hidden="true">
-                            {getArtifactIcon(item.artifact.kind)}
-                          </span>
-                          <h4>{item.artifact.title}</h4>
-                          <span className="artifacts-view__row-index" aria-hidden="true">
-                            {String(index + 1).padStart(2, '0')}
-                          </span>
-                        </div>
-                        <div className="artifacts-view__row-body">
-                          <div className="artifacts-view__badge-row">
-                            <span className="artifacts-view__type-badge">
-                              {formatArtifactKind(item.artifact.kind)}
-                            </span>
-                            {item.artifact.language && (
-                              <span className="artifacts-view__status-badge">
-                                {item.artifact.language}
-                              </span>
-                            )}
-                            <span className="artifacts-view__version-badge">
-                              {item.artifact.versions.length} version
-                              {item.artifact.versions.length === 1 ? '' : 's'}
-                            </span>
-                          </div>
-                          <div className="artifacts-view__row-meta">
-                            <span>Updated {formatRelativeDate(item.artifact.updatedAt)}</span>
-                          </div>
-                        </div>
-                      </div>
+                      <MessageSquare size={12} /> {selectedEntry.sessionTitle}
                     </button>
-                    <TooltipIconButton
-                      tooltip={externalOpenLabel}
-                      className={`artifacts-view__open-chevron ${isOpening ? 'artifacts-view__open-chevron--opening' : ''}`}
-                      aria-label={`${externalOpenLabel}: ${item.artifact.title}`}
-                      disabled={isOpening}
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        void openExternally(item)
-                      }}
-                    >
-                      <ChevronRight size={18} strokeWidth={1.8} />
-                    </TooltipIconButton>
                   </div>
-                )
-              })}
-            </div>
+                </div>
+                <div className="artifacts-view__actions">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void handleCopy()}
+                    disabled={!viewedVersion}
+                  >
+                    {copied ? <Check /> : <Copy />}
+                    <span>Copy</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void handleOpenExternal()}
+                    disabled={openingKey === selectedEntry.key}
+                  >
+                    {openingKey === selectedEntry.key ? (
+                      <LoaderCircle className="artifacts-view__spinner" />
+                    ) : (
+                      <ExternalLink />
+                    )}
+                    <span>
+                      {getExternalOpenLabel(selectedEntry.kind).replace(
+                        'Open in default ',
+                        'Open in '
+                      )}
+                    </span>
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => setDeleteOpen(true)}
+                    aria-label="Delete artifact"
+                  >
+                    <Trash2 size={15} />
+                  </Button>
+                </div>
+                <div className="artifacts-view__facts">
+                  <span>{formatArtifactKind(selectedEntry.kind)}</span>
+                  {selectedEntry.language && <span>{selectedEntry.language}</span>}
+                  <span>
+                    {selectedEntry.versionCount} version
+                    {selectedEntry.versionCount === 1 ? '' : 's'}
+                  </span>
+                  <span>Updated {formatRelativeDate(selectedEntry.updatedAt)}</span>
+                </div>
+              </header>
+
+              <div
+                className="artifacts-view__detail-tabs"
+                role="tablist"
+                aria-label="Artifact views"
+              >
+                {(['preview', 'source', 'history'] as DetailTab[]).map((tab) => (
+                  <button
+                    key={tab}
+                    type="button"
+                    role="tab"
+                    aria-selected={detailTab === tab}
+                    onClick={() => setDetailTab(tab)}
+                  >
+                    {tab === 'history'
+                      ? `History ${selectedEntry.versionCount}`
+                      : tab.charAt(0).toUpperCase() + tab.slice(1)}
+                  </button>
+                ))}
+              </div>
+
+              <div
+                className="artifacts-view__canvas"
+                data-kind={selectedEntry.kind}
+                aria-busy={loadingKey === selectedEntry.key}
+              >
+                {loadingKey === selectedEntry.key ? (
+                  <div className="artifacts-view__detail-state">
+                    <LoaderCircle className="artifacts-view__spinner" size={22} />
+                    <strong>Loading artifact</strong>
+                    <span>Fetching the full version from its chat…</span>
+                  </div>
+                ) : loadErrorKey === selectedEntry.key ? (
+                  <div className="artifacts-view__detail-state">
+                    <FileText size={22} />
+                    <strong>Preview unavailable</strong>
+                    <span>The artifact summary loaded, but its content did not.</span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void resolveEntry(selectedEntry)}
+                    >
+                      Try again
+                    </Button>
+                  </div>
+                ) : !selectedDocument || !viewedVersion ? (
+                  <div className="artifacts-view__detail-state">
+                    <FileText size={22} />
+                    <strong>No content to preview</strong>
+                  </div>
+                ) : detailTab === 'history' ? (
+                  <div className="artifacts-view__history">
+                    <div className="artifacts-view__history-intro">
+                      <Clock3 size={17} />
+                      <div>
+                        <strong>Version history</strong>
+                        <span>Inspect an earlier version or make it current again.</span>
+                      </div>
+                    </div>
+                    {selectedDocument.versions
+                      .slice()
+                      .reverse()
+                      .map((version, reverseIndex) => {
+                        const isCurrent = version.id === selectedDocument.currentVersionId
+                        const number = selectedDocument.versions.length - reverseIndex
+                        return (
+                          <div
+                            className="artifacts-view__version"
+                            key={version.id}
+                            data-current={isCurrent}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setViewedVersionId(version.id)
+                                setDetailTab('preview')
+                              }}
+                            >
+                              <span className="artifacts-view__version-number">v{number}</span>
+                              <span className="artifacts-view__version-copy">
+                                <strong>
+                                  {version.changeSummary ||
+                                    (number === 1 ? 'Initial version' : 'Artifact updated')}
+                                </strong>
+                                <span>{formatFullDate(version.createdAt)}</span>
+                              </span>
+                              {isCurrent && (
+                                <span className="artifacts-view__current-badge">Current</span>
+                              )}
+                            </button>
+                            {!isCurrent && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRestore(version.id)}
+                              >
+                                <RotateCcw size={13} /> Restore
+                              </Button>
+                            )}
+                          </div>
+                        )
+                      })}
+                  </div>
+                ) : (
+                  <ArtifactPreview
+                    kind={selectedDocument.kind}
+                    language={selectedDocument.language}
+                    content={viewedVersion.content}
+                    mode={detailTab}
+                  />
+                )}
+              </div>
+            </>
           )}
         </main>
       </div>
+
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this artifact?</AlertDialogTitle>
+            <AlertDialogDescription>
+              “{selectedEntry?.title}” and all of its versions will be removed from the source chat.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={handleDelete}>
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   )
 }
