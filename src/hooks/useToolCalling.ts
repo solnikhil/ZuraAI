@@ -28,6 +28,9 @@ import { isSkillEnabled } from '../skills'
 import type { McpRuntimeSnapshot } from '../mcp/types'
 
 const COMPUTER_USE_TOOLS = [
+  'background_window_attach',
+  'background_window_status',
+  'background_window_release',
   'ui_get_app_state',
   'ui_find',
   'ui_wait_for',
@@ -199,9 +202,7 @@ export function useToolCalling() {
 
     const desktopOsSurfaceEnabled =
       settings.assistantMode === 'agent' && (isWindowsRuntime() || isMacOSRuntime())
-    const platformDesktopOsTools = isMacOSRuntime()
-      ? MACOS_DESKTOP_OS_TOOLS
-      : DESKTOP_OS_TOOLS
+    const platformDesktopOsTools = isMacOSRuntime() ? MACOS_DESKTOP_OS_TOOLS : DESKTOP_OS_TOOLS
 
     if (!desktopOsSurfaceEnabled) {
       enabledTools = enabledTools.filter(

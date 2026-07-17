@@ -74,6 +74,7 @@ import {
 } from './providerEventAccumulator'
 
 export interface ProviderStreamingRunOptions {
+  runId?: string
   provider: ActiveProviderId
   model: string
   settingsOverride?: StreamingSettings
@@ -858,6 +859,7 @@ export function useProviderStreaming({
           ),
           {
             ...buildToolDiagnosticsCallbacks({
+              runId: options.runId,
               remainingWebSearchBudget: effectiveSearchBudget,
               priorWebSearchQueries: [],
               userContextText,
@@ -1101,6 +1103,7 @@ export function useProviderStreaming({
               ),
               {
                 ...buildToolDiagnosticsCallbacks({
+                  runId: options.runId,
                   remainingWebSearchBudget: Math.max(0, effectiveSearchBudget - totalSearchCount),
                   priorWebSearchQueries: [...searchQueryHistory],
                   userContextText,

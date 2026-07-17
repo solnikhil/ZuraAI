@@ -12,15 +12,16 @@ Renderer-invokable handlers must use `electron/ipc/trustedIpc.ts`. Raw `ipcMain.
 
 ## Validation ownership
 
-| Domain                   | Main registration                                   | Validation authority                                                                                    |
-| ------------------------ | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| Chat/folders/tool media  | `electron/ipc/chatStoreHandlers.ts`                 | Bounded runtime schemas in `chatStoreValidation.ts`; media refs resolve main-side                       |
-| Secrets                  | `electron/ipc/secureStorageHandlers.ts`             | Fixed secret-key union; values remain main-only after write                                             |
-| Provider runtime         | `electron/ipc/providerRuntimeHandlers.ts`           | Fixed provider IDs, operations, endpoints, regions, and main-resolved credentials                       |
-| Built-in tools           | `electron/tools/index.ts`                           | Exact tool-name contract plus complete closed JSON Schema; approval context is separate from model args |
-| MCP                      | `electron/mcp/index.ts`                             | Saved server IDs and typed payloads; OAuth endpoints and secrets remain main-owned                      |
-| Scheduled tasks          | `electron/ipc/monitorHandlers.ts`                   | Typed bounded task inputs plus extension-state gate                                                     |
-| System/window operations | `electron/ipc/systemHandlers.ts` and window modules | Capability-specific allowlists and sender-window ownership                                              |
+| Domain                   | Main registration                                   | Validation authority                                                                                        |
+| ------------------------ | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Chat/folders/tool media  | `electron/ipc/chatStoreHandlers.ts`                 | Bounded runtime schemas in `chatStoreValidation.ts`; media refs resolve main-side                           |
+| Secrets                  | `electron/ipc/secureStorageHandlers.ts`             | Fixed secret-key union; values remain main-only after write                                                 |
+| Provider runtime         | `electron/ipc/providerRuntimeHandlers.ts`           | Fixed provider IDs, operations, endpoints, regions, and main-resolved credentials                           |
+| Built-in tools           | `electron/tools/index.ts`                           | Exact tool-name contract plus complete closed JSON Schema; approval context is separate from model args     |
+| Background window guard  | `electron/tools/background-window/*`                | Main-resolved HWND/PID/start identity, sender + run ownership, fixed overlay actions, and lifecycle release |
+| MCP                      | `electron/mcp/index.ts`                             | Saved server IDs and typed payloads; OAuth endpoints and secrets remain main-owned                          |
+| Scheduled tasks          | `electron/ipc/monitorHandlers.ts`                   | Typed bounded task inputs plus extension-state gate                                                         |
+| System/window operations | `electron/ipc/systemHandlers.ts` and window modules | Capability-specific allowlists and sender-window ownership                                                  |
 
 When adding a channel, document its domain, direction, argument bounds, return shape, privilege level, and cleanup owner in this table or a linked domain document.
 
@@ -40,9 +41,9 @@ provider-runtime, and approval channels stay out of the generic invoke bridge.
 `execute-tool` has two logically separate inputs:
 
 1. Model-visible arguments, validated against a closed schema.
-2. Main-verifiable execution context, such as a one-use approval token.
+2. Main-verifiable execution context, such as a one-use approval token or opaque chat-run ID.
 
-Reserved authority fields (`autoApprove`, `approvalToken`, `_agentSkills`) are not valid model arguments. Approval tokens are issued by main, bound to sender + exact tool + exact arguments, expire, and are consumed once. See `docs/TOOLS_SECURITY.md` and `docs/CREATING_BUILTIN_TOOLS.md`.
+Reserved authority fields (`autoApprove`, `approvalToken`, `_agentSkills`, and background-window run ownership) are not valid model arguments. Approval tokens are issued by main, bound to sender + exact tool + exact arguments, expire, and are consumed once. The renderer's `window.backgroundWindow` bridge may only release its own run and receive a sanitized stop event; target identity and overlay control stay in main. See `docs/TOOLS_SECURITY.md` and `docs/CREATING_BUILTIN_TOOLS.md`.
 
 ## Change checklist
 

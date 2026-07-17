@@ -360,6 +360,7 @@ export async function processToolCalls(
     async ({ index, toolCall: executableToolCall }) => {
       try {
         const executeOptions = {
+          runId: config.executionPolicy?.runId,
           userContextText,
           approvalToken: consumeToolApprovalToken(executableToolCall.id),
           sessionId: config.executionPolicy?.sessionId,

@@ -404,6 +404,10 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
 
   const finishRunUi = useCallback(
     (run: ChatRunController) => {
+      const outcome = run.snapshot.outcome
+      if (outcome && window.backgroundWindow?.releaseRun) {
+        void window.backgroundWindow.releaseRun(run.id, outcome).catch(() => undefined)
+      }
       if (activeRunRef.current === run) activeRunRef.current = null
       setIsLoading(false)
       clearToolState()
@@ -452,6 +456,13 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     publishAgentRun,
     finishRunUi,
   ])
+
+  useEffect(() => {
+    if (!window.backgroundWindow?.onRunStopped) return undefined
+    return window.backgroundWindow.onRunStopped(({ runId }) => {
+      if (activeRunRef.current?.id === runId) stopStreaming()
+    })
+  }, [stopStreaming])
 
   /**
    * Main send message function

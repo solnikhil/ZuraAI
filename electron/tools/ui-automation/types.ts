@@ -75,3 +75,29 @@ export interface UiWaitForArgs extends UiFindArgs {
   interval_ms?: number
   condition?: 'element' | 'text' | 'focus' | 'window'
 }
+
+export type UiAutomationBlockedReason =
+  | 'target_lost'
+  | 'target_changed'
+  | 'minimized'
+  | 'elevated'
+  | 'secure_desktop'
+  | 'screenshot_unavailable'
+
+export type UiAutomationActionOutcome =
+  | {
+      status: 'completed'
+      state: UiAppState
+    }
+  | {
+      status: 'foreground_required'
+      action: string
+      reason: string
+      hwnd?: number
+    }
+  | {
+      status: 'blocked'
+      reason: UiAutomationBlockedReason
+      message: string
+      hwnd?: number
+    }

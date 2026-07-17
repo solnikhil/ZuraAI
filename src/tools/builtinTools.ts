@@ -206,6 +206,45 @@ Safety rules:
     origin: 'builtin-main',
     requiresApproval: true,
   },
+  background_window_attach: {
+    description:
+      'Reserve one Windows app window for this Agent run and place a target-scoped guard over it. Background-safe ui_* actions are then locked to this HWND and cannot silently use the physical mouse or keyboard. Requires approval. Use an hwnd returned by ui_get_app_state, window_list, or system_active_window.',
+    parameters: {
+      type: 'object',
+      description: 'Target window to reserve for background-safe UI Automation.',
+      properties: {
+        hwnd: { type: 'number', description: 'Native target window handle.' },
+      },
+      required: ['hwnd'],
+    },
+    category: 'computer-use',
+    origin: 'builtin-main',
+    requiresApproval: true,
+  },
+  background_window_status: {
+    description:
+      "Read the current Agent run's sender-bound background window reservation. Returns the exact target identity or no active target.",
+    parameters: {
+      type: 'object',
+      description: 'No arguments required.',
+      properties: {},
+      required: [],
+    },
+    category: 'computer-use',
+    origin: 'builtin-main',
+  },
+  background_window_release: {
+    description:
+      "Release the current Agent run's background window guard so the user can interact with the target normally.",
+    parameters: {
+      type: 'object',
+      description: 'No arguments required.',
+      properties: {},
+      required: [],
+    },
+    category: 'computer-use',
+    origin: 'builtin-main',
+  },
   computer_screenshot: {
     description:
       'Capture visual context for Computer Use. Prefer targeting a specific app/window with window_id, window_title, or app_name when the task is about one app; use a full display capture only for desktop-wide or visual layout tasks. Returns a base64 PNG image with dimensions and coordinate metadata used by follow-up actions.',
@@ -444,22 +483,13 @@ Safety rules:
   },
   ui_click: {
     description:
-      'Click a Windows UI element by element_id. Uses UI Automation InvokePattern when available, otherwise clicks the element bounds center. Coordinates are supported only as an explicit fallback. Requires approval and returns fresh app state.',
+      'Invoke a Windows UI element by element_id through UI Automation without moving the physical cursor. If the element lacks InvokePattern, returns foreground_required instead of silently clicking coordinates. Requires approval and returns fresh target-scoped state.',
     parameters: {
       type: 'object',
       properties: {
         element_id: { type: 'string', description: 'element_id from ui_get_app_state or ui_find.' },
-        x: {
-          type: 'number',
-          description: 'Fallback desktop X coordinate when no element_id is available.',
-        },
-        y: {
-          type: 'number',
-          description: 'Fallback desktop Y coordinate when no element_id is available.',
-        },
-        button: { type: 'string', enum: ['left', 'right', 'middle'], default: 'left' },
       },
-      required: [],
+      required: ['element_id'],
     },
     category: 'computer-use',
     origin: 'builtin-main',
@@ -467,17 +497,17 @@ Safety rules:
   },
   ui_type_text: {
     description:
-      'Type text into a target UI element by element_id. Focuses or clicks the target first, types text, and returns fresh app state. Requires approval.',
+      'Set text on a target UI element by element_id through UI Automation ValuePattern without focusing the window, using the clipboard, or sending global keys. If unsupported, returns foreground_required. Requires approval.',
     parameters: {
       type: 'object',
       properties: {
         element_id: {
           type: 'string',
-          description: 'Optional target element_id from ui_get_app_state or ui_find.',
+          description: 'Target element_id from ui_get_app_state or ui_find.',
         },
         text: { type: 'string', description: 'Text to type.' },
       },
-      required: ['text'],
+      required: ['element_id', 'text'],
     },
     category: 'computer-use',
     origin: 'builtin-main',
@@ -514,23 +544,15 @@ Safety rules:
   },
   ui_scroll: {
     description:
-      'Scroll a UI element by element_id. Uses UI Automation ScrollPattern when available, otherwise scrolls at the element bounds center. Coordinates are fallback only. Requires approval and returns fresh app state.',
+      'Scroll a UI element by element_id through UI Automation ScrollPattern without using the physical mouse wheel. If unsupported, returns foreground_required. Requires approval and returns fresh target-scoped state.',
     parameters: {
       type: 'object',
       properties: {
         element_id: { type: 'string', description: 'element_id from ui_get_app_state or ui_find.' },
-        x: {
-          type: 'number',
-          description: 'Fallback desktop X coordinate when no element_id is available.',
-        },
-        y: {
-          type: 'number',
-          description: 'Fallback desktop Y coordinate when no element_id is available.',
-        },
         direction: { type: 'string', enum: ['up', 'down', 'left', 'right'], default: 'down' },
         amount: { type: 'number', description: 'Scroll amount. Defaults to 3.' },
       },
-      required: ['direction'],
+      required: ['element_id', 'direction'],
     },
     category: 'computer-use',
     origin: 'builtin-main',
@@ -538,7 +560,7 @@ Safety rules:
   },
   ui_focus: {
     description:
-      'Focus a UI element by element_id through UI Automation. Requires approval and returns fresh app state.',
+      'Request foreground control to focus a UI element. Background sessions return foreground_required because keyboard focus is shared with the user.',
     parameters: {
       type: 'object',
       properties: {
@@ -552,7 +574,7 @@ Safety rules:
   },
   ui_key: {
     description:
-      'Press a key or keyboard shortcut, such as enter, escape, tab, ctrl+c, alt+tab, or ctrl+shift+s. Requires approval and returns fresh app state.',
+      'Request foreground control for a global key or shortcut. Background sessions return foreground_required; use computer_key only after explicit foreground approval.',
     parameters: {
       type: 'object',
       properties: {

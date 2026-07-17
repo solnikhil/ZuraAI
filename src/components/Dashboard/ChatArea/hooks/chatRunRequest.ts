@@ -30,6 +30,7 @@ export function buildChatRunRequest({
   ...options
 }: BuildChatRunRequestOptions): ProviderStreamingRunOptions {
   return {
+    runId: run.id,
     provider: normalizeActiveProviderId(settings.modelProvider),
     model: settings.aiModel,
     settingsOverride: buildStreamingSettings(settings),

@@ -31,6 +31,14 @@ and artifact opening, `appInfoHandlers.ts` owns runtime info/About/development i
 Main-window creation and renderer-driven resizing share `windows/windowBounds.ts`; changing minimum
 bounds in one place updates both policies and their regression test.
 
+## Background-window guard runtime
+
+`electron/tools/background-window/` owns the Windows external-target reservation, run registry, DWM bounds watcher, and guard `BrowserWindow`. The overlay is non-focusable, sandboxed, and positioned relative to the external target instead of globally always-on-top. One guarded target is supported globally in the initial implementation.
+
+Cleanup is required on run completion/cancellation/failure, explicit release, physical-input escalation, target loss, overlay placement failure, renderer destruction, Computer Use emergency stop, tool-handler disposal, and app shutdown. Watcher timers, PowerShell calls, BrowserWindow navigation listeners, and sender listeners must not outlive ownership. A minimized target hides the overlay; target identity loss releases the session. The current 500ms bounded PowerShell/DWM polling implementation is a prototype boundary and must not accept renderer/model script text.
+
+The Esc+Esc observer is a fixed hidden PowerShell `GetAsyncKeyState` helper rather than an Electron `globalShortcut`, so ordinary Escape input continues reaching the user's application. It is started only for an active Computer Use sequence and killed during the same cleanup paths.
+
 ## Scheduled-task runtime
 
 The scheduled-task runtime has four boundaries:

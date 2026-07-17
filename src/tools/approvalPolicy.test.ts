@@ -18,6 +18,8 @@ describe('requiresManualToolApproval', () => {
       'ui_get_app_state',
       'ui_find',
       'ui_wait_for',
+      'background_window_status',
+      'background_window_release',
       'web_search',
     ]) {
       expect(
@@ -49,6 +51,7 @@ describe('requiresManualToolApproval', () => {
       'ui_scroll',
       'ui_focus',
       'ui_key',
+      'background_window_attach',
       'code_execution',
       'mcp__filesystem__write_file',
     ]) {

@@ -4,6 +4,7 @@ import type {
   AgentApprovalAPI,
   AgentSkillsAPI,
   AnalyticsAPI,
+  BackgroundWindowAPI,
   ChatDebugAPI,
   ChatDiagnosticsAPI,
   ChatLinksAPI,
@@ -50,6 +51,7 @@ declare global {
     codeExecution: CodeExecutionAPI
     terminal: TerminalAPI
     computerUse: ComputerUseAPI
+    backgroundWindow: BackgroundWindowAPI
     chatDiagnostics?: ChatDiagnosticsAPI
     chatDebug?: ChatDebugAPI
     chatLinks?: ChatLinksAPI

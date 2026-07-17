@@ -29,6 +29,8 @@ import type {
   AnalyticsProperties,
   AnalyticsState,
   AppMenuCommand,
+  BackgroundWindowRunOutcome,
+  BackgroundWindowRunStoppedEvent,
   DiscordRpcState,
   EmailNotificationSettings,
   Memory,
@@ -104,6 +106,10 @@ const AGENT_SKILLS_INVOKE_CHANNELS = new Set<string>(PRELOAD_CHANNEL_MANIFEST.ag
 const AGENT_APPROVAL_INVOKE_CHANNELS = new Set<string>(
   PRELOAD_CHANNEL_MANIFEST.agentApproval.invoke
 )
+const BACKGROUND_WINDOW_INVOKE_CHANNELS = new Set<string>(
+  PRELOAD_CHANNEL_MANIFEST.backgroundWindow.invoke
+)
+const BACKGROUND_WINDOW_ON_CHANNELS = new Set<string>(PRELOAD_CHANNEL_MANIFEST.backgroundWindow.on)
 
 function assertAllowed<TChannel extends string>(
   kind: 'send' | 'invoke' | 'on' | 'off',
@@ -562,6 +568,23 @@ contextBridge.exposeInMainWorld(
       const listener = () => callback()
       ipcRenderer.on('computer-use:killed', listener)
       return () => ipcRenderer.removeListener('computer-use:killed', listener)
+    },
+  })
+)
+
+contextBridge.exposeInMainWorld(
+  'backgroundWindow',
+  Object.freeze({
+    releaseRun: (runId: string, outcome: BackgroundWindowRunOutcome) => {
+      assertAllowed('invoke', 'background-window:release-run', BACKGROUND_WINDOW_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('background-window:release-run', runId, outcome) as Promise<boolean>
+    },
+    onRunStopped: (callback: (event: BackgroundWindowRunStoppedEvent) => void) => {
+      assertAllowed('on', 'background-window:run-stopped', BACKGROUND_WINDOW_ON_CHANNELS)
+      const listener = (_event: IpcRendererEvent, payload: BackgroundWindowRunStoppedEvent) =>
+        callback(payload)
+      ipcRenderer.on('background-window:run-stopped', listener)
+      return () => ipcRenderer.removeListener('background-window:run-stopped', listener)
     },
   })
 )

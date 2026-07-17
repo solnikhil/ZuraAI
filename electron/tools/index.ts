@@ -33,6 +33,7 @@ import {
   executeUiScroll,
   executeUiFocus,
   executeUiKey,
+  getUiAutomationElementTarget,
 } from './ui-automation'
 import { executeSystemShell } from './system-shell'
 import { executeFileRead, executeFileWrite, executeFileSearch, executeFileMove } from './files'
@@ -83,8 +84,11 @@ import { activateAgentSkill } from '../agentSkills/service'
 import { validateBuiltinToolInvocation } from './validateBuiltinToolInvocation'
 import { consumeToolApprovalAuthorization } from './toolApprovalAuthorizations'
 import type { BuiltinToolExecutionContext } from '../../src/electron/types'
+import { backgroundWindowCoordinator } from './background-window'
+import { registerKillSwitch, unregisterKillSwitch } from './computer-use/killSwitch'
+import { requireApproval } from './native-common'
 
-import type { ToolResult, ToolHandler } from './types'
+import type { ToolResult, ToolHandler, ToolHandlerContext } from './types'
 export type { ToolResult, ToolHandler } from './types'
 
 const SCHEDULED_TASK_TOOL_NAMES = new Set<string>([
@@ -95,8 +99,83 @@ const SCHEDULED_TASK_TOOL_NAMES = new Set<string>([
   'scheduled_task_get_logs',
 ])
 
+const observedToolSenders = new Set<number>()
+
+function observeToolSender(sender: {
+  id: number
+  once?: (event: 'destroyed', listener: () => void) => unknown
+}): void {
+  if (observedToolSenders.has(sender.id) || typeof sender.once !== 'function') return
+  observedToolSenders.add(sender.id)
+  sender.once('destroyed', () => {
+    observedToolSenders.delete(sender.id)
+    void backgroundWindowCoordinator.releaseSender(sender.id)
+  })
+}
+
+function requireBackgroundOwner(context?: ToolHandlerContext): {
+  runId: string
+  senderWebContentsId: number
+} {
+  if (!context?.runId || context.senderWebContentsId <= 0) {
+    throw new Error('Background window tools require an active Agent run.')
+  }
+  return { runId: context.runId, senderWebContentsId: context.senderWebContentsId }
+}
+
+function scopeToReservedWindow(
+  args: unknown,
+  context?: ToolHandlerContext
+): Record<string, unknown> {
+  const record = typeof args === 'object' && args !== null ? (args as Record<string, unknown>) : {}
+  if (!context?.runId) return record
+  const target = backgroundWindowCoordinator.status(requireBackgroundOwner(context))
+  return target ? { ...record, hwnd: target.hwnd } : record
+}
+
+function assertElementOwnedByReservedWindow(
+  args: unknown,
+  context?: ToolHandlerContext
+): ToolResult | null {
+  if (!context?.runId) return null
+  const target = backgroundWindowCoordinator.status(requireBackgroundOwner(context))
+  if (!target) return null
+  const elementTarget = getUiAutomationElementTarget(args)
+  if (!elementTarget) return null
+  if (elementTarget.hwnd === target.hwnd && elementTarget.processId === target.processId)
+    return null
+  return {
+    success: false,
+    data: {
+      status: 'blocked',
+      reason: 'target_mismatch',
+      message: "The UI element does not belong to this run's reserved background window.",
+    },
+    error: 'The UI element does not belong to the reserved background window.',
+  }
+}
+
+async function executeReservedUiAction(
+  handler: (args: unknown) => Promise<ToolResult>,
+  args: unknown,
+  context?: ToolHandlerContext
+): Promise<ToolResult> {
+  const ownershipError = assertElementOwnedByReservedWindow(args, context)
+  if (ownershipError) return ownershipError
+  return handler(args)
+}
+
+async function releaseGuardForForegroundAction(context?: ToolHandlerContext): Promise<void> {
+  if (!context?.runId) return
+  await backgroundWindowCoordinator.release(requireBackgroundOwner(context), 'user-release')
+}
+
 function isComputerUseToolName(toolName: string): boolean {
-  return toolName.startsWith('computer_')
+  return (
+    toolName.startsWith('computer_') ||
+    toolName.startsWith('ui_') ||
+    toolName.startsWith('background_window_')
+  )
 }
 
 function normalizeWebSearchArgsInput(args: unknown): WebSearchArgs {
@@ -228,36 +307,79 @@ const toolHandlers: Record<BuiltinMainToolName, ToolHandler> = {
   mcp_request_add: async (args) => {
     return { success: true, data: createMcpAddRequest(args) }
   },
+  background_window_attach: async (args, context) => {
+    const approval = requireApproval(args, 'background_window_attach')
+    if (approval) return approval
+    const owner = requireBackgroundOwner(context)
+    const hwnd =
+      typeof args === 'object' &&
+      args !== null &&
+      typeof (args as Record<string, unknown>).hwnd === 'number'
+        ? Math.trunc((args as Record<string, unknown>).hwnd as number)
+        : 0
+    const notifyRunStopped = (payload: {
+      runId: string
+      reason: 'stop-and-release' | 'stop-task' | 'target-lost' | 'overlay-failed'
+    }) => context?.sendToRenderer?.('background-window:run-stopped', payload)
+    const target = await backgroundWindowCoordinator.attach(
+      owner,
+      hwnd,
+      notifyRunStopped,
+      unregisterKillSwitch
+    )
+    registerKillSwitch(() => {
+      notifyRunStopped({ runId: owner.runId, reason: 'stop-task' })
+      void backgroundWindowCoordinator.release(owner, 'run-cancelled')
+    })
+    const state = await executeUiGetAppState({ hwnd: target.hwnd })
+    return { success: true, data: { status: 'attached', target, observation: state.data } }
+  },
+  background_window_status: async (_args, context) => {
+    const target = backgroundWindowCoordinator.status(requireBackgroundOwner(context))
+    return { success: true, data: { active: Boolean(target), target } }
+  },
+  background_window_release: async (_args, context) => {
+    const released = await backgroundWindowCoordinator.release(
+      requireBackgroundOwner(context),
+      'user-release'
+    )
+    return { success: true, data: { released } }
+  },
   computer_screenshot: (args) => executeScreenshot(normalizeScreenshotArgs(args)),
-  computer_click: (args) => {
+  computer_click: async (args, context) => {
+    await releaseGuardForForegroundAction(context)
     const n = normalizeClickArgs(args)
     return executeClick(n.args, n.autoApprove, spotlightFn)
   },
-  computer_type: (args) => {
+  computer_type: async (args, context) => {
+    await releaseGuardForForegroundAction(context)
     const n = normalizeTypeArgs(args)
     return executeType(n.args, n.autoApprove)
   },
-  computer_key: (args) => {
+  computer_key: async (args, context) => {
+    await releaseGuardForForegroundAction(context)
     const n = normalizeKeyArgs(args)
     return executeKey(n.args, n.autoApprove)
   },
-  computer_scroll: (args) => {
+  computer_scroll: async (args, context) => {
+    await releaseGuardForForegroundAction(context)
     const n = normalizeScrollArgs(args)
     return executeScroll(n.args, n.autoApprove, spotlightFn)
   },
-  computer_cursor_position: (args) => {
+  computer_cursor_position: async (args, context) => {
+    await releaseGuardForForegroundAction(context)
     const n = normalizeCursorArgs(args)
     return executeCursorPosition(n.args, n.autoApprove, spotlightFn)
   },
   computer_list_windows: () => executeListWindows(),
-  ui_get_app_state: executeUiGetAppState,
-  ui_find: executeUiFind,
-  ui_wait_for: executeUiWaitFor,
-  ui_click: executeUiClick,
-  ui_type_text: executeUiTypeText,
-  ui_set_value: executeUiSetValue,
-  ui_select: executeUiSelect,
-  ui_scroll: executeUiScroll,
+  ui_get_app_state: (args, context) => executeUiGetAppState(scopeToReservedWindow(args, context)),
+  ui_find: (args, context) => executeUiFind(scopeToReservedWindow(args, context)),
+  ui_wait_for: (args, context) => executeUiWaitFor(scopeToReservedWindow(args, context)),
+  ui_click: (args, context) => executeReservedUiAction(executeUiClick, args, context),
+  ui_type_text: (args, context) => executeReservedUiAction(executeUiTypeText, args, context),
+  ui_set_value: (args, context) => executeReservedUiAction(executeUiSetValue, args, context),
+  ui_select: (args, context) => executeReservedUiAction(executeUiSelect, args, context),
+  ui_scroll: (args, context) => executeReservedUiAction(executeUiScroll, args, context),
   ui_focus: executeUiFocus,
   ui_key: executeUiKey,
   windows_uia_snapshot: executeWindowsUiaSnapshot,
@@ -341,6 +463,27 @@ const toolHandlers: Record<BuiltinMainToolName, ToolHandler> = {
  */
 export function registerToolHandlers(): void {
   ipcMain.handle(
+    'background-window:release-run',
+    async (event, runId: unknown, outcome: unknown): Promise<boolean> => {
+      if (typeof runId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(runId)) {
+        throw new Error('Invalid background window run id.')
+      }
+      if (outcome !== 'completed' && outcome !== 'cancelled' && outcome !== 'failed') {
+        throw new Error('Invalid background window run outcome.')
+      }
+      observeToolSender(event.sender)
+      return backgroundWindowCoordinator.release(
+        { runId, senderWebContentsId: event.sender.id },
+        outcome === 'completed'
+          ? 'run-finished'
+          : outcome === 'cancelled'
+            ? 'run-cancelled'
+            : 'run-failed'
+      )
+    }
+  )
+
+  ipcMain.handle(
     'execute-tool',
     async (
       event,
@@ -385,6 +528,14 @@ export function registerToolHandlers(): void {
 
       try {
         const senderId = event.sender?.id ?? -1
+        if (event.sender && senderId >= 0) observeToolSender(event.sender)
+        if (
+          executionContext?.runId !== undefined &&
+          (typeof executionContext.runId !== 'string' ||
+            !/^[A-Za-z0-9_-]{1,128}$/.test(executionContext.runId))
+        ) {
+          return { success: false, error: 'Invalid tool execution run id.' }
+        }
         const approved = consumeToolApprovalAuthorization(
           executionContext?.approvalToken,
           senderId,
@@ -398,7 +549,14 @@ export function registerToolHandlers(): void {
             ? { _agentSkills: executionContext.agentSkills }
             : {}),
         }
-        return await handler(handlerArgs)
+        const runId = executionContext?.runId
+        return runId
+          ? await handler(handlerArgs, {
+              senderWebContentsId: senderId,
+              runId,
+              sendToRenderer: (channel, payload) => event.sender.send(channel, payload),
+            })
+          : await handler(handlerArgs)
       } catch (error: unknown) {
         return {
           success: false,
@@ -414,4 +572,7 @@ export function registerToolHandlers(): void {
 
 export function unregisterToolHandlers(): void {
   ipcMain.removeHandler('execute-tool')
+  ipcMain.removeHandler('background-window:release-run')
+  observedToolSenders.clear()
+  void backgroundWindowCoordinator.dispose()
 }

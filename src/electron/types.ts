@@ -68,10 +68,19 @@ export interface AgentApprovalOverlayDecision {
 
 export interface BuiltinToolExecutionContext {
   approvalToken?: string
+  /** Opaque ChatRunController identity; never included in model-visible arguments. */
+  runId?: string
   agentSkills?: {
     projectRoot?: string
     disabledSkillNames?: string[]
   }
+}
+
+export type BackgroundWindowRunOutcome = 'completed' | 'cancelled' | 'failed'
+
+export interface BackgroundWindowRunStoppedEvent {
+  runId: string
+  reason: 'stop-and-release' | 'stop-task' | 'target-lost' | 'overlay-failed'
 }
 
 /**
@@ -876,6 +885,11 @@ export interface ComputerUseAPI {
   resolveApproval: (requestId: string, approved: boolean) => Promise<ApprovalDecision>
   onPendingApproval: (callback: (pending: PendingComputerAction[]) => void) => () => void
   onKilled: (callback: () => void) => () => void
+}
+
+export interface BackgroundWindowAPI {
+  releaseRun: (runId: string, outcome: BackgroundWindowRunOutcome) => Promise<boolean>
+  onRunStopped: (callback: (event: BackgroundWindowRunStoppedEvent) => void) => () => void
 }
 
 export interface AgentApprovalAPI {

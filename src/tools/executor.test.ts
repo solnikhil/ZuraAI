@@ -51,7 +51,19 @@ describe('executeTool web_search argument normalization', () => {
       'execute-tool',
       'system_shell',
       { command: 'Get-Date', description: 'Check the current date' },
-      { approvalToken: 'main-issued-token', agentSkills: undefined }
+      { approvalToken: 'main-issued-token', runId: undefined, agentSkills: undefined }
     )
+  })
+
+  it('keeps the opaque chat run id out of model-visible arguments', async () => {
+    const args = { path: 'C:\\demo.txt' }
+    await executeTool('file_read', args, { runId: '9c04fb04-4d47-40cb-91b7-cdb05813866f' })
+
+    expect(testWindow.ipcRenderer.invoke).toHaveBeenCalledWith('execute-tool', 'file_read', args, {
+      approvalToken: undefined,
+      runId: '9c04fb04-4d47-40cb-91b7-cdb05813866f',
+      agentSkills: undefined,
+    })
+    expect(args).not.toHaveProperty('runId')
   })
 })

@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 
 import { useAgentToolApproval } from '@/agent/AgentToolApprovalContext'
 import type { FileAttachment, Message, ToolCallResult } from '@/chat/types'
@@ -100,6 +100,7 @@ export function AutomationRunSync(): null {
   const { settings } = useSettings()
   const chatHistory = useChatHistory()
   const toolCalling = useToolCalling()
+  const backgroundControllersRef = useRef(new Map<string, AbortController>())
   const streamingToolCalling: ToolCallingHook = {
     canUseTools: toolCalling.canUseTools,
     getToolsForRequest: toolCalling.getToolsForRequest,
@@ -217,10 +218,18 @@ export function AutomationRunSync(): null {
   )
 
   useEffect(() => {
+    if (!window.backgroundWindow?.onRunStopped) return undefined
+    return window.backgroundWindow.onRunStopped(({ runId }) => {
+      backgroundControllersRef.current.get(runId)?.abort()
+    })
+  }, [])
+
+  useEffect(() => {
     if (!window.scheduledTasks?.onAutomationRunRequest) return undefined
 
     return window.scheduledTasks.onAutomationRunRequest((request) => {
       const controller = new AbortController()
+      backgroundControllersRef.current.set(request.requestId, controller)
       const timeout = window.setTimeout(
         () => controller.abort(),
         Math.max(10_000, Math.min(15 * 60_000, request.budgets.timeoutMs ?? 120_000))
@@ -229,6 +238,7 @@ export function AutomationRunSync(): null {
       void (async () => {
         let automationChatSessionId: string | undefined
         let assistantMessageId: string | undefined
+        let backgroundRunOutcome: 'completed' | 'cancelled' | 'failed' | undefined
         try {
           const automationChat = createBackgroundAutomationChat(request)
           automationChatSessionId = automationChat.sessionId
@@ -246,6 +256,7 @@ export function AutomationRunSync(): null {
 
           const result = allowTools
             ? await runProviderStream({
+                runId: request.requestId,
                 provider: settings.modelProvider,
                 model: settings.aiModel,
                 settingsOverride,
@@ -319,7 +330,9 @@ export function AutomationRunSync(): null {
             ...(delivery.artifactIds ? { artifactIds: delivery.artifactIds } : {}),
           }
           await window.scheduledTasks.resolveAutomationRun(response)
+          backgroundRunOutcome = 'completed'
         } catch (error) {
+          backgroundRunOutcome = controller.signal.aborted ? 'cancelled' : 'failed'
           if (automationChatSessionId && assistantMessageId) {
             chatHistory.updateStreamingMessage(
               automationChatSessionId,
@@ -340,6 +353,15 @@ export function AutomationRunSync(): null {
           })
         } finally {
           window.clearTimeout(timeout)
+          backgroundControllersRef.current.delete(request.requestId)
+          if (window.backgroundWindow?.releaseRun) {
+            void window.backgroundWindow
+              .releaseRun(
+                request.requestId,
+                backgroundRunOutcome ?? (controller.signal.aborted ? 'cancelled' : 'failed')
+              )
+              .catch(() => undefined)
+          }
         }
       })()
     })

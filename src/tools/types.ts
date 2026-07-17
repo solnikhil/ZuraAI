@@ -91,6 +91,8 @@ export interface ToolCallResult {
 }
 
 export interface ToolExecutionPolicy {
+  /** Opaque ChatRunController identity propagated as trusted execution metadata. */
+  runId?: string
   remainingWebSearchBudget?: number
   remainingToolCallBudget?: number
   priorWebSearchQueries?: string[]

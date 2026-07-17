@@ -205,6 +205,9 @@ describe('useToolCalling - Computer Use tool exposure gating', () => {
     expect(COMPUTER_USE_TOOL_NAMES).toContain('ui_click')
     expect(COMPUTER_USE_TOOL_NAMES).toContain('computer_screenshot')
     expect(COMPUTER_USE_TOOL_NAMES).toContain('computer_click')
+    expect(COMPUTER_USE_TOOL_NAMES).toContain('background_window_attach')
+    expect(COMPUTER_USE_TOOL_NAMES).toContain('background_window_status')
+    expect(COMPUTER_USE_TOOL_NAMES).toContain('background_window_release')
   })
 
   it('exposes the Computer Use surface on Windows when the Computer Use skill is enabled', () => {

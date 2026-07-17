@@ -52,7 +52,7 @@ describe('tool routing through current-desktop Computer Use', () => {
       event: { sender?: { id: number } },
       toolName: string,
       args: unknown,
-      executionContext?: { approvalToken?: string }
+      executionContext?: { approvalToken?: string; runId?: string }
     ) => Promise<unknown>
     handlers: Record<string, ReturnType<typeof vi.fn>>
   }> {
@@ -61,7 +61,7 @@ describe('tool routing through current-desktop Computer Use', () => {
           event: { sender?: { id: number } },
           toolName: string,
           args: unknown,
-          executionContext?: { approvalToken?: string }
+          executionContext?: { approvalToken?: string; runId?: string }
         ) => Promise<unknown>)
       | null = null
 
@@ -216,6 +216,17 @@ describe('tool routing through current-desktop Computer Use', () => {
       data: { requestId: 'request-1', status: 'pending' },
     })
     expect(handlers.createMcpAddRequest).toHaveBeenCalledWith(args)
+  })
+
+  it('fails closed when background window attachment lacks main-issued approval', async () => {
+    const { handler } = await loadToolHandler()
+
+    await expect(
+      handler({ sender: { id: 7 } }, 'background_window_attach', { hwnd: 42 }, { runId: 'run-1' })
+    ).resolves.toEqual({
+      success: false,
+      error: 'background_window_attach requires user approval before it can run.',
+    })
   })
 
   it('fails closed for removed duplicate Computer Use app tools', async () => {

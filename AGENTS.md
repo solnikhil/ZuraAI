@@ -108,6 +108,7 @@ Renderer (React/Vite) -> Preload (allowlisted bridges) -> Electron Main
 - About window: separate `BrowserWindow`, loads `#/about`, opened through `window.appInfo.openAboutWindow()`.
 - Chat debug window: dev-only separate `BrowserWindow`, loads `#/chat-debug?sessionId=<id>`, disabled in packaged builds.
 - Agent approval overlay: separate small frameless always-on-top `BrowserWindow` owned by main for Agent Mode tool-call approvals while ZuraAI is not focused. It loads sanitized inline approval HTML only, resolves approve/reject/always-allow-exact-repeat decisions, and issues bounded one-use execution authorizations; it does not execute tools or expose general desktop APIs.
+- Background window guard: Windows-only transparent, frameless, sandboxed, non-focusable `BrowserWindow` owned by main while an Agent run reserves one external HWND. It is positioned immediately above that target rather than globally always-on-top, intercepts conflicting clicks only inside the target bounds, and exposes token-bound Continue / Take control / Stop task actions. Main tracks the external HWND/PID/process-start identity and DWM bounds with a fixed code-owned PowerShell watcher; the guard hides/releases on minimize, target loss, placement failure, run completion/cancellation/failure, renderer destruction, emergency stop, or app shutdown.
 - Unknown renderer routes render the dedicated 404 view.
 - Renderer-backed windows deny all in-window navigation and new-window creation. Explicit HTTP(S)
   links may open only through the OS browser; development-server URLs are recognized by exact
@@ -131,6 +132,7 @@ Memory / performance:
 Chat run lifecycle:
 
 - Renderer chat send and regenerate operations share the explicit `ChatRunController` state machine under `src/components/Dashboard/ChatArea/hooks/`. One controller owns the run's single `AbortController`, preparation/stream/tool/finalization phases, and exactly-once completion, failure, or cancellation. Shared request construction uses `streaming/chatRunConfig.ts`; shared finalization commits immutable chat updates and performs UI cleanup. `useStreamingChat` is the React/context adapter, while provider event accumulation and final result calculation remain isolated in focused streaming modules. The lifecycle contract and required tests are documented in `docs/CHAT_RUNTIME.md`.
+- Each chat run threads its opaque `ChatRunController.id` through trusted tool execution context, never model-visible arguments. Main binds any background-window reservation to that run plus the sender `webContents`; renderer finalization uses the narrow background-window bridge to release the guard, while a guard stop/target-loss event cancels only the owning active run.
 
 All BrowserWindows must use `nodeIntegration: false`, `contextIsolation: true`, and `sandbox: true` unless a change is explicitly justified in this file.
 
@@ -239,6 +241,9 @@ Dedicated preload bridges include:
 - `window.chatLinks`
 - `window.discordRpc`
 - `window.providerRuntime`
+- `window.backgroundWindow`
+
+`window.backgroundWindow` exposes only `releaseRun(runId, outcome)` and a sanitized owning-run stop event. Main validates sender/run ownership; the renderer cannot provide HWNDs, bounds, process identities, overlay HTML, watcher commands, or placement options through this bridge. Agent model calls attach/status/release through the existing validated `execute-tool` boundary.
 
 `window.windowControls.setAppearance(...)` uses the narrow
 `window-controls:set-appearance` channel to synchronize the caller's native
@@ -360,6 +365,12 @@ window supplied by the caller and must never focus the first arbitrary `BrowserW
 
 Agent Mode exposes narrow, main-owned desktop primitives through the existing `execute-tool` IPC path. Retained cross-platform tools include `system_active_window`, `system_status`, `system_settings_open`, `system_open_path`, and `window_snap`; Windows also exposes the existing bounded app, window, filesystem, UI Automation, and Computer Use tool sets. Mutating actions continue through normal approval policy. These tools are assistant capabilities only: there is no global launcher overlay, global shortcut, direct-action palette, renderer-provided path/URI/command execution, or background clipboard context.
 
+Windows Agent runs may explicitly reserve one external app window with `background_window_attach`. Main owns the exact `{hwnd, pid, processStartTime}` identity, one target per run and one guarded target globally in the first implementation. While reserved, `ui_get_app_state`/`ui_find`/`ui_wait_for` remain scoped to that HWND and element actions must belong to it. Background-safe mutations use provider-backed UI Automation Invoke, Value, SelectionItem/Toggle, or Scroll patterns only; they never silently fall back to focus, clipboard paste, global keys, cursor movement, coordinate clicks, or wheel input. Unsupported controls return `foreground_required`; stale/reused targets, unavailable captures, and lost targets return explicit blocked outcomes. An explicitly approved `computer_*` physical action releases the guard before using the shared input desktop.
+
+The background guard is not a second hidden Windows input desktop. The target must remain a normal/restored window and may be occluded by other apps; minimized, elevated, secure-desktop, custom-canvas, and provider-incomplete surfaces may require user takeover. The current bounds watcher uses bounded fixed PowerShell/DWM polling and must never accept renderer/model script text. Replacing it with a native or persistent helper changes process/packaging assumptions and requires a further Architecture update and packaged Windows verification.
+
+The Computer Use Esc+Esc emergency stop is observed by a fixed, main-owned PowerShell `GetAsyncKeyState` helper while a session is active. It does not register or swallow the user's global Escape key. The helper accepts no renderer/model command text and is terminated on release, cancellation, failure, target loss, renderer destruction, or shutdown.
+
 Installed-app discovery used by `app_find`, `app_list`, and `app_launch` remains main-owned in `electron/appIndexService.ts`. Its non-secret snapshot is stored as `app-index.json` under `app.getPath('userData')`; Windows and macOS refresh from bounded platform-owned application sources, and the renderer/model never provides launch authority. The service may use local launch counts and platform usage metadata for app ranking, but no raw launcher queries or search-learning HMAC data are collected.
 
 The removed Command Center architecture included a second renderer/window, global shortcuts, workflows, Windows Search helper, emoji insertion, search learning, the manifest-based Zura Store extension runtime, and GitHub Workspace. Their IPC/preload bridges, packaged resources, CLI authoring commands, OAuth/token storage, repository storage, and extension storage are no longer part of the application. Existing orphaned files from older installations are not read or migrated.
@@ -390,7 +401,7 @@ Important tool rules:
   The renderer's typed generic bridge accepts only `BuiltinMainToolName`, and main validates every
   invocation against the tool's closed, complete manifest JSON Schema before exhaustive handler
   dispatch, without coercing, removing, or inventing arguments. Reserved execution-context fields
-  such as `autoApprove`, `_agentSkills`, and approval tokens are rejected when supplied as model
+  such as `autoApprove`, `_agentSkills`, approval tokens, and background-window run ownership are rejected when supplied as model
   arguments. The supported contributor workflow is
   documented in `docs/CREATING_BUILTIN_TOOLS.md`.
 - The approval threat model and contributor invariants are documented in
@@ -403,6 +414,7 @@ Important tool rules:
   renderer settings; disabling Reminders & Lookouts clears active timers and
   prevents manual or model-callable task execution until re-enabled.
 - MCP tools use `window.mcp.executeTool(...)`, not the generic built-in tool IPC.
+- `background_window_attach` is approval-gated and requires trusted run context. `background_window_status` and `background_window_release` can act only on the calling sender's current run. Guard ownership and run IDs are main-owned authority; model arguments cannot supply or override them.
 - Mutating/high-risk tools require user approval. Agent approval is represented by a main-issued,
   one-use token bound to the requesting `webContents`, exact tool name, and exact validated
   arguments; the token travels in a separate execution context and is consumed before dispatch.

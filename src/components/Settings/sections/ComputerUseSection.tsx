@@ -46,7 +46,8 @@ export function ComputerUseSection({
 
           <p className="max-w-[70ch] text-sm leading-6 text-muted-foreground">
             Computer Use controls the current Windows desktop only. Actions still use the existing
-            approval dialog, auto-approval setting, and Esc+Esc kill switch.
+            approval dialog and Esc+Esc kill switch. Background-safe sessions reserve only their
+            target window and show a guard while Zura is using it.
           </p>
 
           <DetailField

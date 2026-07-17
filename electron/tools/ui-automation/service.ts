@@ -14,9 +14,9 @@ import {
 } from '../native-common'
 import { serializeCoordinateContext } from '../computer-use/coordinates'
 import { captureScreenshot } from '../computer-use/screenshot'
-import { performClick, performKeyPress, performScroll, performType } from '../computer-use/actions'
 import { ACTION_DELAY_MS } from '../computer-use/constants'
 import type {
+  UiAutomationActionOutcome,
   UiAppState,
   UiAutomationBounds,
   UiAutomationElement,
@@ -75,6 +75,7 @@ interface ElementCacheEntry {
   elementId: string
   runtimeId: string
   hwnd: number
+  processId: number
   role: string
   name: string
   automationId: string
@@ -97,15 +98,18 @@ const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve,
 
 function scheduleCachePrune(): void {
   if (cachePruneTimer) return
-  cachePruneTimer = setTimeout(() => {
-    cachePruneTimer = null
-    pruneCaches()
-    // Keep pruning while caches still hold entries so screenshots don't linger
-    // until the next UI tool call.
-    if (elementCache.size > 0 || stateCache.size > 0) {
-      scheduleCachePrune()
-    }
-  }, Math.min(STATE_TTL_MS, ELEMENT_TTL_MS))
+  cachePruneTimer = setTimeout(
+    () => {
+      cachePruneTimer = null
+      pruneCaches()
+      // Keep pruning while caches still hold entries so screenshots don't linger
+      // until the next UI tool call.
+      if (elementCache.size > 0 || stateCache.size > 0) {
+        scheduleCachePrune()
+      }
+    },
+    Math.min(STATE_TTL_MS, ELEMENT_TTL_MS)
+  )
 }
 
 function psString(value: string): string {
@@ -151,7 +155,7 @@ function patternToAction(pattern: string): string | null {
 }
 
 function normalizeActions(patterns: string[] | undefined): string[] {
-  const actions = new Set<string>(['focus'])
+  const actions = new Set<string>()
   for (const pattern of patterns || []) {
     const action = patternToAction(pattern)
     if (action) actions.add(action)
@@ -218,6 +222,7 @@ function buildWindows(rawWindows: RawWindow[], now: number): UiAutomationWindow[
         elementId,
         runtimeId: raw.runtimeId,
         hwnd,
+        processId: typeof rawWindow.processId === 'number' ? rawWindow.processId : 0,
         role: element.role,
         name: element.name,
         automationId: element.automation_id,
@@ -379,7 +384,7 @@ if ($null -ne $activeWindow) {
 }
 
 function runtimeActionScript(
-  action: 'invoke' | 'setValue' | 'select' | 'focus' | 'scroll',
+  action: 'invoke' | 'setValue' | 'select' | 'scroll',
   entry: ElementCacheEntry,
   value?: string,
   direction?: string,
@@ -390,12 +395,16 @@ Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
 $wanted = ${psString(entry.runtimeId)}
 $root = [System.Windows.Automation.AutomationElement]::RootElement
-$all = $root.FindAll([System.Windows.Automation.TreeScope]::Subtree, [System.Windows.Automation.Condition]::TrueCondition)
+$windowCondition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NativeWindowHandleProperty, ${entry.hwnd})
+$window = $root.FindFirst([System.Windows.Automation.TreeScope]::Children, $windowCondition)
+if ($null -eq $window) { throw "ZURA_UIA_TARGET_LOST: Target window is no longer available." }
+if ([int]$window.Current.ProcessId -ne ${entry.processId}) { throw "ZURA_UIA_TARGET_CHANGED: Target window identity changed." }
+$all = $window.FindAll([System.Windows.Automation.TreeScope]::Subtree, [System.Windows.Automation.Condition]::TrueCondition)
 $element = $null
 foreach ($el in $all) {
   if (($el.GetRuntimeId() -join '.') -eq $wanted) { $element = $el; break }
 }
-if ($null -eq $element) { throw "UI element is stale or was not found." }
+if ($null -eq $element) { throw "ZURA_UIA_TARGET_LOST: UI element is stale or was not found under its target window." }
 switch (${psString(action)}) {
   'invoke' {
     $pattern = $element.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
@@ -418,9 +427,6 @@ switch (${psString(action)}) {
       if ($null -ne $toggle) { $toggle.Toggle(); break }
     } catch {}
     throw "Element does not support SelectionItemPattern or TogglePattern."
-  }
-  'focus' {
-    $element.SetFocus()
   }
   'scroll' {
     $pattern = $element.GetCurrentPattern([System.Windows.Automation.ScrollPattern]::Pattern)
@@ -461,10 +467,21 @@ async function buildAppState(args: unknown = {}): Promise<UiAppState> {
   const raw = await runSnapshot(args, maxDepth, maxElements)
   const windows = buildWindows(normalizeJsonArray(raw.windows), now)
 
-  const screenshot = await captureScreenshot({
-    windowTitle: stringArg(args, 'windowTitle') || undefined,
-    appName: stringArg(args, 'appName') || stringArg(args, 'processName') || undefined,
-  })
+  const requestedHwnd =
+    isRecord(args) && typeof args.hwnd === 'number' && Number.isSafeInteger(args.hwnd)
+      ? Math.trunc(args.hwnd)
+      : undefined
+  if (requestedHwnd !== undefined && !windows.some((window) => window.hwnd === requestedHwnd)) {
+    throw new Error('ZURA_UIA_TARGET_LOST: Target window is no longer available.')
+  }
+  const screenshot = await captureScreenshot(
+    requestedHwnd !== undefined
+      ? { windowId: `window:${requestedHwnd}:0` }
+      : {
+          windowTitle: stringArg(args, 'windowTitle') || undefined,
+          appName: stringArg(args, 'appName') || stringArg(args, 'processName') || undefined,
+        }
+  )
 
   const state: UiAppState = {
     state_id: `uis_${randomUUID()}`,
@@ -588,21 +605,69 @@ function getElementEntry(args: unknown): ElementCacheEntry | null {
   return elementCache.get(elementId) || null
 }
 
-function centerOf(bounds: UiAutomationBounds): { x: number; y: number } {
-  return {
-    x: Math.round(bounds.x + bounds.width / 2),
-    y: Math.round(bounds.y + bounds.height / 2),
-  }
+/** Main-only ownership check used to bind element actions to a reserved HWND. */
+export function getUiAutomationElementTarget(
+  args: unknown
+): { hwnd: number; processId: number } | null {
+  const entry = getElementEntry(args)
+  return entry ? { hwnd: entry.hwnd, processId: entry.processId } : null
 }
 
-async function returnFreshState(args: unknown): Promise<ToolResult> {
+async function returnFreshState(entry: ElementCacheEntry): Promise<ToolResult> {
   await delay(ACTION_DELAY_MS)
-  const state = await buildAppState(args)
-  return { success: true, data: { state } }
+  const state = await buildAppState({ hwnd: entry.hwnd })
+  const outcome: UiAutomationActionOutcome = { status: 'completed', state }
+  return { success: true, data: outcome }
+}
+
+function foregroundRequired(action: string, reason: string, entry?: ElementCacheEntry): ToolResult {
+  const outcome: UiAutomationActionOutcome = {
+    status: 'foreground_required',
+    action,
+    reason,
+    ...(entry ? { hwnd: entry.hwnd } : {}),
+  }
+  return { success: false, error: reason, data: outcome }
+}
+
+function actionFailure(
+  error: unknown,
+  fallback: string,
+  entry?: ElementCacheEntry,
+  foregroundAction?: string
+): ToolResult {
+  const message = error instanceof Error ? error.message : fallback
+  if (foregroundAction && message.includes('does not support')) {
+    return foregroundRequired(foregroundAction, message, entry)
+  }
+  if (message.includes('No matching window source available for capture')) {
+    const outcome: UiAutomationActionOutcome = {
+      status: 'blocked',
+      reason: 'screenshot_unavailable',
+      message: 'The target window cannot currently be captured for verification.',
+      ...(entry ? { hwnd: entry.hwnd } : {}),
+    }
+    return { success: false, error: outcome.message, data: outcome }
+  }
+  const marker = message.includes('ZURA_UIA_TARGET_CHANGED')
+    ? 'target_changed'
+    : message.includes('ZURA_UIA_TARGET_LOST')
+      ? 'target_lost'
+      : null
+  if (marker) {
+    const outcome: UiAutomationActionOutcome = {
+      status: 'blocked',
+      reason: marker,
+      message: message.replace(/.*ZURA_UIA_[A-Z_]+:\s*/, ''),
+      ...(entry ? { hwnd: entry.hwnd } : {}),
+    }
+    return { success: false, error: outcome.message, data: outcome }
+  }
+  return { success: false, error: message }
 }
 
 async function runUiaAction(
-  action: 'invoke' | 'setValue' | 'select' | 'focus' | 'scroll',
+  action: 'invoke' | 'setValue' | 'select' | 'scroll',
   entry: ElementCacheEntry,
   value?: string,
   direction?: string,
@@ -628,7 +693,11 @@ export async function executeUiFind(args: unknown): Promise<ToolResult> {
   if (!isWindows()) return unsupportedWindowsOnly('ui_find')
   try {
     const findArgs = parseFindArgs(args)
-    const state = getState(findArgs.state_id) || (await buildAppState(args))
+    const hasExactTarget =
+      isRecord(args) && typeof args.hwnd === 'number' && Number.isFinite(args.hwnd)
+    const state = hasExactTarget
+      ? await buildAppState(args)
+      : getState(findArgs.state_id) || (await buildAppState(args))
     return {
       success: true,
       data: { state_id: state.state_id, matches: findElementsInState(state, findArgs) },
@@ -679,29 +748,22 @@ export async function executeUiClick(args: unknown): Promise<ToolResult> {
   if (approval) return approval
   try {
     const entry = getElementEntry(args)
-    if (entry && entry.supportedActions.includes('click')) {
-      await runUiaAction('invoke', entry)
-    } else if (entry) {
-      const point = centerOf(entry.bounds)
-      await performClick({
-        ...point,
-        button: isRecord(args) && args.button === 'right' ? 'right' : 'left',
-      })
-    } else if (isRecord(args) && typeof args.x === 'number' && typeof args.y === 'number') {
-      await performClick({
-        x: args.x,
-        y: args.y,
-        button: args.button === 'right' ? 'right' : 'left',
-      })
-    } else {
-      return {
-        success: false,
-        error: 'element_id is required unless x and y fallback coordinates are provided.',
-      }
+    if (!entry) return foregroundRequired('click', 'Background click requires an element_id.')
+    const button = isRecord(args) && typeof args.button === 'string' ? args.button : 'left'
+    if (button !== 'left') {
+      return foregroundRequired(
+        'click',
+        `${button}-button clicks require foreground control.`,
+        entry
+      )
     }
-    return returnFreshState(args)
+    if (!entry.supportedActions.includes('click')) {
+      return foregroundRequired('click', 'Element does not support background invocation.', entry)
+    }
+    await runUiaAction('invoke', entry)
+    return returnFreshState(entry)
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : 'ui_click failed.' }
+    return actionFailure(error, 'ui_click failed.', getElementEntry(args) || undefined, 'click')
   }
 }
 
@@ -711,23 +773,21 @@ export async function executeUiTypeText(args: unknown): Promise<ToolResult> {
   if (approval) return approval
   const text = stringArg(args, 'text')
   if (!text) return { success: false, error: 'text is required.' }
+  const entry = getElementEntry(args)
+  if (!entry)
+    return foregroundRequired('type_text', 'Background text entry requires an element_id.')
+  if (!entry.supportedActions.includes('set_value')) {
+    return foregroundRequired(
+      'type_text',
+      'Element does not support background ValuePattern text entry.',
+      entry
+    )
+  }
   try {
-    const entry = getElementEntry(args)
-    if (entry) {
-      try {
-        await runUiaAction('focus', entry)
-      } catch {
-        const point = centerOf(entry.bounds)
-        await performClick(point)
-      }
-    }
-    await performType({ text })
-    return returnFreshState(args)
+    await runUiaAction('setValue', entry, text)
+    return returnFreshState(entry)
   } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'ui_type_text failed.',
-    }
+    return actionFailure(error, 'ui_type_text failed.', entry, 'type_text')
   }
 }
 
@@ -738,14 +798,18 @@ export async function executeUiSetValue(args: unknown): Promise<ToolResult> {
   const entry = getElementEntry(args)
   const value = stringArg(args, 'value')
   if (!entry) return { success: false, error: 'element_id is required.' }
+  if (!entry.supportedActions.includes('set_value')) {
+    return foregroundRequired(
+      'set_value',
+      'Element does not support background ValuePattern updates.',
+      entry
+    )
+  }
   try {
     await runUiaAction('setValue', entry, value)
-    return returnFreshState(args)
+    return returnFreshState(entry)
   } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'ui_set_value failed.',
-    }
+    return actionFailure(error, 'ui_set_value failed.', entry, 'set_value')
   }
 }
 
@@ -755,11 +819,18 @@ export async function executeUiSelect(args: unknown): Promise<ToolResult> {
   if (approval) return approval
   const entry = getElementEntry(args)
   if (!entry) return { success: false, error: 'element_id is required.' }
+  if (!entry.supportedActions.includes('select')) {
+    return foregroundRequired(
+      'select',
+      'Element does not support background selection or toggling.',
+      entry
+    )
+  }
   try {
     await runUiaAction('select', entry)
-    return returnFreshState(args)
+    return returnFreshState(entry)
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : 'ui_select failed.' }
+    return actionFailure(error, 'ui_select failed.', entry, 'select')
   }
 }
 
@@ -774,22 +845,14 @@ export async function executeUiScroll(args: unknown): Promise<ToolResult> {
   const amount = isRecord(args) && typeof args.amount === 'number' ? args.amount : 3
   try {
     const entry = getElementEntry(args)
-    if (entry && entry.supportedActions.includes('scroll')) {
-      await runUiaAction('scroll', entry, undefined, direction, amount)
-    } else if (entry) {
-      const point = centerOf(entry.bounds)
-      await performScroll({ ...point, direction, amount })
-    } else if (isRecord(args) && typeof args.x === 'number' && typeof args.y === 'number') {
-      await performScroll({ x: args.x, y: args.y, direction, amount })
-    } else {
-      return {
-        success: false,
-        error: 'element_id is required unless x and y fallback coordinates are provided.',
-      }
+    if (!entry) return foregroundRequired('scroll', 'Background scroll requires an element_id.')
+    if (!entry.supportedActions.includes('scroll')) {
+      return foregroundRequired('scroll', 'Element does not support background scrolling.', entry)
     }
-    return returnFreshState(args)
+    await runUiaAction('scroll', entry, undefined, direction, amount)
+    return returnFreshState(entry)
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : 'ui_scroll failed.' }
+    return actionFailure(error, 'ui_scroll failed.', getElementEntry(args) || undefined, 'scroll')
   }
 }
 
@@ -799,12 +862,11 @@ export async function executeUiFocus(args: unknown): Promise<ToolResult> {
   if (approval) return approval
   const entry = getElementEntry(args)
   if (!entry) return { success: false, error: 'element_id is required.' }
-  try {
-    await runUiaAction('focus', entry)
-    return returnFreshState(args)
-  } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : 'ui_focus failed.' }
-  }
+  return foregroundRequired(
+    'focus',
+    'Keyboard focus is shared desktop state and requires foreground control.',
+    entry
+  )
 }
 
 export async function executeUiKey(args: unknown): Promise<ToolResult> {
@@ -813,10 +875,8 @@ export async function executeUiKey(args: unknown): Promise<ToolResult> {
   if (approval) return approval
   const key = stringArg(args, 'key')
   if (!key) return { success: false, error: 'key is required.' }
-  try {
-    await performKeyPress({ key })
-    return returnFreshState(args)
-  } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : 'ui_key failed.' }
-  }
+  return foregroundRequired(
+    'key',
+    'Keyboard input is shared desktop state and requires foreground control.'
+  )
 }

@@ -9,6 +9,7 @@ export {
   executeUiScroll,
   executeUiFocus,
   executeUiKey,
+  getUiAutomationElementTarget,
   findElementsInState,
 } from './service'
 export type * from './types'

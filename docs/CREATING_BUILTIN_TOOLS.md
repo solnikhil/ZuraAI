@@ -31,7 +31,7 @@ their existing separate execution paths.
 - Tool schemas must describe every model-provided argument. Do not coerce, remove, or invent model
   arguments. The main boundary closes the top-level schema and rejects reserved execution fields.
 - Approval authority must never be placed in tool arguments. In particular, do not add or honor
-  model-provided `autoApprove`, `_agentSkills`, or approval-token properties. Agent approval uses a
+  model-provided `autoApprove`, `_agentSkills`, approval-token, or background-window run-ownership properties. Agent approval uses a
   separate one-use token issued by main after the user approves; it is bound to the sender, exact
   tool name, and exact validated arguments, then consumed before dispatch.
 - Internal execution context is not model authority unless main has independently issued and

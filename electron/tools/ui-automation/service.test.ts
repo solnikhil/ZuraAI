@@ -1,4 +1,9 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const mocks = vi.hoisted(() => ({
+  runPowerShell: vi.fn(),
+  captureScreenshot: vi.fn(),
+}))
 
 vi.mock('electron', () => ({
   screen: {
@@ -13,7 +18,26 @@ vi.mock('electron', () => ({
   },
 }))
 
-import { findElementsInState } from './service'
+vi.mock('../native-common', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../native-common')>()
+  return {
+    ...actual,
+    isWindows: () => true,
+    runPowerShell: mocks.runPowerShell,
+  }
+})
+
+vi.mock('../computer-use/screenshot', () => ({
+  captureScreenshot: mocks.captureScreenshot,
+}))
+
+import {
+  executeUiClick,
+  executeUiGetAppState,
+  executeUiKey,
+  executeUiTypeText,
+  findElementsInState,
+} from './service'
 import type { UiAppState } from './types'
 
 function makeState(): UiAppState {
@@ -117,5 +141,154 @@ describe('ui automation findElementsInState', () => {
     })
 
     expect(matches).toHaveLength(1)
+  })
+})
+
+const rawSnapshot = (supportedPatterns: string[] = ['Invoke', 'Value']) => ({
+  activeWindow: {
+    hwnd: 100,
+    title: 'Demo',
+    processId: 10,
+    processName: 'demo',
+  },
+  windows: [
+    {
+      hwnd: 100,
+      title: 'Demo',
+      processId: 10,
+      processName: 'demo',
+      runtimeId: '1.2',
+      elements: [
+        {
+          runtimeId: '1.2.3',
+          name: 'Save',
+          automationId: 'save-button',
+          controlType: 'Button',
+          className: 'Button',
+          enabled: true,
+          focused: false,
+          visible: true,
+          bounds: { x: 10, y: 10, width: 80, height: 30 },
+          supportedPatterns,
+        },
+      ],
+    },
+  ],
+  elementCount: 1,
+  truncated: false,
+})
+
+describe('strict background UI automation actions', () => {
+  beforeEach(() => {
+    mocks.runPowerShell.mockReset()
+    mocks.captureScreenshot.mockReset()
+    mocks.captureScreenshot.mockResolvedValue({
+      image: 'image',
+      width: 100,
+      height: 100,
+      actualWidth: 100,
+      actualHeight: 100,
+      coordinateContext: {
+        displayId: '1',
+        displayLabel: 'Display 1',
+        renderedWidth: 100,
+        renderedHeight: 100,
+        nativeWidth: 100,
+        nativeHeight: 100,
+        displayBounds: { x: 0, y: 0, width: 100, height: 100 },
+        scaleFactor: 1,
+      },
+      target: { type: 'window', id: 'window:100:0', title: 'Demo' },
+    })
+  })
+
+  async function seedElement(supportedPatterns?: string[]): Promise<string> {
+    mocks.runPowerShell.mockResolvedValueOnce({
+      stdout: JSON.stringify(rawSnapshot(supportedPatterns)),
+      stderr: '',
+    })
+    const result = await executeUiGetAppState({ hwnd: 100 })
+    expect(result.success).toBe(true)
+    return (result.data as { state: UiAppState }).state.windows[0]?.elements[0]?.element_id || ''
+  }
+
+  it('scopes runtime lookup and fresh verification to the cached HWND', async () => {
+    const elementId = await seedElement()
+    mocks.runPowerShell
+      .mockResolvedValueOnce({ stdout: '{"action":"invoke"}', stderr: '' })
+      .mockResolvedValueOnce({ stdout: JSON.stringify(rawSnapshot()), stderr: '' })
+
+    const result = await executeUiClick({ element_id: elementId, autoApprove: true })
+
+    expect(result.success).toBe(true)
+    expect(result.data).toMatchObject({ status: 'completed' })
+    const actionScript = mocks.runPowerShell.mock.calls[1]?.[0] as string
+    expect(actionScript).toContain('NativeWindowHandleProperty, 100')
+    expect(actionScript).toContain('ProcessId -ne 10')
+    expect(actionScript).toContain('$window.FindAll')
+    expect(actionScript).not.toContain(
+      '$root.FindAll([System.Windows.Automation.TreeScope]::Subtree'
+    )
+    expect(mocks.captureScreenshot).toHaveBeenLastCalledWith({ windowId: 'window:100:0' })
+  })
+
+  it('returns foreground_required instead of falling back to coordinates', async () => {
+    const elementId = await seedElement([])
+    const result = await executeUiClick({
+      element_id: elementId,
+      x: 20,
+      y: 20,
+      autoApprove: true,
+    })
+
+    expect(result).toMatchObject({
+      success: false,
+      data: { status: 'foreground_required', action: 'click', hwnd: 100 },
+    })
+    expect(mocks.runPowerShell).toHaveBeenCalledTimes(1)
+  })
+
+  it('uses ValuePattern for background text entry', async () => {
+    const elementId = await seedElement(['Value'])
+    mocks.runPowerShell
+      .mockResolvedValueOnce({ stdout: '{"action":"setValue"}', stderr: '' })
+      .mockResolvedValueOnce({ stdout: JSON.stringify(rawSnapshot(['Value'])), stderr: '' })
+
+    const result = await executeUiTypeText({
+      element_id: elementId,
+      text: 'hello',
+      autoApprove: true,
+    })
+
+    expect(result.success).toBe(true)
+    expect(mocks.runPowerShell.mock.calls[1]?.[0]).toContain("switch ('setValue')")
+    expect(mocks.runPowerShell.mock.calls[1]?.[0]).toContain("$pattern.SetValue('hello')")
+  })
+
+  it('reports stale or reused target identity as blocked', async () => {
+    const elementId = await seedElement(['Invoke'])
+    mocks.runPowerShell.mockRejectedValueOnce(
+      new Error('ZURA_UIA_TARGET_CHANGED: Target window identity changed.')
+    )
+
+    const result = await executeUiClick({ element_id: elementId, autoApprove: true })
+
+    expect(result).toMatchObject({
+      success: false,
+      data: {
+        status: 'blocked',
+        reason: 'target_changed',
+        hwnd: 100,
+      },
+    })
+  })
+
+  it('marks keyboard injection as foreground-only without executing it', async () => {
+    const result = await executeUiKey({ key: 'ctrl+c', autoApprove: true })
+    expect(result).toMatchObject({
+      success: false,
+      data: { status: 'foreground_required', action: 'key' },
+    })
+    expect(mocks.runPowerShell).not.toHaveBeenCalled()
   })
 })

@@ -287,6 +287,33 @@ describe('preload MCP bridge', () => {
     expect(typeof bridge.onPendingApproval).toBe('function')
   })
 
+  it('exposes a narrow background-window lifecycle bridge', async () => {
+    const bridge = getExposedBridge<{
+      releaseRun: (runId: string, outcome: string) => Promise<boolean>
+      onRunStopped: (callback: (event: unknown) => void) => () => void
+    }>('backgroundWindow')
+    preloadMocks.invoke.mockResolvedValueOnce(true)
+
+    await expect(bridge.releaseRun('run-1', 'completed')).resolves.toBe(true)
+    expect(preloadMocks.invoke).toHaveBeenCalledWith(
+      'background-window:release-run',
+      'run-1',
+      'completed'
+    )
+
+    const callback = vi.fn()
+    const unsubscribe = bridge.onRunStopped(callback)
+    expect(preloadMocks.on).toHaveBeenCalledWith(
+      'background-window:run-stopped',
+      expect.any(Function)
+    )
+    unsubscribe()
+    expect(preloadMocks.removeListener).toHaveBeenCalledWith(
+      'background-window:run-stopped',
+      expect.any(Function)
+    )
+  })
+
   it('exposes a dedicated analytics bridge and keeps it out of generic IPC', async () => {
     const analytics = getExposedBridge<{
       getState: () => Promise<unknown>

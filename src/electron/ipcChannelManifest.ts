@@ -138,6 +138,10 @@ export const PRELOAD_CHANNEL_MANIFEST = {
     ],
   },
   agentApproval: { invoke: ['agent-approval:request'] },
+  backgroundWindow: {
+    invoke: ['background-window:release-run'],
+    on: ['background-window:run-stopped'],
+  },
 } as const
 
 export function assertNoDuplicatePreloadChannels(): void {

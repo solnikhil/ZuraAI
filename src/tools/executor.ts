@@ -9,6 +9,7 @@ import { isBuiltinMainToolName } from './builtinMainToolContract'
 export type { ToolResult, ToolCall, ToolCallResult }
 
 export interface ExecuteToolOptions {
+  runId?: string
   userContextText?: string
   approvalToken?: string
   sessionId?: string
@@ -122,8 +123,12 @@ export async function executeTool(
     let result: { success: boolean; data?: unknown; error?: string }
     try {
       const executionContext =
-        options.approvalToken || agentSkillsContext
-          ? { approvalToken: options.approvalToken, agentSkills: agentSkillsContext }
+        options.approvalToken || options.runId || agentSkillsContext
+          ? {
+              approvalToken: options.approvalToken,
+              runId: options.runId,
+              agentSkills: agentSkillsContext,
+            }
           : undefined
       result = (await Promise.race([
         executionContext

@@ -36,6 +36,8 @@ Any active state -> failed
 - Usage is aggregated losslessly across rounds; estimated fields remain marked estimated.
 - A final assistant answer is not replaced by empty synthesis. Exhausted research produces the best supported result with explicit unknowns.
 - Background automation runs write only to their designated chat and never switch the active session.
+- Every interactive chat run carries its opaque `ChatRunController.id` through trusted tool execution context. It is not a model argument. Main binds background-window ownership to this ID plus the sender `webContents`.
+- Terminal finalization notifies main to release the run's background guard. A sanitized guard stop/target-loss event cancels only the matching active run; it cannot cancel a different run or renderer.
 
 ## Persistence interaction
 

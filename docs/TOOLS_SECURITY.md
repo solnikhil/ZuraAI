@@ -12,6 +12,7 @@ Invalid model argument examples include:
 - `approvalToken`
 - `_agentSkills`
 - Renderer settings that claim an operation is trusted
+- Background-window run IDs, sender IDs, process identities, or overlay placement data
 
 Each model-facing schema is closed and main rejects reserved authority properties before dispatch. Do not strip them silently: rejection makes provider/schema drift visible.
 
@@ -26,6 +27,12 @@ Main consumes the token before dispatch. Reuse, expiry, sender mismatch, tool mi
 ## Trust and persistence
 
 Trusted exact-repeat decisions store only main-generated argument signatures. Raw approval tokens are never persisted. Renderer localStorage is not an authority source for code, terminal, native UI, filesystem, or Computer Use actions.
+
+## Background-window authority
+
+`background_window_attach` is an approval-gated request to reserve one exact external HWND. Main resolves and stores `{hwnd, pid, processStartTime}` and binds it to the trusted sender plus opaque chat-run ID carried outside model arguments. Status, release, UI observation, and element mutation must match that owner. HWND reuse, process mismatch, stale elements, target loss, and renderer destruction fail closed and release the guard.
+
+Background-safe UI Automation is pattern-only. Invoke, Value, SelectionItem/Toggle, and Scroll may execute without shared input; missing patterns return `foreground_required`. Never silently fall back to focus, clipboard paste, global keyboard input, cursor movement, coordinate clicks, wheel input, arbitrary window messages, or renderer-provided PowerShell. An approved physical `computer_*` action releases the guard first.
 
 Disabling a prompt in renderer settings must not bypass main approval unless the product adds a separately reviewed main-owned policy and documents it in `AGENTS.md`.
 
