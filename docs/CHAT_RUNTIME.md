@@ -33,6 +33,7 @@ Any active state -> failed
 - Completion, failure, and cancellation finalize at most once.
 - Streaming callbacks may update an in-memory draft, but persisted chat state changes through immutable context actions only.
 - Tool/research budgets are checked before execution and accumulated across all model rounds.
+- The same recognized infrastructure error from two distinct tools is a systemic runtime failure. The loop stops immediately, retains the tool results for diagnostics, removes speculative narration, and returns a deterministic message that explicitly disclaims observations and actions.
 - Usage is aggregated losslessly across rounds; estimated fields remain marked estimated.
 - A final assistant answer is not replaced by empty synthesis. Exhausted research produces the best supported result with explicit unknowns.
 - Background automation runs write only to their designated chat and never switch the active session.
@@ -62,6 +63,7 @@ Lifecycle tests should cover:
 - Provider error before and after visible output
 - Multiple tool/model rounds with lossless usage
 - Research budget exhaustion and empty synthesis recovery
+- Systemic tool-runtime failure across distinct tools without further model/tool retries or ungrounded claims
 - Immutable response versions
 - Exactly-once finalization
 - Persistence failure followed by a newer snapshot and retry

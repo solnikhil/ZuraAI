@@ -39,6 +39,83 @@ describe('useStreamingChat final commit helpers', () => {
       })
     )
   })
+
+  it('persists the terminal agent run even when the isolated snapshot is still running', () => {
+    const runningAgentRun = {
+      id: 'agent-run-1',
+      mode: 'agent' as const,
+      status: 'running' as const,
+      startedAt: 10,
+      capabilities: {
+        web: 'approval-required' as const,
+        code: 'approval-required' as const,
+        mcp: 'approval-required' as const,
+        computer: 'approval-required' as const,
+      },
+      steps: [],
+    }
+    const completedAgentRun = {
+      ...runningAgentRun,
+      status: 'completed' as const,
+      completedAt: 20,
+    }
+
+    const committed = buildCommittedStreamingUpdates(
+      {
+        sessionId: 'session-1',
+        messageId: 'message-1',
+        content: 'Done',
+        agentRun: runningAgentRun,
+        isStreaming: true,
+      },
+      {
+        content: 'Done',
+        model: 'openrouter/openai/gpt-4.1',
+        finishReason: 'stop',
+      },
+      completedAgentRun
+    )
+
+    expect(committed.finishReason).toBe('stop')
+    expect(committed.agentRun).toEqual(completedAgentRun)
+    expect(committed.agentRun?.status).toBe('completed')
+  })
+
+  it('persists cancellation over a stale running snapshot without a provider result', () => {
+    const runningAgentRun = {
+      id: 'agent-run-1',
+      mode: 'agent' as const,
+      status: 'running' as const,
+      startedAt: 10,
+      capabilities: {
+        web: 'approval-required' as const,
+        code: 'approval-required' as const,
+        mcp: 'approval-required' as const,
+        computer: 'approval-required' as const,
+      },
+      steps: [],
+    }
+    const cancelledAgentRun = {
+      ...runningAgentRun,
+      status: 'cancelled' as const,
+      completedAt: 20,
+    }
+
+    const committed = buildCommittedStreamingUpdates(
+      {
+        sessionId: 'session-1',
+        messageId: 'message-1',
+        content: 'Partial',
+        agentRun: runningAgentRun,
+        isStreaming: true,
+      },
+      undefined,
+      cancelledAgentRun
+    )
+
+    expect(committed.agentRun).toEqual(cancelledAgentRun)
+    expect(committed.agentRun?.status).toBe('cancelled')
+  })
 })
 
 describe('useStreamingChat generated title helpers', () => {

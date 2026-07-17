@@ -1,4 +1,5 @@
 export * from './errors'
 export * from './toolCalls'
+export * from './jsonSchema'
 export * from './types'
 export * from './usage'

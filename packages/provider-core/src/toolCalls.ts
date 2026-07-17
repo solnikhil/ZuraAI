@@ -1,6 +1,5 @@
-import Ajv, { type ErrorObject, type ValidateFunction } from 'ajv'
-import Ajv2020 from 'ajv/dist/2020.js'
 import type { ProviderToolCall, ProviderToolDefinition } from './types'
+import { validateJsonSchema, type JsonSchemaValidationError } from './jsonSchema'
 
 export type ToolCallValidationErrorCode =
   | 'unknown_tool'
@@ -13,38 +12,12 @@ export type ToolCallValidationErrorCode =
 export interface ToolCallValidationError {
   code: ToolCallValidationErrorCode
   message: string
-  details?: ErrorObject[]
+  details?: JsonSchemaValidationError[]
 }
 
 export type ToolCallValidationResult =
   | { ok: true; toolCall: ProviderToolCall }
   | { ok: false; error: ToolCallValidationError }
-
-const draft7 = new Ajv({
-  allErrors: true,
-  coerceTypes: false,
-  removeAdditional: false,
-  strict: false,
-})
-const draft2020 = new Ajv2020({
-  allErrors: true,
-  coerceTypes: false,
-  removeAdditional: false,
-  strict: false,
-})
-const validatorCache = new WeakMap<object, ValidateFunction>()
-
-function compileSchema(schema: Record<string, unknown>): ValidateFunction {
-  const cached = validatorCache.get(schema)
-  if (cached) return cached
-
-  const schemaVersion = typeof schema.$schema === 'string' ? schema.$schema : ''
-  const validator = schemaVersion.includes('2020-12')
-    ? draft2020.compile(schema)
-    : draft7.compile(schema)
-  validatorCache.set(schema, validator)
-  return validator
-}
 
 export function validateToolCall(input: {
   id: string
@@ -88,9 +61,9 @@ export function validateToolCall(input: {
     }
   }
 
-  let validator: ValidateFunction
+  let validation: ReturnType<typeof validateJsonSchema>
   try {
-    validator = compileSchema(tool.inputSchema)
+    validation = validateJsonSchema(tool.inputSchema, parsed)
   } catch (error) {
     return {
       ok: false,
@@ -101,13 +74,13 @@ export function validateToolCall(input: {
     }
   }
 
-  if (!validator(parsed)) {
+  if (!validation.valid) {
     return {
       ok: false,
       error: {
         code: 'schema_validation_failed',
         message: `Tool ${input.name} arguments do not match its schema.`,
-        details: validator.errors ? [...validator.errors] : undefined,
+        details: validation.errors.length > 0 ? validation.errors : undefined,
       },
     }
   }

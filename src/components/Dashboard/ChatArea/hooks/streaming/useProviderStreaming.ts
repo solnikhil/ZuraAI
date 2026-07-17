@@ -67,6 +67,11 @@ import {
 import { runFinalSynthesisWithRetries } from './providerSynthesis'
 import { finalizeProviderStream } from './providerStreamFinalization'
 import {
+  SystemicToolFailureTracker,
+  buildSystemicToolFailureMessage,
+  type SystemicToolFailure,
+} from '../../../../../tools/systemicToolFailure'
+import {
   accumulateDeltaToolCalls,
   appendCompletedThinkingBlock,
   mergeGeneratedFiles,
@@ -808,6 +813,23 @@ export function useProviderStreaming({
         })
       }
 
+      const systemicToolFailureTracker = new SystemicToolFailureTracker()
+      const stopForSystemicToolFailure = (failure: SystemicToolFailure): void => {
+        accumulatedContent = buildSystemicToolFailureMessage(failure)
+        finishReason = 'tool_error'
+        const updates = {
+          content: accumulatedContent,
+          phase: resolveStreamPhase('answering'),
+        }
+        updateStreamingState(updates)
+        publishStreamingProgress(updates)
+        logResearchLoop('systemic-tool-failure', {
+          error: failure.error.slice(0, 240),
+          toolNames: failure.toolNames,
+          occurrenceCount: failure.occurrenceCount,
+        })
+      }
+
       const initialToolChoice =
         options.forceWebSearch && tools?.some((tool) => tool.function?.name === 'web_search')
           ? { type: 'function' as const, function: { name: 'web_search' } }
@@ -895,6 +917,14 @@ export function useProviderStreaming({
           savedToolResults,
           localThinkingBlocks
         )
+
+        const initialSystemicFailure = systemicToolFailureTracker.record(
+          toolResult.toolResults || []
+        )
+        if (initialSystemicFailure) {
+          stopForSystemicToolFailure(initialSystemicFailure)
+          toolResult = { ...toolResult, needsFollowUp: false }
+        }
 
         if (processed.hasSearchCalls) {
           const researchStatus = buildResearchStatus(
@@ -1150,6 +1180,12 @@ export function useProviderStreaming({
               savedToolResults,
               localThinkingBlocks
             )
+
+            const systemicFailure = systemicToolFailureTracker.record(nextToolResult.toolResults)
+            if (systemicFailure) {
+              stopForSystemicToolFailure(systemicFailure)
+              break
+            }
 
             updateStreamingState({
               phase: resolveStreamPhase('reasoning'),

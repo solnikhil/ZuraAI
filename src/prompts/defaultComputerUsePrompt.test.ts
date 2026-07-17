@@ -14,6 +14,13 @@ describe('defaultComputerUsePrompt', () => {
       'Use ui_get_app_state as the primary UI observation primitive'
     )
     expect(defaultComputerUsePrompt).toContain(
+      'A failed observation tool provides no evidence that an app, window, control, or item is absent'
+    )
+    expect(defaultComputerUsePrompt).toContain('Never invent application deep links, URIs')
+    expect(defaultComputerUsePrompt).toContain(
+      'Claim an action succeeded only after a successful tool result'
+    )
+    expect(defaultComputerUsePrompt).toContain(
       'computer_screenshot with window_id, window_title, or app_name'
     )
     expect(defaultComputerUsePrompt).toContain('full-screen computer_screenshot only')

@@ -110,9 +110,14 @@ function addDynamicSystemPrompt<T extends { role: string; content: string }>(
 
 export function buildCommittedStreamingUpdates(
   finalState: StreamingMessageState,
-  streamResult?: StreamingResult
+  streamResult?: StreamingResult,
+  terminalAgentRun?: Message['agentRun']
 ): Partial<Message> {
-  if (streamResult) return mergeStreamingFinalState(finalState, streamResult)
+  if (streamResult) {
+    const updates = mergeStreamingFinalState(finalState, streamResult)
+    if (terminalAgentRun) updates.agentRun = terminalAgentRun
+    return updates
+  }
   const hasField = <K extends keyof StreamingMessageState>(key: K) =>
     Object.prototype.hasOwnProperty.call(finalState, key)
 
@@ -132,6 +137,7 @@ export function buildCommittedStreamingUpdates(
   if (hasField('model')) updates.model = finalState.model
   if (hasField('latency')) updates.latency = finalState.latency
   if (hasField('usage')) updates.usage = finalState.usage
+  if (terminalAgentRun) updates.agentRun = terminalAgentRun
 
   return updates
 }
@@ -205,29 +211,11 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     useStreamingActions()
 
   const buildFinalStreamingUpdates = useCallback(
-    (finalState: StreamingMessageState): Partial<Message> => {
-      const hasField = <K extends keyof StreamingMessageState>(key: K) =>
-        Object.prototype.hasOwnProperty.call(finalState, key)
-
-      const updates: Partial<Message> = {
-        content: finalState.content,
-      }
-
-      if (hasField('thinking')) updates.thinking = finalState.thinking
-      if (hasField('thinkingDuration')) updates.thinkingDuration = finalState.thinkingDuration
-      if (hasField('thinkingBlocks')) updates.thinkingBlocks = finalState.thinkingBlocks
-      if (hasField('researchStatus')) updates.researchStatus = finalState.researchStatus
-      if (hasField('researchPlan')) updates.researchPlan = finalState.researchPlan
-      if (hasField('researchProgress')) updates.researchProgress = finalState.researchProgress
-      if (hasField('toolResults')) updates.toolResults = finalState.toolResults
-      if (hasField('agentRun')) updates.agentRun = finalState.agentRun
-      if (hasField('files')) updates.files = finalState.files
-      if (hasField('model')) updates.model = finalState.model
-      if (hasField('latency')) updates.latency = finalState.latency
-      if (hasField('usage')) updates.usage = finalState.usage
-
-      return updates
-    },
+    (
+      finalState: StreamingMessageState,
+      terminalAgentRun?: Message['agentRun']
+    ): Partial<Message> =>
+      buildCommittedStreamingUpdates(finalState, undefined, terminalAgentRun),
     []
   )
 
@@ -426,11 +414,12 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       () => {
         flushThrottledUpdates()
         if (streamingMessageRef.current) {
-          if (activeAgentRunRef.current) {
+          const terminalAgentRun = finishAgentRun(activeAgentRunRef.current, 'cancelled')
+          if (terminalAgentRun) {
             publishAgentRun(
               streamingMessageRef.current.sessionId,
               streamingMessageRef.current.messageId,
-              finishAgentRun(activeAgentRunRef.current, 'cancelled')
+              terminalAgentRun
             )
           }
           const finalState = completeStreaming()
@@ -438,7 +427,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
             updateStreamingMessage(
               finalState.sessionId,
               finalState.messageId,
-              buildFinalStreamingUpdates(finalState),
+              buildFinalStreamingUpdates(finalState, terminalAgentRun),
               { persist: true }
             )
           }
@@ -726,11 +715,12 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           run,
           'completed',
           () => {
-            if (streamingMessageRef.current && activeAgentRunRef.current) {
+            const terminalAgentRun = finishAgentRun(activeAgentRunRef.current, 'completed')
+            if (streamingMessageRef.current && terminalAgentRun) {
               publishAgentRun(
                 streamingMessageRef.current.sessionId,
                 streamingMessageRef.current.messageId,
-                finishAgentRun(activeAgentRunRef.current, 'completed')
+                terminalAgentRun
               )
             }
             if (streamingMessageRef.current) {
@@ -739,7 +729,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
                 updateStreamingMessage(
                   finalState.sessionId,
                   finalState.messageId,
-                  buildCommittedStreamingUpdates(finalState, streamResult),
+                  buildCommittedStreamingUpdates(finalState, streamResult, terminalAgentRun),
                   { persist: true }
                 )
               }

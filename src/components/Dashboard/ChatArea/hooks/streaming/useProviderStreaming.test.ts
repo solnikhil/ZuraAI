@@ -1105,6 +1105,108 @@ describe('useProviderStreaming', () => {
     )
   })
 
+  it('stops after distinct tools expose the same infrastructure failure', async () => {
+    let streamCount = 0
+    mocks.createProviderStreamClient.mockReturnValue({
+      stream: async function* () {
+        streamCount += 1
+        yield { type: 'text-delta', delta: 'I will inspect Spotify now.' }
+        yield {
+          type: 'tool-call-delta',
+          delta: [
+            {
+              index: 0,
+              id: 'call_window',
+              type: 'function',
+              function: { name: 'window_list', arguments: '{}' },
+            },
+            {
+              index: 1,
+              id: 'call_app',
+              type: 'function',
+              function: { name: 'app_find', arguments: '{"query":"Spotify"}' },
+            },
+          ],
+        }
+        yield { type: 'finish', finishReason: 'tool_calls' }
+      },
+    })
+
+    const infrastructureError =
+      "Refused to evaluate a string as JavaScript because 'unsafe-eval' is not allowed by Content Security Policy"
+    const toolResults = [
+      {
+        toolCall: { id: 'call_window', name: 'window_list', arguments: {} },
+        result: { success: false, error: infrastructureError },
+      },
+      {
+        toolCall: { id: 'call_app', name: 'app_find', arguments: { query: 'Spotify' } },
+        result: { success: false, error: infrastructureError },
+      },
+    ]
+    const handleToolCalls = vi.fn().mockResolvedValue({
+      hasTools: true,
+      toolResults,
+      formattedResults: toolResults.map((item) => ({
+        role: 'tool',
+        tool_call_id: item.toolCall.id,
+        content: infrastructureError,
+      })),
+      needsFollowUp: true,
+      executionSummary: buildExecutionSummary(),
+    })
+
+    const { result } = renderHook(() =>
+      useProviderStreaming({
+        settings: {
+          aiModel: 'openai/gpt-4.1',
+          modelProvider: 'openrouter',
+          temperature: 0.4,
+          maxTokens: 1024,
+          streamResponses: true,
+          openRouterApiKey: 'or-key',
+        },
+        toolCalling: {
+          canUseTools: true,
+          getToolsForRequest: () =>
+            ['window_list', 'app_find'].map((name) => ({
+              type: 'function' as const,
+              function: {
+                name,
+                description: name,
+                parameters: { type: 'object', properties: {} },
+              },
+            })),
+          handleToolCalls,
+          getResearchContext: () => '',
+        },
+        updateStreamingMessage: vi.fn(),
+        flushThrottledUpdates: vi.fn(),
+        throttledUpdateStreamingMessage: vi.fn(),
+      })
+    )
+
+    const streamResult = await result.current.runProviderStream({
+      provider: 'openrouter',
+      model: 'openai/gpt-4.1',
+      sessionId: 'session-systemic-failure',
+      messageId: 'message-systemic-failure',
+      messages: [{ role: 'user', content: 'Play Spotify in the background' }],
+      startTime: performance.now() - 25,
+      researchMaxRounds: 8,
+      syncToStreamingContext: false,
+      enableTools: true,
+    })
+
+    expect(streamCount).toBe(1)
+    expect(handleToolCalls).toHaveBeenCalledTimes(1)
+    expect(streamResult.content).not.toContain('I will inspect Spotify now.')
+    expect(streamResult.content).toContain('stopped instead of retrying or making assumptions')
+    expect(streamResult.content).toContain('cannot confirm whether the application is running')
+    expect(streamResult.finishReason).toBe('tool_error')
+    expect(streamResult.toolResults).toEqual(toolResults)
+  })
+
   it('publishes progressive updates during a tool-enabled follow-up after a tool batch', async () => {
     const streamCalls: Array<{ tools?: unknown[]; toolChoice?: unknown }> = []
     let invocation = 0

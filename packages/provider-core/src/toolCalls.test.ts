@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { validateToolCall } from './toolCalls'
 
 const tools = [
@@ -14,6 +14,10 @@ const tools = [
 ]
 
 describe('validateToolCall', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
   it('accepts schema-valid native arguments', () => {
     expect(
       validateToolCall({
@@ -59,6 +63,76 @@ describe('validateToolCall', () => {
         name: 'web_search',
         rawArguments: '{"query":"   "}',
         tools: permissiveTools,
+      })
+    ).toMatchObject({ ok: false, error: { code: 'schema_validation_failed' } })
+  })
+
+  it('validates without dynamic code generation under an Electron-style CSP', () => {
+    vi.stubGlobal('Function', function blockedDynamicCodeGeneration(): never {
+      throw new EvalError("Refused to evaluate a string because 'unsafe-eval' is not allowed")
+    })
+
+    expect(
+      validateToolCall({
+        id: 'call-csp',
+        name: 'web_search',
+        rawArguments: '{"query":"background-safe automation"}',
+        tools,
+      })
+    ).toEqual({
+      ok: true,
+      toolCall: {
+        id: 'call-csp',
+        name: 'web_search',
+        arguments: { query: 'background-safe automation' },
+      },
+    })
+  })
+
+  it('supports local references and draft 2020 composition without coercion', () => {
+    const referencedTools = [
+      {
+        name: 'set_value',
+        inputSchema: {
+          $schema: 'https://json-schema.org/draft/2020-12/schema',
+          $defs: {
+            value: {
+              oneOf: [
+                { type: 'string', minLength: 1 },
+                { type: 'number', minimum: 0 },
+              ],
+            },
+          },
+          type: 'object',
+          properties: { value: { $ref: '#/$defs/value' } },
+          required: ['value'],
+          additionalProperties: false,
+        },
+      },
+    ]
+
+    expect(
+      validateToolCall({
+        id: 'valid',
+        name: 'set_value',
+        rawArguments: { value: 3 },
+        tools: referencedTools,
+      })
+    ).toMatchObject({ ok: true })
+    expect(
+      validateToolCall({
+        id: 'invalid',
+        name: 'set_value',
+        rawArguments: { value: -1 },
+        tools: referencedTools,
+      })
+    ).toMatchObject({ ok: false, error: { code: 'schema_validation_failed' } })
+    expect(
+      validateToolCall({
+        id: 'coerce',
+        name: 'set_value',
+        rawArguments: { value: false },
+        tools: referencedTools,
       })
     ).toMatchObject({ ok: false, error: { code: 'schema_validation_failed' } })
   })

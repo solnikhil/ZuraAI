@@ -1,31 +1,11 @@
-import Ajv, { type ErrorObject, type ValidateFunction } from 'ajv'
+import { validateJsonSchema, type JsonSchemaValidationError } from '@zura/provider-core'
 
 import { builtInMainToolManifest } from '../../src/tools/builtinTools'
 import type { BuiltinMainToolName } from '../../src/tools/builtinMainToolContract'
 
-const ajv = new Ajv({
-  allErrors: true,
-  coerceTypes: false,
-  removeAdditional: false,
-  strict: false,
-})
-
-const validators = new Map<BuiltinMainToolName, ValidateFunction>()
 const RESERVED_MODEL_ARGUMENTS = new Set(['autoApprove', '_agentSkills', 'approvalToken'])
 
-function getValidator(toolName: BuiltinMainToolName): ValidateFunction {
-  const cached = validators.get(toolName)
-  if (cached) return cached
-
-  const validator = ajv.compile({
-    ...builtInMainToolManifest[toolName].parameters,
-    additionalProperties: false,
-  })
-  validators.set(toolName, validator)
-  return validator
-}
-
-function describeError(error: ErrorObject): string {
+function describeError(error: JsonSchemaValidationError): string {
   if (error.keyword === 'required') {
     const missingProperty = (error.params as { missingProperty?: unknown }).missingProperty
     if (typeof missingProperty === 'string') return `missing required property "${missingProperty}"`
@@ -55,16 +35,19 @@ export function validateBuiltinToolInvocation(
     }
   }
 
-  let validator: ValidateFunction
+  let validation: ReturnType<typeof validateJsonSchema>
   try {
-    validator = getValidator(toolName)
+    validation = validateJsonSchema(
+      { ...builtInMainToolManifest[toolName].parameters, additionalProperties: false },
+      args
+    )
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     return { ok: false, error: `Tool "${toolName}" schema could not be compiled: ${message}` }
   }
 
-  if (!validator(args)) {
-    const details = (validator.errors ?? []).slice(0, 3).map(describeError).join('; ')
+  if (!validation.valid) {
+    const details = validation.errors.slice(0, 3).map(describeError).join('; ')
     return {
       ok: false,
       error: `Invalid arguments for tool "${toolName}"${details ? `: ${details}` : '.'}`,

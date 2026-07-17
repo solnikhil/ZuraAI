@@ -1,9 +1,13 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { BUILTIN_MAIN_TOOL_NAMES } from '../../src/tools/builtinMainToolContract'
 import { validateBuiltinToolInvocation } from './validateBuiltinToolInvocation'
 
 describe('validateBuiltinToolInvocation', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
   it('compiles every built-in main tool schema', () => {
     for (const toolName of BUILTIN_MAIN_TOOL_NAMES) {
       const result = validateBuiltinToolInvocation(toolName, {})
@@ -53,6 +57,20 @@ describe('validateBuiltinToolInvocation', () => {
       ok: false,
       error:
         'Invalid arguments for tool "file_read": required string properties must not be empty: path.',
+    })
+  })
+
+  it('validates every built-in tool when dynamic code generation is blocked', () => {
+    vi.stubGlobal('Function', function blockedDynamicCodeGeneration(): never {
+      throw new EvalError("Refused to evaluate a string because 'unsafe-eval' is not allowed")
+    })
+
+    for (const toolName of BUILTIN_MAIN_TOOL_NAMES) {
+      expect(() => validateBuiltinToolInvocation(toolName, {})).not.toThrow()
+    }
+    expect(validateBuiltinToolInvocation('file_read', { path: 'C:\\demo.txt' })).toEqual({
+      ok: true,
+      args: { path: 'C:\\demo.txt' },
     })
   })
 })
