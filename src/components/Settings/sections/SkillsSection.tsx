@@ -47,12 +47,11 @@ interface CatalogRow {
 }
 
 interface ExtensionCatalogGroupProps {
-  title: string
+  title?: string
   rows: CatalogRow[]
   isEnabled: (extensionId: CatalogExtensionId) => boolean
   setEnabled: (extensionId: CatalogExtensionId, enabled: boolean) => void
   onOpen: (extensionId: CatalogExtensionId) => void
-  featured?: boolean
 }
 
 export function SkillsSection({
@@ -74,17 +73,8 @@ export function SkillsSection({
     ? BUILT_IN_SKILLS.filter((skill) => skill.id !== 'computer_use' && skill.id !== 'terminal')
     : BUILT_IN_SKILLS
 
-  const recommendedRows = useMemo((): CatalogRow[] => {
-    return visibleSkills
-      .filter((skill) => skill.id === 'web_research' || skill.id === 'artifacts')
-      .map(toCatalogRow)
-  }, [visibleSkills])
-
-  const systemRows = useMemo(
-    () =>
-      visibleSkills
-        .filter((skill) => skill.id !== 'web_research' && skill.id !== 'artifacts')
-        .map(toCatalogRow),
+  const catalogRows = useMemo(
+    () => visibleSkills.map(toCatalogRow),
     [visibleSkills]
   )
 
@@ -152,16 +142,7 @@ export function SkillsSection({
 
       <div className="skills-catalog" aria-label="Built-in extensions">
         <ExtensionCatalogGroup
-          title="Recommended"
-          rows={recommendedRows}
-          isEnabled={isEnabled}
-          setEnabled={setEnabled}
-          onOpen={openExtension}
-          featured
-        />
-        <ExtensionCatalogGroup
-          title="System"
-          rows={systemRows}
+          rows={catalogRows}
           isEnabled={isEnabled}
           setEnabled={setEnabled}
           onOpen={openExtension}
@@ -185,32 +166,19 @@ function ExtensionCatalogGroup({
   isEnabled,
   setEnabled,
   onOpen,
-  featured = false,
 }: ExtensionCatalogGroupProps): React.ReactElement | null {
   if (rows.length === 0) return null
 
   return (
     <section className="skills-catalog-group">
-      <div className="skills-catalog-group__header">
-        <h3>{title}</h3>
-      </div>
-      <div
-        className={`skills-catalog-group__grid ${featured ? 'skills-catalog-group__grid--featured' : ''}`}
-      >
+      {title ? (
+        <div className="skills-catalog-group__header">
+          <h3>{title}</h3>
+        </div>
+      ) : null}
+      <div className="skills-catalog-group__grid">
         {rows.map((row) => {
           const enabled = isEnabled(row.id)
-          const logoSize = [
-            'web_research',
-            'code_execution',
-            'terminal',
-            'computer_use',
-            'command_center',
-            'chart_generation',
-          ].includes(row.id)
-            ? 40
-            : featured
-              ? 22
-              : 18
 
           return (
             <div key={row.id} className="skills-catalog-row">
@@ -223,7 +191,7 @@ function ExtensionCatalogGroup({
                 <span
                   className={`skills-catalog-row__logo ${enabled ? 'skills-catalog-row__logo--enabled' : ''}`}
                 >
-                  <SkillLogo skill={row.id} size={logoSize} />
+                  <SkillLogo skill={row.id} size={21} />
                 </span>
                 <span className="skills-catalog-row__content">
                   <span className="skills-catalog-row__title">{row.name}</span>

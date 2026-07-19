@@ -247,7 +247,7 @@ Safety rules:
   },
   computer_screenshot: {
     description:
-      'Capture visual context for Computer Use. Prefer targeting a specific app/window with window_id, window_title, or app_name. Returns a base64 PNG, dimensions, and a run-scoped screenshotId that must be passed to the next physical action.',
+      'Capture visual context for Computer Use. Prefer targeting a specific app/window with window_id, window_title, or app_name. Returns a base64 PNG, dimensions, OCR-derived text elements with screenshot-relative bounds when Windows OCR is available, and a run-scoped screenshotId that must be passed to the next physical action. OCR elements are visual grounding only and are never background-safe.',
     parameters: {
       type: 'object',
       description: 'Arguments for capturing a display or a specific app/window.',
@@ -278,7 +278,7 @@ Safety rules:
   },
   computer_click: {
     description:
-      'Click at specific pixel coordinates from the latest screen image returned by computer_screenshot. Requires a prior computer_screenshot in the current action sequence; computer_list_windows is not enough. Use the screen dimensions exactly and click the center of the intended target. The app maps screen coordinates to the real desktop. Returns an updated screen image.',
+      'Click at specific pixel coordinates from the latest screen image returned by computer_screenshot. Requires a prior computer_screenshot in the current action sequence; computer_list_windows is not enough. Use the screen dimensions exactly and click the center of the intended target. For a targeted window capture, main first foregrounds that exact app window, rejects moved/resized targets, and resolves the hit-tested control to that same top-level window before sending input. Returns delivery evidence and an updated screen image; delivery and pixel changes do not by themselves prove the requested semantic outcome.',
     parameters: {
       type: 'object',
       description: 'Arguments for clicking.',

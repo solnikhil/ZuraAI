@@ -68,6 +68,7 @@ describe('computer-use screenshot capture', () => {
       type: 'window',
       id: 'window:22:0',
       title: 'Target App',
+      hwnd: 22,
     })
     expect(result.width).toBe(800)
     expect(result.height).toBe(600)
@@ -82,6 +83,20 @@ describe('computer-use screenshot capture', () => {
     const { captureScreenshot } = await import('./screenshot')
     await expect(captureScreenshot({ windowTitle: 'Missing' })).rejects.toThrow(
       'No matching window source available for capture'
+    )
+  })
+
+  it('fails closed when targeted window bounds cannot be verified', async () => {
+    mocks.getSources.mockResolvedValue([
+      { id: 'window:22:0', name: 'Target App', thumbnail: makeImage(800, 600), display_id: '' },
+    ])
+    mocks.execFile.mockImplementation((_file, _args, _options, callback) => {
+      callback(new Error('GetWindowRect failed'), '', '')
+    })
+
+    const { captureScreenshot } = await import('./screenshot')
+    await expect(captureScreenshot({ windowId: 'window:22:0' })).rejects.toThrow(
+      'target window bounds could not be verified'
     )
   })
 })

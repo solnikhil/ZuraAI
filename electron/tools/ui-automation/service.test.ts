@@ -246,6 +246,47 @@ describe('strict background UI automation actions', () => {
     expect(snapshotPowerShell).toContain('supportedPatterns = @(Get-PatternNames $child)')
     expect(snapshotPowerShell).toContain('$elements = @(Walk $window $null 1)')
     expect(snapshotPowerShell).toContain('elements = @($elements)')
+    expect(snapshotPowerShell).toContain('[ZuraLegacyAccessibility]::Capture')
+  })
+
+  it('normalizes MSAA fallback elements and invokes their validated default action', async () => {
+    const legacySnapshot = rawSnapshot(['LegacyDefaultAction'])
+    legacySnapshot.windows[0]!.elements[0] = {
+      ...legacySnapshot.windows[0]!.elements[0],
+      runtimeId: 'legacy:0/2',
+      name: 'Punjabi',
+      controlType: 'ListItem',
+      className: 'MSAA',
+      source: 'msaa',
+    }
+    mocks.runPowerShell.mockResolvedValueOnce({
+      stdout: JSON.stringify(legacySnapshot),
+      stderr: '',
+    })
+
+    const stateResult = await executeUiGetAppState({ hwnd: 100 })
+    const element = (stateResult.data as { state: UiAppState }).state.windows[0]?.elements[0]
+    expect(element).toMatchObject({
+      name: 'Punjabi',
+      source: 'msaa',
+      background_safe: true,
+      supported_actions: ['click'],
+    })
+
+    mocks.runPowerShell
+      .mockResolvedValueOnce({ stdout: '{"action":"legacyInvoke"}', stderr: '' })
+      .mockResolvedValueOnce({ stdout: JSON.stringify(legacySnapshot), stderr: '' })
+    const clickResult = await executeUiClick({
+      element_id: element?.element_id,
+      autoApprove: true,
+    })
+
+    expect(clickResult.success).toBe(true)
+    const actionScript = mocks.runPowerShell.mock.calls[1]?.[0] as string
+    expect(actionScript).toContain('[ZuraLegacyAccessibility]::Invoke')
+    expect(actionScript).toContain("'legacy:0/2'")
+    expect(actionScript).toContain("'Punjabi'")
+    expect(actionScript).toContain('ProcessId -ne 10')
   })
 
   it('preserves a successful accessibility tree when targeted capture is unavailable', async () => {
@@ -279,7 +320,9 @@ describe('strict background UI automation actions', () => {
       stdout: JSON.stringify(rawSnapshot()),
       stderr: '',
     })
-    mocks.captureScreenshot.mockRejectedValueOnce(new Error('desktopCapturer initialization failed'))
+    mocks.captureScreenshot.mockRejectedValueOnce(
+      new Error('desktopCapturer initialization failed')
+    )
 
     const result = await executeUiGetAppState({ hwnd: 100 })
 

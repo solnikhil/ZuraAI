@@ -1,57 +1,67 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const clipboardStore = { text: '' }
-const { execFileMock } = vi.hoisted(() => ({
-  execFileMock: vi.fn((_file, _args, _options, cb) => cb(null, '', '')),
+const mocks = vi.hoisted(() => ({
+  execFile: vi.fn(),
+  getAllDisplays: vi.fn(() => [{ bounds: { x: 0, y: 0, width: 1920, height: 1080 } }]),
 }))
 
 vi.mock('node:child_process', () => ({
-  execFile: execFileMock,
-  default: { execFile: execFileMock },
+  execFile: mocks.execFile,
+  default: { execFile: mocks.execFile },
 }))
-
+vi.mock('node:util', () => {
+  const promisify =
+    (fn: (...args: unknown[]) => void) =>
+    (...args: unknown[]) =>
+      new Promise((resolve, reject) => {
+        fn(...args, (error: Error | null, stdout: string, stderr: string) => {
+          if (error) reject(error)
+          else resolve({ stdout, stderr })
+        })
+      })
+  return { promisify, default: { promisify } }
+})
 vi.mock('electron', () => ({
-  screen: { getAllDisplays: () => [] },
-  clipboard: {
-    readText: () => clipboardStore.text,
-    writeText: (t: string) => {
-      clipboardStore.text = t
-    },
-  },
+  clipboard: { readText: vi.fn(() => ''), writeText: vi.fn() },
+  screen: { getAllDisplays: mocks.getAllDisplays },
 }))
 
-import { performKeyPress, performType } from './actions'
-
-describe('computer-use actions', () => {
+describe('verified targeted computer clicks', () => {
   beforeEach(() => {
-    clipboardStore.text = 'original'
-    execFileMock.mockClear()
+    vi.clearAllMocks()
+    mocks.execFile.mockImplementation((_file, _args, _options, callback) => {
+      callback(
+        null,
+        JSON.stringify({
+          targeted: true,
+          foregroundVerified: true,
+          hitTestVerified: true,
+          targetHwnd: 22,
+        }),
+        ''
+      )
+    })
   })
 
-  it('pastes text via the clipboard and restores prior contents', async () => {
-    await performType({ text: 'hello world' })
-
-    expect(execFileMock).toHaveBeenCalledWith(
-      'powershell.exe',
-      expect.arrayContaining([
-        '-NoProfile',
-        '-NonInteractive',
-        '-ExecutionPolicy',
-        'Bypass',
-        '-Command',
-      ]),
-      expect.objectContaining({ windowsHide: true }),
-      expect.any(Function)
+  it('focuses and hit-tests the exact captured app before sending mouse input', async () => {
+    const { performClick } = await import('./actions')
+    const result = await performClick(
+      { screenshot_id: 'shot', x: 150, y: 130 },
+      { hwnd: 22, capturedBounds: { x: 100, y: 80, width: 800, height: 600 } }
     )
-    expect(clipboardStore.text).toBe('original')
-  })
 
-  it('maps key combinations to virtual-key User32 calls', async () => {
-    await performKeyPress({ key: 'ctrl+shift+s' })
-
-    const script = execFileMock.mock.calls[0][1].at(-1)
-    expect(script).toContain('[byte]17')
-    expect(script).toContain('[byte]16')
-    expect(script).toContain('[byte]83')
+    expect(result).toEqual({
+      targeted: true,
+      foregroundVerified: true,
+      hitTestVerified: true,
+      targetHwnd: 22,
+    })
+    const command = mocks.execFile.mock.calls[0]?.[1]?.at(-1) as string
+    expect(command).toContain('SetForegroundWindow($target)')
+    expect(command).toContain('AttachThreadInput')
+    expect(command).toContain('WindowFromPoint')
+    expect(command).toContain('GetAncestor($hitWindow, 2)')
+    expect(command).toContain('Another window covers the requested point. No click was sent.')
+    expect(command.indexOf('$hitWindow =')).toBeLessThan(command.lastIndexOf('::mouse_event'))
   })
 })

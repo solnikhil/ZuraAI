@@ -100,13 +100,18 @@ function getArtifactIcon(kind: ArtifactKind, size = 16): React.ReactElement {
 }
 
 function artifactExcerpt(entry: ArtifactLibraryEntry): string {
+  // Structured/markup kinds look noisy as raw source in the library list.
+  if (entry.kind === 'html' || entry.kind === 'svg' || entry.kind === 'json' || entry.kind === 'code') {
+    return formatArtifactKind(entry.kind)
+  }
+
   const content = entry.document ? getCurrentArtifactVersion(entry.document)?.content : ''
-  if (!content) return `${formatArtifactKind(entry.kind)} from ${entry.sessionTitle}`
+  if (!content) return formatArtifactKind(entry.kind)
   return content
-    .replace(/[#_*`>{}]/g, '')
+    .replace(/[#_*`>~|{}[\]()]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
-    .slice(0, 118)
+    .slice(0, 96)
 }
 
 export default function ArtifactsView(): React.ReactElement {
@@ -444,12 +449,18 @@ export default function ArtifactsView(): React.ReactElement {
                   </span>
                   <span className="artifacts-view__item-copy">
                     <strong>{entry.title}</strong>
-                    <span className="artifacts-view__item-excerpt">{artifactExcerpt(entry)}</span>
                     <span className="artifacts-view__item-meta">
-                      <span>{entry.sessionTitle}</span>
+                      <span className="artifacts-view__item-kind">
+                        {formatArtifactKind(entry.kind)}
+                      </span>
+                      <span aria-hidden="true">·</span>
+                      <span className="artifacts-view__item-session">{entry.sessionTitle}</span>
                       <span aria-hidden="true">·</span>
                       <span>{formatRelativeDate(entry.updatedAt)}</span>
                     </span>
+                    {entry.kind === 'markdown' || entry.kind === 'text' ? (
+                      <span className="artifacts-view__item-excerpt">{artifactExcerpt(entry)}</span>
+                    ) : null}
                   </span>
                 </button>
               ))

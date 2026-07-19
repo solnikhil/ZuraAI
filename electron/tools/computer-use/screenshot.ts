@@ -21,6 +21,7 @@ export interface ScreenshotCaptureResult {
     type: 'screen' | 'window'
     id: string
     title: string
+    hwnd?: number
   }
 }
 
@@ -194,7 +195,11 @@ export async function captureScreenshot(
   const base64 = image.toPNG().toString('base64')
   const display = getDisplayForSource(source, options.displayId)
   const windowBounds = wantsWindow ? await getWindowBounds(source) : null
+  if (wantsWindow && !windowBounds) {
+    throw new Error('The target window bounds could not be verified for coordinate mapping')
+  }
   const coordinateBounds = windowBounds ?? display.bounds
+  const targetHwnd = wantsWindow ? parseWindowHandle(source.id) : null
 
   return {
     image: base64,
@@ -221,6 +226,7 @@ export async function captureScreenshot(
       type: wantsWindow ? 'window' : 'screen',
       id: source.id,
       title: source.name,
+      ...(targetHwnd ? { hwnd: targetHwnd } : {}),
     },
   }
 }

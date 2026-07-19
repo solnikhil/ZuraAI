@@ -3,6 +3,7 @@ import { promisify } from 'node:util'
 import { screen, clipboard } from 'electron'
 import { ACTION_DELAY_MS, DEFAULT_SCROLL_AMOUNT } from './constants'
 import type { ClickArgs, TypeArgs, KeyArgs, ScrollArgs, CursorPositionArgs } from './types'
+import type { DisplayBounds } from './coordinates'
 
 const execFileAsync = promisify(execFile)
 
@@ -19,16 +20,17 @@ function validateCoords(x: number, y: number): void {
 
 const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
 
-async function runUser32Script(script: string): Promise<void> {
+async function runUser32Script(script: string): Promise<string> {
   if (process.platform !== 'win32') {
     throw new Error('Computer Use actions are currently supported only on Windows')
   }
 
-  await execFileAsync(
+  const { stdout } = await execFileAsync(
     'powershell.exe',
     ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script],
-    { windowsHide: true, timeout: 10_000, maxBuffer: 64 * 1024 }
+    { windowsHide: true, timeout: 10_000, maxBuffer: 64 * 1024, encoding: 'utf8' }
   )
+  return stdout
 }
 
 function user32Prelude(): string {
@@ -113,17 +115,115 @@ ${keyUp}
 `)
 }
 
-export async function performClick(args: ClickArgs): Promise<void> {
+export interface ClickTarget {
+  hwnd: number
+  capturedBounds: DisplayBounds
+}
+
+export interface ClickDeliveryEvidence {
+  targeted: boolean
+  foregroundVerified: boolean
+  hitTestVerified: boolean
+  targetHwnd?: number
+}
+
+export async function performClick(
+  args: ClickArgs,
+  target?: ClickTarget
+): Promise<ClickDeliveryEvidence> {
   const { x, y, button = 'left' } = args
   validateCoords(x, y)
   const flags = mouseFlags(button)
-  await runUser32Script(`${user32Prelude()}
+  if (!target) {
+    await runUser32Script(`${user32Prelude()}
 [ZuraUser32]::SetCursorPos(${Math.round(x)}, ${Math.round(y)}) | Out-Null
 Start-Sleep -Milliseconds ${ACTION_DELAY_MS}
 [ZuraUser32]::mouse_event(${flags.down}, 0, 0, 0, [UIntPtr]::Zero)
 [ZuraUser32]::mouse_event(${flags.up}, 0, 0, 0, [UIntPtr]::Zero)
 `)
+    await delay(ACTION_DELAY_MS)
+    return { targeted: false, foregroundVerified: false, hitTestVerified: false }
+  }
+
+  const bounds = target.capturedBounds
+  const stdout = await runUser32Script(`
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+public struct ZuraPoint { public int X; public int Y; }
+public struct ZuraRect { public int Left; public int Top; public int Right; public int Bottom; }
+public static class ZuraVerifiedClick {
+  [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr hWnd);
+  [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr hWnd);
+  [DllImport("user32.dll")] public static extern bool ShowWindowAsync(IntPtr hWnd, int command);
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
+  [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr hWnd);
+  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+  [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
+  [DllImport("user32.dll")] public static extern bool AttachThreadInput(uint source, uint target, bool attach);
+  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out ZuraRect rect);
+  [DllImport("user32.dll")] public static extern IntPtr WindowFromPoint(ZuraPoint point);
+  [DllImport("user32.dll")] public static extern IntPtr GetAncestor(IntPtr hWnd, uint flags);
+  [DllImport("user32.dll")] public static extern bool SetCursorPos(int X, int Y);
+  [DllImport("user32.dll")] public static extern void mouse_event(uint flags, uint dx, uint dy, int data, UIntPtr extraInfo);
+}
+"@
+$target = [IntPtr]${Math.trunc(target.hwnd)}
+if (-not [ZuraVerifiedClick]::IsWindow($target)) { throw 'The captured target window is no longer available. Capture a fresh screenshot.' }
+if ([ZuraVerifiedClick]::IsIconic($target)) { [ZuraVerifiedClick]::ShowWindowAsync($target, 9) | Out-Null }
+$foregroundBefore = [ZuraVerifiedClick]::GetForegroundWindow()
+$ignoredPid = [uint32]0
+$foregroundThread = [ZuraVerifiedClick]::GetWindowThreadProcessId($foregroundBefore, [ref]$ignoredPid)
+$currentThread = [ZuraVerifiedClick]::GetCurrentThreadId()
+$attached = $false
+try {
+  if ($foregroundThread -ne 0 -and $foregroundThread -ne $currentThread) {
+    $attached = [ZuraVerifiedClick]::AttachThreadInput($currentThread, $foregroundThread, $true)
+  }
+  [ZuraVerifiedClick]::BringWindowToTop($target) | Out-Null
+  [ZuraVerifiedClick]::SetForegroundWindow($target) | Out-Null
+} finally {
+  if ($attached) { [ZuraVerifiedClick]::AttachThreadInput($currentThread, $foregroundThread, $false) | Out-Null }
+}
+$focused = $false
+for ($attempt = 0; $attempt -lt 20; $attempt++) {
+  $foreground = [ZuraVerifiedClick]::GetForegroundWindow()
+  if ($foreground -eq $target) { $focused = $true; break }
+  Start-Sleep -Milliseconds 25
+}
+if (-not $focused) { throw 'Windows did not place the captured app in the foreground. No click was sent.' }
+$rect = New-Object ZuraRect
+if (-not [ZuraVerifiedClick]::GetWindowRect($target, [ref]$rect)) { throw 'The target window bounds could not be revalidated. No click was sent.' }
+$tolerance = 2
+if ([Math]::Abs($rect.Left - ${Math.round(bounds.x)}) -gt $tolerance -or
+    [Math]::Abs($rect.Top - ${Math.round(bounds.y)}) -gt $tolerance -or
+    [Math]::Abs(($rect.Right - $rect.Left) - ${Math.round(bounds.width)}) -gt $tolerance -or
+    [Math]::Abs(($rect.Bottom - $rect.Top) - ${Math.round(bounds.height)}) -gt $tolerance) {
+  throw 'The target window moved or resized after the screenshot. Capture a fresh screenshot before clicking.'
+}
+$clickX = ${Math.round(x)}
+$clickY = ${Math.round(y)}
+if ($clickX -lt $rect.Left -or $clickX -ge $rect.Right -or $clickY -lt $rect.Top -or $clickY -ge $rect.Bottom) {
+  throw 'The requested click is outside the captured app window. No click was sent.'
+}
+[ZuraVerifiedClick]::SetCursorPos($clickX, $clickY) | Out-Null
+Start-Sleep -Milliseconds ${ACTION_DELAY_MS}
+$point = New-Object ZuraPoint
+$point.X = $clickX
+$point.Y = $clickY
+$hitWindow = [ZuraVerifiedClick]::WindowFromPoint($point)
+$hitRoot = [ZuraVerifiedClick]::GetAncestor($hitWindow, 2)
+$foreground = [ZuraVerifiedClick]::GetForegroundWindow()
+if ($foreground -ne $target) { throw 'The target app lost foreground focus before the click. No click was sent.' }
+if ($hitRoot -ne $target) { throw 'Another window covers the requested point. No click was sent.' }
+[ZuraVerifiedClick]::mouse_event(${flags.down}, 0, 0, 0, [UIntPtr]::Zero)
+[ZuraVerifiedClick]::mouse_event(${flags.up}, 0, 0, 0, [UIntPtr]::Zero)
+@{ targeted = $true; foregroundVerified = $true; hitTestVerified = $true; targetHwnd = ${Math.trunc(target.hwnd)} } | ConvertTo-Json -Compress
+`)
   await delay(ACTION_DELAY_MS)
+  const evidence = JSON.parse(stdout.trim()) as ClickDeliveryEvidence
+  return evidence
 }
 
 /**

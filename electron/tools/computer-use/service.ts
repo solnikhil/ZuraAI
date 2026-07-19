@@ -11,6 +11,7 @@ import type {
 } from './types'
 import type { ComputerUseApprovalManager } from './approvalManager'
 import { captureScreenshot, listWindows } from './screenshot'
+import { extractOcrElements } from './ocr'
 import {
   performClick,
   performType,
@@ -36,6 +37,7 @@ interface ScreenshotSessionState {
   screenshotArgs: ScreenshotArgs
   screenshotHash: string
   screenshotId: string
+  targetHwnd?: number
 }
 
 const MAX_SCREENSHOT_SESSIONS = 32
@@ -125,11 +127,15 @@ export async function executeScreenshot(
     })
     const sessionKey = options.sessionKey ?? 'unscoped'
     const screenshotId = randomUUID()
+    const ocr = await extractOcrElements(result.image, result.width, result.height)
     rememberScreenshot(sessionKey, {
       coordinateContext: result.coordinateContext,
       screenshotArgs: { ...args },
       screenshotHash: screenshotHash(result.image),
       screenshotId,
+      ...(result.target?.type === 'window' && result.target.hwnd
+        ? { targetHwnd: result.target.hwnd }
+        : {}),
     })
     return {
       success: true,
@@ -140,6 +146,7 @@ export async function executeScreenshot(
         screenWidth: result.width,
         screenHeight: result.height,
         coordinateContext: serializeCoordinateContext(result.coordinateContext),
+        ocr,
         ...(result.target ? { target: result.target } : {}),
       },
     }
@@ -151,7 +158,7 @@ export async function executeScreenshot(
 async function executeAction(
   action: ComputerActionType,
   args: { screenshot_id: string },
-  executor: () => Promise<void>,
+  executor: () => Promise<object | void>,
   autoApprove: boolean,
   showSpotlightFn?: (opts: { x: number; y: number; label?: string }) => Promise<void>,
   spotlightPoint?: DesktopPoint,
@@ -200,7 +207,7 @@ async function executeAction(
       await showSpotlightFn({ x, y, label })
     }
 
-    await executor()
+    const actionEvidence = await executor()
     await delay(ACTION_DELAY_MS)
 
     // Post-action screen capture
@@ -212,11 +219,15 @@ async function executeAction(
     })
     const afterHash = screenshotHash(screenshot.image)
     const screenshotId = randomUUID()
+    const ocr = await extractOcrElements(screenshot.image, screenshot.width, screenshot.height)
     rememberScreenshot(sessionKey, {
       coordinateContext: screenshot.coordinateContext,
       screenshotArgs: before.screenshotArgs,
       screenshotHash: afterHash,
       screenshotId,
+      ...(screenshot.target?.type === 'window' && screenshot.target.hwnd
+        ? { targetHwnd: screenshot.target.hwnd }
+        : {}),
     })
     return {
       success: true,
@@ -228,6 +239,8 @@ async function executeAction(
         screenWidth: screenshot.width,
         screenHeight: screenshot.height,
         coordinateContext: serializeCoordinateContext(screenshot.coordinateContext),
+        ocr,
+        ...(actionEvidence ? { delivery: actionEvidence } : {}),
         ...(screenshot.target ? { target: screenshot.target } : {}),
       },
     }
@@ -251,8 +264,13 @@ export async function executeClick(
   sessionKey = 'unscoped'
 ): Promise<ToolResult> {
   let desktopPoint: DesktopPoint
+  let screenshotState: ScreenshotSessionState
   try {
-    desktopPoint = mapActionPoint(args, sessionKey)
+    screenshotState = requireScreenshotSession(sessionKey, args.screenshot_id)
+    desktopPoint = mapScreenshotPointToDesktop(
+      { x: args.x, y: args.y },
+      screenshotState.coordinateContext
+    )
   } catch (error) {
     return {
       success: false,
@@ -263,7 +281,16 @@ export async function executeClick(
   return executeAction(
     'click',
     args,
-    () => performClick(desktopArgs),
+    () =>
+      performClick(
+        desktopArgs,
+        screenshotState.targetHwnd
+          ? {
+              hwnd: screenshotState.targetHwnd,
+              capturedBounds: screenshotState.coordinateContext.displayBounds,
+            }
+          : undefined
+      ),
     autoApprove,
     showSpotlight,
     desktopPoint,

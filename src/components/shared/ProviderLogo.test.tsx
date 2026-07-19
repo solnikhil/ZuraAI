@@ -140,7 +140,11 @@ describe('ProviderLogo', () => {
       'alibaba',
       'deepseek',
       'fireworks',
+      'opencode',
+      'codex',
     ]
+
+    const svgProviders = new Set(['fireworks', 'deepseek', 'opencode', 'codex'])
 
     it.each(providers)('should recognize %s as a known provider', (provider) => {
       expect(isKnownProvider(provider)).toBe(true)
@@ -150,7 +154,7 @@ describe('ProviderLogo', () => {
       render(<ProviderLogo provider={provider} />)
       const img = screen.getByAltText(`${provider} logo`)
       expect(img).toBeInTheDocument()
-      const expectedExt = provider === 'fireworks' || provider === 'deepseek' ? 'svg' : 'png'
+      const expectedExt = svgProviders.has(provider) ? 'svg' : 'png'
       expect(img).toHaveAttribute('src', `./provider-logos/${provider}.${expectedExt}`)
     })
   })

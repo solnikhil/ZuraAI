@@ -47,7 +47,13 @@ sender and opaque chat-run ID. Main rejects missing, stale, or cross-run screens
 ID after every action, recaptures the same target, and reports whether the image changed. The
 renderer/model cannot transfer coordinate authority between runs or windows.
 
+For a click grounded in a targeted window capture, main also retains the parsed HWND and verified capture bounds outside model arguments. Immediately before input, a fixed helper restores and foregrounds that exact HWND, confirms it remains the foreground window, rejects any bounds change, and resolves `WindowFromPoint` through `GetAncestor(GA_ROOT)` to confirm the coordinate is currently inside the same top-level window. This supports embedded controls owned by child processes while rejecting unrelated overlays. Any failed check sends no mouse event and requires a fresh targeted screenshot. Successful delivery evidence proves only that input was sent inside the target app; focus changes and pixel differences are not proof of the requested semantic outcome.
+
 Background-safe UI Automation is pattern-only. Invoke, Value, SelectionItem/Toggle, and Scroll may execute without shared input; missing patterns return `foreground_required`. Never silently fall back to focus, clipboard paste, global keyboard input, cursor movement, coordinate clicks, wheel input, arbitrary window messages, or renderer-provided PowerShell. An approved physical `computer_*` action releases the guard first.
+
+When an exact-HWND UI Automation snapshot contains no actionable descendants, main may query a bounded Microsoft Active Accessibility (MSAA) compatibility tree and merge provider-advertised controls into the result. MSAA IDs remain opaque and main-owned. A legacy default action is allowed only after main re-resolves the path and revalidates the target HWND/process plus the element role and name; arbitrary window messages and caller-provided scripts remain forbidden.
+
+Windows Computer Use screenshots also return a typed OCR observation when the platform OCR service is available. Main writes only a randomly named, upscaled PNG beneath the OS temporary directory, invokes a fixed bounded Windows OCR script, caps the returned lines, and removes the file immediately. OCR bounds use screenshot coordinates and every OCR element is marked `background_safe: false`; OCR provides visual grounding for an approved physical action but never authorizes background input. OCR failure is surfaced as `status: unavailable` without invalidating the screenshot.
 
 Disabling a prompt in renderer settings must not bypass main approval unless the product adds a separately reviewed main-owned policy and documents it in `AGENTS.md`.
 

@@ -67,12 +67,15 @@ const PROVIDER_COLORS: Record<string, string> = {
   gemini: '#4dabf7',
   minimax: '#6366f1',
   nvidia: '#76b900',
+  codex: '#10A37F',
+  opencode: '#F1ECEC',
 }
 
 const PROVIDER_LOGO_EXTENSIONS: Record<string, 'png' | 'svg'> = {
   deepseek: 'svg',
   fireworks: 'svg',
   opencode: 'svg',
+  codex: 'svg',
 }
 
 const PROVIDER_LOGO_ADJUSTMENTS: Record<
@@ -86,6 +89,9 @@ const PROVIDER_LOGO_ADJUSTMENTS: Record<
   alibaba: { scale: 1.08 },
   deepseek: { scale: 0.92 },
   ollama: { scale: 1.04, translateY: 0.25 },
+  // Official mark includes a square canvas; slightly larger so it matches peer logos.
+  opencode: { scale: 1.08 },
+  codex: { scale: 1.06 },
 }
 
 /**

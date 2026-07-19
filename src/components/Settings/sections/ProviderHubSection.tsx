@@ -91,20 +91,17 @@ const PROVIDERS = PROVIDER_HUB_DEFINITIONS
 
 type ProviderCatalogFilter = 'all' | 'needs-setup' | 'disabled' | 'active'
 
-type ProviderCatalogGroup = {
-  title: string
-  keys: ProviderKey[]
-  featured?: boolean
-}
-
-const PROVIDER_CATALOG_GROUPS: ProviderCatalogGroup[] = [
-  { title: 'Gateways', keys: ['openrouter'], featured: true },
-  { title: 'Account Providers', keys: ['codex'], featured: true },
-  {
-    title: 'Cloud APIs',
-    keys: ['groq', 'alibaba', 'deepseek', 'opencode', 'fireworks', 'nvidia'],
-  },
-  { title: 'Local', keys: ['ollama'], featured: true },
+/** Display order for the flat providers catalog (no category headers). */
+const PROVIDER_CATALOG_ORDER: readonly ProviderKey[] = [
+  'openrouter',
+  'codex',
+  'groq',
+  'alibaba',
+  'deepseek',
+  'opencode',
+  'fireworks',
+  'nvidia',
+  'ollama',
 ]
 
 type ProviderSetupState = 'needs-setup' | 'ready' | 'disabled'
@@ -1785,19 +1782,24 @@ function ProviderCatalog({
     return new Map(providers.map((provider) => [provider.key, provider]))
   }, [providers])
 
-  const visibleGroups = PROVIDER_CATALOG_GROUPS.map((group) => ({
-    ...group,
-    providers: group.keys
-      .map((key) => providerByKey.get(key))
-      .filter((provider): provider is ProviderHubDefinition => Boolean(provider))
-      .filter((provider) => {
-        const hasApiKey = provider.apiKeyField ? getApiKey(provider).trim().length > 0 : true
-        const enabled = isProviderEnabled(provider)
-        return providerMatchesCatalogFilter(provider, filter, hasApiKey, enabled)
-      }),
-  })).filter((group) => group.providers.length > 0)
+  const orderedProviders: ProviderHubDefinition[] = []
+  for (const key of PROVIDER_CATALOG_ORDER) {
+    const provider = providerByKey.get(key)
+    if (provider) orderedProviders.push(provider)
+  }
+  for (const provider of providers) {
+    if (!PROVIDER_CATALOG_ORDER.includes(provider.key)) {
+      orderedProviders.push(provider)
+    }
+  }
 
-  if (visibleGroups.length === 0) {
+  const visibleProviders = orderedProviders.filter((provider) => {
+    const hasApiKey = provider.apiKeyField ? getApiKey(provider).trim().length > 0 : true
+    const enabled = isProviderEnabled(provider)
+    return providerMatchesCatalogFilter(provider, filter, hasApiKey, enabled)
+  })
+
+  if (visibleProviders.length === 0) {
     return (
       <div className="provider-catalog-empty" role="status">
         No providers match this filter.
@@ -1807,30 +1809,19 @@ function ProviderCatalog({
 
   return (
     <div className="provider-catalog" aria-label="Model providers">
-      {visibleGroups.map((group) => (
-        <section key={group.title} className="provider-catalog-group">
-          <div className="provider-catalog-group__header">
-            <h3>{group.title}</h3>
-          </div>
-          <div
-            className={`provider-catalog-group__grid ${
-              group.featured ? 'provider-catalog-group__grid--featured' : ''
-            }`}
-          >
-            {group.providers.map((provider) => (
-              <ProviderCatalogRow
-                key={provider.key}
-                provider={provider}
-                enabled={isProviderEnabled(provider)}
-                hasApiKey={provider.apiKeyField ? getApiKey(provider).trim().length > 0 : true}
-                models={modelMap[provider.key] || []}
-                onOpen={() => onCardClick(provider)}
-                onToggle={(checked) => setProviderEnabled(provider.key, checked)}
-              />
-            ))}
-          </div>
-        </section>
-      ))}
+      <div className="provider-catalog-group__grid">
+        {visibleProviders.map((provider) => (
+          <ProviderCatalogRow
+            key={provider.key}
+            provider={provider}
+            enabled={isProviderEnabled(provider)}
+            hasApiKey={provider.apiKeyField ? getApiKey(provider).trim().length > 0 : true}
+            models={modelMap[provider.key] || []}
+            onOpen={() => onCardClick(provider)}
+            onToggle={(checked) => setProviderEnabled(provider.key, checked)}
+          />
+        ))}
+      </div>
     </div>
   )
 }
