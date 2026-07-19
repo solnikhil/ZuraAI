@@ -4,24 +4,24 @@
 
   <h1>ZuraAI</h1>
 
-  <p><strong>Desktop AI for people who want model choice, agentic workflows, fast research, and local control.</strong></p>
+  <p><strong>A desktop AI assistant with model choice, tools, research, and local control.</strong></p>
 
   <p>
-    ZuraAI is a desktop assistant built with Electron, React, Vite, and TypeScript.<br />
-    Chat across leading cloud providers and Ollama, stream answers, run built-in web research,
-    use agent tools with approval gates, and keep your data local.
+    ZuraAI is a desktop app for Windows and macOS.<br />
+    Chat with the models you already pay for (or run locally with Ollama), search the web,
+    use tools with clear approval steps, and keep your history on your machine.
   </p>
 
-  <p><sub>macOS and Windows supported. No ZuraAI account. No cloud sync. Bring your own providers.</sub></p>
+  <p><sub>No ZuraAI account. No cloud sync. Bring your own providers.</sub></p>
 
   <p>
-    <a href="https://github.com/solnikhil/ZuraAI/releases">Releases</a> |
-    <a href="https://github.com/solnikhil/ZuraAI/issues">Issues</a> |
-    <a href="CONTRIBUTING.md">Contributing</a> |
-    <a href="TELEMETRY.md">Telemetry</a> |
-    <a href="AGENTS.md">Architecture</a> |
-    <a href="docs/EXTENSIONS.md">Extensions</a> |
-    <a href="https://github.com/solnikhil/ZuraAI/security/advisories/new">Report Security Issue</a>
+    <a href="https://github.com/solnikhil/ZuraAI/releases">Releases</a> ·
+    <a href="https://github.com/solnikhil/ZuraAI/issues">Issues</a> ·
+    <a href="CONTRIBUTING.md">Contributing</a> ·
+    <a href="TELEMETRY.md">Telemetry</a> ·
+    <a href="AGENTS.md">Architecture</a> ·
+    <a href="SECURITY.md">Security</a> ·
+    <a href="https://github.com/solnikhil/ZuraAI/security/advisories/new">Report a security issue</a>
   </p>
 
   <p>
@@ -39,79 +39,33 @@
 <details>
   <summary><strong>Contents</strong></summary>
 
-- [Why ZuraAI](#why-zuraai)
-- [At a glance](#at-a-glance)
-- [Agentic capabilities](#agentic-capabilities)
-- [Provider lineup](#provider-lineup)
+- [What you get](#what-you-get)
 - [Quick start](#quick-start)
-- [Scripts](#scripts)
-- [Security model](#security-model)
-- [Project docs](#project-docs)
+- [Useful commands](#useful-commands)
+- [Releases](#releases)
+- [How security works](#how-security-works)
 - [Contributing](#contributing)
 - [License](#license)
 
 </details>
 
-## Why ZuraAI
+## What you get
 
-Most desktop AI apps make you pick one provider, one workflow, or one trust model. ZuraAI is built for people who want all three under control.
+ZuraAI is for people who want one desktop app instead of juggling browser tabs and provider dashboards.
 
-- Multi-provider by design: use `OpenRouter`, `Ollama`, `Groq`, `Alibaba Cloud`, `Fireworks`, and `DeepSeek` from one desktop app.
-- Research that stays in the flow: turn on built-in web search for current facts, follow-up searches, live progress, and citations.
-- Agent Workspace mode: let capable models plan and use gated tools for search, code, MCP actions, memory, and desktop assistance.
-- Local-first storage: chat history lives in the Electron main process and API keys are stored with Electron secure storage.
-- Better chat organization: pin sessions, sort them into folders, tag them, and generate titles automatically.
-- Desktop workflow polish: use the command palette, quick-send actions, image attachments, and per-model enable or disable controls.
-- Useful insight with privacy controls: review local usage analytics, latency, provider mix, and tool activity from inside the app. Anonymous product analytics is opt-in only.
-
-## At a glance
-
-| Area            | What ZuraAI gives you                                                                                 |
-| --------------- | ----------------------------------------------------------------------------------------------------- |
-| Models          | One interface for cloud models and local Ollama models                                                |
-| Agent Workspace | Tool-using assistant mode with visible step timelines, approval gates, and per-skill controls         |
-| Research        | Built-in web search, batched follow-up searches, citations, and inline search results                 |
-| Tools           | Web research, approved code execution, trusted MCP tools, memory tools, and Windows-only computer use |
-| Media           | Image attachments for vision-capable models                                                           |
-| Organization    | Pinned chats, folders, tags, recency grouping, and title generation                                   |
-| Platform        | Desktop app support for macOS and Windows                                                             |
-| Privacy         | Local chat history, secure API key storage, and opt-in anonymous analytics                            |
-| Workflow        | Command palette quick-send, provider hub controls, and local usage analytics                          |
-
-## Agentic capabilities
-
-ZuraAI has two assistant modes: normal chat for direct conversations and Agent Workspace for tool-using workflows. Agent Workspace exposes capabilities only when the matching skill is enabled and the selected provider/model supports tool calls.
-
-| Capability     | What it does                                                                                                             | Safety and scope                                                                            |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
-| Web research   | Calls `web_search` for current facts, source-backed answers, and multi-query research loops                              | Skill-gated, budgeted per response, and rendered with inline source results                 |
-| Code execution | Runs JavaScript or Python through the built-in `code_execution` tool for calculations, data transforms, and quick checks | Disabled by default; every execution requires explicit approval                             |
-| MCP tools      | Connects trusted Model Context Protocol servers and exposes their namespaced tools to capable models                     | Servers must be enabled and trusted; optional per-call approval plus tool allow/block lists |
-| Memory         | Saves, updates, deletes, and searches short durable user facts for personalization across chats                          | Stored locally under Electron `userData`; user-visible and manageable in Settings           |
-| Computer use   | Takes screenshots, clicks, types, scrolls, launches apps, and closes windows for desktop automation                      | Windows-only, disabled by default, approval-gated, with an emergency stop path              |
-
-Agent runs are visible in the chat timeline: ZuraAI records planning, tool calls, approvals, running state, results, failures, and final synthesis on the assistant message. Tool-only turns and approval outcomes are persisted with the chat so the history reflects what actually happened.
-
-## Provider lineup
-
-| Provider        | Best for                      | Notes                                                              |
-| --------------- | ----------------------------- | ------------------------------------------------------------------ |
-| `OpenRouter`    | Broad model access            | Great default choice when you want one API for many model families |
-| `Ollama`        | Local and offline workflows   | No API key required; just run an Ollama server locally             |
-| `Groq`          | Fast responses                | Useful when low latency matters more than provider breadth         |
-| `Alibaba Cloud` | Qwen-based workflows          | Good option for teams already using Alibaba Cloud models           |
-| `Fireworks`     | Open-weight serverless models | Useful for fast access to hosted open models                       |
-| `DeepSeek`      | DeepSeek-native workflows     | Good option for DeepSeek chat and reasoning models                 |
-
-ZuraAI is actively adding and testing new providers. If the model stack you want is missing, open an issue and we can prioritize it.
+- **Use the models you already pay for** — or run local ones. Drop your keys in Settings and go.
+- **Research in the chat.** Web search can pull current sources into the conversation with progress and citations.
+- **Agent mode when you need tools.** Web search, code (with approval), MCP, memory, and Windows desktop help when you allow it. Tool steps show up in the chat so you can see what ran.
+- **Local by default.** Chats stay on your computer. API keys use Electron secure storage.
+- **Desktop polish.** Streaming replies, image attachments, pinned chats, a command palette, and local usage views.
 
 ## Quick start
 
 ### Requirements
 
-- Node.js `>= 18`
-- Bun `>= 1.1`
-- macOS or Windows
+- Node.js 18 or newer
+- Bun 1.3.14 or newer (see `package.json` for the exact range)
+- Windows or macOS
 
 ### Install and run
 
@@ -122,76 +76,57 @@ bun install
 bun run dev
 ```
 
-> [!NOTE]
-> ZuraAI does not require a `.env` file. Add provider keys inside the app under Settings. If you use `Ollama`, make sure the local server is running at `http://localhost:11434` or your configured endpoint.
+You do not need a `.env` file. Add provider keys inside **Settings**. If you use Ollama, start it locally first (usually `http://localhost:11434`).
 
-### Build production artifacts
+### Build installers
 
 ```bash
 bun run build
 ```
 
-Use `bun run build:dir` if you want an unpacked directory build instead of the installer package.
+Use `bun run build:dir` if you only need an unpacked app folder.
 
-## Scripts
+## Useful commands
 
-| Command                     | Purpose                                          |
-| --------------------------- | ------------------------------------------------ |
-| `bun run dev`               | Start the Vite development server                |
-| `bun run typecheck`         | Run TypeScript checks with `tsc --noEmit`        |
-| `bun run test`              | Run the Vitest suite                             |
-| `bun run test:watch`        | Run tests in watch mode                          |
-| `bun run build:renderer`    | Typecheck and build the renderer                 |
-| `bun run build`             | Create the production Electron package           |
-| `bun run build:dir`         | Create an unpacked Electron directory build      |
-| `bun run release:checksums` | Generate SHA-256 checksums for release artifacts |
-| `bun run preview`           | Preview the renderer build locally               |
+| Command | What it does |
+| ------- | ------------ |
+| `bun run dev` | Start development |
+| `bun run typecheck` | TypeScript checks |
+| `bun run test` | Unit tests |
+| `bun run test:watch` | Tests in watch mode |
+| `bun run build` | Production Electron package |
+| `bun run build:dir` | Unpacked directory build |
+| `bun run release:checksums` | SHA-256 checksums for release files |
+| `bun run preview` | Preview the renderer build |
 
-## Release Packaging
+## Releases
 
-ZuraAI ships desktop binaries through GitHub Releases. The package-manager entrypoint is a small launcher package in `packages/zuraai`, so users can run:
+Desktop builds are published on [GitHub Releases](https://github.com/solnikhil/ZuraAI/releases).
 
-```bash
-bunx zuraai
-npx zuraai
-```
+There is also a small npm package (`zuraai`) that can open the installed desktop app through local protocols. Details live in [`docs/RELEASE.md`](docs/RELEASE.md).
 
-The launcher downloads the matching GitHub release artifact, verifies it against `checksums.txt`, caches it locally, and launches the app. See `docs/RELEASE.md` for the release checklist.
+## How security works
 
-## Security model
+- The UI process is treated as untrusted.
+- Sensitive work runs in the Electron main process.
+- The UI only talks to main through a small, allowlisted bridge.
+- Chats and files stay under Electron’s local user data folder.
+- API keys never sit in plain settings JSON when secure storage is available.
+- Anonymous analytics is **opt-in**. See [`TELEMETRY.md`](TELEMETRY.md).
 
-ZuraAI is built around a narrow desktop security boundary.
-
-- The renderer is treated as untrusted.
-- Privileged work stays in the Electron main process.
-- Preload exposes a small, allowlisted IPC surface.
-- Chat history is stored locally under Electron `userData`.
-- API keys are stored locally with Electron `safeStorage` when available.
-- Anonymous analytics is opt-in only and documented in [`TELEMETRY.md`](TELEMETRY.md).
-
-For the full architecture and security notes, see `AGENTS.md`.
-
-## Project docs
-
-- `AGENTS.md` - architecture, IPC boundaries, data flow, and agent rules for this repo
-- `docs/EXTENSIONS.md` - extension authoring, trusted UI, permissions, Store lifecycle, and CLI workflow
-- `docs/EXTENSION_PLATFORM_VERIFICATION.md` - claim-by-claim extension security and release evidence
-- `CONTRIBUTING.md` - local workflow, quality checks, and commit conventions
-- `CODE_OF_CONDUCT.md` - community expectations
+Deeper design notes are in [`AGENTS.md`](AGENTS.md).
 
 ## Contributing
 
-Contributions are welcome. Before opening a pull request:
-
-1. Read `CONTRIBUTING.md`.
-2. Review the architecture notes in `AGENTS.md`.
+1. Read [`CONTRIBUTING.md`](CONTRIBUTING.md).
+2. Skim [`AGENTS.md`](AGENTS.md) if you touch architecture, IPC, storage, or tools.
 3. Run `bun run typecheck` and `bun run test`.
-4. Call out any IPC, storage, provider, or tool-surface changes clearly.
+4. In the PR, call out anything that changes security boundaries or packaging.
 
 ## License
 
-MIT. See `LICENSE`.
+MIT. See [`LICENSE`](LICENSE).
 
 ---
 
-If things feel a little rough around the edges, that is honest: this is my first open-source app, and I am still figuring things out as I build in public. Thanks for the patience, the feedback, and the help.
+This is still early open-source software. Rough edges are expected. Thanks for the patience, feedback, and help.

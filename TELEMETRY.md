@@ -1,41 +1,52 @@
-# ZuraAI Telemetry
+# Telemetry
 
-ZuraAI analytics is opt-in. No usage events are sent unless the user enables anonymous analytics from the first-run prompt or Settings.
+ZuraAI analytics is **opt-in**. Nothing is sent until you turn on anonymous analytics in the first-run prompt or in Settings.
 
-## What Is Collected
+## What can be collected
 
-Events:
+Only after you opt in, the app may send event names such as:
 
-- `app_first_launch`
-- `app_start`
-- `app_update_installed`
-- `chat_message_sent`
-- `provider_used`
-- `model_used`
-- `tool_used`
-- `web_search_used`
-- `mcp_server_connected`
-- `app_error`
-- `app_crash`
+- App first launch, start, and update installed
+- Chat message sent
+- Provider used / model used
+- Tool used / web search used
+- MCP server connected
+- App error / crash
 
-Common metadata:
+Shared metadata is limited to things like:
 
 - App version
-- OS platform
-- CPU architecture
-- Anonymous install ID
+- OS platform and CPU architecture
+- An anonymous install ID
 - Timestamp
 
-Event-specific metadata is limited to provider/model names, assistant mode, whether attachments were present, tool name, success/failure, duration, coarse error category, and MCP transport/trust state.
+Event-specific fields stay coarse: provider or model name, assistant mode, whether an attachment was present, tool name, success or failure, duration, a coarse error category, and high-level MCP trust/transport state.
 
-## What Is Never Collected
+## What is never collected
 
-ZuraAI does not collect prompts, AI responses, conversation content, conversation titles, API keys, file paths, clipboard data, MCP tool arguments, MCP resource contents, screenshots, or uploaded/generated files.
+ZuraAI does **not** collect:
 
-## How To Disable
+- Prompts or AI replies
+- Conversation content or titles
+- API keys
+- File paths
+- Clipboard data
+- MCP tool arguments or resource bodies
+- Screenshots or uploaded/generated files
 
-Anonymous analytics can be disabled at any time from Settings > Usage Intelligence > Anonymous analytics.
+## How to turn it off
 
-Official builds send events to PostHog Cloud US ingestion (`https://us.i.posthog.com`) using ZuraAI's public PostHog project token, and only after the user opts in. `ZURA_POSTHOG_PROJECT_KEY` and `ZURA_POSTHOG_HOST` can override the built-in analytics target for forks, testing, or self-managed builds. Setting `ZURA_POSTHOG_PROJECT_KEY` to an empty value disables analytics transport even if the user opts in.
+Open **Settings → Usage Intelligence → Anonymous analytics** and disable it any time.
 
-Download counts are tracked outside the app through GitHub Release asset download counts.
+## Where events go
+
+Official builds can send opted-in events to PostHog Cloud US (`https://us.i.posthog.com`) using ZuraAI’s public project token.
+
+Forks and custom builds can override the target with:
+
+- `ZURA_POSTHOG_PROJECT_KEY`
+- `ZURA_POSTHOG_HOST`
+
+Setting the project key to an empty string disables transport even if a user opted in.
+
+Download counts for installers are separate: GitHub’s own release download stats, outside the app.

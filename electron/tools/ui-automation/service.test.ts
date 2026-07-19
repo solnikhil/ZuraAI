@@ -37,6 +37,7 @@ import {
   executeUiKey,
   executeUiTypeText,
   findElementsInState,
+  tryBackgroundActivateAtPoint,
 } from './service'
 import type { UiAppState } from './types'
 
@@ -218,6 +219,36 @@ describe('strict background UI automation actions', () => {
     expect(result.success).toBe(true)
     return (result.data as { state: UiAppState }).state.windows[0]?.elements[0]?.element_id || ''
   }
+
+  it('activates the smallest background-safe provider element owning a target point', async () => {
+    mocks.runPowerShell
+      .mockResolvedValueOnce({ stdout: JSON.stringify(rawSnapshot(['Invoke'])), stderr: '' })
+      .mockResolvedValueOnce({ stdout: '{"action":"invoke"}', stderr: '' })
+
+    const result = await tryBackgroundActivateAtPoint({ hwnd: 100, x: 20, y: 20 })
+
+    expect(result).toMatchObject({
+      status: 'activated',
+      source: 'uia',
+      action: 'click',
+      role: 'Button',
+      name: 'Save',
+    })
+    expect(mocks.runPowerShell.mock.calls[1]?.[0]).toContain('InvokePattern')
+  })
+
+  it('reports unsupported without emitting input when no provider action owns the point', async () => {
+    mocks.runPowerShell.mockResolvedValueOnce({
+      stdout: JSON.stringify(rawSnapshot(['Invoke'])),
+      stderr: '',
+    })
+
+    await expect(tryBackgroundActivateAtPoint({ hwnd: 100, x: 500, y: 500 })).resolves.toEqual({
+      status: 'unsupported',
+      reason: 'No background-safe UIA or MSAA action owns the requested point.',
+    })
+    expect(mocks.runPowerShell).toHaveBeenCalledTimes(1)
+  })
 
   it('normalizes singleton PowerShell windows, elements, and supported patterns', async () => {
     const singletonSnapshot = {

@@ -397,9 +397,10 @@ const toolHandlers: Record<BuiltinMainToolName, ToolHandler> = {
   },
   computer_screenshot: executeReservedScreenshot,
   computer_click: async (args, context) => {
-    await releaseGuardForForegroundAction(context)
     const n = normalizeClickArgs(args)
-    return executeClick(n.args, n.autoApprove, spotlightFn, computerSessionKey(context))
+    return executeClick(n.args, n.autoApprove, spotlightFn, computerSessionKey(context), () =>
+      releaseGuardForForegroundAction(context)
+    )
   },
   computer_type: async (args, context) => {
     await releaseGuardForForegroundAction(context)

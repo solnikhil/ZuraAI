@@ -1,24 +1,24 @@
 # Contributing to ZuraAI
 
-Thanks for contributing to ZuraAI.
+Thanks for helping improve ZuraAI.
 
-ZuraAI is a Windows-first desktop AI assistant built with Electron, React, Vite, and TypeScript. Contributions should stay aligned with the app's security model, desktop architecture, and existing UI patterns.
+ZuraAI is a desktop AI assistant built with Electron, React, Vite, and TypeScript. The security model, process boundaries, and existing UI patterns matter a lot here — please keep changes aligned with them.
 
 ## Before you start
 
-- Read `AGENTS.md` before making architecture, IPC, provider, tool, or storage changes.
-- Read `SUPPORT.md` if you are debugging a user-reported issue or want to understand the issue flow.
-- Search existing issues and pull requests before starting new work.
-- Keep changes scoped. Small focused PRs are easier to review and safer to merge.
+- Read [`AGENTS.md`](AGENTS.md) before changing architecture, IPC, providers, tools, or storage.
+- Use [`SUPPORT.md`](SUPPORT.md) if you are chasing a user-facing bug.
+- Search existing issues and pull requests first.
+- Prefer small, focused PRs. They review faster and break less.
 
 ## Local setup
 
-Requirements:
+You need:
 
-- Node.js `>= 18`
-- Bun `>= 1.3.14 < 1.4.0` (see [Bun version policy](#bun-version-policy))
+- Node.js 18 or newer
+- Bun in the range listed in `package.json` (`engines.bun`)
 
-Clone and install:
+Then:
 
 ```bash
 git clone https://github.com/solnikhil/ZuraAI.git
@@ -26,7 +26,7 @@ cd ZuraAI
 bun install
 ```
 
-Useful commands:
+Common commands:
 
 ```bash
 bun run dev
@@ -35,157 +35,125 @@ bun run test
 bun run build
 ```
 
-### Bun version policy
+### Bun version note
 
-ZuraAI pins Bun to **1.3.14** (the last Zig-based release). CI uses the same version via `.github/actions/setup-bun`, and `package.json` `engines.bun` enforces `>=1.3.14 <1.4.0` for local installs.
+CI and packaging pin a known-good Bun version (see `.github/actions/setup-bun` and `package.json`). If you upgrade Bun, re-run typecheck, tests, and a package build before relying on it.
 
-Why pinned:
+Longer notes live in [`docs/MAINTENANCE.md`](docs/MAINTENANCE.md).
 
-- Bun 1.3.14 (released 2026-05-13) is the last Zig version. The next minor will ship the AI-generated Rust rewrite (~1M LOC merged in a single commit). ZuraAI's release pipeline produces installers shipped to users, so we don't want a million-line implementation swap landing in our build chain without explicit validation.
-- The text-based `bun.lock` format is stable across the rewrite, so day-to-day workflow won't break — but the install runtime, script runner, and Node-compat surface are all newly-implemented Rust code.
+## Good ways to help
 
-To upgrade locally, install the pinned version with:
+- Fix bugs and regressions
+- Improve providers, streaming, or tool calling
+- Polish UI and settings flows
+- Add tests
+- Improve docs, CI, or release tooling
 
-```bash
-curl -fsSL https://bun.sh/install | bash -s "bun-v1.3.14"
-```
+## Issues
 
-Or via `bun upgrade --to 1.3.14` if you already have a newer build installed.
+- Use the GitHub issue form and pick the right type.
+- For bugs: steps to reproduce, expected vs actual, OS, and sanitized logs.
+- For provider problems: provider name, model, and non-secret settings.
+- For features: describe the user problem, not only a solution.
+- Never post API keys, tokens, private prompts, or personal data.
 
-The upgrade plan to the Rust-Bun release lives in [`docs/MAINTENANCE.md`](docs/MAINTENANCE.md) under "Rust-Bun upgrade". macOS distribution caveats (signing, notarization) are tracked in the same document under "macOS signing and notarization".
+Security problems go through a private advisory, not a public issue:
 
-## Ways to contribute
+https://github.com/solnikhil/ZuraAI/security/advisories/new
 
-- Fix bugs or regressions in the desktop app
-- Improve provider integrations, streaming, or tool-calling behavior
-- Improve UI, settings flows, and desktop polish
-- Add or improve tests
-- Improve docs, contributor workflow, and release tooling
+## Development rules of thumb
 
-## Issue workflow
-
-- Use the single GitHub issue form and choose the right `Issue type`.
-- For bugs, include clear repro steps, expected behavior, actual behavior, and sanitized logs.
-- For provider issues, include the provider, model, and any relevant non-secret settings.
-- For feature requests, explain the user problem and the workflow you want to improve.
-- Do not post secrets, tokens, private prompts, or personal data in public issues.
-
-For vulnerabilities, use the private GitHub Security Advisory reporting link instead of opening a public issue.
-
-## Development expectations
-
-- Use TypeScript and follow existing project structure and naming patterns.
+- Stick to TypeScript and existing project structure.
 - Treat the renderer as untrusted.
-- Keep privileged behavior in the Electron main process.
-- Do not broaden IPC casually; use narrow allowlists and validate inputs in main-process handlers.
-- Do not commit secrets, API keys, tokens, or `.env` files.
-- Do not commit generated output such as `dist/` or `dist-electron/`.
-- Use shadcn-style project components and existing UI patterns instead of introducing a new component library.
+- Keep privileged work in the Electron main process.
+- Do not widen IPC casually. Validate inputs on the main side.
+- Do not commit secrets or `.env` files.
+- Do not commit build output (`dist/`, `dist-electron/`, `release/`).
+- Reuse the shared UI components and menu styles instead of inventing a second design system.
 
 ## Architecture-sensitive changes
 
-If your change touches architecture-level behavior, update the `Architecture` section in `AGENTS.md` in the same PR.
+If you change how the app is put together, update the Architecture section in `AGENTS.md` in the same PR. That includes:
 
-This includes changes to:
+- IPC channels or preload bridges
+- Where data is stored
+- Tools and approval policy
+- AI providers
+- Windows, routes, or major data flow
 
-- IPC channels or preload-exposed APIs
-- Storage locations or persistence behavior
-- Tool execution policy or available tools
-- AI providers or provider capability rules
-- Windows, routing boundaries, or major data flow
-
-If you add or change an exposed Electron capability, make sure the related pieces stay in sync:
+When you expose a new Electron capability, keep these in sync:
 
 - `electron/preload.ts`
 - `src/electron.d.ts`
-- relevant main-process handlers under `electron/`
+- the matching handlers under `electron/`
 
-## Code and docs style
+## Style
 
 - Prefer clear code over clever code.
-- Add comments for intent, invariants, security boundaries, and non-obvious tradeoffs.
-- Skip comments that only restate the code.
-- Keep docs and templates up to date when process or contributor expectations change.
+- Comment intent, security boundaries, and non-obvious tradeoffs — not the obvious.
+- Update docs when process or contributor expectations change.
 
-## Testing expectations
+## Testing before a PR
 
-Before opening a PR, run:
+Always:
 
 ```bash
 bun run typecheck
 bun run test
 ```
 
-Also run this when your change affects packaging, Electron build behavior, release flow, or app startup integration:
+Also run this if packaging, Electron startup, or release flow is involved:
 
 ```bash
 bun run build
 ```
 
-If you changed UI behavior, include a short note in the PR about how you verified it manually.
+For UI work, leave a short note in the PR about how you checked it by hand.
 
 ## Pull requests
 
-- Use a clear title.
-- Explain what changed and why.
-- Link the related issue when there is one.
-- Include screenshots or recordings for UI changes.
-- Call out security-sensitive or architecture-sensitive changes explicitly.
-- Follow the checklist in `.github/pull_request_template.md`.
+- Clear title (Conventional Commits style)
+- Explain what changed and why
+- Link the issue when there is one
+- Screenshots or short clips for UI changes
+- Call out security or architecture impact
+- Follow the checklist in `.github/pull_request_template.md`
 
-## What CI runs on your PR
+## What CI runs
 
-When you open a PR, GitHub Actions will run a series of checks. The full list (with triggers, path filters, and how to fix common failures) lives in [`docs/CI.md`](docs/CI.md). High-level summary:
+Full detail is in [`docs/CI.md`](docs/CI.md). In short:
 
-- **`CI / test`** — typecheck + unit tests + renderer build on Ubuntu (always runs)
-- **`Validate PR Title`** — your PR title must start with a Conventional Commits type (`feat:`, `fix:`, etc.)
-- **`Lint`** + **`Knip`** — informational ESLint/Prettier/unused-dep checks (will become required after a dedicated cleanup PR)
-- **`CI Cross-Platform`** — Mac + Windows + Linux test matrix (only runs on PRs touching code/configs)
-- **`Package Smoke`** — `electron-builder --dir` smoke build on Mac + Windows (only on packaging-relevant changes)
-- **`Dependency Review`** — vulnerability + license check (only on PRs touching `package.json` or lockfiles)
-- **`Pinned Actions`** — enforces SHA-pinned third-party actions (only on PRs touching `.github/`)
-- **`CodeQL`**, **`Secret Scan`** — static analysis + gitleaks on every PR
+- Typecheck, unit tests, and renderer build
+- PR title check (Conventional Commits)
+- CodeQL and secret scanning
+- Extra jobs for cross-platform tests, package smoke, dependency review, and lint when paths match
 
-PRs that only touch markdown / docs / images skip the heavy jobs (matrix + package smoke + lint + knip) automatically via path filters, so docs PRs run in well under a minute.
+Docs-only PRs skip the heavy packaging jobs.
 
 ## Commit messages
 
-This repo uses Conventional Commits.
-
-Format:
+Use Conventional Commits:
 
 ```text
-type(scope): description
+type(scope): short description
 ```
 
-Common types:
-
-- `feat`
-- `fix`
-- `refactor`
-- `docs`
-- `test`
-- `chore`
-- `ci`
-- `build`
-- `perf`
+Common types: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `ci`, `build`, `perf`.
 
 Examples:
 
 ```bash
-git commit -m "feat(provider): add new provider integration"
-git commit -m "fix(ipc): validate tool execution payloads"
-git commit -m "docs: update issue and support workflow"
+git commit -m "feat(provider): add model list refresh for Groq"
+git commit -m "fix(ipc): reject invalid tool payloads"
+git commit -m "docs: rewrite support guide in plain language"
 ```
 
-## Optional DCO sign-off
-
-A DCO sign-off is optional but welcome.
+Optional DCO sign-off:
 
 ```bash
-git commit -s -m "fix(settings): preserve provider enablement state"
+git commit -s -m "fix(settings): keep provider enablement when keys change"
 ```
 
-## Community guidelines
+## Community
 
-Please follow `CODE_OF_CONDUCT.md` in all project interactions.
+Please follow [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) in all project spaces.

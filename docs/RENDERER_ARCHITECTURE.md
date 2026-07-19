@@ -1,129 +1,56 @@
-# Renderer Architecture
+# Renderer architecture
 
-This document describes ownership and lifecycle rules inside the React renderer. The security and
-process boundary remains defined by `AGENTS.md`: the renderer is untrusted, and privileged work is
-available only through narrow preload bridges.
+This is about ownership inside the React UI. The hard security rule still comes from `AGENTS.md`: the UI is untrusted, and privileged work only happens through narrow preload bridges.
 
-## Provider nesting and state ownership
+## Who owns which state
 
-`DashboardApp` assembles the renderer providers. State should live in the narrowest owner that must
-coordinate it:
+`DashboardApp` stacks React providers. Put state in the narrowest owner that needs to coordinate it:
 
-- Settings contexts own sanitized preferences, model configuration, and secure-value presence
-  markers. They never own readable secret values.
-- `ChatHistoryProvider` owns the metadata-first session index, folder metadata, loaded chat windows,
-  and chat/artifact mutations.
-- Streaming contexts own transient output for the active run. Completed output is committed through
-  chat-history actions.
-- MCP and agent approval contexts coordinate their renderer-visible runtime state; they do not grant
-  permissions beyond the main-process policy.
-- Shell contexts own navigation and layout state only.
+- **Settings** — sanitized preferences, model lists, “is a key present?” markers. Never readable secrets.
+- **Chat history** — session index, folders metadata, loaded message windows, chat/artifact edits.
+- **Streaming** — temporary output for the active run. Finished output is committed through chat history.
+- **MCP / approvals** — UI state only; main still owns real permission.
+- **Shell** — navigation and layout only.
 
-Prefer selector hooks for frequently rendered state. Mutation APIs should remain stable and should
-not require components to know persistence details.
+Prefer selector hooks for hot paths. Mutation APIs should hide persistence details from components.
 
-## Chat persistence and session windowing
+## Chat loading and saving
 
-Electron is the authoritative chat store. The renderer keeps a lightweight index and loads only a
-recent message window for active/recent sessions. Inactive sessions are pruned back to metadata so
-large histories do not accumulate in the renderer heap.
+Electron main is the real chat database. The UI keeps a light index and loads a recent message window for the active chat. Inactive chats prune back to metadata so huge histories do not sit in renderer memory forever.
 
-`ChatHistoryProvider` preserves the public contexts and selector hooks but delegates its mechanisms:
+Inside `ChatHistoryProvider`:
 
-- `chatHistoryDomain.ts` owns pure normalization, index projection, and session/folder operations.
-- `chatHistoryRepository.ts` owns Electron chat-store calls and local-storage adaptation.
-- `useChatHistoryPersistence.ts` owns dirty revisions, debounced queues, self-change accounting, and
-  best-effort final flushes.
-- `useLoadedSessionCache.ts` owns full/windowed loading, recent-session tracking, artifact merging,
-  and bounded pruning.
+| Helper | Job |
+| ------ | --- |
+| `chatHistoryDomain.ts` | Pure normalize / project / folder operations |
+| `chatHistoryRepository.ts` | IPC and local-storage adaptation |
+| `useChatHistoryPersistence.ts` | Dirty flags, debounce, self-change accounting, final flush |
+| `useLoadedSessionCache.ts` | Windowed load, prune, artifact merge |
 
-Provider callback tests must render the real provider and invoke its public actions. Do not copy an
-action's state transformation into a test-local helper, because that can pass after the production
-callback diverges.
+Tests should drive the real provider public API — not a copy of the transform logic.
 
-Session and index writes are debounced independently. The following invariants apply:
+### Persistence invariants
 
-1. A failed session write remains pending; a later mutation must retry the newest snapshot.
-2. A newer snapshot queued while an older one is in flight must never be overwritten by the older
-   snapshot or removed from the queue.
-3. Provider unmount attempts a best-effort flush of pending session and index writes.
-4. Each renderer-originated store mutation accounts for one expected `chat-store:changed` event.
-   Concurrent self events must not be mistaken for external changes, and an external event following
-   them must not be hidden.
-5. External reloads do not replace optimistic local state while unsaved local revisions exist.
+1. A failed write stays pending; the next mutation retries the newest snapshot.
+2. A newer snapshot must not be overwritten by an older in-flight write.
+3. Unmount attempts a best-effort flush.
+4. Each self-originated store mutation accounts for the matching `chat-store:changed` event so external reloads are not skipped.
+5. External reloads do not clobber unsaved local revisions.
 
-The unmount flush is best effort because renderer teardown cannot await React effect cleanup. Durable
-shutdown guarantees belong in Electron main, not in a renderer `beforeunload` handler.
+Renderer teardown cannot await React cleanup. Durable shutdown guarantees belong in main.
 
 ## Streaming lifecycle
 
-A chat run progresses through request preparation, provider streaming, optional tool/research rounds,
-final synthesis, and commit. Cancellation must stop provider work, suppress later transient updates,
-and leave persistence in a coherent state. Partial output stays transient until the final commit unless
-the explicit stop/error path preserves it.
+Preparation → provider stream → optional tool/research rounds → finalization. Shared rules live in [`CHAT_RUNTIME.md`](CHAT_RUNTIME.md). `useStreamingChat` is the React adapter; controllers and finalizers own the hard invariants.
 
-Send and regeneration share these rules:
+## Settings schema
 
-- Build provider input from an immutable snapshot of the conversation and settings.
-- Do not mutate `Message`, `responseVersions`, tool results, or thinking blocks obtained from context.
-- Resolve credentials and execute provider networking through the main-owned provider runtime.
-- Commit the provider's final result rather than a stale throttled/transient snapshot.
-- Treat title generation and memory extraction as follow-up work that cannot invalidate the chat
-  response.
+`zura-settings` in localStorage is sanitized only. Numbered `settingsSchemaVersion` migrations live in `src/contexts/settingsMigrations.ts`. Legacy aliases (for example old `skills` vs `extensions` keys) need an explicit retirement plan — do not keep dual shapes forever without a removal version.
 
-## Settings persistence and migrations
+## Settings UI layout
 
-`zura-settings` contains sanitized renderer preferences only. `settingsStore.ts` parses untrusted JSON,
-strips secret fields, applies compatibility migrations, merges defaults, and normalizes the result.
+Settings CSS is section-owned and imported in a fixed order. Sidebar chat/folder rows should come from pure list models so tests do not need a full DOM tree to assert structure.
 
-Future migration work should use ordered, idempotent transforms:
+## Provider hub
 
-```text
-stored JSON -> secret stripping -> vN-to-vN+1 migrations -> defaults -> runtime normalization
-```
-
-Each transform should have fixture tests for the previous stored shape and its expected current shape.
-Compatibility aliases such as legacy `skills` versus `extensions` must have an explicit removal version.
-Do not add a migration that reads secret values back into renderer state.
-
-The current renderer settings schema is version 3. `settingsMigrations.ts` owns the contiguous
-`vN -> vN+1` chain and persists `settingsSchemaVersion`; `settingsStore.ts` owns runtime validation
-after migration. A retired persisted key must be removed in a numbered migration and represented in a
-fixture. Migration code and fixtures may be deleted only when the minimum supported stored schema is
-advanced deliberately and called out in release notes. Records from a newer application version are
-never downgraded. Security-sensitive retired fields may additionally be stripped during every parse.
-
-Renderer `codeExecutionAutoApprove`, `terminalAutoApprove`, and `computerUseAutoApprove` preferences
-are retired and stripped. They never grant tool authority. Approval and exact-repeat trust are issued
-and validated by main through the approval flow.
-
-## Provider Hub extension points
-
-Provider identity, secrets, model-list fields, setup kind, dashboards, and catalogue capabilities are
-owned by `providerSettingsRegistry.ts`. `providerHubDescriptors.ts` adapts that registry into the
-settings view's model collections and browser-preview connectivity strategies. Provider Hub UI should
-consume those typed descriptors rather than add provider-ID branches for model storage or connectivity.
-
-## Styling ownership
-
-Global tokens, typography, and the shared flat `zura-menu-*` primitives live in `src/styles`. Feature
-styles should remain beside their feature. `src/components/Settings/Settings.css` is the ordered
-Settings style entrypoint; it imports `base`, `usage`, `shared`, `provider`, `appearance`, `mcp`, and
-`memory` section sheets in that order. Keep this order stable unless a deliberate visual migration is
-tested, because the split preserves the former monolith's cascade. Shared card rules have one Settings
-owner, while the flat `zura-menu-*` primitives remain owned by `src/styles/shared.css`.
-
-## Sidebar list composition
-
-`sidebarChatListModel.ts` is the pure projection from grouped sessions, folders, time buckets, and
-collapse state to stable list items. `SidebarChatList` coordinates listbox focus, drag/drop, and dialog
-state; focused row, section-toggle, and dialog components own their direct interactions and accessible
-labels. Changes to ordering or collapse behavior belong in the pure model and its tests rather than in
-render branches.
-
-## Testing expectations
-
-Pure normalization and formatting logic should use focused unit tests. Provider/context behavior must
-also have integration tests that render the real provider and exercise its public actions. In
-particular, persistence tests should cover rejected IPC writes, concurrent self-change events, queued
-newer snapshots, unmount flushing, and external reload gating.
+Provider settings compose registry metadata + secret presence + model lists. Adding a provider means registry + service adapter + main runtime support + tests — not only a new card in the UI. See [`PROVIDERS.md`](PROVIDERS.md).

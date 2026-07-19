@@ -1,54 +1,48 @@
 # Main-process lifecycle
 
-## Registration ownership
+## Startup composition
 
-`electron/startup/mainProcessComposition.ts` is the composition root for privileged runtime
-registrations. It installs aggregate IPC domains, MCP and built-in tool handlers, approval surfaces,
-updater handlers, terminal/code/computer-use handlers, Discord RPC, session permission denials, and
-runtime disposers.
+`electron/startup/mainProcessComposition.ts` is the place that wires privileged runtime pieces together: IPC domains, MCP, built-in tools, approvals, updater, terminal/code/computer-use handlers, Discord RPC, permission denials, and disposers.
 
-Every registration must have a matching disposer. The composition returns one idempotent disposer,
-which runs registrations in reverse order. If startup fails partway through registration, completed
-registrations are rolled back before the error propagates. `main.ts` invokes the disposer from
-`will-quit`; asynchronous MCP connection shutdown remains in `before-quit`, before synchronous
-handler/resource disposal.
+Every registration needs a matching disposer. Composition returns one idempotent reverse-order disposer. If startup fails halfway, completed registrations roll back before the error bubbles. `main.ts` runs the disposer on `will-quit`. MCP connections shut down earlier on `before-quit`.
 
-When adding a main-process capability:
+When you add a main capability:
 
-1. Keep its registrar and unregistrar in the owning module.
-2. Add both to the composition root.
-3. Make local disposal idempotent and cancel pending requests, listeners, and timers.
-4. Add a lifecycle test for registration rollback or repeated disposal.
+1. Keep register/unregister next to the feature.
+2. Hook both into the composition root.
+3. Make disposal safe to call twice; cancel timers, listeners, and pending work.
+4. Add a test for rollback or double dispose when the risk is real.
 
-## System IPC capabilities
+## System / window IPC
 
-Window controls are isolated in `electron/ipc/windowControlHandlers.ts`. These channels derive the
-target `BrowserWindow` from the trusted sender and never accept a renderer-provided window ID. The
-`systemHandlers.ts` is the composition/app-menu layer. `externalOpenHandlers.ts` owns validated browser
-and artifact opening, `appInfoHandlers.ts` owns runtime info/About/development inspection, and
-`nativeInteractionHandlers.ts` owns clipboard, context menu, and fixed native dialogs.
+Window controls live in `windowControlHandlers.ts` and always target the **sender’s** window — never a window id from the UI.
 
-Main-window creation and renderer-driven resizing share `windows/windowBounds.ts`; changing minimum
-bounds in one place updates both policies and their regression test.
+Related modules:
 
-## Background-window guard runtime
+- `externalOpenHandlers.ts` — open URLs/artifacts safely
+- `appInfoHandlers.ts` — about/runtime info
+- `nativeInteractionHandlers.ts` — clipboard, context menu, fixed dialogs
+- `systemHandlers.ts` — composition / app menu layer
 
-`electron/tools/background-window/` owns the Windows external-target reservation, run registry, DWM bounds watcher, and guard `BrowserWindow`. The overlay is non-focusable, sandboxed, and positioned relative to the external target instead of globally always-on-top. One guarded target is supported globally in the initial implementation.
+Shared min bounds for the main window live in `windows/windowBounds.ts` so creation and resize policy stay aligned.
 
-Cleanup is required on run completion/cancellation/failure, explicit release, physical-input escalation, target loss, overlay placement failure, renderer destruction, Computer Use emergency stop, tool-handler disposal, and app shutdown. Watcher timers, PowerShell calls, BrowserWindow navigation listeners, and sender listeners must not outlive ownership. A minimized target hides the overlay; target identity loss releases the session. The current 500ms bounded PowerShell/DWM polling implementation is a prototype boundary and must not accept renderer/model script text.
+## Background window guard (Windows)
 
-The Esc+Esc observer is a fixed hidden PowerShell `GetAsyncKeyState` helper rather than an Electron `globalShortcut`, so ordinary Escape input continues reaching the user's application. It is started only for an active Computer Use sequence and killed during the same cleanup paths.
+`electron/tools/background-window/` owns reserving one external app window for an agent run, watching its bounds, and showing a small sandboxed guard overlay. The overlay is not globally always-on-top; it tracks the target.
 
-## Scheduled-task runtime
+Clean up on every exit path: success, cancel, failure, explicit release, target loss, renderer death, emergency stop, tool disposal, and app quit. Do not leave PowerShell watchers or windows behind. The watcher never runs model- or renderer-provided scripts.
 
-The scheduled-task runtime has four boundaries:
+Esc+Esc emergency stop uses a fixed key-state helper so normal Escape still reaches the user’s app.
 
-- `scheduler.ts`: timers, enable/disable state, overdue startup catch-up, and one launch per due key.
-- `rendererBroker.ts`: renderer selection, timeout-bounded summary/automation requests, response
-  sanitization, and rejection of pending requests during shutdown.
-- `delivery.ts`: email log mutation and notification eligibility/status.
-- `runtime.ts`: task execution, page comparison, automation result construction, and persistence.
+## Scheduled tasks
 
-The scheduler clears timers when the extension is disabled or the runtime stops. The renderer broker
-owns and removes its IPC handlers. Notification clicks receive an explicit main-window resolver; they
-do not search `BrowserWindow.getAllWindows()` and accidentally focus About, debug, or approval windows.
+Four pieces:
+
+| Module | Job |
+| ------ | --- |
+| `scheduler.ts` | Timers, enablement, overdue catch-up, one launch per due key |
+| `rendererBroker.ts` | Ask the UI for automation/summary work with timeouts |
+| `delivery.ts` | Notifications / email policy |
+| `runtime.ts` | Run the task and persist results |
+
+When the reminders feature is off, timers clear and mutations should refuse. Notification clicks must focus the real main window you pass in — not “first BrowserWindow we find.”

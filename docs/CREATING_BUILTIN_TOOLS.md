@@ -1,55 +1,33 @@
-# Creating a Built-in Tool
+# Adding a built-in tool
 
-ZuraAI built-in main-process tools use one hardened IPC channel: `execute-tool`. Do not add a new
-IPC channel for an ordinary model-callable tool. MCP tools and renderer-owned artifact tools use
-their existing separate execution paths.
+Built-in tools that need main-process power share one hardened channel: `execute-tool`. Do not invent a new IPC channel for a normal model-callable tool.
 
-## Required changes
+MCP tools use `window.mcp.executeTool(...)`. Artifact tools that only touch chat state can stay renderer-side.
 
-1. Add the exact tool name to `src/tools/builtinMainToolContract.ts`.
-2. Add its model-facing descriptor and complete JSON Schema to `src/tools/builtinTools.ts`.
-3. Implement the privileged operation under `electron/tools/` and add its handler to the exhaustive
-   `toolHandlers` record in `electron/tools/index.ts`.
-4. Add the tool to the appropriate exposure policy in `src/hooks/useToolCalling.ts`. Exposure must
-   state its supported mode, platform, extension gate, and whether older persisted settings should
-   automatically receive it.
-5. Mark mutating or high-risk tools with `requiresApproval: true` and implement main-owned argument,
-   path, URL, command, and platform validation appropriate to the capability. The shared IPC boundary
-   validates the declared JSON Schema but does not replace capability-specific checks.
-6. Add focused handler tests and update the contract/exposure tests when introducing a new policy
-   group.
-7. Update the Architecture section of `AGENTS.md`; a new tool is a new application capability.
+## Steps
 
-## Security invariants
+1. Add the exact name to `src/tools/builtinMainToolContract.ts`.
+2. Add the model-facing description and full JSON Schema in `src/tools/builtinTools.ts`.
+3. Implement the work under `electron/tools/` and wire it into the exhaustive handler map in `electron/tools/index.ts`.
+4. Decide when the tool is exposed in `src/hooks/useToolCalling.ts` (mode, platform, feature toggle, migration of old settings).
+5. Mark mutating or high-risk tools with `requiresApproval: true`, and add real validation for paths, URLs, commands, or platform limits.
+6. Add tests for the handler and for contract/exposure.
+7. Update the Architecture section of `AGENTS.md` — a new tool is a new product capability.
 
-- The preload accepts only exact names from `BUILTIN_MAIN_TOOL_NAMES`; prefixes do not grant tool
-  access.
-- The renderer executor rejects unknown names before IPC, and the typed generic IPC bridge accepts
-  `BuiltinMainToolName` rather than an arbitrary string.
-- Main independently checks the exact name and validates arguments against the manifest schema
-  before dispatch.
-- Tool schemas must describe every model-provided argument. Do not coerce, remove, or invent model
-  arguments. The main boundary closes the top-level schema and rejects reserved execution fields.
-- Approval authority must never be placed in tool arguments. In particular, do not add or honor
-  model-provided `autoApprove`, `_agentSkills`, approval-token, or background-window run-ownership properties. Agent approval uses a
-  separate one-use token issued by main after the user approves; it is bound to the sender, exact
-  tool name, and exact validated arguments, then consumed before dispatch.
-- Internal execution context is not model authority unless main has independently issued and
-  validated it. A tool handler must continue to enforce its main-process approval and capability
-  rules.
-- Renderer code must never receive provider keys, MCP secrets, unrestricted filesystem authority,
-  arbitrary shell authority, or arbitrary HTTP proxying.
-- MCP namespaced tools must continue through `window.mcp.executeTool(...)`, not `execute-tool`.
+## Security rules (non-negotiable)
 
-## Verification
+- Preload accepts only exact names from the built-in list. Prefix matching is not access.
+- Renderer and main both reject unknown names.
+- Schemas must describe every model argument. Do not coerce, drop, or invent fields.
+- Approval never lives inside model arguments (`autoApprove`, tokens, run ownership, and friends).
+- Main issues one-use approval tokens after a real user decision.
+- Renderer code never gets provider keys, MCP secrets, free filesystem, free shell, or a free HTTP proxy.
 
-Run at minimum:
+## Minimum verification
 
-```powershell
+```bash
 bun run test -- electron/preload.test.ts electron/tools/index.test.ts electron/tools/toolApprovalAuthorizations.test.ts electron/tools/validateBuiltinToolInvocation.test.ts src/tools/builtinTools.test.ts src/hooks/useToolCalling.toolExposure.test.tsx
 bun run typecheck
 ```
 
-The contract tests ensure that every manifest tool has an exact preload name, every exact name has a
-manifest descriptor, every schema compiles, unknown lookalike names fail closed, and the main handler
-record remains exhaustive at compile time.
+Contract tests should prove: every schema tool has a preload name, every name has a schema, unknown lookalikes fail, and the main handler map stays exhaustive.

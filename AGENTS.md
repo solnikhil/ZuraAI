@@ -1,589 +1,300 @@
-# AGENTS.md - ZuraAI Agent Guide
+# AGENTS.md — guide for people and coding agents working on ZuraAI
 
-This file is the source of truth for automated coding agents working in this repo.
+This file is the source of truth for how ZuraAI is put together.
 
-**Hard requirement:** Whenever you change project architecture (new processes/windows, new IPC channels, new storage locations, new tool capabilities, new AI providers, release packaging assumptions, or meaningful data-flow changes), update the Architecture section in this same PR/commit.
+**Hard rule:** if you change architecture (new processes/windows, IPC channels, storage locations, tools, AI providers, packaging assumptions, or meaningful data flow), update the Architecture section in the **same** PR or commit.
 
 ---
 
-## What This Project Is
+## What this project is
 
 ZuraAI is a desktop AI assistant built with **Electron + React + Vite + TypeScript**.
 
-Core capabilities:
+What it does well:
 
-- Dashboard UI for chats, settings, models, extensions, MCP, memory, and reminders
-- Multi-provider AI calls: Alibaba Cloud, ChatGPT Codex, Fireworks, Groq, NVIDIA NIM, Ollama, OpenRouter, OpenCode Go, DeepSeek
-- Hardened renderer -> preload -> main IPC boundary
-- Restricted tool system: built-in main-process tools, renderer-managed MCP tools, Agent Skills activation, artifacts, scheduled tasks, code execution, terminal, and Windows-native/Computer Use surfaces
-
----
-
-## Quick Start
-
-- Install: `bun install`
-- Dev: `bun run dev`
-- Tests: `bun run test`
-- Tests watch: `bun run test:watch`
-- Typecheck: `bun run typecheck`
-- Build: `bun run build` (Windows installer/portable by default on Windows hosts)
-- Build portable dir: `bun run build:dir`
-- Build macOS: `bun run build:mac` / dir-only `bun run build:mac:dir` (requires a macOS host)
-- Release checksums: `bun run release:checksums`
-- Preview renderer bundle: `bun run preview`
-
-Prereqs: Bun `>= 1.1`, Node.js `>= 18`.
+- Dashboard UI for chats, settings, models, MCP, memory, and reminders
+- Multi-provider chat: Alibaba Cloud, ChatGPT Codex, Fireworks, Groq, NVIDIA NIM, Ollama, OpenRouter, OpenCode Go, DeepSeek
+- A hardened path from the UI process through preload into Electron main
+- A restricted tool system: built-in main tools, MCP tools, Agent Skills activation, artifacts, scheduled tasks, code execution, terminal, and Windows-native / Computer Use surfaces
 
 ---
 
-## Non-Negotiable Rules
+## Quick start
 
-- The **renderer is untrusted**. Privileged work belongs in main and must be exposed through narrow, allowlisted preload bridges.
+| Command                               | Purpose                                                       |
+| ------------------------------------- | ------------------------------------------------------------- |
+| `bun install`                         | Install deps                                                  |
+| `bun run dev`                         | Development app                                               |
+| `bun run test`                        | Unit tests                                                    |
+| `bun run test:watch`                  | Tests in watch mode                                           |
+| `bun run typecheck`                   | TypeScript                                                    |
+| `bun run build`                       | Desktop package (Windows installer/portable on Windows hosts) |
+| `bun run build:dir`                   | Unpacked directory build                                      |
+| `bun run build:mac` / `build:mac:dir` | macOS packages (needs a Mac)                                  |
+| `bun run release:checksums`           | SHA-256 checksums for release files                           |
+| `bun run preview`                     | Preview renderer bundle                                       |
+
+Needs: Bun `>= 1.1` (see `package.json` for the exact pin), Node.js `>= 18`.
+
+---
+
+## Non-negotiable rules
+
+- The **renderer is untrusted**. Privileged work belongs in main and must go through narrow, allowlisted preload bridges.
 - Do not add broad IPC, broad filesystem access, broad HTTP proxying, or broad CORS bypasses.
-- Do not add fallback paths, silent substitutions, local heuristics, provider fallbacks, or "safe defaults" unless the user explicitly asks or approves. Surface the real failure and fix the root cause.
+- Do not add silent fallbacks, local heuristics, provider fallbacks, or “safe defaults” unless the user asked for them. Surface the real failure and fix the root cause.
 - API keys, MCP secrets, and Brevo keys live in main-process secure storage only. Renderer settings may store sanitized non-secret state only.
-- Built-in prompt templates are code-owned defaults. Do not make them user-editable unless explicitly requested.
-- Keep settings cards, chat composer containers, dropdowns, selects, context menus, titlebar menus, and nested model/provider menus visually flat. Preserve the shared `zura-menu-*` system in `src/styles/shared.css` and `src/components/ui/{dropdown-menu,select,context-menu,menubar}.tsx`.
-- If you add a built-in extension that changes assistant behavior, add `src/prompts/default<ExtensionName>Prompt.ts`, wire it through settings defaults/normalization, and inject it only when enabled. Built-in prompts are code-owned; do not add a Settings UI to edit them unless explicitly requested.
+- Built-in prompt templates are code-owned. Do not make them user-editable unless explicitly requested.
+- Keep settings cards, chat composer containers, dropdowns, selects, context menus, titlebar menus, and nested model/provider menus visually flat. Use the shared `zura-menu-*` system in `src/styles/shared.css` and `src/components/ui/{dropdown-menu,select,context-menu,menubar}.tsx`.
+- If you add a built-in capability that changes assistant behavior, add a code-owned default prompt (for example `src/prompts/default<Name>Prompt.ts`), wire defaults/normalization, and inject it only when enabled. Do not add Settings UI to edit those prompts unless asked.
 
 ---
 
-## Repo Map
+## Repo map
 
-| Path                                  | Purpose                                                                                                   |
-| ------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `electron/main.ts`                    | App lifecycle, IPC registration, windows, tray, updater, tool handlers                                    |
-| `electron/preload.ts`                 | `contextBridge` surface and IPC allowlists; security boundary                                             |
-| `electron/ipc/`                       | Main-process IPC handlers                                                                                 |
-| `electron/windows/`                   | Main, About, tray, macOS menu, dev chat-debug windows                                                     |
-| `electron/chatStore.ts`               | Chat index/session persistence under `app.getPath('userData')`                                            |
-| `electron/secureStorage.ts`           | Encrypted key storage via Electron `safeStorage`                                                          |
-| `electron/mcp/`                       | MCP server storage, connection lifecycle, transports, approvals, IPC                                      |
-| `electron/tools/`                     | Main-process built-in tools: web search, files, shell, code execution, native Windows tools, Computer Use |
-| `electron/providers/`                 | Main-only provider adapters with privileged auth/transport needs, including ChatGPT Codex OAuth           |
-| `electron/monitors/`                  | Scheduled reminders/lookouts runtime and persistence                                                      |
-| `electron/notifications/email/`       | Brevo transactional email for fixed notification flows                                                    |
-| `electron/analytics/`                 | Opt-in PostHog analytics service and consent state                                                        |
-| `electron/agentSkills/`               | Main-process Agent Skills discovery/activation/install service                                            |
-| `src/App.tsx`                         | Renderer routing and shared shell layout                                                                  |
-| `src/main.tsx`                        | Renderer bootstrap, first-paint setup, startup preloads                                                   |
-| `src/components/`                     | UI surfaces: dashboard, settings, titlebar, dialogs                                                       |
-| `src/contexts/`                       | Renderer state: settings, chat history, shell, streaming, quick-send                                      |
-| `src/providers/`                      | Provider registry, runtime dispatch, capabilities, metadata                                               |
-| `src/services/`                       | Provider HTTP integrations and stream parsers                                                             |
-| `src/tools/`                          | Shared tool definitions, adapters, executor, MCP registry                                                 |
-| `src/skills/`                         | Built-in extension catalog and settings normalization/migration                                           |
-| `src/agentSkills/`                    | Agent Skills shared types and compact prompt catalog                                                      |
-| `src/mcp/`                            | Shared MCP contracts and renderer context                                                                 |
-| `src/prompts/`                        | Code-owned prompt defaults                                                                                |
-| `dist/`, `dist-electron/`, `release/` | Generated build outputs; do not hand edit                                                                 |
-| `packages/zuraai/`                    | npm package for the `zuraai` terminal launcher; opens the desktop app through registered local protocols  |
+| Path                                  | Purpose                                                                 |
+| ------------------------------------- | ----------------------------------------------------------------------- |
+| `electron/main.ts`                    | App lifecycle, IPC registration, windows, tray, updater, tools          |
+| `electron/preload.ts`                 | `contextBridge` surface and IPC allowlists                              |
+| `electron/ipc/`                       | Main-process IPC handlers                                               |
+| `electron/windows/`                   | Main, About, tray, macOS menu, dev chat-debug windows                   |
+| `electron/chatStore.ts`               | Chat index/session files under `app.getPath('userData')`                |
+| `electron/secureStorage.ts`           | Encrypted keys via Electron `safeStorage`                               |
+| `electron/mcp/`                       | MCP storage, connections, transports, approvals, IPC                    |
+| `electron/tools/`                     | Built-in main tools (search, files, shell, code, Windows, Computer Use) |
+| `electron/providers/`                 | Main-only providers (including ChatGPT Codex OAuth)                     |
+| `electron/monitors/`                  | Scheduled reminders / lookouts                                          |
+| `electron/notifications/email/`       | Brevo email for fixed notification flows                                |
+| `electron/analytics/`                 | Opt-in PostHog analytics                                                |
+| `electron/agentSkills/`               | Agent Skills discovery / activation / install                           |
+| `src/App.tsx`                         | Renderer routing and shell layout                                       |
+| `src/main.tsx`                        | Renderer bootstrap                                                      |
+| `src/components/`                     | Dashboard, settings, titlebar, dialogs                                  |
+| `src/contexts/`                       | Settings, chat history, shell, streaming, quick-send                    |
+| `src/providers/`                      | Provider registry, dispatch, capabilities                               |
+| `src/services/`                       | Provider HTTP shaping and stream parsers                                |
+| `src/tools/`                          | Tool definitions, adapters, executor, MCP registry                      |
+| `src/skills/`                         | Built-in capability catalog and settings normalization                  |
+| `src/agentSkills/`                    | Agent Skills types and compact prompt catalog                           |
+| `src/mcp/`                            | Shared MCP contracts and renderer context                               |
+| `src/prompts/`                        | Code-owned prompt defaults                                              |
+| `dist/`, `dist-electron/`, `release/` | Generated outputs — do not hand-edit                                    |
+| `packages/zuraai/`                    | npm `zuraai` terminal launcher                                          |
 
 ---
 
 ## Architecture
 
-### Process Model
+### Process model
 
+```text
+Renderer (React/Vite) → Preload (allowlisted bridges) → Electron Main
 ```
-Renderer (React/Vite) -> Preload (allowlisted bridges) -> Electron Main
-```
 
-- Renderer owns UI, local sanitized settings, provider request shaping, and chat interaction state.
-- Renderer state ownership, chat write/flush invariants, session windowing, streaming lifecycle, and
-  settings migration guidance are documented in `docs/RENDERER_ARCHITECTURE.md`.
-- `ChatHistoryProvider` keeps the public chat contexts/hooks while pure chat operations, chat-store
-  adaptation, durable save coordination, and the bounded loaded-session cache have separate owners
-  documented in `docs/RENDERER_ARCHITECTURE.md`.
-- Settings CSS uses an ordered section-owned import entrypoint, and the dashboard sidebar derives its
-  stable chat/folder rows through a pure list model; their ownership and test contracts are documented
-  in `docs/RENDERER_ARCHITECTURE.md`.
-- Preload exposes only approved `window.*` APIs and restricted `ipcRenderer` wrappers.
-- Main owns windows, secure storage, chat persistence, MCP server processes/connections, native tools, filesystem access, notifications, updater, analytics transport, and OS integration.
-- `electron/startup/mainProcessComposition.ts` is the privileged registration composition root. It owns runtime registrations and returns one idempotent reverse-order disposer; partial startup failure rolls back completed registrations.
+- **Renderer** owns UI, sanitized settings, request shaping, and chat interaction state. Details: `docs/RENDERER_ARCHITECTURE.md`.
+- **Preload** exposes only approved `window.*` APIs and restricted IPC wrappers.
+- **Main** owns windows, secure storage, chat files, MCP processes, native tools, filesystem, notifications, updater, analytics transport, and OS integration.
+- `electron/startup/mainProcessComposition.ts` registers privileged pieces and returns one reverse-order disposer. Partial startup rolls back what already registered.
 
-### Windows & Routes
+### Windows and routes
 
-- Main window: loads `#/dashboard`; routes `/`, `/dashboard`, `/settings`, and `/chat` under `AppShellLayout`.
-- About window: separate `BrowserWindow`, loads `#/about`, opened through `window.appInfo.openAboutWindow()`.
-- Chat debug window: dev-only separate `BrowserWindow`, loads `#/chat-debug?sessionId=<id>`, disabled in packaged builds.
-- Agent approval overlay: separate small frameless always-on-top `BrowserWindow` owned by main for Agent Mode tool-call approvals while ZuraAI is not focused. It loads sanitized inline approval HTML only, resolves approve/reject/always-allow-exact-repeat decisions, and issues bounded one-use execution authorizations; it does not execute tools or expose general desktop APIs.
-- Background window guard: Windows-only transparent, frameless, sandboxed, non-focusable `BrowserWindow` owned by main while an Agent run reserves one external HWND. It is positioned immediately above that target rather than globally always-on-top, intercepts conflicting clicks only inside the target bounds, and exposes token-bound Continue / Take control / Stop task actions. Main tracks the external HWND/PID/process-start identity and DWM bounds with a fixed code-owned PowerShell watcher; the guard hides/releases on minimize, target loss, placement failure, run completion/cancellation/failure, renderer destruction, emergency stop, or app shutdown.
-- Unknown renderer routes render the dedicated 404 view.
-- Renderer-backed windows deny all in-window navigation and new-window creation. Explicit HTTP(S)
-  links may open only through the OS browser; development-server URLs are recognized by exact
-  origin rather than string prefix, and non-HTTP protocols are never forwarded.
-- Packaged app registers `zuraai` for terminal/app-launch handoff and `zura-chat` for trusted local chat deep links. `zuraai://open` may only focus/create the main window. Debug and CLI chat references keep the shape `zura-chat://<sessionId>?userData=<base64urlUserData>`; session-only links open/switch to that chat, while continuation links may include `message=` or `messageBase64=`. CLI-created new-chat links may include `createIfMissing=1`, but must still pass the userData path validation before the renderer creates a new chat and sends the message.
+- **Main window** loads `#/dashboard`. Routes under the app shell include `/`, `/dashboard`, `/settings`, and `/chat`.
+- **About** is a separate window (`#/about`).
+- **Chat debug** is a dev-only window (`#/chat-debug?sessionId=…`), disabled in packaged builds.
+- **Agent approval overlay** is a small always-on-top window for tool approvals when ZuraAI is not focused. It only shows sanitized approval HTML and returns approve / reject / always-allow-exact-repeat. It does not run tools.
+- **Background window guard** (Windows) is a transparent overlay while an agent run owns one external HWND. It tracks that window only, not the whole desktop.
+- Unknown routes show a dedicated 404.
+- Renderer windows deny in-window navigation and popups. HTTP(S) links open in the OS browser. Dev-server origins are matched exactly.
+
+Packaged protocols:
+
+- `zuraai` — launch/focus handoff (`zuraai://open` only focuses/creates the main window)
+- `zura-chat` — trusted local chat deep links of the form `zura-chat://<sessionId>?userData=<base64urlUserData>`
 
 Platform chrome:
 
-- **Windows:** frameless main window with acrylic `backgroundMaterial`, custom title bar + window controls in the renderer, CSS resize handles.
-- **macOS:** `titleBarStyle: 'hidden'` with native traffic lights (`trafficLightPosition`), sidebar `vibrancy`, application menu from `electron/windows/applicationMenu.ts`, and a renderer drag region + sidebar controls (no custom traffic-light buttons). Double-clicking the Mac drag region toggles zoom/maximize through `window.windowControls`. About window uses `titleBarStyle: 'hiddenInset'`. Red traffic light / window close **hides** the main window to the Dock unless `setAppQuitting(true)` was set from `before-quit` (Cmd+Q, menu Quit, tray Quit); dock `activate` shows or recreates the main window. Tray icons on macOS use a black+alpha **template** image (`public/trayTemplate.png` / `build/trayTemplate.png`) so the menu bar can invert for light/dark.
+- **Windows:** frameless main window with acrylic material, custom title bar in the UI
+- **macOS:** hidden title bar with traffic lights, sidebar vibrancy, application menu, red close hides to Dock unless quitting for real
 
-Memory / performance:
+Memory / performance habits:
 
-- The main window uses `backgroundThrottling: true` so Chromium can idle when unfocused.
-- Chat index embeds at most a thin recent tail (`RECENT_TAIL_SIZE` ≈ 20 messages) with images/tool payloads stripped; full history lives in per-session files and is loaded in a window (`SESSION_WINDOW_SIZE` ≈ 80) on open. Older messages load on demand (scroll-top / “Load earlier”). Inactive sessions prune to **empty** message arrays (metadata only).
-- Chat message list is **virtualized** (`VirtualMessageList` / react-virtuoso).
-- Usage settings use `chat-store:get-usage-sessions` (slim message fields only), not `chat-store:get-all`.
-- MCP manager initializes without auto-connect on the critical path; auto-connect servers connect after the main window is visible via deferred startup.
-- Markdown/Prism preloads only a small core language set; extra languages register on first use.
+- Background throttling is on when unfocused
+- Chat index keeps a thin recent tail; full history is windowed on open
+- Message list is virtualized
+- MCP does not auto-connect everything on the critical path
 
 Chat run lifecycle:
 
-- Renderer chat send and regenerate operations share the explicit `ChatRunController` state machine under `src/components/Dashboard/ChatArea/hooks/`. One controller owns the run's single `AbortController`, preparation/stream/tool/finalization phases, and exactly-once completion, failure, or cancellation. Shared request construction uses `streaming/chatRunConfig.ts`; shared finalization commits immutable chat updates and performs UI cleanup. `useStreamingChat` is the React/context adapter, while provider event accumulation and final result calculation remain isolated in focused streaming modules. The lifecycle contract and required tests are documented in `docs/CHAT_RUNTIME.md`.
-- Each chat run threads its opaque `ChatRunController.id` through trusted tool execution context, never model-visible arguments. Main binds any background-window reservation to that run plus the sender `webContents`; renderer finalization uses the narrow background-window bridge to release the guard, while a guard stop/target-loss event cancels only the owning active run.
-- The provider tool loop tracks code-recognized infrastructure errors across a run. When the same infrastructure failure is returned by two distinct tools, it stops scheduling further tool/model rounds, preserves the failed tool results, discards speculative pre-tool narration, and emits a deterministic grounded failure message that makes no claims about unobserved application state or actions.
+- Send and regenerate share `ChatRunController` (one AbortController, clear phases, once-only finish). Details: `docs/CHAT_RUNTIME.md`.
+- Opaque run ids travel in trusted tool context, never as model-visible arguments.
+- Two distinct tools returning the same infrastructure failure stop further tool/model rounds and show a grounded failure message.
 
-All BrowserWindows must use `nodeIntegration: false`, `contextIsolation: true`, and `sandbox: true` unless a change is explicitly justified in this file.
+All BrowserWindows use `nodeIntegration: false`, `contextIsolation: true`, and `sandbox: true` unless this file explicitly justifies an exception.
 
-Release packaging has no explicit `asarUnpack` native-module exception. The former unused Koffi
-dependency and unpack rules were removed; introducing a native runtime dependency requires an
-explicit packaging/build update and packaged-app verification on each supported platform.
+### Persistence boundaries
 
-### Persistence Boundaries
+**Renderer `localStorage`**
 
-Renderer `localStorage`:
-
-- Sanitized settings and UI state (`zura-settings`)
-- `zura-settings` carries a numbered `settingsSchemaVersion`; ordered migrations and retired-key
-  policy live in `src/contexts/settingsMigrations.ts` and `docs/RENDERER_ARCHITECTURE.md`.
-- Settings changes apply immediately; secure-key edits are serialized to main-process secure storage, and valid MCP configuration edits are serialized through the existing narrow MCP bridge without a page-level Save action.
-- Extensions/settings compatibility state (`settings.extensions`, legacy `settings.skills` alias while migration continues)
-- Agent Skills non-secret settings (`settings.agentSkills`)
-- Provider model lists, enablement, reasoning preferences, theme settings, command bar state, sidebar/shell state
-- Last-open dashboard folder selection (`zura-ui:selectedFolderId`) when dashboard view persistence is enabled
+- Sanitized settings (`zura-settings`) with a numbered schema version and migrations
+- UI/provider enablement, themes, shell state, and similar non-secret prefs
+- Built-in capability state under `settings.extensions` (legacy `settings.skills` may still be normalized as an alias during migration)
+- Agent Skills non-secret settings
 - Non-Electron chat fallback only
 
-Main `app.getPath('userData')`:
+**Main `app.getPath('userData')`**
 
-- Chat index, folder metadata, and per-session chat JSON
-- Chat index `recentMessages` are compact text-only previews (no base64 images, toolResults, thinkingBlocks, or agentRun payloads)
-- Tool media files under `tool-media/{sessionId}/` for externalized Computer Use / UI automation screenshots referenced from chat messages via `mediaRef` (`tool-media:{sessionId}/{file}`)
-- Conversation summaries and assistant run metadata on chat messages
-- MCP server metadata, runtime metadata, and non-secret config
-- Secure-storage JSON encrypted through `safeStorage`
-- Hashed exact-repeat Agent approval signatures used only by main to issue one-use execution authorizations
-- Memories and memory summaries
-- Scheduled task definitions, lookout snapshots, reminder logs, and run history
-- Non-secret installed-app discovery snapshot (`app-index.json`) used only by agent app tools
-- Analytics consent/install metadata
-- Dev-only chat diagnostics JSONL
-- Artifact export files for external opening
+- Chat index, folders metadata, per-session chat JSON
+- Tool media under `tool-media/{sessionId}/`
+- MCP config and runtime metadata (non-secret)
+- Encrypted secure-storage JSON
+- Memories, scheduled tasks, analytics consent, artifact exports, etc.
 
-Main-process persistence rules:
+Main persistence rules (see also `docs/PERSISTENCE.md`):
 
-- JSON stores that can be rewritten at runtime use `writeFileAtomic`; stateful read-modify-write
-  operations are serialized with a recoverable queue so one rejected disk write does not block all
-  later writes. The chat index serializes the complete index transaction, not only the final rename,
-  so concurrent session, metadata, delete, and folder changes cannot overwrite one another.
-- Secure-storage mutations are serialized as immutable read-copy-write transactions. Decrypted cache
-  objects must never be returned by reference, and OS-backed encryption remains mandatory.
-- A missing store (`ENOENT`) initializes empty state. Invalid JSON is treated explicitly as corruption;
-  MCP may quarantine proven corrupt config. Permission, locking, device, and other operational I/O
-  failures must propagate and must never be converted into empty state or quarantined as corruption.
-- See `docs/PERSISTENCE.md` for transaction, failure, and recovery invariants.
+- Atomic JSON writes; serialize full read-modify-write cycles
+- Missing file → empty state; invalid JSON → corruption path; operational I/O errors propagate
+- Secure storage requires OS encryption; no plaintext secret fallback
 
-Secrets:
+Secrets in main include provider keys, Tavily, Brevo, and the ChatGPT Codex OAuth bundle. The UI may see “is set?” and replace secrets, never read them back.
 
-- API keys and MCP secrets live in `electron/secureStorage.ts`.
-- Stored provider keys include OpenRouter, Groq, Alibaba, Fireworks, DeepSeek, OpenCode Go, NVIDIA, Tavily, and Brevo.
-- ChatGPT Codex access and refresh tokens are stored as one encrypted main-only `chatGptCodexOAuth` bundle. The renderer can request sign-in/sign-out and receive only `{ signedIn: boolean }`; tokens, account IDs, OAuth codes, PKCE values, and endpoint parameters never cross IPC.
-- The renderer may read secret presence and may replace a secret, but cannot read or reveal stored values. Provider calls resolve credentials in main.
-- `safeStorage` is required for secret reads/writes. Do not add plaintext secret persistence fallback.
-
-### IPC Surface
+### IPC surface
 
 The renderer never imports Electron APIs directly.
 
-All renderer-invokable main handlers must register through
-`electron/ipc/trustedIpc.ts` rather than raw `ipcMain.handle`. The shared guard
-rejects requests unless they originate from the top frame of a live ZuraAI
-`BrowserWindow` whose URL is either the exact development-server origin or the
-exact packaged `dist/index.html` entry. Subframes, unknown/destroyed windows, origin
-lookalikes, other local files, and non-HTTP(S) remote documents are rejected
-before channel-specific code runs. Tests for individual handler behavior may
-mock the shared registration wrapper, but `trustedIpc.test.ts` must exercise the
-real rejection boundary.
+Invokable handlers register through `electron/ipc/trustedIpc.ts`. Requests must come from the top frame of a live ZuraAI window on the real dev origin or packaged `dist/index.html`.
 
-Primary files:
+Primary files: `electron/preload.ts`, `src/electron/ipcChannelManifest.ts`, `src/electron.d.ts`, `electron/ipc/*`.
 
-- `electron/preload.ts` - allowlists and dedicated `window.*` bridges
-- `src/electron/ipcChannelManifest.ts` - typed source of truth from which preload channel allowlists are derived
-- `src/electron.d.ts` - renderer-visible API types
-- `electron/ipc/*` - main-process handlers
-- `electron/ipc/windowControlHandlers.ts` owns sender-scoped window state, appearance, and resize channels; `externalOpenHandlers.ts`, `appInfoHandlers.ts`, and `nativeInteractionHandlers.ts` own their narrow capabilities; `systemHandlers.ts` composes them with app-menu commands.
+Dedicated bridges include (non-exhaustive): `windowControls`, `appInfo`, `analytics`, `agentApproval`, `agentSkills`, `mcp`, `memory`, `scheduledTasks`, `artifacts`, `codeExecution`, `terminal`, `providerRuntime`, `backgroundWindow`, and a restricted generic `ipcRenderer` wrapper.
 
-The channel ownership, validation, subscription, and contributor checklist is documented in
-`docs/IPC.md`. Generic preload subscriptions strip `IpcRendererEvent` and return an exact
-unsubscribe function; Electron event objects never cross into renderer callbacks.
+When adding/renaming/removing a channel:
 
-Dedicated preload bridges include:
+1. Preload allowlist or dedicated bridge
+2. `src/electron.d.ts`
+3. Main handler + validation
+4. Architecture section of this file
 
-- `window.ipcRenderer` - restricted generic invoke/on wrapper
-- `window.windowControls`
-- `window.appInfo`
-- `window.appMenu`
-- `window.analytics`
-- `window.agentApproval`
-- `window.agentSkills`
-- `window.shell`
-- `window.devTools`
-- `window.contextMenu`
-- `window.nativeDialog`
-- `window.mcp`
-- `window.memory`
-- `window.scheduledTasks`
-- `window.emailNotifications`
-- `window.artifacts`
-- `window.codeExecution`
-- `window.terminal`
-- `window.chatDebug`
-- `window.chatLinks`
-- `window.discordRpc`
-- `window.providerRuntime`
-- `window.backgroundWindow`
+Details: `docs/IPC.md`.
 
-`window.backgroundWindow` exposes only `releaseRun(runId, outcome)` and a sanitized owning-run stop event. Main validates sender/run ownership; the renderer cannot provide HWNDs, bounds, process identities, overlay HTML, watcher commands, or placement options through this bridge. Agent model calls attach/status/release through the existing validated `execute-tool` boundary.
+### Desktop OS integration
 
-`window.windowControls.setAppearance(...)` uses the narrow
-`window-controls:set-appearance` channel to synchronize the caller's native
-window backdrop (`solid` or `acrylic`) with Electron's validated `light`,
-`dark`, or `system` native theme source. The renderer cannot provide arbitrary
-materials, colors, window IDs, or native options. On Windows, main applies the
-material only to the sender's `BrowserWindow`; the native theme source remains
-app-wide so Electron-owned UI and other app windows use the same appearance.
+Agent mode can use narrow main-owned tools (active window, status, open path, snap layouts; on Windows also apps, UI automation, Computer Use). Mutating actions stay approval-gated. There is no global launcher overlay or renderer-provided shell.
 
-If you add, rename, or remove an IPC channel:
+Windows agent runs may reserve one external window via `background_window_attach`. Main owns identity and scoping. Physical Computer Use needs a fresh main-issued screenshot ID. An approved targeted left click first maps its point to the smallest enabled/visible exact-HWND UIA/MSAA element with a provider-advertised Invoke, SelectionItem/Toggle, or default action. Successful provider activation remains background-safe and keeps the guard attached; provider failures propagate, while only an unsupported point may release the guard and use the verified foreground physical fallback. Delivery mode is evidence of dispatch, not semantic task completion.
 
-1. Add/update the preload allowlist or dedicated bridge.
-2. Add/update `src/electron.d.ts`.
-3. Register/dispose the main handler.
-4. Validate all renderer input in main.
-5. Update this Architecture section.
+Installed-app discovery is main-owned (`app-index.json`). Launch requests are not proof a window appeared — verify with observation tools.
 
-`tool-media:load` is a narrow channel that accepts only a `mediaRef` string of the form
-`tool-media:{sessionId}/{fileName}` and returns a data URL (or null). Main resolves the
-ref against `app.getPath('userData')/tool-media` only; the renderer must never supply
-filesystem paths. Session delete also removes that session's tool-media directory.
+### Provider network boundary
 
-MCP includes a narrow `mcp:open-config-file` channel that opens ZuraAI's own
-`mcp-servers.json` under `app.getPath('userData')` with the OS default editor.
-It must not accept renderer-provided paths.
+Production streams, title/memory generations, catalogs, connectivity checks, and Ollama discovery go through `window.providerRuntime`. Credentials resolve in main immediately before the request.
 
-`McpManager` coordinates focused storage, connection, OAuth, exposure-policy, content-cache,
-snapshot-publication, and per-server transition modules. Config, OAuth, connect/disconnect, and
-runtime-metadata mutations for one server are serialized; unrelated servers may transition
-concurrently.
+- Ollama URLs: loopback only
+- Alibaba: fixed regional allowlist
+- No general HTTP proxy or CORS bypass
 
-The focused lifecycle, trust, authentication, OAuth network policy, and troubleshooting contract
-is documented in `docs/MCP.md`.
-
-The MCP renderer context keeps a short-lived draft only while an edit is being validated/applied.
-Valid MCP edits auto-persist in order through the existing add/update/remove channels; connection,
-sign-in, catalogue-add, and tool-management actions remain disabled while an edit is applying.
-
-MCP auth is modeled explicitly on each server as `none`, `envSecret`,
-`headerSecret`, `bearerToken`, `basicAuth`, `oauth2Pkce`, `jsonCredential`, or
-`connectionString`. Local `stdio` secrets resolve through existing secure env
-handling; remote manual secrets resolve through secure headers/tokens; JSON
-credentials and connection strings are typed secret wrappers rather than new
-transport behavior. OAuth 2.1 PKCE is owned by main and is currently used only
-for saved remote `sse` servers. The renderer may request auth actions only by
-saved server ID through narrow MCP channels (`mcp:start-oauth`,
-`mcp:clear-oauth`, `mcp:get-auth-status`) and receives sanitized status such as
-signed-in, needs sign-in, or auth failed. Renderer code must not provide OAuth
-target URLs, authorization endpoints, token endpoints, verifiers, state values,
-tokens, refresh tokens, or client secrets over IPC. Main performs protected
-resource metadata discovery, authorization server metadata discovery, dynamic
-client registration when available, loopback callback handling, code exchange,
-token refresh, and bearer header injection. Discovered OAuth endpoints are treated
-as untrusted input: main accepts public HTTPS targets only (with loopback HTTP(S)
-allowed only when the saved MCP resource is itself loopback), rejects embedded
-credentials/fragments, resolves hostnames and rejects local/private results,
-refuses redirects, and applies a ten-second network deadline to discovery,
-registration, refresh, and exchange requests. OAuth access tokens, refresh tokens,
-and client secrets use deterministic per-server secure-storage keys and must
-never be stored in renderer settings or shown after save. `websocket` MCP auth
-remains manual header/bearer unless an explicit compatible flow is added later.
-
-Agent Mode may expose a model-callable `mcp_request_add` built-in tool that
-creates a pending MCP add review only. The tool must not add servers directly,
-edit `mcp-servers.json`, trust tools, or accept raw secret values. Catalogue
-requests resolve only against the bundled Zura-owned catalogue; custom requests
-must show the exact command or URL for user review. Main owns pending request
-IDs and the reviewed payload. The renderer can resolve, approve, or cancel a
-pending add through narrow request-ID-only channels (`mcp:resolve-add-request`,
-`mcp:approve-add-request`, `mcp:cancel-add-request`). Approval adds the server as
-enabled, untrusted, and approval-required, then connects only when required auth
-or secrets are already satisfied. Discovered tools remain hidden from the model
-until the user explicitly trusts the server/tools through the MCP review UI.
-
-Settings -> MCP Servers -> Browse Library loads a bundled, curated, Zura-owned
-MCP catalogue JSON in the renderer. The bundled catalogue should stay small
-(currently 50 common installable entries), not mirror the full MCP registry.
-Supported catalogue entries with complete config persist immediately as enabled,
-untrusted MCP servers through the existing preload MCP bridge; users must still
-explicitly connect them and must explicitly trust them before tools are exposed
-to chat. Catalogue entries that require secrets must not persist placeholder
-secrets; the catalogue card should collect required keys inline and persist them
-through main-process secure storage as part of the add action. The catalogue must
-not fetch remote catalogue metadata, must not introduce a main-process HTTP proxy
-or IPC channel, and must leave unsupported registry transports (such as
-streamable HTTP until implemented) visibly unavailable rather than silently
-substituting another transport.
-
-Scheduled tasks include a narrow `scheduled-tasks:set-extension-enabled` channel
-that accepts only a boolean Reminders & Lookouts extension state from the
-renderer settings runtime. Main uses this state to start/stop scheduling and to
-reject scheduled-task mutations/runs while the extension is disabled.
-Scheduled tasks support `reminder`, `web_lookout`, and `ai_automation`. AI
-automations are persisted in `scheduled-tasks.json` with sanitized prompt,
-schedule, context-source metadata, output destinations, approval mode, notify
-policy, allowed tools, and run-budget fields; provider keys and tool/MCP
-secrets are never stored there. Main owns timing, catch-up, notifications,
-email delivery, run logs, and the narrow `scheduled-tasks:automation-run-request`
-/ `scheduled-tasks:resolve-automation-run` bridge. Renderer code creates a new
-background chat session for every AI automation run, writes the scheduled prompt
-as the user message, streams the assistant response into that chat through the
-existing settings, provider runtime, MCP, tool exposure, and approval surfaces,
-then returns sanitized run output, metadata, and the per-run chat session ID to
-main. The automation chat is visible in chat history but must not steal focus or
-switch the active conversation. If no renderer is available, main records an
-error run and reschedules normally rather than inventing or silently skipping
-output. Agent automation run budgets are enforced in the shared tool execution
-policy for web searches and total tool calls, in addition to the automation run
-timeout owned by main.
-
-The scheduled-task runtime is split by responsibility: `scheduler.ts` owns timers, extension
-enablement, overdue catch-up, and duplicate-due suppression; `rendererBroker.ts` owns bounded renderer
-request/response IPC and pending-request cancellation; `delivery.ts` owns notification/email policy;
-`runtime.ts` orchestrates task execution and persistence. Notification clicks use the explicit main
-window supplied by the caller and must never focus the first arbitrary `BrowserWindow`. See
-`docs/MAIN_PROCESS_LIFECYCLE.md`.
-
-### Desktop OS Integration
-
-Agent Mode exposes narrow, main-owned desktop primitives through the existing `execute-tool` IPC path. Retained cross-platform tools include `system_active_window`, `system_status`, `system_settings_open`, `system_open_path`, and `window_snap`; Windows also exposes the existing bounded app, window, filesystem, UI Automation, and Computer Use tool sets. Mutating actions continue through normal approval policy. These tools are assistant capabilities only: there is no global launcher overlay, global shortcut, direct-action palette, renderer-provided path/URI/command execution, or background clipboard context.
-
-Windows Agent runs may explicitly reserve one external app window with `background_window_attach`. Main owns the exact `{hwnd, pid, processStartTime}` identity, one target per run and one guarded target globally in the first implementation. While reserved, `ui_get_app_state`/`ui_find`/`ui_wait_for` and targeted `computer_screenshot` remain scoped to that exact HWND, and element actions must belong to it. `window_focus` is rejected with `foreground_required` while the reservation is active; the run must release the guard before explicitly requesting foreground control. Background-safe mutations use provider-backed UI Automation Invoke, Value, SelectionItem/Toggle, or Scroll patterns only; when an exact-HWND UI Automation snapshot exposes no actionable descendants, main may merge a bounded Microsoft Active Accessibility (MSAA) compatibility snapshot and invoke only an element's provider-advertised default action after revalidating its HWND, process, role, name, and main-owned ID. They never silently fall back to focus, clipboard paste, global keys, cursor movement, coordinate clicks, wheel input, arbitrary window messages, or renderer/model-provided scripts. Unsupported controls return `foreground_required`; stale/reused, minimized/cloaked, and lost targets return explicit blocked outcomes. If Electron cannot capture a targeted image after UI Automation successfully reads the target, `ui_get_app_state` returns the valid accessibility tree with typed `screenshot_unavailable` metadata instead of failing or falling back to a full-screen capture; `element_id` actions remain available, while coordinate actions remain ungrounded. An explicitly approved `computer_*` physical action releases the guard before using the shared input desktop.
-
-The background guard is not a second hidden Windows input desktop. The target must remain a normal/restored window and may be occluded by other apps; minimized, elevated, secure-desktop, custom-canvas, and provider-incomplete surfaces may require user takeover. The current bounds watcher uses bounded fixed PowerShell/DWM polling and must never accept renderer/model script text. Replacing it with a native or persistent helper changes process/packaging assumptions and requires a further Architecture update and packaged Windows verification.
-
-The Computer Use Esc+Esc emergency stop is observed by a fixed, main-owned PowerShell `GetAsyncKeyState` helper while a session is active. It does not register or swallow the user's global Escape key. The helper accepts no renderer/model command text and is terminated on release, cancellation, failure, target loss, renderer destruction, or shutdown.
-
-Installed-app discovery used by `app_find`, `app_list`, and `app_launch` remains main-owned in `electron/appIndexService.ts`. Its non-secret snapshot is stored as `app-index.json` under `app.getPath('userData')`; Windows and macOS refresh from bounded platform-owned application sources, and the renderer/model never provides launch authority. The service may use local launch counts and platform usage metadata for app ranking, but no raw launcher queries or search-learning HMAC data are collected.
-
-When a Windows `app_find` query has no cached match, main awaits a bounded query-specific
-`Get-StartApps` lookup and merges the result before responding. `app_launch` should consume the
-opaque app index `itemId`; main resolves that ID to its stored shortcut or AppUserModelID and returns
-`launch_requested`. A launch request is not evidence that the app window appeared, so Agent runs
-must verify it through window/UI observation before claiming success.
-
-Targeted `computer_screenshot` results issue a bounded, main-owned screenshot ID scoped to the
-sender and opaque chat-run ID. Every physical click, type, key, scroll, or cursor action must present
-the exact latest screenshot ID; stale, cross-run, and missing contexts fail closed. Each completed
-physical action captures the same target again, rotates the ID, and reports whether the image bytes
-changed. An unchanged image is explicitly unverified evidence and triggers the bounded Agent
-verification path rather than supporting a success claim.
-
-The removed Command Center architecture included a second renderer/window, global shortcuts, workflows, Windows Search helper, emoji insertion, search learning, the manifest-based Zura Store extension runtime, and GitHub Workspace. Their IPC/preload bridges, packaged resources, CLI authoring commands, OAuth/token storage, repository storage, and extension storage are no longer part of the application. Existing orphaned files from older installations are not read or migrated.
-
-### Provider Network Boundary
-
-- Production provider chat streams, lightweight title/memory generations, authenticated model catalogs, connectivity checks, and Ollama discovery run in main through `window.providerRuntime`.
-- `provider-runtime:start` streams sanitized events tagged by an opaque request ID. `provider-runtime:generate` and `provider-runtime:list-models` are bounded operations; `provider-runtime:cancel` can cancel only a request owned by the calling renderer. ChatGPT account actions are narrow, argument-free `provider-runtime:codex-sign-in`, `provider-runtime:codex-auth-status`, and `provider-runtime:codex-sign-out` channels.
-- Main resolves provider credentials immediately before the request. Provider keys never appear in provider runtime requests, events, catalog results, or renderer settings.
-- Ollama URLs are restricted in main to loopback HTTP(S) addresses without credentials, query strings, or fragments. Alibaba endpoints are selected from the fixed Singapore, US (Virginia), and China (Beijing) regional allowlist.
-- There is no provider HTTP proxy or renderer CORS bypass. Do not add arbitrary URLs, headers, or methods to the provider runtime bridge.
-- ChatGPT Codex is a main-only OAuth/HTTP exception. An explicit Settings click starts a five-minute PKCE browser flow using the fixed OpenAI Codex public client, a loopback-only callback on port 1455, exact state validation, and OS-encrypted token persistence. The transport uses Vercel AI SDK 7 plus `@ai-sdk/openai`, rewrites only `POST https://api.openai.com/v1/responses` to the fixed `https://chatgpt.com/backend-api/codex/responses` endpoint, strips unsupported `metadata`/`max_output_tokens`, sets `store: false`, injects account auth in main, disables SDK retries, and rejects every other URL/method. Account-aware models come only from the fixed `/backend-api/codex/models` endpoint. This unofficial subscription path is for local/personal use, supports text/reasoning only in ZuraAI, receives no Zura tool definitions, and must not become a broad ChatGPT proxy or second tool-execution loop.
+ChatGPT Codex is a main-only OAuth exception: fixed public client, loopback callback, encrypted tokens, fixed ChatGPT endpoints, text/reasoning only in ZuraAI, no Zura tool definitions on that path. Local/personal use; not a broad ChatGPT proxy.
 
 ### Tools
 
-Tool execution is restricted and gated by settings/extension state.
-
 - Built-in manifest: `src/tools/builtinTools.ts`
-- Exact cross-process built-in name contract: `src/tools/builtinMainToolContract.ts`
-- Renderer definitions/adapters: `src/tools/definitions.ts`, `src/tools/adapters/*`
-- Tool exposure/merge: `src/hooks/useToolCalling.ts`, `src/tools/toolManager.ts`, `src/tools/mcpRegistry.ts`
+- Exact name contract: `src/tools/builtinMainToolContract.ts`
 - Main registry: `electron/tools/index.ts`
 
-Important tool rules:
+Rules:
 
-- Built-in main-process tools share the single `execute-tool` IPC channel. Preload and main both
-  accept only exact names from `BUILTIN_MAIN_TOOL_NAMES`; prefix matching must not grant tool access.
-  The renderer's typed generic bridge accepts only `BuiltinMainToolName`, and main validates every
-  invocation against the tool's closed, complete manifest JSON Schema before exhaustive handler
-  dispatch, without coercing, removing, or inventing arguments. Reserved execution-context fields
-  such as `autoApprove`, `_agentSkills`, approval tokens, and background-window run ownership are rejected when supplied as model
-  arguments. The supported contributor workflow is
-  documented in `docs/CREATING_BUILTIN_TOOLS.md`.
-- Provider-returned tool arguments and built-in main-tool arguments use the shared CSP-safe
-  JSON Schema interpreter in `packages/provider-core/src/jsonSchema.ts`. Runtime schema validation
-  must not use `eval`, `Function`, Ajv runtime compilation, or relax the renderer's `script-src`
-  policy. Validation does not coerce, remove, or synthesize model arguments, and unsupported
-  standard validation keywords fail closed rather than being ignored.
-- The approval threat model and contributor invariants are documented in
-  `docs/TOOLS_SECURITY.md`. Approval authority is main-owned execution context and must never be
-  encoded in model-visible arguments or renderer settings.
-- `web_search` is a main-process Tavily-only pipeline. No fallback backend.
-- Renderer-only artifact tools mutate active chat session state and do not cross IPC.
-- Scheduled task tools execute in main and are gated by the reminders extension.
-- The scheduled-task runtime also has a main-process extension gate synced from
-  renderer settings; disabling Reminders & Lookouts clears active timers and
-  prevents manual or model-callable task execution until re-enabled.
-- MCP tools use `window.mcp.executeTool(...)`, not the generic built-in tool IPC.
-- `background_window_attach` is approval-gated and requires trusted run context. `background_window_status` and `background_window_release` can act only on the calling sender's current run. Guard ownership and run IDs are main-owned authority; model arguments cannot supply or override them.
-- Mutating/high-risk tools require user approval. Agent approval is represented by a main-issued,
-  one-use token bound to the requesting `webContents`, exact tool name, and exact validated
-  arguments; the token travels in a separate execution context and is consumed before dispatch.
-  Exact-repeat trust signatures are hashed and stored main-only. Renderer/model booleans such as
-  `autoApprove` never grant authority.
-- Legacy renderer auto-approve settings for code execution, terminal, and Computer Use are removed
-  during settings migration/normalization and must not be reintroduced as approval authority.
-- Agent mode should prefer native structured tools before visual Computer Use and verify mutating actions with read-only inspection where possible.
-- Terminal (`system_shell`) is Windows-only, default disabled, non-interactive PowerShell with approval, timeout, output caps, and no OS sandbox. Treat any relaxation as security-sensitive.
-- Computer Use is Windows-only, default disabled, current-desktop only. Screenshot/list-window capture uses Electron desktop APIs, while click/type/key/scroll/cursor actions use a fixed main-process User32 PowerShell helper with validated coordinates and allowlisted virtual keys. Targeted screenshots fail closed unless main resolves the exact HWND bounds. Before a targeted physical click, main restores/foregrounds that exact HWND, verifies it remains the foreground window, rejects moved/resized bounds, and resolves the hit-tested control to that same top-level HWND before emitting mouse input; failed validation emits no click, and delivery evidence must not be treated as semantic task verification. Do not reintroduce a separate virtual desktop mode, `agent_desktop` settings, or `agent-desktop:*` IPC.
-- On Windows, each explicit Computer Use screenshot and post-action screenshot may include a bounded OCR observation derived by main from a temporary upscaled PNG under the OS temporary directory. The fixed Windows OCR helper accepts no renderer/model script text, caps output and runtime, and removes the temporary file immediately. OCR element IDs and bounds are screenshot-relative visual evidence only, are always marked `background_safe: false`, and grant no background-action authority.
-- Desktop OS integration is an Agent Mode tool capability, not a launcher surface. It provides active-window context plus narrow OS actions such as OS-default path opening and snap layouts. macOS integration uses bounded code-owned platform calls and never accepts script source from the renderer. It must not become arbitrary shell execution, background clipboard scraping, or broad unapproved OS automation.
-- Agent Mode UI automation is Windows-only and uses a model-facing `ui_*` tool family over the existing restricted `execute-tool` IPC path. `ui_get_app_state` is the primary observation primitive and returns active-window metadata, a compact Microsoft UI Automation accessibility tree, stable main-owned `element_id` values, supported actions, bounds, truncation metadata, and either a targeted screenshot or typed `screenshot_unavailable` metadata. A targeted capture failure does not discard a successfully read tree and never triggers a full-screen fallback. `ui_find` searches the latest/requested state, and `ui_wait_for` waits for bounded UI conditions. Mutating `ui_click`, `ui_type_text`, `ui_set_value`, `ui_select`, `ui_scroll`, `ui_focus`, and `ui_key` require approval and return fresh state after execution. Element IDs are opaque, cached only in main, and should be preferred over coordinate actions; coordinate-based `computer_*` tools remain fallback/legacy Computer Use primitives.
-- MCP resources and prompts are user-visible browsing/preview surfaces only; do not merge them into model-callable tools without an explicit architecture update.
+- One `execute-tool` channel; exact names only
+- Full JSON Schema validation without coercion
+- Approval authority is main-issued, one-use, outside model args
+- `web_search` is Tavily-only (no silent backend fallback)
+- MCP tools use `window.mcp.executeTool`
+- Terminal and Computer Use are Windows-oriented, default-disabled, approval-gated
+
+See `docs/TOOLS_SECURITY.md` and `docs/CREATING_BUILTIN_TOOLS.md`.
 
 ### Providers
 
-- Provider metadata/capabilities live in `src/providers/providerRegistry.ts`.
-- Shared runtime dispatch lives in `src/providers/providerRuntime.ts`.
-- Provider extension boundaries and adapter conformance requirements are documented in
-  `docs/PROVIDERS.md`. The platform-neutral `packages/provider-core` package is built and
-  typechecked independently before application builds; generated package output remains untracked.
-- Platform-neutral contracts, typed errors, strict tool validation, and lossless usage aggregation live in the private `packages/provider-core` package.
-- Provider service files own request shaping and stream parsing only.
-- The ChatGPT Codex adapter lives in `electron/providers/codexProvider.ts` because OAuth credentials, refresh serialization, fixed-host request rewriting, and account headers are main-only concerns. It is intentionally excluded from renderer/shared HTTP dispatch and from the platform-neutral provider SDK package.
-- SSE providers use `eventsource-parser` and fail visibly on malformed events; NDJSON parsing also fails rather than dropping malformed records.
-- Only native provider tool calls are executable. XML/DSML-like text is stripped from display and logged for diagnostics, but is never repaired into a tool call.
-- Tool arguments are parsed once and validated with Ajv against the complete declared JSON Schema before execution. Do not coerce, remove, or invent arguments.
-- Usage aggregates every model round (including tool/research rounds) without dropping cache, image, audio, cost, or request-count fields. Estimated usage must be marked `estimated`.
-- The renderer send/regenerate/tool/research state-machine and finalization invariants are documented in
-  `docs/CHAT_RUNTIME.md`; both entry points must converge on the same run-controller contract.
-- Alibaba's picker is a small versioned catalog derived from documented models; never scrape private Model Studio page payloads or send a credential to a documentation page.
-- New providers must define auth, model enablement, capabilities, title/memory support, streaming behavior, and storage/secrets boundaries explicitly.
-- Do not hardcode real model IDs/names in runtime dispatch. A documented, dated curated catalog may contain model IDs when the provider has no supported model-list endpoint. Tests should otherwise use clearly fake IDs.
-- Provider-level enablement is independent from API key presence; model pickers should list only manually enabled providers and models where `enabled !== false`.
-- DeepSeek reasoning is user-controlled per model; do not infer capability or add fallback reasoning behavior.
+- Registry: `src/providers/providerRegistry.ts`
+- Dispatch: `src/providers/providerRuntime.ts`
+- Platform-neutral contracts: `packages/provider-core`
+- Codex: `electron/providers/codexProvider.ts`
 
-### Extension / Skill State
+Do not hardcode undated live model ID lists in runtime dispatch. Provider enablement is independent of “key present.” Details: `docs/PROVIDERS.md`.
 
-- UI-facing built-in assistant capabilities are Extensions.
-- Legacy `settings.skills` is still normalized into `settings.extensions` and mirrored back as a compatibility alias while migration continues.
-- Agent Skills are separate from built-in extensions and use the open `.agents/skills/*/SKILL.md` format.
-- Agent Skills discovery returns compact catalog metadata; full SKILL.md bodies are loaded only through explicit activation.
-- Agent Skills `allowed-tools` frontmatter is advisory metadata only; it must not grant new tool permissions or bypass approvals.
-- Folders are first-class dashboard workspaces opened through `dashboardView: 'folders'`; folder chats still store `folderId` on `ChatSession`, and folder metadata lives in the chat index rather than a separate store.
+### Built-in capabilities vs Agent Skills
 
-### Feature Guardrails
+- **Built-in capabilities** (Settings UI may label them Extensions) are first-party assistant features such as web research, artifacts, memory, reminders, code execution, terminal, computer use. They are code-owned and gated by settings.
+- **Agent Skills** are separate open-format skill packs (`.agents/skills/*/SKILL.md`). Their `allowed-tools` frontmatter is advisory metadata only — it never grants permissions or bypasses approvals.
 
-- Artifacts live on their source chat session (`ChatSession.artifacts`). Do not add a separate artifact store or main-process artifact mutation API; external open is the only artifact IPC path. Artifact external open writes a generated file under `app.getPath('userData')/artifact-exports`; on macOS, main may show a native `.app` picker and launch the selected app with that generated file only.
-- Folder `memoryMode` is selected when a folder is created and controls project memory scope: `default` includes global plus folder memories, while `folder-only` excludes global memories for chats in that folder.
-- Settings -> Extensions -> Memory lists global and folder-scoped background memories together, labels folder-scoped memories with folder metadata, and provides a project-memory filter.
-- Scheduled web lookouts may fetch public `http`/`https` URLs and local loopback hosts only. Keep private LAN URLs rejected.
-- Scheduled reminders/lookouts catch up overdue enabled tasks when the Reminders extension state is restored on startup after a one-shot startup delay of about three minutes, or immediately when the monitor runtime is rescheduled later; the same overdue timestamp is launched only once per runtime.
-- Email notification settings in renderer are non-secret preferences only. `brevoApiKey` stays in secure storage, and the renderer must not send arbitrary email bodies over IPC.
-- Analytics is opt-in only. Main sanitizes events and must never accept prompts, responses, file paths, clipboard data, API keys, MCP payloads, or conversation content.
-- Discord RPC is always-on in main and lazy-requires `discord-rpc`; missing optional native dependencies must not crash the app.
+There is **no** third-party extension store, manifest extension runtime, or store CLI in this app. Older “Zura Store / Command Center” pieces were removed and must not be reintroduced without an explicit architecture decision.
+
+### Feature guardrails
+
+- Artifacts live on their chat session. External open is the only artifact IPC path.
+- Folder `memoryMode` can be default (global + folder) or folder-only.
+- Scheduled lookouts may fetch public http(s) and loopback only — not private LAN.
+- Email notification prefs are non-secret; Brevo key stays in secure storage.
+- Analytics is opt-in and sanitized (`TELEMETRY.md`).
+- Discord RPC is best-effort; missing optional native deps must not crash the app.
 
 ---
 
-## Build & Release
+## Build and release
 
-### Desktop Release
+### Desktop
 
-- Packaging uses `electron-builder` (`package.json#build`).
-- ChatGPT Codex uses JavaScript-only `ai` and `@ai-sdk/openai` dependencies; no Codex executable or platform-specific `@openai/codex-*` package is shipped or unpacked.
-- `npmRebuild` is `false`; packaging should use installable/prebuilt native dependencies and should not require local Visual Studio Build Tools just to rebuild optional native dependencies.
-- `package.json#build.electronDist` points at `node_modules/electron/dist`; Windows packaging copies the installed Electron distribution instead of unpacking Electron from the builder cache.
-- `bun run build` emits Windows installer and portable artifacts, then writes `release/checksums.txt`.
-- `bun run build:mac` emits macOS DMG/zip artifacts (arm64 + x64) on a macOS host, then writes `release/checksums.txt`. Notarization/signing with an Apple Developer ID is a separate ops step (env credentials only; never commit certs or passwords).
-- Build outputs are gitignored under `dist/`, `dist-electron/`, and `release/`.
-- Auto-updater is production-only in `electron/updater.ts`.
-- GitHub publishing is configured for `solnikhil/ZuraAI`; update `package.json#build.publish` if packaging from a fork.
-- Windows packaging uses the NSIS wizard installer with install-directory selection. The selected directory is the final install path; do not force an extra `\ZuraAI` subfolder.
-- macOS packaging uses `public.app-category.productivity`, hardened runtime enabled, and `gatekeeperAssess: false` until notarization is wired.
-- Installer assets (`build/icon.ico`, `build/sidebar.bmp`, `build/icon.png`, optional `build/icon.icns`, tray template) are generated by `scripts/generate-icons.mjs`. The `build/` directory is gitignored; `public/trayTemplate.png` is generated for macOS menu-bar template icons in dev.
+- electron-builder config lives in `package.json#build`
+- `npmRebuild` is false; prefer prebuilt natives
+- Windows: NSIS installer + portable; user-selected install directory is final
+- macOS: DMG/zip; signing/notarization is a separate ops step (credentials in env only)
+- Auto-updater is production-only (`electron/updater.ts`)
+- Publish target defaults to `solnikhil/ZuraAI`
 
-Windows artifacts:
+Details: `docs/RELEASE.md`.
 
-- `ZuraAI-Setup-{version}.exe`
-- `ZuraAI-Setup-{version}.exe.blockmap`
-- `ZuraAI-Portable-{version}-x64.exe`
-- `latest.yml`
-- `checksums.txt`
+### npm package
 
-macOS artifacts:
-
-- `ZuraAI-{version}-mac-arm64.dmg` / `.zip`
-- `ZuraAI-{version}-mac-x64.dmg` / `.zip`
-- `checksums.txt`
-
-### npm Package
-
-- `zuraai` is the npm package for the macOS/Windows terminal launcher.
-- It exposes the `zuraai` bin, includes only the launcher script plus README/package metadata, and points to `https://zuraai.in`.
-- `zura` is not available on npm (`zura@6.6.7` was already published by another owner when checked).
-
-Launcher publish checklist:
-
-1. Keep npm package small; do not embed Electron binaries.
-2. Align package version with GitHub app release tag (`0.0.6` -> `v0.0.6`).
-3. Upload desktop artifacts and `checksums.txt` to GitHub first.
-4. Run `cd packages/zuraai && npm pack --dry-run --json`.
-5. Publish with `npm publish --access public`.
-6. If using a token, pass it through the environment for one command; never commit `.npmrc` tokens.
-7. Verify `bunx zuraai --version`, `bunx zuraai --help`, and `npm view zuraai name version homepage description bin --json`.
+`packages/zuraai` is a tiny launcher, not the Electron binary. Align versions with GitHub release tags when publishing.
 
 ---
 
 ## Testing
 
-Default checks:
+Default:
 
-- `bun run typecheck`
-- `bun run test`
-- `bun run build` for release/packaging changes
+```bash
+bun run typecheck
+bun run test
+```
 
-Targeted checks:
-
-- IPC/preload changes: run preload and relevant IPC tests.
-- Storage migrations: run affected store/context tests and inspect old-data migration paths.
-- Provider/tool changes: run provider, tool adapter, executor, and streaming tests.
-- UI changes: run affected component tests and check responsive/overflow behavior.
-- Release/npm changes: run `npm pack --dry-run --json` in `packages/zuraai` and verify `release/checksums.txt`.
+Also run `bun run build` for packaging changes. Prefer focused tests for IPC, storage migrations, providers/tools, and UI you touch.
 
 ---
 
-## Agent Best Practices
+## Agent best practices
 
-Do:
+**Do**
 
-- Read the relevant source before editing.
-- Keep changes scoped to the user's request.
-- Preserve existing patterns and helper APIs.
-- Prefer explicit validation over permissive handling.
-- Add or update tests when behavior, storage, IPC, provider logic, or release output changes.
-- Update this file when architecture or release assumptions change.
-- Keep generated outputs out of commits unless the repo already tracks them.
+- Read the relevant source before editing
+- Keep changes scoped
+- Prefer explicit validation over permissive handling
+- Update tests and this file when behavior or architecture changes
+- Keep generated outputs out of commits
 
-Don't:
+**Don’t**
 
-- Do not bypass preload or expose broad Electron APIs.
-- Do not store secrets in renderer state, logs, docs, fixtures, or committed files.
-- Do not introduce unapproved fallbacks.
-- Do not silently widen tool permissions.
-- Do not add one-off menu/dropdown styling when the shared menu system applies.
-- Do not revert unrelated dirty worktree changes.
+- Bypass preload or expose broad Electron APIs
+- Store secrets in renderer state, logs, docs, or fixtures
+- Introduce unapproved fallbacks
+- Silently widen tool permissions
+- Invent one-off menu styling
+- Revert unrelated dirty worktree changes
 
 ---
 
-## Known Gaps / Watchpoints
+## Known gaps / watchpoints
 
-- User-configured global shortcut strings in settings are still not fully wired to `globalShortcut.register(...)`.
-- The npm launcher opens installed desktop apps through registered local protocols; it does not install the Electron app itself.
+- User-configured global shortcut strings in settings are not fully wired to `globalShortcut.register(...)`.
+- The npm launcher opens an installed desktop app through protocols; it does not install Electron itself.
+- Folders / Projects UI may be temporarily gated in product code; do not delete the feature — follow the current flag if one exists.
+- ChatGPT Codex remains an unofficial subscription-path integration with limited capabilities in ZuraAI.
+- macOS signing/notarization may still be incomplete for seamless auto-update (see `docs/MAINTENANCE.md`).

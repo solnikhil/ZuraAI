@@ -673,6 +673,95 @@ export function getUiAutomationElementTarget(
   return entry ? { hwnd: entry.hwnd, processId: entry.processId } : null
 }
 
+export type BackgroundPointActivationResult =
+  | {
+      status: 'activated'
+      element_id: string
+      source: 'uia' | 'msaa'
+      action: 'click' | 'select'
+      role: string
+      name: string
+    }
+  | { status: 'unsupported'; reason: string }
+
+function boundsContainPoint(bounds: UiAutomationBounds, x: number, y: number): boolean {
+  return (
+    bounds.width > 0 &&
+    bounds.height > 0 &&
+    x >= bounds.x &&
+    x < bounds.x + bounds.width &&
+    y >= bounds.y &&
+    y < bounds.y + bounds.height
+  )
+}
+
+/**
+ * Main-only background-first activation for an already approved targeted computer click.
+ * It never emits shared mouse input and returns unsupported when no provider action owns the point.
+ */
+export async function tryBackgroundActivateAtPoint(args: {
+  hwnd: number
+  x: number
+  y: number
+}): Promise<BackgroundPointActivationResult> {
+  if (!isWindows())
+    return { status: 'unsupported', reason: 'Windows UI automation is unavailable.' }
+  if (
+    !Number.isSafeInteger(args.hwnd) ||
+    args.hwnd <= 0 ||
+    !Number.isFinite(args.x) ||
+    !Number.isFinite(args.y)
+  ) {
+    return { status: 'unsupported', reason: 'The targeted point is invalid.' }
+  }
+
+  const now = Date.now()
+  pruneCaches(now)
+  const raw = await runSnapshot({ hwnd: args.hwnd }, 8, MAX_ELEMENTS)
+  const targetWindow = buildWindows(normalizeJsonArray(raw.windows), now).find(
+    (window) => window.hwnd === args.hwnd
+  )
+  if (!targetWindow) throw new Error('ZURA_UIA_TARGET_LOST: Target window is no longer available.')
+
+  const targetElements: UiAutomationElement[] = []
+  const collect = (element: UiAutomationElement) => {
+    targetElements.push(element)
+    for (const child of element.children || []) collect(child)
+  }
+  for (const element of targetWindow.elements) collect(element)
+  const candidates = targetElements
+    .filter(
+      (element) =>
+        element.enabled &&
+        element.visible &&
+        element.background_safe &&
+        (element.supported_actions.includes('click') ||
+          element.supported_actions.includes('select')) &&
+        boundsContainPoint(element.bounds, args.x, args.y)
+    )
+    .sort((a, b) => a.bounds.width * a.bounds.height - b.bounds.width * b.bounds.height)
+
+  const element = candidates[0]
+  if (!element) {
+    return {
+      status: 'unsupported',
+      reason: 'No background-safe UIA or MSAA action owns the requested point.',
+    }
+  }
+  const entry = elementCache.get(element.element_id)
+  if (!entry) throw new Error('The resolved accessibility element expired before activation.')
+  const action = element.supported_actions.includes('click') ? 'click' : 'select'
+  await runUiaAction(action === 'click' ? 'invoke' : 'select', entry)
+  return {
+    status: 'activated',
+    element_id: element.element_id,
+    source: element.source,
+    action,
+    role: element.role,
+    name: element.name.slice(0, 160),
+  }
+}
+
 async function returnFreshState(entry: ElementCacheEntry): Promise<ToolResult> {
   await delay(ACTION_DELAY_MS)
   const state = await buildAppState({ hwnd: entry.hwnd })

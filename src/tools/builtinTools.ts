@@ -278,7 +278,7 @@ Safety rules:
   },
   computer_click: {
     description:
-      'Click at specific pixel coordinates from the latest screen image returned by computer_screenshot. Requires a prior computer_screenshot in the current action sequence; computer_list_windows is not enough. Use the screen dimensions exactly and click the center of the intended target. For a targeted window capture, main first foregrounds that exact app window, rejects moved/resized targets, and resolves the hit-tested control to that same top-level window before sending input. Returns delivery evidence and an updated screen image; delivery and pixel changes do not by themselves prove the requested semantic outcome.',
+      'Click at specific pixel coordinates from the latest screen image returned by computer_screenshot. Requires a prior computer_screenshot in the current action sequence; computer_list_windows is not enough. Use the screen dimensions exactly and click the center of the intended target. For a targeted window capture, main first attempts a background-safe UIA/MSAA provider action at that point without focusing or releasing the background guard. If unsupported, it uses the foreground physical fallback, rejects moved/resized targets, and resolves the hit-tested control to the same top-level window before input. Returns delivery mode/evidence and an updated screen image; delivery and pixel changes do not by themselves prove the requested semantic outcome.',
     parameters: {
       type: 'object',
       description: 'Arguments for clicking.',

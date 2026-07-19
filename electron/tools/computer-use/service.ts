@@ -12,6 +12,7 @@ import type {
 import type { ComputerUseApprovalManager } from './approvalManager'
 import { captureScreenshot, listWindows } from './screenshot'
 import { extractOcrElements } from './ocr'
+import { tryBackgroundActivateAtPoint } from '../ui-automation/service'
 import {
   performClick,
   performType,
@@ -261,7 +262,8 @@ export async function executeClick(
   args: ClickArgs,
   autoApprove: boolean,
   showSpotlight?: (opts: { x: number; y: number; label?: string }) => Promise<void>,
-  sessionKey = 'unscoped'
+  sessionKey = 'unscoped',
+  prepareForeground?: () => Promise<void>
 ): Promise<ToolResult> {
   let desktopPoint: DesktopPoint
   let screenshotState: ScreenshotSessionState
@@ -281,8 +283,25 @@ export async function executeClick(
   return executeAction(
     'click',
     args,
-    () =>
-      performClick(
+    async () => {
+      if (screenshotState.targetHwnd && (args.button ?? 'left') === 'left') {
+        const background = await tryBackgroundActivateAtPoint({
+          hwnd: screenshotState.targetHwnd,
+          x: desktopPoint.x,
+          y: desktopPoint.y,
+        })
+        if (background.status === 'activated') {
+          return {
+            mode: 'background_automation',
+            targeted: true,
+            backgroundSafe: true,
+            ...background,
+          }
+        }
+      }
+      await prepareForeground?.()
+      await showSpotlight?.({ x: desktopPoint.x, y: desktopPoint.y, label: 'Click' })
+      const physical = await performClick(
         desktopArgs,
         screenshotState.targetHwnd
           ? {
@@ -290,10 +309,12 @@ export async function executeClick(
               capturedBounds: screenshotState.coordinateContext.displayBounds,
             }
           : undefined
-      ),
+      )
+      return { mode: 'physical', backgroundSafe: false, ...physical }
+    },
     autoApprove,
-    showSpotlight,
-    desktopPoint,
+    undefined,
+    undefined,
     sessionKey
   )
 }

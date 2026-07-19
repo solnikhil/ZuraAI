@@ -1,10 +1,13 @@
 # @zura/provider-core
 
-Platform-neutral contracts shared by ZuraAI provider adapters.
+Shared, platform-neutral pieces used by ZuraAI provider adapters:
 
-The package contains typed provider errors, stream and usage contracts, lossless usage aggregation, and strict tool-call validation. It must not import Electron, React, renderer settings, secure storage, or provider credentials.
+- Typed provider errors
+- Stream and usage contracts
+- Lossless usage aggregation
+- Strict tool-call / JSON Schema validation (no `eval`)
 
-Commands:
+This package must **not** import Electron, React, renderer settings, secure storage, or provider credentials.
 
 ```sh
 bun run build
@@ -12,4 +15,4 @@ bun run typecheck
 bun run test
 ```
 
-The build emits JavaScript, source maps, and TypeScript declarations to `dist/`.
+Build output goes to `dist/` (JavaScript, maps, and TypeScript declarations). That folder is generated — do not hand-edit it.

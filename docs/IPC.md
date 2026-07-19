@@ -1,56 +1,51 @@
-# IPC Security and Ownership
+# IPC: how the UI talks to main
 
-The renderer is untrusted. Every renderer-to-main request must cross a narrow preload contract and a trusted top-frame registration guard.
+The React UI process is untrusted. Anything sensitive must go through a small, allowlisted bridge into Electron main.
 
-## Required path
+## The path
 
 ```text
-React renderer -> typed preload bridge -> trustedIpcMain -> domain validator -> main-owned service
+React UI → typed preload bridge → trusted IPC guard → domain validation → main service
 ```
 
-Renderer-invokable handlers must use `electron/ipc/trustedIpc.ts`. Raw `ipcMain.handle` is not an application extension point. Tests may mock the wrapper for domain behavior, while `trustedIpc.test.ts` protects the real sender boundary.
+Handlers the UI can call must register through `electron/ipc/trustedIpc.ts`. Do not treat raw `ipcMain.handle` as a free-for-all extension point. Domain tests may mock the wrapper; `trustedIpc.test.ts` protects the real sender checks.
 
-## Validation ownership
+## Who validates what
 
-| Domain                   | Main registration                                   | Validation authority                                                                                        |
-| ------------------------ | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| Chat/folders/tool media  | `electron/ipc/chatStoreHandlers.ts`                 | Bounded runtime schemas in `chatStoreValidation.ts`; media refs resolve main-side                           |
-| Secrets                  | `electron/ipc/secureStorageHandlers.ts`             | Fixed secret-key union; values remain main-only after write                                                 |
-| Provider runtime         | `electron/ipc/providerRuntimeHandlers.ts`           | Fixed provider IDs, operations, endpoints, regions, and main-resolved credentials                           |
-| Built-in tools           | `electron/tools/index.ts`                           | Exact tool-name contract plus complete closed JSON Schema; approval context is separate from model args     |
-| Background window guard  | `electron/tools/background-window/*`                | Main-resolved HWND/PID/start identity, sender + run ownership, fixed overlay actions, and lifecycle release |
-| MCP                      | `electron/mcp/index.ts`                             | Saved server IDs and typed payloads; OAuth endpoints and secrets remain main-owned                          |
-| Scheduled tasks          | `electron/ipc/monitorHandlers.ts`                   | Typed bounded task inputs plus extension-state gate                                                         |
-| System/window operations | `electron/ipc/systemHandlers.ts` and window modules | Capability-specific allowlists and sender-window ownership                                                  |
+| Area | Main home | What must be true |
+| ---- | --------- | ----------------- |
+| Chats / folders / tool media | `chatStoreHandlers.ts` | Bounded schemas; media refs resolve only inside user data |
+| Secrets | `secureStorageHandlers.ts` | Fixed key names; values stay in main after write |
+| Provider runtime | `providerRuntimeHandlers.ts` | Fixed providers/ops; credentials resolved in main |
+| Built-in tools | `electron/tools/` | Exact tool names + closed schemas; approval is separate from model args |
+| Background window | `electron/tools/background-window/` | Main owns HWND/PID identity and run ownership |
+| MCP | `electron/mcp/` | Saved server IDs; secrets and OAuth stay main-owned |
+| Scheduled tasks | `monitorHandlers.ts` | Bounded task payloads; respect feature enablement |
+| Windows / shell | window and system modules | Sender-owned window; capability allowlists |
 
-When adding a channel, document its domain, direction, argument bounds, return shape, privilege level, and cleanup owner in this table or a linked domain document.
+When you add a channel, write down domain, direction, argument bounds, return shape, privilege, and who cleans it up.
 
-## Subscription rules
+## Subscriptions
 
-Preload listeners must wrap `IpcRendererEvent` and forward only validated payload arguments. Never pass Electron event objects, senders, ports, frames, or webContents capabilities into the renderer.
+Listeners in preload should strip Electron event objects and only forward clean payloads. Subscription APIs return a real unsubscribe function.
 
-Subscription APIs return an unsubscribe function that removes the exact wrapped listener. Prefer dedicated named subscription bridges for privileged or complex event payloads. The small generic bridge may expose only explicitly allowlisted notification channels.
+Channel allowlists live in `src/electron/ipcChannelManifest.ts` and are derived for preload. Do not invent a second handwritten list in `preload.ts`. Privileged MCP, provider-runtime, and approval traffic stays off the generic invoke bridge.
 
-Generic and grouped dedicated channel allowlists are owned by `src/electron/ipcChannelManifest.ts`
-and derived by preload; do not add a second literal allowlist
-inside `electron/preload.ts`. Drift tests reject duplicate ownership and verify that privileged MCP,
-provider-runtime, and approval channels stay out of the generic invoke bridge.
+## Tool calls specifically
 
-## Tool execution context
+`execute-tool` has two inputs:
 
-`execute-tool` has two logically separate inputs:
+1. **Model-visible arguments** — closed schema, validated in main
+2. **Execution context** — approval tokens, chat-run IDs, and similar authority that main issued
 
-1. Model-visible arguments, validated against a closed schema.
-2. Main-verifiable execution context, such as a one-use approval token or opaque chat-run ID.
-
-Reserved authority fields (`autoApprove`, `approvalToken`, `_agentSkills`, and background-window run ownership) are not valid model arguments. Approval tokens are issued by main, bound to sender + exact tool + exact arguments, expire, and are consumed once. The renderer's `window.backgroundWindow` bridge may only release its own run and receive a sanitized stop event; target identity and overlay control stay in main. See `docs/TOOLS_SECURITY.md` and `docs/CREATING_BUILTIN_TOOLS.md`.
+Fields like `autoApprove` are never valid model arguments. See [`TOOLS_SECURITY.md`](TOOLS_SECURITY.md) and [`CREATING_BUILTIN_TOOLS.md`](CREATING_BUILTIN_TOOLS.md).
 
 ## Change checklist
 
-1. Add or update the typed contract in `src/electron/types.ts`.
-2. Add the channel to `src/electron/ipcChannelManifest.ts` and implement the narrow preload bridge or allowlisted subscription.
-3. Register through `trustedIpcMain` and validate every runtime input in main.
-4. Return sanitized serializable data only.
-5. Provide disposer/unregister behavior for handlers and listeners.
-6. Add rejection tests for malformed, oversized, wrong-sender, and unauthorized requests.
-7. Update `AGENTS.md` when channel names, data flow, storage authority, or capabilities change.
+1. Update types in `src/electron.d.ts` / related contracts
+2. Add the channel to the manifest and a narrow preload bridge
+3. Register with `trustedIpc` and validate every input in main
+4. Return only sanitized, serializable data
+5. Dispose handlers/listeners cleanly
+6. Test bad, oversized, wrong-sender, and unauthorized calls
+7. Update `AGENTS.md` if capability or data flow changed

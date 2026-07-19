@@ -1,6 +1,6 @@
-# ZuraAI
+# zuraai
 
-Command-line launcher for the ZuraAI desktop app.
+Small command-line helper for the **ZuraAI desktop app**.
 
 ```sh
 zuraai
@@ -8,7 +8,8 @@ zuraai open
 zuraai chat "summarize this repo"
 ```
 
-The launcher supports macOS and Windows. Install the desktop app first, then use
-`zuraai` from your terminal to open it.
+Install the desktop app first (GitHub Releases), then use `zuraai` from a terminal to open it or deep-link into a chat.
 
-Visit [zuraai.in](https://zuraai.in).
+Works on macOS and Windows.
+
+Site: [zuraai.in](https://zuraai.in)

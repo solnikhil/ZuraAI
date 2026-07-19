@@ -1,69 +1,57 @@
-# Chat Run Lifecycle
+# Chat run lifecycle
 
-This document defines the renderer chat-run invariants that send, regenerate, research, and tool loops must share.
+This describes how a chat send (or regenerate) moves from click to finished message. Send, regenerate, research loops, and tool loops should share the same rules.
 
-## State machine
+## States
 
 ```text
 idle
-  -> preparing
-  -> streaming
-  -> awaiting_tool
-  -> executing_tools
-  -> streaming (next model round)
-  -> finalizing
-  -> completed
+  → preparing
+  → streaming
+  → awaiting_tool / executing_tools
+  → streaming again (next model round)
+  → finalizing
+  → completed
 
-Any active state -> cancelling -> cancelled
-Any active state -> failed
+Any active state → cancelling → cancelled
+Any active state → failed
 ```
 
-`preparing` resolves the selected provider/model, main-owned credential availability, conversation window, memories, folder context, and request options. It must not mutate the saved assistant response.
+- **preparing** — pick provider/model, check credentials, build conversation window, memories, and options. Do not rewrite the saved assistant answer here.
+- **streaming** — consume clean provider events (text, reasoning, usage, tools are separate channels).
+- **executing_tools** — validate args, enforce budgets, request approvals, record results, prepare the next model round. Only native provider tool calls run.
+- **finalizing** — one place that commits the assistant message, usage across rounds, latency, tool/reasoning blocks, titles/memory follow-ups, and diagnostics.
 
-`streaming` consumes sanitized provider events. Visible text, reasoning, usage, tool calls, and diagnostics are distinct event channels even when rendered together.
+## Rules that must not break
 
-`executing_tools` validates model arguments, applies budgets, requests approval where required, records results, and appends the next model-round context. Only native provider tool calls are executable.
-
-`finalizing` is the single authority for committing the assistant message, usage across every round, latency, reasoning/tool blocks, response version, title/memory follow-ups, and diagnostics completion.
-
-## Required invariants
-
-- Send and regenerate use the same request builder and run controller. Regenerate changes response-version selection but not provider/tool semantics.
-- One run has one `AbortController`; cancellation propagates to provider I/O and stops scheduling additional tool/model rounds.
-- Completion, failure, and cancellation finalize at most once.
-- Streaming callbacks may update an in-memory draft, but persisted chat state changes through immutable context actions only.
-- Tool/research budgets are checked before execution and accumulated across all model rounds.
-- The same recognized infrastructure error from two distinct tools is a systemic runtime failure. The loop stops immediately, retains the tool results for diagnostics, removes speculative narration, and returns a deterministic message that explicitly disclaims observations and actions.
-- Usage is aggregated losslessly across rounds; estimated fields remain marked estimated.
-- A final assistant answer is not replaced by empty synthesis. Exhausted research produces the best supported result with explicit unknowns.
-- Background automation runs write only to their designated chat and never switch the active session.
-- Every interactive chat run carries its opaque `ChatRunController.id` through trusted tool execution context. It is not a model argument. Main binds background-window ownership to this ID plus the sender `webContents`.
-- Terminal finalization notifies main to release the run's background guard. A sanitized guard stop/target-loss event cancels only the matching active run; it cannot cancel a different run or renderer.
+- Send and regenerate share the same controller and request builder. Regenerate only changes which response version is selected.
+- One run has one `AbortController`. Cancel stops provider I/O and further tool rounds.
+- Complete, fail, or cancel **once**.
+- Live UI can draft in memory; durable chat updates go through immutable chat actions.
+- Tool and research budgets apply before execution and across every model round.
+- If two different tools hit the same infrastructure failure, stop the loop, keep the tool results, drop speculative narration, and show a clear “we did not observe/act beyond this” message.
+- Aggregate usage across every round; mark estimates as estimates.
+- Do not replace a real answer with empty synthesis.
+- Background automation runs write to their own chat and must not steal focus.
+- Every interactive run carries an opaque run id through **trusted tool context**, not model arguments. Main binds background-window ownership to that id and the sender window.
+- When a run ends, release any background guard. Guard stop events cancel only that run.
 
 ## Persistence interaction
 
-The chat context queues immutable session snapshots. A failed write remains dirty and is retried; newer snapshots supersede older pending snapshots without being lost. Index/session writes are tracked so self-generated store-change events are not mistaken for external edits.
+Chat context queues immutable session snapshots. A failed write stays dirty and retries; newer snapshots win without being dropped. Self-triggered store events must not look like external edits.
 
-Run finalization schedules persistence but does not assume a disk write completed synchronously. App shutdown and provider unmount perform best-effort flushing; main storage remains the transactional authority.
+Finalization schedules persistence; it does not wait for disk. Shutdown does a best-effort flush. Main storage remains the source of truth.
 
-## Implementation ownership
+## Code ownership
 
-- `chatRunController.ts` owns lifecycle transitions, the one abort signal, and exactly-once terminal finalization.
-- `chatRunRequest.ts` builds the common provider request for send and regenerate using `streaming/chatRunConfig.ts`.
-- `chatRunFinalization.ts` owns shared result-to-message updates and cleanup-safe lifecycle finalization.
-- `useStreamingChat.ts` adapts React contexts and UI callbacks to those runtime primitives.
-- `providerEventAccumulator.ts`, `researchLoopPolicy.ts`, `providerSynthesis.ts`, and `providerStreamFinalization.ts` isolate provider event, research, synthesis, and result-finalization concerns from the React hook.
+| Module | Role |
+| ------ | ---- |
+| `chatRunController.ts` | Lifecycle, abort, once-only terminal states |
+| `chatRunRequest.ts` / `chatRunConfig.ts` | Shared request construction |
+| `chatRunFinalization.ts` | Commit message + cleanup |
+| `useStreamingChat.ts` | React/context adapter |
+| stream modules under `streaming/` | Provider events, research policy, synthesis |
 
-## Test contract
+## Tests
 
-Lifecycle tests should cover:
-
-- Send and regenerate parity
-- Cancellation during preparation, stream, approval, and tool execution
-- Provider error before and after visible output
-- Multiple tool/model rounds with lossless usage
-- Research budget exhaustion and empty synthesis recovery
-- Systemic tool-runtime failure across distinct tools without further model/tool retries or ungrounded claims
-- Immutable response versions
-- Exactly-once finalization
-- Persistence failure followed by a newer snapshot and retry
+Cover send and regenerate parity, cancel mid-stream, tool approval paths, multi-round usage, infrastructure double-failure, and background-run isolation. See existing tests under `src/components/Dashboard/ChatArea/hooks/`.

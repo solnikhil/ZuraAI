@@ -1,52 +1,50 @@
-# Provider Integration Guide
+# Provider integrations
 
-This document describes the supported extension points and verification contract for ZuraAI model providers.
+How model providers plug into ZuraAI, and what “done” looks like when you add or change one.
 
-## Ownership boundaries
+## Who owns what
 
-- `src/providers/providerRegistry.ts` owns provider identity, settings fields, capabilities, endpoints, retry policy, and model-list integration.
-- `src/providers/providerRuntime.ts` dispatches platform-neutral generation and streaming requests.
-- `src/services/<provider>.ts` owns provider-specific request shaping and response parsing.
-- `electron/ipc/providerRuntimeHandlers.ts` owns the privileged network boundary, credentials, and renderer request validation.
-- `packages/provider-core` owns platform-neutral errors, usage aggregation, tool-call validation, and stream contracts.
-- Main-only providers such as ChatGPT Codex remain under `electron/providers/`.
+| Piece | Responsibility |
+| ----- | -------------- |
+| `src/providers/providerRegistry.ts` | Identity, capabilities, endpoints, settings fields, model-list wiring |
+| `src/providers/providerRuntime.ts` | Platform-neutral dispatch for generate/stream |
+| `src/services/<provider>.ts` | Request shaping and response parsing for that provider |
+| `electron/ipc/providerRuntimeHandlers.ts` | Privileged network boundary, credentials, request validation |
+| `packages/provider-core` | Shared errors, usage aggregation, tool validation, stream contracts |
+| `electron/providers/` | Main-only exceptions such as ChatGPT Codex OAuth |
 
-Runtime dispatch must not contain an undated list of live model IDs. When an API does not expose required capability or protocol metadata, place the smallest possible dated catalog in `src/providers/`, identify its source, and define explicit behavior for unknown models.
+Do not hardcode long undated lists of live model IDs in runtime dispatch. If a provider needs a small curated catalog, date it, cite the source, and define behavior for unknown models.
 
 ## Adding or changing a provider
 
-1. Add or update the registry descriptor, including auth, capability, endpoint, retry, model-list, and settings metadata.
-2. Implement a service adapter. Reject malformed provider frames; do not silently skip or repair them.
-3. Map all supported request options deliberately: abort signal, output-token limit, temperature, tools, tool choice, reasoning, images, and provider-specific cache/session metadata.
-4. Normalize streaming and non-streaming output into the provider-core contracts without losing usage fields.
-5. Resolve credentials only in main. Renderer requests must not include secrets, arbitrary endpoints, headers, or methods.
-6. Add request-shaping and parser tests before exposing the provider in Settings.
-7. Update `AGENTS.md` whenever the provider, secret boundary, endpoint policy, or data flow changes.
+1. Update the registry entry (auth, capabilities, endpoints, retries, model lists, settings).
+2. Implement a service adapter. Bad stream frames should fail visibly — not be silently repaired.
+3. Map request options on purpose: abort, token limits, temperature, tools, reasoning, images, cache fields.
+4. Normalize output into provider-core shapes without dropping usage fields.
+5. Resolve credentials only in main. UI requests must not carry secrets or arbitrary URLs/headers.
+6. Write request and parser tests before shipping the Settings UI.
+7. Update `AGENTS.md` if secrets, endpoints, or data flow changed.
 
-## Adapter conformance tests
+## Adapter tests worth having
 
-Every provider adapter should cover the applicable cases:
-
-- Streaming and non-streaming request parity
-- Output-token and temperature mapping
-- Abort propagation
+- Streaming and non-streaming parity
+- Token limit and temperature mapping
+- Abort actually cancels work
 - Text, reasoning, and tool-call deltas
-- Image input/output when supported
-- Lossless usage aggregation
-- Malformed SSE or NDJSON frames
-- Retry only before visible output
-- Explicit unknown-model behavior when catalog metadata affects transport
+- Images when supported
+- Usage aggregation without loss
+- Malformed SSE/NDJSON fails closed
+- Retries only before any visible output
+- Explicit behavior for unknown models
 
-Use obviously fake model IDs in ordinary tests. A real ID is acceptable only in a dated curated-catalog test whose purpose is to protect documented transport metadata.
+Use fake model IDs in ordinary tests. Real IDs belong only in dated catalog tests that protect documented transport rules.
 
-## Provider-core package
+## provider-core package
 
-`packages/provider-core` is independently buildable and produces declarations under `dist/`:
-
-```sh
+```bash
 bun run build:provider-core
 bun run --cwd packages/provider-core typecheck
 bun run --cwd packages/provider-core test
 ```
 
-The root build runs the provider-core build before bundling the Electron application. Generated `dist/` output is not committed.
+Root builds compile this package first. Generated `dist/` output is not committed.

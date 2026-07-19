@@ -1,44 +1,42 @@
-# Main-process persistence
+# How ZuraAI saves data
 
-ZuraAI keeps privileged and durable application state in Electron main. This document defines the
-minimum invariants for JSON stores under `app.getPath('userData')`.
+Privileged and durable data is owned by the Electron main process under the OS user-data folder. This page is the short rulebook for JSON stores that can be rewritten at runtime.
 
-## Writes and transactions
+## Writing safely
 
-- Use `electron/utils/atomicFile.ts` for runtime JSON replacement. It writes and syncs a unique
-  temporary file before replacing the destination.
-- Use `RecoverableSerializedTaskQueue` when operations share mutable state. A task failure is returned
-  to its caller, but the queue absorbs that rejection for scheduling purposes so later work still runs.
-- Put the complete read-modify-write operation inside the queue. Serializing only `writeFileAtomic`
-  still permits two callers to derive different updates from the same stale snapshot.
-- Publish a cache update only after the durable replacement succeeds, and cache copies rather than
-  caller-owned mutable objects.
+- Use atomic writes (`electron/utils/atomicFile.ts`): write a temp file, sync, then replace the real file.
+- When several operations share the same on-disk state, put the whole read-modify-write cycle in a serialized queue. Serializing only the final rename is not enough — two callers can still compute updates from the same stale snapshot.
+- Update in-memory caches only after the durable write succeeds.
+- Never hand out mutable cache objects by reference.
 
-The chat index follows these rules for session metadata, deletes, and folder changes. Session content
-is written before its index entry is published. A failed index write may therefore leave an orphaned
-session file, but it must not publish metadata for an incomplete session write. Recovery tooling may
-reconcile orphan files later; ordinary reads treat the index as authoritative.
+### Chat index example
 
-Secure storage serializes reads and mutations because every key update rewrites the encrypted JSON
-object. Decrypted values are cached briefly as an internal snapshot only. They are never exposed to
-the renderer or returned by reference to another main-process caller.
+Session content is written before the index entry is published. If the index write fails, you might get an orphan session file, but you should not publish metadata for a half-written session. Ordinary reads treat the index as the source of truth.
 
-## Read failures
+### Secure storage
 
-Handle failures by category:
+API keys and similar secrets are rewritten as whole encrypted documents. Reads and writes are serialized. Decrypted values stay inside main and are not returned by reference to callers or the UI.
 
-- `ENOENT`: the store has not been created; initialize empty state.
-- Invalid JSON or an invalid root shape: report corruption. The MCP config store may move proven
-  corrupt content to a timestamped `.corrupt-*` file before returning an empty configuration.
-- Operational errors such as `EACCES`, `EBUSY`, `EIO`, or a directory at the expected file path:
-  propagate the error. Do not return empty state and do not quarantine or overwrite the path.
+## Reading failures
 
-This distinction prevents a transient filesystem problem from appearing to the renderer as deleted
-user data and then being made permanent by a later save.
+Treat errors by type:
 
-## Regression coverage
+| Situation | Correct behavior |
+| --------- | ---------------- |
+| File missing (`ENOENT`) | Start with empty state |
+| Invalid JSON / wrong root shape | Treat as corruption (MCP may quarantine a proven-bad config file) |
+| Permission, lock, device, or other operational I/O errors | Surface the error. Do **not** pretend the store is empty |
 
-Persistence tests should include concurrent independent mutations, a failed task followed by a
-successful queued task, invalid JSON, missing files, and an operational read failure. Any new JSON
-store should document its authoritative file, cache ownership, transaction boundary, and recovery
-behavior here or in a more specific subsystem document.
+That last rule matters: a temporary filesystem problem must not look like “user deleted everything,” then get saved permanently.
+
+## Tests that should exist
+
+For any new JSON store, cover at least:
+
+- Concurrent independent mutations
+- A failed task that does not block later work
+- Invalid JSON
+- Missing file
+- Operational read failure
+
+Document the authoritative file, who owns the cache, the transaction boundary, and recovery behavior either here or in a more specific guide.
