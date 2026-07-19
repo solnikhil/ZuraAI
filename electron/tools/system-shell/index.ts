@@ -151,8 +151,10 @@ export async function executeSystemShell(args: unknown): Promise<ToolResult> {
       }
     }
 
+    const succeeded = exitCode === 0
     return {
-      success: true,
+      success: succeeded,
+      ...(!succeeded ? { error: `Terminal command exited with code ${exitCode}.` } : {}),
       data: {
         command,
         cwd: resolvedCwd ?? process.cwd(),

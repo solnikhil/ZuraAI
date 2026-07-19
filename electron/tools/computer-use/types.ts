@@ -14,20 +14,24 @@ export interface ScreenshotArgs {
 }
 
 export interface ClickArgs {
+  screenshot_id: string
   x: number
   y: number
   button?: 'left' | 'right' | 'middle'
 }
 
 export interface TypeArgs {
+  screenshot_id: string
   text: string
 }
 
 export interface KeyArgs {
+  screenshot_id: string
   key: string
 }
 
 export interface ScrollArgs {
+  screenshot_id: string
   x: number
   y: number
   direction: 'up' | 'down' | 'left' | 'right'
@@ -35,6 +39,7 @@ export interface ScrollArgs {
 }
 
 export interface CursorPositionArgs {
+  screenshot_id: string
   x: number
   y: number
 }

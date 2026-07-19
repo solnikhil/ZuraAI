@@ -247,7 +247,7 @@ Safety rules:
   },
   computer_screenshot: {
     description:
-      'Capture visual context for Computer Use. Prefer targeting a specific app/window with window_id, window_title, or app_name when the task is about one app; use a full display capture only for desktop-wide or visual layout tasks. Returns a base64 PNG image with dimensions and coordinate metadata used by follow-up actions.',
+      'Capture visual context for Computer Use. Prefer targeting a specific app/window with window_id, window_title, or app_name. Returns a base64 PNG, dimensions, and a run-scoped screenshotId that must be passed to the next physical action.',
     parameters: {
       type: 'object',
       description: 'Arguments for capturing a display or a specific app/window.',
@@ -283,6 +283,10 @@ Safety rules:
       type: 'object',
       description: 'Arguments for clicking.',
       properties: {
+        screenshot_id: {
+          type: 'string',
+          description: 'Exact screenshotId from the latest screenshot or physical action result.',
+        },
         x: { type: 'number', description: 'X coordinate in pixels from the latest screen image.' },
         y: { type: 'number', description: 'Y coordinate in pixels from the latest screen image.' },
         button: {
@@ -292,7 +296,7 @@ Safety rules:
           default: 'left',
         },
       },
-      required: ['x', 'y'],
+      required: ['screenshot_id', 'x', 'y'],
     },
     category: 'computer-use',
     origin: 'builtin-main',
@@ -304,9 +308,13 @@ Safety rules:
       type: 'object',
       description: 'Arguments for typing text.',
       properties: {
+        screenshot_id: {
+          type: 'string',
+          description: 'Exact screenshotId returned after clicking the target input field.',
+        },
         text: { type: 'string', description: 'Text to type.' },
       },
-      required: ['text'],
+      required: ['screenshot_id', 'text'],
     },
     category: 'computer-use',
     origin: 'builtin-main',
@@ -318,12 +326,16 @@ Safety rules:
       type: 'object',
       description: 'Arguments for pressing keys.',
       properties: {
+        screenshot_id: {
+          type: 'string',
+          description: 'Exact screenshotId from the latest screenshot or physical action result.',
+        },
         key: {
           type: 'string',
           description: 'Key or combo string, e.g. "enter", "ctrl+c", "alt+tab".',
         },
       },
-      required: ['key'],
+      required: ['screenshot_id', 'key'],
     },
     category: 'computer-use',
     origin: 'builtin-main',
@@ -335,6 +347,10 @@ Safety rules:
       type: 'object',
       description: 'Arguments for scrolling.',
       properties: {
+        screenshot_id: {
+          type: 'string',
+          description: 'Exact screenshotId from the latest screenshot or physical action result.',
+        },
         x: {
           type: 'number',
           description: 'X coordinate from the latest screen image to scroll at.',
@@ -350,7 +366,7 @@ Safety rules:
         },
         amount: { type: 'number', description: 'Scroll amount in clicks (default 3).', default: 3 },
       },
-      required: ['x', 'y', 'direction'],
+      required: ['screenshot_id', 'x', 'y', 'direction'],
     },
     category: 'computer-use',
     origin: 'builtin-main',
@@ -362,10 +378,14 @@ Safety rules:
       type: 'object',
       description: 'Arguments for moving the cursor.',
       properties: {
+        screenshot_id: {
+          type: 'string',
+          description: 'Exact screenshotId from the latest screenshot or physical action result.',
+        },
         x: { type: 'number', description: 'X coordinate in pixels from the latest screen image.' },
         y: { type: 'number', description: 'Y coordinate in pixels from the latest screen image.' },
       },
-      required: ['x', 'y'],
+      required: ['screenshot_id', 'x', 'y'],
     },
     category: 'computer-use',
     origin: 'builtin-main',
@@ -746,7 +766,7 @@ Safety rules:
   },
   app_find: {
     description:
-      'Find installed Windows apps using the native Windows app index. Prefer this before app_launch.',
+      'Find installed Windows apps using the native Windows app index. Prefer this before app_launch, then pass the exact returned id to app_launch.',
     parameters: {
       type: 'object',
       description: 'Arguments for finding an app.',
@@ -760,11 +780,15 @@ Safety rules:
   },
   app_launch: {
     description:
-      'Launch a Windows app by name or path using native app launching. Requires approval.',
+      'Request launch of a Windows app. Prefer the opaque itemId returned by app_find/app_list; do not reconstruct an app path. Requires approval. Verify the window appeared before claiming success.',
     parameters: {
       type: 'object',
       description: 'Arguments for launching an app.',
       properties: {
+        itemId: {
+          type: 'string',
+          description: 'Preferred opaque app id returned by app_find or app_list.',
+        },
         nameOrPath: { type: 'string', description: 'App executable/name or .lnk path.' },
         appUserModelId: {
           type: 'string',

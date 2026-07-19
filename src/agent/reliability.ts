@@ -81,6 +81,13 @@ function isAppWindowMutation(toolName: string): boolean {
 function isSuccessfulMutatingResult(result: ToolCallResult): boolean {
   const toolName = result.toolCall.name
   if (!result.result?.success) return false
+  if (
+    toolName === 'system_shell' &&
+    typeof (result.result.data as { exitCode?: unknown } | undefined)?.exitCode === 'number' &&
+    (result.result.data as { exitCode: number }).exitCode !== 0
+  ) {
+    return false
+  }
   if (READ_ONLY_TOOL_NAMES.has(toolName)) return false
   if (FILE_MUTATION_TOOLS.has(toolName)) return true
   if (VISUAL_MUTATION_TOOLS.has(toolName)) return true

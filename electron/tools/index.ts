@@ -175,17 +175,30 @@ async function releaseGuardForForegroundAction(context?: ToolHandlerContext): Pr
   await backgroundWindowCoordinator.release(requireBackgroundOwner(context), 'user-release')
 }
 
+function computerSessionKey(context?: ToolHandlerContext): string {
+  return context?.runId ? `${context.senderWebContentsId}:${context.runId}` : 'unscoped'
+}
+
 async function executeReservedScreenshot(
   args: unknown,
   context?: ToolHandlerContext
 ): Promise<ToolResult> {
-  if (!context?.runId) return executeScreenshot(normalizeScreenshotArgs(args))
+  if (!context?.runId) {
+    return executeScreenshot(normalizeScreenshotArgs(args), {
+      sessionKey: computerSessionKey(context),
+    })
+  }
   const target = backgroundWindowCoordinator.status(requireBackgroundOwner(context))
-  if (!target) return executeScreenshot(normalizeScreenshotArgs(args))
+  if (!target) {
+    return executeScreenshot(normalizeScreenshotArgs(args), {
+      sessionKey: computerSessionKey(context),
+    })
+  }
   // The attach lifecycle already owns Esc+Esc. Do not replace its callback with the
   // ordinary foreground Computer Use abort handler just to take a read-only capture.
   const result = await executeScreenshot(scopeScreenshotToBackgroundTarget(target), {
     registerEmergencyStop: false,
+    sessionKey: computerSessionKey(context),
   })
   return normalizeBackgroundScreenshotResult(result, target)
 }
@@ -302,7 +315,10 @@ function normalizeScreenshotArgs(args: unknown): ScreenshotArgs {
 function normalizeTypeArgs(args: unknown): { args: TypeArgs; autoApprove: boolean } {
   const r = typeof args === 'object' && args !== null ? (args as Record<string, unknown>) : {}
   return {
-    args: { text: typeof r.text === 'string' ? r.text : '' },
+    args: {
+      screenshot_id: typeof r.screenshot_id === 'string' ? r.screenshot_id : '',
+      text: typeof r.text === 'string' ? r.text : '',
+    },
     autoApprove: r.autoApprove === true,
   }
 }
@@ -310,7 +326,10 @@ function normalizeTypeArgs(args: unknown): { args: TypeArgs; autoApprove: boolea
 function normalizeKeyArgs(args: unknown): { args: KeyArgs; autoApprove: boolean } {
   const r = typeof args === 'object' && args !== null ? (args as Record<string, unknown>) : {}
   return {
-    args: { key: typeof r.key === 'string' ? r.key : '' },
+    args: {
+      screenshot_id: typeof r.screenshot_id === 'string' ? r.screenshot_id : '',
+      key: typeof r.key === 'string' ? r.key : '',
+    },
     autoApprove: r.autoApprove === true,
   }
 }
@@ -380,27 +399,27 @@ const toolHandlers: Record<BuiltinMainToolName, ToolHandler> = {
   computer_click: async (args, context) => {
     await releaseGuardForForegroundAction(context)
     const n = normalizeClickArgs(args)
-    return executeClick(n.args, n.autoApprove, spotlightFn)
+    return executeClick(n.args, n.autoApprove, spotlightFn, computerSessionKey(context))
   },
   computer_type: async (args, context) => {
     await releaseGuardForForegroundAction(context)
     const n = normalizeTypeArgs(args)
-    return executeType(n.args, n.autoApprove)
+    return executeType(n.args, n.autoApprove, computerSessionKey(context))
   },
   computer_key: async (args, context) => {
     await releaseGuardForForegroundAction(context)
     const n = normalizeKeyArgs(args)
-    return executeKey(n.args, n.autoApprove)
+    return executeKey(n.args, n.autoApprove, computerSessionKey(context))
   },
   computer_scroll: async (args, context) => {
     await releaseGuardForForegroundAction(context)
     const n = normalizeScrollArgs(args)
-    return executeScroll(n.args, n.autoApprove, spotlightFn)
+    return executeScroll(n.args, n.autoApprove, spotlightFn, computerSessionKey(context))
   },
   computer_cursor_position: async (args, context) => {
     await releaseGuardForForegroundAction(context)
     const n = normalizeCursorArgs(args)
-    return executeCursorPosition(n.args, n.autoApprove, spotlightFn)
+    return executeCursorPosition(n.args, n.autoApprove, spotlightFn, computerSessionKey(context))
   },
   computer_list_windows: () => executeListWindows(),
   ui_get_app_state: (args, context) => executeUiGetAppState(scopeToReservedWindow(args, context)),

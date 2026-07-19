@@ -1,4 +1,5 @@
 import type { ToolResult } from '../types'
+import { createHash, randomUUID } from 'crypto'
 import type {
   ScreenshotArgs,
   ClickArgs,
@@ -30,8 +31,42 @@ let approvalManager: ComputerUseApprovalManager | null = null
 let actionCount = 0
 let aborted = false
 const maxActions = MAX_ACTIONS_PER_SESSION
-let latestCoordinateContext: ScreenshotCoordinateContext | null = null
-let latestScreenshotArgs: ScreenshotArgs = {}
+interface ScreenshotSessionState {
+  coordinateContext: ScreenshotCoordinateContext
+  screenshotArgs: ScreenshotArgs
+  screenshotHash: string
+  screenshotId: string
+}
+
+const MAX_SCREENSHOT_SESSIONS = 32
+const screenshotSessions = new Map<string, ScreenshotSessionState>()
+
+function screenshotHash(image: string): string {
+  return createHash('sha256').update(image).digest('base64url')
+}
+
+function rememberScreenshot(sessionKey: string, state: ScreenshotSessionState): void {
+  screenshotSessions.delete(sessionKey)
+  screenshotSessions.set(sessionKey, state)
+  while (screenshotSessions.size > MAX_SCREENSHOT_SESSIONS) {
+    const oldest = screenshotSessions.keys().next().value
+    if (typeof oldest !== 'string') break
+    screenshotSessions.delete(oldest)
+  }
+}
+
+function requireScreenshotSession(sessionKey: string, screenshotId: string): ScreenshotSessionState {
+  const state = screenshotSessions.get(sessionKey)
+  if (!state) {
+    throw new Error('No screen context is available for this run. Use computer_screenshot first.')
+  }
+  if (state.screenshotId !== screenshotId) {
+    throw new Error(
+      'The screenshot_id is stale or belongs to another action sequence. Capture a fresh screenshot and retry.'
+    )
+  }
+  return state
+}
 
 export function setApprovalManager(manager: ComputerUseApprovalManager): void {
   approvalManager = manager
@@ -42,6 +77,7 @@ export function abortSession(): void {
   actionCount = 0
   approvalManager?.dispose()
   unregisterKillSwitch()
+  screenshotSessions.clear()
 }
 
 function resetAbortOnNewTask(): void {
@@ -73,7 +109,7 @@ async function gateApproval(
 
 export async function executeScreenshot(
   args: ScreenshotArgs,
-  options: { registerEmergencyStop?: boolean } = {}
+  options: { registerEmergencyStop?: boolean; sessionKey?: string } = {}
 ): Promise<ToolResult> {
   resetAbortOnNewTask()
   if (options.registerEmergencyStop !== false) registerKillSwitch(() => abortSession())
@@ -84,12 +120,19 @@ export async function executeScreenshot(
       windowTitle: args.window_title,
       appName: args.app_name,
     })
-    latestCoordinateContext = result.coordinateContext
-    latestScreenshotArgs = { ...args }
+    const sessionKey = options.sessionKey ?? 'unscoped'
+    const screenshotId = randomUUID()
+    rememberScreenshot(sessionKey, {
+      coordinateContext: result.coordinateContext,
+      screenshotArgs: { ...args },
+      screenshotHash: screenshotHash(result.image),
+      screenshotId,
+    })
     return {
       success: true,
       data: {
         action: 'screenshot',
+        screenshotId,
         image: result.image,
         screenWidth: result.width,
         screenHeight: result.height,
@@ -104,11 +147,12 @@ export async function executeScreenshot(
 
 async function executeAction(
   action: ComputerActionType,
-  args: object,
+  args: { screenshot_id: string },
   executor: () => Promise<void>,
   autoApprove: boolean,
   showSpotlightFn?: (opts: { x: number; y: number; label?: string }) => Promise<void>,
-  spotlightPoint?: DesktopPoint
+  spotlightPoint?: DesktopPoint,
+  sessionKey = 'unscoped'
 ): Promise<ToolResult> {
   if (aborted)
     return {
@@ -116,6 +160,13 @@ async function executeAction(
       error:
         'Computer use session was aborted. Check the screen again to start a new action sequence.',
     }
+
+  let before: ScreenshotSessionState
+  try {
+    before = requireScreenshotSession(sessionKey, args.screenshot_id)
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'Invalid screenshot context.' }
+  }
 
   actionCount++
   if (actionCount > maxActions) {
@@ -148,16 +199,25 @@ async function executeAction(
 
     // Post-action screen capture
     const screenshot = await captureScreenshot({
-      displayId: latestScreenshotArgs.display_id ?? latestCoordinateContext?.displayId,
-      windowId: latestScreenshotArgs.window_id,
-      windowTitle: latestScreenshotArgs.window_title,
-      appName: latestScreenshotArgs.app_name,
+      displayId: before.screenshotArgs.display_id ?? before.coordinateContext.displayId,
+      windowId: before.screenshotArgs.window_id,
+      windowTitle: before.screenshotArgs.window_title,
+      appName: before.screenshotArgs.app_name,
     })
-    latestCoordinateContext = screenshot.coordinateContext
+    const afterHash = screenshotHash(screenshot.image)
+    const screenshotId = randomUUID()
+    rememberScreenshot(sessionKey, {
+      coordinateContext: screenshot.coordinateContext,
+      screenshotArgs: before.screenshotArgs,
+      screenshotHash: afterHash,
+      screenshotId,
+    })
     return {
       success: true,
       data: {
         action,
+        screenshotId,
+        visualChange: afterHash === before.screenshotHash ? 'unchanged' : 'changed',
         screenshot: screenshot.image,
         screenWidth: screenshot.width,
         screenHeight: screenshot.height,
@@ -170,22 +230,26 @@ async function executeAction(
   }
 }
 
-function mapActionPoint(args: { x: number; y: number }): DesktopPoint {
-  if (!latestCoordinateContext) {
-    throw new Error(
-      'No screen context is available. Use computer_screenshot before clicking, scrolling, or moving the cursor.'
-    )
-  }
-
-  return mapScreenshotPointToDesktop({ x: args.x, y: args.y }, latestCoordinateContext)
+function mapActionPoint(
+  args: { screenshot_id: string; x: number; y: number },
+  sessionKey: string
+): DesktopPoint {
+  const state = requireScreenshotSession(sessionKey, args.screenshot_id)
+  return mapScreenshotPointToDesktop({ x: args.x, y: args.y }, state.coordinateContext)
 }
 
 export async function executeClick(
   args: ClickArgs,
   autoApprove: boolean,
-  showSpotlight?: (opts: { x: number; y: number; label?: string }) => Promise<void>
+  showSpotlight?: (opts: { x: number; y: number; label?: string }) => Promise<void>,
+  sessionKey = 'unscoped'
 ): Promise<ToolResult> {
-  const desktopPoint = mapActionPoint(args)
+  let desktopPoint: DesktopPoint
+  try {
+    desktopPoint = mapActionPoint(args, sessionKey)
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'Invalid screenshot context.' }
+  }
   const desktopArgs = { ...args, ...desktopPoint }
   return executeAction(
     'click',
@@ -193,24 +257,39 @@ export async function executeClick(
     () => performClick(desktopArgs),
     autoApprove,
     showSpotlight,
-    desktopPoint
+    desktopPoint,
+    sessionKey
   )
 }
 
-export async function executeType(args: TypeArgs, autoApprove: boolean): Promise<ToolResult> {
-  return executeAction('type', args, () => performType(args), autoApprove)
+export async function executeType(
+  args: TypeArgs,
+  autoApprove: boolean,
+  sessionKey = 'unscoped'
+): Promise<ToolResult> {
+  return executeAction('type', args, () => performType(args), autoApprove, undefined, undefined, sessionKey)
 }
 
-export async function executeKey(args: KeyArgs, autoApprove: boolean): Promise<ToolResult> {
-  return executeAction('key', args, () => performKeyPress(args), autoApprove)
+export async function executeKey(
+  args: KeyArgs,
+  autoApprove: boolean,
+  sessionKey = 'unscoped'
+): Promise<ToolResult> {
+  return executeAction('key', args, () => performKeyPress(args), autoApprove, undefined, undefined, sessionKey)
 }
 
 export async function executeScroll(
   args: ScrollArgs,
   autoApprove: boolean,
-  showSpotlight?: (opts: { x: number; y: number; label?: string }) => Promise<void>
+  showSpotlight?: (opts: { x: number; y: number; label?: string }) => Promise<void>,
+  sessionKey = 'unscoped'
 ): Promise<ToolResult> {
-  const desktopPoint = mapActionPoint(args)
+  let desktopPoint: DesktopPoint
+  try {
+    desktopPoint = mapActionPoint(args, sessionKey)
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'Invalid screenshot context.' }
+  }
   const desktopArgs = { ...args, ...desktopPoint }
   return executeAction(
     'scroll',
@@ -218,16 +297,23 @@ export async function executeScroll(
     () => performScroll(desktopArgs),
     autoApprove,
     showSpotlight,
-    desktopPoint
+    desktopPoint,
+    sessionKey
   )
 }
 
 export async function executeCursorPosition(
   args: CursorPositionArgs,
   autoApprove: boolean,
-  showSpotlight?: (opts: { x: number; y: number; label?: string }) => Promise<void>
+  showSpotlight?: (opts: { x: number; y: number; label?: string }) => Promise<void>,
+  sessionKey = 'unscoped'
 ): Promise<ToolResult> {
-  const desktopPoint = mapActionPoint(args)
+  let desktopPoint: DesktopPoint
+  try {
+    desktopPoint = mapActionPoint(args, sessionKey)
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'Invalid screenshot context.' }
+  }
   const desktopArgs = { ...args, ...desktopPoint }
   return executeAction(
     'cursor_position',
@@ -235,7 +321,8 @@ export async function executeCursorPosition(
     () => performCursorMove(desktopArgs),
     autoApprove,
     showSpotlight,
-    desktopPoint
+    desktopPoint,
+    sessionKey
   )
 }
 

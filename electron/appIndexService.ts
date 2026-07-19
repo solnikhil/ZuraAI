@@ -1221,10 +1221,18 @@ export async function findApps(
   const trimmedQuery = query.trim()
   if (!trimmedQuery) return { matches: [], diagnostics }
 
-  if (isWindows())
-    void queryNativeStartApps(trimmedQuery, 1_000)
-      .then((nativeMatches) => {
-        if (nativeMatches.length === 0) return
+  const rankMatches = () =>
+    memoryApps
+    .map((entry) => ({ ...entry, rank: scoreApp(entry, trimmedQuery) }))
+    .filter((entry) => entry.rank > 0)
+    .sort((a, b) => b.rank - a.rank || a.name.localeCompare(b.name))
+    .slice(0, limit)
+
+  let matches = rankMatches()
+  if (isWindows() && matches.length === 0) {
+    try {
+      const nativeMatches = await queryNativeStartApps(trimmedQuery, 2_000)
+      if (nativeMatches.length > 0) {
         memoryApps = mergeApps(
           nativeMatches,
           memoryApps.map((entry) => ({
@@ -1239,10 +1247,8 @@ export async function findApps(
           })),
           memoryApps
         )
-        diagnostics = {
-          ...diagnostics,
-          sourceCounts: sourceCounts(memoryApps),
-        }
+        diagnostics = { ...diagnostics, sourceCounts: sourceCounts(memoryApps) }
+        matches = rankMatches()
         void saveSnapshot(memoryApps, Date.now()).catch((error) => {
           diagnostics = {
             ...diagnostics,
@@ -1251,14 +1257,16 @@ export async function findApps(
             error: `snapshot: ${error instanceof Error ? error.message : 'failed'}`,
           }
         })
-      })
-      .catch(() => undefined)
-
-  const matches = memoryApps
-    .map((entry) => ({ ...entry, rank: scoreApp(entry, trimmedQuery) }))
-    .filter((entry) => entry.rank > 0)
-    .sort((a, b) => b.rank - a.rank || a.name.localeCompare(b.name))
-    .slice(0, limit)
+      }
+    } catch (error) {
+      diagnostics = {
+        ...diagnostics,
+        ok: false,
+        stale: true,
+        error: `targeted-search: ${error instanceof Error ? error.message : 'failed'}`,
+      }
+    }
+  }
   return { matches, diagnostics }
 }
 

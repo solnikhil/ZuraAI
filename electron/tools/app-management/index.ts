@@ -5,6 +5,7 @@ import {
   listApps,
   recordAppLaunch,
   refreshAppIndex,
+  resolveAppIndexEntry,
   warmAppIndex,
 } from '../../appIndexService'
 import type { ToolResult } from '../types'
@@ -83,11 +84,26 @@ export async function executeAppLaunch(args: unknown): Promise<ToolResult> {
   if (!isWindows() && process.platform !== 'darwin') return unsupportedWindowsOnly('app_launch')
   const approval = requireApproval(args, 'app_launch')
   if (approval) return approval
-  const nameOrPath = stringArg(args, 'nameOrPath')
-  const appUserModelId = stringArg(args, 'appUserModelId')
+  let nameOrPath = stringArg(args, 'nameOrPath')
+  let appUserModelId = stringArg(args, 'appUserModelId')
   const itemId = stringArg(args, 'itemId')
+  if (itemId && (nameOrPath || appUserModelId)) {
+    return { success: false, error: 'itemId cannot be combined with nameOrPath or appUserModelId.' }
+  }
+  if (itemId) {
+    const entry = await resolveAppIndexEntry(itemId)
+    if (!entry) return { success: false, error: 'The selected app index entry no longer exists.' }
+    if (entry.launchStrategy === 'appUserModelId' && entry.appUserModelId) {
+      appUserModelId = entry.appUserModelId
+    } else {
+      nameOrPath = entry.shortcutPath ?? entry.targetPath ?? ''
+    }
+    if (!nameOrPath && !appUserModelId) {
+      return { success: false, error: 'The selected app has no valid launch target.' }
+    }
+  }
   if (!nameOrPath && !appUserModelId)
-    return { success: false, error: 'nameOrPath or appUserModelId is required.' }
+    return { success: false, error: 'itemId, nameOrPath, or appUserModelId is required.' }
   const looksLikePath =
     !!nameOrPath &&
     (nameOrPath.includes('\\') ||
@@ -123,7 +139,10 @@ export async function executeAppLaunch(args: unknown): Promise<ToolResult> {
     if (itemId) {
       await recordAppLaunch(itemId)
     }
-    return { success: true, data: { launched: nameOrPath || appUserModelId } }
+    return {
+      success: true,
+      data: { status: 'launch_requested', itemId: itemId || undefined, launched: nameOrPath || appUserModelId },
+    }
   } catch (error) {
     refreshAppIndex().catch(() => undefined)
     return { success: false, error: error instanceof Error ? error.message : 'app_launch failed.' }

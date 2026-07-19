@@ -15,11 +15,19 @@ function parseFiniteNumber(value: unknown, name: string): number {
   return parsed
 }
 
+function parseScreenshotId(value: unknown): string {
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new Error('Invalid screenshot_id: expected the latest screenshot id')
+  }
+  return value.trim()
+}
+
 export function normalizeClickArgs(args: unknown): { args: ClickArgs; autoApprove: boolean } {
   const r = typeof args === 'object' && args !== null ? (args as Record<string, unknown>) : {}
   const button = r.button === 'right' || r.button === 'middle' ? r.button : ('left' as const)
   return {
     args: {
+      screenshot_id: parseScreenshotId(r.screenshot_id),
       x: parseFiniteNumber(r.x, 'x coordinate'),
       y: parseFiniteNumber(r.y, 'y coordinate'),
       button,
@@ -36,6 +44,7 @@ export function normalizeScrollArgs(args: unknown): { args: ScrollArgs; autoAppr
   const amount = r.amount === undefined ? undefined : parseFiniteNumber(r.amount, 'scroll amount')
   return {
     args: {
+      screenshot_id: parseScreenshotId(r.screenshot_id),
       x: parseFiniteNumber(r.x, 'x coordinate'),
       y: parseFiniteNumber(r.y, 'y coordinate'),
       direction: dir,
@@ -52,6 +61,7 @@ export function normalizeCursorArgs(args: unknown): {
   const r = typeof args === 'object' && args !== null ? (args as Record<string, unknown>) : {}
   return {
     args: {
+      screenshot_id: parseScreenshotId(r.screenshot_id),
       x: parseFiniteNumber(r.x, 'x coordinate'),
       y: parseFiniteNumber(r.y, 'y coordinate'),
     },
